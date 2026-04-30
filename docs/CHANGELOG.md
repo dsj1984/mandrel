@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.30.3] - 2026-04-30
+
+### Worktree force-drain with Windows handle escalation
+
+Adds Stage 3 of the Windows worktree reap fallback: when standard
+`drainPendingCleanup` leaves entries stuck because user-mode processes
+still hold handles inside the worktree, enumerate the holders via
+PowerShell `Get-CimInstance Win32_Process` and `taskkill /T /F` them
+before re-trying. Wired into both `/sprint-plan` (via `worktree-sweep`)
+and `/sprint-close` (Phase 7 cleanup) so the
+`.worktrees/.pending-cleanup.json` ledger self-heals across sprints
+instead of accumulating persistent-lock entries that pin across runs.
+Adds standalone `/drain-pending-cleanup` CLI with `--dry-run` and
+`--no-escalate` for operator-driven runs. Kernel-held locks (Search
+indexer, AV) remain visible-only — the no-user-mode-holders branch
+logs and defers to the next sweep.
+
 ## [5.30.2] - 2026-04-27
 
 ### Close-workflow ergonomics: per-file lint diff + sprint-review severity classification
