@@ -34,7 +34,7 @@ import * as defaultGit from '../../git-utils.js';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { AGENT_LABELS } from '../../label-constants.js';
 import { parseWorktreePorcelain } from '../../worktree/inspector.js';
-import { drainPendingCleanup } from '../../worktree/lifecycle/pending-cleanup.js';
+import { forceDrainPendingCleanup } from '../../worktree/lifecycle/force-drain.js';
 
 const DONE_LABEL = AGENT_LABELS.DONE;
 
@@ -88,10 +88,12 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
   const resolvedWorktreeRoot =
     worktreeRoot ?? path.join(repoRoot, '.worktrees');
 
-  // Stage 2: drain pending-cleanup manifest before touching the live
-  // worktree list. Retrying the Stage 1 sequence here picks up entries
-  // whose Windows file locks have since released.
-  const drainResult = await drainPendingCleanup({
+  // Stage 2 + Stage 3: drain pending-cleanup manifest before touching the
+  // live worktree list. Retrying the Stage 1 sequence here picks up entries
+  // whose Windows file locks have since released; entries still stuck get
+  // their handle-holders enumerated and terminated (Windows only) so the
+  // ledger self-heals across sprints instead of accumulating.
+  const drainResult = await forceDrainPendingCleanup({
     repoRoot,
     worktreeRoot: resolvedWorktreeRoot,
     git,

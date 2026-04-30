@@ -37,16 +37,19 @@
  *     [--no-reap-discard-after-merge]
  */
 
+import path from 'node:path';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import * as gitUtils from './lib/git-utils.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { toDone } from './lib/orchestration/label-transitions.js';
 import { postStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
 
 const progress = Logger.createProgress('sprint-close', { stderr: false });
@@ -261,6 +264,53 @@ async function phaseFinalizeBranchCleanup(
   // fails with "checked out in worktree" if they aren't removed first.
   if (wtConfig?.enabled) {
     try {
+      // Drain any pending-cleanup ledger entries first, escalating to
+      // taskkill on Windows for entries whose holders are user-mode
+      // processes (test runners, lingering biome/tsc, etc.). Without
+      // this, worktrees that hit EBUSY during sprint-story-close stay
+      // pinned across sprints and accumulate in `.worktrees/.pending-cleanup.json`.
+      const worktreeRoot = path.resolve(
+        PROJECT_ROOT,
+        wtConfig.root ?? '.worktrees',
+      );
+      progress(
+        'CLEANUP',
+        'Draining pending-cleanup manifest (with escalation)...',
+      );
+      const drainResult = await forceDrainPendingCleanup({
+        repoRoot: PROJECT_ROOT,
+        worktreeRoot,
+        git: gitUtils,
+        logger: {
+          info: (m) => progress('WORKTREE', m),
+          warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
+          error: (m) => console.error(`[sprint-close] ${m}`),
+        },
+      });
+      if (drainResult.drained.length > 0) {
+        progress(
+          'CLEANUP',
+          `Drained ${drainResult.drained.length} pending-cleanup entry(ies): ${drainResult.drained
+            .map((id) => `story-${id}`)
+            .join(', ')}`,
+        );
+      }
+      if (drainResult.escalated.length > 0) {
+        progress(
+          'CLEANUP',
+          `Escalation killed holders for: ${drainResult.escalated
+            .map((id) => `story-${id}`)
+            .join(', ')}`,
+        );
+      }
+      if (drainResult.persistent.length > 0) {
+        warnings.push(
+          `pending-cleanup persistent-lock: ${drainResult.persistent
+            .map((id) => `story-${id}`)
+            .join(', ')}`,
+        );
+      }
+
       progress('CLEANUP', 'Reaping stale worktrees...');
       await wm.sweepStaleLocks();
       const epicBranchName = `epic/${epicId}`;

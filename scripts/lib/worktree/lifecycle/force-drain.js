@@ -1,0 +1,237 @@
+/**
+ * worktree/lifecycle/force-drain.js
+ *
+ * Stage 3 of the Windows worktree reap fallback: when Stage 2
+ * (`drainPendingCleanup`) repeatedly fails to clear an entry because some
+ * process is still holding handles inside the worktree, this module
+ * enumerates the holding processes via PowerShell `Get-CimInstance
+ * Win32_Process`, terminates them with `taskkill /T /F`, and re-runs the
+ * Stage 2 drain.
+ *
+ * Detection is best-effort: it matches process `ExecutablePath` and
+ * `CommandLine` against the worktree path. Kernel-held locks (Windows
+ * Search indexer, AV scanners) won't show up — those entries stay in the
+ * manifest and surface again on the next sweep, by which time the
+ * indexer/AV has usually moved on.
+ *
+ * Non-Windows: this module is a no-op (`findHoldersInPath` returns `[]`),
+ * so calling `forceDrainPendingCleanup` is safe everywhere — it just
+ * degrades to the standard drain.
+ */
+
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { NOOP_LOGGER } from '../../Logger.js';
+import { drainPendingCleanup, readManifest } from './pending-cleanup.js';
+
+const SETTLE_MS = 500;
+
+/**
+ * Enumerate Windows processes whose ExecutablePath or CommandLine is rooted
+ * inside `wtPath`. On non-Windows, returns `[]`. Any PowerShell failure
+ * (timeout, parse error, exit !=0) also returns `[]` — this is best-effort
+ * escalation, never a hard error path.
+ *
+ * @param {string} wtPath Absolute path to the worktree directory.
+ * @param {object} [opts]
+ * @param {Function} [opts.spawn] Injection point for tests (default `spawnSync`).
+ * @param {string} [opts.platform] Override `process.platform` for tests.
+ * @returns {Array<{pid:number, name:string, path?:string, commandLine?:string}>}
+ */
+export function findHoldersInPath(wtPath, opts = {}) {
+  const spawn = opts.spawn ?? spawnSync;
+  const platform = opts.platform ?? process.platform;
+  if (platform !== 'win32') return [];
+  if (!wtPath) return [];
+
+  const normalized = path.resolve(wtPath);
+  // Single-quote escape for PowerShell: double any embedded single quote.
+  const psNeedle = normalized.replace(/'/g, "''");
+
+  const script = [
+    `$needle = '${psNeedle}'`,
+    `$wild = $needle + '*'`,
+    `$wildAny = '*' + $needle + '*'`,
+    `Get-CimInstance Win32_Process |`,
+    `  Where-Object {`,
+    `    ($_.ExecutablePath -and $_.ExecutablePath -like $wild) -or`,
+    `    ($_.CommandLine -and $_.CommandLine -like $wildAny)`,
+    `  } |`,
+    `  Select-Object ProcessId, Name, ExecutablePath, CommandLine |`,
+    `  ConvertTo-Json -Compress -Depth 2`,
+  ].join('\n');
+
+  let res;
+  try {
+    res = spawn(
+      'powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+      { encoding: 'utf8', timeout: 15_000 },
+    );
+  } catch {
+    return [];
+  }
+  if (!res || res.status !== 0 || !res.stdout) return [];
+
+  const raw = String(res.stdout).trim();
+  if (!raw) return [];
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
+  }
+  const list = Array.isArray(parsed) ? parsed : [parsed];
+  return list
+    .filter((p) => p && typeof p.ProcessId === 'number' && p.ProcessId > 0)
+    .map((p) => ({
+      pid: p.ProcessId,
+      name: typeof p.Name === 'string' ? p.Name : '?',
+      path: typeof p.ExecutablePath === 'string' ? p.ExecutablePath : undefined,
+      commandLine:
+        typeof p.CommandLine === 'string' ? p.CommandLine : undefined,
+    }));
+}
+
+/**
+ * `taskkill /T /F /PID <pid>` for each holder. Returns the pids reported
+ * as terminated. Per-pid failures are logged but do not throw — caller
+ * decides whether the partial kill is enough to retry.
+ */
+export function terminateHolders(holders, opts = {}) {
+  const spawn = opts.spawn ?? spawnSync;
+  const platform = opts.platform ?? process.platform;
+  const logger = opts.logger ?? NOOP_LOGGER;
+  if (platform !== 'win32') return [];
+  if (!Array.isArray(holders) || holders.length === 0) return [];
+
+  const killed = [];
+  for (const h of holders) {
+    if (!h || typeof h.pid !== 'number') continue;
+    let res;
+    try {
+      res = spawn('taskkill.exe', ['/T', '/F', '/PID', String(h.pid)], {
+        encoding: 'utf8',
+        timeout: 10_000,
+      });
+    } catch (err) {
+      logger.warn(
+        `force-drain: taskkill spawn failed pid=${h.pid}: ${err.message}`,
+      );
+      continue;
+    }
+    if (res && res.status === 0) {
+      killed.push(h.pid);
+      logger.warn(
+        `force-drain: terminated pid=${h.pid} name=${h.name} path=${h.path ?? '?'}`,
+      );
+    } else {
+      const stderr = (res?.stderr || res?.stdout || '').toString().trim();
+      logger.warn(
+        `force-drain: taskkill pid=${h.pid} failed: ${stderr || 'unknown'}`,
+      );
+    }
+  }
+  return killed;
+}
+
+/**
+ * Drain the pending-cleanup manifest with escalation. Runs the standard
+ * `drainPendingCleanup` first; for any entry left in `stillPending` or
+ * `persistent`, enumerates handle-holders inside the worktree path,
+ * terminates them, and re-drains.
+ *
+ * Result extends the standard drain shape with:
+ *   - `escalated`:  storyIds where holders were detected AND killed.
+ *   - `killedPids`: { [storyId]: number[] } pids terminated per entry.
+ *   - `noHolders`:  storyIds whose lock could not be attributed to a
+ *                   user-mode process (likely indexer/AV/kernel).
+ *
+ * Escalation is gated on `escalate: true` (default); pass `false` to
+ * mirror the legacy `drainPendingCleanup` behaviour exactly.
+ */
+export async function forceDrainPendingCleanup({
+  repoRoot,
+  worktreeRoot,
+  git,
+  fsRm,
+  logger = NOOP_LOGGER,
+  findHolders = findHoldersInPath,
+  killHolders = terminateHolders,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+  escalate = true,
+} = {}) {
+  const first = await drainPendingCleanup({
+    repoRoot,
+    worktreeRoot,
+    git,
+    fsRm,
+    logger,
+  });
+
+  const empty = { escalated: [], killedPids: {}, noHolders: [] };
+  if (!escalate) return { ...first, ...empty };
+
+  const stuck = [...first.stillPending, ...first.persistent];
+  if (stuck.length === 0) return { ...first, ...empty };
+
+  const escalated = [];
+  const killedPids = {};
+  const noHolders = [];
+  const stuckSet = new Set(stuck);
+  const entries = readManifest(worktreeRoot).filter((e) =>
+    stuckSet.has(e.storyId),
+  );
+
+  for (const entry of entries) {
+    const holders = findHolders(entry.path);
+    if (holders.length === 0) {
+      logger.warn(
+        `force-drain: no user-mode holders for storyId=${entry.storyId} path=${entry.path} ` +
+          `(likely Search indexer / AV / kernel handle — will retry next sweep)`,
+      );
+      noHolders.push(entry.storyId);
+      continue;
+    }
+    logger.warn(
+      `force-drain: escalating storyId=${entry.storyId} — ${holders.length} holder(s) detected`,
+    );
+    const killed = killHolders(holders, { logger });
+    if (killed.length === 0) continue;
+    killedPids[entry.storyId] = killed;
+    escalated.push(entry.storyId);
+  }
+
+  if (escalated.length === 0) {
+    return { ...first, escalated, killedPids, noHolders };
+  }
+
+  await sleep(SETTLE_MS);
+
+  const second = await drainPendingCleanup({
+    repoRoot,
+    worktreeRoot,
+    git,
+    fsRm,
+    logger,
+  });
+
+  const drainedSet = new Set([...first.drained, ...second.drained]);
+  const drainedDetails = [
+    ...first.drainedDetails,
+    ...second.drainedDetails.filter(
+      (d) => !first.drainedDetails.some((f) => f.storyId === d.storyId),
+    ),
+  ];
+  return {
+    drained: [...drainedSet],
+    drainedDetails,
+    persistent: second.persistent,
+    persistentDetails: second.persistentDetails,
+    stillPending: second.stillPending,
+    stillPendingDetails: second.stillPendingDetails,
+    escalated,
+    killedPids,
+    noHolders,
+  };
+}
