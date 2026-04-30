@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
-  schedule:
-    - cron: '0 0 * * *' # Run nightly
   workflow_dispatch: # Allow manual triggering
 
 concurrency:
