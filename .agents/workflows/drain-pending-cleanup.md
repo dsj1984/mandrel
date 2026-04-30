@@ -73,6 +73,21 @@ When `findHoldersInPath()` returns `[]` for a stuck entry, the script
 emits a `no user-mode holders` warning and leaves the entry for the next
 sweep — by which time the indexer/AV has usually moved on.
 
+## Constraint
+
+- **Never** call `git worktree` directly from inside the drain helper —
+  always go through `pending-cleanup.js` / `force-drain.js`. They
+  enforce manifest atomicity and Stage-1/Stage-2/Stage-3 ordering.
+- **Never** widen `findHoldersInPath()` to kill processes outside the
+  worktree path. Match must be rooted at the worktree directory; a
+  loose match risks terminating unrelated user processes.
+- **Always** treat escalation as best-effort: PowerShell or `taskkill`
+  failures must degrade to "leave the entry in the manifest" rather
+  than throw — the next sweep retries.
+- **Always** preserve the `escalate: false` opt-out path so the
+  legacy `drainPendingCleanup` behaviour is reachable when an operator
+  needs to inspect without acting.
+
 ## Manual escape hatch
 
 When even escalation can't clear an entry, the pre-`ff34fa9` recipe still
