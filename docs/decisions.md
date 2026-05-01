@@ -511,9 +511,12 @@ config is read-only at runtime; no workflow writes it.
   history thrash. Web sessions auto-disable worktrees; local sessions retain
   the v5.7.0 isolation behaviour. Operators can force either mode locally with
   one env var.
-- **Positive:** `runtime.sessionId` is available for the claim-protocol's
-  `in-progress-by:<sessionId>` label and `[claim]` structured comment without
-  a separate identity layer.
+- **Positive:** `runtime.sessionId` is available as a stable per-process
+  identity surfaced in the startup `[ENV] sessionId=…` log line for
+  operator log-correlation, with no separate identity layer required.
+  *(The original consumer of this id — the claim-protocol pool mode —
+  was retired in story #909; the field is preserved for diagnostics
+  only.)*
 - **Negative:** The resolver consumes process environment, not config — typos
   in env var names fall through silently to the next rule. Mitigated by
   string-equality matching (`'true'` / `'false'` literal) so `"0"` / `""` /

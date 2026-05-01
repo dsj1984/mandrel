@@ -59,45 +59,13 @@ Route by `mode`:
   a `type::feature` container or a `type::task` that should be executed
   through its parent Story.
 
-### Step 0a — Pool mode (no ticket id)
+### Step 0a — Story id is required
 
-If `/sprint-execute` was invoked **without** a ticket id, run **Pool Mode** to
-claim the next eligible Story from the active Epic's dispatch manifest before
-falling into Story Mode below:
-
-```bash
-node .agents/scripts/pool-claim.js [--epic <epicId>]
-```
-
-`--epic` is optional: when omitted the script reads the only
-`temp/dispatch-manifest-*.json` on disk; if zero or several manifests are
-present it exits with a clear error so the operator can disambiguate.
-
-The script prints a single-line JSON result:
-
-```json
-{ "ok": true,  "storyId": N, "story": { ... }, "sessionId": "...", "epicId": N, "attempts": K }
-{ "ok": false, "reason": "no-eligible" | "max-attempts-exhausted" | "manifest-load-failed" | ... , "details": ... }
-```
-
-Behaviour by outcome:
-
-- `ok: true` → resume Story Mode below using the returned `storyId`. The
-  `in-progress-by:<sessionId>` label is already set and the `[claim]` comment
-  has been posted; do **not** re-claim. If init or implementation later fails,
-  the operator can release the claim by removing the `in-progress-by:*` label
-  from the issue (or transitioning the Story back to `agent::ready` via
-  `update-ticket-state.js`) so a sibling session can pick it up.
-- `ok: false, reason: no-eligible` → exit 0 and report the reason. No Story is
-  available; the wave is fully claimed, fully done, or every candidate has
-  unmerged blockers.
-- `ok: false, reason: manifest-load-failed` → re-run `/sprint-plan` to refresh
-  the manifest, then retry.
-- Any other `ok: false` → relay the `reason` and `hint` to the operator.
-
-Pool Mode composes with the launch-time **dependency guard** (Step 0 of Story
-Mode): a Story whose blockers are not yet merged is silently skipped during
-candidate scoring, so the guard never has to fire on a pool-mode pick.
+`/sprint-execute` requires a ticket id. The legacy "Pool Mode" path
+(invocation without an id, claim via `in-progress-by:<sessionId>` label)
+was retired in story #909 in favour of deterministic parent-driven story
+assignment from the wave-execute skill. Operators always launch with an
+explicit Story or Epic id; sibling sessions never race on the same Story.
 
 ---
 

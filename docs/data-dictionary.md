@@ -18,9 +18,10 @@ This document defines the core data structures and schemas used across the Agent
 > absence). Each row carries `{file, method, startLine, crap}` plus
 > envelope-level `kernelVersion` and `escomplexVersion` stamps so a kernel
 > drift fails the gate cleanly. The grouped `orchestration.runners` block
-> now holds `epicRunner`, `planRunner`, `concurrency`, `closeRetry`, and
-> `poolMode` as nested keys (the previously-flat peer keys under
-> `orchestration` are gone).
+> holds `epicRunner`, `planRunner`, `concurrency`, and `closeRetry` as
+> nested keys (the previously-flat peer keys under `orchestration` are
+> gone). The retired `poolMode` peer was removed alongside the
+> claim-protocol pool mode in story #909.
 
 ---
 
@@ -304,22 +305,14 @@ Identity, claim, retry, and resolver surfaces shipped by the
 | --- | --- | --- |
 | `AP_WORKTREE_ENABLED` | Env var | Operator override for the worktree resolver. Strict string match: `"true"` forces worktrees on; `"false"` forces worktrees off. Wins over the `CLAUDE_CODE_REMOTE` auto-detect and the committed config. Any other value falls through. |
 | `CLAUDE_CODE_REMOTE` | Env var | Web-session marker set automatically inside claude.ai/code. When `=== "true"` and `AP_WORKTREE_ENABLED` is unset, the resolver disables worktrees. Also drives `runtime.isRemote`. |
-| `CLAUDE_CODE_REMOTE_SESSION_ID` | Env var | Anthropic-provided web session id. Preferred input to `runtime.sessionId`; sanitised to `[a-z0-9]` and truncated to `orchestration.poolMode.sessionIdLength` (default 12). |
-| `runtime.sessionId` | Runtime field | Process-local identity used for the claim label and `[claim]` comment. Prefers `CLAUDE_CODE_REMOTE_SESSION_ID`; falls back to a hostname+pid+random short-id. Stable across the run. |
+| `CLAUDE_CODE_REMOTE_SESSION_ID` | Env var | Anthropic-provided web session id. Preferred input to `runtime.sessionId`; sanitised to `[a-z0-9]` and truncated to 12 chars. |
+| `runtime.sessionId` | Runtime field | Process-local identity surfaced in the startup `[ENV] sessionId=…` log line for operator correlation. Prefers `CLAUDE_CODE_REMOTE_SESSION_ID`; falls back to a hostname+pid+random short-id. Stable across the run. |
 | `resolveWorktreeEnabled(opts, env)` | Helper | `lib/config-resolver.js`. Returns the resolved boolean per ADR 20260424-668a precedence (env override → web auto-detect → committed config). |
-| `resolveSessionId(env)` | Helper | `lib/config-resolver.js`. Returns the sanitised, truncated session-id used by the claim protocol. |
+| `resolveSessionId(env)` | Helper | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line. |
 | `resolveRuntime(opts, env)` | Helper | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line. |
-| `in-progress-by:<sessionId>` | Issue label | Claim marker added to a Story issue at pool-mode launch. Indicates that `<sessionId>` is currently working the Story. Removed by the same session on race-loss; surfaced as **reclaimable** when older than `staleClaimMinutes`. GitHub label-name limit (50 chars) is preserved by the 12-char default `sessionIdLength`. |
-| `[claim]` structured comment | Structured comment | Posted to the Story issue at claim time via `postStructuredComment` with marker key `claim-<storyId>`. Body shape: `[claim] session=<sessionId> story=<storyId> at=<ISO8601>`. Idempotent per session — re-claims by the same session replace the prior comment. |
-| `findEligibleStory(epicId, manifest, { runtime })` | Pool-mode helper | `lib/pool-mode.js`. Scans the dispatch manifest for the next story with `agent::ready`, no `in-progress-by:*` label, and no unmerged blockers. Returns `{ storyId, story }` or `{ reason: 'no-eligible', details, skipped }`. |
-| `claimStory(storyId, runtime, ctx)` | Pool-mode helper | `lib/pool-mode.js`. Adds `in-progress-by:<sessionId>` and posts the `[claim]` comment, then read-back-verifies. Returns `{ ok, raceDetected, winnerSessionId }`. |
-| `releaseStory(storyId, runtime, ctx)` | Pool-mode helper | `lib/pool-mode.js`. Removes the session's `in-progress-by:<sessionId>` label after a race-loss. |
-| `listReclaimable(epicId, { runtime, nowMs })` | Pool-mode helper | `lib/pool-mode.js`. Surfaces `in-progress-by:*` labels older than `staleClaimMinutes` as reclaimable in pool-mode launch output. Operator-decision; no auto-sweep. |
 | `orchestration.closeRetry` | Config block | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close. |
-| `orchestration.poolMode` | Config block | `{ staleClaimMinutes: integer ≥ 1, sessionIdLength: integer ≥ 4 }`. Both keys optional. Defaults: `60` / `12`. Controls reclaim surfacing and session-id truncation. |
 | `pushEpicWithRetry(...)` | Helper | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work. |
-| `runDispatchManifestGuard({ storyId, ... })` | Helper | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `sprint-story-init.js` startup. Refuses launch if any of the story's blockers are unmerged; prints each blocker's id, state, and URL; exits 0. Composes with pool-mode eligibility. |
-| `pool-claim.js` | CLI | `.agents/scripts/pool-claim.js [--epic <id>] [--max-attempts <n>]`. Pool-mode entry point invoked when `/sprint-execute` runs without a story id. Prints the claimed story id as JSON for the caller to feed into `sprint-story-init.js --story <id>`. |
+| `runDispatchManifestGuard({ storyId, ... })` | Helper | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `sprint-story-init.js` startup. Refuses launch if any of the story's blockers are unmerged; prints each blocker's id, state, and URL; exits 0. |
 
 ### 17. Epic #702 Artefacts — MCP Server Retirement
 

@@ -384,69 +384,6 @@ describe('validateOrchestrationConfig — closeRetry', () => {
 });
 
 // ---------------------------------------------------------------------------
-// validateOrchestrationConfig — poolMode
-// ---------------------------------------------------------------------------
-describe('validateOrchestrationConfig — poolMode', () => {
-  const baseGithub = { owner: 'org', repo: 'repo' };
-
-  it('accepts a full poolMode block', () => {
-    assert.doesNotThrow(() =>
-      validateOrchestrationConfig({
-        provider: 'github',
-        github: baseGithub,
-        runners: { poolMode: { staleClaimMinutes: 60, sessionIdLength: 12 } },
-      }),
-    );
-  });
-
-  it('accepts an empty poolMode block (defaults apply at consumer)', () => {
-    assert.doesNotThrow(() =>
-      validateOrchestrationConfig({
-        provider: 'github',
-        github: baseGithub,
-        runners: { poolMode: {} },
-      }),
-    );
-  });
-
-  it('rejects staleClaimMinutes < 1', () => {
-    assert.throws(
-      () =>
-        validateOrchestrationConfig({
-          provider: 'github',
-          github: baseGithub,
-          runners: { poolMode: { staleClaimMinutes: 0 } },
-        }),
-      /must be >= 1/,
-    );
-  });
-
-  it('rejects sessionIdLength < 4', () => {
-    assert.throws(
-      () =>
-        validateOrchestrationConfig({
-          provider: 'github',
-          github: baseGithub,
-          runners: { poolMode: { sessionIdLength: 2 } },
-        }),
-      /must be >= 4/,
-    );
-  });
-
-  it('rejects unknown keys in poolMode', () => {
-    assert.throws(
-      () =>
-        validateOrchestrationConfig({
-          provider: 'github',
-          github: baseGithub,
-          runners: { poolMode: { staleClaim: 60 } },
-        }),
-      /must NOT have additional properties/,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
 // validateOrchestrationConfig — worktreeIsolation
 // ---------------------------------------------------------------------------
 describe('validateOrchestrationConfig — worktreeIsolation', () => {

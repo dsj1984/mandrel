@@ -428,14 +428,6 @@
       },
       "additionalProperties": false
     },
-    "poolMode": {
-      "type": "object",
-      "properties": {
-        "staleClaimMinutes": { "type": "integer", "minimum": 1 },
-        "sessionIdLength": { "type": "integer", "minimum": 4 }
-      },
-      "additionalProperties": false
-    },
     "decomposer": {
       "type": "object",
       "properties": {
@@ -450,7 +442,6 @@
         "planRunner": { "$ref": "#/$defs/planRunner" },
         "concurrency": { "$ref": "#/$defs/concurrency" },
         "closeRetry": { "$ref": "#/$defs/closeRetry" },
-        "poolMode": { "$ref": "#/$defs/poolMode" },
         "decomposer": { "$ref": "#/$defs/decomposer" }
       },
       "additionalProperties": false

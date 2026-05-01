@@ -4,7 +4,6 @@ import { getRunners } from '../../.agents/scripts/lib/config/runners.js';
 import {
   DEFAULT_CLOSE_RETRY,
   DEFAULT_DECOMPOSER,
-  DEFAULT_POOL_MODE,
 } from '../../.agents/scripts/lib/config-schema.js';
 
 describe('getRunners', () => {
@@ -15,7 +14,6 @@ describe('getRunners', () => {
       assert.deepEqual(r.planRunner, {});
       assert.deepEqual(r.concurrency, {});
       assert.equal(r.closeRetry, DEFAULT_CLOSE_RETRY);
-      assert.equal(r.poolMode, DEFAULT_POOL_MODE);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
     }
   });
@@ -28,7 +26,6 @@ describe('getRunners', () => {
           planRunner: { enabled: false, pollIntervalSec: 45 },
           concurrency: { waveGate: 2, commitAssertion: 3, progressReporter: 4 },
           closeRetry: { maxAttempts: 5, backoffMs: [100, 200, 400, 800, 1600] },
-          poolMode: { staleClaimMinutes: 30, sessionIdLength: 16 },
           decomposer: { concurrencyCap: 7 },
         },
       },
@@ -44,10 +41,6 @@ describe('getRunners', () => {
     assert.deepEqual(r.closeRetry, {
       maxAttempts: 5,
       backoffMs: [100, 200, 400, 800, 1600],
-    });
-    assert.deepEqual(r.poolMode, {
-      staleClaimMinutes: 30,
-      sessionIdLength: 16,
     });
     assert.deepEqual(r.decomposer, { concurrencyCap: 7 });
   });
@@ -65,7 +58,6 @@ describe('getRunners', () => {
     assert.deepEqual(r.planRunner, {});
     assert.deepEqual(r.concurrency, {});
     assert.equal(r.closeRetry, DEFAULT_CLOSE_RETRY);
-    assert.equal(r.poolMode, DEFAULT_POOL_MODE);
     assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
   });
 
@@ -77,7 +69,7 @@ describe('getRunners', () => {
     };
     const r = getRunners(orchestration);
     assert.deepEqual(r.closeRetry, { maxAttempts: 7, backoffMs: [50] });
-    assert.equal(r.poolMode, DEFAULT_POOL_MODE);
+    assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
   });
 
   it('ignores legacy flat sub-blocks under orchestration (atomic cutover)', () => {
@@ -101,12 +93,9 @@ describe('getRunners', () => {
     assert.equal(typeof facade.getRunners, 'function');
     const r = facade.getRunners({
       orchestration: {
-        runners: { poolMode: { staleClaimMinutes: 45, sessionIdLength: 8 } },
+        runners: { decomposer: { concurrencyCap: 9 } },
       },
     });
-    assert.deepEqual(r.poolMode, {
-      staleClaimMinutes: 45,
-      sessionIdLength: 8,
-    });
+    assert.deepEqual(r.decomposer, { concurrencyCap: 9 });
   });
 });

@@ -189,28 +189,6 @@ export const DEFAULT_CLOSE_RETRY = Object.freeze({
 });
 
 /**
- * `orchestration.runners.poolMode` — claim-based pool mode for `/sprint-execute`
- * invoked without a story id. `staleClaimMinutes` controls when an
- * `in-progress-by:*` label is surfaced as reclaimable in pool-mode output;
- * `sessionIdLength` caps the truncated session-id used in the label suffix
- * (GitHub label names are limited to 50 chars).
- */
-const POOL_MODE_SCHEMA = {
-  type: 'object',
-  properties: {
-    staleClaimMinutes: { type: 'integer', minimum: 1 },
-    sessionIdLength: { type: 'integer', minimum: 4 },
-  },
-  additionalProperties: false,
-};
-
-/** Default applied when `orchestration.runners.poolMode` is absent or incomplete. */
-export const DEFAULT_POOL_MODE = Object.freeze({
-  staleClaimMinutes: 60,
-  sessionIdLength: 12,
-});
-
-/**
  * `orchestration.runners.concurrency` — per-site caps for the `concurrentMap`
  * adoption sites shipped in v5.21.0 (Epic #553). All keys optional;
  * omitting them preserves the v5.21.0 constant-valued defaults exactly.
@@ -255,10 +233,10 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
 
 /**
  * `orchestration.runners` — typed grouping of every runner-flavoured sub-block
- * (epicRunner, planRunner, concurrency, closeRetry, poolMode, decomposer)
- * introduced in Epic #773 Story 7. Replaces the prior flat layout where each
- * sub-block sat directly under `orchestration`. Each sub-schema is preserved
- * byte-for-byte; only the parent location changes.
+ * (epicRunner, planRunner, concurrency, closeRetry, decomposer) introduced in
+ * Epic #773 Story 7. Replaces the prior flat layout where each sub-block sat
+ * directly under `orchestration`. Each sub-schema is preserved byte-for-byte;
+ * only the parent location changes.
  */
 const RUNNERS_SCHEMA = {
   type: 'object',
@@ -267,7 +245,6 @@ const RUNNERS_SCHEMA = {
     planRunner: PLAN_RUNNER_SCHEMA,
     concurrency: CONCURRENCY_SCHEMA,
     closeRetry: CLOSE_RETRY_SCHEMA,
-    poolMode: POOL_MODE_SCHEMA,
     decomposer: DECOMPOSER_SCHEMA,
   },
   additionalProperties: false,

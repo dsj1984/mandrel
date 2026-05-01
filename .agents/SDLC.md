@@ -275,33 +275,20 @@ Agents update their state in real-time on GitHub:
 When a Task reaches `agent::done`, the runner re-evaluates the DAG and
 dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
-### Pool-mode launch (claim protocol)
+### Story assignment (deterministic)
 
-`/sprint-execute` invoked without a story id enters **pool mode**. The session
-reads the Epic's dispatch manifest and claims the first story that is
+`/sprint-execute` requires an explicit ticket id. Operators pick distinct
+Story ids off the dispatch table emitted by `/sprint-plan` and launch one
+session per id. The legacy claim-protocol pool mode (no-id launch + label
+race + reclaim window) was retired in story #909 once the wave-execute skill
+took over deterministic parent-driven assignment; sibling sessions never
+race on the same Story.
 
-- labelled `agent::ready`,
-- has no `in-progress-by:*` label, and
-- has no unmerged blockers.
-
-Claim happens in two writes — adding `in-progress-by:<sessionId>` to the
-Story issue and posting a `[claim] session=<sessionId> story=<storyId>
-at=<ISO8601>` structured comment. After both writes the labels are read back;
-if more than one `in-progress-by:*` label is present the session lost a race,
-removes its label, and tries the next eligible story. If no eligible story
-remains the session exits 0 with a visible reason ("wave fully claimed or
-complete").
-
-`runtime.sessionId` is the operating identity. It prefers the
+`runtime.sessionId` survives as a stable per-process identity surfaced in
+the startup `[ENV]` log line for operator correlation. It prefers the
 `CLAUDE_CODE_REMOTE_SESSION_ID` env var (set automatically inside web
-sessions) and falls back to a 12-char locally-generated short-id derived from
-hostname+pid+random. The id is truncated to
-`orchestration.poolMode.sessionIdLength` (default 12) so the label name stays
-under GitHub's 50-char ceiling.
-
-Stale claims older than `orchestration.poolMode.staleClaimMinutes` (default
-60) are surfaced as **reclaimable** in pool-mode launch output. The operator
-decides whether to take over; this Epic does not auto-sweep.
+sessions) and falls back to a 12-char locally-generated short-id derived
+from hostname+pid+random.
 
 ### Launch-time dependency guard
 
@@ -312,8 +299,7 @@ Unmerged blockers print each blocker's id, state, and URL; the session exits
 missing or stale-format manifest emits a warning and proceeds — the guard is
 a footgun-prevention layer, not a strict gate.
 
-The guard runs identically on web and local. Pool mode composes with it —
-blocker-unmerged stories never become eligible candidates.
+The guard runs identically on web and local.
 
 ### Concurrent close — push retry
 
