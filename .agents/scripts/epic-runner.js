@@ -7,12 +7,12 @@
  *   node .agents/scripts/epic-runner.js --epic <epicId> [--dry-run]
  *
  * The engine no longer fans out via `child_process.spawn`. Story dispatch is
- * performed by the `/epic-execute` slash command using the in-session Agent
- * tool, so this CLI is dry-run-only — it computes the wave plan and prints
- * the engine config without dispatching any Story. Operators driving an Epic
- * to completion should use `/epic-execute <epicId>` from their Claude session.
+ * performed in-session by the `/epic-execute` slash command using the Agent
+ * tool, so this CLI is dry-run-only — it computes the per-wave dispatch list
+ * the skill would consume and prints it without touching ticket state.
+ * Operators driving an Epic to completion should use `/epic-execute <epicId>`
+ * from their Claude session.
  */
-
 import { runAsCli } from './lib/cli-utils.js';
 
 function parseArgs(argv) {
@@ -74,12 +74,18 @@ async function main() {
   const { epicRunner } = getRunners(config.orchestration);
 
   if (args.dryRun) {
+    const dispatchPlan = await buildDispatchPlan({
+      epicId: args.epicId,
+      orchestration: config.orchestration,
+      concurrencyCap: epicRunner.concurrencyCap,
+    });
     console.log(
       JSON.stringify(
         {
           epicId: args.epicId,
           dryRun: true,
           epicRunner,
+          waves: dispatchPlan,
         },
         null,
         2,
@@ -92,9 +98,46 @@ async function main() {
     '[epic-runner] ERROR: this CLI no longer dispatches Stories on its own.\n' +
       '  Story fan-out runs in-session via the Agent tool — invoke the\n' +
       '  `/epic-execute <epicId>` slash command from a Claude session, or\n' +
-      '  re-run with `--dry-run` to print the wave plan + config.',
+      '  re-run with `--dry-run` to print the per-wave dispatch plan.',
   );
   process.exit(2);
+}
+
+/**
+ * Build the per-wave dispatch list the `/epic-execute` skill consumes.
+ * Reuses the engine's snapshot + build-wave-dag phases so the dry-run output
+ * matches what the skill will dispatch at runtime.
+ *
+ * @returns {Promise<Array<{ wave: number, stories: Array<{ storyId: number, title?: string, modelTier: string, worktree?: string }> }>>}
+ */
+async function buildDispatchPlan({ epicId, orchestration, concurrencyCap }) {
+  const [
+    { createProvider },
+    { runSnapshotPhase },
+    { runBuildWaveDagPhase },
+    { StoryLauncher },
+  ] = await Promise.all([
+    import('./lib/provider-factory.js'),
+    import('./lib/orchestration/epic-runner/phases/snapshot.js'),
+    import('./lib/orchestration/epic-runner/phases/build-wave-dag.js'),
+    import('./lib/orchestration/epic-runner/story-launcher.js'),
+  ]);
+
+  const provider = createProvider(orchestration);
+  const ctx = { epicId, provider };
+
+  let state = {};
+  state = await runSnapshotPhase(ctx, {}, state);
+  state = await runBuildWaveDagPhase(ctx, {}, state);
+
+  const launcher = new StoryLauncher({ concurrencyCap });
+  return state.waves.map((stories, index) => ({
+    wave: index,
+    stories: launcher.planWave(stories).map((entry, i) => ({
+      ...entry,
+      title: stories[i]?.title,
+    })),
+  }));
 }
 
 runAsCli(import.meta.url, main, { source: 'EpicRunner' });
