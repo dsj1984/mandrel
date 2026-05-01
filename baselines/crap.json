@@ -676,10 +676,16 @@
       "startLine": 33
     },
     {
-      "crap": 15.8865,
+      "crap": 17.410593538692716,
       "file": ".agents/scripts/epic-runner.js",
       "method": "main",
       "startLine": 39
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-runner.js",
+      "method": "buildDispatchPlan",
+      "startLine": 113
     },
     {
       "crap": 2,
@@ -2288,6 +2294,24 @@
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/stalled-worktree.js",
       "method": "detect",
       "startLine": 23
+    },
+    {
+      "crap": 10.04551661356395,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "normalizeTask",
+      "startLine": 73
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "renderStoryRunProgressBody",
+      "startLine": 114
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "upsertStoryRunProgress",
+      "startLine": 195
     },
     {
       "crap": 8,
