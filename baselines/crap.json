@@ -2290,6 +2290,24 @@
       "startLine": 23
     },
     {
+      "crap": 10.04551661356395,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "normalizeTask",
+      "startLine": 73
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "renderStoryRunProgressBody",
+      "startLine": 114
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
+      "method": "upsertStoryRunProgress",
+      "startLine": 195
+    },
+    {
       "crap": 8,
       "file": ".agents/scripts/lib/orchestration/epic-runner/version-bump-intent.js",
       "method": "parseVersionBumpIntent",
