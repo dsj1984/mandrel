@@ -77,6 +77,7 @@ not bulk-accept one side without reading the deltas first.
   `epic/<epicId>`, never `main`).
 - **Never** `git checkout` to another branch inside the Task loop. The
   worktree's HEAD is the Story branch by construction; leave it pinned.
+<!-- # justification: prose rule prohibiting --no-verify, not a code example. -->
 - **Never** skip commit hooks (`--no-verify`, `--no-gpg-sign`). The hooks
   are the same ones the close-validation chain runs — bypassing them just
   defers the failure to merge time.
