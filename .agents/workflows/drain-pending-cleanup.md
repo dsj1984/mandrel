@@ -32,7 +32,7 @@ All automatic paths call `forceDrainPendingCleanup()` (or are folded into
 
 ## When to run it manually
 
-- The end-of-sprint banner reports `pending-cleanup persistent-lock: story-N, ...`.
+- The end-of-epic banner reports `pending-cleanup persistent-lock: story-N, ...`.
 - `git worktree list` shows `.worktrees/story-N/` for a closed Story.
 - `npm run lint` fails because of a nested `biome.json` in a half-reaped
   worktree (see [`feedback_orphan_worktree_biome_block.md`](../../memory/feedback_orphan_worktree_biome_block.md)).
