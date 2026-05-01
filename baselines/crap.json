@@ -2753,61 +2753,61 @@
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "storyWorktreePath",
       "startLine": 42
     },
     {
       "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "hasUnmergedMarkers",
       "startLine": 56
     },
     {
       "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "hasAnyUncommittedChanges",
       "startLine": 67
     },
     {
       "crap": 9,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "detectPriorPhase",
       "startLine": 84
     },
     {
       "crap": 9.00173611111111,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "computeRecoveryMode",
       "startLine": 167
     },
     {
       "crap": 20,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "dropWorktreeIfPresent",
       "startLine": 204
     },
     {
       "crap": 12,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "recreateStoryBranchRef",
       "startLine": 217
     },
     {
       "crap": 20,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "reseedWorktreeIfNeeded",
       "startLine": 227
     },
     {
       "crap": 5.6365966796875,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "restartStoryState",
       "startLine": 251
     },
     {
       "crap": 8,
-      "file": ".agents/scripts/lib/orchestration/sprint-story-close-recovery.js",
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "dispatchRecovery",
       "startLine": 321
     },

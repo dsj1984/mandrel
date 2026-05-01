@@ -82,7 +82,7 @@ Not invoked directly by operators, but referenced from other workflows:
   auto-invoked by `epic-close` (Phase 3) and the `epic-execute` bookends.
 - `helpers/epic-retro.md` — retrospective authoring procedure, auto-invoked
   by `epic-close` (Phase 6).
-- `helpers/epic-testing.md` — QA evidence ingest for the sprint-testing
+- `helpers/epic-testing.md` — QA evidence ingest for the Epic-testing
   ticket, invoked by `epic-close` / operator; consumes `/run-bdd-suite`
   output.
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —

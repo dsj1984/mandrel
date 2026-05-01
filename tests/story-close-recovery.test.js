@@ -8,7 +8,7 @@ import {
   dispatchRecovery,
   RECOVERY_ACTIONS,
   RECOVERY_STATES,
-} from '../.agents/scripts/lib/orchestration/sprint-story-close-recovery.js';
+} from '../.agents/scripts/lib/orchestration/story-close-recovery.js';
 
 function makeGit({
   mainStatus = '',

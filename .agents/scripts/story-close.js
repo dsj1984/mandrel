@@ -58,7 +58,7 @@ import {
 import { Logger } from './lib/Logger.js';
 import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
 import { runPostMergePipeline } from './lib/orchestration/post-merge-pipeline.js';
-import { dispatchRecovery } from './lib/orchestration/sprint-story-close-recovery.js';
+import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import {

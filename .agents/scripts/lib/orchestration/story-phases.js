@@ -10,7 +10,7 @@
  *   CLOSED      → tickets + branches reaped.
  *
  * Used by orchestration code (e.g. prior-phase detection in
- * `sprint-story-close-recovery.js`) to classify where a Story currently sits.
+ * `story-close-recovery.js`) to classify where a Story currently sits.
  */
 export const PHASES = Object.freeze({
   UNSTARTED: 'unstarted',

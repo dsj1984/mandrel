@@ -59,7 +59,7 @@ authoring.
 - Point `playwright.config.ts` at the generated directory via `testDir`; keep a
   single `defineBddConfig` block that lists `features` and `steps` paths.
 - Register the Cucumber HTML/JSON reporter alongside the Playwright HTML
-  reporter so sprint-testing evidence matches the format expected by
+  reporter so Epic-testing evidence matches the format expected by
   `/run-bdd-suite`.
 - Use Playwright projects (not Cucumber profiles) for browser matrix fan-out —
   keeps sharding, retries, and trace config in one place.
@@ -111,7 +111,7 @@ authoring.
 - Run `bddgen` once per job before `playwright test`; cache the generated
   directory only if the cache key includes every `.feature` and step file.
 - Publish the Cucumber HTML/JSON report as the evidence artifact consumed by the
-  `sprint-testing` workflow, alongside the Playwright HTML report and any trace
+  `epic-testing` helper, alongside the Playwright HTML report and any trace
   zips.
 - Quarantine `@flaky` scenarios with a dedicated job that does not gate the
   merge queue; do not silently retry flakes in the main suite.

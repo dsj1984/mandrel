@@ -188,14 +188,14 @@ as informational metadata queryable in retros.
 ### 8. Epic #380 Artefacts (v5.15.1)
 
 New runtime artefacts and structured-comment types introduced by Epic
-#380's sprint-protocol self-healing + orchestration refactor work.
+#380's protocol self-healing + orchestration refactor work.
 
 | Term                              | Kind                     | Definition                                                                                                                                                   |
 | --------------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `epic-run-progress`               | Structured comment       | Periodic wave-progress snapshot upserted on the Epic by `ProgressReporter`. Cadence set by `orchestration.epicRunner.progressReportIntervalSec` (default 120s). Marker-keyed via `upsertStructuredComment`. |
-| `retro-partial`                   | Structured comment       | Mid-run checkpoint written by `/sprint-retro` so a crashed retro can resume without re-collecting friction data. Replaced by the final `retro-complete` marker on success. |
+| `retro-partial`                   | Structured comment       | Mid-run checkpoint written by the `epic-retro` helper so a crashed retro can resume without re-collecting friction data. Replaced by the final `retro-complete` marker on success. |
 | `epic-<id>-errors.log`            | File (JSONL)             | Structured error journal under `temp/`, written by `ErrorJournal` in `lib/orchestration/error-journal.js`. One JSON object per line: `{ ts, phase, error, context }`. Replaces silent `catch` + `logger.warn` sites. |
-| `.worktrees/.pending-cleanup.json` | File (JSON)              | Deferred-cleanup queue written when a reap cannot delete the worktree directory (e.g. Windows `EBUSY` / `ENOTEMPTY`). Drained by `forceDrainPendingCleanup` / `sweepStaleStoryWorktrees` (`worktree-sweep.js`), `drainPendingCleanupAtBoot`, `sprint-story-close`, and `sprint-close`. Stage 2 uses `git worktree remove` (then `fs.rm`); avoids shell `rm -rf`. |
+| `.worktrees/.pending-cleanup.json` | File (JSON)              | Deferred-cleanup queue written when a reap cannot delete the worktree directory (e.g. Windows `EBUSY` / `ENOTEMPTY`). Drained by `forceDrainPendingCleanup` / `sweepStaleStoryWorktrees` (`worktree-sweep.js`), `drainPendingCleanupAtBoot`, `story-close`, and `epic-close`. Stage 2 uses `git worktree remove` (then `fs.rm`); avoids shell `rm -rf`. |
 | `progressReportIntervalSec`       | Config (integer)         | `orchestration.epicRunner.progressReportIntervalSec`; interval (seconds) between `epic-run-progress` emissions. Added to the config schema in Epic #380; `planRunner.notificationWebhookUrl` was removed in the same commit as no longer-honoured legacy. |
 | `OrchestrationContext` / `EpicRunnerContext` / `PlanRunnerContext` | In-memory ctx object | DI container shared by every orchestration submodule. Fields: `provider`, `settings`, `logger`, `errorJournal`, plus role-specific extras (see `lib/orchestration/context.js`). Replaces the prior `opts` bag convention. |
 
@@ -231,7 +231,7 @@ Epic #413).
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-close` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint            | `/epic-execute` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`. |
 | Launcher-level config validation                    | Contract              | `validateOrchestrationConfig(config)` is now invoked in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins (complements Story #436's resolver-level coverage). |
-| `CommitAssertion` grep fallback                     | Behavior              | `buildDefaultGitAdapter` now falls back to `git log origin/epic/<id> --grep='resolves #<storyId>'` when `origin/story-<id>` is missing (expected state after `sprint-story-close` deletes the remote branch). A non-zero fallback count is treated as proof the Story's work landed; a zero-result fallback surfaces the original `unknown revision` error so genuine zero-deltas still record. |
+| `CommitAssertion` grep fallback                     | Behavior              | `buildDefaultGitAdapter` now falls back to `git log origin/epic/<id> --grep='resolves #<storyId>'` when `origin/story-<id>` is missing (expected state after `story-close` deletes the remote branch). A non-zero fallback count is treated as proof the Story's work landed; a zero-result fallback surfaces the original `unknown revision` error so genuine zero-deltas still record. |
 
 ### 11. Epic #470 Artefacts (v5.17.0)
 
@@ -270,7 +270,7 @@ epic-runner performance Epic.
 
 | Term | Kind | Definition |
 | --- | --- | --- |
-| `concurrentMap(items, fn, { concurrency })` | Utility | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper used by `sprint-wave-gate`, wave-end `commit-assertion` (cap 4), and `ProgressReporter` (cap 8). Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
+| `concurrentMap(items, fn, { concurrency })` | Utility | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper used by `wave-gate`, wave-end `commit-assertion` (cap 4), and `ProgressReporter` (cap 8). Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
 | `getTicket(id, { maxAgeMs })` | API opt | `GitHubProvider.getTicket` honors a caller-supplied max age. Entries older than `maxAgeMs` are treated as cache misses and refetched; newer entries are served from cache. Complements the existing `{ fresh: true }` opt. |
 | `primeTicketCache(tickets)` sweep contract | Behavior | Every `provider.getTickets(epicId)` call site is followed by `primeTicketCache(result)` so downstream `getTicket` lookups for the same Epic issue zero additional HTTP round-trips. |
 | `phase-timer` | Module | `lib/util/phase-timer.js` + `phase-timer-state.js`. Records `{ phase, elapsedMs }` spans with `snapshot` / `restore` so timings survive story-init → story-close. Threaded through `story-init.js` and `story-close.js`. |
@@ -310,7 +310,7 @@ Configurable surfaces and helpers shipped by the post-#553 retro follow-on Epic.
 | --- | --- | --- |
 | `orchestration.concurrency` | Config block | `{ waveGate: integer ≥ 0, commitAssertion: integer ≥ 1, progressReporter: integer ≥ 1 }`. All keys optional. Defaults: `0` (uncapped — Promise.all preserved) / `4` / `8`, matching the v5.21.0 constants bit-for-bit. `additionalProperties: false`. |
 | `resolveConcurrency(source)` | Helper | `lib/orchestration/concurrency.js`. Reads either `orchestration.concurrency` or a pre-narrowed concurrency block, coerces per-field, falls back to `DEFAULT_CONCURRENCY` on missing/malformed values. Returned object is frozen. |
-| `ctx.concurrency` | Runtime surface | Frozen `{ waveGate, commitAssertion, progressReporter }` on both `createRuntimeContext` and every `OrchestrationContext` subclass. `CommitAssertion` and `ProgressReporter` read their cap through `ctx.concurrency.*` via the epic-runner factory; `sprint-wave-gate` resolves via `injectedConcurrency` or `resolveConfig()`. |
+| `ctx.concurrency` | Runtime surface | Frozen `{ waveGate, commitAssertion, progressReporter }` on both `createRuntimeContext` and every `OrchestrationContext` subclass. `CommitAssertion` and `ProgressReporter` read their cap through `ctx.concurrency.*` via the epic-runner factory; `wave-gate` resolves via `injectedConcurrency` or `resolveConfig()`. |
 | `aggregate-phase-timings.js` | CLI | `.agents/scripts/aggregate-phase-timings.js --epic <id> [--epic N …] [--from-file <path>] [--out <path>]`. Reads `phase-timings` structured comments across Story tickets, computes per-phase p50/p95, emits a markdown summary plus recommended concurrency caps. Zero-sample runs exit 1 with the v5.21.0 defaults recommended. |
 | `changelog-style.md` | Rule file | `.agents/rules/changelog-style.md`. Guidance-tier contract for release-entry shape: 1–3 sentence theme paragraph, bullets of user-visible changes only, banned content list, breaking-change prominence, soft ≤ 60 lines / non-major, ≤ 150 lines / major. `/epic-close` Phase 2 references the rule. |
 | `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of `helpers/epic-retro.md`. |
@@ -320,7 +320,7 @@ Configurable surfaces and helpers shipped by the post-#553 retro follow-on Epic.
 ### 16. Epic #668 Artefacts — Web-Parallel Execution (v5.24.0; renamed in #900)
 
 Identity, claim, retry, and resolver surfaces shipped by the
-"parallel sprint-execute on Claude Code web" Epic.
+"web-parallel execution on Claude Code" Epic.
 
 | Term | Kind | Definition |
 | --- | --- | --- |
@@ -406,8 +406,8 @@ Evidence is per-clone, gitignored, and never committed.
 
 Evidence is keyed on `{ scopeId, gateName }` and lives at
 `temp/validation-evidence-<scopeId>.json`. The wrapper at
-`evidence-gate.js` is the only writer; close-validation, sprint-code-review,
-and sprint-close Phase 4 are the readers. `--no-evidence` on any wrapper
+`evidence-gate.js` is the only writer; close-validation, epic-code-review,
+and epic-close Phase 4 are the readers. `--no-evidence` on any wrapper
 invocation forces a re-run and overwrites the record on success.
 
 ## Notification Filters (Epic #817 update)
@@ -427,7 +427,7 @@ Health structured comment is refreshed during Epic execution:
 | Value             | Behaviour                                                                  |
 | ----------------- | -------------------------------------------------------------------------- |
 | `every-close`     | Refresh on every story-close. Legacy default.                              |
-| `wave-boundary`   | Refresh only at wave transitions and at sprint-close. Current default.     |
+| `wave-boundary`   | Refresh only at wave transitions and at epic-close. Current default.       |
 | `every-n-closes`  | Refresh every Nth close, where N comes from `healthMonitor.everyNCloses`.  |
 
 `wave-boundary` is the recommended setting for large Epics; the per-close

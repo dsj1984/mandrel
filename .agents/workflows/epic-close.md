@@ -220,7 +220,7 @@ fails: **STOP**. Fix the regressions on a hotfix branch and merge back into
 the Epic branch before restarting this workflow.
 
 > **Operator reminder.** Phase 4 is now load-bearing on the SHA-keyed
-> evidence wrapper — if a phase upstream (story-close, sprint-code-review)
+> evidence wrapper — if a phase upstream (story-close, epic-code-review)
 > has already validated the current `HEAD`, this phase skips in
 > milliseconds. When a flaky test slipped past upstream and you need a
 > forced re-run, `--no-evidence` is the explicit override. Pre-push hooks

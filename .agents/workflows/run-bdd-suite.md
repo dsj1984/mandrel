@@ -89,7 +89,7 @@ by the run:
 
 - **Cucumber JSON** (machine-readable) — the primary artifact. Consumed by
   [`helpers/epic-testing.md`](helpers/epic-testing.md) to attach to the
-  sprint-testing ticket and by any downstream aggregation.
+  Epic's QA evidence ticket and by any downstream aggregation.
 - **Cucumber HTML** (human-readable) — attached alongside the JSON for
   reviewer convenience.
 - **Playwright traces** for failed scenarios — captured by the
@@ -109,7 +109,7 @@ Summarize the run in chat with:
   artifacts.
 - For any failure, the scenario name, file path, and a one-line symptom.
 
-If the run was triggered from a sprint-testing context, follow
+If the run was triggered from an Epic-testing context, follow
 [`helpers/epic-testing.md`](helpers/epic-testing.md) for where to attach
 the report and how to transition the ticket.
 

@@ -42,7 +42,7 @@ function isDocsExcluded(full) {
 function walkMarkdown(dir, { excludeFn } = {}, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (excludeFn && excludeFn(full)) continue;
+    if (excludeFn?.(full)) continue;
     if (entry.isDirectory()) {
       walkMarkdown(full, { excludeFn }, out);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {

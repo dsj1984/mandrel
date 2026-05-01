@@ -173,7 +173,7 @@ Each dispatched story runs in its own `git worktree`:
     `isSafeToRemove`, `gc`. No other code calls `git worktree` directly.
 3.  **Dispatcher integration:** `dispatch()` ensures the worktree before
     dispatching and threads its path as `cwd` through the adapter;
-    `sprint-story-close` reaps after a successful merge.
+    `story-close` reaps after a successful merge.
 4.  **Fallback:** `orchestration.worktreeIsolation.enabled: false`
     restores single-tree behavior; v5.5.1 guards remain the primary
     defense in that mode.
@@ -411,10 +411,10 @@ accumulate as clutter.
 | `epic-run-state`     | `Checkpointer`              | JSON checkpoint (`currentWave`, `autoClose`, wave history). |
 | `wave-<N>-start`     | `WaveObserver.waveStart`    | Per-wave start manifest + timestamp.                        |
 | `wave-<N>-end`       | `WaveObserver.waveEnd`      | Per-wave outcomes + duration.                               |
-| `dispatch-manifest`  | `sprint-plan` / dispatcher  | Frozen Story manifest for the wave-gate.                    |
-| `parked-follow-ons`  | dispatcher                  | Out-of-manifest Stories surfaced at sprint-close gate.      |
-| `retro`              | `/sprint-retro`             | Final retrospective body with `retro-complete` marker.      |
-| `code-review`        | (planned, Epic #349)        | Findings report from `/sprint-code-review`.                 |
+| `dispatch-manifest`  | `epic-plan` / dispatcher    | Frozen Story manifest for the wave-gate.                    |
+| `parked-follow-ons`  | dispatcher                  | Out-of-manifest Stories surfaced at epic-close gate.        |
+| `retro`              | `epic-retro` helper         | Final retrospective body with `retro-complete` marker.      |
+| `code-review`        | `epic-code-review` helper   | Findings report from the code-review helper.                |
 
 **When to reach for this pattern:** orchestrator state that must
 survive restarts, be human-readable on the issue, and be
@@ -556,7 +556,7 @@ fixtures may construct a bare ctx without a journal, and that must
 remain valid. In production the journal is always wired by the runner
 entry points. The resulting `temp/epic-<id>-errors.log` is a JSONL
 stream consumable by the retro aggregator (and, planned, by the
-sprint-health dashboard).
+Epic-health dashboard).
 
 ### Benefits
 
@@ -645,7 +645,7 @@ every wave and renders a single grouped table:
 |------|-----|--------------|-----------------------------------------------|
 | 1    | #419| ✅ done      | Spawner hardening suite                       |
 | 1    | #420| ✅ done      | Post-wave commit assertion                    |
-| 1    | #421| ✅ done      | sprint-story-close --resume / --restart       |
+| 1    | #421| ✅ done      | story-close --resume / --restart              |
 | 1    | #422| ✅ done      | Biome format gate + tagging sanity check      |
 | 1    | #423| ✅ done      | error-journal parse-fix, validator wiring     |
 | 2    | #424| 🔧 in-flight | ProgressReporter detectors + CI Node matrix   |
@@ -667,24 +667,17 @@ maintainability-drift) belong in the `Notable` section under the
 table — they fire once per snapshot, not once per row, so a column
 would mostly be blank.
 
-## `epic-runner` per-story log destination is configurable (v5.15.2 / Epic #413)
+## `epic-runner` per-story log destination (v5.15.2 / Epic #413; retired in #900)
 
-`orchestration.epicRunner.logsDir` controls where the runner CLI
-writes per-story (`story-<id>.log`) and per-bookend
-(`bookend-sprint-close-<epicId>.log`) subprocess logs. Default:
-`temp/epic-runner-logs/` (was `.epic-runner-logs/` at the project root,
-which leaked into untracked status output during every run).
-
-The `defaultSpawn` and `defaultRunSkill` adapters in
-`.agents/scripts/epic-runner.js` read the value once at CLI launch and
-thread it as a closure into each subprocess. Tests don't need this
-key — they inject their own `spawn` adapter via `EpicRunnerContext`.
-
-**When to override:** only when running against a constrained
-filesystem (e.g., `temp/` is mounted read-only in a container), or
-when correlating runner logs with an external log shipper that
-already watches a non-standard path. The default is right for every
-local-dev and CI invocation.
+> **Retired in Epic #900 (v5.31.0).** The `orchestration.epicRunner.logsDir`
+> config key, the `defaultSpawn` / `defaultRunSkill` adapter pair, and the
+> per-story `story-<id>.log` + per-bookend `bookend-epic-close-<epicId>.log`
+> subprocess log files were all removed when subprocess fan-out was
+> replaced by single-session Agent-tool sub-agents. Story sub-agents now
+> emit their work into the parent Claude session's transcript directly;
+> there is no separate per-story log file to point a config key at. This
+> section is preserved as a pattern record for downstream projects that
+> still spawn per-story subprocesses.
 
 ---
 
@@ -895,7 +888,7 @@ at the protocol boundary.
 
 ### Problem
 
-Framework hot paths that read many tickets per tick — `sprint-wave-gate`
+Framework hot paths that read many tickets per tick — `wave-gate`
 (`getTicket` per story / recut / parked), `ProgressReporter` (per-story
 label read on every cadence tick), wave-end `commit-assertion` (per-story
 git probe) — were serial `for..of` loops over `await`. On a 20-story
@@ -969,8 +962,8 @@ prove it; framework maintainers had no way to refute it.
 
 `lib/util/phase-timer.js` + `phase-timer-state.js`. The timer records
 `{ phase, elapsedMs }` spans and exposes `snapshot` / `restore` so
-state survives the `sprint-story-init` → spawned agent →
-`sprint-story-close` boundary (where three separate processes handle
+state survives the `story-init` → sub-agent →
+`story-close` boundary (where three separate phases handle
 one Story). Per-phase lines are emitted during the lifecycle; on
 close, a `phase-timings` structured comment is posted to the Story
 ticket. `ProgressReporter.setPlan()` reads closed-story timings and
@@ -1226,8 +1219,8 @@ Pattern shape:
 1. **Authoritative gate runs first.** `story-close.js`'s
    close-validation chain is the source of truth — when it passes, it
    writes evidence.
-2. **Subsequent phases consult evidence.** `sprint-code-review`,
-   `sprint-close` Phase 4, and any other downstream caller wrap the same
+2. **Subsequent phases consult evidence.** `epic-code-review`,
+   `epic-close` Phase 4, and any other downstream caller wrap the same
    gate via `evidence-gate.js`. They skip when the recorded SHA still
    matches `HEAD` and the command config hash is unchanged.
 3. **Any drift invalidates.** A new commit, a working-tree change at

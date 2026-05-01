@@ -363,7 +363,7 @@ Wave 1:
 
 `CommitAssertion`'s default git adapter now falls back to a
 `resolves #<storyId>` grep on `origin/epic/<id>` when
-`origin/story-<id>` has already been deleted by `sprint-story-close` —
+`origin/story-<id>` has already been deleted by `story-close` —
 closing the window where a successfully-merged Story was misreported
 as a zero-delta failure.
 
@@ -374,10 +374,10 @@ fanout:
 
 | Module                                              | Role                                                                                                                                                                                                                                             |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/util/concurrent-map.js` (new)                  | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `sprint-wave-gate` (no cap), wave-end `commit-assertion` (cap 4), and `ProgressReporter` (cap 8).                                                             |
+| `lib/util/concurrent-map.js` (new)                  | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `wave-gate` (no cap), wave-end `commit-assertion` (cap 4), and `ProgressReporter` (cap 8).                                                                    |
 | `providers/github/cache-manager.js` (extended)      | `getTicket(id, { maxAgeMs })` treats entries older than the caller's max age as cache misses. The progress-reporter uses `{ maxAgeMs: 10_000 }` so repeat ticks inside the TTL serve from cache; `primeTicketCache` is called after every `getTickets(epicId)` sweep so downstream `getTicket` reads cost zero HTTP. |
 | `lib/orchestration/epic-runner/state-poller.js` (extended) | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large. Malformed payloads or missing `labels` arrays fall back to the per-ticket path; out-of-scope issues in the bulk response are filtered against the tracked-story set. |
-| `lib/util/phase-timer.js` + `phase-timer-state.js` (new) | Records `{ phase, elapsedMs }` spans across the `sprint-story-init` → spawned agent → `sprint-story-close` process boundaries via `snapshot` / `restore`. On close, posts a `phase-timings` structured comment on the Story ticket.              |
+| `lib/util/phase-timer.js` + `phase-timer-state.js` (new) | Records `{ phase, elapsedMs }` spans across the `story-init` → spawned agent → `story-close` process boundaries via `snapshot` / `restore`. On close, posts a `phase-timings` structured comment on the Story ticket.                            |
 | `ProgressReporter.setPlan()` (extended)             | Reads closed-story `phase-timings` comments for the current Epic and renders **median / p95** per phase into the `epic-run-progress` comment so consumer projects can distinguish framework overhead from their own install/validation cost.    |
 
 Additional framework-wide reductions landed in the same Epic:
@@ -397,7 +397,7 @@ resolver at `lib/orchestration/concurrency.js`:
 
 | Key | Default | Semantics |
 | --- | --- | --- |
-| `waveGate` | `0` (uncapped) | `sprint-wave-gate` retains the v5.21.0 `Promise.all` fanout when omitted; a positive integer routes through `concurrentMap` with that cap. |
+| `waveGate` | `0` (uncapped) | `wave-gate` retains the v5.21.0 `Promise.all` fanout when omitted; a positive integer routes through `concurrentMap` with that cap. |
 | `commitAssertion` | `4` | Wave-end `CommitAssertion.check` concurrent git-read cap. |
 | `progressReporter` | `8` | Progress-reporter concurrent `provider.getTicket` cap. |
 
