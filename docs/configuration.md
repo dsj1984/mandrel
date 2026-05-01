@@ -147,11 +147,10 @@ Both CLI sites self-skip when `crap.enabled === false`. The capture step is
 idempotent on warm worktrees — only stale or missing artifacts trigger a
 test:coverage run.
 
-##### Missing-baseline behaviour (Story #791)
+##### Missing-baseline behaviour
 
-The transitional informational mode that exited 0 with a "no baseline found"
-hint was retired in Story #791. With `crap.enabled: true` and
-`baselines/crap.json` absent, all three gate sites now fail closed (exit 1).
+With `crap.enabled: true` and `baselines/crap.json` absent, all three gate
+sites fail closed (exit 1).
 Bootstrap the baseline explicitly: `npm run test:coverage` to produce
 `coverage/coverage-final.json`, then `npm run crap:update` to write
 `baselines/crap.json`, and commit the file with a `baseline-refresh:` tagged
@@ -174,7 +173,7 @@ resolver accepts the block as a whole and exposes `getLimits()`.
 | Field                | Required | Default | Purpose                                                            |
 | -------------------- | -------- | ------- | ------------------------------------------------------------------ |
 | `maxInstructionSteps`| No       | `5`     | Soft cap on instruction-set steps (planning hint).                 |
-| `maxTickets`         | No       | `40`    | Soft cap on tickets a single sprint may decompose.                 |
+| `maxTickets`         | No       | `40`    | Soft cap on tickets a single Epic may decompose.                   |
 | `maxTokenBudget`     | No       | `200000`| Soft cap on per-call token budget (planning hint).                 |
 | `executionTimeoutMs` | No       | `300000`| Per-spawn timeout for child processes the framework launches.       |
 | `executionMaxBuffer` | No       | `10485760` | Max stdout/stderr buffer (bytes) for child processes.            |
@@ -239,9 +238,9 @@ when any of these are tripped.
 | ------------------ | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `mentionOperator`  | No       | `false`                    | When `true`, friction comments @-mention `operatorHandle`.                                           |
 | `minLevel`         | No       | `medium`                   | Minimum severity emitted to the notification webhook (`low`/`medium`/`high`).                         |
-| `commentMinLevel`  | No       | inherits `minLevel`        | Minimum severity that posts a GitHub comment (Epic #817). Lower than `minLevel` widens comments only. |
+| `commentMinLevel`  | No       | inherits `minLevel`        | Minimum severity that posts a GitHub comment (independent of webhook delivery). Lower than `minLevel` widens comments only. |
 
-> **`minLevel` vs `commentMinLevel`** (Epic #817, v5.28.0+). `minLevel`
+> **`minLevel` vs `commentMinLevel`.** `minLevel`
 > filters webhook deliveries (Slack / Discord / Make.com); `commentMinLevel`
 > filters GitHub comment posting independently. Setting them apart lets
 > you keep webhook traffic terse (`high` only) while still recording a
@@ -312,7 +311,7 @@ number of keys.
 
 | File                            | Audience                            | Role                                                                                                                                |
 | ------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)     | The framework dogfooding itself     | Live config used when running `/sprint-*` workflows against this repo. Exercises the framework end-to-end on its own source tree.   |
+| `.agentrc.json` (repo root)     | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-execute` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
 | `.agents/default-agentrc.json`  | Downstream consumer repos           | Template a consumer copies via `cp .agents/default-agentrc.json .agentrc.json` when bootstrapping. Sane defaults for any repo.      |
 
 | Key                                       | Root dogfood                          | Distributed template                | Why they differ                                                                                                                                                                          |

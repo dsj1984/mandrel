@@ -1,50 +1,12 @@
 # Design Patterns
 
-> **Epic #900 update.** The **Hierarchy-aligned slash-command split**
-> pattern was added in v5.31.0: a single mega-skill that routed by label
-> (the legacy `sprint-execute`) was replaced by four narrow skills aligned
-> to the Epic-centric ticket hierarchy — `/epic-execute` (wave loop),
-> `/wave-execute` (one wave's Story fan-out), `/story-execute` (init →
-> task loop → close for one Story), and the `task-execute.md` helper read
-> inline by `/story-execute`. The shape lets the operator stop or resume
-> at any level and removes the "skill routes by label" indirection. In
-> the same Epic, **single-session Agent-tool fan-out** replaced the
-> `claude -p` subprocess spawn — Story sub-agents launch through the
-> Agent tool inside the operator's Claude session, so worktree
-> filesystem isolation is preserved while the process boundary, the
-> idle watchdog, the headless `--dangerously-skip-permissions` contract,
-> and the progress-log tailing dance all disappear. References below to
-> the legacy `sprint-execute` / `sprint-plan` / `sprint-close` /
-> `sprint-retro` skills or `sprint-{story,wave,code-review,hierarchy}-*.js`
-> scripts predate this Epic; the current names are `/epic-execute`,
-> `/epic-plan`, `/epic-close`, the `epic-retro.md` helper, and
-> `epic-{story,wave,code-review,hierarchy,plan}-*.js` respectively.
->
-> **Epic #857 update.** The **Rule-as-SSOT** pattern — first modeled by
-> `.agents/rules/gherkin-standards.md` and its `gherkin-authoring` skill
-> companion — was applied to three further high-traffic surfaces: API
-> conventions (`api-conventions.md` + `api-and-interface-design`),
-> security baseline (`security-baseline.md` + `security-and-hardening`),
-> and testing standards (`testing-standards.md` +
-> `test-driven-development`). The rule files own the canonical taxonomy
-> (response envelope, status codes, validation taxonomy, MUST lists,
-> test-tier placement); the corresponding skills slim to process,
-> examples, and anchored deep-links back into the rule. The shape lets
-> agents load only the rule when they need the constraint and only the
-> skill when they need the process — and prevents the duplicate-guidance
-> drift that motivated this Epic.
->
-> **Epic #773 update.** The **Facade + Responsibility-Bounded Submodules**
-> pattern (originally documented for the v5.13.0 facade pass) was applied
-> to two further large modules: `providers/github.js` and
-> `lib/worktree/lifecycle-manager.js`. Each top-level file is now a ≤250
-> LOC facade re-exporting submodules under `providers/github/*` and
-> `lib/worktree/lifecycle/*`, with strict ctx-threading discipline (no
-> inter-submodule imports). Public class surfaces remain byte-identical.
-> The same pattern also drove the `config-resolver.js` split into
-> `quality`/`paths`/`commands`/`limits`/`runners` accessor submodules.
+This document records the architectural patterns adopted across Agent
+Protocols. Each entry describes the problem the pattern solves, the shape of
+the solution, and the trade-offs it accepts. Use it as a reference when
+designing new components — applying an established pattern is preferred over
+inventing parallel surface area.
 
-## Schema-First, Grouped Configuration (Epic #730)
+## Schema-First, Grouped Configuration
 
 ### Problem
 
@@ -157,14 +119,14 @@ The **Story-Level Branching** pattern restricts the integration scope:
 
 ---
 
-## Worktree-per-Story Isolation (v5.7.0+)
+## Worktree-per-Story Isolation
 
 ### Problem
-Under parallel sprint execution, multiple story agents share the same working
+Under parallel Epic execution, multiple story agents share the same working
 tree. Rapid `git checkout` swaps cause one agent's `git add -A` to sweep WIP
-from a different agent's story into the wrong commit. The v5.5.1 guards
-prevent the specific observed failure modes but not the underlying class of
-bug: multiple agents mutating one working tree at the same time.
+from a different agent's story into the wrong commit. Per-checkout guards
+catch specific observed failure modes but not the underlying class of bug:
+multiple agents mutating one working tree at the same time.
 
 ### Solution
 Each dispatched story runs in its own `git worktree`:
@@ -175,11 +137,11 @@ Each dispatched story runs in its own `git worktree`:
     dispatching and threads its path as `cwd` through the adapter;
     `story-close` reaps after a successful merge.
 4.  **Fallback:** `orchestration.worktreeIsolation.enabled: false`
-    restores single-tree behavior; v5.5.1 guards remain the primary
-    defense in that mode.
+    restores single-tree behavior; the per-checkout pre-commit branch
+    guard remains the primary defense in that mode.
 
 ### Benefits
-*   Main-checkout HEAD never moves during a parallel sprint.
+*   Main-checkout HEAD never moves during a parallel run.
 *   Each story's staging, reflog, and checkout operations are isolated.
 *   Defense-in-depth preserved: pre-commit branch guard runs inside each worktree.
 *   Fallback mode is a first-class supported configuration.
@@ -192,7 +154,7 @@ Each dispatched story runs in its own `git worktree`:
 *   Windows path limits require a pre-flight warning when estimated depth
     exceeds the configured threshold.
 
-## Worktree-off Mode (Epic #668, v5.24.0+)
+## Worktree-off Mode
 
 ### Problem
 
@@ -200,8 +162,8 @@ Two execution environments coexist for the four-skill execution surface
 (`/epic-execute` / `/wave-execute` / `/story-execute`): local Claude Code
 sessions on a developer's machine (one shared filesystem, multiple agents) and
 web Claude Code sessions at claude.ai/code (each session is its own sandboxed
-clone). The worktree-isolation pattern from v5.7.0 was designed for the local
-case where a shared working tree had to be partitioned. On web that problem
+clone). The worktree-isolation pattern was designed for the local case where
+a shared working tree had to be partitioned. On web that problem
 doesn't exist — the session itself is already an isolated clone — so creating
 `.worktrees/story-<id>/` inside an already-isolated clone wastes disk, slows
 the install step, and makes path-length warnings spuriously fire.
@@ -268,7 +230,7 @@ id across its run for log correlation.
 
 ---
 
-## Rule-as-SSOT, Skill-as-Guidance (v5.11.0+)
+## Rule-as-SSOT, Skill-as-Guidance
 
 ### Problem
 
@@ -292,8 +254,8 @@ Adopt a strict layering:
    what artifact flows through the sprint. Defers to rule and skill for
    authoring specifics.
 
-Enforced by a cross-reference audit (see Story #282 / Task #294): grep each
-skill for redefinition of rule content and rewrite any violations.
+Enforced by a cross-reference audit: grep each skill for redefinition of
+rule content and rewrite any violations.
 
 ### Benefits
 
@@ -309,7 +271,7 @@ skill for redefinition of rule content and rewrite any violations.
     `@domain-<slug>` lets consumers add project-specific domains without
     touching the rule.
 
-### Example (this Epic)
+### Example
 
 `.agents/rules/gherkin-standards.md` owns the tag taxonomy and forbidden
 patterns. `gherkin-authoring` teaches PRD AC → Scenario translation and the
@@ -328,9 +290,11 @@ submodules behind a **thin facade**. The facade preserves every public
 export at the existing import path; submodules are internal
 implementation detail.
 
-Introduced by Epic #297 (v5.13.0) to split `lib/worktree-manager.js`
-(1,234 LOC), `lib/orchestration/dispatch-engine.js` (874 LOC), and
-`lib/presentation/manifest-renderer.js` (600 LOC).
+Applied to `lib/worktree-manager.js`, `lib/orchestration/dispatch-engine.js`,
+and `lib/presentation/manifest-renderer.js`. The same pattern drives the
+`config-resolver.js` split into accessor submodules under `lib/config/` and
+the `providers/github.js` decomposition into focused modules under
+`providers/github/*`.
 
 ### Pattern
 
@@ -370,7 +334,7 @@ Introduced by Epic #297 (v5.13.0) to split `lib/worktree-manager.js`
     `architecture.md` must explicitly note which paths are the stable
     public surface.
 
-### Example (this Epic)
+### Example
 
 ```text
 .agents/scripts/lib/worktree-manager.js       ← 223-LOC facade (public surface)
@@ -387,7 +351,7 @@ submodule paths are free to rename without a major version bump.
 
 ---
 
-## Marker-keyed structured comment upsert (v5.14.0)
+## Marker-keyed structured comment upsert
 
 Long-running orchestrator state lives on the Epic issue itself rather
 than in a local file or side database. The pattern relies on
@@ -496,17 +460,15 @@ Both queries should return no results when the convention holds.
 
 ---
 
-## OrchestrationContext Dependency Injection (v5.15.1)
+## OrchestrationContext Dependency Injection
 
 ### Problem
 
-The epic-runner and plan-runner submodules previously took a loosely-shaped
-`opts` bag as their first argument. Over the Epic #321 and Epic #349 cycles
-this object grew to hold `provider`, `logger`, `settings`, ad-hoc
-feature flags, injected `execImpl` for tests, and several siblings. Each
-new submodule picked a slightly different subset. Adding a new cross-cutting
-concern — for Epic #380 this was the `ErrorJournal` — meant editing every
-call site and hoping no path silently dropped the new field.
+A loosely-shaped `opts` bag accumulates `provider`, `logger`, `settings`,
+ad-hoc feature flags, injected adapters, and unrelated siblings. Each
+submodule picks a slightly different subset. Adding a new cross-cutting
+concern (`ErrorJournal` was the canonical example) requires editing every
+call site and hoping no path silently drops the new field.
 
 ### Pattern
 
@@ -561,7 +523,7 @@ Epic-health dashboard).
 ### Benefits
 
 *   Adding a new cross-cutting concern is a **one-line ctx extension** plus
-    grep-safe call-site updates. Epic #380 added `errorJournal` this way.
+    grep-safe call-site updates.
 *   Every submodule's first argument is typed and discoverable — no
     more "what's in `opts`?" guessing.
 *   Tests no longer need to guess which `opts` keys a submodule peeks
@@ -569,14 +531,14 @@ Epic-health dashboard).
 
 ### Trade-offs
 
-*   Converting the initial call sites is a one-time grind — Epic #380
-    Story #389 touched every `epic-runner/*` file.
+*   Converting the initial call sites is a one-time grind — every
+    `epic-runner/*` file accepts `ctx` as its first arg.
 *   The ctx constructor is the boundary where validation lives; don't
     sprinkle `if (!ctx.provider) …` checks across submodules.
 
 ---
 
-## `pollUntil` / `sleep` instead of hand-rolled poll loops (v5.15.1)
+## `pollUntil` / `sleep` instead of hand-rolled poll loops
 
 ### Problem
 
@@ -589,7 +551,7 @@ untestable without mocking `setTimeout`.
 
 ### Pattern
 
-Epic #380 Story #392 / #407 extracted `lib/util/poll-loop.js`:
+A shared helper at `lib/util/poll-loop.js`:
 
 ```js
 import { pollUntil, sleep } from '../util/poll-loop.js';
@@ -628,12 +590,12 @@ passes or `timeoutMs` elapses. `sleep(ms)` is the trivial awaitable
 *   Test fixtures can inject a fake clock against one module instead of
     three.
 
-## Whole-epic progress reporting via `setPlan` (v5.15.2 / Epic #413)
+## Whole-epic progress reporting via `setPlan`
 
 The `ProgressReporter` (`lib/orchestration/epic-runner/progress-reporter.js`)
-emits a periodic `epic-run-progress` snapshot. Before Epic #413 the
-snapshot only covered the active wave's stories — operators couldn't
-see queued work or completed earlier waves at a glance.
+emits a periodic `epic-run-progress` snapshot covering every story across
+every wave — queued, in-flight, done, blocked — so operators see the full
+Epic at a glance.
 
 `setPlan({ waves })` is called once at runner start with the full wave
 DAG. With a plan present, each fire fetches state for every story in
@@ -667,36 +629,21 @@ maintainability-drift) belong in the `Notable` section under the
 table — they fire once per snapshot, not once per row, so a column
 would mostly be blank.
 
-## `epic-runner` per-story log destination (v5.15.2 / Epic #413; retired in #900)
-
-> **Retired in Epic #900 (v5.31.0).** The `orchestration.epicRunner.logsDir`
-> config key, the `defaultSpawn` / `defaultRunSkill` adapter pair, and the
-> per-story `story-<id>.log` + per-bookend `bookend-epic-close-<epicId>.log`
-> subprocess log files were all removed when subprocess fan-out was
-> replaced by single-session Agent-tool sub-agents. Story sub-agents now
-> emit their work into the parent Claude session's transcript directly;
-> there is no separate per-story log file to point a config key at. This
-> section is preserved as a pattern record for downstream projects that
-> still spawn per-story subprocesses.
-
----
-
-## Per-Story rate-limited friction emission (v5.15.3 / Epic #441)
+## Per-Story rate-limited friction emission
 
 ### Problem
 
 Several failure sites in the orchestration pipeline (reap failures,
-wave-poller read failures, mid-Story baseline refreshes) were silent
-to the operator — they logged to stdout but never produced a
-machine-readable surface on the Story ticket. Epic #413's Wave 1 ran
-for ~30 minutes with the `variableNotUsed: $issueId` GraphQL error
-masking every Story's state as `unknown` and not a single `friction`
-comment was posted.
+wave-poller read failures, mid-Story baseline refreshes) can be silent
+to the operator — they log to stdout but never produce a machine-readable
+surface on the Story ticket. A single bad GraphQL variable can mask every
+Story's state as `unknown` for the duration of a wave without a single
+`friction` comment being posted.
 
 ### Solution
 
-`lib/orchestration/friction-emitter.js` wraps the MCP
-`post_structured_comment` tool with per-Story deduplication:
+`lib/orchestration/friction-emitter.js` wraps `provider.postComment` with
+per-Story deduplication:
 
 1. **Key.** Dedupe key is `storyId` + a hash of the friction body's
    marker slug (e.g. `friction: reap-skipped`).
@@ -718,17 +665,16 @@ attention.
 
 ---
 
-## Launcher-level config validation (v5.15.3 / Epic #441)
+## Launcher-level config validation
 
 ### Problem
 
-`validateOrchestrationConfig` was wired into `resolveConfig()` in
-Story #436 — but the actual CLI launchers (`epic-runner.js`,
-`plan-runner.js`, `epic-plan-spec.js`, `epic-plan-decompose.js`)
-call `resolveConfig()` and immediately dispatch to long-running
-flows. A schema-invalid `.agentrc.json` would surface deep inside the
-dispatch chain instead of at launcher startup, producing a confusing
-stack trace instead of a clear schema error.
+`validateOrchestrationConfig` is wired into `resolveConfig()`, but CLI
+launchers (`epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`,
+`epic-plan-decompose.js`) call `resolveConfig()` and immediately dispatch
+to long-running flows. A schema-invalid `.agentrc.json` would otherwise
+surface deep inside the dispatch chain instead of at launcher startup,
+producing a confusing stack trace instead of a clear schema error.
 
 ### Solution
 
@@ -746,7 +692,7 @@ in `main()` is the shift-left equivalent of a pre-flight check — a
 future refactor of `resolveConfig`'s internals can't accidentally
 drop the validation.
 
-## Coordinator-plus-Phases Decomposition (Epic #470)
+## Coordinator-plus-Phases Decomposition
 
 ### Problem
 
@@ -789,7 +735,7 @@ is uniform: `(ctx, collaborators, state) -> Promise<state>`.
   `lib/story-init/`) and by `story-close.js`'s post-merge
   pipeline.
 
-## `ctx` Runtime Context (Epic #470)
+## `ctx` Runtime Context
 
 ### Problem
 
@@ -815,7 +761,7 @@ opts-bag for a release of overlap.
   in integration tests — is a single-line override on the ctx object
   before it flows into the pipeline.
 
-## Atomic file write via tmp + rename (Epic #511)
+## Atomic file write via tmp + rename
 
 ### Problem
 
@@ -856,7 +802,7 @@ try {
   target live on the same filesystem. Putting the `.tmp` file next to the
   target guarantees this.
 
-## MCP tool-argument schema enforcement (Epic #511)
+## MCP tool-argument schema enforcement
 
 ### Problem
 
@@ -884,7 +830,7 @@ at the protocol boundary.
 - Tightened schemas catch subtle drifts (e.g. a `type::*` enum missing on
   one tool but present on its siblings) at the boundary.
 
-## Bounded-concurrency fanout via `concurrentMap` (Epic #553)
+## Bounded-concurrency fanout via `concurrentMap`
 
 ### Problem
 
@@ -921,7 +867,7 @@ each chosen for its bottleneck:
   same Epic is the measurement that will justify an `agentSettings`
   override — not premature configurability.
 
-## Prime the ticket cache after every `getTickets` sweep (Epic #553)
+## Prime the ticket cache after every `getTickets` sweep
 
 ### Problem
 
@@ -948,7 +894,7 @@ sequence against a mocked `fetchImpl`.
 - Invalidation semantics are unchanged: any write through the provider
   invalidates the affected entries.
 
-## Per-phase timer with `snapshot` / `restore` (Epic #553)
+## Per-phase timer with `snapshot` / `restore`
 
 ### Problem
 
@@ -980,7 +926,7 @@ comment.
 - Future perf work starts with measurement. The next regression is
   caught by the p95 column drifting, not by a user filing an issue.
 
-## Quality gates: maintainability vs CRAP (v5.22.0+)
+## Quality gates: maintainability vs CRAP
 
 ### Problem
 
@@ -1042,16 +988,7 @@ so a human sees every refresh, even on green CI.
   action. Silent threshold relaxation is impossible without a tagged
   commit and a label that flags the PR for human eyes.
 
-## Data-driven defaults over estimated constants (Epic #638)
-
-### Context
-
-Epic #553 shipped `concurrentMap` at three adoption sites with
-constant-valued caps (wave-gate uncapped, commit-assertion=4,
-progress-reporter=8). The constants were chosen from first-principles
-reasoning before any real workload data existed. ADR-20260424-553a
-committed to revisiting them once `phase-timings` telemetry
-accumulated.
+## Data-driven defaults over estimated constants
 
 ### Problem
 
@@ -1066,7 +1003,7 @@ Two anti-patterns lurk when perf defaults ship as constants:
 
 ### Solution
 
-Turn each tuning site into a config key with its v5.21.0 constant as
+Turn each tuning site into a config key with the original constant as
 the default, and ship a measurement helper that reads the Epic's own
 observability surface. Three principles:
 
@@ -1087,14 +1024,14 @@ observability surface. Three principles:
 
 ### Consequences
 
-- New consumers see the exact v5.21.0 behaviour; existing `.agentrc.json`
+- New consumers see the same baseline behaviour; existing `.agentrc.json`
   files need no edit.
 - Operators hitting provider rate limits or idle fanout have a
   declarative tuning surface that the schema validates.
 - Future perf retuning becomes a decision comment + a default-file
   edit, not a code archaeology exercise.
 
-## Compact-path short-circuit with escape hatch (Epic #638)
+## Compact-path short-circuit with escape hatch
 
 ### Context
 
@@ -1142,7 +1079,7 @@ update.
 
 ---
 
-## Retire the parallel-pathway surface (Epic #702)
+## Retire the parallel-pathway surface
 
 ### Problem
 
@@ -1204,7 +1141,7 @@ flips: if you cannot delete the surface in one shot without breaking
 external contracts, the surfaces are not duplicates and this pattern
 does not apply.
 
-## SHA-keyed validation evidence: skip the re-run, not the gate (Epic #817)
+## SHA-keyed validation evidence: skip the re-run, not the gate
 
 When the same lint/test/format/maintainability/CRAP command is invoked
 across phases against the same tree, the framework wraps each invocation
@@ -1241,7 +1178,7 @@ Skip when: the verification's authority depends on running independently
 commit-SHA granularity (e.g. integration tests against an external
 service that may have drifted).
 
-## Honest degraded modes: structured envelope, non-zero exit (Epic #817)
+## Honest degraded modes: structured envelope, non-zero exit
 
 When a soft-failing gate (`select-audits.js`, `lint-baseline.js`,
 `baseline-refresh-guardrail.js`) cannot fully execute — diff timeout,

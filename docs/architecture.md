@@ -1,69 +1,15 @@
 # Architecture
 
-> **Version:** 5.31.0 · **Updated:** 2026-05-01
->
-> **Epic #900 update.** The execution surface was reorganised around the
-> Epic-centric ticket hierarchy: the legacy `sprint-execute` mega-skill is
-> **deleted** and replaced by four narrow skills — `/epic-execute <epicId>`
-> (owns the wave loop), `/wave-execute <epicId> <waveN>` (fans out Stories
-> via the Agent tool inside the operator's Claude session), `/story-execute
-> <storyId>` (init → task loop → close for one Story), and the
-> `task-execute.md` helper read inline by `/story-execute`. The
-> remote-trigger surface is gone — `.github/workflows/epic-orchestrator.yml`
-> and `.agents/scripts/remote-bootstrap.js` are deleted, and the
-> trigger-only `agent::` label set (the `dispatching` / `planning` /
-> `decomposing` triplet) is removed. The subprocess
-> fan-out path retired in lockstep: `build-claude-spawn.js`,
-> `spawn-smoke-test.js`, and the `idleTimeoutSec` / `pollIntervalSec` /
-> `logsDir` runner config keys are gone. Pool mode is retired —
-> `pool-claim.js`, `lib/pool-mode.js`, and the `in-progress-by:<sessionId>`
-> claim labels were removed; parent-driven deterministic story assignment
-> is the only path. Top-level scripts renamed in lockstep
-> (`sprint-plan*.js` → `epic-plan*.js`, `sprint-story-*.js` → `story-*.js`,
-> `sprint-wave-gate.js` → `wave-gate.js`, etc.); the helper `.md` files
-> renamed alongside. Config key `agentSettings.sprintClose.runRetro` →
-> `agentSettings.epicClose.runRetro` (one-release back-compat shim is
-> registered in `docs/deprecation-register.md`). Structured-comment
-> markers (`epic-run-state`, `epic-plan-state`, `dispatch-manifest`,
-> `story-init`, `code-review`, `retro-complete`) were intentionally
-> **not** renamed — they were already epic-shaped and renaming would have
-> orphaned history on existing Epics.
->
-> **Epic #857 update.** `.agents/` bundle drift remediation: the
-> `dispatch-manifest.json` schema gained `storyTitle`, `agentTelemetry`,
-> and `type` discriminator fields, and dropped `heldForApproval`
-> (BREAKING, framework-internal — replay confirmed it was always empty).
-> `.agents/instructions.md` was realigned with the v5.29 runtime
-> (`story-<id>` branches canonical, retired-MCP fallback gone,
-> mandatory-docs sourced from `agentSettings.docsContextFiles`). The
-> rule-as-SSOT pattern modeled by `gherkin-standards.md` is now applied
-> to API, security, and testing layers — the rule files own the
-> taxonomy; the corresponding skills slim to process + anchored links.
-> A `docs/deprecation-register.md` and `tests/enforcement/` directory
-> were introduced; new enforcement tests block `process.exit()` in
-> library code and empty-reason `Logger.fatal()` calls.
->
-> **Epic #773 update.** `orchestration` consolidated under
-> `orchestration.runners` (the previously-flat `epicRunner`, `planRunner`,
-> `concurrency`, `closeRetry` peers now group together);
-> `config-resolver.js` split into a facade over `quality`, `paths`,
-> `commands`, `limits`, and `runners` accessor submodules; two further
-> facades shipped — `providers/github.js` and
-> `lib/worktree/lifecycle-manager.js` each ≤250 LOC over focused
-> submodules with strict ctx-threading discipline (no inter-submodule
-> imports). All public surfaces remain byte-identical.
-
 This document describes the internal architecture of Agent Protocols — a
 framework of instructions, personas, skills, and SDLC workflows that govern AI
 coding assistants. It is the authoritative reference for how the system is
 structured, how components interact, and where to find each subsystem.
 
-> **For the end-to-end workflow narrative** — how the commands compose,
-> label transitions, HITL touchpoints, local-vs-remote comparison — see
-> [`.agents/SDLC.md`](../.agents/SDLC.md). It is the canonical workflow
-> doc as of v5.15.0; this file covers the *architecture* (modules,
-> interfaces, data flow) that the workflow runs on top of. The slash-command
-> reference index lives in [`workflows.md`](workflows.md).
+> **For the end-to-end workflow narrative** — how the commands compose, label
+> transitions, HITL touchpoints — see [`.agents/SDLC.md`](../.agents/SDLC.md).
+> This file covers the *architecture* (modules, interfaces, data flow) that
+> the workflow runs on top of. The slash-command reference index lives in
+> [`workflows.md`](workflows.md).
 
 ---
 
@@ -88,10 +34,10 @@ graph TB
     subgraph Framework [".agents/ — Distributed Bundle"]
         direction TB
         INS["instructions.md"]:::infra
-        PER["Personas (12)"]:::infra
-        RUL["Rules (8)"]:::infra
+        PER["Personas"]:::infra
+        RUL["Rules"]:::infra
         SKL["Skills (core/ + stack/)"]:::infra
-        WFL["Workflows (25)"]:::infra
+        WFL["Workflows (slash commands)"]:::infra
         SCR["Scripts Engine"]:::agent
         SCH["Schemas"]:::data
         TPL["Templates"]:::data
@@ -125,17 +71,17 @@ The repository has a clear separation between the **distributed product**
 agent-protocols/
 ├── .agents/                  ← Distributed bundle (the "product")
 │   ├── instructions.md       ← Primary system prompt (all agent rules)
-│   ├── VERSION               ← Semantic version (currently 5.15.0)
-│   ├── SDLC.md               ← Sprint pipeline user guide
+│   ├── VERSION               ← Semantic version
+│   ├── SDLC.md               ← End-to-end workflow guide
 │   ├── README.md             ← Consumer documentation
 │   ├── default-agentrc.json  ← Default config template
 │   │
-│   ├── personas/             ← 12 role-specific behavior files
-│   ├── rules/                ← 8 domain-agnostic coding standards
+│   ├── personas/             ← Role-specific behavior files
+│   ├── rules/                ← Domain-agnostic coding standards
 │   ├── skills/               ← Two-tier skill library
-│   │   ├── core/             ←   20 universal process skills
-│   │   └── stack/            ←   5 tech-stack categories
-│   ├── workflows/            ← 25 SDLC slash-command workflows
+│   │   ├── core/             ←   Universal process skills
+│   │   └── stack/            ←   Tech-stack guardrails
+│   ├── workflows/            ← Slash-command workflows
 │   ├── scripts/              ← Deterministic JavaScript tooling
 │   │   ├── lib/              ←   Shared modules & interfaces
 │   │   ├── providers/        ←   Ticketing provider implementations
@@ -164,10 +110,10 @@ The instruction layer defines **what agents are** and **how they must behave**.
 
 | Component     | Path                           | Purpose                                                                                                                                         |
 | ------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| System Prompt | `.agents/instructions.md`      | Master behavioral contract — 10 sections covering guardrails, FinOps, shell protocol, philosophy, quality discipline, Git conventions, and more |
-| Personas      | `.agents/personas/*.md`        | 12 role-specific constraint files (architect, engineer, qa-engineer, etc.) that override default behavior when activated                        |
-| Rules         | `.agents/rules/*.md`           | 8 domain-agnostic coding standards (API conventions, git conventions, security baseline, testing, etc.)                                         |
-| Skills        | `.agents/skills/{core,stack}/` | Two-tier library of callable capabilities                                                                                                       |
+| System Prompt | `.agents/instructions.md`      | Master behavioral contract — guardrails, FinOps, shell protocol, philosophy, quality discipline, Git conventions.                                |
+| Personas      | `.agents/personas/*.md`        | Role-specific constraint files (architect, engineer, qa-engineer, etc.) that override default behavior when activated.                          |
+| Rules         | `.agents/rules/*.md`           | Domain-agnostic coding standards (API conventions, git conventions, security baseline, testing, etc.).                                          |
+| Skills        | `.agents/skills/{core,stack}/` | Two-tier library of callable capabilities.                                                                                                       |
 
 #### Persona Routing
 
@@ -186,7 +132,7 @@ graph LR
 
 Skills use a **two-tier layout**:
 
-- **`core/`** — 20 universal, process-driven skills (debugging, TDD, security,
+- **`core/`** — Universal, process-driven skills (debugging, TDD, security,
   code review, context engineering, etc.)
 - **`stack/`** — Technology-specific skills organized by category:
   - `architecture/` — Monorepo strategies, system design
@@ -203,7 +149,12 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 ### 2. Orchestration Engine
 
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
-scripts that automate the entire SDLC from planning through integration.
+scripts that automate the entire SDLC from planning through integration. The
+operator-facing surface is split by hierarchy level into four narrow skills:
+`/epic-plan`, `/epic-execute`, `/wave-execute`, `/story-execute`, with
+`/epic-close` bookending the lifecycle. Story sub-agents launch through the
+Agent tool inside the operator's Claude session — there is no subprocess
+spawn pathway and no GitHub Actions runner.
 
 #### Component Diagram
 
@@ -214,9 +165,13 @@ graph TB
     classDef iface fill:#f5e8d5,stroke:#333,color:#000
 
     subgraph Scripts ["Orchestration Scripts"]
-        EP["epic-planner.js"]:::script
+        EP["epic-plan.js"]:::script
         TD["ticket-decomposer.js"]:::script
         DI["dispatcher.js"]:::script
+        ER["epic-runner.js"]:::script
+        SI["story-init.js"]:::script
+        SC["story-close.js"]:::script
+        EC["epic-close.js"]:::script
         CH["context-hydrator.js"]:::script
         NO["notify.js"]:::script
         UTS["update-ticket-state.js"]:::script
@@ -230,7 +185,7 @@ graph TB
         DP["dependency-parser.js"]:::lib
         GMO["git-merge-orchestrator.js"]:::lib
         GU["git-utils.js"]:::lib
-        VL["VerboseLogger.js"]:::lib
+        LG["Logger.js"]:::lib
     end
 
     subgraph Interfaces ["Abstract Interfaces"]
@@ -255,180 +210,127 @@ graph TB
 
 #### Key Scripts
 
-| Script                   | Responsibility                                                                    |
-| ------------------------ | --------------------------------------------------------------------------------- |
-| `epic-planner.js`        | Synthesizes Epic body → generates PRD and Tech Spec tickets via LLM               |
-| `ticket-decomposer.js`   | Recursively decomposes specs into Feature → Story → Task hierarchy                |
-| `dispatcher.js`          | Builds dependency DAG, computes execution waves, dispatches tasks                 |
-| `context-hydrator.js`    | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task) |
-| `update-ticket-state.js` | Syncs task status via GitHub labels (`agent::ready` → `agent::done`)              |
-| `notify.js`              | Dispatches notifications via @mention and webhook channels                        |
-| `health-monitor.js`      | Updates real-time sprint status and tool success rates in GitHub                  |
+| Script                   | Responsibility                                                                       |
+| ------------------------ | ------------------------------------------------------------------------------------ |
+| `epic-plan.js`           | Generates PRD + Tech Spec; decomposes Epic body into Feature → Story → Task tickets. |
+| `ticket-decomposer.js`   | Recursively decomposes specs into the 4-tier hierarchy.                              |
+| `dispatcher.js`          | Builds dependency DAG, computes execution waves, dispatches tasks.                   |
+| `epic-runner.js`         | Drives the wave loop end-to-end (invoked by `/epic-execute`).                        |
+| `story-init.js`          | Initialises a Story worktree, transitions Tasks to `agent::executing`.               |
+| `story-close.js`         | Validates, merges, reaps, and cascades on Story completion.                          |
+| `epic-close.js`          | Closes the Epic: docs freshness, code review, version bump, merge to `main`, retro. |
+| `context-hydrator.js`    | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).   |
+| `update-ticket-state.js` | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).              |
+| `notify.js`              | Dispatches notifications via @mention and webhook channels.                          |
+| `health-monitor.js`      | Updates real-time Epic health and tool success rates in GitHub.                      |
 
-#### Dispatch Engine Submodules (v5.13.0+)
+#### Dispatch Engine Submodules
 
-`lib/orchestration/dispatch-engine.js` is a ~200-LOC SDK coordinator that
-composes six cohesive submodules. Consumers (`dispatcher.js`, tests) continue
-to import `dispatch`,
-`resolveAndDispatch`, `collectOpenStoryIds`, `detectEpicCompletion`, and
-the `AGENT_*` / `RISK_HIGH_LABEL` / `TYPE_TASK_LABEL` constants from the
-coordinator path — the split is an internal reorganisation only.
+`lib/orchestration/dispatch-engine.js` is a coordinator that composes six
+cohesive submodules. Consumers (`dispatcher.js`, tests) import `dispatch`,
+`resolveAndDispatch`, `collectOpenStoryIds`, `detectEpicCompletion`, and the
+`AGENT_*` / `RISK_HIGH_LABEL` / `TYPE_TASK_LABEL` constants from the
+coordinator path.
 
-| Submodule                     | Responsibility                                                                          |
-| ----------------------------- | --------------------------------------------------------------------------------------- |
-| `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile state, build DAG, scaffold branch, run worktree GC |
-| `wave-dispatcher.js`          | `dispatchWave`, `dispatchNextWave`, per-task dispatch, `collectOpenStoryIds`             |
-| `risk-gate-handler.js`        | Retired task-level `risk::high` runtime gate; risk labels are metadata only              |
-| `health-check-service.js`     | Sprint Health issue ensure                                                               |
-| `epic-lifecycle-detector.js`  | Epic-completion detection + bookend lifecycle fire                                       |
-| `dispatch-logger.js`          | Shared lazy `VerboseLogger` proxy used by every submodule                                |
+| Submodule                     | Responsibility                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------- |
+| `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile state, build DAG, scaffold branch, run worktree GC. |
+| `wave-dispatcher.js`          | `dispatchWave`, `dispatchNextWave`, per-task dispatch, `collectOpenStoryIds`.              |
+| `risk-gate-handler.js`        | Risk labels are metadata only; no runtime gate.                                            |
+| `health-check-service.js`     | Epic Health issue ensure.                                                                  |
+| `epic-lifecycle-detector.js`  | Epic-completion detection + bookend lifecycle fire.                                        |
+| `dispatch-logger.js`          | Shared lazy logger proxy used by every submodule.                                          |
 
-#### Presentation Layer Submodules (v5.13.0+)
+#### Presentation Layer Submodules
 
-`lib/presentation/manifest-renderer.js` is a ~175-LOC facade composing:
+`lib/presentation/manifest-renderer.js` is a façade composing:
 
-| Submodule                 | Responsibility                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------ |
+| Submodule                 | Responsibility                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
 | `manifest-formatter.js`   | Pure Markdown / CLI rendering (`formatManifestMarkdown`, `printStoryDispatchTable`). No fs access. |
-| `manifest-persistence.js` | File I/O — writes dispatch and story manifests to `temp/`.                           |
+| `manifest-persistence.js` | File I/O — writes dispatch and story manifests to `temp/`.                                         |
 
-The data-shape owner (`lib/orchestration/manifest-builder.js`) is
-unchanged. As with the worktree submodules, only the facade file is part
-of the stable public surface — downstream consumers continue to import
-`renderManifestMarkdown`, `renderStoryManifestMarkdown`, `persistManifest`,
-`printStoryDispatchTable`, `postManifestEpicComment`, and
-`postParkedFollowOnsComment` from `lib/presentation/manifest-renderer.js`.
+The data-shape owner (`lib/orchestration/manifest-builder.js`) is unchanged.
+Only the façade file is part of the stable public surface — downstream
+consumers continue to import `renderManifestMarkdown`,
+`renderStoryManifestMarkdown`, `persistManifest`, `printStoryDispatchTable`,
+`postManifestEpicComment`, and `postParkedFollowOnsComment` from
+`lib/presentation/manifest-renderer.js`.
 
-#### Orchestration Context + ErrorJournal (v5.15.1 / Epic #380)
+#### Orchestration Context + ErrorJournal
 
-The epic-runner and plan-runner previously threaded a loosely-shaped
-`opts` bag through every submodule — provider, logger, settings, and
-ad-hoc flags mingled in the same object. Epic #380 replaced this with
-explicit typed contexts:
+The epic-runner and plan-runner thread an explicit typed context through every
+submodule:
 
-| Context                 | Path                                              | Consumers                                                       |
-| ----------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
-| `OrchestrationContext`  | `lib/orchestration/context.js`                    | Shared base — provider, settings, logger, `errorJournal`.       |
-| `EpicRunnerContext`     | `lib/orchestration/context.js`                    | Every `epic-runner/*` submodule accepts `ctx` as first arg.     |
-| `PlanRunnerContext`     | `lib/orchestration/context.js`                    | `epic-plan-spec.js` / `epic-plan-decompose.js` drivers.     |
+| Context                | Path                            | Consumers                                                       |
+| ---------------------- | ------------------------------- | --------------------------------------------------------------- |
+| `OrchestrationContext` | `lib/orchestration/context.js`  | Shared base — provider, settings, logger, `errorJournal`.       |
+| `EpicRunnerContext`    | `lib/orchestration/context.js`  | Every `epic-runner/*` submodule accepts `ctx` as first arg.     |
+| `PlanRunnerContext`    | `lib/orchestration/context.js`  | `epic-plan-spec.js` / `epic-plan-decompose.js` drivers.         |
 
 The `errorJournal` field on each context is an `ErrorJournal` instance
 (`lib/orchestration/error-journal.js`) that writes structured JSONL to
 `temp/epic-<id>-errors.log`. Sites that previously did silent
-`catch (err) { logger.warn(...) }` in `epic-runner.js`,
-`blocker-handler.js`, and `bookend-chainer.js` now also call
-`errorJournal?.record({ phase, error, context })` so the error surface
-is auditable after a run completes. See
-[`docs/patterns.md#orchestrationcontext-dependency-injection-v5151`](patterns.md#orchestrationcontext-dependency-injection-v5151)
-for the pattern and the `errorJournal?.record(...)` idiom.
+`catch (err) { logger.warn(...) }` in `epic-runner.js`, `blocker-handler.js`,
+and `bookend-chainer.js` also call `errorJournal?.record({ phase, error,
+context })` so the error surface is auditable after a run completes. See
+[`docs/patterns.md`](patterns.md) for the pattern and the
+`errorJournal?.record(...)` idiom.
 
-`lib/orchestration/epic-runner/progress-reporter.js` (also new in
-v5.15.1 / #380) emits a periodic `epic-run-progress` structured
-comment on the Epic, driven by
+`lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
+`epic-run-progress` structured comment on the Epic, driven by
 `orchestration.epicRunner.progressReportIntervalSec`.
 
-#### Spawner hardening + whole-epic progress (v5.15.2 / Epic #413)
+#### Resilience layers
 
-Three resilience layers were added around the runner's sub-agent
-dispatch path so the Epic #380 spawn-failure regression class cannot
-recur silently:
+| Module                                              | Role                                                                                                                                                  |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
+| `lib/orchestration/friction-emitter.js`             | Rate-limited (`storyId` + marker hash, 60s cooldown) `friction` emitter wrapping `provider.postComment`.                                              |
+| `lib/orchestration/epic-runner/column-sync.js`      | Drives the Projects v2 Status column from `agent::` labels (best-effort). Missing project rows surface as friction, not as `unknown`.                 |
 
-| Module                                                             | Role                                                                                                                                                  |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/epic-runner/spawn-smoke-test.js`                | Pre-Wave-1 `claude --version` probe via the real `buildClaudeSpawn` shape; flips Epic to `agent::blocked` with friction comment if the probe fails.   |
-| `lib/orchestration/epic-runner/commit-assertion.js`                | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `tests/epic-runner/build-claude-spawn.integration.test.js`         | Real cross-platform `claude --version` integration test; honours `CLAUDE_BIN` for stub-friendly CI; runs under the Node 22/24 matrix in `ci.yml`.     |
+`CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
+grep on `origin/epic/<id>` when `origin/story-<id>` has already been deleted
+by `story-close` — closing the window where a successfully-merged Story was
+misreported as a zero-delta failure.
 
-`progress-reporter.js` was extended in the same Epic with
-`setPlan({ waves })`, called once at runner start. With a plan set,
-each fire renders every wave + story (queued / in-flight / done /
-blocked) with a `Wave` column rather than only the active wave —
-operators can see overall epic progress at a glance. Mechanical
-detectors live under `lib/orchestration/epic-runner/progress-signals/`
-(`stalled-worktree.js`, `maintainability-drift.js`) and their bullets
-appear in the Notable section of each snapshot. The runner CLI's
-`defaultSpawn` and `defaultRunSkill` now honour
-`orchestration.epicRunner.logsDir` (default `temp/epic-runner-logs/`)
-so per-story logs land in the standard temp tree.
+#### Throughput primitives
 
-#### Observability & friction hardening (v5.15.3 / Epic #441)
+| Module                                                     | Role                                                                                                                                                 |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `wave-gate`, wave-end `commit-assertion`, and `ProgressReporter`. |
+| `providers/github/cache-manager.js`                        | `getTicket(id, { maxAgeMs })` treats entries older than the caller's max age as cache misses; `primeTicketCache` after every `getTickets(epicId)`.   |
+| `lib/orchestration/epic-runner/state-poller.js`            | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
+| `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
+| `ProgressReporter.setPlan({ waves })`                      | With a plan set, each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column. Reads `phase-timings` to render p50/p95. |
 
-Three modules close the observability gaps surfaced during Epic #413's
-Wave 1:
+#### Tunable concurrency caps
 
-| Module                                                             | Role                                                                                                                                               |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib/orchestration/epic-runner/column-sync.js` (patched #448)      | Dropped the unused `$issueId: Int!` GraphQL variable; removed the silent-swallow try/catch so missing project rows surface as friction, not `unknown`. |
-| `lib/orchestration/friction-emitter.js` (new #450)                 | Rate-limited (`storyId` + marker hash, 60s cooldown) `friction` emitter wrapping `provider.postComment`.                                                |
+The three `concurrentMap` adoption sites are configurable via
+`orchestration.concurrency`, resolved from `.agentrc.json` and threaded
+through `ctx.concurrency` by `lib/orchestration/concurrency.js`:
 
-`CommitAssertion`'s default git adapter now falls back to a
-`resolves #<storyId>` grep on `origin/epic/<id>` when
-`origin/story-<id>` has already been deleted by `story-close` —
-closing the window where a successfully-merged Story was misreported
-as a zero-delta failure.
+| Key                | Default        | Semantics                                                                                                                       |
+| ------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `waveGate`         | `0` (uncapped) | `wave-gate` retains the `Promise.all` fanout when omitted; a positive integer routes through `concurrentMap` with that cap.     |
+| `commitAssertion`  | `4`            | Wave-end `CommitAssertion.check` concurrent git-read cap.                                                                       |
+| `progressReporter` | `8`            | Progress-reporter concurrent `provider.getTicket` cap.                                                                          |
 
-#### Throughput & observability pass (v5.21.0 / Epic #553)
+`resolveConcurrency(source)` reads either `orchestration.concurrency` or a
+pre-narrowed concurrency sub-block, coerces per-field, and falls back to
+`DEFAULT_CONCURRENCY` for missing or malformed values. Consumers tuning caps
+use `.agents/scripts/aggregate-phase-timings.js` to read `phase-timings`
+structured comments across Stories, aggregate p50/p95 per phase, and print
+recommended caps.
 
-One primitive + one observability surface, adopted at every epic-runner
-fanout:
+#### Direct CLIs (no MCP server)
 
-| Module                                              | Role                                                                                                                                                                                                                                             |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/util/concurrent-map.js` (new)                  | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `wave-gate` (no cap), wave-end `commit-assertion` (cap 4), and `ProgressReporter` (cap 8).                                                                    |
-| `providers/github/cache-manager.js` (extended)      | `getTicket(id, { maxAgeMs })` treats entries older than the caller's max age as cache misses. The progress-reporter uses `{ maxAgeMs: 10_000 }` so repeat ticks inside the TTL serve from cache; `primeTicketCache` is called after every `getTickets(epicId)` sweep so downstream `getTicket` reads cost zero HTTP. |
-| `lib/orchestration/epic-runner/state-poller.js` (extended) | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large. Malformed payloads or missing `labels` arrays fall back to the per-ticket path; out-of-scope issues in the bulk response are filtered against the tracked-story set. |
-| `lib/util/phase-timer.js` + `phase-timer-state.js` (new) | Records `{ phase, elapsedMs }` spans across the `story-init` → spawned agent → `story-close` process boundaries via `snapshot` / `restore`. On close, posts a `phase-timings` structured comment on the Story ticket.                            |
-| `ProgressReporter.setPlan()` (extended)             | Reads closed-story `phase-timings` comments for the current Epic and renders **median / p95** per phase into the `epic-run-progress` comment so consumer projects can distinguish framework overhead from their own install/validation cost.    |
-
-Additional framework-wide reductions landed in the same Epic:
-`gh auth token` is memoized into `process.env.GITHUB_TOKEN` so
-subsequent provider constructions short-circuit;
-`manifest-formatter` content-hashes repeat renders to skip rebuild;
-`scanDirectory` uses `withFileTypes` to avoid the per-entry `statSync`.
-Windows worktree reap recovers from cwd-like removal failures and
-always runs `git worktree prune` after `remove`.
-
-#### Tunable concurrency caps (v5.23.0 / Epic #638)
-
-The three `concurrentMap` adoption sites shipped in #553 are now
-configurable via `orchestration.concurrency`, resolved from
-`.agentrc.json` and threaded through `ctx.concurrency` by a small
-resolver at `lib/orchestration/concurrency.js`:
-
-| Key | Default | Semantics |
-| --- | --- | --- |
-| `waveGate` | `0` (uncapped) | `wave-gate` retains the v5.21.0 `Promise.all` fanout when omitted; a positive integer routes through `concurrentMap` with that cap. |
-| `commitAssertion` | `4` | Wave-end `CommitAssertion.check` concurrent git-read cap. |
-| `progressReporter` | `8` | Progress-reporter concurrent `provider.getTicket` cap. |
-
-`resolveConcurrency(source)` reads either `orchestration.concurrency`
-or a pre-narrowed concurrency sub-block, coerces per-field, and falls
-back to `DEFAULT_CONCURRENCY` for missing or malformed values.
-`createRuntimeContext({ orchestration })` and `OrchestrationContext`
-both expose `ctx.concurrency`; `CommitAssertion` and `ProgressReporter`
-read `ctx.concurrency.commitAssertion` / `.progressReporter` through
-the epic-runner factory. Consumers tuning caps supply the CLI at
-`.agents/scripts/aggregate-phase-timings.js` with Epic IDs; it reads
-`phase-timings` structured comments across Stories, aggregates p50/p95
-per phase, and prints recommended caps.
-
-#### MCP server retired (Epic #702)
-
-The framework previously shipped an `agent-protocols` stdio MCP server
-exposing seven tools (`cascade_completion`, `dispatch_wave`,
-`hydrate_context`, `post_structured_comment`, `run_audit_suite`,
-`select_audits`, `transition_ticket_state`). That server is **gone** as
-of Epic #702: every capability is preserved as a direct Node CLI under
-`.agents/scripts/` (or inlined into `update-ticket-state.js`), and
-`lib/orchestration/ticketing.js` remains the authoritative SDK for
-runtime callers. Architectural consequence: there is no longer a
-"parallel pathway" for orchestration — the SDK is the single
-implementation surface, and `.mcp.json` is no longer consulted by any
-framework code. Operators see the simplification at first-run time
-(no MCP-server bootstrap step) and at secrets-resolution time
-(`GITHUB_TOKEN` and `NOTIFICATION_WEBHOOK_URL` read only from
-`process.env`). See `docs/CHANGELOG.md` for the retired-tool → CLI
-mapping and the operator migration path.
+The framework ships no MCP server. Every orchestration capability is a
+direct Node CLI under `.agents/scripts/`, with `lib/orchestration/ticketing.js`
+as the authoritative SDK for runtime callers. Operators see the simplification
+at first-run time (no MCP-server bootstrap step) and at secrets-resolution
+time (`GITHUB_TOKEN` and `NOTIFICATION_WEBHOOK_URL` read only from
+`process.env`).
 
 ---
 
@@ -468,16 +370,15 @@ classDiagram
     ITicketingProvider <|-- GitHubProvider
 ```
 
-**Resolution**: The `provider-factory.js` reads `orchestration.provider` from
+**Resolution**: `provider-factory.js` reads `orchestration.provider` from
 `.agentrc.json` and instantiates the matching concrete class.
 
-**Internal layout (post Epic #470)**: The `providers/github.js` façade is a
-thin composition over focused modules under `providers/github/`:
-`ticket-mapper.js` (REST/GraphQL payload → ticket shape), `graphql-builder.js`
-(named query + mutation strings), `cache-manager.js` (per-instance ticket
-cache backed by `lib/CacheLayer`), and `error-classifier.js` (GraphQL error →
-category). The façade re-exports every symbol consumers previously imported,
-so the split is source-compatible.
+**Internal layout**: `providers/github.js` is a thin façade over focused
+modules under `providers/github/`: `ticket-mapper.js` (REST/GraphQL payload →
+ticket shape), `graphql-builder.js` (named query + mutation strings),
+`cache-manager.js` (per-instance ticket cache backed by `lib/CacheLayer`), and
+`error-classifier.js` (GraphQL error → category). The façade re-exports every
+symbol consumers previously imported.
 
 ---
 
@@ -503,19 +404,17 @@ classDiagram
     }
 
     IExecutionAdapter <|-- ManualDispatchAdapter
-
-    note for IExecutionAdapter "Future adapters: antigravity,\nclaude-code, codex, subprocess"
 ```
 
-**Resolution**: The `adapter-factory.js` reads `orchestration.executor` from
+**Resolution**: `adapter-factory.js` reads `orchestration.executor` from
 `.agentrc.json` (default: `"manual"`).
 
 ---
 
-### 4. Configuration System
+### 5. Configuration System
 
-Configuration follows a **layered resolution** pattern, with operational
-settings organised into a **grouped contract** post-Epic #730:
+Configuration follows a **layered resolution** pattern with operational
+settings organised into a **grouped contract**:
 
 ```mermaid
 graph LR
@@ -539,13 +438,13 @@ readers, kept in sync by a drift test.
 
 #### Key Configuration Sections
 
-| Section                     | Purpose                                                              |
-| --------------------------- | -------------------------------------------------------------------- |
-| `agentSettings.paths`       | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`)      |
-| `agentSettings.commands`    | Validate / lint / test / typecheck / build commands; `null` disables |
-| `agentSettings.quality`     | Maintainability + CRAP + lint baselines and `prGate.checks`          |
-| `agentSettings.limits`      | Resource ceilings + `friction.*` anti-thrashing thresholds           |
-| `orchestration`             | Provider, GitHub block, worktree isolation, runners, retry tuning    |
+| Section                  | Purpose                                                                |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `agentSettings.paths`    | Required filesystem roots (`agentRoot`, `docsRoot`, `tempRoot`).        |
+| `agentSettings.commands` | Validate / lint / test / typecheck / build commands; `null` disables.  |
+| `agentSettings.quality`  | Maintainability + CRAP + lint baselines and `prGate.checks`.            |
+| `agentSettings.limits`   | Resource ceilings + `friction.*` anti-thrashing thresholds.             |
+| `orchestration`          | Provider, GitHub block, worktree isolation, runners, retry tuning.      |
 
 Each grouped block is read through a typed accessor (`getPaths(config)`,
 `getCommands(config)`, `getQuality(config)`, `getLimits(config)`) — there are
@@ -555,8 +454,8 @@ no flat-key reads anywhere in the resolver or its consumers.
 > reader-facing reference: every key, default, and required-vs-optional flag,
 > the root-dogfood-vs-distributed-template diff table, and baseline
 > conventions (canonical `/baselines/` vs per-wave drift snapshots under
-> `.agents/state/`). Project-specific technology context still lives in this
-> file under the **Tech Stack** section — intentionally not in `.agentrc.json`.
+> `.agents/state/`). Project-specific technology context lives under the
+> **Tech Stack** section below — intentionally not in `.agentrc.json`.
 
 **Security**: The config resolver blocks shell metacharacter injection
 (`; & | \`` `` $()`) in all string values that flow into subprocesses, and the
@@ -564,7 +463,7 @@ schema enforces non-empty strings on every command field.
 
 ---
 
-### 5. Dependency Graph Engine
+### 6. Dependency Graph Engine
 
 The `Graph.js` module provides the mathematical foundation for task scheduling:
 
@@ -590,7 +489,7 @@ synthetic dependency edges between tasks with overlapping `focusAreas`.
 sequenceDiagram
     participant H as Human
     participant P as /epic-plan
-    participant EP as epic-planner.js
+    participant EP as epic-plan.js
     participant TD as ticket-decomposer.js
     participant D as /epic-execute
     participant DI as dispatcher.js
@@ -616,19 +515,17 @@ sequenceDiagram
 
 ---
 
-## Epic Runner (in-session orchestration)
+## Epic Runner
 
 The epic runner (`.agents/scripts/lib/orchestration/epic-runner.js`) composes
-the existing orchestration primitives into an unattended execution loop.
-Invoked via `/epic-execute <epicId>` inside the operator's Claude session.
-The remote-trigger surface (the `epic-orchestrator.yml` workflow plus the
-`dispatching` / `planning` / `decomposing` `agent::` trigger labels) was
-deleted in Epic #900 — there is no longer a GitHub Actions pathway into
-the runner.
+the orchestration primitives into an unattended execution loop. Invoked via
+`/epic-execute <epicId>` inside the operator's Claude session. There is no
+remote-trigger surface — the runner only ever runs locally, in the operator's
+session, with Story sub-agents launched through the Agent tool.
 
 ### State machine (Epic labels)
 
-```
+```text
                     operator runs /epic-execute
                    ┌───────────────────────────┐
                    │                           ▼
@@ -657,26 +554,24 @@ the runner.
 
 ### Submodules
 
-| Module                | Role                                                                     |
-| --------------------- | ------------------------------------------------------------------------ |
-| `wave-scheduler`      | Iterates waves from `Graph.computeWaves()`; never spawns workers.        |
-| `story-launcher`      | Fans out up to `concurrencyCap` `/story-execute <storyId>` Agent-tool sub-agents in one Claude message. |
-| `state-poller`        | Polls Epic + child-Story labels; emits blocker / cancel / closed events. |
-| `checkpointer`        | Upserts the `epic-run-state` structured comment; handles resume.         |
-| `blocker-handler`     | The sole runtime pause point; halts on `agent::blocked`, waits to resume.|
-| `notification-hook`   | Fire-and-forget webhook; never blocks execution.                         |
-| `bookend-chainer`     | Invokes `/epic-close` on auto-close (which in turn auto-invokes the code-review + retro helpers). |
-| `wave-observer`       | Emits `wave-N-start` / `wave-N-end` structured comments each boundary.   |
-| `column-sync`         | Drives the Projects v2 Status column from agent:: labels (best-effort).  |
+| Module              | Role                                                                                                |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`; never spawns workers.                                   |
+| `story-launcher`    | Fans out up to `concurrencyCap` `/story-execute <storyId>` Agent-tool sub-agents in one message.    |
+| `state-poller`      | Polls Epic + child-Story labels; emits blocker / cancel / closed events.                            |
+| `checkpointer`      | Upserts the `epic-run-state` structured comment; handles resume.                                    |
+| `blocker-handler`   | The sole runtime pause point; halts on `agent::blocked`, waits to resume.                           |
+| `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
+| `bookend-chainer`   | Invokes `/epic-close` on auto-close (which in turn auto-invokes the code-review + retro helpers).   |
+| `wave-observer`     | Emits `wave-N-start` / `wave-N-end` structured comments each boundary.                              |
+| `column-sync`       | Drives the Projects v2 Status column from `agent::` labels (best-effort).                           |
 
 ### HITL touchpoints
 
 One runtime pause point — `agent::blocked` on the Epic. All other labels
-(`risk::high`, `epic::auto-close`) are snapshots or metadata; mid-run
-changes are ignored. The trigger-only `agent::` labels were removed in
-Epic #900 (see the update block at the top of this file). Branch protection
-on `main` replaces `risk::high` runtime gating for destructive-action
-containment.
+(`risk::high`, `epic::auto-close`) are snapshots or metadata; mid-run changes
+are ignored. Branch protection on `main` replaces `risk::high` runtime gating
+for destructive-action containment.
 
 ---
 
@@ -721,12 +616,12 @@ upward through the hierarchy and closes parents whose children are all done.
 The cascade is **not** uniform across tiers — the table below is the
 authoritative contract:
 
-| Parent tier                      | Auto-closes via cascade? | How it closes                                |
-| -------------------------------- | ------------------------ | -------------------------------------------- |
-| Story (`type::story`)            | Yes                      | Last Task → `agent::done` cascades.          |
-| Feature (`type::feature`)        | Yes                      | Last Story → `agent::done` cascades.         |
-| Epic (`type::epic`)              | **No** — cascade stops.  | `/epic-close` only.                          |
-| Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after Epic is finalized.      |
+| Parent tier                                     | Auto-closes via cascade? | How it closes                             |
+| ----------------------------------------------- | ------------------------ | ----------------------------------------- |
+| Story (`type::story`)                           | Yes                      | Last Task → `agent::done` cascades.       |
+| Feature (`type::feature`)                       | Yes                      | Last Story → `agent::done` cascades.      |
+| Epic (`type::epic`)                             | **No** — cascade stops.  | `/epic-close` only.                       |
+| Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after Epic is finalized.   |
 
 **Why Features auto-close but Epics and Planning don't.** A Feature is a
 purely hierarchical grouping — no standalone branch, no merge step, no
@@ -740,17 +635,11 @@ are narrative artefacts the operator closes once the Epic is finalized.
 
 Implementation: [`.agents/scripts/lib/orchestration/ticketing.js`](../.agents/scripts/lib/orchestration/ticketing.js)
 — `cascadeCompletion()` explicitly skips `type::epic`, `context::prd`, and
-`context::tech-spec` parents; every other parent tier is eligible.
-
-> **Pinned under Epic #511.** The exclusion list above was previously
-> implicit — Features auto-closed because nothing stopped them, not because
-> the behaviour had been decided. Epic #511 made the decision explicit (keep
-> Feature auto-close, because a Feature carries no branch/merge/release
-> machinery) and pinned it with a regression test so future refactors can't
-> drift. The `fromState` lookup inside `transitionTicketState()` was
-> reviewed at the same time: its try/catch is deliberate — a network flake
-> reading the prior state label must not block a legitimate transition —
-> and now emits a `debug`-level log instead of swallowing silently.
+`context::tech-spec` parents; every other parent tier is eligible. The
+`fromState` lookup inside `transitionTicketState()` has a deliberate
+try/catch — a network flake reading the prior state label must not block a
+legitimate transition; failures emit a `debug`-level log instead of swallowing
+silently.
 
 ---
 
@@ -762,35 +651,33 @@ setup/meta. The canonical reference is [`workflows.md`](workflows.md); the
 workflow narrative that wires them together lives in
 [`.agents/SDLC.md`](../.agents/SDLC.md).
 
-### Worktree Isolation (v5.7.0+)
+### Worktree Isolation
 
 When `orchestration.worktreeIsolation.enabled` is `true`, each dispatched
-story runs inside its own `git worktree` at `.worktrees/story-<id>/`. The
-main checkout's HEAD never moves during a parallel sprint; branch swaps,
-staging operations, and reflog activity are isolated per-story.
+story runs inside its own `git worktree` at `.worktrees/story-<id>/`. The main
+checkout's HEAD never moves during a parallel run; branch swaps, staging
+operations, and reflog activity are isolated per-story.
 
 The `WorktreeManager` (`.agents/scripts/lib/worktree-manager.js`) is the
 single authority for worktree `ensure`/`reap`/`list`/`isSafeToRemove`/`gc`.
 No other script may call `git worktree` directly. All git calls are
-argv-based (no shell interpolation) and validate `storyId` / `branch`
-before shelling out. `reap` only reaches `git worktree remove --force` after
-its safety gate has already established the Story worktree is removable and
-the plain remove path has exhausted Windows lock/cwd retry.
+argv-based (no shell interpolation) and validate `storyId` / `branch` before
+shelling out. `reap` only reaches `git worktree remove --force` after its
+safety gate has already established the Story worktree is removable and the
+plain remove path has exhausted Windows lock/cwd retry.
 
-**Internal submodule layout (v5.13.0+).** `worktree-manager.js` is a
-~220-LOC facade that composes four cohesive submodules under
-`.agents/scripts/lib/worktree/`:
+**Internal submodule layout.** `worktree-manager.js` is a façade composing
+four cohesive submodules under `.agents/scripts/lib/worktree/`:
 
-| Submodule                  | Responsibility                                                                                   |
-| -------------------------- | ------------------------------------------------------------------------------------------------ |
-| `lifecycle-manager.js`     | `ensure`, `reap`, `list`, `gc`, `prune`, `sweepStaleLocks`, Windows-lock-aware remove recovery   |
-| `node-modules-strategy.js` | `applyNodeModulesStrategy` + `installDependencies` for `per-worktree` / `symlink` / `pnpm-store` |
-| `bootstrapper.js`          | Bootstrap-file copy (`.env`), `.agents/` snapshot for submodule consumers, submodule-index scrub |
-| `inspector.js`             | Pure porcelain parsing, path helpers (`samePath`, `storyIdFromPath`, `isInsideWorktree`), Windows path-length warnings |
+| Submodule                  | Responsibility                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `lifecycle-manager.js`     | `ensure`, `reap`, `list`, `gc`, `prune`, `sweepStaleLocks`, Windows-lock-aware remove recovery.         |
+| `node-modules-strategy.js` | `applyNodeModulesStrategy` + `installDependencies` for `per-worktree` / `symlink` / `pnpm-store`.       |
+| `bootstrapper.js`          | Bootstrap-file copy (`.env`), `.agents/` snapshot for submodule consumers, submodule-index scrub.       |
+| `inspector.js`             | Pure porcelain parsing, path helpers (`samePath`, `storyIdFromPath`, `isInsideWorktree`), Windows path warnings. |
 
 The submodules are **internal implementation detail**. Downstream projects
-must continue to import `WorktreeManager` from `lib/worktree-manager.js` —
-the submodule paths are not part of the stable public surface.
+must continue to import `WorktreeManager` from `lib/worktree-manager.js`.
 
 Dispatcher integration:
 
@@ -798,28 +685,28 @@ Dispatcher integration:
   and threads the resolved worktree path as `cwd` into
   `IExecutionAdapter.dispatchTask`. The `ManualDispatchAdapter` surfaces the
   path as a `cd "<path>"` instruction for the HITL operator.
-- **Reap on merge**: `story-close` calls `wm.reap` after a
-  successful merge. The reap refuses dirty trees and logs a warning.
+- **Reap on merge**: `story-close` calls `wm.reap` after a successful merge.
+  The reap refuses dirty trees and logs a warning.
 - **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
   stories have no remaining live tasks. Refuses to delete unmerged branches.
 
 Setting `orchestration.worktreeIsolation.enabled: false` (or omitting the
-block) restores v5.5.1 single-tree behavior. The `assert-branch.js`
-pre-commit guard and focus-area wave serialization remain in place as
-defense-in-depth in both modes.
+block) restores single-tree behavior. The `assert-branch.js` pre-commit guard
+and focus-area wave serialization remain in place as defense-in-depth in both
+modes.
 
-See [`worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md)
-for the operator reference, node_modules strategies, Windows long-path
-handling, and escape hatches.
+See [`worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md) for
+the operator reference, node_modules strategies, Windows long-path handling,
+and escape hatches.
 
-### Execution-model modes (Epic #668, v5.24.0+; updated by Epic #900)
+### Execution-model modes
 
 The four-skill execution surface (`/epic-execute`, `/wave-execute`,
 `/story-execute`) runs in two execution-model modes that share one codepath
 and differ only in whether worktrees are created. The `resolveWorktreeEnabled`
 function in `lib/config-resolver.js` selects the mode at startup based on
 `AP_WORKTREE_ENABLED` and `CLAUDE_CODE_REMOTE` (precedence in
-[`patterns.md`](patterns.md#worktree-off-mode-v5240)):
+[`patterns.md`](patterns.md)):
 
 ```text
 ┌──── Local-parallel (worktrees on, default) ─────┐  ┌──── Web-parallel (worktrees off, auto) ─────┐
@@ -856,9 +743,7 @@ Both modes share:
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
 - Deterministic, operator-driven story assignment — `/story-execute` always
-  takes an explicit Story id. The legacy claim-protocol pool mode was
-  retired in Epic #900 (and earlier story #909); there is no per-launch
-  label race.
+  takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
   configured by `orchestration.closeRetry`) so concurrent closes from
   separate clones converge cleanly.
@@ -866,10 +751,10 @@ Both modes share:
 They differ only in:
 
 - **Filesystem layout.** Worktrees create `.worktrees/story-<id>/` siblings
-  to the main checkout; web sessions write directly into the cloned
-  workspace because the session is already isolated.
-- **`node_modules` strategy.** `nodeModulesStrategy` runs only in
-  worktree-on mode. Web sessions install once at the workspace root.
+  to the main checkout; web sessions write directly into the cloned workspace
+  because the session is already isolated.
+- **`node_modules` strategy.** `nodeModulesStrategy` runs only in worktree-on
+  mode. Web sessions install once at the workspace root.
 - **Path-length warnings.** Windows long-path warnings come from worktree
   paths — they don't fire on web (Linux) or in worktree-off mode generally.
 - **GC scope.** `WorktreeManager.gc()` runs at dispatch start in worktree-on
@@ -886,17 +771,15 @@ They differ only in:
   subprocess calls.
 - **Branch name validation**: `dependency-parser.js` enforces safe branch
   component characters (alphanumeric, hyphens, underscores, dots, slashes).
-- **Schema validation**: `orchestration` config is validated against an embedded
-  JSON Schema via `ajv`.
+- **Schema validation**: `orchestration` config is validated against an
+  embedded JSON Schema via `ajv`.
 
 ### HITL pause point
 
 The sole runtime pause is `agent::blocked` on the Epic. `risk::high` is
 informational/planning metadata only — it ranks work in the dispatch table and
-helps reviewers prioritize, but does not pause execution. The retired
-`risk-gate-handler.js` is preserved in `decisions.md` for context.
-`riskGates.heuristics` in `.agentrc.json` continues to drive the ranking
-heuristics.
+helps reviewers prioritize, but does not pause execution.
+`riskGates.heuristics` in `.agentrc.json` drives the ranking heuristics.
 
 ### Anti-Thrashing Protocol
 
@@ -939,36 +822,20 @@ automation candidates as structured comments.
 | `approval-required` | ACTION   | Webhook            |
 | `blocked`           | ACTION   | Webhook            |
 
+`agentSettings.notifications.minLevel` filters webhook deliveries; the sibling
+`agentSettings.notifications.commentMinLevel` filters GitHub comment posting
+independently. `commentMinLevel` defaults to `minLevel` when unset. Per-Task
+`agent::executing` transitions during Story init batch into a single
+Story-level summary comment regardless of either filter.
+
 ---
 
 ## Testing
 
 The test suite uses the **Node.js native test runner** (`node --test`) with no
-external test framework dependencies:
-
-```text
-tests/
-├── bootstrap.test.js            ← Bootstrap script tests
-├── config-orchestration.test.js ← Orchestration config validation
-├── context-hydrator.test.js     ← Context assembly tests
-├── diagnose-friction.test.js    ← Friction telemetry tests
-├── dispatcher.test.js           ← Dispatch engine tests
-├── epic-planner.test.js         ← Planning pipeline tests
-├── execution-adapter.test.js    ← Adapter interface tests
-├── notify.test.js               ← Notification system tests
-├── provider-factory.test.js     ← Provider resolution tests
-├── providers-github.test.js     ← GitHub provider tests
-├── structure.test.js            ← File structure validation
-├── ticket-decomposer.test.js   ← Decomposition pipeline tests
-├── ticketing-provider.test.js   ← Provider interface tests
-├── update-ticket-state.test.js  ← State sync tests
-├── verify-prereqs.test.js       ← Prerequisite verification tests
-└── lib/
-    ├── config-resolver.test.js  ← Config resolver tests
-    └── task-utils.test.js       ← Task utility tests
-```
-
-**Run**: `npm test` (invokes `node --test tests/*.test.js tests/lib/*.test.js`)
+external test framework dependencies. Tests live under `tests/` with
+`tests/lib/` for library-specific unit tests and `tests/epic-runner/` for
+runner-integration tests. Run with `npm test`.
 
 ---
 
@@ -976,23 +843,22 @@ tests/
 
 A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
 
-1. **Lint** — Biome (JavaScript) + markdownlint (Markdown)
-2. **Format Check** — Biome format verification
-3. **Test** — Full test suite via `npm test`
+1. **Lint** — Biome (JavaScript) + markdownlint (Markdown).
+2. **Format Check** — Biome format verification.
+3. **Test** — Full test suite via `npm test`.
 4. **Maintainability Check** — `check-maintainability.js` no-regression gate
    on the per-file MI baseline.
 5. **CRAP Check** — `check-crap.js` (per-method complexity × coverage risk).
-   Diff-scoped on PRs (`--changed-since origin/<base_ref>`) so the gate stays
-   fast on large diffs; full-repo scan on push-to-main so a regression in an
-   untouched file cannot ride in alongside an unrelated PR. JSON report
-   uploaded as the `crap-report` artifact.
+   Diff-scoped on PRs (`--changed-since origin/<base_ref>`); full-repo scan on
+   push-to-main so a regression in an untouched file cannot ride in alongside
+   an unrelated PR. JSON report uploaded as the `crap-report` artifact.
 6. **Baseline-refresh guardrail** — separate `pull_request`-only workflow
    (`.github/workflows/baseline-refresh-guardrail.yml`) that reads the **base
    branch** `.agentrc.json` via `git show origin/<base>:.agentrc.json`,
    re-runs `check-crap` with those values forced via `CRAP_NEW_METHOD_CEILING`
    / `CRAP_TOLERANCE` / `CRAP_REFRESH_TAG` env vars, and enforces that any PR
-   touching `baselines/crap.json` or `baselines/maintainability.json` carries a
-   commit whose subject starts with the configured `refreshTag` (default
+   touching `baselines/crap.json` or `baselines/maintainability.json` carries
+   a commit whose subject starts with the configured `refreshTag` (default
    `baseline-refresh:`) and has a non-empty body. Baseline-only PRs receive
    the `review::baseline-refresh` label automatically.
 7. **Dist Sync** — On merge to `main`, syncs `.agents/` to the `dist` branch
@@ -1000,7 +866,7 @@ A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
 
 ### Quality-gate diagram
 
-```
+```text
         ┌───────────────────────────────────────┐
 local ▶ │ pre-push (.husky/pre-push):           │
         │   lint → format → MI → audit →        │
@@ -1012,7 +878,7 @@ close ▶ │ close-validation DEFAULT_GATES:       │
         │   lint → test → biome format →        │
         │   check-maintainability → check-crap  │
         │   (each gate skips when SHA-keyed     │
-        │    evidence still matches; #817)      │
+        │    evidence still matches)            │
         └───────────────────┬───────────────────┘
                             │
         ┌───────────────────▼───────────────────┐
@@ -1026,9 +892,9 @@ CI    ▶ │ ci.yml:                               │
         └───────────────────────────────────────┘
 ```
 
-### Evidence-aware gate caching (Epic #817, v5.28.0+)
+### Evidence-aware gate caching
 
-Local close-validation, epic-code-review, and epic-close Phase 4 wrap
+Local close-validation, `epic-code-review`, and `/epic-close` Phase 4 wrap
 each gate in `evidence-gate.js`. On a successful run the wrapper records
 `{ gateName, commitSha, commandConfigHash, timestamp }` in
 `temp/validation-evidence-<scopeId>.json` (gitignored). Subsequent invocations
@@ -1045,7 +911,7 @@ base-branch values regardless of what the PR-branch config says.
 
 ### Local Hooks
 
-- **Husky** + **lint-staged**: Auto-lint and format staged `.md` files on commit
+- **Husky** + **lint-staged**: Auto-lint and format staged files on commit.
 
 ---
 
@@ -1063,8 +929,8 @@ The framework implements an economic guardrail system for LLM cost management:
 
 ### Budget Protocol
 
-- **Soft Warning** at 80% of `maxTokenBudget` → user notification + webhook
-- **Hard Stop** at 100% → execution halt, requires human override
+- **Soft Warning** at 80% of `maxTokenBudget` → user notification + webhook.
+- **Hard Stop** at 100% → execution halt, requires human override.
 
 ---
 
@@ -1147,7 +1013,7 @@ conventions to follow.
 - **CI:** GitHub Actions
 - **Distribution:** GitHub Releases (tagged from `main` by `/epic-close`)
 
-### Testing Contract (v5.11.0+)
+### Testing Contract
 
 Consumers of the framework follow a **pyramid-aware** testing contract defined
 in `.agents/rules/testing-standards.md`. Every test belongs to exactly one of

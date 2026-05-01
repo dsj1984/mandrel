@@ -17,7 +17,7 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 
 ## Execution
 
-The execution surface is split by hierarchy level (Epic #900, v5.31.0). Pick the
+The execution surface is split by hierarchy level. Pick the
 level you want to drive — each skill takes an explicit ticket id and dispatches
 its children via the Agent tool inside the operator's Claude session.
 
@@ -68,7 +68,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github` | Initialize a GitHub repo with the v5 label taxonomy, project fields, and (v5.15.0+) the default Kanban board.    |
+| `/agents-bootstrap-github` | Initialize a GitHub repo with the framework label taxonomy, project fields, and the default Kanban board.       |
 | `/agents-update`           | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
 
 ## Internal / reference-only

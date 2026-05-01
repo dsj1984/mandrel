@@ -44,8 +44,8 @@ Spec Review > Ready > In Progress).
 ## Default Views
 
 Bootstrap attempts to create the three views below via
-`createProjectV2View`. That mutation is not yet generally available on
-public tokens as of v5.15.0, so expect the bootstrap log to report
+`createProjectV2View`. That mutation is not generally available on public
+tokens, so expect the bootstrap log to report
 `Projects V2 Views mutation unavailable — see docs/project-board.md`.
 Create them by hand using the filter strings below.
 
