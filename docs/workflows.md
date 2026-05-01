@@ -25,7 +25,7 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 
 > `/sprint-execute-epic` and `/sprint-execute-story` were retired in v5.15.0.
 > The single `/sprint-execute` router replaces both; its internal engines
-> (`epic-runner.js`, `sprint-story-init.js`, `sprint-story-close.js`) are
+> (`epic-runner.js`, `story-init.js`, `story-close.js`) are
 > unchanged.
 
 ## Closure

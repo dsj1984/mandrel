@@ -74,7 +74,7 @@ subsequent dispatcher run refresh it, so it is the single source of truth for
 "which Stories did the sprint actually commit to?"
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-wave-gate.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/wave-gate.js --epic [EPIC_ID]
 ```
 
 If the script exits non-zero: **STOP IMMEDIATELY.** The output lists every
@@ -100,7 +100,7 @@ ticket the Epic still owns, and the graph can omit a parked Story that lives
 outside the Epic.
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-hierarchy-gate.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/hierarchy-gate.js --epic [EPIC_ID]
 ```
 
 The gate enforces:
@@ -110,7 +110,7 @@ The gate enforces:
 3. **Features** — closed.
 
 Auxiliary tickets (`context::prd`, `context::tech-spec`, `type::health`)
-are intentionally **deferred** here — Phase 7 (`sprint-close.js`) closes
+are intentionally **deferred** here — Phase 7 (`epic-close.js`) closes
 them automatically as part of the same workflow run, so failing the gate
 on them would block every Epic.
 
@@ -400,7 +400,7 @@ STOP and relay the failure to the operator.
 Close the planning, strategy, and Epic tickets, then clean up branches.
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-close.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/epic-close.js --epic [EPIC_ID]
 ```
 
 The script performs three phase-internal functions:
@@ -455,12 +455,12 @@ node [SCRIPTS_ROOT]/notify.js --ticket [EPIC_ID] "Epic #[EPIC_ID] closed. Merged
   not halt and ask the operator to run them separately — that round-trip is
   what the auto-invoke replaced.
 - **Always** persist the code-review output as a `code-review` structured
-  comment on the Epic — `sprint-code-review.js` already does this via
+  comment on the Epic — `epic-code-review.js` already does this via
   `upsertStructuredComment`; do not bypass it.
 - **Always** bump the version (Phase 5.1) before merging when
   `release.autoVersionBump` is `true`. Use **minor** for new features,
   **patch** for fixes and refactors. No git tag is created.
-- **Always** run `sprint-close.js` (Phase 7) to ensure PRD and Tech Spec
+- **Always** run `epic-close.js` (Phase 7) to ensure PRD and Tech Spec
   tickets are formally closed — they are excluded from auto-closure during
   execution.
 - **Always** delete all Epic, Task, and Story branches after merge to

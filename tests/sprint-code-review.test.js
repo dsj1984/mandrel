@@ -10,7 +10,7 @@ import {
   parseReviewArgs,
   partitionFilesForLint,
   runScopedLint,
-} from '../.agents/scripts/sprint-code-review.js';
+} from '../.agents/scripts/epic-code-review.js';
 
 test('parseLintOutput - clean run reports zero', () => {
   const out = parseLintOutput({

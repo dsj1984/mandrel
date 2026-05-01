@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-plan-spec.js — Phase 1 (spec) entry point for the split planning flow.
+ * epic-plan-spec.js — Phase 1 (spec) entry point for the split planning flow.
  *
  * Wraps `epic-planner.js` behind two idempotent modes and a single-purpose
  * label lifecycle:
@@ -104,7 +104,7 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
       (sweep.persistentPending?.length ?? 0) +
       (sweep.stillPending?.length ?? 0);
     logger.info?.(
-      `[sprint-plan-spec] worktree sweep: reaped=${sweep.reaped.length} drainedPending=${sweep.drainedPending?.length ?? 0} remaining=${remaining}`,
+      `[epic-plan-spec] worktree sweep: reaped=${sweep.reaped.length} drainedPending=${sweep.drainedPending?.length ?? 0} remaining=${remaining}`,
     );
     return legacyExtras(sweep);
   }
@@ -129,7 +129,7 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
   const remaining =
     (result.persistent?.length ?? 0) + (result.stillPending?.length ?? 0);
   logger.info?.(
-    `[sprint-plan-spec] pending-cleanup drain: reaped=${result.drained?.length ?? 0} remaining=${remaining}`,
+    `[epic-plan-spec] pending-cleanup drain: reaped=${result.drained?.length ?? 0} remaining=${remaining}`,
   );
   return legacyExtras({
     reaped: [],
@@ -175,11 +175,11 @@ export async function runSpecPhase(
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
-    throw new Error(`[sprint-plan-spec] Epic #${epicId} not found.`);
+    throw new Error(`[epic-plan-spec] Epic #${epicId} not found.`);
   }
   if (!epic.labels?.includes(TYPE_LABELS.EPIC)) {
     throw new Error(
-      `[sprint-plan-spec] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
+      `[epic-plan-spec] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
     );
   }
 
@@ -208,7 +208,7 @@ export async function runSpecPhase(
   });
 
   console.log(
-    `[sprint-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
+    `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
   await checkpointer.setPhase(PLAN_PHASES.REVIEW_SPEC);
@@ -216,11 +216,11 @@ export async function runSpecPhase(
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
   console.log(
-    `[sprint-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}.`,
+    `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}.`,
   );
   if (cleanup.deleted.length > 0) {
     console.log(
-      `[sprint-plan-spec] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
+      `[epic-plan-spec] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
     );
   }
 
@@ -243,7 +243,7 @@ async function main() {
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: sprint-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
+      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
     );
   }
 
@@ -272,7 +272,7 @@ async function main() {
     });
   } catch (err) {
     console.warn(
-      `[sprint-plan-spec] pending-cleanup drain skipped: ${err.message}`,
+      `[epic-plan-spec] pending-cleanup drain skipped: ${err.message}`,
     );
   }
 
@@ -309,4 +309,4 @@ async function main() {
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-runAsCli(import.meta.url, main, { source: 'sprint-plan-spec' });
+runAsCli(import.meta.url, main, { source: 'epic-plan-spec' });

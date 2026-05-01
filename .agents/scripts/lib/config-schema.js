@@ -163,7 +163,7 @@ const PLAN_RUNNER_SCHEMA = {
 
 /**
  * `orchestration.runners.closeRetry` — bounded retry policy for the epic-branch push
- * step in `sprint-story-close.js`. Protects concurrent story closures against
+ * step in `story-close.js`. Protects concurrent story closures against
  * non-fast-forward rejections when a sibling session lands on the same Epic
  * branch between our fetch and our push.
  *
@@ -194,7 +194,7 @@ export const DEFAULT_CLOSE_RETRY = Object.freeze({
  * omitting them preserves the v5.21.0 constant-valued defaults exactly.
  *
  *   - waveGate: 0 (uncapped) preserves Promise.all behaviour in
- *     `sprint-wave-gate.js`. Positive integers cap the three per-section
+ *     `wave-gate.js`. Positive integers cap the three per-section
  *     ticket-read batches to N concurrent provider calls.
  *   - commitAssertion: default 4 matches
  *     `CommitAssertion.WAVE_END_CONCURRENCY`.

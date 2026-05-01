@@ -220,7 +220,7 @@ when any of these are tripped.
 | `epicRunner`      | No       | (see sub-block) | Long-running Epic orchestrator tuning.                          |
 | `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
 | `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
-| `closeRetry`      | No       | (none)  | Retry policy for `sprint-story-close.js` non-fast-forward pushes.   |
+| `closeRetry`      | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes.   |
 
 ### `orchestration.github`
 

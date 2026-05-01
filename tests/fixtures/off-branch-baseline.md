@@ -15,7 +15,7 @@
 ▶ [sprint-story-init] [TICKETS]   #<task> → agent::executing ✅
 ▶ [sprint-story-init] [DONE] ✅ Story #<id> initialized. <n> Task(s) ready for implementation.
 
-# ── Close-side log (sprint-story-close.js) on the off-branch ──
+# ── Close-side log (story-close.js) on the off-branch ──
 ▶ [sprint-story-close] [INIT] Closing Story #<id>...
 ▶ [sprint-story-close] [TASKS] Found <n> child Task(s)
 ▶ [sprint-story-close] [VALIDATE] Running pre-merge gates (lint, test, format, maintainability)...

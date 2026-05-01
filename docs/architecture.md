@@ -283,7 +283,7 @@ explicit typed contexts:
 | ----------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
 | `OrchestrationContext`  | `lib/orchestration/context.js`                    | Shared base — provider, settings, logger, `errorJournal`.       |
 | `EpicRunnerContext`     | `lib/orchestration/context.js`                    | Every `epic-runner/*` submodule accepts `ctx` as first arg.     |
-| `PlanRunnerContext`     | `lib/orchestration/context.js`                    | `sprint-plan-spec.js` / `sprint-plan-decompose.js` drivers.     |
+| `PlanRunnerContext`     | `lib/orchestration/context.js`                    | `epic-plan-spec.js` / `epic-plan-decompose.js` drivers.     |
 
 The `errorJournal` field on each context is an `ErrorJournal` instance
 (`lib/orchestration/error-journal.js`) that writes structured JSONL to

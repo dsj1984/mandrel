@@ -4,7 +4,7 @@
  * Given an epicId, resolves the linked PRD and Tech Spec issue IDs by
  * fetching the Epic. Fetch failures are logged but non-fatal — the result
  * simply reports `null` for whichever linkage could not be resolved, which
- * mirrors legacy behaviour in sprint-story-init.js.
+ * mirrors legacy behaviour in story-init.js.
  */
 
 /**

@@ -3,13 +3,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { drainPendingCleanupAtBoot } from '../.agents/scripts/epic-plan-spec.js';
 import {
   MAX_SWEEP_ATTEMPTS,
   manifestPath,
   readManifest,
   recordPendingCleanup,
 } from '../.agents/scripts/lib/worktree/lifecycle/pending-cleanup.js';
-import { drainPendingCleanupAtBoot } from '../.agents/scripts/sprint-plan-spec.js';
 
 function quietLogger() {
   const sink = { info: [], warn: [], error: [] };

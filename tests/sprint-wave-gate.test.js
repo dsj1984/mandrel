@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { runWaveGate } from '../.agents/scripts/sprint-wave-gate.js';
+import { runWaveGate } from '../.agents/scripts/wave-gate.js';
 
 function manifestComment(stories) {
   const body = [

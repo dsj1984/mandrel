@@ -465,10 +465,10 @@ that delegate to it:
 | `ticket-decomposer.js`               | Recursive 4-tier hierarchy decomposition                                |
 | `dispatcher.js`                      | CLI wrapper — DAG scheduler; outputs dispatch manifest                  |
 | `context-hydrator.js`                | CLI wrapper — assembles self-contained agent prompts                    |
-| `sprint-story-init.js`               | Initializes Story execution: branches, deps, state transitions          |
-| `sprint-story-close.js`              | Finalizes Story: merges to Epic branch, cascades completions            |
-| `sprint-close.js`                    | Epic closure: doc freshness gate, version bump, tag release             |
-| `sprint-code-review.js`              | Automated code review execution                                         |
+| `story-init.js`               | Initializes Story execution: branches, deps, state transitions          |
+| `story-close.js`              | Finalizes Story: merges to Epic branch, cascades completions            |
+| `epic-close.js`                    | Epic closure: doc freshness gate, version bump, tag release             |
+| `epic-code-review.js`              | Automated code review execution                                         |
 | `update-ticket-state.js`             | CLI wrapper — label-based state machine with cascade                    |
 | `delete-epic.js`                     | Recursive issue deletion/clearing via GraphQL                           |
 | `notify.js`                          | Operator notification (mentions + webhooks)                             |
@@ -682,7 +682,7 @@ dashboard.
 ### Concurrent close safety
 
 Two sessions closing into the same `epic/<epicId>` branch from separate clones
-both succeed. The push step inside `sprint-story-close.js` retries on a
+both succeed. The push step inside `story-close.js` retries on a
 non-fast-forward rejection — fetch, replay the story merge on top of the new
 remote tip, push again — bounded by `orchestration.closeRetry.maxAttempts`
 (default 3) and `orchestration.closeRetry.backoffMs` (default

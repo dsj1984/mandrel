@@ -85,7 +85,7 @@ The following MUST NOT appear in a release entry:
   Epic once when the release is scoped to one Epic — that is the only
   allowed citation, and only there.
 - **Internal file paths** (`lib/orchestration/epic-runner/commit-assertion.js`,
-  `.agents/scripts/sprint-story-init.js`). Callers care what changed, not
+  `.agents/scripts/story-init.js`). Callers care what changed, not
   where it lives.
 - **Internal function, class, or method names** (`finalizeMerge`,
   `WorkspaceProvisioner.verify`, `cascadeCompletion`). Name the behaviour,

@@ -226,7 +226,7 @@ label (Epic Mode for `type::epic`, Story Mode for `type::story`). The old
 Whether the Story is launched locally by the operator or fanned out by the
 remote Epic runner, the same three phases run:
 
-1. **Initialization** (`sprint-story-init.js`):
+1. **Initialization** (`story-init.js`):
    - Verifies all upstream dependencies are satisfied.
    - Syncs the Epic base branch with `main`.
    - Creates or seeds the Story branch (in a worktree when
@@ -234,7 +234,7 @@ remote Epic runner, the same three phases run:
    - Transitions child Tasks to `agent::executing`.
 2. **Task implementation.** The agent executes each Task sequentially on the
    shared Story branch, committing after each Task completion.
-3. **Closure** (`sprint-story-close.js`):
+3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
    - Merges the Story branch into `epic/<epicId>`.
    - Transitions Tasks → `agent::done`; cascades up Task → Story → Feature
@@ -292,7 +292,7 @@ from hostname+pid+random.
 
 ### Launch-time dependency guard
 
-Before any branch operation, `sprint-story-init.js` reads the Epic's
+Before any branch operation, `story-init.js` reads the Epic's
 dispatch manifest and verifies the target story's blockers are all merged.
 Unmerged blockers print each blocker's id, state, and URL; the session exits
 0 (operator-error, not a system error) without touching any branches. A
@@ -303,7 +303,7 @@ The guard runs identically on web and local.
 
 ### Concurrent close — push retry
 
-`sprint-story-close.js` merges the Story branch into `epic/<epicId>` locally
+`story-close.js` merges the Story branch into `epic/<epicId>` locally
 and pushes. With multiple sessions closing into the same Epic branch from
 separate clones, a non-fast-forward rejection is expected. The push step is
 wrapped in a bounded retry: on rejection the script fetches
@@ -445,7 +445,7 @@ the project's `CI / CD` workflow (costly minutes on private repos). Two
 mitigations:
 
 - Add `[skip ci]` to orchestrator commit messages (requires a small tweak in
-  `sprint-story-close.js`), OR
+  `story-close.js`), OR
 - Add a `paths-ignore` or branch filter to `ci.yml` that excludes `epic/*` and
   `story-*` branches. Only `main` pushes trigger CI.
 
@@ -490,7 +490,7 @@ details.
 Once Story waves complete, the bookend lifecycle begins.
 
 1. **Story branch merging.** Stories merge into `epic/<epicId>` automatically
-   during Story closure (`sprint-story-close.js`). This replaces the legacy
+   during Story closure (`story-close.js`). This replaces the legacy
    `/sprint-integration` step.
 2. **Completion cascade.** When the last Task in a Story reaches `agent::done`,
    status cascades upward:
@@ -631,7 +631,7 @@ Because `notify()` is called in-band from the orchestration SDK, it captures
 changes from:
 
 - The Epic runner (coordinator-driven state flips).
-- Per-story scripts (`sprint-story-init.js`, `sprint-story-close.js`).
+- Per-story scripts (`story-init.js`, `story-close.js`).
 - Any script that routes state changes through `transitionTicketState`.
 
 It does **not** capture manual label clicks in the GitHub UI (no webhook

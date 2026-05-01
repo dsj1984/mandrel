@@ -202,14 +202,14 @@ When run interactively (operator typed `/sprint-execute <id>` directly),
 normal conversational clarification is fine. The contract above only binds
 when spawned headless.
 
-### Step 0 — Initialize (`sprint-story-init.js`)
+### Step 0 — Initialize (`story-init.js`)
 
 Run the initialization script from the **main checkout**. It sets up the Epic
 branch, seeds the Story branch, creates the worktree (if enabled), and
 transitions child Tasks to `agent::executing`.
 
 ```powershell
-node .agents/scripts/sprint-story-init.js --story <storyId>
+node .agents/scripts/story-init.js --story <storyId>
 ```
 
 The script:
@@ -277,7 +277,7 @@ npm ci    # or: pnpm install --frozen-lockfile / yarn install --frozen-lockfile
 
 ### Step 1 — Implementation (Sequential Task Loop)
 
-For **each child Task** in the order returned by `sprint-story-init.js`:
+For **each child Task** in the order returned by `story-init.js`:
 
 1. Read the full `## Instructions` section of the Task ticket.
 2. Implement all described changes strictly within the scope of the Story
@@ -306,7 +306,7 @@ For **each child Task** in the order returned by `sprint-story-init.js`:
 
 ### Step 2 — Validate (deferred to close)
 
-`sprint-story-close.js` runs the canonical close-validation chain (typecheck,
+`story-close.js` runs the canonical close-validation chain (typecheck,
 lint, test, format, maintainability, coverage, crap) before it merges — **do
 not** pre-run `npm run typecheck`, `npm run lint`, and `npm test` here unless
 you are interactively iterating on a fix. The close script's gate is
@@ -325,13 +325,13 @@ npm test
 ```
 
 Treat the output as advisory: failures here will be re-surfaced by
-`sprint-story-close.js` regardless. If you spot a regression, fix it on the
+`story-close.js` regardless. If you spot a regression, fix it on the
 Story branch and commit before proceeding to Step 3.
 
 If genuinely blocked (e.g. upstream dependency missing): post a friction comment
 and apply `agent::blocked`.
 
-### Step 3 — Close (`sprint-story-close.js`)
+### Step 3 — Close (`story-close.js`)
 
 Run closure. Pass the main-checkout path via `--cwd` so the merge and branch
 deletion run against the main repo, not inside the worktree (branches checked
@@ -340,7 +340,7 @@ the worktree after the merge succeeds.
 
 ```powershell
 # From the worktree, invoke close against the main checkout.
-node <main-repo>/.agents/scripts/sprint-story-close.js --story <storyId> --cwd <main-repo>
+node <main-repo>/.agents/scripts/story-close.js --story <storyId> --cwd <main-repo>
 ```
 
 In single-tree mode, `--cwd` can be omitted (defaults to `PROJECT_ROOT`).
@@ -404,12 +404,12 @@ automatically.
 - **Always** verify `git branch --show-current` outputs the expected Story
   branch name before making any commits. If it does not, **STOP**.
 - **Always** validate (lint + test) before running Step 3.
-- **Always** pass `--cwd <main-repo>` to `sprint-story-close.js` when invoking
+- **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking
   from inside a worktree, so the merge runs in the main repo.
 - **Always** run cascadeCompletion after merging — GitHub cannot auto-close
   tickets on non-default branch merges.
 - **Always** delete the Story branch (local + remote) after merging into the
-  Epic branch. `sprint-story-close.js` does this for you.
+  Epic branch. `story-close.js` does this for you.
 - **MCP Fallback**: If `agent-protocols` MCP tools fail due to connection
   errors, **fall back immediately** to
   `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`

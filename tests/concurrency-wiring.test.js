@@ -8,7 +8,7 @@ import {
 import { CommitAssertion } from '../.agents/scripts/lib/orchestration/epic-runner/commit-assertion.js';
 import { ProgressReporter } from '../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import { createRuntimeContext } from '../.agents/scripts/lib/runtime-context.js';
-import { runWaveGate } from '../.agents/scripts/sprint-wave-gate.js';
+import { runWaveGate } from '../.agents/scripts/wave-gate.js';
 
 // ---------------------------------------------------------------------------
 // resolveConcurrency — default fallback + coercion contract

@@ -16,18 +16,18 @@ const SCRIPTS = [
     args: ['--epic', '1'],
   },
   {
-    name: 'sprint-plan',
-    relPath: '.agents/scripts/sprint-plan.js',
+    name: 'epic-plan',
+    relPath: '.agents/scripts/epic-plan.js',
     args: ['--epic', '1', '--prd', 'x', '--techspec', 'y', '--tickets', 'z'],
   },
   {
-    name: 'sprint-plan-spec',
-    relPath: '.agents/scripts/sprint-plan-spec.js',
+    name: 'epic-plan-spec',
+    relPath: '.agents/scripts/epic-plan-spec.js',
     args: ['--epic', '1', '--emit-context'],
   },
   {
-    name: 'sprint-plan-decompose',
-    relPath: '.agents/scripts/sprint-plan-decompose.js',
+    name: 'epic-plan-decompose',
+    relPath: '.agents/scripts/epic-plan-decompose.js',
     args: ['--epic', '1', '--emit-context'],
   },
 ];
