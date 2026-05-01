@@ -4,22 +4,87 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Pool mode retired (story #909)
+### Epic-centric workflow rework — drop sprint nomenclature, split execution by hierarchy level, retire GitHub triggers
 
-- **Removed.** `.agents/scripts/pool-claim.js`, `.agents/scripts/lib/pool-mode.js`,
-  and `tests/pool-mode.test.js`. The claim-protocol pool mode (no-id
-  `/sprint-execute`, `in-progress-by:<sessionId>` label + `[claim]` structured
-  comment, race-loser release, reclaimable surfacing) is no longer part of
-  the framework. Story assignment is now deterministic and operator-driven:
-  `/sprint-execute` requires an explicit ticket id picked from the
-  `/sprint-plan` dispatch table.
-- **Config.** The `orchestration.runners.poolMode` block (`staleClaimMinutes`,
-  `sessionIdLength`) is removed from the AJV schema and the published
-  `agentrc.schema.json`. Existing keys in project configs become "additional
-  property" validation errors and must be deleted.
-- **Identity.** `runtime.sessionId` and `resolveSessionId(env)` survive as a
-  stable per-process diagnostic surfaced in the startup `[ENV] sessionId=…`
-  log line; they no longer drive any label writes.
+The single `/sprint-execute` mega-skill, the GitHub-triggered remote orchestrator,
+the claim-based pool mode, and the `sprint-*` nomenclature are all retired in
+favour of a four-skill split that mirrors the ticket hierarchy. Stories now run
+as Agent-tool sub-agents inside the operator's Claude session — no subprocess
+spawn, no GitHub Actions runner — so the operator can stop or resume at any
+level (Epic / Wave / Story / Task) and the dispatch surface stops carrying dead
+process-boundary machinery.
+
+This is a **breaking change** for any downstream `.agents/` consumer that types
+`/sprint-*` commands directly, applies the trigger labels by hand, or reads
+`agentSettings.sprintClose.runRetro` from config. The migration block below is
+the complete consumer-visible delta.
+
+#### Migration
+
+- **Slash commands renamed.** `/sprint-plan` → `/epic-plan`. `/sprint-close` →
+  `/epic-close`. The two terminal skills keep their phase structure; only the
+  front door changes.
+- **`/sprint-execute` removed; four-skill split is the replacement.**
+  - `/epic-execute <epicId>` owns the wave loop and fans out via
+    `/wave-execute`.
+  - `/wave-execute <epicId> <waveN>` runs one wave; launches up to
+    `concurrencyCap` Story sub-agents through the Agent tool.
+  - `/story-execute <storyId>` runs init → task loop → close for one Story.
+  - `helpers/task-execute.md` is read inline per Task by `/story-execute`
+    (not a slash command).
+- **Trigger-only labels removed:** `agent::dispatching`, `agent::planning`,
+  `agent::decomposing`. Delete them from any project board or workflow that
+  references them. The lifecycle labels `agent::review-spec`, `agent::ready`,
+  `agent::executing`, `agent::review`, `agent::blocked`, `agent::done` are
+  unchanged.
+- **Remote-trigger surface removed:** `.github/workflows/epic-orchestrator.yml`
+  and `.agents/scripts/remote-bootstrap.js` are deleted. Repos that only used
+  the GitHub-Action path must drive Epics from a local Claude Code session
+  going forward.
+- **Pool mode retired.** `.agents/scripts/pool-claim.js`,
+  `.agents/scripts/lib/pool-mode.js`, the `in-progress-by:<sessionId>` claim
+  label scheme, and the `orchestration.runners.poolMode` config block are
+  gone. Story assignment is parent-driven and deterministic; sibling sessions
+  never race on the same Story. `runtime.sessionId` survives as a stable
+  per-process diagnostic in the startup `[ENV]` log line.
+- **Subprocess fan-out machinery removed.**
+  `.agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js` and
+  `spawn-smoke-test.js` are deleted, along with the
+  `agentSettings.runners.epicRunner.idleTimeoutSec`, `pollIntervalSec`, and
+  `logsDir` config keys. Keep `concurrencyCap` and `progressReportIntervalSec`.
+- **Top-level scripts renamed in lockstep** with the slash commands. Update
+  any `package.json` script or `.husky/*` hook that references the old
+  filenames:
+  - `sprint-plan-spec.js` → `epic-plan-spec.js`
+  - `sprint-plan-decompose.js` → `epic-plan-decompose.js`
+  - `sprint-plan-healthcheck.js` → `epic-plan-healthcheck.js`
+  - `sprint-plan.js` → `epic-plan.js`
+  - `sprint-story-init.js` → `story-init.js`
+  - `sprint-story-close.js` → `story-close.js`
+  - `sprint-wave-gate.js` → `wave-gate.js`
+  - `sprint-hierarchy-gate.js` → `hierarchy-gate.js`
+  - `sprint-code-review.js` → `epic-code-review.js`
+  - `sprint-close.js` → `epic-close.js`
+- **Helper `.md` files renamed in lockstep.**
+  `helpers/sprint-plan-spec.md` → `epic-plan-spec.md`,
+  `helpers/sprint-plan-decompose.md` → `epic-plan-decompose.md`,
+  `helpers/sprint-code-review.md` → `epic-code-review.md`,
+  `helpers/sprint-retro.md` → `epic-retro.md`,
+  `helpers/sprint-testing.md` → `epic-testing.md`.
+- **Config key renamed:** `agentSettings.sprintClose.runRetro` →
+  `agentSettings.epicClose.runRetro`. The resolver reads the legacy key as a
+  fallback and emits a one-shot deprecation warning; **removal version 5.32.0**.
+  Update consumer `.agentrc.json` files now to avoid the warning.
+- **`/epic-plan` CLI flags removed:** `--phase spec|decompose` and
+  `--auto-dispatch`. The unified two-phase flow with the operator confirmation
+  gate is the only mode. The `epic-plan-state` checkpoint comment is unchanged.
+- **What did not change.** Structured-comment markers (`epic-run-state`,
+  `epic-plan-state`, `dispatch-manifest`, `story-init`, `code-review`,
+  `retro-complete`) are kept. `.agents/scripts/lib/orchestration/*` internal
+  module paths are unchanged. The Slack/Discord notifier on `agent::blocked`
+  still fires from `notification-hook.js`. Worktree filesystem isolation
+  rules in `worktree-lifecycle.md` are unchanged in substance — only the
+  process boundary around each Story is gone.
 
 ## [5.30.5] - 2026-05-01
 

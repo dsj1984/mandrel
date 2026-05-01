@@ -1,5 +1,173 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260501-900a: Epic-centric workflow rework — four-skill split, single-session fan-out, retire GitHub triggers
+
+**Status:** Accepted
+**Date:** 2026-05-01
+**Epic:** #900
+**Story:** #918
+
+### Context
+
+The execution surface had accreted in three layers that no longer
+matched the ticket model:
+
+1. A **single mega-skill** (`/sprint-execute`) that routed by `type::`
+   label (Epic Mode vs. Story Mode) and fanned out subprocess Claude
+   sessions for each Story.
+2. A **GitHub-triggered remote orchestrator** (`epic-orchestrator.yml`,
+   `remote-bootstrap.js`, `agent::dispatching` / `agent::planning` /
+   `agent::decomposing` trigger labels) that existed only to invoke the
+   slash commands headlessly on a GitHub-hosted runner.
+3. A **claim-based pool mode** (`pool-claim.js`, `lib/pool-mode.js`,
+   `in-progress-by:<sessionId>` claim labels) that arbitrated no-id
+   `/sprint-execute` launches across N web tabs.
+
+In the operator's day-to-day flow — single Claude Code session, no
+remote dispatch — every layer above was dead weight: extra labels, a
+parallel YAML, a bootstrap script, subprocess machinery, a claim race,
+and a routing CLI (`sprint-execute-router.js`) whose only job was to
+reverse the single-CLI design. The "sprint" nomenclature itself
+mismatched the Epic-centric ticket model on which everything sits.
+
+Six framing questions drove the scope.
+
+- **Q1.** Which trigger labels go? Just the three trigger-only labels, or
+  the whole `agent::review-spec`/`agent::ready` set too?
+- **Q2.** How does the wave loop fan out Stories — keep `claude -p`
+  subprocesses, or use the Agent tool inside the single session?
+- **Q3.** Should `task-execute` be its own slash command, or a path-
+  included helper read inline by `/story-execute`?
+- **Q4.** What is renamed in the sprint→epic sweep? Slash commands and
+  helper `.md` files only, or top-level scripts and config keys too?
+  Structured-comment markers? `lib/orchestration/*` paths?
+- **Q5.** How does multi-level progress collation work — one shared
+  `epic-run-progress` comment written by all levels, or per-level
+  comments that parents collate?
+- **Q6.** With remote triggers gone, what survives of the planner CLI
+  surface? `--phase spec|decompose`? `--auto-dispatch`?
+  `epic-plan-state` checkpoint?
+
+### Decision
+
+Adopt the answers below for Epic #900; defer alternatives to a future
+ADR if the trade-off proves wrong.
+
+- **Q1 — minimal label cleanup.** Delete only the three trigger-only
+  labels: `agent::dispatching`, `agent::planning`, `agent::decomposing`.
+  Keep `agent::review-spec`, `agent::ready`, `agent::executing`,
+  `agent::review`, `agent::blocked`, `agent::done` — they still encode
+  lifecycle state independent of triggers.
+- **Q2 — single-session Agent-tool fan-out.** `/wave-execute` launches
+  Story sub-agents through the Agent tool in one assistant turn (capped
+  at `concurrencyCap`). No `claude -p` subprocess spawn, no headless
+  `--dangerously-skip-permissions` contract, no idle-watchdog, no
+  progress-log tailing via `Monitor`. Worktree filesystem isolation is
+  preserved; only the process boundary disappears.
+- **Q3 — `task-execute.md` is a helper, not a slash command.** The
+  per-Task discipline (`## Instructions` reading, scope guard,
+  `assert-branch`, conventional commit) is a procedural module read
+  inline by `/story-execute` — not registered in `.claude/commands/`.
+  Tasks are not directly executable; they are implemented by the
+  parent Story's loop.
+- **Q4 — rename the operator-visible surface; keep internal markers
+  and lib paths.**
+  - Renamed: slash commands (`/epic-plan`, `/epic-close`), the new
+    skill files (`epic-execute.md`, `wave-execute.md`,
+    `story-execute.md`), top-level scripts (`epic-plan*.js`,
+    `story-*.js`, `epic-*.js`), helper `.md` files under
+    `workflows/helpers/`, and the config key
+    `agentSettings.sprintClose.runRetro` →
+    `agentSettings.epicClose.runRetro` (with a one-release shim that
+    logs a deprecation warning when the legacy key is read).
+  - Kept: structured-comment markers (`epic-run-state`,
+    `epic-plan-state`, `dispatch-manifest`, `story-init`,
+    `code-review`, `retro-complete` — already epic-shaped where it
+    matters; renaming would orphan history on existing Epics) and
+    `lib/orchestration/*` module paths (internal facade decomposition;
+    the public-facing renames already deliver the nomenclature win
+    without churning every import path).
+- **Q5 — per-level progress, parents collate.** `/story-execute` writes
+  a `story-run-progress` structured comment per Task transition.
+  `/wave-execute` reads child story progress comments and writes a
+  wave-level rolled-up `wave-run-progress` comment. `/epic-execute`
+  reads child wave progress and renders the wave-level table inside
+  the operator-facing `epic-run-progress` summary at the top of the
+  Epic. Each level owns the comment for its own children; no shared
+  writer contention.
+- **Q6 — drop dead planner flags; keep checkpoint.** With remote
+  triggers gone, `/epic-plan` no longer needs `--phase spec|decompose`
+  (existed only so two GH labels could fire two halves) or
+  `--auto-dispatch` (applied `agent::dispatching`, which no longer
+  exists). The unified two-phase flow with the operator confirmation
+  gate is the only mode. The `epic-plan-state` checkpoint comment is
+  retained — it costs nothing and helps re-plans.
+
+### Rationale
+
+The four-skill split mirrors how the engine already decomposes work
+(`wave-scheduler`, `story-launcher`, `wave-observer` are existing
+internal submodules); promoting them to slash commands lets the
+operator stop or resume at any level and removes the "this skill
+routes by label" indirection. Single-session Agent-tool fan-out trades
+process isolation (which the worktree boundary already provided at the
+filesystem level) for in-session context budget; in practice the wave
+loop spends most of its time waiting on Story sub-agents and the
+in-session model was never the bottleneck. Per-level progress
+collation localises ownership of each comment to the level that
+generates it — no two writers contend for the same comment marker —
+at the cost of one extra structured-comment marker
+(`wave-run-progress`) per wave, which is cheap.
+
+The label-cleanup scope is deliberately narrow: deleting only the
+three trigger-only labels means downstream consumers running existing
+state machines on `agent::review`/`agent::done` see no change. The
+config-key rename ships with a one-release shim so a typical
+`.agentrc.json` update is a no-op until 5.32.0.
+
+### Implications
+
+- **For operators.** The `/sprint-*` muscle memory is gone. New flow:
+  `/epic-plan <id>` → `/epic-execute <id>` → `/epic-close <id>`. For
+  a single Story off the dispatch table, run `/story-execute <id>`
+  directly. The four-skill split lets you stop or resume at any
+  level.
+- **For repos that used the GitHub-trigger path.** That surface is
+  deleted. The `agent::dispatching` label, the
+  `epic-orchestrator.yml` workflow, and the `remote-bootstrap.js`
+  script are gone. Drive Epics from a local Claude Code session
+  going forward; if you genuinely need a GitHub-Action driver,
+  re-introduce it as an out-of-tree workflow that invokes the local
+  CLI scripts directly.
+- **For consumer `.agentrc.json` files.** Rename
+  `agentSettings.sprintClose.runRetro` → `agentSettings.epicClose.runRetro`
+  on your next edit. The legacy key still reads with a one-shot
+  deprecation warning until removal in 5.32.0 (registered in
+  `docs/deprecation-register.md`).
+- **For sub-agent prompt budget.** Story sub-agents now share the
+  parent session's context budget instead of getting a fresh
+  subprocess. The Story prompt deliberately scopes to one Story so
+  the budget remains predictable; a runaway Story burns parent
+  budget rather than its own.
+- **For history continuity.** Structured-comment markers and
+  `lib/orchestration/*` paths are unchanged, so existing Epics in
+  flight at the cutover boundary continue to validate against the
+  same readers.
+
+### References
+
+- Epic #900 body — full goals, non-goals, story decomposition, and
+  Q1–Q6 framing.
+- ADR 20260427-868a — open-root dispatch-manifest schema +
+  AJV fixture drift test (the pattern this Epic adopts for the
+  `wave-run-progress` comment shape).
+- `docs/deprecation-register.md` — registers the
+  `sprintClose.runRetro` shim for removal in 5.32.0.
+- `docs/CHANGELOG.md` 5.31.0 entry — consumer-visible migration
+  block for this Epic.
+
+---
+
 ## ADR 20260427-868a: Open-root dispatch-manifest schema; AJV fixture drift test as enforcement boundary
 
 **Status:** Accepted
