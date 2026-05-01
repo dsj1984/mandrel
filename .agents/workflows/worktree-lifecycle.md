@@ -85,9 +85,9 @@ invoke them. The full set of callers is:
 | --------------------------------------------------------------------- | --------------------------------------------------------- | ----------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
 | Dispatch manifest build (`/sprint-plan` Phase 4, remote-trigger boot) | `lib/orchestration/dispatch-pipeline.js::runWorktreeGc`   | ✅ Yes      | ✅ Yes   | ✅ Yes       | Called from `dispatch-engine.js::dispatch()`. Scoped to the epic being dispatched.                  |
 | Spec / decompose CLI boot (`/sprint-plan-spec`, `/sprint-plan-decompose`) | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
-| Story merge (`/sprint-execute` close)                                 | `sprint-story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
-| Story close                                                           | `sprint-close.js` (invoked by `sprint-story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
-| Story init (`/sprint-execute <storyId>`)                              | `sprint-story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story Mode relies on the dispatch/close pair to clean up; it only creates its own worktree.         |
+| Story merge (`/sprint-execute` close)                                 | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
+| Story close                                                           | `epic-close.js` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
+| Story init (`/sprint-execute <storyId>`)                              | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story Mode relies on the dispatch/close pair to clean up; it only creates its own worktree.         |
 | Epic runner wave loop                                                 | `epic-runner.js` and `lib/orchestration/epic-runner/*`    | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
 | Remote bootstrap                                                      | `remote-bootstrap.js`                                     | ❌ No       | ❌ No    | ❌ No        | Only transitively, if it triggers a dispatch-manifest build as part of the epic-orchestrator flow.  |
 | `/drain-pending-cleanup` (operator-driven)                            | `drain-pending-cleanup.js`                                | n/a         | n/a      | ✅ Yes       | Standalone helper; same drain + Windows escalation as the `/sprint-plan` and `/sprint-close` paths. |
@@ -151,7 +151,7 @@ Symlink strategy:
   content-addressable store at `~/.local/share/pnpm/store` (or the platform
   equivalent) — reused packages are hard-linked into the worktree instead of
   re-downloaded and re-extracted. First-run on a cold store is no faster than
-  `per-worktree`, and `sprint-plan-healthcheck.js` primes the store in the
+  `per-worktree`, and `epic-plan-healthcheck.js` primes the store in the
   main checkout to avoid paying that cost in parallel story windows.
 
 ## Windows notes
@@ -194,7 +194,7 @@ Human reviewers should **keep using the main checkout** — not a worktree:
   the main checkout, not in any per-story worktree.
 - Opening a worktree in an IDE can mislead: the working directory looks like the
   main repo but carries a different HEAD. The main checkout is the canonical
-  place to read PRDs, Tech Specs, and run the `helpers/sprint-code-review.md`
+  place to read PRDs, Tech Specs, and run the `helpers/epic-code-review.md`
   procedure.
 - `git worktree list --porcelain` on the main checkout enumerates any still
   in-flight story worktrees if you need to inspect one — prefer read-only

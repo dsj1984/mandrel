@@ -391,11 +391,11 @@ independently testable. Invoke them by running the parent workflow.
 
 | Helper                           | Invoked by                                                  | Purpose                                                |
 | -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| `sprint-plan-spec.md`            | `/sprint-plan` (Phase 1) · `/sprint-plan --phase spec`      | PRD + Tech Spec authoring and persistence              |
-| `sprint-plan-decompose.md`       | `/sprint-plan` (Phase 2) · `/sprint-plan --phase decompose` | Feature / Story / Task decomposition                   |
-| `sprint-code-review.md`          | `/sprint-close` Phase 3 · `/sprint-execute` bookend         | Comprehensive code review, persists structured comment |
-| `sprint-retro.md`                | `/sprint-close` Phase 6                                     | Retrospective from ticket graph + friction logs        |
-| `sprint-testing.md`              | `/sprint-close` QA gate · operator                          | Ingests Cucumber evidence onto the sprint-testing ticket |
+| `epic-plan-spec.md`            | `/sprint-plan` (Phase 1) · `/sprint-plan --phase spec`      | PRD + Tech Spec authoring and persistence              |
+| `epic-plan-decompose.md`       | `/sprint-plan` (Phase 2) · `/sprint-plan --phase decompose` | Feature / Story / Task decomposition                   |
+| `epic-code-review.md`          | `/sprint-close` Phase 3 · `/sprint-execute` bookend         | Comprehensive code review, persists structured comment |
+| `epic-retro.md`                | `/sprint-close` Phase 6                                     | Retrospective from ticket graph + friction logs        |
+| `epic-testing.md`              | `/sprint-close` QA gate · operator                          | Ingests Cucumber evidence onto the sprint-testing ticket |
 | `_merge-conflict-template.md`    | `/sprint-close`, `/sprint-execute`, `/git-merge-pr`         | Shared merge-conflict resolution procedure             |
 | `agents-sync-config.md`          | `/agents-update` Step 3                                     | Reconcile `.agentrc.json` against the framework defaults |
 
@@ -465,10 +465,10 @@ that delegate to it:
 | `ticket-decomposer.js`               | Recursive 4-tier hierarchy decomposition                                |
 | `dispatcher.js`                      | CLI wrapper — DAG scheduler; outputs dispatch manifest                  |
 | `context-hydrator.js`                | CLI wrapper — assembles self-contained agent prompts                    |
-| `sprint-story-init.js`               | Initializes Story execution: branches, deps, state transitions          |
-| `sprint-story-close.js`              | Finalizes Story: merges to Epic branch, cascades completions            |
-| `sprint-close.js`                    | Epic closure: doc freshness gate, version bump, tag release             |
-| `sprint-code-review.js`              | Automated code review execution                                         |
+| `story-init.js`               | Initializes Story execution: branches, deps, state transitions          |
+| `story-close.js`              | Finalizes Story: merges to Epic branch, cascades completions            |
+| `epic-close.js`                    | Epic closure: doc freshness gate, version bump, tag release             |
+| `epic-code-review.js`              | Automated code review execution                                         |
 | `update-ticket-state.js`             | CLI wrapper — label-based state machine with cascade                    |
 | `delete-epic.js`                     | Recursive issue deletion/clearing via GraphQL                           |
 | `notify.js`                          | Operator notification (mentions + webhooks)                             |
@@ -682,7 +682,7 @@ dashboard.
 ### Concurrent close safety
 
 Two sessions closing into the same `epic/<epicId>` branch from separate clones
-both succeed. The push step inside `sprint-story-close.js` retries on a
+both succeed. The push step inside `story-close.js` retries on a
 non-fast-forward rejection — fetch, replay the story merge on top of the new
 remote tip, push again — bounded by `orchestration.closeRetry.maxAttempts`
 (default 3) and `orchestration.closeRetry.backoffMs` (default

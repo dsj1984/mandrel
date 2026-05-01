@@ -2,7 +2,7 @@
  * lib/epic-merge-lock.js — Filesystem mutex for Epic-branch merges.
  *
  * Parallel-wave story closures can race on the Epic branch: two
- * `sprint-story-close.js` invocations both `git checkout <epic>`, both
+ * `story-close.js` invocations both `git checkout <epic>`, both
  * `git pull --rebase`, and both attempt to merge — the second push
  * often ends up rejected or, worse, races past the first and produces
  * an incorrect history.

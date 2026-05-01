@@ -711,7 +711,7 @@ test('integration: reap() tolerates drive-letter-case mismatch on repoRoot (v5.1
     assert.equal(ensured.created, true);
 
     // Flip the drive letter on the repoRoot that close() will construct.
-    // This mirrors a shell invoking sprint-story-close.js with `--cwd
+    // This mirrors a shell invoking story-close.js with `--cwd
     // c:\repo` while git still stores `C:\repo`.
     const driveLetter = tmp[0];
     const flipped =

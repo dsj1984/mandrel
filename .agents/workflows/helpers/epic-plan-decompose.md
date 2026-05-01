@@ -19,13 +19,13 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`sprint-plan-spec.md`](sprint-plan-spec.md)), generates the Feature / Story
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
 / Task ticket hierarchy, persists it to GitHub, and flips the Epic to
 `agent::ready` (parking) so a human can run `/sprint-execute` when execution
 should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
-`sprint-plan-decompose.js` is a deterministic wrapper that (a) emits the
+`epic-plan-decompose.js` is a deterministic wrapper that (a) emits the
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
@@ -51,7 +51,7 @@ Epic lifecycle state.
 ## Step 1 — Gather decomposition context
 
 ```bash
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] --emit-context \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context \
   > temp/decomposer-context-epic-[Epic_ID].json
 ```
 
@@ -68,11 +68,11 @@ prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
 
 ```bash
 # Normal decomposition
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/tickets-epic-[Epic_ID].json
 
 # Re-decompose (closes existing child Features/Stories/Tasks first)
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/tickets-epic-[Epic_ID].json --force
 ```
 
@@ -86,12 +86,12 @@ On success the script:
 ## Step 4 — Cross-validation
 
 Delegate the structural invariants (hierarchy completeness, dependency DAG
-acyclicity, missing complexity labels) to `sprint-plan-healthcheck.js`. It is
+acyclicity, missing complexity labels) to `epic-plan-healthcheck.js`. It is
 the single source of truth for post-decompose validation — the Phase 4 run
 inside `/sprint-plan` calls the same script, so local and remote flows agree.
 
 ```bash
-node .agents/scripts/sprint-plan-healthcheck.js --epic [Epic_ID] --dry-run
+node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --dry-run
 ```
 
 The script exits 0 regardless of findings (non-blocking), but lists any

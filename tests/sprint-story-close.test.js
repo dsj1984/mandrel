@@ -15,9 +15,9 @@ import {
   getCloseDrainStatus,
   reconcileCleanupState,
   renderPhaseTimingsCommentBody,
-} from '../.agents/scripts/sprint-story-close.js';
+} from '../.agents/scripts/story-close.js';
 
-const SCRIPT_PATH = path.resolve('.agents/scripts/sprint-story-close.js');
+const SCRIPT_PATH = path.resolve('.agents/scripts/story-close.js');
 
 test('buildResumeMergeCommitMsg lower-cases the first letter and tags resolves', () => {
   assert.strictEqual(
@@ -81,7 +81,7 @@ test('sprint-story-close script', async (t) => {
     assert.strictEqual(result.status, 1);
     assert.match(
       result.stderr.toString() + result.stdout.toString(),
-      /Usage: node sprint-story-close\.js --story <STORY_ID>/,
+      /Usage: node story-close\.js --story <STORY_ID>/,
     );
   });
 });

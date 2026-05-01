@@ -34,8 +34,8 @@ From zero to shipped:
 4. **Close the Epic.** When the final wave lands, the Epic flips to
    `agent::review`. Run **`/sprint-close <epicId>`** — that one workflow
    internally auto-invokes the code-review helper
-   (`workflows/helpers/sprint-code-review.md`) and the retro helper
-   (`workflows/helpers/sprint-retro.md`) before merging to `main`. The
+   (`workflows/helpers/epic-code-review.md`) and the retro helper
+   (`workflows/helpers/epic-retro.md`) before merging to `main`. The
    helpers are not slash commands; you never run the review or retro by
    hand.
 
@@ -226,7 +226,7 @@ label (Epic Mode for `type::epic`, Story Mode for `type::story`). The old
 Whether the Story is launched locally by the operator or fanned out by the
 remote Epic runner, the same three phases run:
 
-1. **Initialization** (`sprint-story-init.js`):
+1. **Initialization** (`story-init.js`):
    - Verifies all upstream dependencies are satisfied.
    - Syncs the Epic base branch with `main`.
    - Creates or seeds the Story branch (in a worktree when
@@ -234,7 +234,7 @@ remote Epic runner, the same three phases run:
    - Transitions child Tasks to `agent::executing`.
 2. **Task implementation.** The agent executes each Task sequentially on the
    shared Story branch, committing after each Task completion.
-3. **Closure** (`sprint-story-close.js`):
+3. **Closure** (`story-close.js`):
    - Runs shift-left validation (lint, format, test).
    - Merges the Story branch into `epic/<epicId>`.
    - Transitions Tasks → `agent::done`; cascades up Task → Story → Feature
@@ -292,7 +292,7 @@ from hostname+pid+random.
 
 ### Launch-time dependency guard
 
-Before any branch operation, `sprint-story-init.js` reads the Epic's
+Before any branch operation, `story-init.js` reads the Epic's
 dispatch manifest and verifies the target story's blockers are all merged.
 Unmerged blockers print each blocker's id, state, and URL; the session exits
 0 (operator-error, not a system error) without touching any branches. A
@@ -303,7 +303,7 @@ The guard runs identically on web and local.
 
 ### Concurrent close — push retry
 
-`sprint-story-close.js` merges the Story branch into `epic/<epicId>` locally
+`story-close.js` merges the Story branch into `epic/<epicId>` locally
 and pushes. With multiple sessions closing into the same Epic branch from
 separate clones, a non-fast-forward rejection is expected. The push step is
 wrapped in a bounded retry: on rejection the script fetches
@@ -336,8 +336,8 @@ entirety of the operator interface after dispatch.
    `agent::executing` to resume.
 3. **Close hand-off.** At `agent::review`, the run stops by default — you run
    `/sprint-close <epicId>`, which internally auto-invokes the code-review
-   helper (`workflows/helpers/sprint-code-review.md`) and the retro helper
-   (`workflows/helpers/sprint-retro.md`) before merging to main. If
+   helper (`workflows/helpers/epic-code-review.md`) and the retro helper
+   (`workflows/helpers/epic-retro.md`) before merging to main. If
    `epic::auto-close` was present at dispatch time, the `BookendChainer`
    invokes `/sprint-close` automatically with no further prompts.
 
@@ -445,7 +445,7 @@ the project's `CI / CD` workflow (costly minutes on private repos). Two
 mitigations:
 
 - Add `[skip ci]` to orchestrator commit messages (requires a small tweak in
-  `sprint-story-close.js`), OR
+  `story-close.js`), OR
 - Add a `paths-ignore` or branch filter to `ci.yml` that excludes `epic/*` and
   `story-*` branches. Only `main` pushes trigger CI.
 
@@ -490,7 +490,7 @@ details.
 Once Story waves complete, the bookend lifecycle begins.
 
 1. **Story branch merging.** Stories merge into `epic/<epicId>` automatically
-   during Story closure (`sprint-story-close.js`). This replaces the legacy
+   during Story closure (`story-close.js`). This replaces the legacy
    `/sprint-integration` step.
 2. **Completion cascade.** When the last Task in a Story reaches `agent::done`,
    status cascades upward:
@@ -505,9 +505,9 @@ Once Story waves complete, the bookend lifecycle begins.
 3. **Single operator command: `/sprint-close <epicId>`.** Close is the only
    bookend workflow an operator runs by hand. It internally auto-invokes, in
    order:
-   - **Code review gate** (`workflows/helpers/sprint-code-review.md`) — inline
+   - **Code review gate** (`workflows/helpers/epic-code-review.md`) — inline
      audit; halts close on 🔴 Critical Blockers, otherwise continues.
-   - **Retro gate** (`workflows/helpers/sprint-retro.md`) — summarises wins and
+   - **Retro gate** (`workflows/helpers/epic-retro.md`) — summarises wins and
      friction from the ticket graph and posts the retro as a structured
      comment on the Epic (no local files). Skippable via
      `agentSettings.epicClose.runRetro: false` or `--skip-retro`. The legacy
@@ -536,7 +536,7 @@ for the acceptance tier is governed by
 The acceptance tier is executed and reported via
 [`workflows/run-bdd-suite.md`](workflows/run-bdd-suite.md) and consumed as
 sprint evidence by
-[`workflows/helpers/sprint-testing.md`](workflows/helpers/sprint-testing.md).
+[`workflows/helpers/epic-testing.md`](workflows/helpers/epic-testing.md).
 
 ---
 
@@ -631,7 +631,7 @@ Because `notify()` is called in-band from the orchestration SDK, it captures
 changes from:
 
 - The Epic runner (coordinator-driven state flips).
-- Per-story scripts (`sprint-story-init.js`, `sprint-story-close.js`).
+- Per-story scripts (`story-init.js`, `story-close.js`).
 - Any script that routes state changes through `transitionTicketState`.
 
 It does **not** capture manual label clicks in the GitHub UI (no webhook
@@ -667,8 +667,8 @@ execution.
 | Label Epic `agent::dispatching`    | Trigger remote orchestrator via GitHub Actions                                                                                                                               |
 | Label Epic `epic::auto-close`      | Authorize autonomous bookend chain at dispatch time                                                                                                                          |
 | `/sprint-close <epicId>`           | Close the Epic — auto-invokes code-review + retro, then merges to `main` and closes Epic + context issues. **The only bookend command an operator runs by hand.** |
-| _helper_ `workflows/helpers/sprint-code-review.md` | Auto-invoked by `/sprint-close` Phase 3 and by `/sprint-execute` bookends; not a slash command                                                               |
-| _helper_ `workflows/helpers/sprint-retro.md`       | Auto-invoked by `/sprint-close` Phase 6; not a slash command                                                                                               |
+| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/sprint-close` Phase 3 and by `/sprint-execute` bookends; not a slash command                                                               |
+| _helper_ `workflows/helpers/epic-retro.md`       | Auto-invoked by `/sprint-close` Phase 6; not a slash command                                                                                               |
 | `/git-commit-all`                  | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                        | Stage, commit, and push to remote                                                                                                                                            |
 | `/delete-epic-branches <epicId>`   | Hard reset — delete all Epic-scoped branches                                                                                                                                 |

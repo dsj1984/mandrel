@@ -92,7 +92,7 @@ Read execution telemetry directly from GitHub — **not** from local files:
 4. **Fetch the code-review structured comment** (if present) from the Epic —
    `provider.getTicketComments(epicId)` filtered by the
    `ap:structured-comment type="code-review"` HTML marker (posted by
-   `sprint-code-review.js`). Summarise any Critical Blocker / High Risk findings
+   `epic-code-review.js`). Summarise any Critical Blocker / High Risk findings
    in the **Architectural Debt** section of the retro body below. If no comment
    is present, note "no automated code-review findings".
 5. **Fetch the parked-follow-ons structured comment** (if present) from the Epic

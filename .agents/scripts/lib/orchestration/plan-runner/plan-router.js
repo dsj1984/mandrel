@@ -32,13 +32,13 @@ export const PLAN_PHASE_NAMES = Object.freeze({
 export const PLAN_PHASE_DESCRIPTORS = Object.freeze({
   [PLAN_PHASE_NAMES.SPEC]: {
     phase: PLAN_PHASE_NAMES.SPEC,
-    script: '.agents/scripts/sprint-plan-spec.js',
+    script: '.agents/scripts/epic-plan-spec.js',
     command: '/sprint-plan --phase spec',
     parkingLabel: AGENT_LABELS.REVIEW_SPEC,
   },
   [PLAN_PHASE_NAMES.DECOMPOSE]: {
     phase: PLAN_PHASE_NAMES.DECOMPOSE,
-    script: '.agents/scripts/sprint-plan-decompose.js',
+    script: '.agents/scripts/epic-plan-decompose.js',
     command: '/sprint-plan --phase decompose',
     parkingLabel: AGENT_LABELS.READY,
   },

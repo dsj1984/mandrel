@@ -3,7 +3,7 @@
  *
  * Consolidates the "does this branch exist locally / remotely?" and
  * "ensure this branch exists and is checked out" logic that
- * `sprint-story-init.js` and `dispatch-engine.js` had each re-implemented.
+ * `story-init.js` and `dispatch-engine.js` had each re-implemented.
  *
  * All helpers take an explicit `cwd`. Callers with worktree isolation
  * enabled pass the worktree path; single-tree callers pass `PROJECT_ROOT`.

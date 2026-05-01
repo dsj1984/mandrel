@@ -144,7 +144,7 @@ test('formatter: story execution manifest respects injected settings', () => {
       },
     },
   );
-  assert.ok(md.includes('custom/scripts/sprint-story-init.js'));
+  assert.ok(md.includes('custom/scripts/story-init.js'));
   assert.ok(md.includes('Run `npm run check` and `npm run spec`'));
 });
 
@@ -153,7 +153,7 @@ test('formatter: story execution manifest falls back to defaults when settings a
     generatedAt: '2026-04-20T00:00:00.000Z',
     stories: [],
   });
-  assert.ok(md.includes('.agents/scripts/sprint-story-init.js'));
+  assert.ok(md.includes('.agents/scripts/story-init.js'));
   assert.ok(md.includes('npm run lint'));
   assert.ok(md.includes('npm test'));
 });

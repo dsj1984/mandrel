@@ -1,6 +1,6 @@
 /**
  * Pure-helper tests for `branch-initializer`. The impure orchestration
- * (`bootstrapWorktree`) is exercised end-to-end by `sprint-story-init.js`
+ * (`bootstrapWorktree`) is exercised end-to-end by `story-init.js`
  * smoke runs; here we lock down the small predicates it composes.
  */
 

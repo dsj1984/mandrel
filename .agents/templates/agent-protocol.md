@@ -36,7 +36,7 @@ If you hit an unrecoverable error during implementation:
 When your implementation is complete and verified:
 
 1. Stage and commit your changes to the Story branch (`{{BRANCH_NAME}}`).
-2. Validation runs at Story closure (`sprint-story-close.js`) — do **not**
+2. Validation runs at Story closure (`story-close.js`) — do **not**
    pre-run `npm run lint && npm test` here unless you are interactively
    iterating on a fix. The close script's lint/test/format/maintainability
    chain is the authoritative gate.

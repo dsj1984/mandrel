@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-plan-decompose.js — Phase 2 (decompose) entry point for the split
+ * epic-plan-decompose.js — Phase 2 (decompose) entry point for the split
  * planning flow.
  *
  * Wraps `ticket-decomposer.js` behind the idempotent plan-phase lifecycle:
@@ -27,6 +27,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
+import { drainPendingCleanupAtBoot } from './epic-plan-spec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   PROJECT_ROOT,
@@ -42,7 +43,6 @@ import {
 } from './lib/orchestration/plan-runner/plan-checkpointer.js';
 import { cleanupPhaseTempFiles } from './lib/plan-phase-cleanup.js';
 import { createProvider } from './lib/provider-factory.js';
-import { drainPendingCleanupAtBoot } from './sprint-plan-spec.js';
 import {
   buildDecompositionContext,
   decomposeEpic,
@@ -77,16 +77,16 @@ export async function runDecomposePhase(
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
-    throw new Error(`[sprint-plan-decompose] Epic #${epicId} not found.`);
+    throw new Error(`[epic-plan-decompose] Epic #${epicId} not found.`);
   }
   if (!epic.labels?.includes(TYPE_LABELS.EPIC)) {
     throw new Error(
-      `[sprint-plan-decompose] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
+      `[epic-plan-decompose] Ticket #${epicId} is not a ${TYPE_LABELS.EPIC}.`,
     );
   }
   if (!epic.linkedIssues?.prd || !epic.linkedIssues?.techSpec) {
     throw new Error(
-      `[sprint-plan-decompose] Epic #${epicId} is missing a linked PRD or Tech Spec. Run /sprint-plan-spec first.`,
+      `[epic-plan-decompose] Epic #${epicId} is missing a linked PRD or Tech Spec. Run /epic-plan-spec first.`,
     );
   }
 
@@ -114,7 +114,7 @@ export async function runDecomposePhase(
   });
 
   console.log(
-    `[sprint-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
+    `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.READY);
   await checkpointer.setPhase(PLAN_PHASES.READY);
@@ -122,11 +122,11 @@ export async function runDecomposePhase(
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
 
   console.log(
-    `[sprint-plan-decompose] ✅ Decompose phase complete for Epic #${epicId}. ${tickets.length} ticket(s) persisted.`,
+    `[epic-plan-decompose] ✅ Decompose phase complete for Epic #${epicId}. ${tickets.length} ticket(s) persisted.`,
   );
   if (cleanup.deleted.length > 0) {
     console.log(
-      `[sprint-plan-decompose] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
+      `[epic-plan-decompose] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
     );
   }
 
@@ -148,7 +148,7 @@ async function main() {
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: sprint-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force]',
+      'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force]',
     );
   }
 
@@ -176,7 +176,7 @@ async function main() {
     });
   } catch (err) {
     console.warn(
-      `[sprint-plan-decompose] worktree sweep skipped: ${err.message}`,
+      `[epic-plan-decompose] worktree sweep skipped: ${err.message}`,
     );
   }
 
@@ -218,4 +218,4 @@ async function main() {
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
 
-runAsCli(import.meta.url, main, { source: 'sprint-plan-decompose' });
+runAsCli(import.meta.url, main, { source: 'epic-plan-decompose' });

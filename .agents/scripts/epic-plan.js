@@ -2,17 +2,17 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-plan.js — Local `/sprint-plan` wrapper.
+ * epic-plan.js — Local `/sprint-plan` wrapper.
  *
  * Thin orchestrator that chains the split plan-phase CLIs for IDE-driven
  * planning:
  *
- *   1. Run the spec phase via `sprint-plan-spec.js`.
+ *   1. Run the spec phase via `epic-plan-spec.js`.
  *   2. Surface PRD / Tech Spec URLs plus the next-step prompt.
  *   3. Wait for operator confirmation (handled by the host LLM in chat —
  *      this script exits cleanly after Step 1 when `--pause-after-spec` is
  *      set, letting the wrapping skill resume after human approval).
- *   4. Run the decompose phase via `sprint-plan-decompose.js`.
+ *   4. Run the decompose phase via `epic-plan-decompose.js`.
  *
  * The script is intentionally small — the heavy lifting lives in each
  * sub-CLI. This wrapper primarily owns the in-chat confirmation gate.
@@ -20,6 +20,8 @@
 
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
+import { runDecomposePhase } from './epic-plan-decompose.js';
+import { runSpecPhase } from './epic-plan-spec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   resolveConfig,
@@ -36,8 +38,6 @@ import {
   PLAN_PHASE_NAMES,
 } from './lib/orchestration/plan-runner/plan-router.js';
 import { createProvider } from './lib/provider-factory.js';
-import { runDecomposePhase } from './sprint-plan-decompose.js';
-import { runSpecPhase } from './sprint-plan-spec.js';
 
 /**
  * Orchestrate the full local plan. Intentionally side-effect-free on its
@@ -126,7 +126,7 @@ async function main() {
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: sprint-plan.js --epic <EpicId> --prd <file> --techspec <file> --tickets <file> [--force]',
+      'Usage: epic-plan.js --epic <EpicId> --prd <file> --techspec <file> --tickets <file> [--force]',
     );
   }
 

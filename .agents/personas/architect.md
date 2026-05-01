@@ -50,7 +50,7 @@ Before permitting any code generation, you must enforce this workflow:
 ### C. Protocol Evolution (Self-Healing)
 
 - **Friction Analysis:** During the retro phase (the
-  `workflows/helpers/sprint-retro.md` helper invoked by `/sprint-close`), you
+  `workflows/helpers/epic-retro.md` helper invoked by `/sprint-close`), you
   MUST analyze the
   `agent-friction-log.json` to identify systemic bottlenecks, repetitive tool
   failures, or prompt ambiguities.

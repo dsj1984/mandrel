@@ -24,19 +24,19 @@ Epic, and flips the Epic to `agent::review-spec` (parking) so a human reviewer
 can read the artifacts on GitHub before decomposition.
 
 The PRD and Tech Spec are authored **directly by you, the host LLM**.
-`sprint-plan-spec.js` is a deterministic wrapper that (a) emits the authoring
+`epic-plan-spec.js` is a deterministic wrapper that (a) emits the authoring
 context you need and (b) persists the artifacts and transitions the Epic
 lifecycle state.
 
 The complementary Phase 2 helper is
-[`sprint-plan-decompose.md`](sprint-plan-decompose.md). The `/sprint-plan`
+[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/sprint-plan`
 wrapper chains both helpers with a confirmation gate in between.
 
 ## Constraint
 
 - **Do not** create or modify tickets outside the `context::prd` /
   `context::tech-spec` contract — decomposition belongs to
-  [`sprint-plan-decompose.md`](sprint-plan-decompose.md).
+  [`epic-plan-decompose.md`](epic-plan-decompose.md).
 - **Do not** flip the Epic to `agent::ready` from this skill. The terminal
   label for the spec phase is `agent::review-spec`.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics may
@@ -57,7 +57,7 @@ Run the spec-phase CLI in context-emission mode to collect the Epic body, the
 scraped project docs, and the recommended system prompts.
 
 ```bash
-node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] --emit-context \
+node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context \
   > temp/planner-context-epic-[Epic_ID].json
 ```
 
@@ -79,12 +79,12 @@ write the Tech Spec to `temp/techspec-epic-[Epic_ID].md`. Start with
 
 ```bash
 # Normal flow
-node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
   --prd temp/prd-epic-[Epic_ID].md \
   --techspec temp/techspec-epic-[Epic_ID].md
 
 # Re-plan (regenerates an existing PRD / Tech Spec)
-node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
   --prd temp/prd-epic-[Epic_ID].md \
   --techspec temp/techspec-epic-[Epic_ID].md --force
 ```
@@ -105,7 +105,7 @@ Step 4 succeeds — no operator action required. The cleanup contract lives in
 [`lib/plan-phase-cleanup.js`](../../scripts/lib/plan-phase-cleanup.js), which
 is the single source of truth for which temp paths this phase owns. If you
 need to inspect the temp artefacts after the fact, re-run
-`sprint-plan-spec.js --emit-context` to regenerate the planner context.
+`epic-plan-spec.js --emit-context` to regenerate the planner context.
 
 ## Handoff
 

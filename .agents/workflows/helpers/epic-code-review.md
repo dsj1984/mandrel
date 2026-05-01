@@ -40,7 +40,7 @@ Run the automated code review script to perform a quick maintainability and lint
 sweep of the changes:
 
 ```powershell
-node .agents/scripts/sprint-code-review.js --epic [EPIC_ID]
+node .agents/scripts/epic-code-review.js --epic [EPIC_ID]
 ```
 
 This script will:
@@ -127,7 +127,7 @@ prior baseline before merging.
 ## Step 3 — Produce Findings Report
 
 Findings are **persisted as a `code-review` structured comment on the Epic
-issue** by `sprint-code-review.js` (v5.9.0+). The comment is idempotent —
+issue** by `epic-code-review.js` (v5.9.0+). The comment is idempotent —
 re-runs replace the prior one — and its body includes severity-tier counts plus
 the full findings list so downstream workflows (notably the retro helper) can
 summarise blockers/high findings without re-running the review.

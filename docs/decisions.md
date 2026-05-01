@@ -420,7 +420,7 @@ doesn't carry a framework-shipped entry anymore.
 | `mcp__agent-protocols__dispatch_wave`          | `node .agents/scripts/dispatcher.js --epic <id>` (same SDK, same dispatch-manifest output).                                                  |
 | `mcp__agent-protocols__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; `context-hydrator.js` remains the raw-prompt wrapper. |
 | `mcp__agent-protocols__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --task <id> --state <state>` (auto-cascades on `agent::done`).                                  |
-| `mcp__agent-protocols__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `sprint-story-close.js`.                                              |
+| `mcp__agent-protocols__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `story-close.js`.                                              |
 | `mcp__agent-protocols__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; direct `provider.postComment` in lib code. |
 | `mcp__agent-protocols__select_audits`          | `node .agents/scripts/select-audits.js --ticket <id> --gate <gate>`.                                                                         |
 | `mcp__agent-protocols__run_audit_suite`        | `node .agents/scripts/run-audit-suite.js --audits <comma-list>`.                                                                             |
@@ -815,13 +815,13 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #321 Story #334, v5.14.0).
 *   **Context:** `risk-gate-handler.js` halted the dispatcher on
-    `risk::high` tasks, and `sprint-story-close.js` halted close for
+    `risk::high` tasks, and `story-close.js` halted close for
     `risk::high` stories. In the new HITL-minimal model this becomes
     two per-ticket gates the orchestrator must pause on — incompatible
     with unattended remote runs.
 *   **Decision:** The runtime halt is removed. `handleRiskHighGate`
     reduces to a log-only warning; `wave-dispatcher.js` dispatches
-    `risk::high` tasks unconditionally; `sprint-story-close.js` gates
+    `risk::high` tasks unconditionally; `story-close.js` gates
     only when both `hitl.riskHighApproval` **and**
     `hitl.riskHighRuntimeGate` are explicitly `true` (both default
     `false`). The label is preserved — retros and planning can still
@@ -835,7 +835,7 @@ submodule paths are internal implementation detail.
         `agent::blocked` escalation when an unauthorized destructive
         action is detected, (c) `epic::auto-close` as a deliberate
         opt-in that must be set at dispatch.
-    *   `handleHighRiskGate` in `sprint-story-close.js` becomes dead
+    *   `handleHighRiskGate` in `story-close.js` becomes dead
         code behind a hidden opt-in flag — cleanup tracked in Epic
         #349 Wave 0.
 
@@ -972,10 +972,10 @@ submodule paths are internal implementation detail.
 *   **Context:** Epic #380's mid-close on Story #389 required ~30
     minutes of manual git surgery (resolve the merge in progress,
     re-run validation, re-merge to the Epic branch). The stock
-    `sprint-story-close.js` had no concept of "resuming" — re-running
+    `story-close.js` had no concept of "resuming" — re-running
     it from the worktree always re-ran init/implement/validate
     end-to-end, which was wasteful and racy.
-*   **Decision:** `sprint-story-close.js` now classifies the close-time
+*   **Decision:** `story-close.js` now classifies the close-time
     state via `detectPriorState()` into one of: `clean` (default,
     proceed), `unmerged-story-branch` (story branch has commits ahead
     of `epic/<id>` that haven't merged), `merge-in-progress` (UU
@@ -1043,8 +1043,8 @@ submodule paths are internal implementation detail.
 *   **Context:** The MCP tool
     `mcp__agent-protocols__post_structured_comment` originally
     accepted only `progress | friction | notification` as `type`
-    values. As a result, `sprint-code-review.js`,
-    `.claude/skills/sprint-retro.md`, the wave-observer, and the
+    values. As a result, `epic-code-review.js`,
+    `.claude/skills/epic-retro.md`, the wave-observer, and the
     progress-reporter each hand-rolled their own structured-comment
     marker and posted via `provider.postComment` directly, bypassing
     payload-schema validation. During Epic #413's close, the retro
@@ -1206,7 +1206,7 @@ submodule paths are internal implementation detail.
 *   **Date:** 2026-04-24
 *   **Epic:** #553
 *   **Context:** Two independent performance audits converged on the same
-    hot paths. `sprint-wave-gate.js` ran three serial `for..of` loops of
+    hot paths. `wave-gate.js` ran three serial `for..of` loops of
     `await getTicket`; `ProgressReporter` fanned out `getTicket(id, { fresh: true })`
     across every story in every wave on every cadence tick; `state-poller`
     fetched a full ticket per tracked story just to read `.labels`; every
@@ -1447,12 +1447,12 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #817, v5.28.0).
 *   **Context:** `sprint-execute.md` Step 2 used to require an explicit
-    `npm run lint && npm test` before invoking `sprint-story-close.js`,
+    `npm run lint && npm test` before invoking `story-close.js`,
     which then re-ran the same gates as part of close-validation. Headless
     sub-agent runs paid the cost twice; interactive runs blurred the
     decision of which result was authoritative. With evidence-aware skip
     in place (#817a), the duplication was no longer needed for safety.
-*   **Decision:** `sprint-story-close.js` is the single source of truth
+*   **Decision:** `story-close.js` is the single source of truth
     for local Story merge readiness. The pre-flight `npm run lint &&
     npm test` is now described as advisory `--fast` mode for interactive
     iteration — failures will be re-surfaced by the close-validation gate
@@ -1495,13 +1495,13 @@ submodule paths are internal implementation detail.
     from the CRAP scan because its first comment line is
     `/* node:coverage ignore file */`. Twenty-one other CLI entrypoints
     under `.agents/scripts/*.js` carry the same directive, including
-    `epic-runner.js`, `sprint-story-close.js`, `sprint-story-init.js`,
-    `epic-planner.js`, `dispatcher.js`, `sprint-plan-spec.js`,
-    `sprint-plan-decompose.js`, `notify.js`, `health-monitor.js`,
+    `epic-runner.js`, `story-close.js`, `story-init.js`,
+    `epic-planner.js`, `dispatcher.js`, `epic-plan-spec.js`,
+    `epic-plan-decompose.js`, `notify.js`, `health-monitor.js`,
     `post-structured-comment.js`, `pool-claim.js`, `remote-bootstrap.js`,
     `select-audits.js`, `ticket-decomposer.js`, `agents-bootstrap-github.js`,
     `assert-branch.js`, `context-hydrator.js`, `diagnose-friction.js`,
-    `hydrate-context.js`, `sprint-plan.js`, and `sprint-plan-healthcheck.js`.
+    `hydrate-context.js`, `epic-plan.js`, and `epic-plan-healthcheck.js`.
     The convention pre-dates this Epic but had never been written down,
     making it ambiguous whether the directive on a given file was a
     deliberate convention or an accidental escape hatch.

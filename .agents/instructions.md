@@ -284,7 +284,7 @@ them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
-| Story execution  | `story-<storyId>`            | `sprint-story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
+| Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
 | Epic integration | `epic/<epicId>`              | `epic-runner.js`       | Story branches merge into this branch with `--no-ff`. Pushed per wave.                        |
 | Legacy fallback  | `task/<archivedEpic>/<taskN>` | (legacy, do not create) | Only present in archived Epics from runtimes prior to v5.29. Recognized for read; never created by new work. |
 
@@ -292,7 +292,7 @@ them automatically; agents commit on the execution branch only.
   MUST NOT create `task/...` branches under the v5.29+ runtime — those
   identifiers are retained as a legacy fallback only, for compatibility with
   archived Epics.
-- **Verification**: After `sprint-story-init.js` returns, confirm
+- **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
   commits. If it does not, **STOP** and re-init.
 
