@@ -40,7 +40,7 @@
       "validate": "npm run lint",
       "lintBaseline": "npm run lint",
       "test": "npm test",
-      "typecheck": null,
+      "typecheck": "node --version",
       "build": null
     },
     "quality": {
