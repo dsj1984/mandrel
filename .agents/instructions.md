@@ -188,7 +188,7 @@ protocol:
 
 ### B. Cost-Aware Model Selection
 
-- During the planning phase (`/plan-sprint`), the **Project Manager** and
+- During the planning phase (`/epic-plan`), the **Project Manager** and
   **Architect** personas MUST consider the economic impact of their task
   assignments.
 - Use the `complexity::high` label sparingly. Only Stories that genuinely
@@ -272,14 +272,14 @@ environments without needing manual command corrections.
 
 ---
 
-## 6. Git & Sprint Protocol (Strict Standards)
+## 6. Git & Epic Protocol (Strict Standards)
 
 To maintain a clean and readable repository history, you MUST follow these
-strict conventions for all sprint-related Git operations:
+strict conventions for all epic-related Git operations:
 
 ### A. Branch Naming (Canonical)
 
-Sprint execution uses three branch shapes. The runtime creates and maintains
+Epic execution uses three branch shapes. The runtime creates and maintains
 them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
@@ -308,8 +308,10 @@ Do NOT manually update issue descriptions or status fields unless prompted.
 
 ### C. History Hygiene
 
-Prioritize a clean `epic/[EPIC_ID]` branch. Feature branches should be merged
-using the `/sprint-integration` workflow to maintain a consistent merge history.
+Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into the
+Epic branch automatically by `/story-execute` (via `story-close.js`); the Epic
+branch is merged into `main` only by `/epic-close`. There is no separate
+integration workflow.
 
 ---
 

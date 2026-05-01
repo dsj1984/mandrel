@@ -111,7 +111,7 @@ keys.
 
 | File                             | Audience                              | Role                                                                                                                                |
 | -------------------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)      | The framework dogfooding itself       | Live config used when running `/sprint-*` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
+| `.agentrc.json` (repo root)      | The framework dogfooding itself       | Live config used when running `/epic-*`, `/wave-execute`, and `/story-execute` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
 | `.agents/default-agentrc.json`   | Downstream consumer repos             | The template a consumer copies via `cp .agents/default-agentrc.json .agentrc.json` when bootstrapping. Sane defaults for any repo. |
 
 The two files share a schema and the vast majority of keys are identical.
@@ -144,14 +144,14 @@ repo's own dogfood runs.
    matching file from `personas/`.
 1. **Activate skills** by name or let the agent auto-discover `SKILL.md` files
    in `skills/core/` and `skills/stack/`.
-1. **Run workflows** using slash commands (e.g., `/sprint-plan`,
+1. **Run workflows** using slash commands (e.g., `/epic-plan`,
    `/audit-security`).
 
 ---
 
 ## Bootstrap (`/agents-bootstrap-github`)
 
-Before running any sprint workflows, you must bootstrap your GitHub repository
+Before running any Epic workflows, you must bootstrap your GitHub repository
 so the orchestration engine has the labels, project fields, and metadata it
 expects. The bootstrap script is **idempotent** — safe to run multiple times.
 
@@ -203,7 +203,7 @@ node .agents/scripts/agents-bootstrap-github.js --install-workflows
 | Context     | `context::prd`, `context::tech-spec`                               | Planning document classification |
 | Execution   | `execution::sequential`, `execution::concurrent`                   | Dispatch strategy hints          |
 
-> [!TIP] After bootstrapping, run `/sprint-plan [EPIC_ID]` to begin the planning
+> [!TIP] After bootstrapping, run `/epic-plan [EPIC_ID]` to begin the planning
 > phase. See the [SDLC guide](SDLC.md) for the full end-to-end workflow.
 
 ---
@@ -233,8 +233,6 @@ in interactive developer sessions only.
 | Environment                | Storage location                                                                                                      |
 | -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Local development          | `.env` at the project root (auto-loaded by `config-resolver.js`). The file is `.gitignore`d; provision it per clone.  |
-| Claude Code web session    | The session's environment-variables UI. Values are injected as process env before `/sprint-execute` starts.           |
-| GitHub Actions remote run  | Repo secret `ENV_FILE`, expanded into `.env` by `.agents/scripts/remote-bootstrap.js` with `::add-mask::` + `0600`.   |
 
 `.mcp.json` is reserved for your MCP host's own discovery of third-party
 servers (e.g. `@modelcontextprotocol/server-github`, `context7`) and is
@@ -261,7 +259,7 @@ Personas constrain agent behavior to a specific role.
 | `sre.md`               | SRE             | Reliability, observability, performance, incident response |
 | `security-engineer.md` | Security Eng    | Audits, threat modeling, auth/authz, data privacy          |
 | `technical-writer.md`  | Tech Writer     | Documentation, changelogs, Mermaid diagrams                |
-| `project-manager.md`   | Project Mgr     | Sprint decomposition, playbook generation, orchestration   |
+| `project-manager.md`   | Project Mgr     | Epic decomposition, playbook generation, orchestration     |
 
 ---
 
@@ -348,7 +346,7 @@ The skill library uses a **two-tier architecture**: universal process skills
 
 ## Workflows
 
-Workflows are reusable slash commands for audits, sprint operations, and
+Workflows are reusable slash commands for audits, Epic operations, and
 repository maintenance.
 
 ### Audit Workflows
@@ -478,7 +476,7 @@ that delegate to it:
 | `check-maintainability.js`           | Maintainability score computation and baseline check                    |
 | `update-maintainability-baseline.js` | Updates the maintainability baseline after improvements                 |
 | `diagnose-friction.js`               | Analyzes friction logs for patterns                                     |
-| `health-monitor.js`                  | Push-based sprint health monitoring                                     |
+| `health-monitor.js`                  | Push-based Epic health monitoring                                       |
 | `detect-merges.js`                   | Detects and reports merge conflicts                                     |
 | `audit-orchestrator.js`              | Automated, gate-based static analysis and audit runner                  |
 | `handle-approval.js`                 | CI webhook listener for `/approve` commands on audit findings           |
@@ -552,155 +550,16 @@ The `GitHubProvider` resolves credentials in this priority order:
 
 ---
 
-## Claude authentication for remote Epic runs
+## Concurrent close safety
 
-The GitHub Actions remote-orchestrator workflow
-(`.github/workflows/epic-orchestrator.yml`) invokes Claude Code Action, which
-supports three authentication modes. Pick based on your subscription model:
-
-| Mode                          | Input secret              | Billing                           |
-| ----------------------------- | ------------------------- | --------------------------------- |
-| Anthropic API (per-token)     | `ANTHROPIC_API_KEY`       | Pay-as-you-go, separate from Max. |
-| **Claude Max OAuth (target)** | `CLAUDE_CODE_OAUTH_TOKEN` | Uses your Max subscription quota. |
-| Bedrock / Vertex              | provider-specific vars    | Uses the cloud account's billing. |
-
-### Target state (Max OAuth) — post-Epic #349
-
-For Claude Max subscribers, the **Max OAuth token** path is the recommended
-configuration because it runs remote orchestration against the same subscription
-quota as local Claude Code usage — no per-token API charges.
-
-**Setup:**
-
-1. Generate a long-lived Claude Code OAuth token from a signed-in Claude Code
-   session (e.g. via the `claude setup-token` flow or the equivalent `/login`
-   prompt in the IDE).
-2. Add the token as a GitHub repo secret named `CLAUDE_CODE_OAUTH_TOKEN`.
-3. In `.github/workflows/epic-orchestrator.yml`, replace the API-key input with
-   the OAuth input on the Claude Code Action step:
-
-   ```yaml
-   # Before
-   with:
-     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-   # After
-   with:
-     claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-   ```
-
-4. Leave the other inputs (`github_token`, `prompt`, `env_vars`) untouched.
-
-Epic #349 (planned for v5.15.0) tracks the workflow change itself; this section
-is documentation of the intended post-#349 steady state so Max subscribers know
-not to provision an Anthropic API key.
-
-### Which mode does my repo use?
-
-Check `.github/workflows/epic-orchestrator.yml` — whichever input is set is the
-mode in effect. Only one should be populated at a time.
-
----
-
-## Running `sprint-execute` on Claude Code web
-
-`/sprint-execute` runs unchanged in a [claude.ai/code](https://claude.ai/code)
-web session. Each web session is its own sandboxed clone of the repository, so
-the worktree-isolation logic that protects local parallel runs is automatically
-disabled on web — every session is already a clone. You can open N tabs and run
-`/sprint-execute` in each; the framework coordinates the launch through a
-claim-based pool mode.
-
-This section covers what only the web case needs: secrets setup, env-var
-behaviour, parallel launch, and reading progress across N tabs. Everything
-else — sprint planning, sprint closing, and the long-running Epic runner — is
-local-only and unchanged.
-
-### Required secrets
-
-Web sessions do not inherit your local secrets — provide every key the
-framework reads through the session's environment-variables UI before running
-`/sprint-execute`. A missing or unauthenticated token fails loudly on the
-first GitHub call; there is no degraded mode.
-
-| Variable                   | Required? | Purpose                                                                                         |
-| -------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
-| `GITHUB_TOKEN`             | Yes       | GitHub API auth. `GH_TOKEN` is accepted as a synonym.                                           |
-| `NOTIFICATION_WEBHOOK_URL` | No        | POST target for in-band Notifier events. Omit to disable the webhook channel.                   |
-| `WEBHOOK_SECRET`           | No        | HMAC signing key for outbound webhook payloads (`X-Signature-256`). Omit to ship unsigned.      |
-
-> **Migrating from a pre-Epic #702 checkout.** These keys previously had two
-> homes: `.env` and the `agent-protocols` entry in `.mcp.json`. The MCP server
-> is retired, so `.mcp.json` is no longer consulted by any framework code.
-> Locally, keep them in `.env` only; on web, put them in the Claude Code
-> environment-variables UI. Any framework keys lingering in a `.mcp.json` are
-> dead config.
-
-### Env-var behaviour
-
-Three environment variables drive the worktree resolver. Resolution precedence
-is **explicit override → web auto-detect → committed config**:
-
-| Variable                       | Effect                                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------------------------- |
-| `AP_WORKTREE_ENABLED=true`     | Force worktrees on, regardless of other signals.                                             |
-| `AP_WORKTREE_ENABLED=false`    | Force worktrees off, regardless of other signals.                                            |
-| `CLAUDE_CODE_REMOTE=true`      | Auto-detect web session — disables worktrees unless `AP_WORKTREE_ENABLED` is also set.       |
-| `CLAUDE_CODE_REMOTE_SESSION_ID`| Stable session id surfaced in the `[ENV] sessionId=…` startup line for log correlation.      |
-
-The committed `orchestration.worktreeIsolation.enabled` value is the fallback
-when no env override applies. The committed config is **never** written by any
-runtime path — switching between web and local does not pollute git history.
-
-At `/sprint-execute` startup, one log line names the resolved value and where
-the decision came from, e.g.:
-
-```text
-[ENV] worktreeIsolation=off (CLAUDE_CODE_REMOTE auto-detect)
-[ENV] sessionId=ds486b5eb691 (remote)
-```
-
-`AP_WORKTREE_ENABLED` is matched as the literal strings `"true"` / `"false"`,
-not by truthiness — `""` and `"0"` do not disable the flag. When
-`CLAUDE_CODE_REMOTE_SESSION_ID` is unset, a 12-char id derived from the host
-and pid is generated locally; the value appears in the startup log line for
-operator correlation only.
-
-### Launching N parallel sessions
-
-Open N web tabs and run `/sprint-execute <storyId>` in each, picking distinct
-story ids from the dispatch table emitted by `/sprint-plan`. The launch-time
-dependency guard blocks any run whose blockers are unmerged. Story
-assignment is the operator's responsibility — the framework no longer claims
-or arbitrates between sibling sessions.
-
-### Reading progress across tabs
-
-Each session writes its progress to GitHub: story-level state lives on the
-Story issue (label transitions, structured comments). The GitHub issue list
-filtered on the Epic is the ground-truth view; there is no shared web
-dashboard.
-
-### Concurrent close safety
-
-Two sessions closing into the same `epic/<epicId>` branch from separate clones
-both succeed. The push step inside `story-close.js` retries on a
+`/wave-execute` may close multiple Stories into the same `epic/<epicId>`
+branch in quick succession. The push step inside `story-close.js` retries on a
 non-fast-forward rejection — fetch, replay the story merge on top of the new
 remote tip, push again — bounded by `orchestration.closeRetry.maxAttempts`
 (default 3) and `orchestration.closeRetry.backoffMs` (default
 `[250, 500, 1000]`). A real content conflict (both stories touched the same
 lines) aborts the loop with a clear error and leaves the local tree clean for
 manual resolution.
-
-### Out of scope on web
-
-Only `/sprint-execute` is supported on web in this release.
-
-- `/sprint-plan` and `/sprint-close` remain local-only.
-- The long-running Epic runner (`/sprint-execute <epicId>`) is local-only —
-  web sessions run a single Story per tab, not the whole Epic.
-- Web-session launch is manual: open tabs by hand. There is no automated
-  fan-out, no scheduled web agent, no webhook-spawned session.
 
 ---
 
@@ -714,7 +573,7 @@ Controlled by `limits.friction` in `.agentrc.json`.
 
 ### Lint Baseline Ratcheting
 
-The lint baseline engine enforces zero-deterioration during sprint workflows.
+The lint baseline engine enforces zero-deterioration during Epic workflows.
 Integrations fail if new lint warnings are introduced, and the baseline
 automatically tightens when the codebase improves.
 
@@ -722,7 +581,7 @@ automatically tightens when the codebase improves.
 
 A per-file maintainability scoring engine computes composite scores based on
 cyclomatic complexity, file length, and dependency counts. The
-`baselines/maintainability.json` prevents score degradation between sprints.
+`baselines/maintainability.json` prevents score degradation between Epics.
 
 ### CRAP Gate (v5.22.0+) — Consumer Onboarding
 

@@ -7,7 +7,7 @@ description: >-
 
 # Worktree-per-Story Lifecycle
 
-Parallel sprint execution can race when multiple story agents share one working
+Parallel epic execution can race when multiple story agents share one working
 tree: rapid `git checkout` swaps cause `git add` to sweep another agent's WIP
 into the wrong commit. Epic #229 moves each dispatched story into its own
 `git worktree` at `.worktrees/story-<id>/` so branch swaps, staging, and reflog
@@ -112,10 +112,10 @@ task commits do not accidentally stage submodule metadata changes. `reap()`
 mirrors the teardown: clear `skip-worktree`, delete the copied directory, scrub
 the gitlink, then `git worktree remove`.
 
-The copy is a point-in-time snapshot taken at worktree creation. For sprint-
-length worktrees this is acceptable; if the root `.agents/` changes during a
-sprint, those updates do not propagate into existing worktrees. Recreate the
-worktree (or add an explicit refresh step) if you need the update mid-sprint.
+The copy is a point-in-time snapshot taken at worktree creation. For epic-
+length worktrees this is acceptable; if the root `.agents/` changes during an
+epic, those updates do not propagate into existing worktrees. Recreate the
+worktree (or add an explicit refresh step) if you need the update mid-epic.
 
 The framework repo itself (where `.agents` is a regular tracked directory, not a
 submodule) skips this behavior. Detection is automatic — keyed off whether

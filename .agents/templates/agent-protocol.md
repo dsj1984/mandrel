@@ -40,8 +40,8 @@ When your implementation is complete and verified:
    pre-run `npm run lint && npm test` here unless you are interactively
    iterating on a fix. The close script's lint/test/format/maintainability
    chain is the authoritative gate.
-3. The Story branch is auto-merged into the Epic branch by `/sprint-execute`
-   after all Tasks are done — do **not** merge manually.
+3. The Story branch is auto-merged into the Epic branch by `/story-execute`
+   (via `story-close.js`) after all Tasks are done — do **not** merge manually.
 4. Transition the task label to `agent::review` via `update-ticket-state.js`.
 
 ---
