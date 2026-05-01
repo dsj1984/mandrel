@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Pool mode retired (story #909)
+
+- **Removed.** `.agents/scripts/pool-claim.js`, `.agents/scripts/lib/pool-mode.js`,
+  and `tests/pool-mode.test.js`. The claim-protocol pool mode (no-id
+  `/sprint-execute`, `in-progress-by:<sessionId>` label + `[claim]` structured
+  comment, race-loser release, reclaimable surfacing) is no longer part of
+  the framework. Story assignment is now deterministic and operator-driven:
+  `/sprint-execute` requires an explicit ticket id picked from the
+  `/sprint-plan` dispatch table.
+- **Config.** The `orchestration.runners.poolMode` block (`staleClaimMinutes`,
+  `sessionIdLength`) is removed from the AJV schema and the published
+  `agentrc.schema.json`. Existing keys in project configs become "additional
+  property" validation errors and must be deleted.
+- **Identity.** `runtime.sessionId` and `resolveSessionId(env)` survive as a
+  stable per-process diagnostic surfaced in the startup `[ENV] sessionId=…`
+  log line; they no longer drive any label writes.
+
 ## [5.30.5] - 2026-05-01
 
 ### `sprint-close` Phase 4 documents project-extended pre-push ratchets

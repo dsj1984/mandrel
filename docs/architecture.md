@@ -18,7 +18,7 @@
 >
 > **Epic #773 update.** `orchestration` consolidated under
 > `orchestration.runners` (the previously-flat `epicRunner`, `planRunner`,
-> `concurrency`, `closeRetry`, `poolMode` peers now group together);
+> `concurrency`, `closeRetry` peers now group together);
 > `config-resolver.js` split into a facade over `quality`, `paths`,
 > `commands`, `limits`, and `runners` accessor submodules; two further
 > facades shipped — `providers/github.js` and
@@ -813,8 +813,8 @@ function in `lib/config-resolver.js` selects the mode at startup based on
                             ▲                                         ▲
                             │                                         │
                             └────────── shared launch primitive ──────┘
-                                       claim-based pool mode
-                              (in-progress-by:<sessionId> + [claim] comment)
+                              operator picks Story id from /sprint-plan
+                                  dispatch table, one session per id
 ```
 
 Both modes share:
@@ -822,9 +822,9 @@ Both modes share:
 - The same `/sprint-execute` slash command and the same routing logic.
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
-- The pool-mode claim protocol (`lib/pool-mode.js`) when `/sprint-execute`
-  is invoked without a story id — `findEligibleStory` → `claimStory` →
-  read-back race detection → `releaseStory` on race-loss.
+- Deterministic, operator-driven story assignment — `/sprint-execute` always
+  takes an explicit Story id. The legacy claim-protocol pool mode was
+  retired in story #909; there is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
   configured by `orchestration.closeRetry`) so concurrent closes from
   separate clones converge cleanly.

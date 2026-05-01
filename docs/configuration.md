@@ -220,7 +220,6 @@ when any of these are tripped.
 | `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
 | `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
 | `closeRetry`      | No       | (none)  | Retry policy for `sprint-story-close.js` non-fast-forward pushes.   |
-| `poolMode`        | No       | (none)  | Pool-mode (no-id `/sprint-execute`) tuning.                         |
 
 ### `orchestration.github`
 
@@ -301,13 +300,6 @@ checkout's HEAD.
 | ------------- | -------- | ---------------------- | --------------------------------------------- |
 | `maxAttempts` | No       | `3`                    | Max retries on non-fast-forward push.          |
 | `backoffMs`   | No       | `[250, 500, 1000]`     | Per-attempt backoff (ms).                     |
-
-### `orchestration.poolMode`
-
-| Field               | Required | Default | Purpose                                                 |
-| ------------------- | -------- | ------- | ------------------------------------------------------- |
-| `staleClaimMinutes` | No       | `60`    | Threshold above which a pool-mode claim is reclaimable.  |
-| `sessionIdLength`   | No       | `12`    | Length of generated session ids.                          |
 
 ---
 

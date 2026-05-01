@@ -230,10 +230,10 @@ pushes, and cascades exactly as it would with worktrees on. The same
 
 `runtime.sessionId`, also produced by the resolver, prefers
 `CLAUDE_CODE_REMOTE_SESSION_ID` when available and falls back to a local
-hostname+pid+random short-id. It is the value used in
-`in-progress-by:<sessionId>` claim labels and `[claim]` structured comments,
-so two sessions on the same machine generate distinct claims and a web
-session retains a stable id across its run.
+hostname+pid+random short-id. It is surfaced in the startup
+`[ENV] sessionId=…` log line so two parallel sessions on the same
+machine emit distinguishable diagnostics; a web session retains a stable
+id across its run for log correlation.
 
 ### Trade-offs
 

@@ -644,7 +644,7 @@ is **explicit override → web auto-detect → committed config**:
 | `AP_WORKTREE_ENABLED=true`     | Force worktrees on, regardless of other signals.                                             |
 | `AP_WORKTREE_ENABLED=false`    | Force worktrees off, regardless of other signals.                                            |
 | `CLAUDE_CODE_REMOTE=true`      | Auto-detect web session — disables worktrees unless `AP_WORKTREE_ENABLED` is also set.       |
-| `CLAUDE_CODE_REMOTE_SESSION_ID`| Session id used for the `in-progress-by:<id>` claim label and the `[claim]` comment.         |
+| `CLAUDE_CODE_REMOTE_SESSION_ID`| Stable session id surfaced in the `[ENV] sessionId=…` startup line for log correlation.      |
 
 The committed `orchestration.worktreeIsolation.enabled` value is the fallback
 when no env override applies. The committed config is **never** written by any
@@ -661,44 +661,23 @@ the decision came from, e.g.:
 `AP_WORKTREE_ENABLED` is matched as the literal strings `"true"` / `"false"`,
 not by truthiness — `""` and `"0"` do not disable the flag. When
 `CLAUDE_CODE_REMOTE_SESSION_ID` is unset, a 12-char id derived from the host
-and pid is generated locally; the same id is used by every claim emitted from
-the session.
+and pid is generated locally; the value appears in the startup log line for
+operator correlation only.
 
 ### Launching N parallel sessions
 
-Open N web tabs and run `/sprint-execute` in each. Two invocation forms work:
-
-- **`/sprint-execute <storyId>`** — pick a specific story off the dispatch
-  table emitted by `/sprint-plan`. The launch-time dependency guard blocks the
-  run if any of that story's blockers are unmerged.
-- **`/sprint-execute`** (no story id) — pool mode. The session reads the Epic's
-  dispatch manifest and claims the first story that is `agent::ready`, has no
-  `in-progress-by:*` label, and has no unmerged blockers. With N tabs launching
-  inside the same second, each tab claims a distinct story; if two tabs race
-  for the same one, the loser releases its label and picks the next eligible
-  story. When the manifest is fully claimed or complete the session exits 0
-  with a visible reason instead of hanging.
-
-Pool mode is also the right ergonomic for spawning a quick local session
-mid-wave — `/sprint-execute` (no id) works identically on local and web.
+Open N web tabs and run `/sprint-execute <storyId>` in each, picking distinct
+story ids from the dispatch table emitted by `/sprint-plan`. The launch-time
+dependency guard blocks any run whose blockers are unmerged. Story
+assignment is the operator's responsibility — the framework no longer claims
+or arbitrates between sibling sessions.
 
 ### Reading progress across tabs
 
-Each session writes its progress to GitHub:
-
-- Story-level state lives on the Story issue (label transitions, structured
-  comments).
-- The `in-progress-by:<sessionId>` label on each in-flight Story names the
-  owning session — visible from any tab.
-- The `[claim] session=<sessionId> story=<storyId> at=<ISO8601>` structured
-  comment on each Story records the claim moment.
-- Pool-mode launches surface stale claims (older than
-  `orchestration.poolMode.staleClaimMinutes`, default 60) as **reclaimable**
-  in the launch output, so an operator can decide whether to take over a
-  story whose original session crashed.
-
-There is no shared web dashboard; the GitHub issue list filtered on the Epic
-plus the `in-progress-by:*` labels is the ground-truth view.
+Each session writes its progress to GitHub: story-level state lives on the
+Story issue (label transitions, structured comments). The GitHub issue list
+filtered on the Epic is the ground-truth view; there is no shared web
+dashboard.
 
 ### Concurrent close safety
 

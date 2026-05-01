@@ -130,9 +130,9 @@ export function resolveRuntime(opts = {}, env = process.env) {
  *   4. If the sanitised result is empty, fall back to the locally-generated id
  *      — an all-symbol remote id is not a usable label suffix.
  *
- * The return value is always a string of 1..12 chars matching `[a-z0-9]+`, so
- * callers can inline it into `in-progress-by:<id>` labels without further
- * escaping. See tech spec #670 § Security — Env-var injection.
+ * The return value is always a string of 1..12 chars matching `[a-z0-9]+`,
+ * suitable for inclusion in log lines and any future label suffixes without
+ * further escaping. See tech spec #670 § Security — Env-var injection.
  *
  * @param {NodeJS.ProcessEnv} [env]
  * @returns {string}
