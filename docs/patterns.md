@@ -1084,7 +1084,7 @@ observability surface. Three principles:
 
 ### Context
 
-`helpers/sprint-retro.md` historically walked through six sections
+`helpers/epic-retro.md` historically walked through six sections
 regardless of sprint shape. On clean-manifest Epics (zero friction,
 zero parked, zero recuts, zero hotfixes, zero HITL) four of those
 sections degenerate to "nothing notable" boilerplate, burning minutes

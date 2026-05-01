@@ -1044,7 +1044,7 @@ submodule paths are internal implementation detail.
     `mcp__agent-protocols__post_structured_comment` originally
     accepted only `progress | friction | notification` as `type`
     values. As a result, `epic-code-review.js`,
-    `.claude/skills/sprint-retro.md`, the wave-observer, and the
+    `.claude/skills/epic-retro.md`, the wave-observer, and the
     progress-reporter each hand-rolled their own structured-comment
     marker and posted via `provider.postComment` directly, bypassing
     payload-schema validation. During Epic #413's close, the retro

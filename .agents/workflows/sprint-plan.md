@@ -17,8 +17,8 @@ goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
 backlog of Features, Stories, and Tasks.
 
 `/sprint-plan` is the unified planning entry point. It delegates to the two
-phase helpers — [`helpers/sprint-plan-spec.md`](helpers/sprint-plan-spec.md) and
-[`helpers/sprint-plan-decompose.md`](helpers/sprint-plan-decompose.md) — and
+phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
+[`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and
 supports two invocation modes:
 
 - **Local IDE mode (no `--phase`):** run both phases sequentially with a human
@@ -53,8 +53,8 @@ artifacts you author.
 - Do not modify existing issues without explicit permission.
 - Wait for user validation before migrating to Phase 2.
 - Delegate Phase 1 and Phase 2 to the
-  [`helpers/sprint-plan-spec.md`](helpers/sprint-plan-spec.md) and
-  [`helpers/sprint-plan-decompose.md`](helpers/sprint-plan-decompose.md)
+  [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
+  [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
   procedures respectively — they own the Epic lifecycle label transitions and
   the `epic-plan-state` checkpoint. This wrapper must not apply those labels
   directly.

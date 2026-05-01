@@ -19,7 +19,7 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`sprint-plan-spec.md`](sprint-plan-spec.md)), generates the Feature / Story
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
 / Task ticket hierarchy, persists it to GitHub, and flips the Epic to
 `agent::ready` (parking) so a human can run `/sprint-execute` when execution
 should begin.

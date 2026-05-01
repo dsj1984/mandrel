@@ -391,11 +391,11 @@ independently testable. Invoke them by running the parent workflow.
 
 | Helper                           | Invoked by                                                  | Purpose                                                |
 | -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| `sprint-plan-spec.md`            | `/sprint-plan` (Phase 1) · `/sprint-plan --phase spec`      | PRD + Tech Spec authoring and persistence              |
-| `sprint-plan-decompose.md`       | `/sprint-plan` (Phase 2) · `/sprint-plan --phase decompose` | Feature / Story / Task decomposition                   |
-| `sprint-code-review.md`          | `/sprint-close` Phase 3 · `/sprint-execute` bookend         | Comprehensive code review, persists structured comment |
-| `sprint-retro.md`                | `/sprint-close` Phase 6                                     | Retrospective from ticket graph + friction logs        |
-| `sprint-testing.md`              | `/sprint-close` QA gate · operator                          | Ingests Cucumber evidence onto the sprint-testing ticket |
+| `epic-plan-spec.md`            | `/sprint-plan` (Phase 1) · `/sprint-plan --phase spec`      | PRD + Tech Spec authoring and persistence              |
+| `epic-plan-decompose.md`       | `/sprint-plan` (Phase 2) · `/sprint-plan --phase decompose` | Feature / Story / Task decomposition                   |
+| `epic-code-review.md`          | `/sprint-close` Phase 3 · `/sprint-execute` bookend         | Comprehensive code review, persists structured comment |
+| `epic-retro.md`                | `/sprint-close` Phase 6                                     | Retrospective from ticket graph + friction logs        |
+| `epic-testing.md`              | `/sprint-close` QA gate · operator                          | Ingests Cucumber evidence onto the sprint-testing ticket |
 | `_merge-conflict-template.md`    | `/sprint-close`, `/sprint-execute`, `/git-merge-pr`         | Shared merge-conflict resolution procedure             |
 | `agents-sync-config.md`          | `/agents-update` Step 3                                     | Reconcile `.agentrc.json` against the framework defaults |
 

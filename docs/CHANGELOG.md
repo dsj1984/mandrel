@@ -162,7 +162,7 @@ removed and one retro metric is redefined.
 - **BREAKING (framework-internal): retro `hitl` count now reflects
   `agent::blocked` events.** The Sprint Retrospective scorecard's "HITL
   Gates Triggered" row is renamed to "agent::blocked Events Raised", and
-  `helpers/sprint-retro.md` instructs callers to count distinct tickets
+  `helpers/epic-retro.md` instructs callers to count distinct tickets
   that received the `agent::blocked` label at any point during the sprint
   rather than tickets carrying `risk::high`. The numeric predicate
   `isCleanManifest({ hitl })` in
@@ -579,7 +579,7 @@ log line.
   user-visible changes, banned internal detail, breaking-change
   prominence, ≤60 soft line ceiling). Referenced from `/sprint-close`
   Phase 1.3; this entry is itself a worked example.
-- **Compact-retro short-circuit.** `helpers/sprint-retro.md` now
+- **Compact-retro short-circuit.** `helpers/epic-retro.md` now
   computes an `isCleanManifest` predicate (zero friction, parked,
   recuts, hotfixes, hitl) and emits a three-section retro on clean
   sprints. New `--full-retro` flag on `/sprint-close` forces the
@@ -774,9 +774,9 @@ to `.claude/commands/`.
 ### Demoted internal workflows to `helpers/`
 
 Workflows an operator never invokes directly moved to
-`.agents/workflows/helpers/`: `sprint-plan-spec.md`,
-`sprint-plan-decompose.md`, `sprint-code-review.md`, `sprint-retro.md`,
-`sprint-testing.md`, `_merge-conflict-template.md`. Parent workflows
+`.agents/workflows/helpers/`: `epic-plan-spec.md`,
+`epic-plan-decompose.md`, `epic-code-review.md`, `epic-retro.md`,
+`epic-testing.md`, `_merge-conflict-template.md`. Parent workflows
 reference helpers by path. **Breaking (remote orchestration contract).**
 The spec and decompose helpers are no longer slash commands; the
 `/sprint-plan` wrapper now accepts `--phase spec|decompose` and call
@@ -1307,7 +1307,7 @@ as sprint evidence.
   dependency, assertion, and location rules per tier.
 - **New workflow:** `/run-bdd-suite` — tag-filtered acceptance runner
   producing a Cucumber HTML/JSON report as the QA evidence artifact.
-- **Updated workflow:** `sprint-testing.md` consumes the Cucumber
+- **Updated workflow:** `epic-testing.md` consumes the Cucumber
   report; the sprint-testing ticket is gated on all scenarios passing.
 
 No breaking changes. Projects that already author `.feature` files

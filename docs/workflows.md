@@ -82,14 +82,14 @@ Not invoked directly by operators, but referenced from other workflows:
 - `helpers/_merge-conflict-template.md` — canonical procedure for resolving a
   merge conflict, included by reference from `sprint-execute`, `sprint-close`,
   and `git-merge-pr`.
-- `helpers/sprint-code-review.md` — comprehensive code-review procedure,
+- `helpers/epic-code-review.md` — comprehensive code-review procedure,
   auto-invoked by `sprint-close` (Phase 3) and the `sprint-execute` bookends.
-- `helpers/sprint-retro.md` — retrospective authoring procedure, auto-invoked
+- `helpers/epic-retro.md` — retrospective authoring procedure, auto-invoked
   by `sprint-close` (Phase 6).
-- `helpers/sprint-testing.md` — QA evidence ingest for the sprint-testing
+- `helpers/epic-testing.md` — QA evidence ingest for the sprint-testing
   ticket, invoked by `sprint-close` / operator; consumes `/run-bdd-suite`
   output.
-- `helpers/sprint-plan-spec.md`, `helpers/sprint-plan-decompose.md` —
+- `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
   phase procedures delegated to by `/sprint-plan` (local wrapper) and by the
   `/sprint-plan --phase <phase>` entry point fired by the remote orchestrator.
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure

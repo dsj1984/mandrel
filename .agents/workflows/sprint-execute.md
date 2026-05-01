@@ -146,8 +146,8 @@ additional channel, not a replacement.
 5. **If `autoClose` was set**: auto-invoke `/sprint-close` only. Review and
    retro remain operator-driven — the runner never generates review or retro
    artefacts on its own. The hand-off comment always lists the full set of
-   operator-driven bookends (the `helpers/sprint-code-review.md` procedure,
-   the `helpers/sprint-retro.md` procedure, and `/sprint-close`) so the
+   operator-driven bookends (the `helpers/epic-code-review.md` procedure,
+   the `helpers/epic-retro.md` procedure, and `/sprint-close`) so the
    operator sees exactly what remains. If
    `epic::auto-close` was not set, the runner exits cleanly after posting the
    hand-off.

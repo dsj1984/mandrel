@@ -619,8 +619,8 @@ when an Epic is labelled `agent::dispatching`.
                                                     ▼
                                                /sprint-close
                                           (auto-invokes helpers:
-                                           sprint-code-review.md,
-                                           sprint-retro.md)
+                                           epic-code-review.md,
+                                           epic-retro.md)
                                                     │
                                                     ▼
                                                agent::done
@@ -1128,7 +1128,7 @@ three tiers and carries distinct scope, dependency, and assertion rules:
   `.agents/rules/gherkin-standards.md` (the SSOT for the tag taxonomy and
   forbidden patterns) and executed via `/run-bdd-suite`, whose Cucumber
   HTML/JSON report is the canonical evidence artifact consumed by the
-  `workflows/helpers/sprint-testing.md` helper.
+  `workflows/helpers/epic-testing.md` helper.
 
 Stack skills `skills/stack/qa/gherkin-authoring` and `skills/stack/qa/playwright-bdd`
 provide authoring guidance and runtime wiring respectively; neither redefines

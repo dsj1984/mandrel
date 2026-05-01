@@ -29,14 +29,14 @@ context you need and (b) persists the artifacts and transitions the Epic
 lifecycle state.
 
 The complementary Phase 2 helper is
-[`sprint-plan-decompose.md`](sprint-plan-decompose.md). The `/sprint-plan`
+[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/sprint-plan`
 wrapper chains both helpers with a confirmation gate in between.
 
 ## Constraint
 
 - **Do not** create or modify tickets outside the `context::prd` /
   `context::tech-spec` contract — decomposition belongs to
-  [`sprint-plan-decompose.md`](sprint-plan-decompose.md).
+  [`epic-plan-decompose.md`](epic-plan-decompose.md).
 - **Do not** flip the Epic to `agent::ready` from this skill. The terminal
   label for the spec phase is `agent::review-spec`.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics may

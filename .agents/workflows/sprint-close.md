@@ -16,8 +16,8 @@ Retro, Finalize, Notify. Each phase is a cohesive checkpoint: skipping ahead
 strands partial state on GitHub, so run them in order.
 
 > **When to run**: As soon as all child work is closed. `/sprint-close`
-> auto-invokes the mandatory pre-merge gates (the `helpers/sprint-code-review.md`
-> module in the Code Review phase and `helpers/sprint-retro.md` in the Retro
+> auto-invokes the mandatory pre-merge gates (the `helpers/epic-code-review.md`
+> module in the Code Review phase and `helpers/epic-retro.md` in the Retro
 > phase) when they have not already been completed, so operators no longer
 > need to run them by hand.
 >
@@ -168,7 +168,7 @@ Re-run the gate until it exits 0.
 ## Phase 3 — Code Review
 
 Establish the post-hoc code-review record on the Epic. The Code Review phase
-runs the [`helpers/sprint-code-review.md`](helpers/sprint-code-review.md)
+runs the [`helpers/epic-code-review.md`](helpers/epic-code-review.md)
 module, which performs the static analysis **and** persists its findings as a
 `code-review` structured comment on the Epic (via `upsertStructuredComment`).
 That comment is the durable audit trail — subsequent retros, incident
@@ -177,7 +177,7 @@ reviews, and compliance checks read back from it.
 ### 3.1 Auto-invoke the code-review helper
 
 1. Follow the procedure in
-   [`helpers/sprint-code-review.md`](helpers/sprint-code-review.md) inline for
+   [`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline for
    `[EPIC_ID]` (read-only audit mode — no remediation).
 2. Inspect the resulting findings:
    - **Any 🔴 Critical Blocker** — STOP. Relay the blockers to the operator
@@ -368,7 +368,7 @@ gh api "repos/{owner}/{repo}/issues/[EPIC_ID]/comments" \
 ```
 
 If no matching comment is found, **auto-invoke** the
-[`helpers/sprint-retro.md`](helpers/sprint-retro.md) procedure inline for
+[`helpers/epic-retro.md`](helpers/epic-retro.md) procedure inline for
 `[EPIC_ID]`. After it completes, re-run the check above to confirm the
 comment is now present. If the retro helper failed to produce a comment,
 STOP and relay the failure to the operator.
@@ -386,7 +386,7 @@ STOP and relay the failure to the operator.
 >
 > **`--full-retro` override:** if the operator passed `--full-retro`,
 > propagate it into the retro helper invocation so the compact-path
-> heuristic in `helpers/sprint-retro.md` Step 0.5 is bypassed and the full
+> heuristic in `helpers/epic-retro.md` Step 0.5 is bypassed and the full
 > six-section retro is composed regardless of the dispatch manifest's
 > cleanliness. Without the flag, the helper chooses the compact or full
 > path based on the `isCleanManifest` predicate. `--skip-retro` takes
