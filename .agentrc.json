@@ -20,7 +20,7 @@
       "packageJson": true,
       "autoVersionBump": true
     },
-    "sprintClose": {
+    "epicClose": {
       "runRetro": true
     },
     "limits": {

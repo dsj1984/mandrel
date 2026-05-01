@@ -138,7 +138,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           packageJson: true,
           autoVersionBump: true,
         },
-        sprintClose: { runRetro: true },
+        epicClose: { runRetro: true },
         riskGates: { heuristics: ['no destructive ops'] },
       },
       'fully populated',
