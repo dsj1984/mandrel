@@ -74,7 +74,7 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from './lib/util/phase-timer-state.js';
-import { drainPendingCleanup } from './lib/worktree/lifecycle/pending-cleanup.js';
+import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
 import { notify } from './notify.js';
 
 // ---------------------------------------------------------------------------
@@ -94,7 +94,7 @@ export async function drainPendingCleanupAfterClose({
   progress: progressFn,
   logger = Logger,
   git = { gitSpawn },
-  drainFn = drainPendingCleanup,
+  drainFn = forceDrainPendingCleanup,
 } = {}) {
   const wtConfig = orchestration?.worktreeIsolation;
   if (!wtConfig?.enabled) return null;

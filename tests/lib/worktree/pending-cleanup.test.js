@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { rm as fsPromisesRm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -41,7 +42,7 @@ test('recordPendingCleanup: writes a fresh manifest entry', () => {
       push: true,
     });
     assert.equal(entry.storyId, 42);
-    assert.equal(entry.attempts, 1);
+    assert.equal(entry.attempts, 0);
     assert.ok(entry.firstFailedAt);
     assert.equal(entry.firstFailedAt, entry.lastFailedAt);
 
@@ -61,6 +62,7 @@ test('recordPendingCleanup: increments attempts and updates lastFailedAt on repe
       branch: 'story-7',
       path: path.join(wtRoot, 'story-7'),
     });
+    assert.equal(first.attempts, 0);
     // Force a distinct timestamp.
     await new Promise((r) => setTimeout(r, 10));
     const second = recordPendingCleanup(wtRoot, {
@@ -68,7 +70,7 @@ test('recordPendingCleanup: increments attempts and updates lastFailedAt on repe
       branch: 'story-7',
       path: path.join(wtRoot, 'story-7'),
     });
-    assert.equal(second.attempts, 2);
+    assert.equal(second.attempts, 1);
     assert.equal(second.firstFailedAt, first.firstFailedAt);
     assert.notEqual(second.lastFailedAt, first.lastFailedAt);
   } finally {
@@ -129,6 +131,7 @@ test('drainPendingCleanup: removes entry when Stage 1 retry now succeeds', async
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
     const wtPath = path.join(wtRoot, 'story-100');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 100,
       branch: 'story-100',
@@ -147,9 +150,7 @@ test('drainPendingCleanup: removes entry when Stage 1 retry now succeeds', async
       repoRoot: tmp,
       worktreeRoot: wtRoot,
       git,
-      fsRm: async () => {
-        // Lock has cleared; fs.rm succeeds cleanly.
-      },
+      fsRm: fsPromisesRm,
       logger: quietLogger().logger,
     });
     assert.deepEqual(res.drained, [100]);
@@ -166,8 +167,22 @@ test('drainPendingCleanup: removes entry when Stage 1 retry now succeeds', async
     assert.deepEqual(res.stillPending, []);
     assert.equal(fs.existsSync(manifestPath(wtRoot)), false);
     assert.ok(
+      calls.some(
+        (a) =>
+          a[0] === 'worktree' &&
+          a[1] === 'remove' &&
+          !a.includes('--force') &&
+          a.some(
+            (x) =>
+              typeof x === 'string' &&
+              x.replace(/\\/g, '/').includes('story-100'),
+          ),
+      ),
+      'expect plain git worktree remove before optional --force',
+    );
+    assert.ok(
       calls.some((a) => a[0] === 'worktree' && a[1] === 'prune'),
-      'sweep must run worktree prune after fs.rm',
+      'sweep must run worktree prune after removal',
     );
     assert.ok(
       calls.some(
@@ -178,7 +193,9 @@ test('drainPendingCleanup: removes entry when Stage 1 retry now succeeds', async
     assert.ok(
       calls.some(
         (a) =>
-          a[0] === 'push' && a.includes('--delete') && a.includes('story-100'),
+          a[0] === 'push' &&
+          a.includes('--delete') &&
+          a.some((x) => typeof x === 'string' && x.includes('story-100')),
       ),
       'push=true should trigger remote branch delete',
     );
@@ -190,11 +207,12 @@ test('drainPendingCleanup: removes entry when Stage 1 retry now succeeds', async
 test('drainPendingCleanup: never-clearing lock promotes to persistent after MAX_SWEEP_ATTEMPTS', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
-    // Seed manifest with an entry already at MAX_SWEEP_ATTEMPTS - 1 attempts.
+    const wtPath = path.join(wtRoot, 'story-77');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 77,
       branch: 'story-77',
-      path: path.join(wtRoot, 'story-77'),
+      path: wtPath,
     });
     // Simulate two prior sweep failures.
     const manifest = readManifest(wtRoot);
@@ -240,10 +258,12 @@ test('drainPendingCleanup: never-clearing lock promotes to persistent after MAX_
 test('drainPendingCleanup: increments attempts and keeps entry when below max', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
+    const wtPath = path.join(wtRoot, 'story-55');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 55,
       branch: 'story-55',
-      path: path.join(wtRoot, 'story-55'),
+      path: wtPath,
     });
     const { logger, sink } = quietLogger();
     const res = await drainPendingCleanup({
@@ -267,7 +287,7 @@ test('drainPendingCleanup: increments attempts and keeps entry when below max', 
       'must not escalate below MAX_SWEEP_ATTEMPTS',
     );
     const post = readManifest(wtRoot);
-    assert.equal(post[0].attempts, 2);
+    assert.equal(post[0].attempts, 1);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

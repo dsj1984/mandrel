@@ -9,8 +9,8 @@ description: >-
 
 `.worktrees/.pending-cleanup.json` accumulates entries when
 `sprint-story-close.js` cannot remove a worktree on Windows because of an
-EBUSY-class lock. The standard sweep ([`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
-retries the entries on subsequent `/sprint-plan` runs — but if the holder
+EBUSY-class lock. Plan boot ([`drainPendingCleanupAtBoot`](../scripts/sprint-plan-spec.js) → [`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js))
+retries the entries — but if the holder
 is a long-lived user-mode process (a stranded test runner, a lingering
 biome/tsc, a node REPL), the lock never clears and the entry pins.
 
@@ -24,11 +24,11 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 | Trigger          | Caller                                                                       |
 | ---------------- | ---------------------------------------------------------------------------- |
 | `/sprint-close`  | [`sprint-close.js`](../scripts/sprint-close.js) Phase 7 (before `wm.gc()`)   |
-| `/sprint-plan`   | [`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js) Stage 2 |
+| `/sprint-plan-spec` / `/sprint-plan-decompose` | [`drainPendingCleanupAtBoot`](../scripts/sprint-plan-spec.js) → [`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
+| Story merge close | [`sprint-story-close.js`](../scripts/sprint-story-close.js) (`drainPendingCleanupAfterClose`) |
 
-Both call `forceDrainPendingCleanup()` directly; no separate node
-invocation. The CLI exists for operator-driven runs and for the rare case
-where a sprint never reaches close (cancelled epic, crashed orchestrator).
+All automatic paths call `forceDrainPendingCleanup()` (or are folded into
+`sweepStaleStoryWorktrees`, which calls it first).
 
 ## When to run it manually
 

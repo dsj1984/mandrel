@@ -309,6 +309,7 @@ test('sweepStaleStoryWorktrees: keeps stuck manifest entry and logs persistent-l
       path: path.join(wtRoot, 'story-909'),
       push: false,
     });
+    fs.mkdirSync(path.join(wtRoot, 'story-909'), { recursive: true });
     // Simulate two prior sweep failures already on disk.
     const manifest = readManifest(wtRoot);
     manifest[0].attempts = 2;

@@ -218,7 +218,7 @@ test('removeWorktreeWithRecovery: Stage 1 defers to sweep and writes pending-cle
     assert.ok(res.pendingCleanup);
     assert.equal(res.pendingCleanup.storyId, 9);
     assert.equal(res.pendingCleanup.branch, 'story-9');
-    assert.equal(res.pendingCleanup.attempts, 1);
+    assert.equal(res.pendingCleanup.attempts, 0);
     assert.equal(fsRmAttempts, 5);
 
     // Manifest must be on disk with the failed entry.
@@ -231,6 +231,7 @@ test('removeWorktreeWithRecovery: Stage 1 defers to sweep and writes pending-cle
     assert.equal(manifest[0].path, wtPath);
     assert.ok(manifest[0].firstFailedAt);
     assert.ok(manifest[0].lastFailedAt);
+    assert.equal(manifest[0].attempts, 0);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

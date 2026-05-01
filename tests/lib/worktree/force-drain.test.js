@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { rm as fsPromisesRm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -174,16 +175,18 @@ test('forceDrainPendingCleanup: empty manifest returns standard shape + empty es
 test('forceDrainPendingCleanup: passes through when standard drain succeeds', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
+    const wtPath = path.join(wtRoot, 'story-7');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 7,
       branch: 'story-7',
-      path: path.join(wtRoot, 'story-7'),
+      path: wtPath,
     });
     const res = await forceDrainPendingCleanup({
       repoRoot: tmp,
       worktreeRoot: wtRoot,
       git: { gitSpawn: () => ({ status: 0, stdout: '', stderr: '' }) },
-      fsRm: async () => {},
+      fsRm: fsPromisesRm,
       logger: quietLogger().logger,
       findHolders: () => {
         throw new Error('escalation must not run when first drain clears it');
@@ -203,6 +206,7 @@ test('forceDrainPendingCleanup: escalates when standard drain leaves entries stu
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
     const wtPath = path.join(wtRoot, 'story-405');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 405,
       branch: 'story-405',
@@ -212,14 +216,14 @@ test('forceDrainPendingCleanup: escalates when standard drain leaves entries stu
     // fsRm fails the first time (initial drain), succeeds the second time
     // (after escalation).
     let callCount = 0;
-    const fsRm = async () => {
+    const fsRm = async (p, opts) => {
       callCount += 1;
       if (callCount === 1) {
         const e = new Error('EBUSY');
         e.code = 'EBUSY';
         throw e;
       }
-      // 2nd call: success
+      await fsPromisesRm(p, opts);
     };
 
     const findHolders = (p) => {
@@ -266,10 +270,12 @@ test('forceDrainPendingCleanup: escalates when standard drain leaves entries stu
 test('forceDrainPendingCleanup: records noHolders when find returns empty (kernel-held)', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
+    const wtPath = path.join(wtRoot, 'story-372');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 372,
       branch: 'story-372',
-      path: path.join(wtRoot, 'story-372'),
+      path: wtPath,
     });
     const fsRm = async () => {
       const e = new Error('EBUSY');
@@ -306,10 +312,12 @@ test('forceDrainPendingCleanup: records noHolders when find returns empty (kerne
 test('forceDrainPendingCleanup: escalate=false skips the kill phase entirely', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
+    const wtPath = path.join(wtRoot, 'story-8');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 8,
       branch: 'story-8',
-      path: path.join(wtRoot, 'story-8'),
+      path: wtPath,
     });
     const fsRm = async () => {
       throw new Error('EBUSY');
@@ -338,10 +346,12 @@ test('forceDrainPendingCleanup: escalate=false skips the kill phase entirely', a
 test('forceDrainPendingCleanup: escalation that fails to kill leaves entry in manifest', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {
+    const wtPath = path.join(wtRoot, 'story-99');
+    fs.mkdirSync(wtPath, { recursive: true });
     recordPendingCleanup(wtRoot, {
       storyId: 99,
       branch: 'story-99',
-      path: path.join(wtRoot, 'story-99'),
+      path: wtPath,
     });
     const fsRm = async () => {
       const e = new Error('EBUSY');
