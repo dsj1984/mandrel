@@ -31,13 +31,12 @@ export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
 export const PLAN_CHECKPOINT_SCHEMA_VERSION = 1;
 
 /**
- * Enumeration of lifecycle phase values written to the checkpoint. Mirrors
- * the `agent::` labels that trigger / park the Epic:
+ * Enumeration of lifecycle phase values written to the checkpoint:
  *
- *   planning       → agent::planning       (spec work running)
- *   review-spec    → agent::review-spec    (spec done; awaiting review)
- *   decomposing    → agent::decomposing    (decompose work running)
- *   ready          → agent::ready          (plan complete)
+ *   planning       — spec work running
+ *   review-spec    — spec done; awaiting review (Epic carries agent::review-spec)
+ *   decomposing    — decompose work running
+ *   ready          — plan complete (Epic carries agent::ready)
  */
 export const PLAN_PHASES = Object.freeze({
   PLANNING: 'planning',

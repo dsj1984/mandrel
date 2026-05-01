@@ -43,7 +43,7 @@ custom fields.
 | Category    | Labels                                                                                   | Color  |
 | ----------- | ---------------------------------------------------------------------------------------- | ------ |
 | Type        | `type::epic`, `type::feature`, `type::story`, `type::task`                               | Purple |
-| Agent State | `agent::ready`, `agent::executing`, `agent::review`, `agent::done`, `agent::dispatching` | Green  |
+| Agent State | `agent::review-spec`, `agent::ready`, `agent::executing`, `agent::review`, `agent::done`, `agent::blocked` | Green  |
 | Epic        | `epic::auto-close`                                                                       | Yellow |
 | Status      | `status::blocked`                                                                        | Red    |
 | Risk        | `risk::medium`                                                                           | Yellow |

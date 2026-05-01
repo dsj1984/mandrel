@@ -7,14 +7,11 @@
  */
 
 export const AGENT_LABELS = {
-  PLANNING: 'agent::planning',
   REVIEW_SPEC: 'agent::review-spec',
-  DECOMPOSING: 'agent::decomposing',
   READY: 'agent::ready',
   EXECUTING: 'agent::executing',
   REVIEW: 'agent::review',
   DONE: 'agent::done',
-  DISPATCHING: 'agent::dispatching',
   BLOCKED: 'agent::blocked',
 };
 
