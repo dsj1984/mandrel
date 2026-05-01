@@ -2,9 +2,7 @@
  * plan-router — given an Epic's current labels, decide which plan-phase CLI
  * should run next.
  *
- * Used by:
- *   - the local `/sprint-plan` wrapper (chains spec → decompose);
- *   - the remote-bootstrap `--phase` handoff (maps triggering label → CLI).
+ * Used by the local `/sprint-plan` wrapper (chains spec → decompose).
  *
  * The router is intentionally stateless. Callers feed the current label set
  * (a string array, usually from `provider.getEpic(id).labels`) and receive a
@@ -21,8 +19,8 @@ export const PLAN_PHASE_NAMES = Object.freeze({
 
 /**
  * Canonical descriptor for each planning phase. `script` is the repo-relative
- * path used by both the local wrapper and the remote bootstrap; `command` is
- * the slash-command invocation operators (and the remote orchestrator) fire.
+ * path used by the local wrapper; `command` is the slash-command invocation
+ * operators fire.
  *
  * Spec and Decompose are served by the unified `/sprint-plan` wrapper with a
  * `--phase` flag — the phase workflows themselves live at
