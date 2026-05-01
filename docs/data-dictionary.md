@@ -2,6 +2,27 @@
 
 This document defines the core data structures and schemas used across the Agent Protocols orchestration engine.
 
+> **Epic #900 update.** Several entries below describe artefacts removed in
+> v5.31.0 — they are retained as a historical reference. Specifically:
+> the `agent::dispatching` label, the `agent-orchestrator.yml` workflow,
+> and `SpawnSmokeTest` / `build-claude-spawn` are gone (the four-skill
+> split — `/epic-execute`, `/wave-execute`, `/story-execute`, plus the
+> `task-execute.md` helper — replaced subprocess fan-out with
+> Agent-tool sub-agents). Pool mode (`pool-claim.js`, `lib/pool-mode.js`,
+> `in-progress-by:<sessionId>` labels) is removed. Top-level scripts
+> renamed: `sprint-plan*.js` → `epic-plan*.js`, `sprint-story-init.js` /
+> `sprint-story-close.js` → `story-init.js` / `story-close.js`,
+> `sprint-wave-gate.js` → `wave-gate.js`,
+> `sprint-hierarchy-gate.js` → `hierarchy-gate.js`,
+> `sprint-code-review.js` → `epic-code-review.js`,
+> `sprint-close.js` → `epic-close.js`. Helpers renamed in lockstep
+> (`sprint-retro.md` → `epic-retro.md`, `sprint-code-review.md` →
+> `epic-code-review.md`). Config key `agentSettings.sprintClose.runRetro`
+> → `agentSettings.epicClose.runRetro` (one-release back-compat shim).
+> Structured-comment markers (`epic-run-state`, `epic-plan-state`,
+> `dispatch-manifest`, `story-init`, `code-review`, `retro-complete`)
+> were intentionally **not** renamed — already epic-shaped.
+>
 > **Epic #857 update.** `dispatch-manifest.json` shape changes: the
 > `storyTitle` field is added to `storyManifest[]` rows, root-level
 > `agentTelemetry` (open object) and `type` (`"epic-dispatch"` |

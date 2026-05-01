@@ -52,11 +52,14 @@ graph LR
   hierarchy level: `/epic-execute` owns the wave loop, `/wave-execute` fans
   out one wave via Agent-tool sub-agents, `/story-execute` runs init →
   task loop → close for one Story. `/epic-close` bookends with code
-  review, retro, and merge to `main`.
+  review, retro, and merge to `main`. The four-skill split, `sprint-*` →
+  `epic-*` rename, and removal of the GitHub remote-trigger surface landed
+  in Epic #900 (v5.31.0) — see [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for
+  the breaking-change migration block.
 - **Single-session fan-out** — `/wave-execute` launches Story sub-agents
-  through the Agent tool inside the operator's Claude session. Worktree
-  filesystem isolation is preserved; no subprocess spawn, no GitHub
-  Actions runner.
+  through the Agent tool inside the operator's Claude session (Epic #900,
+  v5.31.0). Worktree filesystem isolation is preserved; no subprocess
+  spawn, no GitHub Actions runner.
 - **Gate-based quality** — Lint, test, typecheck, MI, and CRAP gates wired
   into close-validation, CI, and pre-push, with base-branch-enforced
   baselines that block silent threshold relaxation.

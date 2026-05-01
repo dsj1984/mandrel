@@ -1,5 +1,25 @@
 # Design Patterns
 
+> **Epic #900 update.** The **Hierarchy-aligned slash-command split**
+> pattern was added in v5.31.0: a single mega-skill that routed by label
+> (`/sprint-execute`) was replaced by four narrow skills aligned to the
+> Epic-centric ticket hierarchy — `/epic-execute` (wave loop),
+> `/wave-execute` (one wave's Story fan-out), `/story-execute` (init →
+> task loop → close for one Story), and the `task-execute.md` helper read
+> inline by `/story-execute`. The shape lets the operator stop or resume
+> at any level and removes the "skill routes by label" indirection. In
+> the same Epic, **single-session Agent-tool fan-out** replaced the
+> `claude -p` subprocess spawn — Story sub-agents launch through the
+> Agent tool inside the operator's Claude session, so worktree
+> filesystem isolation is preserved while the process boundary, the
+> idle watchdog, the headless `--dangerously-skip-permissions` contract,
+> and the progress-log tailing dance all disappear. References below
+> to `/sprint-execute`, `/sprint-plan`, `/sprint-close`, `/sprint-retro`,
+> or `sprint-{story,wave,code-review,hierarchy}-*.js` predate this
+> Epic; the current names are `/epic-execute`, `/epic-plan`,
+> `/epic-close`, the `epic-retro.md` helper, and
+> `epic-{story,wave,code-review,hierarchy,plan}-*.js` respectively.
+>
 > **Epic #857 update.** The **Rule-as-SSOT** pattern — first modeled by
 > `.agents/rules/gherkin-standards.md` and its `gherkin-authoring` skill
 > companion — was applied to three further high-traffic surfaces: API
