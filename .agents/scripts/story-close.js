@@ -24,7 +24,7 @@
  *   0 — Story closed and merged successfully.
  *   1 — Error.
  *
- * @see .agents/workflows/sprint-execute.md Mode B
+ * @see .agents/workflows/story-execute.md
  */
 
 import fs from 'node:fs';
