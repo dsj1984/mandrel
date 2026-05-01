@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.31.0] - 2026-05-01
+
 ### Epic-centric workflow rework — drop sprint nomenclature, split execution by hierarchy level, retire GitHub triggers
 
 The single `/sprint-execute` mega-skill, the GitHub-triggered remote orchestrator,
