@@ -676,10 +676,16 @@
       "startLine": 33
     },
     {
-      "crap": 15.8865,
+      "crap": 17.410593538692716,
       "file": ".agents/scripts/epic-runner.js",
       "method": "main",
       "startLine": 39
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-runner.js",
+      "method": "buildDispatchPlan",
+      "startLine": 113
     },
     {
       "crap": 2,
