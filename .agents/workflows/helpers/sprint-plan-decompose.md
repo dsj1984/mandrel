@@ -7,10 +7,9 @@ description: >-
 
 # Sprint Plan — Decompose Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/sprint-plan` (Phase 2)
-> and by the remote planner when the operator applies `agent::decomposing` on
-> GitHub. To run the decompose phase interactively, use
-> `/sprint-plan [Epic_ID]` — it delegates here after the spec phase.
+> **Helper module.** Not a slash command. Invoked by `/sprint-plan` (Phase 2).
+> To run the decompose phase interactively, use `/sprint-plan [Epic_ID]` — it
+> delegates here after the spec phase.
 
 ## Role
 
@@ -21,9 +20,9 @@ Director / Architect
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
 ([`sprint-plan-spec.md`](sprint-plan-spec.md)), generates the Feature / Story
-/ Task ticket hierarchy, persists it to GitHub, and flips the Epic from
-`agent::decomposing` (trigger) to `agent::ready` (parking) so a human can
-apply `agent::dispatching` when execution should begin.
+/ Task ticket hierarchy, persists it to GitHub, and flips the Epic to
+`agent::ready` (parking) so a human can run `/sprint-execute` when execution
+should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
 `sprint-plan-decompose.js` is a deterministic wrapper that (a) emits the
@@ -40,14 +39,13 @@ Epic lifecycle state.
   structure as committed. Use `--force` to rebuild from scratch.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
-- **Do not** apply `agent::dispatching` from this helper. The local
-  `/sprint-plan --auto-dispatch` wrapper owns that transition; remote flows
-  rely on the operator applying the label by hand.
+- **Do not** flip the Epic past `agent::ready` from this helper. Execution
+  begins when an operator runs `/sprint-execute [Epic_ID]`.
 
 ## Prerequisites
 
-1. **Epic is on `agent::review-spec` or `agent::decomposing`** — i.e. the
-   spec phase has already run and the PRD / Tech Spec exist.
+1. **Epic is on `agent::review-spec`** — i.e. the spec phase has already run
+   and the PRD / Tech Spec exist.
 2. **API keys** — `GITHUB_TOKEN` set in `.env`.
 
 ## Step 1 — Gather decomposition context
@@ -80,7 +78,6 @@ node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
 
 On success the script:
 
-- Flips the Epic to `agent::decomposing` (parking while work runs).
 - Creates the Feature / Story / Task hierarchy under the Epic.
 - Updates the `epic-plan-state` structured comment with the ticket count and
   decompose timestamp.
@@ -127,8 +124,7 @@ is the single source of truth for which temp paths this phase owns.
 - Surface the backlog summary and the Wave 0 candidates to the operator:
 
   > "Decomposition complete. Epic #[ID] is on `agent::ready` with NN ticket(s)
-  > across MM Stories. Apply `agent::dispatching` (remote) or run
-  > `/sprint-execute [Epic_ID]` (local) to begin execution."
+  > across MM Stories. Run `/sprint-execute [Epic_ID]` to begin execution."
 
 ## Troubleshooting
 

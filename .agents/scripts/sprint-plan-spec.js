@@ -12,9 +12,8 @@
  *                       JSON. Host LLM consumes this to author the PRD and
  *                       Tech Spec markdown.
  *
- *   2. (default)        Given author-provided PRD and Tech Spec files, flips
- *                       the Epic to `agent::planning` (parking), persists the
- *                       two artifact issues, flips the Epic to
+ *   2. (default)        Given author-provided PRD and Tech Spec files,
+ *                       persists the two artifact issues, flips the Epic to
  *                       `agent::review-spec`, and upserts the `epic-plan-state`
  *                       structured comment.
  *
@@ -148,12 +147,7 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
 }
 
 async function setEpicLabel(provider, epicId, targetLabel) {
-  const planningLabels = [
-    AGENT_LABELS.PLANNING,
-    AGENT_LABELS.REVIEW_SPEC,
-    AGENT_LABELS.DECOMPOSING,
-    AGENT_LABELS.READY,
-  ];
+  const planningLabels = [AGENT_LABELS.REVIEW_SPEC, AGENT_LABELS.READY];
   await provider.updateTicket(epicId, {
     labels: {
       add: [targetLabel],
@@ -197,11 +191,6 @@ export async function runSpecPhase(
   });
   const checkpointer = new PlanCheckpointer({ ctx });
   await checkpointer.initialize();
-
-  console.log(
-    `[sprint-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.PLANNING}...`,
-  );
-  await setEpicLabel(provider, epicId, AGENT_LABELS.PLANNING);
   await checkpointer.setPhase(PLAN_PHASES.PLANNING);
 
   await planEpic(epicId, provider, { prdContent, techSpecContent }, settings, {

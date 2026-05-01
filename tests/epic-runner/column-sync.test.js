@@ -8,17 +8,14 @@ import {
 
 describe('columnForLabels', () => {
   it('maps agent lifecycle labels to board columns', () => {
-    assert.equal(columnForLabels(['agent::dispatching']), 'In Progress');
     assert.equal(columnForLabels(['agent::executing']), 'In Progress');
     assert.equal(columnForLabels(['agent::blocked']), 'Blocked');
     assert.equal(columnForLabels(['agent::review']), 'Review');
     assert.equal(columnForLabels(['agent::done']), 'Done');
   });
 
-  it('maps the four planning-phase labels to board columns', () => {
-    assert.equal(columnForLabels(['agent::planning']), 'Planning');
+  it('maps the parking planning-phase labels to board columns', () => {
     assert.equal(columnForLabels(['agent::review-spec']), 'Spec Review');
-    assert.equal(columnForLabels(['agent::decomposing']), 'Ready');
     assert.equal(columnForLabels(['agent::ready']), 'Ready');
   });
 
@@ -30,19 +27,19 @@ describe('columnForLabels', () => {
     );
     // review + done → Done
     assert.equal(columnForLabels(['agent::review', 'agent::done']), 'Done');
-    // review-spec + planning → Spec Review (most-advanced phase wins)
+    // ready + executing → Ready (parking outranks execution at the board level)
     assert.equal(
-      columnForLabels(['agent::planning', 'agent::review-spec']),
-      'Spec Review',
+      columnForLabels(['agent::ready', 'agent::executing']),
+      'Ready',
     );
-    // ready + planning → Ready
-    assert.equal(columnForLabels(['agent::planning', 'agent::ready']), 'Ready');
-    // done beats every planning-phase label
-    assert.equal(columnForLabels(['agent::planning', 'agent::done']), 'Done');
+    // done beats every parking-phase label
+    assert.equal(columnForLabels(['agent::ready', 'agent::done']), 'Done');
   });
 
   it('returns null for labels with no mapping', () => {
     assert.equal(columnForLabels(['type::epic']), null);
+    assert.equal(columnForLabels(['agent::planning']), null);
+    assert.equal(columnForLabels(['agent::dispatching']), null);
     assert.equal(columnForLabels([]), null);
   });
 });

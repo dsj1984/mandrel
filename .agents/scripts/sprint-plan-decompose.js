@@ -12,9 +12,8 @@
  *                       cap) as JSON. Host LLM consumes this to author the
  *                       ticket hierarchy JSON.
  *
- *   2. (default)        Given an author-provided tickets JSON file, flips the
- *                       Epic to `agent::decomposing` (parking), persists the
- *                       Feature/Story/Task hierarchy, flips the Epic to
+ *   2. (default)        Given an author-provided tickets JSON file, persists
+ *                       the Feature/Story/Task hierarchy, flips the Epic to
  *                       `agent::ready`, and updates the `epic-plan-state`
  *                       structured comment.
  *
@@ -50,12 +49,7 @@ import {
 } from './ticket-decomposer.js';
 
 async function setEpicLabel(provider, epicId, targetLabel) {
-  const planningLabels = [
-    AGENT_LABELS.PLANNING,
-    AGENT_LABELS.REVIEW_SPEC,
-    AGENT_LABELS.DECOMPOSING,
-    AGENT_LABELS.READY,
-  ];
+  const planningLabels = [AGENT_LABELS.REVIEW_SPEC, AGENT_LABELS.READY];
   await provider.updateTicket(epicId, {
     labels: {
       add: [targetLabel],
@@ -110,11 +104,6 @@ export async function runDecomposePhase(
       completedAt: null,
     },
   });
-
-  console.log(
-    `[sprint-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.DECOMPOSING}...`,
-  );
-  await setEpicLabel(provider, epicId, AGENT_LABELS.DECOMPOSING);
   await checkpointer.setPhase(PLAN_PHASES.DECOMPOSING);
 
   await decomposeEpic(epicId, provider, { tickets }, config, { force });

@@ -13,12 +13,9 @@
  *      this script exits cleanly after Step 1 when `--pause-after-spec` is
  *      set, letting the wrapping skill resume after human approval).
  *   4. Run the decompose phase via `sprint-plan-decompose.js`.
- *   5. On `--auto-dispatch`, apply `agent::dispatching` so the operator
- *      doesn't need to return to GitHub to kick off execution.
  *
  * The script is intentionally small — the heavy lifting lives in each
- * sub-CLI. This wrapper primarily owns the in-chat confirmation gate and
- * the optional `--auto-dispatch` transition.
+ * sub-CLI. This wrapper primarily owns the in-chat confirmation gate.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -29,7 +26,6 @@ import {
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { AGENT_LABELS } from './lib/label-constants.js';
 import {
   PLAN_PHASES,
   PlanCheckpointer,
@@ -44,25 +40,6 @@ import { runDecomposePhase } from './sprint-plan-decompose.js';
 import { runSpecPhase } from './sprint-plan-spec.js';
 
 /**
- * Flip the Epic to `agent::dispatching` (removes the `agent::ready` parking
- * label). Used by `--auto-dispatch` and by downstream remote tooling.
- */
-export async function applyDispatching(provider, epicId) {
-  const planningLabels = [
-    AGENT_LABELS.PLANNING,
-    AGENT_LABELS.REVIEW_SPEC,
-    AGENT_LABELS.DECOMPOSING,
-    AGENT_LABELS.READY,
-  ];
-  await provider.updateTicket(epicId, {
-    labels: {
-      add: [AGENT_LABELS.DISPATCHING],
-      remove: planningLabels,
-    },
-  });
-}
-
-/**
  * Orchestrate the full local plan. Intentionally side-effect-free on its
  * arguments — all I/O happens through `provider` and the two phase runners.
  *
@@ -73,10 +50,8 @@ export async function applyDispatching(provider, epicId) {
  *   config: object,
  *   artifacts: { prdContent: string, techSpecContent: string, tickets: Array<object> },
  *   force?: boolean,
- *   autoDispatch?: boolean,
  *   runSpec?: typeof runSpecPhase,
  *   runDecompose?: typeof runDecomposePhase,
- *   applyDispatchingFn?: typeof applyDispatching,
  * }} opts
  */
 export async function runSprintPlan({
@@ -86,10 +61,8 @@ export async function runSprintPlan({
   config,
   artifacts,
   force = false,
-  autoDispatch = false,
   runSpec = runSpecPhase,
   runDecompose = runDecomposePhase,
-  applyDispatchingFn = applyDispatching,
 }) {
   const specResult = await runSpec(
     epicId,
@@ -110,20 +83,10 @@ export async function runSprintPlan({
     { force },
   );
 
-  let dispatchApplied = false;
-  if (autoDispatch) {
-    console.log(
-      `[sprint-plan] --auto-dispatch: applying ${AGENT_LABELS.DISPATCHING} to Epic #${epicId}...`,
-    );
-    await applyDispatchingFn(provider, epicId);
-    dispatchApplied = true;
-  }
-
   return {
     epicId,
     spec: specResult,
     decompose: decomposeResult,
-    dispatchApplied,
   };
 }
 
@@ -157,14 +120,13 @@ async function main() {
       techspec: { type: 'string' },
       tickets: { type: 'string' },
       force: { type: 'boolean', default: false },
-      'auto-dispatch': { type: 'boolean', default: false },
       'describe-resume-point': { type: 'boolean', default: false },
     },
   });
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: sprint-plan.js --epic <EpicId> --prd <file> --techspec <file> --tickets <file> [--force] [--auto-dispatch]',
+      'Usage: sprint-plan.js --epic <EpicId> --prd <file> --techspec <file> --tickets <file> [--force]',
     );
   }
 
@@ -219,7 +181,6 @@ async function main() {
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,
-    autoDispatch: values['auto-dispatch'],
   });
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

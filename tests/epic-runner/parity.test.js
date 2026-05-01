@@ -1,6 +1,6 @@
 /**
- * Parity tests for the epic-runner's local vs. remote-trigger dispatch,
- * wave ordering, blocker halt-and-resume, and story-under-remote-epic flow.
+ * Parity tests for the epic-runner's local dispatch path: wave ordering,
+ * blocker halt-and-resume, and story-launch isolation.
  */
 
 import assert from 'node:assert/strict';
@@ -134,31 +134,6 @@ describe('epic-runner parity', () => {
         `wave-${i}-end comment present`,
       );
     }
-  });
-
-  it('(b) simulated GitHub-triggered remote run matches local parity', async () => {
-    const epicId = 321;
-    const stories = [{ id: 400 }, { id: 401 }];
-    const provider = buildFakeProvider({
-      epicId,
-      stories,
-      initialEpicLabels: ['type::epic', 'agent::dispatching'],
-    });
-    const spawn = async () => ({ status: 'done' });
-
-    const result = await runEpic({
-      ctx: buildCtx({ epicId, provider, config: defaultConfig, spawn }),
-      smokeTest: okSmokeTest,
-    });
-
-    // The coordinator is expected to flip Epic to executing then review.
-    const epic = provider._tickets.get(epicId);
-    assert.ok(
-      epic.labels.includes('agent::review'),
-      `final label wrong: ${epic.labels.join(',')}`,
-    );
-    assert.equal(result.state, 'completed');
-    assert.equal(result.waveHistory.length, 1);
   });
 
   it('(c) local per-Story init leaves remote Epic label untouched', async () => {

@@ -11,8 +11,8 @@
  *     tails stay useful.
  *   - Secret masking: before writing, any string value whose parent key name
  *     or content looks secret-like gets a `::add-mask::<value>` directive
- *     emitted to stdout. Mirrors the masking pattern in `remote-bootstrap.js`
- *     so GitHub Actions redacts accidental echoes.
+ *     emitted to stdout so any host with mask support redacts accidental
+ *     echoes.
  *   - Finalize is idempotent: repeat calls are safe.
  */
 

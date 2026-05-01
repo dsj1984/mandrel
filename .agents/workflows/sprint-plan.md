@@ -25,11 +25,8 @@ supports two invocation modes:
   confirmation gate between them. This is the default for operators typing
   `/sprint-plan <Epic_ID>` in Claude Code.
 - **Single-phase mode (`--phase spec` or `--phase decompose`):** run exactly
-  one phase and stop. Used by the remote orchestrator
-  (`.github/workflows/epic-orchestrator.yml`) and `remote-bootstrap.js`, which
-  fire `/sprint-plan --phase spec <id>` when the operator applies
-  `agent::planning` and `/sprint-plan --phase decompose <id>` when they apply
-  `agent::decomposing`.
+  one phase and stop. Useful when the operator wants to pause between phases
+  for additional review.
 
 ### Phase routing
 
@@ -41,7 +38,7 @@ remaining positional argument. Order is not significant.
   operator handoff. Skip Phase 2 through Phase 5.
 - `--phase decompose` → skip Phase 1 and the Phase 0 re-plan prompt, and
   execute **Phases 2–5**. Assumes the Epic is already on
-  `agent::review-spec` or `agent::decomposing` with a linked PRD / Tech Spec.
+  `agent::review-spec` with a linked PRD / Tech Spec.
 - No `--phase` flag → run the full chain (Phase 0 → Phase 5) with the
   operator confirmation gate at the end of Phase 1.
 
@@ -60,7 +57,7 @@ artifacts you author.
   [`helpers/sprint-plan-decompose.md`](helpers/sprint-plan-decompose.md)
   procedures respectively — they own the Epic lifecycle label transitions and
   the `epic-plan-state` checkpoint. This wrapper must not apply those labels
-  directly (except for the optional `--auto-dispatch` final step).
+  directly.
 
 ## Prerequisites
 
@@ -279,21 +276,6 @@ chooses to gate on them.
    node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Sprint is ready for /sprint-execute." --action
    ```
 
-2. **Auto-dispatch (optional)**: When the operator invokes `/sprint-plan` with
-   the `--auto-dispatch` flag, the wrapper applies `agent::dispatching` to the
-   Epic immediately after decomposition completes, kicking off execution
-   without a second operator round-trip. Skip this step unless the operator
-   explicitly asks for `--auto-dispatch` or you're running the
-   `sprint-plan.js` wrapper in that mode:
-
-   ```bash
-   node .agents/scripts/sprint-plan.js --epic [Epic_ID] \
-     --prd temp/prd-epic-[Epic_ID].md \
-     --techspec temp/techspec-epic-[Epic_ID].md \
-     --tickets temp/tickets-epic-[Epic_ID].json \
-     --auto-dispatch
-   ```
-
 ## Troubleshooting
 
 - If `sprint-plan-spec.js --emit-context` fails, confirm the Epic exists and
@@ -302,8 +284,7 @@ chooses to gate on them.
   validator's error message — the most common causes are a Story with no child
   Tasks, a Task whose `parent_slug` does not point at a Story, or cross-Story
   Task dependencies (which must be lifted to Story-level dependencies).
-- If decomposition persisted the tickets but the Epic is still on
-  `agent::decomposing` (not `agent::ready`), you invoked the low-level
-  `ticket-decomposer.js` directly — only `sprint-plan-decompose.js` flips the
-  lifecycle label. Apply `agent::ready` by hand and re-run via the wrapper
-  next time.
+- If decomposition persisted the tickets but the Epic is not on `agent::ready`,
+  you invoked the low-level `ticket-decomposer.js` directly — only
+  `sprint-plan-decompose.js` flips the lifecycle label. Apply `agent::ready`
+  by hand and re-run via the wrapper next time.
