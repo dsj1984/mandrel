@@ -195,9 +195,10 @@ reviews, and compliance checks read back from it.
 ## Phase 4 — Pre-Merge Validation
 
 Run the full lint + test suite on the Epic branch before any merge to
-`[BASE_BRANCH]`. This is the only build gate that runs before push — pre-push
-hooks cover formatting and the maintainability index baseline, but they do
-not run the test suite.
+`[BASE_BRANCH]`. This is the only build gate this workflow runs before push.
+Pre-push hooks may enforce additional ratcheted gates (lint baselines,
+complexity baselines, design-token audits, etc.) that this phase does not
+run — see 4.1.
 
 Use the **evidence-aware gate wrapper** so identical re-runs against an
 already-validated tree are skipped. Each successful run is recorded under
@@ -221,6 +222,43 @@ the Epic branch before restarting this workflow.
 > forced re-run, `--no-evidence` is the explicit override. Pre-push hooks
 > and CI never read the evidence file, so independent verification is
 > never bypassed by setting (or clearing) the local evidence record.
+
+### 4.1 Refresh ratcheted baselines before push
+
+**Principle.** Any baseline or audit ratchet enforced by the project's
+pre-push hook MUST be refreshed on the Epic branch *before* Phase 5.4
+push. The evidence-aware gate above runs `npm run lint` + `npm test`
+only — it does not invoke project-extended ratchets. If a ratchet drifts
+and is not refreshed here, the push at 5.4 fails *after* the merge into
+`[BASE_BRANCH]` has already landed locally, and the operator is forced
+to land the fix as a follow-on commit on `[BASE_BRANCH]` rather than on
+the Epic branch where it belongs.
+
+**Common ratchet categories** (consuming projects map their concrete
+commands onto these):
+
+- **Lint baselines** — ratchets that fail the push when warning/error
+  counts exceed a persisted snapshot.
+- **Complexity / maintainability baselines** — e.g., maintainability
+  index, cyclomatic complexity, CRAP score thresholds.
+- **Design-token / brand-token audits** — checks that source files use
+  approved tokens rather than raw values.
+- **Dependency audits** — `npm audit`-style gates with a pinned
+  severity threshold.
+- **Custom build-output size budgets** — bundle / asset size ceilings
+  enforced at push time.
+
+**Procedure.** Open `package.json` and inspect the scripts referenced
+from `.husky/pre-push` (or the project's equivalent push hook). Run
+each ratcheted script against the Epic branch. If any ratchet drifts,
+refresh the baseline file on the Epic branch and commit it as:
+
+```powershell
+git commit -m "chore(baselines): refresh <name> for Epic #[EPIC_ID]"
+```
+
+so the merge into `[BASE_BRANCH]` passes the pre-push hook on first
+push at Phase 5.4.
 
 ---
 
@@ -403,6 +441,11 @@ node [SCRIPTS_ROOT]/notify.js --ticket [EPIC_ID] "Epic #[EPIC_ID] closed. Merged
   before the merge proceeds.
 - **Never** skip the pre-merge validation (lint + test) in Phase 4. A
   broken `[BASE_BRANCH]` blocks all future Epics.
+- **Always** refresh project-specific pre-push ratchets on the Epic
+  branch before Phase 5.4 push. The evidence-aware Phase 4 gate runs
+  lint + test only; it does not invoke project-extended baselines or
+  audits. Drift caught after merge has to be fixed on `[BASE_BRANCH]`,
+  not on the Epic branch where it belongs.
 - **Always** auto-invoke the code-review helper (Phase 3) and the retro
   helper (Phase 6) when they have not already produced their artefacts. Do
   not halt and ask the operator to run them separately — that round-trip is
