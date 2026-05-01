@@ -200,7 +200,8 @@ when any of these are tripped.
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/sprint-close`.                                    |
-| `sprintClose.runRetro` | No   | `true`  | When `true`, `/sprint-close` invokes the retro helper.                                   |
+| `epicClose.runRetro`   | No   | `true`  | When `true`, `/sprint-close` invokes the retro helper.                                   |
+| `sprintClose.runRetro` | No   | (none)  | **Deprecated** — alias for `epicClose.runRetro`. Read as a fallback with a `Logger.warn(...)` deprecation; scheduled for removal in 5.32.0. |
 | `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 

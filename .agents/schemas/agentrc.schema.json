@@ -88,6 +88,11 @@
       },
       "additionalProperties": false
     },
+    "epicClose": {
+      "type": "object",
+      "properties": { "runRetro": { "type": "boolean" } },
+      "additionalProperties": false
+    },
     "sprintClose": {
       "type": "object",
       "properties": { "runRetro": { "type": "boolean" } },
@@ -296,6 +301,7 @@
       "properties": {
         "baseBranch": { "$ref": "#/$defs/safeString" },
         "docsContextFiles": { "type": "array", "items": { "type": "string" } },
+        "epicClose": { "$ref": "#/$defs/epicClose" },
         "sprintClose": { "$ref": "#/$defs/sprintClose" },
         "release": { "$ref": "#/$defs/release" },
         "riskGates": { "$ref": "#/$defs/riskGates" },
