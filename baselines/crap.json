@@ -2398,24 +2398,6 @@
       "startLine": 124
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "isStoryDone",
-      "startLine": 41
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "storyIdFromPath",
-      "startLine": 48
-    },
-    {
-      "crap": 15.000200024180701,
-      "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
-      "method": "sweepStaleStoryWorktrees",
-      "startLine": 71
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/planning-context-budget.js",
       "method": "byteLen",
@@ -3532,52 +3514,28 @@
       "startLine": 13
     },
     {
+      "crap": 1.0000508052634254,
+      "file": ".agents/scripts/lib/worktree/lifecycle/force-drain.js",
+      "method": "<anon method-1>",
+      "startLine": 41
+    },
+    {
+      "crap": 1.0000508052634254,
+      "file": ".agents/scripts/lib/worktree/lifecycle/force-drain.js",
+      "method": "<anon method-2>",
+      "startLine": 41
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/worktree/lifecycle/gc.js",
       "method": "gc",
       "startLine": 15
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "manifestPath",
-      "startLine": 28
-    },
-    {
-      "crap": 3.0540946656649135,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "readManifest",
-      "startLine": 32
-    },
-    {
-      "crap": 3.0327719617660445,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "writeManifest",
-      "startLine": 44
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "recordPendingCleanup",
-      "startLine": 63
-    },
-    {
-      "crap": 1,
+      "crap": 1.043964990840627,
       "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
       "method": "removePendingCleanup",
-      "startLine": 94
-    },
-    {
-      "crap": 20.430083452065944,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "retryStage1ForEntry",
       "startLine": 101
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
-      "method": "drainPendingCleanup",
-      "startLine": 160
     },
     {
       "crap": 11.727272727272727,
@@ -4382,48 +4340,6 @@
       "file": ".agents/scripts/sprint-hierarchy-gate.js",
       "method": "main",
       "startLine": 181
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/sprint-plan-decompose.js",
-      "method": "setEpicLabel",
-      "startLine": 50
-    },
-    {
-      "crap": 40.45735733267582,
-      "file": ".agents/scripts/sprint-plan-decompose.js",
-      "method": "runDecomposePhase",
-      "startLine": 75
-    },
-    {
-      "crap": 14.568118889891624,
-      "file": ".agents/scripts/sprint-plan-decompose.js",
-      "method": "main",
-      "startLine": 146
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/sprint-plan-spec.js",
-      "method": "drainPendingCleanupAtBoot",
-      "startLine": 66
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/sprint-plan-spec.js",
-      "method": "setEpicLabel",
-      "startLine": 93
-    },
-    {
-      "crap": 19.272841147018664,
-      "file": ".agents/scripts/sprint-plan-spec.js",
-      "method": "runSpecPhase",
-      "startLine": 118
-    },
-    {
-      "crap": 17.864976672984398,
-      "file": ".agents/scripts/sprint-plan-spec.js",
-      "method": "main",
-      "startLine": 185
     },
     {
       "crap": 1.800655976676385,
