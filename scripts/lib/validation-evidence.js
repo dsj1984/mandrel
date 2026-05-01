@@ -222,7 +222,7 @@ export function shouldSkip(
 }
 
 /**
- * Delete the evidence file for `storyId`. Called by `sprint-story-init.js`
+ * Delete the evidence file for `storyId`. Called by `story-init.js`
  * at the start of each Story so a re-run always starts clean. Idempotent —
  * absent file is not an error.
  *

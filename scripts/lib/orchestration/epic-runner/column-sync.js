@@ -2,14 +2,13 @@
  * ColumnSync — derive the GitHub Projects v2 Status column from an issue's
  * agent:: labels, and push the update via the provider's GraphQL surface.
  *
- * Mapping (tech spec #351):
- *   agent::planning                       → Planning
- *   agent::review-spec                    → Spec Review
- *   agent::decomposing | agent::ready     → Ready
- *   agent::dispatching | agent::executing → In Progress
- *   agent::blocked                        → Blocked
- *   agent::review                         → Review
- *   agent::done                           → Done
+ * Mapping:
+ *   agent::review-spec → Spec Review
+ *   agent::ready       → Ready
+ *   agent::executing   → In Progress
+ *   agent::blocked     → Blocked
+ *   agent::review      → Review
+ *   agent::done        → Done
  *
  * No-op (soft fail) when:
  *   - `projectNumber` is not configured
@@ -24,11 +23,8 @@
 import { AGENT_LABELS } from '../../label-constants.js';
 
 export const LABEL_TO_COLUMN = Object.freeze({
-  [AGENT_LABELS.PLANNING]: 'Planning',
   [AGENT_LABELS.REVIEW_SPEC]: 'Spec Review',
-  [AGENT_LABELS.DECOMPOSING]: 'Ready',
   [AGENT_LABELS.READY]: 'Ready',
-  [AGENT_LABELS.DISPATCHING]: 'In Progress',
   [AGENT_LABELS.EXECUTING]: 'In Progress',
   [AGENT_LABELS.BLOCKED]: 'Blocked',
   [AGENT_LABELS.REVIEW]: 'Review',
@@ -37,10 +33,9 @@ export const LABEL_TO_COLUMN = Object.freeze({
 
 /**
  * Pick the target column for a set of labels. Precedence:
- *   done > blocked > review > spec-review > ready > planning > in-progress.
+ *   done > blocked > review > spec-review > ready > in-progress.
  * Terminal states win (done beats review); the active blocker outranks
- * execution; spec-review outranks the planning-phase triggers so the board
- * reflects the most-advanced phase the ticket has reached.
+ * execution.
  */
 export function columnForLabels(labels) {
   const set = new Set(labels);
@@ -48,12 +43,8 @@ export function columnForLabels(labels) {
   if (set.has(AGENT_LABELS.BLOCKED)) return 'Blocked';
   if (set.has(AGENT_LABELS.REVIEW)) return 'Review';
   if (set.has(AGENT_LABELS.REVIEW_SPEC)) return 'Spec Review';
-  if (set.has(AGENT_LABELS.READY) || set.has(AGENT_LABELS.DECOMPOSING))
-    return 'Ready';
-  if (set.has(AGENT_LABELS.PLANNING)) return 'Planning';
-  if (set.has(AGENT_LABELS.EXECUTING) || set.has(AGENT_LABELS.DISPATCHING)) {
-    return 'In Progress';
-  }
+  if (set.has(AGENT_LABELS.READY)) return 'Ready';
+  if (set.has(AGENT_LABELS.EXECUTING)) return 'In Progress';
   return null;
 }
 

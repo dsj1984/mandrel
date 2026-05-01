@@ -1,101 +1,148 @@
 /**
- * StoryLauncher — fans out executor sub-agents per wave.
+ * StoryLauncher — produces the per-wave dispatch plan and (optionally)
+ * delegates execution to an injected `dispatch` adapter.
  *
- * Concurrency is bounded by `concurrencyCap`. Each story gets its own
- * provisioned worktree (created by `sprint-story-init.js`) and runs
- * `/sprint-execute <storyId>` (Story Mode) via the supplied `spawn` adapter.
+ * After Story #908, in-session Agent-tool fan-out replaces the subprocess
+ * spawn pipeline. The launcher's primary responsibility is `planWave(stories)`:
+ * given a wave's Story tickets it returns a stable list of
+ * `{ storyId, modelTier, worktree }` entries. The `/wave-execute` skill
+ * consumes that list to format one assistant turn containing N parallel
+ * `Agent` tool calls (subagent_type `general-purpose`), each of which drives
+ * `/story-execute <storyId>` for one Story.
  *
- * The adapter is injected so the orchestrator can swap the real
- * Claude-Agent-tool invocation for a fake in tests without reaching for
- * module mocks.
+ * `launchWave(stories)` is a convenience for callers that already hold a
+ * concrete dispatch adapter (tests, future programmatic harnesses). It calls
+ * `planWave` and forwards the plan to `dispatch({ plan, concurrencyCap, signal })`,
+ * returning the adapter's result list. The CLI does not provide a default
+ * dispatch adapter — invoking the engine without one is an explicit error.
  */
 
-const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6h — aligns with GitHub Actions ceiling
+const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_MODEL_TIER = 'low';
 
 export class StoryLauncher {
   /**
    * @param {{
    *   ctx?: import('../context.js').EpicRunnerContext,
    *   concurrencyCap?: number,
-   *   spawn?: (args: { storyId: number, worktree?: string, signal: AbortSignal }) => Promise<{ status: 'done'|'failed'|'blocked', detail?: string }>,
+   *   dispatch?: (args: { plan: Array<{ storyId: number, modelTier: string, worktree?: string }>, concurrencyCap: number, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
    *   worktreeResolver?: (storyId: number) => string,
+   *   modelTierResolver?: (story: object) => string,
    *   timeoutMs?: number,
    *   logger?: { info: Function, warn: Function, error: Function }
    * }} opts
    */
-  constructor(opts) {
+  constructor(opts = {}) {
     const ctx = opts?.ctx;
-    const spawn = opts?.spawn ?? ctx?.spawn;
+    const dispatch = opts?.dispatch ?? ctx?.dispatch ?? null;
     const concurrencyCap = opts?.concurrencyCap ?? ctx?.concurrencyCap;
-    if (typeof spawn !== 'function') {
-      throw new TypeError('StoryLauncher requires a spawn adapter');
-    }
     if (!Number.isInteger(concurrencyCap) || concurrencyCap < 1) {
       throw new RangeError('concurrencyCap must be a positive integer');
     }
     this.concurrencyCap = concurrencyCap;
-    this.spawn = spawn;
+    this.dispatch = dispatch;
     this.worktreeResolver = opts?.worktreeResolver ?? ctx?.worktreeResolver;
+    this.modelTierResolver = opts?.modelTierResolver ?? null;
     this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.logger = opts?.logger ?? ctx?.logger ?? console;
   }
 
   /**
-   * Launches stories in the given wave, bounded by `concurrencyCap`. Resolves
-   * with one result per input story, preserving order.
+   * Produce the dispatch plan for a wave. Pure: no side effects, no IO. The
+   * caller (the `/wave-execute` skill, or `launchWave` below) decides what to
+   * do with the plan.
+   *
+   * @param {Array<number|{id?:number,storyId?:number,number?:number,labels?:string[]}>} stories
+   * @returns {Array<{ storyId: number, modelTier: string, worktree?: string }>}
+   */
+  planWave(stories) {
+    return (stories ?? []).map((s) => {
+      const storyId =
+        typeof s === 'object' && s !== null
+          ? (s.id ?? s.storyId ?? s.number)
+          : s;
+      const id = Number(storyId);
+      return {
+        storyId: id,
+        modelTier: this.#resolveModelTier(s),
+        worktree: this.worktreeResolver?.(id),
+      };
+    });
+  }
+
+  #resolveModelTier(story) {
+    if (typeof this.modelTierResolver === 'function') {
+      const tier = this.modelTierResolver(story);
+      if (typeof tier === 'string' && tier.length > 0) return tier;
+    }
+    if (typeof story === 'object' && story !== null) {
+      if (typeof story.modelTier === 'string') return story.modelTier;
+      const labels = Array.isArray(story.labels) ? story.labels : [];
+      for (const label of labels) {
+        const match =
+          typeof label === 'string' ? label.match(/^model::(.+)$/) : null;
+        if (match) return match[1];
+      }
+    }
+    return DEFAULT_MODEL_TIER;
+  }
+
+  /**
+   * Plan + dispatch the wave through the injected adapter. Returns one result
+   * entry per input Story preserving input order. Throws when no dispatch
+   * adapter was injected — the engine is no longer callable without one.
    *
    * @param {object[]} stories
    * @param {AbortSignal} [signal]
    * @returns {Promise<Array<{ storyId: number, status: string, detail?: string }>>}
    */
   async launchWave(stories, signal) {
-    const queue = stories.map((s, i) => ({ index: i, story: s }));
-    const results = new Array(stories.length);
-    const workers = new Array(Math.min(this.concurrencyCap, queue.length))
-      .fill(0)
-      .map(() => this.#worker(queue, results, signal));
-    await Promise.all(workers);
-    return results;
-  }
-
-  async #worker(queue, results, signal) {
-    while (queue.length > 0) {
-      if (signal?.aborted) return;
-      const item = queue.shift();
-      if (!item) return;
-      const { index, story } = item;
-      const storyId = story.id ?? story.storyId ?? story;
-      const worktree = this.worktreeResolver?.(storyId);
-      try {
-        const result = await this.#runOne(storyId, worktree, signal);
-        results[index] = { storyId, ...result };
-      } catch (err) {
-        results[index] = {
-          storyId,
-          status: 'failed',
-          detail: err?.message ?? String(err),
-        };
-      }
+    if (typeof this.dispatch !== 'function') {
+      throw new TypeError(
+        'StoryLauncher.launchWave requires a dispatch adapter (in-session Agent-tool fan-out is the responsibility of the /wave-execute skill).',
+      );
     }
-  }
+    const plan = this.planWave(stories);
+    if (plan.length === 0) return [];
 
-  async #runOne(storyId, worktree, parentSignal) {
     const controller = new AbortController();
     const timer = setTimeout(
-      () => controller.abort(new Error(`story ${storyId} timed out`)),
+      () =>
+        controller.abort(new Error(`wave timed out after ${this.timeoutMs}ms`)),
       this.timeoutMs,
     );
-    const onParentAbort = () => controller.abort(parentSignal.reason);
-    parentSignal?.addEventListener?.('abort', onParentAbort, { once: true });
+    const onParentAbort = () => controller.abort(signal?.reason);
+    signal?.addEventListener?.('abort', onParentAbort, { once: true });
     try {
-      return await this.spawn({
-        storyId,
-        worktree,
+      const results = await this.dispatch({
+        plan,
+        concurrencyCap: this.concurrencyCap,
         signal: controller.signal,
       });
+      return this.#alignResults(plan, results);
+    } catch (err) {
+      return plan.map((p) => ({
+        storyId: p.storyId,
+        status: 'failed',
+        detail: err?.message ?? String(err),
+      }));
     } finally {
       clearTimeout(timer);
-      parentSignal?.removeEventListener?.('abort', onParentAbort);
+      signal?.removeEventListener?.('abort', onParentAbort);
     }
+  }
+
+  #alignResults(plan, results) {
+    const list = Array.isArray(results) ? results : [];
+    const byId = new Map(list.map((r) => [Number(r.storyId), r]));
+    return plan.map((p) => {
+      const r = byId.get(p.storyId);
+      if (r) return { storyId: p.storyId, ...r };
+      return {
+        storyId: p.storyId,
+        status: 'failed',
+        detail: 'dispatch returned no result for this story',
+      };
+    });
   }
 }

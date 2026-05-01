@@ -4,7 +4,7 @@ description: >-
   via GitHub provider, clean up branches, and post the retrospective.
 ---
 
-# Sprint Close
+# /epic-close [Epic ID]
 
 This workflow is the **terminal step** of the Epic lifecycle. It promotes the
 fully integrated and reviewed `epic/<epicId>` branch into `main`, closes the
@@ -15,9 +15,9 @@ Documentation Freshness, Code Review, Pre-Merge Validation, Merge to Main,
 Retro, Finalize, Notify. Each phase is a cohesive checkpoint: skipping ahead
 strands partial state on GitHub, so run them in order.
 
-> **When to run**: As soon as all child work is closed. `/sprint-close`
-> auto-invokes the mandatory pre-merge gates (the `helpers/sprint-code-review.md`
-> module in the Code Review phase and `helpers/sprint-retro.md` in the Retro
+> **When to run**: As soon as all child work is closed. `/epic-close`
+> auto-invokes the mandatory pre-merge gates (the `helpers/epic-code-review.md`
+> module in the Code Review phase and `helpers/epic-retro.md` in the Retro
 > phase) when they have not already been completed, so operators no longer
 > need to run them by hand.
 >
@@ -48,9 +48,13 @@ strands partial state on GitHub, so run them in order.
    - All files listed in `release.docs`.
    - All files listed in `agentSettings.docsContextFiles` (prefixed with the
      path from `agentSettings.paths.docsRoot`).
-7. Resolve `[RUN_RETRO]` from `agentSettings.sprintClose.runRetro` in
+7. Resolve `[RUN_RETRO]` from `agentSettings.epicClose.runRetro` in
    `.agentrc.json` (default: `true`). When `false`, the Retro phase is
-   skipped entirely — no retro is required or produced.
+   skipped entirely — no retro is required or produced. The legacy
+   `agentSettings.sprintClose.runRetro` key is read as a fallback with a
+   one-line `Logger.warn(...)` deprecation; remove it from your config to
+   silence the warning. The shim is scheduled for removal in 5.32.0 — see
+   `docs/deprecation-register.md`.
 
 ---
 
@@ -65,18 +69,18 @@ pass.
 
 Every Story in the Epic's frozen dispatch manifest must be closed, along with
 every open recut and every parked follow-on. The manifest lives as a
-`dispatch-manifest` structured comment on the Epic — `/sprint-plan` and every
+`dispatch-manifest` structured comment on the Epic — `/epic-plan` and every
 subsequent dispatcher run refresh it, so it is the single source of truth for
 "which Stories did the sprint actually commit to?"
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-wave-gate.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/wave-gate.js --epic [EPIC_ID]
 ```
 
 If the script exits non-zero: **STOP IMMEDIATELY.** The output lists every
 manifest Story, recut, and parked follow-on that is still open, with its wave
 and title. Close or re-dispatch the outstanding work before re-running
-`/sprint-close`. Pass `--allow-parked` / `--allow-open-recuts` to waive once
+`/epic-close`. Pass `--allow-parked` / `--allow-open-recuts` to waive once
 the operator has deliberately deferred the follow-on work.
 
 > If `temp/dispatch-manifest-<epicId>.{md,json}` has drifted or was lost,
@@ -96,7 +100,7 @@ ticket the Epic still owns, and the graph can omit a parked Story that lives
 outside the Epic.
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-hierarchy-gate.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/hierarchy-gate.js --epic [EPIC_ID]
 ```
 
 The gate enforces:
@@ -106,13 +110,13 @@ The gate enforces:
 3. **Features** — closed.
 
 Auxiliary tickets (`context::prd`, `context::tech-spec`, `type::health`)
-are intentionally **deferred** here — Phase 7 (`sprint-close.js`) closes
+are intentionally **deferred** here — Phase 7 (`epic-close.js`) closes
 them automatically as part of the same workflow run, so failing the gate
 on them would block every Epic.
 
 If ANY planned descendant is still open, the script exits non-zero and
 lists every open id. **STOP IMMEDIATELY** and resolve the open work
-before re-running `/sprint-close`.
+before re-running `/epic-close`.
 
 ---
 
@@ -164,7 +168,7 @@ Re-run the gate until it exits 0.
 ## Phase 3 — Code Review
 
 Establish the post-hoc code-review record on the Epic. The Code Review phase
-runs the [`helpers/sprint-code-review.md`](helpers/sprint-code-review.md)
+runs the [`helpers/epic-code-review.md`](helpers/epic-code-review.md)
 module, which performs the static analysis **and** persists its findings as a
 `code-review` structured comment on the Epic (via `upsertStructuredComment`).
 That comment is the durable audit trail — subsequent retros, incident
@@ -173,12 +177,12 @@ reviews, and compliance checks read back from it.
 ### 3.1 Auto-invoke the code-review helper
 
 1. Follow the procedure in
-   [`helpers/sprint-code-review.md`](helpers/sprint-code-review.md) inline for
+   [`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline for
    `[EPIC_ID]` (read-only audit mode — no remediation).
 2. Inspect the resulting findings:
    - **Any 🔴 Critical Blocker** — STOP. Relay the blockers to the operator
      and do not proceed to Phase 4. The operator decides whether to fix on
-     the Epic branch and re-run `/sprint-close`, or to override explicitly.
+     the Epic branch and re-run `/epic-close`, or to override explicitly.
    - **Only 🟠/🟡/🟢 findings** — log them as "non-blocking review findings"
      and continue. The full report is already persisted on the Epic.
 3. If the operator passes `--skip-code-review` at invocation time, skip this
@@ -364,7 +368,7 @@ gh api "repos/{owner}/{repo}/issues/[EPIC_ID]/comments" \
 ```
 
 If no matching comment is found, **auto-invoke** the
-[`helpers/sprint-retro.md`](helpers/sprint-retro.md) procedure inline for
+[`helpers/epic-retro.md`](helpers/epic-retro.md) procedure inline for
 `[EPIC_ID]`. After it completes, re-run the check above to confirm the
 comment is now present. If the retro helper failed to produce a comment,
 STOP and relay the failure to the operator.
@@ -382,7 +386,7 @@ STOP and relay the failure to the operator.
 >
 > **`--full-retro` override:** if the operator passed `--full-retro`,
 > propagate it into the retro helper invocation so the compact-path
-> heuristic in `helpers/sprint-retro.md` Step 0.5 is bypassed and the full
+> heuristic in `helpers/epic-retro.md` Step 0.5 is bypassed and the full
 > six-section retro is composed regardless of the dispatch manifest's
 > cleanliness. Without the flag, the helper chooses the compact or full
 > path based on the `isCleanManifest` predicate. `--skip-retro` takes
@@ -396,7 +400,7 @@ STOP and relay the failure to the operator.
 Close the planning, strategy, and Epic tickets, then clean up branches.
 
 ```powershell
-node [SCRIPTS_ROOT]/sprint-close.js --epic [EPIC_ID]
+node [SCRIPTS_ROOT]/epic-close.js --epic [EPIC_ID]
 ```
 
 The script performs three phase-internal functions:
@@ -451,12 +455,12 @@ node [SCRIPTS_ROOT]/notify.js --ticket [EPIC_ID] "Epic #[EPIC_ID] closed. Merged
   not halt and ask the operator to run them separately — that round-trip is
   what the auto-invoke replaced.
 - **Always** persist the code-review output as a `code-review` structured
-  comment on the Epic — `sprint-code-review.js` already does this via
+  comment on the Epic — `epic-code-review.js` already does this via
   `upsertStructuredComment`; do not bypass it.
 - **Always** bump the version (Phase 5.1) before merging when
   `release.autoVersionBump` is `true`. Use **minor** for new features,
   **patch** for fixes and refactors. No git tag is created.
-- **Always** run `sprint-close.js` (Phase 7) to ensure PRD and Tech Spec
+- **Always** run `epic-close.js` (Phase 7) to ensure PRD and Tech Spec
   tickets are formally closed — they are excluded from auto-closure during
   execution.
 - **Always** delete all Epic, Task, and Story branches after merge to

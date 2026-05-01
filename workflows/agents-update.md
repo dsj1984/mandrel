@@ -64,7 +64,7 @@ a1b2c3d4e5f6..9f8e7d6c5b4a
   9f8e7d6 feat: new workflow X
   a0b1c2d fix: tighten Y validation
   synced   agents-update.md
-  synced   sprint-plan.md
+  synced   epic-plan.md
 ...
 ✔ 3 file(s) synced, 26 total commands in .claude/commands/
 ```

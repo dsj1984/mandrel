@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * .agents/scripts/sprint-hierarchy-gate.js — Hierarchy Completeness Gate
+ * .agents/scripts/hierarchy-gate.js — Hierarchy Completeness Gate
  *
  * Walks the Epic's full sub-issue graph (Features → Stories → Tasks) and
  * verifies every descendant is closed. Where the wave gate asks "did the
@@ -21,11 +21,11 @@
  *   - Stories   — must be closed.
  *   - Tasks     — must be closed AND carry `agent::done`.
  *   - Auxiliary (context::prd, context::tech-spec, type::health) — ignored.
- *     These are closed by `sprint-close.js` Phase 7 (later in the same
+ *     These are closed by `epic-close.js` Phase 7 (later in the same
  *     workflow run), so requiring them closed here would block every Epic.
  *
  * Usage:
- *   node .agents/scripts/sprint-hierarchy-gate.js --epic <EPIC_ID>
+ *   node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>
  *
  * Exit codes:
  *   0 — every descendant ticket is closed (and Tasks carry agent::done).
@@ -101,7 +101,7 @@ async function collectDescendants(provider, epicId) {
 
 export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
   if (!epicId || Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node sprint-hierarchy-gate.js --epic <EPIC_ID>');
+    Logger.fatal('Usage: node hierarchy-gate.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();
@@ -189,4 +189,4 @@ async function main() {
   await runHierarchyGate({ epicId });
 }
 
-runAsCli(import.meta.url, main, { source: 'sprint-hierarchy-gate' });
+runAsCli(import.meta.url, main, { source: 'hierarchy-gate' });

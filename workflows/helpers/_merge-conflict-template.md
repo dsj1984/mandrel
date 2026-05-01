@@ -1,7 +1,7 @@
 # Merge Conflict Resolution — Shared Procedure
 
 Canonical, workflow-agnostic procedure for resolving merge / rebase conflicts.
-Referenced by `git-merge-pr.md`, `sprint-execute.md`, and `sprint-close.md`.
+Referenced by `git-merge-pr.md`, `story-execute.md`, and `epic-close.md`.
 
 ## Procedure
 

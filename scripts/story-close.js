@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-story-close.js — Story Execution Closure
+ * story-close.js — Story Execution Closure
  *
  * Deterministic script that replaces Steps 5, 5b, and 6 of the sprint-execute
  * Mode B workflow. Performs all post-implementation orchestration:
@@ -16,7 +16,7 @@
  *   7. Runs health-monitor.js.
  *
  * Usage:
- *   node sprint-story-close.js --story <STORY_ID> [--epic <EPIC_ID>]
+ *   node story-close.js --story <STORY_ID> [--epic <EPIC_ID>]
  *
  * If --epic is omitted, the script resolves it from the Story ticket body.
  *
@@ -24,7 +24,7 @@
  *   0 — Story closed and merged successfully.
  *   1 — Error.
  *
- * @see .agents/workflows/sprint-execute.md Mode B
+ * @see .agents/workflows/story-execute.md
  */
 
 import fs from 'node:fs';
@@ -81,7 +81,7 @@ import { notify } from './notify.js';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const progress = Logger.createProgress('sprint-story-close', { stderr: true });
+const progress = Logger.createProgress('story-close', { stderr: true });
 
 function resolveWorktreeRoot(repoRoot, orchestration) {
   const configuredRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
@@ -211,7 +211,7 @@ export function checkCdOutGuard({
       `Refusing to close while CWD is the worktree being reaped.\n` +
       `   Current cwd:  ${cwd}\n` +
       `   Main repo:    ${mainCwd}\n` +
-      `   Run instead:  cd "${mainCwd}" && node .agents/scripts/sprint-story-close.js --story ${storyId}`,
+      `   Run instead:  cd "${mainCwd}" && node .agents/scripts/story-close.js --story ${storyId}`,
   };
 }
 
@@ -616,7 +616,7 @@ export async function runStoryClose({
 
   if (!storyId) {
     Logger.fatal(
-      'Usage: node sprint-story-close.js --story <STORY_ID> [--epic <EPIC_ID>]',
+      'Usage: node story-close.js --story <STORY_ID> [--epic <EPIC_ID>]',
     );
   }
 
@@ -693,7 +693,7 @@ export async function runStoryClose({
 
   progress('TASKS', `Found ${tasks.length} child Task(s)`);
 
-  // Restore the phase timer from the snapshot sprint-story-init left in
+  // Restore the phase timer from the snapshot story-init left in
   // `<mainCwd>/.git/`. Missing or unparseable — fall back to a fresh timer
   // so close still emits whatever phases it observes (lint, test, close,
   // api-sync). See lib/util/phase-timer-state.js for the persistence
@@ -834,7 +834,7 @@ export async function runStoryClose({
     !pipelineState.worktreeReap
   ) {
     throw new Error(
-      'sprint-story-close invariant violated: worktreeReap state missing while worktree isolation is enabled.',
+      'story-close invariant violated: worktreeReap state missing while worktree isolation is enabled.',
     );
   }
   const pendingCleanupDrain = await drainPendingCleanupAfterClose({
@@ -874,14 +874,14 @@ export async function runStoryClose({
     );
   } catch (err) {
     Logger.warn?.(
-      `[sprint-story-close] ⚠️ Failed to post phase-timings comment: ${err.message}`,
+      `[story-close] ⚠️ Failed to post phase-timings comment: ${err.message}`,
     );
   }
   try {
     clearPhaseTimerState({ mainCwd: cwd, storyId });
   } catch (err) {
     Logger.warn?.(
-      `[sprint-story-close] ⚠️ Failed to clear phase-timer state file: ${err.message}`,
+      `[story-close] ⚠️ Failed to clear phase-timer state file: ${err.message}`,
     );
   }
 
@@ -924,7 +924,7 @@ export async function runStoryClose({
 // ---------------------------------------------------------------------------
 
 runAsCli(import.meta.url, runStoryClose, {
-  source: 'sprint-story-close',
+  source: 'story-close',
   onError: (err) => {
     // Prior-state detection throws with `exitCode: 2` to signal "operator
     // must choose --resume / --restart" — the body was already printed to
@@ -932,9 +932,7 @@ runAsCli(import.meta.url, runStoryClose, {
     if (err?.exitCode === 2) {
       process.exit(2);
     }
-    Logger.error(
-      `[phase=fatal] [sprint-story-close] ${err.stack || err.message}`,
-    );
+    Logger.error(`[phase=fatal] [story-close] ${err.stack || err.message}`);
     process.exit(1);
   },
 });

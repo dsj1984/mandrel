@@ -2,7 +2,7 @@
 
 This rule governs the shape of per-release entries in the project CHANGELOG
 (typically `docs/CHANGELOG.md` or `CHANGELOG.md`). It applies whenever a
-release entry is authored or edited — most commonly during `/sprint-close`
+release entry is authored or edited — most commonly during `/epic-close`
 Phase 1.3 (Documentation Freshness Gate).
 
 The contract is **guidance-tier** in v1: no automated gate fails a close when
@@ -85,7 +85,7 @@ The following MUST NOT appear in a release entry:
   Epic once when the release is scoped to one Epic — that is the only
   allowed citation, and only there.
 - **Internal file paths** (`lib/orchestration/epic-runner/commit-assertion.js`,
-  `.agents/scripts/sprint-story-init.js`). Callers care what changed, not
+  `.agents/scripts/story-init.js`). Callers care what changed, not
   where it lives.
 - **Internal function, class, or method names** (`finalizeMerge`,
   `WorkspaceProvisioner.verify`, `cascadeCompletion`). Name the behaviour,
@@ -165,17 +165,17 @@ entry `skip-worktree`. `reap()` removes the symlink before
 `git worktree remove`. Auto-detected: if `.gitmodules` declares
 `.agents` as a submodule path, the symlink applies.
 
-### Sprint-close auto-invokes pre-merge gates
+### Epic-close auto-invokes pre-merge gates
 
-`/sprint-close` auto-invokes `/sprint-code-review` (new Step 1.4) and
-`/sprint-retro` (revised Step 1.5) inline instead of halting to ask
+`/epic-close` auto-invokes the code-review helper (new Step 1.4) and
+the retro helper (revised Step 1.5) inline instead of halting to ask
 the operator to run them separately. `--skip-code-review` available as
 an override.
 
-### Sprint Health ticket closed alongside PRD/Tech Spec
+### Epic Health ticket closed alongside PRD/Tech Spec
 
 Step 8's closure sweep now matches any ticket carrying `type::health`
-or a title starting with `📉 Sprint Health:`, in addition to
+or a title starting with `📉 Epic Health:`, in addition to
 `context::prd` / `context::tech-spec`.
 
 ### Stale-lock sweep for shared `.git/` dir
@@ -184,7 +184,7 @@ or a title starting with `📉 Sprint Health:`, in addition to
 well-known lock files (`index.lock`, `HEAD.lock`, `packed-refs.lock`,
 `config.lock`, `shallow.lock`) whose mtime exceeds the threshold.
 Fresh locks belonging to in-flight ops are skipped. Runs at
-`/sprint-execute` start, before worktree GC.
+`/epic-execute` start, before worktree GC.
 ```
 
 Contract violations: five separate `###` sub-sections where one theme
@@ -212,12 +212,12 @@ submodule.
 - **`.agents` submodule-aware worktrees.** Consumer projects that declare
   `.agents` as a submodule no longer need a manual cleanup step —
   worktree reap handles the gitlink automatically.
-- **`/sprint-close` auto-invokes pre-merge gates** (code review, retro)
+- **`/epic-close` auto-invokes pre-merge gates** (code review, retro)
   inline. `--skip-code-review` is available as an override.
-- **Closure sweep covers Sprint Health tickets** in addition to PRD and
+- **Closure sweep covers Epic Health tickets** in addition to PRD and
   Tech Spec tickets.
 - **Stale-lock sweep** on the shared `.git/` directory runs at
-  `/sprint-execute` start, clearing lock files left behind by interrupted
+  `/epic-execute` start, clearing lock files left behind by interrupted
   operations.
 ```
 

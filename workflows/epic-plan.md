@@ -1,10 +1,10 @@
 ---
 description:
-  Orchestrates end-to-end sprint planning (PRD, Tech Spec, and Work Breakdown)
+  Orchestrates end-to-end Epic planning (PRD, Tech Spec, and Work Breakdown)
   for a GitHub Epic.
 ---
 
-# /sprint-plan [Epic ID] [--phase spec|decompose]
+# /epic-plan [Epic ID]
 
 ## Role
 
@@ -16,34 +16,11 @@ You are the master orchestrator for the v5 Epic-Centric ticketing pipeline. Your
 goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
 backlog of Features, Stories, and Tasks.
 
-`/sprint-plan` is the unified planning entry point. It delegates to the two
-phase helpers — [`helpers/sprint-plan-spec.md`](helpers/sprint-plan-spec.md) and
-[`helpers/sprint-plan-decompose.md`](helpers/sprint-plan-decompose.md) — and
-supports two invocation modes:
-
-- **Local IDE mode (no `--phase`):** run both phases sequentially with a human
-  confirmation gate between them. This is the default for operators typing
-  `/sprint-plan <Epic_ID>` in Claude Code.
-- **Single-phase mode (`--phase spec` or `--phase decompose`):** run exactly
-  one phase and stop. Used by the remote orchestrator
-  (`.github/workflows/epic-orchestrator.yml`) and `remote-bootstrap.js`, which
-  fire `/sprint-plan --phase spec <id>` when the operator applies
-  `agent::planning` and `/sprint-plan --phase decompose <id>` when they apply
-  `agent::decomposing`.
-
-### Phase routing
-
-Parse the slash-command arguments for a `--phase` flag (either
-`--phase spec|decompose` or `--phase=spec|decompose`). The Epic ID is the
-remaining positional argument. Order is not significant.
-
-- `--phase spec` → execute **Phase 1 only** (below), then stop at the
-  operator handoff. Skip Phase 2 through Phase 5.
-- `--phase decompose` → skip Phase 1 and the Phase 0 re-plan prompt, and
-  execute **Phases 2–5**. Assumes the Epic is already on
-  `agent::review-spec` or `agent::decomposing` with a linked PRD / Tech Spec.
-- No `--phase` flag → run the full chain (Phase 0 → Phase 5) with the
-  operator confirmation gate at the end of Phase 1.
+`/epic-plan` is the unified planning entry point. It delegates to the two
+phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
+[`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and runs
+both phases sequentially with a human confirmation gate between them. The Epic
+ID is the single positional argument.
 
 As of v5.6, planning artifacts (PRD, Tech Spec, ticket decomposition) are
 authored **directly by you, the host LLM** — no external Gemini / Anthropic /
@@ -56,11 +33,11 @@ artifacts you author.
 - Do not modify existing issues without explicit permission.
 - Wait for user validation before migrating to Phase 2.
 - Delegate Phase 1 and Phase 2 to the
-  [`helpers/sprint-plan-spec.md`](helpers/sprint-plan-spec.md) and
-  [`helpers/sprint-plan-decompose.md`](helpers/sprint-plan-decompose.md)
+  [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
+  [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
   procedures respectively — they own the Epic lifecycle label transitions and
   the `epic-plan-state` checkpoint. This wrapper must not apply those labels
-  directly (except for the optional `--auto-dispatch` final step).
+  directly.
 
 ## Prerequisites
 
@@ -100,7 +77,7 @@ planned.
    system prompts.
 
    ```bash
-   node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] --emit-context > temp/planner-context-epic-[Epic_ID].json
+   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context > temp/planner-context-epic-[Epic_ID].json
    ```
 
 2. **Author the PRD**: Read `temp/planner-context-epic-[Epic_ID].json`. Using
@@ -114,18 +91,18 @@ planned.
    `temp/techspec-epic-[Epic_ID].md`. Start with `## Technical Overview` (no
    `<h1>`).
 
-4. **Persist to GitHub**: Use `sprint-plan-spec.js` (not the low-level
+4. **Persist to GitHub**: Use `epic-plan-spec.js` (not the low-level
    `epic-planner.js` — only the wrapper flips the Epic to `agent::review-spec`
    and writes the `epic-plan-state` checkpoint).
 
    ```bash
    # Normal planning
-   node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] \
+   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/prd-epic-[Epic_ID].md \
      --techspec temp/techspec-epic-[Epic_ID].md
 
    # Re-planning (force regeneration)
-   node .agents/scripts/sprint-plan-spec.js --epic [Epic_ID] \
+   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/prd-epic-[Epic_ID].md \
      --techspec temp/techspec-epic-[Epic_ID].md --force
    ```
@@ -137,7 +114,7 @@ planned.
      Do NOT proceed to decomposition until the user confirms the plan is
      accurate.
 
-6. **Cleanup**: The wrapper script (`sprint-plan-spec.js`) deletes the Phase 1
+6. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 1
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
@@ -147,7 +124,7 @@ planned.
 1. **Gather Decomposition Context**:
 
    ```bash
-   node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] --emit-context > temp/decomposer-context-epic-[Epic_ID].json
+   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context > temp/decomposer-context-epic-[Epic_ID].json
    ```
 
 2. **Author the Ticket Array**: Read
@@ -157,17 +134,17 @@ planned.
    JSON array of Feature/Story/Task objects conforming to the schema in the
    system prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
 
-3. **Persist to GitHub**: Use `sprint-plan-decompose.js` (not the low-level
+3. **Persist to GitHub**: Use `epic-plan-decompose.js` (not the low-level
    `ticket-decomposer.js` — only the wrapper flips the Epic to `agent::ready`
    and writes the `epic-plan-state` checkpoint).
 
    ```bash
    # Normal decomposition
-   node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
      --tickets temp/tickets-epic-[Epic_ID].json
 
    # Re-planning (close old tickets first)
-   node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
      --tickets temp/tickets-epic-[Epic_ID].json --force
    ```
 
@@ -197,7 +174,7 @@ planned.
    - Verify that at least one `type/feature`, `type/story`, and `type/task`
      issue was created.
 
-6. **Cleanup**: The wrapper script (`sprint-plan-decompose.js`) deletes the
+6. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
    Phase 2 temp files automatically on success — no operator action required.
    The cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
@@ -219,24 +196,24 @@ planned.
    > **Manifest persistence (v5.9.0):** the dispatcher also posts the manifest
    > as a `dispatch-manifest` structured comment on the Epic (idempotent —
    > re-runs replace the prior comment). That comment is the source of truth for
-   > the Wave Completeness Gate in `/sprint-close` Step 0.5 and for any external
+   > the Wave Completeness Gate in `/epic-close` Step 0.5 and for any external
    > wave-tracking tooling.
 
 3. **Handoff**: Provide the user with the recommended next step:
 
-   > "Planning is complete. Select a story from Wave 0 in the table above and
-   > start execution via `/sprint-execute #[Story ID]` using the recommended
-   > model."
+   > "Planning is complete. Run `/epic-execute #[Epic ID]` to start the wave
+   > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
+   > ID]` to drive it directly."
 
 ## Phase 4: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/sprint-execute`. The default `--fast` mode runs only the cheap checks
+`/epic-execute`. The default `--fast` mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. It is non-blocking
 — the script always exits 0; the structured JSON on stdout reports findings.
 
 ```bash
-node .agents/scripts/sprint-plan-healthcheck.js --epic [Epic_ID] --fast
+node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --fast
 ```
 
 The script emits a single line of JSON to stdout:
@@ -276,34 +253,18 @@ chooses to gate on them.
      the notification script:
 
    ```bash
-   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Sprint is ready for /sprint-execute." --action
-   ```
-
-2. **Auto-dispatch (optional)**: When the operator invokes `/sprint-plan` with
-   the `--auto-dispatch` flag, the wrapper applies `agent::dispatching` to the
-   Epic immediately after decomposition completes, kicking off execution
-   without a second operator round-trip. Skip this step unless the operator
-   explicitly asks for `--auto-dispatch` or you're running the
-   `sprint-plan.js` wrapper in that mode:
-
-   ```bash
-   node .agents/scripts/sprint-plan.js --epic [Epic_ID] \
-     --prd temp/prd-epic-[Epic_ID].md \
-     --techspec temp/techspec-epic-[Epic_ID].md \
-     --tickets temp/tickets-epic-[Epic_ID].json \
-     --auto-dispatch
+   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-execute." --action
    ```
 
 ## Troubleshooting
 
-- If `sprint-plan-spec.js --emit-context` fails, confirm the Epic exists and
+- If `epic-plan-spec.js --emit-context` fails, confirm the Epic exists and
   has a body with enough initial context.
-- If `sprint-plan-decompose.js` rejects the tickets file, re-read the
+- If `epic-plan-decompose.js` rejects the tickets file, re-read the
   validator's error message — the most common causes are a Story with no child
   Tasks, a Task whose `parent_slug` does not point at a Story, or cross-Story
   Task dependencies (which must be lifted to Story-level dependencies).
-- If decomposition persisted the tickets but the Epic is still on
-  `agent::decomposing` (not `agent::ready`), you invoked the low-level
-  `ticket-decomposer.js` directly — only `sprint-plan-decompose.js` flips the
-  lifecycle label. Apply `agent::ready` by hand and re-run via the wrapper
-  next time.
+- If decomposition persisted the tickets but the Epic is not on `agent::ready`,
+  you invoked the low-level `ticket-decomposer.js` directly — only
+  `epic-plan-decompose.js` flips the lifecycle label. Apply `agent::ready`
+  by hand and re-run via the wrapper next time.

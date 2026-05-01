@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 /**
- * .agents/scripts/sprint-close.js — Final Epic Lifecycle Closure
+ * .agents/scripts/epic-close.js — Final Epic Lifecycle Closure
  *
  * The operator-facing `/sprint-close` workflow runs eight named phases.
  * This script owns Finalize (Phase 7) and Notify (Phase 8) end-to-end and
  * exposes the earlier phases as dedicated sister scripts
- * (`sprint-wave-gate.js`, `sprint-hierarchy-gate.js`,
- * `validate-docs-freshness.js`, `sprint-code-review.js`) that the workflow
+ * (`wave-gate.js`, `hierarchy-gate.js`,
+ * `validate-docs-freshness.js`, `epic-code-review.js`) that the workflow
  * invokes before the merge.
  *
  * Finalize (Phase 7):
@@ -24,7 +24,7 @@
  * manual steps in the workflow; this script is deliberately agnostic about
  * them so a failed release never corrupts the Epic closure state.
  *
- * `--full-retro` is an advisory flag: sprint-close.js does not compose the
+ * `--full-retro` is an advisory flag: epic-close.js does not compose the
  * retro itself (the retro helper does that, invoked from `/sprint-close`
  * Phase 6). The flag is logged here so the operator sees the override in
  * the close audit trail, and the `/sprint-close` workflow is responsible
@@ -32,7 +32,7 @@
  * heuristic is bypassed.
  *
  * Usage:
- *   node .agents/scripts/sprint-close.js --epic <EPIC_ID>
+ *   node .agents/scripts/epic-close.js --epic <EPIC_ID>
  *     [--no-cleanup] [--skip-retro] [--skip-code-review] [--full-retro]
  *     [--no-reap-discard-after-merge]
  */
@@ -70,7 +70,7 @@ async function main() {
   const epicId = Number.parseInt(values.epic ?? '', 10);
 
   if (Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node sprint-close.js --epic <EPIC_ID>');
+    Logger.fatal('Usage: node epic-close.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();
@@ -267,7 +267,7 @@ async function phaseFinalizeBranchCleanup(
       // Drain any pending-cleanup ledger entries first, escalating to
       // taskkill on Windows for entries whose holders are user-mode
       // processes (test runners, lingering biome/tsc, etc.). Without
-      // this, worktrees that hit EBUSY during sprint-story-close stay
+      // this, worktrees that hit EBUSY during story-close stay
       // pinned across sprints and accumulate in `.worktrees/.pending-cleanup.json`.
       const worktreeRoot = path.resolve(
         PROJECT_ROOT,

@@ -29,20 +29,20 @@ code, SQL, or UI components — stop immediately.
    `.agents/personas/` for each Task based on its complexity and domain,
    and tag the Task with the matching `persona::` and `model_tier::` labels.
 5. **Format:** Generate the Feature → Story → Task GitHub Issue hierarchy
-   using the `/sprint-plan` workflow.
+   using the `/epic-plan` workflow.
 6. **Validate:** Ensure every Acceptance Criterion from the PRD has a
    corresponding Task. Do not drop business logic.
 
 ## 3. Core Responsibilities
 
-### A. Sprint Planning & Task Decomposition
+### A. Epic Planning & Task Decomposition
 
 - **Fan-Out Architecture:** Structure each Epic into Features and Stories
   with explicit `blocked by` links so the dispatch graph can compute parallel
   waves automatically.
 - **Issue Linkage:** Every Feature, Story, and Task GitHub Issue must declare
   its `parent` and (where applicable) `blocked by` relationships in the body
-  so `/sprint-plan` can build a clean dispatch manifest.
+  so `/epic-plan` can build a clean dispatch manifest.
 - **Dependency Mapping:** Explicitly declare blockers via `blocked by` on the
   GitHub Issue body. Ensure no Task references work that hasn't been
   completed by a predecessor Story.
@@ -69,7 +69,7 @@ code, SQL, or UI components — stop immediately.
 - **QA Tasks:** Delegate QA Stories to the `/audit-quality` workflow. Do not
   write custom QA instructions.
 - **Retro Tasks:** Delegate the Epic retro to the
-  `workflows/helpers/sprint-retro.md` helper invoked by `/sprint-close`. Do
+  `workflows/helpers/epic-retro.md` helper invoked by `/epic-close`. Do
   not write custom retro instructions.
 - **Task Finalization:** Ensure every Task's body incorporates a step to
   self-verify its own context (PRD/Tech Spec linkage, parent Story) before
@@ -81,15 +81,15 @@ code, SQL, or UI components — stop immediately.
   every Acceptance Criterion in the PRD against the generated Tasks. Any
   missed AC is a planning failure.
 - **Format Compliance:** Use the exact Issue body templates, label taxonomy,
-  and parent/blocked-by linkage rules required by `/sprint-plan` so the
+  and parent/blocked-by linkage rules required by `/epic-plan` so the
   generated dispatch manifest validates against the schema.
 
 ## 4. Output Artifacts
 
 - The Feature → Story → Task GitHub Issue hierarchy under the parent Epic,
-  generated and linked by `/sprint-plan`.
+  generated and linked by `/epic-plan`.
 - The Epic dispatch manifest (`temp/dispatch-manifest-<epicId>.json`)
-  emitted by `/sprint-plan` for the runner to consume.
+  emitted by `/epic-plan` for the runner to consume.
 
 ## 5. Scope Boundaries
 

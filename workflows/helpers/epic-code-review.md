@@ -6,9 +6,9 @@ description: >-
 # Sprint Code Review (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/sprint-close` Phase 3 and from the Bookend Lifecycle in `/sprint-execute`
+> `/epic-close` Phase 3 and from the Bookend Lifecycle in `/epic-execute`
 > when all Tasks reach `agent::done`. To run a review directly, use
-> `/sprint-close [Epic_ID]` — it delegates here (or pass `--skip-code-review`
+> `/epic-close [Epic_ID]` — it delegates here (or pass `--skip-code-review`
 > to bypass).
 
 This helper performs a comprehensive code review of **all code changes** on an
@@ -16,7 +16,7 @@ Epic branch before it is merged to `main`. It is a mandatory Bookend phase —
 every sprint must pass a code review before closure.
 
 > **When to run**: After all Stories are merged into the Epic branch and before
-> `/sprint-close`. The Bookend Lifecycle in `/sprint-execute` invokes this
+> `/epic-close`. The Bookend Lifecycle in `/epic-execute` invokes this
 > automatically when all Tasks reach `agent::done`.
 >
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
@@ -40,7 +40,7 @@ Run the automated code review script to perform a quick maintainability and lint
 sweep of the changes:
 
 ```powershell
-node .agents/scripts/sprint-code-review.js --epic [EPIC_ID]
+node .agents/scripts/epic-code-review.js --epic [EPIC_ID]
 ```
 
 This script will:
@@ -127,7 +127,7 @@ prior baseline before merging.
 ## Step 3 — Produce Findings Report
 
 Findings are **persisted as a `code-review` structured comment on the Epic
-issue** by `sprint-code-review.js` (v5.9.0+). The comment is idempotent —
+issue** by `epic-code-review.js` (v5.9.0+). The comment is idempotent —
 re-runs replace the prior one — and its body includes severity-tier counts plus
 the full findings list so downstream workflows (notably the retro helper) can
 summarise blockers/high findings without re-running the review.
@@ -177,7 +177,7 @@ If the operator instructs you to fix any findings:
    ```
 
 If no fixes are requested, this workflow is complete. The operator may proceed
-to `/sprint-close`.
+to `/epic-close`.
 
 ## Constraint
 

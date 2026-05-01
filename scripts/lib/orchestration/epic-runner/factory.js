@@ -25,25 +25,10 @@ import { ProgressReporter } from './progress-reporter.js';
 import { StoryLauncher } from './story-launcher.js';
 import { WaveObserver } from './wave-observer.js';
 
-const DEFAULT_LOGS_DIR = 'temp/epic-runner-logs';
-
-/**
- * Resolve the absolute-ish file path the ProgressReporter should tee rendered
- * snapshots to. Returns `null` when progress reporting is disabled.
- */
-export function resolveProgressLogFile(epicRunnerCfg, epicId) {
-  const intervalSec = Number(epicRunnerCfg?.progressReportIntervalSec ?? 0);
-  if (!Number.isFinite(intervalSec) || intervalSec <= 0) return null;
-  const dir = epicRunnerCfg?.logsDir || DEFAULT_LOGS_DIR;
-  return `${dir.replace(/[/\\]$/, '')}/epic-${epicId}-progress.log`;
-}
-
 export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
-  const { epicId, provider, config, logger } = ctx;
+  const { provider, config, logger } = ctx;
   const { epicRunner } = getRunners(config);
-  const { pollIntervalSec } = epicRunner;
   const journal = errorJournal ?? ctx.errorJournal;
-  const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
 
   const notifyFn =
     ctx.notify ??
@@ -54,7 +39,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const blockerHandler = new BlockerHandler({
     ctx,
     notificationHook,
-    pollIntervalMs: pollIntervalSec * 1000,
     errorJournal: journal,
   });
   const launcher = new StoryLauncher({ ctx });
@@ -64,15 +48,14 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
   const waveObserver = new WaveObserver({ ctx, commitAssertion });
   const frictionEmitter = createFrictionEmitter({ provider, logger });
-  const progressLogFile = resolveProgressLogFile(epicRunner, epicId);
   const progressReporter = new ProgressReporter({
     ctx,
     intervalSec: Number(epicRunner.progressReportIntervalSec ?? 0),
     frictionEmitter,
-    logFile: progressLogFile,
   });
   const columnSync = new ColumnSync({ ctx });
 
+  const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const syncColumn = async (id, labels) => {
     try {
       await columnSync.sync(id, labels);

@@ -173,4 +173,4 @@ those outcomes.
 - Scenario authoring rules: `.agents/rules/gherkin-standards.md`.
 - Browser-level conventions: `.agents/skills/stack/qa/playwright/SKILL.md`.
 - Operator entry point: `.agents/workflows/run-bdd-suite.md`.
-- Evidence handoff: `.agents/workflows/helpers/sprint-testing.md`.
+- Evidence handoff: `.agents/workflows/helpers/epic-testing.md`.

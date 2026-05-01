@@ -88,6 +88,11 @@
       },
       "additionalProperties": false
     },
+    "epicClose": {
+      "type": "object",
+      "properties": { "runRetro": { "type": "boolean" } },
+      "additionalProperties": false
+    },
     "sprintClose": {
       "type": "object",
       "properties": { "runRetro": { "type": "boolean" } },
@@ -296,6 +301,7 @@
       "properties": {
         "baseBranch": { "$ref": "#/$defs/safeString" },
         "docsContextFiles": { "type": "array", "items": { "type": "string" } },
+        "epicClose": { "$ref": "#/$defs/epicClose" },
         "sprintClose": { "$ref": "#/$defs/sprintClose" },
         "release": { "$ref": "#/$defs/release" },
         "riskGates": { "$ref": "#/$defs/riskGates" },
@@ -384,10 +390,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "concurrencyCap": { "type": "integer", "minimum": 1 },
-        "pollIntervalSec": { "type": "integer", "minimum": 1 },
         "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
-        "idleTimeoutSec": { "type": "integer", "minimum": 0 },
-        "logsDir": { "$ref": "#/$defs/safeString" },
         "healthRefresh": { "$ref": "#/$defs/healthRefresh" }
       },
       "additionalProperties": false,
@@ -431,14 +434,6 @@
       },
       "additionalProperties": false
     },
-    "poolMode": {
-      "type": "object",
-      "properties": {
-        "staleClaimMinutes": { "type": "integer", "minimum": 1 },
-        "sessionIdLength": { "type": "integer", "minimum": 4 }
-      },
-      "additionalProperties": false
-    },
     "decomposer": {
       "type": "object",
       "properties": {
@@ -453,7 +448,6 @@
         "planRunner": { "$ref": "#/$defs/planRunner" },
         "concurrency": { "$ref": "#/$defs/concurrency" },
         "closeRetry": { "$ref": "#/$defs/closeRetry" },
-        "poolMode": { "$ref": "#/$defs/poolMode" },
         "decomposer": { "$ref": "#/$defs/decomposer" }
       },
       "additionalProperties": false

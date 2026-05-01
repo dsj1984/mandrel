@@ -40,16 +40,16 @@ UI copy, metadata, and structural assumptions align with it.
   _This is the contract with Engineering._ Ensure ACs are testable by the QA
   Automation Engineer.
 
-### B. Sprint Lifecycle & Retrospectives
+### B. Epic Lifecycle & Retrospectives
 
-- **Retrospectives:** Own the sprint retrospective process. Use the
-  `sprint-retro` workflow to generate retro documents, analyze execution, and
-  formulate action items.
-- **Sprint Definition:** Lock upcoming features into a numbered sprint layout.
+- **Retrospectives:** Own the Epic retrospective process. Use the
+  `workflows/helpers/epic-retro.md` helper (invoked by `/epic-close`) to
+  generate retro documents, analyze execution, and formulate action items.
+- **Epic Definition:** Lock upcoming features into a clear Epic scope.
 - **Goal Alignment:** Define acceptance criteria boundaries so downstream
   workflows understand the "definition of done."
 - **Documentation Finalization:** Ensure `architecture.md` and other living
-  documents are updated if core patterns changed during the sprint in
+  documents are updated if core patterns changed during the Epic in
   collaboration with the Technical Writer.
 
 ## 4. Output Artifacts

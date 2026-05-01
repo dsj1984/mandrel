@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * .agents/scripts/sprint-code-review.js — Automated Sprint Code Review
+ * .agents/scripts/epic-code-review.js — Automated Sprint Code Review
  *
  * Performs an automated "first pass" code review on an Epic branch.
  * This script:
@@ -16,7 +16,7 @@
  *   5. Posts the report to the Epic issue.
  *
  * Usage:
- *   node .agents/scripts/sprint-code-review.js --epic <EPIC_ID>
+ *   node .agents/scripts/epic-code-review.js --epic <EPIC_ID>
  *                                              [--scope-lint changed-only|off]
  */
 
@@ -245,7 +245,7 @@ export function buildLintEvidenceConfig(changedFiles, cwd) {
     args.push('markdownlint', ...md, '--ignore', 'node_modules');
   }
   return hashCommandConfig({
-    cmd: 'sprint-code-review/scoped-lint',
+    cmd: 'epic-code-review/scoped-lint',
     args,
     cwd,
   });
@@ -430,7 +430,7 @@ export function buildReviewReport({
 async function main() {
   const args = parseReviewArgs(process.argv.slice(2));
   if (args.epicId === null) {
-    Logger.fatal('Usage: node sprint-code-review.js --epic <EPIC_ID>');
+    Logger.fatal('Usage: node epic-code-review.js --epic <EPIC_ID>');
   }
 
   const { settings, orchestration } = resolveConfig();
@@ -486,7 +486,7 @@ async function main() {
       const verdict = shouldSkip(
         {
           storyId: args.storyId,
-          gateName: 'sprint-code-review/lint',
+          gateName: 'epic-code-review/lint',
           currentSha: headSha,
           configHash: evidenceCfg,
         },
@@ -526,7 +526,7 @@ async function main() {
           recordPass(
             {
               storyId: args.storyId,
-              gateName: 'sprint-code-review/lint',
+              gateName: 'epic-code-review/lint',
               sha: headSha,
               configHash: evidenceCfg,
               exitCode: 0,
@@ -565,4 +565,4 @@ async function main() {
 
 const progress = Logger.createProgress('sprint-review', { stderr: false });
 
-runAsCli(import.meta.url, main, { source: 'sprint-code-review' });
+runAsCli(import.meta.url, main, { source: 'epic-code-review' });

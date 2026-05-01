@@ -136,7 +136,7 @@ export function buildDefaultGates({ settings } = {}) {
 /**
  * Default gate list resolved with no consumer settings — uses the
  * `npm run typecheck` fallback for the typecheck gate. Call sites that have a
- * resolved settings object in scope (e.g. `sprint-story-close.js`) should
+ * resolved settings object in scope (e.g. `story-close.js`) should
  * prefer `buildDefaultGates({ settings })` so a configured
  * `agentSettings.commands.typecheck` is honoured.
  *

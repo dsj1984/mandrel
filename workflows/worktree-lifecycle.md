@@ -7,14 +7,15 @@ description: >-
 
 # Worktree-per-Story Lifecycle
 
-Parallel sprint execution can race when multiple story agents share one working
+Parallel epic execution can race when multiple story agents share one working
 tree: rapid `git checkout` swaps cause `git add` to sweep another agent's WIP
 into the wrong commit. Epic #229 moves each dispatched story into its own
 `git worktree` at `.worktrees/story-<id>/` so branch swaps, staging, and reflog
 activity are isolated per-story. The main checkout stays quiet.
 
 This document is the operator and reviewer reference. See
-[`sprint-execute`](sprint-execute.md) for the broader sprint flow and the
+[`epic-execute`](epic-execute.md), [`wave-execute`](wave-execute.md), and
+[`story-execute`](story-execute.md) for the broader execution flow and the
 Epic-229 Tech Spec for architectural rationale.
 
 ## Configuration
@@ -46,12 +47,12 @@ are all rejected at config-load time.
 
 | Phase           | When                                                                          | What happens                                                                                                                                                |
 | --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Sweep**       | Dispatch-manifest build (`/sprint-plan`, remote bootstrap) and `sprint-close` | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
-| **GC**          | Dispatch-manifest build (`/sprint-plan`, remote bootstrap) and `sprint-close` | Orphan `.worktrees/story-*` whose stories are closed are reaped if clean.                                                                                   |
-| **Force-drain** | `/sprint-plan-spec` + `/sprint-plan-decompose` boot (`worktree-sweep.js` via `drainPendingCleanupAtBoot`), `sprint-story-close` post-merge (`forceDrainPendingCleanup`), `/sprint-close` Phase 7 | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
-| **Ensure**      | `sprint-story-init` (Story Mode entry for `/sprint-execute`)                  | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
+| **Sweep**       | Dispatch-manifest build (`/epic-plan`) and `/epic-close` | Stale `*.lock` files under `.git/` (older than 5 min) are removed before GC.                                                                                |
+| **GC**          | Dispatch-manifest build (`/epic-plan`) and `/epic-close` | Orphan `.worktrees/story-*` whose stories are closed are reaped if clean.                                                                                   |
+| **Force-drain** | `/epic-plan` boot (`worktree-sweep.js` via `drainPendingCleanupAtBoot`), `story-close` post-merge (`forceDrainPendingCleanup`), `/epic-close` Phase 7 | Retries `.worktrees/.pending-cleanup.json` (`git worktree remove` then `fs.rm`); Windows-only escalation enumerates user-mode handle holders and `taskkill`s them before re-trying. |
+| **Ensure**      | `story-init` (entry for `/story-execute`)                  | `git worktree add .worktrees/story-<id>/` on the `story-<id>` branch.                                                                                       |
 | **Run**         | During story execution                                                        | Agent runs inside the worktree; HEAD/reflog activity is isolated.                                                                                           |
-| **Reap**        | After successful story merge (in `sprint-close`)                              | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
+| **Reap**        | After successful story merge (in `story-close`)                              | `git worktree remove` — refuses to delete dirty trees or unmerged branches.                                                                                 |
 
 The `WorktreeManager` (`.agents/scripts/lib/worktree-manager.js`) is the single
 authority for `ensure`, `reap`, `list`, `isSafeToRemove`, `gc`, `prune`, and
@@ -77,25 +78,24 @@ entry points (see table below).
 
 ### Sweep & GC entry points
 
-Sweep and GC do **not** run at every sprint entry point — in particular,
-`sprint-story-init` (the Story Mode entry for `/sprint-execute`) does not
-invoke them. The full set of callers is:
+Sweep and GC do **not** run at every Epic entry point — in particular,
+`story-init` (the entry for `/story-execute`) does not invoke them. The full
+set of callers is:
 
 | Entry point                                                           | Script / caller                                           | Runs sweep? | Runs GC? | Force-drain? | Notes                                                                                               |
 | --------------------------------------------------------------------- | --------------------------------------------------------- | ----------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| Dispatch manifest build (`/sprint-plan` Phase 4, remote-trigger boot) | `lib/orchestration/dispatch-pipeline.js::runWorktreeGc`   | ✅ Yes      | ✅ Yes   | ✅ Yes       | Called from `dispatch-engine.js::dispatch()`. Scoped to the epic being dispatched.                  |
-| Spec / decompose CLI boot (`/sprint-plan-spec`, `/sprint-plan-decompose`) | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
-| Story merge (`/sprint-execute` close)                                 | `sprint-story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
-| Story close                                                           | `sprint-close.js` (invoked by `sprint-story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
-| Story init (`/sprint-execute <storyId>`)                              | `sprint-story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story Mode relies on the dispatch/close pair to clean up; it only creates its own worktree.         |
+| Dispatch manifest build (`/epic-plan` Phase 4)                        | `lib/orchestration/dispatch-pipeline.js::runWorktreeGc`   | ✅ Yes      | ✅ Yes   | ✅ Yes       | Called from `dispatch-engine.js::dispatch()`. Scoped to the epic being dispatched.                  |
+| Spec / decompose CLI boot (`/epic-plan` helpers)                      | `drainPendingCleanupAtBoot` → `worktree-sweep.js`        | ✅ Yes*     | ❌ No    | ✅ Yes       | \*Drains the pending ledger then reaps `git worktree list` entries for done/closed Stories (`--force`). |
+| Story merge (`/story-execute` close)                                  | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
+| Story close                                                           | `epic-close.js` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
+| Story init (`/story-execute <storyId>`)                               | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
 | Epic runner wave loop                                                 | `epic-runner.js` and `lib/orchestration/epic-runner/*`    | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
-| Remote bootstrap                                                      | `remote-bootstrap.js`                                     | ❌ No       | ❌ No    | ❌ No        | Only transitively, if it triggers a dispatch-manifest build as part of the epic-orchestrator flow.  |
-| `/drain-pending-cleanup` (operator-driven)                            | `drain-pending-cleanup.js`                                | n/a         | n/a      | ✅ Yes       | Standalone helper; same drain + Windows escalation as the `/sprint-plan` and `/sprint-close` paths. |
+| `/drain-pending-cleanup` (operator-driven)                            | `drain-pending-cleanup.js`                                | n/a         | n/a      | ✅ Yes       | Standalone helper; same drain + Windows escalation as the `/epic-plan` and `/epic-close` paths.     |
 
 Operator takeaway: if you need to force a sweep/GC without closing a story,
-the most direct path is re-running `/sprint-plan` (or rebuilding the dispatch
+the most direct path is re-running `/epic-plan` (or rebuilding the dispatch
 manifest via `dispatcher.js`) against the active epic. Running
-`/sprint-execute <storyId>` on its own does **not** clean up orphan worktrees
+`/story-execute <storyId>` on its own does **not** clean up orphan worktrees
 or stale locks.
 
 ## `.agents` copy (consumer projects)
@@ -112,10 +112,10 @@ task commits do not accidentally stage submodule metadata changes. `reap()`
 mirrors the teardown: clear `skip-worktree`, delete the copied directory, scrub
 the gitlink, then `git worktree remove`.
 
-The copy is a point-in-time snapshot taken at worktree creation. For sprint-
-length worktrees this is acceptable; if the root `.agents/` changes during a
-sprint, those updates do not propagate into existing worktrees. Recreate the
-worktree (or add an explicit refresh step) if you need the update mid-sprint.
+The copy is a point-in-time snapshot taken at worktree creation. For epic-
+length worktrees this is acceptable; if the root `.agents/` changes during an
+epic, those updates do not propagate into existing worktrees. Recreate the
+worktree (or add an explicit refresh step) if you need the update mid-epic.
 
 The framework repo itself (where `.agents` is a regular tracked directory, not a
 submodule) skips this behavior. Detection is automatic — keyed off whether
@@ -151,7 +151,7 @@ Symlink strategy:
   content-addressable store at `~/.local/share/pnpm/store` (or the platform
   equivalent) — reused packages are hard-linked into the worktree instead of
   re-downloaded and re-extracted. First-run on a cold store is no faster than
-  `per-worktree`, and `sprint-plan-healthcheck.js` primes the store in the
+  `per-worktree`, and `epic-plan-healthcheck.js` primes the store in the
   main checkout to avoid paying that cost in parallel story windows.
 
 ## Windows notes
@@ -194,7 +194,7 @@ Human reviewers should **keep using the main checkout** — not a worktree:
   the main checkout, not in any per-story worktree.
 - Opening a worktree in an IDE can mislead: the working directory looks like the
   main repo but carries a different HEAD. The main checkout is the canonical
-  place to read PRDs, Tech Specs, and run the `helpers/sprint-code-review.md`
+  place to read PRDs, Tech Specs, and run the `helpers/epic-code-review.md`
   procedure.
 - `git worktree list --porcelain` on the main checkout enumerates any still
   in-flight story worktrees if you need to inspect one — prefer read-only
@@ -221,6 +221,6 @@ Human reviewers should **keep using the main checkout** — not a worktree:
   `git worktree remove --force <path>`. Confirm there is no uncommitted work
   first.
 - **Disable temporarily**: flip `enabled: false` in `.agentrc.json`. The next
-  `/sprint-execute` skips worktree creation entirely.
+  `/story-execute` skips worktree creation entirely.
 - **Inspect live worktrees**: `git worktree list --porcelain` on the main
   checkout. Each block shows `worktree <path>` / `branch refs/heads/story-<id>`.

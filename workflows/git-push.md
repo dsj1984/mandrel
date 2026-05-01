@@ -51,10 +51,10 @@ Never use `--no-verify` to bypass quality gates. If a hook fails, identify and
 fix the root cause (e.g., run `npm run format` or fix lint errors) before
 attempting to commit or push again.
 
-## ⚠️ Parallel Sprint Execution
+## ⚠️ Parallel Story Execution
 
 Do **not** use this workflow from inside a parallel story-execution context
-(`/sprint-execute #<storyId>`). `git add .` sweeps any untracked files in the
+(`/story-execute #<storyId>`). `git add .` sweeps any untracked files in the
 working tree, which in a shared working directory may belong to another agent.
 In that context, follow the explicit-staging + branch-guard pattern documented
-in `sprint-execute.md` Step 1.
+in `story-execute.md` Step 1.
