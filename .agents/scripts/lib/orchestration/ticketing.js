@@ -54,6 +54,16 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
   'story-init',
+  // Story #913 — /wave-execute upserts a `wave-run-progress` snapshot on
+  // the Epic per wave, listing each child Story's terminal status. The
+  // progress reporter and `/epic-execute` rollup read these comments to
+  // compose the cross-wave epic-run-progress view.
+  'wave-run-progress',
+  // Story #908 — /story-execute upserts a `story-run-progress` snapshot
+  // on each Story per Task transition. The wave-run-progress aggregator
+  // and the epic-runner progress reporter both read this comment to
+  // derive Story-level state without re-fetching ticket labels.
+  'story-run-progress',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

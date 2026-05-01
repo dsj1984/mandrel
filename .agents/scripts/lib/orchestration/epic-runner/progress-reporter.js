@@ -36,6 +36,63 @@ import { createStalledWorktreeDetector } from './progress-signals/stalled-worktr
 
 export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
 export const PHASE_TIMINGS_TYPE = 'phase-timings';
+export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
+export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
+
+/**
+ * Parse a `story-run-progress` structured comment posted by `/story-execute`.
+ * Returns `null` for any malformed body — the caller falls back to the
+ * ticket-label state derivation in that case.
+ *
+ * Expected payload shape (JSON inside a fenced ```json block):
+ *   {
+ *     storyId: number,
+ *     branch?: string,
+ *     phase: 'init'|'implementing'|'closing'|'blocked'|'done',
+ *     tasks?: [{ id, title?, state, commitSha? }],
+ *     title?: string,
+ *     updatedAt?: string,
+ *   }
+ */
+export function parseStoryRunProgressComment(comment) {
+  if (!comment || typeof comment.body !== 'string') return null;
+  const match = comment.body.match(/```json\s*\n([\s\S]*?)\n```/);
+  if (!match) return null;
+  try {
+    const payload = JSON.parse(match[1]);
+    if (!payload || typeof payload !== 'object') return null;
+    const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
+    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+    const tasksTotal = tasks.length;
+    const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
+    return {
+      storyId: Number(payload.storyId),
+      title: typeof payload.title === 'string' ? payload.title : '',
+      phase,
+      state: phaseToState(phase),
+      tasksDone,
+      tasksTotal,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function phaseToState(phase) {
+  switch (phase) {
+    case 'done':
+      return 'done';
+    case 'blocked':
+      return 'blocked';
+    case 'implementing':
+    case 'closing':
+      return 'in-flight';
+    case 'init':
+      return 'queued';
+    default:
+      return 'unknown';
+  }
+}
 
 // Fixed ordering for the rendered phase-timings table. Matches the enum
 // in lib/util/phase-timer.js so rows line up with how operators think
@@ -129,6 +186,13 @@ export class ProgressReporter {
     // feature shipped). Once a story is done, the comment body is
     // immutable — so one fetch per story per epic run is sufficient.
     this.phaseTimingCache = new Map();
+    // Cache of per-story `story-run-progress` reads keyed by storyId. Holds
+    // the parsed payload once the Story reaches a terminal `phase` (`done`
+    // or `blocked`); holds the sentinel `'absent'` once a fetch confirms no
+    // comment exists. Both states make the comment effectively immutable for
+    // the remainder of the epic run, so caching saves one provider call per
+    // story per fire.
+    this.storyProgressCache = new Map();
     this.currentWave = null; // { index, totalWaves, stories: [...], startedAt }
     // Full plan: ordered list of waves, each `{ index, stories: [storyId,...] }`.
     // Set once via `setPlan()` at runner start so each fire renders every wave
@@ -254,15 +318,25 @@ export class ProgressReporter {
       const fetched = await concurrentMap(
         allIds,
         async (id) => {
+          // Prefer the `story-run-progress` structured comment (post-#908,
+          // each /story-execute sub-agent updates this on every Task
+          // transition). When no comment exists yet — or it is malformed —
+          // fall back to the legacy ticket-label state derivation so we
+          // continue to render meaningful state during the rollout window
+          // before every Story has migrated to the comment writer.
+          const fromComment = await this.#tryReadStoryProgress(id);
+          if (fromComment) {
+            return [
+              id,
+              {
+                state: fromComment.state,
+                title: truncate(fromComment.title ?? '', 60),
+                tasksDone: fromComment.tasksDone,
+                tasksTotal: fromComment.tasksTotal,
+              },
+            ];
+          }
           try {
-            // 10s TTL window: child-written transitions (agent::done,
-            // agent::blocked) still land in the table within one poll cadence,
-            // while consecutive fires inside the window reuse the cached
-            // ticket. Runtime decisions (story-closed detection, blocker
-            // halts) do not come through this rendering path — they come
-            // from launcher subprocess exit codes and iterate-waves's own
-            // `{ fresh: true }` resume check — so a brief cache window here
-            // cannot mask them.
             const ticket = await this.provider.getTicket(id, {
               maxAgeMs: 10_000,
             });
@@ -276,7 +350,7 @@ export class ProgressReporter {
           } catch (err) {
             // Preserve the post-#448 fail-loud contract: the error must still
             // propagate so a persistent GraphQL-read regression halts the
-            // wave instead of rendering unreadable rows forever. But emit a
+            // wave instead of rendering unreadable rows forever. Emit a
             // rate-limited `friction` comment onto the affected Story first
             // so the operator sees the failure directly on the ticket rather
             // than only in CI logs.
@@ -329,6 +403,45 @@ export class ProgressReporter {
       return { rows, body };
     } finally {
       this.emitting = false;
+    }
+  }
+
+  /**
+   * Attempt to read the `story-run-progress` structured comment for a Story.
+   * Returns `null` for any read failure or malformed body — the caller falls
+   * back to ticket labels in that case. Failures are logged at warn level so
+   * persistent issues remain visible without breaking the render path.
+   *
+   * Caches both terminal-phase parses and absent-comment results: a Story
+   * either eventually publishes a comment (then transitions through phases
+   * to `done`/`blocked` once and stays there) or never does (legacy stories
+   * closed before /story-execute existed). Either outcome is stable for the
+   * remainder of the epic run.
+   */
+  async #tryReadStoryProgress(storyId) {
+    const cached = this.storyProgressCache.get(storyId);
+    if (cached === 'absent') return null;
+    if (cached) return cached;
+    try {
+      const comment = await findStructuredComment(
+        this.provider,
+        storyId,
+        STORY_RUN_PROGRESS_TYPE,
+      );
+      const parsed = parseStoryRunProgressComment(comment);
+      if (!parsed) {
+        this.storyProgressCache.set(storyId, 'absent');
+        return null;
+      }
+      if (parsed.state === 'done' || parsed.state === 'blocked') {
+        this.storyProgressCache.set(storyId, parsed);
+      }
+      return parsed;
+    } catch (err) {
+      this.logger.warn?.(
+        `[ProgressReporter] story-run-progress fetch failed for #${storyId}: ${err?.message ?? err}`,
+      );
+      return null;
     }
   }
 

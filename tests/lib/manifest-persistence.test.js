@@ -86,7 +86,7 @@ test('persistence: writes story-manifest json + md for story-execution manifest'
   assert.ok(fs.existsSync(jsonPath), 'story-manifest-42.json missing');
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Story #42'));
-  assert.ok(md.includes('.agents/scripts/sprint-story-init.js'));
+  assert.ok(md.includes('.agents/scripts/story-init.js'));
 });
 
 test('persistence: creates temp dir if missing', () => {

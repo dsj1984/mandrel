@@ -20,12 +20,12 @@
       "packageJson": true,
       "autoVersionBump": true
     },
-    "sprintClose": {
+    "epicClose": {
       "runRetro": true
     },
     "limits": {
       "maxInstructionSteps": 5,
-      "maxTickets": 40,
+      "maxTickets": 60,
       "maxTokenBudget": 200000,
       "executionTimeoutMs": 300000,
       "executionMaxBuffer": 10485760,
@@ -40,7 +40,7 @@
       "validate": "npm run lint",
       "lintBaseline": "npm run lint",
       "test": "npm test",
-      "typecheck": null,
+      "typecheck": "node --version",
       "build": null
     },
     "quality": {
@@ -99,10 +99,7 @@
       "epicRunner": {
         "enabled": true,
         "concurrencyCap": 3,
-        "pollIntervalSec": 30,
-        "progressReportIntervalSec": 120,
-        "idleTimeoutSec": 900,
-        "logsDir": "temp/epic-runner-logs"
+        "progressReportIntervalSec": 120
       },
       "planRunner": {
         "enabled": true,

@@ -711,7 +711,7 @@ test('integration: reap() tolerates drive-letter-case mismatch on repoRoot (v5.1
     assert.equal(ensured.created, true);
 
     // Flip the drive letter on the repoRoot that close() will construct.
-    // This mirrors a shell invoking sprint-story-close.js with `--cwd
+    // This mirrors a shell invoking story-close.js with `--cwd
     // c:\repo` while git still stores `C:\repo`.
     const driveLetter = tmp[0];
     const flipped =
@@ -1167,7 +1167,7 @@ test('_copyAgentsFromRoot: recursively copies root .agents into the worktree', (
     fs.mkdirSync(path.join(rootAgents, 'workflows'), { recursive: true });
     fs.writeFileSync(path.join(rootAgents, 'VERSION'), 'v1\n');
     fs.writeFileSync(
-      path.join(rootAgents, 'workflows', 'sprint-execute.md'),
+      path.join(rootAgents, 'workflows', 'story-execute.md'),
       '# run\n',
     );
 
@@ -1198,7 +1198,7 @@ test('_copyAgentsFromRoot: recursively copies root .agents into the worktree', (
     );
     assert.equal(
       fs.readFileSync(
-        path.join(wtAgents, 'workflows', 'sprint-execute.md'),
+        path.join(wtAgents, 'workflows', 'story-execute.md'),
         'utf8',
       ),
       '# run\n',

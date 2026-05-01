@@ -4,53 +4,69 @@ import { describe, it } from 'node:test';
 import { StoryLauncher } from '../../.agents/scripts/lib/orchestration/epic-runner/story-launcher.js';
 
 describe('StoryLauncher', () => {
-  it('bounds concurrency to concurrencyCap', async () => {
-    let active = 0;
-    let peak = 0;
-    const launcher = new StoryLauncher({
-      concurrencyCap: 2,
-      spawn: async () => {
-        active++;
-        peak = Math.max(peak, active);
-        await new Promise((r) => setTimeout(r, 10));
-        active--;
-        return { status: 'done' };
-      },
-    });
-
-    const stories = [1, 2, 3, 4, 5].map((id) => ({ id }));
-    const results = await launcher.launchWave(stories);
-
-    assert.equal(peak, 2, 'peak concurrency must respect cap');
-    assert.equal(results.length, 5);
-    for (const r of results) assert.equal(r.status, 'done');
+  it('planWave returns one entry per story with default model tier "low"', () => {
+    const launcher = new StoryLauncher({ concurrencyCap: 2 });
+    const plan = launcher.planWave([{ id: 1 }, { id: 2 }, 3]);
+    assert.deepEqual(plan, [
+      { storyId: 1, modelTier: 'low', worktree: undefined },
+      { storyId: 2, modelTier: 'low', worktree: undefined },
+      { storyId: 3, modelTier: 'low', worktree: undefined },
+    ]);
   });
 
-  it('preserves result order even under concurrent execution', async () => {
+  it('planWave reads model tier from story.modelTier or model::* labels', () => {
+    const launcher = new StoryLauncher({ concurrencyCap: 1 });
+    const plan = launcher.planWave([
+      { id: 10, modelTier: 'high' },
+      { id: 11, labels: ['type::story', 'model::high'] },
+      { id: 12, labels: ['type::story'] },
+    ]);
+    assert.equal(plan[0].modelTier, 'high');
+    assert.equal(plan[1].modelTier, 'high');
+    assert.equal(plan[2].modelTier, 'low');
+  });
+
+  it('planWave threads worktreeResolver into the plan', () => {
+    const launcher = new StoryLauncher({
+      concurrencyCap: 1,
+      worktreeResolver: (id) => `/tmp/story-${id}`,
+    });
+    const plan = launcher.planWave([{ id: 7 }]);
+    assert.equal(plan[0].worktree, '/tmp/story-7');
+  });
+
+  it('launchWave passes plan + concurrencyCap to dispatch and preserves order', async () => {
+    const seen = [];
     const launcher = new StoryLauncher({
       concurrencyCap: 3,
-      spawn: async ({ storyId }) => {
-        // Bigger IDs finish faster → tests that we map back by original index.
-        await new Promise((r) => setTimeout(r, (6 - storyId) * 5));
-        return { status: 'done', detail: `finished-${storyId}` };
+      dispatch: async ({ plan, concurrencyCap }) => {
+        seen.push({ plan, concurrencyCap });
+        return plan.map((p) => ({
+          storyId: p.storyId,
+          status: 'done',
+          detail: `did-${p.storyId}`,
+        }));
       },
     });
-    const results = await launcher.launchWave(
-      [1, 2, 3, 4, 5].map((id) => ({ id })),
-    );
+    const stories = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const results = await launcher.launchWave(stories);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].concurrencyCap, 3);
     assert.deepEqual(
       results.map((r) => r.storyId),
-      [1, 2, 3, 4, 5],
+      [1, 2, 3],
     );
+    assert.equal(results[0].status, 'done');
+    assert.equal(results[2].detail, 'did-3');
   });
 
-  it('captures spawn errors as failed results instead of rejecting', async () => {
+  it('launchWave fills missing dispatch results with a failed entry', async () => {
     const launcher = new StoryLauncher({
       concurrencyCap: 2,
-      spawn: async ({ storyId }) => {
-        if (storyId === 2) throw new Error('boom');
-        return { status: 'done' };
-      },
+      dispatch: async ({ plan }) =>
+        plan
+          .filter((p) => p.storyId !== 2)
+          .map((p) => ({ storyId: p.storyId, status: 'done' })),
     });
     const results = await launcher.launchWave([
       { id: 1 },
@@ -59,15 +75,46 @@ describe('StoryLauncher', () => {
     ]);
     assert.equal(results[0].status, 'done');
     assert.equal(results[1].status, 'failed');
-    assert.match(results[1].detail, /boom/);
+    assert.match(results[1].detail, /no result/);
     assert.equal(results[2].status, 'done');
   });
 
-  it('rejects invalid concurrencyCap', () => {
-    assert.throws(
-      () => new StoryLauncher({ concurrencyCap: 0, spawn: () => {} }),
-      RangeError,
+  it('launchWave reports failure for every plan entry when dispatch throws', async () => {
+    const launcher = new StoryLauncher({
+      concurrencyCap: 2,
+      dispatch: async () => {
+        throw new Error('boom');
+      },
+    });
+    const results = await launcher.launchWave([{ id: 1 }, { id: 2 }]);
+    assert.equal(results.length, 2);
+    for (const r of results) {
+      assert.equal(r.status, 'failed');
+      assert.match(r.detail, /boom/);
+    }
+  });
+
+  it('launchWave throws when no dispatch adapter was injected', async () => {
+    const launcher = new StoryLauncher({ concurrencyCap: 1 });
+    await assert.rejects(
+      () => launcher.launchWave([{ id: 1 }]),
+      /requires a dispatch adapter/,
     );
-    assert.throws(() => new StoryLauncher({ concurrencyCap: 1 }), TypeError);
+  });
+
+  it('launchWave returns empty array for an empty wave', async () => {
+    const launcher = new StoryLauncher({
+      concurrencyCap: 2,
+      dispatch: async () => {
+        throw new Error('should not be called for an empty wave');
+      },
+    });
+    const results = await launcher.launchWave([]);
+    assert.deepEqual(results, []);
+  });
+
+  it('rejects invalid concurrencyCap', () => {
+    assert.throws(() => new StoryLauncher({ concurrencyCap: 0 }), RangeError);
+    assert.throws(() => new StoryLauncher({}), RangeError);
   });
 });

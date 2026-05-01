@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-story-init.js — Story Execution Initialization
+ * story-init.js — Story Execution Initialization
  *
  * Deterministic script that replaces Steps 0-2 of the sprint-execute
  * Mode B workflow. Performs all pre-implementation setup by composing six
@@ -17,13 +17,13 @@
  *   6. state-transitioner   — batch-flip child Tasks to `agent::executing`.
  *
  * Usage:
- *   node sprint-story-init.js --story <STORY_ID> [--dry-run]
+ *   node story-init.js --story <STORY_ID> [--dry-run]
  *
  * Exit codes:
  *   0 — Initialization complete. Agent can start implementation.
  *   1 — Blocked or error (details in stderr).
  *
- * @see .agents/workflows/sprint-execute.md Mode B
+ * @see .agents/workflows/story-execute.md
  */
 
 import path from 'node:path';
@@ -56,12 +56,12 @@ import { notify } from './notify.js';
 // Progress logger — shared stage-logger passed to every pipeline stage.
 // ---------------------------------------------------------------------------
 
-const progress = Logger.createProgress('sprint-story-init', { stderr: true });
+const progress = Logger.createProgress('story-init', { stderr: true });
 
 const stageLogger = {
   progress,
   warn: (msg) => console.error(msg),
-  error: (msg) => Logger.error(`[sprint-story-init] ${msg}`),
+  error: (msg) => Logger.error(`[story-init] ${msg}`),
 };
 
 // ---------------------------------------------------------------------------
@@ -97,9 +97,7 @@ export async function runStoryInit({
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
-    Logger.fatal(
-      'Usage: node sprint-story-init.js --story <STORY_ID> [--dry-run]',
-    );
+    Logger.fatal('Usage: node story-init.js --story <STORY_ID> [--dry-run]');
   }
 
   const config = injectedConfig || resolveConfig({ cwd });
@@ -221,7 +219,7 @@ export async function runStoryInit({
 
   // Per-phase timer. The init-side emits worktree-create / bootstrap /
   // install via the WorktreeManager `onPhase` callback, opens `implement`
-  // at the end, and snapshots to `.git/` so sprint-story-close can restore
+  // at the end, and snapshots to `.git/` so story-close can restore
   // the open phase, append lint / test / close / api-sync, and upsert the
   // `phase-timings` structured comment.
   const phaseTimer = !dryRun ? createPhaseTimer(storyId) : null;
@@ -260,7 +258,7 @@ export async function runStoryInit({
       // run. The skip predicate also re-validates SHA + config hash, so
       // staleness cannot mis-skip a real change.
       stageLogger.warn(
-        `[sprint-story-init] ⚠️ Failed to clear validation evidence: ${err?.message ?? err}`,
+        `[story-init] ⚠️ Failed to clear validation evidence: ${err?.message ?? err}`,
       );
     }
 
@@ -309,7 +307,7 @@ export async function runStoryInit({
       });
     } catch (err) {
       console.error(
-        `[sprint-story-init] ⚠️ Failed to post batched transition summary: ${err.message}`,
+        `[story-init] ⚠️ Failed to post batched transition summary: ${err.message}`,
       );
     }
 
@@ -323,7 +321,7 @@ export async function runStoryInit({
       // Non-fatal: losing the snapshot only degrades observability, it
       // does not affect merge correctness. Warn and continue.
       console.error(
-        `[sprint-story-init] ⚠️ Failed to persist phase-timer state: ${err.message}`,
+        `[story-init] ⚠️ Failed to persist phase-timer state: ${err.message}`,
       );
     }
   }
@@ -410,7 +408,7 @@ function buildStoryInitResult({
 
 /**
  * Map the structured install status to the workflow-facing tri-state string.
- * Workflow consumers (`sprint-execute.md` Step 0.5) read this exact value
+ * Workflow consumers (`story-execute.md` Step 0.5) read this exact value
  * out of the `story-init` structured comment via
  * `gh issue view --json comments`.
  *
@@ -442,7 +440,7 @@ async function postStoryInitComment({ provider, storyId, result, logger }) {
     // implementation work — it can fall back to `installStatus` from the
     // stdout JSON. Surface the error so operators can investigate.
     logger?.warn?.(
-      `[sprint-story-init] ⚠️ Failed to upsert story-init structured comment: ${err?.message ?? err}`,
+      `[story-init] ⚠️ Failed to upsert story-init structured comment: ${err?.message ?? err}`,
     );
   }
 }
@@ -499,4 +497,4 @@ function emitStoryInitResult(result, { storyId, dryRun, taskCount }) {
 // Main guard
 // ---------------------------------------------------------------------------
 
-runAsCli(import.meta.url, runStoryInit, { source: 'sprint-story-init' });
+runAsCli(import.meta.url, runStoryInit, { source: 'story-init' });

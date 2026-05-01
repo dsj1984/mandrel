@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { checkCdOutGuard } from '../.agents/scripts/sprint-story-close.js';
+import { checkCdOutGuard } from '../.agents/scripts/story-close.js';
 
 test('checkCdOutGuard pure helper', async (t) => {
   await t.test('returns ok when --cwd was not set (single-tree mode)', () => {
@@ -50,7 +50,7 @@ test('checkCdOutGuard pure helper', async (t) => {
     assert.match(result.message, /Main repo:.*\/repo/);
     assert.match(
       result.message,
-      /Run instead:\s+cd "\/repo".*sprint-story-close\.js --story 746/,
+      /Run instead:\s+cd "\/repo".*story-close\.js --story 746/,
     );
   });
 
@@ -67,7 +67,7 @@ test('checkCdOutGuard pure helper', async (t) => {
   });
 });
 
-test('sprint-story-close cd-out guard (subprocess)', async (t) => {
+test('story-close cd-out guard (subprocess)', async (t) => {
   await t.test(
     'exits 1 with the remediation message when CWD is the worktree being reaped',
     () => {
@@ -75,7 +75,7 @@ test('sprint-story-close cd-out guard (subprocess)', async (t) => {
       try {
         const wt = path.join(tmp, '.worktrees', 'story-999');
         fs.mkdirSync(wt, { recursive: true });
-        const SCRIPT = path.resolve('.agents/scripts/sprint-story-close.js');
+        const SCRIPT = path.resolve('.agents/scripts/story-close.js');
         const result = spawnSync(
           'node',
           [SCRIPT, '--story', '999', '--cwd', tmp],
@@ -101,7 +101,7 @@ test('sprint-story-close cd-out guard (subprocess)', async (t) => {
       // not contain the cd-out guard's remediation message.
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'cd-out-guard-st-'));
       try {
-        const SCRIPT = path.resolve('.agents/scripts/sprint-story-close.js');
+        const SCRIPT = path.resolve('.agents/scripts/story-close.js');
         const env = { ...process.env };
         delete env.AGENT_WORKTREE_ROOT;
         const result = spawnSync('node', [SCRIPT, '--story', '999'], {

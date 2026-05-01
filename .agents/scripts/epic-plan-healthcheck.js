@@ -3,7 +3,7 @@
 /* node:coverage ignore file */
 
 /**
- * sprint-plan-healthcheck.js — Post-Plan Readiness Check
+ * epic-plan-healthcheck.js — Post-Plan Readiness Check
  *
  * Runs at the end of /sprint-plan (Phase 4) to validate the backlog and
  * optionally prime the execution environment before handing off to
@@ -25,7 +25,7 @@
  * un-create tickets.
  *
  * Usage:
- *   node sprint-plan-healthcheck.js --epic <EPIC_ID> \
+ *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
  *     [--fast|--paranoid] [--prime-install] [--dry-run]
  *
  * @see .agents/workflows/sprint-plan.md Phase 4
@@ -340,5 +340,5 @@ export async function runPlanHealthcheck(opts = {}) {
 // ---------------------------------------------------------------------------
 
 runAsCli(import.meta.url, runPlanHealthcheck, {
-  source: 'sprint-plan-healthcheck',
+  source: 'epic-plan-healthcheck',
 });

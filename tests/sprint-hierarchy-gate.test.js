@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { runHierarchyGate } from '../.agents/scripts/sprint-hierarchy-gate.js';
+import { runHierarchyGate } from '../.agents/scripts/hierarchy-gate.js';
 
 function trapExit() {
   let exitCode = null;

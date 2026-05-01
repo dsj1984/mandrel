@@ -1,6 +1,33 @@
 # Architecture
 
-> **Version:** 5.30.0 · **Updated:** 2026-04-27
+> **Version:** 5.31.0 · **Updated:** 2026-05-01
+>
+> **Epic #900 update.** The execution surface was reorganised around the
+> Epic-centric ticket hierarchy: `/sprint-execute` is **deleted** and
+> replaced by four narrow skills — `/epic-execute <epicId>` (owns the wave
+> loop), `/wave-execute <epicId> <waveN>` (fans out Stories via the
+> Agent tool inside the operator's Claude session), `/story-execute
+> <storyId>` (init → task loop → close for one Story), and the
+> `task-execute.md` helper read inline by `/story-execute`. The
+> remote-trigger surface is gone — `.github/workflows/epic-orchestrator.yml`
+> and `.agents/scripts/remote-bootstrap.js` are deleted, and the
+> trigger-only labels `agent::dispatching`, `agent::planning`,
+> `agent::decomposing` are removed from the label set. The subprocess
+> fan-out path retired in lockstep: `build-claude-spawn.js`,
+> `spawn-smoke-test.js`, and the `idleTimeoutSec` / `pollIntervalSec` /
+> `logsDir` runner config keys are gone. Pool mode is retired —
+> `pool-claim.js`, `lib/pool-mode.js`, and the `in-progress-by:<sessionId>`
+> claim labels were removed; parent-driven deterministic story assignment
+> is the only path. Top-level scripts renamed in lockstep
+> (`sprint-plan*.js` → `epic-plan*.js`, `sprint-story-*.js` → `story-*.js`,
+> `sprint-wave-gate.js` → `wave-gate.js`, etc.); the helper `.md` files
+> renamed alongside. Config key `agentSettings.sprintClose.runRetro` →
+> `agentSettings.epicClose.runRetro` (one-release back-compat shim is
+> registered in `docs/deprecation-register.md`). Structured-comment
+> markers (`epic-run-state`, `epic-plan-state`, `dispatch-manifest`,
+> `story-init`, `code-review`, `retro-complete`) were intentionally
+> **not** renamed — they were already epic-shaped and renaming would have
+> orphaned history on existing Epics.
 >
 > **Epic #857 update.** `.agents/` bundle drift remediation: the
 > `dispatch-manifest.json` schema gained `storyTitle`, `agentTelemetry`,
@@ -18,7 +45,7 @@
 >
 > **Epic #773 update.** `orchestration` consolidated under
 > `orchestration.runners` (the previously-flat `epicRunner`, `planRunner`,
-> `concurrency`, `closeRetry`, `poolMode` peers now group together);
+> `concurrency`, `closeRetry` peers now group together);
 > `config-resolver.js` split into a facade over `quality`, `paths`,
 > `commands`, `limits`, and `runners` accessor submodules; two further
 > facades shipped — `providers/github.js` and
@@ -78,7 +105,7 @@ graph TB
     end
 
     H -->|"Creates Epic"| ISS
-    H -->|"/sprint-plan"| IDE
+    H -->|"/epic-plan"| IDE
     IDE --> INS
     INS --> PER & RUL & SKL
     IDE --> SCR
@@ -283,7 +310,7 @@ explicit typed contexts:
 | ----------------------- | ------------------------------------------------- | --------------------------------------------------------------- |
 | `OrchestrationContext`  | `lib/orchestration/context.js`                    | Shared base — provider, settings, logger, `errorJournal`.       |
 | `EpicRunnerContext`     | `lib/orchestration/context.js`                    | Every `epic-runner/*` submodule accepts `ctx` as first arg.     |
-| `PlanRunnerContext`     | `lib/orchestration/context.js`                    | `sprint-plan-spec.js` / `sprint-plan-decompose.js` drivers.     |
+| `PlanRunnerContext`     | `lib/orchestration/context.js`                    | `epic-plan-spec.js` / `epic-plan-decompose.js` drivers.     |
 
 The `errorJournal` field on each context is an `ErrorJournal` instance
 (`lib/orchestration/error-journal.js`) that writes structured JSONL to
@@ -562,48 +589,49 @@ synthetic dependency edges between tasks with overlapping `focusAreas`.
 ```mermaid
 sequenceDiagram
     participant H as Human
-    participant P as /sprint-plan
+    participant P as /epic-plan
     participant EP as epic-planner.js
     participant TD as ticket-decomposer.js
-    participant D as /sprint-execute
+    participant D as /epic-execute
     participant DI as dispatcher.js
     participant CH as context-hydrator.js
     participant A as Agent (IDE)
     participant GH as GitHub
 
     H->>GH: Create Epic issue
-    H->>P: /sprint-plan #EPIC
+    H->>P: /epic-plan #EPIC
     P->>EP: Generate PRD + Tech Spec
     EP->>GH: Create linked context issues
     EP->>TD: Decompose into tasks
     TD->>GH: Create Feature → Story → Task hierarchy
 
-    H->>D: /sprint-execute #EPIC
+    H->>D: /epic-execute #EPIC
     D->>DI: Build DAG, compute waves
-    DI->>GH: Create epic/ and task/ branches
+    DI->>GH: Create epic/ and story/ branches
     DI->>CH: Hydrate task context
     CH-->>DI: Self-contained prompt
-    DI->>A: Dispatch task (via adapter)
+    DI->>A: Dispatch story (Agent-tool sub-agent)
     A->>GH: Update labels (agent::executing → done)
 ```
 
 ---
 
-## Epic Runner (remote orchestration)
+## Epic Runner (in-session orchestration)
 
 The epic runner (`.agents/scripts/lib/orchestration/epic-runner.js`) composes
 the existing orchestration primitives into an unattended execution loop.
-Invoked via `/sprint-execute <epicId>` (Epic Mode) — either locally, or by
-the GitHub remote trigger workflow `.github/workflows/epic-orchestrator.yml`
-when an Epic is labelled `agent::dispatching`.
+Invoked via `/epic-execute <epicId>` inside the operator's Claude session.
+The remote-trigger surface (`.github/workflows/epic-orchestrator.yml` +
+`agent::dispatching` label) was deleted in Epic #900 — there is no longer a
+GitHub Actions pathway into the runner.
 
 ### State machine (Epic labels)
 
 ```
-                    apply agent::dispatching
+                    operator runs /epic-execute
                    ┌───────────────────────────┐
                    │                           ▼
-  (any state) ──► agent::dispatching ──► agent::executing
+  (any state) ──► agent::ready ─────────► agent::executing
                                                │
                                                │ wave-N halts on blocker
                                                ▼
@@ -617,10 +645,10 @@ when an Epic is labelled `agent::dispatching`.
                                (snapshot at dispatch)
                                                     │ yes
                                                     ▼
-                                               /sprint-close
+                                               /epic-close
                                           (auto-invokes helpers:
-                                           sprint-code-review.md,
-                                           sprint-retro.md)
+                                           epic-code-review.md,
+                                           epic-retro.md)
                                                     │
                                                     ▼
                                                agent::done
@@ -631,20 +659,21 @@ when an Epic is labelled `agent::dispatching`.
 | Module                | Role                                                                     |
 | --------------------- | ------------------------------------------------------------------------ |
 | `wave-scheduler`      | Iterates waves from `Graph.computeWaves()`; never spawns workers.        |
-| `story-launcher`      | Fans out up to `concurrencyCap` `/sprint-execute <storyId>` sub-agents.  |
+| `story-launcher`      | Fans out up to `concurrencyCap` `/story-execute <storyId>` Agent-tool sub-agents in one Claude message. |
 | `state-poller`        | Polls Epic + child-Story labels; emits blocker / cancel / closed events. |
 | `checkpointer`        | Upserts the `epic-run-state` structured comment; handles resume.         |
 | `blocker-handler`     | The sole runtime pause point; halts on `agent::blocked`, waits to resume.|
 | `notification-hook`   | Fire-and-forget webhook; never blocks execution.                         |
-| `bookend-chainer`     | Invokes `/sprint-close` on auto-close (which in turn auto-invokes the code-review + retro helpers). |
+| `bookend-chainer`     | Invokes `/epic-close` on auto-close (which in turn auto-invokes the code-review + retro helpers). |
 | `wave-observer`       | Emits `wave-N-start` / `wave-N-end` structured comments each boundary.   |
 | `column-sync`         | Drives the Projects v2 Status column from agent:: labels (best-effort).  |
 
 ### HITL touchpoints
 
 One runtime pause point — `agent::blocked` on the Epic. All other labels
-(`risk::high`, `epic::auto-close`, `agent::dispatching`) are snapshots or
-metadata; mid-run changes are ignored. Branch protection on `main`
+(`risk::high`, `epic::auto-close`) are snapshots or metadata; mid-run
+changes are ignored. The `agent::dispatching` trigger label was removed in
+Epic #900. Branch protection on `main`
 replaces `risk::high` runtime gating for destructive-action containment.
 
 ---
@@ -694,7 +723,7 @@ authoritative contract:
 | -------------------------------- | ------------------------ | -------------------------------------------- |
 | Story (`type::story`)            | Yes                      | Last Task → `agent::done` cascades.          |
 | Feature (`type::feature`)        | Yes                      | Last Story → `agent::done` cascades.         |
-| Epic (`type::epic`)              | **No** — cascade stops.  | `/sprint-close` only.                        |
+| Epic (`type::epic`)              | **No** — cascade stops.  | `/epic-close` only.                          |
 | Planning (`context::prd`, `context::tech-spec`) | **No** — cascade stops.  | Operator close after Epic is finalized.      |
 
 **Why Features auto-close but Epics and Planning don't.** A Feature is a
@@ -703,7 +732,7 @@ release artefacts. When its last child Story closes, the Feature is complete
 by definition; a manual Feature-close step would be pure ceremony. Operators
 who need Feature-level acceptance-criteria verification should encode it in
 the final child Story, not add a manual gate. Epics, by contrast, close via
-`/sprint-close` which owns branch merges, version bumps, and release tags —
+`/epic-close` which owns branch merges, version bumps, and release tags —
 cascade must not pre-empt that machinery. Planning tickets (PRD, Tech Spec)
 are narrative artefacts the operator closes once the Epic is finalized.
 
@@ -767,7 +796,7 @@ Dispatcher integration:
   and threads the resolved worktree path as `cwd` into
   `IExecutionAdapter.dispatchTask`. The `ManualDispatchAdapter` surfaces the
   path as a `cd "<path>"` instruction for the HITL operator.
-- **Reap on merge**: `sprint-story-close` calls `wm.reap` after a
+- **Reap on merge**: `story-close` calls `wm.reap` after a
   successful merge. The reap refuses dirty trees and logs a warning.
 - **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
   stories have no remaining live tasks. Refuses to delete unmerged branches.
@@ -781,9 +810,10 @@ See [`worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md)
 for the operator reference, node_modules strategies, Windows long-path
 handling, and escape hatches.
 
-### Execution-model modes (Epic #668, v5.24.0+)
+### Execution-model modes (Epic #668, v5.24.0+; updated by Epic #900)
 
-`/sprint-execute` runs in two execution-model modes that share one codepath
+The four-skill execution surface (`/epic-execute`, `/wave-execute`,
+`/story-execute`) runs in two execution-model modes that share one codepath
 and differ only in whether worktrees are created. The `resolveWorktreeEnabled`
 function in `lib/config-resolver.js` selects the mode at startup based on
 `AP_WORKTREE_ENABLED` and `CLAUDE_CODE_REMOTE` (precedence in
@@ -813,18 +843,20 @@ function in `lib/config-resolver.js` selects the mode at startup based on
                             ▲                                         ▲
                             │                                         │
                             └────────── shared launch primitive ──────┘
-                                       claim-based pool mode
-                              (in-progress-by:<sessionId> + [claim] comment)
+                              operator picks Story id from /sprint-plan
+                                  dispatch table, one session per id
 ```
 
 Both modes share:
 
-- The same `/sprint-execute` slash command and the same routing logic.
+- The same `/story-execute` Agent-tool sub-agent contract and the same
+  parent-driven dispatch logic out of `/wave-execute`.
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
-- The pool-mode claim protocol (`lib/pool-mode.js`) when `/sprint-execute`
-  is invoked without a story id — `findEligibleStory` → `claimStory` →
-  read-back race detection → `releaseStory` on race-loss.
+- Deterministic, operator-driven story assignment — `/story-execute` always
+  takes an explicit Story id. The legacy claim-protocol pool mode was
+  retired in Epic #900 (and earlier story #909); there is no per-launch
+  label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
   configured by `orchestration.closeRetry`) so concurrent closes from
   separate clones converge cleanly.
@@ -994,7 +1026,7 @@ CI    ▶ │ ci.yml:                               │
 
 ### Evidence-aware gate caching (Epic #817, v5.28.0+)
 
-Local close-validation, sprint-code-review, and sprint-close Phase 4 wrap
+Local close-validation, epic-code-review, and epic-close Phase 4 wrap
 each gate in `evidence-gate.js`. On a successful run the wrapper records
 `{ gateName, commitSha, commandConfigHash, timestamp }` in
 `temp/validation-evidence-<scopeId>.json` (gitignored). Subsequent invocations
@@ -1111,7 +1143,7 @@ conventions to follow.
 
 - **Ticketing provider:** GitHub (Issues, Labels, Projects V2, Sub-Issues API)
 - **CI:** GitHub Actions
-- **Distribution:** GitHub Releases (tagged from `main` by `/sprint-close`)
+- **Distribution:** GitHub Releases (tagged from `main` by `/epic-close`)
 
 ### Testing Contract (v5.11.0+)
 
@@ -1128,7 +1160,7 @@ three tiers and carries distinct scope, dependency, and assertion rules:
   `.agents/rules/gherkin-standards.md` (the SSOT for the tag taxonomy and
   forbidden patterns) and executed via `/run-bdd-suite`, whose Cucumber
   HTML/JSON report is the canonical evidence artifact consumed by the
-  `workflows/helpers/sprint-testing.md` helper.
+  `workflows/helpers/epic-testing.md` helper.
 
 Stack skills `skills/stack/qa/gherkin-authoring` and `skills/stack/qa/playwright-bdd`
 provide authoring guidance and runtime wiring respectively; neither redefines

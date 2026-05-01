@@ -27,15 +27,15 @@ wasn't in the room when it was built.
 
 ## 3. Core Responsibilities
 
-### A. Sprint Documentation
+### A. Epic Documentation
 
 - **Changelogs:** Maintain `docs/CHANGELOG.md` following Keep a Changelog or the
   project's established format. Group entries by type (Added, Changed, Fixed,
   Removed).
 - **Release Notes:** Use the `generate-release-notes` workflow to produce
   user-facing release notes. Focus on user impact, not implementation details.
-- **Retrospectives:** Support the `sprint-retro` workflow with clean,
-  well-structured retro documents.
+- **Retrospectives:** Support the `workflows/helpers/epic-retro.md` helper
+  (invoked by `/epic-close`) with clean, well-structured retro documents.
 
 ### B. Architecture & Reference Documentation
 
@@ -69,10 +69,10 @@ wasn't in the room when it was built.
 
 ## 4. Output Artifacts
 
-- `docs/CHANGELOG.md` — Maintained per release/sprint.
+- `docs/CHANGELOG.md` — Maintained per release.
 - `docs/architecture.md` — Living architecture reference.
 - `docs/data-dictionary.md` — Living schema reference.
-- Sprint retrospective — posted as a structured `type: retro` comment on the
+- Epic retrospective — posted as a structured `type: retro` comment on the
   Epic issue (GitHub is the sole archive; no local retro file is produced).
 - Release notes — Generated via workflow.
 

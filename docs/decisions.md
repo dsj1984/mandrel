@@ -1,5 +1,173 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260501-900a: Epic-centric workflow rework — four-skill split, single-session fan-out, retire GitHub triggers
+
+**Status:** Accepted
+**Date:** 2026-05-01
+**Epic:** #900
+**Story:** #918
+
+### Context
+
+The execution surface had accreted in three layers that no longer
+matched the ticket model:
+
+1. A **single mega-skill** (`/sprint-execute`) that routed by `type::`
+   label (Epic Mode vs. Story Mode) and fanned out subprocess Claude
+   sessions for each Story.
+2. A **GitHub-triggered remote orchestrator** (`epic-orchestrator.yml`,
+   `remote-bootstrap.js`, `agent::dispatching` / `agent::planning` /
+   `agent::decomposing` trigger labels) that existed only to invoke the
+   slash commands headlessly on a GitHub-hosted runner.
+3. A **claim-based pool mode** (`pool-claim.js`, `lib/pool-mode.js`,
+   `in-progress-by:<sessionId>` claim labels) that arbitrated no-id
+   `/sprint-execute` launches across N web tabs.
+
+In the operator's day-to-day flow — single Claude Code session, no
+remote dispatch — every layer above was dead weight: extra labels, a
+parallel YAML, a bootstrap script, subprocess machinery, a claim race,
+and a routing CLI (`sprint-execute-router.js`) whose only job was to
+reverse the single-CLI design. The "sprint" nomenclature itself
+mismatched the Epic-centric ticket model on which everything sits.
+
+Six framing questions drove the scope.
+
+- **Q1.** Which trigger labels go? Just the three trigger-only labels, or
+  the whole `agent::review-spec`/`agent::ready` set too?
+- **Q2.** How does the wave loop fan out Stories — keep `claude -p`
+  subprocesses, or use the Agent tool inside the single session?
+- **Q3.** Should `task-execute` be its own slash command, or a path-
+  included helper read inline by `/story-execute`?
+- **Q4.** What is renamed in the sprint→epic sweep? Slash commands and
+  helper `.md` files only, or top-level scripts and config keys too?
+  Structured-comment markers? `lib/orchestration/*` paths?
+- **Q5.** How does multi-level progress collation work — one shared
+  `epic-run-progress` comment written by all levels, or per-level
+  comments that parents collate?
+- **Q6.** With remote triggers gone, what survives of the planner CLI
+  surface? `--phase spec|decompose`? `--auto-dispatch`?
+  `epic-plan-state` checkpoint?
+
+### Decision
+
+Adopt the answers below for Epic #900; defer alternatives to a future
+ADR if the trade-off proves wrong.
+
+- **Q1 — minimal label cleanup.** Delete only the three trigger-only
+  labels: `agent::dispatching`, `agent::planning`, `agent::decomposing`.
+  Keep `agent::review-spec`, `agent::ready`, `agent::executing`,
+  `agent::review`, `agent::blocked`, `agent::done` — they still encode
+  lifecycle state independent of triggers.
+- **Q2 — single-session Agent-tool fan-out.** `/wave-execute` launches
+  Story sub-agents through the Agent tool in one assistant turn (capped
+  at `concurrencyCap`). No `claude -p` subprocess spawn, no headless
+  `--dangerously-skip-permissions` contract, no idle-watchdog, no
+  progress-log tailing via `Monitor`. Worktree filesystem isolation is
+  preserved; only the process boundary disappears.
+- **Q3 — `task-execute.md` is a helper, not a slash command.** The
+  per-Task discipline (`## Instructions` reading, scope guard,
+  `assert-branch`, conventional commit) is a procedural module read
+  inline by `/story-execute` — not registered in `.claude/commands/`.
+  Tasks are not directly executable; they are implemented by the
+  parent Story's loop.
+- **Q4 — rename the operator-visible surface; keep internal markers
+  and lib paths.**
+  - Renamed: slash commands (`/epic-plan`, `/epic-close`), the new
+    skill files (`epic-execute.md`, `wave-execute.md`,
+    `story-execute.md`), top-level scripts (`epic-plan*.js`,
+    `story-*.js`, `epic-*.js`), helper `.md` files under
+    `workflows/helpers/`, and the config key
+    `agentSettings.sprintClose.runRetro` →
+    `agentSettings.epicClose.runRetro` (with a one-release shim that
+    logs a deprecation warning when the legacy key is read).
+  - Kept: structured-comment markers (`epic-run-state`,
+    `epic-plan-state`, `dispatch-manifest`, `story-init`,
+    `code-review`, `retro-complete` — already epic-shaped where it
+    matters; renaming would orphan history on existing Epics) and
+    `lib/orchestration/*` module paths (internal facade decomposition;
+    the public-facing renames already deliver the nomenclature win
+    without churning every import path).
+- **Q5 — per-level progress, parents collate.** `/story-execute` writes
+  a `story-run-progress` structured comment per Task transition.
+  `/wave-execute` reads child story progress comments and writes a
+  wave-level rolled-up `wave-run-progress` comment. `/epic-execute`
+  reads child wave progress and renders the wave-level table inside
+  the operator-facing `epic-run-progress` summary at the top of the
+  Epic. Each level owns the comment for its own children; no shared
+  writer contention.
+- **Q6 — drop dead planner flags; keep checkpoint.** With remote
+  triggers gone, `/epic-plan` no longer needs `--phase spec|decompose`
+  (existed only so two GH labels could fire two halves) or
+  `--auto-dispatch` (applied `agent::dispatching`, which no longer
+  exists). The unified two-phase flow with the operator confirmation
+  gate is the only mode. The `epic-plan-state` checkpoint comment is
+  retained — it costs nothing and helps re-plans.
+
+### Rationale
+
+The four-skill split mirrors how the engine already decomposes work
+(`wave-scheduler`, `story-launcher`, `wave-observer` are existing
+internal submodules); promoting them to slash commands lets the
+operator stop or resume at any level and removes the "this skill
+routes by label" indirection. Single-session Agent-tool fan-out trades
+process isolation (which the worktree boundary already provided at the
+filesystem level) for in-session context budget; in practice the wave
+loop spends most of its time waiting on Story sub-agents and the
+in-session model was never the bottleneck. Per-level progress
+collation localises ownership of each comment to the level that
+generates it — no two writers contend for the same comment marker —
+at the cost of one extra structured-comment marker
+(`wave-run-progress`) per wave, which is cheap.
+
+The label-cleanup scope is deliberately narrow: deleting only the
+three trigger-only labels means downstream consumers running existing
+state machines on `agent::review`/`agent::done` see no change. The
+config-key rename ships with a one-release shim so a typical
+`.agentrc.json` update is a no-op until 5.32.0.
+
+### Implications
+
+- **For operators.** The `/sprint-*` muscle memory is gone. New flow:
+  `/epic-plan <id>` → `/epic-execute <id>` → `/epic-close <id>`. For
+  a single Story off the dispatch table, run `/story-execute <id>`
+  directly. The four-skill split lets you stop or resume at any
+  level.
+- **For repos that used the GitHub-trigger path.** That surface is
+  deleted. The `agent::dispatching` label, the
+  `epic-orchestrator.yml` workflow, and the `remote-bootstrap.js`
+  script are gone. Drive Epics from a local Claude Code session
+  going forward; if you genuinely need a GitHub-Action driver,
+  re-introduce it as an out-of-tree workflow that invokes the local
+  CLI scripts directly.
+- **For consumer `.agentrc.json` files.** Rename
+  `agentSettings.sprintClose.runRetro` → `agentSettings.epicClose.runRetro`
+  on your next edit. The legacy key still reads with a one-shot
+  deprecation warning until removal in 5.32.0 (registered in
+  `docs/deprecation-register.md`).
+- **For sub-agent prompt budget.** Story sub-agents now share the
+  parent session's context budget instead of getting a fresh
+  subprocess. The Story prompt deliberately scopes to one Story so
+  the budget remains predictable; a runaway Story burns parent
+  budget rather than its own.
+- **For history continuity.** Structured-comment markers and
+  `lib/orchestration/*` paths are unchanged, so existing Epics in
+  flight at the cutover boundary continue to validate against the
+  same readers.
+
+### References
+
+- Epic #900 body — full goals, non-goals, story decomposition, and
+  Q1–Q6 framing.
+- ADR 20260427-868a — open-root dispatch-manifest schema +
+  AJV fixture drift test (the pattern this Epic adopts for the
+  `wave-run-progress` comment shape).
+- `docs/deprecation-register.md` — registers the
+  `sprintClose.runRetro` shim for removal in 5.32.0.
+- `docs/CHANGELOG.md` 5.31.0 entry — consumer-visible migration
+  block for this Epic.
+
+---
+
 ## ADR 20260427-868a: Open-root dispatch-manifest schema; AJV fixture drift test as enforcement boundary
 
 **Status:** Accepted
@@ -420,7 +588,7 @@ doesn't carry a framework-shipped entry anymore.
 | `mcp__agent-protocols__dispatch_wave`          | `node .agents/scripts/dispatcher.js --epic <id>` (same SDK, same dispatch-manifest output).                                                  |
 | `mcp__agent-protocols__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; `context-hydrator.js` remains the raw-prompt wrapper. |
 | `mcp__agent-protocols__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --task <id> --state <state>` (auto-cascades on `agent::done`).                                  |
-| `mcp__agent-protocols__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `sprint-story-close.js`.                                              |
+| `mcp__agent-protocols__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `story-close.js`.                                              |
 | `mcp__agent-protocols__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; direct `provider.postComment` in lib code. |
 | `mcp__agent-protocols__select_audits`          | `node .agents/scripts/select-audits.js --ticket <id> --gate <gate>`.                                                                         |
 | `mcp__agent-protocols__run_audit_suite`        | `node .agents/scripts/run-audit-suite.js --audits <comma-list>`.                                                                             |
@@ -511,9 +679,12 @@ config is read-only at runtime; no workflow writes it.
   history thrash. Web sessions auto-disable worktrees; local sessions retain
   the v5.7.0 isolation behaviour. Operators can force either mode locally with
   one env var.
-- **Positive:** `runtime.sessionId` is available for the claim-protocol's
-  `in-progress-by:<sessionId>` label and `[claim]` structured comment without
-  a separate identity layer.
+- **Positive:** `runtime.sessionId` is available as a stable per-process
+  identity surfaced in the startup `[ENV] sessionId=…` log line for
+  operator log-correlation, with no separate identity layer required.
+  *(The original consumer of this id — the claim-protocol pool mode —
+  was retired in story #909; the field is preserved for diagnostics
+  only.)*
 - **Negative:** The resolver consumes process environment, not config — typos
   in env var names fall through silently to the next rule. Mitigated by
   string-equality matching (`'true'` / `'false'` literal) so `"0"` / `""` /
@@ -812,13 +983,13 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #321 Story #334, v5.14.0).
 *   **Context:** `risk-gate-handler.js` halted the dispatcher on
-    `risk::high` tasks, and `sprint-story-close.js` halted close for
+    `risk::high` tasks, and `story-close.js` halted close for
     `risk::high` stories. In the new HITL-minimal model this becomes
     two per-ticket gates the orchestrator must pause on — incompatible
     with unattended remote runs.
 *   **Decision:** The runtime halt is removed. `handleRiskHighGate`
     reduces to a log-only warning; `wave-dispatcher.js` dispatches
-    `risk::high` tasks unconditionally; `sprint-story-close.js` gates
+    `risk::high` tasks unconditionally; `story-close.js` gates
     only when both `hitl.riskHighApproval` **and**
     `hitl.riskHighRuntimeGate` are explicitly `true` (both default
     `false`). The label is preserved — retros and planning can still
@@ -832,7 +1003,7 @@ submodule paths are internal implementation detail.
         `agent::blocked` escalation when an unauthorized destructive
         action is detected, (c) `epic::auto-close` as a deliberate
         opt-in that must be set at dispatch.
-    *   `handleHighRiskGate` in `sprint-story-close.js` becomes dead
+    *   `handleHighRiskGate` in `story-close.js` becomes dead
         code behind a hidden opt-in flag — cleanup tracked in Epic
         #349 Wave 0.
 
@@ -969,10 +1140,10 @@ submodule paths are internal implementation detail.
 *   **Context:** Epic #380's mid-close on Story #389 required ~30
     minutes of manual git surgery (resolve the merge in progress,
     re-run validation, re-merge to the Epic branch). The stock
-    `sprint-story-close.js` had no concept of "resuming" — re-running
+    `story-close.js` had no concept of "resuming" — re-running
     it from the worktree always re-ran init/implement/validate
     end-to-end, which was wasteful and racy.
-*   **Decision:** `sprint-story-close.js` now classifies the close-time
+*   **Decision:** `story-close.js` now classifies the close-time
     state via `detectPriorState()` into one of: `clean` (default,
     proceed), `unmerged-story-branch` (story branch has commits ahead
     of `epic/<id>` that haven't merged), `merge-in-progress` (UU
@@ -1040,8 +1211,8 @@ submodule paths are internal implementation detail.
 *   **Context:** The MCP tool
     `mcp__agent-protocols__post_structured_comment` originally
     accepted only `progress | friction | notification` as `type`
-    values. As a result, `sprint-code-review.js`,
-    `.claude/skills/sprint-retro.md`, the wave-observer, and the
+    values. As a result, `epic-code-review.js`,
+    `.claude/skills/epic-retro.md`, the wave-observer, and the
     progress-reporter each hand-rolled their own structured-comment
     marker and posted via `provider.postComment` directly, bypassing
     payload-schema validation. During Epic #413's close, the retro
@@ -1203,7 +1374,7 @@ submodule paths are internal implementation detail.
 *   **Date:** 2026-04-24
 *   **Epic:** #553
 *   **Context:** Two independent performance audits converged on the same
-    hot paths. `sprint-wave-gate.js` ran three serial `for..of` loops of
+    hot paths. `wave-gate.js` ran three serial `for..of` loops of
     `await getTicket`; `ProgressReporter` fanned out `getTicket(id, { fresh: true })`
     across every story in every wave on every cadence tick; `state-poller`
     fetched a full ticket per tracked story just to read `.labels`; every
@@ -1444,12 +1615,12 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #817, v5.28.0).
 *   **Context:** `sprint-execute.md` Step 2 used to require an explicit
-    `npm run lint && npm test` before invoking `sprint-story-close.js`,
+    `npm run lint && npm test` before invoking `story-close.js`,
     which then re-ran the same gates as part of close-validation. Headless
     sub-agent runs paid the cost twice; interactive runs blurred the
     decision of which result was authoritative. With evidence-aware skip
     in place (#817a), the duplication was no longer needed for safety.
-*   **Decision:** `sprint-story-close.js` is the single source of truth
+*   **Decision:** `story-close.js` is the single source of truth
     for local Story merge readiness. The pre-flight `npm run lint &&
     npm test` is now described as advisory `--fast` mode for interactive
     iteration — failures will be re-surfaced by the close-validation gate
@@ -1492,13 +1663,13 @@ submodule paths are internal implementation detail.
     from the CRAP scan because its first comment line is
     `/* node:coverage ignore file */`. Twenty-one other CLI entrypoints
     under `.agents/scripts/*.js` carry the same directive, including
-    `epic-runner.js`, `sprint-story-close.js`, `sprint-story-init.js`,
-    `epic-planner.js`, `dispatcher.js`, `sprint-plan-spec.js`,
-    `sprint-plan-decompose.js`, `notify.js`, `health-monitor.js`,
+    `epic-runner.js`, `story-close.js`, `story-init.js`,
+    `epic-planner.js`, `dispatcher.js`, `epic-plan-spec.js`,
+    `epic-plan-decompose.js`, `notify.js`, `health-monitor.js`,
     `post-structured-comment.js`, `pool-claim.js`, `remote-bootstrap.js`,
     `select-audits.js`, `ticket-decomposer.js`, `agents-bootstrap-github.js`,
     `assert-branch.js`, `context-hydrator.js`, `diagnose-friction.js`,
-    `hydrate-context.js`, `sprint-plan.js`, and `sprint-plan-healthcheck.js`.
+    `hydrate-context.js`, `epic-plan.js`, and `epic-plan-healthcheck.js`.
     The convention pre-dates this Epic but had never been written down,
     making it ambiguous whether the directive on a given file was a
     deliberate convention or an accidental escape hatch.

@@ -4,6 +4,90 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.31.0] - 2026-05-01
+
+### Epic-centric workflow rework — drop sprint nomenclature, split execution by hierarchy level, retire GitHub triggers
+
+The single `/sprint-execute` mega-skill, the GitHub-triggered remote orchestrator,
+the claim-based pool mode, and the `sprint-*` nomenclature are all retired in
+favour of a four-skill split that mirrors the ticket hierarchy. Stories now run
+as Agent-tool sub-agents inside the operator's Claude session — no subprocess
+spawn, no GitHub Actions runner — so the operator can stop or resume at any
+level (Epic / Wave / Story / Task) and the dispatch surface stops carrying dead
+process-boundary machinery.
+
+This is a **breaking change** for any downstream `.agents/` consumer that types
+`/sprint-*` commands directly, applies the trigger labels by hand, or reads
+`agentSettings.sprintClose.runRetro` from config. The migration block below is
+the complete consumer-visible delta.
+
+#### Migration
+
+- **Slash commands renamed.** `/sprint-plan` → `/epic-plan`. `/sprint-close` →
+  `/epic-close`. The two terminal skills keep their phase structure; only the
+  front door changes.
+- **`/sprint-execute` removed; four-skill split is the replacement.**
+  - `/epic-execute <epicId>` owns the wave loop and fans out via
+    `/wave-execute`.
+  - `/wave-execute <epicId> <waveN>` runs one wave; launches up to
+    `concurrencyCap` Story sub-agents through the Agent tool.
+  - `/story-execute <storyId>` runs init → task loop → close for one Story.
+  - `helpers/task-execute.md` is read inline per Task by `/story-execute`
+    (not a slash command).
+- **Trigger-only labels removed:** `agent::dispatching`, `agent::planning`,
+  `agent::decomposing`. Delete them from any project board or workflow that
+  references them. The lifecycle labels `agent::review-spec`, `agent::ready`,
+  `agent::executing`, `agent::review`, `agent::blocked`, `agent::done` are
+  unchanged.
+- **Remote-trigger surface removed:** `.github/workflows/epic-orchestrator.yml`
+  and `.agents/scripts/remote-bootstrap.js` are deleted. Repos that only used
+  the GitHub-Action path must drive Epics from a local Claude Code session
+  going forward.
+- **Pool mode retired.** `.agents/scripts/pool-claim.js`,
+  `.agents/scripts/lib/pool-mode.js`, the `in-progress-by:<sessionId>` claim
+  label scheme, and the `orchestration.runners.poolMode` config block are
+  gone. Story assignment is parent-driven and deterministic; sibling sessions
+  never race on the same Story. `runtime.sessionId` survives as a stable
+  per-process diagnostic in the startup `[ENV]` log line.
+- **Subprocess fan-out machinery removed.**
+  `.agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js` and
+  `spawn-smoke-test.js` are deleted, along with the
+  `agentSettings.runners.epicRunner.idleTimeoutSec`, `pollIntervalSec`, and
+  `logsDir` config keys. Keep `concurrencyCap` and `progressReportIntervalSec`.
+- **Top-level scripts renamed in lockstep** with the slash commands. Update
+  any `package.json` script or `.husky/*` hook that references the old
+  filenames:
+  - `sprint-plan-spec.js` → `epic-plan-spec.js`
+  - `sprint-plan-decompose.js` → `epic-plan-decompose.js`
+  - `sprint-plan-healthcheck.js` → `epic-plan-healthcheck.js`
+  - `sprint-plan.js` → `epic-plan.js`
+  - `sprint-story-init.js` → `story-init.js`
+  - `sprint-story-close.js` → `story-close.js`
+  - `sprint-wave-gate.js` → `wave-gate.js`
+  - `sprint-hierarchy-gate.js` → `hierarchy-gate.js`
+  - `sprint-code-review.js` → `epic-code-review.js`
+  - `sprint-close.js` → `epic-close.js`
+- **Helper `.md` files renamed in lockstep.**
+  `helpers/sprint-plan-spec.md` → `epic-plan-spec.md`,
+  `helpers/sprint-plan-decompose.md` → `epic-plan-decompose.md`,
+  `helpers/sprint-code-review.md` → `epic-code-review.md`,
+  `helpers/sprint-retro.md` → `epic-retro.md`,
+  `helpers/sprint-testing.md` → `epic-testing.md`.
+- **Config key renamed:** `agentSettings.sprintClose.runRetro` →
+  `agentSettings.epicClose.runRetro`. The resolver reads the legacy key as a
+  fallback and emits a one-shot deprecation warning; **removal version 5.32.0**.
+  Update consumer `.agentrc.json` files now to avoid the warning.
+- **`/epic-plan` CLI flags removed:** `--phase spec|decompose` and
+  `--auto-dispatch`. The unified two-phase flow with the operator confirmation
+  gate is the only mode. The `epic-plan-state` checkpoint comment is unchanged.
+- **What did not change.** Structured-comment markers (`epic-run-state`,
+  `epic-plan-state`, `dispatch-manifest`, `story-init`, `code-review`,
+  `retro-complete`) are kept. `.agents/scripts/lib/orchestration/*` internal
+  module paths are unchanged. The Slack/Discord notifier on `agent::blocked`
+  still fires from `notification-hook.js`. Worktree filesystem isolation
+  rules in `worktree-lifecycle.md` are unchanged in substance — only the
+  process boundary around each Story is gone.
+
 ## [5.30.5] - 2026-05-01
 
 ### `sprint-close` Phase 4 documents project-extended pre-push ratchets
@@ -145,7 +229,7 @@ removed and one retro metric is redefined.
 - **BREAKING (framework-internal): retro `hitl` count now reflects
   `agent::blocked` events.** The Sprint Retrospective scorecard's "HITL
   Gates Triggered" row is renamed to "agent::blocked Events Raised", and
-  `helpers/sprint-retro.md` instructs callers to count distinct tickets
+  `helpers/epic-retro.md` instructs callers to count distinct tickets
   that received the `agent::blocked` label at any point during the sprint
   rather than tickets carrying `risk::high`. The numeric predicate
   `isCleanManifest({ hitl })` in
@@ -242,12 +326,12 @@ additive flags and config keys with safe defaults.
   re-run. Story-close, sprint-code-review, and sprint-close Phase 4 all
   participate.
 - **`sprint-execute` Step 2 no longer requires a pre-flight lint+test.**
-  `sprint-story-close.js` is the canonical local Story merge gate. The
+  `story-close.js` is the canonical local Story merge gate. The
   workflow guidance now treats interactive `npm run lint && npm test`
   before close as advisory only; the close-validation gate is authoritative.
 - **Bounded planning-context budget.** Planning scripts (`epic-planner.js`,
-  `sprint-plan-spec.js`, `ticket-decomposer.js`,
-  `sprint-plan-decompose.js`) default to a summary mode emitting doc names,
+  `epic-plan-spec.js`, `ticket-decomposer.js`,
+  `epic-plan-decompose.js`) default to a summary mode emitting doc names,
   section headings, relevant excerpts, and file pointers. Add
   `--full-context` to restore the previous full-body behaviour. The new
   `agentSettings.limits.planningContext` knob controls the byte budget.
@@ -562,7 +646,7 @@ log line.
   user-visible changes, banned internal detail, breaking-change
   prominence, ≤60 soft line ceiling). Referenced from `/sprint-close`
   Phase 1.3; this entry is itself a worked example.
-- **Compact-retro short-circuit.** `helpers/sprint-retro.md` now
+- **Compact-retro short-circuit.** `helpers/epic-retro.md` now
   computes an `isCleanManifest` predicate (zero friction, parked,
   recuts, hotfixes, hitl) and emits a three-section retro on clean
   sprints. New `--full-retro` flag on `/sprint-close` forces the
@@ -757,9 +841,9 @@ to `.claude/commands/`.
 ### Demoted internal workflows to `helpers/`
 
 Workflows an operator never invokes directly moved to
-`.agents/workflows/helpers/`: `sprint-plan-spec.md`,
-`sprint-plan-decompose.md`, `sprint-code-review.md`, `sprint-retro.md`,
-`sprint-testing.md`, `_merge-conflict-template.md`. Parent workflows
+`.agents/workflows/helpers/`: `epic-plan-spec.md`,
+`epic-plan-decompose.md`, `epic-code-review.md`, `epic-retro.md`,
+`epic-testing.md`, `_merge-conflict-template.md`. Parent workflows
 reference helpers by path. **Breaking (remote orchestration contract).**
 The spec and decompose helpers are no longer slash commands; the
 `/sprint-plan` wrapper now accepts `--phase spec|decompose` and call
@@ -840,7 +924,7 @@ dedicated scripts so markdown is a launcher, not a recipe:
   → rebase retry loop; classifies outcome as `clean|conflict|error`.
 - **`lib/plan-phase-cleanup.js`** — centralised temp-file cleanup
   contract for the sprint-plan split flow.
-- **`validate-docs-freshness.js --json`** + **`sprint-plan-healthcheck.js`
+- **`validate-docs-freshness.js --json`** + **`epic-plan-healthcheck.js`
   invocation** from `/sprint-plan-decompose` — manual checklists replaced
   with deterministic checks.
 - **`/git-merge-pr` Step 6** delegates to `detect-merges.js` instead of
@@ -880,7 +964,7 @@ Retro action items carried forward from Epic #413. No public API changes.
 - **`CommitAssertion` fallback** when `origin/story-<id>` is already
   deleted — counts commits on `origin/epic/<id>` whose message matches
   `resolves #<storyId>`.
-- **Per-Story docs-context-bridge.** `sprint-story-close.js` emits a
+- **Per-Story docs-context-bridge.** `story-close.js` emits a
   friction comment when a Story touches code paths referenced by
   `release.docs` — nudges doc updates per-Story instead of at Epic close.
 - **CI captures stderr** (`2>&1 | tee` + `set -o pipefail`) so silent-
@@ -969,8 +1053,8 @@ needed until code review.
 
 - **New workflow** `.github/workflows/epic-plan.yml` fires on
   `agent::planning` or `agent::decomposing`.
-- **Split CLIs.** `/sprint-plan` chains `sprint-plan-spec.js` → in-chat
-  confirmation → `sprint-plan-decompose.js`. `--auto-dispatch` applies
+- **Split CLIs.** `/sprint-plan` chains `epic-plan-spec.js` → in-chat
+  confirmation → `epic-plan-decompose.js`. `--auto-dispatch` applies
   `agent::dispatching` on completion.
 - **`--phase` flag on `remote-bootstrap.js`** (`spec`|`decompose`|
   `execute`; `execute` is the default).
@@ -993,7 +1077,7 @@ gracefully to a warning pointing at `docs/project-board.md`.
 - **Test-glob auto-discovery.** `npm test` uses `tests/**/*.test.js`.
 - **Tightened `orchestration` config schema.** Surfaces typos at
   bootstrap rather than first use.
-- **`WorkspaceProvisioner.verify`** runs in `sprint-story-init.js`;
+- **`WorkspaceProvisioner.verify`** runs in `story-init.js`;
   missing `.env` / `.mcp.json` fails with remediation instead of silent
   test breakage.
 - **`/sprint-close` refactor.** Reorganised from 12 numbered steps into
@@ -1142,7 +1226,7 @@ Internal refactor only — no behaviour change.
 - **Provider transport proxies removed.** `_rest` / `_graphql` /
   `_restPaginated` deleted; call sites invoke `this._http.*` directly.
   `graphql()` remains (public interface).
-- **`sprint-story-close.js`** — ~10 `try/catch` phase wrappers collapse
+- **`story-close.js`** — ~10 `try/catch` phase wrappers collapse
   to a `runPhase(name, fn, fallback)` helper.
 - **Consistency sweep:** all call sites use `Number.parseInt` instead
   of the global `parseInt` (43 occurrences across 27 files).
@@ -1195,7 +1279,7 @@ gate).
   back to their manifest parent so sprint counts line up.
 - **Parked follow-on protocol.** Dispatcher upserts a
   `parked-follow-ons` structured comment at every cycle classifying
-  every Story as manifest / recut / parked. `sprint-wave-gate.js` halts
+  every Story as manifest / recut / parked. `wave-gate.js` halts
   `/sprint-close` if any recut or parked Story is still open.
   `--allow-parked` / `--allow-open-recuts` waive the gate.
 
@@ -1205,7 +1289,7 @@ gate).
 
 `_findByPath` compared paths with case-sensitive `===` on
 `path.resolve()` output. On Windows, consumers routinely invoke
-`sprint-story-close.js --cwd c:\repo` while git porcelain reports
+`story-close.js --cwd c:\repo` while git porcelain reports
 `C:\repo` — the mismatch returned `not-a-worktree`, which was
 silently swallowed. Branch delete then failed with "cannot delete
 branch used by worktree".
@@ -1290,7 +1374,7 @@ as sprint evidence.
   dependency, assertion, and location rules per tier.
 - **New workflow:** `/run-bdd-suite` — tag-filtered acceptance runner
   producing a Cucumber HTML/JSON report as the QA evidence artifact.
-- **Updated workflow:** `sprint-testing.md` consumes the Cucumber
+- **Updated workflow:** `epic-testing.md` consumes the Cucumber
   report; the sprint-testing ticket is gated on all scenarios passing.
 
 No breaking changes. Projects that already author `.feature` files
@@ -1308,7 +1392,7 @@ Follow-up hardening across v5.10.x worktree/sprint-close work.
 - **`.gitmodules`** detection accepts quoted `path = ".agents"` entries.
 - **Symlink `nodeModulesStrategy`** uses Windows `junction` (no admin
   required); retry loop replaces shelled-out `sleep` with `Atomics.wait`.
-- **`sprint-close.js`** now records Epic-close failures in the
+- **`epic-close.js`** now records Epic-close failures in the
   `warnings[]` buffer so a failed `updateTicket(... closed)` no longer
   slips past branch cleanup and prints 🎉.
 - **`release` schema validation** — `docs` (shell-safe strings),
@@ -1430,7 +1514,7 @@ worktree `.agents` aliases the root.
 
 New Phase 5 at the end of `/sprint-plan`.
 
-- **`sprint-plan-healthcheck.js`** — ticket hierarchy validation,
+- **`epic-plan-healthcheck.js`** — ticket hierarchy validation,
   git-remote reachability, orchestration config validation, and pnpm
   store priming.
 - **pnpm store prime** — when `nodeModulesStrategy: 'pnpm-store'`,
@@ -1517,7 +1601,7 @@ Bundled SDLC-review release addressing seven findings.
 
 - **Dispatch manifest is now a structured Epic comment** —
   idempotently upserted via `postManifestEpicComment`.
-- **Wave-completeness gate at sprint-close.** `sprint-wave-gate.js`
+- **Wave-completeness gate at sprint-close.** `wave-gate.js`
   reads the `dispatch-manifest` comment and verifies every listed
   story is closed.
 - **Retro detection moved off heading-grep.** Prefers a
@@ -1635,7 +1719,7 @@ story whose tasks appeared in a ready wave, producing mysterious
 `status: 'skipped-not-initialized'` and logs
 `/sprint-execute #<storyId>`. Non-story task-level branches still get
 JIT-created (no separate init step). Story branches + worktrees are
-created **exclusively** by `sprint-story-init.js`.
+created **exclusively** by `story-init.js`.
 
 ## [5.8.3] - 2026-04-15
 
@@ -1714,12 +1798,12 @@ init → worktree → implement → validate → merge → reap. Epic-level
 planning (waves, Story Dispatch Table) lives in `/sprint-plan` Phase
 4, which is where operators were picking stories anyway.
 
-`sprint-story-init.js` now honors
+`story-init.js` now honors
 `orchestration.worktreeIsolation.enabled` and seeds the story branch
 ref in the main checkout without moving HEAD. Returned JSON exposes
 `workCwd`, `worktreeEnabled`, `worktreeCreated`. Agent `cd`s into
 `workCwd` before Step 1 and passes `--cwd <main-repo>` to
-`sprint-story-close.js`.
+`story-close.js`.
 
 **Deprecated (not yet removed):** `dispatcher.js` agent-launch loop,
 `IExecutionAdapter`, Jules/queue adapter plumbing, story-wave

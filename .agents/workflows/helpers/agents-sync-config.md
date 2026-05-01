@@ -31,7 +31,7 @@ including optional keys the template does not declare.
 
 This is a deliberate departure from the previous "structural diff against
 template" behaviour, which silently stripped legitimate optional keys (e.g.
-`orchestration.concurrency`, `closeRetry`, `poolMode`, `github.projectName`,
+`orchestration.concurrency`, `closeRetry`, `github.projectName`,
 `agentSettings.quality.prGate`) on every sync.
 
 The reconciliation rules are:

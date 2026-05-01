@@ -5,17 +5,17 @@ import { test } from 'node:test';
 import {
   renderStoryInitCommentBody,
   runStoryInit,
-} from '../.agents/scripts/sprint-story-init.js';
+} from '../.agents/scripts/story-init.js';
 
-const SCRIPT_PATH = path.resolve('.agents/scripts/sprint-story-init.js');
+const SCRIPT_PATH = path.resolve('.agents/scripts/story-init.js');
 
-test('sprint-story-init script', async (t) => {
+test('story-init script', async (t) => {
   await t.test('fails without --story argument', () => {
     const result = spawnSync('node', [SCRIPT_PATH]);
     assert.strictEqual(result.status, 1);
     assert.match(
       result.stderr.toString() + result.stdout.toString(),
-      /Usage: node sprint-story-init\.js --story <STORY_ID>/,
+      /Usage: node story-init\.js --story <STORY_ID>/,
     );
   });
 });

@@ -53,7 +53,7 @@ function makeProvider(overrides = {}) {
 }
 
 /**
- * Re-implement the reap-failure emission shape used by sprint-story-close.js
+ * Re-implement the reap-failure emission shape used by story-close.js
  * so the replay test exercises the same marker/body contract without having
  * to spin up the full close script (which owns git + worktree orchestration).
  */

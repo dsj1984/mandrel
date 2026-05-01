@@ -7,10 +7,9 @@ description: >-
 
 # Sprint Plan — Decompose Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/sprint-plan` (Phase 2)
-> and by the remote planner when the operator applies `agent::decomposing` on
-> GitHub. To run the decompose phase interactively, use
-> `/sprint-plan [Epic_ID]` — it delegates here after the spec phase.
+> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 2).
+> To run the decompose phase interactively, use `/epic-plan [Epic_ID]` — it
+> delegates here after the spec phase.
 
 ## Role
 
@@ -20,13 +19,13 @@ Director / Architect
 
 This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
-([`sprint-plan-spec.md`](sprint-plan-spec.md)), generates the Feature / Story
-/ Task ticket hierarchy, persists it to GitHub, and flips the Epic from
-`agent::decomposing` (trigger) to `agent::ready` (parking) so a human can
-apply `agent::dispatching` when execution should begin.
+([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
+/ Task ticket hierarchy, persists it to GitHub, and flips the Epic to
+`agent::ready` (parking) so a human can run `/epic-execute` when execution
+should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
-`sprint-plan-decompose.js` is a deterministic wrapper that (a) emits the
+`epic-plan-decompose.js` is a deterministic wrapper that (a) emits the
 authoring context you need and (b) validates, persists, and transitions the
 Epic lifecycle state.
 
@@ -40,20 +39,19 @@ Epic lifecycle state.
   structure as committed. Use `--force` to rebuild from scratch.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
-- **Do not** apply `agent::dispatching` from this helper. The local
-  `/sprint-plan --auto-dispatch` wrapper owns that transition; remote flows
-  rely on the operator applying the label by hand.
+- **Do not** flip the Epic past `agent::ready` from this helper. Execution
+  begins when an operator runs `/epic-execute [Epic_ID]`.
 
 ## Prerequisites
 
-1. **Epic is on `agent::review-spec` or `agent::decomposing`** — i.e. the
-   spec phase has already run and the PRD / Tech Spec exist.
+1. **Epic is on `agent::review-spec`** — i.e. the spec phase has already run
+   and the PRD / Tech Spec exist.
 2. **API keys** — `GITHUB_TOKEN` set in `.env`.
 
 ## Step 1 — Gather decomposition context
 
 ```bash
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] --emit-context \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context \
   > temp/decomposer-context-epic-[Epic_ID].json
 ```
 
@@ -70,17 +68,16 @@ prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
 
 ```bash
 # Normal decomposition
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/tickets-epic-[Epic_ID].json
 
 # Re-decompose (closes existing child Features/Stories/Tasks first)
-node .agents/scripts/sprint-plan-decompose.js --epic [Epic_ID] \
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/tickets-epic-[Epic_ID].json --force
 ```
 
 On success the script:
 
-- Flips the Epic to `agent::decomposing` (parking while work runs).
 - Creates the Feature / Story / Task hierarchy under the Epic.
 - Updates the `epic-plan-state` structured comment with the ticket count and
   decompose timestamp.
@@ -89,12 +86,12 @@ On success the script:
 ## Step 4 — Cross-validation
 
 Delegate the structural invariants (hierarchy completeness, dependency DAG
-acyclicity, missing complexity labels) to `sprint-plan-healthcheck.js`. It is
+acyclicity, missing complexity labels) to `epic-plan-healthcheck.js`. It is
 the single source of truth for post-decompose validation — the Phase 4 run
-inside `/sprint-plan` calls the same script, so local and remote flows agree.
+inside `/epic-plan` calls the same script, so local and remote flows agree.
 
 ```bash
-node .agents/scripts/sprint-plan-healthcheck.js --epic [Epic_ID] --dry-run
+node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --dry-run
 ```
 
 The script exits 0 regardless of findings (non-blocking), but lists any
@@ -127,12 +124,11 @@ is the single source of truth for which temp paths this phase owns.
 - Surface the backlog summary and the Wave 0 candidates to the operator:
 
   > "Decomposition complete. Epic #[ID] is on `agent::ready` with NN ticket(s)
-  > across MM Stories. Apply `agent::dispatching` (remote) or run
-  > `/sprint-execute [Epic_ID]` (local) to begin execution."
+  > across MM Stories. Run `/epic-execute [Epic_ID]` to begin execution."
 
 ## Troubleshooting
 
-- "Epic #N is missing a linked PRD or Tech Spec" — run `/sprint-plan [Epic_ID]`
+- "Epic #N is missing a linked PRD or Tech Spec" — run `/epic-plan [Epic_ID]`
   first (it will run the spec phase if the PRD / Tech Spec are missing).
 - Validator rejects the tickets file — the most common causes are a Story
   with no child Tasks, a Task whose `parent_slug` does not point at a Story,

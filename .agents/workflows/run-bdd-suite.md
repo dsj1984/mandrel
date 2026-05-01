@@ -10,7 +10,7 @@ artifact.
 
 > **When to run**: During sprint testing to exercise a targeted slice of the
 > acceptance suite (e.g. `@smoke`, `@risk-high`, `@domain-billing`), for
-> regression passes before `/sprint-close`, or on demand while debugging a
+> regression passes before `/epic-close`, or on demand while debugging a
 > specific Story.
 >
 > **Persona**: `qa-engineer` · **Skills**: `stack/qa/gherkin-authoring`,
@@ -88,7 +88,7 @@ The evidence artifact for this workflow is the **Cucumber report** produced
 by the run:
 
 - **Cucumber JSON** (machine-readable) — the primary artifact. Consumed by
-  [`helpers/sprint-testing.md`](helpers/sprint-testing.md) to attach to the
+  [`helpers/epic-testing.md`](helpers/epic-testing.md) to attach to the
   sprint-testing ticket and by any downstream aggregation.
 - **Cucumber HTML** (human-readable) — attached alongside the JSON for
   reviewer convenience.
@@ -110,7 +110,7 @@ Summarize the run in chat with:
 - For any failure, the scenario name, file path, and a one-line symptom.
 
 If the run was triggered from a sprint-testing context, follow
-[`helpers/sprint-testing.md`](helpers/sprint-testing.md) for where to attach
+[`helpers/epic-testing.md`](helpers/epic-testing.md) for where to attach
 the report and how to transition the ticket.
 
 ## Relationship to `run-test-plan.md`

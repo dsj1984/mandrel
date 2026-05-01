@@ -1,5 +1,25 @@
 # Design Patterns
 
+> **Epic #900 update.** The **Hierarchy-aligned slash-command split**
+> pattern was added in v5.31.0: a single mega-skill that routed by label
+> (`/sprint-execute`) was replaced by four narrow skills aligned to the
+> Epic-centric ticket hierarchy — `/epic-execute` (wave loop),
+> `/wave-execute` (one wave's Story fan-out), `/story-execute` (init →
+> task loop → close for one Story), and the `task-execute.md` helper read
+> inline by `/story-execute`. The shape lets the operator stop or resume
+> at any level and removes the "skill routes by label" indirection. In
+> the same Epic, **single-session Agent-tool fan-out** replaced the
+> `claude -p` subprocess spawn — Story sub-agents launch through the
+> Agent tool inside the operator's Claude session, so worktree
+> filesystem isolation is preserved while the process boundary, the
+> idle watchdog, the headless `--dangerously-skip-permissions` contract,
+> and the progress-log tailing dance all disappear. References below
+> to `/sprint-execute`, `/sprint-plan`, `/sprint-close`, `/sprint-retro`,
+> or `sprint-{story,wave,code-review,hierarchy}-*.js` predate this
+> Epic; the current names are `/epic-execute`, `/epic-plan`,
+> `/epic-close`, the `epic-retro.md` helper, and
+> `epic-{story,wave,code-review,hierarchy,plan}-*.js` respectively.
+>
 > **Epic #857 update.** The **Rule-as-SSOT** pattern — first modeled by
 > `.agents/rules/gherkin-standards.md` and its `gherkin-authoring` skill
 > companion — was applied to three further high-traffic surfaces: API
@@ -230,10 +250,10 @@ pushes, and cascades exactly as it would with worktrees on. The same
 
 `runtime.sessionId`, also produced by the resolver, prefers
 `CLAUDE_CODE_REMOTE_SESSION_ID` when available and falls back to a local
-hostname+pid+random short-id. It is the value used in
-`in-progress-by:<sessionId>` claim labels and `[claim]` structured comments,
-so two sessions on the same machine generate distinct claims and a web
-session retains a stable id across its run.
+hostname+pid+random short-id. It is surfaced in the startup
+`[ENV] sessionId=…` log line so two parallel sessions on the same
+machine emit distinguishable diagnostics; a web session retains a stable
+id across its run for log correlation.
 
 ### Trade-offs
 
@@ -457,7 +477,7 @@ surfaced via `Logger.fatal()` at the CLI boundary.
     handler; its `process.exit(exitCode)` implements the contract for
     all entry-point scripts.
 *   **Orchestrator CLIs that print their own summary** (e.g.
-    `sprint-story-close.js`, `epic-runner.js`) may call
+    `story-close.js`, `epic-runner.js`) may call
     `Logger.fatal()` explicitly when the error has already been logged
     in a structured form and a raw stack trace would add noise.
 
@@ -688,7 +708,7 @@ comment was posted.
    marker slug (e.g. `friction: reap-skipped`).
 2. **Window.** 60-second cooldown per key — a stuck poller can't spam
    the ticket but a distinct failure mode still surfaces immediately.
-3. **Emitters.** `sprint-story-close.js` reap failure, `epic-runner`
+3. **Emitters.** `story-close.js` reap failure, `epic-runner`
    wave-poller `getTicket` failure, and `check-maintainability.js`
    baseline-refresh sites are the three known consumers.
 
@@ -710,7 +730,7 @@ attention.
 
 `validateOrchestrationConfig` was wired into `resolveConfig()` in
 Story #436 — but the actual CLI launchers (`epic-runner.js`,
-`plan-runner.js`, `sprint-plan-spec.js`, `sprint-plan-decompose.js`)
+`plan-runner.js`, `epic-plan-spec.js`, `epic-plan-decompose.js`)
 call `resolveConfig()` and immediately dispatch to long-running
 flows. A schema-invalid `.agentrc.json` would surface deep inside the
 dispatch chain instead of at launcher startup, producing a confusing
@@ -771,8 +791,8 @@ is uniform: `(ctx, collaborators, state) -> Promise<state>`.
   `iterate-waves.js`; the coordinator, snapshot, and finalize phases
   stay unchanged.
 - **Pattern reuse**: the same coordinator-plus-phases layout is used
-  by `sprint-story-init.js` (six injectable stages under
-  `lib/story-init/`) and by `sprint-story-close.js`'s post-merge
+  by `story-init.js` (six injectable stages under
+  `lib/story-init/`) and by `story-close.js`'s post-merge
   pipeline.
 
 ## `ctx` Runtime Context (Epic #470)
@@ -889,7 +909,7 @@ One primitive at `lib/util/concurrent-map.js`:
 the first unhandled rejection aggregates out. Three adoption points,
 each chosen for its bottleneck:
 
-- `sprint-wave-gate.js` — no explicit cap (the story count *is* the
+- `wave-gate.js` — no explicit cap (the story count *is* the
   cap); three prior serial fanouts become one outer `concurrentMap`.
 - wave-end `commit-assertion.js` — cap **4**. Git is CPU/disk-bound;
   higher caps don't help and can contend on the repo lock.
@@ -1084,7 +1104,7 @@ observability surface. Three principles:
 
 ### Context
 
-`helpers/sprint-retro.md` historically walked through six sections
+`helpers/epic-retro.md` historically walked through six sections
 regardless of sprint shape. On clean-manifest Epics (zero friction,
 zero parked, zero recuts, zero hotfixes, zero HITL) four of those
 sections degenerate to "nothing notable" boilerplate, burning minutes
@@ -1202,7 +1222,7 @@ config, and skips when both match.
 
 Pattern shape:
 
-1. **Authoritative gate runs first.** `sprint-story-close.js`'s
+1. **Authoritative gate runs first.** `story-close.js`'s
    close-validation chain is the source of truth — when it passes, it
    writes evidence.
 2. **Subsequent phases consult evidence.** `sprint-code-review`,

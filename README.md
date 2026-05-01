@@ -15,7 +15,7 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
 graph LR
     subgraph Human ["👤 Human"]
         A["Create Epic Issue"]
-        B["Trigger /sprint-plan"]
+        B["Trigger /epic-plan"]
     end
 
     subgraph Planning ["🤖 Autonomous Planning"]
@@ -43,20 +43,29 @@ graph LR
 ```
 
 - **GitHub as SSOT** — Issues, Labels, and Projects V2 are the single source
-  of truth. No local playbooks or sprint files.
+  of truth. No local playbooks or per-iteration files.
 - **Provider abstraction** — All ticketing operations flow through
   `ITicketingProvider`, with a shipped GitHub implementation using native
   `fetch()` (Node 20+). No `@octokit/*`, no Axios.
-- **Two-command UX** — `/sprint-plan` generates PRDs, Tech Specs, and the
-  full 4-tier task hierarchy; `/sprint-execute` routes by `type::` label
-  (Story or Epic).
+- **Hierarchy-aligned slash commands** — `/epic-plan` generates PRDs, Tech
+  Specs, and the full 4-tier task hierarchy. Execution is split by
+  hierarchy level: `/epic-execute` owns the wave loop, `/wave-execute` fans
+  out one wave via Agent-tool sub-agents, `/story-execute` runs init →
+  task loop → close for one Story. `/epic-close` bookends with code
+  review, retro, and merge to `main`. The four-skill split, `sprint-*` →
+  `epic-*` rename, and removal of the GitHub remote-trigger surface landed
+  in Epic #900 (v5.31.0) — see [`docs/CHANGELOG.md`](docs/CHANGELOG.md) for
+  the breaking-change migration block.
+- **Single-session fan-out** — `/wave-execute` launches Story sub-agents
+  through the Agent tool inside the operator's Claude session (Epic #900,
+  v5.31.0). Worktree filesystem isolation is preserved; no subprocess
+  spawn, no GitHub Actions runner.
 - **Gate-based quality** — Lint, test, typecheck, MI, and CRAP gates wired
   into close-validation, CI, and pre-push, with base-branch-enforced
   baselines that block silent threshold relaxation.
 - **Secrets in `.env` only** — `GITHUB_TOKEN` and `NOTIFICATION_WEBHOOK_URL`
-  are read from `.env` (or the Claude Code web env-var UI). The
-  `agent-protocols` stdio MCP server has been retired in favour of direct
-  Node CLIs under `.agents/scripts/`.
+  are read from `.env`. The `agent-protocols` stdio MCP server was retired
+  in Epic #702 in favour of direct Node CLIs under `.agents/scripts/`.
 
 ## Get Started
 
@@ -99,7 +108,7 @@ The full configuration reference is in
 Create a GitHub Issue with the `type::epic` label, then run:
 
 ```text
-/sprint-plan [EPIC_NUMBER]
+/epic-plan [EPIC_NUMBER]
 ```
 
 See [SDLC.md](.agents/SDLC.md) for the full end-to-end workflow.
@@ -109,23 +118,21 @@ See [SDLC.md](.agents/SDLC.md) for the full end-to-end workflow.
 ## How to execute an Epic
 
 > **Canonical reference:** [`.agents/SDLC.md`](.agents/SDLC.md) is the
-> end-to-end workflow guide, including the full local-vs-remote decision
-> matrix and HITL touchpoints. The summary below is just orientation.
+> end-to-end workflow guide, including HITL touchpoints. The summary below
+> is just orientation.
 
-Two invocation paths share a single engine:
+Pick the level of the hierarchy you want to drive:
 
-| Path                                  | Command                        | Where it runs                         |
-| ------------------------------------- | ------------------------------ | ------------------------------------- |
-| Local, operator-driven                | `claude /sprint-execute <id>`  | Your workstation, against your quota  |
-| Remote, GitHub-triggered              | Add `agent::dispatching` label | `.github/workflows/epic-orchestrator.yml` |
+| Skill              | Command                            | What it does                                                                       |
+| ------------------ | ---------------------------------- | ---------------------------------------------------------------------------------- |
+| `/epic-execute`    | `/epic-execute <epicId>`           | Owns the wave loop for the whole Epic; fans out via `/wave-execute`.               |
+| `/wave-execute`    | `/wave-execute <epicId> <waveN>`   | Runs one wave only; fans out Stories via Agent-tool sub-agents.                    |
+| `/story-execute`   | `/story-execute <storyId>`         | Init → task loop → close for one Story.                                            |
+| `/epic-close`      | `/epic-close <epicId>`             | Bookend: code review, retro, merge to `main`, close Epic + context tickets.        |
 
-Both paths route by `type::` label — pass a Story ID for a single Story, or an
-Epic ID to run end-to-end. Add `epic::auto-close` to chain
-`/sprint-code-review` → `/sprint-retro` → `/sprint-close` autonomously after
-the final wave lands.
-
-See [`docs/remote-orchestrator.md`](docs/remote-orchestrator.md) for the
-remote runner contract, secrets, and resumption semantics.
+Add `epic::auto-close` to the Epic before running `/epic-execute` to chain
+`/epic-close` automatically after the final wave lands. The label is read
+once at startup and ignored mid-run; applying it post-hoc has no effect.
 
 ---
 
@@ -169,12 +176,11 @@ npm run test:coverage  # Tests with 85% coverage gate
 
 | Document                                                      | Purpose                                             |
 | ------------------------------------------------------------- | --------------------------------------------------- |
-| [SDLC Workflow](.agents/SDLC.md)                              | **Canonical** end-to-end sprint lifecycle narrative |
+| [SDLC Workflow](.agents/SDLC.md)                              | **Canonical** end-to-end Epic lifecycle narrative   |
 | [Consumer Guide](.agents/README.md)                           | Setup, configuration, scripts, and APIs             |
 | [Workflow Reference](docs/workflows.md)                       | Slash-command index grouped by lifecycle phase      |
 | [Configuration](docs/configuration.md)                        | Every `.agentrc.json` key and default               |
 | [Architecture](docs/architecture.md)                          | Module map, interfaces, and data flow               |
-| [Remote Orchestrator](docs/remote-orchestrator.md)            | Runner contract, secrets, resumption semantics      |
 | [Project Board](docs/project-board.md)                        | Projects V2 Status field, columns, Views            |
 | [Worktree Lifecycle](.agents/workflows/worktree-lifecycle.md) | Per-story `git worktree` isolation                  |
 | [Patterns](docs/patterns.md)                                  | Execution-model patterns and operator playbooks     |

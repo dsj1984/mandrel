@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * .agents/scripts/sprint-wave-gate.js — Wave Completeness Gate
+ * .agents/scripts/wave-gate.js — Wave Completeness Gate
  *
  * Reads the latest `dispatch-manifest` structured comment on an Epic — the
  * single source of truth for which Stories the sprint committed to — and
@@ -23,7 +23,7 @@
  * waive. Open recuts likewise halt unless `--allow-open-recuts` is set.
  *
  * Usage:
- *   node .agents/scripts/sprint-wave-gate.js --epic <EPIC_ID>
+ *   node .agents/scripts/wave-gate.js --epic <EPIC_ID>
  *                                           [--allow-parked]
  *                                           [--allow-open-recuts]
  *
@@ -89,7 +89,7 @@ export async function runWaveGate({
   injectedConcurrency,
 } = {}) {
   if (!epicId || Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node sprint-wave-gate.js --epic <EPIC_ID>');
+    Logger.fatal('Usage: node wave-gate.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();
@@ -272,4 +272,4 @@ async function main() {
   });
 }
 
-runAsCli(import.meta.url, main, { source: 'sprint-wave-gate' });
+runAsCli(import.meta.url, main, { source: 'wave-gate' });

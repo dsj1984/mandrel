@@ -5,8 +5,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { __setGitRunners } from '../.agents/scripts/lib/git-utils.js';
 import { WorktreeManager } from '../.agents/scripts/lib/worktree-manager.js';
-import { runStoryClose } from '../.agents/scripts/sprint-story-close.js';
-import { runStoryInit } from '../.agents/scripts/sprint-story-init.js';
+import { runStoryClose } from '../.agents/scripts/story-close.js';
+import { runStoryInit } from '../.agents/scripts/story-init.js';
 import { MockProvider } from './fixtures/mock-provider.js';
 
 const gitHistory = [];

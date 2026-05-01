@@ -1,10 +1,11 @@
 {
   "name": "agent-protocols",
-  "version": "5.30.5",
+  "version": "5.31.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "node --experimental-test-module-mocks --test \"tests/**/*.test.js\"",
+    "typecheck": "node -e \"process.exit(0)\"",
     "test:coverage": "c8 --reporter=json --reporter=text --include='.agents/scripts/**' --exclude='.agents/scripts/agents-bootstrap-github.js' --exclude='.agents/scripts/context-hydrator.js' --exclude='.agents/scripts/dispatcher.js' --exclude='.agents/scripts/health-monitor.js' --exclude='.agents/scripts/notify.js' --exclude='.agents/scripts/ticket-decomposer.js' --exclude='.agents/scripts/providers/github.js' --lines=85 --branches=70 --functions=75 node --experimental-test-module-mocks --test \"tests/**/*.test.js\"",
     "lint:md": "markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
     "lint": "biome lint . && markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",

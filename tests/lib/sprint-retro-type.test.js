@@ -12,7 +12,7 @@ const RETRO_SKILL_PATH = path.resolve(
   '.agents',
   'workflows',
   'helpers',
-  'sprint-retro.md',
+  'epic-retro.md',
 );
 
 test('sprint-retro skill posts via `retro` type and never falls back to notification', async () => {
@@ -34,7 +34,7 @@ test('sprint-retro skill posts via `retro` type and never falls back to notifica
     const line = lines[i];
     if (/type:\s*['"`]notification['"`]/.test(line)) {
       assert.fail(
-        `sprint-retro.md line ${i + 1} routes through type: 'notification' — ` +
+        `epic-retro.md line ${i + 1} routes through type: 'notification' — ` +
           `retro must use type: 'retro' (regression guard for Story #449).`,
       );
     }

@@ -1009,7 +1009,7 @@ and this project adheres to
     stale architectural decisions and patterns.
   - Updated `context-indexer.js` to explicitly ignore the `docs/archive/`
     directory, preventing stale context from polluting Local RAG.
-  - Integrated the Gardener workflow into `sprint-retro.md` as a mandatory
+  - Integrated the Gardener workflow into `epic-retro.md` as a mandatory
     close-out step.
   - Updated SDLC and README to reflect the new documentation lifecycle and the
     `docs/archive/` directory standard.
@@ -1085,7 +1085,7 @@ and this project adheres to
   - Solidified the safety guidelines in the core `instructions.md`.
 
 - **Telemetry-Driven Retro Recommendations (Self-Healing)**:
-  - Enhanced `.agents/workflows/sprint-retro.md` and the `architect` persona to
+  - Enhanced `.agents/workflows/epic-retro.md` and the `architect` persona to
     mandate macro-analysis of `agent-friction-log.json`.
   - Modified `.agents/templates/sprint-retro-template.md` to format Protocol
     Optimization Recommendations as "agent-ready" markdown snippets, creating an
@@ -1302,7 +1302,7 @@ and this project adheres to
     `playbook.md` editing to eliminate race conditions during concurrent
     execution.
 - **Clarified Testing Responsibilities**:
-  - Updated `sprint-testing.md` and `audit-quality.md` to explicitly demarcate
+  - Updated `epic-testing.md` and `audit-quality.md` to explicitly demarcate
     that Software Engineers (SWEs) are responsible for unit and integration
     testing during development, while the QA persona focuses exclusively on E2E
     automation and documentation during integration.

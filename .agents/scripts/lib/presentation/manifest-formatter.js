@@ -408,7 +408,7 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('3. Run: `/sprint-execute #[Story ID]`');
   lines.push('');
   lines.push(
-    '> **Tip:** Story closure and dashboard refresh are handled automatically by `sprint-story-close.js`. ' +
+    '> **Tip:** Story closure and dashboard refresh are handled automatically by `story-close.js`. ' +
       'Check the updated `temp/` manifest files after closing a story.',
   );
   lines.push('');
@@ -426,7 +426,7 @@ export const renderManifestMarkdown = formatManifestMarkdown;
 /**
  * Format the per-story execution manifest. Pure: caller must supply
  * `opts.settings` (typically the resolved agentSettings bag) so we can cite
- * the canonical `sprint-story-init.js` / `sprint-story-close.js` paths without
+ * the canonical `story-init.js` / `story-close.js` paths without
  * touching `resolveConfig` (fs).
  *
  * `scriptsRoot` lives under `settings.paths.*` post-Epic #773 Story 9 (it
@@ -474,8 +474,8 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
   lines.push('## Execution Steps');
   lines.push('');
 
-  const initPath = `${scriptsRoot}/sprint-story-init.js`;
-  const closePath = `${scriptsRoot}/sprint-story-close.js`;
+  const initPath = `${scriptsRoot}/story-init.js`;
+  const closePath = `${scriptsRoot}/story-close.js`;
 
   lines.push(
     `1. \`node ${initPath} --story <storyId>\` (bootstraps branch, transitions tasks)`,
