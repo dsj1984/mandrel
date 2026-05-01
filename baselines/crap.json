@@ -514,82 +514,22 @@
       "startLine": 199
     },
     {
-      "crap": 42,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "killProcessTree",
-      "startLine": 36
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "readStoryOutcome",
-      "startLine": 61
-    },
-    {
-      "crap": 30,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "pollStoryOutcome",
-      "startLine": 80
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "resolveLogsDir",
-      "startLine": 99
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "resolveIdleTimeoutMs",
-      "startLine": 103
-    },
-    {
       "crap": 6.839650145772595,
       "file": ".agents/scripts/epic-runner.js",
       "method": "parseArgs",
-      "startLine": 108
+      "startLine": 18
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-runner.js",
       "method": "printUsage",
-      "startLine": 123
+      "startLine": 33
     },
     {
-      "crap": 13.452042546890148,
+      "crap": 15.8865,
       "file": ".agents/scripts/epic-runner.js",
       "method": "main",
-      "startLine": 129
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "<anon method-2>",
-      "startLine": 192
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "<anon method-3>",
-      "startLine": 194
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "defaultSpawn",
-      "startLine": 214
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "defaultRunSkill",
-      "startLine": 316
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-runner.js",
-      "method": "attachIdleWatchdog",
-      "startLine": 381
+      "startLine": 39
     },
     {
       "crap": 2,
@@ -925,7 +865,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 326
+      "startLine": 315
     },
     {
       "crap": 2,
@@ -1939,31 +1879,13 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner.js",
       "method": "runEpic",
-      "startLine": 46
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner.js",
-      "method": "runEpicWithContext",
-      "startLine": 54
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js",
-      "method": "cmdQuote",
-      "startLine": 23
+      "startLine": 43
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js",
-      "method": "buildWindowsCmdline",
-      "startLine": 32
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/build-claude-spawn.js",
-      "method": "buildClaudeSpawn",
-      "startLine": 43
+      "file": ".agents/scripts/lib/orchestration/epic-runner.js",
+      "method": "runEpicWithContext",
+      "startLine": 51
     },
     {
       "crap": 7,
@@ -1990,28 +1912,22 @@
       "startLine": 154
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "resolveProgressLogFile",
-      "startLine": 34
-    },
-    {
-      "crap": 1.0033248770626706,
+      "crap": 1.0039992481413493,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "createEpicRunnerCollaborators",
-      "startLine": 41
+      "startLine": 28
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-1>",
-      "startLine": 46
+      "method": "<anon method-2>",
+      "startLine": 58
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "<anon method-3>",
-      "startLine": 76
+      "startLine": 59
     },
     {
       "crap": 2.011661807580175,
@@ -2062,70 +1978,70 @@
       "startLine": 121
     },
     {
-      "crap": 2.116522530723714,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/phases/smoke-test.js",
-      "method": "runSmokeTestPhase",
-      "startLine": 14
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/phases/smoke-test.js",
-      "method": "<anon method-1>",
-      "startLine": 17
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
       "method": "runSnapshotPhase",
       "startLine": 11
     },
     {
+      "crap": 10.437988000328758,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "parseStoryRunProgressComment",
+      "startLine": 57
+    },
+    {
+      "crap": 42,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "phaseToState",
+      "startLine": 81
+    },
+    {
       "crap": 7,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "deriveState",
-      "startLine": 494
+      "startLine": 607
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "truncate",
-      "startLine": 505
+      "startLine": 618
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "escapePipes",
-      "startLine": 510
+      "startLine": 623
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "formatElapsed",
-      "startLine": 514
+      "startLine": 627
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
-      "startLine": 531
+      "startLine": 644
     },
     {
       "crap": 7.467679550324179,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
-      "startLine": 561
+      "startLine": 674
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
-      "startLine": 595
+      "startLine": 708
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 611
+      "startLine": 724
     },
     {
       "crap": 16.81716710766064,
