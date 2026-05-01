@@ -1,5 +1,5 @@
 /**
- * sprint-story-close-recovery.js — prior-state detection for story-close.
+ * story-close-recovery.js — prior-state detection for story-close.
  *
  * Reconstructs close-recovery state from git + filesystem signals at invocation
  * time. No on-disk schema — every signal is observable in the checkout.

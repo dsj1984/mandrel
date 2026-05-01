@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "validation-evidence",
   "title": "Validation Evidence",
-  "description": "Per-Story record of which validation gates have passed against which commit SHA. Written by lib/validation-evidence.js to temp/validation-evidence-<storyId>.json (gitignored). Consumed by close-validation, sprint-code-review, and sprint-close Phase 4 to skip identical re-runs against an already-validated tree.",
+  "description": "Per-Story record of which validation gates have passed against which commit SHA. Written by lib/validation-evidence.js to temp/validation-evidence-<storyId>.json (gitignored). Consumed by close-validation, epic-code-review, and epic-close Phase 4 to skip identical re-runs against an already-validated tree.",
   "type": "object",
   "required": ["storyId", "schemaVersion", "records"],
   "properties": {

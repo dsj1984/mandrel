@@ -1,8 +1,8 @@
 /**
  * git-utils.js — Shared Git Shell Utilities
  *
- * Centralizes all Git subprocess invocations for dispatcher.js and
- * sprint-integrate.js, eliminating duplicated wrappers across the codebase.
+ * Centralizes all Git subprocess invocations for the orchestration
+ * engine, eliminating duplicated wrappers across the codebase.
  *
  * Two flavours are provided. Choose based on whether a non-zero git exit
  * code represents a bug (use `gitSync`) or a recoverable runtime state

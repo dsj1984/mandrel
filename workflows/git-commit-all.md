@@ -7,7 +7,7 @@ description: Commit all outstanding changes to Git.
 This is a compatibility alias for [`/git-push --no-push`](git-push.md) — it
 stages and commits all outstanding changes without pushing. See
 [`git-push.md`](git-push.md) for the canonical procedure, hook-failure guidance,
-and the parallel-sprint-execution warning.
+and the parallel-execution warning.
 
 ## Constraint
 

@@ -2,8 +2,9 @@
  * git-merge-orchestrator.js — Ephemeral Candidate Branch Merge Logic
  *
  * Encapsulates the complete merge-and-conflict-resolution lifecycle for
- * a single Task integration candidate. Extracted from sprint-integrate.js
- * to satisfy SRP: the orchestrator owns only Git state transitions.
+ * a single Task integration candidate. Extracted from the legacy
+ * integration script to satisfy SRP: the orchestrator owns only Git
+ * state transitions.
  *
  * Responsibilities:
  *   - Create and tear down the ephemeral candidate branch.

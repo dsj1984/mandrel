@@ -1,30 +1,30 @@
 ---
-description: QA sprint-testing workflow — ingest the Cucumber report from the BDD acceptance suite as sprint evidence
+description: QA Epic-testing workflow — ingest the Cucumber report from the BDD acceptance suite as Epic evidence
 ---
 
-# Sprint Testing (helper)
+# Epic Testing (helper)
 
 > **Helper module.** Not a slash command. Invoked from the QA gate during
-> `/epic-close` or directly by an operator when the sprint-testing ticket
+> `/epic-close` or directly by an operator when the Epic-testing ticket
 > needs refreshed evidence. For ad-hoc BDD runs use `/run-bdd-suite` — this
-> helper owns the sprint-evidence ticket lifecycle on top of it.
+> helper owns the Epic-evidence ticket lifecycle on top of it.
 
-Gather and attach the acceptance-suite evidence that gates sprint closure. The
+Gather and attach the acceptance-suite evidence that gates Epic closure. The
 evidence artifact is the **Cucumber HTML/JSON report** produced by the
 consuming project's BDD suite (typically via `/run-bdd-suite`), **not** a
 hand-ticked markdown checklist.
 
-> **When to run**: During the QA phase of a sprint, after all Story merges
+> **When to run**: During the QA phase of an Epic, after all Story merges
 > have landed on the Epic branch and before `/epic-close`. Also run ad-hoc
-> when a regression is suspected mid-sprint.
+> when a regression is suspected mid-Epic.
 >
 > **Persona**: `qa-engineer` · **Skills**:
 > `stack/qa/gherkin-authoring`, `stack/qa/playwright-bdd`
 
 ## Step 0 — Resolve Context
 
-1. Identify the sprint-testing ticket for the current Epic (the QA evidence
-   ticket produced by sprint planning).
+1. Identify the Epic-testing ticket for the current Epic (the QA evidence
+   ticket produced by Epic planning).
 2. Confirm the Epic branch is green: all child Story branches merged, CI
    passing.
 3. Decide the tag slice to run:
@@ -54,7 +54,7 @@ the same Cucumber JSON + HTML artifacts.
 
 ## Step 2 — Collect the Evidence Artifact
 
-The evidence package for the sprint-testing ticket is:
+The evidence package for the Epic-testing ticket is:
 
 - **Cucumber JSON** — primary, machine-readable record of the run. Required.
 - **Cucumber HTML** — human-readable companion. Required when available.
@@ -68,26 +68,26 @@ do not paste — large artifacts.
 
 ## Step 3 — Attach and Transition
 
-1. Comment on the sprint-testing ticket with:
+1. Comment on the Epic-testing ticket with:
    - The suite summary from Step 2.
    - Links (or attachments) to the Cucumber JSON, Cucumber HTML, and any
      trace zips.
    - The commit SHA the run executed against.
 2. If every scenario passed (no `failed`, no `undefined`), transition the
-   sprint-testing ticket to `agent::done`.
+   Epic-testing ticket to `agent::done`.
 3. If any scenario failed or is undefined, leave the ticket in its current
    state and open a follow-up ticket per failure with:
    - Scenario name and `.feature` file path.
    - One-line symptom.
    - Link to the failing scenario's trace zip.
 
-Do not close the sprint-testing ticket on a failed run. `/epic-close`
+Do not close the Epic-testing ticket on a failed run. `/epic-close`
 depends on green evidence.
 
 ## Deprecated — Markdown Checklist Flow
 
 Earlier revisions of this workflow asked the QA reviewer to tick items in a
-hand-maintained markdown checklist (`sprint-<N>/test-plan.md`) and attach
+hand-maintained markdown checklist (`epic-<id>/test-plan.md`) and attach
 that file as evidence. **That flow is deprecated.** Reasons:
 
 - Hand-ticked checklists drift from the code and cannot be re-executed.
@@ -105,7 +105,7 @@ and deleting the checklist in the same change.
 
 - **Never** substitute a hand-authored checklist or prose summary for the
   Cucumber report. The report must be the output of an actual run.
-- **Never** close the sprint-testing ticket while any scenario is `failed` or
+- **Never** close the Epic-testing ticket while any scenario is `failed` or
   `undefined`.
 - **Always** record the commit SHA the suite ran against, so the evidence is
   pinned to a verifiable tree state.
