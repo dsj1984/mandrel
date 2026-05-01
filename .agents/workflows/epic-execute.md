@@ -371,5 +371,5 @@ parent session, and the per-wave `wave-run-progress` upsert and the rolled-up
   than only in chat.
 - **Never** spawn a subprocess to dispatch a Story or a wave. In-session
   Agent-tool fan-out is the only supported dispatch path; the legacy
-  `claude -p '/sprint-execute <id>' --dangerously-skip-permissions` pipeline
+  `claude -p '/story-execute <id>' --dangerously-skip-permissions` pipeline
   is gone.

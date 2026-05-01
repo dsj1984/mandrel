@@ -4,7 +4,7 @@ description: >-
   via GitHub provider, clean up branches, and post the retrospective.
 ---
 
-# Sprint Close
+# /epic-close [Epic ID]
 
 This workflow is the **terminal step** of the Epic lifecycle. It promotes the
 fully integrated and reviewed `epic/<epicId>` branch into `main`, closes the
@@ -15,7 +15,7 @@ Documentation Freshness, Code Review, Pre-Merge Validation, Merge to Main,
 Retro, Finalize, Notify. Each phase is a cohesive checkpoint: skipping ahead
 strands partial state on GitHub, so run them in order.
 
-> **When to run**: As soon as all child work is closed. `/sprint-close`
+> **When to run**: As soon as all child work is closed. `/epic-close`
 > auto-invokes the mandatory pre-merge gates (the `helpers/epic-code-review.md`
 > module in the Code Review phase and `helpers/epic-retro.md` in the Retro
 > phase) when they have not already been completed, so operators no longer
@@ -69,7 +69,7 @@ pass.
 
 Every Story in the Epic's frozen dispatch manifest must be closed, along with
 every open recut and every parked follow-on. The manifest lives as a
-`dispatch-manifest` structured comment on the Epic — `/sprint-plan` and every
+`dispatch-manifest` structured comment on the Epic — `/epic-plan` and every
 subsequent dispatcher run refresh it, so it is the single source of truth for
 "which Stories did the sprint actually commit to?"
 
@@ -80,7 +80,7 @@ node [SCRIPTS_ROOT]/wave-gate.js --epic [EPIC_ID]
 If the script exits non-zero: **STOP IMMEDIATELY.** The output lists every
 manifest Story, recut, and parked follow-on that is still open, with its wave
 and title. Close or re-dispatch the outstanding work before re-running
-`/sprint-close`. Pass `--allow-parked` / `--allow-open-recuts` to waive once
+`/epic-close`. Pass `--allow-parked` / `--allow-open-recuts` to waive once
 the operator has deliberately deferred the follow-on work.
 
 > If `temp/dispatch-manifest-<epicId>.{md,json}` has drifted or was lost,
@@ -116,7 +116,7 @@ on them would block every Epic.
 
 If ANY planned descendant is still open, the script exits non-zero and
 lists every open id. **STOP IMMEDIATELY** and resolve the open work
-before re-running `/sprint-close`.
+before re-running `/epic-close`.
 
 ---
 
@@ -182,7 +182,7 @@ reviews, and compliance checks read back from it.
 2. Inspect the resulting findings:
    - **Any 🔴 Critical Blocker** — STOP. Relay the blockers to the operator
      and do not proceed to Phase 4. The operator decides whether to fix on
-     the Epic branch and re-run `/sprint-close`, or to override explicitly.
+     the Epic branch and re-run `/epic-close`, or to override explicitly.
    - **Only 🟠/🟡/🟢 findings** — log them as "non-blocking review findings"
      and continue. The full report is already persisted on the Epic.
 3. If the operator passes `--skip-code-review` at invocation time, skip this

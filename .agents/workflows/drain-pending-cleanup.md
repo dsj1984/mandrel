@@ -23,8 +23,8 @@ PowerShell `Get-CimInstance Win32_Process`, terminating them with
 
 | Trigger          | Caller                                                                       |
 | ---------------- | ---------------------------------------------------------------------------- |
-| `/sprint-close`  | [`epic-close.js`](../scripts/epic-close.js) Phase 7 (before `wm.gc()`)   |
-| `/sprint-plan-spec` / `/sprint-plan-decompose` | [`drainPendingCleanupAtBoot`](../scripts/epic-plan-spec.js) → [`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
+| `/epic-close`    | [`epic-close.js`](../scripts/epic-close.js) Phase 7 (before `wm.gc()`)   |
+| `/epic-plan`     | [`drainPendingCleanupAtBoot`](../scripts/epic-plan-spec.js) → [`worktree-sweep.js`](../scripts/lib/orchestration/plan-runner/worktree-sweep.js) |
 | Story merge close | [`story-close.js`](../scripts/story-close.js) (`drainPendingCleanupAfterClose`) |
 
 All automatic paths call `forceDrainPendingCleanup()` (or are folded into

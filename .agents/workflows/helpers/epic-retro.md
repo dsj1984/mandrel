@@ -8,8 +8,8 @@ description: >-
 # Sprint Retro (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/sprint-close` Phase 6 when the Epic has no retro comment yet. To run a
-> retro directly, use `/sprint-close [Epic_ID]` — it delegates here (or pass
+> `/epic-close` Phase 6 when the Epic has no retro comment yet. To run a
+> retro directly, use `/epic-close [Epic_ID]` — it delegates here (or pass
 > `--skip-retro` to bypass).
 
 This helper generates a sprint retrospective by reading execution data
@@ -64,7 +64,7 @@ const compact = isCleanManifest(counts);
   default composition that has always applied).
 
 > **Operator override.** If the caller passed `--full-retro` (via
-> `/sprint-close --full-retro` or a direct helper invocation), treat
+> `/epic-close --full-retro` or a direct helper invocation), treat
 > `compact` as `false` regardless of the heuristic and compose the full
 > six-section retro. The `--full-retro` flag is the documented escape
 > hatch for cases where the operator wants the full narrative treatment on
@@ -118,7 +118,7 @@ structures, selected by the Step 0.5 heuristic:
   template below.
 
 Either path ends with the same `<!-- retro-complete: <ISO_TIMESTAMP> -->`
-HTML marker — that marker is the detection signal used by `/sprint-close`'s
+HTML marker — that marker is the detection signal used by `/epic-close`'s
 Retrospective Gate (Step 1.5) when a structured-comment lookup is unavailable.
 The final post in Step 3 is `type: 'retro'` regardless of which path composed
 the body, so downstream tooling sees the same comment shape.
@@ -147,7 +147,7 @@ compose Action Items for Next Epic          → upsertStructuredComment(epicId, 
 comment of the same type on each call, so no comment sprawl occurs. The
 partial body does **not** carry the `retro-complete:` marker — it is
 informational only. Step 3 then posts the final body as `type: 'retro'`
-with the `retro-complete:` marker, which `/sprint-close` Phase 6 uses as
+with the `retro-complete:` marker, which `/epic-close` Phase 6 uses as
 its sole completion gate (the regex matches `retro-complete:` exclusively,
 so `retro-partial:` checkpoints never trip the gate).
 
@@ -200,7 +200,7 @@ detect completion even when the structured-comment type metadata is not
 available to the caller.
 
 The `## 🪞 Sprint Retrospective — Epic #[EPIC_ID]` heading should appear at the
-top for human readability, but `/sprint-close`'s Retrospective Gate no longer
+top for human readability, but `/epic-close`'s Retrospective Gate no longer
 depends on a heading grep — it prefers `provider.getComments(epicId)` filtered
 by `type === "retro"` and falls back to grepping for the `retro-complete:` HTML
 marker added at the end of the body.
@@ -277,12 +277,12 @@ node -e "
 ```
 
 The retro body **must** still end with the `<!-- retro-complete: <ISO_TIMESTAMP> -->`
-HTML marker — `/sprint-close`'s Retrospective Gate (Phase 6) falls back to
+HTML marker — `/epic-close`'s Retrospective Gate (Phase 6) falls back to
 grepping that marker when the structured-comment type lookup is unavailable.
 This final `retro` comment replaces any prior `retro-partial` checkpoint
 posted during Step 2.
 
-Record the returned comment URL — the caller (typically `/sprint-close`) may
+Record the returned comment URL — the caller (typically `/epic-close`) may
 echo it in its summary.
 
 ### Manual verification
@@ -299,7 +299,7 @@ stop and fix before continuing.
 If the comment post fails (network / 4xx / 5xx), **do not** write the retro to
 disk. Surface the error to the operator and abort. The retro body lives only in
 the agent's working memory for the current session — the operator re-runs
-`/sprint-close [EPIC_ID]` after resolving connectivity (which will re-invoke
+`/epic-close [EPIC_ID]` after resolving connectivity (which will re-invoke
 this helper) so the content is regenerated from the ticket graph (the
 authoritative source) and posted fresh.
 The `retro-partial` checkpoint from Step 2 remains on the Epic so prior
@@ -324,7 +324,7 @@ Commit these with a conventional `docs(...)` message on the Epic branch. Do
 - **Never** write the retro to `docs/retros/` or any other local path as the
   permanent artifact. GitHub Epic comments are the source of truth.
 - **Never** omit the closing `<!-- retro-complete: <ISO_TIMESTAMP> -->` marker —
-  `/sprint-close`'s Retrospective Gate falls back to grepping for it when the
+  `/epic-close`'s Retrospective Gate falls back to grepping for it when the
   structured-comment lookup is unavailable.
 - **Never** post the retro body through `notify.js`. That path fires the
   notification webhook and leaks the long-form retro to Make.com / Slack /
@@ -332,14 +332,14 @@ Commit these with a conventional `docs(...)` message on the Epic branch. Do
   or `provider.postComment(..., { type: 'retro' })` exclusively — both post
   only to GitHub and never touch the webhook.
 - **Always** post the retro as `type: retro` via the structured comment API so
-  downstream tooling (and the `/sprint-close` gate) can filter it.
+  downstream tooling (and the `/epic-close` gate) can filter it.
 - **Always** re-run the workflow end-to-end if the final comment post fails.
   The `retro-partial` checkpoint written in Step 2 preserves section-level
   progress across the re-run — resume composition from the next unwritten
   section rather than starting over.
 - GitHub is the Single Source of Truth in v5 — all execution data must be
   sourced from the ticket graph.
-- **`--full-retro` override.** `/sprint-close --full-retro` (or an explicit
+- **`--full-retro` override.** `/epic-close --full-retro` (or an explicit
   caller-side flag) forces the full six-section path regardless of the Step
   0.5 heuristic. The override is opt-in — the compact path stays the default
   for clean manifests. Use it when numeric signals miss an observation the

@@ -23,7 +23,7 @@
  *   0 — Initialization complete. Agent can start implementation.
  *   1 — Blocked or error (details in stderr).
  *
- * @see .agents/workflows/sprint-execute.md Mode B
+ * @see .agents/workflows/story-execute.md
  */
 
 import path from 'node:path';
@@ -408,7 +408,7 @@ function buildStoryInitResult({
 
 /**
  * Map the structured install status to the workflow-facing tri-state string.
- * Workflow consumers (`sprint-execute.md` Step 0.5) read this exact value
+ * Workflow consumers (`story-execute.md` Step 0.5) read this exact value
  * out of the `story-init` structured comment via
  * `gh issue view --json comments`.
  *

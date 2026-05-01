@@ -368,13 +368,15 @@ repository maintenance.
 | `audit-sre.md`           | `/audit-sre`           | Production release readiness audit          |
 | `audit-ux-ui.md`         | `/audit-ux-ui`         | Design system consistency review            |
 
-### Sprint Workflows
+### Epic Workflows
 
 | Workflow            | Slash Command                                                             | Purpose                                                                 |
 | ------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `sprint-plan.md`    | `/sprint-plan [--phase spec\|decompose]`                                  | PRD, Tech Spec, and task generation. `--phase` runs one phase only.     |
-| `sprint-execute.md` | `/sprint-execute`                                                         | Routes by `type::` label — Epic orchestration or single-Story execution |
-| `sprint-close.md`   | `/sprint-close`                                                           | Final merge, tag release, close Epic (auto-invokes review + retro)      |
+| `epic-plan.md`      | `/epic-plan`                                                              | PRD, Tech Spec, and task generation (PRD + decomposition phases).       |
+| `epic-execute.md`   | `/epic-execute`                                                           | Owns the wave loop for an Epic; fans out via `/wave-execute`.           |
+| `wave-execute.md`   | `/wave-execute`                                                           | Fans out Stories in a single wave via the Agent tool.                   |
+| `story-execute.md`  | `/story-execute`                                                          | Init → Task loop → close for a single Story.                            |
+| `epic-close.md`     | `/epic-close`                                                             | Final merge, tag release, close Epic (auto-invokes review + retro)      |
 
 ### QA Workflows
 
@@ -385,18 +387,18 @@ repository maintenance.
 ### Helper Modules (`workflows/helpers/`)
 
 Helpers are path-included by parent workflows and are **not** exposed as
-slash commands. They exist so the orchestrators (`/sprint-plan`,
-`/sprint-close`, `/sprint-execute`) stay readable while each phase stays
+slash commands. They exist so the orchestrators (`/epic-plan`,
+`/epic-close`, `/epic-execute`) stay readable while each phase stays
 independently testable. Invoke them by running the parent workflow.
 
 | Helper                           | Invoked by                                                  | Purpose                                                |
 | -------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------ |
-| `epic-plan-spec.md`            | `/sprint-plan` (Phase 1) · `/sprint-plan --phase spec`      | PRD + Tech Spec authoring and persistence              |
-| `epic-plan-decompose.md`       | `/sprint-plan` (Phase 2) · `/sprint-plan --phase decompose` | Feature / Story / Task decomposition                   |
-| `epic-code-review.md`          | `/sprint-close` Phase 3 · `/sprint-execute` bookend         | Comprehensive code review, persists structured comment |
-| `epic-retro.md`                | `/sprint-close` Phase 6                                     | Retrospective from ticket graph + friction logs        |
-| `epic-testing.md`              | `/sprint-close` QA gate · operator                          | Ingests Cucumber evidence onto the sprint-testing ticket |
-| `_merge-conflict-template.md`    | `/sprint-close`, `/sprint-execute`, `/git-merge-pr`         | Shared merge-conflict resolution procedure             |
+| `epic-plan-spec.md`            | `/epic-plan` (Phase 1)                                       | PRD + Tech Spec authoring and persistence              |
+| `epic-plan-decompose.md`       | `/epic-plan` (Phase 2)                                       | Feature / Story / Task decomposition                   |
+| `epic-code-review.md`          | `/epic-close` Phase 3 · `/epic-execute` bookend             | Comprehensive code review, persists structured comment |
+| `epic-retro.md`                | `/epic-close` Phase 6                                       | Retrospective from ticket graph + friction logs        |
+| `epic-testing.md`              | `/epic-close` QA gate · operator                            | Ingests Cucumber evidence onto the epic-testing ticket |
+| `_merge-conflict-template.md`    | `/epic-close`, `/story-execute`, `/git-merge-pr`            | Shared merge-conflict resolution procedure             |
 | `agents-sync-config.md`          | `/agents-update` Step 3                                     | Reconcile `.agentrc.json` against the framework defaults |
 
 ### Utility Workflows

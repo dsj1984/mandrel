@@ -1,10 +1,10 @@
 ---
 description:
-  Orchestrates end-to-end sprint planning (PRD, Tech Spec, and Work Breakdown)
+  Orchestrates end-to-end Epic planning (PRD, Tech Spec, and Work Breakdown)
   for a GitHub Epic.
 ---
 
-# /sprint-plan [Epic ID] [--phase spec|decompose]
+# /epic-plan [Epic ID]
 
 ## Role
 
@@ -16,31 +16,11 @@ You are the master orchestrator for the v5 Epic-Centric ticketing pipeline. Your
 goal is to transform a high-level Epic into a fully decomposed, ready-to-execute
 backlog of Features, Stories, and Tasks.
 
-`/sprint-plan` is the unified planning entry point. It delegates to the two
+`/epic-plan` is the unified planning entry point. It delegates to the two
 phase helpers — [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
-[`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and
-supports two invocation modes:
-
-- **Local IDE mode (no `--phase`):** run both phases sequentially with a human
-  confirmation gate between them. This is the default for operators typing
-  `/sprint-plan <Epic_ID>` in Claude Code.
-- **Single-phase mode (`--phase spec` or `--phase decompose`):** run exactly
-  one phase and stop. Useful when the operator wants to pause between phases
-  for additional review.
-
-### Phase routing
-
-Parse the slash-command arguments for a `--phase` flag (either
-`--phase spec|decompose` or `--phase=spec|decompose`). The Epic ID is the
-remaining positional argument. Order is not significant.
-
-- `--phase spec` → execute **Phase 1 only** (below), then stop at the
-  operator handoff. Skip Phase 2 through Phase 5.
-- `--phase decompose` → skip Phase 1 and the Phase 0 re-plan prompt, and
-  execute **Phases 2–5**. Assumes the Epic is already on
-  `agent::review-spec` with a linked PRD / Tech Spec.
-- No `--phase` flag → run the full chain (Phase 0 → Phase 5) with the
-  operator confirmation gate at the end of Phase 1.
+[`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md) — and runs
+both phases sequentially with a human confirmation gate between them. The Epic
+ID is the single positional argument.
 
 As of v5.6, planning artifacts (PRD, Tech Spec, ticket decomposition) are
 authored **directly by you, the host LLM** — no external Gemini / Anthropic /
@@ -216,19 +196,19 @@ planned.
    > **Manifest persistence (v5.9.0):** the dispatcher also posts the manifest
    > as a `dispatch-manifest` structured comment on the Epic (idempotent —
    > re-runs replace the prior comment). That comment is the source of truth for
-   > the Wave Completeness Gate in `/sprint-close` Step 0.5 and for any external
+   > the Wave Completeness Gate in `/epic-close` Step 0.5 and for any external
    > wave-tracking tooling.
 
 3. **Handoff**: Provide the user with the recommended next step:
 
-   > "Planning is complete. Select a story from Wave 0 in the table above and
-   > start execution via `/sprint-execute #[Story ID]` using the recommended
-   > model."
+   > "Planning is complete. Run `/epic-execute #[Epic ID]` to start the wave
+   > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
+   > ID]` to drive it directly."
 
 ## Phase 4: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/sprint-execute`. The default `--fast` mode runs only the cheap checks
+`/epic-execute`. The default `--fast` mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. It is non-blocking
 — the script always exits 0; the structured JSON on stdout reports findings.
 
@@ -273,7 +253,7 @@ chooses to gate on them.
      the notification script:
 
    ```bash
-   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Sprint is ready for /sprint-execute." --action
+   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-execute." --action
    ```
 
 ## Troubleshooting

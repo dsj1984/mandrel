@@ -10,7 +10,7 @@ artifact.
 
 > **When to run**: During sprint testing to exercise a targeted slice of the
 > acceptance suite (e.g. `@smoke`, `@risk-high`, `@domain-billing`), for
-> regression passes before `/sprint-close`, or on demand while debugging a
+> regression passes before `/epic-close`, or on demand while debugging a
 > specific Story.
 >
 > **Persona**: `qa-engineer` · **Skills**: `stack/qa/gherkin-authoring`,

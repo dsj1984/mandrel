@@ -7,8 +7,8 @@ description: >-
 
 # Sprint Plan — Decompose Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/sprint-plan` (Phase 2).
-> To run the decompose phase interactively, use `/sprint-plan [Epic_ID]` — it
+> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 2).
+> To run the decompose phase interactively, use `/epic-plan [Epic_ID]` — it
 > delegates here after the spec phase.
 
 ## Role
@@ -21,7 +21,7 @@ This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
 ([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
 / Task ticket hierarchy, persists it to GitHub, and flips the Epic to
-`agent::ready` (parking) so a human can run `/sprint-execute` when execution
+`agent::ready` (parking) so a human can run `/epic-execute` when execution
 should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
@@ -40,7 +40,7 @@ Epic lifecycle state.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
 - **Do not** flip the Epic past `agent::ready` from this helper. Execution
-  begins when an operator runs `/sprint-execute [Epic_ID]`.
+  begins when an operator runs `/epic-execute [Epic_ID]`.
 
 ## Prerequisites
 
@@ -88,7 +88,7 @@ On success the script:
 Delegate the structural invariants (hierarchy completeness, dependency DAG
 acyclicity, missing complexity labels) to `epic-plan-healthcheck.js`. It is
 the single source of truth for post-decompose validation — the Phase 4 run
-inside `/sprint-plan` calls the same script, so local and remote flows agree.
+inside `/epic-plan` calls the same script, so local and remote flows agree.
 
 ```bash
 node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --dry-run
@@ -124,11 +124,11 @@ is the single source of truth for which temp paths this phase owns.
 - Surface the backlog summary and the Wave 0 candidates to the operator:
 
   > "Decomposition complete. Epic #[ID] is on `agent::ready` with NN ticket(s)
-  > across MM Stories. Run `/sprint-execute [Epic_ID]` to begin execution."
+  > across MM Stories. Run `/epic-execute [Epic_ID]` to begin execution."
 
 ## Troubleshooting
 
-- "Epic #N is missing a linked PRD or Tech Spec" — run `/sprint-plan [Epic_ID]`
+- "Epic #N is missing a linked PRD or Tech Spec" — run `/epic-plan [Epic_ID]`
   first (it will run the spec phase if the PRD / Tech Spec are missing).
 - Validator rejects the tickets file — the most common causes are a Story
   with no child Tasks, a Task whose `parent_slug` does not point at a Story,
