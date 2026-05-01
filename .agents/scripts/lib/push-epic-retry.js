@@ -1,7 +1,7 @@
 /**
  * push-epic-retry.js — Bounded retry for concurrent epic-branch pushes.
  *
- * sprint-story-close holds a per-Epic filesystem lock for the rebase / merge /
+ * story-close holds a per-Epic filesystem lock for the rebase / merge /
  * push sequence, but that lock is local to one machine. N sprint sessions on
  * different machines (or different Claude Code web workers) will not see each
  * other's lock and can race on `origin/epic/<id>`. Whoever pushes second will
@@ -56,7 +56,7 @@ export class PushRetryConflictError extends Error {
         `The merge has been aborted and the working tree is clean — no ` +
         `half-merged files remain. Resolve manually by rebasing the story ` +
         `branch onto the updated epic, committing, and re-running ` +
-        `sprint-story-close.\n\n` +
+        `story-close.\n\n` +
         `git stderr:\n${gitStderr}`,
     );
     this.name = 'PushRetryConflictError';

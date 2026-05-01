@@ -1,7 +1,7 @@
 /**
  * Story lifecycle phases.
  *
- * A Story moves through these phases during `/sprint-execute` + `sprint-story-close`:
+ * A Story moves through these phases during `/epic-execute` + `story-close`:
  *
  *   UNSTARTED   → init hasn't run (no branch, no worktree).
  *   PRE_MERGE   → branch created, work in progress on story worktree.

@@ -1,7 +1,7 @@
 /**
  * Verifies that `WorktreeManager.ensure / .reap / .gc / .sweepStaleLocks`
  * are true no-ops when constructed with `config.enabled === false`. The
- * call sites in `sprint-story-init`, `sprint-story-close`, and
+ * call sites in `story-init`, `story-close`, and
  * `post-merge-pipeline` already gate on `wtConfig?.enabled`, but a
  * defense-in-depth guard at the manager level protects against future
  * gating drift on the off-branch (e.g. CLAUDE_CODE_REMOTE web sessions).

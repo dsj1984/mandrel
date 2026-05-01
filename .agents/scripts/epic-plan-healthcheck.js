@@ -5,9 +5,9 @@
 /**
  * epic-plan-healthcheck.js — Post-Plan Readiness Check
  *
- * Runs at the end of /sprint-plan (Phase 4) to validate the backlog and
+ * Runs at the end of /epic-plan (Phase 4) to validate the backlog and
  * optionally prime the execution environment before handing off to
- * /sprint-execute.
+ * /epic-execute.
  *
  * Modes (additive — fast checks always run):
  *   --fast (default)  — config validation + git remote check only.
@@ -28,7 +28,7 @@
  *   node epic-plan-healthcheck.js --epic <EPIC_ID> \
  *     [--fast|--paranoid] [--prime-install] [--dry-run]
  *
- * @see .agents/workflows/sprint-plan.md Phase 4
+ * @see .agents/workflows/epic-plan.md Phase 4
  */
 
 import { spawnSync } from 'node:child_process';

@@ -137,7 +137,7 @@ describe('epic-runner parity', () => {
 
   it('(c) local per-Story init leaves remote Epic label untouched', async () => {
     // This exercises the shape rather than forking a git worktree. Running
-    // the actual sprint-story-init requires filesystem state; in the fake
+    // the actual story-init requires filesystem state; in the fake
     // provider we just confirm that the orchestrator does not rewrite the
     // Epic's executing label when launching a single-story sub-agent.
     const epicId = 321;
@@ -145,7 +145,7 @@ describe('epic-runner parity', () => {
     const provider = buildFakeProvider({ epicId, stories });
 
     const spawn = async ({ storyId }) => {
-      // Simulate sprint-story-init: transitioning child Tasks is a Story-
+      // Simulate story-init: transitioning child Tasks is a Story-
       // scoped side effect; the Story's label set should change but not the
       // Epic's.
       const story = provider._tickets.get(storyId);

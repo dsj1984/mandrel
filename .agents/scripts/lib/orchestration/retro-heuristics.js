@@ -1,5 +1,5 @@
 /**
- * Heuristics that drive which retro path the `sprint-retro` helper composes.
+ * Heuristics that drive which retro path the `epic-retro` helper composes.
  *
  * The compact three-section retro fires when the Epic's dispatch manifest
  * carries zero friction signals. Non-zero on any of the five dimensions

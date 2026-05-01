@@ -4,7 +4,7 @@
 /**
  * story-init.js — Story Execution Initialization
  *
- * Deterministic script that replaces Steps 0-2 of the sprint-execute
+ * Deterministic script that replaces Steps 0-2 of the epic-execute
  * Mode B workflow. Performs all pre-implementation setup by composing six
  * pipeline stages from `lib/story-init/`:
  *

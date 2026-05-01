@@ -75,7 +75,7 @@ test('describeResumePushFailure: missing detail falls back to "unknown"', () => 
   assert.match(out, /unknown/);
 });
 
-test('sprint-story-close script', async (t) => {
+test('story-close script', async (t) => {
   await t.test('fails without --story argument', () => {
     const result = spawnSync('node', [SCRIPT_PATH]);
     assert.strictEqual(result.status, 1);

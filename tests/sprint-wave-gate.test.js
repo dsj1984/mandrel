@@ -88,7 +88,7 @@ class TimingProvider {
   }
 }
 
-describe('sprint-wave-gate — parallel getTicket fanout', () => {
+describe('wave-gate — parallel getTicket fanout', () => {
   it('starts all manifest getTicket calls before any resolves', async () => {
     const storyIds = [101, 102, 103, 104, 105];
     const tickets = Object.fromEntries(
@@ -157,7 +157,7 @@ describe('sprint-wave-gate — parallel getTicket fanout', () => {
   });
 });
 
-describe('sprint-wave-gate — pass/fail/fetch-error contract', () => {
+describe('wave-gate — pass/fail/fetch-error contract', () => {
   it('passes when every manifest story is closed', async () => {
     const provider = new TimingProvider({
       tickets: {

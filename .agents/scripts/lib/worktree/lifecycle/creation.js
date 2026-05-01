@@ -32,7 +32,7 @@ export async function ensure(ctx, storyId, branch) {
   const wtPath = pathFor(ctx, id);
   const existing = findByPath(ctx, wtPath);
 
-  // Phase-boundary callback — invoked even on reuse so sprint-story-init's
+  // Phase-boundary callback — invoked even on reuse so story-init's
   // phase timer records non-null `worktree-create`/`bootstrap`/`install`
   // entries regardless of whether provisioning actually ran. The timer
   // reports the elapsed wall-clock between marks, so reuse paths yield

@@ -6,8 +6,8 @@
  * source of truth; this script is the only writer of .claude/commands/.
  *
  * Only top-level .md files are synced. The `.agents/workflows/helpers/`
- * subdirectory holds path-included modules (e.g. sprint-code-review,
- * sprint-retro) that parent workflows read by relative path — they are
+ * subdirectory holds path-included modules (e.g. epic-code-review,
+ * epic-retro) that parent workflows read by relative path — they are
  * intentionally **not** exposed as slash commands, so helpers/ is skipped.
  *
  * Usage:  node .agents/scripts/sync-claude-commands.js

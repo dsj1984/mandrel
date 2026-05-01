@@ -563,6 +563,6 @@ async function main() {
   }
 }
 
-const progress = Logger.createProgress('sprint-review', { stderr: false });
+const progress = Logger.createProgress('epic-code-review', { stderr: false });
 
 runAsCli(import.meta.url, main, { source: 'epic-code-review' });

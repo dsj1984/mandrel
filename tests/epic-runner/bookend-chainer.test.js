@@ -35,10 +35,10 @@ describe('BookendChainer', () => {
     assert.equal(result.reason, 'autoClose-disabled');
     assert.equal(provider.comments.length, 1);
     assert.match(provider.comments[0].payload.body, /agent::review/);
-    assert.match(provider.comments[0].payload.body, /sprint-code-review/);
+    assert.match(provider.comments[0].payload.body, /epic-code-review/);
   });
 
-  it('invokes only /sprint-close when autoClose=true (review + retro remain operator-driven)', async () => {
+  it('invokes only /epic-close when autoClose=true (review + retro remain operator-driven)', async () => {
     const provider = recordingProvider();
     const calls = [];
     const chainer = new BookendChainer({
@@ -57,13 +57,13 @@ describe('BookendChainer', () => {
     assert.equal(result.completed, true);
     assert.deepEqual(
       calls.map((c) => c.skill),
-      ['/sprint-close'],
-      'auto-close must only fire /sprint-close',
+      ['/epic-close'],
+      'auto-close must only fire /epic-close',
     );
     assert.equal(calls[0].args.epicId, 321);
   });
 
-  it('posts a friction comment when /sprint-close fails under autoClose', async () => {
+  it('posts a friction comment when /epic-close fails under autoClose', async () => {
     const provider = recordingProvider();
     const chainer = new BookendChainer({
       autoClose: true,
@@ -82,7 +82,7 @@ describe('BookendChainer', () => {
       (c) => c.payload.type === 'friction',
     );
     assert.ok(friction, 'friction comment emitted on failure');
-    assert.match(friction.payload.body, /halted at `\/sprint-close`/);
+    assert.match(friction.payload.body, /halted at `\/epic-close`/);
     assert.match(friction.payload.body, /close explode/);
   });
 

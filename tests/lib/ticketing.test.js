@@ -287,7 +287,7 @@ test('ticketing.js', async (t) => {
         'epic-plan-state',
         'parked-follow-ons',
         'dispatch-manifest',
-        // Story #566 — phase-timings summary posted by sprint-story-close.
+        // Story #566 — phase-timings summary posted by story-close.
         'phase-timings',
       ]) {
         assert.ok(
@@ -532,7 +532,7 @@ test('ticketing.js', async (t) => {
       //   - Story auto-closes via cascade
       //   - Feature auto-closes via cascade (pinned behavior — Features are
       //     purely hierarchical groupings with no standalone branch/merge)
-      //   - Epic does NOT auto-close via cascade (reserved for /sprint-close)
+      //   - Epic does NOT auto-close via cascade (reserved for /epic-close)
       // This test pins that contract so a future edit that adds Feature to
       // the exclusion list or drops Epic from it fails loudly.
       mock.tickets[10] = {
@@ -585,7 +585,7 @@ test('ticketing.js', async (t) => {
       );
       assert.ok(
         !mock.tickets[10].labels.includes('agent::done'),
-        'Epic must NOT auto-close via cascade — reserved for /sprint-close',
+        'Epic must NOT auto-close via cascade — reserved for /epic-close',
       );
       assert.ok(
         mock.tickets[10].labels.includes('agent::executing'),

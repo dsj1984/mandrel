@@ -4,7 +4,7 @@ import path from 'node:path';
 /**
  * Detects "worktree residue" — stories that the ticket graph reports as done,
  * but whose `.worktrees/story-<id>/` directory is still on disk. This usually
- * means sprint-story-close failed to reap the worktree (see the Windows
+ * means story-close failed to reap the worktree (see the Windows
  * partial-reap failure mode in friction memory), and a future run of the
  * same story id would collide with the stale directory.
  *

@@ -147,7 +147,7 @@ describe('EpicRunner integration', () => {
     // Real GitHub provider's `getSubTickets` returns the full descendant set
     // (Features, PRD, Tech Spec, Stories, Tasks) via native sub-issues plus
     // body reverse-lookup. The runner must filter to `type::story` before
-    // building the wave DAG — otherwise non-stories reach `sprint-story-init`
+    // building the wave DAG — otherwise non-stories reach `story-init`
     // and fail its type guard.
     const epicId = 500;
     const stories = [{ id: 600, dependencies: [] }];

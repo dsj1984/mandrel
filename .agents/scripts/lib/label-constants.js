@@ -1,7 +1,7 @@
 /**
  * Central source of truth for all GitHub label names used by the orchestrator.
  *
- * Every other module (label-taxonomy, dispatch-engine, sprint-story-close,
+ * Every other module (label-taxonomy, dispatch-engine, story-close,
  * etc.) should import from here rather than using string literals. Renames
  * land in one place.
  */

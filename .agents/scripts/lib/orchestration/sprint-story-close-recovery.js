@@ -207,7 +207,7 @@ function dropWorktreeIfPresent({ cwd, wtPath, progress, logger }) {
   const remove = gitSpawn(cwd, 'worktree', 'remove', '--force', wtPath);
   if (remove.status !== 0) {
     logger.error(
-      `[sprint-story-close] Worktree remove failed: ${remove.stderr || 'unknown'}. ` +
+      `[story-close] Worktree remove failed: ${remove.stderr || 'unknown'}. ` +
         'Attempting prune to clean stale registration.',
     );
   }

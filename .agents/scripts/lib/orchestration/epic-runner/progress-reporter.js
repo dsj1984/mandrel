@@ -11,7 +11,7 @@
  *      structured comment on the Epic issue so operators watching the ticket
  *      see a single in-place update rather than N comments.
  *   5. When `logFile` is set, also appends the rendered snapshot (with an
- *      ISO-timestamped divider) to that path. This lets the /sprint-execute
+ *      ISO-timestamped divider) to that path. This lets the /epic-execute
  *      skill tail the file via `Monitor` to stream progress into IDE chat even
  *      when the runner itself is invoked in a background Bash that doesn't
  *      surface stdout live.
@@ -168,7 +168,7 @@ export class ProgressReporter {
 
     // Optional file sink — when set, every rendered snapshot is appended to
     // this path prefixed by an ISO-timestamped divider. Enables operators
-    // (or the /sprint-execute skill) to tail progress in real time even when
+    // (or the /epic-execute skill) to tail progress in real time even when
     // the runner's stdout is swallowed by a background Bash invocation.
     // Tests omit `logFile` to keep the filesystem clean.
     this.logFile = opts.logFile ?? null;
@@ -637,7 +637,7 @@ function formatElapsed(ms) {
 /**
  * Extract the `{ phases, ... }` payload from a `phase-timings` structured
  * comment. Comment body is the fenced-JSON format produced by
- * `renderPhaseTimingsCommentBody` in sprint-story-close. Returns `null`
+ * `renderPhaseTimingsCommentBody` in story-close. Returns `null`
  * for any parse failure — the caller treats that as "no summary
  * available" without erroring out progress rendering.
  */

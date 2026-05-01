@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-plan.js — Local `/sprint-plan` wrapper.
+ * epic-plan.js — Local `/epic-plan` wrapper.
  *
  * Thin orchestrator that chains the split plan-phase CLIs for IDE-driven
  * planning:
@@ -191,4 +191,4 @@ async function main() {
 // are the two most common consumers.
 export { advancePhase, PLAN_PHASE_NAMES, PLAN_PHASES, PlanCheckpointer };
 
-runAsCli(import.meta.url, main, { source: 'sprint-plan' });
+runAsCli(import.meta.url, main, { source: 'epic-plan' });

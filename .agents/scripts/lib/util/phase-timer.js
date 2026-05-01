@@ -1,8 +1,8 @@
 /**
  * lib/util/phase-timer.js — Per-phase wall-clock timer for the Story lifecycle.
  *
- * A single Story Mode run spans two Node processes (`sprint-story-init` →
- * implement → `sprint-story-close`), so the timer supports snapshot/restore so
+ * A single Story Mode run spans two Node processes (`story-init` →
+ * implement → `story-close`), so the timer supports snapshot/restore so
  * close can pick up where init left off. Phase names are drawn from a fixed
  * enum (tech spec #555 §Data Models) so the emitted `[phase-timing]` log
  * lines and the `phase-timings` structured comment share one schema.
@@ -17,8 +17,8 @@
  *    full summary `{ storyId, totalMs, phases: [{ name, elapsedMs }, ...] }`.
  *    Idempotent — subsequent calls return the cached summary.
  *  - `snapshot()` returns a plain-object that `createPhaseTimer({ restore })`
- *    can round-trip. Used by `sprint-story-init` to hand the timer state to
- *    `sprint-story-close` via a small on-disk file in the main repo `.git/`.
+ *    can round-trip. Used by `story-init` to hand the timer state to
+ *    `story-close` via a small on-disk file in the main repo `.git/`.
  *
  * Invariants
  * ----------

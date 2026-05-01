@@ -1,5 +1,5 @@
 /**
- * branch-initializer.js — Stage 5 of the sprint-story-init pipeline.
+ * branch-initializer.js — Stage 5 of the story-init pipeline.
  *
  * Materialises the Story branch either in the main checkout (single-tree
  * mode) or behind a dedicated git worktree (isolated mode). Both paths
@@ -237,7 +237,7 @@ export async function bootstrapWorktree({
     logger: {
       info: (m) => progress('WORKTREE', m),
       warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
-      error: (m) => Logger.error(`[sprint-story-init] ${m}`),
+      error: (m) => Logger.error(`[story-init] ${m}`),
     },
     onPhase,
   });

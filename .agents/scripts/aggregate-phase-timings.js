@@ -3,7 +3,7 @@
 /**
  * aggregate-phase-timings.js — phase-timings aggregator CLI.
  *
- * Reads the `phase-timings` structured comments that `sprint-story-close`
+ * Reads the `phase-timings` structured comments that `story-close`
  * posts on every closed Story, across a caller-supplied list of Epic IDs,
  * and prints p50/p95 per phase plus recommended concurrency caps for the
  * three v5.21.0 `concurrentMap` adoption sites (wave-gate, commit-assertion,
@@ -164,7 +164,7 @@ export function aggregate(summaries) {
  *
  * Heuristic (documented so operators can sanity-check):
  *   - waveGate: 0 (uncapped) when sample count < 50, else cap at 16.
- *     The wave-gate reads Story tickets during /sprint-close; a single
+ *     The wave-gate reads Story tickets during /epic-close; a single
  *     Epic's fanout is bounded by its story count, so uncapped suits
  *     typical Epics (< 20 stories). A cap kicks in only for very
  *     large Epics where provider rate-limit headroom is a concern.
@@ -271,7 +271,7 @@ async function loadEpicsFromFile(path, { readFileImpl = readFile } = {}) {
  *
  * Strategy:
  *   - For each Epic, read its child tickets via `provider.getSubTickets`.
- *     `sprint-story-close` posts `phase-timings` on the Story itself
+ *     `story-close` posts `phase-timings` on the Story itself
  *     (not on the Epic), so we need to enumerate children and inspect
  *     their comments.
  *   - For each child, call `provider.getTicketComments`. Children that

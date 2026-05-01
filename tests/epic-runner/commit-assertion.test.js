@@ -223,7 +223,7 @@ describe('buildDefaultGitAdapter', () => {
   });
 
   it('falls back to epic-branch "resolves #<id>" grep when story branch is deleted', async () => {
-    // sprint-story-close deletes both the local and remote story branch after
+    // story-close deletes both the local and remote story branch after
     // a successful merge. By the time the wave-observer runs this assertion,
     // origin/story-<id> is gone — the fallback should find the landing commit
     // on origin/epic/<id> via its "(resolves #<id>)" message.

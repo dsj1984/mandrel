@@ -7,7 +7,7 @@
  * The three failure modes reproduced:
  *   1. GraphQL read failure — `provider.getTicket(id)` rejects (wave poller).
  *   2. Reap failure — `WorktreeManager.reap` returns a non-empty `reason`
- *      (sprint-story-close post-merge path).
+ *      (story-close post-merge path).
  *   3. Baseline drift — `check-maintainability` detects a per-file regression.
  *
  * For each mode we invoke the corresponding production helper/method with the
@@ -163,7 +163,7 @@ describe('Wave 1 replay fixture (Epic #413)', () => {
     // Before it rejects it must have emitted a friction comment on #501.
     await assert.rejects(() => reporter.fire(), /variableNotUsed/);
 
-    // --- Failure mode 2: reap failure on sprint-story-close path ---
+    // --- Failure mode 2: reap failure on story-close path ---
     clock += 15_000; // simulate 15s later
     await emitReapFailureFriction({
       frictionEmitter,

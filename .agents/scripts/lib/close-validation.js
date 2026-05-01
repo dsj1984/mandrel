@@ -1,5 +1,5 @@
 /**
- * close-validation.js — Shift-left validation gates for sprint-story-close.
+ * close-validation.js — Shift-left validation gates for story-close.
  *
  * Runs lint, test, biome format check, and maintainability regression check
  * before the story merge so drift is caught in the worktree rather than at
@@ -187,7 +187,7 @@ export function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts
  *   `onGateStart` is invoked immediately before each gate's runner spawn.
- *   sprint-story-close uses it to drive `phaseTimer.mark('lint'|'test')`
+ *   story-close uses it to drive `phaseTimer.mark('lint'|'test')`
  *   so the per-gate wall-clock lands in the `phase-timings` structured
  *   comment. Errors thrown from the hook propagate and halt the run.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number }>, skipped: Array<{ gate: Gate, reason: string }> }}
@@ -292,7 +292,7 @@ const DEFAULT_MI_TOLERANCE = 0.001;
  * the Story branch relative to the Epic branch, and return the subset whose
  * projected score breaches the per-file baseline ceiling.
  *
- * Advisory only — the result is rendered as a log line by sprint-story-close
+ * Advisory only — the result is rendered as a log line by story-close
  * before the merge runs. The hard MI gate still runs at pre-push time via the
  * husky hook. The point of this projection is to surface the breach **before**
  * the merge so the operator can ship a `baseline-refresh:` commit atomically

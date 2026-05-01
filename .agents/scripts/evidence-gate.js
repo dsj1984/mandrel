@@ -3,7 +3,7 @@
 /**
  * evidence-gate.js — evidence-aware wrapper around a single shell gate.
  *
- * Tech Spec #819 §"Evidence record (Story 7)" — `sprint-close.md` Phase 4
+ * Tech Spec #819 §"Evidence record (Story 7)" — `epic-close.md` Phase 4
  * runs `npm run lint` and `npm test` against the Epic branch before merge.
  * If the same gate has already passed against the current `git rev-parse
  * HEAD` (recorded earlier in the local hot path), this wrapper logs a skip

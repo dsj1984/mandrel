@@ -77,10 +77,10 @@ export function resolveWorkingPath({
 
 /**
  * One-shot environment-aware runtime resolution. Returns the trio of runtime
- * signals consumed across `/sprint-execute`: whether worktree isolation is on
+ * signals consumed across `/epic-execute`: whether worktree isolation is on
  * for this process, the session id for claim labels, and whether we're in a
  * Claude Code web session. Each signal also records its **source** so the
- * `sprint-story-init` startup log can name why the value is what it is.
+ * `story-init` startup log can name why the value is what it is.
  *
  * @param {{ config?: object }} [opts]
  * @param {NodeJS.ProcessEnv} [env]

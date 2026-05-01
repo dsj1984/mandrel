@@ -15,7 +15,7 @@ const RETRO_SKILL_PATH = path.resolve(
   'epic-retro.md',
 );
 
-test('sprint-retro skill posts via `retro` type and never falls back to notification', async () => {
+test('epic-retro skill posts via `retro` type and never falls back to notification', async () => {
   const body = await readFile(RETRO_SKILL_PATH, 'utf8');
 
   assert.match(

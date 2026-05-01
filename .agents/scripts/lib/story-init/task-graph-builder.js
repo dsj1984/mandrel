@@ -1,5 +1,5 @@
 /**
- * task-graph-builder.js — Stage 4 of the sprint-story-init pipeline.
+ * task-graph-builder.js — Stage 4 of the story-init pipeline.
  *
  * Enumerates child Tasks of the Story, then topologically sorts them using
  * `blocked by` edges that reference other Tasks in the same set. Inter-Task
@@ -25,7 +25,7 @@ function sortTasksByDependencies(tasks) {
   const cycle = detectCycle(adjacency);
   if (cycle) {
     throw new Error(
-      `[sprint-story-init] Dependency cycle detected among child tasks: ` +
+      `[story-init] Dependency cycle detected among child tasks: ` +
         `#${cycle.join(' → #')}. Fix the \`blocked by\` references before retrying.`,
     );
   }
@@ -50,7 +50,7 @@ export async function buildTaskGraph({ provider, logger, input }) {
 
   if (tasks.length === 0) {
     warn(
-      `[sprint-story-init] Warning: Story #${storyId} has no child Tasks. The agent will need to work from the Story body directly.`,
+      `[story-init] Warning: Story #${storyId} has no child Tasks. The agent will need to work from the Story body directly.`,
     );
   }
 

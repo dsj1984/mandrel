@@ -2,7 +2,7 @@
  * Finalize phase — close out the run after the wave loop.
  *
  * For a `completed` run: flip Epic to `agent::review`, sync the project
- * column, and invoke the BookendChainer (which may auto-run `/sprint-close`
+ * column, and invoke the BookendChainer (which may auto-run `/epic-close`
  * when `epic::auto-close` was set). For a `halted` run: sync the column to
  * `agent::blocked` and exit without running bookends.
  *

@@ -7,7 +7,7 @@
  *
  * The adapter maintains an in-memory dispatch registry for the lifetime of one
  * `dispatcher.js` run. Status is tracked locally; there is no persistence.
- * Operators signal completion by re-running `/sprint-execute [Epic ID]`.
+ * Operators signal completion by re-running `/epic-execute [Epic ID]`.
  *
  * Extending to an automated adapter:
  *   Subclass this and override `dispatchTask()` to launch the agent

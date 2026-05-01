@@ -74,7 +74,7 @@ test('detectEpicCompletion: posts summary comment when every task is done', asyn
   assert.equal(calls.length, 1);
   assert.equal(calls[0].id, 42);
   assert.match(calls[0].opts.body, /Epic #42 Complete/);
-  assert.match(calls[0].opts.body, /\/sprint-close 42/);
+  assert.match(calls[0].opts.body, /\/epic-close 42/);
 });
 
 test('detectEpicCompletion: dry-run skips posting', async () => {

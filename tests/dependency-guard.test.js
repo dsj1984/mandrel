@@ -326,5 +326,5 @@ test('formatBlockerReport — includes id, title, state, url and instruction', (
   assert.match(out, /#100 "Upstream"/);
   assert.match(out, /state: 0\/2 tasks done/);
   assert.match(out, /https:\/\/github\.com\/acme\/repo\/issues\/100/);
-  assert.match(out, /\/sprint-plan/);
+  assert.match(out, /\/epic-plan/);
 });

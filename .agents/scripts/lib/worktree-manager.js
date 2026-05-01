@@ -58,7 +58,7 @@ export class WorktreeManager {
    * @param {(phase: 'worktree-create'|'bootstrap'|'install') => void} [opts.onPhase]
    *   Optional phase-boundary callback fired from `ensure()` just before each
    *   internal phase (git worktree add, bootstrap-file copy, dependency
-   *   install). Consumed by `sprint-story-init` to drive `phase-timer.mark()`
+   *   install). Consumed by `story-init` to drive `phase-timer.mark()`
    *   so `[phase-timing]` log lines attribute wall-clock correctly to the
    *   sub-phases of worktree provisioning.
    */

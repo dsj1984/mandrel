@@ -98,7 +98,7 @@ const mockConfig = {
   },
 };
 
-test('sprint-story-init: successful initialization', async () => {
+test('story-init: successful initialization', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -156,7 +156,7 @@ test('sprint-story-init: successful initialization', async () => {
   assert.ok(pullCalls.length > 0, 'Should attempt git pull');
 });
 
-test('sprint-story-init: fails on open blockers', async () => {
+test('story-init: fails on open blockers', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -188,7 +188,7 @@ test('sprint-story-init: fails on open blockers', async () => {
   assert.strictEqual(openBlockers[0].id, 99);
 });
 
-test('sprint-story-init: fails closed when blocker verification errors', async () => {
+test('story-init: fails closed when blocker verification errors', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -233,7 +233,7 @@ test('sprint-story-init: fails closed when blocker verification errors', async (
   assert.equal(openBlockers[0].fetchError, true);
 });
 
-test('sprint-story-init: epic exists locally only → pushes to remote (no crash)', async () => {
+test('story-init: epic exists locally only → pushes to remote (no crash)', async () => {
   // Reproduces the #329 crash: epic/50 exists locally from a prior partial
   // run but not remotely. Old logic ran `checkout -b epic/50` and failed.
   knownLocalBranches.add('epic/50');
@@ -276,7 +276,7 @@ test('sprint-story-init: epic exists locally only → pushes to remote (no crash
   assert.ok(pushCalls.length > 0, 'Should publish the local-only epic branch');
 });
 
-test('sprint-story-init: refuses to switch branches when working tree is dirty', async () => {
+test('story-init: refuses to switch branches when working tree is dirty', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -316,7 +316,7 @@ test('sprint-story-init: refuses to switch branches when working tree is dirty',
   __setGitRunners(mockExec, mockSpawn);
 });
 
-test('sprint-story-close: successful merge and closure', async () => {
+test('story-close: successful merge and closure', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -389,7 +389,7 @@ test('sprint-story-close: successful merge and closure', async () => {
   }
 });
 
-test('sprint-story-close: reaps worktree using resolved --cwd repo root', async () => {
+test('story-close: reaps worktree using resolved --cwd repo root', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -453,7 +453,7 @@ test('sprint-story-close: reaps worktree using resolved --cwd repo root', async 
   }
 });
 
-test('sprint-story-close: resolves config from runtime --cwd (can disable reap)', async () => {
+test('story-close: resolves config from runtime --cwd (can disable reap)', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -509,7 +509,7 @@ test('sprint-story-close: resolves config from runtime --cwd (can disable reap)'
   }
 });
 
-test('sprint-story-init: resolves config from runtime --cwd for worktree mode', async () => {
+test('story-init: resolves config from runtime --cwd for worktree mode', async () => {
   const provider = new MockProvider({
     tickets: {
       100: {

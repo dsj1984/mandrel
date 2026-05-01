@@ -3,7 +3,7 @@
 /**
  * .agents/scripts/epic-close.js — Final Epic Lifecycle Closure
  *
- * The operator-facing `/sprint-close` workflow runs eight named phases.
+ * The operator-facing `/epic-close` workflow runs eight named phases.
  * This script owns Finalize (Phase 7) and Notify (Phase 8) end-to-end and
  * exposes the earlier phases as dedicated sister scripts
  * (`wave-gate.js`, `hierarchy-gate.js`,
@@ -25,9 +25,9 @@
  * them so a failed release never corrupts the Epic closure state.
  *
  * `--full-retro` is an advisory flag: epic-close.js does not compose the
- * retro itself (the retro helper does that, invoked from `/sprint-close`
+ * retro itself (the retro helper does that, invoked from `/epic-close`
  * Phase 6). The flag is logged here so the operator sees the override in
- * the close audit trail, and the `/sprint-close` workflow is responsible
+ * the close audit trail, and the `/epic-close` workflow is responsible
  * for propagating it into the retro helper invocation so the compact-retro
  * heuristic is bypassed.
  *
@@ -52,7 +52,7 @@ import { createProvider } from './lib/provider-factory.js';
 import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
 
-const progress = Logger.createProgress('sprint-close', { stderr: false });
+const progress = Logger.createProgress('epic-close', { stderr: false });
 
 async function main() {
   const { values } = parseArgs({
@@ -255,7 +255,7 @@ async function phaseFinalizeBranchCleanup(
     logger: {
       info: (m) => progress('WORKTREE', m),
       warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
-      error: (m) => console.error(`[sprint-close] ${m}`),
+      error: (m) => console.error(`[epic-close] ${m}`),
     },
   });
 
@@ -284,7 +284,7 @@ async function phaseFinalizeBranchCleanup(
         logger: {
           info: (m) => progress('WORKTREE', m),
           warn: (m) => progress('WORKTREE', `⚠️ ${m}`),
-          error: (m) => console.error(`[sprint-close] ${m}`),
+          error: (m) => console.error(`[epic-close] ${m}`),
         },
       });
       if (drainResult.drained.length > 0) {
@@ -479,7 +479,7 @@ async function emitDiscardFrictionComments(provider, reaped, warnings) {
     const body = [
       `⚠️ Force-reap discarded uncommitted changes in worktree \`story-${entry.storyId}\``,
       '',
-      `The Story branch was already merged into \`epic/*\`, so \`/sprint-close\` Phase 7 discarded the following post-merge drift to complete the reap (default behavior; pass \`--no-reap-discard-after-merge\` to preserve).`,
+      `The Story branch was already merged into \`epic/*\`, so \`/epic-close\` Phase 7 discarded the following post-merge drift to complete the reap (default behavior; pass \`--no-reap-discard-after-merge\` to preserve).`,
       '',
       'Discarded paths:',
       ...entry.discardedPaths.map((p) => `- \`${p}\``),
@@ -538,4 +538,4 @@ async function collectEpicDescendantIds(provider, epicId) {
   return out;
 }
 
-runAsCli(import.meta.url, main, { source: 'sprint-close' });
+runAsCli(import.meta.url, main, { source: 'epic-close' });

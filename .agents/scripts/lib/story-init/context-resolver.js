@@ -1,5 +1,5 @@
 /**
- * context-resolver.js — Stage 1 of the sprint-story-init pipeline.
+ * context-resolver.js — Stage 1 of the story-init pipeline.
  *
  * Fetches the Story ticket, validates it carries `type::story`, parses its
  * body for hierarchy markers, and (optionally) injects/validates the
@@ -52,7 +52,7 @@ export async function resolveContext({ provider, logger, input }) {
   if (recutOf) {
     if (recutOf === storyId) {
       throw new Error(
-        `[sprint-story-init] --recut-of #${recutOf} cannot point at the Story itself.`,
+        `[story-init] --recut-of #${recutOf} cannot point at the Story itself.`,
       );
     }
     const existing = parseRecutMarker(body);

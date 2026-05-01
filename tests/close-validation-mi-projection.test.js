@@ -8,7 +8,7 @@ import {
 /**
  * Unit tests for the pre-merge MI ceiling projection helper.
  *
- * The helper is the engine behind Story #781 — sprint-story-close invokes it
+ * The helper is the engine behind Story #781 — story-close invokes it
  * before the merge runs to surface, by name, the files that would breach
  * their per-file MI baseline post-merge so the operator can ship a
  * `baseline-refresh:` commit atomically with the Story PR.

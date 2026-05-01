@@ -313,7 +313,7 @@ describe('ProgressReporter — concurrency cap wiring', () => {
 });
 
 // ---------------------------------------------------------------------------
-// sprint-wave-gate — waveGate cap affects the fanout
+// wave-gate — waveGate cap affects the fanout
 // ---------------------------------------------------------------------------
 
 function manifestComment(stories) {
@@ -349,7 +349,7 @@ class CountingProvider {
   }
 }
 
-describe('sprint-wave-gate — waveGate cap', () => {
+describe('wave-gate — waveGate cap', () => {
   it('omitting concurrency (default 0) keeps Promise.all fanout — all N starts before any resolves', async () => {
     const storyIds = Array.from({ length: 12 }, (_, i) => 9000 + i);
     const tickets = Object.fromEntries(

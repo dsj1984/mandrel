@@ -15,8 +15,8 @@
  *     skill provides the production adapter that issues parallel Agent-tool
  *     calls for the wave.
  *   - `PlanRunnerContext` adds the planning `phase` plus the host-LLM
- *     `plannerClient` adapter threaded through `sprint-plan-spec` and
- *     `sprint-plan-decompose`.
+ *     `plannerClient` adapter threaded through `epic-plan-spec` and
+ *     `epic-plan-decompose`.
  *
  * `validate()` is called in the most-derived constructor (via the
  * `new.target` guard in the base) so a partially-built subclass instance

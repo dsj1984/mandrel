@@ -303,11 +303,11 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push(
     '> 2. **Select**: Pick a Story from the **Execution Plan** that is not yet `✅`.',
   );
-  lines.push('> 3. **Execute**: Run `/sprint-execute [STORY_ID]`.');
+  lines.push('> 3. **Execute**: Run `/epic-execute [STORY_ID]`.');
   lines.push(
     '> 4. **Repeat**: Continue iterating on execution until all stories and waves are complete',
   );
-  lines.push('> 5. **Close**: Run `/sprint-close`');
+  lines.push('> 5. **Close**: Run `/epic-close`');
   lines.push('');
 
   lines.push('| Field | Value |');
@@ -405,7 +405,7 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push(
     "2. Select a model that matches the Story's **Model Tier** (`high` = deep-reasoning, `low` = fast execution). The concrete model choice is left to the operator/router.",
   );
-  lines.push('3. Run: `/sprint-execute #[Story ID]`');
+  lines.push('3. Run: `/epic-execute #[Story ID]`');
   lines.push('');
   lines.push(
     '> **Tip:** Story closure and dashboard refresh are handled automatically by `story-close.js`. ' +
@@ -545,7 +545,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
   log(
-    '  💡 Use /sprint-execute #[Story ID] to execute a Story. Pick a model matching the Model Tier.',
+    '  💡 Use /epic-execute #[Story ID] to execute a Story. Pick a model matching the Model Tier.',
   );
 
   if (features.length > 0) {
