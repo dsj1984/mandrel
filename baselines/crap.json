@@ -1966,10 +1966,10 @@
       "startLine": 43
     },
     {
-      "crap": 10,
+      "crap": 7,
       "file": ".agents/scripts/lib/orchestration/epic-runner/column-sync.js",
       "method": "columnForLabels",
-      "startLine": 45
+      "startLine": 40
     },
     {
       "crap": 2,
@@ -2374,28 +2374,22 @@
       "startLine": 78
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/plan-runner/plan-router.js",
-      "method": "phaseForLabel",
-      "startLine": 68
-    },
-    {
-      "crap": 5,
+      "crap": 3,
       "file": ".agents/scripts/lib/orchestration/plan-runner/plan-router.js",
       "method": "nextPhaseForEpic",
-      "startLine": 91
+      "startLine": 61
     },
     {
       "crap": 3.6875,
       "file": ".agents/scripts/lib/orchestration/plan-runner/plan-router.js",
       "method": "descriptorForContext",
-      "startLine": 112
+      "startLine": 76
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/plan-runner/plan-router.js",
       "method": "advancePhase",
-      "startLine": 124
+      "startLine": 88
     },
     {
       "crap": 4,
@@ -4150,78 +4144,6 @@
       "startLine": 111
     },
     {
-      "crap": 6,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "parsePhaseFromArgv",
-      "startLine": 68
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "resolvePhase",
-      "startLine": 89
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "log",
-      "startLine": 99
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "fatal",
-      "startLine": 103
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "requireEnv",
-      "startLine": 108
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "maskSecret",
-      "startLine": 116
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "run",
-      "startLine": 128
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "writeSecretFile",
-      "startLine": 140
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "resolveCloneTarget",
-      "startLine": 150
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "buildAuthenticatedCloneUrl",
-      "startLine": 169
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "buildLaunchInvocation",
-      "startLine": 174
-    },
-    {
-      "crap": 30,
-      "file": ".agents/scripts/remote-bootstrap.js",
-      "method": "main",
-      "startLine": 183
-    },
-    {
       "crap": 3,
       "file": ".agents/scripts/render-manifest.js",
       "method": "extractManifestJson",
@@ -4411,73 +4333,67 @@
       "crap": 2,
       "file": ".agents/scripts/sprint-plan-decompose.js",
       "method": "setEpicLabel",
-      "startLine": 52
+      "startLine": 51
     },
     {
-      "crap": 40.45735733267582,
+      "crap": 40.33872985839844,
       "file": ".agents/scripts/sprint-plan-decompose.js",
       "method": "runDecomposePhase",
-      "startLine": 77
+      "startLine": 71
     },
     {
       "crap": 17.056872576676277,
       "file": ".agents/scripts/sprint-plan-decompose.js",
       "method": "main",
-      "startLine": 148
+      "startLine": 137
     },
     {
       "crap": 3.072,
       "file": ".agents/scripts/sprint-plan-spec.js",
       "method": "drainPendingCleanupAtBoot",
-      "startLine": 69
+      "startLine": 68
     },
     {
       "crap": 1,
       "file": ".agents/scripts/sprint-plan-spec.js",
       "method": "<anon method-1>",
-      "startLine": 81
+      "startLine": 80
     },
     {
       "crap": 2,
       "file": ".agents/scripts/sprint-plan-spec.js",
       "method": "setEpicLabel",
-      "startLine": 150
+      "startLine": 149
     },
     {
-      "crap": 19.272841147018664,
+      "crap": 19.213259259259257,
       "file": ".agents/scripts/sprint-plan-spec.js",
       "method": "runSpecPhase",
-      "startLine": 175
+      "startLine": 169
     },
     {
       "crap": 18.962890625,
       "file": ".agents/scripts/sprint-plan-spec.js",
       "method": "main",
-      "startLine": 242
+      "startLine": 231
     },
     {
-      "crap": 1.800655976676385,
-      "file": ".agents/scripts/sprint-plan.js",
-      "method": "applyDispatching",
-      "startLine": 50
-    },
-    {
-      "crap": 5.750074646272983,
+      "crap": 1.9167113702623908,
       "file": ".agents/scripts/sprint-plan.js",
       "method": "runSprintPlan",
-      "startLine": 82
+      "startLine": 57
     },
     {
       "crap": 1.7702546296296295,
       "file": ".agents/scripts/sprint-plan.js",
       "method": "describePlanResumePoint",
-      "startLine": 138
+      "startLine": 101
     },
     {
-      "crap": 18.305396148148148,
+      "crap": 18.47796882912572,
       "file": ".agents/scripts/sprint-plan.js",
       "method": "main",
-      "startLine": 152
+      "startLine": 115
     },
     {
       "crap": 1,
