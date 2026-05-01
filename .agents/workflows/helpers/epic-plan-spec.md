@@ -7,8 +7,8 @@ description: >-
 
 # Sprint Plan — Spec Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/sprint-plan` (Phase 1).
-> To run the spec phase interactively, use `/sprint-plan [Epic_ID]` — it
+> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 1).
+> To run the spec phase interactively, use `/epic-plan [Epic_ID]` — it
 > delegates here.
 
 ## Role
@@ -29,7 +29,7 @@ context you need and (b) persists the artifacts and transitions the Epic
 lifecycle state.
 
 The complementary Phase 2 helper is
-[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/sprint-plan`
+[`epic-plan-decompose.md`](epic-plan-decompose.md). The `/epic-plan`
 wrapper chains both helpers with a confirmation gate in between.
 
 ## Constraint
@@ -113,7 +113,7 @@ need to inspect the temp artefacts after the fact, re-run
   URLs to the operator:
 
   > "Spec phase complete for Epic #[ID]. Review PRD (#XX) and Tech Spec (#YY)
-  > on GitHub. When you're ready, re-run `/sprint-plan [Epic_ID]` — the wrapper
+  > on GitHub. When you're ready, re-run `/epic-plan [Epic_ID]` — the wrapper
   > will pick up where it left off and run the decompose phase."
 
 ## Troubleshooting
