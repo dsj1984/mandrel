@@ -8,9 +8,10 @@
  * any still-stuck entries by enumerating the processes holding handles
  * inside the worktree path and terminating them.
  *
- * Invoked by `/sprint-close` and `/sprint-plan` (via worktree-sweep) so
- * the pending-cleanup ledger drains automatically across the sprint
- * lifecycle. Operators can also run it standalone:
+ * Invoked by `/sprint-close`, `/sprint-plan-spec` / `/sprint-plan-decompose`
+ * (via `drainPendingCleanupAtBoot` → `worktree-sweep.js`), and
+ * `sprint-story-close` so the pending-cleanup ledger drains automatically
+ * across the sprint lifecycle. Operators can also run it standalone:
  *
  *   node .agents/scripts/drain-pending-cleanup.js              # full drain + escalate
  *   node .agents/scripts/drain-pending-cleanup.js --no-escalate  # passive drain only

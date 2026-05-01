@@ -30,6 +30,7 @@ import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import {
+  PROJECT_ROOT,
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
@@ -42,6 +43,7 @@ import {
 } from './lib/orchestration/plan-runner/plan-checkpointer.js';
 import { cleanupPhaseTempFiles } from './lib/plan-phase-cleanup.js';
 import { createProvider } from './lib/provider-factory.js';
+import { drainPendingCleanupAtBoot } from './sprint-plan-spec.js';
 import {
   buildDecompositionContext,
   decomposeEpic,
@@ -176,6 +178,18 @@ async function main() {
     );
   }
   const provider = createProvider(config.orchestration);
+
+  try {
+    await drainPendingCleanupAtBoot({
+      repoRoot: PROJECT_ROOT,
+      orchestration: config.orchestration,
+      provider,
+    });
+  } catch (err) {
+    console.warn(
+      `[sprint-plan-decompose] worktree sweep skipped: ${err.message}`,
+    );
+  }
 
   if (values['emit-context']) {
     const ctx = await buildDecompositionContext(epicId, provider, config, {

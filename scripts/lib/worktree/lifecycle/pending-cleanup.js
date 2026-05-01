@@ -7,8 +7,8 @@
  * on a Windows lock-class failure, the entry is appended to
  * `.worktrees/.pending-cleanup.json`. The plan-time `worktree-sweep.js`
  * reader (shipped in Epic #349) picks up the manifest on the next
- * `/sprint-plan-spec` or `/sprint-plan-decompose` run and retries the Stage
- * 1 sequence — by then the live file handles from Node / AV / the Windows
+ * `/sprint-plan-spec` / `/sprint-plan-decompose` runs and retries removal
+ * (`git worktree remove` then `fs.rm`) — by then the live file handles from Node / AV / the Windows
  * Search indexer are almost always gone. If `MAX_SWEEP_ATTEMPTS` elapses
  * without clearing, an `OPERATOR ACTION REQUIRED: persistent-lock` line
  * fires and the entry stays in the manifest so the signal persists.
@@ -23,6 +23,12 @@ import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
 
 export const MANIFEST_FILENAME = '.pending-cleanup.json';
+/**
+ * After a reap hands off to the manifest, `attempts` counts failed
+ * `drainPendingCleanup` passes (initial hand-off uses `attempts: 0`). The entry
+ * becomes `persistent` when `attempts` reaches this threshold after another
+ * failed drain (i.e. three consecutive sweep failures).
+ */
 export const MAX_SWEEP_ATTEMPTS = 3;
 
 export function manifestPath(worktreeRoot) {
@@ -58,7 +64,8 @@ function writeManifest(worktreeRoot, entries) {
 /**
  * Upsert a pending-cleanup entry by storyId. Preserves `firstFailedAt` on
  * repeated failures; always updates `lastFailedAt` and increments
- * `attempts`. Called by Stage 1 when fs.rm exhausts its retries.
+ * `attempts`. New rows start at `attempts: 0` (hand-off, not yet a failed
+ * sweep). Called by Stage 1 when fs.rm exhausts its retries.
  */
 export function recordPendingCleanup(
   worktreeRoot,
@@ -84,7 +91,7 @@ export function recordPendingCleanup(
       push,
       firstFailedAt: now,
       lastFailedAt: now,
-      attempts: 1,
+      attempts: 0,
     });
   }
   writeManifest(worktreeRoot, entries);
@@ -100,11 +107,30 @@ export function removePendingCleanup(worktreeRoot, storyId) {
 
 async function retryStage1ForEntry(entry, { git, repoRoot, fsRm, logger }) {
   const { path: wtPath, branch, push } = entry;
-  try {
-    await fsRm(wtPath, { recursive: true, force: true });
-  } catch (err) {
-    return { success: false, error: err };
+
+  if (fs.existsSync(wtPath)) {
+    let rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
+    if (rm.status !== 0) {
+      rm = git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
+    }
+    if (fs.existsSync(wtPath)) {
+      try {
+        await fsRm(wtPath, { recursive: true, force: true });
+      } catch (err) {
+        return { success: false, error: err };
+      }
+    }
   }
+
+  if (fs.existsSync(wtPath)) {
+    return {
+      success: false,
+      error: new Error(
+        `path still exists after worktree remove + fs.rm: ${wtPath}`,
+      ),
+    };
+  }
+
   git.gitSpawn(repoRoot, 'worktree', 'prune');
   let localBranchDeleted = null;
   let remoteBranchDeleted = null;

@@ -44,38 +44,83 @@ import {
   PLAN_PHASES,
   PlanCheckpointer,
 } from './lib/orchestration/plan-runner/plan-checkpointer.js';
+import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { cleanupPhaseTempFiles } from './lib/plan-phase-cleanup.js';
 import { createProvider } from './lib/provider-factory.js';
-import {
-  drainPendingCleanup,
-  readManifest,
-} from './lib/worktree/lifecycle/pending-cleanup.js';
+import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
+import { readManifest } from './lib/worktree/lifecycle/pending-cleanup.js';
 
 /**
- * Drain the `.worktrees/.pending-cleanup.json` manifest left behind by Stage 1
- * reap failures. Runs at `/sprint-plan-spec` boot before any downstream work.
+ * Runs `sweepStaleStoryWorktrees` when a ticketing `provider` is available
+ * (normal CLI boot): drains `.pending-cleanup.json` with Windows escalation,
+ * then reaps registered worktrees for done/closed stories. When `provider` is
+ * omitted (unit tests), runs `forceDrainPendingCleanup` on the manifest only.
  *
- * Non-blocking: entries that still fail this pass stay in the manifest for the
- * next sweep; plan execution continues regardless.
+ * Uses `orchestration.worktreeIsolation.root` when present; defaults to
+ * `.worktrees`.
+ *
+ * Non-blocking: stuck entries stay in the manifest; plan execution continues.
  *
  * Exposed for integration tests.
  *
- * @param {{ repoRoot?: string, git?: object, logger?: object }} [opts]
- * @returns {Promise<{ drained: number[], persistent: number[], stillPending: number[], remaining: number }>}
+ * @param {{ repoRoot?: string, orchestration?: object, provider?: object, git?: object, logger?: object, fsRm?: function }} [opts]
+ * @returns {Promise<object>} Sweep/drain summary with legacy `drained` / `persistent` / `remaining` aliases for callers.
  */
 export async function drainPendingCleanupAtBoot(opts = {}) {
   const repoRoot = opts.repoRoot ?? PROJECT_ROOT;
-  const worktreeRoot = path.join(repoRoot, '.worktrees');
+  const orchestration = opts.orchestration;
+  const worktreeRoot = path.join(
+    repoRoot,
+    orchestration?.worktreeIsolation?.root ?? '.worktrees',
+  );
   const git = opts.git ?? gitUtils;
   const logger = opts.logger ?? console;
   const fsRm = opts.fsRm;
+  const provider = opts.provider;
+
+  const legacyExtras = (base) => {
+    const remaining =
+      (base.persistentPending?.length ?? base.persistent?.length ?? 0) +
+      (base.stillPending?.length ?? 0);
+    const drained = base.drainedPending ?? base.drained ?? [];
+    const persistent = base.persistentPending ?? base.persistent ?? [];
+    return {
+      ...base,
+      remaining,
+      drained,
+      persistent,
+    };
+  };
+
+  if (provider?.getTicket) {
+    const sweep = await sweepStaleStoryWorktrees({
+      provider,
+      repoRoot,
+      git,
+      logger,
+      worktreeRoot,
+      fsRm,
+    });
+    const remaining =
+      (sweep.persistentPending?.length ?? 0) +
+      (sweep.stillPending?.length ?? 0);
+    logger.info?.(
+      `[sprint-plan-spec] worktree sweep: reaped=${sweep.reaped.length} drainedPending=${sweep.drainedPending?.length ?? 0} remaining=${remaining}`,
+    );
+    return legacyExtras(sweep);
+  }
 
   const before = readManifest(worktreeRoot).length;
   if (before === 0) {
-    return { drained: [], persistent: [], stillPending: [], remaining: 0 };
+    return legacyExtras({
+      reaped: [],
+      skipped: [],
+      drainedPending: [],
+      persistentPending: [],
+      stillPending: [],
+    });
   }
-
-  const result = await drainPendingCleanup({
+  const result = await forceDrainPendingCleanup({
     repoRoot,
     worktreeRoot,
     git,
@@ -87,7 +132,19 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
   logger.info?.(
     `[sprint-plan-spec] pending-cleanup drain: reaped=${result.drained?.length ?? 0} remaining=${remaining}`,
   );
-  return { ...result, remaining };
+  return legacyExtras({
+    reaped: [],
+    skipped: [],
+    drainedPending: result.drained,
+    persistentPending: result.persistent,
+    stillPending: result.stillPending,
+    escalated: result.escalated,
+    killedPids: result.killedPids,
+    noHolders: result.noHolders,
+    drainedDetails: result.drainedDetails,
+    persistentDetails: result.persistentDetails,
+    stillPendingDetails: result.stillPendingDetails,
+  });
 }
 
 async function setEpicLabel(provider, epicId, targetLabel) {
@@ -219,7 +276,11 @@ async function main() {
   const provider = createProvider(orchestration);
 
   try {
-    await drainPendingCleanupAtBoot();
+    await drainPendingCleanupAtBoot({
+      repoRoot: PROJECT_ROOT,
+      orchestration,
+      provider,
+    });
   } catch (err) {
     console.warn(
       `[sprint-plan-spec] pending-cleanup drain skipped: ${err.message}`,

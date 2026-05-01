@@ -24,7 +24,32 @@ import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { drainPendingCleanup, readManifest } from './pending-cleanup.js';
 
-const SETTLE_MS = 500;
+/** Initial wait after `taskkill` before retrying `drainPendingCleanup`. */
+const SETTLE_MS = 1500;
+/** If entries remain stuck after the first post-kill drain, wait again and drain once more. */
+const POST_KILL_RETRY_SETTLE_MS = 800;
+
+/**
+ * @param {Awaited<ReturnType<typeof drainPendingCleanup>>} prev
+ * @param {Awaited<ReturnType<typeof drainPendingCleanup>>} next
+ */
+function mergeDrainPasses(prev, next) {
+  const drainedSet = new Set([...prev.drained, ...next.drained]);
+  const drainedDetails = [
+    ...prev.drainedDetails,
+    ...next.drainedDetails.filter(
+      (d) => !prev.drainedDetails.some((f) => f.storyId === d.storyId),
+    ),
+  ];
+  return {
+    drained: [...drainedSet],
+    drainedDetails,
+    persistent: next.persistent,
+    persistentDetails: next.persistentDetails,
+    stillPending: next.stillPending,
+    stillPendingDetails: next.stillPendingDetails,
+  };
+}
 
 /**
  * Enumerate Windows processes whose ExecutablePath or CommandLine is rooted
@@ -208,7 +233,7 @@ export async function forceDrainPendingCleanup({
 
   await sleep(SETTLE_MS);
 
-  const second = await drainPendingCleanup({
+  let followUp = await drainPendingCleanup({
     repoRoot,
     worktreeRoot,
     git,
@@ -216,20 +241,34 @@ export async function forceDrainPendingCleanup({
     logger,
   });
 
-  const drainedSet = new Set([...first.drained, ...second.drained]);
+  const stuckAfter =
+    followUp.stillPending.length + followUp.persistent.length > 0;
+  if (stuckAfter) {
+    await sleep(POST_KILL_RETRY_SETTLE_MS);
+    const third = await drainPendingCleanup({
+      repoRoot,
+      worktreeRoot,
+      git,
+      fsRm,
+      logger,
+    });
+    followUp = mergeDrainPasses(followUp, third);
+  }
+
+  const drainedSet = new Set([...first.drained, ...followUp.drained]);
   const drainedDetails = [
     ...first.drainedDetails,
-    ...second.drainedDetails.filter(
+    ...followUp.drainedDetails.filter(
       (d) => !first.drainedDetails.some((f) => f.storyId === d.storyId),
     ),
   ];
   return {
     drained: [...drainedSet],
     drainedDetails,
-    persistent: second.persistent,
-    persistentDetails: second.persistentDetails,
-    stillPending: second.stillPending,
-    stillPendingDetails: second.stillPendingDetails,
+    persistent: followUp.persistent,
+    persistentDetails: followUp.persistentDetails,
+    stillPending: followUp.stillPending,
+    stillPendingDetails: followUp.stillPendingDetails,
     escalated,
     killedPids,
     noHolders,

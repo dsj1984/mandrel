@@ -1,10 +1,11 @@
 /**
  * plan-runner/worktree-sweep.js
  *
- * Reap-sweep called at the start of `/sprint-plan-spec`: iterates the
- * `.worktrees/story-<id>/` entries registered with git, looks up each
- * parent Story, and force-removes any whose Story is already closed or
- * labeled `agent::done`.
+ * Reap-sweep used at the start of `/sprint-plan-spec` and
+ * `/sprint-plan-decompose` (via `drainPendingCleanupAtBoot` in
+ * `sprint-plan-spec.js`, which see). Iterates the `.worktrees/story-<id>/`
+ * entries registered with git, looks up each parent Story, and force-removes
+ * any whose Story is already closed or labeled `agent::done`.
  *
  * The `--force` flag is intentional. By the time a Story is `agent::done`
  * its branch has already been merged into the Epic branch (via
