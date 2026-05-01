@@ -211,7 +211,7 @@ describe('config-resolver library tests', () => {
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
           runners: {
-            epicRunner: { enabled: true, pollIntervalSec: 30 },
+            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
           },
         },
       }),
@@ -234,7 +234,7 @@ describe('config-resolver library tests', () => {
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
           runners: {
-            epicRunner: { enabled: true, pollIntervalSec: 30 },
+            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
           },
         },
       }),

@@ -9,7 +9,7 @@ import {
 
 const MIN_EPIC_CFG = {
   runners: {
-    epicRunner: { enabled: true, concurrencyCap: 2, pollIntervalSec: 1 },
+    epicRunner: { enabled: true, concurrencyCap: 2 },
   },
 };
 
@@ -35,7 +35,7 @@ describe('OrchestrationContext family', () => {
     });
   });
 
-  it('EpicRunnerContext requires a spawn adapter and positive concurrencyCap', () => {
+  it('EpicRunnerContext requires a dispatch adapter and positive concurrencyCap', () => {
     assert.throws(
       () =>
         new EpicRunnerContext({
@@ -43,7 +43,7 @@ describe('OrchestrationContext family', () => {
           provider: {},
           config: MIN_EPIC_CFG,
         }),
-      /spawn adapter/,
+      /dispatch adapter/,
     );
     assert.throws(
       () =>
@@ -53,7 +53,7 @@ describe('OrchestrationContext family', () => {
           config: {
             runners: { epicRunner: { enabled: true, concurrencyCap: 0 } },
           },
-          spawn: () => {},
+          dispatch: () => {},
         }),
       /concurrencyCap/,
     );
@@ -68,21 +68,20 @@ describe('OrchestrationContext family', () => {
           config: {
             runners: { epicRunner: { enabled: false, concurrencyCap: 1 } },
           },
-          spawn: () => {},
+          dispatch: () => {},
         }),
       /enabled is false/,
     );
   });
 
-  it('EpicRunnerContext reads concurrencyCap/pollIntervalSec from config when omitted', () => {
+  it('EpicRunnerContext reads concurrencyCap from config when omitted', () => {
     const ctx = new EpicRunnerContext({
       epicId: 1,
       provider: {},
       config: MIN_EPIC_CFG,
-      spawn: () => {},
+      dispatch: () => {},
     });
     assert.equal(ctx.concurrencyCap, 2);
-    assert.equal(ctx.pollIntervalSec, 1);
     assert.ok(Object.isFrozen(ctx));
   });
 

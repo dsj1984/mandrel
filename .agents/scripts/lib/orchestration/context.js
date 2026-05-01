@@ -8,9 +8,12 @@
  * knobs:
  *
  *   - `EpicRunnerContext` adds the wave-loop fields required by `runEpic`
- *     and its submodules (`spawn`, `concurrencyCap`, `storyRetryCount`,
- *     `blockerTimeoutHours`, plus the optional `pollIntervalSec`,
- *     `worktreeResolver`, `fetchImpl`, `runSkill` injection points).
+ *     and its submodules (`dispatch`, `concurrencyCap`, `storyRetryCount`,
+ *     `blockerTimeoutHours`, plus the optional `worktreeResolver`,
+ *     `fetchImpl`, `runSkill` injection points). `dispatch` is invoked once
+ *     per wave with the `StoryLauncher.planWave` output; the `/wave-execute`
+ *     skill provides the production adapter that issues parallel Agent-tool
+ *     calls for the wave.
  *   - `PlanRunnerContext` adds the planning `phase` plus the host-LLM
  *     `plannerClient` adapter threaded through `sprint-plan-spec` and
  *     `sprint-plan-decompose`.
@@ -54,15 +57,13 @@ export class EpicRunnerContext extends OrchestrationContext {
   constructor(opts = {}) {
     super(opts);
     const runnerCfg = opts.config?.runners?.epicRunner ?? {};
-    this.spawn = opts.spawn ?? null;
+    this.dispatch = opts.dispatch ?? opts.spawn ?? null;
     this.concurrencyCap =
       opts.concurrencyCap ?? runnerCfg.concurrencyCap ?? null;
     this.storyRetryCount =
       opts.storyRetryCount ?? runnerCfg.storyRetryCount ?? 0;
     this.blockerTimeoutHours =
       opts.blockerTimeoutHours ?? runnerCfg.blockerTimeoutHours ?? 0;
-    this.pollIntervalSec =
-      opts.pollIntervalSec ?? runnerCfg.pollIntervalSec ?? null;
     this.worktreeResolver = opts.worktreeResolver ?? null;
     this.fetchImpl = opts.fetchImpl ?? null;
     this.runSkill = opts.runSkill ?? null;
@@ -83,8 +84,10 @@ export class EpicRunnerContext extends OrchestrationContext {
         'orchestration.runners.epicRunner.enabled is false — refusing to run.',
       );
     }
-    if (typeof this.spawn !== 'function') {
-      throw new TypeError('EpicRunnerContext requires a spawn adapter');
+    if (typeof this.dispatch !== 'function') {
+      throw new TypeError(
+        'EpicRunnerContext requires a dispatch adapter (the /wave-execute skill provides this in production).',
+      );
     }
     if (!Number.isInteger(this.concurrencyCap) || this.concurrencyCap < 1) {
       throw new RangeError(

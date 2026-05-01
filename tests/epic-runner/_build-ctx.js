@@ -1,7 +1,14 @@
 /**
  * Shared test factory — builds an `EpicRunnerContext` with sensible defaults
  * for the epic-runner unit + integration suite. Tests pass overrides for the
- * fields they exercise (e.g. a custom `spawn`, a fake `provider`).
+ * fields they exercise (e.g. a custom `dispatch`, a fake `provider`).
+ *
+ * `dispatch` adapter contract: receives `{ plan, concurrencyCap, signal }`
+ * where `plan` is `[{ storyId, modelTier, worktree }, ...]` and returns
+ * an array of `{ storyId, status, detail? }` results. Tests that need
+ * per-story custom behaviour use the `spawn` legacy alias which is auto-
+ * adapted to the new wave-level shape below — preserves test ergonomics
+ * without churning every call site.
  *
  * Webhook safety: the default `cwd` points at a nonexistent directory and
  * `fetchImpl` is a no-op stub, so the unified `notify()` dispatcher and the
@@ -22,7 +29,34 @@ async function stubFetch() {
   return { ok: true, status: 200 };
 }
 
+/**
+ * Adapt a legacy per-story `spawn(args)` adapter (`{ storyId, worktree, signal }
+ * → { status, detail? }`) into a wave-level `dispatch({ plan, signal })` adapter
+ * by mapping plan entries through the per-story function. Lets pre-#908 tests
+ * keep their `spawn: ...` ergonomic without rewriting every call site.
+ */
+function adaptSpawnToDispatch(spawnFn) {
+  return async ({ plan, signal }) =>
+    Promise.all(
+      plan.map(async (entry) => {
+        const result = await spawnFn({
+          storyId: entry.storyId,
+          worktree: entry.worktree,
+          signal,
+        });
+        return { storyId: entry.storyId, ...result };
+      }),
+    );
+}
+
 export function buildCtx(overrides = {}) {
+  const { spawn: legacySpawn, dispatch: explicitDispatch, ...rest } = overrides;
+  const dispatch =
+    explicitDispatch ??
+    (typeof legacySpawn === 'function'
+      ? adaptSpawnToDispatch(legacySpawn)
+      : async ({ plan }) =>
+          plan.map((p) => ({ storyId: p.storyId, status: 'done' })));
   const defaults = {
     epicId: 321,
     provider: {},
@@ -31,13 +65,11 @@ export function buildCtx(overrides = {}) {
         epicRunner: {
           enabled: true,
           concurrencyCap: 2,
-          pollIntervalSec: 1,
           storyRetryCount: 0,
           blockerTimeoutHours: 0,
         },
       },
     },
-    spawn: async () => ({ status: 'done' }),
     logger: quietLogger(),
     cwd: WEBHOOK_SAFE_CWD,
     fetchImpl: stubFetch,
@@ -46,5 +78,5 @@ export function buildCtx(overrides = {}) {
     // exercise the zero-delta path pass their own gitAdapter override.
     gitAdapter: async () => 1,
   };
-  return new EpicRunnerContext({ ...defaults, ...overrides });
+  return new EpicRunnerContext({ ...defaults, ...rest, dispatch });
 }

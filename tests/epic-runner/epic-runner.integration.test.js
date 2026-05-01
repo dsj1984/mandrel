@@ -109,7 +109,6 @@ describe('EpicRunner integration', () => {
         epicRunner: {
           enabled: true,
           concurrencyCap: 2,
-          pollIntervalSec: 1,
           storyRetryCount: 0,
           blockerTimeoutHours: 0,
         },
@@ -186,7 +185,6 @@ describe('EpicRunner integration', () => {
             epicRunner: {
               enabled: true,
               concurrencyCap: 1,
-              pollIntervalSec: 1,
               storyRetryCount: 0,
               blockerTimeoutHours: 0,
             },
@@ -217,7 +215,6 @@ describe('EpicRunner integration', () => {
         epicRunner: {
           enabled: true,
           concurrencyCap: 2,
-          pollIntervalSec: 1,
           storyRetryCount: 0,
           blockerTimeoutHours: 0,
         },
@@ -280,7 +277,6 @@ describe('EpicRunner integration', () => {
         epicRunner: {
           enabled: true,
           concurrencyCap: 2,
-          pollIntervalSec: 1,
           storyRetryCount: 0,
           blockerTimeoutHours: 0,
         },

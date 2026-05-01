@@ -610,7 +610,7 @@ describe('validateOrchestrationConfig — conditional required keys', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { epicRunner: { pollIntervalSec: 30 } },
+          runners: { epicRunner: { progressReportIntervalSec: 30 } },
         }),
       /must have required property 'concurrencyCap'/,
     );
@@ -622,7 +622,9 @@ describe('validateOrchestrationConfig — conditional required keys', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { epicRunner: { enabled: true, pollIntervalSec: 30 } },
+          runners: {
+            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
+          },
         }),
       /must have required property 'concurrencyCap'/,
     );
@@ -633,7 +635,9 @@ describe('validateOrchestrationConfig — conditional required keys', () => {
       validateOrchestrationConfig({
         provider: 'github',
         github: baseGithub,
-        runners: { epicRunner: { enabled: false, pollIntervalSec: 30 } },
+        runners: {
+          epicRunner: { enabled: false, progressReportIntervalSec: 30 },
+        },
       }),
     );
   });

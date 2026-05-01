@@ -384,10 +384,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "concurrencyCap": { "type": "integer", "minimum": 1 },
-        "pollIntervalSec": { "type": "integer", "minimum": 1 },
         "progressReportIntervalSec": { "type": "integer", "minimum": 0 },
-        "idleTimeoutSec": { "type": "integer", "minimum": 0 },
-        "logsDir": { "$ref": "#/$defs/safeString" },
         "healthRefresh": { "$ref": "#/$defs/healthRefresh" }
       },
       "additionalProperties": false,
