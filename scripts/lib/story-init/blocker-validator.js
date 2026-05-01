@@ -1,5 +1,5 @@
 /**
- * blocker-validator.js — Stage 3 of the sprint-story-init pipeline.
+ * blocker-validator.js — Stage 3 of the story-init pipeline.
  *
  * Parses `blocked by #N` references from the Story body and verifies each
  * one is resolved (labelled `agent::done` or GitHub state `closed`).

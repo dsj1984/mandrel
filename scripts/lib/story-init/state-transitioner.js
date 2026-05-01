@@ -1,5 +1,5 @@
 /**
- * state-transitioner.js — Stage 6 of the sprint-story-init pipeline.
+ * state-transitioner.js — Stage 6 of the story-init pipeline.
  *
  * Batch-transitions every child Task of the Story to `agent::executing`.
  * Returns a structured `{ ok, failed }` verdict so the caller can decide

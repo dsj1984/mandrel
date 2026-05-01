@@ -102,7 +102,7 @@ export class CommitAssertion {
  * origin/epic/<epicId>..origin/story-<storyId>` in `cwd` and returns the
  * integer count.
  *
- * If the story branch is missing (sprint-story-close deletes both the local
+ * If the story branch is missing (story-close deletes both the local
  * and remote story branch after a successful merge — by the time the Epic
  * wave-observer invokes the assertion, `origin/story-<storyId>` is gone),
  * the adapter falls back to counting commits on the epic branch whose

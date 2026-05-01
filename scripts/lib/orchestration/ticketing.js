@@ -45,11 +45,11 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   'epic-plan-state',
   'parked-follow-ons',
   'dispatch-manifest',
-  // Story #566 — per-phase wall-clock summary posted by sprint-story-close
+  // Story #566 — per-phase wall-clock summary posted by story-close
   // and consumed by the epic-runner progress reporter to surface median /
   // p95 phase timings across completed stories.
   'phase-timings',
-  // Story #831 — sprint-story-init upserts a `story-init` comment that
+  // Story #831 — story-init upserts a `story-init` comment that
   // surfaces `dependenciesInstalled` (and the underlying installStatus) so
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
@@ -393,7 +393,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
 
         // EXCLUSION: Epics and Planning tickets (PRDs, Tech Specs) do not
         // auto-close via cascade.
-        //   - Epics close via formal /sprint-close (their own machinery
+        //   - Epics close via formal /epic-close (their own machinery
         //     handles branch merges, version bumps, release tags).
         //   - Planning tickets (context::prd, context::tech-spec) close by
         //     operator once the Epic is finalized.
@@ -411,7 +411,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
           parent.labels.includes('context::tech-spec');
         if (isEpic || isPlanning) {
           console.warn(
-            `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (reserved for sprint-close).`,
+            `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (reserved for epic-close).`,
           );
           return;
         }

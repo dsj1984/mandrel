@@ -1,5 +1,5 @@
 /**
- * hierarchy-tracer.js — Stage 2 of the sprint-story-init pipeline.
+ * hierarchy-tracer.js — Stage 2 of the story-init pipeline.
  *
  * Given an epicId, resolves the linked PRD and Tech Spec issue IDs by
  * fetching the Epic. Fetch failures are logged but non-fatal — the result
@@ -27,7 +27,7 @@ export async function traceHierarchy({ provider, logger, input }) {
     techSpecId = epic.linkedIssues?.techSpec ?? null;
   } catch (err) {
     warn(
-      `[sprint-story-init] Warning: Could not fetch Epic #${epicId}: ${err.message}`,
+      `[story-init] Warning: Could not fetch Epic #${epicId}: ${err.message}`,
     );
   }
 

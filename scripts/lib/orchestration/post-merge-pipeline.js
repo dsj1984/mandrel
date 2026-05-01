@@ -1,6 +1,6 @@
 /**
  * post-merge-pipeline.js — sequencer for the post-merge phases of
- * `sprint-story-close`.
+ * `story-close`.
  *
  * After the Story branch is merged into the Epic branch, several best-effort
  * cleanup + reporting phases must run:
@@ -81,7 +81,7 @@ async function emitReapFailureFriction({
     'The Story merge succeeded but the worktree could not be removed. Close',
     'any editor/terminal holding the path, then run `git worktree remove',
     '<path> --force && git worktree prune` to clean up. Re-running',
-    '`sprint-story-close` is idempotent.',
+    '`story-close` is idempotent.',
   ].join('\n');
   await frictionEmitter.emit({
     ticketId: Number(storyId),
@@ -150,7 +150,7 @@ export async function worktreeReapPhase(ctx) {
     );
     if (isWindowsReapLockFailure(reapResult.reason)) {
       logger.error(
-        `[sprint-story-close] OPERATOR ACTION REQUIRED: Worktree at ${reapResult.path} ` +
+        `[story-close] OPERATOR ACTION REQUIRED: Worktree at ${reapResult.path} ` +
           `could not be removed (Windows lock/permission error: ${reapResult.reason}). ` +
           'Close any editor/terminal holding the path, then run ' +
           '`git worktree remove <path> --force && git worktree prune` to clean up.',
@@ -172,7 +172,7 @@ export async function worktreeReapPhase(ctx) {
       reason: 'still-registered-after-reap',
     };
     logger.error(
-      `[sprint-story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
+      `[story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
         `${stillRegistered.path}. Run ` +
         '`git worktree remove <path> --force && git worktree prune` to clean up.',
     );
@@ -391,7 +391,7 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
 ]);
 
 /**
- * Sequence the post-merge phases of `sprint-story-close`. Every phase runs
+ * Sequence the post-merge phases of `story-close`. Every phase runs
  * under `runPhase` so a single failure logs `[phase=<name>] <err>` and the
  * pipeline keeps going. Each phase's return value is recorded under its
  * `stateKey` (when defined) on the returned state object.

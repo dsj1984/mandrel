@@ -1,5 +1,5 @@
 /**
- * Story lifecycle helpers shared between sprint-story-init and sprint-story-close.
+ * Story lifecycle helpers shared between story-init and story-close.
  *
  * These three pure/IO-helpers capture the overlap previously duplicated across
  * the two CLI scripts — parsing the `Epic: #N` / `parent: #N` references out

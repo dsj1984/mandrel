@@ -158,7 +158,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     }
     console.error(
       '\nClose the open descendants — Tasks must carry `agent::done` — ' +
-        'and re-run `/sprint-close`.',
+        'and re-run `/epic-close`.',
     );
     process.exit(1);
   }

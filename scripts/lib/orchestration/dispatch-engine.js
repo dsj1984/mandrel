@@ -117,8 +117,8 @@ export async function resolveAndDispatch(options) {
   if (isFeature) {
     throw new Error(
       `[Dispatcher] Ticket #${ticketId} is a **Feature**. Features are containers and cannot be executed directly. ` +
-        `Please execute individual Stories within this Feature using \`/sprint-execute #[Story ID]\`, ` +
-        `or dispatch the entire Epic using \`/sprint-execute #${ticket.body?.match(/^parent:\s*#(\d+)/m)?.[1] || 'ID'}\`.`,
+        `Please execute individual Stories within this Feature using \`/epic-execute #[Story ID]\`, ` +
+        `or dispatch the entire Epic using \`/epic-execute #${ticket.body?.match(/^parent:\s*#(\d+)/m)?.[1] || 'ID'}\`.`,
     );
   }
 

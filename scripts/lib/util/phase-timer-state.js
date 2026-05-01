@@ -1,9 +1,9 @@
 /**
  * lib/util/phase-timer-state.js — Cross-process persistence for phase-timer
  *
- * A Story Mode run spans two Node processes — `sprint-story-init` creates the
+ * A Story Mode run spans two Node processes — `story-init` creates the
  * timer and opens the `implement` phase; the operator (or a headless
- * `claude -p` sub-agent) does the work; `sprint-story-close` reads the
+ * `claude -p` sub-agent) does the work; `story-close` reads the
  * timer back, appends `lint` / `test` / `close` / `api-sync` marks, and
  * emits the `phase-timings` structured comment.
  *

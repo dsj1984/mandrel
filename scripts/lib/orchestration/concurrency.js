@@ -5,7 +5,7 @@
  * so omitting the config block preserves pre-tuning behaviour bit-for-bit.
  *
  * Fields:
- *   - `waveGate`: 0 means "uncapped" — sprint-wave-gate keeps the
+ *   - `waveGate`: 0 means "uncapped" — wave-gate keeps the
  *     Promise.all shape it shipped with. Positive values cap the three
  *     per-section ticket-read batches via `concurrentMap`.
  *   - `commitAssertion`: default 4 matches the former

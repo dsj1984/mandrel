@@ -4,7 +4,7 @@
 /**
  * story-close.js — Story Execution Closure
  *
- * Deterministic script that replaces Steps 5, 5b, and 6 of the sprint-execute
+ * Deterministic script that replaces Steps 5, 5b, and 6 of the epic-execute
  * Mode B workflow. Performs all post-implementation orchestration:
  *
  *   1. Validates the Story branch exists and is currently checked out.

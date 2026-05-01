@@ -223,7 +223,7 @@ export function validateBlockersMerged(manifest, storyId) {
 /**
  * Run the launch-time dependency guard as a single pipeline stage. Wraps
  * `loadDispatchManifest` + `validateBlockersMerged` + `formatBlockerReport`
- * so `sprint-story-init` can fold the guard into a one-line call.
+ * so `story-init` can fold the guard into a one-line call.
  *
  * @param {object} opts
  * @param {number} opts.epicId
@@ -258,7 +258,7 @@ export async function runDispatchManifestGuard({
   if (!load.ok) {
     const warn = logger?.warn ?? ((m) => console.error(m));
     warn(
-      `[warn] dispatch-manifest dependency guard skipped: ${load.reason}. Proceeding without blocker verification — regenerate via /sprint-plan to restore the guard.`,
+      `[warn] dispatch-manifest dependency guard skipped: ${load.reason}. Proceeding without blocker verification — regenerate via /epic-plan to restore the guard.`,
     );
     return { blocked: false };
   }
@@ -278,7 +278,7 @@ export async function runDispatchManifestGuard({
 
 /**
  * Format the unmerged-blocker report for stderr. Exported so the unit test
- * can lock the wording and callers outside `sprint-story-init` stay in sync.
+ * can lock the wording and callers outside `story-init` stay in sync.
  *
  * @param {number} storyId
  * @param {Array<{id:number,title:string,state:string,url?:string}>} blockers
@@ -297,8 +297,8 @@ export function formatBlockerReport(storyId, blockers) {
   }
   lines.push('');
   lines.push(
-    'Merge the blocker Stories first, then re-run /sprint-execute. ' +
-      'Guard source: dispatch manifest (regenerate via /sprint-plan).',
+    'Merge the blocker Stories first, then re-run /epic-execute. ' +
+      'Guard source: dispatch manifest (regenerate via /epic-plan).',
   );
   lines.push('');
   return lines.join('\n');
