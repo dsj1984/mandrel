@@ -99,10 +99,7 @@
       "epicRunner": {
         "enabled": true,
         "concurrencyCap": 3,
-        "pollIntervalSec": 30,
-        "progressReportIntervalSec": 120,
-        "idleTimeoutSec": 900,
-        "logsDir": "temp/epic-runner-logs"
+        "progressReportIntervalSec": 120
       },
       "planRunner": {
         "enabled": true,

@@ -1,8 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 
-import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
-
 // Shell-injection constants live in config-schema-shared.js so the settings
 // schema file can import them without pulling this module's AJV bundle.
 // Re-exported here for backward-compatible import paths.
@@ -19,12 +17,6 @@ export {
   AGENT_SETTINGS_STRING_FIELDS,
   getSettingsValidator,
 } from './config-settings-schema.js';
-
-/** Reusable field-level schemas to keep sub-schemas concise. */
-const SAFE_STRING = {
-  type: 'string',
-  not: { pattern: SHELL_INJECTION_PATTERN_STRING },
-};
 
 const GITHUB_SCHEMA = {
   type: 'object',
@@ -138,10 +130,7 @@ const EPIC_RUNNER_SCHEMA = {
   properties: {
     enabled: { type: 'boolean' },
     concurrencyCap: { type: 'integer', minimum: 1 },
-    pollIntervalSec: { type: 'integer', minimum: 1 },
     progressReportIntervalSec: { type: 'integer', minimum: 0 },
-    idleTimeoutSec: { type: 'integer', minimum: 0 },
-    logsDir: SAFE_STRING,
     healthRefresh: HEALTH_REFRESH_SCHEMA,
   },
   additionalProperties: false,

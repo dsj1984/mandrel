@@ -45,9 +45,7 @@ export class BlockerHandler {
     this.labelFetcher =
       opts.labelFetcher ??
       (async (id) => (await provider.getTicket(id)).labels ?? []);
-    const pollDefault =
-      ctx?.pollIntervalSec != null ? ctx.pollIntervalSec * 1000 : 30_000;
-    this.pollIntervalMs = opts.pollIntervalMs ?? pollDefault;
+    this.pollIntervalMs = opts.pollIntervalMs ?? 30_000;
     this.logger = opts.logger ?? ctx?.logger ?? console;
     this.postComment =
       opts.postComment ??

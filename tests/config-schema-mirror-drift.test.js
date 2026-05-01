@@ -295,7 +295,11 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           nodeModulesStrategy: 'per-worktree',
         },
         runners: {
-          epicRunner: { enabled: true, concurrencyCap: 3, pollIntervalSec: 30 },
+          epicRunner: {
+            enabled: true,
+            concurrencyCap: 3,
+            progressReportIntervalSec: 30,
+          },
           planRunner: { enabled: true, pollIntervalSec: 30 },
         },
       },
