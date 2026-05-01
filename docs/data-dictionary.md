@@ -4,7 +4,8 @@ This document defines the core data structures and schemas used across the Agent
 
 > **Epic #900 update.** Several entries below describe artefacts removed in
 > v5.31.0 — they are retained as a historical reference. Specifically:
-> the `agent::dispatching` label, the `agent-orchestrator.yml` workflow,
+> the trigger-only `agent::` labels (the `dispatching` / `planning` /
+> `decomposing` triplet), the `agent-orchestrator.yml` workflow,
 > and `SpawnSmokeTest` / `build-claude-spawn` are gone (the four-skill
 > split — `/epic-execute`, `/wave-execute`, `/story-execute`, plus the
 > `task-execute.md` helper — replaced subprocess fan-out with
@@ -167,19 +168,18 @@ responsibility map.
 
 ### 7. Epic Runner Vocabulary (v5.14.0 / Epic #321)
 
-The remote-orchestrator flow introduces a small vocabulary over and
-above the existing label/comment taxonomy.
+The orchestration vocabulary over and above the existing label/comment
+taxonomy. (Per-Epic-#900 cleanup: the prior remote-trigger label row was
+removed alongside the deleted GH Actions surface.)
 
 | Term                       | Kind                | Definition                                                                                                     |
 | -------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `agent::dispatching`       | Label (transient)   | Operator-applied trigger that fires `epic-orchestrator.yml`; the runner flips it to `agent::executing` on pickup.  |
 | `epic::auto-close`         | Label (snapshot)    | Opt-in modifier captured at dispatch. Authorises the bookend chain (`review → retro → close → merge-to-main`). |
 | `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume.                      |
 | `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                  |
 | `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                          |
-| `concurrencyCap`           | Config (integer)    | `orchestration.epicRunner.concurrencyCap`; max parallel `/sprint-execute <storyId>` sub-agents per wave.       |
-| `pollIntervalSec`          | Config (integer)    | `orchestration.epicRunner.pollIntervalSec`; how often `StatePoller` rechecks labels.                           |
-| Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a remote run.                        |
+| `concurrencyCap`           | Config (integer)    | `orchestration.epicRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.        |
+| Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                               |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                       |
 
 `risk::high` is explicitly no longer a runtime-gate term — it remains
@@ -210,7 +210,7 @@ follow-on work (retro action items carried forward from Epic #380).
 | `CommitAssertion`                                   | Class                 | Post-wave guard wired into `wave-observer`; reclassifies a `done` wave with zero new commits on `origin/story-<id>` as `halted`. Lives at `lib/orchestration/epic-runner/commit-assertion.js`. |
 | `detectPriorState()`                                | Function              | Recovery-state detector exported by `story-close.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flags             | New `story-close.js` flags. `--resume` picks up at the merge resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                          | Script                | `/sprint-close` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories → Tasks plus auxiliary tickets) and exits non-zero if any descendant is open or any Task is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
+| `hierarchy-gate.js`                          | Script                | `/epic-close` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories → Tasks plus auxiliary tickets) and exits non-zero if any descendant is open or any Task is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
 | `epic-runner-logs/`                                 | File path (configurable) | Default destination for per-story / per-bookend subprocess logs written by the runner CLI's `defaultSpawn` and `defaultRunSkill`. Path is `orchestration.epicRunner.logsDir` (default `temp/epic-runner-logs/`). |
 | `logsDir`                                           | Config (string)       | `orchestration.epicRunner.logsDir`; directory for runner spawn / bookend stdout-stderr logs. Validated against the shared shell-injection pattern. Default: `temp/epic-runner-logs/`. |
 | `setPlan({ waves })`                                | Method                | `ProgressReporter` API added in #413. Called once at runner start with the full wave plan so each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column rather than only the active wave. |
@@ -228,8 +228,8 @@ Epic #413).
 | --------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Structured-comment `type` enum (extended)           | MCP schema            | `mcp__agent-protocols__post_structured_comment` now accepts `code-review`, `retro`, `retro-partial`, `epic-run-state`, `epic-run-progress`, `parked-follow-ons`, `dispatch-manifest`, and any string matching `^wave-\d+-(start\|end)$`, in addition to the prior `progress` / `friction` / `notification`. Validator rejects unknown types. |
 | `FrictionEmitter`                                   | Class                 | Rate-limited emitter at `lib/orchestration/friction-emitter.js` that wraps `provider.postComment` / `post_structured_comment`. Dedupe key: `storyId` + marker hash; cooldown: 60s. Consumed by `story-close.js` reap-failure, `epic-runner` wave-poller `getTicket` failure, and `check-maintainability.js` baseline-refresh sites. |
-| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/sprint-close` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
-| Version-bump-intent snapshot                        | Checkpoint            | `/sprint-execute` Epic Mode Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`. |
+| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-close` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
+| Version-bump-intent snapshot                        | Checkpoint            | `/epic-execute` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`. |
 | Launcher-level config validation                    | Contract              | `validateOrchestrationConfig(config)` is now invoked in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins (complements Story #436's resolver-level coverage). |
 | `CommitAssertion` grep fallback                     | Behavior              | `buildDefaultGitAdapter` now falls back to `git log origin/epic/<id> --grep='resolves #<storyId>'` when `origin/story-<id>` is missing (expected state after `sprint-story-close` deletes the remote branch). A non-zero fallback count is treated as proof the Story's work landed; a zero-result fallback surfaces the original `unknown revision` error so genuine zero-deltas still record. |
 
@@ -257,7 +257,7 @@ the contract without re-reading the source.
 
 | Term | Kind | Definition |
 | --- | --- | --- |
-| `manifestPersisted` | MCP tool-result field | Boolean on the `dispatch_wave` result, `true` when the dispatch manifest was successfully written to `temp/dispatch-manifest-<epicId>.json` via the atomic tmp+rename sequence. Callers that treat the on-disk manifest as canonical (notably `/sprint-execute`) must branch on this instead of assuming a read-after-write. |
+| `manifestPersisted` | MCP tool-result field | Boolean on the `dispatch_wave` result, `true` when the dispatch manifest was successfully written to `temp/dispatch-manifest-<epicId>.json` via the atomic tmp+rename sequence. Callers that treat the on-disk manifest as canonical (notably `/wave-execute`) must branch on this instead of assuming a read-after-write. |
 | `manifestPersistError` | MCP tool-result field | Optional string on the `dispatch_wave` result, present only when `manifestPersisted` is `false`. Carries the original write/rename failure (e.g. `EACCES`, `ENOSPC`). |
 | `outputSchemaRef` | Tool-registry field | Optional string on each MCP tool descriptor, pointing at the schema file that describes the tool's output (e.g. `dispatch_wave` → `.agents/schemas/dispatch-manifest.json`; `run_audit_suite` → `.agents/schemas/audit-results.schema.json`). Exposed via `tools/list` metadata. `null` is an explicit choice for tools whose output is a minimal inline shape. |
 | `substitutions` | MCP tool-argument field | Optional `Record<string,string>` on `run_audit_suite`. Keys must be declared in the allow-list derived from `audit-rules.schema.json` (e.g. `auditOutputDir`, `ticketId`, `baseBranch`, plus per-audit keys). Unknown keys are rejected with a clear error rather than silently dropped. |
@@ -312,12 +312,12 @@ Configurable surfaces and helpers shipped by the post-#553 retro follow-on Epic.
 | `resolveConcurrency(source)` | Helper | `lib/orchestration/concurrency.js`. Reads either `orchestration.concurrency` or a pre-narrowed concurrency block, coerces per-field, falls back to `DEFAULT_CONCURRENCY` on missing/malformed values. Returned object is frozen. |
 | `ctx.concurrency` | Runtime surface | Frozen `{ waveGate, commitAssertion, progressReporter }` on both `createRuntimeContext` and every `OrchestrationContext` subclass. `CommitAssertion` and `ProgressReporter` read their cap through `ctx.concurrency.*` via the epic-runner factory; `sprint-wave-gate` resolves via `injectedConcurrency` or `resolveConfig()`. |
 | `aggregate-phase-timings.js` | CLI | `.agents/scripts/aggregate-phase-timings.js --epic <id> [--epic N …] [--from-file <path>] [--out <path>]`. Reads `phase-timings` structured comments across Story tickets, computes per-phase p50/p95, emits a markdown summary plus recommended concurrency caps. Zero-sample runs exit 1 with the v5.21.0 defaults recommended. |
-| `changelog-style.md` | Rule file | `.agents/rules/changelog-style.md`. Guidance-tier contract for release-entry shape: 1–3 sentence theme paragraph, bullets of user-visible changes only, banned content list, breaking-change prominence, soft ≤ 60 lines / non-major, ≤ 150 lines / major. `/sprint-close` Phase 2 references the rule. |
+| `changelog-style.md` | Rule file | `.agents/rules/changelog-style.md`. Guidance-tier contract for release-entry shape: 1–3 sentence theme paragraph, bullets of user-visible changes only, banned content list, breaking-change prominence, soft ≤ 60 lines / non-major, ≤ 150 lines / major. `/epic-close` Phase 2 references the rule. |
 | `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of `helpers/epic-retro.md`. |
-| `--full-retro` | CLI flag | `/sprint-close` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors the `--skip-retro` / `--skip-code-review` escape-hatch pattern; logged when applied. |
+| `--full-retro` | CLI flag | `/epic-close` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors the `--skip-retro` / `--skip-code-review` escape-hatch pattern; logged when applied. |
 | `phase-timings` comment (consumed) | Structured comment | Already shipped in #553. New consumers (`aggregate-phase-timings.js`) read `{ storyId, totalMs, phases: [{ name, elapsedMs }] }` from the fenced JSON block posted on each closed Story. |
 
-### 16. Epic #668 Artefacts — Web Parallel `/sprint-execute` (v5.24.0)
+### 16. Epic #668 Artefacts — Web-Parallel Execution (v5.24.0; renamed in #900)
 
 Identity, claim, retry, and resolver surfaces shipped by the
 "parallel sprint-execute on Claude Code web" Epic.
@@ -349,7 +349,7 @@ tool names solely as historical context — those tools no longer exist.
 | `select-audits.js` / `run-audit-suite.js` | CLI | Successors to `mcp__agent-protocols__select_audits` and `mcp__agent-protocols__run_audit_suite`. Selection reads `audit-rules.schema.json`; suite execution loads the selected workflow prompts. |
 | `hydrate-context.js` / `context-hydrator.js` | CLI | `hydrate-context.js --ticket <id> --epic <id>` emits the retired MCP tool's JSON envelope. `context-hydrator.js --task <id> --epic <id>` is the raw-prompt wrapper used by operator workflows. |
 | `update-ticket-state.js` (extended) | CLI | Pre-existing CLI now also covers `mcp__agent-protocols__transition_ticket_state` and `mcp__agent-protocols__cascade_completion`. Cascade runs inline at the SDK layer when a Story's last open Task closes. |
-| `dispatcher.js` | CLI | Pre-existing CLI covers `mcp__agent-protocols__dispatch_wave`. Invoked by `/sprint-plan` Phase 3. |
+| `dispatcher.js` | CLI | Pre-existing CLI covers `mcp__agent-protocols__dispatch_wave`. Invoked by `/epic-plan` Phase 3. |
 | `process.env`-only secrets resolution | Contract | `notifier.js` `resolveWebhookUrl()` and the GitHub provider's `GITHUB_TOKEN` lookup read **only** from `process.env`. `.mcp.json` is no longer consulted as a secrets backstop; operators must keep `GITHUB_TOKEN` and `NOTIFICATION_WEBHOOK_URL` in `.env` (local) or the Claude Code web env-var UI. |
 | `agent-protocols` MCP block | Removed | The `mcpServers["agent-protocols"]` entry is deleted from `.mcp.json` and from `.agents/default-mcp.json` (the latter file is itself removed). Third-party MCP servers (`github`, `context7`, `chrome-devtools`, etc.) in `.mcp.json` are unaffected. |
 

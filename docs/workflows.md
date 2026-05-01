@@ -11,32 +11,28 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 
 ## Planning
 
-| Command                  | Purpose                                                                                   | Typical caller |
-| ------------------------ | ----------------------------------------------------------------------------------------- | -------------- |
-| `/sprint-plan`           | Local, one-shot wrapper: generate PRD + Tech Spec, pause for confirmation, then decompose.| Operator in IDE |
-| `/sprint-plan-spec`      | Phase 1 of remote planning — generate PRD + Tech Spec; flip Epic to `agent::review-spec`. | `agent::planning` label → `epic-orchestrator.yml` |
-| `/sprint-plan-decompose` | Phase 2 of remote planning — decompose into Feature/Story/Task; flip Epic to `agent::ready`. | `agent::decomposing` label → `epic-orchestrator.yml` |
+| Command       | Purpose                                                                                          | Typical caller  |
+| ------------- | ------------------------------------------------------------------------------------------------ | --------------- |
+| `/epic-plan`  | One-shot wrapper: generate PRD + Tech Spec, pause for confirmation, then decompose. No flags.    | Operator in IDE |
 
 ## Execution
 
-| Command                     | Purpose                                                                                           |
-| --------------------------- | ------------------------------------------------------------------------------------------------- |
-| `/sprint-execute`           | Single entry point. Routes by `type::` label — Epic Mode for `type::epic`, Story Mode for `type::story`. |
+The execution surface is split by hierarchy level (Epic #900, v5.31.0). Pick the
+level you want to drive — each skill takes an explicit ticket id and dispatches
+its children via the Agent tool inside the operator's Claude session.
 
-> `/sprint-execute-epic` and `/sprint-execute-story` were retired in v5.15.0.
-> The single `/sprint-execute` router replaces both; its internal engines
-> (`epic-runner.js`, `story-init.js`, `story-close.js`) are
-> unchanged.
+| Command                              | Purpose                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `/epic-execute <epicId>`             | Owns the wave loop for the whole Epic; fans out via `/wave-execute`.                     |
+| `/wave-execute <epicId> <waveN>`     | Runs one wave only; fans out Stories via Agent-tool sub-agents (cap = `concurrencyCap`). |
+| `/story-execute <storyId>`           | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. |
 
 ## Closure
 
-| Command                        | Purpose                                                                                                                          |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `/sprint-close`                | Close an Epic end-to-end. Internally auto-invokes `/sprint-code-review` and `/sprint-retro` before merging `epic/<id>` to `main`. |
-| `/sprint-code-review`          | Comprehensive code review of the Epic's changes. Auto-invoked by `/sprint-close`; rarely called directly.                         |
-| `/sprint-retro`                | Retrospective from ticket graph and friction logs; posted as a structured comment on the Epic.                                    |
-| `/sprint-testing`              | Ingest the Cucumber report produced by `/run-bdd-suite` as sprint evidence.                                                       |
-| `/run-bdd-suite`               | Run a tag-filtered BDD acceptance suite and collect a Cucumber report.                                                            |
+| Command              | Purpose                                                                                                                       |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/epic-close`        | Close an Epic end-to-end. Internally auto-invokes the `epic-code-review` and `epic-retro` helpers before merging to `main`.   |
+| `/run-bdd-suite`     | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper).             |
 
 ## Audit suite
 
@@ -80,18 +76,19 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 Not invoked directly by operators, but referenced from other workflows:
 
 - `helpers/_merge-conflict-template.md` — canonical procedure for resolving a
-  merge conflict, included by reference from `sprint-execute`, `sprint-close`,
+  merge conflict, included by reference from `story-execute`, `epic-close`,
   and `git-merge-pr`.
 - `helpers/epic-code-review.md` — comprehensive code-review procedure,
-  auto-invoked by `sprint-close` (Phase 3) and the `sprint-execute` bookends.
+  auto-invoked by `epic-close` (Phase 3) and the `epic-execute` bookends.
 - `helpers/epic-retro.md` — retrospective authoring procedure, auto-invoked
-  by `sprint-close` (Phase 6).
+  by `epic-close` (Phase 6).
 - `helpers/epic-testing.md` — QA evidence ingest for the sprint-testing
-  ticket, invoked by `sprint-close` / operator; consumes `/run-bdd-suite`
+  ticket, invoked by `epic-close` / operator; consumes `/run-bdd-suite`
   output.
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
-  phase procedures delegated to by `/sprint-plan` (local wrapper) and by the
-  `/sprint-plan --phase <phase>` entry point fired by the remote orchestrator.
+  phase procedures delegated to by `/epic-plan`.
+- `helpers/task-execute.md` — single-Task implementation procedure read
+  inline by `/story-execute` per Task (not a slash command).
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure
   for `.agentrc.json`, invoked by `/agents-update` after the submodule pointer
   moves (formerly shipped as `/agents-sync-config`).

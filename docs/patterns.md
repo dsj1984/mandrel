@@ -2,8 +2,8 @@
 
 > **Epic #900 update.** The **Hierarchy-aligned slash-command split**
 > pattern was added in v5.31.0: a single mega-skill that routed by label
-> (`/sprint-execute`) was replaced by four narrow skills aligned to the
-> Epic-centric ticket hierarchy — `/epic-execute` (wave loop),
+> (the legacy `sprint-execute`) was replaced by four narrow skills aligned
+> to the Epic-centric ticket hierarchy — `/epic-execute` (wave loop),
 > `/wave-execute` (one wave's Story fan-out), `/story-execute` (init →
 > task loop → close for one Story), and the `task-execute.md` helper read
 > inline by `/story-execute`. The shape lets the operator stop or resume
@@ -13,11 +13,11 @@
 > Agent tool inside the operator's Claude session, so worktree
 > filesystem isolation is preserved while the process boundary, the
 > idle watchdog, the headless `--dangerously-skip-permissions` contract,
-> and the progress-log tailing dance all disappear. References below
-> to `/sprint-execute`, `/sprint-plan`, `/sprint-close`, `/sprint-retro`,
-> or `sprint-{story,wave,code-review,hierarchy}-*.js` predate this
-> Epic; the current names are `/epic-execute`, `/epic-plan`,
-> `/epic-close`, the `epic-retro.md` helper, and
+> and the progress-log tailing dance all disappear. References below to
+> the legacy `sprint-execute` / `sprint-plan` / `sprint-close` /
+> `sprint-retro` skills or `sprint-{story,wave,code-review,hierarchy}-*.js`
+> scripts predate this Epic; the current names are `/epic-execute`,
+> `/epic-plan`, `/epic-close`, the `epic-retro.md` helper, and
 > `epic-{story,wave,code-review,hierarchy,plan}-*.js` respectively.
 >
 > **Epic #857 update.** The **Rule-as-SSOT** pattern — first modeled by
@@ -196,7 +196,8 @@ Each dispatched story runs in its own `git worktree`:
 
 ### Problem
 
-Two execution environments coexist for `/sprint-execute`: local Claude Code
+Two execution environments coexist for the four-skill execution surface
+(`/epic-execute` / `/wave-execute` / `/story-execute`): local Claude Code
 sessions on a developer's machine (one shared filesystem, multiple agents) and
 web Claude Code sessions at claude.ai/code (each session is its own sandboxed
 clone). The worktree-isolation pattern from v5.7.0 was designed for the local
@@ -238,12 +239,12 @@ worktree-on path is byte-identical to its pre-resolver behaviour.
 
 ### Exercising it locally
 
-Set `AP_WORKTREE_ENABLED=false` in your shell and run `/sprint-execute
+Set `AP_WORKTREE_ENABLED=false` in your shell and run `/story-execute
 <storyId>` against a story branch. The init script reports
 `[ENV] worktreeIsolation=off (AP_WORKTREE_ENABLED override)` and runs the
 story directly in the main checkout. Story close merges, reaps (a no-op),
 pushes, and cascades exactly as it would with worktrees on. The same
-`/sprint-execute` codepath drives both paths — there is no separate
+`/story-execute` codepath drives both paths — there is no separate
 "web mode" command.
 
 ### Identity signals
@@ -1121,9 +1122,9 @@ one flag away.
    automated retro agent uses the same truth.
 2. **Preserved downstream contract.** The compact body is still a
    `type: 'retro'` comment and still ends with `<!-- retro-complete:
-   <ISO> -->`. `/sprint-close` Phase 6's completion gate is
+   <ISO> -->`. `/epic-close` Phase 6's completion gate is
    unchanged. No consumer sees a shape difference beyond length.
-3. **Operator override.** A new `--full-retro` flag on `/sprint-close`
+3. **Operator override.** A new `--full-retro` flag on `/epic-close`
    (and a note in the helper) forces the six-section body when the
    operator disagrees with the predicate. Mirrors `--skip-retro` /
    `--skip-code-review`.

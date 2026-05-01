@@ -196,11 +196,11 @@ when any of these are tripped.
 | Field              | Required | Default | Purpose                                                                                  |
 | ------------------ | -------- | ------- | ---------------------------------------------------------------------------------------- |
 | `baseBranch`       | No       | (none)  | Default branch name (e.g. `main`). Read by close, push, and rebase paths.                |
-| `release.docs`     | No       | `[]`    | Files refreshed during `/sprint-close` doc-freshness gate.                               |
+| `release.docs`     | No       | `[]`    | Files refreshed during `/epic-close` doc-freshness gate.                                 |
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
-| `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/sprint-close`.                                    |
-| `epicClose.runRetro`   | No   | `true`  | When `true`, `/sprint-close` invokes the retro helper.                                   |
+| `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
+| `epicClose.runRetro`   | No   | `true`  | When `true`, `/epic-close` invokes the retro helper.                                     |
 | `sprintClose.runRetro` | No   | (none)  | **Deprecated** — alias for `epicClose.runRetro`. Read as a fallback with a `Logger.warn(...)` deprecation; scheduled for removal in 5.32.0. |
 | `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
@@ -253,7 +253,7 @@ when any of these are tripped.
 
 ### `orchestration.worktreeIsolation`
 
-Story-level worktree isolation. When `enabled: true`, `/sprint-execute` runs
+Story-level worktree isolation. When `enabled: true`, `/story-execute` runs
 each Story inside `.worktrees/story-<id>/` instead of moving the main
 checkout's HEAD.
 

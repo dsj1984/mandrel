@@ -14,13 +14,12 @@ eight options, in order:
 | # | Option        | Meaning                                                         |
 | - | ------------- | --------------------------------------------------------------- |
 | 1 | `Backlog`     | Open work item, not yet scheduled.                              |
-| 2 | `Planning`    | `agent::planning` — PRD + Tech Spec being generated.            |
-| 3 | `Spec Review` | `agent::review-spec` — awaiting human review of PRD/Tech Spec.  |
-| 4 | `Ready`       | `agent::decomposing` or `agent::ready` — manifest ready.        |
-| 5 | `In Progress` | `agent::dispatching` or `agent::executing` — active work.       |
-| 6 | `Blocked`     | `agent::blocked` — waiting on a dependency or HITL.             |
-| 7 | `Review`      | `agent::review` — PR open or awaiting human sign-off.           |
-| 8 | `Done`        | `agent::done` — work complete, cascaded.                        |
+| 2 | `Spec Review` | `agent::review-spec` — awaiting human review of PRD/Tech Spec.  |
+| 3 | `Ready`       | `agent::ready` — manifest ready, awaiting `/epic-execute`.      |
+| 4 | `In Progress` | `agent::executing` — active work.                               |
+| 5 | `Blocked`     | `agent::blocked` — waiting on a dependency or HITL.             |
+| 6 | `Review`      | `agent::review` — PR open or awaiting human sign-off.           |
+| 7 | `Done`        | `agent::done` — work complete, cascaded.                        |
 
 Bootstrap treats the option list as additive — it never removes existing
 options, so extending the field with team-specific states (e.g.
@@ -31,19 +30,16 @@ options, so extending the field with team-specific states (e.g.
 `lib/orchestration/epic-runner/column-sync.js` drives the Status column
 on every label transition via the `LABEL_TO_COLUMN` table. When two
 lifecycle labels overlap, terminal states win (Done > Blocked > Review >
-Spec Review > Ready > Planning > In Progress).
+Spec Review > Ready > In Progress).
 
-| Label                 | Column        |
-| --------------------- | ------------- |
-| `agent::planning`     | `Planning`    |
-| `agent::review-spec`  | `Spec Review` |
-| `agent::decomposing`  | `Ready`       |
-| `agent::ready`        | `Ready`       |
-| `agent::dispatching`  | `In Progress` |
-| `agent::executing`    | `In Progress` |
-| `agent::blocked`      | `Blocked`     |
-| `agent::review`       | `Review`      |
-| `agent::done`         | `Done`        |
+| Label                | Column        |
+| -------------------- | ------------- |
+| `agent::review-spec` | `Spec Review` |
+| `agent::ready`       | `Ready`       |
+| `agent::executing`   | `In Progress` |
+| `agent::blocked`     | `Blocked`     |
+| `agent::review`      | `Review`      |
+| `agent::done`        | `Done`        |
 
 ## Default Views
 

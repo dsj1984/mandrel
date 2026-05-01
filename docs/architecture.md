@@ -3,16 +3,16 @@
 > **Version:** 5.31.0 · **Updated:** 2026-05-01
 >
 > **Epic #900 update.** The execution surface was reorganised around the
-> Epic-centric ticket hierarchy: `/sprint-execute` is **deleted** and
-> replaced by four narrow skills — `/epic-execute <epicId>` (owns the wave
-> loop), `/wave-execute <epicId> <waveN>` (fans out Stories via the
-> Agent tool inside the operator's Claude session), `/story-execute
+> Epic-centric ticket hierarchy: the legacy `sprint-execute` mega-skill is
+> **deleted** and replaced by four narrow skills — `/epic-execute <epicId>`
+> (owns the wave loop), `/wave-execute <epicId> <waveN>` (fans out Stories
+> via the Agent tool inside the operator's Claude session), `/story-execute
 > <storyId>` (init → task loop → close for one Story), and the
 > `task-execute.md` helper read inline by `/story-execute`. The
 > remote-trigger surface is gone — `.github/workflows/epic-orchestrator.yml`
 > and `.agents/scripts/remote-bootstrap.js` are deleted, and the
-> trigger-only labels `agent::dispatching`, `agent::planning`,
-> `agent::decomposing` are removed from the label set. The subprocess
+> trigger-only `agent::` label set (the `dispatching` / `planning` /
+> `decomposing` triplet) is removed. The subprocess
 > fan-out path retired in lockstep: `build-claude-spawn.js`,
 > `spawn-smoke-test.js`, and the `idleTimeoutSec` / `pollIntervalSec` /
 > `logsDir` runner config keys are gone. Pool mode is retired —
@@ -621,9 +621,10 @@ sequenceDiagram
 The epic runner (`.agents/scripts/lib/orchestration/epic-runner.js`) composes
 the existing orchestration primitives into an unattended execution loop.
 Invoked via `/epic-execute <epicId>` inside the operator's Claude session.
-The remote-trigger surface (`.github/workflows/epic-orchestrator.yml` +
-`agent::dispatching` label) was deleted in Epic #900 — there is no longer a
-GitHub Actions pathway into the runner.
+The remote-trigger surface (the `epic-orchestrator.yml` workflow plus the
+`dispatching` / `planning` / `decomposing` `agent::` trigger labels) was
+deleted in Epic #900 — there is no longer a GitHub Actions pathway into
+the runner.
 
 ### State machine (Epic labels)
 
@@ -672,9 +673,10 @@ GitHub Actions pathway into the runner.
 
 One runtime pause point — `agent::blocked` on the Epic. All other labels
 (`risk::high`, `epic::auto-close`) are snapshots or metadata; mid-run
-changes are ignored. The `agent::dispatching` trigger label was removed in
-Epic #900. Branch protection on `main`
-replaces `risk::high` runtime gating for destructive-action containment.
+changes are ignored. The trigger-only `agent::` labels were removed in
+Epic #900 (see the update block at the top of this file). Branch protection
+on `main` replaces `risk::high` runtime gating for destructive-action
+containment.
 
 ---
 
@@ -843,7 +845,7 @@ function in `lib/config-resolver.js` selects the mode at startup based on
                             ▲                                         ▲
                             │                                         │
                             └────────── shared launch primitive ──────┘
-                              operator picks Story id from /sprint-plan
+                              operator picks Story id from /epic-plan
                                   dispatch table, one session per id
 ```
 
