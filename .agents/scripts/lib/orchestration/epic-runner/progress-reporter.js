@@ -117,6 +117,10 @@ export class ProgressReporter {
    *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
    *   epicId: number,
    *   intervalSec?: number,
+   *   concurrency?: number,
+   *   cwd?: string,
+   *   detectors?: Array<Function|{ detect: Function }>,
+   *   frictionEmitter?: { emit: Function } | null,
    *   logger?: { info?: Function, warn?: Function },
    *   now?: () => Date,
    *   setInterval?: typeof setInterval,
@@ -127,9 +131,8 @@ export class ProgressReporter {
    * }} opts
    */
   constructor(opts = {}) {
-    const ctx = opts.ctx;
-    this.provider = opts.provider ?? ctx?.provider;
-    this.epicId = opts.epicId ?? ctx?.epicId;
+    this.provider = opts.provider;
+    this.epicId = opts.epicId;
     if (!this.provider) {
       throw new TypeError('ProgressReporter requires a provider');
     }
@@ -137,11 +140,8 @@ export class ProgressReporter {
       throw new TypeError('ProgressReporter requires a numeric epicId');
     }
     this.intervalSec = Number(opts.intervalSec ?? 0);
-    this.logger = opts.logger ?? ctx?.logger ?? console;
-    const cap =
-      opts.concurrency ??
-      ctx?.concurrency?.progressReporter ??
-      DEFAULT_CONCURRENCY.progressReporter;
+    this.logger = opts.logger ?? console;
+    const cap = opts.concurrency ?? DEFAULT_CONCURRENCY.progressReporter;
     this.concurrency =
       Number.isInteger(cap) && cap >= 1
         ? cap
@@ -152,13 +152,13 @@ export class ProgressReporter {
 
     this.detectors = Array.isArray(opts.detectors)
       ? opts.detectors.filter(Boolean)
-      : [createStalledWorktreeDetector({ cwd: ctx?.cwd })];
+      : [createStalledWorktreeDetector({ cwd: opts.cwd })];
 
     // Optional friction emitter for auto-posting structured comments onto
     // affected Story tickets when the poller's per-Story `getTicket` read
     // fails. Undefined in legacy callers — those paths keep the prior silent
     // behavior (warn-log-only) until the coordinator wires an emitter in.
-    this.frictionEmitter = opts.frictionEmitter ?? ctx?.frictionEmitter ?? null;
+    this.frictionEmitter = opts.frictionEmitter ?? null;
 
     // Optional file sink — when set, every rendered snapshot is appended to
     // this path prefixed by an ISO-timestamped divider. Enables operators
