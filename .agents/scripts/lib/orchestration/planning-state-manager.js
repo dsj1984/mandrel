@@ -59,9 +59,7 @@ export class PlanningStateManager {
   async healAndCleanupArtifacts(epic, force = false) {
     const epicId = epic.id;
     const relatedTickets = await this.provider.getTickets(epicId);
-    if (typeof this.provider.primeTicketCache === 'function') {
-      this.provider.primeTicketCache(relatedTickets);
-    }
+    this.provider.primeTicketCache(relatedTickets);
 
     // Collect ALL planning artifacts — open AND closed — so stale
     // sub-issue links get cleaned up regardless of issue state.
