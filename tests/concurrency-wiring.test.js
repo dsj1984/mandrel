@@ -243,7 +243,7 @@ describe('CommitAssertion — concurrency cap wiring', () => {
 // ---------------------------------------------------------------------------
 
 describe('ProgressReporter — concurrency cap wiring', () => {
-  function buildReporter({ ctxConcurrency, explicitCap, storyIds }) {
+  function buildReporter({ explicitCap, storyIds }) {
     let inFlight = 0;
     let maxInFlight = 0;
     const provider = {
@@ -262,11 +262,7 @@ describe('ProgressReporter — concurrency cap wiring', () => {
       epicId: 500,
       intervalSec: 0,
       logger: { info: () => {}, warn: () => {} },
-      ctx: ctxConcurrency
-        ? { provider, epicId: 500, concurrency: ctxConcurrency }
-        : undefined,
       ...(explicitCap != null ? { concurrency: explicitCap } : {}),
-      // Disable comment upsert by throwing silently — reporter warn-swallows.
     });
     // Provide stub upsert via provider to avoid real HTTP surface.
     provider.upsertStructuredComment = async () => {};
@@ -283,27 +279,26 @@ describe('ProgressReporter — concurrency cap wiring', () => {
     return { reporter, getMax: () => maxInFlight };
   }
 
-  it('defaults to 8 concurrent ticket reads when ctx is absent', async () => {
+  it('defaults to 8 concurrent ticket reads when no cap is supplied', async () => {
     const ids = Array.from({ length: 20 }, (_, i) => 6000 + i);
     const { reporter, getMax } = buildReporter({ storyIds: ids });
     await reporter.fire();
     assert.equal(getMax(), 8);
   });
 
-  it('honours ctx.concurrency.progressReporter = 3', async () => {
+  it('honours opts.concurrency = 3', async () => {
     const ids = Array.from({ length: 20 }, (_, i) => 7000 + i);
     const { reporter, getMax } = buildReporter({
-      ctxConcurrency: { progressReporter: 3 },
+      explicitCap: 3,
       storyIds: ids,
     });
     await reporter.fire();
     assert.equal(getMax(), 3);
   });
 
-  it('explicit opts.concurrency overrides ctx.concurrency.progressReporter', async () => {
+  it('honours opts.concurrency = 2 (explicit override path)', async () => {
     const ids = Array.from({ length: 20 }, (_, i) => 8000 + i);
     const { reporter, getMax } = buildReporter({
-      ctxConcurrency: { progressReporter: 16 },
       explicitCap: 2,
       storyIds: ids,
     });
