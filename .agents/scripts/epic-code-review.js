@@ -121,8 +121,8 @@ export function partitionFilesForLint(changedFiles) {
  * evidence-skip path silently no-ops instead of throwing — review correctness
  * never depends on the skip firing.
  */
-function resolveCurrentSha(cwd) {
-  const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
+function resolveCurrentSha(cwd, gitSpawnFn = gitSpawn) {
+  const res = gitSpawnFn(cwd, 'rev-parse', 'HEAD');
   if (res.status !== 0) return null;
   const sha = (res.stdout || '').trim();
   return sha.length > 0 ? sha : null;
@@ -427,13 +427,55 @@ export function buildReviewReport({
   ].join('\n');
 }
 
-async function main() {
-  const args = parseReviewArgs(process.argv.slice(2));
-  if (args.epicId === null) {
-    Logger.fatal('Usage: node epic-code-review.js --epic <EPIC_ID>');
+/**
+ * Runner-shaped entry-point: takes the parsed review-args plus optional
+ * dependency-injection hooks, runs the review, and returns the structured
+ * outcome. Pure-ish (modulo IO) — all side-effects are routed via the
+ * injection hooks so tests can drive the runner end-to-end without touching
+ * git, disk, the lint runners, the validation-evidence file, or the
+ * ticketing provider.
+ *
+ * Exported for tests + the CLI `main()`.
+ *
+ * @param {object} args — output of `parseReviewArgs`
+ * @param {object} [deps] — Optional injection hooks (tests)
+ * @param {Function} [deps.gitSpawnFn]      — Stub for `gitSpawn`
+ * @param {Function} [deps.shouldSkipFn]    — Stub for `shouldSkip`
+ * @param {Function} [deps.recordPassFn]    — Stub for `recordPass`
+ * @param {Function} [deps.runScopedLintFn] — Stub for `runScopedLint`
+ * @param {Function} [deps.analyzeChangedFilesFn] — Stub for `analyzeChangedFiles`
+ * @param {Function} [deps.providerFactory] — Stub for `createProvider`
+ * @param {Function} [deps.upsertCommentFn] — Stub for `upsertStructuredComment`
+ * @param {Function} [deps.resolveConfigFn] — Stub for `resolveConfig`
+ * @param {object}   [deps.logger]          — Logger-shaped object (info/warn/error/fatal)
+ * @param {Function} [deps.print]           — Stub for `console.log` (the rendered report)
+ * @returns {Promise<{ status: 'ok'|'no-changes'|'invalid', report?: string, posted?: boolean, severity?: object }>}
+ */
+export async function runEpicCodeReview(args, deps = {}) {
+  const {
+    gitSpawnFn = gitSpawn,
+    shouldSkipFn = shouldSkip,
+    recordPassFn = recordPass,
+    runScopedLintFn = runScopedLint,
+    analyzeChangedFilesFn = analyzeChangedFiles,
+    providerFactory = createProvider,
+    upsertCommentFn = upsertStructuredComment,
+    resolveConfigFn = resolveConfig,
+    logger = Logger,
+    print = (s) => console.log(s),
+  } = deps;
+
+  const progress =
+    deps.progress ??
+    logger.createProgress?.('epic-code-review', { stderr: false }) ??
+    ((label, msg) => logger.info?.(`[${label}] ${msg}`));
+
+  if (!args || args.epicId === null || args.epicId === undefined) {
+    logger.fatal('Usage: node epic-code-review.js --epic <EPIC_ID>');
+    return { status: 'invalid' };
   }
 
-  const { settings, orchestration } = resolveConfig();
+  const { settings, orchestration } = resolveConfigFn();
   const baseBranch = args.baseBranch ?? settings.baseBranch ?? 'main';
   const epicBranch = `epic/${args.epicId}`;
   const scopeLint = args.scopeLint;
@@ -441,14 +483,15 @@ async function main() {
   progress('INIT', `Starting automated review for Epic #${args.epicId}...`);
   progress('GIT', `Comparing ${epicBranch} against ${baseBranch}...`);
 
-  const diffResult = gitSpawn(
+  const diffResult = gitSpawnFn(
     PROJECT_ROOT,
     'diff',
     `${baseBranch}...${epicBranch}`,
     '--name-only',
   );
   if (diffResult.status !== 0) {
-    Logger.fatal(`Failed to get diff: ${diffResult.stderr}`);
+    logger.fatal(`Failed to get diff: ${diffResult.stderr}`);
+    return { status: 'invalid' };
   }
 
   const changedFiles = diffResult.stdout
@@ -458,11 +501,11 @@ async function main() {
 
   if (changedFiles.length === 0) {
     progress('DONE', 'No changes detected. Skipping review.');
-    return;
+    return { status: 'no-changes' };
   }
 
   progress('REVIEW', `Analyzing ${changedFiles.length} changed files...`);
-  const results = analyzeChangedFiles(changedFiles);
+  const results = analyzeChangedFilesFn(changedFiles);
 
   let lintSummary;
   if (scopeLint === 'off') {
@@ -480,10 +523,10 @@ async function main() {
     // config has already passed at the current HEAD, skip the runner and
     // fabricate a clean summary so downstream report tiers stay accurate.
     const evidenceCfg = buildLintEvidenceConfig(changedFiles, PROJECT_ROOT);
-    const headSha = resolveCurrentSha(PROJECT_ROOT);
+    const headSha = resolveCurrentSha(PROJECT_ROOT, gitSpawnFn);
     let evidenceSkip = null;
     if (args.useEvidence && args.storyId && headSha) {
-      const verdict = shouldSkip(
+      const verdict = shouldSkipFn(
         {
           storyId: args.storyId,
           gateName: 'epic-code-review/lint',
@@ -513,7 +556,7 @@ async function main() {
         'LINT',
         'Linting changed files only (biome + markdownlint, scoped to diff)...',
       );
-      lintSummary = runScopedLint(changedFiles, PROJECT_ROOT);
+      lintSummary = runScopedLintFn(changedFiles, PROJECT_ROOT);
 
       if (
         args.useEvidence &&
@@ -523,7 +566,7 @@ async function main() {
         !lintSummary.skipped
       ) {
         try {
-          recordPass(
+          recordPassFn(
             {
               storyId: args.storyId,
               gateName: 'epic-code-review/lint',
@@ -553,16 +596,23 @@ async function main() {
     severity,
     lintLine: buildLintLine(lintSummary),
   });
-  console.log(report);
+  print(report);
 
+  let posted = false;
   if (args.post) {
     progress('POST', `Posting review report to Epic #${args.epicId}...`);
-    const provider = createProvider(orchestration);
-    await upsertStructuredComment(provider, args.epicId, 'code-review', report);
+    const provider = providerFactory(orchestration);
+    await upsertCommentFn(provider, args.epicId, 'code-review', report);
     progress('DONE', 'Report posted successfully.');
+    posted = true;
   }
+
+  return { status: 'ok', report, posted, severity };
 }
 
-const progress = Logger.createProgress('epic-code-review', { stderr: false });
+async function main() {
+  const args = parseReviewArgs(process.argv.slice(2));
+  await runEpicCodeReview(args);
+}
 
 runAsCli(import.meta.url, main, { source: 'epic-code-review' });
