@@ -6,6 +6,7 @@
  * following the schema in tech spec #323.
  */
 
+import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -13,8 +14,6 @@ import {
 
 export const EPIC_RUN_STATE_TYPE = 'epic-run-state';
 export const CHECKPOINT_SCHEMA_VERSION = 1;
-
-const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 export class Checkpointer {
   /**
@@ -44,14 +43,7 @@ export class Checkpointer {
       this.epicId,
       EPIC_RUN_STATE_TYPE,
     );
-    if (!comment?.body) return null;
-    const match = comment.body.match(JSON_FENCE_RE);
-    if (!match) return null;
-    try {
-      return JSON.parse(match[1]);
-    } catch (_err) {
-      return null;
-    }
+    return parseFencedJsonComment(comment);
   }
 
   /**

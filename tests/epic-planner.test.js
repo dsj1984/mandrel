@@ -42,6 +42,8 @@ describe('epic-planner orchestration (v5.6+)', () => {
       },
 
       async postComment(_id, _comment) {},
+
+      primeTicketCache(_tickets) {},
     };
   });
 

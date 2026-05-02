@@ -5,7 +5,7 @@
  * git, no ctx.
  */
 
-export const STORY_BRANCH_RE = /^story-\d+$/;
+const STORY_BRANCH_RE = /^story-\d+$/;
 
 export function validateStoryId(storyId) {
   const n =

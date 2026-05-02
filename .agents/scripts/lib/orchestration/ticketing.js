@@ -74,7 +74,7 @@ export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
  * authoritative entry — the label set is the actual race-detection signal).
  * Bounded to 1-9 digits to mirror the wave-marker safety margin.
  */
-export const CLAIM_TYPE_PATTERN = /^claim-([0-9]{1,9})$/;
+const CLAIM_TYPE_PATTERN = /^claim-([0-9]{1,9})$/;
 
 /**
  * @param {string} type

@@ -19,50 +19,27 @@ its sequential loop.
    are not the only writer on this branch's history. Out-of-scope cleanups
    belong in a follow-on ticket.
 
-3. **Stage with explicit paths.** Prefer `git add <path/one> <path/two>` over
-   `git add -A` so accidental edits (lockfiles, generated artifacts, scratch
-   files) do not leak into the commit. `git add -u` is acceptable when you
-   only modified files you intended to commit.
+3. **Stage, guard, commit, and verify in one CLI call.** Hand the work to
+   `task-commit.js`, which asserts the branch (`story-<storyId>`), stages the
+   listed paths (or falls back to `git add -u`), runs the conventional-commit
+   formatter, and re-asserts the branch after the hooks return:
 
-4. **Guard the branch before committing.** Even inside an isolated worktree,
-   keep the assert-branch guard — it's cheap defense-in-depth against drift
-   from a `git checkout` buried inside a tool script:
-
-   ```powershell
-   node .agents/scripts/assert-branch.js --expected story-<storyId> --cwd .
+   ```bash
+   node .agents/scripts/task-commit.js \
+     --story <storyId> --task <taskId> \
+     --type <feat|fix|refactor|docs|test|chore|perf|build|ci|style|revert> \
+     [--scope <scope>] --title "<task title>" \
+     [--paths <p1> <p2> ...]
    ```
 
-   If the guard fails, **STOP** and surface the drift to the caller — do not
-   force the commit through. A wrong-branch commit corrupts the Story's
-   linear history and breaks `story-close.js` merge replay.
-
-5. **Commit with conventional-commit format.**
-
-   ```powershell
-   git commit -m "<type>(<scope>): <task title> (resolves #<taskId>)"
-   ```
-
-   - `<type>` — `feat`, `fix`, `refactor`, `docs`, `test`, `chore`,
-     `perf`, `build`, `ci`, `style`, or `revert`. Match the dominant nature of
-     the change; when in doubt, prefer `feat` for new behavior and `refactor`
-     for behavior-preserving moves.
-   - `<scope>` — a short symbolic scope (module name, area, or sub-system).
-     Optional but encouraged when the touched area is identifiable in one
-     token.
-   - `<task title>` — the Task ticket's title verbatim, lowercased and
-     trimmed of redundant prefixes.
-   - `(resolves #<taskId>)` — required. The parent Story's `cascadeCompletion`
-     reads this trailer to confirm closure intent.
-
-6. **Verify the commit landed on the expected branch.** `git log -1
-   --pretty=%H%n%s` should show the new SHA on top of `story-<storyId>`. If
-   the commit hash differs from your expectation (e.g. an empty-tree no-op or
-   a hook-rewrite), re-read what the hook did before proceeding to the next
-   Task.
-
-7. **Return control to `/story-execute`** so it can record the per-Task
-   transition in the `story-run-progress` structured comment and move to the
-   next Task in dependency order.
+   <!-- # justification: prose rule prohibiting --no-verify, not a code example. -->
+   - The CLI never passes `--no-verify` — commit hooks are intentional
+     defense-in-depth and must run.
+   - Output is `{ sha, branch, subject }`. Capture `sha` so
+     `/story-execute` can record it on the next `story-run-progress` write.
+   - If the CLI exits non-zero (branch drift, hook failure, empty diff),
+     **STOP**. Do not retry by skipping hooks. Surface the failure to the
+     caller.
 
 ## Merge conflicts
 

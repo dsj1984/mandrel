@@ -76,7 +76,7 @@ function epicRefMatcher(epicId) {
   return new RegExp(`#${epicId}(?!\\d)`);
 }
 
-export function commitsMentioningEpic(docPath, epicId, cwd = PROJECT_ROOT) {
+function commitsMentioningEpic(docPath, epicId, cwd = PROJECT_ROOT) {
   const res = gitSpawn(
     cwd,
     'log',
@@ -93,7 +93,7 @@ export function commitsMentioningEpic(docPath, epicId, cwd = PROJECT_ROOT) {
     .filter(Boolean);
 }
 
-export function fileBodyMentionsEpic(
+function fileBodyMentionsEpic(
   docPath,
   epicId,
   cwd = PROJECT_ROOT,

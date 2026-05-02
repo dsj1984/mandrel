@@ -22,7 +22,7 @@ import { rm as fsPromisesRm } from 'node:fs/promises';
 import path from 'node:path';
 import { NOOP_LOGGER } from '../../Logger.js';
 
-export const MANIFEST_FILENAME = '.pending-cleanup.json';
+const MANIFEST_FILENAME = '.pending-cleanup.json';
 /**
  * After a reap hands off to the manifest, `attempts` counts failed
  * `drainPendingCleanup` passes (initial hand-off uses `attempts: 0`). The entry

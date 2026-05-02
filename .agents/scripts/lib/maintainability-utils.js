@@ -98,7 +98,7 @@ export function transpileIfNeeded(filePath, source) {
 /**
  * @returns {boolean} True when the path's extension is one the engines score.
  */
-export function isSupportedSourceFile(filePath) {
+function isSupportedSourceFile(filePath) {
   return SUPPORTED_EXTS.has(path.extname(String(filePath)).toLowerCase());
 }
 

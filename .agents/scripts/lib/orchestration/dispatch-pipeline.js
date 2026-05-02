@@ -118,9 +118,7 @@ export async function fetchEpicContext(ctx) {
   const allTickets = await provider.getTickets(epicId);
   const allTicketsById = new Map(allTickets.map((t) => [t.id, t]));
 
-  if (typeof provider.primeTicketCache === 'function') {
-    provider.primeTicketCache(allTickets);
-  }
+  provider.primeTicketCache(allTickets);
 
   Logger.info(`Filtering Tasks under Epic #${epicId}...`);
   const taskTickets = allTickets.filter((t) =>

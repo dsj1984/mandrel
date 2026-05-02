@@ -64,7 +64,7 @@ const progress = Logger.createProgress('plan-healthcheck', { stderr: true });
  * @returns {{ epicId: number|null, fast: boolean, paranoid: boolean,
  *   primeInstall: boolean, dryRun: boolean }}
  */
-export function parseHealthcheckArgs(argv = process.argv) {
+function parseHealthcheckArgs(argv = process.argv) {
   const { values, positionals } = parseArgs({
     args: argv.slice(2),
     options: {
@@ -259,6 +259,7 @@ async function timed(name, fn) {
  * @returns {Promise<{ok: boolean, degraded: boolean, reason: string|null,
  *   checks: Array<{name: string, ok: boolean, durationMs: number, detail: string}>}>}
  */
+// exported for tests — Story-level reuse runner reserved for future test coverage
 export async function runPlanHealthcheck(opts = {}) {
   const ARG_KEYS = ['epicId', 'fast', 'paranoid', 'primeInstall', 'dryRun'];
   const hasExplicitArgs = ARG_KEYS.some((k) => Object.hasOwn(opts, k));

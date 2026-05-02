@@ -163,7 +163,7 @@ export function removeCopiedAgents(ctx, wtPath) {
  * @param {string} wtPath
  * @param {boolean} enable
  */
-export function setAgentsGitlinkSkipWorktree(ctx, wtPath, enable) {
+function setAgentsGitlinkSkipWorktree(ctx, wtPath, enable) {
   const submoduleCheck = ctx.isAgentsSubmodule ?? isAgentsSubmodule;
   if (!submoduleCheck(ctx.repoRoot)) return;
   const ls = ctx.git.gitSpawn(wtPath, 'ls-files', '--stage', '--', '.agents');

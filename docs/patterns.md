@@ -294,7 +294,10 @@ Applied to `lib/worktree-manager.js`, `lib/orchestration/dispatch-engine.js`,
 and `lib/presentation/manifest-renderer.js`. The same pattern drives the
 `config-resolver.js` split into accessor submodules under `lib/config/` and
 the `providers/github.js` decomposition into focused modules under
-`providers/github/*`.
+`providers/github/*`. Epic #946 (v5.31.1) extended the pattern to
+`story-close.js` — a 938-line CLI orchestrator collapsed into a 189-line
+shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}` —
+and to `run-audit-suite.js`, decomposed into helpers under `lib/audit-suite/`.
 
 ### Pattern
 
@@ -328,7 +331,9 @@ the `providers/github.js` decomposition into focused modules under
 
 *   Backwards-compat delegates on the facade are technical debt —
     they exist solely to keep monkey-patch-heavy tests green. They
-    must be actively retired as tests migrate.
+    must be actively retired as tests migrate. The five `_`-prefixed
+    delegates on `WorktreeManager` were paid down in Epic #946
+    (v5.31.1) once the legacy test file was migrated off them.
 *   Two-level indirection (facade → submodule helper) is a small
     readability tax on follow-up contributors; ADR and
     `architecture.md` must explicitly note which paths are the stable

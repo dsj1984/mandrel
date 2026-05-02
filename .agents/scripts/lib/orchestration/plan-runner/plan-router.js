@@ -68,17 +68,6 @@ export function nextPhaseForEpic(labels = []) {
 }
 
 /**
- * Ctx-aware wrapper: given a `PlanRunnerContext` whose `phase` field is set,
- * return the descriptor for that phase (or `null` if unknown). Lets
- * epic-plan-spec / decompose resolve their phase descriptor from the ctx
- * they already hold rather than passing `phase` strings around.
- */
-export function descriptorForContext(ctx) {
-  if (!ctx?.phase) return null;
-  return PLAN_PHASE_DESCRIPTORS[ctx.phase] ?? null;
-}
-
-/**
  * For a given current phase, return the next phase the local wrapper should
  * advance to. Used to chain spec → decompose after operator confirmation.
  *

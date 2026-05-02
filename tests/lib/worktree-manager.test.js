@@ -4,6 +4,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { provision as provisionWorkspace } from '../../.agents/scripts/lib/workspace-provisioner.js';
+import {
+  copyAgentsFromRoot,
+  isAgentsSubmodule,
+  removeCopiedAgents,
+} from '../../.agents/scripts/lib/worktree/bootstrapper.js';
 import {
   parseWorktreePorcelain,
   WorktreeManager,
@@ -1001,7 +1007,7 @@ test('nodeModulesStrategy: unknown value throws (defense-in-depth vs schema)', a
   }
 });
 
-test('_copyBootstrapFiles: default copies .env when present', () => {
+test('provisionWorkspace: default copies .env when present', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-env-'));
   try {
     fs.writeFileSync(path.join(tmp, '.env'), 'DATABASE_URL=postgres://x\n');
@@ -1009,13 +1015,12 @@ test('_copyBootstrapFiles: default copies .env when present', () => {
     const wtPath = path.join(tmp, '.worktrees', 'story-1');
     fs.mkdirSync(wtPath, { recursive: true });
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
+    provisionWorkspace({
+      sourceRoot: tmp,
+      targetWorktree: wtPath,
+      files: ['.env'],
       logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
     });
-    wm._copyBootstrapFiles(wtPath);
 
     assert.equal(
       fs.readFileSync(path.join(wtPath, '.env'), 'utf-8'),
@@ -1027,19 +1032,18 @@ test('_copyBootstrapFiles: default copies .env when present', () => {
   }
 });
 
-test('_copyBootstrapFiles: no-op when source .env does not exist', () => {
+test('provisionWorkspace: no-op when source .env does not exist', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-env-'));
   try {
     const wtPath = path.join(tmp, '.worktrees', 'story-1');
     fs.mkdirSync(wtPath, { recursive: true });
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
+    provisionWorkspace({
+      sourceRoot: tmp,
+      targetWorktree: wtPath,
+      files: ['.env'],
       logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
     });
-    wm._copyBootstrapFiles(wtPath);
 
     assert.equal(fs.existsSync(path.join(wtPath, '.env')), false);
   } finally {
@@ -1047,7 +1051,7 @@ test('_copyBootstrapFiles: no-op when source .env does not exist', () => {
   }
 });
 
-test('_copyBootstrapFiles: never overwrites an existing worktree .env', () => {
+test('provisionWorkspace: never overwrites an existing worktree .env', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-env-'));
   try {
     fs.writeFileSync(path.join(tmp, '.env'), 'ROOT=1\n');
@@ -1055,13 +1059,12 @@ test('_copyBootstrapFiles: never overwrites an existing worktree .env', () => {
     fs.mkdirSync(wtPath, { recursive: true });
     fs.writeFileSync(path.join(wtPath, '.env'), 'AGENT_OVERRIDE=1\n');
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
+    provisionWorkspace({
+      sourceRoot: tmp,
+      targetWorktree: wtPath,
+      files: ['.env'],
       logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
     });
-    wm._copyBootstrapFiles(wtPath);
 
     assert.equal(
       fs.readFileSync(path.join(wtPath, '.env'), 'utf-8'),
@@ -1073,21 +1076,19 @@ test('_copyBootstrapFiles: never overwrites an existing worktree .env', () => {
   }
 });
 
-test('_copyBootstrapFiles: rejects path traversal and absolute paths', () => {
+test('provisionWorkspace: rejects path traversal and absolute paths', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-env-'));
   try {
     const wtPath = path.join(tmp, '.worktrees', 'story-1');
     fs.mkdirSync(wtPath, { recursive: true });
 
     const warns = [];
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      config: { bootstrapFiles: ['../../etc/passwd', '/abs/path', '.env'] },
+    provisionWorkspace({
+      sourceRoot: tmp,
+      targetWorktree: wtPath,
+      files: ['../../etc/passwd', '/abs/path', '.env'],
       logger: { info() {}, warn: (m) => warns.push(m), error() {} },
-      git: mockGit({}),
-      platform: 'linux',
     });
-    wm._copyBootstrapFiles(wtPath);
 
     assert.equal(
       warns.filter((m) => m.includes('skipped invalid')).length,
@@ -1102,7 +1103,7 @@ test('_copyBootstrapFiles: rejects path traversal and absolute paths', () => {
   }
 });
 
-test('_copyBootstrapFiles: honors configured bootstrapFiles list', () => {
+test('provisionWorkspace: honors configured workspace files list', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-env-'));
   try {
     fs.writeFileSync(path.join(tmp, '.env'), 'A=1\n');
@@ -1110,14 +1111,12 @@ test('_copyBootstrapFiles: honors configured bootstrapFiles list', () => {
     const wtPath = path.join(tmp, '.worktrees', 'story-1');
     fs.mkdirSync(wtPath, { recursive: true });
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      config: { bootstrapFiles: ['.env', '.env.test'] },
+    provisionWorkspace({
+      sourceRoot: tmp,
+      targetWorktree: wtPath,
+      files: ['.env', '.env.test'],
       logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
     });
-    wm._copyBootstrapFiles(wtPath);
 
     assert.equal(fs.existsSync(path.join(wtPath, '.env')), true);
     assert.equal(fs.existsSync(path.join(wtPath, '.env.test')), true);
@@ -1126,24 +1125,25 @@ test('_copyBootstrapFiles: honors configured bootstrapFiles list', () => {
   }
 });
 
-test('_copyAgentsFromRoot: refuses to wipe root .agents when wtPath equals repoRoot', () => {
+test('copyAgentsFromRoot: refuses to wipe root .agents when wtPath equals repoRoot', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-safety-'));
   try {
     const rootAgents = path.join(tmp, '.agents');
     fs.mkdirSync(rootAgents);
     fs.writeFileSync(path.join(rootAgents, 'sentinel.txt'), 'precious');
 
-    const wm = new WorktreeManager({
+    // Force submodule-mode via the ctx bag so `copyAgentsFromRoot` actually
+    // runs its body even though the fixture has no `.gitmodules`.
+    const ctx = {
       repoRoot: tmp,
       logger: SILENT_LOGGER,
       git: mockGit({}),
       platform: 'linux',
-    });
-    // Force submodule-mode so `_copyAgentsFromRoot` actually runs its body.
-    wm._isAgentsSubmodule = () => true;
+      isAgentsSubmodule: () => true,
+    };
 
     assert.throws(
-      () => wm._copyAgentsFromRoot(tmp),
+      () => copyAgentsFromRoot(ctx, tmp),
       /refusing to clear root \.agents/,
     );
     assert.equal(
@@ -1156,7 +1156,7 @@ test('_copyAgentsFromRoot: refuses to wipe root .agents when wtPath equals repoR
   }
 });
 
-test('_copyAgentsFromRoot: recursively copies root .agents into the worktree', () => {
+test('copyAgentsFromRoot: recursively copies root .agents into the worktree', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-copy-'));
   try {
     fs.writeFileSync(
@@ -1184,13 +1184,10 @@ test('_copyAgentsFromRoot: recursively copies root .agents into the worktree', (
       }),
       'update-index': () => ({ status: 0, stdout: '', stderr: '' }),
     });
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git,
-      platform: 'linux',
-    });
-    wm._copyAgentsFromRoot(wtPath);
+    copyAgentsFromRoot(
+      { repoRoot: tmp, logger: SILENT_LOGGER, git, platform: 'linux' },
+      wtPath,
+    );
 
     assert.equal(
       fs.readFileSync(path.join(wtAgents, 'VERSION'), 'utf8'),
@@ -1228,26 +1225,20 @@ test('_copyAgentsFromRoot: recursively copies root .agents into the worktree', (
   }
 });
 
-test('_isAgentsSubmodule: accepts quoted .agents path entries', () => {
+test('isAgentsSubmodule: accepts quoted .agents path entries', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-gitmodules-'));
   try {
     fs.writeFileSync(
       path.join(tmp, '.gitmodules'),
       '[submodule ".agents"]\n\tpath = ".agents"\n\turl = ../agents\n',
     );
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
-    });
-    assert.equal(wm._isAgentsSubmodule(), true);
+    assert.equal(isAgentsSubmodule(tmp), true);
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 });
 
-test('_removeCopiedAgents: removes the copied directory and scrubs the index gitlink', () => {
+test('removeCopiedAgents: removes the copied directory and scrubs the index gitlink', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remove-copy-'));
   try {
     fs.writeFileSync(
@@ -1279,13 +1270,10 @@ test('_removeCopiedAgents: removes the copied directory and scrubs the index git
         return { status: 0, stdout: '', stderr: '' };
       },
     };
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git,
-      platform: 'linux',
-    });
-    wm._removeCopiedAgents(wtPath);
+    removeCopiedAgents(
+      { repoRoot: tmp, logger: SILENT_LOGGER, git, platform: 'linux' },
+      wtPath,
+    );
 
     assert.equal(
       fs.existsSync(wtAgents),
@@ -1315,9 +1303,9 @@ test('_removeCopiedAgents: removes the copied directory and scrubs the index git
   }
 });
 
-test('_removeCopiedAgents: unlinks legacy symlinks without traversing into the target', () => {
+test('removeCopiedAgents: unlinks legacy symlinks without traversing into the target', () => {
   // Worktrees created under the old symlink scheme may still be live when
-  // the copy-based code ships. `_removeCopiedAgents` must detect the symlink
+  // the copy-based code ships. `removeCopiedAgents` must detect the symlink
   // and unlink it rather than rmSync-ing through it. The legacy scheme
   // only existed in submodule-consumer repos, so `.gitmodules` is part of
   // the fixture.
@@ -1337,13 +1325,15 @@ test('_removeCopiedAgents: unlinks legacy symlinks without traversing into the t
     const linkType = process.platform === 'win32' ? 'junction' : 'dir';
     fs.symlinkSync(rootAgents, wtAgents, linkType);
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: process.platform === 'win32' ? 'win32' : 'linux',
-    });
-    wm._removeCopiedAgents(wtPath);
+    removeCopiedAgents(
+      {
+        repoRoot: tmp,
+        logger: SILENT_LOGGER,
+        git: mockGit({}),
+        platform: process.platform === 'win32' ? 'win32' : 'linux',
+      },
+      wtPath,
+    );
 
     assert.equal(fs.existsSync(wtAgents), false, 'symlink should be removed');
     assert.equal(
@@ -1356,7 +1346,7 @@ test('_removeCopiedAgents: unlinks legacy symlinks without traversing into the t
   }
 });
 
-test('_removeCopiedAgents: purges per-worktree modules/ dir so submodule guard passes', () => {
+test('removeCopiedAgents: purges per-worktree modules/ dir so submodule guard passes', () => {
   // git refuses `worktree remove` when <gitdir>/modules/ exists even if the
   // per-worktree index has no 160000 gitlink. Reap must scrub both.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-modules-purge-'));
@@ -1374,13 +1364,15 @@ test('_removeCopiedAgents: purges per-worktree modules/ dir so submodule guard p
     // Worktree's .git is a file pointing at the per-worktree gitdir.
     fs.writeFileSync(path.join(wtPath, '.git'), `gitdir: ${perWtGitdir}\n`);
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
-    });
-    wm._removeCopiedAgents(wtPath);
+    removeCopiedAgents(
+      {
+        repoRoot: tmp,
+        logger: SILENT_LOGGER,
+        git: mockGit({}),
+        platform: 'linux',
+      },
+      wtPath,
+    );
 
     assert.equal(
       fs.existsSync(path.join(perWtGitdir, 'modules')),
@@ -1392,7 +1384,7 @@ test('_removeCopiedAgents: purges per-worktree modules/ dir so submodule guard p
   }
 });
 
-test('_removeCopiedAgents: refuses to purge a gitdir outside the main repos .git/worktrees', () => {
+test('removeCopiedAgents: refuses to purge a gitdir outside the main repos .git/worktrees', () => {
   // If the `gitdir:` pointer is malformed or points elsewhere, we must NOT
   // recursively delete that directory.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-modules-guard-'));
@@ -1412,13 +1404,15 @@ test('_removeCopiedAgents: refuses to purge a gitdir outside the main repos .git
     );
     fs.writeFileSync(path.join(wtPath, '.git'), `gitdir: ${evilGitdir}\n`);
 
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git: mockGit({}),
-      platform: 'linux',
-    });
-    wm._removeCopiedAgents(wtPath);
+    removeCopiedAgents(
+      {
+        repoRoot: tmp,
+        logger: SILENT_LOGGER,
+        git: mockGit({}),
+        platform: 'linux',
+      },
+      wtPath,
+    );
 
     assert.equal(
       fs.existsSync(path.join(evilGitdir, 'modules', 'sentinel.txt')),
@@ -1430,14 +1424,14 @@ test('_removeCopiedAgents: refuses to purge a gitdir outside the main repos .git
   }
 });
 
-test('_removeCopiedAgents: skips index scrub AND preserves tracked .agents in non-submodule (framework) repos', () => {
+test('removeCopiedAgents: skips index scrub AND preserves tracked .agents in non-submodule (framework) repos', () => {
   // See ADR-20260424-638a: the physical-delete branch must also be guarded,
   // otherwise `.agents/` (a tracked directory in framework repos) is wiped
   // immediately before `git worktree remove`, leaving the worktree dirty
   // and forcing the reap path into the fs-rm-retry tail.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-framework-'));
   try {
-    // No .gitmodules → _isAgentsSubmodule() returns false.
+    // No .gitmodules → isAgentsSubmodule() returns false.
     const wtPath = path.join(tmp, '.worktrees', 'story-1');
     const wtAgents = path.join(wtPath, '.agents');
     fs.mkdirSync(wtAgents, { recursive: true });
@@ -1451,13 +1445,10 @@ test('_removeCopiedAgents: skips index scrub AND preserves tracked .agents in no
         return { status: 0, stdout: '', stderr: '' };
       },
     };
-    const wm = new WorktreeManager({
-      repoRoot: tmp,
-      logger: SILENT_LOGGER,
-      git,
-      platform: 'linux',
-    });
-    wm._removeCopiedAgents(wtPath);
+    removeCopiedAgents(
+      { repoRoot: tmp, logger: SILENT_LOGGER, git, platform: 'linux' },
+      wtPath,
+    );
     assert.equal(
       calls.includes('ls-files'),
       false,

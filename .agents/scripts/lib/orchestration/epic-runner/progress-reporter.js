@@ -28,6 +28,7 @@ import { dirname } from 'node:path';
 import { AGENT_LABELS } from '../../label-constants.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
+import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -44,7 +45,7 @@ export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
  * Returns `null` for any malformed body — the caller falls back to the
  * ticket-label state derivation in that case.
  *
- * Expected payload shape (JSON inside a fenced ```json block):
+ * Expected payload shape (JSON inside a fenced json codeblock):
  *   {
  *     storyId: number,
  *     branch?: string,
@@ -55,27 +56,20 @@ export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
  *   }
  */
 export function parseStoryRunProgressComment(comment) {
-  if (!comment || typeof comment.body !== 'string') return null;
-  const match = comment.body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!match) return null;
-  try {
-    const payload = JSON.parse(match[1]);
-    if (!payload || typeof payload !== 'object') return null;
-    const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
-    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-    const tasksTotal = tasks.length;
-    const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
-    return {
-      storyId: Number(payload.storyId),
-      title: typeof payload.title === 'string' ? payload.title : '',
-      phase,
-      state: phaseToState(phase),
-      tasksDone,
-      tasksTotal,
-    };
-  } catch {
-    return null;
-  }
+  const payload = parseFencedJsonComment(comment);
+  if (!payload || typeof payload !== 'object') return null;
+  const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
+  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  const tasksTotal = tasks.length;
+  const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
+  return {
+    storyId: Number(payload.storyId),
+    title: typeof payload.title === 'string' ? payload.title : '',
+    phase,
+    state: phaseToState(phase),
+    tasksDone,
+    tasksTotal,
+  };
 }
 
 function phaseToState(phase) {
@@ -123,6 +117,10 @@ export class ProgressReporter {
    *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
    *   epicId: number,
    *   intervalSec?: number,
+   *   concurrency?: number,
+   *   cwd?: string,
+   *   detectors?: Array<Function|{ detect: Function }>,
+   *   frictionEmitter?: { emit: Function } | null,
    *   logger?: { info?: Function, warn?: Function },
    *   now?: () => Date,
    *   setInterval?: typeof setInterval,
@@ -133,9 +131,8 @@ export class ProgressReporter {
    * }} opts
    */
   constructor(opts = {}) {
-    const ctx = opts.ctx;
-    this.provider = opts.provider ?? ctx?.provider;
-    this.epicId = opts.epicId ?? ctx?.epicId;
+    this.provider = opts.provider;
+    this.epicId = opts.epicId;
     if (!this.provider) {
       throw new TypeError('ProgressReporter requires a provider');
     }
@@ -143,11 +140,8 @@ export class ProgressReporter {
       throw new TypeError('ProgressReporter requires a numeric epicId');
     }
     this.intervalSec = Number(opts.intervalSec ?? 0);
-    this.logger = opts.logger ?? ctx?.logger ?? console;
-    const cap =
-      opts.concurrency ??
-      ctx?.concurrency?.progressReporter ??
-      DEFAULT_CONCURRENCY.progressReporter;
+    this.logger = opts.logger ?? console;
+    const cap = opts.concurrency ?? DEFAULT_CONCURRENCY.progressReporter;
     this.concurrency =
       Number.isInteger(cap) && cap >= 1
         ? cap
@@ -158,13 +152,13 @@ export class ProgressReporter {
 
     this.detectors = Array.isArray(opts.detectors)
       ? opts.detectors.filter(Boolean)
-      : [createStalledWorktreeDetector({ cwd: ctx?.cwd })];
+      : [createStalledWorktreeDetector({ cwd: opts.cwd })];
 
     // Optional friction emitter for auto-posting structured comments onto
     // affected Story tickets when the poller's per-Story `getTicket` read
     // fails. Undefined in legacy callers — those paths keep the prior silent
     // behavior (warn-log-only) until the coordinator wires an emitter in.
-    this.frictionEmitter = opts.frictionEmitter ?? ctx?.frictionEmitter ?? null;
+    this.frictionEmitter = opts.frictionEmitter ?? null;
 
     // Optional file sink — when set, every rendered snapshot is appended to
     // this path prefixed by an ISO-timestamped divider. Enables operators
@@ -635,6 +629,214 @@ function formatElapsed(ms) {
 }
 
 /**
+ * Parse a `wave-run-progress` structured comment posted by `/wave-execute`.
+ *
+ * Returns the canonical payload object on success, or `null` for any
+ * malformed input — the caller (epic-execute Step 5 rollup) treats `null`
+ * as "wave snapshot unavailable" and substitutes `{ wave: N, stories: [] }`
+ * rather than crashing the rollup.
+ *
+ * The schema mirrors the writer in `wave-run-progress-writer.js` and is
+ * pinned by tech spec #902:
+ *
+ *   {
+ *     "kind": "wave-run-progress",
+ *     "epicId": <number>,
+ *     "wave": <number>,
+ *     "concurrencyCap": <number>,
+ *     "stories": [ { id, title, state, ... } ],
+ *     "updatedAt": "<iso8601>"
+ *   }
+ *
+ * Validation is intentionally strict on the discriminator (`kind`) and the
+ * shape of `stories[]`, but tolerant on optional fields (e.g. missing
+ * `concurrencyCap` defaults to `0`) so a future schema bump that adds
+ * fields doesn't break the parser.
+ *
+ * @param {{ body?: unknown } | null | undefined} comment
+ * @returns {{
+ *   kind: 'wave-run-progress',
+ *   epicId: number,
+ *   wave: number,
+ *   concurrencyCap: number,
+ *   stories: object[],
+ *   updatedAt?: string,
+ * } | null}
+ */
+export function parseWaveRunProgressComment(comment) {
+  const payload = parseFencedJsonComment(comment);
+  if (!payload || typeof payload !== 'object') return null;
+  if (payload.kind !== WAVE_RUN_PROGRESS_TYPE) return null;
+  const epicId = Number(payload.epicId);
+  const wave = Number(payload.wave);
+  if (!Number.isInteger(epicId) || epicId <= 0) return null;
+  if (!Number.isInteger(wave) || wave < 0) return null;
+  if (!Array.isArray(payload.stories)) return null;
+  const concurrencyCap = Number.isInteger(payload.concurrencyCap)
+    ? Number(payload.concurrencyCap)
+    : 0;
+  return {
+    kind: WAVE_RUN_PROGRESS_TYPE,
+    epicId,
+    wave,
+    concurrencyCap,
+    stories: payload.stories,
+    updatedAt:
+      typeof payload.updatedAt === 'string' ? payload.updatedAt : undefined,
+  };
+}
+
+/**
+ * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
+ *
+ * Called by `/epic-execute` Step 5 after each wave completes. Aggregates the
+ * per-wave snapshots produced by `parseWaveRunProgressComment` into a single
+ * operator-facing summary (header + per-wave table) and persists it as a
+ * fenced-JSON payload on the Epic ticket via `upsertStructuredComment`.
+ *
+ * The payload schema is pinned by `epic-execute.md` Step 5 / tech spec #902:
+ *
+ *   {
+ *     "kind": "epic-run-progress",
+ *     "epicId": <number>,
+ *     "currentWave": <number>,
+ *     "totalWaves": <number>,
+ *     "waves": [ { wave, concurrencyCap?, stories[] } ],
+ *     "startedAt"?: "<iso8601>",
+ *     "updatedAt": "<iso8601>"
+ *   }
+ *
+ * The function does not re-derive Story state from labels — it trusts the
+ * `waves` argument supplied by the caller, which itself is folded from the
+ * already-validated `wave-run-progress` snapshots.
+ *
+ * @param {{
+ *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
+ *   epicId: number,
+ *   waves: Array<{
+ *     wave: number,
+ *     concurrencyCap?: number,
+ *     stories?: Array<{ id: number, title?: string, state?: string,
+ *                       tasksDone?: number, tasksTotal?: number,
+ *                       blockerCommentId?: string }>,
+ *   }>,
+ *   currentWave: number,
+ *   totalWaves: number,
+ *   startedAt?: string,
+ *   now?: () => Date,
+ * }} args
+ * @returns {Promise<{ body: string, payload: object }>} the rendered body
+ *   and payload that were upserted onto the Epic.
+ */
+export async function upsertEpicRunProgress({
+  provider,
+  epicId,
+  waves,
+  currentWave,
+  totalWaves,
+  startedAt,
+  now = () => new Date(),
+} = {}) {
+  if (!provider || typeof provider.postComment !== 'function') {
+    throw new TypeError(
+      'upsertEpicRunProgress requires a provider with postComment',
+    );
+  }
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) {
+    throw new TypeError('upsertEpicRunProgress requires a numeric epicId');
+  }
+  const totalWavesNum = Number(totalWaves);
+  if (!Number.isInteger(totalWavesNum) || totalWavesNum < 0) {
+    throw new TypeError(
+      'upsertEpicRunProgress requires a non-negative integer totalWaves',
+    );
+  }
+  const currentWaveNum = Number(currentWave);
+  if (!Number.isInteger(currentWaveNum) || currentWaveNum < 0) {
+    throw new TypeError(
+      'upsertEpicRunProgress requires a non-negative integer currentWave',
+    );
+  }
+  const wavesArr = Array.isArray(waves) ? waves : [];
+
+  const updatedAt = now().toISOString();
+  const normalizedWaves = wavesArr.map((w) => {
+    const stories = Array.isArray(w?.stories) ? w.stories : [];
+    const out = {
+      wave: Number(w?.wave),
+      stories,
+    };
+    if (Number.isInteger(w?.concurrencyCap)) {
+      out.concurrencyCap = Number(w.concurrencyCap);
+    }
+    return out;
+  });
+
+  const payload = {
+    kind: EPIC_RUN_PROGRESS_TYPE,
+    epicId: epicIdNum,
+    currentWave: currentWaveNum,
+    totalWaves: totalWavesNum,
+    waves: normalizedWaves,
+    updatedAt,
+  };
+  if (typeof startedAt === 'string' && startedAt) {
+    payload.startedAt = startedAt;
+  }
+
+  const totalStories = normalizedWaves.reduce(
+    (acc, w) => acc + w.stories.length,
+    0,
+  );
+  const doneStories = normalizedWaves.reduce(
+    (acc, w) => acc + w.stories.filter((s) => s?.state === 'done').length,
+    0,
+  );
+  const header = `### 📊 Epic Progress — Wave ${Math.min(currentWaveNum + 1, Math.max(totalWavesNum, 1))}/${totalWavesNum || '?'} · ${doneStories}/${totalStories} stories done`;
+
+  const tableLines = ['| Wave | ID | State | Title |', '|---|---|---|---|'];
+  if (normalizedWaves.length === 0) {
+    tableLines.push('| — | — | _(no waves yet)_ | — |');
+  } else {
+    for (const w of normalizedWaves) {
+      if (w.stories.length === 0) {
+        tableLines.push(`| ${w.wave + 1} | — | _(empty wave)_ | — |`);
+        continue;
+      }
+      for (const s of w.stories) {
+        const state = String(s?.state ?? 'unknown');
+        const emoji = STATE_EMOJI[state] ?? '';
+        const id = Number(s?.id ?? 0);
+        const title = escapePipes(truncate(String(s?.title ?? ''), 60));
+        tableLines.push(
+          `| ${w.wave + 1} | #${id} | ${emoji} ${state} | ${title} |`,
+        );
+      }
+    }
+  }
+
+  const body = [
+    header,
+    '',
+    tableLines.join('\n'),
+    '',
+    '```json',
+    JSON.stringify(payload, null, 2),
+    '```',
+  ].join('\n');
+
+  await upsertStructuredComment(
+    provider,
+    epicIdNum,
+    EPIC_RUN_PROGRESS_TYPE,
+    body,
+  );
+
+  return { body, payload };
+}
+
+/**
  * Extract the `{ phases, ... }` payload from a `phase-timings` structured
  * comment. Comment body is the fenced-JSON format produced by
  * `renderPhaseTimingsCommentBody` in story-close. Returns `null`
@@ -642,27 +844,21 @@ function formatElapsed(ms) {
  * available" without erroring out progress rendering.
  */
 export function parsePhaseTimingsComment(comment) {
-  if (!comment || typeof comment.body !== 'string') return null;
-  const match = comment.body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!match) return null;
-  try {
-    const payload = JSON.parse(match[1]);
-    if (!Array.isArray(payload.phases)) return null;
-    return {
-      storyId: Number(payload.storyId),
-      totalMs: Number(payload.totalMs) || 0,
-      phases: payload.phases
-        .filter(
-          (p) =>
-            p &&
-            typeof p.name === 'string' &&
-            Number.isFinite(Number(p.elapsedMs)),
-        )
-        .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
-    };
-  } catch {
-    return null;
-  }
+  const payload = parseFencedJsonComment(comment);
+  if (!payload || typeof payload !== 'object') return null;
+  if (!Array.isArray(payload.phases)) return null;
+  return {
+    storyId: Number(payload.storyId),
+    totalMs: Number(payload.totalMs) || 0,
+    phases: payload.phases
+      .filter(
+        (p) =>
+          p &&
+          typeof p.name === 'string' &&
+          Number.isFinite(Number(p.elapsedMs)),
+      )
+      .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
+  };
 }
 
 /**

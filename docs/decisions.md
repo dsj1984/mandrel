@@ -1709,3 +1709,54 @@ submodule paths are internal implementation detail.
     *   The convention is reviewed if a regression slips past the helper
         tests but would have been caught by main-level coverage. None
         observed to date.
+
+## ADR-20260502-960a: Production code is not shaped by test internals — tests import helpers directly with an explicit `ctx` bag
+
+*   **Status:** Accepted (Epic #946, Stories C1+C2 → #960).
+*   **Context:** `WorktreeManager` historically grew a "Backwards-compat
+    delegates for tests that probe private helpers" block — five
+    `_`-prefixed methods (`_copyBootstrapFiles`, `_provisionWorkspace`,
+    `_copyAgentsFromRoot`, `_removeCopiedAgents`, `_isAgentsSubmodule`)
+    that existed solely so the pre-split `tests/lib/worktree-manager.test.js`
+    suite could keep calling instance methods after the implementation
+    was decomposed into `lib/worktree/bootstrapper.js` and
+    `lib/workspace-provisioner.js`. The delegates added no behaviour;
+    they were a compatibility shim for the test file. Production
+    callers (the lifecycle layer) had already migrated to the helper
+    modules and passed an explicit `ctx` bag, so the delegates were
+    dead weight on the production code path while the test file
+    continued to pretend the manager owned the logic.
+*   **Decision:** Production modules do not carry test-shaped surfaces.
+    When a class's internal helpers are extracted into pure functions
+    that take a `ctx` bag, the corresponding tests **migrate to the
+    helper module directly** rather than the class re-exposing the
+    helper as a private method. The migration pattern is "test imports
+    the helper directly, constructs a `ctx` bag with the fields the
+    helper documents, and asserts on the helper's return value or its
+    side-effects." The class loses the underscore-prefixed delegate.
+    Stories C1+C2 of Epic #946 codified this for the worktree split:
+    `tests/lib/worktree-manager.test.js` now calls
+    `provision({ sourceRoot, targetWorktree, files, logger })` from
+    `workspace-provisioner.js` and
+    `copyAgentsFromRoot(ctx, wtPath)` /
+    `removeCopiedAgents(ctx, wtPath)` /
+    `isAgentsSubmodule(repoRoot)` from `worktree/bootstrapper.js`
+    instead of the deleted `wm._*` delegates.
+*   **Consequences:**
+    *   `WorktreeManager` shrinks: the ~70-line backwards-compat block
+        in `lib/worktree-manager.js` is gone, leaving only the public
+        lifecycle facade (`ensure`, `reap`, `gc`, `prune`, `list`,
+        `pathFor`, `isSafeToRemove`, `sweepStaleLocks`).
+    *   Tests for the bootstrap / submodule logic become independent of
+        the class's wiring — they exercise the helper contract
+        verbatim, so a future split or rename of `WorktreeManager` does
+        not invalidate the suite.
+    *   New code follows the same rule: a helper extracted "for
+        testability" is tested at the helper boundary, not via a
+        manager-level passthrough. Reviewers reject `_`-prefixed
+        delegates whose only call site is a test file.
+    *   The ctx bag fields each helper expects are documented in the
+        helper's JSDoc; tests construct bags inline rather than
+        reaching through a partially-constructed class instance to
+        mutate them (the old `wm._isAgentsSubmodule = () => true`
+        pattern is replaced by `ctx.isAgentsSubmodule: () => true`).
