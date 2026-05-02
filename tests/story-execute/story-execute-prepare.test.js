@@ -112,6 +112,11 @@ test('runStoryExecutePrepare: dependenciesInstalled=true skips install + upserts
     (c) => typeof c.body === 'string' && c.body.includes(progressMarker),
   );
   assert.ok(upserted, 'expected a story-run-progress comment to be upserted');
+  // renderedBody is the same markdown body, surfaced for chat relay by
+  // `/story-execute` so operators see the initial task table before the
+  // first commit lands.
+  assert.ok(result.renderedBody.startsWith('### 📖 Story #42'));
+  assert.match(result.renderedBody, /0\/2 tasks done/);
 });
 
 test('runStoryExecutePrepare: dependenciesInstalled=false runs install before upserting', async () => {

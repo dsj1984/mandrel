@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.31.2] - 2026-05-02
+
+### Hierarchical chat rollups for `/epic-execute`, `/wave-execute`, `/story-execute`
+
+Each level of the execution hierarchy now surfaces a rendered markdown progress table directly to the operator's chat, layered top-down so a long-running Epic produces three nested views: Epic-wide cross-wave rollup, per-wave Story rollup, and per-Story task rollup. Previously the rendered tables only existed as `epic-run-progress` / `wave-run-progress` / `story-run-progress` structured comments on GitHub — operators had to flip to the issue tab to see them in flight.
+
+- **Writers expose the rendered body.** [`upsertStoryRunProgress`](../.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js) and [`upsertWaveRunProgress`](../.agents/scripts/lib/orchestration/epic-runner/wave-run-progress-writer.js) now return `{ body, payload }` (matching the long-standing `upsertEpicRunProgress` shape), so callers can both pass the payload up the orchestration tree and surface the body to chat without re-rendering.
+- **CLI envelopes carry `renderedBody`.** [`story-execute-prepare.js`](../.agents/scripts/story-execute-prepare.js), [`story-task-progress.js`](../.agents/scripts/story-task-progress.js), [`wave-record.js`](../.agents/scripts/wave-record.js), and [`epic-rollup.js`](../.agents/scripts/epic-rollup.js) all add a `renderedBody` field to their stdout JSON envelope. The skill markdowns instruct the host LLM to relay it verbatim as a chat message after each transition (`/story-execute`), after fan-out (`/wave-execute`), and after each wave's rollup (`/epic-execute`).
+- **Skill markdowns prescribe a hierarchical Notable section.** [`/wave-execute`](../.agents/workflows/wave-execute.md) and [`/epic-execute`](../.agents/workflows/epic-execute.md) ask the host LLM to author a short, synthesized **Notable** section after the rollup body — newly blocked / failed children, outsized wall-clock consumers, friction comments posted in-segment, anomalies in child returns. The framework supplies the table mechanically; the LLM authors the notable narrative on top of it (per Epic #380's UX spec). Sub-agents suppress per-Task chat relay when running underneath a wave so the wave-level rollup remains the canonical chat surface.
+- **Sub-agent return contracts grow `renderedBody`.** `/story-execute` returns its terminal `renderedBody` to its parent `/wave-execute`; the wave-execute envelope likewise carries `renderedBody` upward. `/epic-execute`'s rollup uses these for its cross-wave Notable synthesis.
+- **MI/CRAP baseline-refresh delta.** Baselines refreshed atomically with the change. Net change vs 5.31.1: 12 files ratcheted (-0.16 to -0.68 MI), all in the modified production CLIs and their tests; 0 regressions outside the modified set; CRAP 0 regressions.
+
 ## [5.31.1] - 2026-05-02
 
 ### Clean-code & maintainability refactor — orchestrator split, duplication harvest, dead-export retirement, baseline lift (Epic #946)

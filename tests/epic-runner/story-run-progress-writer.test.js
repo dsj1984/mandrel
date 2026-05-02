@@ -169,7 +169,7 @@ describe('renderStoryRunProgressBody', () => {
 describe('upsertStoryRunProgress', () => {
   it('posts a fresh comment with the structured-comment marker on first run', async () => {
     const provider = buildProvider();
-    const payload = await upsertStoryRunProgress({
+    const { body, payload } = await upsertStoryRunProgress({
       provider,
       storyId: 912,
       branch: 'story-912',
@@ -181,6 +181,7 @@ describe('upsertStoryRunProgress', () => {
     assert.ok(
       written.body.includes(structuredCommentMarker(STORY_RUN_PROGRESS_TYPE)),
     );
+    assert.ok(written.body.endsWith(body));
     const parsed = extractPayload(written.body);
     assert.deepEqual(parsed.tasks, payload.tasks);
     assert.equal(parsed.storyId, 912);

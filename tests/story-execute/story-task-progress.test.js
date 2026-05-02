@@ -152,6 +152,11 @@ test('runStoryTaskProgress: cache-miss → hydrates from comment → writes cach
   assert.equal(result.ok, true);
   assert.equal(result.taskState, 'executing');
   assert.equal(result.phase, 'implementing');
+  // renderedBody is the markdown body upserted onto the Story ticket — the
+  // skill relays it to chat after each transition. Must contain the
+  // story-progress header and the executing row.
+  assert.ok(result.renderedBody.startsWith('### 📖 Story #12'));
+  assert.match(result.renderedBody, /\| #100 \| .*executing/);
   // Cache exists with the new state.
   const cached = readCache(cachePath);
   const t100 = cached.tasks.find((t) => t.id === 100);

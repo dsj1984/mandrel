@@ -27,8 +27,11 @@
  *      pinned to `pending` and `phase: 'init'` via `upsertStoryRunProgress`.
  *
  * Stdout: a single JSON envelope `{ workCwd, dependenciesInstalled,
- * installAction, snapshot }` so the caller can decide what to do next without
- * re-reading the comment.
+ * installAction, snapshot, renderedBody }` so the caller can decide what to
+ * do next without re-reading the comment. `renderedBody` is the markdown
+ * body that was upserted onto the Story ticket — `/story-execute` relays it
+ * as a chat message at the start of each Story so operators see the initial
+ * task table before the first commit lands.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -127,6 +130,7 @@ export async function readStoryInitComment({ provider, storyId }) {
  *   installCmd: string | null,
  *   installResult: { status: number, stderr?: string } | null,
  *   snapshot: object,
+ *   renderedBody: string,
  * }>}
  */
 export async function runStoryExecutePrepare(args) {
@@ -204,13 +208,14 @@ export async function runStoryExecutePrepare(args) {
         }))
       : []);
   const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
-  const snapshot = await upsertStoryRunProgress({
-    provider,
-    storyId,
-    branch,
-    phase: 'init',
-    tasks,
-  });
+  const { body: renderedBody, payload: snapshot } =
+    await upsertStoryRunProgress({
+      provider,
+      storyId,
+      branch,
+      phase: 'init',
+      tasks,
+    });
 
   return {
     storyId,
@@ -220,6 +225,7 @@ export async function runStoryExecutePrepare(args) {
     installCmd,
     installResult,
     snapshot,
+    renderedBody,
   };
 }
 

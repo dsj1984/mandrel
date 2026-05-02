@@ -133,6 +133,28 @@ Story state from labels** — it trusts the wave snapshots, which were
 themselves computed from each Story's `story-run-progress` comment. Missing
 or unparseable wave snapshots fall back to `{ wave: N, stories: [] }`.
 
+The CLI's stdout JSON envelope carries a `renderedBody` field — the
+markdown body of the cross-wave epic rollup (header
+`### 📊 Epic Progress — Wave N/M · D/T stories done`, columns
+`Wave · ID · State · Title`). After the CLI returns:
+
+1. **Relay `renderedBody` to chat verbatim** — this is the operator's
+   top-of-funnel view of the Epic. The body unifies every completed wave
+   alongside the in-flight one in a single table.
+2. Append a short **Notable** section (host-LLM-authored, 0–5 bullets).
+   Keep it synthesized over signals from the just-completed wave's
+   summary plus anything surprising in the wave-level chat blocks the
+   children produced:
+   - new blockers crossing the wave boundary;
+   - Stories whose terminal state contradicts what their wave-level
+     summary reported (rare — rollup-vs-summary drift);
+   - friction comments posted on the Epic itself during this wave;
+   - elapsed-time surprises vs. earlier waves of comparable size;
+   - anything the operator should look at before greenlighting the next
+     wave.
+   Skip the section entirely if there is nothing notable. **Do not**
+   invent bullets for happy-path waves.
+
 ---
 
 ## Step 4 — Advance the checkpoint

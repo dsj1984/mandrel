@@ -30,7 +30,11 @@
  *                                      Story-level phase to upsert with the
  *                                      snapshot. Defaults derived from --state.
  *
- * Stdout: `{ ok: true, taskState, phase, payload }` JSON envelope.
+ * Stdout: `{ ok: true, taskState, phase, payload, renderedBody }` JSON
+ * envelope. `renderedBody` is the markdown body that was upserted onto the
+ * Story ticket — `/story-execute` relays it as a chat message after each
+ * transition so operators see the same task-progress table the parent
+ * `/wave-execute` aggregator reads.
  */
 
 import fs from 'node:fs';
@@ -213,7 +217,13 @@ export async function hydrateFromComment({ provider, storyId }) {
  *   provider?: object,
  *   cachePath?: string,
  * }} args
- * @returns {Promise<{ ok: true, taskState: string, phase: string, payload: object }>}
+ * @returns {Promise<{
+ *   ok: true,
+ *   taskState: string,
+ *   phase: string,
+ *   payload: object,
+ *   renderedBody: string,
+ * }>}
  */
 export async function runStoryTaskProgress(args) {
   const {
@@ -279,8 +289,11 @@ export async function runStoryTaskProgress(args) {
   // 3. Persist the cache.
   writeCache(cachePath, { ...next, storyId, branch });
 
-  // 4. Upsert the canonical GitHub comment.
-  const payload = await upsertStoryRunProgress({
+  // 4. Upsert the canonical GitHub comment. The writer returns the
+  //    rendered markdown body alongside the payload so callers can both
+  //    pass the payload up the orchestration tree and surface the body
+  //    to chat without re-rendering.
+  const { body: renderedBody, payload } = await upsertStoryRunProgress({
     provider,
     storyId,
     branch,
@@ -288,7 +301,7 @@ export async function runStoryTaskProgress(args) {
     tasks: next.tasks,
   });
 
-  return { ok: true, taskState: state, phase, payload };
+  return { ok: true, taskState: state, phase, payload, renderedBody };
 }
 
 export function parseCliArgs(argv) {

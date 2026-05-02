@@ -155,7 +155,7 @@ describe('renderWaveRunProgressBody', () => {
 describe('upsertWaveRunProgress', () => {
   it('posts a fresh comment with the structured-comment marker on first run', async () => {
     const provider = buildProvider();
-    const payload = await upsertWaveRunProgress({
+    const { body, payload } = await upsertWaveRunProgress({
       provider,
       epicId: 900,
       wave: 1,
@@ -169,6 +169,7 @@ describe('upsertWaveRunProgress', () => {
     assert.ok(
       written.body.includes(structuredCommentMarker(WAVE_RUN_PROGRESS_TYPE)),
     );
+    assert.ok(written.body.endsWith(body));
     const parsed = extractPayload(written.body);
     assert.deepEqual(parsed.stories, payload.stories);
     assert.equal(parsed.epicId, 900);

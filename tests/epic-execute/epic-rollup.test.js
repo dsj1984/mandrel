@@ -88,12 +88,15 @@ describe('runEpicRollup', () => {
       now: () => new Date('2026-05-02T13:00:00Z'),
     });
 
-    assert.deepEqual(out, {
-      epicId: 100,
-      currentWave: 1,
-      totalWaves: 2,
-      wavesAggregated: 2,
-    });
+    assert.equal(out.epicId, 100);
+    assert.equal(out.currentWave, 1);
+    assert.equal(out.totalWaves, 2);
+    assert.equal(out.wavesAggregated, 2);
+    // renderedBody is the markdown body the rollup upserted, surfaced for
+    // chat relay by `/epic-execute`. It must include the cross-wave header.
+    assert.ok(out.renderedBody.startsWith('### 📊 Epic Progress'));
+    assert.match(out.renderedBody, /\| 1 \| #1 \|/); // wave 0 → "1" + story #1
+    assert.match(out.renderedBody, /\| 2 \| #3 \|/); // wave 1 → "2" + story #3
 
     // The Epic now carries an epic-run-progress comment whose body lists
     // both waves in order.

@@ -96,12 +96,17 @@ Each Agent tool call must include a self-contained prompt that:
      "tasksTotal": <number>,
      "branchDeleted": <boolean>,
      "blockerCommentId": <string|null>,
-     "detail": <string|undefined>
+     "detail": <string|undefined>,
+     "renderedBody": <string|undefined>
    }
    ```
 
 4. Reminds the sub-agent of the **non-interactive contract** (no clarifying
    questions, transition to `agent::blocked` and exit if truly stuck).
+5. Asks the sub-agent to suppress per-Task chat relay (the wave-level
+   rollup is the canonical chat surface) and instead include its
+   **terminal** `renderedBody` in the JSON return so this skill can fold
+   it into the wave-level Notable section.
 
 Sub-agents inherit the parent's tool permissions and worktree context; they
 do **not** require `--dangerously-skip-permissions` (no subprocess is
@@ -131,12 +136,38 @@ any `blocked` or `failed` propagates), and prints:
   "wave": <number>,
   "status": "complete" | "blocked" | "failed",
   "stories": [ { "id": <n>, "status": "done|blocked|failed" }, ... ],
-  "blockedStoryIds": [ ... ]
+  "blockedStoryIds": [ ... ],
+  "renderedBody": "<markdown>"
 }
 ```
 
 The skill never transitions Epic-level state — that is `/epic-execute`'s
 responsibility.
+
+### Step 4 — Relay the wave rollup to chat
+
+After `wave-record.js` returns, **emit the wave's chat update**:
+
+1. Print the envelope's `renderedBody` verbatim — the canonical
+   per-Story rollup table for this wave (header `### 🌊 Wave N — D/T done`,
+   columns `ID · State · Title · Tasks`).
+2. Append a short **Notable** section (host-LLM-authored, 0–4 bullets).
+   Keep it terse and synthesized over signals from the child returns:
+   - newly blocked / failed Stories (with `#id` references);
+   - Stories that consumed an outsized share of wave wall-clock;
+   - friction comments posted during the wave (count + targets);
+   - anything surprising in a child's terminal `renderedBody`.
+   Skip the section entirely if there is nothing notable. **Do not** invent
+   bullets for happy-path waves.
+
+### Step 5 — Return contract (sub-agent path)
+
+When run as a sub-agent of `/epic-execute`, return the `wave-record`
+envelope verbatim plus the chat block from Step 4 in your assistant text.
+The parent reads `renderedBody` from the envelope to fold into its
+cross-wave epic rollup; the assistant text is what the operator sees in
+chat. Do not strip `renderedBody` — `/epic-execute`'s Notable synthesis
+depends on it.
 
 ---
 

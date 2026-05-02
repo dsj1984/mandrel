@@ -733,13 +733,13 @@
       "crap": 9,
       "file": ".agents/scripts/epic-rollup.js",
       "method": "runEpicRollup",
-      "startLine": 70
+      "startLine": 74
     },
     {
       "crap": 72,
       "file": ".agents/scripts/epic-rollup.js",
       "method": "main",
-      "startLine": 127
+      "startLine": 132
     },
     {
       "crap": 6.839650145772595,
@@ -1786,7 +1786,7 @@
       "startLine": 288
     },
     {
-      "crap": 12,
+      "crap": 4.125,
       "file": ".agents/scripts/lib/git-merge-orchestrator.js",
       "method": "analyzeConflicts",
       "startLine": 24
@@ -1810,7 +1810,7 @@
       "startLine": 107
     },
     {
-      "crap": 11.760932944606413,
+      "crap": 10.855105446821423,
       "file": ".agents/scripts/lib/git-merge-orchestrator.js",
       "method": "mergeFeatureBranch",
       "startLine": 119
@@ -1819,7 +1819,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/git-merge-orchestrator.js",
       "method": "buildAutoResolveTrailer",
-      "startLine": 156
+      "startLine": 167
     },
     {
       "crap": 1,
@@ -2521,7 +2521,7 @@
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
       "method": "upsertStoryRunProgress",
-      "startLine": 195
+      "startLine": 196
     },
     {
       "crap": 8,
@@ -2593,7 +2593,7 @@
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/wave-run-progress-writer.js",
       "method": "upsertWaveRunProgress",
-      "startLine": 176
+      "startLine": 177
     },
     {
       "crap": 5.034293552812072,
@@ -4675,37 +4675,37 @@
       "crap": 4,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "deriveInstallAction",
-      "startLine": 66
+      "startLine": 69
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "resolveInstallCommand",
-      "startLine": 86
+      "startLine": 89
     },
     {
       "crap": 4,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "readStoryInitComment",
-      "startLine": 101
+      "startLine": 104
     },
     {
-      "crap": 7.167159606990428,
+      "crap": 7.156822860475288,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "runStoryExecutePrepare",
-      "startLine": 132
+      "startLine": 136
     },
     {
       "crap": 1.8573749999999998,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "parseCliArgs",
-      "startLine": 226
+      "startLine": 232
     },
     {
       "crap": 4.809327846364883,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "main",
-      "startLine": 247
+      "startLine": 253
     },
     {
       "crap": 1,
@@ -4777,49 +4777,49 @@
       "crap": 4.916,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "resolveCachePath",
-      "startLine": 91
+      "startLine": 95
     },
     {
       "crap": 3.0987654320987654,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "readCache",
-      "startLine": 109
+      "startLine": 113
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "writeCache",
-      "startLine": 125
+      "startLine": 129
     },
     {
       "crap": 11.099700927734375,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "applyTransition",
-      "startLine": 144
+      "startLine": 148
     },
     {
       "crap": 5,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "hydrateFromComment",
-      "startLine": 185
+      "startLine": 189
     },
     {
-      "crap": 9.331776,
+      "crap": 9.2949476558944,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
-      "startLine": 218
+      "startLine": 228
     },
     {
       "crap": 1.8801359953703705,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "parseCliArgs",
-      "startLine": 294
+      "startLine": 307
     },
     {
       "crap": 4.809327846364883,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "main",
-      "startLine": 319
+      "startLine": 332
     },
     {
       "crap": 11.090909090909092,
@@ -4975,43 +4975,43 @@
       "crap": 2.006513331976389,
       "file": ".agents/scripts/wave-record.js",
       "method": "validateResults",
-      "startLine": 86
+      "startLine": 92
     },
     {
       "crap": 5.650307371843723,
       "file": ".agents/scripts/wave-record.js",
       "method": "parseResultsArg",
-      "startLine": 129
+      "startLine": 135
     },
     {
       "crap": 4,
       "file": ".agents/scripts/wave-record.js",
       "method": "aggregateWaveStatus",
-      "startLine": 165
+      "startLine": 171
     },
     {
       "crap": 4.018661612479954,
       "file": ".agents/scripts/wave-record.js",
       "method": "loadManifestTitleMap",
-      "startLine": 191
+      "startLine": 197
     },
     {
-      "crap": 7.118767933555657,
+      "crap": 7.113604849379198,
       "file": ".agents/scripts/wave-record.js",
       "method": "runWaveRecord",
-      "startLine": 230
+      "startLine": 237
     },
     {
       "crap": 5.478963185574756,
       "file": ".agents/scripts/wave-record.js",
       "method": "parseCliArgs",
-      "startLine": 303
+      "startLine": 311
     },
     {
       "crap": 5.252148148148148,
       "file": ".agents/scripts/wave-record.js",
       "method": "main",
-      "startLine": 326
+      "startLine": 334
     }
   ],
   "tsTranspilerVersion": "5.9.3"

@@ -164,6 +164,11 @@ test('runWaveRecord — happy path upserts wave-run-progress + returns complete'
     { id: 911, status: 'done' },
     { id: 912, status: 'done' },
   ]);
+  // renderedBody is the markdown body upserted onto the Epic — `/wave-execute`
+  // relays it to chat as the Wave-level rollup table after fan-out.
+  assert.ok(out.renderedBody.startsWith('### 🌊 Wave 1'));
+  assert.match(out.renderedBody, /\| #911 \|/);
+  assert.match(out.renderedBody, /\| #912 \|/);
 
   // The wave-run-progress comment was posted on the Epic.
   const waveComment = provider.posted.find(
