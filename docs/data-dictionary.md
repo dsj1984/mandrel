@@ -176,6 +176,12 @@ The `mcp__agent-protocols__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
 
+Readers consuming any of the comment types above should parse the JSON fence
+through the shared `parseFencedJsonComment(comment)` helper in
+`lib/orchestration/structured-comment-parser.js`. Three open-coded regex
+parsers were consolidated onto this helper in Epic #946 (v5.31.1); new
+readers should not re-implement the fence-extraction logic inline.
+
 ---
 
 ## Dispatch Manifest

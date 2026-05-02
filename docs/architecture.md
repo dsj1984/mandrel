@@ -217,7 +217,7 @@ graph TB
 | `dispatcher.js`          | Builds dependency DAG, computes execution waves, dispatches tasks.                   |
 | `epic-runner.js`         | Drives the wave loop end-to-end (invoked by `/epic-execute`).                        |
 | `story-init.js`          | Initialises a Story worktree, transitions Tasks to `agent::executing`.               |
-| `story-close.js`         | Validates, merges, reaps, and cascades on Story completion.                          |
+| `story-close.js`         | Validates, merges, reaps, and cascades on Story completion. Trimmed to a 189-line CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}` in Epic #946 (v5.31.1). |
 | `epic-close.js`          | Closes the Epic: docs freshness, code review, version bump, merge to `main`, retro. |
 | `context-hydrator.js`    | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).   |
 | `update-ticket-state.js` | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).              |

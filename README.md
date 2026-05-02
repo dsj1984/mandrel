@@ -59,7 +59,12 @@ graph LR
 - **Single-session fan-out** — `/wave-execute` launches Story sub-agents
   through the Agent tool inside the operator's Claude session (Epic #900,
   v5.31.0). Worktree filesystem isolation is preserved; no subprocess
-  spawn, no GitHub Actions runner.
+  spawn, no GitHub Actions runner. Internal orchestration was further
+  refactored in Epic #946 (v5.31.1) — `story-close.js` was split into a
+  189-line CLI shell over `lib/orchestration/story-close/`, dead-export
+  surface was retired, and a shared `parseFencedJsonComment` helper
+  consolidated three open-coded JSON-fence parsers; no consumer-visible
+  rename or config delta.
 - **Gate-based quality** — Lint, test, typecheck, MI, and CRAP gates wired
   into close-validation, CI, and pre-push, with base-branch-enforced
   baselines that block silent threshold relaxation.
