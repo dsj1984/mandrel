@@ -150,11 +150,7 @@ export async function runStoryClose({
     orchestration,
     log: progressLog,
   };
-  if (resumeFromConflict) {
-    await runResumeMerge(mergeArgs);
-  } else {
-    await runFinalizeMerge(mergeArgs);
-  }
+  await (resumeFromConflict ? runResumeMerge : runFinalizeMerge)(mergeArgs);
 
   const frictionEmitter = createFrictionEmitter({
     provider,
