@@ -219,7 +219,14 @@ test('removeWorktreeWithRecovery: Stage 1 defers to sweep and writes pending-cle
     assert.equal(res.pendingCleanup.storyId, 9);
     assert.equal(res.pendingCleanup.branch, 'story-9');
     assert.equal(res.pendingCleanup.attempts, 0);
-    assert.equal(fsRmAttempts, 5);
+    // Stage 1 (5 attempts) + Stage 1.5 coverage-leak quiesce (1 extended
+    // attempt, win32 only). Stage 1.5 lifts the wall-clock budget so a c8
+    // file-handle hold over a `node_modules/.cache` directory has time to
+    // release before the sweep takes over.
+    assert.equal(fsRmAttempts, 6);
+    // Best-effort branch cleanup runs even on the deferred path so operators
+    // don't have to follow up with manual `git branch -D`.
+    assert.equal(res.branchDeleted, true);
 
     // Manifest must be on disk with the failed entry.
     const manifest = JSON.parse(

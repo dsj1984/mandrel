@@ -163,6 +163,64 @@ test('runStoryExecutePrepare: failed install bubbles up as an Error', async () =
   );
 });
 
+test('runStoryExecutePrepare: falls back to provider.getSubTickets when legacy story-init payload omits tasks', async () => {
+  // Pre-5.31.2 story-init comments did not embed `tasks[]`. The prepare CLI
+  // must hydrate the task list from the provider so the initial
+  // story-run-progress snapshot is non-empty.
+  const provider = makeProvider([
+    makeStoryInitComment({
+      storyId: 60,
+      workCwd: '/tmp/.worktrees/story-60',
+      dependenciesInstalled: 'true',
+      tasks: undefined, // legacy payload — no tasks field
+    }),
+  ]);
+  // Stub getSubTickets — the fallback path uses fetchChildTasks under the hood.
+  provider.getSubTickets = async () => [
+    { number: 91, title: 'legacy-A', labels: ['type::task'] },
+    { number: 92, title: 'legacy-B', labels: ['type::task'] },
+    { number: 93, title: 'unrelated', labels: ['type::feature'] },
+  ];
+
+  const result = await runStoryExecutePrepare({
+    storyId: 60,
+    provider,
+    runInstall: () => ({ status: 0 }),
+  });
+  assert.equal(result.snapshot.tasks.length, 2);
+  assert.deepEqual(
+    result.snapshot.tasks.map((t) => t.id),
+    [91, 92],
+  );
+  assert.ok(result.snapshot.tasks.every((t) => t.state === 'pending'));
+});
+
+test('runStoryExecutePrepare: prefers payload.tasks when present (no fallback fetch)', async () => {
+  const provider = makeProvider([
+    makeStoryInitComment({
+      storyId: 61,
+      workCwd: '/tmp/.worktrees/story-61',
+      dependenciesInstalled: 'true',
+      tasks: [
+        { id: 70, title: 'embedded-A' },
+        { id: 71, title: 'embedded-B' },
+      ],
+    }),
+  ]);
+  let getSubTicketsCalls = 0;
+  provider.getSubTickets = async () => {
+    getSubTicketsCalls++;
+    return [];
+  };
+  const result = await runStoryExecutePrepare({
+    storyId: 61,
+    provider,
+    runInstall: () => ({ status: 0 }),
+  });
+  assert.equal(result.snapshot.tasks.length, 2);
+  assert.equal(getSubTicketsCalls, 0); // no fallback needed
+});
+
 test('runStoryExecutePrepare: throws if no story-init comment is found', async () => {
   const provider = makeProvider([]);
   await assert.rejects(

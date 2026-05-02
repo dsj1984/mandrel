@@ -463,6 +463,14 @@ export function renderStoryInitCommentBody(result) {
     worktreeCreated: result.worktreeCreated,
     dependenciesInstalled: result.dependenciesInstalled,
     installStatus: result.installStatus,
+    // Embed the canonical task list so `story-execute-prepare.js` can seed the
+    // initial `story-run-progress` snapshot without re-fetching the task graph.
+    // Without this field, the prepare CLI silently seeded an empty snapshot,
+    // breaking every subsequent `story-task-progress.js` call (it asserts the
+    // task id is present in the snapshot).
+    tasks: Array.isArray(result.tasks)
+      ? result.tasks.map((t) => ({ id: t.id, title: t.title }))
+      : [],
   };
   return [
     '## Story init',

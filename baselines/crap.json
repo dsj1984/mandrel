@@ -2959,61 +2959,67 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "storyWorktreePath",
-      "startLine": 42
+      "startLine": 53
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "hasUnmergedMarkers",
-      "startLine": 56
+      "startLine": 67
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "hasAnyUncommittedChanges",
-      "startLine": 67
+      "startLine": 78
     },
     {
-      "crap": 9,
+      "crap": 15,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "detectPriorPhase",
-      "startLine": 84
+      "startLine": 95
     },
     {
-      "crap": 9.00173611111111,
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
+      "method": "<anon method-3>",
+      "startLine": 147
+    },
+    {
+      "crap": 11.001165445036264,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "computeRecoveryMode",
-      "startLine": 167
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "method": "dropWorktreeIfPresent",
-      "startLine": 204
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
-      "method": "recreateStoryBranchRef",
       "startLine": 217
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
+      "method": "dropWorktreeIfPresent",
+      "startLine": 265
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
+      "method": "recreateStoryBranchRef",
+      "startLine": 278
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "reseedWorktreeIfNeeded",
-      "startLine": 227
+      "startLine": 288
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "restartStoryState",
-      "startLine": 251
+      "startLine": 312
     },
     {
-      "crap": 8,
+      "crap": 9,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "dispatchRecovery",
-      "startLine": 321
+      "startLine": 382
     },
     {
       "crap": 3,
@@ -3076,40 +3082,28 @@
       "startLine": 60
     },
     {
-      "crap": 1.0115135443590346,
+      "crap": 1.906313987445873,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "withEpicMergeLock",
       "startLine": 81
     },
     {
-      "crap": 12.381667918858,
+      "crap": 67.73478587528174,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "pushEpicAndHandleConflicts",
       "startLine": 139
     },
     {
-      "crap": 7.717939988730278,
+      "crap": 28.33390073253193,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "rebaseStoryOnEpic",
       "startLine": 213
     },
     {
-      "crap": 1.0296539250620884,
+      "crap": 1.964709197170932,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runFinalizeMerge",
       "startLine": 278
-    },
-    {
-      "crap": 2.5,
-      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-2>",
-      "startLine": 311
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-3>",
-      "startLine": 350
     },
     {
       "crap": 27.79544758883602,
@@ -4054,16 +4048,22 @@
       "startLine": 145
     },
     {
-      "crap": 42.46891359400472,
+      "crap": 28.02830023109393,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "removeWorktreeWithRecovery",
       "startLine": 152
     },
     {
+      "crap": 24.570341848234406,
+      "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
+      "method": "deleteBranchAfterReap",
+      "startLine": 379
+    },
+    {
       "crap": 27.687226676384846,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 352
+      "startLine": 424
     },
     {
       "crap": 1,
@@ -4642,7 +4642,7 @@
       "startLine": 49
     },
     {
-      "crap": 6.0599323273891175,
+      "crap": 8.358707537541916,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryClose",
       "startLine": 52
@@ -4657,55 +4657,61 @@
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-3>",
-      "startLine": 156
+      "startLine": 173
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-4>",
-      "startLine": 156
+      "startLine": 173
     },
     {
       "crap": 3,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-5>",
-      "startLine": 190
+      "startLine": 207
     },
     {
       "crap": 4,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "deriveInstallAction",
-      "startLine": 69
+      "startLine": 70
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "resolveInstallCommand",
-      "startLine": 89
+      "startLine": 90
+    },
+    {
+      "crap": 1.0060105184072126,
+      "file": ".agents/scripts/story-execute-prepare.js",
+      "method": "fetchTasksFallback",
+      "startLine": 108
     },
     {
       "crap": 4,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "readStoryInitComment",
-      "startLine": 104
+      "startLine": 127
     },
     {
-      "crap": 7.156822860475288,
+      "crap": 9.197591886663632,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "runStoryExecutePrepare",
-      "startLine": 136
+      "startLine": 159
     },
     {
       "crap": 1.8573749999999998,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "parseCliArgs",
-      "startLine": 232
+      "startLine": 264
     },
     {
       "crap": 4.809327846364883,
       "file": ".agents/scripts/story-execute-prepare.js",
       "method": "main",
-      "startLine": 253
+      "startLine": 285
     },
     {
       "crap": 1,
@@ -4762,7 +4768,7 @@
       "startLine": 429
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "renderStoryInitCommentBody",
       "startLine": 455
@@ -4771,7 +4777,7 @@
       "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "emitStoryInitResult",
-      "startLine": 483
+      "startLine": 491
     },
     {
       "crap": 4.916,

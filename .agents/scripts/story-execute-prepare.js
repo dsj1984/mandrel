@@ -46,6 +46,7 @@ import {
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { fetchChildTasks } from './lib/story-lifecycle.js';
 
 const HELP = `Usage: node .agents/scripts/story-execute-prepare.js \\
   --story <id> [--cwd <workCwd>] [--skip-install] [--install-cmd "<cmd>"]
@@ -92,6 +93,28 @@ export function resolveInstallCommand(options = {}) {
     return trimmed;
   }
   return 'npm ci';
+}
+
+/**
+ * Fallback path for legacy `story-init` comments that omit `tasks[]`. Pulls
+ * the Story's child Tasks directly off the provider so the initial snapshot
+ * has the canonical task list. Returns `[]` on any read failure — the empty
+ * snapshot still upserts cleanly and downstream `story-task-progress.js`
+ * surfaces a clear "task not found" error rather than silent corruption.
+ *
+ * @param {{ provider: object, storyId: number }} args
+ * @returns {Promise<Array<{ id: number, title: string }>>}
+ */
+export async function fetchTasksFallback({ provider, storyId }) {
+  try {
+    const tasks = await fetchChildTasks(provider, storyId);
+    return tasks.map((t) => ({
+      id: Number(t.number ?? t.id),
+      title: String(t.title ?? ''),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -198,15 +221,24 @@ export async function runStoryExecutePrepare(args) {
   // 3. Upsert the initial story-run-progress snapshot.
   //    Prefer the tasks list off the story-init payload; the override hatch
   //    is only for tests that don't want to round-trip a full payload.
+  //    Legacy `story-init` comments (pre-5.31.2) omit `tasks[]`, which would
+  //    silently seed an empty snapshot and break every later
+  //    `story-task-progress.js` call. Fall back to fetching the Story's
+  //    sub-tickets directly so the snapshot stays correct on resumed runs.
+  const initPayloadTasks = Array.isArray(initPayload.tasks)
+    ? initPayload.tasks
+    : [];
+  let resolvedTasks = initPayloadTasks;
+  if (!tasksOverride && initPayloadTasks.length === 0) {
+    resolvedTasks = await fetchTasksFallback({ provider, storyId });
+  }
   const tasks =
     tasksOverride ??
-    (Array.isArray(initPayload.tasks)
-      ? initPayload.tasks.map((t) => ({
-          id: Number(t.id),
-          title: String(t.title ?? ''),
-          state: 'pending',
-        }))
-      : []);
+    resolvedTasks.map((t) => ({
+      id: Number(t.id ?? t.number),
+      title: String(t.title ?? ''),
+      state: 'pending',
+    }));
   const branch = String(initPayload.storyBranch ?? `story-${storyId}`);
   const { body: renderedBody, payload: snapshot } =
     await upsertStoryRunProgress({

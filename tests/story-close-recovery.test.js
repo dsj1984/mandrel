@@ -15,6 +15,14 @@ function makeGit({
   wtStatusByPath = {},
   lsRemote = '',
   ancestorExit = 1,
+  // ALREADY_MERGED detection: tests can override per-(ancestor, descendant)
+  // pair to disambiguate `local story → remote epic` vs `remote story →
+  // remote epic`. Falls back to the global `ancestorExit` when no pair match.
+  ancestorExitByPair = null,
+  // showRef: tests opt in by setting `localStoryExists: true` (or by passing
+  // a custom `showRefByRef` map). Default `false` keeps legacy behavior.
+  localStoryExists = false,
+  showRefByRef = null,
 } = {}) {
   return {
     status(cwd) {
@@ -24,8 +32,25 @@ function makeGit({
     lsRemote(_cwd, _ref) {
       return { status: 0, stdout: lsRemote };
     },
-    isAncestor(_cwd, _a, _b) {
+    isAncestor(_cwd, ancestor, descendant) {
+      if (ancestorExitByPair) {
+        const key = `${ancestor}→${descendant}`;
+        if (key in ancestorExitByPair) {
+          return { status: ancestorExitByPair[key] };
+        }
+      }
       return { status: ancestorExit };
+    },
+    showRef(_cwd, ref) {
+      if (showRefByRef && ref in showRefByRef) {
+        return { status: showRefByRef[ref] };
+      }
+      // Default: only `refs/heads/story-<id>` is "present" when
+      // localStoryExists is true.
+      if (/^refs\/heads\/story-\d+$/.test(ref) && localStoryExists) {
+        return { status: 0 };
+      }
+      return { status: 1 };
     },
   };
 }
@@ -105,7 +130,7 @@ test('detectPriorPhase', async (t) => {
   );
 
   await t.test(
-    'returns fresh when remote branch exists but is already merged into epic',
+    'returns already-merged when remote branch is reachable from origin/epic/<id>',
     () => {
       const result = detectPriorPhase({
         cwd: CWD,
@@ -113,7 +138,51 @@ test('detectPriorPhase', async (t) => {
         epicId: 42,
         git: makeGit({
           lsRemote: 'abc123\trefs/heads/story-100\n',
-          ancestorExit: 0, // already merged
+          ancestorExit: 0, // remote story → remote epic ancestor
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.remoteStoryRef, 'origin/story-100');
+    },
+  );
+
+  await t.test(
+    'returns already-merged when local story branch exists and is reachable from origin/epic/<id>',
+    () => {
+      // Typical Windows partial-reap recovery: remote story branch was deleted
+      // by the prior close push, but the local branch ref survived because
+      // the worktree reap stalled before `git branch -D` ran. The local
+      // branch's HEAD is still an ancestor of `origin/epic/<id>`.
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: '', // remote story branch already deleted
+          localStoryExists: true,
+          ancestorExitByPair: {
+            'story-100→origin/epic/42': 0,
+          },
+        }),
+        fs: makeFs([]),
+      });
+      assert.strictEqual(result.phase, RECOVERY_STATES.ALREADY_MERGED);
+      assert.strictEqual(result.detail.localStoryRef, 'story-100');
+      assert.strictEqual(result.detail.remoteEpicRef, 'origin/epic/42');
+    },
+  );
+
+  await t.test(
+    'returns fresh when neither local nor remote branch is merged',
+    () => {
+      const result = detectPriorPhase({
+        cwd: CWD,
+        storyId: 100,
+        epicId: 42,
+        git: makeGit({
+          lsRemote: '',
+          localStoryExists: false,
         }),
         fs: makeFs([]),
       });
@@ -226,6 +295,35 @@ test('computeRecoveryMode dispatch table', async (t) => {
       RECOVERY_ACTIONS.RESUME_FROM_MERGE,
     );
   });
+
+  await t.test(
+    'already-merged auto-resumes from post-merge with no flag required',
+    () => {
+      // The prior close pushed the merge but stalled before ticket
+      // transitions / cascade / dashboard regen finished. Re-running close
+      // is the canonical recovery path and is safe to perform automatically.
+      assert.strictEqual(
+        computeRecoveryMode({ state: RECOVERY_STATES.ALREADY_MERGED }).action,
+        RECOVERY_ACTIONS.RESUME_FROM_POST_MERGE,
+      );
+      // --resume is a no-op (the action is the same) — it doesn't error.
+      assert.strictEqual(
+        computeRecoveryMode({
+          state: RECOVERY_STATES.ALREADY_MERGED,
+          resume: true,
+        }).action,
+        RECOVERY_ACTIONS.RESUME_FROM_POST_MERGE,
+      );
+      // --restart still escapes via the restart path.
+      assert.strictEqual(
+        computeRecoveryMode({
+          state: RECOVERY_STATES.ALREADY_MERGED,
+          restart: true,
+        }).action,
+        RECOVERY_ACTIONS.RESTART,
+      );
+    },
+  );
 
   await t.test('--resume + --restart together throws', () => {
     assert.throws(
@@ -352,23 +450,32 @@ test('dispatchRecovery', async (t) => {
         phase: RECOVERY_STATES.PARTIAL_MERGE,
         flag: 'resumeFromConflict',
         snippet: 'conflict',
+        resume: true,
       },
       {
         phase: RECOVERY_STATES.PUSHED_UNMERGED,
         flag: 'resumeFromMerge',
         snippet: 'from merge',
+        resume: true,
       },
       {
         phase: RECOVERY_STATES.UNCOMMITTED_WORKTREE,
         flag: 'resumeFromValidate',
         snippet: 'from validate',
+        resume: true,
+      },
+      {
+        phase: RECOVERY_STATES.ALREADY_MERGED,
+        flag: 'resumeFromPostMerge',
+        snippet: 'already landed',
+        resume: false, // no flag required — auto-recovery
       },
     ];
-    for (const { phase, flag, snippet } of cases) {
+    for (const { phase, flag, snippet, resume } of cases) {
       const { fn, events } = captureProgress();
       const result = dispatchRecovery({
         ...DISPATCH_BASE,
-        resume: true,
+        resume,
         detectFn: () => ({ phase, detail: {} }),
         progress: fn,
         logger: makeStubLogger(),

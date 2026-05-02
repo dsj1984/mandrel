@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## [5.31.2] - 2026-05-02
 
-### Hierarchical chat rollups for `/epic-execute`, `/wave-execute`, `/story-execute`
+### Hierarchical chat rollups + three sprint-protocol bug fixes
+
+A two-part patch release: the execution-hierarchy chat rollup work that started this branch, plus three corrective fixes that surfaced from the post-rollup sprint review (story-init payload completeness, story-close already-merged recovery, Windows worktree reap stickiness).
+
+#### Hierarchical chat rollups for `/epic-execute`, `/wave-execute`, `/story-execute`
 
 Each level of the execution hierarchy now surfaces a rendered markdown progress table directly to the operator's chat, layered top-down so a long-running Epic produces three nested views: Epic-wide cross-wave rollup, per-wave Story rollup, and per-Story task rollup. Previously the rendered tables only existed as `epic-run-progress` / `wave-run-progress` / `story-run-progress` structured comments on GitHub — operators had to flip to the issue tab to see them in flight.
 
@@ -14,7 +18,32 @@ Each level of the execution hierarchy now surfaces a rendered markdown progress 
 - **CLI envelopes carry `renderedBody`.** [`story-execute-prepare.js`](../.agents/scripts/story-execute-prepare.js), [`story-task-progress.js`](../.agents/scripts/story-task-progress.js), [`wave-record.js`](../.agents/scripts/wave-record.js), and [`epic-rollup.js`](../.agents/scripts/epic-rollup.js) all add a `renderedBody` field to their stdout JSON envelope. The skill markdowns instruct the host LLM to relay it verbatim as a chat message after each transition (`/story-execute`), after fan-out (`/wave-execute`), and after each wave's rollup (`/epic-execute`).
 - **Skill markdowns prescribe a hierarchical Notable section.** [`/wave-execute`](../.agents/workflows/wave-execute.md) and [`/epic-execute`](../.agents/workflows/epic-execute.md) ask the host LLM to author a short, synthesized **Notable** section after the rollup body — newly blocked / failed children, outsized wall-clock consumers, friction comments posted in-segment, anomalies in child returns. The framework supplies the table mechanically; the LLM authors the notable narrative on top of it (per Epic #380's UX spec). Sub-agents suppress per-Task chat relay when running underneath a wave so the wave-level rollup remains the canonical chat surface.
 - **Sub-agent return contracts grow `renderedBody`.** `/story-execute` returns its terminal `renderedBody` to its parent `/wave-execute`; the wave-execute envelope likewise carries `renderedBody` upward. `/epic-execute`'s rollup uses these for its cross-wave Notable synthesis.
-- **MI/CRAP baseline-refresh delta.** Baselines refreshed atomically with the change. Net change vs 5.31.1: 12 files ratcheted (-0.16 to -0.68 MI), all in the modified production CLIs and their tests; 0 regressions outside the modified set; CRAP 0 regressions.
+
+#### Bug fix — `story-init` payload now embeds `tasks[]`
+
+[`renderStoryInitCommentBody`](../.agents/scripts/story-init.js) was building the fenced JSON payload from a hand-picked subset of `result` and silently dropping the canonical task list. The downstream consumer [`story-execute-prepare.js`](../.agents/scripts/story-execute-prepare.js) read `initPayload.tasks`, found it missing, fell back to `[]`, and seeded an empty `story-run-progress` snapshot — silently breaking every later [`story-task-progress.js`](../.agents/scripts/story-task-progress.js) call (the task id wasn't present in the snapshot). Two-layer fix:
+
+1. The renderer now embeds `tasks: result.tasks.map({ id, title })` as a single source of truth.
+2. The prepare CLI gained a `fetchTasksFallback` defensive path: when `initPayload.tasks` is missing or empty (legacy comment from a pre-fix run), it pulls the Story's child Tasks via `provider.getSubTickets` so resumed runs against historical comments still seed correctly.
+
+#### Bug fix — `story-close` recognizes the `already-merged` recovery state
+
+[`story-close-recovery.js`](../.agents/scripts/lib/orchestration/story-close-recovery.js) treated the post-merge partial-reap case (merge + push succeeded, but ticket transitions / cascade / dashboard regen stalled — typical Windows worktree-reap recovery) as `fresh`, sending the script back through rebase + merge a second time. The repeat merge invariably failed (the story branch had been deleted by the prior push) and operators had to drive `update-ticket-state.js` by hand. New `ALREADY_MERGED` prior-state branch:
+
+- Detected when either the local `story-<id>` branch's HEAD is reachable from `origin/epic/<id>` **or** the remote `origin/story-<id>` ref is reachable from the same — covering the local-survives-remote-deleted and remote-survives-local-deleted cases.
+- Auto-resumes via the new `RESUME_FROM_POST_MERGE` action (no `--resume` flag required — re-running close on a successfully merged Story is the canonical recovery path).
+- [`runStoryClose`](../.agents/scripts/story-close.js) skips both the pre-merge gates and the merge runner on this path, delegating straight to `runPostMergeClose` for ticket transitions, cascade, health, and dashboard regen.
+
+#### Bug fix — Windows worktree reap force-drain hardening
+
+The Stage 1 `fs-rm-retry` budget (5 × 200ms) was too short for c8 to release the file handles it holds across the close-validation chain on Windows, leaving `node_modules/.cache` and `coverage/` paths un-removable. Even when the deferred-to-sweep manifest correctly recorded the residue, [`removeWorktreeWithRecovery`](../.agents/scripts/lib/worktree/lifecycle/reap.js) returned `branchDeleted: false` because the local-and-remote branch cleanup was gated on Stage 1 success — operators had to follow up with manual `git branch -D` and `push --delete` (memory: feedback_sprint_story_close_reap). Two changes:
+
+1. **New Stage 1.5 coverage-leak quiesce.** On `win32`, after Stage 1 retries exhaust, the reap sleeps `forceRemoveBackoffMs` (default 3s) to let coverage / AV / Search-indexer holds release, then attempts one extended `fs.rm` call with `maxRetries: 10, retryDelay: 500` (Node's own retry budget), lifting the wall-clock budget to ~10s on the failure path without touching happy-path latency.
+2. **Branch cleanup runs unconditionally.** The local `git branch -D` and (when `push: true`) `git push --delete` calls were lifted into a shared `deleteBranchAfterReap` helper and now run on both the Stage 1 success path and the Stage 2 deferred-to-sweep path. The deferred return surfaces `branchDeleted` / `remoteBranchDeleted` even when the on-disk worktree is stuck.
+
+#### MI/CRAP baseline-refresh delta
+
+Baselines refreshed atomically with all four changes. Net change vs 5.31.1: 18 files ratcheted (-0.08 to -2.69 MI), all in modified files; 0 regressions outside the modified set; CRAP 0 regressions.
 
 ## [5.31.1] - 2026-05-02
 

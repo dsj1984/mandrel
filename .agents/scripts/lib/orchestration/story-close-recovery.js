@@ -7,6 +7,10 @@
  * States (priority order, first match wins):
  *   - `partial-merge`        — a merge is in progress in the main checkout.
  *   - `uncommitted-worktree` — the story worktree exists with uncommitted work.
+ *   - `already-merged`       — the story tip is reachable from `origin/epic/<id>`
+ *                              already (typical Windows partial-reap recovery
+ *                              path: merge + push succeeded but worktree reap
+ *                              or ticket transitions stalled).
  *   - `pushed-unmerged`      — the story branch is on origin and not yet merged.
  *   - `fresh`                — no prior close activity detected.
  */
@@ -20,6 +24,7 @@ export const RECOVERY_STATES = Object.freeze({
   FRESH: 'fresh',
   PARTIAL_MERGE: 'partial-merge',
   UNCOMMITTED_WORKTREE: 'uncommitted-worktree',
+  ALREADY_MERGED: 'already-merged',
   PUSHED_UNMERGED: 'pushed-unmerged',
 });
 
@@ -32,6 +37,12 @@ const DEFAULT_GIT_ADAPTER = {
   },
   isAncestor(cwd, ancestor, descendant) {
     return gitSpawn(cwd, 'merge-base', '--is-ancestor', ancestor, descendant);
+  },
+  showRef(cwd, ref) {
+    return gitSpawn(cwd, 'show-ref', '--verify', '--quiet', ref);
+  },
+  fetchOrigin(cwd, ref) {
+    return gitSpawn(cwd, 'fetch', '--quiet', 'origin', ref);
   },
 };
 
@@ -118,27 +129,65 @@ export function detectPriorPhase({
     }
   }
 
-  // 3. pushed-unmerged — remote story branch exists and not yet merged.
+  // 3. already-merged — story tip is reachable from `origin/epic/<id>`.
+  //
+  //    Triggered when a prior close pushed the merge but stalled before the
+  //    ticket transitions / cascade / dashboard regen finished — typical
+  //    Windows partial-reap recovery (memory: feedback_sprint_story_close_reap
+  //    "merge/close succeed but branchDeleted: false"). Detected from either:
+  //      a) the local `story-<id>` branch still exists and is an ancestor of
+  //         `origin/epic/<id>`; or
+  //      b) the remote `origin/story-<id>` ref is present and merged.
+  //    Either signal is enough — the local branch may have been reaped while
+  //    the remote one survived, or vice versa.
   const lsr = git.lsRemote(cwd, storyBranch);
   const lsrOut = (lsr?.stdout ?? '').toString().trim();
-  if (lsrOut.length > 0) {
-    let alreadyMerged = false;
-    if (epicId) {
-      // `merge-base --is-ancestor A B` exits 0 iff A is reachable from B —
-      // i.e. the story tip has already been merged into the epic.
-      const ancestor = git.isAncestor(
-        cwd,
-        `origin/${storyBranch}`,
-        `origin/epic/${epicId}`,
-      );
-      alreadyMerged = ancestor?.status === 0;
+  if (epicId) {
+    const epicRefs = ['origin/epic', `origin/epic/${epicId}`];
+    const probeAncestor = (storyRef, epicRef) =>
+      git.isAncestor(cwd, storyRef, epicRef)?.status === 0;
+
+    let merged = false;
+    let resolvedDetail = null;
+
+    // a) local story branch still exists.
+    const localStoryRef = `refs/heads/${storyBranch}`;
+    if (git.showRef && git.showRef(cwd, localStoryRef)?.status === 0) {
+      const remoteEpicRef = `origin/epic/${epicId}`;
+      if (probeAncestor(storyBranch, remoteEpicRef)) {
+        merged = true;
+        resolvedDetail = { localStoryRef: storyBranch, remoteEpicRef };
+      }
     }
-    if (!alreadyMerged) {
+
+    // b) remote story branch present and merged.
+    if (!merged && lsrOut.length > 0) {
+      for (const epicRef of epicRefs) {
+        if (probeAncestor(`origin/${storyBranch}`, epicRef)) {
+          merged = true;
+          resolvedDetail = {
+            remoteStoryRef: `origin/${storyBranch}`,
+            remoteEpicRef: epicRef,
+          };
+          break;
+        }
+      }
+    }
+
+    if (merged) {
       return {
-        phase: RECOVERY_STATES.PUSHED_UNMERGED,
-        detail: { ...detail, remoteRef: lsrOut.split('\n')[0] },
+        phase: RECOVERY_STATES.ALREADY_MERGED,
+        detail: { ...detail, ...resolvedDetail },
       };
     }
+  }
+
+  // 4. pushed-unmerged — remote story branch exists and not yet merged.
+  if (lsrOut.length > 0) {
+    return {
+      phase: RECOVERY_STATES.PUSHED_UNMERGED,
+      detail: { ...detail, remoteRef: lsrOut.split('\n')[0] },
+    };
   }
 
   return { phase: RECOVERY_STATES.FRESH, detail };
@@ -150,6 +199,7 @@ export const RECOVERY_ACTIONS = Object.freeze({
   RESUME_FROM_VALIDATE: 'resume-from-validate',
   RESUME_FROM_MERGE: 'resume-from-merge',
   RESUME_FROM_CONFLICT: 'resume-from-conflict',
+  RESUME_FROM_POST_MERGE: 'resume-from-post-merge',
   RESTART: 'restart',
 });
 
@@ -174,6 +224,17 @@ export function computeRecoveryMode({ state, resume, restart } = {}) {
   if (state === RECOVERY_STATES.FRESH) {
     // Flags are no-ops on fresh state — proceed normally.
     return { action: RECOVERY_ACTIONS.PROCEED };
+  }
+
+  // ALREADY_MERGED short-circuits the prior-state gate: the merge has already
+  // landed on `origin/epic/<id>`, so re-running close should pick up exactly
+  // the post-merge work (ticket transitions, cascade, health, dashboard) that
+  // stalled the first time. No `--resume` flag required — re-running close on
+  // a successfully merged Story is the canonical recovery path for partial
+  // reaps and is safe to perform automatically.
+  if (state === RECOVERY_STATES.ALREADY_MERGED) {
+    if (restart) return { action: RECOVERY_ACTIONS.RESTART };
+    return { action: RECOVERY_ACTIONS.RESUME_FROM_POST_MERGE };
   }
 
   if (restart) {
@@ -376,6 +437,8 @@ export function dispatchRecovery({
   const resumeFromMerge = mode.action === RECOVERY_ACTIONS.RESUME_FROM_MERGE;
   const resumeFromValidate =
     mode.action === RECOVERY_ACTIONS.RESUME_FROM_VALIDATE;
+  const resumeFromPostMerge =
+    mode.action === RECOVERY_ACTIONS.RESUME_FROM_POST_MERGE;
 
   if (resumeFromConflict) {
     progress(
@@ -392,6 +455,12 @@ export function dispatchRecovery({
       'RESUME',
       `--resume: resuming from validate (phase=${priorPhase.phase})`,
     );
+  } else if (resumeFromPostMerge) {
+    progress(
+      'RESUME',
+      `prior merge already landed on epic — skipping rebase + merge, ` +
+        `running post-merge close work only (phase=${priorPhase.phase})`,
+    );
   }
 
   return {
@@ -400,5 +469,6 @@ export function dispatchRecovery({
     resumeFromConflict,
     resumeFromMerge,
     resumeFromValidate,
+    resumeFromPostMerge,
   };
 }

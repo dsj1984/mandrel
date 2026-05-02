@@ -228,6 +228,52 @@ test('renderStoryInitCommentBody handles skipped install', () => {
   assert.match(body, /\*\*installStatus.reason:\*\* `single-tree-mode`/);
 });
 
+test('renderStoryInitCommentBody embeds tasks[] in the fenced payload', () => {
+  // The downstream `story-execute-prepare.js` consumer reads
+  // `initPayload.tasks` to seed the initial `story-run-progress` snapshot.
+  // Without this, the snapshot was empty and every later `story-task-progress`
+  // call failed with "task not found".
+  const body = renderStoryInitCommentBody({
+    storyId: 800,
+    epicId: 900,
+    storyBranch: 'story-800',
+    epicBranch: 'epic/900',
+    worktreeEnabled: true,
+    workCwd: '/tmp/wt/story-800',
+    worktreeCreated: true,
+    dependenciesInstalled: 'true',
+    installStatus: { status: 'installed' },
+    tasks: [
+      { id: 801, title: 'first', labels: [], dependencies: [] },
+      { id: 802, title: 'second', labels: [], dependencies: [] },
+    ],
+  });
+  const jsonBlock = body.match(/```json\n([\s\S]*?)\n```/)?.[1];
+  const payload = JSON.parse(jsonBlock);
+  assert.deepStrictEqual(payload.tasks, [
+    { id: 801, title: 'first' },
+    { id: 802, title: 'second' },
+  ]);
+});
+
+test('renderStoryInitCommentBody coerces missing tasks to []', () => {
+  const body = renderStoryInitCommentBody({
+    storyId: 1,
+    epicId: 2,
+    storyBranch: 'story-1',
+    epicBranch: 'epic/2',
+    worktreeEnabled: false,
+    workCwd: '/repo',
+    worktreeCreated: false,
+    dependenciesInstalled: 'skipped',
+    installStatus: { status: 'skipped' },
+    // tasks intentionally omitted
+  });
+  const jsonBlock = body.match(/```json\n([\s\S]*?)\n```/)?.[1];
+  const payload = JSON.parse(jsonBlock);
+  assert.deepStrictEqual(payload.tasks, []);
+});
+
 test('runStoryInit rejects an issue that is not a type::story', async () => {
   const story = {
     id: 42,
