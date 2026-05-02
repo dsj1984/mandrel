@@ -9,13 +9,15 @@ import {
   runCloseValidation as runCloseValidationOnly,
 } from '../.agents/scripts/lib/close-validation.js';
 import {
-  buildResumeMergeCommitMsg,
-  describeResumePushFailure,
   drainPendingCleanupAfterClose,
   getCloseDrainStatus,
   reconcileCleanupState,
+} from '../.agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js';
+import {
+  buildResumeMergeCommitMsg,
+  describeResumePushFailure,
   renderPhaseTimingsCommentBody,
-} from '../.agents/scripts/story-close.js';
+} from '../.agents/scripts/lib/orchestration/story-close/comment-bodies.js';
 
 const SCRIPT_PATH = path.resolve('.agents/scripts/story-close.js');
 
