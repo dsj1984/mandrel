@@ -38,20 +38,10 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { resolveConcurrency } from './lib/orchestration/concurrency.js';
+import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
-
-function extractJsonBlock(body) {
-  if (typeof body !== 'string') return null;
-  const fence = body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!fence) return null;
-  try {
-    return JSON.parse(fence[1]);
-  } catch {
-    return null;
-  }
-}
 
 async function readParkedFollowOns(provider, epicId) {
   const comment = await findStructuredComment(
@@ -60,7 +50,7 @@ async function readParkedFollowOns(provider, epicId) {
     'parked-follow-ons',
   );
   if (!comment) return { recuts: [], parked: [], present: false };
-  const parsed = extractJsonBlock(comment.body);
+  const parsed = parseFencedJsonComment(comment);
   if (!parsed) return { recuts: [], parked: [], present: true };
   return {
     present: true,
@@ -109,7 +99,7 @@ export async function runWaveGate({
     process.exit(2);
   }
 
-  const parsed = extractJsonBlock(comment.body);
+  const parsed = parseFencedJsonComment(comment);
   if (!parsed || !Array.isArray(parsed.stories)) {
     console.error(
       `[wave-gate] dispatch-manifest comment #${comment.id} on Epic #${epicId} did not contain a parseable story list.`,

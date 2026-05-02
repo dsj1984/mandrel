@@ -28,6 +28,7 @@ import { dirname } from 'node:path';
 import { AGENT_LABELS } from '../../label-constants.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
+import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -44,7 +45,7 @@ export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
  * Returns `null` for any malformed body — the caller falls back to the
  * ticket-label state derivation in that case.
  *
- * Expected payload shape (JSON inside a fenced ```json block):
+ * Expected payload shape (JSON inside a fenced json codeblock):
  *   {
  *     storyId: number,
  *     branch?: string,
@@ -55,27 +56,20 @@ export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
  *   }
  */
 export function parseStoryRunProgressComment(comment) {
-  if (!comment || typeof comment.body !== 'string') return null;
-  const match = comment.body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!match) return null;
-  try {
-    const payload = JSON.parse(match[1]);
-    if (!payload || typeof payload !== 'object') return null;
-    const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
-    const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-    const tasksTotal = tasks.length;
-    const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
-    return {
-      storyId: Number(payload.storyId),
-      title: typeof payload.title === 'string' ? payload.title : '',
-      phase,
-      state: phaseToState(phase),
-      tasksDone,
-      tasksTotal,
-    };
-  } catch {
-    return null;
-  }
+  const payload = parseFencedJsonComment(comment);
+  if (!payload || typeof payload !== 'object') return null;
+  const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
+  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
+  const tasksTotal = tasks.length;
+  const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
+  return {
+    storyId: Number(payload.storyId),
+    title: typeof payload.title === 'string' ? payload.title : '',
+    phase,
+    state: phaseToState(phase),
+    tasksDone,
+    tasksTotal,
+  };
 }
 
 function phaseToState(phase) {
@@ -642,27 +636,21 @@ function formatElapsed(ms) {
  * available" without erroring out progress rendering.
  */
 export function parsePhaseTimingsComment(comment) {
-  if (!comment || typeof comment.body !== 'string') return null;
-  const match = comment.body.match(/```json\s*\n([\s\S]*?)\n```/);
-  if (!match) return null;
-  try {
-    const payload = JSON.parse(match[1]);
-    if (!Array.isArray(payload.phases)) return null;
-    return {
-      storyId: Number(payload.storyId),
-      totalMs: Number(payload.totalMs) || 0,
-      phases: payload.phases
-        .filter(
-          (p) =>
-            p &&
-            typeof p.name === 'string' &&
-            Number.isFinite(Number(p.elapsedMs)),
-        )
-        .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
-    };
-  } catch {
-    return null;
-  }
+  const payload = parseFencedJsonComment(comment);
+  if (!payload || typeof payload !== 'object') return null;
+  if (!Array.isArray(payload.phases)) return null;
+  return {
+    storyId: Number(payload.storyId),
+    totalMs: Number(payload.totalMs) || 0,
+    phases: payload.phases
+      .filter(
+        (p) =>
+          p &&
+          typeof p.name === 'string' &&
+          Number.isFinite(Number(p.elapsedMs)),
+      )
+      .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
+  };
 }
 
 /**
