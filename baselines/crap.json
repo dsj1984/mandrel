@@ -4054,7 +4054,7 @@
       "startLine": 152
     },
     {
-      "crap": 24.570341848234406,
+      "crap": 26.890030410125753,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "deleteBranchAfterReap",
       "startLine": 379
@@ -4063,7 +4063,7 @@
       "crap": 27.687226676384846,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 424
+      "startLine": 426
     },
     {
       "crap": 1,
