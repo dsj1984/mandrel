@@ -11,7 +11,7 @@ export const TEMPLATE_PATH_PREFIXES = ['.agents/workflows/'];
 
 // Standard git conflict markers. The leading '\n' on '=======' avoids
 // matching plain separator lines.
-export const CONFLICT_MARKERS = ['<<<<<<< ', '\n=======', '>>>>>>> '];
+const CONFLICT_MARKERS = ['<<<<<<< ', '\n=======', '>>>>>>> '];
 
 const SELF_PATH = '.agents/scripts/detect-merges.js';
 
@@ -24,7 +24,7 @@ export function isTemplatePath(file) {
   return TEMPLATE_PATH_PREFIXES.some((prefix) => file.startsWith(prefix));
 }
 
-export function isDetectMergesTestFixture(file) {
+function isDetectMergesTestFixture(file) {
   return TEST_FIXTURE_PATTERN.test(file);
 }
 

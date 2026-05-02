@@ -139,7 +139,7 @@ export function runLintCommand(
  * totals so the diff subcommand can attribute regressions to specific files
  * and rules. Same degraded-mode contract as the basic runner.
  */
-export function runLintCommandDetailed(
+function runLintCommandDetailed(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,
@@ -280,7 +280,7 @@ export function formatDiffTable(rows, { baselineHasByFile } = {}) {
   return lines.join('\n');
 }
 
-export function diffBaseline(
+function diffBaseline(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,
@@ -324,7 +324,7 @@ export function diffBaseline(
   return { ...current, regressions: rows };
 }
 
-export function checkBaseline(
+function checkBaseline(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,

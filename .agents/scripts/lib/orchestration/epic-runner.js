@@ -48,6 +48,7 @@ export async function runEpic(args = {}) {
   return runEpicWithContext(ctx);
 }
 
+// exported for tests — Story-level reuse runner reserved for future test coverage
 export async function runEpicWithContext(ctx) {
   const { epicId, errorJournal } = ctx;
   const journal = errorJournal ?? new ErrorJournal({ epicId });

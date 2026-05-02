@@ -248,7 +248,7 @@ function reseedWorktreeIfNeeded({
  * story branch ref, and re-seed branch + worktree from the Epic branch. The
  * caller then falls through to the normal fresh-close flow.
  */
-export function restartStoryState({
+function restartStoryState({
   cwd,
   orchestration,
   storyId,
