@@ -3016,6 +3016,12 @@
       "startLine": 321
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/story-close/cd-out-guard.js",
+      "method": "checkCdOutGuard",
+      "startLine": 32
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js",
       "method": "resolveWorktreeRoot",
@@ -3040,6 +3046,12 @@
       "startLine": 140
     },
     {
+      "crap": 7.009973539588846,
+      "file": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
+      "method": "resolveCloseInputs",
+      "startLine": 42
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/comment-bodies.js",
       "method": "renderPhaseTimingsCommentBody",
@@ -3061,19 +3073,73 @@
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "lockPathDisplay",
-      "startLine": 49
+      "startLine": 60
     },
     {
       "crap": 1.0115135443590346,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "withEpicMergeLock",
-      "startLine": 70
+      "startLine": 81
     },
     {
-      "crap": 12.096,
+      "crap": 12.381667918858,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "pushEpicAndHandleConflicts",
-      "startLine": 129
+      "startLine": 139
+    },
+    {
+      "crap": 7.717939988730278,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "rebaseStoryOnEpic",
+      "startLine": 213
+    },
+    {
+      "crap": 1.0296539250620884,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "runFinalizeMerge",
+      "startLine": 278
+    },
+    {
+      "crap": 2.5,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "<anon method-2>",
+      "startLine": 311
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "<anon method-3>",
+      "startLine": 350
+    },
+    {
+      "crap": 27.79544758883602,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "finalizeMergeIfPending",
+      "startLine": 368
+    },
+    {
+      "crap": 1.9189600480109739,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "runResumeMerge",
+      "startLine": 407
+    },
+    {
+      "crap": 4.005529366660727,
+      "file": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
+      "method": "runPostMergeClose",
+      "startLine": 52
+    },
+    {
+      "crap": 11.30800772707392,
+      "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
+      "method": "runPreMergeGates",
+      "startLine": 43
+    },
+    {
+      "crap": 18.629350702218602,
+      "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
+      "method": "emitMaintainabilityProjection",
+      "startLine": 87
     },
     {
       "crap": 5,
@@ -4570,100 +4636,40 @@
       "startLine": 213
     },
     {
-      "crap": 3,
+      "crap": 1,
       "file": ".agents/scripts/story-close.js",
-      "method": "checkCdOutGuard",
-      "startLine": 126
+      "method": "<anon method-1>",
+      "startLine": 49
     },
     {
-      "crap": 8.125,
+      "crap": 6.0599323273891175,
       "file": ".agents/scripts/story-close.js",
-      "method": "rebaseStoryOnEpic",
-      "startLine": 167
-    },
-    {
-      "crap": 1.0225712994164544,
-      "file": ".agents/scripts/story-close.js",
-      "method": "finalizeMerge",
-      "startLine": 210
+      "method": "runStoryClose",
+      "startLine": 52
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-1>",
-      "startLine": 229
+      "method": "<anon method-2>",
+      "startLine": 86
     },
     {
-      "crap": 2.5,
+      "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-3>",
-      "startLine": 246
+      "startLine": 156
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-4>",
-      "startLine": 285
+      "startLine": 156
     },
     {
-      "crap": 30,
+      "crap": 3,
       "file": ".agents/scripts/story-close.js",
-      "method": "finalizeMergeIfPending",
-      "startLine": 303
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/story-close.js",
-      "method": "pushEpicAfterResume",
-      "startLine": 335
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/story-close.js",
-      "method": "completeInProgressMerge",
-      "startLine": 357
-    },
-    {
-      "crap": 25.919188193228806,
-      "file": ".agents/scripts/story-close.js",
-      "method": "runStoryClose",
-      "startLine": 395
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-8>",
-      "startLine": 450
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-9>",
-      "startLine": 528
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-10>",
-      "startLine": 529
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-11>",
-      "startLine": 621
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-12>",
-      "startLine": 621
-    },
-    {
-      "crap": 3.072,
-      "file": ".agents/scripts/story-close.js",
-      "method": "<anon method-13>",
-      "startLine": 736
+      "method": "<anon method-5>",
+      "startLine": 190
     },
     {
       "crap": 4,
