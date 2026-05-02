@@ -141,6 +141,12 @@ export class ProgressReporter {
     }
     this.intervalSec = Number(opts.intervalSec ?? 0);
     this.logger = opts.logger ?? console;
+    // Optional `notify` hook — when provided, each fire mirrors the
+    // `epic-run-progress` upsert to the webhook channel as a typed
+    // `epic-run-progress` event at `medium` severity. The hook is the same
+    // wrapped `notify(ticketId, payload, opts)` shape the epic-runner uses
+    // throughout; tests pass a stub.
+    this.notify = typeof opts.notify === 'function' ? opts.notify : null;
     const cap = opts.concurrency ?? DEFAULT_CONCURRENCY.progressReporter;
     this.concurrency =
       Number.isInteger(cap) && cap >= 1
@@ -393,6 +399,28 @@ export class ProgressReporter {
         this.logger.warn?.(
           `[ProgressReporter] comment upsert failed: ${err.message}`,
         );
+      }
+      if (this.notify) {
+        const done = rows.filter((r) => r.state === 'done').length;
+        const total = rows.length;
+        const message = `Epic #${this.epicId} progress · ${done}/${total} stories done`;
+        await Promise.resolve(
+          this.notify(
+            this.epicId,
+            {
+              severity: 'medium',
+              message,
+              event: EPIC_RUN_PROGRESS_TYPE,
+              level: 'epic',
+              epicId: this.epicId,
+            },
+            { skipComment: true },
+          ),
+        ).catch((err) => {
+          this.logger.warn?.(
+            `[ProgressReporter] webhook mirror failed: ${err?.message ?? err}`,
+          );
+        });
       }
       return { rows, body };
     } finally {

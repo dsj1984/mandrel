@@ -4,14 +4,24 @@
 /**
  * notify.js
  *
- * Single dispatch entry point for orchestration notifications.
+ * Single dispatch entry point for orchestration notifications across three
+ * independent channels:
  *
- *   1. GITHUB COMMENT: posts to the ticket; @mentions operator for medium/high.
- *      Filtered by `notifications.commentMinLevel` (falls back to
- *      `notifications.minLevel`, default: medium). Callers may pass
- *      `opts.skipComment: true` to suppress the comment for a single dispatch
- *      while still firing the webhook (used for batched task-start fanout).
- *   2. WEBHOOK: fires when severity >= `notifications.minLevel` (default: medium).
+ *   1. GITHUB COMMENT — gated by `notifications.commentMinLevel`. @mentions
+ *      operator on `high`; on `medium` when `mentionOperator` is set.
+ *      Callers may pass `opts.skipComment: true` to suppress the comment for
+ *      a single dispatch while still firing webhook/terminal (used both for
+ *      batched task-start fanout and for the structured-comment webhook
+ *      mirror, where the GitHub comment was already written by the upsert).
+ *   2. WEBHOOK — gated by `notifications.webhookMinLevel`. Payload envelope:
+ *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
+ *      `text` always populated for back-compat with `{text}`-only consumers.
+ *   3. TERMINAL — gated by `notifications.terminalMinLevel`. Controls the
+ *      `console.log` chatter this dispatcher emits about its own activity.
+ *
+ * Each channel filters independently — no fallback chain. All three
+ * `*MinLevel` keys are mandatory in the schema; this module defaults missing
+ * keys to `medium` defensively (e.g., for partial test orchestrations).
  *
  * Severity vocabulary: low | medium | high. See `lib/notifications/notifier.js`
  * for full details and the `eventSeverity()` helper used by ticket-state-
@@ -29,6 +39,8 @@ import {
 } from './lib/notifications/notifier.js';
 import { createProvider } from './lib/provider-factory.js';
 
+const DEFAULT_LEVEL = 'medium';
+
 /** Map notification severity to a `postComment` badge style. */
 const SEVERITY_TO_COMMENT_TYPE = {
   low: 'progress',
@@ -36,12 +48,25 @@ const SEVERITY_TO_COMMENT_TYPE = {
   high: 'friction',
 };
 
+function resolveChannelLevels(notifications) {
+  const ns = notifications ?? {};
+  return {
+    comment: ns.commentMinLevel ?? DEFAULT_LEVEL,
+    webhook: ns.webhookMinLevel ?? DEFAULT_LEVEL,
+    terminal: ns.terminalMinLevel ?? DEFAULT_LEVEL,
+  };
+}
+
 function buildWebhookPayload({
   orchestration,
   ticketId,
   severity,
   message,
   operator,
+  event,
+  level,
+  epicId,
+  phase,
 }) {
   const cleanMessage = message.replace(operator, '').trim();
   const repo = orchestration.github?.repo;
@@ -52,7 +77,18 @@ function buildWebhookPayload({
       ? ` ${repo ? `${repo}#${numericTicketId}` : `#${numericTicketId}`}`
       : '';
   const text = `${prefix}${ticketPart}: ${cleanMessage}`;
-  return JSON.stringify({ text });
+
+  // `text` first for back-compat with `{text}`-only consumers (Slack-style
+  // incoming webhooks). Typed fields follow for routable subscribers.
+  const envelope = { text, severity };
+  if (Number.isFinite(numericTicketId) && numericTicketId > 0) {
+    envelope.ticketId = numericTicketId;
+  }
+  if (event) envelope.event = event;
+  if (level) envelope.level = level;
+  if (Number.isFinite(epicId) && epicId > 0) envelope.epicId = epicId;
+  if (phase) envelope.phase = phase;
+  return JSON.stringify(envelope);
 }
 
 async function sendWebhook(url, payloadBody) {
@@ -81,7 +117,7 @@ async function sendWebhook(url, payloadBody) {
 }
 
 /**
- * Dispatch a notification.
+ * Dispatch a notification across the three channels.
  *
  * @param {number} ticketId - GitHub Issue number to post the notification on.
  *   Pass 0 (or any non-positive) to skip the GitHub comment and fire the
@@ -89,39 +125,44 @@ async function sendWebhook(url, payloadBody) {
  * @param {{
  *   severity?: 'low'|'medium'|'high',
  *   message: string,
- * }} payload - `severity` defaults to `medium` when omitted.
+ *   event?: string,
+ *   level?: 'task'|'story'|'wave'|'epic',
+ *   epicId?: number,
+ *   phase?: string,
+ * }} payload - `severity` defaults to `medium` when omitted. `event`,
+ *   `level`, `epicId`, `phase` populate the typed webhook envelope when
+ *   provided; they have no effect on comment/terminal channels.
  */
 export async function notify(ticketId, payload, opts = {}) {
   const orchestration = opts.orchestration || resolveConfig().orchestration;
   const provider = opts.provider || createProvider(orchestration);
 
-  const { severity = 'medium', message } = payload;
+  const { severity = 'medium', message, event, level, epicId, phase } = payload;
   if (!Object.hasOwn(SEVERITY_RANK, severity)) {
     throw new Error(
       `[Notify] Invalid severity "${severity}". Expected: low | medium | high.`,
     );
   }
   const operator = orchestration.github.operatorHandle || '@operator';
-  const notifications = orchestration.notifications ?? {};
-  const minLevel = notifications.minLevel;
-  const commentMinLevel = notifications.commentMinLevel ?? minLevel;
+  const channels = resolveChannelLevels(orchestration.notifications);
+  const log = (line) => {
+    if (meetsMinLevel(severity, channels.terminal)) console.log(line);
+  };
 
   const numericId = Number.parseInt(ticketId, 10);
   const noTicket = Number.isNaN(numericId) || numericId <= 0;
   const callerSuppressed = opts.skipComment === true;
-  const belowCommentMinLevel = !meetsMinLevel(severity, commentMinLevel);
+  const belowCommentMinLevel = !meetsMinLevel(severity, channels.comment);
   const skipGitHub = noTicket || callerSuppressed || belowCommentMinLevel;
 
   if (!skipGitHub) {
-    console.log(
-      `[Notify] Sending ${severity.toUpperCase()} to Issue #${numericId}...`,
-    );
+    log(`[Notify] Sending ${severity.toUpperCase()} to Issue #${numericId}...`);
 
     // High always @mentions; medium @mentions when `mentionOperator` is set;
-    // low never @mentions (it's filtered out at default minLevel anyway).
+    // low never @mentions.
     const mention =
       severity === 'high' ||
-      (severity === 'medium' && notifications.mentionOperator);
+      (severity === 'medium' && orchestration.notifications?.mentionOperator);
     const commentBody = mention ? `${operator} ${message}` : message;
 
     await provider.postComment(numericId, {
@@ -129,24 +170,28 @@ export async function notify(ticketId, payload, opts = {}) {
       type: SEVERITY_TO_COMMENT_TYPE[severity],
     });
   } else if (noTicket) {
-    console.log(
+    log(
       `[Notify] Sending ${severity.toUpperCase()}... (Skipping GitHub comment — no ticket)`,
     );
   }
 
-  if (meetsMinLevel(severity, minLevel)) {
+  if (meetsMinLevel(severity, channels.webhook)) {
     // `opts.webhookUrl === undefined` → resolve from process env.
     // Explicit `null` or string → caller was explicit; don't resolve.
     const webhookUrl =
       opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
     if (webhookUrl) {
-      console.log(`[Notify] Firing webhook (${severity}) to ${webhookUrl}...`);
+      log(`[Notify] Firing webhook (${severity}) to ${webhookUrl}...`);
       const payloadBody = buildWebhookPayload({
         orchestration,
         ticketId,
         severity,
         message,
         operator,
+        event,
+        level,
+        epicId,
+        phase,
       });
       await sendWebhook(webhookUrl, payloadBody);
     }

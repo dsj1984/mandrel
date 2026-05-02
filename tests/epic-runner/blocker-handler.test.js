@@ -39,11 +39,14 @@ describe('BlockerHandler', () => {
       return ['type::epic', 'agent::executing'];
     };
 
-    const hook = { fireCalls: [], fire: async (p) => hook.fireCalls.push(p) };
+    const notifyCalls = [];
+    const notify = async (ticketId, payload, opts) => {
+      notifyCalls.push({ ticketId, payload, opts });
+    };
     const handler = new BlockerHandler({
       provider,
       epicId: 321,
-      notificationHook: hook,
+      notify,
       labelFetcher,
       pollIntervalMs: 1,
       logger: quietLogger(),
@@ -66,27 +69,32 @@ describe('BlockerHandler', () => {
     assert.equal(comment.payload.type, 'friction');
     assert.match(comment.payload.body, /Story: #400/);
 
-    // Fired the webhook exactly once.
-    assert.equal(hook.fireCalls.length, 1);
-    assert.match(hook.fireCalls[0].text, /epic-blocked/);
-    assert.match(hook.fireCalls[0].text, /Epic #321/);
+    // Dispatched notify exactly once with high severity + epic-blocked
+    // event + skipComment (the friction comment was already posted above).
+    assert.equal(notifyCalls.length, 1);
+    assert.equal(notifyCalls[0].ticketId, 321);
+    assert.equal(notifyCalls[0].payload.severity, 'high');
+    assert.equal(notifyCalls[0].payload.event, 'epic-blocked');
+    assert.equal(notifyCalls[0].payload.level, 'epic');
+    assert.equal(notifyCalls[0].payload.epicId, 321);
+    assert.match(notifyCalls[0].payload.message, /Epic #321/);
+    assert.match(notifyCalls[0].payload.message, /story #400/);
+    assert.equal(notifyCalls[0].opts?.skipComment, true);
   });
 
-  it('webhook failures do not bubble out of halt()', async () => {
+  it('notify dispatch failures do not bubble out of halt()', async () => {
     const provider = recordingProvider();
     const handler = new BlockerHandler({
       provider,
       epicId: 321,
-      notificationHook: {
-        fire: async () => {
-          throw new Error('webhook-boom');
-        },
+      notify: async () => {
+        throw new Error('notify-boom');
       },
       labelFetcher: async () => ['type::epic', 'agent::executing'],
       pollIntervalMs: 1,
       logger: quietLogger(),
     });
-    // Webhook failure must be swallowed; halt() still resumes on the first
+    // Notify failure must be swallowed; halt() still resumes on the first
     // poll (labelFetcher returns executing from the start).
     const result = await handler.halt({ reason: 'x' });
     assert.equal(result.resumed, true);
@@ -107,7 +115,7 @@ describe('BlockerHandler', () => {
     const handler = new BlockerHandler({
       provider,
       epicId: 321,
-      notificationHook: { fire: async () => {} },
+      notify: async () => {},
       labelFetcher,
       pollIntervalMs: 1,
       logger: quietLogger(),

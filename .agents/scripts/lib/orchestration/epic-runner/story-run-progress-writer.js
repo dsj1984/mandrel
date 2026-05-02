@@ -183,18 +183,25 @@ export function renderStoryRunProgressBody(input) {
  * `/wave-execute` and surface the rendered markdown body to chat without
  * re-rendering.
  *
+ * When `notify` is supplied, mirrors the upsert to the webhook channel as a
+ * typed `story-run-progress` event at `low` severity (frequency-driven —
+ * fires on every Task transition). The mirror passes `skipComment: true`
+ * because the structured comment was already written by the upsert above.
+ *
  * @param {{
  *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
  *   storyId: number,
  *   branch: string,
  *   phase: string,
  *   tasks: object[],
+ *   epicId?: number,
  *   updatedAt?: string,
+ *   notify?: Function,
  * }} args
  * @returns {Promise<{ body: string, payload: object }>}
  */
 export async function upsertStoryRunProgress(args) {
-  const { provider, ...rest } = args ?? {};
+  const { provider, notify, epicId, ...rest } = args ?? {};
   if (!provider || typeof provider.postComment !== 'function') {
     throw new TypeError(
       'upsertStoryRunProgress requires a provider with postComment',
@@ -207,5 +214,24 @@ export async function upsertStoryRunProgress(args) {
     STORY_RUN_PROGRESS_TYPE,
     body,
   );
+  if (typeof notify === 'function') {
+    const done = payload.tasks.filter((t) => t.state === 'done').length;
+    const total = payload.tasks.length;
+    const message = `Story #${payload.storyId} · ${payload.phase} · ${done}/${total} tasks done`;
+    await Promise.resolve(
+      notify(
+        payload.storyId,
+        {
+          severity: 'low',
+          message,
+          event: STORY_RUN_PROGRESS_TYPE,
+          level: 'story',
+          epicId,
+          phase: payload.phase,
+        },
+        { skipComment: true },
+      ),
+    ).catch(() => {});
+  }
   return { body, payload };
 }

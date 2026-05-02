@@ -533,14 +533,21 @@ Severity vocabulary (assigned by callers; `eventSeverity()` in
 
 | Severity | Used for                                                                                                              | Webhook prefix       |
 | -------- | --------------------------------------------------------------------------------------------------------------------- | -------------------- |
-| `low`    | Routine pipeline progress, intermediate state transitions, audit reports.                                             | `[low]`              |
-| `medium` | Operator-visible milestones (story merged, epic complete, Story/Epic transitions reaching `agent::done`).             | `[medium]`           |
-| `high`   | Operator must act (HITL gates, autonomous-chain failures). Message body should also lead with `🚨 Action Required:`.  | `[Action Required]`  |
+| `low`    | Task transitions, `story-run-progress` upserts, intermediate state transitions, audit reports.                       | `[low]`              |
+| `medium` | Operator-visible milestones: Story state transitions, `wave-run-progress`, `epic-run-progress`, story merged, epic complete. | `[medium]`           |
+| `high`   | Operator must act (HITL gates, epic blockers, autonomous-chain failures). Message body should also lead with `🚨 Action Required:`. | `[Action Required]`  |
 
-Filter knob (`orchestration.notifications.minLevel` in `.agentrc.json`,
-default: `medium`): events below this severity are dropped from every channel.
-Setting `minLevel: low` surfaces task-level state churn; `minLevel: high`
-limits delivery to action-required events only.
+Three independent filter knobs in `orchestration.notifications`
+(all mandatory, default `medium`):
+
+- `commentMinLevel` — gates GitHub comment posting.
+- `webhookMinLevel` — gates `NOTIFICATION_WEBHOOK_URL` deliveries.
+- `terminalMinLevel` — gates `notify()`'s own stdout chatter.
+
+Each channel filters independently; there is no fallback chain. Drop one to
+`low` to widen that surface (e.g. `webhookMinLevel: low` to follow Task-level
+churn over Slack); raise one to `high` to suppress everything but
+action-required events on that channel.
 
 Webhook URL resolution:
 

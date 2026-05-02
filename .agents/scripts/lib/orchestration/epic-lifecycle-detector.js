@@ -82,6 +82,9 @@ export async function detectEpicCompletion({
     await notify(epicId, {
       severity: 'medium',
       message: `Epic #${epicId} complete. All tasks done. Bookend Lifecycle starting.`,
+      event: 'epic-complete',
+      level: 'epic',
+      epicId,
     });
   } catch (err) {
     Logger.warn(`Webhook notification failed (non-fatal): ${err.message}`);

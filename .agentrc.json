@@ -84,7 +84,9 @@
     },
     "notifications": {
       "mentionOperator": false,
-      "minLevel": "medium"
+      "commentMinLevel": "medium",
+      "webhookMinLevel": "medium",
+      "terminalMinLevel": "medium"
     },
     "hitl": {},
     "worktreeIsolation": {

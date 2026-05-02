@@ -234,21 +234,35 @@ when any of these are tripped.
 
 ### `orchestration.notifications`
 
-| Field              | Required | Default                    | Purpose                                                                                              |
-| ------------------ | -------- | -------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `mentionOperator`  | No       | `false`                    | When `true`, friction comments @-mention `operatorHandle`.                                           |
-| `minLevel`         | No       | `medium`                   | Minimum severity emitted to the notification webhook (`low`/`medium`/`high`).                         |
-| `commentMinLevel`  | No       | inherits `minLevel`        | Minimum severity that posts a GitHub comment (independent of webhook delivery). Lower than `minLevel` widens comments only. |
+| Field              | Required | Default    | Purpose                                                                                              |
+| ------------------ | -------- | ---------- | ---------------------------------------------------------------------------------------------------- |
+| `mentionOperator`  | No       | `false`    | When `true`, friction comments @-mention `operatorHandle`.                                           |
+| `commentMinLevel`  | **Yes**  | `medium`   | Minimum severity that posts a GitHub comment (`low`/`medium`/`high`).                                 |
+| `webhookMinLevel`  | **Yes**  | `medium`   | Minimum severity that fires the `NOTIFICATION_WEBHOOK_URL` webhook (`low`/`medium`/`high`).            |
+| `terminalMinLevel` | **Yes**  | `medium`   | Minimum severity that emits `notify()` chatter to stdout (`low`/`medium`/`high`).                     |
 
-> **`minLevel` vs `commentMinLevel`.** `minLevel`
-> filters webhook deliveries (Slack / Discord / Make.com); `commentMinLevel`
-> filters GitHub comment posting independently. Setting them apart lets
-> you keep webhook traffic terse (`high` only) while still recording a
-> richer audit trail on the Epic / Story tickets (`medium` or `low`).
-> When `commentMinLevel` is unset, it defaults to whatever `minLevel`
-> resolves to, preserving prior behaviour. Per-Task `agent::executing`
+> **Per-channel gating, no fallback.** Each channel filters independently:
+> set `webhookMinLevel: high` for a quiet Slack feed while keeping
+> `commentMinLevel: medium` for a richer audit trail on the Epic / Story
+> tickets, and `terminalMinLevel: low` while debugging an in-flight runner.
+> All three keys are mandatory in the schema; the merged
+> `default-agentrc.json` populates them at `medium` for operators that
+> don't override the block.
+>
+> **Severity assignment by event hierarchy.** Task transitions and
+> `story-run-progress` upserts fire `low` (frequency-driven). Story state
+> transitions, `wave-run-progress`, `epic-run-progress`, and
+> epic-completion fire `medium`. Epic blockers and HITL gates fire `high`
+> (webhook prefix `[Action Required]`). Per-Task `agent::executing`
 > transitions during Story init batch into a single Story-level summary
 > comment regardless of either filter.
+>
+> **Typed webhook envelope.** Webhook subscribers receive
+> `{ text, severity, ticketId, event?, level?, epicId?, phase? }`. `text`
+> stays populated for back-compat with `{text}`-only consumers; the typed
+> fields let routable subscribers filter by event (`state-transition`,
+> `story-run-progress`, `wave-run-progress`, `epic-run-progress`,
+> `epic-blocked`, `epic-complete`, `story-merged`) or hierarchy level.
 
 ### `orchestration.worktreeIsolation`
 

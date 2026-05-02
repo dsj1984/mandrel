@@ -4,6 +4,98 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.0] - 2026-05-02
+
+### Notification webhook aligned with execution-workflow status reporting
+
+The `NOTIFICATION_WEBHOOK_URL` channel now mirrors the same structured-comment
+cadence that GitHub watchers see in the issue thread. Operators monitoring
+Slack / Discord / Make.com get the same wave + epic rollup signals that
+appeared in `wave-run-progress` and `epic-run-progress` comments — previously
+those were GitHub-only and the webhook only fired on label flips.
+
+**Breaking config change.** `orchestration.notifications.minLevel` and
+`commentMinLevel` are removed and replaced with three **mandatory** per-
+channel gates, each defaulting to `medium`:
+
+- `commentMinLevel` — gates GitHub comment posting.
+- `webhookMinLevel` — gates `NOTIFICATION_WEBHOOK_URL` deliveries.
+- `terminalMinLevel` — gates `notify()`'s stdout chatter.
+
+Each channel filters independently; there is no fallback chain. Operators
+with a custom `notifications` block in `.agentrc.json` must rename
+`minLevel` → `webhookMinLevel` (and `terminalMinLevel`), keep
+`commentMinLevel` if already set, and add the missing keys at `medium`.
+
+#### Webhook mirrors structured-comment upserts (Option A)
+
+The three progress writers now fire the webhook after a successful upsert,
+with `skipComment: true` so the GitHub comment isn't double-posted:
+
+- [`upsertStoryRunProgress`](../.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js) — `low` (frequency-driven; fires on every Task transition).
+- [`upsertWaveRunProgress`](../.agents/scripts/lib/orchestration/epic-runner/wave-run-progress-writer.js) — `medium` (per-wave snapshot).
+- [`ProgressReporter`](../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js) — `medium` (interval ticks + final snapshot at end of run).
+
+Severity assignment lines up with the execution hierarchy: Task transitions
+and `story-run-progress` are `low`; Story state transitions, wave + epic
+progress, story merged, and epic-complete are `medium`; epic blockers and
+HITL gates are `high`.
+
+#### Typed webhook envelope (back-compat preserved)
+
+Webhook subscribers now receive
+`{ text, severity, ticketId, event?, level?, epicId?, phase? }` instead of
+the flat `{ text }`. `text` stays populated and prefixed exactly as before
+(`[medium] repo#123: …`, `[Action Required] repo#456: …`) so `{text}`-only
+consumers (Slack incoming webhooks, Discord, Make.com) keep working
+unchanged. Routable subscribers can filter by `event` —
+`state-transition` / `story-run-progress` / `wave-run-progress` /
+`epic-run-progress` / `epic-blocked` / `epic-complete` / `story-merged` —
+or by `level` (`task` / `story` / `wave` / `epic`).
+
+#### NotificationHook consolidated into `notify()`
+
+The standalone [`NotificationHook`](../.agents/scripts/lib/orchestration/epic-runner/) (its only consumer was the
+epic blocker handler) is removed. [`BlockerHandler`](../.agents/scripts/lib/orchestration/epic-runner/blocker-handler.js) now calls `notify()`
+directly with `severity: 'high'`, `event: 'epic-blocked'`, `level: 'epic'`
+— so blocker events flow through the same severity gates as everything
+else and the typed envelope reaches webhook subscribers.
+
+#### Terminal channel filter
+
+`notify()`'s own `console.log` chatter (`[Notify] Sending MEDIUM to Issue
+#…`, `[Notify] Firing webhook…`) is now gated by `terminalMinLevel`. At the
+default `medium` it behaves identically to before; setting
+`terminalMinLevel: high` silences the dispatcher's chatter for routine
+events while keeping comment + webhook on their own thresholds.
+
+#### Migration
+
+```diff
+ "notifications": {
+   "mentionOperator": false,
+-  "minLevel": "medium"
++  "commentMinLevel": "medium",
++  "webhookMinLevel": "medium",
++  "terminalMinLevel": "medium"
+ }
+```
+
+Schema validation (`validateOrchestrationConfig`) now rejects a
+`notifications` block missing any of the three keys. The merged
+[`default-agentrc.json`](../.agents/default-agentrc.json) provides them at
+`medium` for operators that don't override the block at all.
+
+#### MI/CRAP baseline-refresh delta
+
+Baselines refreshed atomically with the change (touched: `notify.js`,
+`config-schema.js`, `ticketing.js`, `blocker-handler.js`, `factory.js`,
+`progress-reporter.js`, the two run-progress writers, three CLI scripts
+that call them, and the matching tests; deleted: `notification-hook.js` +
+its test). Net change vs 5.31.2: 13 files ratcheted (most -0.1 to -1.7 MI),
+all in modified files; 0 regressions outside the modified set;
+CRAP 0 regressions.
+
 ## [5.31.2] - 2026-05-02
 
 ### Hierarchical chat rollups + three sprint-protocol bug fixes

@@ -7,10 +7,10 @@
  * tests continue to pass unchanged.
  *
  * Returned object:
- *   notify, checkpointer, notificationHook, blockerHandler, launcher,
- *   gitAdapter, commitAssertion, waveObserver, frictionEmitter,
- *   progressReporter, columnSync, syncColumn (closure wrapping columnSync.sync
- *   with error-journal logging).
+ *   notify, checkpointer, blockerHandler, launcher, gitAdapter,
+ *   commitAssertion, waveObserver, frictionEmitter, progressReporter,
+ *   columnSync, syncColumn (closure wrapping columnSync.sync with
+ *   error-journal logging).
  */
 
 import { notify } from '../../../notify.js';
@@ -20,7 +20,6 @@ import { BlockerHandler } from './blocker-handler.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
-import { NotificationHook } from './notification-hook.js';
 import { ProgressReporter } from './progress-reporter.js';
 import { StoryLauncher } from './story-launcher.js';
 import { WaveObserver } from './wave-observer.js';
@@ -30,15 +29,17 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const { epicRunner } = getRunners(config);
   const journal = errorJournal ?? ctx.errorJournal;
 
+  // Wrapper forwards caller `opts` into `notify()` so structured-comment
+  // mirrors can pass `{ skipComment: true }` to suppress the GitHub comment
+  // (the upsert already wrote it) while still firing the webhook.
   const notifyFn =
     ctx.notify ??
-    ((ticketId, payload) =>
-      notify(ticketId, payload, { orchestration: config, provider }));
+    ((ticketId, payload, opts = {}) =>
+      notify(ticketId, payload, { orchestration: config, provider, ...opts }));
   const checkpointer = new Checkpointer({ ctx });
-  const notificationHook = new NotificationHook({ ctx });
   const blockerHandler = new BlockerHandler({
     ctx,
-    notificationHook,
+    notify: notifyFn,
     errorJournal: journal,
   });
   const launcher = new StoryLauncher({ ctx });
@@ -56,6 +57,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     concurrency: ctx.concurrency?.progressReporter,
     cwd: ctx.cwd,
     frictionEmitter,
+    notify: notifyFn,
   });
   const columnSync = new ColumnSync({ ctx });
 
@@ -79,7 +81,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   return {
     notify: notifyFn,
     checkpointer,
-    notificationHook,
     blockerHandler,
     launcher,
     gitAdapter,

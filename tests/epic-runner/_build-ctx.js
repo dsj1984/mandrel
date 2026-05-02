@@ -11,10 +11,9 @@
  * without churning every call site.
  *
  * Webhook safety: the default `cwd` points at a nonexistent directory and
- * `fetchImpl` is a no-op stub, so the unified `notify()` dispatcher and the
- * runner's `NotificationHook` cannot resolve a real webhook URL from the
- * repo's `.mcp.json` or call the real `fetch`. Tests that exercise webhook
- * delivery must override both explicitly.
+ * `fetchImpl` is a no-op stub, so the unified `notify()` dispatcher cannot
+ * resolve a real webhook URL or call the real `fetch`. Tests that exercise
+ * webhook delivery must override both explicitly.
  */
 
 import { EpicRunnerContext } from '../../.agents/scripts/lib/orchestration/context.js';

@@ -822,11 +822,16 @@ automation candidates as structured comments.
 | `approval-required` | ACTION   | Webhook            |
 | `blocked`           | ACTION   | Webhook            |
 
-`agentSettings.notifications.minLevel` filters webhook deliveries; the sibling
-`agentSettings.notifications.commentMinLevel` filters GitHub comment posting
-independently. `commentMinLevel` defaults to `minLevel` when unset. Per-Task
-`agent::executing` transitions during Story init batch into a single
-Story-level summary comment regardless of either filter.
+`agentSettings.notifications` carries three independent per-channel gates —
+`commentMinLevel`, `webhookMinLevel`, `terminalMinLevel` — each mandatory and
+each defaulting to `medium`. There is no fallback chain; raising or lowering
+one channel never affects the others. Per-Task `agent::executing` transitions
+during Story init batch into a single Story-level summary comment regardless
+of any filter. Webhook subscribers receive a typed envelope
+(`{ text, severity, ticketId, event?, level?, epicId?, phase? }`) so progress
+events from `story-run-progress` / `wave-run-progress` / `epic-run-progress`
+upserts are routable alongside the existing `state-transition` /
+`epic-blocked` / `epic-complete` events.
 
 ---
 

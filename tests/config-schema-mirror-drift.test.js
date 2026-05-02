@@ -288,7 +288,12 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           projectNumber: 1,
           operatorHandle: '@dsj1984',
         },
-        notifications: { mentionOperator: false, minLevel: 'medium' },
+        notifications: {
+          mentionOperator: false,
+          commentMinLevel: 'medium',
+          webhookMinLevel: 'medium',
+          terminalMinLevel: 'medium',
+        },
         worktreeIsolation: {
           enabled: true,
           root: '.worktrees',

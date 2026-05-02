@@ -4,12 +4,12 @@
  *
  * Replaces the previous N-per-Task `agent::executing` GitHub-comment fanout
  * with a single `low` notification routed to the Story. The notification
- * still passes through `notify()` so `notifications.commentMinLevel` /
- * `notifications.minLevel` continue to gate it — at the default `medium`
- * threshold the comment + webhook are both filtered out, so init becomes
- * silent on the GitHub timeline. Per-Task webhooks are emitted by the
- * caller's `notify` hook (with `skipComment: true`) and continue to fire
- * individually whenever `minLevel` allows.
+ * still passes through `notify()` so `notifications.commentMinLevel` and
+ * `notifications.webhookMinLevel` continue to gate it — at the default
+ * `medium` threshold the comment + webhook are both filtered out, so init
+ * becomes silent on the GitHub timeline. Per-Task webhooks are emitted by
+ * the caller's `notify` hook (with `skipComment: true`) and continue to
+ * fire individually whenever `webhookMinLevel` allows.
  */
 
 /**

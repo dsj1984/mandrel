@@ -47,6 +47,7 @@ import { parseFencedJsonComment } from './lib/orchestration/structured-comment-p
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { fetchChildTasks } from './lib/story-lifecycle.js';
+import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/story-execute-prepare.js \\
   --story <id> [--cwd <workCwd>] [--skip-install] [--install-cmd "<cmd>"]
@@ -173,8 +174,16 @@ export async function runStoryExecutePrepare(args) {
     );
   }
 
-  const provider =
-    providerOverride ?? createProvider(resolveConfig().orchestration);
+  const config = providerOverride ? null : resolveConfig();
+  const provider = providerOverride ?? createProvider(config.orchestration);
+  const notifyFn = providerOverride
+    ? null
+    : (ticketId, payload, opts = {}) =>
+        notify(ticketId, payload, {
+          orchestration: config.orchestration,
+          provider,
+          ...opts,
+        });
 
   // 1. Hydrate the story-init payload off the Story ticket.
   const initPayload = await readStoryInitComment({ provider, storyId });
@@ -247,6 +256,7 @@ export async function runStoryExecutePrepare(args) {
       branch,
       phase: 'init',
       tasks,
+      notify: notifyFn,
     });
 
   return {

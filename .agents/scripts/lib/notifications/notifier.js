@@ -8,17 +8,27 @@
  *      gates) — called explicitly by orchestration scripts.
  *   2. Ticket-state-transition events — `transitionTicketState` invokes
  *      `notify()` directly when a `notify` function is injected via opts.
+ *   3. Structured-comment mirrors — the progress writers
+ *      (`upsertStoryRunProgress`, `upsertWaveRunProgress`,
+ *      `ProgressReporter`) call `notify()` after a successful upsert with
+ *      `skipComment: true` so the webhook carries the same cadence as
+ *      GitHub watchers see in the issue thread.
  *
  * Severity vocabulary: low | medium | high.
- *   - low    — routine pipeline progress, intermediate state transitions,
- *              audit reports. Filtered out at the default `minLevel: medium`.
- *   - medium — operator-visible milestones (story merged, epic complete,
- *              Story/Epic transitions reaching `agent::done`). Default
- *              threshold for delivery.
- *   - high   — operator must act (HITL gates, autonomous-chain failures).
- *              Webhook prefix is `[Action Required]`. Callers should also
- *              lead the message body with `🚨 Action Required:` so the
- *              GitHub comment carries the same signal.
+ *   - low    — routine pipeline progress: task transitions and
+ *              `story-run-progress` upserts. Filtered out at the default
+ *              `medium` threshold on every channel.
+ *   - medium — operator-visible milestones: story state transitions,
+ *              wave-run-progress, epic-run-progress, epic-complete. Default
+ *              threshold for delivery on every channel.
+ *   - high   — operator must act: epic blockers, HITL gates,
+ *              autonomous-chain failures. Webhook prefix is
+ *              `[Action Required]`; callers should also lead the message
+ *              body with `🚨 Action Required:` so the GitHub comment
+ *              carries the same signal.
+ *
+ * Channel gates: per-channel `commentMinLevel`, `webhookMinLevel`, and
+ * `terminalMinLevel` filter independently — there is no fallback chain.
  *
  * Webhook URL resolution: `process.env.NOTIFICATION_WEBHOOK_URL` only —
  * loaded from `.env` locally, the Claude Code web environment-variables UI,

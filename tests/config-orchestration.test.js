@@ -64,6 +64,9 @@ describe('validateOrchestrationConfig — valid configs', () => {
         },
         notifications: {
           mentionOperator: true,
+          commentMinLevel: 'medium',
+          webhookMinLevel: 'medium',
+          terminalMinLevel: 'medium',
         },
       }),
     );

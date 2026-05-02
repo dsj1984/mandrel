@@ -59,11 +59,16 @@ describe('postBatchedTransitionSummary', () => {
     };
     const orchestration = {
       github: { owner: 'acme', repo: 'widgets', operatorHandle: '@op' },
-      notifications: { commentMinLevel: 'low', minLevel: 'high' },
+      notifications: {
+        commentMinLevel: 'low',
+        webhookMinLevel: 'high',
+        terminalMinLevel: 'medium',
+      },
     };
     // Stub fetch defensively per the documented webhook-leak pattern. Even
-    // though minLevel=high suppresses the webhook, leaving fetch unstubbed
-    // would attempt a real network call if the filter ever regresses.
+    // though webhookMinLevel=high suppresses the webhook, leaving fetch
+    // unstubbed would attempt a real network call if the filter ever
+    // regresses.
     const fetchCalls = [];
     const fetchImpl = async (url, options) => {
       fetchCalls.push({ url, options });
@@ -89,7 +94,11 @@ describe('postBatchedTransitionSummary', () => {
       assert.equal(provider.comments.length, 1, 'exactly one comment posted');
       assert.equal(provider.comments[0].ticketId, 701);
       assert.match(provider.comments[0].data.body, /#802, #801/);
-      assert.equal(fetchCalls.length, 0, 'webhook suppressed by minLevel=high');
+      assert.equal(
+        fetchCalls.length,
+        0,
+        'webhook suppressed by webhookMinLevel=high',
+      );
     } finally {
       global.fetch = originalFetch;
     }

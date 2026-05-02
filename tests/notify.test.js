@@ -36,6 +36,9 @@ describe('notify script', () => {
       },
       notifications: {
         mentionOperator: true,
+        commentMinLevel: 'medium',
+        webhookMinLevel: 'medium',
+        terminalMinLevel: 'medium',
       },
     };
 
@@ -46,7 +49,7 @@ describe('notify script', () => {
     };
   });
 
-  it('medium with mentionOperator=true posts mentioned comment + fires [medium] webhook', async () => {
+  it('medium with mentionOperator=true posts mentioned comment + fires medium webhook with typed envelope', async () => {
     await notify(
       123,
       { severity: 'medium', message: 'Story merged.' },
@@ -61,8 +64,47 @@ describe('notify script', () => {
 
     assert.equal(fetchCalls.length, 1);
     const body = JSON.parse(fetchCalls[0].options.body);
-    assert.deepEqual(Object.keys(body), ['text']);
     assert.equal(body.text, '[medium] widgets#123: Story merged.');
+    assert.equal(body.severity, 'medium');
+    assert.equal(body.ticketId, 123);
+    // event/level/epicId/phase only populated when caller provides them.
+    assert.equal(body.event, undefined);
+    assert.equal(body.level, undefined);
+  });
+
+  it('typed envelope carries event/level/epicId/phase when provided', async () => {
+    await notify(
+      1234,
+      {
+        severity: 'low',
+        message: 'Story #1234 · implementing · 3/6 tasks done',
+        event: 'story-run-progress',
+        level: 'story',
+        epicId: 946,
+        phase: 'implementing',
+      },
+      {
+        ...defaultOpts,
+        orchestration: {
+          ...mockOrchestration,
+          notifications: {
+            ...mockOrchestration.notifications,
+            webhookMinLevel: 'low',
+          },
+        },
+        skipComment: true,
+      },
+    );
+
+    assert.equal(fetchCalls.length, 1);
+    const body = JSON.parse(fetchCalls[0].options.body);
+    assert.equal(body.severity, 'low');
+    assert.equal(body.event, 'story-run-progress');
+    assert.equal(body.level, 'story');
+    assert.equal(body.epicId, 946);
+    assert.equal(body.phase, 'implementing');
+    assert.equal(body.ticketId, 1234);
+    assert.match(body.text, /\[low\] widgets#1234:/);
   });
 
   it('high always @mentions and fires [Action Required] webhook', async () => {
@@ -87,11 +129,12 @@ describe('notify script', () => {
       body.text,
       '[Action Required] widgets#124: 🚨 Action Required: Approve deploy?',
     );
+    assert.equal(body.severity, 'high');
   });
 
-  it('low is filtered out of BOTH comment and webhook at default minLevel', async () => {
-    // Default minLevel is `medium`. commentMinLevel falls back to minLevel,
-    // so a `low` notify suppresses both the comment and the webhook.
+  it('low is filtered out of BOTH comment and webhook at default channel thresholds', async () => {
+    // Defaults: comment=medium, webhook=medium. A `low` notify suppresses
+    // both surfaces.
     await notify(
       200,
       { severity: 'low', message: 'Step 3 done.' },
@@ -99,7 +142,7 @@ describe('notify script', () => {
     );
 
     assert.equal(mockProvider.comments.length, 0, 'low filtered from comments');
-    assert.equal(fetchCalls.length, 0, 'low filtered at default minLevel');
+    assert.equal(fetchCalls.length, 0, 'low filtered from webhook');
   });
 
   it('low posts a progress comment when commentMinLevel=low', async () => {
@@ -114,13 +157,13 @@ describe('notify script', () => {
     assert.equal(mockProvider.comments.length, 1);
     assert.equal(mockProvider.comments[0].data.type, 'progress');
     assert.equal(mockProvider.comments[0].data.body, 'Step 3 done.');
-    // Webhook still gated by minLevel (default medium).
+    // Webhook still gated by webhookMinLevel (default medium).
     assert.equal(fetchCalls.length, 0);
   });
 
-  it('commentMinLevel=high suppresses medium comment but webhook fires at minLevel=medium', async () => {
+  it('commentMinLevel=high suppresses medium comment but webhookMinLevel=medium still fires webhook', async () => {
     mockOrchestration.notifications.commentMinLevel = 'high';
-    mockOrchestration.notifications.minLevel = 'medium';
+    mockOrchestration.notifications.webhookMinLevel = 'medium';
 
     await notify(
       201,
@@ -136,12 +179,12 @@ describe('notify script', () => {
     assert.equal(
       fetchCalls.length,
       1,
-      'webhook still fires at minLevel=medium',
+      'webhook still fires at webhookMinLevel=medium',
     );
   });
 
-  it('skipComment opt suppresses comment but webhook still fires when minLevel allows', async () => {
-    mockOrchestration.notifications.minLevel = 'low';
+  it('skipComment opt suppresses comment but webhook still fires when webhookMinLevel allows', async () => {
+    mockOrchestration.notifications.webhookMinLevel = 'low';
     mockOrchestration.notifications.commentMinLevel = 'low';
 
     await notify(
@@ -156,8 +199,8 @@ describe('notify script', () => {
     assert.equal(body.text, '[low] widgets#210: task #N → executing');
   });
 
-  it('low fires when minLevel is explicitly set to low', async () => {
-    mockOrchestration.notifications.minLevel = 'low';
+  it('low fires when webhookMinLevel is explicitly set to low', async () => {
+    mockOrchestration.notifications.webhookMinLevel = 'low';
 
     await notify(
       200,
@@ -170,8 +213,8 @@ describe('notify script', () => {
     assert.equal(body.text, '[low] widgets#200: Step 3 done.');
   });
 
-  it('minLevel=high suppresses medium and fires high', async () => {
-    mockOrchestration.notifications.minLevel = 'high';
+  it('webhookMinLevel=high suppresses medium and fires high', async () => {
+    mockOrchestration.notifications.webhookMinLevel = 'high';
 
     await notify(
       201,
@@ -186,6 +229,49 @@ describe('notify script', () => {
       defaultOpts,
     );
     assert.equal(fetchCalls.length, 1);
+  });
+
+  it('terminalMinLevel=high silences notify console.log for medium events', async () => {
+    mockOrchestration.notifications.terminalMinLevel = 'high';
+    const originalLog = console.log;
+    const lines = [];
+    console.log = (...args) => lines.push(args.join(' '));
+    try {
+      await notify(
+        220,
+        { severity: 'medium', message: 'Story merged.' },
+        defaultOpts,
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    // Terminal is silent at medium when terminalMinLevel=high; comment +
+    // webhook still fire because their thresholds are independent.
+    assert.equal(lines.length, 0, 'no console.log lines emitted by notify');
+    assert.equal(mockProvider.comments.length, 1);
+    assert.equal(fetchCalls.length, 1);
+  });
+
+  it('terminalMinLevel=low surfaces notify console.log for low events', async () => {
+    mockOrchestration.notifications.terminalMinLevel = 'low';
+    mockOrchestration.notifications.commentMinLevel = 'low';
+    mockOrchestration.notifications.webhookMinLevel = 'low';
+    const originalLog = console.log;
+    const lines = [];
+    console.log = (...args) => lines.push(args.join(' '));
+    try {
+      await notify(
+        221,
+        { severity: 'low', message: 'Task done.' },
+        defaultOpts,
+      );
+    } finally {
+      console.log = originalLog;
+    }
+    assert.ok(
+      lines.some((l) => l.includes('Sending LOW to Issue #221')),
+      'terminal log fires for low when terminalMinLevel=low',
+    );
   });
 
   it('rejects an invalid severity', async () => {
@@ -273,6 +359,7 @@ describe('notify script', () => {
     assert.equal(fetchCalls.length, 1);
     const body = JSON.parse(fetchCalls[0].options.body);
     assert.equal(body.text, '[medium] widgets#129: Default sev.');
+    assert.equal(body.severity, 'medium');
   });
 });
 

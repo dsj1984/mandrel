@@ -307,6 +307,9 @@ export async function notificationPhase(ctx, state) {
     {
       severity: 'medium',
       message: `✅ Story #${storyId} — *${story.title}* — has been completed and merged into \`${epicBranch}\`. ${closedTickets.length} ticket(s) closed.`,
+      event: 'story-merged',
+      level: 'story',
+      epicId,
     },
     { orchestration },
   );

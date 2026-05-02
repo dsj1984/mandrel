@@ -396,11 +396,11 @@ re-run and overwrites the record on success.
 
 ## Notification Filters
 
-`agentSettings.notifications.minLevel` filters webhook deliveries; the sibling
-`agentSettings.notifications.commentMinLevel` filters GitHub comment posting
-independently. `commentMinLevel` defaults to `minLevel` when unset. Per-Task
+`agentSettings.notifications` carries three independent per-channel gates —
+`commentMinLevel`, `webhookMinLevel`, `terminalMinLevel` — each mandatory and
+each defaulting to `medium`. There is no fallback chain. Per-Task
 `agent::executing` transitions during Story init batch into a single
-Story-level summary comment regardless of either filter.
+Story-level summary comment regardless of any filter.
 
 ---
 
