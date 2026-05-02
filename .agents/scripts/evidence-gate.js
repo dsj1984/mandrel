@@ -80,84 +80,118 @@ export function parseWrapperArgs(argv) {
   };
 }
 
-function resolveHeadSha(cwd) {
-  const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
+function resolveHeadShaDefault(cwd, gitSpawnFn) {
+  const res = gitSpawnFn(cwd, 'rev-parse', 'HEAD');
   if (res.status !== 0) return null;
   const sha = (res.stdout || '').trim();
   return sha.length > 0 ? sha : null;
 }
 
-async function main() {
-  const { wrapperArgs, runnerArgs } = splitOnDashDash(process.argv.slice(2));
-  const args = parseWrapperArgs(wrapperArgs);
+/**
+ * Runner-shaped entry-point: takes the parsed wrapper args + runner args and
+ * executes the gate. Pure-ish (modulo IO) — all side-effects are routed via
+ * the injection hooks so tests can stub `gitSpawn`, `spawnSync`, and the
+ * evidence store without touching disk or spawning processes.
+ *
+ * Exported for tests + the CLI `main()`.
+ *
+ * @param {object} params
+ * @param {number}   params.scopeId      — Story / Epic ID (positive integer).
+ * @param {string}   params.gate         — Logical gate name (`lint`, `test`, …).
+ * @param {boolean}  params.useEvidence  — When false, force the runner.
+ * @param {string}   params.cwd          — Working directory passed to spawn.
+ * @param {string[]} params.runnerArgs   — `[cmd, ...args]` from after `--`.
+ * @param {object}   [deps]              — Optional injection hooks (tests).
+ * @param {Function} [deps.gitSpawnFn]   — Stub for `gitSpawn`.
+ * @param {Function} [deps.spawnFn]      — Stub for `spawnSync`.
+ * @param {Function} [deps.shouldSkipFn] — Stub for `shouldSkip`.
+ * @param {Function} [deps.recordPassFn] — Stub for `recordPass`.
+ * @param {object}   [deps.logger]       — Logger-shaped object (info/error/warn/fatal).
+ * @returns {{ status: number, skipped: boolean }} Outcome summary. `status`
+ *   is the runner's exit code (0 = pass), `skipped` is true when evidence
+ *   short-circuited the runner.
+ */
+export async function runEvidenceGate(params, deps = {}) {
+  const {
+    gitSpawnFn = gitSpawn,
+    spawnFn = spawnSync,
+    shouldSkipFn = shouldSkip,
+    recordPassFn = recordPass,
+    logger = Logger,
+  } = deps;
+  const { scopeId, gate, useEvidence, cwd, runnerArgs } = params ?? {};
 
-  if (!args.scopeId || !args.gate || runnerArgs.length === 0) {
-    Logger.fatal(
+  if (!scopeId || !gate || !runnerArgs || runnerArgs.length === 0) {
+    logger.fatal(
       'Usage: node evidence-gate.js --scope-id <id> --gate <name> [--no-evidence] -- <cmd> [args...]',
     );
+    return { status: 1, skipped: false };
   }
 
   const [cmd, ...cmdArgs] = runnerArgs;
-  const configHash = hashCommandConfig({
-    cmd,
-    args: cmdArgs,
-    cwd: args.cwd,
-  });
-  const headSha = args.useEvidence ? resolveHeadSha(args.cwd) : null;
+  const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd });
+  const headSha = useEvidence ? resolveHeadShaDefault(cwd, gitSpawnFn) : null;
 
-  if (args.useEvidence && headSha) {
-    const verdict = shouldSkip(
+  if (useEvidence && headSha) {
+    const verdict = shouldSkipFn(
       {
-        storyId: args.scopeId,
-        gateName: args.gate,
+        storyId: scopeId,
+        gateName: gate,
         currentSha: headSha,
         configHash,
       },
-      { cwd: args.cwd },
+      { cwd },
     );
     if (verdict.skip) {
       const ts = verdict.record?.timestamp ?? 'n/a';
-      Logger.info(
-        `[evidence-gate] ⏭ ${args.gate} skipped (evidence match: SHA=${headSha.slice(0, 7)}, recorded ${ts})`,
+      logger.info(
+        `[evidence-gate] ⏭ ${gate} skipped (evidence match: SHA=${headSha.slice(0, 7)}, recorded ${ts})`,
       );
-      return;
+      return { status: 0, skipped: true };
     }
   }
 
   const startedAt = Date.now();
-  Logger.info(`[evidence-gate] ▶ ${args.gate} → ${cmd} ${cmdArgs.join(' ')}`);
-  const result = spawnSync(cmd, cmdArgs, {
-    cwd: args.cwd,
+  logger.info(`[evidence-gate] ▶ ${gate} → ${cmd} ${cmdArgs.join(' ')}`);
+  const result = spawnFn(cmd, cmdArgs, {
+    cwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
   const status = result.status ?? 1;
   if (status !== 0) {
     process.exitCode = status;
-    Logger.error(`[evidence-gate] ✖ ${args.gate} failed (exit ${status})`);
-    return;
+    logger.error(`[evidence-gate] ✖ ${gate} failed (exit ${status})`);
+    return { status, skipped: false };
   }
 
-  Logger.info(`[evidence-gate] ✓ ${args.gate} passed`);
-  if (args.useEvidence && headSha) {
+  logger.info(`[evidence-gate] ✓ ${gate} passed`);
+  if (useEvidence && headSha) {
     try {
-      recordPass(
+      recordPassFn(
         {
-          storyId: args.scopeId,
-          gateName: args.gate,
+          storyId: scopeId,
+          gateName: gate,
           sha: headSha,
           configHash,
           exitCode: 0,
           durationMs: Date.now() - startedAt,
         },
-        { cwd: args.cwd },
+        { cwd },
       );
     } catch (err) {
-      Logger.warn?.(
+      logger.warn?.(
         `[evidence-gate]   ⚠ failed to record evidence: ${err?.message ?? err}`,
       );
     }
   }
+  return { status: 0, skipped: false };
+}
+
+async function main() {
+  const { wrapperArgs, runnerArgs } = splitOnDashDash(process.argv.slice(2));
+  const args = parseWrapperArgs(wrapperArgs);
+  await runEvidenceGate({ ...args, runnerArgs });
 }
 
 runAsCli(import.meta.url, main, { source: 'evidence-gate' });
