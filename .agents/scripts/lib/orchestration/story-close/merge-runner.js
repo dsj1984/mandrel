@@ -27,19 +27,28 @@
  * `lib/epic-merge-lock.js` + `lib/push-epic-retry.js`.
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { getRunners as defaultGetRunners } from '../../config/runners.js';
+import { resolveWorkingPath } from '../../config-resolver.js';
 import {
   acquireEpicMergeLock as defaultAcquire,
   releaseEpicMergeLock as defaultRelease,
 } from '../../epic-merge-lock.js';
-import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
+import { mergeFeatureBranch } from '../../git-merge-orchestrator.js';
+import {
+  gitSpawn as defaultGitSpawn,
+  gitSync as defaultGitSync,
+} from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import {
   pushEpicWithRetry as defaultPushEpicWithRetry,
   PushRetryConflictError,
 } from '../../push-epic-retry.js';
-import { describeResumePushFailure } from './comment-bodies.js';
+import {
+  buildResumeMergeCommitMsg,
+  describeResumePushFailure,
+} from './comment-bodies.js';
 
 /**
  * Render the lock-file path for a given main-repo `cwd` + `epicId`. Pure;
@@ -170,4 +179,269 @@ export async function pushEpicAndHandleConflicts({
     }
   }
   return pushOutcome;
+}
+
+// ---------------------------------------------------------------------------
+// Story-close merge orchestration
+// ---------------------------------------------------------------------------
+//
+// `runFinalizeMerge` and `runResumeMerge` previously lived inline in
+// `story-close.js`. They both take the per-Epic merge lock, then either
+// rebase + merge + push (finalize path) or commit-the-pending-merge + push
+// (resume path). Extracted from story-close.js (Story #956, Theme A finishing
+// touch) so the close orchestrator becomes a thin CLI shell. Both helpers
+// take the same dependency-injection seams as withEpicMergeLock /
+// pushEpicAndHandleConflicts so tests can pin behaviour without spawning
+// the script.
+
+/**
+ * Pre-merge rebase of the Story branch onto `origin/<epicBranch>`.
+ *
+ * Parallel wave execution lets two Stories land on the Epic between the time
+ * a later Story branched off and the time it closes. Rebasing the Story on
+ * the latest Epic before the close-merge shrinks the conflict surface to the
+ * Story's real delta and lets `mergeFeatureBranch`'s minor-conflict auto-
+ * resolve apply surgically instead of against stale base content.
+ *
+ * Runs inside the per-story worktree so it does not disturb the main
+ * checkout. On any failure (fetch error, rebase conflict) the rebase is
+ * aborted and the caller falls through to the plain merge path, which will
+ * surface the same conflict via triage.
+ *
+ * @returns {{ rebased: boolean, reason?: string }}
+ */
+export function rebaseStoryOnEpic({
+  orchestration,
+  storyId,
+  epicBranch,
+  storyBranch,
+  repoRoot,
+  log = () => {},
+  gitSpawn = defaultGitSpawn,
+}) {
+  const wtConfig = orchestration?.worktreeIsolation;
+  if (!wtConfig?.enabled) {
+    return { rebased: false, reason: 'isolation-disabled' };
+  }
+  const wtPath = resolveWorkingPath({
+    worktreeEnabled: true,
+    repoRoot,
+    storyId,
+    worktreeRoot: wtConfig.root,
+  });
+  if (!fs.existsSync(wtPath)) {
+    return { rebased: false, reason: 'worktree-missing' };
+  }
+
+  log('GIT', `Rebasing ${storyBranch} onto origin/${epicBranch}...`);
+  const fetch = gitSpawn(wtPath, 'fetch', 'origin', epicBranch);
+  if (fetch.status !== 0) {
+    log(
+      'GIT',
+      `⚠️ fetch origin ${epicBranch} failed; skipping pre-merge rebase`,
+    );
+    return { rebased: false, reason: 'fetch-failed' };
+  }
+  const rebase = gitSpawn(wtPath, 'rebase', `origin/${epicBranch}`);
+  if (rebase.status !== 0) {
+    gitSpawn(wtPath, 'rebase', '--abort');
+    log(
+      'GIT',
+      '⚠️ rebase conflicted; aborted — merge triage will handle overlap',
+    );
+    return { rebased: false, reason: 'rebase-conflict' };
+  }
+  log('GIT', `✅ Rebased ${storyBranch} onto origin/${epicBranch}`);
+  return { rebased: true };
+}
+
+/**
+ * Run the finalize-path merge: lock the Epic, optional rebase, checkout +
+ * pull --rebase, merge --no-ff, push (with retry/conflict handling).
+ * Branch cleanup is deferred to after worktree reap (git refuses to delete
+ * a branch still checked out by a worktree).
+ *
+ * @param {{
+ *   epicBranch: string,
+ *   storyBranch: string,
+ *   storyTitle: string,
+ *   storyId: number|string,
+ *   epicId: number|string,
+ *   cwd: string,
+ *   orchestration: object,
+ *   log?: (tag: string, msg: string) => void,
+ *   logger?: { fatal: (msg: string) => void, error: (msg: string) => void },
+ *   gitSync?: typeof defaultGitSync,
+ *   gitSpawn?: typeof defaultGitSpawn,
+ * }} opts
+ */
+export async function runFinalizeMerge({
+  epicBranch,
+  storyBranch,
+  storyTitle,
+  storyId,
+  epicId,
+  cwd,
+  orchestration,
+  log = () => {},
+  logger = DefaultLogger,
+  gitSync = defaultGitSync,
+  gitSpawn = defaultGitSpawn,
+}) {
+  await withEpicMergeLock(
+    epicId,
+    { repoRoot: cwd, timeoutMs: 60_000, log },
+    async () => {
+      rebaseStoryOnEpic({
+        orchestration,
+        storyId,
+        epicBranch,
+        storyBranch,
+        repoRoot: cwd,
+        log,
+        gitSpawn,
+      });
+
+      log('GIT', `Checking out ${epicBranch}...`);
+      gitSync(cwd, 'checkout', epicBranch);
+      gitSpawn(cwd, 'pull', '--rebase', 'origin', epicBranch);
+
+      log('GIT', `Merging ${storyBranch} into ${epicBranch} (--no-ff)...`);
+      const mergeMsg = `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
+      const vlog = (_level, _ctx, msg, meta) => {
+        const tail = meta ? ` ${JSON.stringify(meta)}` : '';
+        logger.error(`[merge] ${msg}${tail}`);
+      };
+      const result = mergeFeatureBranch(cwd, storyBranch, vlog, {
+        message: mergeMsg,
+      });
+
+      if (!result.merged && result.major) {
+        logger.fatal(
+          `Major merge conflict on story close: ` +
+            `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
+            `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
+            `Merge has been aborted. Resolve manually on ${epicBranch}, then ` +
+            `re-run this script.`,
+        );
+      }
+      if (result.autoResolved) {
+        log(
+          'GIT',
+          `✅ Merge completed with auto-resolved minor conflicts ` +
+            `(${result.conflicts.files} file(s) resolved to theirs)`,
+        );
+        for (const f of result.autoResolvedFiles ?? []) {
+          log(
+            'GIT',
+            `  ↳ auto-resolved ${f.file} (${f.discardedLines} base line(s) discarded; trailer in merge commit)`,
+          );
+        }
+      } else {
+        log('GIT', '✅ Merge successful');
+      }
+
+      log('GIT', `Pushing ${epicBranch}...`);
+      const pushOutcome = await pushEpicAndHandleConflicts({
+        cwd,
+        epicBranch,
+        storyBranch,
+        orchestration,
+        log: (msg) => log('GIT', msg),
+        mode: 'finalize',
+        logger,
+      });
+      if (pushOutcome.attempts > 1) {
+        log(
+          'GIT',
+          `✅ Push succeeded on attempt ${pushOutcome.attempts} after sibling session landed on ${epicBranch}`,
+        );
+      }
+    },
+  );
+}
+
+/**
+ * Commit a pending in-progress merge (resume path) using the
+ * conventional-commit subject from `buildResumeMergeCommitMsg`. No-op when
+ * `.git/MERGE_HEAD` is absent (merge already committed by the operator).
+ */
+export function finalizeMergeIfPending({
+  cwd,
+  epicBranch,
+  storyBranch,
+  storyTitle,
+  storyId,
+  log = () => {},
+  logger = DefaultLogger,
+  gitSpawn = defaultGitSpawn,
+}) {
+  const mergeHeadPath = path.join(cwd, '.git', 'MERGE_HEAD');
+  if (!fs.existsSync(mergeHeadPath)) {
+    log(
+      'GIT',
+      '⚠️ No MERGE_HEAD found — merge already committed; proceeding to push',
+    );
+    return;
+  }
+  log('GIT', 'Finalizing in-progress merge (git commit --no-verify)');
+  const commit = gitSpawn(
+    cwd,
+    'commit',
+    '--no-verify',
+    '-m',
+    buildResumeMergeCommitMsg(storyTitle, storyId),
+  );
+  if (commit.status !== 0) {
+    logger.fatal(
+      `Failed to finalize merge commit: ${commit.stderr || commit.stdout || 'unknown'}. ` +
+        `Check that all conflicts are resolved and staged on ${epicBranch}.`,
+    );
+  }
+  log('GIT', `✅ Merge of ${storyBranch} finalized on ${epicBranch}`);
+}
+
+/**
+ * Run the resume-path merge: lock the Epic, finalize the in-progress merge
+ * (if any), then push. Used by `runStoryClose` when prior state is
+ * `partial-merge`.
+ */
+export async function runResumeMerge({
+  cwd,
+  epicBranch,
+  storyBranch,
+  storyTitle,
+  storyId,
+  epicId,
+  orchestration,
+  log = () => {},
+  logger = DefaultLogger,
+  gitSpawn = defaultGitSpawn,
+}) {
+  await withEpicMergeLock(
+    epicId,
+    { repoRoot: cwd, timeoutMs: 60_000, log },
+    async () => {
+      finalizeMergeIfPending({
+        cwd,
+        epicBranch,
+        storyBranch,
+        storyTitle,
+        storyId,
+        log,
+        logger,
+        gitSpawn,
+      });
+      log('GIT', `Pushing ${epicBranch}...`);
+      await pushEpicAndHandleConflicts({
+        cwd,
+        epicBranch,
+        storyBranch,
+        orchestration,
+        log: (msg) => log('GIT', msg),
+        mode: 'resume',
+        logger,
+      });
+    },
+  );
 }
