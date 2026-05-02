@@ -129,6 +129,19 @@ the `AGENT_LOG_LEVEL` environment variable:
 - `verbose` — adds `debug` trace output on top of the `info` set. `debug` is
   accepted as a backward-compatible alias.
 
+#### Throw, Never Fatal (Orchestration Scripts)
+
+Orchestration scripts (the `.agents/scripts/*.js` orchestrators and the helper
+modules under `.agents/scripts/lib/orchestration/**`) MUST surface unrecoverable
+failures by `throw new Error(<message>)` rather than `Logger.fatal(<message>)`.
+The `runAsCli` boundary catches the throw and maps it to `process.exit(1)`,
+which preserves the operator-visible message verbatim while staying robust
+under a mocked `process.exit` — `Logger.fatal` falls through silently when the
+exit is stubbed (in tests or harness), letting execution continue past the
+intended hard-stop. Story #959 is the precedent: it converted every
+`Logger.fatal` call inside the story-close orchestrator surface to throw and
+established this rule for future orchestration work.
+
 ### I. Anti-Thrashing Protocol
 
 You MUST proactively identify when you are "thrashing" or stuck in an infinite

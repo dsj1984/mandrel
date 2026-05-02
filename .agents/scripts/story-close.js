@@ -81,7 +81,6 @@ export async function runStoryClose({
     resumeParam,
     restartParam,
     injectedProvider,
-    logger: Logger,
   });
 
   const notifyFn = (ticketId, payload) =>

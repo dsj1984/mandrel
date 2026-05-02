@@ -9,8 +9,9 @@
  *                              canonical gate list (typecheck, lint, test,
  *                              biome format, maintainability, crap), routes
  *                              `lint`/`test` start events into the supplied
- *                              phase-timer, and converts a failure into a
- *                              `Logger.fatal` with the gate-specific hint.
+ *                              phase-timer, and throws on the first failed
+ *                              gate with the gate-specific hint embedded in
+ *                              the error message.
  *   - emitMaintainabilityProjection — runs the per-file MI ceiling projection
  *                              and emits the `baseline-refresh:` advisory
  *                              before the merge so the operator can ship the
@@ -30,9 +31,12 @@ import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
- * Run the pre-merge validation gate chain. On failure routes the first
- * failed gate's hint through `logger.fatal` (preserves current
- * `Logger.fatal` behaviour — Story #959 will convert it to throw).
+ * Run the pre-merge validation gate chain. On failure throws an `Error`
+ * whose message embeds the first failed gate's name, exit code, and hint —
+ * the `runAsCli` boundary in `story-close.js` maps the throw to
+ * `process.exit(1)`. (See Story #959 — orchestration scripts must throw
+ * rather than route through the logger's fatal sink, so a mocked
+ * `process.exit` cannot swallow the failure silently.)
  *
  * `phaseTimer` may be omitted; when present, lint/test starts are timed.
  */
@@ -67,7 +71,7 @@ export function runPreMergeGates({
   });
   if (!validation.ok) {
     const [{ gate, status }] = validation.failed;
-    logger.fatal(
+    throw new Error(
       `Pre-merge validation failed at "${gate.name}" (exit ${status}).` +
         (gate.hint ? ` ${gate.hint}` : ''),
     );
