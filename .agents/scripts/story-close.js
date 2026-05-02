@@ -687,9 +687,7 @@ export async function runStoryClose({
   // Prime the provider's per-instance ticket cache: cascadeCompletion and
   // transitionTicketState will re-read these same ids, so feeding the
   // already-hydrated list prevents redundant REST round-trips.
-  if (typeof provider.primeTicketCache === 'function') {
-    provider.primeTicketCache([story, ...tasks]);
-  }
+  provider.primeTicketCache([story, ...tasks]);
 
   progress('TASKS', `Found ${tasks.length} child Task(s)`);
 
