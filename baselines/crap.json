@@ -592,6 +592,60 @@
       "startLine": 613
     },
     {
+      "crap": 4.005830903790088,
+      "file": ".agents/scripts/epic-execute-prepare.js",
+      "method": "runEpicExecutePrepare",
+      "startLine": 63
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-execute-prepare.js",
+      "method": "main",
+      "startLine": 120
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "classifyWaveOutcome",
+      "startLine": 69
+    },
+    {
+      "crap": 12.108189331329827,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "runEpicExecuteRecordWave",
+      "startLine": 113
+    },
+    {
+      "crap": 4.0466472303206995,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "resolveResultArg",
+      "startLine": 210
+    },
+    {
+      "crap": 42,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "main",
+      "startLine": 225
+    },
+    {
+      "crap": 4.003728720983159,
+      "file": ".agents/scripts/epic-finalize.js",
+      "method": "runEpicFinalize",
+      "startLine": 79
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-finalize.js",
+      "method": "<anon method-1>",
+      "startLine": 126
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-finalize.js",
+      "method": "main",
+      "startLine": 145
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/epic-plan-decompose.js",
       "method": "setEpicLabel",
@@ -674,6 +728,18 @@
       "file": ".agents/scripts/epic-planner.js",
       "method": "main",
       "startLine": 199
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/epic-rollup.js",
+      "method": "runEpicRollup",
+      "startLine": 70
+    },
+    {
+      "crap": 72,
+      "file": ".agents/scripts/epic-rollup.js",
+      "method": "main",
+      "startLine": 127
     },
     {
       "crap": 6.839650145772595,
@@ -2260,7 +2326,7 @@
       "startLine": 63
     },
     {
-      "crap": 2.011661807580175,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "method": "runBuildWaveDagPhase",
       "startLine": 15
@@ -2350,28 +2416,40 @@
       "startLine": 621
     },
     {
+      "crap": 11,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "parseWaveRunProgressComment",
+      "startLine": 666
+    },
+    {
+      "crap": 15.004959009602112,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "upsertEpicRunProgress",
+      "startLine": 731
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
-      "startLine": 638
+      "startLine": 846
     },
     {
       "crap": 7.467679550324179,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
-      "startLine": 662
+      "startLine": 870
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
-      "startLine": 696
+      "startLine": 904
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 712
+      "startLine": 920
     },
     {
       "crap": 16.81716710766064,
@@ -4856,6 +4934,78 @@
       "file": ".agents/scripts/wave-gate.js",
       "method": "main",
       "startLine": 248
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/wave-prepare.js",
+      "method": "renderFrictionBody",
+      "startLine": 84
+    },
+    {
+      "crap": 2.0276428031530074,
+      "file": ".agents/scripts/wave-prepare.js",
+      "method": "reportFriction",
+      "startLine": 109
+    },
+    {
+      "crap": 12.044873136980899,
+      "file": ".agents/scripts/wave-prepare.js",
+      "method": "runWavePrepare",
+      "startLine": 150
+    },
+    {
+      "crap": 1.823974609375,
+      "file": ".agents/scripts/wave-prepare.js",
+      "method": "parseCliArgs",
+      "startLine": 274
+    },
+    {
+      "crap": 17.18359375,
+      "file": ".agents/scripts/wave-prepare.js",
+      "method": "main",
+      "startLine": 291
+    },
+    {
+      "crap": 2.006513331976389,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "validateResults",
+      "startLine": 86
+    },
+    {
+      "crap": 5.650307371843723,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "parseResultsArg",
+      "startLine": 129
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "aggregateWaveStatus",
+      "startLine": 165
+    },
+    {
+      "crap": 4.018661612479954,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "loadManifestTitleMap",
+      "startLine": 191
+    },
+    {
+      "crap": 7.118767933555657,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "runWaveRecord",
+      "startLine": 230
+    },
+    {
+      "crap": 5.478963185574756,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "parseCliArgs",
+      "startLine": 303
+    },
+    {
+      "crap": 5.252148148148148,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "main",
+      "startLine": 326
     }
   ],
   "tsTranspilerVersion": "5.9.3"
