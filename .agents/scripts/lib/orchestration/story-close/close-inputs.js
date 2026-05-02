@@ -23,7 +23,6 @@ import path from 'node:path';
 import { parseSprintArgs } from '../../cli-args.js';
 import { PROJECT_ROOT, resolveConfig } from '../../config-resolver.js';
 import { getEpicBranch, getStoryBranch } from '../../git-utils.js';
-import { Logger as DefaultLogger } from '../../Logger.js';
 import { createProvider as defaultCreateProvider } from '../../provider-factory.js';
 import { resolveStoryHierarchy } from '../../story-lifecycle.js';
 import { checkCdOutGuard } from './cd-out-guard.js';
@@ -37,7 +36,6 @@ import { checkCdOutGuard } from './cd-out-guard.js';
  *   resumeParam?: boolean,
  *   restartParam?: boolean,
  *   injectedProvider?: object,
- *   logger?: object,
  *   createProvider?: typeof defaultCreateProvider,
  * }} args
  */
@@ -49,7 +47,6 @@ export async function resolveCloseInputs({
   resumeParam,
   restartParam,
   injectedProvider,
-  logger = DefaultLogger,
   createProvider = defaultCreateProvider,
 }) {
   const parsed =
@@ -66,7 +63,7 @@ export async function resolveCloseInputs({
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!parsed.storyId) {
-    logger.fatal(
+    throw new Error(
       'Usage: node story-close.js --story <STORY_ID> [--epic <EPIC_ID>]',
     );
   }
@@ -79,7 +76,7 @@ export async function resolveCloseInputs({
     storyId: parsed.storyId,
     worktreeRoot: orchestration?.worktreeIsolation?.root,
   });
-  if (!guard.ok) logger.fatal(guard.message);
+  if (!guard.ok) throw new Error(guard.message);
 
   const provider = injectedProvider || createProvider(orchestration);
   const story = await provider.getTicket(parsed.storyId);
@@ -87,7 +84,7 @@ export async function resolveCloseInputs({
   if (!epicId) {
     const resolved = resolveStoryHierarchy(story.body);
     if (!resolved.epicId) {
-      logger.fatal(
+      throw new Error(
         `Story #${parsed.storyId} has no "Epic: #N" reference. Pass --epic <id> explicitly.`,
       );
     }

@@ -13,18 +13,20 @@
  * the lock-file path so a stale lock can be cleared by hand.
  *
  * `pushEpicAndHandleConflicts` wraps `pushEpicWithRetry` + the
- * `PushRetryConflictError` → fatal-message envelope, plus the
- * retry-exhausted / generic-failure → fatal-message envelope used by
- * finalizeMerge. The resume path (`completeInProgressMerge`) shares the
- * same envelope but routes generic failures through the
- * `describeResumePushFailure` helper for consistent operator-facing copy
- * (see `comment-bodies.js`).
+ * `PushRetryConflictError` → throw envelope, plus the retry-exhausted /
+ * generic-failure → throw envelope used by `runFinalizeMerge`. The resume
+ * path (`runResumeMerge`) shares the same envelope but routes generic
+ * failures through the `describeResumePushFailure` helper for consistent
+ * operator-facing copy (see `comment-bodies.js`). Errors thrown from these
+ * helpers reach the `runAsCli` boundary in `story-close.js` and are mapped
+ * to `process.exit(1)` (Story #959 — orchestration scripts must throw
+ * rather than route through the logger's fatal sink, see
+ * `.agents/instructions.md`).
  *
- * Both helpers are dependency-injected: the lock acquire/release pair, the
- * push retry runner, and the logger sink are all parameters so unit tests
- * can pin behaviour without spawning the close script. Default arguments
- * point at the production wiring from
- * `lib/epic-merge-lock.js` + `lib/push-epic-retry.js`.
+ * Both helpers are dependency-injected: the lock acquire/release pair and
+ * the push retry runner are parameters so unit tests can pin behaviour
+ * without spawning the close script. Default arguments point at the
+ * production wiring from `lib/epic-merge-lock.js` + `lib/push-epic-retry.js`.
  */
 
 import fs from 'node:fs';
@@ -110,14 +112,14 @@ export async function withEpicMergeLock(
 
 /**
  * Push the Epic branch with retry, surfacing `PushRetryConflictError` and
- * generic failure modes through the supplied `Logger.fatal` (default:
- * `Logger.fatal`). Used by both `finalizeMerge` (post-merge push) and
- * `completeInProgressMerge` (resume-after-conflict push).
+ * generic failure modes by throwing an `Error` (Story #959 — see file
+ * header). Used by both `runFinalizeMerge` (post-merge push) and
+ * `runResumeMerge` (resume-after-conflict push).
  *
  * The two callers diverge only on how they format generic-failure copy:
- *   - finalizeMerge inlines the `retries-exhausted vs other-reason` switch
+ *   - finalize path inlines the `retries-exhausted vs other-reason` switch
  *     directly,
- *   - completeInProgressMerge routes through `describeResumePushFailure`.
+ *   - resume path routes through `describeResumePushFailure`.
  *
  * Pass `mode: 'resume'` to use the resume-style copy.
  *
@@ -128,7 +130,6 @@ export async function withEpicMergeLock(
  *   orchestration: object,
  *   log?: (msg: string) => void,
  *   mode?: 'finalize' | 'resume',
- *   logger?: { fatal: (msg: string) => void },
  *   pushEpicWithRetry?: typeof defaultPushEpicWithRetry,
  *   git?: { gitSpawn: typeof defaultGitSpawn },
  *   getCloseRetry?: (orchestration: object) => any,
@@ -142,7 +143,6 @@ export async function pushEpicAndHandleConflicts({
   orchestration,
   log = () => {},
   mode = 'finalize',
-  logger = DefaultLogger,
   pushEpicWithRetry = defaultPushEpicWithRetry,
   git = { gitSpawn: defaultGitSpawn },
   getRunners = defaultGetRunners,
@@ -159,7 +159,7 @@ export async function pushEpicAndHandleConflicts({
     });
   } catch (err) {
     if (err instanceof PushRetryConflictError) {
-      logger.fatal(err.message);
+      throw new Error(err.message);
     }
     throw err;
   }
@@ -167,13 +167,13 @@ export async function pushEpicAndHandleConflicts({
   if (!pushOutcome.ok) {
     if (mode === 'resume') {
       const fatal = describeResumePushFailure(pushOutcome);
-      if (fatal) logger.fatal(fatal);
+      if (fatal) throw new Error(fatal);
     } else {
       const reasonLabel =
         pushOutcome.reason === 'retry-exhausted'
           ? `retries exhausted after ${pushOutcome.attempts} attempt(s)`
           : pushOutcome.reason;
-      logger.fatal(
+      throw new Error(
         `Push failed (${reasonLabel}): ${pushOutcome.result?.stderr || pushOutcome.result?.stdout || 'unknown'}`,
       );
     }
@@ -270,7 +270,7 @@ export function rebaseStoryOnEpic({
  *   cwd: string,
  *   orchestration: object,
  *   log?: (tag: string, msg: string) => void,
- *   logger?: { fatal: (msg: string) => void, error: (msg: string) => void },
+ *   logger?: { error: (msg: string) => void },
  *   gitSync?: typeof defaultGitSync,
  *   gitSpawn?: typeof defaultGitSpawn,
  * }} opts
@@ -317,7 +317,7 @@ export async function runFinalizeMerge({
       });
 
       if (!result.merged && result.major) {
-        logger.fatal(
+        throw new Error(
           `Major merge conflict on story close: ` +
             `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
             `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
@@ -349,7 +349,6 @@ export async function runFinalizeMerge({
         orchestration,
         log: (msg) => log('GIT', msg),
         mode: 'finalize',
-        logger,
       });
       if (pushOutcome.attempts > 1) {
         log(
@@ -373,7 +372,6 @@ export function finalizeMergeIfPending({
   storyTitle,
   storyId,
   log = () => {},
-  logger = DefaultLogger,
   gitSpawn = defaultGitSpawn,
 }) {
   const mergeHeadPath = path.join(cwd, '.git', 'MERGE_HEAD');
@@ -393,7 +391,7 @@ export function finalizeMergeIfPending({
     buildResumeMergeCommitMsg(storyTitle, storyId),
   );
   if (commit.status !== 0) {
-    logger.fatal(
+    throw new Error(
       `Failed to finalize merge commit: ${commit.stderr || commit.stdout || 'unknown'}. ` +
         `Check that all conflicts are resolved and staged on ${epicBranch}.`,
     );
@@ -415,7 +413,6 @@ export async function runResumeMerge({
   epicId,
   orchestration,
   log = () => {},
-  logger = DefaultLogger,
   gitSpawn = defaultGitSpawn,
 }) {
   await withEpicMergeLock(
@@ -429,7 +426,6 @@ export async function runResumeMerge({
         storyTitle,
         storyId,
         log,
-        logger,
         gitSpawn,
       });
       log('GIT', `Pushing ${epicBranch}...`);
@@ -440,7 +436,6 @@ export async function runResumeMerge({
         orchestration,
         log: (msg) => log('GIT', msg),
         mode: 'resume',
-        logger,
       });
     },
   );
