@@ -37,28 +37,6 @@ function analyzeConflicts(cwd) {
 }
 
 /**
- * Create (or recreate) an ephemeral candidate branch from the epic base.
- *
- * @param {string} cwd             - Project root.
- * @param {string} epicBranch      - Name of the Epic base branch.
- * @param {string} candidateBranch - Name of the ephemeral candidate branch.
- * @throws {Error} If branch creation fails after one retry.
- */
-export function createCandidateBranch(cwd, epicBranch, candidateBranch) {
-  let result = gitSpawn(cwd, 'checkout', '-b', candidateBranch, epicBranch);
-  if (result.status !== 0) {
-    // Branch may already exist from a previous aborted run — clean it up.
-    gitSpawn(cwd, 'branch', '-D', candidateBranch);
-    result = gitSpawn(cwd, 'checkout', '-b', candidateBranch, epicBranch);
-    if (result.status !== 0) {
-      throw new Error(
-        `Failed to create candidate branch "${candidateBranch}": ${result.stderr}`,
-      );
-    }
-  }
-}
-
-/**
  * Merge the feature branch into the current (candidate) branch.
  * Handles conflict triage and auto-resolution.
  *
@@ -175,7 +153,7 @@ export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
  * @param {Array<{ file: string, discardedLines: number }>} resolved
  * @returns {string}
  */
-export function buildAutoResolveTrailer(resolved) {
+function buildAutoResolveTrailer(resolved) {
   const header =
     'Auto-resolved-conflicts: accepted feature branch for the following file(s).';
   const body = resolved
@@ -185,44 +163,4 @@ export function buildAutoResolveTrailer(resolved) {
     )
     .join('\n');
   return `${header}\n${body}`;
-}
-
-/**
- * Delete the ephemeral candidate branch and return to the Epic base branch.
- * Best-effort: git errors are swallowed to avoid masking the primary failure.
- *
- * @param {string} cwd             - Project root.
- * @param {string} epicBranch      - Epic base branch to return to.
- * @param {string} candidateBranch - Ephemeral branch to delete.
- */
-export function cleanupCandidateBranch(cwd, epicBranch, candidateBranch) {
-  gitSpawn(cwd, 'merge', '--abort'); // no-op if no merge in progress
-  gitSpawn(cwd, 'checkout', epicBranch);
-  gitSpawn(cwd, 'branch', '-D', candidateBranch);
-}
-
-/**
- * Consolidate an accepted candidate branch into the Epic base branch.
- *
- * @param {string} cwd             - Project root.
- * @param {string} epicBranch      - Target (Epic base) branch.
- * @param {string} candidateBranch - Candidate branch to fast-forward merge.
- * @throws {Error} If checkout or merge fails.
- */
-export function consolidateCandidate(cwd, epicBranch, candidateBranch) {
-  const co = gitSpawn(cwd, 'checkout', epicBranch);
-  if (co.status !== 0) {
-    throw new Error(
-      `Failed to checkout "${epicBranch}" for consolidation: ${co.stderr}`,
-    );
-  }
-
-  const merge = gitSpawn(cwd, 'merge', '--no-ff', candidateBranch);
-  if (merge.status !== 0) {
-    throw new Error(
-      `Failed to consolidate "${candidateBranch}" into "${epicBranch}": ${merge.stderr}`,
-    );
-  }
-
-  gitSpawn(cwd, 'branch', '-D', candidateBranch);
 }

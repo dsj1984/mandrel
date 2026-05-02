@@ -46,11 +46,9 @@ let cachedValidator = null;
  * Lazy so importing this module never reads disk; cached so repeated
  * `recordPass` / `loadEvidence` calls do not recompile.
  *
- * Exported for test-fixture reset.
- *
  * @returns {(data: unknown) => boolean}
  */
-export function getEvidenceValidator() {
+function getEvidenceValidator() {
   if (cachedValidator) return cachedValidator;
   const ajv = new Ajv({ allErrors: true, strict: false });
   addFormats(ajv);

@@ -39,7 +39,7 @@ export function isInsufficientScopes(err) {
  * Fetch Project V2 data, checking both User and Organization scopes. Soft
  * failures (warn + return null) so callers degrade gracefully.
  */
-export async function fetchProjectV2(ctx, fragment) {
+async function fetchProjectV2(ctx, fragment) {
   if (!ctx.projectNumber) return null;
 
   try {
@@ -75,7 +75,7 @@ export async function fetchProjectV2(ctx, fragment) {
  * Strict sibling of `fetchProjectV2` — rethrows instead of swallowing so
  * callers can detect INSUFFICIENT_SCOPES and degrade.
  */
-export async function fetchProjectV2Strict(ctx, fragment) {
+async function fetchProjectV2Strict(ctx, fragment) {
   if (!ctx.projectNumber) return null;
 
   let userErr = null;
@@ -109,7 +109,7 @@ export async function fetchProjectV2Strict(ctx, fragment) {
 }
 
 /* node:coverage ignore next */
-export async function fetchProjectMetadata(ctx) {
+async function fetchProjectMetadata(ctx) {
   if (ctx.state.projectId) return ctx.state.projectId;
   const project = await fetchProjectV2(ctx, 'id');
   if (project) ctx.state.projectId = project.id;

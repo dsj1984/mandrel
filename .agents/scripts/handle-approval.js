@@ -15,6 +15,7 @@ import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 
+/* exported for tests — Story-level reuse runner reserved for future test coverage */
 export async function handleApproval(ticketId, commentBody) {
   const isApproveAll = commentBody?.trim().startsWith('/approve');
   const isApproveAudit = commentBody?.trim().startsWith('/approve-audit-fixes');

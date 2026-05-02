@@ -15,7 +15,7 @@ import { postStructuredComment } from '../ticketing.js';
 
 export const VERSION_BUMP_INTENT_MARKER =
   '<!-- notification: version-bump-intent -->';
-export const VERSION_BUMP_NOTIFICATION_TYPE = 'notification';
+const VERSION_BUMP_NOTIFICATION_TYPE = 'notification';
 
 const SEGMENT_VALUES = new Set(['major', 'minor', 'patch']);
 

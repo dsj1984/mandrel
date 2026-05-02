@@ -291,7 +291,7 @@ const PATHS_SCHEMA = {
  * required-when-present non-empty strings. `additionalProperties: false`
  * so a misspelled command key fails validation up front.
  */
-export const COMMANDS_SCHEMA = {
+const COMMANDS_SCHEMA = {
   type: 'object',
   properties: {
     validate: { ...SAFE_STRING, minLength: 1 },
