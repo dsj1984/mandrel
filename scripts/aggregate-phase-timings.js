@@ -36,7 +36,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { createProvider } from './lib/provider-factory.js';
 
-export const PHASE_TIMINGS_MARKER = 'phase-timings';
+const PHASE_TIMINGS_MARKER = 'phase-timings';
 
 /** Canonical phase order (matches lib/util/phase-timer.js). */
 export const PHASE_ORDER = Object.freeze([

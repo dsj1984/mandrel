@@ -49,8 +49,12 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const waveObserver = new WaveObserver({ ctx, commitAssertion });
   const frictionEmitter = createFrictionEmitter({ provider, logger });
   const progressReporter = new ProgressReporter({
-    ctx,
+    provider,
+    epicId: ctx.epicId,
     intervalSec: Number(epicRunner.progressReportIntervalSec ?? 0),
+    logger,
+    concurrency: ctx.concurrency?.progressReporter,
+    cwd: ctx.cwd,
     frictionEmitter,
   });
   const columnSync = new ColumnSync({ ctx });

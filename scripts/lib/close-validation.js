@@ -149,9 +149,8 @@ export const DEFAULT_GATES = buildDefaultGates();
  * when git is unavailable or the call fails — callers treat that as
  * "evidence skip disabled" so the gate runs as before.
  *
- * Exported for testing.
  */
-export function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
+function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
   try {
     const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
     if (res.status !== 0) return null;

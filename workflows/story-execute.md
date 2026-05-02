@@ -10,9 +10,9 @@ description: >-
 
 ## Overview
 
-`/story-execute` is the **single-Story worker** in the Epic-centric workflow.
-It sits below [`/wave-execute`](wave-execute.md) (which fans out one Story
-sub-agent per slot) and runs one Story from init to close in one invocation.
+`/story-execute` is the **single-Story worker**. It sits below
+[`/wave-execute`](wave-execute.md) (which fans out one Story sub-agent per
+slot) and runs one Story from init to close in one invocation.
 
 ```text
 /wave-execute <epicId> <waveN>
@@ -28,128 +28,77 @@ The argument is always a **Story ID** (`type::story`). Epic IDs go through
 they are implemented by their parent Story's loop.
 
 > **Worktree isolation.** When `orchestration.worktreeIsolation.enabled` is
-> `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints its
-> absolute path as `workCwd`. You **must** `cd` into that path before Step 1.
-> The main checkout's HEAD is never moved. When isolation is `false`, `workCwd`
-> equals the main checkout. See [`worktree-lifecycle.md`](worktree-lifecycle.md)
-> for node_modules strategies, Windows notes, and escape hatches.
+> `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
+> its absolute path as `workCwd`. You **must** `cd` into that path before
+> Step 1. The main checkout's HEAD is never moved. See
+> [`worktree-lifecycle.md`](worktree-lifecycle.md) for node_modules
+> strategies, Windows notes, and escape hatches.
 
 ---
 
 ## Non-interactive execution contract
 
-`/story-execute` runs in two contexts:
+`/story-execute` runs as a sub-agent of `/wave-execute` (common case) or
+interactively for a single Story. Sub-agent runs share the parent's
+permissions but have **no input channel** mid-run.
 
-- **Sub-agent (the common case)**: launched as one slot of a `/wave-execute`
-  fan-out via the `Agent` tool. The sub-agent shares the parent session's
-  permissions and tool allowlist but has **no input channel** mid-run — the
-  parent cannot answer a clarifying question.
-- **Operator (interactive)**: typed directly at the chat prompt for a single
-  Story. Conversational clarification is fine here.
-
-**Rules that bind regardless of context:**
-
-- **Never** ask clarifying questions when running as a sub-agent. Pick the
-  narrowest reasonable interpretation that satisfies the Task's acceptance
-  criteria and proceed. If you cannot proceed at all, transition the Story to
-  `agent::blocked`, post a `friction` structured comment with (a) the decision
-  needed and (b) the assumption you would default to, and exit non-zero.
-- **Never** assume tool-permission prompts will be auto-approved. The Agent
-  tool inherits the parent's permission mode; if a prompt would block, treat
-  it as a harness condition and transition to `agent::blocked` rather than
-  hanging the parent.
-- **Always** write `story-run-progress` snapshots at the points listed below
-  so the parent (`/wave-execute`) can read Story state without re-fetching
-  ticket labels.
+- **Never** ask clarifying questions as a sub-agent. Pick the narrowest
+  reasonable interpretation that satisfies the Task's AC. If you cannot
+  proceed, transition to `agent::blocked`, post a `friction` comment with
+  the decision needed and the default assumption, and exit non-zero.
+- **Never** assume tool-permission prompts will be auto-approved. Treat a
+  blocking prompt as a harness condition and transition to `agent::blocked`.
+- **Always** write `story-run-progress` snapshots at every Task and phase
+  transition so the parent aggregator never falls back to label
+  re-derivation.
 
 ---
 
 ## Step 0 — Initialize (`story-init.js`)
 
-Run the initialization script from the **main checkout** (not the worktree —
-the worktree does not exist yet).
+Run from the **main checkout** (the worktree does not exist yet):
 
-```powershell
+```bash
 node .agents/scripts/story-init.js --story <storyId>
 ```
 
-The script:
+The script validates `type::story`, checks blockers, traces the
+Feature → Epic → PRD/Tech-Spec hierarchy, enumerates child Tasks in
+dependency order, seeds `story-<id>` from the Epic branch, and (when
+worktree isolation is on) runs `git worktree add` at
+`.worktrees/story-<id>/`. All child Tasks are batch-transitioned to
+`agent::executing` and a `story-init` structured comment is upserted.
 
-- Fetches the Story ticket and validates it's a `type::story`.
-- Checks blockers — exits non-zero if any `blocked by` are open.
-- Traces the hierarchy (Feature → Epic → PRD / Tech Spec).
-- Enumerates child Tasks in dependency order.
-- Bootstraps the Epic branch if missing (in main checkout).
-- **Worktree-enabled path**: seeds the `story-<id>` branch ref from the Epic
-  branch without moving main's HEAD, then `git worktree add` at
-  `.worktrees/story-<id>/`.
-- **Single-tree fallback**: checks out the story branch in the main checkout.
-- Batch-transitions all child Tasks to `agent::executing`.
+Capture `workCwd`, `dependenciesInstalled` (tri-state), `tasks[]`, and
+`context.{prdId,techSpecId}`. Add `--dry-run` to check status without git
+or ticket changes.
 
-**Output**: structured JSON. Key fields the skill consumes:
+### Step 0.5 — `cd` into the workCwd
 
-- `workCwd` — absolute path where every subsequent command runs.
-- `worktreeEnabled` — whether worktree isolation is active.
-- `dependenciesInstalled` — `'true' | 'false' | 'skipped'` (see Step 0.5).
-- `installStatus` — structured `{ status, reason }` behind the tri-state.
-- `tasks[]` — dependency-ordered child Task list (`{ id, title, labels,
-  dependencies }`).
-- `context.prdId`, `context.techSpecId` — fetch these before coding when the
-  Task instructions refer to spec-level rationale.
-
-The same fields are upserted as a `story-init` structured comment on the
-Story ticket so re-entrant runs can read state via `gh issue view <storyId>
---json comments`.
-
-> **Dry-run**: Add `--dry-run` to check status without git or ticket changes.
-> No worktree is created.
-
-### Step 0.5 — `cd` into the workCwd and verify dependencies
-
-```powershell
+```bash
 cd "<workCwd from Step 0 result>"
 ```
 
-All subsequent git commands, edits, structured-comment writes, and Step 3
-closure run from this directory. In worktree-enabled mode this is
-`.worktrees/story-<id>/`; in single-tree mode it is the main checkout.
+All subsequent commands run from this directory. The `dependenciesInstalled`
+tri-state carries one of three values:
 
-**Dependency install.** Read `dependenciesInstalled` from the Step 0 stdout
-JSON (or, when resuming a previously-initialized Story, from the `story-init`
-structured comment on the Story ticket). Do **not** infer install state from
-the presence or absence of `node_modules/`.
-
-| `dependenciesInstalled` | Meaning                                                                                            | Skill action                                                      |
-| ----------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `true`                  | Per-worktree install ran and succeeded.                                                            | Proceed.                                                          |
-| `false`                 | Install was attempted and failed.                                                                  | Run the appropriate install command before implementing tasks.    |
-| `skipped`               | No per-worktree install was performed (single-tree, reused worktree, `symlink`, `pnpm-store`).     | Trust the strategy; only install if a downstream tool errors out. |
-
-If `dependenciesInstalled === 'false'`, run the install:
-
-```powershell
-npm ci    # or: pnpm install --frozen-lockfile / yarn install --frozen-lockfile
-```
+| Value     | Meaning                                                                            | Action                                              |
+| --------- | ---------------------------------------------------------------------------------- | --------------------------------------------------- |
+| `true`    | Per-worktree install ran and succeeded.                                            | Proceed.                                            |
+| `false`   | Install was attempted and failed.                                                  | The next CLI runs the install before proceeding.    |
+| `skipped` | No per-worktree install (single-tree, reused worktree, `symlink`, `pnpm-store`).   | Trust the strategy.                                 |
 
 ### Step 0.6 — Initial `story-run-progress` snapshot
 
-Immediately after `cd`, upsert a `story-run-progress` comment on the Story
-with every child Task pinned to `pending` and `phase = "init"`:
+Re-read the `story-init` comment, apply the install tri-state, and upsert
+the initial snapshot (every Task pinned to `pending`, `phase: "init"`):
 
-```js
-import { upsertStoryRunProgress } from '.agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js';
-
-await upsertStoryRunProgress({
-  provider,
-  storyId,
-  branch: `story-${storyId}`,
-  phase: 'init',
-  tasks: tasks.map((t) => ({ id: t.id, title: t.title, state: 'pending' })),
-});
+```bash
+node .agents/scripts/story-execute-prepare.js --story <storyId> --cwd .
 ```
 
-This anchors the comment so `/wave-execute`'s aggregator can find a
-deterministic snapshot for this Story even before any Task starts.
+The CLI runs the install command when `dependenciesInstalled === 'false'`
+(default `npm ci`; override with `--install-cmd "<cmd>"`).
 
 ---
 
@@ -157,112 +106,89 @@ deterministic snapshot for this Story even before any Task starts.
 
 For **each child Task** in the order returned by `story-init.js`:
 
-1. Mark the Task `executing` in the in-memory snapshot and upsert
-   `story-run-progress` with `phase = "implementing"` so the parent sees the
-   transition immediately.
-2. Read [`helpers/task-execute.md`](helpers/task-execute.md) and follow it for
-   this Task. The helper covers reading `## Instructions`, scope discipline,
-   the `assert-branch` guard, and the conventional-commit format.
-3. After the commit lands, capture the new commit SHA, mark the Task `done`
-   in the snapshot, and upsert `story-run-progress` again. The writer carries
-   `commitSha` on `done` rows so the wave aggregator can cross-check that the
-   merge replay below is replaying the expected commits.
-4. If implementation cannot proceed (missing dependency, contradictory
-   instructions, blocked-by ticket reopened): mark the Task `blocked`,
-   upsert `story-run-progress` with `phase = "blocked"`, transition the
-   Story to `agent::blocked`, post a `friction` comment, and exit non-zero.
-5. Proceed to the next Task.
+1. Mark the Task `executing` and flip `phase` to `implementing`:
 
-> If a commit runs into a merge conflict during a rebase, follow the canonical
-> procedure in
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --task <taskId> --state executing --phase implementing
+   ```
+
+2. Read [`helpers/task-execute.md`](helpers/task-execute.md) — it covers the
+   `## Instructions` read, scope discipline, and the single
+   `task-commit.js` invocation (stage, assert-branch, conventional-commit,
+   post-commit verify).
+
+3. After the commit lands, capture the SHA from `task-commit.js` stdout and
+   record the Task `done`:
+
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --task <taskId> --state done --commit-sha <sha>
+   ```
+
+4. If blocked, mark the Task `blocked`, transition the Story to
+   `agent::blocked`, post a `friction` comment, and exit non-zero:
+
+   ```bash
+   node .agents/scripts/story-task-progress.js \
+     --story <storyId> --task <taskId> --state blocked --phase blocked \
+     --blocker-comment-id <id>
+   ```
+
+> Rebase pauses on conflicts → follow
 > [`helpers/_merge-conflict-template.md`](helpers/_merge-conflict-template.md).
 
-### Per-Task transition cadence
-
-Each Task triggers up to two `story-run-progress` upserts: `pending →
-executing` at the start of its slot, and `executing → done|blocked` at the
-end. The marker is upserted in place, so the comment count never grows past
-one per Story regardless of Task count.
+The marker is upserted in place — comment count never grows past one.
 
 ---
 
 ## Step 2 — Validate (deferred to close)
 
 `story-close.js` runs the canonical close-validation chain (typecheck,
-lint, test, format, maintainability, coverage, crap) before it merges — **do
-not** pre-run `npm run typecheck`, `npm run lint`, and `npm test` here unless
-you are interactively iterating on a fix. The close script's gate is
-authoritative; pre-running them in headless sub-agent runs just doubles the
-wall-clock cost of every Story. The typecheck gate sources its command from
-`agentSettings.commands.typecheck` when set (e.g. `pnpm exec turbo run
-typecheck`) and falls back to `npm run typecheck` otherwise.
-
-**Interactive `--fast` advisory mode.** When iterating in your own terminal
-and you want a fast pre-flight before invoking close, run:
-
-```powershell
-npm run typecheck
-npm run lint
-npm test
-```
-
-Treat the output as advisory — failures here will be re-surfaced by
-`story-close.js` regardless. If you spot a regression, fix it on the Story
-branch and commit before proceeding to Step 3.
-
-If genuinely blocked (e.g. upstream dependency missing): mark the Task
-`blocked`, upsert `story-run-progress`, post a `friction` comment, and apply
-`agent::blocked`.
+lint, test, format, maintainability, coverage, crap) before it merges —
+**do not** pre-run those gates here unless interactively iterating on a
+fix. (Interactively, `npm run typecheck && npm run lint && npm test` is
+fine as advisory pre-flight.)
 
 ---
 
 ## Step 3 — Close (`story-close.js`)
 
-Before invoking close, upsert one final `story-run-progress` snapshot with
-`phase = "closing"` so the parent sees the Story enter the merge phase.
+Flip the snapshot to the closing phase, then invoke close. Pass the
+main-checkout path via `--cwd` so the merge and branch deletion run
+against the main repo (branches checked out in a worktree cannot be
+deleted from themselves):
 
-Run closure. Pass the main-checkout path via `--cwd` so the merge and branch
-deletion run against the main repo, not inside the worktree (branches checked
-out in a worktree cannot be deleted from themselves). The close script reaps
-the worktree after the merge succeeds.
+```bash
+node .agents/scripts/story-task-progress.js \
+  --story <storyId> --task <lastTaskId> --state done --phase closing
 
-```powershell
-# From the worktree, invoke close against the main checkout.
 node <main-repo>/.agents/scripts/story-close.js --story <storyId> --cwd <main-repo>
 ```
 
-In single-tree mode, `--cwd` can be omitted (defaults to `PROJECT_ROOT`).
+In single-tree mode, `--cwd` defaults to `PROJECT_ROOT`. The script merges
+into `epic/<epicId>` (`--no-ff`), pushes the Epic branch, deletes the
+Story branch, reaps the worktree via `WorktreeManager.reap`, batch-closes
+all child Tasks and the Story to `agent::done`, runs
+`cascadeCompletion()` + `health-monitor.js`, and regenerates the Epic
+dispatch manifest (`--skip-dashboard` to suppress). Output is JSON with
+`ticketsClosed[]`, `cascadedTo[]`, and reap status.
 
-The script:
+> **Why not GitHub auto-close?** `Closes #N` only fires on default-branch
+> merges; close fires the state writer explicitly.
 
-- Merges the Story branch into `epic/<epicId>` with `--no-ff`.
-- Pushes the Epic branch.
-- Deletes the Story branch (local + remote).
-- **Reaps the worktree** (`.worktrees/story-<id>/`) via `WorktreeManager.reap` —
-  refuses if uncommitted or unmerged.
-- Batch-transitions all child Tasks and the Story to `agent::done`.
-- Runs `cascadeCompletion()` to propagate closure up the hierarchy.
-- Runs `health-monitor.js` to update sprint metrics.
-- Regenerates the Epic dispatch manifest. Pass `--skip-dashboard` to suppress.
+After close, upsert a terminal snapshot:
 
-**Output**: structured JSON with `ticketsClosed[]`, `cascadedTo[]`, and
-worktree reap status.
-
-> **Why not use GitHub auto-close?** GitHub's `Closes #N` only fires when
-> merging into the repo's default branch. Story branches merge into
-> `epic/<epicId>`, so we close tickets explicitly via the state writer.
-
-After `story-close.js` returns successfully, upsert one last
-`story-run-progress` snapshot with `phase = "done"` and every Task in
-`done` state. The wave aggregator reads this terminal snapshot to confirm
-Story closure without re-fetching ticket labels.
+```bash
+node .agents/scripts/story-task-progress.js \
+  --story <storyId> --task <lastTaskId> --state done --phase done
+```
 
 ---
 
 ## Step 4 — Return contract (sub-agent path)
 
-When `/story-execute` runs as a sub-agent of `/wave-execute`, return one JSON
-object to the parent:
+When run as a sub-agent, return one JSON object:
 
 ```json
 {
@@ -277,53 +203,32 @@ object to the parent:
 }
 ```
 
-`status === 'done'` is reserved for runs where every Task closed and
-`story-close.js` reported `branchDeleted: true`. Any other terminal state is
-`blocked` (recoverable by the operator) or `failed` (unrecoverable; needs
-triage).
-
-When run interactively by an operator, the final `story-run-progress` and
-`story-close` JSON output already convey the same information; an explicit
-JSON return is optional.
+`status === 'done'` requires every Task closed and
+`branchDeleted: true`.
 
 ---
 
 ## Idempotence
 
-- `story-init.js` is idempotent — re-running it on a Story whose worktree
-  already exists prints the same `workCwd` without re-creating the worktree.
-- `story-run-progress` is upserted in place — re-running the loop replaces
-  the body without growing comment count.
-- `story-close.js` short-circuits when the Story branch is already merged
-  and deleted: it returns success with `branchDeleted: false` and skips the
-  merge replay. A re-run of `/story-execute` against an already-closed Story
-  is therefore safe.
+`story-init.js` re-prints the same `workCwd` without recreating the
+worktree. `story-run-progress` is upserted in place. `story-close.js`
+short-circuits when the Story branch is already merged and deleted. Re-
+running `/story-execute` against an already-closed Story is safe.
 
 ---
 
 ## Constraints
 
-- **Never** push the Story branch directly to `main`. `story-close.js` is the
-  only writer that integrates Story work upstream — and only into
-  `epic/<epicId>`.
-- **Never** merge across Story branches. Each Story is self-contained; cross-
-  Story dependencies are encoded as `blocked by` ticket relationships and
-  resolved by wave ordering, not by inter-Story merges.
+- **Never** push the Story branch directly to `main`. `story-close.js` is
+  the only writer that integrates upstream, and only into `epic/<epicId>`.
+- **Never** merge across Story branches; cross-Story dependencies are
+  resolved by wave ordering via `blocked by`.
 - **Always** `cd` into the `workCwd` returned by Step 0 before editing.
-- **Always** verify `git branch --show-current` outputs the expected Story
-  branch name before any commit. If it does not, **STOP**.
-- **Always** upsert a `story-run-progress` snapshot at every Task transition
-  (`pending → executing`, `executing → done|blocked`) and at every phase
-  transition (`init → implementing → closing → done|blocked`). The wave
-  aggregator's correctness depends on reading this comment, not labels.
-- **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking from
-  inside a worktree, so the merge runs in the main repo.
-- **Always** run `cascadeCompletion` after merging — GitHub cannot auto-close
-  tickets on non-default-branch merges. `story-close.js` does this for you.
-- **Always** delete the Story branch (local + remote) after merging into the
-  Epic branch. `story-close.js` does this for you.
-- **MCP fallback**: if `agent-protocols` MCP tools fail due to connection
-  errors, fall back immediately to
-  `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`
-  (which auto-cascades on `--state agent::done`). Do not leave tickets in
-  stale states.
+- **Always** verify branch identity before each commit (`task-commit.js`
+  enforces this — keep its invocation in the loop).
+- **Always** upsert a `story-run-progress` snapshot at every Task and phase
+  transition. The wave aggregator depends on this comment, not labels.
+- **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking
+  from inside a worktree.
+- **MCP fallback**: if `agent-protocols` MCP tools fail, fall back to
+  `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`.

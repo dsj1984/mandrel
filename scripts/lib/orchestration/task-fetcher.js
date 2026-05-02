@@ -52,8 +52,6 @@ export function parseTasks(tickets) {
  */
 export async function fetchTasks(provider, epicId) {
   const tickets = await provider.getTickets(epicId, { label: TYPE_TASK_LABEL });
-  if (typeof provider.primeTicketCache === 'function') {
-    provider.primeTicketCache(tickets);
-  }
+  provider.primeTicketCache(tickets);
   return parseTasks(tickets);
 }

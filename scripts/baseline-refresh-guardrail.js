@@ -34,15 +34,15 @@ import { gitSpawn, gitSync } from './lib/git-utils.js';
 
 /** Canonical baseline artifacts the guardrail watches for. Locations match
  * Epic #730 Story 5.5 (baselines unified under `/baselines/`). */
-export const BASELINE_FILES = Object.freeze([
+const BASELINE_FILES = Object.freeze([
   'baselines/lint.json',
   'baselines/crap.json',
   'baselines/maintainability.json',
 ]);
 
 export const BASELINE_REFRESH_LABEL = 'review::baseline-refresh';
-export const BASELINE_REFRESH_LABEL_COLOR = 'fbca04';
-export const BASELINE_REFRESH_LABEL_DESCRIPTION =
+const BASELINE_REFRESH_LABEL_COLOR = 'fbca04';
+const BASELINE_REFRESH_LABEL_DESCRIPTION =
   'PR refreshes a committed maintainability or CRAP baseline — requires human review.';
 
 const DEFAULT_REFRESH_TAG = 'baseline-refresh:';
@@ -263,7 +263,7 @@ export function evaluateGuardrail({
  * I/O: fetch the raw `.agentrc.json` text from `<baseRef>`.
  * Throws if the ref or file is missing so CI surfaces the setup error.
  */
-export function readBaseBranchConfigRaw(baseRef, cwd) {
+function readBaseBranchConfigRaw(baseRef, cwd) {
   return gitSync(cwd, 'show', `${baseRef}:.agentrc.json`);
 }
 
@@ -297,7 +297,7 @@ export function listChangedFiles(baseRef, cwd, gateModeOpts) {
 /**
  * I/O: fetch the PR commit log as structured `{sha, subject, body}` records.
  */
-export function listCommitsSinceBase(baseRef, cwd) {
+function listCommitsSinceBase(baseRef, cwd) {
   const format = `%H%n%s%n%b%n${COMMIT_DELIMITER}`;
   const out = gitSpawn(cwd, 'log', `${baseRef}..HEAD`, `--format=${format}`);
   if (out.status !== 0) {

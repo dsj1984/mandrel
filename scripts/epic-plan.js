@@ -54,6 +54,7 @@ import { createProvider } from './lib/provider-factory.js';
  *   runDecompose?: typeof runDecomposePhase,
  * }} opts
  */
+/* exported for tests — Story-level reuse runner reserved for future test coverage */
 export async function runSprintPlan({
   epicId,
   provider,
@@ -98,7 +99,7 @@ export async function runSprintPlan({
  * @param {{ provider: object, epicId: number }} ctx
  * @returns {Promise<{ nextPhase: string|null, checkpoint: object|null, epicLabels: string[] }>}
  */
-export async function describePlanResumePoint({ provider, epicId }) {
+async function describePlanResumePoint({ provider, epicId }) {
   const checkpointer = new PlanCheckpointer({ provider, epicId });
   const checkpoint = await checkpointer.read();
   const epic = await provider.getEpic(epicId);

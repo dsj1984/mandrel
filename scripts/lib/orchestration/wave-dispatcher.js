@@ -21,7 +21,7 @@ export const AGENT_READY_LABEL = STATE_LABELS.READY;
 
 // Bounded concurrency ceiling for wave dispatch. Mirrors the default used by
 // `batchTransitionTickets` in story-lifecycle.js.
-export const DISPATCH_CONCURRENCY = 10;
+const DISPATCH_CONCURRENCY = 10;
 
 /**
  * Collect story IDs whose tasks are not all done. These are the worktrees

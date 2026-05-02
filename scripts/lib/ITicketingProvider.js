@@ -96,6 +96,23 @@ export class ITicketingProvider {
   }
 
   /**
+   * Pre-populate the provider's per-instance ticket cache with a batch of
+   * already-hydrated tickets so subsequent `getTicket(id)` calls can be
+   * served from cache instead of issuing a REST round-trip.
+   *
+   * Default no-op: providers without a cache (e.g. the manual adapter or
+   * test stubs) need not override. Call sites can therefore invoke
+   * `provider.primeTicketCache(tickets)` unconditionally without an
+   * `instanceof` / `typeof === 'function'` capability check.
+   *
+   * @param {Array<{ id: number }>} _tickets
+   * @returns {void}
+   */
+  primeTicketCache(_tickets) {
+    // Intentional no-op. Concrete providers that maintain a cache override.
+  }
+
+  /**
    * Return the dependency graph edges for a ticket.
    * Parses `blocked by #NNN` patterns from the ticket body.
    *
