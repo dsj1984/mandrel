@@ -258,6 +258,7 @@
   "tests/detect-merges.test.js": 109.456,
   "tests/diagnose-friction.test.js": 106.038,
   "tests/dispatcher.test.js": 99.36,
+  "tests/docs/no-js-fences.test.js": 98.515,
   "tests/e2e-story-lifecycle.test.js": 101.785,
   "tests/emit-context-compact-json.test.js": 104.706,
   "tests/enforcement/cli-wrapper.test.js": 112.426,
