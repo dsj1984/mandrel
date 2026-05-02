@@ -124,6 +124,17 @@ export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
 
   const conflicts = analyzeConflicts(cwd);
 
+  // `git merge` exited non-zero but the index has no unmerged entries and
+  // no leftover conflict markers. The merge either already landed (a hook
+  // emitted a non-zero exit after the merge commit was created) or was a
+  // no-op (feature branch is already an ancestor / does not exist). In
+  // both cases there is nothing to auto-resolve and nothing to commit —
+  // attempting `git commit` here fails with "nothing to commit", which
+  // turns a successful merge into a fatal and strands story-close work.
+  if (conflicts.files === 0 && conflicts.lines === 0) {
+    return { merged: true, alreadyMerged: true };
+  }
+
   vlog('warn', 'integration', 'Merge conflict detected', {
     files: conflicts.files,
     lines: conflicts.lines,
