@@ -31,7 +31,13 @@
  *     status: 'complete' | 'blocked' | 'failed',
  *     stories: [{ id, status }],
  *     blockedStoryIds: [number],
+ *     renderedBody: string,
  *   }
+ *
+ * `renderedBody` is the markdown body that was upserted onto the Epic
+ * ticket — `/wave-execute` relays it as a chat message after fan-out so the
+ * operator (and the parent `/epic-execute`) sees the same per-Story table
+ * the cross-wave rollup will read.
  */
 
 import { readFileSync } from 'node:fs';
@@ -225,6 +231,7 @@ async function loadManifestTitleMap({ provider, epicId }) {
  *   status: 'complete' | 'blocked' | 'failed',
  *   stories: Array<{ id: number, status: string }>,
  *   blockedStoryIds: number[],
+ *   renderedBody: string,
  * }>}
  */
 export async function runWaveRecord(args = {}) {
@@ -276,7 +283,7 @@ export async function runWaveRecord(args = {}) {
     return row;
   });
 
-  await upsertWaveRunProgress({
+  const { body: renderedBody } = await upsertWaveRunProgress({
     provider,
     epicId,
     wave,
@@ -292,6 +299,7 @@ export async function runWaveRecord(args = {}) {
     status,
     stories: validated.map((r) => ({ id: r.storyId, status: r.status })),
     blockedStoryIds,
+    renderedBody,
   };
 }
 

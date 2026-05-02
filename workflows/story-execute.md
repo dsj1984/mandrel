@@ -100,6 +100,13 @@ node .agents/scripts/story-execute-prepare.js --story <storyId> --cwd .
 The CLI runs the install command when `dependenciesInstalled === 'false'`
 (default `npm ci`; override with `--install-cmd "<cmd>"`).
 
+The CLI's stdout JSON envelope carries a `renderedBody` field — the markdown
+body that was upserted onto the Story ticket. **Relay it verbatim to chat**
+so operators see the initial task table before the first commit lands. Do
+the same after every transition in Step 1 / Step 3 (the body is the
+hierarchical Story-level rollup the parent `/wave-execute` aggregator
+reads).
+
 ---
 
 ## Step 1 — Implementation (Sequential Task Loop)
@@ -134,6 +141,13 @@ For **each child Task** in the order returned by `story-init.js`:
      --story <storyId> --task <taskId> --state blocked --phase blocked \
      --blocker-comment-id <id>
    ```
+
+After each `story-task-progress.js` call, **relay the envelope's
+`renderedBody` to chat** as the Story's progress update. The body carries
+the canonical task-progress table (ID · State · Title · Commit) plus the
+phase header — operators read the same table on the Story ticket. Skip
+chat relay only when running in a non-interactive sub-agent context where
+the parent will aggregate.
 
 > Rebase pauses on conflicts → follow
 > [`helpers/_merge-conflict-template.md`](helpers/_merge-conflict-template.md).
@@ -199,12 +213,20 @@ When run as a sub-agent, return one JSON object:
   "tasksTotal": <number>,
   "branchDeleted": <boolean>,
   "blockerCommentId": <string|null>,
-  "detail": <string|undefined>
+  "detail": <string|undefined>,
+  "renderedBody": <string|undefined>
 }
 ```
 
 `status === 'done'` requires every Task closed and
 `branchDeleted: true`.
+
+`renderedBody` is the **most recent** `renderedBody` returned by
+`story-task-progress.js` (typically the `phase: 'done'` snapshot at close,
+or the `phase: 'blocked'` snapshot on a blocker). The parent
+`/wave-execute` may inline a digest of this in its wave-level Notable
+section. When run interactively (no parent), omit it — the chat already
+has the latest body relayed during Step 1 / Step 3.
 
 ---
 

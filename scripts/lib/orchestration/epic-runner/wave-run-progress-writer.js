@@ -159,9 +159,10 @@ export function renderWaveRunProgressBody(input) {
 }
 
 /**
- * Upsert the wave-run-progress structured comment on the Epic. Returns the
- * payload that was rendered so callers can return it from `/wave-execute`
- * without re-deriving it from a re-read.
+ * Upsert the wave-run-progress structured comment on the Epic. Returns
+ * `{ body, payload }` so callers can both return the payload back to
+ * `/epic-execute` and surface the rendered markdown body to chat without
+ * re-rendering.
  *
  * @param {{
  *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
@@ -171,7 +172,7 @@ export function renderWaveRunProgressBody(input) {
  *   stories: object[],
  *   updatedAt?: string,
  * }} args
- * @returns {Promise<object>} the rendered payload object.
+ * @returns {Promise<{ body: string, payload: object }>}
  */
 export async function upsertWaveRunProgress(args) {
   const { provider, ...rest } = args ?? {};
@@ -187,5 +188,5 @@ export async function upsertWaveRunProgress(args) {
     WAVE_RUN_PROGRESS_TYPE,
     body,
   );
-  return payload;
+  return { body, payload };
 }

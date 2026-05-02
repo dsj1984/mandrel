@@ -89,18 +89,19 @@ export async function runStoryClose({
   progress('INIT', `Closing Story #${storyId}...`);
 
   // Prior-state detection + --resume / --restart dispatch.
-  const { resumeFromConflict, resumeFromMerge } = dispatchRecovery({
-    cwd,
-    storyId,
-    epicId,
-    epicBranch,
-    storyBranch,
-    orchestration,
-    resume: resumeFlag,
-    restart: restartFlag,
-    progress,
-    logger: Logger,
-  });
+  const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
+    dispatchRecovery({
+      cwd,
+      storyId,
+      epicId,
+      epicBranch,
+      storyBranch,
+      orchestration,
+      resume: resumeFlag,
+      restart: restartFlag,
+      progress,
+      logger: Logger,
+    });
 
   const tasks = await fetchChildTasks(provider, storyId);
   // Prime the cache so cascadeCompletion + transitionTicketState reuse the
@@ -114,9 +115,14 @@ export async function runStoryClose({
   const phaseTimer = createPhaseTimer(storyId, prior ? { restore: prior } : {});
 
   // Pre-merge gates surface formatting / MI drift in the worktree rather
-  // than on the Epic at pre-push time.
+  // than on the Epic at pre-push time. Skipped on resume-from-* paths
+  // because the gates already ran on the original close; re-running them
+  // against a possibly-reaped worktree is wasted work and may itself fail.
   const skipValidation =
-    !!skipValidationParam || resumeFromConflict || resumeFromMerge;
+    !!skipValidationParam ||
+    resumeFromConflict ||
+    resumeFromMerge ||
+    resumeFromPostMerge;
   if (!skipValidation) {
     runPreMergeGates({
       cwd,
@@ -139,17 +145,28 @@ export async function runStoryClose({
   // marks `api-sync` once the merge lands.
   phaseTimer.mark('close');
 
-  const mergeArgs = {
-    cwd,
-    epicBranch,
-    storyBranch,
-    storyTitle: story.title,
-    storyId,
-    epicId,
-    orchestration,
-    log: progressLog,
-  };
-  await (resumeFromConflict ? runResumeMerge : runFinalizeMerge)(mergeArgs);
+  // Skip the merge runner entirely on the already-merged path — the merge
+  // already landed on `origin/epic/<id>` during the prior close attempt; the
+  // only remaining work is the post-merge pipeline (ticket transitions,
+  // cascade, health, dashboard regen).
+  if (!resumeFromPostMerge) {
+    const mergeArgs = {
+      cwd,
+      epicBranch,
+      storyBranch,
+      storyTitle: story.title,
+      storyId,
+      epicId,
+      orchestration,
+      log: progressLog,
+    };
+    await (resumeFromConflict ? runResumeMerge : runFinalizeMerge)(mergeArgs);
+  } else {
+    progress(
+      'MERGE',
+      `Skipping rebase + merge — story tip already reachable from ${epicBranch}`,
+    );
+  }
 
   const frictionEmitter = createFrictionEmitter({
     provider,

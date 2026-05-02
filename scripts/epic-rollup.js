@@ -21,7 +21,10 @@
  *   4. `upsertEpicRunProgress` renders the markdown header + per-wave table
  *      and persists it as a fenced-JSON `epic-run-progress` comment.
  *
- * Stdout: `{ epicId, currentWave, totalWaves, wavesAggregated }`.
+ * Stdout: `{ epicId, currentWave, totalWaves, wavesAggregated, renderedBody }`.
+ * `renderedBody` is the markdown body that was upserted onto the Epic ticket —
+ * `/epic-execute` relays it as a chat message after each wave so the operator
+ * sees the cross-wave rollup table without re-rendering.
  *
  * Usage:
  *   node .agents/scripts/epic-rollup.js \
@@ -65,6 +68,7 @@ wavesAggregated } as JSON on stdout.
  *   currentWave: number,
  *   totalWaves: number,
  *   wavesAggregated: number,
+ *   renderedBody: string,
  * }>}
  */
 export async function runEpicRollup({
@@ -106,7 +110,7 @@ export async function runEpicRollup({
   for (const v of seenWaves.values()) parsed.push(v);
   parsed.sort((a, b) => a.wave - b.wave);
 
-  await upsertEpicRunProgress({
+  const { body: renderedBody } = await upsertEpicRunProgress({
     provider,
     epicId,
     waves: parsed,
@@ -121,6 +125,7 @@ export async function runEpicRollup({
     currentWave,
     totalWaves,
     wavesAggregated: parsed.length,
+    renderedBody,
   };
 }
 

@@ -178,9 +178,10 @@ export function renderStoryRunProgressBody(input) {
 }
 
 /**
- * Upsert the story-run-progress structured comment on the Story. Returns the
- * payload that was rendered so callers can pass it back to `/wave-execute`
- * without re-deriving it from a re-read.
+ * Upsert the story-run-progress structured comment on the Story. Returns
+ * `{ body, payload }` so callers can both pass the payload back to
+ * `/wave-execute` and surface the rendered markdown body to chat without
+ * re-rendering.
  *
  * @param {{
  *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
@@ -190,7 +191,7 @@ export function renderStoryRunProgressBody(input) {
  *   tasks: object[],
  *   updatedAt?: string,
  * }} args
- * @returns {Promise<object>} the rendered payload object.
+ * @returns {Promise<{ body: string, payload: object }>}
  */
 export async function upsertStoryRunProgress(args) {
   const { provider, ...rest } = args ?? {};
@@ -206,5 +207,5 @@ export async function upsertStoryRunProgress(args) {
     STORY_RUN_PROGRESS_TYPE,
     body,
   );
-  return payload;
+  return { body, payload };
 }

@@ -250,6 +250,57 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
   });
 
   if (!rmResult.success) {
+    // Stage 1.5 — coverage-leak quiesce + extended fs.rm budget.
+    //
+    // On Windows the close-validation chain runs the project's c8 coverage
+    // capture. c8 keeps file descriptors open against the worktree it
+    // measured, and even after the test runner exits there is a brief
+    // window where Windows still reports `directory not empty` /
+    // `EBUSY` on `fs.rm`. The Stage 1 retry budget (5 × 200ms = 1s) is
+    // long enough for the test runner to exit but too short for Windows
+    // to release the AV / Search-indexer holds on `node_modules/.cache`
+    // and `coverage/`.
+    //
+    // Sleep one beat longer than the Windows lock recovery window
+    // (`forceRemoveBackoffMs`, default 3s), then retry `fs.rm` with a
+    // higher built-in retry budget (Node's own `maxRetries` × `retryDelay`
+    // applies *inside* one call). This lifts the wall-clock budget to
+    // ~10s on the failure path without touching the happy-path latency.
+    if (ctx.platform === 'win32') {
+      sleepSync(forceRemoveBackoffMs);
+      try {
+        await fsRm(wtPath, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 500,
+        });
+        ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
+        invalidateWorktreeCache(ctx);
+        const branchCleanup = await deleteBranchAfterReap(ctx, {
+          branch,
+          push,
+        });
+        ctx.logger.warn(
+          `worktree.reap recovered via stage-1.5 fs-rm-extended path=${wtPath} lockReason=${lastReason}`,
+        );
+        return {
+          removed: true,
+          success: true,
+          method: 'fs-rm-extended',
+          attempts: rmResult.attempts + 1,
+          ...branchCleanup,
+        };
+      } catch (err) {
+        // Fall through to Stage 2; preserve the original rmResult error
+        // for the operator-facing message so they see the lock-class
+        // signal rather than the post-quiesce one.
+        ctx.logger.warn(
+          `worktree.reap stage-1.5 fs-rm-extended failed: ${err?.message ?? err} (handing off to sweep)`,
+        );
+      }
+    }
+
     ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
     invalidateWorktreeCache(ctx);
     const errMsg =
@@ -271,6 +322,11 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
         );
       }
     }
+    // Best-effort branch cleanup even when the directory is stuck — the
+    // local ref + the remote ref are independent of the on-disk worktree
+    // and stranding them forced operators to run manual `git branch -D` /
+    // `push --delete` sequences (memory: feedback_sprint_story_close_reap).
+    const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
     ctx.logger.error(
       `OPERATOR ACTION REQUIRED: worktree reap exhausted Stage 1 (fs-rm-retry) after ${rmResult.attempts} ` +
         `attempts path=${wtPath} — deferred to plan-time worktree-sweep. Reason: ${errMsg}`,
@@ -287,54 +343,14 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
         path: wtPath,
         push,
       },
+      ...branchCleanup,
     };
   }
 
   ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
   invalidateWorktreeCache(ctx);
 
-  let branchDeleted = false;
-  let remoteBranchDeleted = false;
-  if (branch) {
-    const localDel = ctx.git.gitSpawn(ctx.repoRoot, 'branch', '-D', branch);
-    if (localDel.status === 0) {
-      branchDeleted = true;
-    } else {
-      const stderr = (localDel.stderr || localDel.stdout || '').trim();
-      if (/not found|not match|no such/i.test(stderr)) {
-        // Already gone — treat as deleted.
-        branchDeleted = true;
-      } else {
-        ctx.logger.warn(
-          `worktree.reap fs-rm-retry branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-        );
-      }
-    }
-    if (push) {
-      const remoteDel = ctx.git.gitSpawn(
-        ctx.repoRoot,
-        'push',
-        '--no-verify',
-        'origin',
-        '--delete',
-        branch,
-      );
-      if (remoteDel.status === 0) {
-        remoteBranchDeleted = true;
-      } else {
-        const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
-        if (
-          /remote ref does not exist|not found|unable to delete/i.test(stderr)
-        ) {
-          remoteBranchDeleted = true;
-        } else {
-          ctx.logger.warn(
-            `worktree.reap fs-rm-retry push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-          );
-        }
-      }
-    }
-  }
+  const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
 
   ctx.logger.warn(
     `worktree.reap recovered via fs-rm-retry path=${wtPath} attempts=${rmResult.attempts} lockReason=${lastReason}`,
@@ -344,9 +360,67 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
     success: true,
     method: 'fs-rm-retry',
     attempts: rmResult.attempts,
-    branchDeleted,
-    remoteBranchDeleted,
+    ...branchCleanup,
   };
+}
+
+/**
+ * Delete the story branch locally (and optionally on origin) after a reap
+ * attempt. Pure best-effort — every failure mode is logged and surfaces
+ * as `branchDeleted: false` rather than throwing, because branch cleanup
+ * is the *follow-up* to a reap, not a precondition for declaring the
+ * post-merge work complete.
+ *
+ * Returns `{ branchDeleted, remoteBranchDeleted }`. Both default to `false`
+ * when `branch` is falsy. `branchDeleted: true` includes the "already gone"
+ * outcome (refs-not-found from a prior partial reap) — semantically the
+ * caller can treat the story branch as cleared in either case.
+ */
+async function deleteBranchAfterReap(ctx, { branch, push }) {
+  if (!branch) return { branchDeleted: false, remoteBranchDeleted: false };
+
+  let branchDeleted = false;
+  const localDel = ctx.git.gitSpawn(ctx.repoRoot, 'branch', '-D', branch);
+  if (localDel.status === 0) {
+    branchDeleted = true;
+  } else {
+    const stderr = (localDel.stderr || localDel.stdout || '').trim();
+    if (/not found|not match|no such/i.test(stderr)) {
+      branchDeleted = true;
+    } else {
+      ctx.logger.warn(
+        `worktree.reap branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+      );
+    }
+  }
+
+  let remoteBranchDeleted = false;
+  if (push) {
+    const remoteDel = ctx.git.gitSpawn(
+      ctx.repoRoot,
+      'push',
+      '--no-verify',
+      'origin',
+      '--delete',
+      branch,
+    );
+    if (remoteDel.status === 0) {
+      remoteBranchDeleted = true;
+    } else {
+      const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
+      if (
+        /remote ref does not exist|not found|unable to delete/i.test(stderr)
+      ) {
+        remoteBranchDeleted = true;
+      } else {
+        ctx.logger.warn(
+          `worktree.reap push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+        );
+      }
+    }
+  }
+
+  return { branchDeleted, remoteBranchDeleted };
 }
 
 export async function reap(ctx, storyId, opts = {}) {
