@@ -39,15 +39,10 @@ import {
 } from './lib/close-validation.js';
 import {
   getBaselines,
-  getRunners,
   PROJECT_ROOT,
   resolveConfig,
   resolveWorkingPath,
 } from './lib/config-resolver.js';
-import {
-  acquireEpicMergeLock,
-  releaseEpicMergeLock,
-} from './lib/epic-merge-lock.js';
 import { mergeFeatureBranch } from './lib/git-merge-orchestrator.js';
 import {
   getEpicBranch,
@@ -58,13 +53,23 @@ import {
 import { Logger } from './lib/Logger.js';
 import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
 import { runPostMergePipeline } from './lib/orchestration/post-merge-pipeline.js';
+import {
+  drainPendingCleanupAfterClose,
+  getCloseDrainStatus,
+  reconcileCleanupState,
+} from './lib/orchestration/story-close/cleanup-reconciler.js';
+import {
+  buildResumeMergeCommitMsg,
+  describeResumePushFailure,
+  renderPhaseTimingsCommentBody,
+} from './lib/orchestration/story-close/comment-bodies.js';
+import {
+  pushEpicAndHandleConflicts,
+  withEpicMergeLock,
+} from './lib/orchestration/story-close/merge-runner.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
-import {
-  PushRetryConflictError,
-  pushEpicWithRetry,
-} from './lib/push-epic-retry.js';
 import {
   fetchChildTasks,
   resolveStoryHierarchy,
@@ -74,102 +79,26 @@ import {
   clearPhaseTimerState,
   loadPhaseTimerState,
 } from './lib/util/phase-timer-state.js';
-import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
 import { notify } from './notify.js';
+
+// Re-exports preserve the pre-#955 import surface for `tests/story-close.test.js`
+// and any other consumer that imports these helpers from `story-close.js`. The
+// re-exports get retired in Story #956 (Wave 2 trim-down) once tests migrate
+// to the new module paths.
+export {
+  buildResumeMergeCommitMsg,
+  describeResumePushFailure,
+  drainPendingCleanupAfterClose,
+  getCloseDrainStatus,
+  reconcileCleanupState,
+  renderPhaseTimingsCommentBody,
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const progress = Logger.createProgress('story-close', { stderr: true });
-
-function resolveWorktreeRoot(repoRoot, orchestration) {
-  const configuredRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
-  return path.join(repoRoot, configuredRoot);
-}
-
-export async function drainPendingCleanupAfterClose({
-  repoRoot,
-  orchestration,
-  progress: progressFn,
-  logger = Logger,
-  git = { gitSpawn },
-  drainFn = forceDrainPendingCleanup,
-} = {}) {
-  const wtConfig = orchestration?.worktreeIsolation;
-  if (!wtConfig?.enabled) return null;
-  const worktreeRoot = resolveWorktreeRoot(repoRoot, orchestration);
-  const result = await drainFn({
-    repoRoot,
-    worktreeRoot,
-    git,
-    logger,
-  });
-  const totalResolved =
-    (result.drained?.length ?? 0) +
-    (result.persistent?.length ?? 0) +
-    (result.stillPending?.length ?? 0);
-  if (totalResolved > 0) {
-    (progressFn ?? progress)(
-      'WORKTREE',
-      `Pending cleanup drain: drained=${result.drained.length}, persistent=${result.persistent.length}, stillPending=${result.stillPending.length}`,
-    );
-  }
-  return { worktreeRoot, ...result };
-}
-
-export function reconcileCleanupState({
-  storyId,
-  worktreeReap,
-  branchCleanup,
-  pendingCleanupDrain,
-}) {
-  const normalizedStoryId = Number(storyId);
-  const nextWorktreeReap = worktreeReap ? { ...worktreeReap } : null;
-  const nextBranchCleanup = branchCleanup ? { ...branchCleanup } : null;
-  if (!pendingCleanupDrain || !nextWorktreeReap || !nextBranchCleanup) {
-    return { worktreeReap: nextWorktreeReap, branchCleanup: nextBranchCleanup };
-  }
-
-  const drainedEntry =
-    pendingCleanupDrain.drainedDetails?.find(
-      (entry) => Number(entry.storyId) === normalizedStoryId,
-    ) ?? null;
-  const isStillPending =
-    pendingCleanupDrain.stillPending?.includes(normalizedStoryId) ?? false;
-  const isPersistent =
-    pendingCleanupDrain.persistent?.includes(normalizedStoryId) ?? false;
-
-  if (drainedEntry) {
-    if (drainedEntry.localBranchDeleted !== null) {
-      nextBranchCleanup.localDeleted =
-        nextBranchCleanup.localDeleted || !!drainedEntry.localBranchDeleted;
-    }
-    if (drainedEntry.remoteBranchDeleted !== null) {
-      nextBranchCleanup.remoteDeleted =
-        nextBranchCleanup.remoteDeleted || !!drainedEntry.remoteBranchDeleted;
-    }
-    nextWorktreeReap.status =
-      nextWorktreeReap.status === 'deferred-to-sweep'
-        ? 'removed-after-drain'
-        : nextWorktreeReap.status;
-    nextWorktreeReap.pendingCleanup = null;
-    nextWorktreeReap.closeDrainStatus = 'drained';
-    return {
-      worktreeReap: nextWorktreeReap,
-      branchCleanup: nextBranchCleanup,
-    };
-  }
-
-  if (nextWorktreeReap.status === 'deferred-to-sweep') {
-    nextWorktreeReap.closeDrainStatus = getCloseDrainStatus({
-      isPersistent,
-      isStillPending,
-    });
-  }
-
-  return { worktreeReap: nextWorktreeReap, branchCleanup: nextBranchCleanup };
-}
 
 /**
  * Pre-flight check that refuses to close while the operator's shell is still
@@ -213,35 +142,6 @@ export function checkCdOutGuard({
       `   Main repo:    ${mainCwd}\n` +
       `   Run instead:  cd "${mainCwd}" && node .agents/scripts/story-close.js --story ${storyId}`,
   };
-}
-
-/**
- * Resolve the deferred-to-sweep close-drain status when the current Story's
- * pending-cleanup entry was *not* drained on this close. Three outcomes:
- *
- *   - `'persistent'`   — the entry has hit the persistent-lock threshold
- *                        (`MAX_SWEEP_ATTEMPTS` reached). `isPersistent` wins
- *                        regardless of whether the entry is also still in
- *                        the live pending list, because operator-action is
- *                        the authoritative outcome.
- *   - `'still-pending'`— the entry is in the pending list but has not yet
- *                        crossed the persistent threshold. The next sweep
- *                        run will retry.
- *   - `'not-found'`    — the entry is in neither list. Either the drain
- *                        cleared it before this reconcile saw it, or this
- *                        Story never had a pending entry. Treated as a
- *                        clean state for downstream callers.
- *
- * Extracted from a nested ternary so the truth table is greppable and each
- * branch carries an explicit name.
- *
- * @param {{ isPersistent: boolean, isStillPending: boolean }} flags
- * @returns {'persistent' | 'still-pending' | 'not-found'}
- */
-export function getCloseDrainStatus({ isPersistent, isStillPending }) {
-  if (isPersistent) return 'persistent';
-  if (isStillPending) return 'still-pending';
-  return 'not-found';
 }
 
 // ---------------------------------------------------------------------------
@@ -318,163 +218,86 @@ async function finalizeMerge(
 ) {
   // Acquire the per-Epic filesystem merge lock before any rebase/merge/push
   // activity so two concurrent story closures cannot race on the Epic
-  // branch. Lock is always released in the `finally` block. Acquisition
-  // failure must halt hard — prior to this fix, the catch called
-  // `Logger.fatal` and relied on its internal `process.exit(1)` to stop the
-  // run, which silently fell through under a mocked `process.exit`. Throwing
-  // ensures the rebase/merge/push block below cannot run without the lock.
-  progress('LOCK', `Acquiring epic-merge lock for epic #${epicId}...`);
-  let lockHandle;
-  try {
-    lockHandle = await acquireEpicMergeLock(epicId, {
+  // branch. The helper always releases in `finally` and surfaces a single,
+  // operator-actionable Error on acquisition failure (mentions the lock
+  // path so a stale lock can be cleared by hand).
+  await withEpicMergeLock(
+    epicId,
+    {
       repoRoot: cwd,
       timeoutMs: 60_000,
-    });
-  } catch (err) {
-    throw new Error(
-      `Could not acquire epic-merge lock for epic #${epicId}: ${err.message}. ` +
-        `Another story closure may be in progress, or a stale lock is present at ` +
-        `${lockPathDisplay(cwd, epicId)} — inspect and remove it manually if no ` +
-        `other process is running.`,
-    );
-  }
-  progress('LOCK', `🔒 Acquired ${path.basename(lockHandle.filePath)}`);
+      log: (tag, msg) => progress(tag, msg),
+    },
+    async () => {
+      rebaseStoryOnEpic({
+        orchestration,
+        storyId,
+        epicBranch,
+        storyBranch,
+        repoRoot: cwd,
+      });
 
-  try {
-    rebaseStoryOnEpic({
-      orchestration,
-      storyId,
-      epicBranch,
-      storyBranch,
-      repoRoot: cwd,
-    });
+      progress('GIT', `Checking out ${epicBranch}...`);
+      gitSync(cwd, 'checkout', epicBranch);
+      gitSpawn(cwd, 'pull', '--rebase', 'origin', epicBranch);
 
-    progress('GIT', `Checking out ${epicBranch}...`);
-    gitSync(cwd, 'checkout', epicBranch);
-    gitSpawn(cwd, 'pull', '--rebase', 'origin', epicBranch);
+      progress('GIT', `Merging ${storyBranch} into ${epicBranch} (--no-ff)...`);
+      const mergeMsg = `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
+      const vlog = (_level, _ctx, msg, meta) => {
+        const tail = meta ? ` ${JSON.stringify(meta)}` : '';
+        Logger.error(`[merge] ${msg}${tail}`);
+      };
+      const result = mergeFeatureBranch(cwd, storyBranch, vlog, {
+        message: mergeMsg,
+      });
 
-    progress('GIT', `Merging ${storyBranch} into ${epicBranch} (--no-ff)...`);
-    const mergeMsg = `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
-    const vlog = (_level, _ctx, msg, meta) => {
-      const tail = meta ? ` ${JSON.stringify(meta)}` : '';
-      Logger.error(`[merge] ${msg}${tail}`);
-    };
-    const result = mergeFeatureBranch(cwd, storyBranch, vlog, {
-      message: mergeMsg,
-    });
-
-    if (!result.merged && result.major) {
-      Logger.fatal(
-        `Major merge conflict on story close: ` +
-          `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
-          `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
-          `Merge has been aborted. Resolve manually on ${epicBranch}, then ` +
-          `re-run this script.`,
-      );
-    }
-    if (result.autoResolved) {
-      progress(
-        'GIT',
-        `✅ Merge completed with auto-resolved minor conflicts ` +
-          `(${result.conflicts.files} file(s) resolved to theirs)`,
-      );
-      for (const f of result.autoResolvedFiles ?? []) {
-        progress(
-          'GIT',
-          `  ↳ auto-resolved ${f.file} (${f.discardedLines} base line(s) discarded; trailer in merge commit)`,
+      if (!result.merged && result.major) {
+        Logger.fatal(
+          `Major merge conflict on story close: ` +
+            `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
+            `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
+            `Merge has been aborted. Resolve manually on ${epicBranch}, then ` +
+            `re-run this script.`,
         );
       }
-    } else {
-      progress('GIT', '✅ Merge successful');
-    }
+      if (result.autoResolved) {
+        progress(
+          'GIT',
+          `✅ Merge completed with auto-resolved minor conflicts ` +
+            `(${result.conflicts.files} file(s) resolved to theirs)`,
+        );
+        for (const f of result.autoResolvedFiles ?? []) {
+          progress(
+            'GIT',
+            `  ↳ auto-resolved ${f.file} (${f.discardedLines} base line(s) discarded; trailer in merge commit)`,
+          );
+        }
+      } else {
+        progress('GIT', '✅ Merge successful');
+      }
 
-    progress('GIT', `Pushing ${epicBranch}...`);
-    let pushOutcome;
-    try {
-      pushOutcome = await pushEpicWithRetry({
+      progress('GIT', `Pushing ${epicBranch}...`);
+      const pushOutcome = await pushEpicAndHandleConflicts({
         cwd,
         epicBranch,
         storyBranch,
-        closeRetry: getRunners(orchestration).closeRetry,
-        git: { gitSpawn },
+        orchestration,
         log: (msg) => progress('GIT', msg),
+        mode: 'finalize',
       });
-    } catch (err) {
-      if (err instanceof PushRetryConflictError) {
-        Logger.fatal(err.message);
+      if (pushOutcome.attempts > 1) {
+        progress(
+          'GIT',
+          `✅ Push succeeded on attempt ${pushOutcome.attempts} after sibling session landed on ${epicBranch}`,
+        );
       }
-      throw err;
-    }
-    if (!pushOutcome.ok) {
-      const reasonLabel =
-        pushOutcome.reason === 'retry-exhausted'
-          ? `retries exhausted after ${pushOutcome.attempts} attempt(s)`
-          : pushOutcome.reason;
-      Logger.fatal(
-        `Push failed (${reasonLabel}): ${pushOutcome.result?.stderr || pushOutcome.result?.stdout || 'unknown'}`,
-      );
-    }
-    if (pushOutcome.attempts > 1) {
-      progress(
-        'GIT',
-        `✅ Push succeeded on attempt ${pushOutcome.attempts} after sibling session landed on ${epicBranch}`,
-      );
-    }
 
-    // Branch cleanup is deferred to after worktree reap: git refuses to
-    // delete a branch that's still "checked out" by a worktree, and the
-    // per-story worktree still has storyBranch checked out at this point.
-    // See runStoryClose for the ordering.
-  } finally {
-    releaseEpicMergeLock(lockHandle);
-    progress('LOCK', '🔓 Released epic-merge lock');
-  }
-}
-
-function lockPathDisplay(cwd, epicId) {
-  return path.join(cwd, '.git', `epic-${epicId}.merge.lock`);
-}
-
-/**
- * Render the `phase-timings` comment body.
- *
- * The payload is emitted inside a fenced ```json block so the epic-runner
- * progress reporter can parse it back out with a single regex + JSON.parse
- * rather than relying on a bespoke marker format. Schema matches tech
- * spec #555 §Data Models (`{ kind, storyId, totalMs, phases }`).
- */
-export function renderPhaseTimingsCommentBody(summary) {
-  const payload = {
-    kind: 'phase-timings',
-    storyId: summary.storyId,
-    totalMs: summary.totalMs,
-    phases: summary.phases,
-  };
-  return `### Phase timings — story #${summary.storyId}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
-}
-
-/**
- * Pure: build the conventional-commit subject the resume path uses to
- * finalize a partial-merge commit. Exported for tests.
- */
-export function buildResumeMergeCommitMsg(storyTitle, storyId) {
-  const lc = storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1);
-  return `feat: ${lc} (resolves #${storyId})`;
-}
-
-/**
- * Pure: classify a `pushEpicWithRetry` outcome into the operator-facing
- * fatal-error message. Returns `null` when the push was ok.
- */
-export function describeResumePushFailure(pushOutcome) {
-  if (pushOutcome.ok) return null;
-  const reasonLabel =
-    pushOutcome.reason === 'retry-exhausted'
-      ? `retries exhausted after ${pushOutcome.attempts} attempt(s)`
-      : pushOutcome.reason;
-  const detail =
-    pushOutcome.result?.stderr || pushOutcome.result?.stdout || 'unknown';
-  return `Push failed (${reasonLabel}): ${detail}`;
+      // Branch cleanup is deferred to after worktree reap: git refuses to
+      // delete a branch that's still "checked out" by a worktree, and the
+      // per-story worktree still has storyBranch checked out at this point.
+      // See runStoryClose for the ordering.
+    },
+  );
 }
 
 async function finalizeMergeIfPending({
@@ -516,22 +339,14 @@ async function pushEpicAfterResume({
   orchestration,
 }) {
   progress('GIT', `Pushing ${epicBranch}...`);
-  let pushOutcome;
-  try {
-    pushOutcome = await pushEpicWithRetry({
-      cwd,
-      epicBranch,
-      storyBranch,
-      closeRetry: getRunners(orchestration).closeRetry,
-      git: { gitSpawn },
-      log: (msg) => progress('GIT', msg),
-    });
-  } catch (err) {
-    if (err instanceof PushRetryConflictError) Logger.fatal(err.message);
-    throw err;
-  }
-  const fatal = describeResumePushFailure(pushOutcome);
-  if (fatal) Logger.fatal(fatal);
+  await pushEpicAndHandleConflicts({
+    cwd,
+    epicBranch,
+    storyBranch,
+    orchestration,
+    log: (msg) => progress('GIT', msg),
+    mode: 'resume',
+  });
 }
 
 /**
@@ -548,34 +363,29 @@ async function completeInProgressMerge({
   epicId,
   orchestration,
 }) {
-  let lockHandle;
-  try {
-    progress('LOCK', `Acquiring epic-merge lock for epic #${epicId}...`);
-    lockHandle = await acquireEpicMergeLock(epicId, {
+  await withEpicMergeLock(
+    epicId,
+    {
       repoRoot: cwd,
       timeoutMs: 60_000,
-    });
-    progress('LOCK', `🔒 Acquired ${path.basename(lockHandle.filePath)}`);
-
-    await finalizeMergeIfPending({
-      cwd,
-      epicBranch,
-      storyBranch,
-      storyTitle,
-      storyId,
-    });
-    await pushEpicAfterResume({
-      cwd,
-      epicBranch,
-      storyBranch,
-      orchestration,
-    });
-  } finally {
-    if (lockHandle) {
-      releaseEpicMergeLock(lockHandle);
-      progress('LOCK', '🔓 Released epic-merge lock');
-    }
-  }
+      log: (tag, msg) => progress(tag, msg),
+    },
+    async () => {
+      await finalizeMergeIfPending({
+        cwd,
+        epicBranch,
+        storyBranch,
+        storyTitle,
+        storyId,
+      });
+      await pushEpicAfterResume({
+        cwd,
+        epicBranch,
+        storyBranch,
+        orchestration,
+      });
+    },
+  );
 }
 
 /**
