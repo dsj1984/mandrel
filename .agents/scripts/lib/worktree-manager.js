@@ -25,11 +25,7 @@ import {
   DEFAULT_WORKSPACE_FILES,
   provision as provisionWorkspace,
 } from './workspace-provisioner.js';
-import {
-  copyAgentsFromRoot,
-  isAgentsSubmodule,
-  removeCopiedAgents,
-} from './worktree/bootstrapper.js';
+import { copyAgentsFromRoot } from './worktree/bootstrapper.js';
 import {
   maybeWarnWindowsPath,
   parseWorktreePorcelain,
@@ -131,7 +127,39 @@ export class WorktreeManager {
           },
           wtPath,
         ),
-      copyBootstrapFiles: (wtPath) => this._provisionWorkspace(wtPath),
+      copyBootstrapFiles: (wtPath) => {
+        const files = this.config?.bootstrapFiles;
+        if (!Array.isArray(files) || files.length === 0) return;
+        const wrapped = {
+          info: (m) =>
+            this.logger.info(
+              String(m).replace(
+                /^workspace-provisioner:/,
+                'worktree.bootstrap',
+              ),
+            ),
+          warn: (m) =>
+            this.logger.warn(
+              String(m).replace(
+                /^workspace-provisioner:/,
+                'worktree.bootstrap',
+              ),
+            ),
+          error: (m) =>
+            this.logger.error(
+              String(m).replace(
+                /^workspace-provisioner:/,
+                'worktree.bootstrap',
+              ),
+            ),
+        };
+        return provisionWorkspace({
+          sourceRoot: this.repoRoot,
+          targetWorktree: wtPath,
+          files,
+          logger: wrapped,
+        });
+      },
       copyAgentsFromRoot: (wtPath) =>
         copyAgentsFromRoot(
           {
@@ -220,73 +248,5 @@ export class WorktreeManager {
       return { removed: [], skipped: [], skippedReason: 'isolation-disabled' };
     }
     return sweepStaleLocks(this._ctx(), opts);
-  }
-
-  // ── Backwards-compat delegates for tests that probe private helpers ──
-  // These intentionally mirror the pre-split class method names so the
-  // existing worktree-manager test suite keeps working without edits.
-
-  _copyBootstrapFiles(wtPath) {
-    return this._provisionWorkspace(wtPath);
-  }
-
-  /**
-   * Delegate workspace-file provisioning to the central provisioner. The
-   * logger is wrapped so existing `worktree.bootstrap …` log prefixes are
-   * preserved for operators and log scrapers.
-   */
-  _provisionWorkspace(wtPath) {
-    const files = this.config?.bootstrapFiles;
-    if (!Array.isArray(files) || files.length === 0) return;
-    const wrapped = {
-      info: (m) =>
-        this.logger.info(
-          String(m).replace(/^workspace-provisioner:/, 'worktree.bootstrap'),
-        ),
-      warn: (m) =>
-        this.logger.warn(
-          String(m).replace(/^workspace-provisioner:/, 'worktree.bootstrap'),
-        ),
-      error: (m) =>
-        this.logger.error(
-          String(m).replace(/^workspace-provisioner:/, 'worktree.bootstrap'),
-        ),
-    };
-    return provisionWorkspace({
-      sourceRoot: this.repoRoot,
-      targetWorktree: wtPath,
-      files,
-      logger: wrapped,
-    });
-  }
-
-  _copyAgentsFromRoot(wtPath) {
-    return copyAgentsFromRoot(
-      {
-        repoRoot: this.repoRoot,
-        logger: this.logger,
-        git: this.git,
-        platform: this.platform,
-        isAgentsSubmodule: () => this._isAgentsSubmodule(),
-      },
-      wtPath,
-    );
-  }
-
-  _removeCopiedAgents(wtPath) {
-    return removeCopiedAgents(
-      {
-        repoRoot: this.repoRoot,
-        logger: this.logger,
-        git: this.git,
-        platform: this.platform,
-        isAgentsSubmodule: () => this._isAgentsSubmodule(),
-      },
-      wtPath,
-    );
-  }
-
-  _isAgentsSubmodule() {
-    return isAgentsSubmodule(this.repoRoot);
   }
 }
