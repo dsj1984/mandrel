@@ -103,12 +103,12 @@ export async function runStoryInit({
   const config = injectedConfig || resolveConfig({ cwd });
   const { settings, orchestration } = config;
   const provider = injectedProvider || createProvider(orchestration);
-  const notifyFn = (ticketId, payload) =>
-    notify(ticketId, payload, { orchestration, provider });
+  const notifyFn = (ticketId, payload, opts = {}) =>
+    notify(ticketId, payload, { orchestration, provider, ...opts });
   // Per-Task transition hook: keeps the webhook fanout intact (so operators
-  // running with `notifications.minLevel: low` still see one webhook per
-  // Task) but suppresses the GitHub-comment surface. The Story-level
-  // summary below replaces the N per-Task comments with a single message.
+  // running with `webhookMinLevel: low` still see one webhook per Task) but
+  // suppresses the GitHub-comment surface. The Story-level summary below
+  // replaces the N per-Task comments with a single message.
   const notifyWebhookOnly = (ticketId, payload) =>
     notify(ticketId, payload, {
       orchestration,
@@ -297,8 +297,8 @@ export async function runStoryInit({
 
     // Replace the N per-Task `agent::executing` comments (suppressed above
     // via `notifyWebhookOnly`) with one Story-level summary. Routed through
-    // the standard `notifyFn` so `commentMinLevel` / `minLevel` still gate
-    // delivery — at the default `medium` threshold this is a no-op.
+    // the standard `notifyFn` so `commentMinLevel` still gates delivery —
+    // at the default `medium` threshold this is a no-op.
     try {
       await postBatchedTransitionSummary({
         notify: notifyFn,

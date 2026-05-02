@@ -83,8 +83,8 @@ export async function runStoryClose({
     injectedProvider,
   });
 
-  const notifyFn = (ticketId, payload) =>
-    notify(ticketId, payload, { orchestration, provider });
+  const notifyFn = (ticketId, payload, opts = {}) =>
+    notify(ticketId, payload, { orchestration, provider, ...opts });
 
   progress('INIT', `Closing Story #${storyId}...`);
 

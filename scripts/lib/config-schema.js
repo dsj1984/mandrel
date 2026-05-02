@@ -36,19 +36,29 @@ const NOTIFICATIONS_SCHEMA = {
   type: 'object',
   properties: {
     mentionOperator: { type: 'boolean' },
-    // Unified severity filter for both manual `notify()` calls and the
-    // auto-fired ticket-state-transition notifications dispatched by
-    // `transitionTicketState`. Events below this threshold are dropped
-    // from every channel. Default: `medium`.
+    // Per-channel severity gates. Each channel filters independently — there
+    // is no fallback chain. Events below the channel's threshold are dropped
+    // for that channel only. All three are mandatory; default `medium`.
     //
-    // Severity assignment for state-transition events:
-    //   - Story or Epic reaching `agent::done` → `medium`
-    //   - All other transitions (intermediate, task-level)  → `low`
-    minLevel: {
+    // Severity assignment by event hierarchy:
+    //   - Task transitions, `story-run-progress` upserts → `low`
+    //   - Story state transitions, `wave-run-progress`,
+    //     `epic-run-progress`, epic milestones                  → `medium`
+    //   - Epic blockers, halts, action-required gates       → `high`
+    commentMinLevel: {
+      type: 'string',
+      enum: ['low', 'medium', 'high'],
+    },
+    webhookMinLevel: {
+      type: 'string',
+      enum: ['low', 'medium', 'high'],
+    },
+    terminalMinLevel: {
       type: 'string',
       enum: ['low', 'medium', 'high'],
     },
   },
+  required: ['commentMinLevel', 'webhookMinLevel', 'terminalMinLevel'],
   additionalProperties: false,
 };
 

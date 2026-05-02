@@ -50,6 +50,7 @@ import { upsertWaveRunProgress } from './lib/orchestration/epic-runner/wave-run-
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/wave-record.js \\
   --epic <EPIC_ID> --wave <N> [--concurrency-cap <N>] \\
@@ -283,12 +284,22 @@ export async function runWaveRecord(args = {}) {
     return row;
   });
 
+  const notifyFn = injectedProvider
+    ? null
+    : (ticketId, payload, opts = {}) =>
+        notify(ticketId, payload, {
+          orchestration: config.orchestration,
+          provider,
+          ...opts,
+        });
+
   const { body: renderedBody } = await upsertWaveRunProgress({
     provider,
     epicId,
     wave,
     concurrencyCap,
     stories: rows,
+    notify: notifyFn,
   });
 
   const { status, blockedStoryIds } = aggregateWaveStatus(validated);

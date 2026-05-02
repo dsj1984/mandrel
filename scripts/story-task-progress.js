@@ -51,6 +51,7 @@ import {
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { notify } from './notify.js';
 
 const VALID_TASK_STATES = new Set(['executing', 'done', 'blocked']);
 
@@ -260,8 +261,16 @@ export async function runStoryTaskProgress(args) {
     );
   }
 
-  const provider =
-    providerOverride ?? createProvider(resolveConfig().orchestration);
+  const config = providerOverride ? null : resolveConfig();
+  const provider = providerOverride ?? createProvider(config.orchestration);
+  const notifyFn = providerOverride
+    ? null
+    : (ticketId, payload, opts = {}) =>
+        notify(ticketId, payload, {
+          orchestration: config.orchestration,
+          provider,
+          ...opts,
+        });
 
   const cachePath = cachePathOverride ?? resolveCachePath(storyId, cwd);
 
@@ -299,6 +308,7 @@ export async function runStoryTaskProgress(args) {
     branch,
     phase,
     tasks: next.tasks,
+    notify: notifyFn,
   });
 
   return { ok: true, taskState: state, phase, payload, renderedBody };

@@ -329,12 +329,20 @@
       "type": "object",
       "properties": {
         "mentionOperator": { "type": "boolean" },
-        "minLevel": { "type": "string", "enum": ["low", "medium", "high"] },
         "commentMinLevel": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "webhookMinLevel": {
+          "type": "string",
+          "enum": ["low", "medium", "high"]
+        },
+        "terminalMinLevel": {
           "type": "string",
           "enum": ["low", "medium", "high"]
         }
       },
+      "required": ["commentMinLevel", "webhookMinLevel", "terminalMinLevel"],
       "additionalProperties": false
     },
     "worktreeIsolation": {

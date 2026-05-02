@@ -5,7 +5,8 @@
  * `agent::blocked` appear on the Epic), the handler:
  *   1. Flips the Epic to `agent::blocked` (authoritative label).
  *   2. Posts a structured friction comment describing the blocker.
- *   3. Fires the notification hook (fire-and-forget).
+ *   3. Fires `notify()` at `high` severity with the typed envelope
+ *      (`event: 'epic-blocked'`, `level: 'epic'`) — fire-and-forget.
  *   4. Halts dispatch of the next wave but lets wave-N in-flight stories
  *      finish naturally.
  *   5. Waits for the Epic label to transition back to `agent::executing`
@@ -26,7 +27,7 @@ export class BlockerHandler {
    * @param {{
    *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
    *   epicId: number,
-   *   notificationHook?: { fire: Function },
+   *   notify?: (ticketId: number, payload: object, opts?: object) => Promise<unknown>,
    *   labelFetcher?: (id: number) => Promise<string[]>,
    *   pollIntervalMs?: number,
    *   logger?: { info: Function, warn: Function, error: Function },
@@ -41,7 +42,7 @@ export class BlockerHandler {
     if (!provider) throw new TypeError('BlockerHandler requires a provider');
     this.provider = provider;
     this.epicId = epicId;
-    this.notificationHook = opts.notificationHook ?? { fire: async () => {} };
+    this.notify = typeof opts.notify === 'function' ? opts.notify : null;
     this.labelFetcher =
       opts.labelFetcher ??
       (async (id) => (await provider.getTicket(id)).labels ?? []);
@@ -66,21 +67,31 @@ export class BlockerHandler {
    */
   async halt(info, signal) {
     await this.#markBlocked(info);
-    try {
-      const storyPart = info.storyId ? ` (story #${info.storyId})` : '';
-      await this.notificationHook.fire({
-        text: `[epic-blocked] Epic #${this.epicId}${storyPart}: ${info.reason}`,
-      });
-    } catch (err) {
-      this.logger.warn?.(
-        `[BlockerHandler] notification hook failed (swallowed): ${err?.message ?? err}${this.#journalSuffix()}`,
-      );
-      await this.errorJournal?.record({
-        module: 'BlockerHandler',
-        op: 'notificationHook.fire',
-        error: err,
-        recovery: 'swallowed',
-      });
+    if (this.notify) {
+      try {
+        const storyPart = info.storyId ? ` (story #${info.storyId})` : '';
+        await this.notify(
+          this.epicId,
+          {
+            severity: 'high',
+            message: `🚨 Action Required: Epic #${this.epicId}${storyPart} blocked: ${info.reason}`,
+            event: 'epic-blocked',
+            level: 'epic',
+            epicId: this.epicId,
+          },
+          { skipComment: true },
+        );
+      } catch (err) {
+        this.logger.warn?.(
+          `[BlockerHandler] notify dispatch failed (swallowed): ${err?.message ?? err}${this.#journalSuffix()}`,
+        );
+        await this.errorJournal?.record({
+          module: 'BlockerHandler',
+          op: 'notify',
+          error: err,
+          recovery: 'swallowed',
+        });
+      }
     }
 
     // Wait for operator to flip the label back. The outer orchestrator is

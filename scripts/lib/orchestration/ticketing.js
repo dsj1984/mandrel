@@ -116,7 +116,10 @@ export function assertValidStructuredCommentType(type) {
  *   stub matching its shape). When provided, a state-transition
  *   notification fires after a successful transition. Story/Epic →
  *   `agent::done` events are dispatched as `medium`; all other transitions
- *   are `low` and filtered out at the default `notifications.minLevel`.
+ *   are `low` and filtered out at the default `medium` channel thresholds.
+ *   The dispatched payload carries the typed envelope fields
+ *   (`event: 'state-transition'`, `level: 'task'|'story'|'wave'|'epic'`,
+ *   `epicId`) for routable webhook subscribers.
  */
 export async function transitionTicketState(
   provider,
@@ -206,13 +209,23 @@ export async function transitionTicketState(
     // the logger preserves operator visibility — the previous empty-handler
     // .catch swallowed network blips and webhook 5xxs without any signal.
     const targetId = epicId ?? ticketId;
-    Promise.resolve(opts.notify(targetId, { severity, message })).catch(
-      (err) => {
-        Logger.warn(
-          `[Ticketing] notify dispatch failed for #${targetId}: ${err?.message ?? err}`,
-        );
-      },
-    );
+    const level =
+      ticketType === 'epic' || ticketType === 'wave' || ticketType === 'story'
+        ? ticketType
+        : 'task';
+    Promise.resolve(
+      opts.notify(targetId, {
+        severity,
+        message,
+        event: 'state-transition',
+        level,
+        epicId: epicId ?? undefined,
+      }),
+    ).catch((err) => {
+      Logger.warn(
+        `[Ticketing] notify dispatch failed for #${targetId}: ${err?.message ?? err}`,
+      );
+    });
   }
 }
 
