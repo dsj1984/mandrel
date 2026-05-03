@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.1] - 2026-05-03
+
+### Cross-wave rollup, cascade safety, and wave verification
+
+Four targeted fixes against gaps surfaced during a recent epic run. None
+change public APIs.
+
+- **`wave-run-progress` is now keyed per wave.** Each wave's snapshot
+  carries a `wave="N"` discriminator on its structured-comment marker, so
+  a later wave no longer overwrites the prior wave's comment. Operators
+  watching the cumulative `epic-run-progress` rollup table see every wave's
+  rows instead of only the most recent one. Reading code (`epic-rollup.js`,
+  `parseWaveRunProgressComment`) is unchanged — the fix lives in the
+  upsert path.
+- **Cascade-close re-fetches sibling state.** Before flipping a Feature to
+  `agent::done`, the cascade now invalidates each sibling's ticket cache
+  and reads it back fresh. A stale cache entry showing a sibling as
+  closed-when-actually-open can no longer let the cascade close the parent
+  prematurely. Cost is bounded — one HTTP read per sibling, only on the
+  cascade hot path.
+- **`/wave-execute` verifies each Story actually closed.** Before
+  classifying the wave as `complete`, `wave-record.js` re-reads each Story
+  ticket whose sub-agent claimed `done` and downgrades the row to
+  `failed` if the live label isn't `agent::done` (or the issue isn't
+  closed). Discrepancies are surfaced in the envelope's new
+  `discrepancies` field so the wave-level rollup reflects the regression
+  rather than silently marking the wave complete.
+- **`/epic-close` Phase 4 documents the type-check timing.** Phase 4.1
+  now lists "type-checks" (`tsc --noEmit`, `astro check`, framework
+  equivalents) as the first ratchet category, with an explicit note that
+  the evidence-gated Phase 4 covers `npm run lint` + `npm test` only.
+  This is the gate most often missed: too slow for `npm test`, too late
+  at push time after the merge has already landed locally.
+
+`structuredCommentMarker`, `findStructuredComment`, and
+`upsertStructuredComment` now accept an optional `attrs` object. Existing
+call sites (passing only `type`) are unaffected.
+
 ## [5.32.0] - 2026-05-02
 
 ### Notification webhook aligned with execution-workflow status reporting

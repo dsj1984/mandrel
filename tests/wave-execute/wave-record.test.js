@@ -7,6 +7,7 @@ import {
   parseResultsArg,
   runWaveRecord,
   validateResults,
+  verifyWaveResults,
 } from '../../.agents/scripts/wave-record.js';
 
 function makeProvider(initialComments = []) {
@@ -219,6 +220,100 @@ test('runWaveRecord — blocked + failed surfaces both blockedStoryIds and faile
   const blockedRow = payload.stories.find((s) => s.id === 2);
   assert.equal(blockedRow.state, 'blocked');
   assert.equal(blockedRow.blockerCommentId, 'IC_x');
+});
+
+test('verifyWaveResults — downgrades done claims that did not actually close', async () => {
+  const provider = {
+    async getTicket(id) {
+      if (id === 911) {
+        return { id: 911, labels: ['agent::done'], state: 'closed' };
+      }
+      // Story #912 claimed done but the live label is still executing —
+      // the rec #5 regression scenario.
+      return { id: 912, labels: ['agent::executing'], state: 'open' };
+    },
+  };
+  const { verified, discrepancies } = await verifyWaveResults({
+    provider,
+    results: [
+      { storyId: 911, status: 'done' },
+      { storyId: 912, status: 'done' },
+    ],
+  });
+  assert.equal(verified[0].status, 'done');
+  assert.equal(verified[1].status, 'failed');
+  assert.equal(discrepancies.length, 1);
+  assert.equal(discrepancies[0].storyId, 912);
+  assert.equal(discrepancies[0].claimed, 'done');
+  assert.equal(discrepancies[0].actual, 'agent::executing');
+});
+
+test('verifyWaveResults — preserves blocked / failed claims without re-fetching', async () => {
+  let getTicketCalls = 0;
+  const provider = {
+    async getTicket(id) {
+      getTicketCalls++;
+      return { id, labels: ['agent::done'], state: 'closed' };
+    },
+  };
+  const { verified, discrepancies } = await verifyWaveResults({
+    provider,
+    results: [
+      { storyId: 1, status: 'blocked', blockerCommentId: 'IC' },
+      { storyId: 2, status: 'failed' },
+    ],
+  });
+  assert.equal(getTicketCalls, 0);
+  assert.equal(discrepancies.length, 0);
+  assert.equal(verified[0].status, 'blocked');
+  assert.equal(verified[1].status, 'failed');
+});
+
+test('verifyWaveResults — verification read failures preserve the claim', async () => {
+  const provider = {
+    async getTicket() {
+      throw new Error('GraphQL 502');
+    },
+  };
+  const { verified, discrepancies } = await verifyWaveResults({
+    provider,
+    results: [{ storyId: 1, status: 'done' }],
+  });
+  assert.equal(discrepancies.length, 0);
+  assert.equal(verified[0].status, 'done');
+  assert.match(verified[0].verifyError, /GraphQL 502/);
+});
+
+test('runWaveRecord — verification downgrades a done claim and surfaces discrepancies', async () => {
+  const epicId = 950;
+  const provider = makeProvider();
+  // Inject getTicket via the same provider object to drive verification.
+  provider.getTicket = async (id) => {
+    if (id === 911) return { id, labels: ['agent::done'], state: 'closed' };
+    return { id, labels: ['agent::executing'], state: 'open' };
+  };
+
+  const out = await runWaveRecord({
+    epicId,
+    wave: 0,
+    concurrencyCap: 2,
+    injectedProvider: provider,
+    results: [
+      { storyId: 911, status: 'done' },
+      { storyId: 912, status: 'done' },
+    ],
+  });
+
+  // Wave 5 scenario: sub-agent claimed done but ticket is still executing —
+  // the wave must NOT classify as complete.
+  assert.equal(out.status, 'failed');
+  assert.deepEqual(
+    out.stories.find((s) => s.id === 912),
+    { id: 912, status: 'failed' },
+  );
+  assert.ok(Array.isArray(out.discrepancies));
+  assert.equal(out.discrepancies.length, 1);
+  assert.equal(out.discrepancies[0].storyId, 912);
 });
 
 test('runWaveRecord — malformed results array rejected before any comment write', async () => {

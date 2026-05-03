@@ -200,9 +200,17 @@ reviews, and compliance checks read back from it.
 
 Run the full lint + test suite on the Epic branch before any merge to
 `[BASE_BRANCH]`. This is the only build gate this workflow runs before push.
-Pre-push hooks may enforce additional ratcheted gates (lint baselines,
-complexity baselines, design-token audits, etc.) that this phase does not
-run — see 4.1.
+
+**What this phase does NOT run.** The evidence-gated pair below covers
+`npm run lint` and `npm test` only. Project-extended gates — including
+**type-checks** (`tsc --noEmit`, `astro check`, `vue-tsc`, framework
+equivalents), lint baselines, complexity baselines, design-token audits,
+and bundle-size budgets — fall to Phase 4.1 where the operator must refresh
+each ratchet against the husky pre-push script set. A type-check that
+slips past Phase 4 surfaces only at `git push` time in Phase 5.4, after
+the merge into `[BASE_BRANCH]` has already landed locally; refreshing
+ratchets here is what keeps the fix on the Epic branch instead of
+trailing as a follow-on commit on `[BASE_BRANCH]`.
 
 Use the **evidence-aware gate wrapper** so identical re-runs against an
 already-validated tree are skipped. Each successful run is recorded under
@@ -241,6 +249,13 @@ the Epic branch where it belongs.
 **Common ratchet categories** (consuming projects map their concrete
 commands onto these):
 
+- **Type-checks** — `tsc --noEmit`, `astro check`, `vue-tsc`, or the
+  framework-specific equivalent. Run unconditionally here even when
+  story-close already ran the project's `commands.typecheck` gate, since
+  a type regression in a sibling Story (or in a hand-edit on the Epic
+  branch) can land between the last story-close and now. This is the
+  category most often missed: too slow for `npm test`, too late at push
+  time after the merge has already merged locally.
 - **Lint baselines** — ratchets that fail the push when warning/error
   counts exceed a persisted snapshot.
 - **Complexity / maintainability baselines** — e.g., maintainability

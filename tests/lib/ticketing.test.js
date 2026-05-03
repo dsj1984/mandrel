@@ -4,9 +4,11 @@ import { ITicketingProvider } from '../../.agents/scripts/lib/ITicketingProvider
 import {
   assertValidStructuredCommentType,
   cascadeCompletion,
+  findStructuredComment,
   isValidStructuredCommentType,
   postStructuredComment,
   STRUCTURED_COMMENT_TYPES,
+  structuredCommentMarker,
   toggleTasklistCheckbox,
   transitionTicketState,
   upsertStructuredComment,
@@ -519,6 +521,176 @@ test('ticketing.js', async (t) => {
       assert.ok(
         mock.tickets[20].body.includes('- [ ] #22'),
         'Open sibling checkbox must remain unchecked',
+      );
+    },
+  );
+
+  await t.test(
+    'structuredCommentMarker accepts an optional attribute bag',
+    () => {
+      assert.equal(
+        structuredCommentMarker('wave-run-progress'),
+        '<!-- ap:structured-comment type="wave-run-progress" -->',
+      );
+      assert.equal(
+        structuredCommentMarker('wave-run-progress', { wave: 3 }),
+        '<!-- ap:structured-comment type="wave-run-progress" wave="3" -->',
+      );
+      // null/undefined values are dropped (so callers can pass partial objects)
+      assert.equal(
+        structuredCommentMarker('wave-run-progress', {
+          wave: 0,
+          extra: null,
+        }),
+        '<!-- ap:structured-comment type="wave-run-progress" wave="0" -->',
+      );
+    },
+  );
+
+  await t.test(
+    'upsertStructuredComment with attrs lets per-wave snapshots coexist',
+    async () => {
+      // Without the per-wave discriminator, the second upsert would delete
+      // the first comment — breaking the cumulative epic-rollup view.
+      const provider = {
+        comments: [],
+        async getTicketComments() {
+          return this.comments.slice();
+        },
+        async postComment(_id, { body }) {
+          const comment = { id: this.comments.length + 1, body };
+          this.comments.push(comment);
+          return comment;
+        },
+        async deleteComment(commentId) {
+          const idx = this.comments.findIndex((c) => c.id === commentId);
+          if (idx >= 0) this.comments.splice(idx, 1);
+        },
+      };
+
+      await upsertStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        'wave-1-body',
+        { wave: 1 },
+      );
+      await upsertStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        'wave-2-body',
+        { wave: 2 },
+      );
+
+      assert.equal(
+        provider.comments.length,
+        2,
+        'each wave snapshot should survive in place',
+      );
+
+      const wave1 = await findStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        { wave: 1 },
+      );
+      const wave2 = await findStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        { wave: 2 },
+      );
+      assert.ok(wave1?.body.endsWith('wave-1-body'));
+      assert.ok(wave2?.body.endsWith('wave-2-body'));
+
+      // Re-upserting wave 1 must replace the wave 1 comment and leave wave 2 intact.
+      await upsertStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        'wave-1-body-v2',
+        { wave: 1 },
+      );
+      assert.equal(provider.comments.length, 2);
+      const wave1v2 = await findStructuredComment(
+        provider,
+        100,
+        'wave-run-progress',
+        { wave: 1 },
+      );
+      assert.ok(wave1v2?.body.endsWith('wave-1-body-v2'));
+    },
+  );
+
+  await t.test(
+    'cascadeCompletion re-fetches sibling state with fresh reads (rec #4)',
+    async () => {
+      // Build a Feature whose only sibling under it shows agent::done in the
+      // initial getSubTickets payload but is actually agent::executing when
+      // re-read fresh. Without fresh-fetch the cascade would close the
+      // Feature; with it the cascade halts.
+      const tickets = {
+        30: {
+          id: 30,
+          labels: ['agent::executing', 'type::feature'],
+          body: 'Feature body\n- [ ] #31\n- [ ] #32',
+          state: 'open',
+        },
+        31: {
+          id: 31,
+          labels: ['agent::done', 'type::story'],
+          body: 'parent: #30',
+          state: 'closed',
+        },
+        // Stale-cache scenario: getSubTickets returns this row with done…
+        32: {
+          id: 32,
+          labels: ['agent::done', 'type::story'],
+          body: 'parent: #30',
+          state: 'open',
+        },
+      };
+      const fresh = {
+        // …but a fresh read returns it as still-executing.
+        32: {
+          id: 32,
+          labels: ['agent::executing', 'type::story'],
+          body: 'parent: #30',
+          state: 'open',
+        },
+      };
+      const invalidated = [];
+      const fakeProvider = {
+        async getTicket(id, opts = {}) {
+          if (opts.fresh && fresh[id]) return fresh[id];
+          return tickets[id];
+        },
+        async updateTicket() {},
+        async postComment() {},
+        async getTicketDependencies(id) {
+          if (id === 31) return { blocks: [30], blockedBy: [] };
+          return { blocks: [], blockedBy: [] };
+        },
+        async getSubTickets(id) {
+          if (id === 30) return [tickets[31], tickets[32]];
+          return [];
+        },
+        invalidateTicket(id) {
+          invalidated.push(id);
+        },
+      };
+
+      const result = await cascadeCompletion(fakeProvider, 31);
+
+      assert.equal(
+        result.cascadedTo.length,
+        0,
+        'cascade must halt when a fresh sibling read shows it still executing',
+      );
+      assert.ok(
+        invalidated.includes(32),
+        'sibling cache must be invalidated before the all-done check',
       );
     },
   );

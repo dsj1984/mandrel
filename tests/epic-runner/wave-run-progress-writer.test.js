@@ -166,8 +166,12 @@ describe('upsertWaveRunProgress', () => {
     });
     assert.equal(provider.comments.length, 1);
     const written = provider.comments[0];
+    // The marker now carries the per-wave discriminator so multiple waves
+    // can coexist on the Epic ticket.
     assert.ok(
-      written.body.includes(structuredCommentMarker(WAVE_RUN_PROGRESS_TYPE)),
+      written.body.includes(
+        structuredCommentMarker(WAVE_RUN_PROGRESS_TYPE, { wave: 1 }),
+      ),
     );
     assert.ok(written.body.endsWith(body));
     const parsed = extractPayload(written.body);
@@ -197,6 +201,31 @@ describe('upsertWaveRunProgress', () => {
     assert.equal(provider.comments.length, 1);
     const parsed = extractPayload(provider.comments[0].body);
     assert.equal(parsed.stories[0].state, 'done');
+  });
+
+  it('coexists per-wave — wave 1 and wave 2 snapshots both survive', async () => {
+    const provider = buildProvider();
+    await upsertWaveRunProgress({
+      provider,
+      epicId: 900,
+      wave: 1,
+      concurrencyCap: 2,
+      stories: [{ id: 912, title: 'A', state: 'done' }],
+    });
+    await upsertWaveRunProgress({
+      provider,
+      epicId: 900,
+      wave: 2,
+      concurrencyCap: 2,
+      stories: [{ id: 913, title: 'B', state: 'done' }],
+    });
+    assert.equal(
+      provider.comments.length,
+      2,
+      'each wave snapshot must survive — the cumulative epic-rollup view depends on it',
+    );
+    const wavePayloads = provider.comments.map((c) => extractPayload(c.body));
+    assert.deepEqual(wavePayloads.map((p) => p.wave).sort(), [1, 2]);
   });
 
   it('rejects providers missing postComment', async () => {
