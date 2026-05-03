@@ -188,6 +188,70 @@ export function aggregateWaveStatus(results) {
 }
 
 /**
+ * Re-fetch each Story's actual ticket state and downgrade any
+ * `status: 'done'` entry whose ticket has not actually reached
+ * `agent::done` (or `state: 'closed'`). Returns the verified rows plus a
+ * list of discrepancies for friction reporting.
+ *
+ * Rationale (rec #5): the sub-agent return values are operator-supplied —
+ * a `/wave-execute` fan-out can return `done` for a Story whose
+ * `/story-execute` actually exited mid-close (worktree drift, push hook
+ * failure) without flipping `agent::done`. Without this verification the
+ * wave is classified `complete` and the rollup loses the regression
+ * signal. Verification reads each Story ticket fresh (`{ fresh: true }`)
+ * so a stale cache cannot mask the discrepancy.
+ *
+ * Verification failures (network / GraphQL) are non-fatal — the original
+ * claim is preserved and a `verifyError` is recorded so the caller can
+ * surface it without aborting the entire wave.
+ *
+ * @param {{
+ *   provider: { getTicket: Function },
+ *   results: Array<{ storyId: number, status: 'done'|'blocked'|'failed' }>,
+ * }} args
+ * @returns {Promise<{
+ *   verified: Array<object>,
+ *   discrepancies: Array<{ storyId: number, claimed: string, actual: string }>,
+ * }>}
+ */
+export async function verifyWaveResults({ provider, results } = {}) {
+  if (!provider || typeof provider.getTicket !== 'function') {
+    return { verified: results ?? [], discrepancies: [] };
+  }
+  const verified = [];
+  const discrepancies = [];
+  for (const r of results ?? []) {
+    if (r.status !== 'done') {
+      verified.push(r);
+      continue;
+    }
+    let ticket;
+    try {
+      ticket = await provider.getTicket(r.storyId, { fresh: true });
+    } catch (err) {
+      verified.push({ ...r, verifyError: err?.message ?? String(err) });
+      continue;
+    }
+    const labels = ticket?.labels ?? [];
+    const isDone = labels.includes('agent::done') || ticket?.state === 'closed';
+    if (isDone) {
+      verified.push(r);
+      continue;
+    }
+    const actualLabel =
+      labels.find((l) => typeof l === 'string' && l.startsWith('agent::')) ??
+      'unknown';
+    discrepancies.push({
+      storyId: r.storyId,
+      claimed: 'done',
+      actual: actualLabel,
+    });
+    verified.push({ ...r, status: 'failed' });
+  }
+  return { verified, discrepancies };
+}
+
+/**
  * Cross-look manifest titles (best-effort) onto the result rows so the
  * wave-run-progress comment surfaces meaningful titles. Failure to read /
  * parse the manifest is non-fatal — empty title is acceptable.
@@ -266,11 +330,21 @@ export async function runWaveRecord(args = {}) {
     );
   }
 
+  // Verify every `done` claim against the live ticket label before the wave
+  // is classified `complete`. A sub-agent that returned `done` for a Story
+  // whose ticket never reached `agent::done` is downgraded to `failed` here
+  // so the wave-level rollup reflects the regression rather than silently
+  // marking the wave complete.
+  const { verified: verifiedResults, discrepancies } = await verifyWaveResults({
+    provider,
+    results: validated,
+  });
+
   // Cross-look manifest titles when available — `wave-run-progress` rows
   // include `title` so operators can read the comment without a join.
   const titleById = await loadManifestTitleMap({ provider, epicId });
 
-  const rows = validated.map((r) => {
+  const rows = verifiedResults.map((r) => {
     const row = {
       id: r.storyId,
       title: titleById.get(r.storyId) ?? '',
@@ -302,16 +376,20 @@ export async function runWaveRecord(args = {}) {
     notify: notifyFn,
   });
 
-  const { status, blockedStoryIds } = aggregateWaveStatus(validated);
+  const { status, blockedStoryIds } = aggregateWaveStatus(verifiedResults);
 
-  return {
+  const envelope = {
     epicId,
     wave,
     status,
-    stories: validated.map((r) => ({ id: r.storyId, status: r.status })),
+    stories: verifiedResults.map((r) => ({ id: r.storyId, status: r.status })),
     blockedStoryIds,
     renderedBody,
   };
+  if (discrepancies.length > 0) {
+    envelope.discrepancies = discrepancies;
+  }
+  return envelope;
 }
 
 /**

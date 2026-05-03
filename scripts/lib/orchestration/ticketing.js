@@ -290,28 +290,55 @@ export async function postStructuredComment(provider, ticketId, type, payload) {
 
 /**
  * Build an HTML marker that uniquely identifies a structured comment by
- * type. The marker is embedded in the comment body so it can be discovered
- * on read-back via `findStructuredComment`.
+ * type plus an optional discriminator attribute bag. The marker is embedded
+ * in the comment body so it can be discovered on read-back via
+ * `findStructuredComment`.
+ *
+ * `attrs` lets a single `type` namespace coexist with multiple in-place
+ * snapshots keyed by an additional dimension. The canonical use is the
+ * per-wave `wave-run-progress` comment: each wave upserts its own snapshot
+ * via `{ wave: N }` so subsequent waves don't overwrite prior rows.
+ * Without the discriminator the next wave's upsert finds (and deletes) the
+ * prior wave's comment, leaving the cross-wave epic-run-progress rollup
+ * with a single row.
  *
  * @param {string} type
+ * @param {Record<string, string|number>} [attrs]
  * @returns {string}
  */
-export function structuredCommentMarker(type) {
-  return `<!-- ap:structured-comment type="${type}" -->`;
+export function structuredCommentMarker(type, attrs = null) {
+  let attrStr = '';
+  if (attrs && typeof attrs === 'object') {
+    for (const [key, value] of Object.entries(attrs)) {
+      if (value === undefined || value === null) continue;
+      attrStr += ` ${key}="${String(value)}"`;
+    }
+  }
+  return `<!-- ap:structured-comment type="${type}"${attrStr} -->`;
 }
 
 /**
  * Find the most recent structured comment of a given type on a ticket.
  * Detection is based on the HTML marker produced by
- * `structuredCommentMarker(type)`.
+ * `structuredCommentMarker(type, attrs)`.
+ *
+ * When `attrs` is provided, only comments whose marker carries the same
+ * discriminator attributes are returned — see `structuredCommentMarker` for
+ * the per-wave `wave-run-progress` use case.
  *
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} type
+ * @param {Record<string, string|number>} [attrs]
  * @returns {Promise<object|null>} Raw comment object, or null if none found.
  */
-export async function findStructuredComment(provider, ticketId, type) {
-  const marker = structuredCommentMarker(type);
+export async function findStructuredComment(
+  provider,
+  ticketId,
+  type,
+  attrs = null,
+) {
+  const marker = structuredCommentMarker(type, attrs);
   const comments = (await provider.getTicketComments(ticketId)) ?? [];
   // Return latest match (comments API sorts ascending by creation; take last).
   const matches = comments.filter(
@@ -323,21 +350,33 @@ export async function findStructuredComment(provider, ticketId, type) {
 
 /**
  * Idempotently post a structured comment identified by an embedded HTML
- * marker. If an existing comment with the same `type` marker exists it is
- * deleted first, then the new one is posted. The marker is prepended to
- * the body automatically.
+ * marker. If an existing comment with the same `type` marker (and matching
+ * `attrs`, when supplied) exists it is deleted first, then the new one is
+ * posted. The marker is prepended to the body automatically.
+ *
+ * `attrs` lets the same `type` carry multiple in-place snapshots keyed by
+ * an additional dimension — e.g., one `wave-run-progress` comment per wave
+ * via `{ wave: N }` so the cross-wave rollup can read every wave's snapshot
+ * instead of only the most recent one.
  *
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} type - arbitrary structured-comment type (e.g.,
  *   `dispatch-manifest`, `retro`, `code-review`).
  * @param {string} body - markdown payload.
+ * @param {Record<string, string|number>} [attrs]
  * @returns {Promise<{ commentId: number }>}
  */
-export async function upsertStructuredComment(provider, ticketId, type, body) {
+export async function upsertStructuredComment(
+  provider,
+  ticketId,
+  type,
+  body,
+  attrs = null,
+) {
   assertValidStructuredCommentType(type);
-  const marker = structuredCommentMarker(type);
-  const existing = await findStructuredComment(provider, ticketId, type);
+  const marker = structuredCommentMarker(type, attrs);
+  const existing = await findStructuredComment(provider, ticketId, type, attrs);
 
   if (existing && typeof provider.deleteComment === 'function') {
     try {
@@ -398,7 +437,36 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
         await toggleTasklistCheckbox(provider, parentId, ticketId, true);
 
         const subTickets = await provider.getSubTickets(parentId);
-        const allDone = subTickets.every(
+        // Re-fetch each sibling with fresh reads before the all-done check.
+        // `getSubTickets` populates each row via `getTicket`, which honors the
+        // per-instance ticket cache — a stale CLOSED entry for a sibling that
+        // has since been reopened (operator action, prior failed cascade) would
+        // otherwise let the cascade close the parent while a sibling is still
+        // open. Cache invalidation here is cheap (one HTTP read per sibling)
+        // and only fires when the closing ticket itself reaches `agent::done`,
+        // so the cost is bounded.
+        const freshSubTickets = await Promise.all(
+          subTickets.map(async (st) => {
+            if (typeof provider.invalidateTicket === 'function') {
+              try {
+                provider.invalidateTicket(st.id);
+              } catch {
+                // Cache invalidation is best-effort — fall through to whatever
+                // `getTicket` returns even if the invalidation hook throws.
+              }
+            }
+            if (typeof provider.getTicket !== 'function') return st;
+            try {
+              return await provider.getTicket(st.id, { fresh: true });
+            } catch {
+              // A transient read failure must not silently flip the cascade
+              // to "all done"; fall back to the (possibly stale) row from
+              // `getSubTickets` so the existing label check still applies.
+              return st;
+            }
+          }),
+        );
+        const allDone = freshSubTickets.every(
           (st) =>
             st.labels.includes(STATE_LABELS.DONE) || st.state === 'closed',
         );

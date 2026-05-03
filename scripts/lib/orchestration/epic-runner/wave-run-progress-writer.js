@@ -188,11 +188,16 @@ export async function upsertWaveRunProgress(args) {
     );
   }
   const { body, payload } = renderWaveRunProgressBody(rest);
+  // Per-wave marker key so each wave's snapshot survives in place. Without
+  // the discriminator, the next wave's upsert deletes the prior wave's
+  // comment — `epic-rollup.js` then aggregates only the latest wave instead
+  // of the cumulative cross-wave view.
   await upsertStructuredComment(
     provider,
     rest.epicId,
     WAVE_RUN_PROGRESS_TYPE,
     body,
+    { wave: payload.wave },
   );
   if (typeof notify === 'function') {
     const done = payload.stories.filter((s) => s.state === 'done').length;
