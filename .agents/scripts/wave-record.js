@@ -46,19 +46,43 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import {
+  parseStoryAgentReturn,
+  reconcileStoryFromGitHub,
+  renderMalformedReturnsFriction,
+} from './lib/orchestration/epic-runner/sub-agent-return.js';
 import { upsertWaveRunProgress } from './lib/orchestration/epic-runner/wave-run-progress-writer.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
-import { findStructuredComment } from './lib/orchestration/ticketing.js';
+import {
+  findStructuredComment,
+  postStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/wave-record.js \\
   --epic <EPIC_ID> --wave <N> [--concurrency-cap <N>] \\
-  --results @<file>|<inline-json>
+  (--results @<file>|<inline-json> | --returns @<file>|<inline-json>)
 
 Validates the per-Story results array (the /story-execute return contract),
 upserts the \`wave-run-progress\` structured comment on the Epic, and
 prints the wave-level outcome envelope to stdout.
+
+Two input modes:
+
+  --results   The validated array of /story-execute return objects. Use
+              this when the wave-runner already parsed each sub-agent's
+              text into the canonical { storyId, status, ... } shape.
+
+  --returns   The raw per-Story sub-agent return texts, as a JSON array of
+              { storyId, returnText } pairs. Each entry is parsed through
+              \`parseStoryAgentReturn\`; entries that don't match the
+              return contract are reconciled from GitHub (labels +
+              \`story-run-progress\` comment) and a friction comment is
+              posted on the Epic naming each malformed child. Use this
+              when piping raw Agent-tool returns directly — the wave is
+              guaranteed to surface a non-\`complete\` status if any child
+              return failed to parse.
 `;
 
 /** Per-Story return statuses we accept off /story-execute sub-agents. */
@@ -126,17 +150,21 @@ export function validateResults(raw) {
 }
 
 /**
- * Parse the `--results` argv value, supporting both `@<file>` and inline
- * JSON. Returns the parsed array. Throws on read / parse error.
+ * Parse a `--results` / `--returns` argv value, supporting both `@<file>`
+ * and inline JSON. Returns the parsed array. Throws on read / parse error.
+ * `flag` controls which CLI name is named in error messages so operators
+ * using Mode B (`--returns`) don't see diagnostics that point at the wrong
+ * flag.
  *
  * @param {string} value
- * @param {{ readFile?: (path: string) => string }} [deps]
+ * @param {{ readFile?: (path: string) => string, flag?: string }} [deps]
  * @returns {unknown}
  */
 export function parseResultsArg(value, deps = {}) {
+  const flag = deps.flag ?? '--results';
   if (typeof value !== 'string' || value.length === 0) {
     throw new TypeError(
-      'wave-record: --results is required (use `@<file>` or an inline JSON array).',
+      `wave-record: ${flag} is required (use \`@<file>\` or an inline JSON array).`,
     );
   }
   const reader = deps.readFile ?? ((p) => readFileSync(p, 'utf8'));
@@ -145,7 +173,7 @@ export function parseResultsArg(value, deps = {}) {
     const filePath = value.slice(1);
     if (!filePath) {
       throw new TypeError(
-        'wave-record: --results @<file> requires a path after `@`.',
+        `wave-record: ${flag} @<file> requires a path after \`@\`.`,
       );
     }
     raw = reader(filePath);
@@ -156,9 +184,75 @@ export function parseResultsArg(value, deps = {}) {
     return JSON.parse(raw);
   } catch (err) {
     throw new SyntaxError(
-      `wave-record: --results value is not valid JSON: ${err.message}`,
+      `wave-record: ${flag} value is not valid JSON: ${err.message}`,
     );
   }
+}
+
+/**
+ * Normalize the `--returns` payload (raw per-Story sub-agent return texts)
+ * into the same `{ storyId, status, ... }` shape that `validateResults`
+ * accepts. Entries that don't parse cleanly through `parseStoryAgentReturn`
+ * are reconciled from GitHub and recorded as parse failures; the caller is
+ * responsible for posting a single rolled-up friction comment listing
+ * everything in `parseFailures`.
+ *
+ * @param {{
+ *   provider: object,
+ *   returns: Array<{ storyId: number, returnText: string }>,
+ * }} args
+ * @returns {Promise<{
+ *   results: Array<object>,
+ *   parseFailures: Array<{ storyId: number, error: string, returnText: string }>,
+ * }>}
+ */
+export async function normalizeReturns({ provider, returns } = {}) {
+  if (!Array.isArray(returns)) {
+    throw new TypeError(
+      'wave-record: --returns must be a JSON array of { storyId, returnText } objects',
+    );
+  }
+  const results = [];
+  const parseFailures = [];
+  for (const [idx, entry] of returns.entries()) {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError(
+        `wave-record: returns[${idx}] must be an object; got ${typeof entry}`,
+      );
+    }
+    const storyId = Number(entry.storyId ?? entry.id);
+    if (!Number.isInteger(storyId) || storyId <= 0) {
+      throw new TypeError(
+        `wave-record: returns[${idx}].storyId must be a positive integer; got ${JSON.stringify(entry.storyId)}`,
+      );
+    }
+    const returnText =
+      typeof entry.returnText === 'string'
+        ? entry.returnText
+        : entry.returnText == null
+          ? ''
+          : JSON.stringify(entry.returnText);
+
+    const parsed = parseStoryAgentReturn(returnText);
+    if (parsed.ok && Number(parsed.value.storyId) === storyId) {
+      results.push(parsed.value);
+      continue;
+    }
+
+    // Either unparseable, or parsed-but-disagreeing on storyId. Either way,
+    // the sub-agent's return cannot be trusted for this Story — reconcile
+    // from GitHub.
+    const reconciled = await reconcileStoryFromGitHub({ provider, storyId });
+    results.push(reconciled);
+    parseFailures.push({
+      storyId,
+      error: parsed.ok
+        ? `parsed envelope storyId ${parsed.value.storyId} disagrees with expected ${storyId}`
+        : parsed.error,
+      returnText,
+    });
+  }
+  return { results, parseFailures };
 }
 
 /**
@@ -281,13 +375,14 @@ async function loadManifestTitleMap({ provider, epicId }) {
 
 /**
  * End-to-end wave-record. DI-friendly: tests pass `injectedProvider` and an
- * inline `results` array.
+ * inline `results` array (or `returns` for raw sub-agent return texts).
  *
  * @param {{
  *   epicId: number,
  *   wave: number,
  *   concurrencyCap?: number,
- *   results: unknown,
+ *   results?: unknown,
+ *   returns?: unknown,
  *   injectedProvider?: object,
  * }} args
  * @returns {Promise<{
@@ -297,6 +392,7 @@ async function loadManifestTitleMap({ provider, epicId }) {
  *   stories: Array<{ id: number, status: string }>,
  *   blockedStoryIds: number[],
  *   renderedBody: string,
+ *   parseFailures?: Array<{ storyId: number, error: string }>,
  * }>}
  */
 export async function runWaveRecord(args = {}) {
@@ -305,6 +401,7 @@ export async function runWaveRecord(args = {}) {
     wave,
     concurrencyCap: concurrencyCapOverride,
     results,
+    returns,
     injectedProvider,
   } = args;
 
@@ -314,11 +411,51 @@ export async function runWaveRecord(args = {}) {
   if (!Number.isInteger(wave) || wave < 0) {
     throw new TypeError('runWaveRecord: --wave must be a non-negative integer');
   }
-
-  const validated = validateResults(results);
+  if (results == null && returns == null) {
+    throw new TypeError(
+      'runWaveRecord: either `results` or `returns` is required',
+    );
+  }
+  if (results != null && returns != null) {
+    throw new TypeError('runWaveRecord: pass `results` OR `returns`, not both');
+  }
 
   const config = resolveConfig();
   const provider = injectedProvider ?? createProvider(config.orchestration);
+
+  // When fed raw sub-agent return texts, parse each through the contract
+  // schema, reconcile parse failures from GitHub, and post a single
+  // rolled-up friction comment listing every malformed child. Reconciled
+  // rows already carry `reconciledFromGitHub: true` and a downgraded
+  // status, so the rest of the pipeline treats them like any other result.
+  let parseFailures = [];
+  let resolvedResults;
+  if (returns != null) {
+    const normalized = await normalizeReturns({ provider, returns });
+    resolvedResults = normalized.results;
+    parseFailures = normalized.parseFailures;
+    if (parseFailures.length > 0) {
+      try {
+        const body = renderMalformedReturnsFriction({
+          epicId,
+          wave,
+          failures: parseFailures,
+        });
+        await postStructuredComment(provider, epicId, 'friction', body);
+      } catch (err) {
+        // Non-fatal: the wave outcome must still be surfaced even if the
+        // friction comment could not be posted. The caller still sees
+        // `parseFailures` on the envelope.
+        console.error(
+          `[wave-record] Failed to post malformed-return friction on Epic #${epicId}: ${err?.message ?? err}`,
+        );
+      }
+    }
+  } else {
+    resolvedResults = results;
+  }
+
+  const validated = validateResults(resolvedResults);
 
   const epicRunner = getRunners(config).epicRunner ?? {};
   const concurrencyCap =
@@ -389,6 +526,12 @@ export async function runWaveRecord(args = {}) {
   if (discrepancies.length > 0) {
     envelope.discrepancies = discrepancies;
   }
+  if (parseFailures.length > 0) {
+    envelope.parseFailures = parseFailures.map((f) => ({
+      storyId: f.storyId,
+      error: f.error,
+    }));
+  }
   return envelope;
 }
 
@@ -405,6 +548,7 @@ export function parseCliArgs(argv) {
       wave: { type: 'string' },
       'concurrency-cap': { type: 'string' },
       results: { type: 'string' },
+      returns: { type: 'string' },
       help: { type: 'boolean' },
     },
     strict: false,
@@ -417,7 +561,30 @@ export function parseCliArgs(argv) {
       ? Number.parseInt(values['concurrency-cap'], 10)
       : undefined,
     resultsRaw: values.results,
+    returnsRaw: values.returns,
   };
+}
+
+/**
+ * Resolve the parsed `--results` / `--returns` argv into the input shape
+ * `runWaveRecord` expects. Pure helper — exported so the CLI entry stays
+ * trivial and tests can pin the dispatch rules without touching argv.
+ *
+ * @param {{ resultsRaw?: string, returnsRaw?: string }} parsed
+ * @returns {{ results?: unknown, returns?: unknown }}
+ */
+export function resolveRecordInput(parsed) {
+  const hasResults = Boolean(parsed?.resultsRaw);
+  const hasReturns = Boolean(parsed?.returnsRaw);
+  if (hasResults && hasReturns) {
+    throw new TypeError('wave-record: pass --results OR --returns, not both');
+  }
+  if (!hasResults && !hasReturns) {
+    throw new TypeError('wave-record: --results or --returns is required');
+  }
+  return hasResults
+    ? { results: parseResultsArg(parsed.resultsRaw, { flag: '--results' }) }
+    : { returns: parseResultsArg(parsed.returnsRaw, { flag: '--returns' }) };
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -426,12 +593,11 @@ export async function main(argv = process.argv.slice(2)) {
     process.stdout.write(HELP);
     return;
   }
-  const results = parseResultsArg(parsed.resultsRaw);
   const envelope = await runWaveRecord({
     epicId: parsed.epicId,
     wave: parsed.wave,
     concurrencyCap: parsed.concurrencyCap,
-    results,
+    ...resolveRecordInput(parsed),
   });
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
 }

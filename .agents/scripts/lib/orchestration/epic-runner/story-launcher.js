@@ -17,8 +17,9 @@
  * dispatch adapter — invoking the engine without one is an explicit error.
  */
 
+import { resolveModelTier as resolveLabelModelTier } from '../model-resolver.js';
+
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const DEFAULT_MODEL_TIER = 'low';
 
 export class StoryLauncher {
   /**
@@ -83,8 +84,14 @@ export class StoryLauncher {
           typeof label === 'string' ? label.match(/^model::(.+)$/) : null;
         if (match) return match[1];
       }
+      // Fall back to the canonical label-driven resolver shared with
+      // dispatcher.js / manifest-builder. The orchestrator's source-of-truth
+      // is `complexity::high` (per .agents/instructions.md §1.G) — without
+      // this fallback, planWave would mark every Story `low` even when the
+      // dispatch table correctly shows `high`.
+      return resolveLabelModelTier(labels);
     }
-    return DEFAULT_MODEL_TIER;
+    return resolveLabelModelTier([]);
   }
 
   /**

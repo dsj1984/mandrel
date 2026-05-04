@@ -5,6 +5,7 @@ import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration
 import {
   aggregateWaveStatus,
   parseResultsArg,
+  resolveRecordInput,
   runWaveRecord,
   validateResults,
   verifyWaveResults,
@@ -101,6 +102,49 @@ test('parseResultsArg — accepts @<file> with injected reader', () => {
 
 test('parseResultsArg — malformed JSON throws SyntaxError', () => {
   assert.throws(() => parseResultsArg('{not-json'), /not valid JSON/);
+});
+
+test('parseResultsArg — error messages name the active flag (--returns vs --results)', () => {
+  assert.throws(
+    () => parseResultsArg('{not-json', { flag: '--returns' }),
+    /--returns value is not valid JSON/,
+  );
+  assert.throws(
+    () => parseResultsArg('', { flag: '--returns' }),
+    /--returns is required/,
+  );
+  assert.throws(
+    () => parseResultsArg('@', { flag: '--returns' }),
+    /--returns @<file> requires a path/,
+  );
+});
+
+test('resolveRecordInput — picks --results when only that flag is set', () => {
+  const out = resolveRecordInput({
+    resultsRaw: JSON.stringify([{ storyId: 1, status: 'done' }]),
+  });
+  assert.deepEqual(out, { results: [{ storyId: 1, status: 'done' }] });
+});
+
+test('resolveRecordInput — picks --returns when only that flag is set', () => {
+  const out = resolveRecordInput({
+    returnsRaw: JSON.stringify([{ storyId: 1, returnText: '{}' }]),
+  });
+  assert.deepEqual(out, { returns: [{ storyId: 1, returnText: '{}' }] });
+});
+
+test('resolveRecordInput — rejects passing both flags', () => {
+  assert.throws(
+    () => resolveRecordInput({ resultsRaw: '[]', returnsRaw: '[]' }),
+    /pass --results OR --returns, not both/,
+  );
+});
+
+test('resolveRecordInput — rejects passing neither flag', () => {
+  assert.throws(
+    () => resolveRecordInput({}),
+    /--results or --returns is required/,
+  );
 });
 
 test('aggregateWaveStatus — outcome rules', () => {
@@ -282,6 +326,92 @@ test('verifyWaveResults — verification read failures preserve the claim', asyn
   assert.equal(discrepancies.length, 0);
   assert.equal(verified[0].status, 'done');
   assert.match(verified[0].verifyError, /GraphQL 502/);
+});
+
+test('runWaveRecord — `--returns` with malformed sub-agent text reconciles + posts friction (Epic #604 regression)', async () => {
+  // Reproducer for Domio Epic #604, 2026-05-04: a /wave-execute sub-agent
+  // returned the literal string "Clean. Now commit Task 622." instead of
+  // the per-Story JSON envelope. Without this guard, the wave-runner used
+  // to silently propagate the fragment and report the wave `complete`.
+  const epicId = 604;
+  const provider = makeProvider();
+  // Story #612's live ticket — still mid-execution, no agent::done label.
+  provider.getTicket = async (id) => {
+    if (id === 612) {
+      return {
+        id: 612,
+        labels: ['type::story', 'agent::executing'],
+        state: 'open',
+      };
+    }
+    return { id, labels: [], state: 'open' };
+  };
+
+  const out = await runWaveRecord({
+    epicId,
+    wave: 0,
+    concurrencyCap: 1,
+    injectedProvider: provider,
+    returns: [{ storyId: 612, returnText: 'Clean. Now commit Task 622.' }],
+  });
+
+  // Wave is NOT classified `complete` — the reconciler downgraded the row
+  // to failed because the live ticket is still agent::executing.
+  assert.notEqual(out.status, 'complete');
+  assert.equal(out.status, 'failed');
+  assert.deepEqual(out.stories, [{ id: 612, status: 'failed' }]);
+  assert.ok(Array.isArray(out.parseFailures));
+  assert.equal(out.parseFailures.length, 1);
+  assert.equal(out.parseFailures[0].storyId, 612);
+
+  // A friction structured comment was posted on the Epic naming the
+  // offending child and quoting the original return text.
+  const friction = provider.posted.find((c) => c.type === 'friction');
+  assert.ok(friction, 'friction comment was posted on the Epic');
+  assert.equal(friction.ticketId, epicId);
+  assert.match(friction.body, /Story #612/);
+  assert.match(friction.body, /Clean\. Now commit Task 622\./);
+
+  // The wave-run-progress comment still got upserted so the rollup is
+  // consistent with the friction signal.
+  const waveComment = provider.posted.find(
+    (c) => c.type === 'wave-run-progress',
+  );
+  assert.ok(waveComment, 'wave-run-progress comment was upserted');
+});
+
+test('runWaveRecord — `--returns` with valid JSON envelope flows through unchanged', async () => {
+  const epicId = 605;
+  const provider = makeProvider();
+  provider.getTicket = async (id) => ({
+    id,
+    labels: ['agent::done'],
+    state: 'closed',
+  });
+
+  const out = await runWaveRecord({
+    epicId,
+    wave: 0,
+    concurrencyCap: 1,
+    injectedProvider: provider,
+    returns: [
+      {
+        storyId: 700,
+        returnText: JSON.stringify({
+          storyId: 700,
+          status: 'done',
+          tasksDone: 2,
+          tasksTotal: 2,
+        }),
+      },
+    ],
+  });
+
+  assert.equal(out.status, 'complete');
+  assert.equal(out.parseFailures, undefined);
+  // No friction comment when nothing was malformed.
+  const friction = provider.posted.find((c) => c.type === 'friction');
+  assert.equal(friction, undefined);
 });
 
 test('runWaveRecord — verification downgrades a done claim and surfaces discrepancies', async () => {
