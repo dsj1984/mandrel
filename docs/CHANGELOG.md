@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.2] - 2026-05-04
+
+### Wave-runner trust boundary + complexity-tier parity
+
+Two bug fixes surfaced during a real Epic run (Domio Epic #604,
+2026-05-04). Both were operator-recoverable but eroded trust in the
+v5 fan-out path.
+
+- **`/wave-execute` rejects malformed sub-agent returns.**
+  `wave-record.js` now accepts a `--returns` flag (alternative to
+  `--results`) that takes raw per-Story sub-agent return texts. Each is
+  parsed through the new `parseStoryAgentReturn` helper; entries that
+  don't match the `/story-execute` return contract are reconciled from
+  GitHub (labels + `story-run-progress` comment) and the wave is
+  guaranteed to surface a non-`complete` status. A single rolled-up
+  friction comment is posted on the Epic naming each malformed child
+  and quoting the original return text. Reproducer regression test pins
+  the exact mid-task fragment from Epic #604: `"Clean. Now commit Task
+  622."` → reconciler invoked → `status: failed`. Also exposed:
+  `reconcileStoryFromGitHub` for direct use.
+- **`StoryLauncher.planWave` honors `complexity::high` parity.** The
+  `epic-execute-prepare.js` plan was reporting `modelTier: "low"` for
+  every Story while `dispatcher.js`'s dispatch table correctly showed
+  `high`. Both code paths now share `resolveModelTier(storyLabels)`
+  from `model-resolver.js` (canonical `complexity::high` → `"high"`).
+  Regression test asserts the parity for the four Epic #604
+  high-complexity Stories.
+
 ## [5.32.1] - 2026-05-03
 
 ### Cross-wave rollup, cascade safety, and wave verification

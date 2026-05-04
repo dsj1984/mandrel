@@ -116,14 +116,35 @@ spawned).
 
 ## Step 3 — Record the wave outcome
 
-Collect every Agent tool result into a JSON array matching the
-`/story-execute` return contract, then hand it to the recorder:
+Hand every Agent tool result to the recorder. Two input modes are
+supported; pick whichever is less work for the host LLM:
 
 ```bash
+# Mode A — host LLM already parsed each child return into the canonical
+# /story-execute return contract.
 node .agents/scripts/wave-record.js \
   --epic <epicId> --wave <waveN> [--concurrency-cap <N>] \
   --results @<file>|<inline-json>
+
+# Mode B — pipe the raw per-Story sub-agent return texts directly. Each
+# entry is parsed through `parseStoryAgentReturn`; any return that does
+# not match the contract (e.g. free-text mid-task fragments) is reconciled
+# from GitHub (labels + `story-run-progress`) and a friction comment is
+# posted on the Epic naming each malformed child. The wave is guaranteed
+# to surface a non-`complete` status if any child return failed to parse.
+node .agents/scripts/wave-record.js \
+  --epic <epicId> --wave <waveN> [--concurrency-cap <N>] \
+  --returns @<file>|<inline-json>
+# `<inline-json>` shape: [{ "storyId": <n>, "returnText": "<raw text>" }]
 ```
+
+**Prefer mode B** when the host LLM cannot fully verify that every child's
+return text is a parseable envelope. The reconciler downgrades each
+malformed return to `failed` unless the live ticket actually carries
+`agent::done`, so a wave with even one unparseable child is never reported
+as `complete` (regression guard for Domio Epic #604, 2026-05-04 — a
+sub-agent returned `"Clean. Now commit Task 622."` mid-task and the
+runner used to propagate the fragment silently).
 
 The CLI validates the rows, upserts the `wave-run-progress` structured
 comment on the **Epic ticket** (one row per Story per wave, in place),
@@ -137,7 +158,8 @@ any `blocked` or `failed` propagates), and prints:
   "status": "complete" | "blocked" | "failed",
   "stories": [ { "id": <n>, "status": "done|blocked|failed" }, ... ],
   "blockedStoryIds": [ ... ],
-  "renderedBody": "<markdown>"
+  "renderedBody": "<markdown>",
+  "parseFailures": [ { "storyId": <n>, "error": "<reason>" }, ... ]  // mode B only, if any
 }
 ```
 
