@@ -35,6 +35,12 @@ import { createProvider } from './lib/provider-factory.js';
 import { renderDecomposerSystemPrompt } from './lib/templates/decomposer-prompts.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
 
+const TYPE_LABEL_TO_TYPE = {
+  [TYPE_LABELS.FEATURE]: 'feature',
+  [TYPE_LABELS.STORY]: 'story',
+  [TYPE_LABELS.TASK]: 'task',
+};
+
 function resolveParentId(ticket, slugMap, epicId) {
   if (ticket.type === 'feature') return epicId;
   if (!ticket.parent_slug) {
@@ -194,16 +200,73 @@ export async function buildDecompositionContext(
   };
 }
 
+/**
+ * Inspect the Epic's existing child tickets and build a title-keyed lookup
+ * for resume / idempotent-create. The map's value carries the inferred type
+ * so we can detect cross-type title collisions before they corrupt the DAG.
+ */
+function indexExistingChildren(existing) {
+  const childTypes = new Set([
+    TYPE_LABELS.FEATURE,
+    TYPE_LABELS.STORY,
+    TYPE_LABELS.TASK,
+  ]);
+  const byTitle = new Map();
+  for (const child of existing) {
+    const typeLabel = (child.labels || []).find((l) => childTypes.has(l));
+    if (!typeLabel) continue;
+    byTitle.set(child.title, {
+      id: child.id,
+      state: child.state,
+      type: TYPE_LABEL_TO_TYPE[typeLabel],
+    });
+  }
+  return byTitle;
+}
+
+/**
+ * Wire an `onTransientFailure` listener on the provider's HTTP client so the
+ * staged-pass loop can drop concurrency to 1 the first time GitHub returns a
+ * secondary rate-limit (HTTP 403 abuse-detection). Returns a getter the
+ * caller polls between passes plus a teardown to remove the listener.
+ *
+ * Mock providers in tests do not expose `_http`; in that case the hook is a
+ * no-op and concurrency stays at the configured static cap.
+ */
+function attachAdaptiveConcurrencyHook(provider) {
+  let observed = false;
+  const http = provider?._http;
+  if (!http || typeof http !== 'object' || !('onTransientFailure' in http)) {
+    return { wasThrottled: () => false, detach: () => {} };
+  }
+  const prior = http.onTransientFailure;
+  http.onTransientFailure = (info) => {
+    if (info?.kind === 'secondary-rate-limit') observed = true;
+    if (typeof prior === 'function') prior(info);
+  };
+  return {
+    wasThrottled: () => observed,
+    detach: () => {
+      http.onTransientFailure = prior;
+    },
+  };
+}
+
 export async function decomposeEpic(
   epicId,
   provider,
   { tickets },
   _config = {},
-  { force = false } = {},
+  { force = false, resume = false } = {},
 ) {
   if (!Array.isArray(tickets)) {
     throw new Error(
       `[Decomposer] tickets must be an array (got ${typeof tickets}).`,
+    );
+  }
+  if (force && resume) {
+    throw new Error(
+      '[Decomposer] --force and --resume are mutually exclusive.',
     );
   }
 
@@ -216,21 +279,31 @@ export async function decomposeEpic(
     );
   }
 
-  // ── Force re-decompose: close existing child tickets ──────────────────
+  // ── Resolve existing children for both --force (close them) and the
+  // implicit/explicit resume path (skip create when title matches). A single
+  // fetch covers both branches; we always prime the cache so downstream calls
+  // hit the local map.
+  //
+  // Mock providers in unit tests omit `getTickets` because the original
+  // implementation only called it on the --force branch — treat absence as
+  // "no existing children" rather than failing the whole pipeline.
+  const existing =
+    typeof provider.getTickets === 'function'
+      ? await provider.getTickets(epicId)
+      : [];
+  if (existing.length > 0 && typeof provider.primeTicketCache === 'function') {
+    provider.primeTicketCache(existing);
+  }
+  const existingChildren = (existing || []).filter((t) =>
+    (t.labels || []).some((l) =>
+      [TYPE_LABELS.FEATURE, TYPE_LABELS.STORY, TYPE_LABELS.TASK].includes(l),
+    ),
+  );
+
   if (force) {
     console.log('[Decomposer] --force: Closing existing child tickets...');
-    const existing = await provider.getTickets(epicId);
-    provider.primeTicketCache(existing);
-    const childTypes = [
-      TYPE_LABELS.FEATURE,
-      TYPE_LABELS.STORY,
-      TYPE_LABELS.TASK,
-    ];
-    const children = existing.filter((t) =>
-      t.labels.some((l) => childTypes.includes(l)),
-    );
     const closePromises = [];
-    for (const child of children) {
+    for (const child of existingChildren) {
       if (child.state !== 'closed') {
         const p = provider
           .updateTicket(child.id, {
@@ -244,7 +317,22 @@ export async function decomposeEpic(
       }
     }
     await Promise.all(closePromises);
-    console.log(`[Decomposer]   Closed ${children.length} old ticket(s).`);
+    console.log(
+      `[Decomposer]   Closed ${existingChildren.length} old ticket(s).`,
+    );
+  }
+
+  // ── Resume / idempotent create: index the (post-force) state of children
+  // by title so the staged passes can skip any planned ticket whose title
+  // already exists as an OPEN child of the matching type.
+  const childIndex = force
+    ? new Map()
+    : indexExistingChildren(existingChildren);
+
+  if (resume && childIndex.size === 0) {
+    throw new Error(
+      `[Decomposer] --resume requires existing child tickets under Epic #${epicId}, but none were found. Run without --resume to perform a fresh decomposition.`,
+    );
   }
 
   const maxTickets = getLimits(_config).maxTickets;
@@ -259,31 +347,67 @@ export async function decomposeEpic(
   );
   const validated = validateAndNormalizeTickets(tickets);
 
-  const concurrencyCap =
+  // Pre-pass cross-type collision check: a planned Story sharing a title with
+  // an existing Task (or any other type mismatch) is unrecoverable — auto-
+  // linking it would corrupt the parent/child hierarchy. Surface every
+  // collision in one error so operators can rename them in one pass.
+  const collisions = [];
+  for (const t of validated) {
+    const existingEntry = childIndex.get(t.title);
+    if (existingEntry && existingEntry.type !== t.type) {
+      collisions.push(
+        `  - "${t.title}": planned ${t.type.toUpperCase()} but #${existingEntry.id} is a ${existingEntry.type.toUpperCase()}`,
+      );
+    }
+  }
+  if (collisions.length > 0) {
+    throw new Error(
+      `[Decomposer] Title collision across ticket types — refusing to auto-link:\n${collisions.join('\n')}\n\nRename the planned tickets or close the existing issues, then re-run.`,
+    );
+  }
+
+  const configuredCap =
     getRunners(_config).decomposer.concurrencyCap ??
     DEFAULT_DECOMPOSER.concurrencyCap;
+  let activeCap = configuredCap;
 
   console.log(
-    `[Decomposer] Identified ${validated.length} tickets. Starting creation (concurrencyCap=${concurrencyCap})...`,
+    `[Decomposer] Identified ${validated.length} tickets. Starting creation (concurrencyCap=${activeCap}${childIndex.size > 0 ? `, existing=${childIndex.size}` : ''})...`,
   );
 
   const slugMap = new Map();
   const ordered = orderTicketsForCreation(validated);
+  const throttle = attachAdaptiveConcurrencyHook(provider);
 
-  // Three staged passes: features → stories → tasks. Each pass blocks the
-  // next so parent_slug → ID resolution is preserved (a Story's parent
-  // Feature ID is in slugMap before the Story pass runs).
-  for (const passType of ['feature', 'story', 'task']) {
-    const passTickets = ordered.filter((t) => t.type === passType);
-    if (passTickets.length === 0) continue;
+  try {
+    // Three staged passes: features → stories → tasks. Each pass blocks the
+    // next so parent_slug → ID resolution is preserved (a Story's parent
+    // Feature ID is in slugMap before the Story pass runs).
+    for (const passType of ['feature', 'story', 'task']) {
+      const passTickets = ordered.filter((t) => t.type === passType);
+      if (passTickets.length === 0) continue;
 
-    await runCreationPass(
-      passTickets,
-      slugMap,
-      epicId,
-      provider,
-      concurrencyCap,
-    );
+      // Adaptive degrade: once a secondary RL has been observed in any prior
+      // pass, drop the cap to 1 for every remaining pass. Within-pass
+      // throttling is handled by the http-client's retry/backoff loop.
+      if (throttle.wasThrottled() && activeCap > 1) {
+        Logger.warn(
+          `[Decomposer] secondary rate-limit observed — dropping concurrencyCap from ${activeCap} to 1 for remaining passes`,
+        );
+        activeCap = 1;
+      }
+
+      await runCreationPass(
+        passTickets,
+        slugMap,
+        epicId,
+        provider,
+        activeCap,
+        childIndex,
+      );
+    }
+  } finally {
+    throttle.detach();
   }
 
   console.log(
@@ -297,6 +421,12 @@ export async function decomposeEpic(
  * a ticket's mapper awaits each dep's promise before reading the slugMap,
  * so a chain like t-a → t-b → t-c serialises naturally even when the cap
  * permits parallel work.
+ *
+ * `childIndex` is the title→{id,state,type} map of pre-existing children for
+ * this Epic. When a planned ticket's title hits an OPEN entry, the create
+ * call is skipped and the existing id flows into slugMap so dependents wire
+ * up to the surviving issue. CLOSED entries are warned-about but re-created
+ * (operator may have intentionally cancelled the prior decomposition).
  */
 async function runCreationPass(
   tickets,
@@ -304,6 +434,7 @@ async function runCreationPass(
   epicId,
   provider,
   concurrencyCap,
+  childIndex = new Map(),
 ) {
   const deferred = new Map();
   for (const t of tickets) {
@@ -331,6 +462,21 @@ async function runCreationPass(
         if (deferred.has(depSlug)) {
           await deferred.get(depSlug).promise;
         }
+      }
+
+      const existingEntry = childIndex.get(t.title);
+      if (existingEntry && existingEntry.state !== 'closed') {
+        console.log(
+          `[Decomposer] SKIP (already created): #${existingEntry.id} ${t.title}`,
+        );
+        slugMap.set(t.slug, existingEntry.id);
+        deferred.get(t.slug).resolve(existingEntry.id);
+        return existingEntry.id;
+      }
+      if (existingEntry && existingEntry.state === 'closed') {
+        Logger.warn(
+          `[Decomposer] Existing CLOSED #${existingEntry.id} matches planned title "${t.title}" — re-creating (prior decomposition was cancelled).`,
+        );
       }
 
       console.log(
@@ -367,6 +513,7 @@ async function main() {
     options: {
       epic: { type: 'string' },
       force: { type: 'boolean', default: false },
+      resume: { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -376,7 +523,7 @@ async function main() {
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: ticket-decomposer.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force]',
+      'Usage: ticket-decomposer.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume]',
     );
   }
 
@@ -413,6 +560,7 @@ async function main() {
 
   await decomposeEpic(epicId, provider, { tickets }, config, {
     force: values.force,
+    resume: values.resume,
   });
 }
 

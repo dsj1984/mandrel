@@ -268,3 +268,21 @@ chooses to gate on them.
   you invoked the low-level `ticket-decomposer.js` directly — only
   `epic-plan-decompose.js` flips the lifecycle label. Apply `agent::ready`
   by hand and re-run via the wrapper next time.
+- **Secondary rate limit on large Epics**: For backlogs over ~60 tickets,
+  GitHub's secondary rate limit (HTTP 403, body contains "secondary rate
+  limit") can trip mid-decomposition after ~80 issue creations. The
+  http-client retries automatically with a 30–120s backoff and the
+  decomposer drops `concurrencyCap` to 1 for the rest of the run on the
+  first observation. If the run still aborts (network drop, exhausted
+  retries, etc.), resume from the partial backlog with:
+
+  ```bash
+  node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
+    --tickets temp/tickets-epic-[Epic_ID].json --resume
+  ```
+
+  `--resume` is idempotent: planned tickets whose title matches an existing
+  open child of the Epic are skipped (their issue IDs flow through the
+  parent/dep wiring), and only the missing ones are created. To force-throttle
+  from the first call on a known-large Epic, set
+  `orchestration.runners.decomposer.concurrencyCap: 1` in `.agentrc.json`.
