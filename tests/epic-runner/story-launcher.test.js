@@ -4,43 +4,14 @@ import { describe, it } from 'node:test';
 import { StoryLauncher } from '../../.agents/scripts/lib/orchestration/epic-runner/story-launcher.js';
 
 describe('StoryLauncher', () => {
-  it('planWave returns one entry per story with default model tier "low"', () => {
+  it('planWave returns one entry per story with stable shape', () => {
     const launcher = new StoryLauncher({ concurrencyCap: 2 });
     const plan = launcher.planWave([{ id: 1 }, { id: 2 }, 3]);
     assert.deepEqual(plan, [
-      { storyId: 1, modelTier: 'low', worktree: undefined },
-      { storyId: 2, modelTier: 'low', worktree: undefined },
-      { storyId: 3, modelTier: 'low', worktree: undefined },
+      { storyId: 1, worktree: undefined },
+      { storyId: 2, worktree: undefined },
+      { storyId: 3, worktree: undefined },
     ]);
-  });
-
-  it('planWave reads model tier from story.modelTier or model::* labels', () => {
-    const launcher = new StoryLauncher({ concurrencyCap: 1 });
-    const plan = launcher.planWave([
-      { id: 10, modelTier: 'high' },
-      { id: 11, labels: ['type::story', 'model::high'] },
-      { id: 12, labels: ['type::story'] },
-    ]);
-    assert.equal(plan[0].modelTier, 'high');
-    assert.equal(plan[1].modelTier, 'high');
-    assert.equal(plan[2].modelTier, 'low');
-  });
-
-  it('planWave honors complexity::high parity with dispatcher (regression for Epic #604)', () => {
-    // dispatcher.js / manifest-builder.js resolve `complexity::high` →
-    // modelTier "high". `epic-execute-prepare.js` routes the same Story
-    // through `StoryLauncher.planWave`, so its plan must agree. Without
-    // this, /epic-execute would silently downgrade every high-complexity
-    // Story (Domio Epic #604, 2026-05-04 reproducer).
-    const launcher = new StoryLauncher({ concurrencyCap: 1 });
-    const plan = launcher.planWave([
-      { id: 614, labels: ['type::story', 'complexity::high'] },
-      { id: 615, labels: ['type::story', 'risk::high', 'complexity::high'] },
-      { id: 617, labels: ['type::story'] },
-    ]);
-    assert.equal(plan[0].modelTier, 'high');
-    assert.equal(plan[1].modelTier, 'high');
-    assert.equal(plan[2].modelTier, 'low');
   });
 
   it('planWave threads worktreeResolver into the plan', () => {

@@ -59,7 +59,7 @@ upserted on the Epic; its schema lives at
 [`dispatch-manifest.json`](../schemas/dispatch-manifest.json). A Story
 belongs to wave `N` when its manifest entry's `wave === N`. The CLI runs
 `StoryLauncher.planWave` on the selection and prints
-`{ epicId, wave, concurrencyCap, plan: [{ storyId, modelTier, worktree? }, ...] }`.
+`{ epicId, wave, concurrencyCap, plan: [{ storyId, worktree? }, ...] }`.
 
 **Failure modes.** If the manifest is missing/malformed or no Stories match,
 the CLI exits with code `2` after posting a `friction` structured comment on

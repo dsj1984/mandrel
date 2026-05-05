@@ -67,7 +67,7 @@ test('runWavePrepare — happy path returns plan filtered by wave', async () => 
       stories: [
         { storyId: 911, title: 'A', wave: 1 },
         { storyId: 912, title: 'B', wave: 2 },
-        { storyId: 913, title: 'C', wave: 2, modelTier: 'high' },
+        { storyId: 913, title: 'C', wave: 2 },
         { storyId: 914, title: 'D', wave: 3 },
       ],
     }),
@@ -89,13 +89,11 @@ test('runWavePrepare — happy path returns plan filtered by wave', async () => 
   assert.deepEqual(out.plan[0], {
     storyId: 912,
     title: 'B',
-    modelTier: 'low',
     worktree: '.worktrees/story-912',
   });
   assert.deepEqual(out.plan[1], {
     storyId: 913,
     title: 'C',
-    modelTier: 'high',
     worktree: '.worktrees/story-913',
   });
   // No friction comment posted on the happy path.

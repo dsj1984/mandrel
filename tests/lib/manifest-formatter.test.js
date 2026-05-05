@@ -31,7 +31,6 @@ function epicManifest(overrides = {}) {
         storyTitle: 'Alpha Story',
         type: 'story',
         earliestWave: 0,
-        model_tier: 'low',
         branchName: 'story-101',
         tasks: [
           { taskId: 201, taskSlug: 't-a1', status: 'agent::done' },
@@ -44,7 +43,6 @@ function epicManifest(overrides = {}) {
         storyTitle: 'Beta Story',
         type: 'story',
         earliestWave: 1,
-        model_tier: 'high',
         branchName: 'story-102',
         tasks: [
           {
@@ -95,7 +93,6 @@ test('formatter: feature containers row when features present', () => {
     type: 'feature',
     earliestWave: -1,
     branchName: 'feature-300',
-    model_tier: 'low',
     tasks: [{ taskId: 400, taskSlug: 'orphan', status: 'agent::ready' }],
   });
   const md = formatManifestMarkdown(manifest);
@@ -122,7 +119,6 @@ test('formatter: story execution manifest respects injected settings', () => {
           storyTitle: 'Alpha',
           epicBranch: 'epic/42',
           branchName: 'story-101',
-          model_tier: 'low',
           tasks: [
             {
               taskId: 201,
@@ -168,7 +164,6 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
         storySlug: 'alpha',
         type: 'story',
         earliestWave: 0,
-        model_tier: 'low',
         tasks: [{}, {}],
       },
       {
@@ -176,7 +171,6 @@ test('formatter: printStoryDispatchTable writes to injected logger', () => {
         storySlug: 'container',
         type: 'feature',
         earliestWave: -1,
-        model_tier: 'low',
         tasks: [{}],
       },
     ],
@@ -283,7 +277,6 @@ test('renderStoryTable: groups stories by wave and flags parallel waves', () => 
     storySlug: 'gamma',
     type: 'story',
     earliestWave: 1,
-    model_tier: 'low',
     branchName: 'story-103',
     tasks: [{ taskId: 205, taskSlug: 't-c1', status: 'agent::ready' }],
   });
@@ -301,7 +294,6 @@ test('renderStoryTable: appends a Feature Containers section when present', () =
       storySlug: 'alpha',
       type: 'story',
       earliestWave: 0,
-      model_tier: 'low',
       branchName: 'story-101',
       tasks: [{ taskId: 200, status: 'agent::done' }],
     },
@@ -310,7 +302,6 @@ test('renderStoryTable: appends a Feature Containers section when present', () =
       storySlug: 'container',
       type: 'feature',
       earliestWave: -1,
-      model_tier: 'low',
       branchName: 'feature-300',
       tasks: [{ taskId: 400, status: 'agent::ready' }],
     },

@@ -924,14 +924,6 @@ base-branch values regardless of what the PR-branch config says.
 
 The framework implements an economic guardrail system for LLM cost management:
 
-### Model Tiers
-
-| Tier           | Models                                  | Use Case                             | Budget Allocation            |
-| -------------- | --------------------------------------- | ------------------------------------ | ---------------------------- |
-| **Architects** | Claude Opus 4.6, Gemini 3.1 Pro (High)  | Complex design, deep debugging       | 5-10% of tasks               |
-| **Workhorses** | Claude Sonnet 4.6, Gemini 3.1 Pro (Low) | Standard features, API integration   | 20-30% of tasks              |
-| **Sprinters**  | Gemini 3 Flash                          | Boilerplate, formatting, quick fixes | 60-80% of tasks, <10% budget |
-
 ### Budget Protocol
 
 - **Soft Warning** at 80% of `maxTokenBudget` → user notification + webhook.
@@ -1004,7 +996,7 @@ conventions to follow.
 ### Key Scripts
 
 - **Orchestration engine:** `.agents/scripts/lib/orchestration/` — dispatch,
-  manifest build, story execution, context hydration, model-tier resolution
+  manifest build, story execution, context hydration
 - **Ticketing provider abstraction:** `.agents/scripts/lib/ITicketingProvider.js`
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
 - **Execution adapter abstraction:** `.agents/scripts/lib/IExecutionAdapter.js`

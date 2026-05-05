@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **`model_tier` and the `complexity::high` → tier mapping** (Epic #990).
+  The orchestrator no longer derives a per-Story model tier or surfaces
+  one in dispatch artefacts. Concrete model selection is left entirely to
+  the operator or external router. Bumping consumers will see:
+  - **File deleted:** `.agents/scripts/lib/orchestration/model-resolver.js`
+    (and its `resolveModelTier` export) is gone. Any importer must drop
+    the dependency.
+  - **Schema field removed:** the `dispatch-manifest` structured comment
+    no longer carries `model_tier` on Story entries; the JSON schema in
+    `.agents/schemas/dispatch-manifest.json` no longer lists it as a
+    valid key.
+  - **Validator clause removed:** `validateAndNormalizeTickets` no longer
+    requires a `complexity::*` label on Stories. Backlogs that omit
+    `complexity::*` will validate cleanly.
+  - **Plan-row shape:** `StoryLauncher.planWave` and `wave-prepare` now
+    emit `{ storyId, worktree? }` (and `title` from `wave-prepare`)
+    without the `modelTier` field. Adapters that key on `modelTier`
+    must be updated.
+  - **Persona / SDLC / instructions:** prose references to
+    `model_tier::*` labelling, `Model Tier` columns, and
+    "complexity-derived tier" guidance have been struck.
+
 ## [5.33.0] - 2026-05-05
 
 ### Task bodies are now agent-executable (structured 4-section schema)

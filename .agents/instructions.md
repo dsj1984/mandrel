@@ -93,11 +93,9 @@ ORM, API framework, auth provider, validation library, workspace paths).
 Project-specific technology context is intentionally kept out of
 `.agentrc.json`.
 
-Model selection is intentionally **not** in config. The dispatcher emits a
-binary `model_tier` per Story — `high` (deep-reasoning) or `low` (fast
-execution) — derived from the `complexity::high` label. Pick any model that
-matches the tier; concrete model choice is left to the operator or external
-router.
+Model selection is intentionally **not** in config or in the dispatcher.
+Concrete model choice is left to the operator or external router; the
+orchestrator does not emit a per-Story tier hint.
 
 ### H. Observability & Agent Friction Logging
 
@@ -206,16 +204,6 @@ protocol:
 - **Hard-Stop (100%)**: If you reach `maxTokenBudget`, you MUST **STOP**
   immediately. You are forbidden from continuing until a human operator grants
   an explicit override via a status update or CLI flag.
-
-### B. Cost-Aware Model Selection
-
-- During the planning phase (`/epic-plan`), the **Project Manager** and
-  **Architect** personas MUST consider the economic impact of their task
-  assignments.
-- Use the `complexity::high` label sparingly. Only Stories that genuinely
-  require deep reasoning (architectural design, multi-file refactors,
-  non-trivial bugs) should carry it — everything else defaults to the `low`
-  tier. The operator/router maps the tier to a concrete model at dispatch time.
 
 ---
 

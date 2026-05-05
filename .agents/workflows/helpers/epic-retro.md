@@ -17,7 +17,7 @@ directly from the GitHub ticket graph and **posts the result as a comment on the
 Epic issue**. Local `docs/retros/` is no longer used — GitHub is the sole retro
 archive.
 
-> **Persona**: `product` · **Model Tier**: `high` (deep-reasoning) **Skills**:
+> **Persona**: `product` · **Skills**:
 > `core/documentation-and-adrs`, `core/idea-refinement`
 
 ## Step 0 — Resolve Configuration

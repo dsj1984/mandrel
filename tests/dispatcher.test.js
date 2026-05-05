@@ -424,56 +424,6 @@ describe('dispatch() — story-level orchestration', () => {
     assert.equal(manifest.storyManifest[0].tasks.length, 2);
   });
 
-  it('resolves model_tier: high when story has complexity::high label', async () => {
-    const story100 = makeTask(100, {
-      title: 'High Complexity Story',
-      labels: ['type::story', 'complexity::high'],
-    });
-    const taskInner = makeTask(1, {
-      body: '## Metadata\nparent: #100',
-    });
-
-    const provider = new MockProvider({
-      epic: EPIC,
-      tasks: [story100, taskInner],
-    });
-    const adapter = new MockAdapter();
-
-    const manifest = await dispatch({
-      epicId: 1,
-      dryRun: true,
-      provider,
-      adapter,
-    });
-
-    assert.equal(manifest.storyManifest[0].model_tier, 'high');
-  });
-
-  it('defaults model_tier: low when no complexity label is present', async () => {
-    const story100 = makeTask(100, {
-      title: 'Simple Story',
-      labels: ['type::story'],
-    });
-    const taskInner = makeTask(1, {
-      body: '## Metadata\nparent: #100',
-    });
-
-    const provider = new MockProvider({
-      epic: EPIC,
-      tasks: [story100, taskInner],
-    });
-    const adapter = new MockAdapter();
-
-    const manifest = await dispatch({
-      epicId: 1,
-      dryRun: true,
-      provider,
-      adapter,
-    });
-
-    assert.equal(manifest.storyManifest[0].model_tier, 'low');
-  });
-
   it('serializes tasks across different stories if they have overlapping focus areas', async () => {
     const storyA = makeTask(100, { title: 'Story A', labels: ['type::story'] });
     const storyB = makeTask(200, { title: 'Story B', labels: ['type::story'] });
