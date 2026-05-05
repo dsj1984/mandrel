@@ -3094,7 +3094,7 @@
       "startLine": 140
     },
     {
-      "crap": 7,
+      "crap": 7.01,
       "file": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
       "method": "resolveCloseInputs",
       "startLine": 42
