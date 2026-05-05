@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.5] - 2026-05-05
+
+### Sub-issue link failures no longer silent in epic-plan-decompose
+
+Large Epic decompositions (>~80 tickets) that hit GitHub's secondary rate
+limit on the `addSubIssue` GraphQL mutation produced tickets with the
+`---\nparent: #<n>\nEpic: #<m>` body footer but no native API
+sub-issue relationship. Consumers that read the API relationship
+(`get_sub_issues`, `parent_issue_url`, project rollups, the orchestrator's
+child-state poll, `getReferencedChildren`) saw zero children. Real-world
+repro: Story #728 in dsj1984/domio whose tasks #793, #794, #795 were
+text-linked only.
+
+- **`addSubIssue` retries on transient errors.** Wraps the GraphQL
+  mutation in a six-attempt jittered exp-backoff loop (1 s base, 30 s
+  cap) gated by `classifyGithubError`'s `transient` category. Catches
+  GraphQL-200 + errors[] secondary-RL responses that the HTTP-layer
+  retry cannot see.
+- **`createTicket` no longer swallows the link failure.** The catch
+  branch sets `subIssueLinked: false` + `subIssueError` on the returned
+  metadata instead of `console.warn`-and-continue, so the decomposer
+  can count and reconcile.
+- **Reconciliation pass at end of `decomposeEpic`.** After all staged
+  creation passes complete, the decomposer walks every child of the
+  Epic, parses the `parent: #<n>` footer, and verifies the native API
+  link is present. Missing links are re-established via `addSubIssue`.
+  Prints `linked X/Y sub-issues (N reconciled)`; throws when gaps
+  remain. Idempotent — safe to re-run on legacy partially-linked Epics.
+- **Error classifier prefers rate-limit message over 401/403.** A 403
+  with a "secondary rate limit" body now classifies as `transient`
+  instead of `permission`, so the retry path engages even when the
+  thrown error has a numeric status attached.
+- **Tests.** Two new cases in
+  `tests/providers-github-sub-issue-link.test.js`: (1) `addSubIssue`
+  succeeds on retry after a first-call rate-limit error; (2)
+  `reconcileSubIssueLinks` relinks an orphan whose body footer is
+  correct but whose API parent is missing.
+
 ## [5.32.4] - 2026-05-05
 
 ### Story sub-task discovery via reverse-reference fallback
