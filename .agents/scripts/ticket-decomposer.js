@@ -18,8 +18,7 @@
  *
  * Execution model: Stories are the primary execution unit. Each Story is executed
  * on a single branch (`story/epic-<epicId>/<slug>`) with all child Tasks
- * implemented sequentially. The dispatcher groups tasks by Story and assigns a
- * model_tier (high|low) based on the Story's complexity::high label.
+ * implemented sequentially. The dispatcher groups tasks by Story.
  */
 
 import { readFile } from 'node:fs/promises';

@@ -5,10 +5,10 @@
  * After Story #908, in-session Agent-tool fan-out replaces the subprocess
  * spawn pipeline. The launcher's primary responsibility is `planWave(stories)`:
  * given a wave's Story tickets it returns a stable list of
- * `{ storyId, modelTier, worktree }` entries. The `/wave-execute` skill
- * consumes that list to format one assistant turn containing N parallel
- * `Agent` tool calls (subagent_type `general-purpose`), each of which drives
- * `/story-execute <storyId>` for one Story.
+ * `{ storyId, worktree }` entries. The `/wave-execute` skill consumes that
+ * list to format one assistant turn containing N parallel `Agent` tool calls
+ * (subagent_type `general-purpose`), each of which drives `/story-execute
+ * <storyId>` for one Story.
  *
  * `launchWave(stories)` is a convenience for callers that already hold a
  * concrete dispatch adapter (tests, future programmatic harnesses). It calls
@@ -17,8 +17,6 @@
  * dispatch adapter — invoking the engine without one is an explicit error.
  */
 
-import { resolveModelTier as resolveLabelModelTier } from '../model-resolver.js';
-
 const DEFAULT_TIMEOUT_MS = 6 * 60 * 60 * 1000;
 
 export class StoryLauncher {
@@ -26,9 +24,8 @@ export class StoryLauncher {
    * @param {{
    *   ctx?: import('../context.js').EpicRunnerContext,
    *   concurrencyCap?: number,
-   *   dispatch?: (args: { plan: Array<{ storyId: number, modelTier: string, worktree?: string }>, concurrencyCap: number, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
+   *   dispatch?: (args: { plan: Array<{ storyId: number, worktree?: string }>, concurrencyCap: number, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
    *   worktreeResolver?: (storyId: number) => string,
-   *   modelTierResolver?: (story: object) => string,
    *   timeoutMs?: number,
    *   logger?: { info: Function, warn: Function, error: Function }
    * }} opts
@@ -43,7 +40,6 @@ export class StoryLauncher {
     this.concurrencyCap = concurrencyCap;
     this.dispatch = dispatch;
     this.worktreeResolver = opts?.worktreeResolver ?? ctx?.worktreeResolver;
-    this.modelTierResolver = opts?.modelTierResolver ?? null;
     this.timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.logger = opts?.logger ?? ctx?.logger ?? console;
   }
@@ -53,8 +49,8 @@ export class StoryLauncher {
    * caller (the `/wave-execute` skill, or `launchWave` below) decides what to
    * do with the plan.
    *
-   * @param {Array<number|{id?:number,storyId?:number,number?:number,labels?:string[]}>} stories
-   * @returns {Array<{ storyId: number, modelTier: string, worktree?: string }>}
+   * @param {Array<number|{id?:number,storyId?:number,number?:number}>} stories
+   * @returns {Array<{ storyId: number, worktree?: string }>}
    */
   planWave(stories) {
     return (stories ?? []).map((s) => {
@@ -65,33 +61,9 @@ export class StoryLauncher {
       const id = Number(storyId);
       return {
         storyId: id,
-        modelTier: this.#resolveModelTier(s),
         worktree: this.worktreeResolver?.(id),
       };
     });
-  }
-
-  #resolveModelTier(story) {
-    if (typeof this.modelTierResolver === 'function') {
-      const tier = this.modelTierResolver(story);
-      if (typeof tier === 'string' && tier.length > 0) return tier;
-    }
-    if (typeof story === 'object' && story !== null) {
-      if (typeof story.modelTier === 'string') return story.modelTier;
-      const labels = Array.isArray(story.labels) ? story.labels : [];
-      for (const label of labels) {
-        const match =
-          typeof label === 'string' ? label.match(/^model::(.+)$/) : null;
-        if (match) return match[1];
-      }
-      // Fall back to the canonical label-driven resolver shared with
-      // dispatcher.js / manifest-builder. The orchestrator's source-of-truth
-      // is `complexity::high` (per .agents/instructions.md §1.G) — without
-      // this fallback, planWave would mark every Story `low` even when the
-      // dispatch table correctly shows `high`.
-      return resolveLabelModelTier(labels);
-    }
-    return resolveLabelModelTier([]);
   }
 
   /**

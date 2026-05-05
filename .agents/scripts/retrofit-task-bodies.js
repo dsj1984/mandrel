@@ -18,7 +18,6 @@
  *        - id, title, current body, parent Story body
  *        - Tech Spec body excerpt (bounded by planning-context budget)
  *        - whether `docs/style-guide.md` exists in the repo
- *        - `complexity::high` flag from the parent Story
  *
  *      The host LLM consumes this envelope and produces a "bodies file"
  *      (an array of `{ id, body: { goal, changes, acceptance, verify } }`).
@@ -103,10 +102,6 @@ async function buildEnrichmentContext(epicId, provider) {
     techSpecExcerpt,
     styleGuidePresent: styleGuide,
     tasks: items.map(({ task, parentStory }) => {
-      const parentLabels = parentStory?.labels ?? [];
-      const complexity = parentLabels.includes('complexity::high')
-        ? 'high'
-        : 'low';
       return {
         id: task.id,
         title: task.title,
@@ -114,7 +109,6 @@ async function buildEnrichmentContext(epicId, provider) {
         parentStoryId: parentStory?.id ?? null,
         parentStoryTitle: parentStory?.title ?? null,
         parentStoryBody: parentStory?.body ?? null,
-        modelTier: complexity,
       };
     }),
   };
