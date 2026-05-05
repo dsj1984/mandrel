@@ -4,7 +4,7 @@
  * fields they exercise (e.g. a custom `dispatch`, a fake `provider`).
  *
  * `dispatch` adapter contract: receives `{ plan, concurrencyCap, signal }`
- * where `plan` is `[{ storyId, modelTier, worktree }, ...]` and returns
+ * where `plan` is `[{ storyId, worktree }, ...]` and returns
  * an array of `{ storyId, status, detail? }` results. Tests that need
  * per-story custom behaviour use the `spawn` legacy alias which is auto-
  * adapted to the new wave-level shape below — preserves test ergonomics

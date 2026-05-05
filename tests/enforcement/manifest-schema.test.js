@@ -210,7 +210,6 @@ describe('dispatch-manifest schema drift (AJV fixture)', () => {
           epicId: 50,
           epicBranch: 'epic/50',
           branchName: 'story-800',
-          model_tier: 'low',
           tasks: [{ taskId: 'not-a-number', title: 'X', status: 'open' }],
         },
       ],

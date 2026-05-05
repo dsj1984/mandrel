@@ -2746,12 +2746,6 @@
       "startLine": 112
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/model-resolver.js",
-      "method": "resolveModelTier",
-      "startLine": 17
-    },
-    {
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/parked-follow-ons.js",
       "method": "classifyStoriesAgainstManifest",
