@@ -62,6 +62,25 @@ output omitted test contracts, definition-of-done, and file paths.
   empty-section variant; orchestrator footer survives renderer
   round-trip; retrofit script skips already-conforming tasks.
 
+### `/agents-update` now reconciles consumer instructions + memories
+
+The framework-bump workflow previously ended at "move the submodule
+pointer + sync `.claude/commands/`." That left consumer-side
+`AGENTS.md` / `CLAUDE.md` and per-agent memory files quietly drifting
+out of sync with new framework contracts (e.g., a memory pinning a
+workaround for a bug that the bump just fixed; an `AGENTS.md` line
+contradicting a tightened validator).
+
+- New **Step 4 — Review the CHANGELOG and update consumer-side
+  memories** added to `.agents/workflows/agents-update.md`. The
+  operator reads the framework CHANGELOG between `OLD_SHA` and
+  `NEW_SHA`, sweeps consumer instructions / memories / runbooks for
+  each entry, and stages every reconciliation alongside the pointer
+  move so a single commit captures both "framework moved" and "what
+  we changed in response."
+- Step 4 explicitly disclaims "do not invent updates" — silence is a
+  valid review outcome. The goal is consistency, not churn.
+
 ### Sub-issue link failures no longer silent in epic-plan-decompose
 
 Large Epic decompositions (>~80 tickets) that hit GitHub's secondary rate
