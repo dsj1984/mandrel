@@ -658,10 +658,16 @@
       "startLine": 71
     },
     {
-      "crap": 17.056872576676277,
+      "crap": 30,
+      "file": ".agents/scripts/epic-plan-decompose.js",
+      "method": "reportPartialFailure",
+      "startLine": 141
+    },
+    {
+      "crap": 27.927001371742115,
       "file": ".agents/scripts/epic-plan-decompose.js",
       "method": "main",
-      "startLine": 137
+      "startLine": 184
     },
     {
       "crap": 3.072,
@@ -1267,7 +1273,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 302
+      "startLine": 312
     },
     {
       "crap": 2,
@@ -2522,6 +2528,42 @@
       "file": ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js",
       "method": "upsertStoryRunProgress",
       "startLine": 203
+    },
+    {
+      "crap": 14.0245,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "parseStoryAgentReturn",
+      "startLine": 63
+    },
+    {
+      "crap": 11.035851851851852,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "validateStoryReturnShape",
+      "startLine": 110
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "collectJsonCandidates",
+      "startLine": 149
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "quote",
+      "startLine": 176
+    },
+    {
+      "crap": 14.015777610818933,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "reconcileStoryFromGitHub",
+      "startLine": 204
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js",
+      "method": "renderMalformedReturnsFriction",
+      "startLine": 272
     },
     {
       "crap": 8,
@@ -4990,10 +5032,70 @@
       "startLine": 291
     },
     {
-      "crap": 4.018661612479954,
+      "crap": 2.006513331976389,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "validateResults",
+      "startLine": 117
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "parseResultsArg",
+      "startLine": 163
+    },
+    {
+      "crap": 13.403763382523149,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "normalizeReturns",
+      "startLine": 209
+    },
+    {
+      "crap": 4,
       "file": ".agents/scripts/wave-record.js",
       "method": "aggregateWaveStatus",
-      "startLine": 262
+      "startLine": 266
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "verifyWaveResults",
+      "startLine": 311
+    },
+    {
+      "crap": 4.018661612479954,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "loadManifestTitleMap",
+      "startLine": 356
+    },
+    {
+      "crap": 17.67538880235804,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "runWaveRecord",
+      "startLine": 398
+    },
+    {
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "<anon method-10>",
+      "startLine": 500
+    },
+    {
+      "crap": 5.520543981481482,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "parseCliArgs",
+      "startLine": 543
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "resolveRecordInput",
+      "startLine": 576
+    },
+    {
+      "crap": 5.20262390670554,
+      "file": ".agents/scripts/wave-record.js",
+      "method": "main",
+      "startLine": 590
     }
   ],
   "tsTranspilerVersion": "5.9.3"
