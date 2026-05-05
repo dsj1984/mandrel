@@ -26,10 +26,12 @@ than working around it here.
 - Adding file uploads, webhooks, or callbacks
 - Handling payment or PII data
 
-## Ask First (Requires Human Approval)
+## Security Surfacing, Not Runtime Pause
 
 Some changes are not unsafe by themselves but expand the security surface
-enough that an operator should sign off before they land:
+enough that the change must be **explicitly documented** in the PR
+description and on the originating ticket so a reviewer can sign off in
+band. Documenting them is the gate — they do **not** pause execution:
 
 - Adding new authentication flows or changing auth logic
 - Storing new categories of sensitive data (PII, payment info)
@@ -39,7 +41,15 @@ enough that an operator should sign off before they land:
 - Modifying rate limiting or throttling
 - Granting elevated permissions or roles
 
-Treat these as `risk::high` candidates and surface them in the PR description.
+For each item that applies, call it out under a "Security surface" section
+in the PR body and on the parent ticket, label the change `risk::high`,
+and link the relevant `security-baseline.md` MUST. Reviewers gate the
+merge; the agent keeps moving.
+
+`agent::blocked` remains the **only** runtime pause label. Use it for
+unrecoverable blockers (missing prerequisite, ambiguous spec a sub-agent
+cannot resolve), not for "this change is sensitive." Sensitive changes
+ship through the documentation path above.
 
 ## OWASP Top 10 Prevention Patterns
 
