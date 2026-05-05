@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,6 +7,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
   acquireEpicMergeLock,
   releaseEpicMergeLock,
+  resolveGitCommonDir,
 } from '../../.agents/scripts/lib/epic-merge-lock.js';
 
 describe('epic-merge-lock', () => {
@@ -128,5 +130,66 @@ describe('epic-merge-lock', () => {
       acquireEpicMergeLock(66, { repoRoot, timeoutMs: 300 }),
       /timed out after 300ms for epic 66/,
     );
+  });
+
+  it('acquires a lock from inside a linked worktree (gitlink, not directory)', async () => {
+    // Build a real main-repo + linked worktree pair so `git rev-parse
+    // --git-common-dir` returns the parent's .git/. This is the scenario
+    // that previously crashed with EEXIST: cwd is the worktree, .git there
+    // is a gitlink file, and the legacy lockPathFor tried to mkdir on it.
+    const mainRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'epic-lock-main-'));
+    try {
+      const run = (args, cwd = mainRepo) =>
+        execFileSync('git', args, { cwd, stdio: 'ignore' });
+      run(['init', '--initial-branch=main']);
+      run(['config', 'user.email', 'test@example.com']);
+      run(['config', 'user.name', 'Test']);
+      run(['commit', '--allow-empty', '-m', 'init']);
+
+      const worktreeRoot = path.join(
+        path.dirname(mainRepo),
+        `${path.basename(mainRepo)}-wt`,
+      );
+      run(['worktree', 'add', '-b', 'wt-branch', worktreeRoot]);
+
+      try {
+        // Sanity: .git in the worktree is a file, not a directory.
+        const gitlinkStat = fs.statSync(path.join(worktreeRoot, '.git'));
+        assert.equal(
+          gitlinkStat.isFile(),
+          true,
+          'precondition: worktree .git must be a gitlink file',
+        );
+
+        // The fix: lock acquisition resolves to the *common* gitdir.
+        // git rev-parse emits forward slashes on Windows; normalize both
+        // sides through path.resolve before comparing.
+        const expectedGitDir = path.resolve(mainRepo, '.git');
+        assert.equal(
+          path.resolve(resolveGitCommonDir(worktreeRoot)),
+          expectedGitDir,
+          'common gitdir resolves to the parent repo',
+        );
+
+        const handle = await acquireEpicMergeLock(123, {
+          repoRoot: worktreeRoot,
+          timeoutMs: 1000,
+        });
+        try {
+          assert.equal(
+            path.resolve(path.dirname(handle.filePath)),
+            expectedGitDir,
+            'lock file lands in the parent repo .git/, not the worktree gitlink',
+          );
+          assert.ok(fs.existsSync(handle.filePath));
+        } finally {
+          releaseEpicMergeLock(handle);
+        }
+      } finally {
+        run(['worktree', 'remove', '--force', worktreeRoot]);
+      }
+    } finally {
+      fs.rmSync(mainRepo, { recursive: true, force: true });
+    }
   });
 });

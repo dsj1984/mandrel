@@ -23,6 +23,7 @@ import { Logger } from './lib/Logger.js';
 import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
+import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix.js';
 import {
   runFinalizeMerge,
   runResumeMerge,
@@ -124,6 +125,14 @@ export async function runStoryClose({
     resumeFromMerge ||
     resumeFromPostMerge;
   if (!skipValidation) {
+    // Self-heal format drift carried in from upstream waves before the
+    // check-only gate fails the close. Lint-staged misses files outside
+    // its glob (notably JSON), so a JSON edit in wave N can fail every
+    // wave N+1 close until an operator runs `biome format --write` and
+    // commits the result. The autofix step does that automatically on
+    // a clean tree; on a dirty tree it bails out and lets the gate
+    // surface the drift with the canonical hint.
+    runFormatAutofix({ cwd, storyId, logger: Logger });
     runPreMergeGates({
       cwd,
       settings,

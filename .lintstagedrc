@@ -3,6 +3,9 @@
     "biome check --write",
     "biome format --write"
   ],
+  "**/*.{json,jsonc,json5}": [
+    "biome format --write"
+  ],
   "{.agents/**/,}*.md": [
     "markdownlint --fix"
   ]
