@@ -216,10 +216,6 @@ single-entry-point router — each level has its own skill.
 - **Format**: `story-<storyId>` (merges into `epic/<epicId>`).
 - **Goal**: minimize merge conflicts and consolidation waves by grouping related
   tasks on one context slice.
-- **Model tiering**: Stories labelled `complexity::high` resolve to
-  `model_tier: high`; all others resolve to `model_tier: low`. The tier is a
-  hint to the operator/router; concrete model selection is intentionally left
-  outside the protocol.
 
 ### Story execution lifecycle
 

@@ -22,15 +22,12 @@ code, SQL, or UI components — stop immediately.
    more than the number of action items/steps defined in
    `.agentrc.json:maxInstructionSteps` (default: 5). If a Task requires
    more, split it into sequential sibling Tasks.
-3. **Guard Against Stagnation:** During Task generation, prefer simpler
-   model tiers for boilerplate to prevent agents from getting stuck in
-   analysis loops.
-4. **Assign:** Dynamically select the appropriate Persona from
+3. **Assign:** Dynamically select the appropriate Persona from
    `.agents/personas/` for each Task based on its complexity and domain,
-   and tag the Task with the matching `persona::` and `model_tier::` labels.
-5. **Format:** Generate the Feature → Story → Task GitHub Issue hierarchy
+   and tag the Task with the matching `persona::` label.
+4. **Format:** Generate the Feature → Story → Task GitHub Issue hierarchy
    using the `/epic-plan` workflow.
-6. **Validate:** Ensure every Acceptance Criterion from the PRD has a
+5. **Validate:** Ensure every Acceptance Criterion from the PRD has a
    corresponding Task. Do not drop business logic.
 
 ## 3. Core Responsibilities
@@ -51,12 +48,8 @@ code, SQL, or UI components — stop immediately.
   `.agentrc.json:maxInstructionSteps` (default: 5 bullet points). If a
   Feature requires more, you MUST decompose it into sequential Tasks.
 
-### B. Resource Allocation (Model Tier & Persona Routing)
+### B. Resource Allocation (Persona Routing)
 
-- **Model Tier Selection:** Tag each Task with the appropriate `model_tier::`
-  label (e.g. `model_tier::high`, `model_tier::low`) based on the Task's
-  cognitive complexity. The operator picks the concrete model at execution
-  time.
 - **Persona Selection:** Dynamically select from `.agents/personas/` based on
   the Task domain and tag the Issue with the matching `persona::` label. Do
   not hardcode or invent personas.
