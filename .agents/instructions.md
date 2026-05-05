@@ -288,19 +288,14 @@ strict conventions for all epic-related Git operations:
 
 ### A. Branch Naming (Canonical)
 
-Epic execution uses three branch shapes. The runtime creates and maintains
+Epic execution uses two branch shapes. The runtime creates and maintains
 them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
 | Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
 | Epic integration | `epic/<epicId>`              | `epic-runner.js`       | Story branches merge into this branch with `--no-ff`. Pushed per wave.                        |
-| Legacy fallback  | `task/<archivedEpic>/<taskN>` | (legacy, do not create) | Only present in archived Epics from runtimes prior to v5.29. Recognized for read; never created by new work. |
 
-- **Constraint**: New Story work MUST use the `story-<storyId>` shape. Agents
-  MUST NOT create `task/...` branches under the v5.29+ runtime — those
-  identifiers are retained as a legacy fallback only, for compatibility with
-  archived Epics.
 - **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
   commits. If it does not, **STOP** and re-init.
