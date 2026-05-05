@@ -352,6 +352,8 @@ async function phaseFinalizeBranchCleanup(
   }
 
   // Enumerate all branches to delete (epic + matching stories/tasks).
+  // Legacy patterns (story/epic-<id>/, task/epic-<id>/) match archived branches
+  // from runtimes prior to v5.29; consumed by matchesEpicBranch() below.
   const epicBranch = `epic/${epicId}`;
   const storyLegacyPattern = `story/epic-${epicId}/`;
   const taskLegacyPattern = `task/epic-${epicId}/`;

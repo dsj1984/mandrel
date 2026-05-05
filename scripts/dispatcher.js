@@ -10,7 +10,6 @@
  *
  * Usage:
  *   node dispatcher.js <ticketId> [--dry-run] [--executor <name>]
- *   node dispatcher.js --epic <epicId> [--dry-run]     (legacy, deprecated)
  *
  * The script auto-detects whether the ticket is an Epic or Story
  * and routes to the appropriate execution mode.
@@ -158,11 +157,8 @@ async function main() {
 
 runAsCli(import.meta.url, main, {
   source: 'Dispatcher',
-  // Preserve legacy behaviour: report but do not exit; only abort with a
-  // non-zero exit code if DEBUG is set (the orchestration tests depend on
-  // this — message context was already printed via console.error above).
   onError: (err) => {
     console.error('[Dispatcher] Fatal error:', err.message);
-    if (process.env.DEBUG) process.exit(1);
+    process.exit(1);
   },
 });

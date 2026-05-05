@@ -20,13 +20,55 @@
  *   the lock is stolen (unlinked) and re-acquired.
  */
 
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const POLL_INTERVAL_MS = 250;
 
+/**
+ * Resolve the *common* gitdir for a given working directory.
+ *
+ * In a linked worktree (`git worktree add ...`), `<repoRoot>/.git` is a
+ * one-line gitlink **file**, not a directory. `path.join(repoRoot, '.git')`
+ * therefore points at the gitlink file and any `mkdir`/`openSync` against
+ * it fails with `EEXIST: file already exists`.
+ *
+ * Resolution order:
+ *   1. If `<repoRoot>/.git` is already a directory, return it. Covers the
+ *      main-checkout case and the test fixtures, which create a bare
+ *      `.git/` under a temp root — no need to spawn git for those.
+ *   2. Otherwise (gitlink file, or `.git` absent), shell out to
+ *      `git rev-parse --git-common-dir`. In a worktree this returns the
+ *      parent repo's `.git/`, so lock files placed there are shared
+ *      across every worktree racing on the same Epic — which is the
+ *      correct semantics for an epic-merge mutex.
+ *   3. If neither succeeds, fall back to `<repoRoot>/.git`. Lock
+ *      acquisition will then surface the underlying error to the
+ *      operator with the literal path that failed.
+ */
+export function resolveGitCommonDir(repoRoot) {
+  const local = path.join(repoRoot, '.git');
+  try {
+    if (fs.statSync(local).isDirectory()) return local;
+  } catch {
+    // .git does not exist — fall through to git rev-parse.
+  }
+  try {
+    const out = execFileSync('git', ['rev-parse', '--git-common-dir'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+    if (out) return path.isAbsolute(out) ? out : path.resolve(repoRoot, out);
+  } catch {
+    // not a git repo, or git is unavailable — fall through.
+  }
+  return local;
+}
+
 function lockPathFor(epicId, repoRoot) {
-  return path.join(repoRoot, '.git', `epic-${epicId}.merge.lock`);
+  return path.join(resolveGitCommonDir(repoRoot), `epic-${epicId}.merge.lock`);
 }
 
 function isProcessRunning(pid) {

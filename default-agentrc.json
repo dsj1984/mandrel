@@ -25,7 +25,7 @@
     },
     "limits": {
       "maxInstructionSteps": 5,
-      "maxTickets": 60,
+      "maxTickets": 40,
       "maxTokenBudget": 200000,
       "executionTimeoutMs": 300000,
       "executionMaxBuffer": 10485760,
@@ -34,6 +34,10 @@
         "consecutiveErrorCount": 3,
         "stagnationStepCount": 5,
         "maxIntegrationRetries": 2
+      },
+      "planningContext": {
+        "maxBytes": 50000,
+        "summaryMode": "auto"
       }
     },
     "commands": {

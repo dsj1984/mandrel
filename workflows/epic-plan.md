@@ -167,7 +167,15 @@ planned.
      automatically where it can detect the pattern — this checklist item is the
      human/host-LLM backstop.
    - **Action**: Fix any scope-overlap exceptions or validator failures by
-     updating the affected issues manually.
+     re-running the scripted force path so the change is recorded in tooling
+     rather than hand-applied:
+
+     ```bash
+     node .agents/scripts/epic-plan-decompose.js \
+       --epic [Epic_ID] \
+       --tickets temp/tickets-epic-[Epic_ID].json \
+       --force
+     ```
 
 5. **Audit**:
    - Check the Epic's comment thread to ensure the backlog summary was posted.
@@ -185,7 +193,7 @@ planned.
    calculate execution waves and model recommendations:
 
    ```bash
-   node .agents/scripts/dispatcher.js --epic [Epic_ID] --dry-run
+   node .agents/scripts/dispatcher.js [Epic_ID] --dry-run
    ```
 
 2. **Verify Output**:

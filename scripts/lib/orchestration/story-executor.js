@@ -1,7 +1,6 @@
 import { extractEpicIdFromBody } from '../dependency-parser.js';
 import { buildGraph, detectCycle, topologicalSort } from '../Graph.js';
 import { getEpicBranch, getStoryBranch } from '../git-utils.js';
-import { resolveModelTier } from './model-resolver.js';
 import { fetchTasks } from './task-fetcher.js';
 
 /**
@@ -70,7 +69,6 @@ export async function executeStory(options) {
     epicId,
     epicBranch,
     branchName,
-    model_tier: resolveModelTier(story.labels),
     tasks: sortedTasks.map((t) => ({
       taskId: t.id,
       title: t.title,

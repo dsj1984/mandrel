@@ -12,6 +12,10 @@ its sequential loop.
    the narrowest reasonable interpretation that still satisfies the acceptance
    criteria of the parent Story; **do not** ask the operator clarifying
    questions when running as a sub-agent (the parent has no input channel).
+   This is the same constraint stated from the meta-skill side under the
+   "Sub-agent exception" clause in
+   [`.agents/skills/core/using-agent-skills/SKILL.md`](../../skills/core/using-agent-skills/SKILL.md) —
+   read both together.
 
 2. **Implement the changes strictly within Story scope.** Edit only files that
    the Task instructions require. Do not opportunistically refactor unrelated

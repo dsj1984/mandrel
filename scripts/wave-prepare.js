@@ -32,12 +32,11 @@
  *     epicId: number,
  *     wave: number,
  *     concurrencyCap: number,
- *     plan: [{ storyId, title, modelTier, worktree }]
+ *     plan: [{ storyId, title, worktree }]
  *   }
  *
- * Title is sourced from the dispatch-manifest entry; modelTier and worktree
- * come from `StoryLauncher.planWave` (which respects per-Story `modelTier`
- * label or `model::*` ticket labels and the configured worktree resolver).
+ * Title is sourced from the dispatch-manifest entry; worktree comes from
+ * `StoryLauncher.planWave` (which uses the configured worktree resolver).
  */
 
 import { parseArgs } from 'node:util';
@@ -144,7 +143,7 @@ async function reportFriction({ provider, epicId, wave, reason, detail }) {
  *   epicId: number,
  *   wave: number,
  *   concurrencyCap: number,
- *   plan: Array<{ storyId: number, title: string, modelTier: string, worktree?: string }>,
+ *   plan: Array<{ storyId: number, title: string, worktree?: string }>,
  * }>}
  */
 export async function runWavePrepare(args = {}) {
@@ -235,8 +234,8 @@ export async function runWavePrepare(args = {}) {
   }
 
   // 5. Plan the wave. We pass the manifest entries directly — `planWave`
-  //    accepts `{ id?, storyId?, modelTier?, labels? }`-shaped objects. The
-  //    manifest carries `storyId` already.
+  //    accepts `{ id?, storyId? }`-shaped objects. The manifest carries
+  //    `storyId` already.
   const launcher = new StoryLauncher({
     concurrencyCap,
     worktreeResolver: injectedWorktreeResolver,
@@ -246,8 +245,6 @@ export async function runWavePrepare(args = {}) {
       id: Number(s.storyId ?? s.id),
       storyId: Number(s.storyId ?? s.id),
       title: String(s.title ?? ''),
-      modelTier: s.modelTier,
-      labels: Array.isArray(s.labels) ? s.labels : undefined,
     })),
   );
 
@@ -259,7 +256,6 @@ export async function runWavePrepare(args = {}) {
   const plan = planRows.map((row) => ({
     storyId: row.storyId,
     title: titleById.get(row.storyId) ?? '',
-    modelTier: row.modelTier,
     worktree: row.worktree,
   }));
 

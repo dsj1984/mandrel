@@ -126,6 +126,28 @@ const HEALTH_REFRESH_SCHEMA = {
   },
   required: ['cadence'],
   additionalProperties: false,
+  // Cadence-conditional discriminator: choosing `every-n-closes` requires
+  // `everyNCloses`, choosing `min-interval` requires `minIntervalSec`. The
+  // other two cadences (`every-close`, `wave-boundary`) ignore both knobs.
+  // Mirrored in `.agents/schemas/agentrc.schema.json` $defs.healthRefresh.
+  allOf: [
+    {
+      if: {
+        properties: { cadence: { const: 'every-n-closes' } },
+        required: ['cadence'],
+      },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema if/then keyword
+      then: { required: ['everyNCloses'] },
+    },
+    {
+      if: {
+        properties: { cadence: { const: 'min-interval' } },
+        required: ['cadence'],
+      },
+      // biome-ignore lint/suspicious/noThenProperty: JSON Schema if/then keyword
+      then: { required: ['minIntervalSec'] },
+    },
+  ],
 };
 
 /** Default applied when `orchestration.runners.epicRunner.healthRefresh` is absent. */

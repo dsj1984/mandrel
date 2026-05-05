@@ -126,7 +126,7 @@
                 "persona": { "type": "string" },
                 "mode": {
                   "type": "string",
-                  "enum": ["fast", "planning", ""]
+                  "enum": ["fast", "planning"]
                 },
                 "skills": {
                   "type": "array",
@@ -167,7 +167,7 @@
     },
     "storyManifest": {
       "type": "array",
-      "description": "Story-centric grouping of tasks. Each entry represents a Story (or Feature/ungrouped fallback) with its branch, model tier, and child tasks. This is the primary execution unit — operators dispatch at the Story level.",
+      "description": "Story-centric grouping of tasks. Each entry represents a Story (or Feature/ungrouped fallback) with its branch and child tasks. This is the primary execution unit — operators dispatch at the Story level.",
       "items": {
         "type": "object",
         "required": [
@@ -176,7 +176,6 @@
           "storySlug",
           "type",
           "branchName",
-          "model_tier",
           "earliestWave",
           "tasks"
         ],
@@ -204,11 +203,6 @@
           "branchName": {
             "type": "string",
             "description": "Git branch name for this Story (e.g., story-868)."
-          },
-          "model_tier": {
-            "type": "string",
-            "enum": ["high", "low"],
-            "description": "Execution-mode tier derived from the Story's complexity::high label. `high` signals a deep-reasoning model; `low` signals a fast execution model. The concrete model choice is left to the executing agent / external router."
           },
           "earliestWave": {
             "type": "integer",
@@ -248,13 +242,7 @@
       "description": "Story-execution variant payload — one entry per Story this manifest covers.",
       "items": {
         "type": "object",
-        "required": [
-          "storyId",
-          "storyTitle",
-          "branchName",
-          "model_tier",
-          "tasks"
-        ],
+        "required": ["storyId", "storyTitle", "branchName", "tasks"],
         "properties": {
           "storyId": { "type": "integer", "minimum": 1 },
           "storyTitle": { "type": "string" },
@@ -264,10 +252,6 @@
           },
           "epicBranch": { "type": ["string", "null"] },
           "branchName": { "type": "string" },
-          "model_tier": {
-            "type": "string",
-            "enum": ["high", "low"]
-          },
           "tasks": {
             "type": "array",
             "items": {

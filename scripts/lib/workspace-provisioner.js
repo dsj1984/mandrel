@@ -38,6 +38,9 @@ export const DEFAULT_WORKSPACE_FILES = ['.env'];
 export function resolveWorkspaceFiles(orchestrationConfig) {
   const cfg = orchestrationConfig ?? {};
   if (Array.isArray(cfg.workspaceFiles)) return cfg.workspaceFiles.slice();
+  // Legacy `worktreeIsolation.bootstrapFiles` fallback — surviving callers:
+  // tests/lib/workspace-provisioner.test.js, tests/lib/worktree/bootstrapper.test.js,
+  // and consumer projects' `.agentrc.json` (config-schema still accepts it).
   const legacy = cfg.worktreeIsolation?.bootstrapFiles;
   if (Array.isArray(legacy)) return legacy.slice();
   return DEFAULT_WORKSPACE_FILES.slice();

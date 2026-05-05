@@ -31,8 +31,14 @@
         "properties": {
           "gateName": {
             "type": "string",
-            "minLength": 1,
-            "description": "Stable gate identifier (e.g. 'lint', 'test', 'biome format', 'check-maintainability', 'check-crap')."
+            "enum": [
+              "lint",
+              "test",
+              "format",
+              "check-maintainability",
+              "check-crap"
+            ],
+            "description": "Stable gate identifier. Closed enum — additions require a schema bump."
           },
           "commitSha": {
             "type": "string",
