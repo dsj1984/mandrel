@@ -4,6 +4,7 @@
   "title": "Agent Protocols .agentrc",
   "description": "Static JSON Schema mirror of the authoritative AJV schemas in .agents/scripts/lib/config-schema.js + config-settings-schema.js. The AJV schemas are the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync.",
   "type": "object",
+  "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
     "agentSettings": { "$ref": "#/$defs/agentSettings" },
@@ -391,7 +392,23 @@
         "minIntervalSec": { "type": ["integer", "null"], "minimum": 30 }
       },
       "required": ["cadence"],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "cadence": { "const": "every-n-closes" } },
+            "required": ["cadence"]
+          },
+          "then": { "required": ["everyNCloses"] }
+        },
+        {
+          "if": {
+            "properties": { "cadence": { "const": "min-interval" } },
+            "required": ["cadence"]
+          },
+          "then": { "required": ["minIntervalSec"] }
+        }
+      ]
     },
     "epicRunner": {
       "type": "object",
