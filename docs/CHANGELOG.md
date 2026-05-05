@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [5.34.0] — 2026-05-05
+
+Audit remediation (Epic #990). The framework's `.agents/` surface is
+hardened against three classes of drift: half-implemented features,
+loose schema contracts, and reference rot in the README. Two real
+workflow bugs that broke parallel-wave automation on Windows
+(`withEpicMergeLock` worktree gitlink, JSON format drift propagation)
+are fixed inline. Schemas now reject extra keys and free-text
+discriminators that previously passed silently. The dispatch-manifest
+contract is leaner — `model_tier` is gone end-to-end. The README is
+≤ 150 lines of activation + canonical pointers; detailed reference
+content lives at stable URLs that downstream consumers can bookmark.
+
+See ADR `20260505-990a` in [`docs/decisions.md`](decisions.md) for the
+full decision record, including rationale for the four rejected audit
+findings.
 
 ### Decisions
 
