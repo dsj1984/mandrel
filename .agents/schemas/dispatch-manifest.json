@@ -126,7 +126,7 @@
                 "persona": { "type": "string" },
                 "mode": {
                   "type": "string",
-                  "enum": ["fast", "planning", ""]
+                  "enum": ["fast", "planning"]
                 },
                 "skills": {
                   "type": "array",
