@@ -53,7 +53,7 @@ entry point by hierarchy level.
 
 There are no flags — every runtime modifier is sourced either from the Epic
 ticket's labels (e.g. `epic::auto-close`) or from
-`agentSettings.runners.epicRunner` in `.agentrc.json`.
+`orchestration.runners.epicRunner` in `.agentrc.json`.
 
 ---
 

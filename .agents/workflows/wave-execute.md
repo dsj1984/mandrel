@@ -209,7 +209,7 @@ done, some blocked), drive each blocked Story through `/story-execute
 
 - **Never** dispatch more than `concurrencyCap` Stories in flight.
   `concurrencyCap` is sourced from
-  `agentSettings.runners.epicRunner.concurrencyCap` and surfaced in the
+  `orchestration.runners.epicRunner.concurrencyCap` and surfaced in the
   `wave-prepare.js` JSON.
 - **Never** rename, retype, or skip the `wave-run-progress` structured
   comment — its marker is the only handle the rollup uses.
