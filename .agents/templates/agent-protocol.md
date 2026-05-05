@@ -28,7 +28,7 @@ is informational metadata only — it does not pause execution on its own.
 
 If you hit an unrecoverable error during implementation:
 
-1. Apply the `status::blocked` label to this task (Issue #{{TASK_ID}}).
+1. Apply the `agent::blocked` label to this task (Issue #{{TASK_ID}}).
 2. Report the friction to the operator clearly.
 
 ## 5. Close-Out Protocol
