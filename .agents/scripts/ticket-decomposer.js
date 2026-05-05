@@ -30,6 +30,7 @@ import { DEFAULT_DECOMPOSER } from './lib/config-schema.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { validateTaskBodies } from './lib/orchestration/task-body-validator.js';
 import { validateAndNormalizeTickets } from './lib/orchestration/ticket-validator.js';
 import { createProvider } from './lib/provider-factory.js';
 import { renderDecomposerSystemPrompt } from './lib/templates/decomposer-prompts.js';
@@ -346,6 +347,7 @@ export async function decomposeEpic(
     `[Decomposer] Running cross-validation on ${tickets.length} tickets...`,
   );
   const validated = validateAndNormalizeTickets(tickets);
+  validateTaskBodies(validated);
 
   // Pre-pass cross-type collision check: a planned Story sharing a title with
   // an existing Task (or any other type mismatch) is unrecoverable — auto-
@@ -526,6 +528,11 @@ async function runCreationPass(
       const parentId = resolveParentId(t, slugMap, epicId);
       const dependencies = resolveDependencies(t, slugMap);
 
+      const auditSnapshot =
+        t.type === 'task' && t.body && typeof t.body === 'object'
+          ? new Date().toISOString().slice(0, 10)
+          : undefined;
+
       try {
         const created = await provider.createTicket(parentId, {
           epicId,
@@ -533,6 +540,7 @@ async function runCreationPass(
           body: t.body,
           labels: t.labels || [],
           dependencies,
+          auditSnapshot,
         });
         console.log(`[Decomposer] -> Created Issue #${created.id}`);
         slugMap.set(t.slug, created.id);

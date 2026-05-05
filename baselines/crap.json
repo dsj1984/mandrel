@@ -4366,18 +4366,6 @@
       "startLine": 10
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-2>",
-      "startLine": 66
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-4>",
-      "startLine": 153
-    },
-    {
       "crap": 3,
       "file": ".agents/scripts/providers/github/labels.js",
       "method": "ensureLabels",

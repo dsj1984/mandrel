@@ -4,7 +4,63 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [5.32.5] - 2026-05-05
+## [5.33.0] - 2026-05-05
+
+### Task bodies are now agent-executable (structured 4-section schema)
+
+Tasks emitted by `epic-plan-decompose` are consumed both by humans
+reviewing alongside the parent Story and by non-interactive sub-agents
+running inside a worktree with no operator in the loop and possibly no
+parent-Story context (when the sub-issue API link is missing). The
+prior "under 2 sentences" guidance optimised for plan-time output
+budget at the cost of execution-time quality — typical Epic-#689-style
+output omitted test contracts, definition-of-done, and file paths.
+
+- **Structured task `body`.** The decomposer system prompt now requires
+  tasks to emit `body` as `{ goal, changes, acceptance, verify }`.
+  - `goal` — one sentence, names the parent Story slug.
+  - `changes` — `<file path>: <verb> <object>` bullets; vague verbs
+    without a named target are rejected.
+  - `acceptance` — observable from outside the agent (commands exit 0,
+    files exist, snapshots match, `data-testid` resolves).
+  - `verify` — name the testing tier (`unit` / `contract` / `e2e` /
+    `validate`); `manual:<reason>` allowed when truly unverifiable.
+  - UI tasks MUST end `changes` with a `data-testid invariance:` or
+    `data-testid changes:` bullet pairing with a `tests/e2e/*.spec.ts`
+    edit.
+  - Brand / copy / style work MUST cite `docs/style-guide.md` (or
+    note its absence) in `acceptance`.
+  - The under-2-sentence rule is preserved for Features/Stories
+    (navigational) — only Tasks become structured.
+- **Server-side rendering.** New `task-body-renderer.js` renders the
+  structured body to a four-section markdown body (`## Goal`,
+  `## Changes`, `## Acceptance`, `## Verify`) plus the orchestrator
+  footer. The LLM no longer spends tokens on boilerplate. The footer
+  now carries an `audit-snapshot: <YYYY-MM-DD>` line so future
+  consumers (story-init, manifest, close-gate) can warn when a task
+  body has gone stale between waves. The existing
+  `parent: #<n>` / `Epic: #<m>` / `blocked by #<x>` lines are
+  preserved byte-for-byte; the orchestrator footer contract is
+  unchanged.
+- **Schema validation in `decomposeEpic`.** A task whose structured
+  body has empty `changes`, empty `acceptance`, or empty `verify`
+  (without `manual:`) — or whose `changes` bullets contain no
+  path-shaped token (`/`, `*.ts`, `*.astro`, `*.mdx`, …) — fails the
+  decomposer run with a structured error pointing at the offending
+  slug. String / undefined bodies pass through unchanged for backward
+  compatibility with Features and Stories.
+- **One-shot retrofit utility.** New `retrofit-task-bodies.js` walks
+  every Task under `--epic <id>`, skips ones already in four-section
+  format (idempotent — header detection on `## Goal\n`), and emits a
+  per-task enrichment context (current body + parent Story body +
+  Tech Spec excerpt + style-guide presence flag). `--bodies <file>
+  --dry-run` (default) prints unified diffs and writes a summary to
+  `temp/retrofit-task-bodies-<epic>.md`; `--apply` calls
+  `provider.updateTicket()` to write the new bodies. Body-only edits
+  — labels and state are never touched.
+- **Tests.** Renderer byte-stability fixture; validator rejects each
+  empty-section variant; orchestrator footer survives renderer
+  round-trip; retrofit script skips already-conforming tasks.
 
 ### Sub-issue link failures no longer silent in epic-plan-decompose
 

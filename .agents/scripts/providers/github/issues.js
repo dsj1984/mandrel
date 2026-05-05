@@ -9,6 +9,7 @@
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
 import { TYPE_LABELS } from '../../lib/label-constants.js';
+import { composeTaskBody } from '../../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { classifyGithubError } from './error-classifier.js';
 import { runGraphql } from './graphql.js';
@@ -240,24 +241,19 @@ export async function getTicketDependencies(ctx, ticketId) {
 /* node:coverage ignore next */
 export async function createTicket(ctx, parentId, ticketData) {
   const epicId = ticketData.epicId || parentId;
-  const bodyParts = [ticketData.body || '', '', `---`, `parent: #${parentId}`];
-
-  if (epicId !== parentId) {
-    bodyParts.push(`Epic: #${epicId}`);
-  }
-
-  if (ticketData.dependencies?.length) {
-    bodyParts.push('');
-    for (const dep of ticketData.dependencies) {
-      bodyParts.push(`blocked by #${dep}`);
-    }
-  }
+  const renderedBody = composeTaskBody({
+    body: ticketData.body ?? '',
+    parentId,
+    epicId,
+    dependencies: ticketData.dependencies ?? [],
+    auditSnapshot: ticketData.auditSnapshot,
+  });
 
   const issue = await ctx.http.rest(`/repos/${ctx.owner}/${ctx.repo}/issues`, {
     method: 'POST',
     body: {
       title: ticketData.title,
-      body: bodyParts.join('\n'),
+      body: renderedBody,
       labels: ticketData.labels ?? [],
     },
   });
