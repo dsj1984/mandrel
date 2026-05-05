@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 
+- **Legacy cleanup sweep** (Epic #990 Story #1006).
+  - **`dispatcher.js --epic <epicId>` flag.** The legacy entrypoint and its
+    doc-block in `.agents/scripts/dispatcher.js` (line 13) are gone. Auto-
+    detection of Epic vs. Story via the positional `<ticketId>` is now the
+    only way in. Any CI script or workflow doc still passing `--epic` must
+    be updated.
+  - **DEBUG-gated dispatcher exit.** The `runAsCli` `onError` handler in
+    `.agents/scripts/dispatcher.js` no longer gates `process.exit(1)` on
+    `process.env.DEBUG`; failures always exit non-zero. CI cannot silently
+    treat a broken dispatch as success.
+  - **`task/<archivedEpic>/<taskN>` branch-shape doc row.** The "Legacy
+    fallback" row at `.agents/instructions.md:298` and its constraint
+    paragraph are removed; grep over `.agents/scripts` confirmed zero
+    code readers. Branch lifecycle is now strictly two shapes:
+    `story-<storyId>` and `epic/<epicId>`.
+  - **Legacy URL-sentinel arg in `notify.js`.** The
+    `firstArg.startsWith('http')` branch in `.agents/scripts/notify.js`
+    (~line 249) is deleted; no caller in the repo (scripts, tests, docs,
+    workflows) was passing a leading webhook URL as a sentinel.
 - **`model_tier` and the `complexity::high` → tier mapping** (Epic #990).
   The orchestrator no longer derives a per-Story model tier or surfaces
   one in dispatch artefacts. Concrete model selection is left entirely to

@@ -26,6 +26,10 @@ import { ErrorJournal } from './error-journal.js';
  * Entry point. Accepts either a pre-built `EpicRunnerContext` on `opts.ctx`
  * (preferred) or the legacy flat opts-bag (kept as a one-patch-release compat
  * shim — it is translated to a context internally before anything runs).
+ * Surviving flat-bag callers (Epic #990 Story #1006 triage):
+ *   - tests/epic-runner/dependency-source.test.js
+ *   - tests/epic-runner/epic-runner.integration.test.js (subset)
+ *   - tests/epic-runner/parity.test.js
  *
  * @param {{
  *   ctx?: EpicRunnerContext,

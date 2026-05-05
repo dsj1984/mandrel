@@ -193,7 +193,7 @@ planned.
    calculate execution waves and model recommendations:
 
    ```bash
-   node .agents/scripts/dispatcher.js --epic [Epic_ID] --dry-run
+   node .agents/scripts/dispatcher.js [Epic_ID] --dry-run
    ```
 
 2. **Verify Output**:
