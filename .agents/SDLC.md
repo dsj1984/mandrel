@@ -471,7 +471,8 @@ replaces manual auditing with a CLI-driven system.
 
 Audits are selectively invoked by the orchestrator at four Epic lifecycle
 gates (`gate1` through `gate4`). The `audit-orchestrator.js` evaluates rules
-defined in `.agents/schemas/audit-rules.schema.json` based on:
+defined in `.agents/schemas/audit-rules.json` (schema:
+`.agents/schemas/audit-rules.schema.json`) based on:
 
 1. **Gate configuration** — which gate is currently firing.
 2. **Contextual keywords** — the Epic or Task body contents (e.g., `auth` or

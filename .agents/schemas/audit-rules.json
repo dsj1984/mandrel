@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "audits": {
+    "audit-clean-code": {
+      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
+      "substitutionKeys": []
+    },
+    "audit-architecture": {
+      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
+      "substitutionKeys": []
+    },
+    "audit-security": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "security",
+          "auth",
+          "vulnerability",
+          "cve",
+          "password",
+          "encrypt"
+        ],
+        "filePatterns": ["**/*.lock", "**/auth/*.js", "**/crypto/*.js"]
+      },
+      "substitutionKeys": []
+    },
+    "audit-privacy": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": ["privacy", "pii", "gdpr", "cookie", "tracking"],
+        "filePatterns": ["**/user-profile/**/*.js"]
+      },
+      "substitutionKeys": []
+    },
+    "audit-accessibility": {
+      "triggers": {
+        "gates": ["gate2", "gate3"],
+        "keywords": ["a11y", "accessibility", "wcag", "ui", "frontend", "aria"],
+        "filePatterns": [
+          "**/*.html",
+          "**/*.css",
+          "**/components/**/*.js",
+          "**/frontend/**/*.js"
+        ]
+      },
+      "substitutionKeys": []
+    },
+    "audit-devops": {
+      "triggers": { "gates": ["gate2"] },
+      "substitutionKeys": []
+    },
+    "audit-sre": {
+      "triggers": { "gates": ["gate4"] },
+      "substitutionKeys": []
+    }
+  }
+}

@@ -305,7 +305,18 @@ export async function hydrateContext(
       provider
         .getTicket(item.id)
         .then((t) => `### ${item.key}: ${t.title} (#${t.id})\n\n${t.body}\n`)
-        .catch(() => ''),
+        .catch((err) => {
+          // Failure-signal preservation: a silent `.catch(() => '')` here used
+          // to drop hierarchy fetches (rate-limit, network, missing ticket)
+          // without telling the agent the prompt was hydrated against a
+          // partial context. Surface the error in the prompt + a stderr warn
+          // so downstream callers (and test fixtures) can see the gap.
+          const detail = err?.message ? `: ${err.message}` : '';
+          console.warn(
+            `[Hydrator] hierarchy fetch failed for ${item.key} #${item.id}${detail}`,
+          );
+          return `### ${item.key}: #${item.id} — ⚠️ unavailable (fetch failed${detail})\n`;
+        }),
     );
 
   const fetchedHierarchy = await Promise.all(fetchPromises);
