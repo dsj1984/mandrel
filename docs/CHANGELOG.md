@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Decisions
+
+- **Audit findings 8 and 10 (proposing an `epic::auto-spec` autonomous-planning
+  branch) were considered and rejected per operator directive** — the
+  STOP-then-confirm planning gate is preserved. Regrep `auto-spec` /
+  `epic::auto-spec` returns zero hits.
+
 ### Removed
 
 - **Legacy cleanup sweep** (Epic #990 Story #1006).
