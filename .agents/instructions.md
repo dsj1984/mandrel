@@ -117,6 +117,14 @@ details directly to the relevant GitHub Task ticket:
   `limits.friction.repetitiveCommandCount` in `.agentrc.json`, default 3+),
   boilerplate-heavy file creations, or manual processes that could be simplified
   by a dedicated workflow or skill.
+- **When no ticket context exists**: If you hit friction outside an Epic/Story/Task
+  loop (e.g. running a skill standalone, bootstrapping, or before any ticket has
+  been minted), do **not** skip telemetry. Write a JSON record to
+  `temp/friction-<timestamp>.json` capturing the same fields the ticket-aware path
+  would (command, error excerpt, remediation, automation candidate flag), and
+  mention the file in your final work-summary so a human can route it to the
+  right ticket later. The ticket-less path is a fallback, not a license to drop
+  the signal.
 
 #### Log Level Control
 
