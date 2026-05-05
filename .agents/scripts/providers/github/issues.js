@@ -146,12 +146,11 @@ export function getChecklistChildren(parentBody) {
 
 /**
  * Strategy 3 — tertiary: reverse-search for issues that reference the parent
- * (`Epic: #N` / `parent: #N`). Only safe for Epic parents; otherwise returns
- * an empty list. Non-fatal on error.
+ * (`Epic: #N` / `parent: #N`). Runs for any parent type so Stories resolve
+ * their child Tasks the same way Epics resolve their Stories. Non-fatal on
+ * error.
  */
-export async function getReferencedChildren(ctx, parentId, parentLabels) {
-  const isEpicParent = (parentLabels ?? []).includes(TYPE_LABELS.EPIC);
-  if (!isEpicParent) return [];
+export async function getReferencedChildren(ctx, parentId) {
   try {
     const issues = await getTickets(ctx, parentId);
     primeTicketCache(ctx, issues);
@@ -171,7 +170,7 @@ export async function getSubTickets(ctx, parentId) {
     await Promise.all([
       getNativeSubIssues(ctx, parent.nodeId, parentId),
       Promise.resolve(getChecklistChildren(parent.body)),
-      getReferencedChildren(ctx, parentId, parent.labels),
+      getReferencedChildren(ctx, parentId),
     ]);
 
   // Dedupe while preserving the historical fallback order: native first,

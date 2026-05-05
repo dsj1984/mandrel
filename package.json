@@ -1,6 +1,6 @@
 {
   "name": "agent-protocols",
-  "version": "5.32.3",
+  "version": "5.32.4",
   "description": "",
   "main": "index.js",
   "scripts": {

@@ -4,7 +4,7 @@
  * The facade orchestrates three private strategies:
  *   - `_getNativeSubIssues`  (GraphQL sub-issues, primary)
  *   - `_getChecklistChildren` (pure markdown parse, secondary)
- *   - `_getReferencedChildren` (REST reverse-search, Epic-only fallback)
+ *   - `_getReferencedChildren` (REST reverse-search; runs for any parent type)
  *
  * These tests exercise each strategy in isolation + the dedupe/fallback
  * orchestration behaviour on top.
@@ -62,17 +62,31 @@ describe('_getChecklistChildren', () => {
 });
 
 describe('_getReferencedChildren', () => {
-  it('returns [] for non-Epic parents (no reverse scan)', async () => {
-    let called = false;
+  it('scans for Story parents via getTickets (Tasks reference parent: #N)', async () => {
     const provider = createProviderWithStubs({
-      restPaginated: async () => {
-        called = true;
-        return [];
-      },
+      restPaginated: async () => [
+        {
+          number: 808,
+          id: 808,
+          node_id: 'n808',
+          title: 't808',
+          body: 'parent: #733\n',
+          labels: [],
+          state: 'open',
+        },
+        {
+          number: 809,
+          id: 809,
+          node_id: 'n809',
+          title: 't809',
+          body: 'parent: #733\n',
+          labels: [],
+          state: 'open',
+        },
+      ],
     });
-    const ids = await provider._getReferencedChildren(5, ['type::story']);
-    assert.deepEqual(ids, []);
-    assert.equal(called, false);
+    const ids = await provider._getReferencedChildren(733);
+    assert.deepEqual(ids.sort(), [808, 809]);
   });
 
   it('scans for Epic parents via getTickets', async () => {
@@ -98,7 +112,7 @@ describe('_getReferencedChildren', () => {
         },
       ],
     });
-    const ids = await provider._getReferencedChildren(5, ['type::epic']);
+    const ids = await provider._getReferencedChildren(5);
     assert.deepEqual(ids.sort(), [101, 102]);
   });
 
@@ -108,7 +122,7 @@ describe('_getReferencedChildren', () => {
         throw new Error('rate limit');
       },
     });
-    const ids = await provider._getReferencedChildren(5, ['type::epic']);
+    const ids = await provider._getReferencedChildren(5);
     assert.deepEqual(ids, []);
   });
 });
@@ -291,7 +305,7 @@ describe('getSubTickets — orchestration', () => {
             node_id: 'parent-node',
             title: 'E',
             body: '- [ ] #20\n- [x] #21\n',
-            labels: [{ name: 'type::story' }], // non-epic → no reverse scan
+            labels: [{ name: 'type::story' }],
             state: 'open',
           };
         }

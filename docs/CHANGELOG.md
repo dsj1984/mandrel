@@ -4,6 +4,28 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.4] - 2026-05-05
+
+### Story sub-task discovery via reverse-reference fallback
+
+`getReferencedChildren` (Strategy 3 in `getSubTickets`) was gated to Epic
+parents only. When the native sub-issues GraphQL feature was unavailable
+*and* a Story's body lacked a Markdown checklist of its Tasks, the close
+path saw zero children even though Tasks correctly carried `parent: #N`
+in their bodies — the same shape the dispatcher's manifest builder
+already resolved successfully, producing an inconsistency between the
+manifest's task-grouping and the close-path's child-discovery.
+
+- **Lift the Epic-only gate.** `getReferencedChildren` now reverse-scans
+  for any parent type. The cost is one paginated `GET /issues` per
+  Story/feature parent on the rare path where Strategies 1+2 yielded
+  nothing; the existing try/catch keeps the call non-fatal.
+- **Drop the now-unused `parentLabels` parameter** from both the helper
+  and the `_getReferencedChildren` facade wrapper.
+- **Tests** updated: replaced the "non-Epic parents skip reverse scan"
+  case with a Story-parent case that asserts Tasks referencing
+  `parent: #733` are discovered.
+
 ## [5.32.3] - 2026-05-05
 
 ### Decomposer resilience to GitHub's secondary rate limit

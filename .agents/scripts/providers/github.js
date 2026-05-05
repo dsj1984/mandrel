@@ -222,8 +222,8 @@ export class GitHubProvider extends ITicketingProvider {
     return issues.getChecklistChildren(parentBody);
   }
 
-  _getReferencedChildren(parentId, parentLabels) {
-    return issues.getReferencedChildren(this._ctx, parentId, parentLabels);
+  _getReferencedChildren(parentId) {
+    return issues.getReferencedChildren(this._ctx, parentId);
   }
 
   _updateLabels(ticketId, labelMutations, hasOtherPatchFields) {
