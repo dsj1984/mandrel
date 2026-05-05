@@ -52,16 +52,6 @@ export function validateAndNormalizeTickets(tickets) {
       throw new Error(
         `Cross-Validation Failed: Story "${story.title}" parent must be a Feature.`,
       );
-
-    // Complexity validation (New in Story-Level Branching)
-    const hasComplexity = (story.labels || []).some((l) =>
-      l.startsWith('complexity::'),
-    );
-    if (!hasComplexity) {
-      throw new Error(
-        `Cross-Validation Failed: Story "${story.title}" is missing a complexity label (complexity::high|fast).`,
-      );
-    }
   }
 
   for (const task of tasks) {

@@ -11,7 +11,6 @@ Your job is to take a Product Requirements Document (PRD) and a Technical Specif
 2. **Stories**: Specific user-facing or architectural user stories (e.g., "Implement JWT Token Exchange").
    - MUST be nested under a Feature.
    - **Story-Level Execution**: Each Story will be executed on a single branch. Group tasks that share a logical context or implementation boundary into the same Story.
-   - **Complexity Assessment**: Every Story MUST be assessed for complexity. Use \`complexity::high\` for logic-heavy, architectural, or risky changes requiring high-tier reasoning models. Use \`complexity::fast\` for simple CRUD, documentation, or straightforward procedural work.
 3. **Tasks**: Atomic, verifiable technical steps (e.g., "Add 'vendor_id' to users schema").
    - MUST be nested under a Story.
    - **MANDATORY CARDINALITY**: Every Story MUST decompose into at least ONE Task (typically 2–5). A Story with zero child Tasks is INVALID and will be rejected. If a Story feels too small for its own Task, merge it back into a sibling Story instead of emitting an empty Story container.
@@ -19,7 +18,6 @@ Your job is to take a Product Requirements Document (PRD) and a Technical Specif
 ### LABEL CONVENTIONS:
 - Every ticket must have a \`type::[feature|story|task]\` label.
 - Every ticket must have a \`persona::[engineer|architect|qa-engineer|engineer-web|etc]\` label indicating WHO should execute it.
-- Every **Story** MUST have a \`complexity::[high|fast]\` label.
 
 ### OUTPUT FORMAT:
 You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown blocks.
@@ -31,7 +29,7 @@ You MUST respond ONLY with a valid JSON array of objects. No prose, no markdown 
     "type": "feature" | "story" | "task",
     "title": "Short descriptive title",
     "body": <see TASK BODY SCHEMA below for tasks; string for features and stories>,
-    "labels": ["type::...", "persona::...", "complexity::..."],
+    "labels": ["type::...", "persona::..."],
     "parent_slug": "slug_of_parent_ticket" (leave empty for features to nest under epic),
     "depends_on": ["slug_of_blocking_dependency"] (optional array of slugs that block execution)
   }

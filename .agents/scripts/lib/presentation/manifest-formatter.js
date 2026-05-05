@@ -164,8 +164,8 @@ export function renderStoryTable(storyManifest) {
 
     lines.push(`### ${waveLabel}${parallelHint}`);
     lines.push('');
-    lines.push('| | Story | Title | Model Tier | Tasks |');
-    lines.push('| :--- | :--- | :--- | :--- | :--- |');
+    lines.push('| | Story | Title | Tasks |');
+    lines.push('| :--- | :--- | :--- | :--- |');
 
     for (const s of stories) {
       const allDone =
@@ -173,7 +173,7 @@ export function renderStoryTable(storyManifest) {
         s.tasks.every((t) => t.status === AGENT_LABELS.DONE);
       const storyCheckbox = allDone ? '✅' : '⬜';
       lines.push(
-        `| ${storyCheckbox} | #${s.storyId} | ${s.storySlug} | \`${s.model_tier}\` | ${s.tasks.length} |`,
+        `| ${storyCheckbox} | #${s.storyId} | ${s.storySlug} | ${s.tasks.length} |`,
       );
     }
     lines.push('');
@@ -217,7 +217,6 @@ function renderStoryDetailsSection(storyManifest) {
     lines.push(`### ${storyLabel}`);
     lines.push('');
     lines.push(`- **Branch:** \`${story.branchName}\``);
-    lines.push(`- **Model Tier:** \`${story.model_tier}\``);
     if (isFeature) {
       lines.push('- **Type:** Feature (container — not directly executable)');
     } else {
@@ -402,10 +401,7 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('## How to Execute');
   lines.push('');
   lines.push('1. Pick a Story from the next ready wave (🚀 status above).');
-  lines.push(
-    "2. Select a model that matches the Story's **Model Tier** (`high` = deep-reasoning, `low` = fast execution). The concrete model choice is left to the operator/router.",
-  );
-  lines.push('3. Run: `/epic-execute #[Story ID]`');
+  lines.push('2. Run: `/epic-execute #[Story ID]`');
   lines.push('');
   lines.push(
     '> **Tip:** Story closure and dashboard refresh are handled automatically by `story-close.js`. ' +
@@ -454,7 +450,6 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
     lines.push(`## Story #${story.storyId}: ${story.storyTitle}`);
     lines.push(`- **Epic Branch:** \`${story.epicBranch}\``);
     lines.push(`- **Story Branch:** \`${story.branchName}\``);
-    lines.push(`- **Model Tier:** \`${story.model_tier}\``);
     lines.push('');
     lines.push('**Tasks (execution order):**');
     for (const task of story.tasks) {
@@ -518,13 +513,13 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
     '│                           📋 STORY DISPATCH TABLE                            │',
   );
   log(
-    '├─────────┼──────────────────────────────────────┼──────┼────────────┼──────────────┤',
+    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
   );
   log(
-    '│ Story   │ Title                                │ Wave │ Model Tier │ Tasks        │',
+    '│ Story   │ Title                                │ Wave │ Tasks        │',
   );
   log(
-    '├─────────┼──────────────────────────────────────┼──────┼────────────┼──────────────┤',
+    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
   );
 
   for (const story of stories) {
@@ -534,19 +529,16 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
     const wave = (
       story.earliestWave === -1 ? '-' : String(story.earliestWave)
     ).padEnd(4);
-    const tier = (story.model_tier ?? '').padEnd(10);
     const taskCount = `${story.tasks.length} task(s)`.padEnd(12);
-    log(`│ ${id.padEnd(7)} │ ${title} │ ${wave} │ ${tier} │ ${taskCount} │`);
+    log(`│ ${id.padEnd(7)} │ ${title} │ ${wave} │ ${taskCount} │`);
   }
 
   log(
-    '└─────────┴──────────────────────────────────────┴──────┴────────────┴──────────────┘',
+    '└─────────┴──────────────────────────────────────┴──────┴──────────────┘',
   );
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
-  log(
-    '  💡 Use /epic-execute #[Story ID] to execute a Story. Pick a model matching the Model Tier.',
-  );
+  log('  💡 Use /epic-execute #[Story ID] to execute a Story.');
 
   if (features.length > 0) {
     log('');

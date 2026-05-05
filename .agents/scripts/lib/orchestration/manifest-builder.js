@@ -6,7 +6,6 @@ import { parseBlockedBy } from '../dependency-parser.js';
 import { getStoryBranch, getTaskBranch, slugify } from '../git-utils.js';
 import { TYPE_LABELS } from '../label-constants.js';
 import { computeStoryWaves } from './dependency-analyzer.js';
-import { resolveModelTier } from './model-resolver.js';
 import { groupTasksByStory } from './story-grouper.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -71,7 +70,6 @@ function buildStoryManifest(tasks, allTickets, epicId) {
   const storyWaves = computeStoryWaves(groups, explicitStoryDeps);
 
   return [...groups.values()].map((group) => {
-    const modelTier = resolveModelTier(group.storyLabels);
     const earliestWave = storyWaves.get(group.storyId) ?? -1;
 
     const slug =
@@ -90,7 +88,6 @@ function buildStoryManifest(tasks, allTickets, epicId) {
       storySlug: slug,
       type: group.type,
       branchName,
-      model_tier: modelTier,
       earliestWave,
       tasks: group.tasks.map((t) => ({
         taskId: t.id,

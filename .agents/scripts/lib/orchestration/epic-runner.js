@@ -32,7 +32,7 @@ import { ErrorJournal } from './error-journal.js';
  *   epicId?: number,
  *   provider?: import('../ITicketingProvider.js').ITicketingProvider,
  *   config?: object,
- *   dispatch?: (args: { stories: Array<{ storyId: number, modelTier?: string, worktree?: string }>, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
+ *   dispatch?: (args: { stories: Array<{ storyId: number, worktree?: string }>, signal?: AbortSignal }) => Promise<Array<{ storyId: number, status: string, detail?: string }>>,
  *   worktreeResolver?: (storyId: number) => string,
  *   fetchImpl?: typeof fetch,
  *   runSkill?: Function,
