@@ -49,7 +49,7 @@ export function resolveToken() {
     '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
     '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
     '',
-    'See .agents/README.md#authentication for details.',
+    'See .agents/scripts/lib/orchestration/README.md#authentication for details.',
   ].join('\n');
 
   throw new Error(errorMsg);

@@ -90,17 +90,20 @@ test('.agents/README.md inline VERSION literal matches .agents/VERSION', () => {
   );
 });
 
-test('.agents/README.md persona count matches personas/ directory', () => {
+// The post-slim README (Story #1007) no longer enumerates persona / rule /
+// skill counts inline — those tables moved to per-directory README files
+// and to docs/. The inventory-freshness contract is now: *if* the README
+// claims a count, it must match disk; the slim README simply doesn't make
+// the claim, so the tests pass vacuously when the claim is absent.
+
+test('.agents/README.md persona count, when claimed, matches personas/ directory', () => {
   const content = fs.readFileSync(README_PATH, 'utf8');
-  const actual = countMarkdownFiles(path.join(AGENTS_DIR, 'personas'));
   const claimed = scanReadmeCount(
     content,
     /personas\/[^\n]*?(\d+)\s+role-specific/,
   );
-  assert.ok(
-    claimed !== null,
-    'expected README directory layout to claim a persona count',
-  );
+  if (claimed === null) return; // slim README makes no claim — vacuous pass
+  const actual = countMarkdownFiles(path.join(AGENTS_DIR, 'personas'));
   assert.strictEqual(
     claimed,
     actual,
@@ -108,17 +111,14 @@ test('.agents/README.md persona count matches personas/ directory', () => {
   );
 });
 
-test('.agents/README.md rule count matches rules/ directory', () => {
+test('.agents/README.md rule count, when claimed, matches rules/ directory', () => {
   const content = fs.readFileSync(README_PATH, 'utf8');
-  const actual = countMarkdownFiles(path.join(AGENTS_DIR, 'rules'));
   const claimed = scanReadmeCount(
     content,
     /rules\/[^\n]*?(\d+)\s+domain-agnostic/,
   );
-  assert.ok(
-    claimed !== null,
-    'expected README directory layout to claim a rules count',
-  );
+  if (claimed === null) return;
+  const actual = countMarkdownFiles(path.join(AGENTS_DIR, 'rules'));
   assert.strictEqual(
     claimed,
     actual,
@@ -126,14 +126,14 @@ test('.agents/README.md rule count matches rules/ directory', () => {
   );
 });
 
-test('.agents/README.md core skill count matches skills/core/ directory', () => {
+test('.agents/README.md core skill count, when claimed, matches skills/core/ directory', () => {
   const content = fs.readFileSync(README_PATH, 'utf8');
-  const actual = countSubdirs(path.join(AGENTS_DIR, 'skills', 'core'));
   const claimed = scanReadmeCount(
     content,
     /Universal process skills \((\d+)\s+skills\)/,
   );
-  assert.ok(claimed !== null, 'expected README to claim a core-skill count');
+  if (claimed === null) return;
+  const actual = countSubdirs(path.join(AGENTS_DIR, 'skills', 'core'));
   assert.strictEqual(
     claimed,
     actual,
@@ -141,14 +141,14 @@ test('.agents/README.md core skill count matches skills/core/ directory', () => 
   );
 });
 
-test('.agents/README.md stack skill count matches skills/stack/ directory', () => {
+test('.agents/README.md stack skill count, when claimed, matches skills/stack/ directory', () => {
   const content = fs.readFileSync(README_PATH, 'utf8');
-  const actual = countStackSkills(path.join(AGENTS_DIR, 'skills', 'stack'));
   const claimed = scanReadmeCount(
     content,
     /Tech-stack-specific guardrails \((\d+)\s+skills\)/,
   );
-  assert.ok(claimed !== null, 'expected README to claim a stack-skill count');
+  if (claimed === null) return;
+  const actual = countStackSkills(path.join(AGENTS_DIR, 'skills', 'stack'));
   assert.strictEqual(
     claimed,
     actual,
