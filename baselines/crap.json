@@ -2725,25 +2725,25 @@
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/manifest-builder.js",
       "method": "getResolvedBranch",
-      "startLine": 23
+      "startLine": 22
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/manifest-builder.js",
       "method": "resolveStoryDeps",
-      "startLine": 41
+      "startLine": 40
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/manifest-builder.js",
       "method": "buildStoryManifest",
-      "startLine": 67
+      "startLine": 66
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/manifest-builder.js",
       "method": "buildManifest",
-      "startLine": 112
+      "startLine": 109
     },
     {
       "crap": 4,
@@ -3193,7 +3193,7 @@
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/story-executor.js",
       "method": "executeStory",
-      "startLine": 19
+      "startLine": 18
     },
     {
       "crap": 2,
@@ -3256,7 +3256,7 @@
       "startLine": 6
     },
     {
-      "crap": 31.030263303688585,
+      "crap": 29.031148148148148,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAndNormalizeTickets",
       "startLine": 9
@@ -3397,37 +3397,37 @@
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 250
+      "startLine": 249
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 260
+      "startLine": 259
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 266
+      "startLine": 265
     },
     {
-      "crap": 14.78920924117205,
+      "crap": 14.845560768234243,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 286
+      "startLine": 285
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 440
+      "startLine": 436
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 506
+      "startLine": 501
     },
     {
       "crap": 1,
@@ -5101,31 +5101,31 @@
       "crap": 2,
       "file": ".agents/scripts/wave-prepare.js",
       "method": "renderFrictionBody",
-      "startLine": 84
+      "startLine": 83
     },
     {
       "crap": 2.0276428031530074,
       "file": ".agents/scripts/wave-prepare.js",
       "method": "reportFriction",
-      "startLine": 109
+      "startLine": 108
     },
     {
-      "crap": 12.044873136980899,
+      "crap": 12.048477356784746,
       "file": ".agents/scripts/wave-prepare.js",
       "method": "runWavePrepare",
-      "startLine": 150
+      "startLine": 149
     },
     {
       "crap": 1.823974609375,
       "file": ".agents/scripts/wave-prepare.js",
       "method": "parseCliArgs",
-      "startLine": 274
+      "startLine": 270
     },
     {
       "crap": 17.18359375,
       "file": ".agents/scripts/wave-prepare.js",
       "method": "main",
-      "startLine": 291
+      "startLine": 287
     },
     {
       "crap": 2.006513331976389,
