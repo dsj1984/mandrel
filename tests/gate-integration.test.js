@@ -209,11 +209,12 @@ test('Behavior 6 — missing-baseline path completes well under the 500ms AC31 b
     assert.strictEqual(res.status, 1);
     // The 500ms is the AC31 *delta* budget, but the early missing-baseline
     // exit (before any scoring) should be well under total. Allow a generous
-    // 3000ms ceiling to absorb cold-start jitter on slow CI runners — anything
-    // beyond that is a real regression.
+    // 5000ms ceiling to absorb cold-start jitter on slow CI runners *and*
+    // c8 coverage-mode subprocess overhead — anything beyond that is a real
+    // regression.
     assert.ok(
-      elapsedMs < 3000,
-      `missing-baseline path took ${elapsedMs.toFixed(0)}ms (>3000ms ceiling)`,
+      elapsedMs < 5000,
+      `missing-baseline path took ${elapsedMs.toFixed(0)}ms (>5000ms ceiling)`,
     );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
