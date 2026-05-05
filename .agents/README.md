@@ -443,7 +443,7 @@ that delegate to it:
 
 | Entry Point              | Purpose                                                        |
 | ------------------------ | -------------------------------------------------------------- |
-| `dispatcher.js`          | CLI wrapper — `node dispatcher.js --epic N [--dry-run]`        |
+| `dispatcher.js`          | CLI wrapper — `node dispatcher.js <ticketId> [--dry-run]`      |
 | `context-hydrator.js`    | CLI wrapper — `node context-hydrator.js --task N --epic N`     |
 | `update-ticket-state.js` | CLI wrapper — `node update-ticket-state.js --task N --state S` |
 

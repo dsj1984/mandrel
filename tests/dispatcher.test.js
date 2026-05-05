@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -553,5 +554,30 @@ describe('dispatch() — wave-level concurrency', () => {
       provider.peakInflight >= 2,
       `Expected ≥ 2 concurrent getTicket calls in-flight, got peak=${provider.peakInflight}`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI failure-exit contract
+// ---------------------------------------------------------------------------
+
+describe('dispatcher CLI exit contract', () => {
+  const DISPATCHER = path.join(SCRIPTS, 'dispatcher.js');
+
+  it('exits non-zero when no ticket id is supplied (no DEBUG gate)', () => {
+    const res = spawnSync(process.execPath, [DISPATCHER], {
+      cwd: ROOT,
+      // Explicitly clear DEBUG to prove the exit is unconditional, not gated
+      // on `process.env.DEBUG` (the legacy behaviour the cleanup removed).
+      env: { ...process.env, DEBUG: '' },
+      encoding: 'utf8',
+    });
+
+    assert.notEqual(
+      res.status,
+      0,
+      `Expected non-zero exit; got status=${res.status} stderr=${res.stderr}`,
+    );
+    assert.match(res.stderr, /\[Dispatcher\]/);
   });
 });

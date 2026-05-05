@@ -13,6 +13,8 @@ export const EPIC_CLOSE_DEFAULTS = Object.freeze({
   runRetro: true,
 });
 
+// Legacy-warning flag for `agentSettings.sprintClose.runRetro` rename;
+// exercised by tests/lib/config-resolver.test.js (4 callers via _resetLegacyWarned).
 let _legacyWarned = false;
 
 /**

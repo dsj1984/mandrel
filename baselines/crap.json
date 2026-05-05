@@ -670,7 +670,7 @@
       "startLine": 184
     },
     {
-      "crap": 3.072,
+      "crap": 3.064471560213856,
       "file": ".agents/scripts/epic-plan-spec.js",
       "method": "drainPendingCleanupAtBoot",
       "startLine": 68
@@ -679,25 +679,25 @@
       "crap": 1,
       "file": ".agents/scripts/epic-plan-spec.js",
       "method": "<anon method-1>",
-      "startLine": 80
+      "startLine": 83
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-plan-spec.js",
       "method": "setEpicLabel",
-      "startLine": 149
+      "startLine": 152
     },
     {
       "crap": 19.213259259259257,
       "file": ".agents/scripts/epic-plan-spec.js",
       "method": "runSpecPhase",
-      "startLine": 169
+      "startLine": 172
     },
     {
       "crap": 18.962890625,
       "file": ".agents/scripts/epic-plan-spec.js",
       "method": "main",
-      "startLine": 231
+      "startLine": 234
     },
     {
       "crap": 1.9167113702623908,
@@ -1309,13 +1309,13 @@
       "crap": 6,
       "file": ".agents/scripts/lib/config/epic-close.js",
       "method": "getEpicClose",
-      "startLine": 29
+      "startLine": 31
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/epic-close.js",
       "method": "_resetLegacyWarned",
-      "startLine": 54
+      "startLine": 56
     },
     {
       "crap": 7,
@@ -2287,13 +2287,13 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner.js",
       "method": "runEpic",
-      "startLine": 43
+      "startLine": 47
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner.js",
       "method": "runEpicWithContext",
-      "startLine": 52
+      "startLine": 56
     },
     {
       "crap": 7,
@@ -3577,61 +3577,61 @@
       "crap": 1,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "defaultProgress",
-      "startLine": 32
+      "startLine": 35
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "ensureRepoCoreLongpathsOnWindows",
-      "startLine": 57
+      "startLine": 60
     },
     {
       "crap": 4.466090122894856,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "assertWorkingTreeClean",
-      "startLine": 89
+      "startLine": 92
     },
     {
       "crap": 3.1669295745980053,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "bootstrapBranch",
-      "startLine": 103
+      "startLine": 106
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "planStoryBranchSeed",
-      "startLine": 145
+      "startLine": 148
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "ensureStoryBranchSeed",
-      "startLine": 151
+      "startLine": 154
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "verifyWorkspaceSafe",
-      "startLine": 168
+      "startLine": 171
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "reportEnsureWarnings",
-      "startLine": 194
+      "startLine": 197
     },
     {
       "crap": 11.500117546699625,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "bootstrapWorktree",
-      "startLine": 210
+      "startLine": 213
     },
     {
       "crap": 2.2156598079561043,
       "file": ".agents/scripts/lib/story-init/branch-initializer.js",
       "method": "initializeBranch",
-      "startLine": 285
+      "startLine": 288
     },
     {
       "crap": 10.629221665908057,
@@ -3937,19 +3937,19 @@
       "crap": 6,
       "file": ".agents/scripts/lib/workspace-provisioner.js",
       "method": "invalidNameReason",
-      "startLine": 53
+      "startLine": 56
     },
     {
       "crap": 10.048246903528808,
       "file": ".agents/scripts/lib/workspace-provisioner.js",
       "method": "provision",
-      "startLine": 74
+      "startLine": 77
     },
     {
       "crap": 9.019775390625,
       "file": ".agents/scripts/lib/workspace-provisioner.js",
       "method": "verify",
-      "startLine": 139
+      "startLine": 142
     },
     {
       "crap": 2.032,

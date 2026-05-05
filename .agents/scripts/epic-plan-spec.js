@@ -77,6 +77,9 @@ export async function drainPendingCleanupAtBoot(opts = {}) {
   const fsRm = opts.fsRm;
   const provider = opts.provider;
 
+  // legacyExtras adds `drained`/`persistent`/`remaining` aliases consumed by
+  // drain-pending-cleanup.js, epic-plan-decompose.js, plan-runner/worktree-sweep.js,
+  // and tests/epic-plan-spec-drain.test.js (Epic #990 Story #1006 triage).
   const legacyExtras = (base) => {
     const remaining =
       (base.persistentPending?.length ?? base.persistent?.length ?? 0) +

@@ -245,9 +245,6 @@ export function parseNotifyArgs(args) {
     if (isNumeric) {
       ticketId = Number.parseInt(firstArg, 10);
       message = working.slice(1).join(' ').trim();
-    } else if (firstArg.startsWith('http')) {
-      // Legacy: a leading URL was used as a sentinel; strip it.
-      message = working.slice(1).join(' ').trim();
     } else {
       message = firstArg;
     }
