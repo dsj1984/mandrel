@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.32.3] - 2026-05-05
+
+### Decomposer resilience to GitHub's secondary rate limit
+
+Five fixes against a real Epic-decomposition crash (Domio Epic #689,
+121 planned tickets). The run aborted at 79/121 with HTTP 403
+"secondary rate limit" and required ~10 minutes of manual `gh` recovery
+because the script was neither retry-aware nor idempotent on resume.
+
+- **HTTP client retries on secondary RL.** `_fetchWithRetry` in
+  `providers/github-http-client.js` now classifies HTTP 403 with body
+  matching `/secondary rate limit|abuse detection/i` as transient,
+  honours `Retry-After`, and falls back to a 30–120 s jittered backoff
+  (capped at 5 attempts). Generic 403s (auth failures, "Resource not
+  accessible by integration") are still surfaced to the caller
+  untouched. Logging moved from `console.warn` to `Logger.warn`.
+  New `onTransientFailure` callback hook fires on every retry so
+  callers can react adaptively.
+- **`decomposeEpic` is idempotent on re-run.** Before the staged create
+  loop, the decomposer fetches existing Epic children and indexes them
+  by title. Planned tickets whose title matches an OPEN child of the
+  same type are skipped — the existing issue id flows into `slugMap`
+  so parent/dep wiring resolves to the surviving issue. CLOSED matches
+  log a warning and re-create. Cross-type title collisions throw a
+  single batched error before any create runs.
+- **New `--resume` CLI flag** on `epic-plan-decompose.js` and
+  `ticket-decomposer.js`. Identical to the implicit re-run path but
+  errors loudly when the Epic has no existing children, giving
+  operators an explicit recovery command alongside `--force`.
+  Mutually exclusive with `--force`.
+- **Adaptive concurrency.** `decomposeEpic` subscribes to the
+  http-client's `onTransientFailure`; the first time a secondary RL is
+  observed it drops `concurrencyCap` to 1 for every remaining staged
+  pass. Within-pass throttling is still handled by the http-client's
+  retry/backoff loop. Static default `concurrencyCap: 3` is preserved
+  for fast small-Epic runs; the trade-off is documented in
+  `config-schema.js`.
+- **Crash-path diagnostics in `epic-plan-decompose.js`.** `main()`
+  wraps `runDecomposePhase` in try/catch; on failure it prints the
+  Epic's current `agent::*` lifecycle label, the count of currently-open
+  children, and the explicit recovery command
+  (`epic-plan-decompose.js --epic <id> --resume`) to stderr before
+  re-throwing, so exit code stays non-zero and CI fails as expected.
+- **Workflow doc.** `.agents/workflows/epic-plan.md` Troubleshooting
+  section now covers the secondary RL, the `--resume` flow, and the
+  `concurrencyCap: 1` opt-in for known-large Epics.
+
 ## [5.32.2] - 2026-05-04
 
 ### Wave-runner trust boundary + complexity-tier parity

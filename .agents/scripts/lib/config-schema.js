@@ -227,6 +227,16 @@ const CONCURRENCY_SCHEMA = {
  * `concurrencyCap` controls the maximum number of in-flight `provider.createTicket`
  * calls per type-pass. Default `3` matches the `DEFAULT_DECOMPOSER.concurrencyCap`
  * applied by `getRunners`.
+ *
+ * Trade-off: each `createTicket` fans out to issue-create + sub-issue link +
+ * project add (≈3 GitHub POSTs), so cap=3 puts ~9 in-flight content-creation
+ * calls at peak. GitHub's secondary rate limit trips around 80 such calls in
+ * a short window — large Epics (>60 tickets) hit it. We keep the snappy
+ * default for the common case and rely on the *adaptive* degrade in
+ * `decomposeEpic`: the first time the http-client surfaces a secondary RL,
+ * the cap drops to 1 for every remaining staged pass. Operators driving
+ * known-large Epics can short-circuit by setting
+ * `orchestration.runners.decomposer.concurrencyCap: 1` in `.agentrc.json`.
  */
 const DECOMPOSER_SCHEMA = {
   type: 'object',

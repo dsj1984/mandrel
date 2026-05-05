@@ -65,7 +65,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
  * @param {import('./lib/ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean }} [opts]
+ * @param {{ force?: boolean, resume?: boolean }} [opts]
  * @returns {Promise<{ epicId: number, ticketCount: number, checkpoint: object }>}
  */
 export async function runDecomposePhase(
@@ -73,7 +73,7 @@ export async function runDecomposePhase(
   provider,
   { tickets },
   config = {},
-  { force = false } = {},
+  { force = false, resume = false } = {},
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
@@ -106,7 +106,7 @@ export async function runDecomposePhase(
   });
   await checkpointer.setPhase(PLAN_PHASES.DECOMPOSING);
 
-  await decomposeEpic(epicId, provider, { tickets }, config, { force });
+  await decomposeEpic(epicId, provider, { tickets }, config, { force, resume });
 
   const checkpoint = await checkpointer.updateDecompose({
     ticketCount: tickets.length,
@@ -133,6 +133,53 @@ export async function runDecomposePhase(
   return { epicId, ticketCount: tickets.length, checkpoint, cleanup };
 }
 
+/**
+ * Best-effort recovery diagnostics emitted when `runDecomposePhase` throws
+ * mid-pass (typically GitHub secondary RL after dozens of issue creations).
+ * Never throws — diagnostics must not eclipse the original failure.
+ */
+async function reportPartialFailure({ epicId, provider, err }) {
+  console.error('');
+  console.error('[epic-plan-decompose] ❌ Decompose phase aborted.');
+  console.error(`[epic-plan-decompose] Reason: ${err?.message ?? err}`);
+  try {
+    if (typeof provider.getEpic === 'function') {
+      const epic = await provider.getEpic(epicId);
+      const lifecycleLabel =
+        (epic?.labels || []).find((l) => l.startsWith('agent::')) ?? 'unknown';
+      console.error(
+        `[epic-plan-decompose] Epic #${epicId} current label: ${lifecycleLabel}`,
+      );
+    }
+    if (typeof provider.getTickets === 'function') {
+      const existing = await provider.getTickets(epicId);
+      const childTypes = [
+        TYPE_LABELS.FEATURE,
+        TYPE_LABELS.STORY,
+        TYPE_LABELS.TASK,
+      ];
+      const created = (existing || []).filter(
+        (t) =>
+          (t.labels || []).some((l) => childTypes.includes(l)) &&
+          t.state !== 'closed',
+      ).length;
+      console.error(
+        `[epic-plan-decompose] Children currently open under Epic: ${created}`,
+      );
+    }
+  } catch (probeErr) {
+    console.error(
+      `[epic-plan-decompose] (diagnostics probe failed: ${probeErr.message})`,
+    );
+  }
+  console.error('');
+  console.error('[epic-plan-decompose] To resume from the partial backlog:');
+  console.error(
+    `[epic-plan-decompose]   node .agents/scripts/epic-plan-decompose.js --epic ${epicId} --tickets <tickets-file> --resume`,
+  );
+  console.error('');
+}
+
 /* node:coverage ignore next */
 async function main() {
   const { values } = parseArgs({
@@ -140,6 +187,7 @@ async function main() {
       epic: { type: 'string' },
       tickets: { type: 'string' },
       force: { type: 'boolean', default: false },
+      resume: { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -148,8 +196,11 @@ async function main() {
 
   if (!values.epic) {
     Logger.fatal(
-      'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force]',
+      'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume]',
     );
+  }
+  if (values.force && values.resume) {
+    Logger.fatal('--force and --resume are mutually exclusive.');
   }
 
   const epicId = Number.parseInt(values.epic, 10);
@@ -207,13 +258,16 @@ async function main() {
     );
   }
 
-  const result = await runDecomposePhase(
-    epicId,
-    provider,
-    { tickets },
-    config,
-    { force: values.force },
-  );
+  let result;
+  try {
+    result = await runDecomposePhase(epicId, provider, { tickets }, config, {
+      force: values.force,
+      resume: values.resume,
+    });
+  } catch (err) {
+    await reportPartialFailure({ epicId, provider, err });
+    throw err;
+  }
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }

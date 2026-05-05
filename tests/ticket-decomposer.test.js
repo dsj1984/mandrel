@@ -397,6 +397,245 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
+  it('resume mode: skips create when title matches an existing OPEN child and reuses its id for dep wiring', async () => {
+    const tickets = baseTickets();
+    tickets.push({
+      slug: 't2',
+      type: 'task',
+      title: 'Task Two',
+      body: 'Depends on Task One',
+      labels: ['type::task', 'persona::engineer'],
+      parent_slug: 's1',
+      depends_on: ['t1'],
+    });
+
+    // Existing children: Feature One (#500) + Story One (#501) already
+    // landed; Task One was never created. Resume must skip the first two
+    // and create only Task One + Task Two, wiring Task Two's dep to the id
+    // of the freshly-created Task One (NOT to the pre-existing Story).
+    mockProvider.getTickets = async () => [
+      {
+        id: 500,
+        title: 'Feature One',
+        labels: ['type::feature', 'persona::engineer'],
+        state: 'open',
+      },
+      {
+        id: 501,
+        title: 'Story One',
+        labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
+        state: 'open',
+      },
+    ];
+
+    await decomposeEpic(1, mockProvider, { tickets }, {}, { resume: true });
+
+    const titles = mockProvider.createdTickets.map((c) => c.ticketData.title);
+    assert.deepEqual(
+      titles,
+      ['Task One', 'Task Two'],
+      'only the missing tasks should be created',
+    );
+    const t2 = mockProvider.createdTickets.find(
+      (c) => c.ticketData.title === 'Task Two',
+    );
+    const t1 = mockProvider.createdTickets.find(
+      (c) => c.ticketData.title === 'Task One',
+    );
+    assert.deepEqual(
+      t2.ticketData.dependencies,
+      [t1.newId],
+      'dep must point at the freshly-created Task One, not the existing Story',
+    );
+    // Task Two's parentId must be the existing Story #501.
+    assert.equal(t2.epicId, 501);
+  });
+
+  it('resume mode: errors when the Epic has no existing children', async () => {
+    mockProvider.getTickets = async () => [];
+    await assert.rejects(
+      () =>
+        decomposeEpic(
+          1,
+          mockProvider,
+          { tickets: baseTickets() },
+          {},
+          { resume: true },
+        ),
+      /--resume requires existing child tickets/,
+    );
+  });
+
+  it('default re-run is idempotent: re-creating same tickets skips all open matches', async () => {
+    mockProvider.getTickets = async () => [
+      {
+        id: 500,
+        title: 'Feature One',
+        labels: ['type::feature'],
+        state: 'open',
+      },
+      {
+        id: 501,
+        title: 'Story One',
+        labels: ['type::story'],
+        state: 'open',
+      },
+      {
+        id: 502,
+        title: 'Task One',
+        labels: ['type::task'],
+        state: 'open',
+      },
+    ];
+    await decomposeEpic(1, mockProvider, { tickets: baseTickets() });
+    assert.equal(
+      mockProvider.createdTickets.length,
+      0,
+      'fully-populated backlog should produce zero create calls',
+    );
+  });
+
+  it('refuses to auto-link when an existing child has a different type than the planned ticket', async () => {
+    // Planned: a Story called "Shared Title". Existing: a Task with the
+    // same title. Cross-type collision must throw before any create call.
+    const tickets = [
+      {
+        slug: 'f1',
+        type: 'feature',
+        title: 'Feature One',
+        body: 'b',
+        labels: ['type::feature'],
+      },
+      {
+        slug: 's-shared',
+        type: 'story',
+        title: 'Shared Title',
+        body: 'b',
+        labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
+        parent_slug: 'f1',
+      },
+      {
+        slug: 't1',
+        type: 'task',
+        title: 'Task One',
+        body: 'b',
+        labels: ['type::task'],
+        parent_slug: 's-shared',
+      },
+    ];
+    mockProvider.getTickets = async () => [
+      {
+        id: 999,
+        title: 'Shared Title',
+        labels: ['type::task'],
+        state: 'open',
+      },
+    ];
+    await assert.rejects(
+      () => decomposeEpic(1, mockProvider, { tickets }),
+      /Title collision across ticket types/,
+    );
+    assert.equal(mockProvider.createdTickets.length, 0);
+  });
+
+  it('adaptive concurrency: drops cap to 1 after a secondary-rate-limit observation', async () => {
+    // Build 1F + 4 sibling Stories (each with its own Task). The Feature
+    // pass triggers the secondary-RL hook; the Story pass that follows
+    // must run with cap=1 (peak in-flight = 1) regardless of the
+    // configured cap=4.
+    const tickets = [
+      {
+        slug: 'f1',
+        type: 'feature',
+        title: 'F1',
+        body: '',
+        labels: ['type::feature'],
+      },
+    ];
+    for (let i = 1; i <= 4; i++) {
+      tickets.push({
+        slug: `s${i}`,
+        type: 'story',
+        title: `S${i}`,
+        body: '',
+        labels: ['type::story', 'persona::fullstack', 'complexity::fast'],
+        parent_slug: 'f1',
+      });
+      tickets.push({
+        slug: `t${i}`,
+        type: 'task',
+        title: `T${i}`,
+        body: '',
+        labels: ['type::task'],
+        parent_slug: `s${i}`,
+      });
+    }
+
+    let inFlight = 0;
+    const peakByType = { feature: 0, story: 0, task: 0 };
+    let firedRL = false;
+    // Fake http client surface — just enough for the adaptive hook to bind.
+    mockProvider._http = { onTransientFailure: null };
+    mockProvider.getTickets = async () => [];
+    mockProvider.createTicket = async (parentId, ticketData) => {
+      inFlight++;
+      const labels = ticketData.labels || [];
+      const type = labels.find((l) => l.startsWith('type::'))?.slice(6);
+      if (type && inFlight > peakByType[type]) peakByType[type] = inFlight;
+      // Trigger the RL signal during the first Feature creation.
+      if (!firedRL && type === 'feature') {
+        firedRL = true;
+        mockProvider._http.onTransientFailure?.({
+          kind: 'secondary-rate-limit',
+          url: '/issues',
+          status: 403,
+        });
+      }
+      await new Promise((r) => setTimeout(r, 5));
+      inFlight--;
+      const id = 200 + mockProvider.createdTickets.length;
+      mockProvider.createdTickets.push({
+        epicId: parentId,
+        ticketData,
+        newId: id,
+      });
+      return { id, url: `https://github.com/test/${id}` };
+    };
+
+    await decomposeEpic(
+      1,
+      mockProvider,
+      { tickets },
+      { orchestration: { runners: { decomposer: { concurrencyCap: 4 } } } },
+    );
+
+    assert.equal(mockProvider.createdTickets.length, 9);
+    assert.equal(
+      peakByType.story,
+      1,
+      `expected story-pass cap=1 after RL signal but observed peak=${peakByType.story}`,
+    );
+    assert.equal(
+      peakByType.task,
+      1,
+      `expected task-pass cap=1 after RL signal but observed peak=${peakByType.task}`,
+    );
+  });
+
+  it('rejects when --force and --resume are passed together', async () => {
+    await assert.rejects(
+      () =>
+        decomposeEpic(
+          1,
+          mockProvider,
+          { tickets: baseTickets() },
+          {},
+          { force: true, resume: true },
+        ),
+      /mutually exclusive/,
+    );
+  });
+
   it('maps depends_on slugs to created issue IDs', async () => {
     const tickets = baseTickets();
     tickets.push({

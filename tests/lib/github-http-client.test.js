@@ -94,6 +94,73 @@ describe('GithubHttpClient', () => {
     );
   });
 
+  it('rest: retries on HTTP 403 secondary rate limit, then succeeds', async () => {
+    const { fetchImpl, calls } = makeFetchStub([
+      {
+        status: 403,
+        headers: { 'retry-after': '0' },
+        body: 'You have exceeded a secondary rate limit and have been temporarily blocked from content creation.',
+      },
+      { status: 201, body: { number: 42 } },
+    ]);
+    const client = new GithubHttpClient({
+      tokenProvider: () => 'T',
+      fetchImpl,
+    });
+    // Stub setTimeout off the event loop so the test doesn't actually sleep
+    // the secondary-RL backoff (30s+).
+    const originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = (fn) => originalSetTimeout(fn, 0);
+    try {
+      const result = await client.rest('/repos/o/r/issues', {
+        method: 'POST',
+        body: { title: 'x' },
+      });
+      assert.deepEqual(result, { number: 42 });
+      assert.equal(calls.length, 2, 'must retry once');
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+  });
+
+  it('rest: does NOT retry on a generic 403 (auth failure) and surfaces the body', async () => {
+    const { fetchImpl, calls } = makeFetchStub([
+      { status: 403, body: 'Resource not accessible by integration' },
+    ]);
+    const client = new GithubHttpClient({
+      tokenProvider: () => 'T',
+      fetchImpl,
+    });
+    await assert.rejects(
+      () => client.rest('/repos/o/r/issues/1'),
+      /403.*Resource not accessible by integration/s,
+    );
+    assert.equal(calls.length, 1, 'must not retry generic 403');
+  });
+
+  it('rest: fires onTransientFailure on secondary RL retry', async () => {
+    const events = [];
+    const { fetchImpl } = makeFetchStub([
+      { status: 403, body: 'secondary rate limit hit' },
+      { status: 200, body: { ok: true } },
+    ]);
+    const client = new GithubHttpClient({
+      tokenProvider: () => 'T',
+      fetchImpl,
+      onTransientFailure: (info) => events.push(info),
+    });
+    const originalSetTimeout = globalThis.setTimeout;
+    globalThis.setTimeout = (fn) => originalSetTimeout(fn, 0);
+    try {
+      await client.rest('/repos/o/r/issues');
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+    assert.equal(events.length, 1);
+    assert.equal(events[0].kind, 'secondary-rate-limit');
+    assert.equal(events[0].status, 403);
+  });
+
   it('restPaginated: stops when batch size < 100', async () => {
     const page1 = Array.from({ length: 100 }, (_, i) => ({ id: i }));
     const page2 = Array.from({ length: 50 }, (_, i) => ({ id: 100 + i }));
