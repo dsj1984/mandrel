@@ -10,6 +10,7 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -424,56 +425,6 @@ describe('dispatch() — story-level orchestration', () => {
     assert.equal(manifest.storyManifest[0].tasks.length, 2);
   });
 
-  it('resolves model_tier: high when story has complexity::high label', async () => {
-    const story100 = makeTask(100, {
-      title: 'High Complexity Story',
-      labels: ['type::story', 'complexity::high'],
-    });
-    const taskInner = makeTask(1, {
-      body: '## Metadata\nparent: #100',
-    });
-
-    const provider = new MockProvider({
-      epic: EPIC,
-      tasks: [story100, taskInner],
-    });
-    const adapter = new MockAdapter();
-
-    const manifest = await dispatch({
-      epicId: 1,
-      dryRun: true,
-      provider,
-      adapter,
-    });
-
-    assert.equal(manifest.storyManifest[0].model_tier, 'high');
-  });
-
-  it('defaults model_tier: low when no complexity label is present', async () => {
-    const story100 = makeTask(100, {
-      title: 'Simple Story',
-      labels: ['type::story'],
-    });
-    const taskInner = makeTask(1, {
-      body: '## Metadata\nparent: #100',
-    });
-
-    const provider = new MockProvider({
-      epic: EPIC,
-      tasks: [story100, taskInner],
-    });
-    const adapter = new MockAdapter();
-
-    const manifest = await dispatch({
-      epicId: 1,
-      dryRun: true,
-      provider,
-      adapter,
-    });
-
-    assert.equal(manifest.storyManifest[0].model_tier, 'low');
-  });
-
   it('serializes tasks across different stories if they have overlapping focus areas', async () => {
     const storyA = makeTask(100, { title: 'Story A', labels: ['type::story'] });
     const storyB = makeTask(200, { title: 'Story B', labels: ['type::story'] });
@@ -603,5 +554,30 @@ describe('dispatch() — wave-level concurrency', () => {
       provider.peakInflight >= 2,
       `Expected ≥ 2 concurrent getTicket calls in-flight, got peak=${provider.peakInflight}`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI failure-exit contract
+// ---------------------------------------------------------------------------
+
+describe('dispatcher CLI exit contract', () => {
+  const DISPATCHER = path.join(SCRIPTS, 'dispatcher.js');
+
+  it('exits non-zero when no ticket id is supplied (no DEBUG gate)', () => {
+    const res = spawnSync(process.execPath, [DISPATCHER], {
+      cwd: ROOT,
+      // Explicitly clear DEBUG to prove the exit is unconditional, not gated
+      // on `process.env.DEBUG` (the legacy behaviour the cleanup removed).
+      env: { ...process.env, DEBUG: '' },
+      encoding: 'utf8',
+    });
+
+    assert.notEqual(
+      res.status,
+      0,
+      `Expected non-zero exit; got status=${res.status} stderr=${res.stderr}`,
+    );
+    assert.match(res.stderr, /\[Dispatcher\]/);
   });
 });

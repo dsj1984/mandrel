@@ -376,4 +376,64 @@ describe('getSubTickets — orchestration', () => {
     assert.deepEqual(ids, childIds);
     assert.equal(maxInFlight, 8);
   });
+
+  it('warns on per-child fetch failures instead of swallowing them silently (failure-signal preservation)', async () => {
+    // Story #1001 Task #1012: per-child `.catch(() => null)` used to drop
+    // rate-limit / not-found errors into the void. The new contract still
+    // returns a partial result (orchestrator-friendly) but emits a stderr
+    // warn naming the failed child so the operator and aggregators can see
+    // the gap.
+    const provider = createProviderWithStubs({
+      graphql: async () => {
+        throw new Error('feature not available on this repository');
+      },
+      rest: async (url) => {
+        if (url.endsWith('/issues/5')) {
+          return {
+            number: 5,
+            id: 5,
+            node_id: 'parent-node',
+            title: 'Story',
+            body: '- [ ] #401\n- [ ] #402\n',
+            labels: [{ name: 'type::story' }],
+            state: 'open',
+          };
+        }
+        if (url.endsWith('/issues/401')) {
+          throw new Error('rate limit exceeded');
+        }
+        if (url.endsWith('/issues/402')) {
+          return {
+            number: 402,
+            id: 402,
+            node_id: 'n402',
+            title: 't402',
+            body: '',
+            labels: [],
+            state: 'open',
+          };
+        }
+        return {};
+      },
+    });
+
+    const originalWarn = console.warn;
+    const warnings = [];
+    console.warn = (...args) => warnings.push(args.join(' '));
+    try {
+      const ids = (await provider.getSubTickets(5)).map((t) => t.id);
+      // #401 dropped (failed fetch), #402 still returned (best-effort).
+      assert.deepEqual(ids, [402]);
+      assert.ok(
+        warnings.some((w) =>
+          /getSubTickets: child #401 fetch failed \(parent #5\): rate limit exceeded/.test(
+            w,
+          ),
+        ),
+        'a stderr warn must surface the per-child fetch failure',
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
 });

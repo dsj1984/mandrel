@@ -9,6 +9,9 @@
  * The legacy `bootstrapBranch` and `bootstrapWorktree` helpers are preserved
  * verbatim and exported alongside the canonical `initializeBranch` stage
  * entry point so existing callers / tests can reach them directly.
+ * Surviving callers (Epic #990 Story #1006 triage):
+ *   - tests/lib/story-init/branch-initializer-pure.test.js
+ *   - tests/story-off-branch-e2e.test.js
  */
 
 import nodeFs from 'node:fs';

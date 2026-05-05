@@ -25,7 +25,6 @@ function makeStory(storyId, tasks = [], wave = 0) {
     storySlug: `story-${storyId}`,
     type: 'story',
     branchName: `story-${storyId}`,
-    model_tier: 'low',
     earliestWave: wave,
     tasks,
   };
@@ -38,7 +37,6 @@ function makeFeature(featureId, tasks = []) {
     storySlug: `feature-${featureId}`,
     type: 'feature',
     branchName: `feature-${featureId}`,
-    model_tier: 'low',
     earliestWave: -1,
     tasks,
   };
@@ -293,7 +291,6 @@ test('renderStoryManifestMarkdown', async (t) => {
           storyTitle: 'Test Story',
           branchName: 'story-42',
           epicBranch: 'epic/100',
-          model_tier: 'low',
           tasks: [],
           blockers: [],
         },

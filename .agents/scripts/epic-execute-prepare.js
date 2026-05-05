@@ -15,8 +15,8 @@
  *      idempotent, so re-running prepare against a partially-driven Epic
  *      preserves the original `startedAt`/`autoClose`.
  *   4. The per-wave dispatch plan (`StoryLauncher.planWave`) — a deterministic
- *      list of `{ storyId, modelTier, worktree }` entries that the slash
- *      command feeds into N parallel `Agent` tool calls per wave.
+ *      list of `{ storyId, worktree }` entries that the slash command feeds
+ *      into N parallel `Agent` tool calls per wave.
  *
  * Stdout is a single JSON envelope so the slash command can parse without
  * re-reading any tickets.
@@ -56,7 +56,7 @@ checkpoint, and prints the per-wave dispatch plan as JSON.
  *   autoClose: boolean,
  *   totalWaves: number,
  *   concurrencyCap: number,
- *   plan: Array<{ wave: number, stories: Array<{ storyId: number, title: string, modelTier: string, worktree?: string }> }>,
+ *   plan: Array<{ wave: number, stories: Array<{ storyId: number, title: string, worktree?: string }> }>,
  *   checkpointInitializedAt: string,
  * }>}
  */

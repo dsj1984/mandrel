@@ -80,7 +80,7 @@ and the per-wave drift snapshots under `.agents/state/wave-*-snapshot.json`.
 ## Self-Healing Protocol
 
 ### Problem
-Static instructions (system prompts and skills) become outdated as the tech stack evolves or as agents encounter recurring edge cases.
+Static instructions (system prompts and skills) become outdated as the tech stack evolves or as agents encounter recurring edge cases. The same pattern applies at the workflow level: format drift introduced by upstream waves can break downstream pre-merge gates, and `lint-staged` globs can miss file types (Epic #990 hit this with JSON schemas). The fix is to make the close pipeline self-healing: `runFormatAutofix` (added in Epic #990) runs `biome format --write` and creates a `style:` fixup commit on the story branch when biome rewrites files, eliminating manual operator intervention for inherited drift.
 
 ### Solution
 Implement a **Self-Healing Protocol** pattern:

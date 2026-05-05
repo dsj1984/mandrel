@@ -117,3 +117,61 @@ test('runHydrateContext: throws when epic cannot be resolved', async () => {
     /Could not resolve epic id/,
   );
 });
+
+test('hydrateContext: surfaces a failure marker when a hierarchy fetch rejects (failure-signal preservation)', async () => {
+  // Story #1001 Task #1012: the hierarchy fetch used to swallow errors with
+  // `.catch(() => '')`, leaving the prompt silently incomplete. The new
+  // contract emits an `⚠️ unavailable` marker so the agent can see the gap.
+  const seen = [];
+  const provider = {
+    async getTicket(id) {
+      seen.push(id);
+      if (id === 200) {
+        // The "task" itself hydrates fine.
+        return {
+          id: 200,
+          title: 'Child task',
+          body: '> Epic: #1\n\nTask body',
+          labels: [],
+        };
+      }
+      if (id === 1) {
+        // Epic fetch fails — simulates a 403 / 5xx.
+        throw new Error('rate limit exceeded');
+      }
+      throw new Error(`unexpected id #${id}`);
+    },
+  };
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args.join(' '));
+  try {
+    const prompt = await hydrateContext(
+      ticketToTask({
+        id: 200,
+        title: 'Child task',
+        body: '> Epic: #1\n\nTask body',
+        labels: [],
+      }),
+      provider,
+      'epic/1',
+      'story-1',
+      1,
+    );
+    assert.match(
+      prompt,
+      /Epic: #1 — ⚠️ unavailable \(fetch failed: rate limit exceeded\)/,
+      'prompt should carry the failure marker for the missing hierarchy ticket',
+    );
+    assert.ok(
+      warnings.some((w) =>
+        /\[Hydrator\] hierarchy fetch failed for Epic #1: rate limit exceeded/.test(
+          w,
+        ),
+      ),
+      'a stderr warn must surface the hierarchy-fetch failure',
+    );
+  } finally {
+    console.warn = originalWarn;
+  }
+});

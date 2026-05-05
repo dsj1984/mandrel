@@ -36,6 +36,7 @@ import { resolveWorkingPath } from '../../config-resolver.js';
 import {
   acquireEpicMergeLock as defaultAcquire,
   releaseEpicMergeLock as defaultRelease,
+  resolveGitCommonDir,
 } from '../../epic-merge-lock.js';
 import { mergeFeatureBranch } from '../../git-merge-orchestrator.js';
 import {
@@ -58,7 +59,7 @@ import {
  * truth.
  */
 export function lockPathDisplay(cwd, epicId) {
-  return path.join(cwd, '.git', `epic-${epicId}.merge.lock`);
+  return path.join(resolveGitCommonDir(cwd), `epic-${epicId}.merge.lock`);
 }
 
 /**

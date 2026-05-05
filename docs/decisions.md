@@ -1,5 +1,112 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260505-990a: Audit remediation — `.agents` framework hardening + concept removal
+
+**Status:** Accepted
+**Date:** 2026-05-05
+**Epic:** #990
+
+### Context
+
+A targeted audit of `.agents/` produced 24 anti-pattern findings spanning
+instructions, schemas, orchestration scripts, and templates. After triage,
+20 were accepted and 4 were rejected as misapplied. Layered on top, the
+operator added four cross-cutting cleanups: remove unused `model_tier`,
+reject auto-spec, slim the heavyweight `.agents/README.md`, and strip
+residual legacy code paths.
+
+The framework had three classes of drift: half-implemented features the
+contract still round-tripped (`model_tier` emitted everywhere, routed
+nowhere); loose schema contracts (`additionalProperties: false` largely
+absent, free-text discriminators, one schema file containing instance
+data); and reference rot in the README (~790 lines mixing activation,
+configuration, and engineering runbook content, most duplicated in
+canonical docs).
+
+Two real workflow bugs surfaced mid-Epic while dogfooding `/epic-execute`
+against the remediation itself: `withEpicMergeLock` failing on the
+worktree gitlink (`mkdir <worktree>/.git` throws because `.git` is a
+file), and JSON format drift propagating across waves because
+`.lintstagedrc` only globbed `**/*.js` and `*.md`. Both were fixed
+inline so the Epic could complete.
+
+### Decision
+
+1. **Eliminate `model_tier` end-to-end.** Delete `model-resolver.js`,
+   strip the field from the dispatch-manifest schema, every producer,
+   the formatter, and the validator's `complexity::high|fast`
+   enforcement (its only purpose was tier derivation). The orchestrator
+   does not select models; the executing agent or external router does.
+2. **Reject auto-spec.** Audit findings 8 and 10 proposed an
+   `epic::auto-spec` autonomous-planning branch. The plan-then-confirm
+   STOP gate is preserved unchanged.
+3. **Slim `.agents/README.md`** to ≤ 150 lines: activation + a single
+   "where to look" pointer table. Detailed reference content moves to
+   `docs/configuration.md`, new `docs/quality-gates.md`, new
+   `docs/windows-git-performance.md`, and
+   `.agents/scripts/lib/orchestration/README.md`.
+4. **Tighten schemas:** `additionalProperties: false` on
+   `audit-results`, `friction-event`, and `agentrc` root; `if/then`
+   conditional requirements on `healthRefresh.cadence`; closed enum on
+   `validation-evidence.gateName`; drop the empty-string member from
+   `dispatch-manifest.mode`. Mirror everything to the runtime AJV
+   schemas.
+5. **Rename `audit-rules.schema.json` → `audit-rules.json`** (it is
+   instance data, not a schema) and add a real
+   `audit-rules.manifest.schema.json` validating it.
+6. **Preserve failure signals** in `context-hydration-engine.js` (catch
+   handler emits `[failed to load #id: msg]` markers instead of empty
+   strings) and `providers/github/issues.js` (`getSubTickets` warns
+   when partial-load count diverges).
+7. **Strip residual legacy behavior** with proven zero callers:
+   `dispatcher.js --epic` flag, the DEBUG-gated CLI exit code, the
+   `task/<archivedEpic>/<taskN>` branch shape, residual `Logger.fatal`
+   calls inside `lib/`. Annotate surviving callers in 6 files.
+8. **Self-heal mid-Epic workflow bugs.** Fix `withEpicMergeLock` to
+   resolve the parent gitdir via `git rev-parse --git-common-dir`
+   (lock is shared across worktrees by design). Add a
+   `runFormatAutofix` step at the start of `story-close.js` that
+   creates a `style:` fixup commit when `biome format --write`
+   rewrites files. Extend `.lintstagedrc` to format
+   `**/*.{json,jsonc,json5}`.
+
+### Consequences
+
+- **Manifest contract change.** `dispatch-manifest.json` no longer
+  includes `model_tier` on either shape. Every internal consumer (tests,
+  formatters, runners) was updated; no external contract was breaking.
+- **Schema rejections become loud.** Payloads with extra keys, free-text
+  `gateName` values, or empty `mode` strings now fail validation. This
+  is the goal — the previous silent acceptance hid drift.
+- **Story-close is self-healing on Windows worktrees.** The lock no
+  longer crashes on the gitlink, and format drift carried in from
+  upstream waves is committed automatically as a `style:` fixup. The
+  `/epic-execute` loop runs hands-off when no real failure occurs.
+- **README halved.** The slim version (≤ 150 lines) is the entry point;
+  detail lives at stable canonical URLs that downstream consumers can
+  bookmark.
+- **Audit-rules tooling can validate the manifest.** Future audit
+  additions are type-checked against the new manifest schema.
+
+### Out of scope (rejected audit findings)
+
+- **No `epic::auto-spec`** branch (findings 8, 10).
+- **No softening of the "output ENTIRE file" rule** (finding 4) — the
+  rule guards `Write` safety, not token economy.
+- **No conditional / scoped `docsContextFiles` reads** (finding 3) —
+  the small mandatory set is the contract.
+- **No `console.warn` in `env-loader.js` silent-fail path**
+  (finding 14) — `.env` is genuinely optional.
+- **No `minItems: 1` cardinality on `listOrExtenderOfStrings`**
+  (finding 17) — empty list is a legitimate "explicitly nothing"
+  override.
+
+The rationale for each rejection is recorded in
+`temp/implementation-plan.md` so the next reviewer of the audit sees
+why each was set aside.
+
+---
+
 ## ADR 20260501-900a: Epic-centric workflow rework — four-skill split, single-session fan-out, retire GitHub triggers
 
 **Status:** Accepted

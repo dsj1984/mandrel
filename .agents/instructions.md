@@ -93,11 +93,9 @@ ORM, API framework, auth provider, validation library, workspace paths).
 Project-specific technology context is intentionally kept out of
 `.agentrc.json`.
 
-Model selection is intentionally **not** in config. The dispatcher emits a
-binary `model_tier` per Story — `high` (deep-reasoning) or `low` (fast
-execution) — derived from the `complexity::high` label. Pick any model that
-matches the tier; concrete model choice is left to the operator or external
-router.
+Model selection is intentionally **not** in config or in the dispatcher.
+Concrete model choice is left to the operator or external router; the
+orchestrator does not emit a per-Story tier hint.
 
 ### H. Observability & Agent Friction Logging
 
@@ -117,6 +115,14 @@ details directly to the relevant GitHub Task ticket:
   `limits.friction.repetitiveCommandCount` in `.agentrc.json`, default 3+),
   boilerplate-heavy file creations, or manual processes that could be simplified
   by a dedicated workflow or skill.
+- **When no ticket context exists**: If you hit friction outside an Epic/Story/Task
+  loop (e.g. running a skill standalone, bootstrapping, or before any ticket has
+  been minted), do **not** skip telemetry. Write a JSON record to
+  `temp/friction-<timestamp>.json` capturing the same fields the ticket-aware path
+  would (command, error excerpt, remediation, automation candidate flag), and
+  mention the file in your final work-summary so a human can route it to the
+  right ticket later. The ticket-less path is a fallback, not a license to drop
+  the signal.
 
 #### Log Level Control
 
@@ -198,16 +204,6 @@ protocol:
 - **Hard-Stop (100%)**: If you reach `maxTokenBudget`, you MUST **STOP**
   immediately. You are forbidden from continuing until a human operator grants
   an explicit override via a status update or CLI flag.
-
-### B. Cost-Aware Model Selection
-
-- During the planning phase (`/epic-plan`), the **Project Manager** and
-  **Architect** personas MUST consider the economic impact of their task
-  assignments.
-- Use the `complexity::high` label sparingly. Only Stories that genuinely
-  require deep reasoning (architectural design, multi-file refactors,
-  non-trivial bugs) should carry it — everything else defaults to the `low`
-  tier. The operator/router maps the tier to a concrete model at dispatch time.
 
 ---
 
@@ -292,19 +288,14 @@ strict conventions for all epic-related Git operations:
 
 ### A. Branch Naming (Canonical)
 
-Epic execution uses three branch shapes. The runtime creates and maintains
+Epic execution uses two branch shapes. The runtime creates and maintains
 them automatically; agents commit on the execution branch only.
 
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
 | Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
 | Epic integration | `epic/<epicId>`              | `epic-runner.js`       | Story branches merge into this branch with `--no-ff`. Pushed per wave.                        |
-| Legacy fallback  | `task/<archivedEpic>/<taskN>` | (legacy, do not create) | Only present in archived Epics from runtimes prior to v5.29. Recognized for read; never created by new work. |
 
-- **Constraint**: New Story work MUST use the `story-<storyId>` shape. Agents
-  MUST NOT create `task/...` branches under the v5.29+ runtime — those
-  identifiers are retained as a legacy fallback only, for compatibility with
-  archived Epics.
 - **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
   commits. If it does not, **STOP** and re-init.

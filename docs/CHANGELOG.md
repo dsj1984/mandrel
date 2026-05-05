@@ -2,7 +2,72 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [5.34.0] — 2026-05-05
+
+Audit remediation (Epic #990). The framework's `.agents/` surface is
+hardened against three classes of drift: half-implemented features,
+loose schema contracts, and reference rot in the README. Two real
+workflow bugs that broke parallel-wave automation on Windows
+(`withEpicMergeLock` worktree gitlink, JSON format drift propagation)
+are fixed inline. Schemas now reject extra keys and free-text
+discriminators that previously passed silently. The dispatch-manifest
+contract is leaner — `model_tier` is gone end-to-end. The README is
+≤ 150 lines of activation + canonical pointers; detailed reference
+content lives at stable URLs that downstream consumers can bookmark.
+
+See ADR `20260505-990a` in [`docs/decisions.md`](decisions.md) for the
+full decision record, including rationale for the four rejected audit
+findings.
+
+### Decisions
+
+- **Audit findings 8 and 10 (proposing an `epic::auto-spec` autonomous-planning
+  branch) were considered and rejected per operator directive** — the
+  STOP-then-confirm planning gate is preserved. Regrep `auto-spec` /
+  `epic::auto-spec` returns zero hits.
+
+### Removed
+
+- **Legacy cleanup sweep** (Epic #990 Story #1006).
+  - **`dispatcher.js --epic <epicId>` flag.** The legacy entrypoint and its
+    doc-block in `.agents/scripts/dispatcher.js` (line 13) are gone. Auto-
+    detection of Epic vs. Story via the positional `<ticketId>` is now the
+    only way in. Any CI script or workflow doc still passing `--epic` must
+    be updated.
+  - **DEBUG-gated dispatcher exit.** The `runAsCli` `onError` handler in
+    `.agents/scripts/dispatcher.js` no longer gates `process.exit(1)` on
+    `process.env.DEBUG`; failures always exit non-zero. CI cannot silently
+    treat a broken dispatch as success.
+  - **`task/<archivedEpic>/<taskN>` branch-shape doc row.** The "Legacy
+    fallback" row at `.agents/instructions.md:298` and its constraint
+    paragraph are removed; grep over `.agents/scripts` confirmed zero
+    code readers. Branch lifecycle is now strictly two shapes:
+    `story-<storyId>` and `epic/<epicId>`.
+  - **Legacy URL-sentinel arg in `notify.js`.** The
+    `firstArg.startsWith('http')` branch in `.agents/scripts/notify.js`
+    (~line 249) is deleted; no caller in the repo (scripts, tests, docs,
+    workflows) was passing a leading webhook URL as a sentinel.
+- **`model_tier` and the `complexity::high` → tier mapping** (Epic #990).
+  The orchestrator no longer derives a per-Story model tier or surfaces
+  one in dispatch artefacts. Concrete model selection is left entirely to
+  the operator or external router. Bumping consumers will see:
+  - **File deleted:** `.agents/scripts/lib/orchestration/model-resolver.js`
+    (and its `resolveModelTier` export) is gone. Any importer must drop
+    the dependency.
+  - **Schema field removed:** the `dispatch-manifest` structured comment
+    no longer carries `model_tier` on Story entries; the JSON schema in
+    `.agents/schemas/dispatch-manifest.json` no longer lists it as a
+    valid key.
+  - **Validator clause removed:** `validateAndNormalizeTickets` no longer
+    requires a `complexity::*` label on Stories. Backlogs that omit
+    `complexity::*` will validate cleanly.
+  - **Plan-row shape:** `StoryLauncher.planWave` and `wave-prepare` now
+    emit `{ storyId, worktree? }` (and `title` from `wave-prepare`)
+    without the `modelTier` field. Adapters that key on `modelTier`
+    must be updated.
+  - **Persona / SDLC / instructions:** prose references to
+    `model_tier::*` labelling, `Model Tier` columns, and
+    "complexity-derived tier" guidance have been struck.
 
 ## [5.33.0] - 2026-05-05
 

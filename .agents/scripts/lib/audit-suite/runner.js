@@ -28,7 +28,7 @@ async function loadRules(paths) {
   const rulesPath = path.join(
     PROJECT_ROOT,
     paths.schemasRoot,
-    'audit-rules.schema.json',
+    'audit-rules.json',
   );
   const rulesContent = await fs.readFile(rulesPath, 'utf8');
   return JSON.parse(rulesContent);
@@ -65,7 +65,7 @@ function notDefinedFinding(auditName) {
     finding: {
       audit: auditName,
       severity: 'low',
-      message: `Requested audit workflow '${auditName}' is not defined in audit-rules.schema.json.`,
+      message: `Requested audit workflow '${auditName}' is not defined in audit-rules.json.`,
     },
   };
 }
@@ -150,7 +150,7 @@ async function reduceResults({
  * Run a suite of named audit workflows.
  *
  * For each audit name the suite will:
- *   1. Validate it is registered in audit-rules.schema.json.
+ *   1. Validate it is registered in audit-rules.json.
  *   2. Locate the corresponding `.agents/workflows/<auditName>.md` file.
  *   3. Return a slim `workflow` descriptor (audit name, source path, summary,
  *      byte size) for the calling AI agent. Full prompt bodies are written to
@@ -161,7 +161,7 @@ async function reduceResults({
  * Substitutions: callers may pass a `substitutions` map of `{{key}}` → value
  * pairs. Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch)
  * plus any `substitutionKeys` declared on the requested audits in
- * audit-rules.schema.json, aggregated across auditWorkflows. Unknown keys
+ * audit-rules.json, aggregated across auditWorkflows. Unknown keys
  * raise a ValidationError.
  *
  * @param {object} opts

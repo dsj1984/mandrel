@@ -43,18 +43,6 @@ test('ticket-validator: fails on missing parent', () => {
   );
 });
 
-test('ticket-validator: fails on missing complexity', () => {
-  const tickets = [
-    { slug: 'F1', type: 'feature', title: 'Feature 1' },
-    { slug: 'S1', type: 'story', title: 'Story 1', parent_slug: 'F1' }, // missing complexity
-    { slug: 'T1', type: 'task', title: 'Task 1', parent_slug: 'S1' },
-  ];
-  assert.throws(
-    () => validateAndNormalizeTickets(tickets),
-    /missing a complexity label/,
-  );
-});
-
 test('ticket-validator: fails on duplicate slug', () => {
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'Feature 1' },

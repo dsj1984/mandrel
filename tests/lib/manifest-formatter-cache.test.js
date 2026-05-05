@@ -14,7 +14,6 @@ function buildLargeManifest(storyCount = 50) {
       storyTitle: `Story ${i}`,
       type: 'story',
       earliestWave: i % 5,
-      model_tier: i % 2 === 0 ? 'low' : 'high',
       branchName: `story-${1000 + i}`,
       tasks: [
         {

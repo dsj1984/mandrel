@@ -216,10 +216,6 @@ single-entry-point router — each level has its own skill.
 - **Format**: `story-<storyId>` (merges into `epic/<epicId>`).
 - **Goal**: minimize merge conflicts and consolidation waves by grouping related
   tasks on one context slice.
-- **Model tiering**: Stories labelled `complexity::high` resolve to
-  `model_tier: high`; all others resolve to `model_tier: low`. The tier is a
-  hint to the operator/router; concrete model selection is intentionally left
-  outside the protocol.
 
 ### Story execution lifecycle
 
@@ -471,7 +467,8 @@ replaces manual auditing with a CLI-driven system.
 
 Audits are selectively invoked by the orchestrator at four Epic lifecycle
 gates (`gate1` through `gate4`). The `audit-orchestrator.js` evaluates rules
-defined in `.agents/schemas/audit-rules.schema.json` based on:
+defined in `.agents/schemas/audit-rules.json` (schema:
+`.agents/schemas/audit-rules.schema.json`) based on:
 
 1. **Gate configuration** — which gate is currently firing.
 2. **Contextual keywords** — the Epic or Task body contents (e.g., `auth` or

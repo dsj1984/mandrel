@@ -195,7 +195,7 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | ------------------------ | ------- | ------------------------------------------------------------------------------------------------- |
 | `type`                   | `enum`  | `"epic-dispatch"` or `"story-execution"` discriminator.                                            |
 | `epicId`                 | `int`   | GitHub Issue number of the Epic.                                                                  |
-| `storyManifest[]`        | `array` | Frozen list of Stories per wave. Each row carries `{ storyId, storyTitle, wave, … }`.             |
+| `storyManifest[]`        | `array` | Frozen list of Stories per wave. Each row carries `{ storyId, storyTitle, wave, … }`. `model_tier` was removed from this row in Epic #990 (audit remediation) — the orchestrator no longer selects models; the executing agent / external router does. |
 | `agentTelemetry`         | `object`| Open object for runner telemetry (cap-source, runner version, etc.).                              |
 | `summary`                | `object`| Summary counts (total, by-wave, by-status).                                                       |
 
@@ -326,7 +326,7 @@ authoritative SDK.
 | Term                                       | Kind     | Definition                                                                                                                                                         |
 | ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `post-structured-comment.js`               | CLI      | `--ticket <id> --marker <key> --body-file <path>`. Wraps `upsertStructuredComment(provider, ticketId, marker, body)` from `lib/orchestration/ticketing.js`; idempotent by marker. |
-| `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.schema.json`; suite execution loads the selected workflow prompts.                                                                    |
+| `select-audits.js` / `run-audit-suite.js`  | CLI      | Selection reads `audit-rules.json` (manifest schema: `audit-rules.schema.json`); suite execution loads the selected workflow prompts.                              |
 | `hydrate-context.js` / `context-hydrator.js` | CLI    | `hydrate-context.js --ticket <id> --epic <id>` emits the JSON envelope. `context-hydrator.js --task <id> --epic <id>` is the raw-prompt wrapper used by operator workflows. |
 | `update-ticket-state.js`                   | CLI      | Covers ticket state transitions and cascade-completion. Cascade runs inline at the SDK layer when a Story's last open Task closes.                                  |
 | `dispatcher.js`                            | CLI      | Builds the dependency DAG, computes execution waves, dispatches stories. Invoked by `/epic-plan` Phase 3.                                                           |

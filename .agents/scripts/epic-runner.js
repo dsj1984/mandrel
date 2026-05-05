@@ -108,7 +108,7 @@ async function main() {
  * Reuses the engine's snapshot + build-wave-dag phases so the dry-run output
  * matches what the skill will dispatch at runtime.
  *
- * @returns {Promise<Array<{ wave: number, stories: Array<{ storyId: number, title?: string, modelTier: string, worktree?: string }> }>>}
+ * @returns {Promise<Array<{ wave: number, stories: Array<{ storyId: number, title?: string, worktree?: string }> }>>}
  */
 async function buildDispatchPlan({ epicId, orchestration, concurrencyCap }) {
   const [
