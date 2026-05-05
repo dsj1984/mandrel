@@ -4,6 +4,7 @@
   "description": "Standardized output format for the audit orchestration suite",
   "type": "object",
   "required": ["summary", "results"],
+  "additionalProperties": false,
   "properties": {
     "summary": {
       "type": "object",
@@ -15,6 +16,7 @@
         "medium",
         "low"
       ],
+      "additionalProperties": false,
       "properties": {
         "auditsRun": {
           "type": "array",
@@ -39,6 +41,7 @@
           "location",
           "recommendation"
         ],
+        "additionalProperties": false,
         "properties": {
           "auditId": { "type": "string" },
           "checkId": { "type": "string" },
@@ -51,6 +54,7 @@
           "location": {
             "type": "object",
             "required": ["file"],
+            "additionalProperties": false,
             "properties": {
               "file": { "type": "string" },
               "line": { "type": "integer" },
