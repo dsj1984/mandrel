@@ -772,7 +772,14 @@ They differ only in:
 - **Branch name validation**: `dependency-parser.js` enforces safe branch
   component characters (alphanumeric, hyphens, underscores, dots, slashes).
 - **Schema validation**: `orchestration` config is validated against an
-  embedded JSON Schema via `ajv`.
+  embedded JSON Schema via `ajv`. As of Epic #990 (audit remediation),
+  the static `.agents/schemas/*.json` mirrors and the runtime AJV
+  schemas declare `additionalProperties: false` on the document root of
+  `audit-results`, `friction-event`, and `agentrc`; carry `if/then`
+  conditional requirements on `healthRefresh.cadence`; and use a closed
+  enum for `validation-evidence.gateName`. Payloads with extra keys or
+  free-text discriminators now fail validation rather than silently
+  passing.
 
 ### HITL pause point
 

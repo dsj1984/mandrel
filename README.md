@@ -188,6 +188,8 @@ npm run test:coverage  # Tests with 85% coverage gate
 | [Architecture](docs/architecture.md)                          | Module map, interfaces, and data flow               |
 | [Project Board](docs/project-board.md)                        | Projects V2 Status field, columns, Views            |
 | [Worktree Lifecycle](.agents/workflows/worktree-lifecycle.md) | Per-story `git worktree` isolation                  |
+| [Quality Gates](docs/quality-gates.md)                        | Concurrent close, anti-thrashing, lint/MI/CRAP ratchets (relocated from `.agents/README.md` in Epic #990) |
+| [Windows Git Performance](docs/windows-git-performance.md)    | Recommended `git config` knobs for Windows checkouts |
 | [Patterns](docs/patterns.md)                                  | Execution-model patterns and operator playbooks     |
 | [Changelog](docs/CHANGELOG.md)                                | Release history (v5.0.0+)                           |
 

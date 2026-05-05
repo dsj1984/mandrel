@@ -195,7 +195,7 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | ------------------------ | ------- | ------------------------------------------------------------------------------------------------- |
 | `type`                   | `enum`  | `"epic-dispatch"` or `"story-execution"` discriminator.                                            |
 | `epicId`                 | `int`   | GitHub Issue number of the Epic.                                                                  |
-| `storyManifest[]`        | `array` | Frozen list of Stories per wave. Each row carries `{ storyId, storyTitle, wave, … }`.             |
+| `storyManifest[]`        | `array` | Frozen list of Stories per wave. Each row carries `{ storyId, storyTitle, wave, … }`. `model_tier` was removed from this row in Epic #990 (audit remediation) — the orchestrator no longer selects models; the executing agent / external router does. |
 | `agentTelemetry`         | `object`| Open object for runner telemetry (cap-source, runner version, etc.).                              |
 | `summary`                | `object`| Summary counts (total, by-wave, by-status).                                                       |
 
