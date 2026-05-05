@@ -116,8 +116,9 @@ corresponding gate.
 
 #### `agentSettings.quality.crap`
 
-Per-method CRAP gate. See `.agents/README.md` "CRAP Gate — Consumer Onboarding"
-for first-run behaviour and consumer-extension guidance.
+Per-method CRAP gate. See [`docs/quality-gates.md`](quality-gates.md)
+"CRAP Gate — Consumer Onboarding" for first-run behaviour and
+consumer-extension guidance.
 
 | Field             | Required           | Default      | Purpose                                                         |
 | ----------------- | ------------------ | ------------ | --------------------------------------------------------------- |
@@ -370,7 +371,7 @@ the lint ratchet, and the CRAP/MI gates.
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits with
 a non-empty body — see the `baseline-refresh-guardrail` job and the CRAP
-section of `.agents/README.md` for the policy.
+section of [`docs/quality-gates.md`](quality-gates.md) for the policy.
 
 Paths are configured in `agentSettings.quality.baselines.<gate>.path`. The
 default values match the canonical layout above; override only when a project
@@ -456,6 +457,48 @@ This is a framework-level change, not a project-level one. The path is:
 
 ---
 
+## Secrets now live in `.env`
+
+As of Epic #702 the framework no longer ships an MCP server, so
+`.mcp.json` is **not** a valid home for framework secrets. Every
+environment variable the orchestration engine reads is sourced from the
+process environment only — loaded from `.env` locally, or set in the
+Claude Code web environment-variables UI for web sessions.
+
+### Keys the framework reads
+
+| Variable                   | Required? | Purpose                                                                                                                                                  |
+| -------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GITHUB_TOKEN`             | Yes\*     | GitHub API auth for all ticketing operations. `GH_TOKEN` is accepted as a synonym. `gh auth token` is a fallback for local sessions.                      |
+| `NOTIFICATION_WEBHOOK_URL` | No        | POST target for in-band Notifier events (Make.com / Slack / Discord). Unset disables the webhook channel; `log` and `epic-comment` channels still fire. |
+| `WEBHOOK_SECRET`           | No        | Shared secret used to sign outbound webhook payloads as `X-Signature-256: sha256=<hmac>`. Unset ships unsigned payloads.                                 |
+
+\* `GITHUB_TOKEN` / `GH_TOKEN` is required for background scripts and CI;
+a locally-authenticated `gh auth login` session is an acceptable
+substitute in interactive developer sessions only.
+
+### Where to put them
+
+| Environment       | Storage location                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Local development | `.env` at the project root (auto-loaded by `config-resolver.js`). The file is `.gitignore`d; provision it per clone. |
+| Web sessions      | Claude Code web UI → environment-variables panel.                                                                    |
+| CI                | Repo / org secret, surfaced into the runner via `ENV_FILE` or the workflow's `env:` block.                            |
+
+`.mcp.json` is reserved for your MCP host's own discovery of third-party
+servers (e.g. `@modelcontextprotocol/server-github`, `context7`) and is
+ignored by the orchestration engine. Any framework-specific keys still
+present in a `.mcp.json` from a pre-#702 checkout are **dead config** —
+move them to `.env` (local) or your web session's env-var UI (web).
+
+The webhook URL for external delivery is **not** configured in
+`.agentrc.json`. It is sourced from the `NOTIFICATION_WEBHOOK_URL`
+process env var only — set it in `.env` locally, in the Claude Code web
+environment-variables UI for web sessions, or as a repo secret via
+`ENV_FILE` for GitHub Actions runs.
+
+---
+
 ## Cross-references
 
 - JSON Schema mirror —
@@ -467,7 +510,7 @@ This is a framework-level change, not a project-level one. The path is:
   [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js)
 - Sync helper —
   [`agents-sync-config.md`](../.agents/workflows/helpers/agents-sync-config.md)
-- Consumer reference (Key Settings table, CRAP onboarding) —
+- Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —
+  [`docs/quality-gates.md`](quality-gates.md)
+- Activation pointers (slash commands, personas, skills) —
   [`.agents/README.md`](../.agents/README.md)
-- Secrets / `.env` — see the "Secrets now live in `.env`" section of
-  [`.agents/README.md`](../.agents/README.md).
