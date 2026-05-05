@@ -37,15 +37,9 @@ export function classifyGithubError(err) {
     return 'feature-disabled';
   }
 
-  if (status === 401 || status === 403) return 'permission';
-  if (
-    lower.includes('unauthorized') ||
-    lower.includes('forbidden') ||
-    lower.includes('permission')
-  ) {
-    return 'permission';
-  }
-
+  // Rate-limit detection wins over the 401/403 → permission rule. GitHub's
+  // secondary rate limit is delivered as HTTP 403 with a known message; if we
+  // bucketed it as 'permission' it would never be retried.
   if (status === 429 || (typeof status === 'number' && status >= 500)) {
     return 'transient';
   }
@@ -57,6 +51,7 @@ export function classifyGithubError(err) {
     code === 'ABORT_ERR' ||
     lower.includes('rate limit') ||
     lower.includes('secondary rate limit') ||
+    lower.includes('abuse detection') ||
     lower.includes('fetch failed') ||
     lower.includes('network') ||
     lower.includes('timeout') ||
@@ -64,6 +59,15 @@ export function classifyGithubError(err) {
     lower.includes('aborted')
   ) {
     return 'transient';
+  }
+
+  if (status === 401 || status === 403) return 'permission';
+  if (
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden') ||
+    lower.includes('permission')
+  ) {
+    return 'permission';
   }
 
   return 'permanent';

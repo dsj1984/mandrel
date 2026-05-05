@@ -30,6 +30,7 @@ import { DEFAULT_DECOMPOSER } from './lib/config-schema.js';
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { validateTaskBodies } from './lib/orchestration/task-body-validator.js';
 import { validateAndNormalizeTickets } from './lib/orchestration/ticket-validator.js';
 import { createProvider } from './lib/provider-factory.js';
 import { renderDecomposerSystemPrompt } from './lib/templates/decomposer-prompts.js';
@@ -346,6 +347,7 @@ export async function decomposeEpic(
     `[Decomposer] Running cross-validation on ${tickets.length} tickets...`,
   );
   const validated = validateAndNormalizeTickets(tickets);
+  validateTaskBodies(validated);
 
   // Pre-pass cross-type collision check: a planned Story sharing a title with
   // an existing Task (or any other type mismatch) is unrecoverable — auto-
@@ -410,8 +412,48 @@ export async function decomposeEpic(
     throttle.detach();
   }
 
+  await reconcileSubIssueLinks(epicId, provider);
+
   console.log(
     `[Decomposer] Backlog for Epic #${epicId} populated successfully!`,
+  );
+}
+
+/**
+ * After all creation passes complete, walk every child of the Epic and verify
+ * that the native GitHub sub-issue API link matches the `parent: #<n>` body
+ * footer. The decomposer is the canonical place to enforce this invariant
+ * because it owns end-to-end Epic state — child create/link is otherwise an
+ * eventual-consistency dance vulnerable to GraphQL secondary RL.
+ *
+ * Fails the run if reconciliation cannot close all gaps. Mock providers in
+ * unit tests that do not expose `reconcileSubIssueLinks` are silently skipped
+ * (the same convention `attachAdaptiveConcurrencyHook` uses for `_http`).
+ */
+async function reconcileSubIssueLinks(epicId, provider) {
+  if (typeof provider.reconcileSubIssueLinks !== 'function') return;
+
+  console.log(
+    `[Decomposer] Reconciling sub-issue API links for Epic #${epicId}...`,
+  );
+  const result = await provider.reconcileSubIssueLinks(epicId);
+  const { totalExpected, alreadyLinked, reconciled, failed, failures } = result;
+
+  if (failed === 0) {
+    const reconciledNote = reconciled > 0 ? ` (${reconciled} reconciled)` : '';
+    console.log(
+      `[Decomposer] linked ${alreadyLinked + reconciled}/${totalExpected} sub-issues${reconciledNote}`,
+    );
+    return;
+  }
+
+  for (const failure of failures) {
+    Logger.error(
+      `[Decomposer] sub-issue link gap: parent #${failure.parentId} ← child #${failure.childId}: ${failure.reason}`,
+    );
+  }
+  throw new Error(
+    `[Decomposer] Sub-issue reconciliation incomplete: ${failed}/${totalExpected} links could not be established (linked=${alreadyLinked}, reconciled=${reconciled}). See log for per-child reasons.`,
   );
 }
 
@@ -486,6 +528,11 @@ async function runCreationPass(
       const parentId = resolveParentId(t, slugMap, epicId);
       const dependencies = resolveDependencies(t, slugMap);
 
+      const auditSnapshot =
+        t.type === 'task' && t.body && typeof t.body === 'object'
+          ? new Date().toISOString().slice(0, 10)
+          : undefined;
+
       try {
         const created = await provider.createTicket(parentId, {
           epicId,
@@ -493,6 +540,7 @@ async function runCreationPass(
           body: t.body,
           labels: t.labels || [],
           dependencies,
+          auditSnapshot,
         });
         console.log(`[Decomposer] -> Created Issue #${created.id}`);
         slugMap.set(t.slug, created.id);

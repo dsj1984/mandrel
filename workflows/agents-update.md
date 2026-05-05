@@ -100,26 +100,76 @@ If the helper reports `No changes required`, the config is already in
 sync — carry on. Otherwise, review the change report before the
 commit in Step 4.
 
-## Step 4 — Commit the bump
+## Step 4 — Review the CHANGELOG and update consumer-side memories
 
-The script never auto-commits. After reviewing the shortlog and any
-`.agentrc.json` reconciliation diff from Step 3, stage and commit the
-pointer move (plus the config reconciliation, if any) from the consumer
-repo root:
+Framework upgrades change behaviour the consumer project's own
+`AGENTS.md` (or `CLAUDE.md`) and per-agent memory files often encode —
+e.g., new validators that change what a planner is allowed to emit, new
+ticket-body schemas downstream agents must produce, retired flags or
+defaults the consumer's instructions still reference. The pointer move
+is the right moment to reconcile those, while the diff is in front of
+the operator.
+
+Read [`docs/CHANGELOG.md`](../../docs/CHANGELOG.md) inside the bumped
+`.agents/` submodule. Focus on every entry between `OLD_SHA` and
+`NEW_SHA` (the shortlog from Step 1 names the version headers to scan).
+For each entry, check the consumer repo for guidance that has gone
+stale or guidance that should now exist:
+
+1. **Consumer `AGENTS.md` / `CLAUDE.md`.** If the changelog entry
+   introduces a new contract the consumer instructions must reflect
+   (e.g., "tasks must emit a structured 4-section body", "PRs must
+   include `audit-snapshot:`"), update the consumer instructions so a
+   fresh agent reading them in isolation produces output that passes
+   the framework's new validators. Conversely, remove or rewrite
+   instructions that contradict a tightened rule.
+2. **Memory files.** Agent memory under `.claude/projects/.../memory/`
+   (or wherever the consumer keeps its persistent agent notes) often
+   holds workarounds for bugs that have just been fixed, or pointers
+   to behaviours that have been renamed. For each changelog bullet
+   that says "fixes silent failure X" or "renames Y to Z," either
+   update the relevant memory entry to reflect the new state or
+   delete it if the workaround is now obsolete.
+3. **Project-specific runbooks.** If the consumer has its own runbooks
+   (e.g., `docs/RUNBOOK.md`, `docs/orchestration.md`) that paraphrase
+   framework workflows, sweep them for renamed flags / changed exit
+   codes / removed scripts.
+
+Do not invent updates. If a changelog entry has no consumer-side
+implication, note that explicitly in your scratch and move on — silence
+is a valid review outcome. The goal is to leave the consumer
+instructions and memories *consistent* with the new framework version,
+not to manufacture churn.
+
+Stage every consumer-side edit alongside the submodule pointer move so
+the bump and the reconciliation land in the same commit (Step 5). A
+reviewer reading the bump should be able to see, in one diff, both
+"the framework moved" and "what we changed in our own files in
+response."
+
+## Step 5 — Commit the bump
+
+The script never auto-commits. After reviewing the shortlog, any
+`.agentrc.json` reconciliation diff from Step 3, and the consumer
+instruction / memory updates from Step 4, stage and commit the
+pointer move (plus the reconciliation and consumer edits, if any)
+from the consumer repo root:
 
 ```bash
-git add .agents .agentrc.json
+git add .agents .agentrc.json AGENTS.md  # plus any memory / runbook files touched in Step 4
 git commit -m "chore: bump .agents to <NEW_SHORT_SHA>
 
 OLD..NEW: a1b2c3d4e5f6..9f8e7d6c5b4a
 
 - feat: new workflow X
-- fix: tighten Y validation"
+- fix: tighten Y validation
+- consumer: update AGENTS.md task-body schema reference"
 ```
 
 Include the SHA range and, optionally, the shortlog so reviewers can see
 what moved without re-running the updater. Omit `.agentrc.json` from the
-`git add` if Step 3 reported `No changes required`.
+`git add` if Step 3 reported `No changes required`; omit the consumer-
+instruction paths if Step 4 was a no-op.
 
 ## Troubleshooting
 

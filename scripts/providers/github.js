@@ -159,6 +159,10 @@ export class GitHubProvider extends ITicketingProvider {
     return issues.removeSubIssue(this._ctx, parentNumber, subIssueNumber);
   }
 
+  async reconcileSubIssueLinks(epicId) {
+    return issues.reconcileSubIssueLinks(this._ctx, epicId);
+  }
+
   /* node:coverage ignore next */
   async updateTicket(ticketId, mutations) {
     return issues.updateTicket(this._ctx, ticketId, mutations);

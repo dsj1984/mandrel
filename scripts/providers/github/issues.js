@@ -9,6 +9,7 @@
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
 import { TYPE_LABELS } from '../../lib/label-constants.js';
+import { composeTaskBody } from '../../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { classifyGithubError } from './error-classifier.js';
 import { runGraphql } from './graphql.js';
@@ -26,6 +27,17 @@ import {
 } from './ticket-mapper.js';
 
 const SUBTICKET_HYDRATION_CONCURRENCY = 8;
+
+// Retry budget for the sub-issue link mutation. The HTTP transport already
+// retries 429 / 5xx / 403-secondary-RL at the network layer; this layer adds
+// resilience for GraphQL-200 + errors[] (rate-limit messages surfaced inside
+// a successful HTTP response — see error-classifier.js). Six attempts with
+// jittered exp backoff up to 30s comfortably outlasts the secondary RL window
+// observed on >80-ticket Epic decompositions.
+const SUB_ISSUE_RETRY_MAX_ATTEMPTS = 6;
+const SUB_ISSUE_RETRY_BASE_DELAY_MS = 1000;
+const SUB_ISSUE_RETRY_MAX_DELAY_MS = 30000;
+const SUB_ISSUE_RETRY_JITTER_MS = 500;
 
 /* node:coverage ignore next */
 export async function listIssues(ctx, filters = {}) {
@@ -229,34 +241,30 @@ export async function getTicketDependencies(ctx, ticketId) {
 /* node:coverage ignore next */
 export async function createTicket(ctx, parentId, ticketData) {
   const epicId = ticketData.epicId || parentId;
-  const bodyParts = [ticketData.body || '', '', `---`, `parent: #${parentId}`];
-
-  if (epicId !== parentId) {
-    bodyParts.push(`Epic: #${epicId}`);
-  }
-
-  if (ticketData.dependencies?.length) {
-    bodyParts.push('');
-    for (const dep of ticketData.dependencies) {
-      bodyParts.push(`blocked by #${dep}`);
-    }
-  }
+  const renderedBody = composeTaskBody({
+    body: ticketData.body ?? '',
+    parentId,
+    epicId,
+    dependencies: ticketData.dependencies ?? [],
+    auditSnapshot: ticketData.auditSnapshot,
+  });
 
   const issue = await ctx.http.rest(`/repos/${ctx.owner}/${ctx.repo}/issues`, {
     method: 'POST',
     body: {
       title: ticketData.title,
-      body: bodyParts.join('\n'),
+      body: renderedBody,
       labels: ticketData.labels ?? [],
     },
   });
 
+  let subIssueLinked = false;
+  let subIssueError = null;
   try {
     await addSubIssue(ctx, parentId, issue.node_id);
+    subIssueLinked = true;
   } catch (err) {
-    console.warn(
-      `[GitHubProvider] sub-issue link failed for #${issue.number} → parent #${parentId}: ${err.message}`,
-    );
+    subIssueError = err;
   }
 
   try {
@@ -274,9 +282,18 @@ export async function createTicket(ctx, parentId, ticketData) {
     internalId: issue.id,
     nodeId: issue.node_id,
     url: issue.html_url,
+    subIssueLinked,
+    subIssueError,
   };
 }
 
+/**
+ * Establish the native GitHub sub-issue API link between `parentNumber` and
+ * the child identified by `childNodeId`. Retries on transient errors (rate
+ * limits, secondary RL surfaced as GraphQL-200 + errors[], network blips)
+ * with jittered exponential backoff before re-throwing — silent failure here
+ * is what produced the text-only orphan tickets that motivated this fix.
+ */
 export async function addSubIssue(
   ctx,
   parentNumber,
@@ -284,16 +301,129 @@ export async function addSubIssue(
   opts = { replaceParent: false },
 ) {
   const parentTicket = await getTicket(ctx, parentNumber);
-  return runGraphql(
-    ctx,
-    ADD_SUB_ISSUE_MUTATION,
-    {
-      parentId: parentTicket.nodeId,
-      subIssueId: childNodeId,
-      replaceParent: opts.replaceParent,
-    },
-    { headers: { 'GraphQL-Features': 'sub_issues' } },
-  );
+  let lastErr;
+  for (let attempt = 0; attempt < SUB_ISSUE_RETRY_MAX_ATTEMPTS; attempt++) {
+    try {
+      return await runGraphql(
+        ctx,
+        ADD_SUB_ISSUE_MUTATION,
+        {
+          parentId: parentTicket.nodeId,
+          subIssueId: childNodeId,
+          replaceParent: opts.replaceParent,
+        },
+        { headers: { 'GraphQL-Features': 'sub_issues' } },
+      );
+    } catch (err) {
+      lastErr = err;
+      const category = classifyGithubError(err);
+      const isFinalAttempt = attempt === SUB_ISSUE_RETRY_MAX_ATTEMPTS - 1;
+      if (category !== 'transient' || isFinalAttempt) throw err;
+      const base = Math.min(
+        SUB_ISSUE_RETRY_MAX_DELAY_MS,
+        SUB_ISSUE_RETRY_BASE_DELAY_MS * 2 ** attempt,
+      );
+      const delay =
+        base + Math.floor(Math.random() * SUB_ISSUE_RETRY_JITTER_MS);
+      console.warn(
+        `[GitHubProvider] sub-issue link transient error for parent #${parentNumber} (attempt ${attempt + 1}/${SUB_ISSUE_RETRY_MAX_ATTEMPTS}); retrying in ${delay}ms: ${err.message}`,
+      );
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
+/**
+ * Reconciliation pass: walk every child of `epicId` whose body footer carries
+ * `parent: #<n>` and verify the GitHub native sub-issue API link is present.
+ * Re-establish missing links via `addSubIssue` (which retries internally on
+ * transient errors). Idempotent and safe to re-run on partially-linked Epics
+ * — a child whose link already exists is skipped.
+ *
+ * Returns `{ totalExpected, alreadyLinked, reconciled, failed, failures }`.
+ * Caller decides whether `failed > 0` should be fatal.
+ */
+export async function reconcileSubIssueLinks(ctx, epicId) {
+  const PARENT_RE = /(?:^|\n)parent:\s*#(\d+)/;
+
+  const allChildren = await getTickets(ctx, epicId);
+  const parentByChild = new Map();
+  for (const child of allChildren) {
+    const match = (child.body ?? '').match(PARENT_RE);
+    if (!match) continue;
+    parentByChild.set(child.id, Number.parseInt(match[1], 10));
+  }
+
+  const childrenByParent = new Map();
+  for (const [childId, parentId] of parentByChild) {
+    if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
+    childrenByParent.get(parentId).push(childId);
+  }
+
+  let alreadyLinked = 0;
+  let reconciled = 0;
+  let failed = 0;
+  const failures = [];
+
+  for (const [parentId, childIds] of childrenByParent) {
+    let parent;
+    try {
+      parent = await getTicket(ctx, parentId);
+    } catch (err) {
+      for (const childId of childIds) {
+        failures.push({ parentId, childId, reason: err.message });
+      }
+      failed += childIds.length;
+      continue;
+    }
+    if (!parent?.nodeId) {
+      for (const childId of childIds) {
+        failures.push({ parentId, childId, reason: 'parent missing nodeId' });
+      }
+      failed += childIds.length;
+      continue;
+    }
+
+    const linked = new Set(
+      await getNativeSubIssues(ctx, parent.nodeId, parentId),
+    );
+
+    for (const childId of childIds) {
+      if (linked.has(childId)) {
+        alreadyLinked++;
+        continue;
+      }
+      let childTicket;
+      try {
+        childTicket = await getTicket(ctx, childId);
+      } catch (err) {
+        failures.push({ parentId, childId, reason: err.message });
+        failed++;
+        continue;
+      }
+      if (!childTicket?.nodeId) {
+        failures.push({ parentId, childId, reason: 'child missing nodeId' });
+        failed++;
+        continue;
+      }
+      try {
+        await addSubIssue(ctx, parentId, childTicket.nodeId);
+        reconciled++;
+      } catch (err) {
+        failures.push({ parentId, childId, reason: err.message });
+        failed++;
+      }
+    }
+  }
+
+  return {
+    totalExpected: parentByChild.size,
+    alreadyLinked,
+    reconciled,
+    failed,
+    failures,
+  };
 }
 
 export async function removeSubIssue(ctx, parentNumber, subIssueNumber) {
