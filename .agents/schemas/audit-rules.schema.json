@@ -1,57 +1,69 @@
 {
-  "version": 1,
-  "audits": {
-    "audit-clean-code": {
-      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
-      "substitutionKeys": []
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://agent-protocols.dev/schemas/audit-rules.schema.json",
+  "title": "AuditRulesManifest",
+  "description": "Schema describing the audit-rules.json manifest read by select-audits.js and lib/audit-suite/runner.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts.",
+  "type": "object",
+  "required": ["version", "audits"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Manifest schema version. Bumped when the audits[] entry shape changes."
     },
-    "audit-architecture": {
-      "triggers": { "gates": ["gate1", "gate3"], "alwaysRun": true },
-      "substitutionKeys": []
-    },
-    "audit-security": {
-      "triggers": {
-        "gates": ["gate1", "gate3"],
-        "keywords": [
-          "security",
-          "auth",
-          "vulnerability",
-          "cve",
-          "password",
-          "encrypt"
-        ],
-        "filePatterns": ["**/*.lock", "**/auth/*.js", "**/crypto/*.js"]
+    "audits": {
+      "type": "object",
+      "description": "Map of audit workflow name (matching the workflow filename without extension) to its trigger configuration.",
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": { "$ref": "#/definitions/auditEntry" }
       },
-      "substitutionKeys": []
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "auditEntry": {
+      "type": "object",
+      "required": ["triggers"],
+      "additionalProperties": false,
+      "properties": {
+        "triggers": { "$ref": "#/definitions/triggers" },
+        "substitutionKeys": {
+          "type": "array",
+          "description": "Substitution keys this audit accepts via run-audit-suite --substitution. Empty array means no caller-supplied keys are allowed.",
+          "items": { "type": "string", "pattern": "^[A-Z0-9_]+$" },
+          "uniqueItems": true
+        }
+      }
     },
-    "audit-privacy": {
-      "triggers": {
-        "gates": ["gate1", "gate3"],
-        "keywords": ["privacy", "pii", "gdpr", "cookie", "tracking"],
-        "filePatterns": ["**/user-profile/**/*.js"]
-      },
-      "substitutionKeys": []
-    },
-    "audit-accessibility": {
-      "triggers": {
-        "gates": ["gate2", "gate3"],
-        "keywords": ["a11y", "accessibility", "wcag", "ui", "frontend", "aria"],
-        "filePatterns": [
-          "**/*.html",
-          "**/*.css",
-          "**/components/**/*.js",
-          "**/frontend/**/*.js"
-        ]
-      },
-      "substitutionKeys": []
-    },
-    "audit-devops": {
-      "triggers": { "gates": ["gate2"] },
-      "substitutionKeys": []
-    },
-    "audit-sre": {
-      "triggers": { "gates": ["gate4"] },
-      "substitutionKeys": []
+    "triggers": {
+      "type": "object",
+      "description": "Selection criteria for whether this audit runs against a given ticket / changeset. At least one of `gates` or `alwaysRun: true` must be set for select-audits.js to ever pick the audit.",
+      "additionalProperties": false,
+      "properties": {
+        "gates": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^gate[0-9]+$" },
+          "uniqueItems": true,
+          "description": "Quality-gate identifiers (gate1..gateN) that include this audit."
+        },
+        "alwaysRun": {
+          "type": "boolean",
+          "description": "If true, the audit is always selected regardless of keyword / file-pattern matches."
+        },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Case-insensitive keywords matched against the ticket title + body."
+        },
+        "filePatterns": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true,
+          "description": "Glob patterns matched against changed files in the diff."
+        }
+      }
     }
   }
 }

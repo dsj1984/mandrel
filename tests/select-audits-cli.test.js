@@ -56,13 +56,13 @@ test('selectAudits: keyword matching against ticket title/body still selects the
   );
 });
 
-test('selectAudits: glob filePattern from audit-rules.schema.json selects an audit on a matching changed file', async () => {
+test('selectAudits: glob filePattern from audit-rules.json selects an audit on a matching changed file', async () => {
   // Regression guard for the behaviour formerly asserted via the deleted
   // MCP-routed tests: selectAudits must apply the `triggers.filePatterns`
-  // globs declared in audit-rules.schema.json against the working tree's
-  // changed files. We pick `audit-security` (schema declares
+  // globs declared in audit-rules.json against the working tree's
+  // changed files. We pick `audit-security` (manifest declares
   // `**/auth/*.js` under filePatterns) and a ticket whose title/body share
-  // no schema keywords, so the audit can only be selected by glob.
+  // no manifest keywords, so the audit can only be selected by glob.
   const provider = new MockProvider({
     tickets: {
       400: {

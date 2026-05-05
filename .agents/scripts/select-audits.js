@@ -68,7 +68,8 @@ export function matchesAnyFilePattern(patterns, files) {
 }
 
 /**
- * Filter audits based on logic in audit-rules.schema.json.
+ * Filter audits based on logic in audit-rules.json (validated against
+ * audit-rules.schema.json).
  *
  * @param {object} params
  * @param {number} params.ticketId
@@ -107,7 +108,7 @@ export async function selectAudits({
   const rulesPath = path.join(
     PROJECT_ROOT,
     getPaths({ agentSettings: settings }).schemasRoot,
-    'audit-rules.schema.json',
+    'audit-rules.json',
   );
   let rulesData;
   try {
