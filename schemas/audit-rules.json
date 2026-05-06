@@ -32,10 +32,21 @@
       },
       "substitutionKeys": []
     },
-    "audit-accessibility": {
+    "audit-lighthouse": {
       "triggers": {
         "gates": ["gate2", "gate3"],
-        "keywords": ["a11y", "accessibility", "wcag", "ui", "frontend", "aria"],
+        "keywords": [
+          "lighthouse",
+          "a11y",
+          "accessibility",
+          "wcag",
+          "ui",
+          "frontend",
+          "aria",
+          "core web vitals",
+          "lcp",
+          "cls"
+        ],
         "filePatterns": [
           "**/*.html",
           "**/*.css",
