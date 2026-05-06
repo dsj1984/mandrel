@@ -78,8 +78,9 @@ local files unless requested.
 ### F. Modular Global Rules
 
 Before writing code or documentation, verify if any domain-agnostic rules
-apply by checking the `.agents/rules/` directory (e.g., `coding-style.md`,
-`git-conventions.md`, `shell-conventions.md`, `security-baseline.md`).
+apply by checking the `.agents/rules/` directory (e.g.,
+`security-baseline.md`, `testing-standards.md`, `api-conventions.md`,
+`git-conventions.md`, `shell-conventions.md`).
 
 ### G. Structured Configuration
 

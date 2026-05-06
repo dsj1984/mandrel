@@ -42,3 +42,29 @@ Other PowerShell-isms agents must respect:
   when the harness exposes them — they normalize quoting and escaping.
 - For multi-step pipelines that must run identically across platforms, write
   a Node/Python script and invoke that, rather than chaining shell builtins.
+
+## Searching the Workspace
+
+When searching for strings, patterns, or files, prioritize speed and avoid
+pipeline bottlenecks or full-file reads. Use this decision tree:
+
+1. **Host grep tool first.** If the harness exposes a dedicated grep tool
+   (e.g. Claude Code's `Grep` tool, ripgrep wrappers), use it. These
+   normalize quoting, respect `.gitignore`, and stream results.
+2. **`git grep`** when the workspace is a git repo and no host tool is
+   available. Pass `-l` to list only filenames when paths are sufficient.
+3. **`rg` (ripgrep)** when installed and outside a git repo, or when you
+   need features `git grep` lacks (multiline, type filters).
+4. **Avoid full-file reads** for searches. Reading whole files into memory
+   to scan for a pattern wastes context and is slower than a streaming
+   grep.
+
+### PowerShell-specific anti-patterns
+
+- If you must use `Select-String`, pass `-List` when you only need to
+  detect existence or collect file paths — without it, every match streams
+  through the pipeline.
+- NEVER chain `Select-Object -Unique` or `Sort-Object` directly after a
+  highly recursive `Get-ChildItem` on large trees. Both block the pipeline,
+  hold every result in memory, and frequently hang the terminal. Stream
+  through `Where-Object` filters first, or pre-narrow with a glob.

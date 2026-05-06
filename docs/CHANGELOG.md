@@ -55,6 +55,51 @@ hydrated prompt.
 - **`format-autofix.js`** — code comment referencing the now-relocated
   "§H rule in instructions.md" rewritten as a self-contained comment.
 
+### Removed
+
+- **`.agents/rules/coding-style.md`** — generic Prettier + React/TS naming
+  bullets that duplicated `instructions.md` §4 Anti-Laziness / No-Dead-Code
+  rules. Zero references in skills.
+- **`.agents/rules/database-standards.md`** — orphaned SQL conventions
+  (zero references). Belongs in a future `stack/data/` skill if the
+  content is wanted; was never wired in.
+- **`.agents/rules/ui-copywriting.md`** — orphaned generic copywriting
+  advice (zero references); redundant with project-level
+  `docs/style-guide.md`.
+- **`.agents/rules/search-and-execution-heuristics.md`** — folded into
+  `shell-conventions.md` under a new "Searching the Workspace" section
+  (with PowerShell-specific anti-patterns retained). Original file
+  deleted.
+
+### Fixed
+
+- **`.agents/rules/git-conventions.md`** — three correctness/staleness
+  issues:
+  - Hardcoded `npm run lint` / `npm run format:check` commands replaced
+    with a pointer to `agentSettings.commands.validate` + `commands.test`
+    so non-Node projects get correct local-validation guidance.
+  - Removed the legacy "amend the commit rather than creating 'fix lint'
+    commits" rule, which contradicts the framework's standing rule
+    ("Always create NEW commits rather than amending"). Replaced with
+    explicit guidance to follow up with a new commit.
+  - Removed the v4-era "Task-Level Branching (Legacy/Transition)" section
+    (`task/epic-[EPIC_ID]/[TASK_ID]`) — v5 has been canonical for
+    several releases. Story branch naming updated to canonical
+    `story-<storyId>` shape.
+  - Added explicit "never bypass hooks" guidance to align with project
+    policy on `--no-verify` / `--no-gpg-sign`.
+
+### Net effect
+
+`.agents/rules/` goes from **12 → 8 files**, all referenced or scoped:
+high-traffic SSOTs (`security-baseline`, `gherkin-standards`,
+`testing-standards`, `api-conventions`), workflow-canonical guidance
+(`changelog-style`, `git-conventions`), and host/contributor scopes
+(`shell-conventions`, `orchestration-error-handling`).
+
+The instructions.md §1.F example list is updated to reflect the surviving
+high-value files.
+
 ## [5.35.0] — 2026-05-06
 
 Renames the `/audit-accessibility` workflow to `/audit-lighthouse` and
