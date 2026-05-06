@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.35.1] — 2026-05-06
+
+Generalizes the `agent-protocol.md` template so non-Node projects don't
+receive npm-specific guidance in their hydrated prompts.
+
+### Changed
+
+- **`.agents/templates/agent-protocol.md`** — replaced hardcoded
+  `npm run lint && npm test` example with `{{VALIDATE_CMD}}` /
+  `{{TEST_CMD}}` placeholders, and replaced the `main` / `dist` protected
+  branch list with `{{PROTECTED_BRANCHES}}`. Section 5.2 wording clarified
+  to separate the rule from the interactive-debugging exception.
+- **`context-hydration-engine.js`** — populates the new placeholders from
+  `agentSettings.commands` (via `getCommands()`) and from
+  `agentSettings.git.protectedBranches` (falling back to `baseBranch`).
+
 ## [5.35.0] — 2026-05-06
 
 Renames the `/audit-accessibility` workflow to `/audit-lighthouse` and

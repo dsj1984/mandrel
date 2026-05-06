@@ -18,6 +18,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { getCommands } from '../config/commands.js';
 import {
   getLimits,
   getPaths,
@@ -231,11 +232,22 @@ export async function hydrateContext(
       'agent-protocol.md',
     );
     protocolTpl = readFileCached(pTemplatePath);
+    const commands = getCommands(settings);
+    const baseBranch = settings?.baseBranch ?? 'main';
+    const protectedBranches = Array.isArray(settings?.git?.protectedBranches)
+      ? settings.git.protectedBranches
+      : [baseBranch];
     protocolTpl = protocolTpl
       .replace(/\{\{PROTOCOL_VERSION\}\}/g, currentVersion)
       .replace(/\{\{BRANCH_NAME\}\}/g, taskBranch)
       .replace(/\{\{EPIC_BRANCH\}\}/g, epicBranch)
-      .replace(/\{\{TASK_ID\}\}/g, task.id);
+      .replace(/\{\{TASK_ID\}\}/g, task.id)
+      .replace(/\{\{VALIDATE_CMD\}\}/g, commands.validate)
+      .replace(/\{\{TEST_CMD\}\}/g, commands.test)
+      .replace(
+        /\{\{PROTECTED_BRANCHES\}\}/g,
+        protectedBranches.map((b) => `\`${b}\``).join(', '),
+      );
   } catch (err) {
     console.warn(`[Hydrator] Failed to load agent-protocol.md: ${err.message}`);
   }
