@@ -4,8 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [5.35.1] — 2026-05-06
 
-Generalizes the `agent-protocol.md` template so non-Node projects don't
-receive npm-specific guidance in their hydrated prompts.
+Generalizes and streamlines the agent prompt surface (`agent-protocol.md`
+template + `instructions.md`) so non-Node, non-Windows, and non-TypeScript
+projects no longer receive irrelevant or stack-specific guidance in the
+hydrated prompt.
 
 ### Changed
 
@@ -17,6 +19,41 @@ receive npm-specific guidance in their hydrated prompts.
 - **`context-hydration-engine.js`** — populates the new placeholders from
   `agentSettings.commands` (via `getCommands()`) and from
   `agentSettings.git.protectedBranches` (falling back to `baseBranch`).
+- **`.agents/instructions.md`** — significant streamline:
+  - Title `Antigravity Agent Protocol` → `Agent Execution Protocol`
+    (removes host-brand leak).
+  - §1.A persona-routing trigger reworded to reflect runtime injection via
+    the hydrator (not just the human "Act as …" prompt).
+  - §1.F `docs/style-guide.md` duplicate reference removed (kept under §3
+    Mandatory Reading).
+  - §1.G "Model selection" operator-facing aside removed (not agent
+    guidance).
+  - §1.H Friction Telemetry trimmed from 8 lines to 4; "Throw, Never Fatal"
+    contributor rule extracted to a new rules file.
+  - §3 Shell & Terminal Protocol (Windows/PowerShell) removed from the
+    universal prompt and extracted to a new rules file.
+  - §5 Quality Discipline — TypeScript-specific (`any`, `@ts-ignore`),
+    a11y/WCAG, and trailing-newline bullets moved out of the universal
+    section; replaced with a pointer to stack skills and rules.
+  - §8 Golden Examples empty placeholder removed; subsequent sections
+    renumbered.
+  - 356 lines → 307 lines (~14% reduction) with no loss of universal
+    content.
+
+### Added
+
+- **`.agents/rules/shell-conventions.md`** — host-conditional shell
+  guidance (PowerShell vs POSIX). Loaded via the §1.F modular-rules
+  channel only when shell behaviour is relevant.
+- **`.agents/rules/orchestration-error-handling.md`** — contributor rule
+  documenting the "throw, never `Logger.fatal`" convention for
+  orchestration scripts. Targets contributors editing
+  `.agents/scripts/lib/orchestration/**`, not Story-execution agents.
+
+### Internal
+
+- **`format-autofix.js`** — code comment referencing the now-relocated
+  "§H rule in instructions.md" rewritten as a self-contained comment.
 
 ## [5.35.0] — 2026-05-06
 
