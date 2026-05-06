@@ -51,8 +51,8 @@ test('selectAudits: keyword matching against ticket title/body still selects the
   assert.equal(gate, 'gate2');
   assert.equal(context.ticketTitle, 'Improve accessibility of modal dialogs');
   assert.ok(
-    selectedAudits.includes('audit-accessibility'),
-    'accessibility keyword should select the accessibility audit',
+    selectedAudits.includes('audit-lighthouse'),
+    'accessibility keyword should select the lighthouse audit (which covers a11y)',
   );
 });
 

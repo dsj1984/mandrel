@@ -2,6 +2,41 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.35.0] — 2026-05-06
+
+Renames the `/audit-accessibility` workflow to `/audit-lighthouse` and
+refocuses its content. The old name was misleading — the workflow drove a
+full Lighthouse run across all four categories (Performance, Accessibility,
+Best Practices, SEO), and collided semantically with the unrelated
+WCAG-focused QA skill at `.agents/skills/stack/qa/audit-accessibility/`.
+
+### Changed
+
+- **`/audit-lighthouse`** (was `/audit-accessibility`). New workflow file at
+  [`.agents/workflows/audit-lighthouse.md`](../.agents/workflows/audit-lighthouse.md).
+  Comprehensive guidance for running Lighthouse, parsing the full JSON
+  envelope (scores, Core Web Vitals, opportunities, diagnostics, failed
+  audits per category, cross-cutting patterns), and emitting a structured
+  report at `{{auditOutputDir}}/audit-lighthouse-results.md`. Read-only —
+  drops the verify-and-revert fix loop the prior workflow shipped with, in
+  favour of consistency with the rest of the audit suite.
+- **`audit-rules.json`** trigger key renamed `audit-accessibility` →
+  `audit-lighthouse`; keyword set extended with `lighthouse`, `core web
+  vitals`, `lcp`, `cls`. Existing `accessibility` / `wcag` / `a11y` /
+  `aria` / `ui` / `frontend` keywords are preserved so a11y-tagged
+  tickets still route to this audit.
+- **`audit-performance.md`** cross-reference updated to point at the new
+  filename and to describe scope correctly (deep architectural / runtime
+  bottlenecks vs. Lighthouse's page-load surface).
+- **`docs/workflows.md`** audit-suite table row replaced.
+- **`tests/select-audits-cli.test.js`** assertion now expects
+  `audit-lighthouse` for accessibility-keyword tickets.
+
+### Removed
+
+- **`.agents/workflows/audit-accessibility.md`** — superseded by
+  `audit-lighthouse.md`.
+
 ## [5.34.0] — 2026-05-05
 
 Audit remediation (Epic #990). The framework's `.agents/` surface is

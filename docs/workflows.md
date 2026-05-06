@@ -41,11 +41,11 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Focus                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------ |
-| `/audit-accessibility`     | Lighthouse performance + accessibility                                         |
 | `/audit-architecture`      | Architecture and clean-code structure                                          |
 | `/audit-clean-code`        | Clean-code and maintainability                                                 |
 | `/audit-dependencies`      | Dependency audit and upgrade                                                   |
 | `/audit-devops`            | DevOps infrastructure                                                          |
+| `/audit-lighthouse`        | Lighthouse audit (Performance / Accessibility / Best Practices / SEO)          |
 | `/audit-performance`       | Performance and bottleneck analysis                                            |
 | `/audit-privacy`           | Privacy and PII data flows                                                     |
 | `/audit-quality`           | Testing and quality assurance                                                  |
