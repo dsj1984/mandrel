@@ -15,7 +15,7 @@ is blocked by other tasks, you must STOP and report that the task is blocked.
 All implementation work must be committed to the following branch:
 `{{BRANCH_NAME}}` (This branches from `{{EPIC_BRANCH}}`).
 
-Do not push directly to `main` or `dist`.
+Do not push directly to any protected branch ({{PROTECTED_BRANCHES}}).
 
 ## 3. Human-in-the-Loop (HITL) Pause
 
@@ -36,10 +36,10 @@ If you hit an unrecoverable error during implementation:
 When your implementation is complete and verified:
 
 1. Stage and commit your changes to the Story branch (`{{BRANCH_NAME}}`).
-2. Validation runs at Story closure (`story-close.js`) — do **not**
-   pre-run `npm run lint && npm test` here unless you are interactively
-   iterating on a fix. The close script's lint/test/format/maintainability
-   chain is the authoritative gate.
+2. Do **not** pre-run validation commands (e.g. `{{VALIDATE_CMD}}` /
+   `{{TEST_CMD}}`) here. The close script's lint/test/format/maintainability
+   chain is the authoritative gate, run at Story closure (`story-close.js`).
+   Exception: you may run them interactively while iterating on a fix.
 3. The Story branch is auto-merged into the Epic branch by `/story-execute`
    (via `story-close.js`) after all Tasks are done — do **not** merge manually.
 4. Transition the task label to `agent::review` via `update-ticket-state.js`.

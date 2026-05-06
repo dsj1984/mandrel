@@ -1,6 +1,6 @@
-# Antigravity Agent Protocol
+# Agent Execution Protocol
 
-You are operating within the Antigravity environment. Your behavior, technical
+You are operating under the Agent Execution Protocol. Your behavior, technical
 constraints, and operational context are governed by this central instruction
 set. You MUST strictly adhere to the following rules:
 
@@ -10,9 +10,10 @@ set. You MUST strictly adhere to the following rules:
 
 ### A. Persona Routing & Execution
 
-When instructed to "Act as [Role/Persona]" (e.g., Architect, Engineer, QA), you
-must immediately retrieve and strictly adopt the rules in:
-`.agents/personas/[role].md`.
+When the runtime injects a persona for the current task (via the hydrator from
+`task.persona`), retrieve and strictly adopt the rules in
+`.agents/personas/[role].md`. If a user explicitly instructs "Act as
+[Role/Persona]" in chat, honor that as well.
 
 - **Fallback:** If the specific persona file is missing, default to
   `.agents/personas/engineer.md`.
@@ -70,93 +71,65 @@ directly — there is no separate state-mutation MCP server to degrade from.
 ### E. Local Overrides
 
 If a `.agents/instructions.local.md` file or `.agentrc.local.json` is present,
-you MUST load them. They contain personal developer preferences and environment
-variables that override project defaults. Do not modify these local files unless
-requested.
+you MUST load them. They contain personal developer preferences and
+environment variables that override project defaults. Do not modify these
+local files unless requested.
 
 ### F. Modular Global Rules
 
-Before writing code or documentation, verify if any domain-agnostic rules apply:
-
-- **Code:** Check the `.agents/rules/` directory (e.g., `coding-style.md`).
-- **Domain/Design Constraints:** If a `docs/style-guide.md` is provided in the
-  project, you MUST strictly adhere to its tone, UI copy constraints, layout
-  specifications, and formatting. Do not hallucinate styles outside of this
-  guide.
+Before writing code or documentation, verify if any domain-agnostic rules
+apply by checking the `.agents/rules/` directory (e.g.,
+`security-baseline.md`, `testing-standards.md`, `api-conventions.md`,
+`git-conventions.md`, `shell-conventions.md`).
 
 ### G. Structured Configuration
 
 Refer to `.agentrc.json` to understand your operational limits (e.g., allowed
-auto-run permissions, default personas). Refer to the **Tech Stack** section of
-`docs/architecture.md` for the project's specific technology choices (database,
-ORM, API framework, auth provider, validation library, workspace paths).
-Project-specific technology context is intentionally kept out of
+auto-run permissions, default personas). Refer to the **Tech Stack** section
+of `docs/architecture.md` for the project's specific technology choices
+(database, ORM, API framework, auth provider, validation library, workspace
+paths). Project-specific technology context is intentionally kept out of
 `.agentrc.json`.
 
-Model selection is intentionally **not** in config or in the dispatcher.
-Concrete model choice is left to the operator or external router; the
-orchestrator does not emit a per-Story tier hint.
-
-### H. Observability & Agent Friction Logging
-
-#### Friction Telemetry
+### H. Observability & Friction Telemetry
 
 You MUST log telemetry about any operational difficulty or automation
-opportunity you encounter. Instead of local files, you MUST post friction
-details directly to the relevant GitHub Task ticket:
+opportunity you encounter. Post friction details directly to the relevant
+GitHub Task ticket:
 
 - **Command**:
   `node .agents/scripts/diagnose-friction.js --epic [EPIC_ID] --task [TASK_ID] --cmd [FAILED_COMMAND]`
-- **Friction Point**: Execute this script after consecutive tool validation
-  errors, unrecoverable command failures, or ambiguity requiring explicit
-  self-correction. The script will post a structured `friction` comment to the
-  ticket and provide remediation steps.
-- **Automation Candidate**: Manually log repetitive sequences of commands (check
-  `limits.friction.repetitiveCommandCount` in `.agentrc.json`, default 3+),
-  boilerplate-heavy file creations, or manual processes that could be simplified
-  by a dedicated workflow or skill.
-- **When no ticket context exists**: If you hit friction outside an Epic/Story/Task
-  loop (e.g. running a skill standalone, bootstrapping, or before any ticket has
-  been minted), do **not** skip telemetry. Write a JSON record to
-  `temp/friction-<timestamp>.json` capturing the same fields the ticket-aware path
-  would (command, error excerpt, remediation, automation candidate flag), and
-  mention the file in your final work-summary so a human can route it to the
-  right ticket later. The ticket-less path is a fallback, not a license to drop
-  the signal.
+- **When to fire**: After consecutive tool validation errors, unrecoverable
+  command failures, or ambiguity requiring explicit self-correction. Also
+  after repetitive sequences of commands (default threshold: 3+, see
+  `limits.friction.repetitiveCommandCount` in `.agentrc.json`) or
+  boilerplate-heavy steps that could be simplified by a workflow or skill.
+- **No-ticket fallback**: If you hit friction outside an Epic/Story/Task
+  loop, write a JSON record to `temp/friction-<timestamp>.json` with the
+  same fields, and mention the file in your final summary so a human can
+  route it later. Do not silently drop the signal.
 
 #### Log Level Control
 
-The orchestrator logger (`lib/Logger.js`) emits progress/trace output based on
-the `AGENT_LOG_LEVEL` environment variable:
+The orchestrator logger (`lib/Logger.js`) emits progress/trace output based
+on the `AGENT_LOG_LEVEL` environment variable:
 
-- `silent`  — only `fatal` emits; useful for script embedding where the caller
-  owns presentation.
+- `silent`  — only `fatal` emits; useful for script embedding where the
+  caller owns presentation.
 - `info`    — default. Emits `info` / `warn` / `error` / `fatal`.
 - `verbose` — adds `debug` trace output on top of the `info` set. `debug` is
   accepted as a backward-compatible alias.
 
-#### Throw, Never Fatal (Orchestration Scripts)
-
-Orchestration scripts (the `.agents/scripts/*.js` orchestrators and the helper
-modules under `.agents/scripts/lib/orchestration/**`) MUST surface unrecoverable
-failures by `throw new Error(<message>)` rather than `Logger.fatal(<message>)`.
-The `runAsCli` boundary catches the throw and maps it to `process.exit(1)`,
-which preserves the operator-visible message verbatim while staying robust
-under a mocked `process.exit` — `Logger.fatal` falls through silently when the
-exit is stubbed (in tests or harness), letting execution continue past the
-intended hard-stop. Story #959 is the precedent: it converted every
-`Logger.fatal` call inside the story-close orchestrator surface to throw and
-established this rule for future orchestration work.
-
 ### I. Anti-Thrashing Protocol
 
-You MUST proactively identify when you are "thrashing" or stuck in an infinite
-loop. If you satisfy either of the following conditions, you MUST immediately
-stop, summarize the blockers, and present a **Re-Plan** or yield to the user:
+You MUST proactively identify when you are "thrashing" or stuck in an
+infinite loop. If you satisfy either of the following conditions, you MUST
+immediately stop, summarize the blockers, and present a **Re-Plan** or yield
+to the user:
 
-- **Error Threshold**: You execute multiple consecutive tools that return errors
-  (check `limits.friction.consecutiveErrorCount` in `.agentrc.json`, default
-  3).
+- **Error Threshold**: You execute multiple consecutive tools that return
+  errors (check `limits.friction.consecutiveErrorCount` in `.agentrc.json`,
+  default 3).
 - **Stagnation Threshold**: You perform consecutive steps of research or
   analysis without modifying a file (check
   `limits.friction.stagnationStepCount` in `.agentrc.json`, default 5),
@@ -167,11 +140,11 @@ unnecessary tokens on failing strategies.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 
-Before executing any task, you MUST check the ticket labels and instructions for
-high-risk operations.
+Before executing any task, you MUST check the ticket labels and instructions
+for high-risk operations.
 
-- **`risk::high` is metadata**: treat it as planning/audit signal only. It does
-  **not** create an automatic runtime pause.
+- **`risk::high` is metadata**: treat it as planning/audit signal only. It
+  does **not** create an automatic runtime pause.
 - **Single runtime pause point**: `agent::blocked` is the authoritative HITL
   gate. When execution encounters an unresolvable blocker or an unsafe
   destructive action without explicit authorization, transition to
@@ -180,16 +153,16 @@ high-risk operations.
   (`agent::executing` or equivalent workflow instruction).
 - **High-risk heuristic**: use `agentSettings.riskGates.heuristics` from
   `.agentrc.json` to decide when to escalate via `agent::blocked`. Typical
-  triggers include destructive/irreversible data mutations, shared auth/security
-  changes, CI/CD gate changes, monorepo-wide rewrites, and destructive schema
-  migrations.
+  triggers include destructive/irreversible data mutations, shared
+  auth/security changes, CI/CD gate changes, monorepo-wide rewrites, and
+  destructive schema migrations.
 
 ---
 
 ## 2. FinOps & Token Budgeting (Economic Guardrails)
 
-To prevent runaway API costs, you MUST strictly adhere to the following FinOps
-protocol:
+To prevent runaway API costs, you MUST strictly adhere to the following
+FinOps protocol:
 
 ### A. Token Tracking & Budgeting
 
@@ -199,92 +172,78 @@ protocol:
   provided by the LLM response metadata after every tool call.
 - **Soft-Warning (80%)**: When usage reaches the threshold defined by
   `budgetWarningThreshold` (default 0.8), you MUST notify the user via a
-  terminal message and trigger the configured notification webhook (resolved
-  from the `NOTIFICATION_WEBHOOK_URL` env var).
+  terminal message and trigger the configured notification webhook
+  (resolved from the `NOTIFICATION_WEBHOOK_URL` env var).
 - **Hard-Stop (100%)**: If you reach `maxTokenBudget`, you MUST **STOP**
-  immediately. You are forbidden from continuing until a human operator grants
-  an explicit override via a status update or CLI flag.
+  immediately. You are forbidden from continuing until a human operator
+  grants an explicit override via a status update or CLI flag.
 
 ---
 
-## 3. Shell & Terminal Protocol (Windows Compatibility)
+## 3. Core Philosophy
 
-When operating on a Windows environment (PowerShell), agents MUST NOT use `&&`
-as a statement separator, as common PowerShell versions (like 5.1) do not
-support it and will throw a parser error.
-
-- **Standard Separator**: Use `;` if the next command should run regardless of
-  the first.
-- **Success Chaining (Logical AND)**: Use `; if ($?) { ... }` to ensure the
-  second command only runs if the first succeeded.
-
-- **Example**: `git add . ; if ($?) { git commit -m "..." }`
-
-This ensures that any project using these protocols stays compatible across
-environments without needing manual command corrections.
-
----
-
-## 4. Core Philosophy
-
-1. **Context First:** Before proposing any solution, understand the repository's
-   tech stack, historical context, and structure.
-   - **Mandatory Reading**: Before starting ANY task, you MUST read every file
-     listed in `agentSettings.docsContextFiles` in `.agentrc.json`. This list
-     is the project's authoritative reference set (architecture, data
-     dictionary, decisions log, patterns, etc.) and replaces any hardcoded
-     filename list. Resolve each entry against `agentSettings.paths.docsRoot`
-     (default `docs/`) and skip silently when an entry's file is absent.
-   - **Conditional Reads**: When the task touches UI copy, layout, or routing
-     and the corresponding file is present in the project, also read
-     `docs/style-guide.md` and `docs/web-routes.md`. Skip both when absent or
-     unrelated to the task — they are not part of the universal mandatory
-     set.
-   - **Epic Context**: Additionally, read the context tickets (PRD, Tech Spec)
-     linked in the current Epic's body and the task-specific instructions.
+1. **Context First:** Before proposing any solution, understand the
+   repository's tech stack, historical context, and structure.
+   - **Mandatory Reading**: Before starting ANY task, you MUST read every
+     file listed in `agentSettings.docsContextFiles` in `.agentrc.json`.
+     This list is the project's authoritative reference set (architecture,
+     data dictionary, decisions log, patterns, etc.) and replaces any
+     hardcoded filename list. Resolve each entry against
+     `agentSettings.paths.docsRoot` (default `docs/`) and skip silently
+     when an entry's file is absent.
+   - **Conditional Reads**: When the task touches UI copy, layout, or
+     routing and the corresponding file is present in the project, also
+     read `docs/style-guide.md` and `docs/web-routes.md`. Skip both when
+     absent or unrelated to the task — they are not part of the universal
+     mandatory set.
+   - **Epic Context**: Additionally, read the context tickets (PRD, Tech
+     Spec) linked in the current Epic's body and the task-specific
+     instructions.
    - **Optimization**: For large projects, prioritize targeted retrieval
-     (semantic code search or focused text search) to isolate specific schemas
-     or decisions before reading broad files.
-2. **Plan First:** For non-trivial tasks (3+ steps or architectural decisions),
-   enter **Plan Mode**. Update the Tech Spec issue or create a new Technical
-   Specification document in the `docs/` root (if not already handled by a
-   ticket) before touching code.
-3. **Artifacts over Chat:** Create log files for test results, build outputs, or
-   debug sessions rather than pasting large code blocks in chat.
+     (semantic code search or focused text search) to isolate specific
+     schemas or decisions before reading broad files.
+2. **Plan First:** For non-trivial tasks (3+ steps or architectural
+   decisions), enter **Plan Mode**. Update the Tech Spec issue or create a
+   new Technical Specification document in the `docs/` root (if not already
+   handled by a ticket) before touching code.
+3. **Artifacts over Chat:** Create log files for test results, build
+   outputs, or debug sessions rather than pasting large code blocks in
+   chat.
 4. **Idempotency:** Ensure scripts and commands can be run multiple times
    without breaking the environment.
-5. **Security First:** Never hardcode secrets. Use environment variables and
-   validate with secret scanning tools.
+5. **Security First:** Never hardcode secrets. Use environment variables
+   and validate with secret scanning tools.
 
 ---
 
-## 5. Execution & Quality Discipline
+## 4. Execution & Quality Discipline
 
-- **Re-Plan on Failure:** If a strategy fails, **STOP** and re-plan immediately.
-  Do not repeat a broken approach.
-- **Subagent Strategy:** Use subagents liberally for research, exploration, or
-  parallel analysis to keep the main context window focused. One objective per
-  subagent.
-- **Quality Standards:**
-  - UI components must pass accessibility scans (WCAG 2.1 AA).
-  - Adhere strictly to project linters and formatters.
-  - No commented-out code snippets in final deliverables.
-  - **Anti-Laziness:** NEVER use placeholder comments like
-    `// ... existing code ...`, `/* rest of file */`, or
-    `// implementation here`. You MUST output the ENTIRE file or the ENTIRE
-    complete function so it can be safely written to disk.
-  - Remove unused imports and dead code before finalizing a file.
-  - NEVER use `any` or `@ts-ignore` in TypeScript. If a type is complex, define
-    the interface properly.
-  - Always leave a blank newline at the end of every file.
+- **Re-Plan on Failure:** If a strategy fails, **STOP** and re-plan
+  immediately. Do not repeat a broken approach.
+- **Subagent Strategy:** Use subagents liberally for research, exploration,
+  or parallel analysis to keep the main context window focused. One
+  objective per subagent.
+- **Anti-Laziness:** NEVER use placeholder comments like
+  `// ... existing code ...`, `/* rest of file */`, or
+  `// implementation here`. You MUST output the ENTIRE file or the ENTIRE
+  complete function so it can be safely written to disk.
+- **No Dead Code:** Remove unused imports, commented-out code, and dead
+  branches before finalizing a file.
+- **Lint Compliance:** Adhere strictly to project linters and formatters.
+  Language- and stack-specific quality rules (TypeScript strictness,
+  accessibility scans, framework conventions) live in their respective
+  `stack/` skills and `.agents/rules/` files — apply them when the relevant
+  skill is activated.
 - **Verification:** Include explicit verification steps in every plan.
 
 ---
 
-## 6. Git & Epic Protocol (Strict Standards)
+## 5. Git & Epic Protocol (Strict Standards)
 
 To maintain a clean and readable repository history, you MUST follow these
-strict conventions for all epic-related Git operations:
+strict conventions for all epic-related Git operations. See
+[`.agents/rules/git-conventions.md`](rules/git-conventions.md) for the full
+canonical reference.
 
 ### A. Branch Naming (Canonical)
 
@@ -302,8 +261,9 @@ them automatically; agents commit on the execution branch only.
 
 ### B. Status Tracking & Commit Standards
 
-Administrative state mutations in the v5 model are performed via GitHub labels.
-Do NOT manually update issue descriptions or status fields unless prompted.
+Administrative state mutations in the v5 model are performed via GitHub
+labels. Do NOT manually update issue descriptions or status fields unless
+prompted.
 
 - **Sync Tool**:
   `node .agents/scripts/update-ticket-state.js --ticket [ID] --state [STATUS]`
@@ -312,34 +272,26 @@ Do NOT manually update issue descriptions or status fields unless prompted.
 
 ### C. History Hygiene
 
-Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into the
-Epic branch automatically by `/story-execute` (via `story-close.js`); the Epic
-branch is merged into `main` only by `/epic-close`. There is no separate
-integration workflow.
+Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
+the Epic branch automatically by `/story-execute` (via `story-close.js`);
+the Epic branch is merged into `main` only by `/epic-close`. There is no
+separate integration workflow.
 
 ---
 
-## 7. Workspace & File Hygiene (Temporary Files)
+## 6. Workspace & File Hygiene (Temporary Files)
 
 To keep the repository clean and avoid polluting the Git history:
 
-- **Root Temp Directory**: All temporary files, scratch scripts, or intermediate
-  outputs MUST be stored in the `/temp/` directory located at the workspace
-  root.
-- **Git Exclusion**: The `/temp/` directory is excluded from Git by default. Do
-  NOT commit any files stored within it.
-
-## 8. Golden Examples (Few-Shot Reference)
-
-Refer to this section to align your implementation patterns with historical
-successes.
-
-<!-- GOLDEN_EXAMPLES_START -->
-<!-- GOLDEN_EXAMPLES_END -->
+- **Root Temp Directory**: All temporary files, scratch scripts, or
+  intermediate outputs MUST be stored in the `/temp/` directory located at
+  the workspace root.
+- **Git Exclusion**: The `/temp/` directory is excluded from Git by default.
+  Do NOT commit any files stored within it.
 
 ---
 
-## 9. Complexity-Aware Execution
+## 7. Complexity-Aware Execution
 
 The dispatcher automatically calculates the execution plan for an Epic.
 
@@ -350,6 +302,7 @@ If your task contains a complexity warning or exceeds localized scope:
 1. **Plan first.** Read the full instructions, then write a numbered list of
    atomic sub-steps in a `<!-- DECOMPOSITION -->` comment block.
 2. **5-file rule.** Each sub-step should modify no more than 5 files.
-3. **Commit incrementally.** stage, commit, and push after each logical sub-step
-   completes successfully.
-4. **Fail fast.** If any sub-step fails validation, STOP and report the failure.
+3. **Commit incrementally.** stage, commit, and push after each logical
+   sub-step completes successfully.
+4. **Fail fast.** If any sub-step fails validation, STOP and report the
+   failure.

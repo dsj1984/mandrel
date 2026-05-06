@@ -18,6 +18,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { getCommands } from '../config/commands.js';
 import {
   getLimits,
   getPaths,
@@ -179,6 +180,54 @@ export function truncateToTokenBudget(text, tokenBudget) {
   return text;
 }
 
+/**
+ * Load and substitute placeholders in the agent-protocol template. Extracted
+ * from {@link hydrateContext} to keep its complexity manageable.
+ *
+ * @param {object} args
+ * @param {{ templatesRoot: string }} args.paths
+ * @param {object} args.settings - resolved agentSettings
+ * @param {string} args.currentVersion
+ * @param {string} args.taskBranch
+ * @param {string} args.epicBranch
+ * @param {string|number} args.taskId
+ * @returns {string} hydrated template body, or '' on read failure
+ */
+function loadProtocolTemplate({
+  paths,
+  settings,
+  currentVersion,
+  taskBranch,
+  epicBranch,
+  taskId,
+}) {
+  try {
+    const pTemplatePath = path.join(
+      PROJECT_ROOT,
+      paths.templatesRoot,
+      'agent-protocol.md',
+    );
+    const tpl = readFileCached(pTemplatePath);
+    const commands = getCommands(settings);
+    const baseBranch = settings?.baseBranch ?? 'main';
+    const protectedBranches = Array.isArray(settings?.git?.protectedBranches)
+      ? settings.git.protectedBranches
+      : [baseBranch];
+    const protectedList = protectedBranches.map((b) => `\`${b}\``).join(', ');
+    return tpl
+      .replace(/\{\{PROTOCOL_VERSION\}\}/g, currentVersion)
+      .replace(/\{\{BRANCH_NAME\}\}/g, taskBranch)
+      .replace(/\{\{EPIC_BRANCH\}\}/g, epicBranch)
+      .replace(/\{\{TASK_ID\}\}/g, taskId)
+      .replace(/\{\{VALIDATE_CMD\}\}/g, commands.validate)
+      .replace(/\{\{TEST_CMD\}\}/g, commands.test)
+      .replace(/\{\{PROTECTED_BRANCHES\}\}/g, protectedList);
+  } catch (err) {
+    console.warn(`[Hydrator] Failed to load agent-protocol.md: ${err.message}`);
+    return '';
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Public SDK export
 // ---------------------------------------------------------------------------
@@ -223,22 +272,14 @@ export async function hydrateContext(
   }
 
   // 2. Load Agent Protocol Template
-  let protocolTpl = '';
-  try {
-    const pTemplatePath = path.join(
-      PROJECT_ROOT,
-      paths.templatesRoot,
-      'agent-protocol.md',
-    );
-    protocolTpl = readFileCached(pTemplatePath);
-    protocolTpl = protocolTpl
-      .replace(/\{\{PROTOCOL_VERSION\}\}/g, currentVersion)
-      .replace(/\{\{BRANCH_NAME\}\}/g, taskBranch)
-      .replace(/\{\{EPIC_BRANCH\}\}/g, epicBranch)
-      .replace(/\{\{TASK_ID\}\}/g, task.id);
-  } catch (err) {
-    console.warn(`[Hydrator] Failed to load agent-protocol.md: ${err.message}`);
-  }
+  const protocolTpl = loadProtocolTemplate({
+    paths,
+    settings,
+    currentVersion,
+    taskBranch,
+    epicBranch,
+    taskId: task.id,
+  });
 
   // 3. Load Persona
   let personaContext = '';

@@ -121,7 +121,7 @@ export function runFormatAutofix({
   }
 
   // Stage every modified path and commit. Hooks must run; do not pass
-  // --no-verify (per the §H rule in instructions.md).
+  // --no-verify (project policy: never skip git hooks).
   git(['add', '-u'], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   const subject = `style: biome format autofix on story-close (story #${storyId})`;
   git(['commit', '-m', subject], {
