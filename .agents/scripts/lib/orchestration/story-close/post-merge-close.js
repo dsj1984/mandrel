@@ -14,6 +14,7 @@
  * inline at the tail of `runStoryClose`.
  */
 
+import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../ticketing.js';
 import {
@@ -72,6 +73,7 @@ export async function runPostMergeClose({
   reconcileCleanupState = defaultReconcileCleanupState,
   upsertStructuredComment = defaultUpsertStructuredComment,
   renderPhaseTimingsCommentBody = defaultRenderPhaseTimingsCommentBody,
+  clearActiveStoryEnv = defaultClearActiveStoryEnv,
 }) {
   // Reap must precede branch cleanup: git refuses to delete a branch that
   // is still checked out by a live worktree. The pipeline runs the phases
@@ -143,6 +145,20 @@ export async function runPostMergeClose({
   } catch (err) {
     logger.warn?.(
       `[story-close] ⚠️ Failed to clear phase-timer state file: ${err.message}`,
+    );
+  }
+
+  // Clear the trace-hook env vars (Story #1043). The worktree was
+  // reaped above so the `.env.local` is already gone; this also
+  // clears the vars on the parent process so any tooling invoked
+  // *after* close — planning, dispatch, ad-hoc CLI — falls back to
+  // the hook's no-op branch instead of polluting a stale Story
+  // directory.
+  try {
+    clearActiveStoryEnv({ logger });
+  } catch (err) {
+    logger.warn?.(
+      `[story-close] ⚠️ Failed to clear active-Story env: ${err.message}`,
     );
   }
 
