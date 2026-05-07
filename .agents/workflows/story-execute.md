@@ -184,7 +184,7 @@ In single-tree mode, `--cwd` defaults to `PROJECT_ROOT`. The script merges
 into `epic/<epicId>` (`--no-ff`), pushes the Epic branch, deletes the
 Story branch, reaps the worktree via `WorktreeManager.reap`, batch-closes
 all child Tasks and the Story to `agent::done`, runs
-`cascadeCompletion()` + `health-monitor.js`, and regenerates the Epic
+`cascadeCompletion()`, and regenerates the Epic
 dispatch manifest (`--skip-dashboard` to suppress). Output is JSON with
 `ticketsClosed[]`, `cascadedTo[]`, and reap status.
 

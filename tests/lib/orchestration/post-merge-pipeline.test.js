@@ -15,7 +15,6 @@ import {
   branchCleanupPhase,
   DEFAULT_POST_MERGE_PHASES,
   dashboardRefreshPhase,
-  healthMonitorPhase,
   notificationPhase,
   perfSummaryPhase,
   runPostMergePipeline,
@@ -87,7 +86,7 @@ describe('runPostMergePipeline', () => {
           calls.push('b');
           return true;
         },
-        stateKey: 'healthUpdated',
+        stateKey: 'manifestUpdated',
       },
       {
         name: 'c',
@@ -102,7 +101,7 @@ describe('runPostMergePipeline', () => {
       localDeleted: true,
       remoteDeleted: true,
     });
-    assert.equal(state.healthUpdated, true);
+    assert.equal(state.manifestUpdated, true);
   });
 
   it('continues after a phase throws and logs [phase=name]', async () => {
@@ -141,16 +140,16 @@ describe('runPostMergePipeline', () => {
     const logger = makeLogger();
     const phases = [
       {
-        name: 'health',
+        name: 'dashboard',
         fn: () => {
           throw new Error('nope');
         },
-        stateKey: 'healthUpdated',
+        stateKey: 'manifestUpdated',
         fallback: false,
       },
     ];
     const state = await runPostMergePipeline({ logger }, phases);
-    assert.equal(state.healthUpdated, false);
+    assert.equal(state.manifestUpdated, false);
   });
 
   it('seeds default state shape so consumers can destructure safely', async () => {
@@ -173,7 +172,6 @@ describe('runPostMergePipeline', () => {
       cascadedTo: [],
       cascadeFailed: [],
     });
-    assert.equal(state.healthUpdated, false);
     assert.equal(state.manifestUpdated, false);
   });
 
@@ -184,7 +182,6 @@ describe('runPostMergePipeline', () => {
       'branch-cleanup',
       'ticket-closure',
       'notification',
-      'health-monitor',
       'dashboard-refresh',
       'temp-cleanup',
       'perf-summary',
@@ -479,20 +476,7 @@ describe('ticketClosurePhase (smoke)', () => {
   });
 });
 
-describe('healthMonitorPhase / dashboardRefreshPhase / notificationPhase', () => {
-  it('healthMonitorPhase invokes injected updater and returns true', async () => {
-    let called = 0;
-    const result = await healthMonitorPhase({
-      epicId: 9,
-      progress: () => {},
-      updateHealthFn: async () => {
-        called += 1;
-      },
-    });
-    assert.equal(result, true);
-    assert.equal(called, 1);
-  });
-
+describe('dashboardRefreshPhase / notificationPhase', () => {
   it('dashboardRefreshPhase short-circuits when skipDashboard=true', async () => {
     let called = 0;
     const result = await dashboardRefreshPhase({

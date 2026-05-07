@@ -151,7 +151,6 @@ export async function runPostMergeClose({
   const worktreeReap = reconciledCleanup.worktreeReap;
   const { closedTickets, cascadedTo, cascadeFailed } =
     pipelineState.ticketClosure;
-  const healthUpdated = pipelineState.healthUpdated;
   const manifestUpdated = pipelineState.manifestUpdated;
 
   try {
@@ -189,7 +188,6 @@ export async function runPostMergeClose({
     ticketsClosed: closedTickets,
     cascadedTo: cascadedTo ?? [],
     cascadeFailed: cascadeFailed ?? [],
-    healthUpdated,
     manifestUpdated,
   };
 }

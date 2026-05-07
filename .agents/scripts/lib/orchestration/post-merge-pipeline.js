@@ -10,9 +10,8 @@
  *   3. ticket-closure      — transition child Tasks + Story to agent::done
  *                            and run cascade completion.
  *   4. notification        — fire the story-complete webhook.
- *   5. health-monitor      — refresh sprint health metrics.
- *   6. dashboard-refresh   — regenerate the dispatch manifest.
- *   7. temp-cleanup        — delete the per-Story manifest pair under
+ *   5. dashboard-refresh   — regenerate the dispatch manifest.
+ *   6. temp-cleanup        — delete the per-Story manifest pair under
  *                            `temp/epic-<eid>/story-<sid>/manifest.{md,json}`
  *                            (Epic #1030 Story #1040). Falls back to the
  *                            legacy flat `temp/story-manifest-<id>.{md,json}`
@@ -34,7 +33,6 @@
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { generateAndSaveManifest } from '../../dispatcher.js';
-import { updateHealthMetrics } from '../../health-monitor.js';
 import { notify } from '../../notify.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
@@ -331,20 +329,6 @@ export async function notificationPhase(ctx, state) {
   log('NOTIFY', '✅ Notification sent');
 }
 
-export async function healthMonitorPhase(ctx) {
-  const {
-    epicId,
-    storyId,
-    progress,
-    updateHealthFn = updateHealthMetrics,
-  } = ctx;
-  const log = reapPhaseLogger(progress);
-  log('HEALTH', 'Updating sprint health metrics...');
-  await updateHealthFn(epicId, { storyId });
-  log('HEALTH', '✅ Health metrics updated');
-  return true;
-}
-
 export async function dashboardRefreshPhase(ctx) {
   const {
     epicId,
@@ -508,7 +492,6 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
   { name: 'branch-cleanup', fn: branchCleanupPhase, stateKey: 'branchCleanup' },
   { name: 'ticket-closure', fn: ticketClosurePhase, stateKey: 'ticketClosure' },
   { name: 'notification', fn: notificationPhase },
-  { name: 'health-monitor', fn: healthMonitorPhase, stateKey: 'healthUpdated' },
   {
     name: 'dashboard-refresh',
     fn: dashboardRefreshPhase,
@@ -539,7 +522,6 @@ export async function runPostMergePipeline(
     worktreeReap: createWorktreeReapState(),
     branchCleanup: { localDeleted: false, remoteDeleted: false },
     ticketClosure: { closedTickets: [], cascadedTo: [], cascadeFailed: [] },
-    healthUpdated: false,
     manifestUpdated: false,
   };
   for (const phase of phases) {
