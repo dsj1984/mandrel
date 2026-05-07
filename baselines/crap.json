@@ -3391,55 +3391,61 @@
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "isValidStructuredCommentType",
-      "startLine": 83
+      "startLine": 91
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "assertValidStructuredCommentType",
-      "startLine": 99
+      "startLine": 107
     },
     {
       "crap": 12.117546894272282,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
-      "startLine": 124
+      "startLine": 132
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 241
+      "startLine": 249
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 283
+      "startLine": 291
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 309
+      "startLine": 317
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 335
+      "startLine": 343
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 370
+      "startLine": 378
     },
     {
-      "crap": 5.008416207775129,
+      "crap": 10.0262144,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 412
+      "startLine": 426
+    },
+    {
+      "crap": 3.67181804927832,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "<anon method-7>",
+      "startLine": 474
     },
     {
       "crap": 7,
@@ -3565,19 +3571,19 @@
       "crap": 1.0029154518950438,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "atomicWrite",
-      "startLine": 37
+      "startLine": 40
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "persistManifest",
-      "startLine": 64
+      "startLine": 67
     },
     {
       "crap": 1.0233236151603498,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "safeResolveConfig",
-      "startLine": 152
+      "startLine": 155
     },
     {
       "crap": 1,
@@ -4843,25 +4849,25 @@
       "crap": 3,
       "file": ".agents/scripts/render-manifest.js",
       "method": "extractManifestJson",
-      "startLine": 37
+      "startLine": 38
     },
     {
       "crap": 4,
       "file": ".agents/scripts/render-manifest.js",
       "method": "writeRenderedManifest",
-      "startLine": 55
+      "startLine": 56
     },
     {
       "crap": 8.47932933344292,
       "file": ".agents/scripts/render-manifest.js",
       "method": "renderManifestFromComment",
-      "startLine": 79
+      "startLine": 85
     },
     {
       "crap": 2,
       "file": ".agents/scripts/render-manifest.js",
       "method": "main",
-      "startLine": 126
+      "startLine": 132
     },
     {
       "crap": 2,
