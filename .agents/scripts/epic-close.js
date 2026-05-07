@@ -37,6 +37,7 @@
  *     [--no-reap-discard-after-merge]
  */
 
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
@@ -86,6 +87,20 @@ async function main() {
   });
 
   const warnings = [];
+
+  // Phase 6.0 — Epic Perf Report --------------------------------------------
+  // Run the analyzer in Epic mode so the `<!-- ap:structured-comment
+  // type="epic-perf-report" -->` comment lands on the Epic ticket before
+  // the retro composer (which runs from the workflow side, not this
+  // script) reads it. Best-effort per Story #1123 — a non-zero exit is
+  // logged as a warning and never blocks close. Skipped when the operator
+  // passed `--skip-retro` (the perf-report exists for the retro; if the
+  // operator opted out of the retro, posting it is wasted work).
+  if (values['skip-retro'] !== true) {
+    phasePostEpicPerfReport(epicId, warnings);
+  } else {
+    progress('PERF', '⏭️ Skipping epic-perf-report (--skip-retro)');
+  }
 
   // Finalize phase ----------------------------------------------------------
   await phaseFinalizeAuxiliaryTickets(provider, epicId, warnings);
@@ -550,6 +565,57 @@ async function collectEpicDescendantIds(provider, epicId) {
     }
   }
   return out;
+}
+
+/**
+ * Phase 6.0 — spawn `analyze-execution.js --epic <eid>` so the Epic
+ * perf-report structured comment lands on the Epic ticket before the
+ * retro composer (Phase 6.1) consumes it.
+ *
+ * Best-effort per Story #1123: a non-zero exit is logged as a warning
+ * and never blocks Phase 7 (Finalize). The retro helper falls back to
+ * its baseline behaviour when the comment is absent, so a missing
+ * perf-report is non-fatal but observably degraded.
+ *
+ * Exported for `tests/workflows/epic-close.phase-6.test.js`. The
+ * `spawnFn` injection mirrors the pattern in
+ * `post-merge-pipeline.js#perfSummaryPhase` so tests can pin args
+ * without spawning a child process.
+ *
+ * @param {number} epicId
+ * @param {string[]} warnings
+ * @param {{
+ *   spawnFn?: typeof execFileSync,
+ *   projectRoot?: string,
+ *   logger?: typeof progress,
+ * }} [opts]
+ * @returns {{ status: 'ok'|'failed', reason?: string }}
+ */
+export function phasePostEpicPerfReport(epicId, warnings, opts = {}) {
+  const { spawnFn = execFileSync, projectRoot, logger = progress } = opts;
+  const root = projectRoot ?? process.cwd();
+  const analyzerPath = path.join(
+    root,
+    '.agents',
+    'scripts',
+    'analyze-execution.js',
+  );
+  const args = [analyzerPath, '--epic', String(epicId)];
+  logger('PERF', `Running analyzer: analyze-execution.js --epic ${epicId}`);
+  try {
+    spawnFn(process.execPath, args, {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    logger('PERF', '✅ epic-perf-report posted');
+    return { status: 'ok' };
+  } catch (err) {
+    const reason = err?.message ?? String(err);
+    const message = `analyze-execution failed (non-fatal): ${reason}`;
+    Logger.warn(`[epic-close] ⚠️ ${message}`);
+    warnings.push(message);
+    return { status: 'failed', reason };
+  }
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-close' });
