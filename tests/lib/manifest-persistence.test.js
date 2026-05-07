@@ -9,7 +9,7 @@ function makeTmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'manifest-persist-'));
 }
 
-test('persistence: writes dispatch-manifest json + md for Epic manifest', () => {
+test('persistence: writes dispatch-manifest json + md under per-Epic dir', () => {
   const root = makeTmpRoot();
   const manifest = {
     epicId: 77,
@@ -35,25 +35,25 @@ test('persistence: writes dispatch-manifest json + md for Epic manifest', () => 
     ],
   };
   const result = persistManifest(manifest, { projectRoot: root });
-  const mdPath = path.join(root, 'temp', 'dispatch-manifest-77.md');
-  const jsonPath = path.join(root, 'temp', 'dispatch-manifest-77.json');
+  const mdPath = path.join(root, 'temp', 'epic-77', 'manifest.md');
+  const jsonPath = path.join(root, 'temp', 'epic-77', 'manifest.json');
   assert.deepEqual(result, {
     persisted: true,
     path: jsonPath,
     error: null,
   });
-  assert.ok(fs.existsSync(mdPath), 'dispatch-manifest-77.md missing');
-  assert.ok(fs.existsSync(jsonPath), 'dispatch-manifest-77.json missing');
+  assert.ok(fs.existsSync(mdPath), 'epic-77/manifest.md missing');
+  assert.ok(fs.existsSync(jsonPath), 'epic-77/manifest.json missing');
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Dispatch Manifest — Epic #77'));
-  const tempEntries = fs.readdirSync(path.join(root, 'temp'));
+  const epicDirEntries = fs.readdirSync(path.join(root, 'temp', 'epic-77'));
   assert.ok(
-    !tempEntries.some((f) => f.endsWith('.tmp')),
+    !epicDirEntries.some((f) => f.endsWith('.tmp')),
     'no .tmp residue should remain after successful write',
   );
 });
 
-test('persistence: writes story-manifest json + md for story-execution manifest', () => {
+test('persistence: writes story-manifest json + md under per-Story dir', () => {
   const root = makeTmpRoot();
   const manifest = {
     type: 'story-execution',
@@ -62,6 +62,7 @@ test('persistence: writes story-manifest json + md for story-execution manifest'
       {
         storyId: 42,
         storyTitle: 'Forty-Two',
+        epicId: 99,
         epicBranch: 'epic/99',
         branchName: 'story-42',
         tasks: [{ taskId: 100, title: 'Do it', status: 'agent::ready' }],
@@ -78,16 +79,49 @@ test('persistence: writes story-manifest json + md for story-execution manifest'
       },
     },
   });
-  const mdPath = path.join(root, 'temp', 'story-manifest-42.md');
-  const jsonPath = path.join(root, 'temp', 'story-manifest-42.json');
-  assert.ok(fs.existsSync(mdPath), 'story-manifest-42.md missing');
-  assert.ok(fs.existsSync(jsonPath), 'story-manifest-42.json missing');
+  const mdPath = path.join(root, 'temp', 'epic-99', 'story-42', 'manifest.md');
+  const jsonPath = path.join(
+    root,
+    'temp',
+    'epic-99',
+    'story-42',
+    'manifest.json',
+  );
+  assert.ok(fs.existsSync(mdPath), 'epic-99/story-42/manifest.md missing');
+  assert.ok(fs.existsSync(jsonPath), 'epic-99/story-42/manifest.json missing');
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Story #42'));
   assert.ok(md.includes('.agents/scripts/story-init.js'));
 });
 
-test('persistence: creates temp dir if missing', () => {
+test('persistence: story-execution manifest with no epicId falls back to legacy flat layout', () => {
+  const root = makeTmpRoot();
+  const manifest = {
+    type: 'story-execution',
+    generatedAt: '2026-04-20T00:00:00.000Z',
+    stories: [
+      {
+        storyId: 42,
+        storyTitle: 'Forty-Two (no epic)',
+        branchName: 'story-42',
+        tasks: [],
+      },
+    ],
+  };
+  persistManifest(manifest, {
+    projectRoot: root,
+    settings: {
+      paths: { scriptsRoot: '.agents/scripts' },
+      commands: { validate: 'npm run lint', test: 'npm test' },
+    },
+  });
+  const legacyMd = path.join(root, 'temp', 'story-manifest-42.md');
+  const legacyJson = path.join(root, 'temp', 'story-manifest-42.json');
+  assert.ok(fs.existsSync(legacyMd), 'legacy flat .md missing');
+  assert.ok(fs.existsSync(legacyJson), 'legacy flat .json missing');
+});
+
+test('persistence: creates per-Epic temp dir if missing', () => {
   const root = makeTmpRoot();
   assert.ok(!fs.existsSync(path.join(root, 'temp')));
   persistManifest(
@@ -107,7 +141,7 @@ test('persistence: creates temp dir if missing', () => {
     },
     { projectRoot: root },
   );
-  assert.ok(fs.existsSync(path.join(root, 'temp')));
+  assert.ok(fs.existsSync(path.join(root, 'temp', 'epic-1')));
 });
 
 test('persistence: no-op for manifest with neither story-execution type nor epicId', () => {
@@ -145,7 +179,7 @@ test('persistence: returns { persisted:false, error } on fs failure instead of t
   assert.equal(result.persisted, false);
   assert.equal(typeof result.error, 'string');
   assert.ok(result.error.length > 0);
-  assert.ok(result.path?.includes('dispatch-manifest-1.json'));
+  assert.ok(result.path?.includes('manifest.json'));
 });
 
 test('persistence: on writeFileSync failure, no .tmp residue remains and final path untouched', () => {
@@ -184,15 +218,15 @@ test('persistence: on writeFileSync failure, no .tmp residue remains and final p
   assert.equal(result.persisted, false);
   assert.match(result.error, /EACCES/);
 
-  const tempDir = path.join(root, 'temp');
-  const entries = fs.existsSync(tempDir) ? fs.readdirSync(tempDir) : [];
+  const epicDir = path.join(root, 'temp', 'epic-99');
+  const entries = fs.existsSync(epicDir) ? fs.readdirSync(epicDir) : [];
   assert.ok(
     !entries.some((f) => f.endsWith('.tmp')),
     `no .tmp residue should remain; saw: ${entries.join(', ')}`,
   );
-  const finalJson = path.join(tempDir, 'dispatch-manifest-99.json');
+  const finalJson = path.join(epicDir, 'manifest.json');
   assert.ok(
     !fs.existsSync(finalJson),
-    'final dispatch-manifest-99.json should not exist after failed write',
+    'final epic-99/manifest.json should not exist after failed write',
   );
 });

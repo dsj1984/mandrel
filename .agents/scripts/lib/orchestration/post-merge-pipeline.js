@@ -12,7 +12,13 @@
  *   4. notification        — fire the story-complete webhook.
  *   5. health-monitor      — refresh sprint health metrics.
  *   6. dashboard-refresh   — regenerate the dispatch manifest.
- *   7. temp-cleanup        — delete `temp/story-manifest-<id>.{md,json}`.
+ *   7. temp-cleanup        — delete the per-Story manifest pair under
+ *                            `temp/epic-<eid>/story-<sid>/manifest.{md,json}`
+ *                            (Epic #1030 Story #1040). Falls back to the
+ *                            legacy flat `temp/story-manifest-<id>.{md,json}`
+ *                            layout when `epicId` is unknown — both paths
+ *                            are tried so partial migrations don't leak
+ *                            files in either layout.
  *
  * Each phase is wrapped by `runPhase` so a single failure does not abort
  * the rest of the close-out — the same best-effort contract that the
@@ -353,18 +359,52 @@ export async function dashboardRefreshPhase(ctx) {
 }
 
 export async function tempCleanupPhase(ctx) {
-  const { storyId, projectRoot, progress, unlinkFn } = ctx;
+  const { storyId, epicId, projectRoot, progress, unlinkFn } = ctx;
   const log = reapPhaseLogger(progress);
   const unlink = unlinkFn ?? (await import('node:fs/promises')).unlink;
-  const manifestBase = path.join(
+
+  // Per-Epic layout (Epic #1030 Story #1040): `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
+  // Legacy flat layout: `temp/story-manifest-<sid>.{md,json}`. The migration
+  // tolerates both — try the per-Epic path first when `epicId` is known,
+  // and always sweep the legacy path so a half-migrated cohort doesn't
+  // leave residue.
+  const targets = [];
+  if (epicId) {
+    const perStoryBase = path.join(
+      projectRoot,
+      'temp',
+      `epic-${epicId}`,
+      `story-${storyId}`,
+      'manifest',
+    );
+    targets.push(
+      {
+        path: `${perStoryBase}.md`,
+        label: `temp/epic-${epicId}/story-${storyId}/manifest.md`,
+      },
+      {
+        path: `${perStoryBase}.json`,
+        label: `temp/epic-${epicId}/story-${storyId}/manifest.json`,
+      },
+    );
+  }
+  const legacyBase = path.join(
     projectRoot,
     'temp',
     `story-manifest-${storyId}`,
   );
-  for (const ext of ['.md', '.json']) {
+  targets.push(
+    { path: `${legacyBase}.md`, label: `temp/story-manifest-${storyId}.md` },
+    {
+      path: `${legacyBase}.json`,
+      label: `temp/story-manifest-${storyId}.json`,
+    },
+  );
+
+  for (const target of targets) {
     try {
-      await unlink(`${manifestBase}${ext}`);
-      log('CLEANUP', `🗑️  Deleted temp/story-manifest-${storyId}${ext}`);
+      await unlink(target.path);
+      log('CLEANUP', `🗑️  Deleted ${target.label}`);
     } catch {
       // File may not exist — deletion is idempotent.
     }
