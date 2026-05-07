@@ -1,5 +1,57 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260507-1072a: Bounded fanout, tightened module boundaries, dead-module sweep
+
+**Status:** Accepted
+**Date:** 2026-05-07
+**Epic:** #1072
+
+### Context
+
+Audit work on the orchestration scripts surfaced three drift categories
+that had accumulated quietly across Epics: (1) several hot loops over
+GitHub mutations and the filesystem still used unbounded `Promise.all`,
+risking rate-limit storms on large Epics and resource exhaustion on
+recursive fs scans; (2) module boundaries had eroded — `lib/orchestration/index.js`
+re-exported scripts and providers upward, the audit-suite had no clear
+SDK home, and the GitHub HTTP client lived as a sibling of the structured
+GitHub provider rather than under `providers/github/`; (3) two `lib/`
+modules (`fs-utils.js`, `runtime-context.js`) had no remaining importers
+but were still indexed by docs and baselines. The drift was not a single
+incident — each item was a known small thing that had been deferred.
+
+### Decision
+
+Treat the cleanup as a single coherent Epic rather than fan-out across
+maintenance work:
+
+1. **Bounded concurrency is the default.** Every `Promise.all` over
+   GitHub or fs work flows through `concurrentMap` with a story-specific
+   cap (3 for mutation paths, 8 for sibling-read fan-outs, 64 for fs
+   scans), with tests that assert `maxInFlight ≤ cap` rather than just
+   correctness.
+2. **Module boundaries are one-way.** `lib/orchestration/index.js` no
+   longer re-exports providers or scripts; the audit-suite has its own
+   `lib/audit-suite/` SDK exporting `runAuditSuite` / `selectAudits`;
+   the HTTP client moved under `providers/github/http-client.js`. The
+   barrel imports from these locations, never the other way.
+3. **Dead code is deleted, not archived.** `fs-utils.js` and
+   `runtime-context.js` are gone; their docs references migrate to the
+   surviving three-context pattern in `lib/orchestration/context.js`.
+   A canonical `lib/branch-name-guard.js` collapses two duplicate
+   safety guards.
+
+### Consequences
+
+- New consumers see uniform `concurrentMap` usage at fan-out sites;
+  raw `Promise.all` over network/fs work is now a code-review smell.
+- The orchestration barrel becomes a true facade — touching it does
+  not pull in the scripts CLI surface or providers, which keeps test
+  doubles small.
+- Operators gain `.agents/scripts/README.md` as the entry-point index
+  for the script surface, replacing the prior need to grep package.json
+  scripts and CLI banners.
+
 ## ADR 20260507-1030a: Performance-signal telemetry — events local, summaries on tickets
 
 **Status:** Accepted

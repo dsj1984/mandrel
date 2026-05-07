@@ -2,6 +2,64 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.37.1] — 2026-05-07
+
+Epic #1072 — scripts cleanup: dead surfaces, dependency direction, and
+bounded concurrency. Previously unbounded loops over GitHub and the
+filesystem now run through `concurrentMap` at sensible caps; module
+boundaries are tightened (HTTP client lives under `providers/github/`,
+audit-suite has its own SDK, the orchestration barrel no longer re-exports
+upward); and several dead modules are gone.
+
+### Added
+
+- **Canonical branch-name safety guard** at `lib/branch-name-guard.js`
+  exporting `assertBranchSafe` / `isSafeBranchName`. Replaces the two
+  duplicate implementations that lived in `git-branch-lifecycle.js` and
+  `git-branch-cleanup.js`. Optional protected-mode mode rejects deletes
+  against `main` / `master` / `HEAD` / `refs/*`.
+- **`.agents/scripts/README.md`** — a script index classifying every
+  top-level CLI by entry-point role, so consumers can find the right
+  script without reading source.
+
+### Changed
+
+- **Bounded fanout across the board.** GitHub mutation paths (force-close
+  closePromises, planning-state-manager close/detach, epic-close auxiliary
+  ticket close) and read paths (`cascadeCompletion`, reconciler, issues
+  link reconciliation, delete-epic, detect-merges fs scan) now run
+  through `concurrentMap` at story-specific caps (3, 8, or 64) instead of
+  unbounded `Promise.all`.
+- **Atomic writes in `render-manifest.js`** — both manifest paths route
+  through `atomicWrite` so a crash mid-write leaves either the prior
+  artefact intact or no file at all, never a truncated one.
+- **HTTP client moved** to `providers/github/http-client.js` (was
+  `providers/github-http-client.js`); orchestration barrel no longer
+  re-exports providers/scripts upward; new `lib/audit-suite/` SDK owns
+  `runAuditSuite` / `selectAudits`.
+- **Three-context naming discipline** — `docs/patterns.md` now describes a
+  single `ctx` shape with three typed constructors
+  (`OrchestrationContext`, `EpicRunnerContext`, `PlanRunnerContext`) and
+  the data dictionary points at `lib/orchestration/context.js` as the
+  owner.
+
+### Removed
+
+- `lib/fs-utils.js` and `lib/runtime-context.js` — dead modules with no
+  remaining importers; documentation references migrated to the new
+  three-context pattern.
+
+### Fixed
+
+- **`/wave-execute` rolling concurrency.** The fan-out contract is no
+  longer strict-batch (one slow Story stalled all sibling slots); each
+  child return now refills the next undispatched Story up to
+  `concurrencyCap`.
+- **Manifest progress symbols.** The wave-grouped Story table renders
+  `🚧` (any task `agent::blocked`), `🔄` (some task done or executing),
+  `✅` (all done), `⬜` (untouched) — previously binary `✅` / `⬜`
+  conflated blocked stories with unstarted ones.
+
 ## [5.37.0] — 2026-05-07
 
 Epic #1030 — performance-signal telemetry beyond friction. Runtime events

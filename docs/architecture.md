@@ -222,7 +222,7 @@ graph TB
 | `context-hydrator.js`    | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).   |
 | `update-ticket-state.js` | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).              |
 | `notify.js`              | Dispatches notifications via @mention and webhook channels.                          |
-| `health-monitor.js`      | Updates real-time Epic health and tool success rates in GitHub.                      |
+| `analyze-execution.js`   | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro (Epic #1030).  |
 
 #### Dispatch Engine Submodules
 
@@ -318,9 +318,9 @@ through `ctx.concurrency` by `lib/orchestration/concurrency.js`:
 `resolveConcurrency(source)` reads either `orchestration.concurrency` or a
 pre-narrowed concurrency sub-block, coerces per-field, and falls back to
 `DEFAULT_CONCURRENCY` for missing or malformed values. Consumers tuning caps
-use `.agents/scripts/aggregate-phase-timings.js` to read `phase-timings`
-structured comments across Stories, aggregate p50/p95 per phase, and print
-recommended caps.
+read the `epic-perf-report` structured comment posted by
+`analyze-execution.js` at Epic close — it surfaces per-phase p50/p95 and
+the workload signals the retro consumes.
 
 #### Direct CLIs (no MCP server)
 
