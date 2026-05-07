@@ -8,14 +8,13 @@
  *
  * Returned object:
  *   notify, checkpointer, blockerHandler, launcher, gitAdapter,
- *   commitAssertion, waveObserver, frictionEmitter, progressReporter,
- *   columnSync, syncColumn (closure wrapping columnSync.sync with
- *   error-journal logging).
+ *   commitAssertion, waveObserver, progressReporter, columnSync,
+ *   syncColumn (closure wrapping columnSync.sync with error-journal
+ *   logging).
  */
 
 import { notify } from '../../../notify.js';
 import { getRunners } from '../../config/runners.js';
-import { createFrictionEmitter } from '../friction-emitter.js';
 import { BlockerHandler } from './blocker-handler.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
@@ -48,7 +47,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
   const waveObserver = new WaveObserver({ ctx, commitAssertion });
-  const frictionEmitter = createFrictionEmitter({ provider, logger });
   const progressReporter = new ProgressReporter({
     provider,
     epicId: ctx.epicId,
@@ -56,7 +54,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     logger,
     concurrency: ctx.concurrency?.progressReporter,
     cwd: ctx.cwd,
-    frictionEmitter,
     notify: notifyFn,
   });
   const columnSync = new ColumnSync({ ctx });
@@ -86,7 +83,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     gitAdapter,
     commitAssertion,
     waveObserver,
-    frictionEmitter,
     progressReporter,
     columnSync,
     syncColumn,

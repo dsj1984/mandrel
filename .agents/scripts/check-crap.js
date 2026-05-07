@@ -15,8 +15,7 @@ import {
   resolveTsTranspilerVersion,
   scanAndScore,
 } from './lib/crap-utils.js';
-import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
-import { createProvider } from './lib/provider-factory.js';
+import { appendSignal } from './lib/observability/signals-writer.js';
 
 /**
  * CLI: verify CRAP scores against the committed baseline.
@@ -38,9 +37,11 @@ import { createProvider } from './lib/provider-factory.js';
  *   - Otherwise: exit 1 if any regression or new-method ceiling violation,
  *     else exit 0.
  *
- * `--story <id>` (or the `FRICTION_STORY_ID` env) mirrors
- * `check-maintainability.js` — on failure we upsert a rate-limited friction
- * structured comment on the named Story naming every violating method.
+ * `--story <id>` (or the `FRICTION_STORY_ID` env) plus `--epic <id>` (or
+ * the `FRICTION_EPIC_ID` env) mirrors `check-maintainability.js` — on
+ * failure we append a `friction` signal to the per-Story
+ * `temp/epic-<eid>/story-<sid>/signals.ndjson` stream naming every
+ * violating method.
  *
  * Environment overrides (take precedence over `.agentrc.json`):
  *   - `CRAP_NEW_METHOD_CEILING` — integer; overrides `crap.newMethodCeiling`.
@@ -119,6 +120,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
 export function parseCliArgs(argv = process.argv.slice(2)) {
   const out = {
     storyId: null,
+    epicId: null,
     baselinePath: undefined,
     coveragePath: undefined,
     changedSinceRef: null,
@@ -128,6 +130,10 @@ export function parseCliArgs(argv = process.argv.slice(2)) {
     if (argv[i] === '--story' && argv[i + 1]) {
       const parsed = Number(argv[i + 1]);
       if (Number.isInteger(parsed) && parsed > 0) out.storyId = parsed;
+      i += 1;
+    } else if (argv[i] === '--epic' && argv[i + 1]) {
+      const parsed = Number(argv[i + 1]);
+      if (Number.isInteger(parsed) && parsed > 0) out.epicId = parsed;
       i += 1;
     } else if (argv[i] === '--baseline' && argv[i + 1]) {
       out.baselinePath = argv[i + 1];
@@ -151,6 +157,10 @@ export function parseCliArgs(argv = process.argv.slice(2)) {
   if (out.storyId === null) {
     const envVal = Number(process.env.FRICTION_STORY_ID);
     if (Number.isInteger(envVal) && envVal > 0) out.storyId = envVal;
+  }
+  if (out.epicId === null) {
+    const envVal = Number(process.env.FRICTION_EPIC_ID);
+    if (Number.isInteger(envVal) && envVal > 0) out.epicId = envVal;
   }
   return out;
 }
@@ -483,37 +493,42 @@ function printSummary(result, scanSummary) {
   }
 }
 
-async function emitFriction(storyId, result, orchestration) {
-  if (!storyId) return;
+async function emitFriction(storyId, epicId, result, orchestration) {
+  if (!storyId || !epicId) return;
   const offenders = result.violations;
   if (offenders.length === 0) return;
-  const provider = createProvider(orchestration);
-  const emitter = createFrictionEmitter({ provider });
-  const body = [
-    '### 🚧 Friction — CRAP baseline regression',
-    '',
-    `Story \`#${storyId}\` — \`check-crap\` detected ${offenders.length} violating method(s):`,
-    '',
-    '| File | Method | Line | CRAP | Baseline / Ceiling | Kind |',
-    '|---|---|---|---|---|---|',
-    ...offenders.map((v) => {
-      const compare =
-        v.kind === 'new' ? `ceiling ${v.ceiling}` : v.baseline.toFixed(2);
-      return `| \`${v.file}\` | \`${v.method}\` | ${v.startLine} | ${v.crap.toFixed(2)} | ${compare} | ${v.kind} |`;
-    }),
-    '',
-    'Add tests to raise coverage, reduce cyclomatic complexity, or run `npm run crap:update` with a `baseline-refresh:` commit if the drift is justified.',
-  ].join('\n');
+  const category =
+    orchestration?.agentSettings?.maintainability?.crap?.friction?.markerKey ??
+    'crap-baseline-regression';
   try {
-    await emitter.emit({
-      ticketId: storyId,
-      markerKey:
-        orchestration?.agentSettings?.maintainability?.crap?.friction
-          ?.markerKey ?? 'crap-baseline-regression',
-      body,
+    await appendSignal({
+      epicId,
+      storyId,
+      signal: {
+        kind: 'friction',
+        timestamp: new Date().toISOString(),
+        epicId,
+        storyId,
+        category,
+        source: { tool: 'check-crap.js' },
+        details: `${offenders.length} CRAP violation(s) detected`,
+        violations: offenders.map((v) => ({
+          file: v.file,
+          method: v.method,
+          startLine: v.startLine,
+          crap: v.crap,
+          baseline: v.kind === 'new' ? null : v.baseline,
+          ceiling: v.kind === 'new' ? v.ceiling : null,
+          cyclomatic: v.cyclomatic,
+          coverage: v.coverage,
+          kind: v.kind,
+        })),
+      },
     });
   } catch (err) {
-    console.warn(`[CRAP] friction emit failed: ${err?.message ?? err}`);
+    console.warn(
+      `[CRAP] friction signal append failed: ${err?.message ?? err}`,
+    );
   }
 }
 
@@ -625,8 +640,8 @@ async function main() {
     console.error(
       `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
     );
-    if (args.storyId) {
-      await emitFriction(args.storyId, result, {
+    if (args.storyId && args.epicId) {
+      await emitFriction(args.storyId, args.epicId, result, {
         ...rest,
         agentSettings: settings,
       });

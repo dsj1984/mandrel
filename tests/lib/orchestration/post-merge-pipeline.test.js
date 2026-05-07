@@ -6,7 +6,10 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
   branchCleanupPhase,
@@ -19,6 +22,32 @@ import {
   ticketClosurePhase,
   worktreeReapPhase,
 } from '../../../.agents/scripts/lib/orchestration/post-merge-pipeline.js';
+
+/**
+ * Friction signals land on disk as NDJSON via
+ * `signals-writer.appendSignal` (Epic #1030 Story #1042), which
+ * resolves `temp/epic-<eid>/story-<sid>/signals.ndjson` relative to
+ * `process.cwd()`. The reap-failure tests below switch cwd to a fresh
+ * tmpdir so the asserted writes never collide with the repo's real
+ * `temp/` tree.
+ */
+let prevCwd;
+let workRoot;
+
+function readFrictionSignals(epicId, storyId) {
+  const p = path.join(
+    workRoot,
+    'temp',
+    `epic-${epicId}`,
+    `story-${storyId}`,
+    'signals.ndjson',
+  );
+  if (!existsSync(p)) return [];
+  return readFileSync(p, 'utf8')
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
+}
 
 function makeLogger() {
   const errors = [];
@@ -241,6 +270,17 @@ describe('branchCleanupPhase', () => {
 });
 
 describe('worktreeReapPhase', () => {
+  beforeEach(() => {
+    workRoot = mkdtempSync(path.join(tmpdir(), 'post-merge-pipeline-'));
+    prevCwd = process.cwd();
+    process.chdir(workRoot);
+  });
+
+  afterEach(() => {
+    if (prevCwd) process.chdir(prevCwd);
+    rmSync(workRoot, { recursive: true, force: true });
+  });
+
   function makeWmFactory(overrides = {}) {
     const calls = { reap: [], list: 0 };
     const wm = {
@@ -301,7 +341,7 @@ describe('worktreeReapPhase', () => {
     );
   });
 
-  it('emits friction + OPERATOR ACTION on Windows lock-class reap failure', async () => {
+  it('appends friction signal + OPERATOR ACTION on Windows lock-class reap failure', async () => {
     const { factory } = makeWmFactory({
       reap: {
         removed: false,
@@ -310,20 +350,22 @@ describe('worktreeReapPhase', () => {
       },
     });
     const logger = makeLogger();
-    const emissions = [];
-    const frictionEmitter = { emit: async (e) => emissions.push(e) };
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
-    assert.equal(emissions.length, 1);
-    assert.equal(emissions[0].markerKey, 'reap-failure');
+    const signals = readFrictionSignals(9, 1);
+    assert.equal(signals.length, 1);
+    assert.equal(signals[0].kind, 'friction');
+    assert.equal(signals[0].category, 'reap-failure');
+    assert.equal(signals[0].epicId, 9);
+    assert.equal(signals[0].storyId, 1);
     assert.equal(result.status, 'failed');
     assert.ok(
       logger.errors.some((m) => m.includes('OPERATOR ACTION REQUIRED')),
@@ -343,11 +385,11 @@ describe('worktreeReapPhase', () => {
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger: makeLogger(),
       progress: () => {},
-      frictionEmitter: { emit: async () => {} },
       worktreeManagerFactory: factory,
     });
     assert.equal(result.status, 'deferred-to-sweep');
@@ -364,15 +406,14 @@ describe('worktreeReapPhase', () => {
       },
     });
     const logger = makeLogger();
-    const frictionEmitter = { emit: async () => {} };
     await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
     assert.equal(
@@ -388,16 +429,14 @@ describe('worktreeReapPhase', () => {
       list: [{ path: '/repo/.worktrees/story-1' }],
     });
     const logger = makeLogger();
-    const emissions = [];
-    const frictionEmitter = { emit: async (e) => emissions.push(e) };
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
     assert.equal(result.status, 'still-registered');
@@ -408,7 +447,9 @@ describe('worktreeReapPhase', () => {
           m.includes('/repo/.worktrees/story-1'),
       ),
     );
-    assert.equal(emissions.length, 1);
+    const signals = readFrictionSignals(9, 1);
+    assert.equal(signals.length, 1);
+    assert.equal(signals[0].category, 'reap-failure');
   });
 });
 

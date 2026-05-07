@@ -122,10 +122,12 @@ const RELEASE_SCHEMA = {
 };
 
 /**
- * `agentSettings.limits.friction` — runtime friction-emitter thresholds
+ * `agentSettings.limits.friction` — runtime friction-detector thresholds
  * (renamed from the flat `agentSettings.frictionThresholds` block in
  * Epic #730 Story 8). Lives nested under {@link LIMITS_SCHEMA} alongside
- * the count/budget/timeout limits.
+ * the count/budget/timeout limits. Post Epic #1030 Story #1042 the
+ * cooldown emitter module is gone; friction events land on disk as
+ * NDJSON via signals-writer.appendSignal.
  */
 const FRICTION_LIMITS_SCHEMA = {
   type: 'object',
