@@ -21,6 +21,14 @@
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { createProvider } from './lib/provider-factory.js';
+import { concurrentMap } from './lib/util/concurrent-map.js';
+
+// Cap=4 — bounded parallelism for the recursive sibling-subtree walk in
+// `collectTree`. Sibling subtrees are independent (each child traverses its
+// own descendants), and ordering within a parent's children does not affect
+// the deletion contract — the leaves-first invariant is enforced after the
+// full tree is collected. Cap matches the orchestration-layer house style.
+const COLLECT_CONCURRENCY = 4;
 
 // ---------------------------------------------------------------------------
 // Core Logic
@@ -97,13 +105,18 @@ async function collectTree(provider, issueNumber, visited = new Set()) {
   visited.add(issueNumber);
 
   const issue = await getIssueWithSubIssues(provider, issueNumber);
-  const results = [];
 
-  // Depth-first: process children before parent
-  for (const childNumber of issue.subIssues) {
-    const childResults = await collectTree(provider, childNumber, visited);
-    results.push(...childResults);
-  }
+  // cap=4 — bounded fan-out across sibling subtrees. Each child traversal
+  // is independent of its siblings, and we still flatten in deterministic
+  // input order so the tail-append (parent last) preserves leaves-first
+  // deletion ordering.
+  const childResults = await concurrentMap(
+    issue.subIssues,
+    (childNumber) => collectTree(provider, childNumber, visited),
+    { concurrency: COLLECT_CONCURRENCY },
+  );
+
+  const results = childResults.flat();
 
   // Add the current issue last (after all children)
   results.push({

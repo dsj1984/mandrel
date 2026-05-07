@@ -28,6 +28,13 @@ import {
 
 const SUBTICKET_HYDRATION_CONCURRENCY = 8;
 
+// Cap=4 — bounded parallelism for sub-issue link reconciliation. Each
+// parent's link work is independent of its siblings' link work, and within
+// a parent each child's `addSubIssue` call is independent of its siblings'.
+// Cap matches the orchestration-layer house style (wave-gate, reconciler)
+// and stays under the secondary rate-limit ceiling for issue-link mutations.
+const SUB_ISSUE_RECONCILE_CONCURRENCY = 4;
+
 // Retry budget for the sub-issue link mutation. The HTTP transport already
 // retries 429 / 5xx / 403-secondary-RL at the network layer; this layer adds
 // resilience for GraphQL-200 + errors[] (rate-limit messages surfaced inside
@@ -380,56 +387,74 @@ export async function reconcileSubIssueLinks(ctx, epicId) {
   let failed = 0;
   const failures = [];
 
-  for (const [parentId, childIds] of childrenByParent) {
-    let parent;
-    try {
-      parent = await getTicket(ctx, parentId);
-    } catch (err) {
-      for (const childId of childIds) {
-        failures.push({ parentId, childId, reason: err.message });
-      }
-      failed += childIds.length;
-      continue;
-    }
-    if (!parent?.nodeId) {
-      for (const childId of childIds) {
-        failures.push({ parentId, childId, reason: 'parent missing nodeId' });
-      }
-      failed += childIds.length;
-      continue;
-    }
+  const parentEntries = Array.from(childrenByParent.entries());
 
-    const linked = new Set(
-      await getNativeSubIssues(ctx, parent.nodeId, parentId),
-    );
+  // cap=4 — independent per-parent link-reconciliation work; safe to fan out
+  // because each parent's child set is disjoint from its siblings'.
+  await concurrentMap(
+    parentEntries,
+    async ([parentId, childIds]) => {
+      let parent;
+      try {
+        parent = await getTicket(ctx, parentId);
+      } catch (err) {
+        for (const childId of childIds) {
+          failures.push({ parentId, childId, reason: err.message });
+        }
+        failed += childIds.length;
+        return;
+      }
+      if (!parent?.nodeId) {
+        for (const childId of childIds) {
+          failures.push({ parentId, childId, reason: 'parent missing nodeId' });
+        }
+        failed += childIds.length;
+        return;
+      }
 
-    for (const childId of childIds) {
-      if (linked.has(childId)) {
-        alreadyLinked++;
-        continue;
-      }
-      let childTicket;
-      try {
-        childTicket = await getTicket(ctx, childId);
-      } catch (err) {
-        failures.push({ parentId, childId, reason: err.message });
-        failed++;
-        continue;
-      }
-      if (!childTicket?.nodeId) {
-        failures.push({ parentId, childId, reason: 'child missing nodeId' });
-        failed++;
-        continue;
-      }
-      try {
-        await addSubIssue(ctx, parentId, childTicket.nodeId);
-        reconciled++;
-      } catch (err) {
-        failures.push({ parentId, childId, reason: err.message });
-        failed++;
-      }
-    }
-  }
+      const linked = new Set(
+        await getNativeSubIssues(ctx, parent.nodeId, parentId),
+      );
+
+      // cap=4 — within a single parent, each child's link work is
+      // independent (separate getTicket + addSubIssue mutations).
+      await concurrentMap(
+        childIds,
+        async (childId) => {
+          if (linked.has(childId)) {
+            alreadyLinked++;
+            return;
+          }
+          let childTicket;
+          try {
+            childTicket = await getTicket(ctx, childId);
+          } catch (err) {
+            failures.push({ parentId, childId, reason: err.message });
+            failed++;
+            return;
+          }
+          if (!childTicket?.nodeId) {
+            failures.push({
+              parentId,
+              childId,
+              reason: 'child missing nodeId',
+            });
+            failed++;
+            return;
+          }
+          try {
+            await addSubIssue(ctx, parentId, childTicket.nodeId);
+            reconciled++;
+          } catch (err) {
+            failures.push({ parentId, childId, reason: err.message });
+            failed++;
+          }
+        },
+        { concurrency: SUB_ISSUE_RECONCILE_CONCURRENCY },
+      );
+    },
+    { concurrency: SUB_ISSUE_RECONCILE_CONCURRENCY },
+  );
 
   return {
     totalExpected: parentByChild.size,
