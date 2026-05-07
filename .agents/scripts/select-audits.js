@@ -2,12 +2,22 @@
 /* node:coverage ignore file */
 
 /**
- * select-audits.js — CLI + SDK for audit selection.
+ * select-audits.js — Thin CLI wrapper around the audit-suite `selectAudits`
+ * SDK in `lib/audit-suite/`.
  *
- * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
+ * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a
+ * in docs/decisions.md for the migration table.
  *
- * The pure rule-matching logic (matchesFilePattern, matchesAnyFilePattern,
- * selectAudits) lives here.
+ * Story #1083 (Epic #1072) moved the rule-matching logic
+ * (`matchesFilePattern`, `matchesAnyFilePattern`, `selectAudits`) into
+ * `lib/audit-suite/selector.js` so the orchestration barrel can re-export
+ * the SDK without importing upward from a top-level CLI. This file now
+ * contains only argv parsing, provider construction, JSON stdout, and
+ * degraded-mode exit-code mapping.
+ *
+ * The named exports below are preserved as back-compat shims for existing
+ * call sites (`audit-orchestrator.js`, the test suite). New callers should
+ * import from `lib/audit-suite/index.js`.
  *
  * Usage:
  *   node .agents/scripts/select-audits.js \
@@ -21,22 +31,26 @@
  *   non-zero — validation or provider failure (error on stderr)
  */
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { parseArgs } from 'node:util';
-import picomatch from 'picomatch';
-import { runAsCli } from './lib/cli-utils.js';
 import {
-  getPaths,
-  PROJECT_ROOT,
-  resolveConfig,
-} from './lib/config-resolver.js';
-import { isDegraded, softFailOrThrow } from './lib/degraded-mode.js';
-import { gitSpawn } from './lib/git-utils.js';
+  matchesAnyFilePattern,
+  matchesFilePattern,
+  selectAudits,
+} from './lib/audit-suite/index.js';
+import { runAsCli } from './lib/cli-utils.js';
+import { resolveConfig } from './lib/config-resolver.js';
+import { isDegraded } from './lib/degraded-mode.js';
 import { createProvider } from './lib/provider-factory.js';
-import { withTimeout } from './lib/util/with-timeout.js';
 
-const DEFAULT_GIT_TIMEOUT_MS = 30000;
+// --- Back-compat re-exports for existing import sites -----------------------
+// `audit-orchestrator.js`, `tests/select-audits-cli.test.js`, and other
+// callers still import these names from this module path. Keep the shims
+// pointing at `lib/audit-suite/` so the relocation stays internal.
+export {
+  matchesAnyFilePattern,
+  matchesFilePattern,
+  selectAudits,
+} from './lib/audit-suite/index.js';
 
 const HELP = `Usage: node .agents/scripts/select-audits.js \\
   --ticket <id> --gate <gate> [--base-branch main]
@@ -47,154 +61,6 @@ Flags:
   --base-branch  Branch to diff against for changed-file matching (default: main).
   --help         Show this message.
 `;
-
-/**
- * Test a single filename against a single glob pattern using the project's
- * configured matcher semantics (`picomatch` with `dot: true`). Exported so
- * regression tests can pin engine behaviour without stubbing audit-rules.
- */
-export function matchesFilePattern(pattern, file) {
-  return picomatch(pattern, { dot: true })(file);
-}
-
-/**
- * Return true when any of `files` matches any of `patterns`.
- * Same semantics as `matchesFilePattern`; matchers are compiled once per call.
- */
-export function matchesAnyFilePattern(patterns, files) {
-  if (!patterns?.length || !files?.length) return false;
-  const matchers = patterns.map((p) => picomatch(p, { dot: true }));
-  return files.some((file) => matchers.some((m) => m(file)));
-}
-
-/**
- * Filter audits based on logic in audit-rules.json (validated against
- * audit-rules.schema.json).
- *
- * @param {object} params
- * @param {number} params.ticketId
- * @param {string} params.gate
- * @param {import('./lib/ITicketingProvider.js').ITicketingProvider} params.provider
- * @param {string} [params.baseBranch]
- * @param {(cwd: string, ...args: string[]) => Promise<{status:number, stdout:string, stderr:string}>} [params.injectedGitSpawn]
- *   Test-only seam. Production callers leave unset; the real (synchronous) `gitSpawn`
- *   is wrapped in `Promise.resolve` so `withTimeout` can still race it. Tests can
- *   inject a promise that never resolves to exercise the ETIMEDOUT fallback.
- * @param {number} [params.gitTimeoutMsOverride]
- *   Test-only seam to shrink the git-spawn timeout below the configured default
- *   (which is 30_000 ms) so timeout tests don't stall the suite.
- * @param {{ argv?: string[], env?: NodeJS.ProcessEnv }} [params.gateModeOpts]
- *   Test-only seam to drive the `--gate-mode` / `AGENT_PROTOCOLS_GATE_MODE=1`
- *   detection; production callers leave unset and `isGateMode` reads
- *   `process.argv` / `process.env`.
- *
- * Returns either the success envelope (`{ selectedAudits, ticketId, gate, context }`)
- * OR the degraded envelope (`{ ok: false, degraded: true, reason, detail }`)
- * when the git-diff probe times out and gate-mode is unset. In gate-mode,
- * the same condition throws.
- */
-export async function selectAudits({
-  ticketId,
-  gate,
-  provider,
-  baseBranch = 'main',
-  injectedGitSpawn,
-  gitTimeoutMsOverride,
-  gateModeOpts,
-}) {
-  const { settings } = resolveConfig();
-  const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
-
-  const rulesPath = path.join(
-    PROJECT_ROOT,
-    getPaths({ agentSettings: settings }).schemasRoot,
-    'audit-rules.json',
-  );
-  let rulesData;
-  try {
-    rulesData = JSON.parse(await fs.readFile(rulesPath, 'utf8'));
-  } catch (err) {
-    throw new Error(
-      `Failed to read audit-rules from ${rulesPath}: ${err.message}`,
-    );
-  }
-
-  const ticket = await provider.getTicket(ticketId);
-  const contentToSearch =
-    `${ticket.title || ''} ${ticket.body || ''}`.toLowerCase();
-
-  const runGit = injectedGitSpawn ?? (async (...args) => gitSpawn(...args));
-
-  let changedFiles = [];
-  try {
-    const diff = await withTimeout(
-      runGit(process.cwd(), 'diff', '--name-only', `${baseBranch}...HEAD`),
-      timeoutMs,
-      { label: 'select-audits git diff' },
-    );
-    if (diff?.status === 0) {
-      changedFiles = diff.stdout
-        .split('\n')
-        .map((f) => f.trim())
-        .filter(Boolean);
-    }
-  } catch (err) {
-    if (err?.code === 'ETIMEDOUT') {
-      // Soft-fail contract (Tech Spec #819): in default mode, return a
-      // degraded envelope so the caller sees the explicit signal instead of
-      // silently falling through to keyword-only matching. In gate-mode,
-      // hard-fail closed.
-      return softFailOrThrow(
-        'GIT_DIFF_TIMEOUT',
-        `select-audits: git diff against ${baseBranch} timed out after ${timeoutMs} ms`,
-        gateModeOpts,
-      );
-    }
-    throw err;
-  }
-
-  const selectedAudits = [];
-
-  for (const [auditName, ruleOpts] of Object.entries(rulesData.audits || {})) {
-    const triggers = ruleOpts.triggers || {};
-
-    const gateMatch = triggers.gates?.includes(gate);
-    if (!gateMatch) continue;
-
-    if (triggers.alwaysRun) {
-      selectedAudits.push(auditName);
-      continue;
-    }
-
-    const keywords = triggers.keywords || [];
-    let keywordMatch = false;
-    for (const kw of keywords) {
-      if (contentToSearch.includes(kw.toLowerCase())) {
-        keywordMatch = true;
-        break;
-      }
-    }
-
-    const fileMatch = matchesAnyFilePattern(
-      triggers.filePatterns || [],
-      changedFiles,
-    );
-
-    if (keywordMatch || fileMatch) {
-      selectedAudits.push(auditName);
-    }
-  }
-
-  return {
-    selectedAudits,
-    ticketId,
-    gate,
-    context: {
-      changedFilesCount: changedFiles.length,
-      ticketTitle: ticket.title,
-    },
-  };
-}
 
 export function parseCliArgs(argv) {
   const { values } = parseArgs({
