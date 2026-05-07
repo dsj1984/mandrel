@@ -49,7 +49,4 @@ test('manifest-renderer: renders simple manifest', () => {
     output.includes('| ⬜ | #10 | story-10 |'),
     'Missing story row data',
   );
-
-  // Verify Dry Run mode
-  assert.ok(output.includes('🔍 Dry Run'), 'Missing dry run text');
 });

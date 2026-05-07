@@ -72,19 +72,6 @@ test('formatter: renders epic header, progress, wave table, details', () => {
   assert.ok(md.includes('[ ] **#203** — t-b1 _(blocked by: #201)_'));
 });
 
-test('formatter: live vs dry-run label', () => {
-  assert.ok(
-    formatManifestMarkdown(epicManifest({ dryRun: true })).includes(
-      '🔍 Dry Run',
-    ),
-  );
-  assert.ok(
-    formatManifestMarkdown(epicManifest({ dryRun: false })).includes(
-      '🚀 Live Dispatch',
-    ),
-  );
-});
-
 test('formatter: feature containers row when features present', () => {
   const manifest = epicManifest();
   manifest.storyManifest.push({
@@ -98,7 +85,6 @@ test('formatter: feature containers row when features present', () => {
   const md = formatManifestMarkdown(manifest);
   assert.ok(md.includes('## Feature Containers'));
   assert.ok(md.includes('#300'));
-  assert.ok(md.includes('Features (containers) | 1'));
 });
 
 test('formatter: renderManifestMarkdown alias matches formatManifestMarkdown', () => {

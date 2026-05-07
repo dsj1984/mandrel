@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.36.2] — 2026-05-06
+
+Patch: refresh dispatch-manifest header / footer to match the current
+`/epic-execute` → `/wave-execute` → `/story-execute` orchestration.
+
+### Changed
+
+- **Manifest "Agent Operating Procedures" block** — replaced the manual
+  wave-by-wave drill (which still pointed at `/epic-execute [STORY_ID]`,
+  the wrong arg type since the wave runner landed) with a three-step
+  block describing the actual contract: a single `/epic-execute <epicId>`
+  drives all waves, granular re-runs go through `/wave-execute` or
+  `/story-execute`, and `/epic-close` is auto-chained when
+  `epic::auto-close` is set. Epic ID is interpolated into the example
+  commands so operators can copy-paste.
+- **Manifest "How to Execute" footer** — removed. It restated (and
+  contradicted) the header procedures, and its `/epic-execute #[Story
+  ID]` example carried the same wrong-argument bug.
+- **Manifest field/value table** — removed. Mode, Progress, Stories,
+  Features, Execution Waves, Dispatched were redundant with the Sprint
+  Progress hero block, the Wave Summary table, and the Story Details
+  section that follow. Only `Generated <timestamp>` survived; it now
+  renders as a single italic line directly under the title.
+
 ## [5.36.1] — 2026-05-06
 
 Patch: raise the default CRAP regression tolerance from 0.001 → 0.05.

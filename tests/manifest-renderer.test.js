@@ -81,18 +81,6 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /\/epic-close/);
   });
 
-  await t.test('renders dry-run mode indicator', () => {
-    const manifest = makeBaseManifest({ dryRun: true });
-    const output = renderManifestMarkdown(manifest);
-    assert.match(output, /Dry Run/);
-  });
-
-  await t.test('renders live dispatch mode indicator', () => {
-    const manifest = makeBaseManifest({ dryRun: false });
-    const output = renderManifestMarkdown(manifest);
-    assert.match(output, /Live Dispatch/);
-  });
-
   await t.test('renders 0% progress bar when no tasks done', () => {
     const manifest = makeBaseManifest({
       summary: {
