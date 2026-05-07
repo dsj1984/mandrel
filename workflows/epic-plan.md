@@ -130,7 +130,11 @@ planned.
 2. **Author the Ticket Array**: Read
    `temp/decomposer-context-epic-[Epic_ID].json` — it contains the PRD body,
    Tech Spec body, risk heuristics, the decomposer system prompt, and a
-   `maxTickets` cap (configurable in `.agentrc.json`, default 40). Produce a
+   `maxTickets` cap (configurable via `agentSettings.limits.maxTickets` in
+   `.agentrc.json`; the framework default lives in
+   `.agents/scripts/lib/config/limits.js`). The decompose script also logs
+   the resolved cap to stderr so a misconfigured key doesn't silently fall
+   through. Produce a
    JSON array of Feature/Story/Task objects conforming to the schema in the
    system prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
 

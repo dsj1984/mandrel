@@ -7,7 +7,7 @@
  *
  *   - runPreMergeGates       — drives `runCloseValidation` over the
  *                              canonical gate list (typecheck, lint, test,
- *                              biome format, maintainability, crap), routes
+ *                              format, maintainability, crap), routes
  *                              `lint`/`test` start events into the supplied
  *                              phase-timer, and throws on the first failed
  *                              gate with the gate-specific hint embedded in
@@ -59,7 +59,7 @@ export function runPreMergeGates({
     log: (m) => logger.info(m),
     onGateStart: (gate) => {
       // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
-      // (`typecheck`, `biome format`, `check-maintainability`) share the
+      // (`typecheck`, `format`, `check-maintainability`) share the
       // currently-open phase's wall clock — a deliberate choice so the
       // `phase-timings` schema stays stable against future gate churn.
       if (phaseTimer && (gate.name === 'lint' || gate.name === 'test')) {

@@ -102,7 +102,7 @@ export function parseBaseBranchConfig(rawJson) {
   } catch {
     return {
       newMethodCeiling: 30,
-      tolerance: 0.001,
+      tolerance: 0.05,
       refreshTag: DEFAULT_REFRESH_TAG,
       enabled: true,
     };
@@ -112,7 +112,7 @@ export function parseBaseBranchConfig(rawJson) {
     newMethodCeiling: Number.isFinite(crap.newMethodCeiling)
       ? crap.newMethodCeiling
       : 30,
-    tolerance: Number.isFinite(crap.tolerance) ? crap.tolerance : 0.001,
+    tolerance: Number.isFinite(crap.tolerance) ? crap.tolerance : 0.05,
     refreshTag:
       typeof crap.refreshTag === 'string' && crap.refreshTag.length
         ? crap.refreshTag

@@ -67,9 +67,15 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
   let newMethodCeiling = Number.isFinite(crapConfig?.newMethodCeiling)
     ? crapConfig.newMethodCeiling
     : 30;
+  // Default 0.05 (raised from 0.001 in 5.36.1). CRAP scores are
+  // `c² · (1 − cov)³ + c`, so a sub-percent per-method coverage rounding
+  // shift across CI environments — same code, different escomplex /
+  // coverage build — moves the score by ~0.01 on its own. A 0.001
+  // tolerance flagged that as a regression; real regressions cross
+  // whole-integer thresholds (e.g. 8 → 12) and clear 0.05 trivially.
   let tolerance = Number.isFinite(crapConfig?.tolerance)
     ? crapConfig.tolerance
-    : 0.001;
+    : 0.05;
   let refreshTag =
     typeof crapConfig?.refreshTag === 'string' && crapConfig.refreshTag.length
       ? crapConfig.refreshTag

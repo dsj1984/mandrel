@@ -45,7 +45,9 @@
       "lintBaseline": "npx eslint . --format json",
       "test": "npm test",
       "typecheck": null,
-      "build": null
+      "build": null,
+      "formatCheck": "npx biome format .",
+      "formatWrite": "npx biome format --write ."
     },
     "quality": {
       "baselines": {
@@ -61,7 +63,7 @@
         "targetDirs": ["src"],
         "newMethodCeiling": 30,
         "coveragePath": "coverage/coverage-final.json",
-        "tolerance": 0.001,
+        "tolerance": 0.05,
         "requireCoverage": true,
         "friction": { "markerKey": "crap-baseline-regression" },
         "refreshTag": "baseline-refresh:"

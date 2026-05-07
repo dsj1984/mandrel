@@ -290,6 +290,12 @@ const PATHS_SCHEMA = {
  * "disabled" (Story 3 `null`-for-disabled convention); the others are
  * required-when-present non-empty strings. `additionalProperties: false`
  * so a misspelled command key fails validation up front.
+ *
+ * `formatCheck` / `formatWrite` were added in 5.35.2 so the close-validation
+ * format gate and the story-close format-autofix step can target Prettier,
+ * dprint, or any other formatter (rather than the hardcoded biome string the
+ * close path used previously). Defaults stay biome to preserve behaviour for
+ * repos that haven't set them.
  */
 const COMMANDS_SCHEMA = {
   type: 'object',
@@ -299,6 +305,8 @@ const COMMANDS_SCHEMA = {
     test: { ...SAFE_STRING, minLength: 1 },
     typecheck: NULLABLE_NONEMPTY_SAFE_STRING,
     build: NULLABLE_NONEMPTY_SAFE_STRING,
+    formatCheck: { ...SAFE_STRING, minLength: 1 },
+    formatWrite: { ...SAFE_STRING, minLength: 1 },
   },
   additionalProperties: false,
 };

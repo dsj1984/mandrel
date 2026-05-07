@@ -1,7 +1,15 @@
-const DEFAULT_MAX_TICKETS = 40;
+import { LIMITS_DEFAULTS } from '../config/limits.js';
 
+/**
+ * Sole source of truth for the prompt's `maxTickets` cap is the resolved
+ * limits block (see {@link LIMITS_DEFAULTS}). The previous standalone
+ * `DEFAULT_MAX_TICKETS = 40` literal allowed the prompt to drift out of sync
+ * with `agentSettings.limits.maxTickets` when call sites forgot to pass the
+ * resolved value; importing it here means a fallback path (no caller-supplied
+ * value) still tracks the framework default in `lib/config/limits.js`.
+ */
 export function renderDecomposerSystemPrompt({
-  maxTickets = DEFAULT_MAX_TICKETS,
+  maxTickets = LIMITS_DEFAULTS.maxTickets,
 } = {}) {
   return `You are an expert Senior Project Manager and Orchestrator.
 Your job is to take a Product Requirements Document (PRD) and a Technical Specification and decompose them into a highly-granular 3-level ticket hierarchy for an AI Agent to execute.

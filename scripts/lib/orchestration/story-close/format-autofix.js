@@ -29,6 +29,7 @@
 
 import { execFileSync } from 'node:child_process';
 
+import { resolveFormatWriteCommand } from '../../close-validation.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 const TAG = '[format-autofix]';
@@ -72,6 +73,7 @@ function listDirtyPaths(cwd, run) {
 export function runFormatAutofix({
   cwd,
   storyId,
+  settings,
   logger = DefaultLogger,
   spawnSync = execFileSync,
   gitSync,
@@ -79,6 +81,11 @@ export function runFormatAutofix({
   if (!cwd) throw new Error('runFormatAutofix: cwd is required');
 
   const git = gitSync ?? ((args, opts) => spawnSync('git', args, opts));
+  // Resolve the formatter command from `agentSettings.commands.formatWrite`
+  // so Prettier / dprint repos use their own formatter. Falls back to the
+  // historical `npx biome format --write .` for repos that haven't opted in.
+  const writeCmdString = resolveFormatWriteCommand(settings);
+  const [writeCmd, ...writeArgs] = writeCmdString.split(/\s+/).filter(Boolean);
 
   // Refuse to act when the tree is already dirty for unrelated reasons —
   // we don't want to absorb stray edits into a `style:` commit.
@@ -91,13 +98,13 @@ export function runFormatAutofix({
     return { ran: false, committed: false, dirtyPathsBefore: dirtyBefore };
   }
 
-  // Run biome format --write. We tolerate a non-zero exit because the
-  // existing format gate downstream is the source of truth for "did
-  // formatting succeed" — our job is only to opportunistically heal
+  // Run the configured formatter in write mode. We tolerate a non-zero exit
+  // because the existing format gate downstream is the source of truth for
+  // "did formatting succeed" — our job is only to opportunistically heal
   // drift that *would* have failed the gate.
   let writeFailed = false;
   try {
-    spawnSync('npx', ['biome', 'format', '--write', '.'], {
+    spawnSync(writeCmd, writeArgs, {
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
       encoding: 'utf8',
@@ -105,7 +112,7 @@ export function runFormatAutofix({
   } catch (err) {
     writeFailed = true;
     logger.warn?.(
-      `${TAG} \`biome format --write\` exited non-zero (${err?.status ?? 'unknown'}); ` +
+      `${TAG} \`${writeCmdString}\` exited non-zero (${err?.status ?? 'unknown'}); ` +
         'falling through to the format check gate to report drift.',
     );
   }
@@ -114,8 +121,8 @@ export function runFormatAutofix({
   if (!dirtyAfter.length) {
     logger.info?.(
       writeFailed
-        ? `${TAG} no autofix changes produced (biome write failed).`
-        : `${TAG} no format drift — tree clean after biome format --write.`,
+        ? `${TAG} no autofix changes produced (formatter write failed).`
+        : `${TAG} no format drift — tree clean after \`${writeCmdString}\`.`,
     );
     return { ran: true, committed: false };
   }
@@ -135,7 +142,7 @@ export function runFormatAutofix({
   }).trim();
 
   logger.info?.(
-    `${TAG} healed ${dirtyAfter.length} path(s) with biome format --write; ` +
+    `${TAG} healed ${dirtyAfter.length} path(s) with \`${writeCmdString}\`; ` +
       `committed as ${sha} on story branch.`,
   );
   return { ran: true, committed: true, sha };

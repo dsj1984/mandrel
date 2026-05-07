@@ -18,6 +18,8 @@ export const COMMANDS_DEFAULTS = Object.freeze({
   test: 'npm test',
   typecheck: null,
   build: null,
+  formatCheck: 'npx biome format .',
+  formatWrite: 'npx biome format --write .',
 });
 
 /**
@@ -42,5 +44,7 @@ export function getCommands(config) {
         : commands.typecheck,
     build:
       commands.build === undefined ? COMMANDS_DEFAULTS.build : commands.build,
+    formatCheck: commands.formatCheck ?? COMMANDS_DEFAULTS.formatCheck,
+    formatWrite: commands.formatWrite ?? COMMANDS_DEFAULTS.formatWrite,
   };
 }

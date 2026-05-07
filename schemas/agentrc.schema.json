@@ -187,7 +187,19 @@
           ]
         },
         "typecheck": { "$ref": "#/$defs/nullableNonemptySafeString" },
-        "build": { "$ref": "#/$defs/nullableNonemptySafeString" }
+        "build": { "$ref": "#/$defs/nullableNonemptySafeString" },
+        "formatCheck": {
+          "allOf": [
+            { "$ref": "#/$defs/safeString" },
+            { "type": "string", "minLength": 1 }
+          ]
+        },
+        "formatWrite": {
+          "allOf": [
+            { "$ref": "#/$defs/safeString" },
+            { "type": "string", "minLength": 1 }
+          ]
+        }
       },
       "additionalProperties": false
     },

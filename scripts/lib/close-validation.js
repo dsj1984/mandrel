@@ -1,9 +1,10 @@
 /**
  * close-validation.js — Shift-left validation gates for story-close.
  *
- * Runs lint, test, biome format check, and maintainability regression check
+ * Runs lint, test, format check, and maintainability regression check
  * before the story merge so drift is caught in the worktree rather than at
- * pre-push time on the Epic branch. All gates inherit stdio so the operator
+ * pre-push time on the Epic branch. The format command is configurable via
+ * `agentSettings.commands.formatCheck`; default is `npx biome format .`. All gates inherit stdio so the operator
  * sees the raw output; the returned summary is used to surface actionable
  * hints when a gate fails.
  *
@@ -45,6 +46,26 @@ const TYPECHECK_HINT =
   'TypeScript regression — fix type errors on the Story branch before retrying close. If the failure is a stale generated type (e.g. wrangler types), regenerate locally and commit before the close.';
 
 /**
+ * Default formatter command for the close-validation format gate. Used when
+ * `agentSettings.commands.formatCheck` is unset or empty. Mirrors the long-
+ * standing close-script behaviour so repos that don't opt in keep working.
+ */
+const FORMAT_CHECK_FALLBACK = 'npx biome format .';
+
+/**
+ * Build the format-gate hint dynamically from the resolved write command so a
+ * Prettier-only repo gets `prettier --write` in its hint, not biome. Falls
+ * back to the historical biome string when no write command is resolvable.
+ */
+function buildFormatHint(writeCmd) {
+  const cmd =
+    writeCmd && writeCmd.trim().length > 0
+      ? writeCmd
+      : 'npx biome format --write .';
+  return `Run \`${cmd}\` to auto-fix formatting drift.`;
+}
+
+/**
  * Resolve the typecheck command for the close-validation typecheck gate.
  *
  * Reads `agentSettings.commands.typecheck` (string) when present and non-empty
@@ -74,13 +95,65 @@ export function resolveTypecheckCommand(settings) {
 }
 
 /**
+ * Resolve the format-check command for the close-validation format gate.
+ * Reads `agentSettings.commands.formatCheck` (string) when present and non-
+ * empty and falls back to `npx biome format .` otherwise so existing repos
+ * that haven't set the field keep their previous behaviour byte-for-byte.
+ *
+ * Exported for testing.
+ *
+ * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @returns {string}
+ */
+export function resolveFormatCheckCommand(settings) {
+  try {
+    const cmds = getCommands({ agentSettings: settings });
+    if (
+      typeof cmds.formatCheck === 'string' &&
+      cmds.formatCheck.trim().length > 0
+    ) {
+      return cmds.formatCheck.trim();
+    }
+  } catch {
+    // Malformed settings — fall through to the framework default.
+  }
+  return FORMAT_CHECK_FALLBACK;
+}
+
+/**
+ * Resolve the format-write command used by the story-close format-autofix
+ * step (and surfaced in the format-gate hint). Reads
+ * `agentSettings.commands.formatWrite`; falls back to the historical
+ * `npx biome format --write .` so repos that haven't opted in keep working.
+ *
+ * Exported for testing.
+ *
+ * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @returns {string}
+ */
+export function resolveFormatWriteCommand(settings) {
+  try {
+    const cmds = getCommands({ agentSettings: settings });
+    if (
+      typeof cmds.formatWrite === 'string' &&
+      cmds.formatWrite.trim().length > 0
+    ) {
+      return cmds.formatWrite.trim();
+    }
+  } catch {
+    // Malformed settings — fall through to the framework default.
+  }
+  return 'npx biome format --write .';
+}
+
+/**
  * Build the canonical close-validation gate list.
  *
  * Ordering rationale (cheapest fast-fail first):
  *   1. typecheck — pure compile-time check, fastest to fail
  *   2. lint     — static analysis
  *   3. test     — full test suite
- *   4. biome format
+ *   4. format   — configurable via `agentSettings.commands.formatCheck`
  *   5. check-maintainability
  *   6. coverage-capture
  *   7. check-crap
@@ -97,6 +170,11 @@ export function buildDefaultGates({ settings } = {}) {
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
     .filter(Boolean);
+  const formatCheckString = resolveFormatCheckCommand(settings);
+  const [formatCmd, ...formatArgs] = formatCheckString
+    .split(/\s+/)
+    .filter(Boolean);
+  const formatWriteString = resolveFormatWriteCommand(settings);
   return [
     {
       name: 'typecheck',
@@ -107,10 +185,14 @@ export function buildDefaultGates({ settings } = {}) {
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
     { name: 'test', cmd: 'npm', args: ['test'] },
     {
-      name: 'biome format',
-      cmd: 'npx',
-      args: ['biome', 'format', '.'],
-      hint: 'Run `npx biome format --write` to auto-fix formatting drift.',
+      // Gate name kept generic ("format") so the close-orchestrator log line
+      // and the per-gate phase-timer key don't shift when a repo swaps biome
+      // for Prettier / dprint via `agentSettings.commands.formatCheck`. The
+      // actual command and the remediation hint resolve from config.
+      name: 'format',
+      cmd: formatCmd,
+      args: formatArgs,
+      hint: buildFormatHint(formatWriteString),
     },
     {
       name: 'check-maintainability',
