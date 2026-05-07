@@ -31,6 +31,7 @@
  * idempotency rules live in one place.
  */
 
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { updateHealthMetrics } from '../../health-monitor.js';
@@ -419,6 +420,81 @@ export async function tempCleanupPhase(ctx) {
   }
 }
 
+/**
+ * perfSummaryPhase — shells out to `analyze-execution.js --story <sid>
+ * --epic <eid> --phase-timings <path>` so the analyzer is the single
+ * writer of the `<!-- structured:story-perf-summary -->` comment on the
+ * Story ticket (Epic #1030 Story #1046). Replaces the legacy
+ * `<!-- structured:phase-timings -->` post that lived inline in
+ * `post-merge-close.js`.
+ *
+ * Best-effort: any failure (missing analyzer, non-zero exit, no path
+ * supplied) logs a warning and resolves — the merge has already
+ * succeeded and we would rather lose the perf summary than roll back
+ * closure.
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   epicId: number|string,
+ *   phaseTimingsPath: string|null|undefined,
+ *   projectRoot?: string,
+ *   progress?: Function,
+ *   logger?: object,
+ *   spawnFn?: typeof execFileSync,
+ * }} ctx
+ * @returns {Promise<{ status: 'ok'|'skipped'|'failed', reason?: string }>}
+ */
+export async function perfSummaryPhase(ctx) {
+  const {
+    storyId,
+    epicId,
+    phaseTimingsPath,
+    projectRoot,
+    progress,
+    logger,
+    spawnFn = execFileSync,
+  } = ctx;
+  const log = reapPhaseLogger(progress);
+  if (!phaseTimingsPath) {
+    log('PERF', '⏭️ Skipping perf-summary (no phase-timings path provided)');
+    return { status: 'skipped', reason: 'no-phase-timings-path' };
+  }
+  const root = projectRoot ?? process.cwd();
+  const analyzerPath = path.join(
+    root,
+    '.agents',
+    'scripts',
+    'analyze-execution.js',
+  );
+  const args = [
+    analyzerPath,
+    '--story',
+    String(storyId),
+    '--epic',
+    String(epicId),
+    '--phase-timings',
+    phaseTimingsPath,
+  ];
+  log(
+    'PERF',
+    `Running analyzer: analyze-execution.js --story ${storyId} --epic ${epicId}`,
+  );
+  try {
+    spawnFn(process.execPath, args, {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    log('PERF', '✅ story-perf-summary posted');
+    return { status: 'ok' };
+  } catch (err) {
+    const reason = err?.message ?? String(err);
+    logger?.warn?.(
+      `[post-merge-pipeline] ⚠️ analyze-execution failed (non-fatal): ${reason}`,
+    );
+    return { status: 'failed', reason };
+  }
+}
+
 export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
   {
     name: 'worktree-reap',
@@ -439,6 +515,7 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
     stateKey: 'manifestUpdated',
   },
   { name: 'temp-cleanup', fn: tempCleanupPhase },
+  { name: 'perf-summary', fn: perfSummaryPhase, stateKey: 'perfSummary' },
 ]);
 
 /**
