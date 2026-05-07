@@ -1,12 +1,141 @@
+import { ValidationError } from '../errors/index.js';
 import { detectCycle } from '../Graph.js';
+import { gitSpawn } from '../git-utils.js';
+
+/**
+ * Regex matching code-asset paths the freshness gate cares about. The three
+ * roots — `.agents/scripts`, `lib`, and `tests` — cover the executable surface
+ * the decomposer's tasks legitimately reference. Anchoring on the leading dot
+ * for `.agents` and a word boundary for `lib`/`tests` keeps URLs, image paths,
+ * and unrelated prose ("library", "testimonial", "established") from being
+ * scanned as fictitious file references.
+ *
+ * The regex is intentionally global + multi-match per body string so a single
+ * Task naming several files surfaces every miss in one error.
+ */
+const FRESHNESS_PATH_RE =
+  /(?:^|[\s`([<])(\.agents\/scripts|lib|tests)\/[\w./-]+\.js\b/g;
+
+function collectPathsFromText(text, paths) {
+  if (!text || typeof text !== 'string') return;
+  // Reset lastIndex on the shared regex literal between calls.
+  FRESHNESS_PATH_RE.lastIndex = 0;
+  let match = FRESHNESS_PATH_RE.exec(text);
+  while (match !== null) {
+    // Capture group 1 is the root; full match index 0 includes the leading
+    // delimiter — slice it off so the path is a clean repo-relative reference.
+    const captured = match[0];
+    const rootStart = captured.indexOf(match[1]);
+    paths.add(captured.slice(rootStart));
+    match = FRESHNESS_PATH_RE.exec(text);
+  }
+}
+
+function collectTaskPathReferences(task) {
+  const paths = new Set();
+  const body = task.body;
+  if (typeof body === 'string') {
+    collectPathsFromText(body, paths);
+  } else if (body !== null && typeof body === 'object') {
+    if (typeof body.goal === 'string') collectPathsFromText(body.goal, paths);
+    for (const arr of [body.changes, body.acceptance, body.verify]) {
+      if (!Array.isArray(arr)) continue;
+      for (const item of arr) collectPathsFromText(String(item ?? ''), paths);
+    }
+  }
+  // Some planner shapes carry a top-level `acceptance` array even on string
+  // bodies — scan it defensively.
+  if (Array.isArray(task.acceptance)) {
+    for (const item of task.acceptance) {
+      collectPathsFromText(String(item ?? ''), paths);
+    }
+  }
+  return paths;
+}
+
+/**
+ * Default git probe: returns true when `path` exists at `ref` in the cwd repo.
+ * Uses `git cat-file -e <ref>:<path>` which is the standard low-cost existence
+ * check (no blob materialisation, no tree walk in node).
+ *
+ * Callers may inject their own runner with the same `(ref, path) => boolean`
+ * signature for unit tests.
+ */
+function defaultGitRunner({ baseBranchRef, path, cwd }) {
+  const result = gitSpawn(
+    cwd ?? process.cwd(),
+    'cat-file',
+    '-e',
+    `${baseBranchRef}:${path}`,
+  );
+  return result.status === 0;
+}
+
+/**
+ * Verify that every code-asset path referenced by a Task body or AC exists at
+ * `baseBranchRef`. A missing path means the planner LLM hallucinated (or the
+ * path was deleted between planning and decomposition) — refuse to decompose
+ * because the resulting Task would be unimplementable as written.
+ *
+ * Only Tasks are scanned; Features and Stories carry narrative copy, not
+ * implementation paths, and their bodies routinely reference docs/templates
+ * the freshness regex would (correctly) ignore.
+ *
+ * @param {object}   opts
+ * @param {object[]} opts.tickets         - Validated ticket hierarchy.
+ * @param {string}   opts.baseBranchRef   - Ref to probe (e.g. 'main' or 'origin/main').
+ * @param {Function} [opts.gitRunner]     - Probe override (testing seam).
+ * @param {string}   [opts.cwd]           - Repo cwd (forwarded to default runner).
+ * @throws {ValidationError} when one or more Task references are stale.
+ */
+export function validateAcFreshness({
+  tickets,
+  baseBranchRef,
+  gitRunner = defaultGitRunner,
+  cwd,
+}) {
+  if (!baseBranchRef || typeof baseBranchRef !== 'string') {
+    throw new ValidationError(
+      'validateAcFreshness: baseBranchRef is required.',
+    );
+  }
+  const tasks = (tickets ?? []).filter((t) => t.type === 'task');
+  const misses = [];
+  // Cache per-path probe results — sibling Tasks frequently cite the same
+  // helper module; avoid re-spawning git for each repeat.
+  const probeCache = new Map();
+  for (const task of tasks) {
+    const refs = collectTaskPathReferences(task);
+    for (const path of refs) {
+      let exists = probeCache.get(path);
+      if (exists === undefined) {
+        exists = gitRunner({ baseBranchRef, path, cwd });
+        probeCache.set(path, exists);
+      }
+      if (!exists) {
+        misses.push({ slug: task.slug ?? '<unknown>', path });
+      }
+    }
+  }
+  if (misses.length === 0) return;
+  const lines = misses.map((m) => `  - "${m.slug}" → ${m.path}`).join('\n');
+  throw new ValidationError(
+    `Cross-Validation Failed: ${misses.length} Task reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nThe planner is referencing stale paths — re-author the affected Task(s) against the current base-branch tree.`,
+    { misses, baseBranchRef },
+  );
+}
 
 /**
  * Validates the generated ticket hierarchy and handles lifting cross-story dependencies.
  *
- * @param {object[]} tickets - Array of ticket objects parsed from LLM output.
+ * @param {object[]}                   tickets             - Array of ticket objects parsed from LLM output.
+ * @param {object}                     [opts]
+ * @param {string}                     [opts.baseBranchRef] - When set, runs `validateAcFreshness` against this ref.
+ * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
+ * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
  * @returns {object[]} Validated tickets with normalized dependencies.
  */
-export function validateAndNormalizeTickets(tickets) {
+export function validateAndNormalizeTickets(tickets, opts = {}) {
   const ticketBySlug = new Map();
   const features = [];
   const stories = [];
@@ -182,6 +311,21 @@ export function validateAndNormalizeTickets(tickets) {
     throw new Error(
       `Cross-Validation Failed: Circular dependency detected: ${cycle.join(' → ')}.`,
     );
+  }
+
+  // ── Freshness gate ────────────────────────────────────────────────────
+  // Refuse to decompose when any Task body or AC names a code-asset path
+  // missing from the Epic's base branch tree. Skipped when the caller
+  // omits `baseBranchRef` so legacy unit tests (which never plumb a git
+  // ref) keep their existing semantics. Production call-sites
+  // (epic-plan-decompose) always pass it.
+  if (opts.baseBranchRef) {
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: opts.baseBranchRef,
+      gitRunner: opts.gitRunner,
+      cwd: opts.cwd,
+    });
   }
 
   return tickets;
