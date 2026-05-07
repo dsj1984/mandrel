@@ -303,8 +303,8 @@ wrapped in a bounded retry: on rejection the script fetches
 `origin/epic/<id>`, replays the Story merge on top of the new remote tip,
 and pushes again. Bounds:
 
-- `orchestration.closeRetry.maxAttempts` — default 3.
-- `orchestration.closeRetry.backoffMs` — default `[250, 500, 1000]`.
+- `orchestration.runners.closeRetry.maxAttempts` — default 3.
+- `orchestration.runners.closeRetry.backoffMs` — default `[250, 500, 1000]`.
 
 A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
