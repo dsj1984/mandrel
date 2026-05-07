@@ -1,5 +1,75 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260507-1114a: Wave-runner is a custom sub-agent type, not `general-purpose`
+
+**Status:** Accepted
+**Date:** 2026-05-07
+**Epic:** #1114
+**Story:** #1122
+
+### Context
+
+The orchestration topology described in tech spec #902 assumed three
+levels of in-session sub-agent fan-out: `/epic-execute` dispatches one
+`/wave-execute` per wave through the `Agent` tool, and each
+`/wave-execute` dispatches one `/story-execute` per Story in its plan.
+The design assumption was that sub-agents inherit their parent's tool
+permissions, so a `/wave-execute` invoked as a `general-purpose`
+sub-agent would itself have the `Agent` tool available for the per-Story
+fan-out.
+
+That assumption did not survive contact with the harness. During Epic
+#1072's first wave, the wave-level fan-out failed entirely: the
+`general-purpose` wave sub-agent reported that the `Agent` tool was not
+in its grant list, and the Story dispatch had to be performed by an
+ad-hoc host-driven flat fan-out instead — the host LLM emitting one
+`Agent` tool call per Story directly, bypassing `/wave-execute` entirely.
+The flat workaround loses the wave-level rollup, the parse-failure
+reconciler, and the per-wave checkpoint, so it was tagged as
+emergency-only rather than the supported architecture. Epic #1114
+re-opened the question with a Q6 probe.
+
+### Decision
+
+Define a custom sub-agent type at `.claude/agents/wave-runner.md` whose
+frontmatter declares `tools: Agent, Read, Bash, Edit, Write, Glob, Grep,
+Skill`. The `tools: Agent` line is what the harness reads to decide
+whether a sub-agent of that type carries the `Agent` tool — naming the
+tool explicitly in a per-agent config file is the supported way to grant
+nested-`Agent` capability to a sub-agent in this Claude Code release.
+`/epic-execute` Step 2 and `/wave-execute` Step 2 both dispatch via
+`subagent_type: wave-runner` rather than `general-purpose`.
+
+The host-driven flat fan-out remains documented as an emergency-only
+fallback, not the supported architecture. The probe artefact
+(`tests/wave-runner-probe.test.js`) checks that the agent file's
+frontmatter declares the required tools and explicitly skips the
+nested-`Agent` dispatch step with a clear reason when the harness is
+unreachable from `node --test` — it never silently passes.
+
+### Consequences
+
+- The three-level fan-out topology described in tech spec #902 holds: a
+  `/wave-execute` invoked as a `wave-runner` sub-agent has the `Agent`
+  tool and can dispatch its per-Story children.
+- `subagent_type: general-purpose` for wave-level dispatch is forbidden.
+  The harness-constraint section in `wave-execute.md` and the
+  cross-reference from `epic-execute.md` Step 2 spell this out so the
+  next operator does not rediscover the constraint by hitting the same
+  failure mode.
+- A future Claude Code release that disallows nested `Agent` even for
+  custom agent types would re-block this architecture. The probe test
+  is the canonical regression catcher for the artefact shape; the
+  live-dispatch verification is harness-coupled and runs implicitly the
+  next time `/wave-execute` is exercised end-to-end.
+- Story sub-agents (children of the wave-runner) are themselves
+  dispatched as `wave-runner` per Task #1137. They nominally do not
+  need the `Agent` tool — they iterate Tasks sequentially via
+  `helpers/task-execute.md` — but the extra grant is harmless and keeps
+  the topology uniform.
+
+---
+
 ## ADR 20260507-1072a: Bounded fanout, tightened module boundaries, dead-module sweep
 
 **Status:** Accepted

@@ -81,7 +81,13 @@ Stories you cannot discover deterministically.
 
 Emit **one assistant turn** containing **N parallel `Agent` tool calls**, one
 per Story in `plan`, where `N === min(plan.length, concurrencyCap)`. Use
-`subagent_type: general-purpose`. **Even when `plan.length === 1`** you still
+`subagent_type: wave-runner` — the custom agent type defined at
+`.claude/agents/wave-runner.md`. **Do not** use `subagent_type:
+general-purpose` for wave-level fan-out: that type does not have the
+`Agent` tool in this Claude Code release, so a wave child cannot in turn
+dispatch downstream Agent calls. See
+[Harness constraint](#harness-constraint--no-nested-agent-by-default)
+below for the full rationale. **Even when `plan.length === 1`** you still
 emit exactly one `Agent` call (not a direct `/story-execute` invocation) —
 this preserves the parent-child boundary, keeps the per-child non-interactive
 contract enforceable, and keeps the mode-B return parser on a uniform code
