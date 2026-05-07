@@ -119,6 +119,119 @@ describe('PlanningStateManager', () => {
     assert.ok(!epic.body.includes('## Planning Artifacts'));
   });
 
+  it('redundant-cleanup path caps in-flight close/detach mutations at 3', async () => {
+    // Build 1 canonical PRD + 8 redundant PRDs so the cleanup burst is
+    // wider than the cap. Track peak in-flight updateTicket calls.
+    const tickets = {
+      10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
+      11: {
+        id: 11,
+        title: 'Canonical PRD',
+        labels: ['context::prd'],
+        state: 'open',
+      },
+    };
+    const subList = [11];
+    for (let i = 0; i < 8; i++) {
+      const id = 100 + i;
+      tickets[id] = {
+        id,
+        title: `Redundant PRD ${i}`,
+        labels: ['context::prd'],
+        state: 'open',
+      };
+      subList.push(id);
+    }
+    const provider = new MockProvider({
+      tickets,
+      subTickets: { 10: subList },
+    });
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    const baseUpdate = provider.updateTicket.bind(provider);
+    provider.updateTicket = async (id, mutations) => {
+      inFlight++;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      await new Promise((r) => setTimeout(r, 10));
+      const result = await baseUpdate(id, mutations);
+      inFlight--;
+      return result;
+    };
+
+    const mgr = new PlanningStateManager(provider);
+    const epic = {
+      id: 10,
+      title: 'Epic',
+      body: '',
+      linkedIssues: { prd: 11, techSpec: null },
+    };
+
+    await mgr.healAndCleanupArtifacts(epic);
+
+    assert.ok(
+      peakInFlight <= 3,
+      `expected peak in-flight close mutations <= 3 but observed ${peakInFlight}`,
+    );
+    // All 8 redundant PRDs should now be closed.
+    for (let i = 0; i < 8; i++) {
+      assert.strictEqual(provider.tickets[100 + i].state, 'closed');
+    }
+    assert.strictEqual(provider.tickets[11].state, 'open');
+  });
+
+  it('force re-plan path caps in-flight close mutations at 3', async () => {
+    // 10 stale planning artifacts so the --force burst is wider than the cap.
+    const tickets = {
+      10: { id: 10, title: 'Epic', body: '', labels: ['type::epic'] },
+    };
+    const ids = [];
+    for (let i = 0; i < 10; i++) {
+      const id = 200 + i;
+      tickets[id] = {
+        id,
+        title: `Stale PRD ${i}`,
+        labels: ['context::prd'],
+        state: 'open',
+      };
+      ids.push(id);
+    }
+    const provider = new MockProvider({
+      tickets,
+      subTickets: { 10: ids },
+    });
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    const baseUpdate = provider.updateTicket.bind(provider);
+    provider.updateTicket = async (id, mutations) => {
+      inFlight++;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      await new Promise((r) => setTimeout(r, 10));
+      const result = await baseUpdate(id, mutations);
+      inFlight--;
+      return result;
+    };
+
+    const mgr = new PlanningStateManager(provider);
+    const epic = {
+      id: 10,
+      title: 'Epic',
+      body: '',
+      linkedIssues: { prd: 200, techSpec: null },
+    };
+
+    await mgr.healAndCleanupArtifacts(epic, true); // force=true
+
+    assert.ok(
+      peakInFlight <= 3,
+      `expected peak in-flight force-close mutations <= 3 but observed ${peakInFlight}`,
+    );
+    for (const id of ids) {
+      assert.strictEqual(provider.tickets[id].state, 'closed');
+    }
+  });
+
   it('idempotently appends Planning Artifacts section to body', async () => {
     const provider = new MockProvider({
       tickets: {

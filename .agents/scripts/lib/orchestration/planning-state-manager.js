@@ -7,6 +7,8 @@
  * (state_reason: 'not_planned') and detached.
  */
 
+import { concurrentMap } from '../util/concurrent-map.js';
+
 /**
  * Snapshot of the Epic's planning-artifact state as seen / mutated by
  * {@link PlanningStateManager}. Mirrors the `epic-plan-state` structured
@@ -99,8 +101,11 @@ export class PlanningStateManager {
       ...allSpecs.filter((t) => t.id !== canonicalSpecId),
     ];
 
-    await Promise.all(
-      redundant.map(async (t) => {
+    // Bound the close+detach mutation burst at 3 so wide redundancy
+    // cleanup does not race the GitHub secondary rate limit.
+    await concurrentMap(
+      redundant,
+      async (t) => {
         const successorId = t.labels.includes('context::prd')
           ? canonicalPrdId
           : canonicalSpecId;
@@ -136,7 +141,8 @@ export class PlanningStateManager {
             `[Epic Planner]   Could not detach #${t.id} (may already be detached).`,
           );
         }
-      }),
+      },
+      { concurrency: 3 },
     );
 
     // Persist healed references to the body if needed.
@@ -169,8 +175,11 @@ export class PlanningStateManager {
         console.log(
           '[Epic Planner] --force: Closing old planning artifacts...',
         );
-        await Promise.all(
-          Array.from(idsToClose).map(async (oldId) => {
+        // Bound the force-close burst at 3 so wide --force re-plans do
+        // not race the GitHub secondary rate limit.
+        await concurrentMap(
+          Array.from(idsToClose),
+          async (oldId) => {
             try {
               await this.provider.updateTicket(oldId, {
                 state: 'closed',
@@ -193,7 +202,8 @@ export class PlanningStateManager {
             } catch (_err) {
               // Safe to ignore
             }
-          }),
+          },
+          { concurrency: 3 },
         );
       }
 
