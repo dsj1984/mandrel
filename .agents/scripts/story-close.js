@@ -20,6 +20,7 @@
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
 import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix.js';
@@ -29,10 +30,7 @@ import {
   withEpicMergeLock,
 } from './lib/orchestration/story-close/merge-runner.js';
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
-import {
-  emitMaintainabilityProjection,
-  runPreMergeGates,
-} from './lib/orchestration/story-close/pre-merge-validation.js';
+import { emitMaintainabilityProjection } from './lib/orchestration/story-close/pre-merge-validation.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
 import { fetchChildTasks } from './lib/story-lifecycle.js';
 import { createPhaseTimer } from './lib/util/phase-timer.js';
@@ -48,6 +46,31 @@ export { checkCdOutGuard };
 
 const progress = Logger.createProgress('story-close', { stderr: true });
 const progressLog = (tag, msg) => progress(tag, msg);
+
+/**
+ * Format the `{ status: 'blocked' }` result returned by
+ * `runPreMergeGatesWithAttribution` into the canonical close-result envelope
+ * + console marker that `runStoryCloseLocked` returns when baseline drift
+ * is not attributable to the running Story (Story #1124).
+ */
+function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
+  const result = {
+    success: false,
+    status: 'blocked',
+    phase: 'closing',
+    reason: 'baseline-drift-not-attributable',
+    nonAttributable: gateOutcome.nonAttributable ?? [],
+    commentId: gateOutcome.commentId ?? null,
+  };
+  console.log(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  log(
+    'BLOCKED',
+    `Story #${storyId} blocked: baseline drift on ${result.nonAttributable.length} path(s) not attributable to this Story.`,
+  );
+  return result;
+}
 
 /** Orchestrate the Story closure. Exported for testing. */
 export async function runStoryClose({
@@ -184,22 +207,25 @@ async function runStoryCloseLocked({
     // a clean tree; on a dirty tree it bails out and lets the gate
     // surface the drift with the canonical hint.
     runFormatAutofix({ cwd, storyId, settings, logger: Logger });
-    // Story #1120: when a worktree exists, every gate runs against the
-    // Story branch's post-rebase tree at `.worktrees/story-<id>/`, not
-    // against whatever the main checkout's working tree happens to be.
-    // The main `cwd` still parameterizes evidence reads/writes and the
-    // MI projection's git-diff range.
-    runPreMergeGates({
+    // Story #1120: gates spawn in the worktree, not main. Story #1124:
+    // baseline-gate failures route through the attribution classifier —
+    // attributable drift auto-refreshes + retries; non-attributable posts
+    // friction + returns blocked. See baseline-attribution-wiring.js.
+    const gateOutcome = await runPreMergeGatesWithAttribution({
       cwd,
       worktreePath,
       epicBranch,
+      storyBranch,
       settings,
       storyId,
       epicId,
       useEvidence: !noEvidenceFlag,
       phaseTimer,
-      logger: Logger,
+      provider,
     });
+    if (gateOutcome?.status === 'blocked') {
+      return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
+    }
     emitMaintainabilityProjection({
       cwd,
       epicBranch,
