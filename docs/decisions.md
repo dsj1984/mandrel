@@ -1976,3 +1976,80 @@ submodule paths are internal implementation detail.
         reaching through a partially-constructed class instance to
         mutate them (the old `wm._isAgentsSubmodule = () => true`
         pattern is replaced by `ctx.isAgentsSubmodule: () => true`).
+
+## ADR 20260507-1114a: Freshness gate on decompose — fail fast on stale path references
+
+**Status:** Accepted
+**Date:** 2026-05-07
+**Epic:** #1114
+
+### Context
+
+Epic #1072 surfaced a class of decomposer hallucination that the existing
+cross-validation pass could not catch: the planner LLM referenced a code
+asset (`aggregate-phase-timings.js`) that had been deleted in a prior Epic
+but was still cited by an upstream PRD/Tech Spec excerpt. The resulting
+Task #1109 was created on GitHub, dispatched to a Story sub-agent, and
+only failed at implementation time when the agent could not find the
+file. By then the Story was already executing, the worktree was checked
+out, and the planner's mistake had to be unwound by hand
+(`state_reason: not_planned` close + Story body edit).
+
+The closing Epic for that cleanup (#1072) deferred the gate itself — the
+deleted file was patched over but the structural cause was left open.
+Story #1125 of Epic #1114 codifies the gate as a freshness check on the
+Task body and AC, run inside `validateAndNormalizeTickets` before any
+GitHub creation happens.
+
+### Decision
+
+Add `validateAcFreshness({ tickets, baseBranchRef, gitRunner })` to
+`.agents/scripts/lib/orchestration/ticket-validator.js`. The check runs
+**only** on tickets whose `type === 'task'` (Features/Stories carry
+narrative copy that routinely names docs and templates) and scans every
+`body.{goal,changes,acceptance,verify}` string plus a defensive
+top-level `acceptance` array. Path references are matched by a single
+regex anchored to three repository roots:
+`(\.agents/scripts|lib|tests)/.*\.js`. For each unique referenced path,
+the validator probes `git cat-file -e <baseBranchRef>:<path>` (existence,
+not content); a non-zero exit means the path does not exist at the Epic
+base branch tree and the planner is referencing a stale or hallucinated
+asset.
+
+When one or more probes fail the validator throws
+`ValidationError` with the offending Task slug and missing path for
+**every** miss in a single batched message — operators see the full
+remediation list in one pass rather than fixing one slug at a time. The
+gate is wired into the canonical decompose chain via
+`epic-plan-decompose.js → decomposeEpic → validateAndNormalizeTickets`,
+threading `config.baseBranch` (default `main`) through the call so each
+project's configured base branch is honoured.
+
+### Consequences
+
+*   **Decompose now fails fast** when a planner hallucinates a code
+    asset that does not exist on the Epic base branch. The failure
+    surfaces before any GitHub issue is created, so operators do not
+    have to unwind partial decompositions or close hallucinated Tasks
+    as `not_planned`.
+*   **The validator's signature is a no-op opt-in.** Callers that omit
+    `opts.baseBranchRef` (legacy unit tests, ad-hoc replays without a
+    git context) keep their pre-1114 semantics — the freshness clause
+    is skipped entirely. Production decompose always passes the ref so
+    the gate is on by default in the live path.
+*   **Regex bounds are intentional.** The three roots
+    (`.agents/scripts`, `lib`, `tests`) cover the executable surface
+    that decomposer Tasks legitimately edit. Docs (`docs/`), baselines
+    (`baselines/`), and fixture data are deliberately out of scope —
+    they change frequently and a planner naming a docs path is not a
+    structural failure mode worth blocking the decompose pass on.
+*   **Probe results are cached per path** within a single decompose
+    run. Sibling Tasks that cite the same helper module hit the cache
+    instead of re-spawning git, keeping the gate's overhead linear in
+    the number of unique referenced paths rather than in the number of
+    Tasks.
+*   **Story #1089's body was edited as a side cleanup** (Task #1139)
+    so a future re-decompose pass against that Story does not re-cut a
+    structurally impossible Task. The bullet citing the deleted
+    aggregator script is gone; a follow-on note in the Story body
+    records the `not_planned` closure of Task #1109 under Epic #1072.
