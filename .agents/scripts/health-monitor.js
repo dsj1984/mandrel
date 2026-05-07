@@ -5,6 +5,7 @@ import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners } from './lib/config/runners.js';
+import { epicArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
@@ -15,8 +16,15 @@ import { createProvider } from './lib/provider-factory.js';
 
 const STATE_SCHEMA_VERSION = 1;
 
-function stateFilePath(epicId, projectRoot) {
-  return path.join(projectRoot, 'temp', `health-monitor-state-${epicId}.json`);
+/**
+ * Per-Epic cadence state path (Epic #1030 Story #1040 / Task #1054).
+ * Migrated from `temp/health-monitor-state-<eid>.json` to
+ * `temp/epic-<eid>/health-monitor-state.json` so every Epic-scoped
+ * artifact lives under a single tree.
+ */
+function stateFilePath(epicId, projectRoot, config) {
+  const rel = epicArtifactPath(epicId, 'health-monitor-state.json', config);
+  return path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
 }
 
 function readState(epicId, projectRoot) {
@@ -66,13 +74,12 @@ function writeState(epicId, projectRoot, state) {
  * pre-Epic-#773 manifest layout). Wave-boundary cadence falls open in that
  * case.
  */
-function readStoryWaveFromManifest(epicId, storyId, projectRoot) {
+function readStoryWaveFromManifest(epicId, storyId, projectRoot, config) {
   if (!Number.isInteger(storyId) || storyId <= 0) return null;
-  const manifestPath = path.join(
-    projectRoot,
-    'temp',
-    `dispatch-manifest-${epicId}.json`,
-  );
+  // Per-Epic layout (Epic #1030 Story #1040): manifest moved from
+  // `temp/dispatch-manifest-<eid>.json` to `temp/epic-<eid>/manifest.json`.
+  const rel = epicArtifactPath(epicId, 'manifest.json', config);
+  const manifestPath = path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
   try {
     const raw = fs.readFileSync(manifestPath, 'utf8');
     const manifest = JSON.parse(raw);

@@ -1,14 +1,24 @@
 /**
  * manifest-persistence.js
  *
- * File I/O for dispatch / story manifests. All fs writes land in `temp/`
- * (relative to the project root). The formatter is injected so this module is
- * testable against a tmpdir without touching the real filesystem layout.
+ * File I/O for dispatch / story manifests. All fs writes land under the
+ * per-Epic tree (`temp/epic-<id>/manifest.{md,json}` for Epic dispatch
+ * manifests; `temp/epic-<id>/story-<sid>/manifest.{md,json}` for Story
+ * execution manifests — see Epic #1030 Story #1040 / Task #1053). The
+ * formatter is injected so this module is testable against a tmpdir
+ * without touching the real filesystem layout.
+ *
+ * Story manifests with multiple stories that span Epic IDs (rare —
+ * happens only when the dispatcher is run against a hand-rolled cohort)
+ * fall back to the first story's epicId. Manifests with no resolvable
+ * epicId resolve to the legacy flat layout (`temp/story-manifest-*`)
+ * which is still understood by downstream cleanup paths.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { epicArtifactPath, storyArtifactPath } from '../config/temp-paths.js';
 import { resolveConfig } from '../config-resolver.js';
 import {
   formatManifestMarkdown,
@@ -53,19 +63,60 @@ function atomicWrite(finalPath, content) {
  */
 export function persistManifest(manifest, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
-  const manifestDir = path.join(projectRoot, 'temp');
+  // Resolve config once so `epicArtifactPath` / `storyArtifactPath`
+  // honour any `agentSettings.paths.tempRoot` override. Settings can
+  // also be threaded via `opts.settings` (story-init does this to
+  // avoid a redundant resolve).
+  const resolved = opts.settings
+    ? { settings: opts.settings }
+    : safeResolveConfig(projectRoot);
+  const tempPathsConfig = resolved;
 
   let jsonPath = null;
   let mdPath = null;
 
   if (manifest.type === 'story-execution') {
-    const key = (manifest.stories ?? []).map((s) => s.storyId).join('-');
-    jsonPath = path.join(manifestDir, `story-manifest-${key}.json`);
-    mdPath = path.join(manifestDir, `story-manifest-${key}.md`);
+    // Story manifests live under `temp/epic-<eid>/story-<sid>/`. When the
+    // manifest carries multiple stories, fall back to the first entry's
+    // epicId for the directory key (the dispatcher only ever bundles
+    // stories that share an Epic; the multi-Epic case is a hand-rolled
+    // cohort we tolerate but don't optimise for). Stories with no
+    // resolvable epicId fall through to the legacy flat layout so
+    // downstream cleanup paths keep finding them.
+    const stories = manifest.stories ?? [];
+    const epicId = stories.find((s) => s?.epicId)?.epicId;
+    const key = stories.map((s) => s.storyId).join('-');
+    if (epicId && stories.length === 1 && stories[0]?.storyId) {
+      const sid = stories[0].storyId;
+      const rel = storyArtifactPath(
+        epicId,
+        sid,
+        'manifest.json',
+        tempPathsConfig,
+      );
+      const relMd = storyArtifactPath(
+        epicId,
+        sid,
+        'manifest.md',
+        tempPathsConfig,
+      );
+      jsonPath = path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
+      mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
+    } else {
+      // Legacy flat layout — preserved as a safety net for multi-story
+      // manifests where the per-story dirs would collide.
+      const legacyDir = path.join(projectRoot, 'temp');
+      jsonPath = path.join(legacyDir, `story-manifest-${key}.json`);
+      mdPath = path.join(legacyDir, `story-manifest-${key}.md`);
+    }
   } else if (manifest.epicId) {
     const epicId = manifest.epicId;
-    jsonPath = path.join(manifestDir, `dispatch-manifest-${epicId}.json`);
-    mdPath = path.join(manifestDir, `dispatch-manifest-${epicId}.md`);
+    const relJson = epicArtifactPath(epicId, 'manifest.json', tempPathsConfig);
+    const relMd = epicArtifactPath(epicId, 'manifest.md', tempPathsConfig);
+    jsonPath = path.isAbsolute(relJson)
+      ? relJson
+      : path.join(projectRoot, relJson);
+    mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
   } else {
     return { persisted: false, path: null, error: null };
   }
@@ -75,18 +126,33 @@ export function persistManifest(manifest, opts = {}) {
     const mdContent =
       manifest.type === 'story-execution'
         ? formatStoryManifestMarkdown(manifest, {
-            settings:
-              opts.settings ?? resolveConfig({ cwd: projectRoot }).settings,
+            settings: opts.settings ?? resolved.settings,
           })
         : formatManifestMarkdown(manifest);
 
-    if (!fs.existsSync(manifestDir)) {
-      fs.mkdirSync(manifestDir, { recursive: true });
-    }
+    // Ensure both parent directories exist (`temp/epic-<id>/` and
+    // optionally the per-Story sub-tree). `recursive: true` is a no-op
+    // when the dir already exists.
+    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
+    fs.mkdirSync(path.dirname(mdPath), { recursive: true });
     atomicWrite(jsonPath, jsonContent);
     atomicWrite(mdPath, mdContent);
     return { persisted: true, path: jsonPath, error: null };
   } catch (err) {
     return { persisted: false, path: jsonPath, error: err.message };
+  }
+}
+
+/**
+ * `resolveConfig` throws when no `.agentrc.json` is loadable from `cwd`
+ * (zero-config callers — unit tests). Persistence treats that as a
+ * benign condition: the helpers fall back to the framework default
+ * (`tempRoot=temp`) when the config bag is absent.
+ */
+function safeResolveConfig(projectRoot) {
+  try {
+    return resolveConfig({ cwd: projectRoot });
+  } catch {
+    return { settings: undefined };
   }
 }

@@ -81,7 +81,7 @@ and title. Close or re-dispatch the outstanding work before re-running
 `/epic-close`. Pass `--allow-parked` / `--allow-open-recuts` to waive once
 the operator has deliberately deferred the follow-on work.
 
-> If `temp/dispatch-manifest-<epicId>.{md,json}` has drifted or was lost,
+> If `temp/epic-<epicId>/manifest.{md,json}` has drifted or was lost,
 > regenerate it from the structured comment (the SSOT) via:
 >
 > ```powershell

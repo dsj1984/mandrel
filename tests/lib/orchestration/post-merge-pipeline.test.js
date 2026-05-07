@@ -505,7 +505,39 @@ describe('healthMonitorPhase / dashboardRefreshPhase / notificationPhase', () =>
 });
 
 describe('tempCleanupPhase', () => {
-  it('attempts to unlink both .md and .json manifests and ignores ENOENT', async () => {
+  it('sweeps per-Epic + legacy paths and ignores ENOENT', async () => {
+    const attempted = [];
+    await tempCleanupPhase({
+      storyId: 100,
+      epicId: 200,
+      projectRoot: '/repo',
+      progress: () => {},
+      unlinkFn: async (p) => {
+        attempted.push(p);
+        // ENOENT on every path — none exist yet.
+        const err = new Error('ENOENT');
+        err.code = 'ENOENT';
+        throw err;
+      },
+    });
+    // Per-Epic: epic-200/story-100/manifest.{md,json} (2)
+    // Legacy:   story-manifest-100.{md,json} (2)
+    assert.equal(attempted.length, 4);
+    assert.ok(
+      attempted.some((p) =>
+        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.md'),
+      ),
+    );
+    assert.ok(
+      attempted.some((p) =>
+        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.json'),
+      ),
+    );
+    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));
+    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.json')));
+  });
+
+  it('skips per-Epic targets when epicId is unknown', async () => {
     const attempted = [];
     await tempCleanupPhase({
       storyId: 100,
@@ -513,15 +545,10 @@ describe('tempCleanupPhase', () => {
       progress: () => {},
       unlinkFn: async (p) => {
         attempted.push(p);
-        if (p.endsWith('.md')) {
-          const err = new Error('ENOENT');
-          err.code = 'ENOENT';
-          throw err;
-        }
       },
     });
+    // No epicId → only legacy flat layout.
     assert.equal(attempted.length, 2);
-    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));
-    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.json')));
+    assert.ok(attempted.every((p) => !p.includes('epic-')));
   });
 });

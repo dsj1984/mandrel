@@ -7,17 +7,20 @@
  * emits `[warn]` and proceeds without blocking.
  *
  * The loader prefers the on-disk artifact at
- * `<projectRoot>/temp/dispatch-manifest-<epicId>.json` because it carries
- * the full `storyManifest` (task ids, task statuses, task-level deps). It
- * falls back to the `dispatch-manifest` structured comment on the Epic
- * issue, whose JSON block only carries a summary (`storyId`, `wave`,
- * `title`); in that degraded mode the guard switches to a wave-based
- * approximation — any Story at an earlier `earliestWave` is treated as a
- * potential blocker.
+ * `<projectRoot>/temp/epic-<epicId>/manifest.json` (per-Epic layout —
+ * Epic #1030 Story #1040 / Task #1054, migrated from the legacy
+ * `temp/dispatch-manifest-<epicId>.json` flat path) because it carries
+ * the full `storyManifest` (task ids, task statuses, task-level deps).
+ * It falls back to the `dispatch-manifest` structured comment on the
+ * Epic issue, whose JSON block only carries a summary (`storyId`,
+ * `wave`, `title`); in that degraded mode the guard switches to a
+ * wave-based approximation — any Story at an earlier `earliestWave` is
+ * treated as a potential blocker.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { epicArtifactPath } from '../config/temp-paths.js';
 import { findStructuredComment } from '../orchestration/ticketing.js';
 
 const DONE_LABEL = 'agent::done';
@@ -67,11 +70,10 @@ export async function loadDispatchManifest({
     return { ok: false, reason: 'invalid-project-root' };
   }
 
-  const diskPath = path.join(
-    projectRoot,
-    'temp',
-    `dispatch-manifest-${epicId}.json`,
-  );
+  // Per-Epic layout (Epic #1030 Story #1040): manifest moved from
+  // `temp/dispatch-manifest-<eid>.json` to `temp/epic-<eid>/manifest.json`.
+  const rel = epicArtifactPath(epicId, 'manifest.json');
+  const diskPath = path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
 
   if (fsImpl.existsSync(diskPath)) {
     try {

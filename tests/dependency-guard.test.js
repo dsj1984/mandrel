@@ -209,7 +209,9 @@ test('loadDispatchManifest — reads on-disk manifest when present', async () =>
     storyManifest: [{ storyId: 200, earliestWave: 1, tasks: [] }],
   };
   const projectRoot = '/repo';
-  const diskPath = '/repo/temp/dispatch-manifest-668.json'.replace(
+  // Per-Epic layout (Epic #1030 Story #1040): manifest path moved from
+  // `temp/dispatch-manifest-<eid>.json` to `temp/epic-<eid>/manifest.json`.
+  const diskPath = '/repo/temp/epic-668/manifest.json'.replace(
     /\//g,
     process.platform === 'win32' ? '\\' : '/',
   );

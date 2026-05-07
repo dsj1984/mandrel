@@ -112,20 +112,34 @@ export async function generateAndSaveManifest(
   }
 
   if (manifest.type === 'story-execution') {
-    const key = manifest.stories.map((s) => s.storyId).join('-');
-    console.log(
-      `\n[Dispatcher] ✅ Story manifest: temp/story-manifest-${key}.json`,
-    );
-    console.log(`[Dispatcher] 📄 Markdown: temp/story-manifest-${key}.md\n`);
+    // Per-Epic layout (Epic #1030 Story #1040): single-story manifests
+    // land at `temp/epic-<eid>/story-<sid>/manifest.{md,json}`. Multi-
+    // story cohorts fall back to the legacy flat path; surface that in
+    // the log so operators tracking the cutover see the divergence.
+    const stories = manifest.stories ?? [];
+    const eid = stories.find((s) => s?.epicId)?.epicId;
+    if (eid && stories.length === 1) {
+      const sid = stories[0].storyId;
+      console.log(
+        `\n[Dispatcher] ✅ Story manifest: temp/epic-${eid}/story-${sid}/manifest.json`,
+      );
+      console.log(
+        `[Dispatcher] 📄 Markdown: temp/epic-${eid}/story-${sid}/manifest.md\n`,
+      );
+    } else {
+      const key = stories.map((s) => s.storyId).join('-');
+      console.log(
+        `\n[Dispatcher] ✅ Story manifest: temp/story-manifest-${key}.json`,
+      );
+      console.log(`[Dispatcher] 📄 Markdown: temp/story-manifest-${key}.md\n`);
+    }
     // Omit console dump for brevity
   } else {
     const epicId = manifest.epicId;
     console.log(
-      `\n[Dispatcher] ✅ Manifest: temp/dispatch-manifest-${epicId}.json`,
+      `\n[Dispatcher] ✅ Manifest: temp/epic-${epicId}/manifest.json`,
     );
-    console.log(
-      `[Dispatcher] 📄 Markdown: temp/dispatch-manifest-${epicId}.md`,
-    );
+    console.log(`[Dispatcher] 📄 Markdown: temp/epic-${epicId}/manifest.md`);
     console.log(
       `[Dispatcher] Progress: ${manifest.summary.doneTasks}/${manifest.summary.totalTasks} tasks done (${manifest.summary.progressPercent}%)`,
     );

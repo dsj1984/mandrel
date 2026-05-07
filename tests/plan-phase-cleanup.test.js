@@ -7,17 +7,21 @@ import {
 } from '../.agents/scripts/lib/plan-phase-cleanup.js';
 
 describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
-  it('interpolates the epic id into every spec-phase path', () => {
+  it('returns per-Epic paths under temp/epic-<id>/ for the spec phase', () => {
     const paths = resolvePhaseTempPaths('spec', 441, '/repo');
     assert.equal(paths.length, PHASE_TEMP_PATHS.spec.length);
-    assert.ok(paths.every((p) => p.includes('441')));
-    assert.ok(paths.some((p) => p.endsWith('prd-epic-441.md')));
+    assert.ok(paths.every((p) => p.includes('epic-441')));
+    assert.ok(paths.some((p) => p.endsWith('prd.md')));
+    assert.ok(paths.some((p) => p.endsWith('techspec.md')));
+    assert.ok(paths.some((p) => p.endsWith('planner-context.json')));
   });
 
-  it('interpolates the epic id into every decompose-phase path', () => {
+  it('returns per-Epic paths under temp/epic-<id>/ for the decompose phase', () => {
     const paths = resolvePhaseTempPaths('decompose', 7, '/repo');
     assert.equal(paths.length, PHASE_TEMP_PATHS.decompose.length);
-    assert.ok(paths.some((p) => p.endsWith('tickets-epic-7.json')));
+    assert.ok(paths.every((p) => p.includes('epic-7')));
+    assert.ok(paths.some((p) => p.endsWith('tickets.json')));
+    assert.ok(paths.some((p) => p.endsWith('decomposer-context.json')));
   });
 
   it('throws on an unknown phase', () => {
@@ -33,8 +37,8 @@ describe('plan-phase-cleanup.cleanupPhaseTempFiles', () => {
     const unlinked = [];
     const fakeUnlink = async (p) => {
       unlinked.push(p);
-      if (p.endsWith('prd-epic-1.md')) return; // success
-      if (p.endsWith('techspec-epic-1.md')) {
+      if (p.endsWith('prd.md')) return; // success
+      if (p.endsWith('techspec.md')) {
         const err = new Error('ENOENT');
         err.code = 'ENOENT';
         throw err;
