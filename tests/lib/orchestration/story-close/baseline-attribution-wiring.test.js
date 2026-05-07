@@ -3,10 +3,10 @@ import { describe, it } from 'node:test';
 import {
   computeStoryDiffPaths,
   handleBaselineGateFailure,
+  runPreMergeGatesWithAttribution,
   runRefreshCommit,
 } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { renderBaselineFrictionBody } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-friction-body.js';
-import { runPreMergeGatesWithAttribution } from '../../../../.agents/scripts/story-close.js';
 
 /**
  * Story #1124 / Task #1134 — wiring tests.
@@ -310,7 +310,7 @@ describe('computeStoryDiffPaths', () => {
 describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
   it('retries the gate chain once after a successful auto-refresh and returns ok', async () => {
     let preMergeAttempts = 0;
-    const runPreMergeGatesFn = () => {
+    const runPreMergeGates = () => {
       preMergeAttempts += 1;
       if (preMergeAttempts === 1) {
         const err = new Error(
@@ -324,13 +324,8 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       assert.equal(gateName, 'check-maintainability');
       return { action: 'refreshed', sha: 'feed4242' };
     };
-    const projectRegressionsFn = () => ({
-      ok: false,
-      regressions: [{ path: 'lib/x.js' }],
-    });
-    const getBaselinesFn = () => ({
-      maintainability: { path: 'baselines/maintainability.json' },
-    });
+    const projectRegressionsFn = ({ gateName }) =>
+      gateName === 'check-maintainability' ? [{ path: 'lib/x.js' }] : [];
     const result = await runPreMergeGatesWithAttribution({
       cwd: '/repo',
       worktreePath: '/repo/.worktrees/story-1124',
@@ -341,10 +336,9 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       epicId: 1114,
       useEvidence: false,
       provider: {},
-      runPreMergeGatesFn,
+      runPreMergeGates,
       handleBaselineGateFailureFn,
       projectRegressionsFn,
-      getBaselinesFn,
     });
     assert.equal(result.status, 'ok');
     assert.equal(preMergeAttempts, 2);
@@ -352,7 +346,7 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
 
   it('returns blocked when handleBaselineGateFailure reports blocked (no retry)', async () => {
     let preMergeAttempts = 0;
-    const runPreMergeGatesFn = () => {
+    const runPreMergeGates = () => {
       preMergeAttempts += 1;
       throw new Error(
         'Pre-merge validation failed at "check-maintainability" (exit 1) in /repo.',
@@ -375,14 +369,9 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       epicId: 1114,
       useEvidence: false,
       provider: {},
-      runPreMergeGatesFn,
+      runPreMergeGates,
       handleBaselineGateFailureFn,
-      projectRegressionsFn: () => ({
-        regressions: [{ path: 'lib/sibling.js' }],
-      }),
-      getBaselinesFn: () => ({
-        maintainability: { path: 'baselines/maintainability.json' },
-      }),
+      projectRegressionsFn: () => [{ path: 'lib/sibling.js' }],
     });
     assert.equal(result.status, 'blocked');
     assert.equal(preMergeAttempts, 1);
@@ -391,7 +380,7 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
   });
 
   it('rethrows the original gate error on action: rethrow (non-baseline failures stay loud)', async () => {
-    const runPreMergeGatesFn = () => {
+    const runPreMergeGates = () => {
       throw new Error(
         'Pre-merge validation failed at "lint" (exit 1) in /repo.',
       );
@@ -408,12 +397,9 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
         epicId: 1114,
         useEvidence: false,
         provider: {},
-        runPreMergeGatesFn,
+        runPreMergeGates,
         handleBaselineGateFailureFn,
-        projectRegressionsFn: () => ({ regressions: [] }),
-        getBaselinesFn: () => ({
-          maintainability: { path: 'baselines/maintainability.json' },
-        }),
+        projectRegressionsFn: () => [],
       }),
       /failed at "lint"/,
     );

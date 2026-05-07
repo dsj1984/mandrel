@@ -27,10 +27,14 @@
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
+import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
+import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
+import { Logger as DefaultLogger } from '../../Logger.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../ticketing.js';
 import { classifyBaselineDrift as defaultClassifyBaselineDrift } from './baseline-attribution.js';
 import { renderBaselineFrictionBody as defaultRenderBaselineFrictionBody } from './baseline-friction-body.js';
+import { runPreMergeGates as defaultRunPreMergeGates } from './pre-merge-validation.js';
 
 /**
  * Map gate names → metadata used to project regressions and refresh the
@@ -256,3 +260,150 @@ export async function handleBaselineGateFailure({
 }
 
 export { DEFAULT_GATE_REGISTRY };
+
+/**
+ * Project the regression rows for the failed gate. Today only
+ * `check-maintainability` has a projection helper (`projectMaintainabilityRegressions`);
+ * `check-crap` falls through with an empty rows list, which makes
+ * `handleBaselineGateFailure` re-throw — the existing crap hint chain still
+ * surfaces.
+ *
+ * Exported so tests can pin the dispatch table without spawning `git`.
+ *
+ * @returns {Array<{ path: string }>}
+ */
+export function projectRegressionsForGate({
+  gateName,
+  cwd,
+  epicBranch,
+  storyBranch,
+  settings,
+  projectMaintainability = defaultProjectMaintainabilityRegressions,
+  getBaselines = defaultGetBaselines,
+}) {
+  if (gateName !== 'check-maintainability') return [];
+  const baselinePath = getBaselines({ agentSettings: settings })
+    ?.maintainability?.path;
+  if (!baselinePath) return [];
+  const projection = projectMaintainability({
+    cwd,
+    epicBranch,
+    storyBranch,
+    baselinePath,
+  });
+  return projection?.regressions ?? [];
+}
+
+/**
+ * Wrap `runPreMergeGates` with the Story #1124 baseline-attribution flow.
+ *
+ * On a baseline-gate failure (`check-maintainability` today; the registry
+ * also covers `check-crap`) we project the regressions, classify them
+ * against the Story's diff vs `epic/<id>`, and either:
+ *
+ *   - `refreshed` → attributable-only drift; the helper committed
+ *     `baseline-refresh: ...` on the Story branch. We re-run the gate
+ *     chain once (bounded retry) so the rest of the close sees a green
+ *     pre-merge.
+ *   - `blocked`   → at least one path the Story never touched failed.
+ *     We've upserted a friction comment on the Story; return so
+ *     `runStoryCloseLocked` short-circuits the close.
+ *   - `rethrow`   → non-baseline gate, empty regressions, or refresh
+ *     command itself failed. Re-throw the original gate error so the
+ *     close fails loudly the way it always has.
+ *
+ * @returns {Promise<
+ *   | { status: 'ok' }
+ *   | { status: 'blocked', nonAttributable: Array, commentId: string|number|null }
+ * >}
+ */
+export async function runPreMergeGatesWithAttribution({
+  cwd,
+  worktreePath,
+  epicBranch,
+  storyBranch,
+  settings,
+  storyId,
+  epicId,
+  useEvidence,
+  phaseTimer,
+  provider,
+  // Injected for tests — production callers omit these.
+  runPreMergeGates = defaultRunPreMergeGates,
+  handleBaselineGateFailureFn = handleBaselineGateFailure,
+  projectRegressionsFn = projectRegressionsForGate,
+  logger = DefaultLogger,
+  maxAttempts = 2,
+} = {}) {
+  let attempt = 0;
+  // The worktree path is where every gate spawns + where attribution
+  // commits land. When worktree isolation is off, the helper still
+  // works against the main checkout via `cwd`.
+  const gateCwd = worktreePath || cwd;
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    try {
+      runPreMergeGates({
+        cwd,
+        worktreePath,
+        epicBranch,
+        settings,
+        storyId,
+        epicId,
+        useEvidence,
+        phaseTimer,
+        logger,
+      });
+      return { status: 'ok' };
+    } catch (err) {
+      const m = /failed at "([^"]+)"/.exec(err?.message ?? '');
+      const gateName = m ? m[1] : null;
+      const regressions = projectRegressionsFn({
+        gateName,
+        cwd: gateCwd,
+        epicBranch,
+        storyBranch,
+        settings,
+      });
+      const outcome = await handleBaselineGateFailureFn({
+        gateName,
+        regressions,
+        cwd: gateCwd,
+        epicBranch,
+        storyBranch,
+        storyId,
+        epicId,
+        provider,
+      });
+      if (outcome.action === 'refreshed') {
+        logger.info?.(
+          `[baseline-attribution-wiring] baseline-refresh committed (${outcome.sha}); re-running pre-merge gates.`,
+        );
+        continue;
+      }
+      if (outcome.action === 'blocked') {
+        return {
+          status: 'blocked',
+          nonAttributable: outcome.nonAttributable ?? [],
+          commentId: outcome.commentId ?? null,
+        };
+      }
+      // 'rethrow' — and any unexpected action — surfaces the original error.
+      throw err;
+    }
+  }
+  // Two attempts still failing → re-run so the throw propagates with the
+  // canonical hint.
+  runPreMergeGates({
+    cwd,
+    worktreePath,
+    epicBranch,
+    settings,
+    storyId,
+    epicId,
+    useEvidence,
+    phaseTimer,
+    logger,
+  });
+  return { status: 'ok' };
+}

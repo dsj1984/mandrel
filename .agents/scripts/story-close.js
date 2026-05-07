@@ -18,10 +18,9 @@
  */
 
 import { runAsCli } from './lib/cli-utils.js';
-import { projectMaintainabilityRegressions } from './lib/close-validation.js';
-import { getBaselines, PROJECT_ROOT } from './lib/config-resolver.js';
+import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { handleBaselineGateFailure } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
+import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
 import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix.js';
@@ -31,10 +30,7 @@ import {
   withEpicMergeLock,
 } from './lib/orchestration/story-close/merge-runner.js';
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
-import {
-  emitMaintainabilityProjection,
-  runPreMergeGates,
-} from './lib/orchestration/story-close/pre-merge-validation.js';
+import { emitMaintainabilityProjection } from './lib/orchestration/story-close/pre-merge-validation.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
 import { fetchChildTasks } from './lib/story-lifecycle.js';
 import { createPhaseTimer } from './lib/util/phase-timer.js';
@@ -52,126 +48,28 @@ const progress = Logger.createProgress('story-close', { stderr: true });
 const progressLog = (tag, msg) => progress(tag, msg);
 
 /**
- * Wrap `runPreMergeGates` with the Story #1124 baseline-attribution flow.
- *
- * On a baseline-gate failure (`check-maintainability` today; the registry
- * also covers `check-crap`) we project the regressions, classify them
- * against the Story's diff vs `epic/<id>`, and either:
- *
- *   - `refreshed` → attributable-only drift; the helper committed
- *     `baseline-refresh: ...` on the Story branch. We re-run the gate
- *     chain once (bounded retry) so the rest of the close sees a green
- *     pre-merge.
- *   - `blocked`   → at least one path the Story never touched failed.
- *     We've upserted a friction comment on the Story; return so
- *     `runStoryCloseLocked` short-circuits the close.
- *   - `rethrow`   → non-baseline gate, empty regressions, or refresh
- *     command itself failed. Re-throw the original gate error so the
- *     close fails loudly the way it always has.
- *
- * Exported for `tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js`.
- *
- * @returns {Promise<{ status: 'ok' } | { status: 'blocked', nonAttributable: Array, commentId: string|number|null }>}
+ * Format the `{ status: 'blocked' }` result returned by
+ * `runPreMergeGatesWithAttribution` into the canonical close-result envelope
+ * + console marker that `runStoryCloseLocked` returns when baseline drift
+ * is not attributable to the running Story (Story #1124).
  */
-export async function runPreMergeGatesWithAttribution({
-  cwd,
-  worktreePath,
-  epicBranch,
-  storyBranch,
-  settings,
-  storyId,
-  epicId,
-  useEvidence,
-  phaseTimer,
-  provider,
-  // Injected for tests — production callers omit these.
-  runPreMergeGatesFn = runPreMergeGates,
-  handleBaselineGateFailureFn = handleBaselineGateFailure,
-  projectRegressionsFn = projectMaintainabilityRegressions,
-  getBaselinesFn = getBaselines,
-  maxAttempts = 2,
-} = {}) {
-  let attempt = 0;
-  // The worktree path is where every gate spawns + where attribution
-  // commits land. When worktree isolation is off, the helper still
-  // works against the main checkout via `cwd`.
-  const gateCwd = worktreePath || cwd;
-  while (attempt < maxAttempts) {
-    attempt += 1;
-    try {
-      runPreMergeGatesFn({
-        cwd,
-        worktreePath,
-        epicBranch,
-        settings,
-        storyId,
-        epicId,
-        useEvidence,
-        phaseTimer,
-        logger: Logger,
-      });
-      return { status: 'ok' };
-    } catch (err) {
-      // Best-effort gate-name extraction from the canonical error message
-      // shape `Pre-merge validation failed at "<gate>" (exit <n>)…`. If we
-      // can't parse it the wiring re-throws unchanged.
-      const m = /failed at "([^"]+)"/.exec(err?.message ?? '');
-      const gateName = m ? m[1] : null;
-      let regressions = [];
-      if (gateName === 'check-maintainability') {
-        const baselinePath = getBaselinesFn({ agentSettings: settings })
-          ?.maintainability?.path;
-        if (baselinePath) {
-          const projection = projectRegressionsFn({
-            cwd: gateCwd,
-            epicBranch,
-            storyBranch,
-            baselinePath,
-          });
-          regressions = projection?.regressions ?? [];
-        }
-      }
-      const outcome = await handleBaselineGateFailureFn({
-        gateName,
-        regressions,
-        cwd: gateCwd,
-        epicBranch,
-        storyBranch,
-        storyId,
-        epicId,
-        provider,
-      });
-      if (outcome.action === 'refreshed') {
-        Logger.info?.(
-          `[story-close] baseline-refresh committed (${outcome.sha}); re-running pre-merge gates.`,
-        );
-        continue;
-      }
-      if (outcome.action === 'blocked') {
-        return {
-          status: 'blocked',
-          nonAttributable: outcome.nonAttributable ?? [],
-          commentId: outcome.commentId ?? null,
-        };
-      }
-      // 'rethrow' — and any unexpected action — surfaces the original error.
-      throw err;
-    }
-  }
-  // Two attempts and still failing → re-run the gate one last time so its
-  // throw propagates with the canonical hint.
-  runPreMergeGatesFn({
-    cwd,
-    worktreePath,
-    epicBranch,
-    settings,
-    storyId,
-    epicId,
-    useEvidence,
-    phaseTimer,
-    logger: Logger,
-  });
-  return { status: 'ok' };
+function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
+  const result = {
+    success: false,
+    status: 'blocked',
+    phase: 'closing',
+    reason: 'baseline-drift-not-attributable',
+    nonAttributable: gateOutcome.nonAttributable ?? [],
+    commentId: gateOutcome.commentId ?? null,
+  };
+  console.log(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  log(
+    'BLOCKED',
+    `Story #${storyId} blocked: baseline drift on ${result.nonAttributable.length} path(s) not attributable to this Story.`,
+  );
+  return result;
 }
 
 /** Orchestrate the Story closure. Exported for testing. */
@@ -309,19 +207,10 @@ async function runStoryCloseLocked({
     // a clean tree; on a dirty tree it bails out and lets the gate
     // surface the drift with the canonical hint.
     runFormatAutofix({ cwd, storyId, settings, logger: Logger });
-    // Story #1120: when a worktree exists, every gate runs against the
-    // Story branch's post-rebase tree at `.worktrees/story-<id>/`, not
-    // against whatever the main checkout's working tree happens to be.
-    // The main `cwd` still parameterizes evidence reads/writes and the
-    // MI projection's git-diff range.
-    //
-    // Story #1124: a baseline-gate failure is routed through the
-    // attribution classifier — drift on Story-touched paths auto-refreshes
-    // with a `baseline-refresh: ...` commit on the Story branch and the
-    // gate chain is re-run; drift on un-touched paths posts a friction
-    // comment naming the suspect sibling Story and short-circuits the
-    // close as `{ status: 'blocked', phase: 'closing' }`. Non-baseline
-    // gate failures (typecheck, lint, test, format) re-throw unchanged.
+    // Story #1120: gates spawn in the worktree, not main. Story #1124:
+    // baseline-gate failures route through the attribution classifier —
+    // attributable drift auto-refreshes + retries; non-attributable posts
+    // friction + returns blocked. See baseline-attribution-wiring.js.
     const gateOutcome = await runPreMergeGatesWithAttribution({
       cwd,
       worktreePath,
@@ -335,22 +224,7 @@ async function runStoryCloseLocked({
       provider,
     });
     if (gateOutcome?.status === 'blocked') {
-      const blockedResult = {
-        success: false,
-        status: 'blocked',
-        phase: 'closing',
-        reason: 'baseline-drift-not-attributable',
-        nonAttributable: gateOutcome.nonAttributable ?? [],
-        commentId: gateOutcome.commentId ?? null,
-      };
-      console.log(
-        `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(blockedResult, null, 2)}\n--- END RESULT ---\n`,
-      );
-      progress(
-        'BLOCKED',
-        `Story #${storyId} blocked: baseline drift on ${blockedResult.nonAttributable.length} path(s) not attributable to this Story.`,
-      );
-      return blockedResult;
+      return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
     }
     emitMaintainabilityProjection({
       cwd,
