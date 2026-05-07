@@ -49,6 +49,7 @@ import { TYPE_LABELS } from './lib/label-constants.js';
 import { toDone } from './lib/orchestration/label-transitions.js';
 import { postStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { concurrentMap } from './lib/util/concurrent-map.js';
 import { forceDrainPendingCleanup } from './lib/worktree/lifecycle/force-drain.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
 
@@ -136,7 +137,11 @@ function logSkipOverrides({ skipRetro, skipCodeReview, fullRetro }) {
  * that belong to the Epic. Per-ticket failures are isolated so a misbehaving
  * auxiliary ticket never discards progress on its siblings.
  */
-async function phaseFinalizeAuxiliaryTickets(provider, epicId, warnings) {
+export async function phaseFinalizeAuxiliaryTickets(
+  provider,
+  epicId,
+  warnings,
+) {
   try {
     progress(
       'CONTEXT',
@@ -168,8 +173,14 @@ async function phaseFinalizeAuxiliaryTickets(provider, epicId, warnings) {
       return;
     }
 
-    await Promise.all(
-      auxiliaryTickets.map(async (ticket) => {
+    // Bound the auxiliary-ticket close burst at 3 so a wide PRD / Tech
+    // Spec / Sprint Health fan-out at Epic close does not race the GitHub
+    // secondary rate limit. Per-item failures still land in `warnings[]`
+    // — concurrentMap only short-circuits on a thrown rejection, and the
+    // catch-block above swallows individual failures into warnings.
+    await concurrentMap(
+      auxiliaryTickets,
+      async (ticket) => {
         if (ticket.state === 'closed') return;
 
         const kind =
@@ -192,7 +203,8 @@ async function phaseFinalizeAuxiliaryTickets(provider, epicId, warnings) {
             `⚠️ Warning: Failed to close ${kind} #${ticket.id}: ${err.message}`,
           );
         }
-      }),
+      },
+      { concurrency: 3 },
     );
   } catch (err) {
     warnings.push(`auxiliary ticket enumeration: ${err.message}`);

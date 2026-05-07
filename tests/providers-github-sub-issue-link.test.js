@@ -286,3 +286,108 @@ describe('reconcileSubIssueLinks — relinks orphans whose footer is correct', (
     );
   });
 });
+
+describe('reconcileSubIssueLinks — bounded parallelism (cap=4)', () => {
+  it('never has more than 4 addSubIssue mutations in flight concurrently', async () => {
+    const epicId = 700;
+    // Build 12 orphans under one parent — outer parent loop is a 1-element
+    // map, but the inner per-child loop is what we observe here.
+    const parentId = 800;
+    const parentNodeId = 'NODE_PARENT';
+    const orphans = Array.from({ length: 12 }, (_, i) => ({
+      id: 900 + i,
+      nodeId: `NODE_${900 + i}`,
+    }));
+
+    let inFlight = 0;
+    let peak = 0;
+    let resolveGate;
+    const gate = new Promise((r) => {
+      resolveGate = r;
+    });
+
+    const provider = createProvider({
+      restPaginated: async () =>
+        orphans.map((o) => ({
+          number: o.id,
+          id: o.id * 10,
+          node_id: o.nodeId,
+          title: `Orphan ${o.id}`,
+          body: `---\nparent: #${parentId}\nEpic: #${epicId}`,
+          labels: [{ name: 'type::task' }],
+          state: 'open',
+        })),
+      rest: async (endpoint) => {
+        if (endpoint.includes(`/issues/${parentId}`)) {
+          return {
+            number: parentId,
+            id: parentId * 10,
+            node_id: parentNodeId,
+            title: 'Parent',
+            body: '',
+            labels: [],
+            state: 'open',
+          };
+        }
+        const match = endpoint.match(/\/issues\/(\d+)/);
+        if (match) {
+          const n = Number(match[1]);
+          const o = orphans.find((x) => x.id === n);
+          if (o) {
+            return {
+              number: o.id,
+              id: o.id * 10,
+              node_id: o.nodeId,
+              title: `Orphan ${o.id}`,
+              body: `---\nparent: #${parentId}`,
+              labels: [],
+              state: 'open',
+            };
+          }
+        }
+        throw new Error(`unexpected REST: ${endpoint}`);
+      },
+      graphql: async (query) => {
+        if (/subIssues\(first/.test(query)) {
+          return {
+            node: {
+              subIssues: {
+                pageInfo: { hasNextPage: false, endCursor: null },
+                nodes: [],
+              },
+            },
+          };
+        }
+        if (/addSubIssue/.test(query)) {
+          inFlight += 1;
+          if (inFlight > peak) peak = inFlight;
+          await gate;
+          inFlight -= 1;
+          return {
+            addSubIssue: {
+              issue: { number: parentId },
+              subIssue: { number: 0 },
+            },
+          };
+        }
+        return {};
+      },
+    });
+
+    const work = provider.reconcileSubIssueLinks(epicId);
+    // Let the bounded inner-loop saturate before releasing the gate.
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setImmediate(r));
+    }
+    resolveGate();
+    const result = await work;
+
+    assert.equal(result.totalExpected, 12);
+    assert.equal(result.reconciled, 12);
+    assert.ok(
+      peak <= 4,
+      `peak addSubIssue concurrency must be <= 4, observed ${peak}`,
+    );
+    assert.ok(peak > 1, 'expected real parallelism (peak > 1)');
+  });
+});

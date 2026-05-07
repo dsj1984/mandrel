@@ -26,6 +26,12 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
   per-Story `signals.ndjson` and roll up into a Story-level
   `story-perf-summary` and an Epic-level `epic-perf-report` consumed by the
   retro. Tickets carry decisions and summaries; NDJSON carries events.
+- **Bounded concurrency & module hygiene** (Epic #1072) — previously
+  unbounded GitHub-mutation and fs-scan loops now flow through
+  `concurrentMap` at story-specific caps; the HTTP client lives under
+  `providers/github/`; a canonical `branch-name-guard` replaces two
+  duplicate implementations; and `.agents/scripts/README.md` indexes every
+  top-level CLI.
 
 For the full architecture (mermaid flow, module map, state machine, tech
 stack), see [`docs/architecture.md`](docs/architecture.md).

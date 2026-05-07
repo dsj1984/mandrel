@@ -253,10 +253,13 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 
 ## Runtime Context
 
-A unified runtime-context object is owned by
-`.agents/scripts/lib/runtime-context.js`. It threads `provider`, `logger`,
-`config`, `operatorHandle`, `cwd`, and lifecycle primitives (cancel signal,
-clock) through orchestration call sites, replacing hand-rolled opts-bags.
+The unified runtime-context object is owned by
+`.agents/scripts/lib/orchestration/context.js`. It exports three typed
+constructors — `OrchestrationContext` (shared base: `provider`, `settings`,
+`logger`, `errorJournal`), `EpicRunnerContext` (adds `epicId`,
+`concurrencyCap`, `runSkill`), and `PlanRunnerContext` (adds `phase`,
+`decomposerAdapter`) — that orchestration submodules accept as the first
+argument, replacing hand-rolled opts-bags.
 
 | Term                | Kind             | Definition                                                                                                                  |
 | ------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
@@ -327,7 +330,7 @@ ratchet.
 | `orchestration.concurrency`     | Config block     | `{ waveGate: integer ≥ 0, commitAssertion: integer ≥ 1, progressReporter: integer ≥ 1 }`. All keys optional. Defaults: `0` / `4` / `8`. `additionalProperties: false`. |
 | `resolveConcurrency(source)`    | Helper           | `lib/orchestration/concurrency.js`. Returns a frozen `{ waveGate, commitAssertion, progressReporter }`. Falls back to defaults on missing/malformed values. |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `aggregate-phase-timings.js`    | CLI              | Reads `phase-timings` structured comments across Story tickets, computes per-phase p50/p95, emits a markdown summary plus recommended concurrency caps. Zero-sample runs exit 1 with the framework defaults recommended. |
+| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. |
 
 ---
 

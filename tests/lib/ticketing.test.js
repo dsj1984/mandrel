@@ -773,4 +773,140 @@ test('ticketing.js', async (t) => {
       );
     },
   );
+
+  await t.test(
+    'cascadeCompletion processes multiple parents sequentially in input order (Story #1088)',
+    async () => {
+      // Child #50 has two parents (#41 and #42). The outer cascade loop
+      // must walk them sequentially in the order they appear in the parsed
+      // parent list — concurrent processing would let their toggle/transition
+      // calls interleave and obscure cascade ordering in logs.
+      const order = [];
+      const tickets = {
+        41: {
+          id: 41,
+          labels: ['agent::executing', 'type::feature'],
+          body: 'Feature 41\n- [ ] #50',
+          state: 'open',
+        },
+        42: {
+          id: 42,
+          labels: ['agent::executing', 'type::feature'],
+          body: 'Feature 42\n- [ ] #50',
+          state: 'open',
+        },
+        50: {
+          id: 50,
+          labels: ['agent::done', 'type::story'],
+          body: 'Story 50\nparent: #41\nparent: #42',
+          state: 'closed',
+        },
+      };
+      const fakeProvider = {
+        async getTicket(id) {
+          // Record the read order of the *parent* tickets only — that's
+          // the post-toggle, pre-all-done-check read inside the outer loop.
+          if (id === 41 || id === 42) order.push(`get:${id}`);
+          return tickets[id];
+        },
+        async updateTicket(id) {
+          if (id === 41 || id === 42) order.push(`update:${id}`);
+        },
+        async postComment() {},
+        async getTicketDependencies(id) {
+          if (id === 50) return { blocks: [41, 42], blockedBy: [] };
+          return { blocks: [], blockedBy: [] };
+        },
+        async getSubTickets(id) {
+          if (id === 41 || id === 42) return [tickets[50]];
+          return [];
+        },
+      };
+
+      await cascadeCompletion(fakeProvider, 50);
+
+      // Sequential semantics: the entire #41 sub-flow (toggle → fresh-read →
+      // parent get → updateTicket) must complete before #42 begins. The
+      // first `get:42` must therefore appear AFTER the first `update:41`.
+      const firstUpdate41 = order.indexOf('update:41');
+      const firstGet42 = order.indexOf('get:42');
+      assert.ok(
+        firstUpdate41 !== -1 && firstGet42 !== -1,
+        `expected both parents to be visited; got order=${JSON.stringify(order)}`,
+      );
+      assert.ok(
+        firstUpdate41 < firstGet42,
+        `parent #41 must finish before #42 starts (sequential outer loop); got order=${JSON.stringify(order)}`,
+      );
+    },
+  );
+
+  await t.test(
+    'cascadeCompletion bounds sibling reads at concurrency=8 (Story #1088)',
+    async () => {
+      // A parent with 20 siblings under it. The fresh-read fan-out must
+      // never have more than 8 reads in flight simultaneously.
+      const SIBLING_COUNT = 20;
+      const EXPECTED_CAP = 8;
+
+      const siblings = [];
+      for (let i = 0; i < SIBLING_COUNT; i++) {
+        const id = 200 + i;
+        siblings.push({
+          id,
+          labels: ['agent::done', 'type::task'],
+          body: `parent: #100`,
+          state: 'closed',
+        });
+      }
+      const parent = {
+        id: 100,
+        labels: ['agent::executing', 'type::story'],
+        body: 'Story 100',
+        state: 'open',
+      };
+      // Trigger ticket: child #200 has just gone done.
+      const trigger = siblings[0];
+
+      let inFlight = 0;
+      let maxInFlight = 0;
+      const fakeProvider = {
+        async getTicket(id, opts = {}) {
+          if (opts.fresh) {
+            inFlight++;
+            if (inFlight > maxInFlight) maxInFlight = inFlight;
+            // Yield twice to give the scheduler a chance to launch more
+            // workers if the cap weren't enforced.
+            await new Promise((resolve) => setImmediate(resolve));
+            await new Promise((resolve) => setImmediate(resolve));
+            inFlight--;
+            return siblings.find((s) => s.id === id);
+          }
+          if (id === 100) return parent;
+          return siblings.find((s) => s.id === id) ?? trigger;
+        },
+        async updateTicket() {},
+        async postComment() {},
+        async getTicketDependencies(id) {
+          if (id === trigger.id) return { blocks: [100], blockedBy: [] };
+          return { blocks: [], blockedBy: [] };
+        },
+        async getSubTickets(id) {
+          if (id === 100) return siblings;
+          return [];
+        },
+      };
+
+      await cascadeCompletion(fakeProvider, trigger.id);
+
+      assert.ok(
+        maxInFlight > 0,
+        'fresh-read fan-out should have observed at least one in-flight read',
+      );
+      assert.ok(
+        maxInFlight <= EXPECTED_CAP,
+        `sibling reads must be bounded at ${EXPECTED_CAP}; saw maxInFlight=${maxInFlight}`,
+      );
+    },
+  );
 });

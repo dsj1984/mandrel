@@ -636,6 +636,92 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
     );
   });
 
+  it('--force close path caps in-flight close mutations at 3', async () => {
+    // Seed 10 open existing children so the force-close burst is wider
+    // than the cap. Track peak in-flight updateTicket calls to assert
+    // concurrency is bounded at 3.
+    const existing = [];
+    for (let i = 0; i < 10; i++) {
+      existing.push({
+        id: 900 + i,
+        title: `Stale Task ${i}`,
+        labels: ['type::task'],
+        state: 'open',
+      });
+    }
+    mockProvider.getTickets = async () => existing;
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    mockProvider.updateTicket = async (id, mutations) => {
+      inFlight++;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      // simulate latency so concurrent calls overlap
+      await new Promise((r) => setTimeout(r, 10));
+      mockProvider.updatedTickets.push({ id, mutations });
+      inFlight--;
+    };
+
+    await decomposeEpic(
+      1,
+      mockProvider,
+      { tickets: baseTickets() },
+      {},
+      { force: true },
+    );
+
+    assert.ok(
+      peakInFlight <= 3,
+      `expected peak in-flight close mutations <= 3 but observed ${peakInFlight}`,
+    );
+    assert.equal(
+      mockProvider.updatedTickets.filter((u) => u.mutations.state === 'closed')
+        .length,
+      10,
+      'all 10 stale children should have been closed',
+    );
+  });
+
+  it('--force close path surfaces the first rejection deterministically', async () => {
+    // Two open children; the FIRST one to be processed throws. concurrentMap
+    // contract: first rejection wins, later rejections are swallowed, and
+    // the caller sees a single deterministic error.
+    const existing = [
+      {
+        id: 901,
+        title: 'Failing First',
+        labels: ['type::task'],
+        state: 'open',
+      },
+      {
+        id: 902,
+        title: 'Failing Second',
+        labels: ['type::task'],
+        state: 'open',
+      },
+    ];
+    mockProvider.getTickets = async () => existing;
+
+    mockProvider.updateTicket = async (id) => {
+      if (id === 901) {
+        throw new Error('boom-901');
+      }
+      throw new Error('boom-other');
+    };
+
+    await assert.rejects(
+      () =>
+        decomposeEpic(
+          1,
+          mockProvider,
+          { tickets: baseTickets() },
+          {},
+          { force: true },
+        ),
+      /boom-901/,
+    );
+  });
+
   it('maps depends_on slugs to created issue IDs', async () => {
     const tickets = baseTickets();
     tickets.push({

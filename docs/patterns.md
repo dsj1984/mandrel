@@ -664,32 +664,6 @@ is uniform: `(ctx, collaborators, state) -> Promise<state>`.
   `lib/story-init/`) and by `story-close.js`'s post-merge
   pipeline.
 
-## `ctx` Runtime Context
-
-### Problem
-
-Legacy orchestration utilities (dispatcher, reconciler, cascade,
-health monitor) each hand-rolled their own opts-bag for `provider`,
-`logger`, `config`, and the operator handle. Every new consumer
-duplicated parameter-threading logic, and test doubles differed
-subtly per call site.
-
-### Solution
-
-`.agents/scripts/lib/runtime-context.js` owns a single `ctx` shape
-shared by the orchestration surface. Each entry point constructs the
-context once at the start and threads it through every downstream
-call. Legacy utilities accept either the ctx object or the legacy
-opts-bag for a release of overlap.
-
-### Benefits
-
-- Shared lifecycle primitives (e.g. cancellation signal, clock) are
-  always available without wiring them through each helper.
-- Replacing any one primitive — swapping a real provider for a fake
-  in integration tests — is a single-line override on the ctx object
-  before it flows into the pipeline.
-
 ## Atomic file write via tmp + rename
 
 ### Problem
@@ -916,11 +890,11 @@ observability surface. Three principles:
    coercion, per-field fallback, and freezing. Every reader goes
    through the same shape; no adoption site re-invents defaults or
    reads `config.orchestration.concurrency` directly.
-3. **Tuning data comes from inside.** A standalone CLI
-   (`aggregate-phase-timings.js`) reads `phase-timings` structured
-   comments across N Epics and prints recommended caps. Operators tune
-   defaults from lived workload, not from outside measurement
-   harnesses.
+3. **Tuning data comes from inside.** The `analyze-execution.js`
+   CLI reads each Epic's per-Story `signals.ndjson` stream and emits
+   the `epic-perf-report` structured comment that surfaces phase p50/p95
+   and concurrency hints. Operators tune defaults from lived workload,
+   not from outside measurement harnesses.
 
 ### Consequences
 

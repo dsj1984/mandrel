@@ -385,25 +385,31 @@
       "crap": 1,
       "file": ".agents/scripts/detect-merges.js",
       "method": "isTemplatePath",
-      "startLine": 23
+      "startLine": 29
     },
     {
       "crap": 1,
       "file": ".agents/scripts/detect-merges.js",
       "method": "isDetectMergesTestFixture",
-      "startLine": 27
+      "startLine": 33
     },
     {
-      "crap": 1.000328016728853,
+      "crap": 1.0005787037037037,
       "file": ".agents/scripts/detect-merges.js",
       "method": "scanForConflicts",
-      "startLine": 38
+      "startLine": 44
+    },
+    {
+      "crap": 5.048828125,
+      "file": ".agents/scripts/detect-merges.js",
+      "method": "<anon method-2>",
+      "startLine": 47
     },
     {
       "crap": 5.571813239851649,
       "file": ".agents/scripts/detect-merges.js",
       "method": "main",
-      "startLine": 68
+      "startLine": 81
     },
     {
       "crap": 9,
@@ -440,6 +446,60 @@
       "file": ".agents/scripts/diagnose-friction.js",
       "method": "main",
       "startLine": 178
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "main",
+      "startLine": 58
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "logSkipOverrides",
+      "startLine": 117
+    },
+    {
+      "crap": 2.125965884239685,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeAuxiliaryTickets",
+      "startLine": 140
+    },
+    {
+      "crap": 6.318359375,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "<anon method-2>",
+      "startLine": 183
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeEpicClosure",
+      "startLine": 222
+    },
+    {
+      "crap": 272,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeBranchCleanup",
+      "startLine": 254
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "emitDiscardFrictionComments",
+      "startLine": 490
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseNotifyBanner",
+      "startLine": 512
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "collectEpicDescendantIds",
+      "startLine": 536
     },
     {
       "crap": 3,
@@ -1144,6 +1204,18 @@
       "startLine": 44
     },
     {
+      "crap": 8,
+      "file": ".agents/scripts/lib/branch-name-guard.js",
+      "method": "isSafeBranchName",
+      "startLine": 45
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/branch-name-guard.js",
+      "method": "assertBranchSafe",
+      "startLine": 70
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/changed-files.js",
       "method": "getChangedFiles",
@@ -1786,28 +1858,22 @@
       "startLine": 20
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/git-branch-cleanup.js",
-      "method": "assertSafeBranch",
-      "startLine": 24
-    },
-    {
       "crap": 6,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchLocal",
-      "startLine": 48
+      "startLine": 40
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchRemote",
-      "startLine": 79
+      "startLine": 71
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchBoth",
-      "startLine": 117
+      "startLine": 112
     },
     {
       "crap": 3,
@@ -1816,58 +1882,52 @@
       "startLine": 24
     },
     {
-      "crap": 2.649135987978963,
-      "file": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "assertSafeBranch",
-      "startLine": 30
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "branchExistsLocally",
-      "startLine": 49
+      "startLine": 37
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "branchExistsRemotely",
-      "startLine": 64
+      "startLine": 52
     },
     {
       "crap": 13.420476444298657,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranch",
-      "startLine": 79
+      "startLine": 67
     },
     {
       "crap": 2.864,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "_assertOnBranch",
-      "startLine": 143
+      "startLine": 131
     },
     {
       "crap": 14.498496987686622,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "checkoutStoryBranch",
-      "startLine": 164
+      "startLine": 152
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "planEnsureEpicBranchRefAction",
-      "startLine": 235
+      "startLine": 223
     },
     {
       "crap": 27.974001200274348,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranchRef",
-      "startLine": 240
+      "startLine": 228
     },
     {
       "crap": 5.20262390670554,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureLocalBranch",
-      "startLine": 288
+      "startLine": 276
     },
     {
       "crap": 4.125,
@@ -3391,55 +3451,61 @@
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "isValidStructuredCommentType",
-      "startLine": 83
+      "startLine": 91
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "assertValidStructuredCommentType",
-      "startLine": 99
+      "startLine": 107
     },
     {
       "crap": 12.117546894272282,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
-      "startLine": 124
+      "startLine": 132
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 241
+      "startLine": 249
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 283
+      "startLine": 291
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 309
+      "startLine": 317
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 335
+      "startLine": 343
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 370
+      "startLine": 378
     },
     {
-      "crap": 5.008416207775129,
+      "crap": 10.0262144,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 412
+      "startLine": 426
+    },
+    {
+      "crap": 3.67181804927832,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "<anon method-7>",
+      "startLine": 474
     },
     {
       "crap": 7,
@@ -3490,70 +3556,76 @@
       "startLine": 100
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "computeProgress",
+      "method": "deriveStorySymbol",
       "startLine": 33
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "computeProgress",
+      "startLine": 60
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderProgressBar",
-      "startLine": 68
+      "startLine": 95
     },
     {
       "crap": 10,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderWaveSections",
-      "startLine": 82
+      "startLine": 109
     },
     {
-      "crap": 9,
+      "crap": 7,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderStoryTable",
-      "startLine": 141
+      "startLine": 168
     },
     {
       "crap": 9,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderStoryDetailsSection",
-      "startLine": 205
+      "startLine": 228
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 249
+      "startLine": 272
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 259
+      "startLine": 282
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 265
+      "startLine": 288
     },
     {
       "crap": 13.60559798888493,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 285
+      "startLine": 308
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 401
+      "startLine": 424
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 466
+      "startLine": 489
     },
     {
       "crap": 1,
@@ -3565,19 +3637,19 @@
       "crap": 1.0029154518950438,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "atomicWrite",
-      "startLine": 37
+      "startLine": 40
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "persistManifest",
-      "startLine": 64
+      "startLine": 67
     },
     {
       "crap": 1.0233236151603498,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "safeResolveConfig",
-      "startLine": 152
+      "startLine": 155
     },
     {
       "crap": 1,
@@ -4843,25 +4915,25 @@
       "crap": 3,
       "file": ".agents/scripts/render-manifest.js",
       "method": "extractManifestJson",
-      "startLine": 37
+      "startLine": 38
     },
     {
       "crap": 4,
       "file": ".agents/scripts/render-manifest.js",
       "method": "writeRenderedManifest",
-      "startLine": 55
+      "startLine": 56
     },
     {
       "crap": 8.47932933344292,
       "file": ".agents/scripts/render-manifest.js",
       "method": "renderManifestFromComment",
-      "startLine": 79
+      "startLine": 85
     },
     {
       "crap": 2,
       "file": ".agents/scripts/render-manifest.js",
       "method": "main",
-      "startLine": 126
+      "startLine": 132
     },
     {
       "crap": 2,

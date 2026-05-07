@@ -13,7 +13,7 @@
  * branch names they forward to git.
  */
 
-import { isSafeBranchComponent } from './dependency-parser.js';
+import { assertBranchSafe } from './branch-name-guard.js';
 import { gitPullWithRetry, gitSpawn, gitSync } from './git-utils.js';
 
 /**
@@ -27,18 +27,6 @@ export function currentBranch(cwd) {
   return result.stdout;
 }
 
-function assertSafeBranch(...names) {
-  for (const name of names) {
-    if (!isSafeBranchComponent(name)) {
-      throw new Error(
-        `[git-branch-lifecycle] Unsafe branch name detected: "${name}". ` +
-          'Branch names must contain only alphanumeric characters, hyphens, ' +
-          'underscores, dots, and slashes.',
-      );
-    }
-  }
-}
-
 /**
  * Return true iff the given branch exists as a local ref in `cwd`'s repo.
  *
@@ -47,7 +35,7 @@ function assertSafeBranch(...names) {
  * @returns {boolean}
  */
 export function branchExistsLocally(branch, cwd) {
-  assertSafeBranch(branch);
+  assertBranchSafe(branch);
   return (
     gitSpawn(cwd, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`)
       .status === 0
@@ -62,7 +50,7 @@ export function branchExistsLocally(branch, cwd) {
  * @returns {boolean}
  */
 export function branchExistsRemotely(branch, cwd) {
-  assertSafeBranch(branch);
+  assertBranchSafe(branch);
   const result = gitSpawn(cwd, 'ls-remote', '--heads', 'origin', branch);
   return result.status === 0 && result.stdout.length > 0;
 }
@@ -77,7 +65,7 @@ export function branchExistsRemotely(branch, cwd) {
  * @param {{ progress?: (phase: string, message: string) => void }} [opts]
  */
 export async function ensureEpicBranch(epicBranch, baseBranch, cwd, opts = {}) {
-  assertSafeBranch(epicBranch, baseBranch);
+  assertBranchSafe(epicBranch, baseBranch);
   const progress = opts.progress ?? (() => {});
 
   // Short-circuit: if we're already on the epic branch, just sync with remote.
@@ -167,7 +155,7 @@ export async function checkoutStoryBranch(
   cwd,
   opts = {},
 ) {
-  assertSafeBranch(storyBranch, epicBranch);
+  assertBranchSafe(storyBranch, epicBranch);
   const progress = opts.progress ?? (() => {});
 
   // Short-circuit: already on the story branch — just sync.
@@ -238,7 +226,7 @@ export function planEnsureEpicBranchRefAction(local, remote) {
 }
 
 export function ensureEpicBranchRef(epicBranch, baseBranch, cwd, opts = {}) {
-  assertSafeBranch(epicBranch, baseBranch);
+  assertBranchSafe(epicBranch, baseBranch);
   const progress = opts.progress ?? (() => {});
 
   const action = planEnsureEpicBranchRefAction(
@@ -286,7 +274,7 @@ export function ensureEpicBranchRef(epicBranch, baseBranch, cwd, opts = {}) {
  * @param {{ log?: (message: string) => void }} [opts]
  */
 export function ensureLocalBranch(branchName, baseBranch, cwd, opts = {}) {
-  assertSafeBranch(branchName, baseBranch);
+  assertBranchSafe(branchName, baseBranch);
   const log = opts.log ?? (() => {});
 
   const exists =
