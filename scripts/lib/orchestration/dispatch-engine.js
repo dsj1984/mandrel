@@ -30,7 +30,6 @@ import { detectEpicCompletion } from './epic-lifecycle-detector.js';
 import { LintBaselineService } from './lint-baseline-service.js';
 import { buildManifest } from './manifest-builder.js';
 import { executeStory } from './story-executor.js';
-import { fetchTelemetry } from './telemetry.js';
 import { STATE_LABELS } from './ticketing.js';
 import { collectOpenStoryIds, dispatchNextWave } from './wave-dispatcher.js';
 
@@ -175,7 +174,6 @@ export async function dispatch(options) {
     taskMap,
   );
 
-  const agentTelemetry = await fetchTelemetry(provider, fetched.tasks);
   const manifest = buildManifest({
     epicId,
     epic: fetched.epic,
@@ -185,7 +183,6 @@ export async function dispatch(options) {
     dispatched,
     dryRun,
     adapter,
-    agentTelemetry,
   });
 
   await detectEpicCompletion({

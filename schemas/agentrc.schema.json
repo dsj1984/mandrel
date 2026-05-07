@@ -104,6 +104,48 @@
       },
       "additionalProperties": false
     },
+    "signalsLimits": {
+      "type": "object",
+      "description": "Detector thresholds for the performance-signal taxonomy (Epic #1030). All nested blocks are optional; the resolver fills missing keys from framework defaults.",
+      "properties": {
+        "hotspot": {
+          "type": "object",
+          "properties": {
+            "p95Multiplier": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "rework": {
+          "type": "object",
+          "properties": {
+            "editsPerFile": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "churn": {
+          "type": "object",
+          "properties": {
+            "repeatCount": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "idle": {
+          "type": "object",
+          "properties": {
+            "gapSeconds": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
+        "retry": {
+          "type": "object",
+          "properties": {
+            "repeatCount": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
     "planningContextLimits": {
       "type": "object",
       "properties": {
@@ -124,7 +166,8 @@
         "executionTimeoutMs": { "type": "integer", "minimum": 1 },
         "executionMaxBuffer": { "type": "integer", "minimum": 1 },
         "friction": { "$ref": "#/$defs/frictionLimits" },
-        "planningContext": { "$ref": "#/$defs/planningContextLimits" }
+        "planningContext": { "$ref": "#/$defs/planningContextLimits" },
+        "signals": { "$ref": "#/$defs/signalsLimits" }
       },
       "additionalProperties": false
     },

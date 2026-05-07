@@ -52,7 +52,7 @@ Epic lifecycle state.
 
 ```bash
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context \
-  > temp/decomposer-context-epic-[Epic_ID].json
+  > temp/epic-[Epic_ID]/decomposer-context.json
 ```
 
 The emitted JSON contains the PRD body, Tech Spec body, risk heuristics, the
@@ -60,20 +60,20 @@ decomposer system prompt, and the `maxTickets` cap.
 
 ## Step 2 — Author the ticket array
 
-Read `temp/decomposer-context-epic-[Epic_ID].json`. Produce a JSON array of
+Read `temp/epic-[Epic_ID]/decomposer-context.json`. Produce a JSON array of
 Feature / Story / Task objects that conforms to the schema in the system
-prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
+prompt and write it to `temp/epic-[Epic_ID]/tickets.json`.
 
 ## Step 3 — Persist and transition
 
 ```bash
 # Normal decomposition
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
-  --tickets temp/tickets-epic-[Epic_ID].json
+  --tickets temp/epic-[Epic_ID]/tickets.json
 
 # Re-decompose (closes existing child Features/Stories/Tasks first)
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
-  --tickets temp/tickets-epic-[Epic_ID].json --force
+  --tickets temp/epic-[Epic_ID]/tickets.json --force
 ```
 
 On success the script:

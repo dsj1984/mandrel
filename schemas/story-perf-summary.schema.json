@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dsj1984/agent-protocols/blob/main/.agents/schemas/story-perf-summary.schema.json",
+  "title": "StoryPerfSummary",
+  "description": "Payload of the <!-- structured:story-perf-summary --> comment posted once per Story at close (Epic #1030). Replaces the per-Task friction comment fanout and the standalone phase-timings comment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "storyId",
+    "epicId",
+    "closedAt",
+    "frictionByCategory",
+    "phaseTimingsMs",
+    "topSlowPhasesVsBaseline",
+    "reworkScore",
+    "retryDensity"
+  ],
+  "properties": {
+    "kind": { "type": "string", "const": "story-perf-summary" },
+    "storyId": { "type": "integer", "minimum": 1 },
+    "epicId": { "type": "integer", "minimum": 1 },
+    "closedAt": { "type": "string", "format": "date-time" },
+    "frictionByCategory": {
+      "type": "object",
+      "description": "Counts of friction signals bucketed by category for this Story.",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "phaseTimingsMs": {
+      "type": "object",
+      "description": "Elapsed ms per phase, sourced from phase-timer.js in-process record.",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "topSlowPhasesVsBaseline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "elapsedMs", "baselineP95Ms", "ratio"],
+        "properties": {
+          "phase": { "type": "string", "minLength": 1 },
+          "elapsedMs": { "type": "integer", "minimum": 0 },
+          "baselineP95Ms": { "type": "integer", "minimum": 0 },
+          "ratio": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "reworkScore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filesEditedBeyondThreshold"],
+      "properties": {
+        "filesEditedBeyondThreshold": { "type": "integer", "minimum": 0 },
+        "topPath": { "type": ["string", "null"], "minLength": 1 },
+        "topPathEdits": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "retryDensity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retries", "uniqueCommands"],
+      "properties": {
+        "retries": { "type": "integer", "minimum": 0 },
+        "uniqueCommands": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

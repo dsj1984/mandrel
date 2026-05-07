@@ -10,9 +10,14 @@
  *   3. ticket-closure      — transition child Tasks + Story to agent::done
  *                            and run cascade completion.
  *   4. notification        — fire the story-complete webhook.
- *   5. health-monitor      — refresh sprint health metrics.
- *   6. dashboard-refresh   — regenerate the dispatch manifest.
- *   7. temp-cleanup        — delete `temp/story-manifest-<id>.{md,json}`.
+ *   5. dashboard-refresh   — regenerate the dispatch manifest.
+ *   6. temp-cleanup        — delete the per-Story manifest pair under
+ *                            `temp/epic-<eid>/story-<sid>/manifest.{md,json}`
+ *                            (Epic #1030 Story #1040). Falls back to the
+ *                            legacy flat `temp/story-manifest-<id>.{md,json}`
+ *                            layout when `epicId` is unknown — both paths
+ *                            are tried so partial migrations don't leak
+ *                            files in either layout.
  *
  * Each phase is wrapped by `runPhase` so a single failure does not abort
  * the rest of the close-out — the same best-effort contract that the
@@ -25,12 +30,13 @@
  * idempotency rules live in one place.
  */
 
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { generateAndSaveManifest } from '../../dispatcher.js';
-import { updateHealthMetrics } from '../../health-monitor.js';
 import { notify } from '../../notify.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
+import { appendSignal } from '../observability/signals-writer.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { toDone } from './label-transitions.js';
@@ -62,41 +68,46 @@ function createWorktreeReapState(overrides = {}) {
 }
 
 async function emitReapFailureFriction({
-  frictionEmitter,
   storyId,
+  epicId,
   reapResult,
   epicBranch,
+  logger,
 }) {
-  if (!frictionEmitter) return;
+  if (!epicId || !storyId) return;
   const reason = String(reapResult?.reason ?? 'unknown');
   const wtPath = reapResult?.path ?? '(unknown path)';
-  const body = [
-    `### 🚧 Friction — worktree reap failed`,
-    '',
-    `- Story: \`#${storyId}\``,
-    `- Epic branch: \`${epicBranch}\``,
-    `- Worktree path: \`${wtPath}\``,
-    `- Reason: \`${reason}\``,
-    '',
-    'The Story merge succeeded but the worktree could not be removed. Close',
-    'any editor/terminal holding the path, then run `git worktree remove',
-    '<path> --force && git worktree prune` to clean up. Re-running',
-    '`story-close` is idempotent.',
-  ].join('\n');
-  await frictionEmitter.emit({
-    ticketId: Number(storyId),
-    markerKey: 'reap-failure',
-    body,
-  });
+  try {
+    await appendSignal({
+      epicId: Number(epicId),
+      storyId: Number(storyId),
+      signal: {
+        kind: 'friction',
+        timestamp: new Date().toISOString(),
+        epicId: Number(epicId),
+        storyId: Number(storyId),
+        category: 'reap-failure',
+        source: { tool: 'story-close.js' },
+        details: `Worktree reap failed: ${reason}`,
+        epicBranch,
+        worktreePath: wtPath,
+        reason,
+      },
+    });
+  } catch (err) {
+    logger?.warn?.(
+      `[post-merge-pipeline] friction signal append failed: ${err?.message ?? err}`,
+    );
+  }
 }
 
 export async function worktreeReapPhase(ctx) {
   const {
     orchestration,
     storyId,
+    epicId,
     epicBranch,
     repoRoot,
-    frictionEmitter,
     progress,
     logger,
     worktreeManagerFactory,
@@ -139,10 +150,11 @@ export async function worktreeReapPhase(ctx) {
     log('WORKTREE', `🗑️  Reaped worktree: ${reapResult.path}`);
   } else if (reapResult.reason) {
     await emitReapFailureFriction({
-      frictionEmitter,
       storyId,
+      epicId,
       reapResult,
       epicBranch,
+      logger,
     });
     log(
       'WORKTREE',
@@ -177,13 +189,14 @@ export async function worktreeReapPhase(ctx) {
         '`git worktree remove <path> --force && git worktree prune` to clean up.',
     );
     await emitReapFailureFriction({
-      frictionEmitter,
       storyId,
+      epicId,
       reapResult: {
         path: stillRegistered.path,
         reason: 'still-registered-after-reap',
       },
       epicBranch,
+      logger,
     });
   }
   return state;
@@ -316,20 +329,6 @@ export async function notificationPhase(ctx, state) {
   log('NOTIFY', '✅ Notification sent');
 }
 
-export async function healthMonitorPhase(ctx) {
-  const {
-    epicId,
-    storyId,
-    progress,
-    updateHealthFn = updateHealthMetrics,
-  } = ctx;
-  const log = reapPhaseLogger(progress);
-  log('HEALTH', 'Updating sprint health metrics...');
-  await updateHealthFn(epicId, { storyId });
-  log('HEALTH', '✅ Health metrics updated');
-  return true;
-}
-
 export async function dashboardRefreshPhase(ctx) {
   const {
     epicId,
@@ -353,21 +352,130 @@ export async function dashboardRefreshPhase(ctx) {
 }
 
 export async function tempCleanupPhase(ctx) {
-  const { storyId, projectRoot, progress, unlinkFn } = ctx;
+  const { storyId, epicId, projectRoot, progress, unlinkFn } = ctx;
   const log = reapPhaseLogger(progress);
   const unlink = unlinkFn ?? (await import('node:fs/promises')).unlink;
-  const manifestBase = path.join(
+
+  // Per-Epic layout (Epic #1030 Story #1040): `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
+  // Legacy flat layout: `temp/story-manifest-<sid>.{md,json}`. The migration
+  // tolerates both — try the per-Epic path first when `epicId` is known,
+  // and always sweep the legacy path so a half-migrated cohort doesn't
+  // leave residue.
+  const targets = [];
+  if (epicId) {
+    const perStoryBase = path.join(
+      projectRoot,
+      'temp',
+      `epic-${epicId}`,
+      `story-${storyId}`,
+      'manifest',
+    );
+    targets.push(
+      {
+        path: `${perStoryBase}.md`,
+        label: `temp/epic-${epicId}/story-${storyId}/manifest.md`,
+      },
+      {
+        path: `${perStoryBase}.json`,
+        label: `temp/epic-${epicId}/story-${storyId}/manifest.json`,
+      },
+    );
+  }
+  const legacyBase = path.join(
     projectRoot,
     'temp',
     `story-manifest-${storyId}`,
   );
-  for (const ext of ['.md', '.json']) {
+  targets.push(
+    { path: `${legacyBase}.md`, label: `temp/story-manifest-${storyId}.md` },
+    {
+      path: `${legacyBase}.json`,
+      label: `temp/story-manifest-${storyId}.json`,
+    },
+  );
+
+  for (const target of targets) {
     try {
-      await unlink(`${manifestBase}${ext}`);
-      log('CLEANUP', `🗑️  Deleted temp/story-manifest-${storyId}${ext}`);
+      await unlink(target.path);
+      log('CLEANUP', `🗑️  Deleted ${target.label}`);
     } catch {
       // File may not exist — deletion is idempotent.
     }
+  }
+}
+
+/**
+ * perfSummaryPhase — shells out to `analyze-execution.js --story <sid>
+ * --epic <eid> --phase-timings <path>` so the analyzer is the single
+ * writer of the `<!-- structured:story-perf-summary -->` comment on the
+ * Story ticket (Epic #1030 Story #1046). Replaces the legacy
+ * `<!-- structured:phase-timings -->` post that lived inline in
+ * `post-merge-close.js`.
+ *
+ * Best-effort: any failure (missing analyzer, non-zero exit, no path
+ * supplied) logs a warning and resolves — the merge has already
+ * succeeded and we would rather lose the perf summary than roll back
+ * closure.
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   epicId: number|string,
+ *   phaseTimingsPath: string|null|undefined,
+ *   projectRoot?: string,
+ *   progress?: Function,
+ *   logger?: object,
+ *   spawnFn?: typeof execFileSync,
+ * }} ctx
+ * @returns {Promise<{ status: 'ok'|'skipped'|'failed', reason?: string }>}
+ */
+export async function perfSummaryPhase(ctx) {
+  const {
+    storyId,
+    epicId,
+    phaseTimingsPath,
+    projectRoot,
+    progress,
+    logger,
+    spawnFn = execFileSync,
+  } = ctx;
+  const log = reapPhaseLogger(progress);
+  if (!phaseTimingsPath) {
+    log('PERF', '⏭️ Skipping perf-summary (no phase-timings path provided)');
+    return { status: 'skipped', reason: 'no-phase-timings-path' };
+  }
+  const root = projectRoot ?? process.cwd();
+  const analyzerPath = path.join(
+    root,
+    '.agents',
+    'scripts',
+    'analyze-execution.js',
+  );
+  const args = [
+    analyzerPath,
+    '--story',
+    String(storyId),
+    '--epic',
+    String(epicId),
+    '--phase-timings',
+    phaseTimingsPath,
+  ];
+  log(
+    'PERF',
+    `Running analyzer: analyze-execution.js --story ${storyId} --epic ${epicId}`,
+  );
+  try {
+    spawnFn(process.execPath, args, {
+      cwd: root,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    log('PERF', '✅ story-perf-summary posted');
+    return { status: 'ok' };
+  } catch (err) {
+    const reason = err?.message ?? String(err);
+    logger?.warn?.(
+      `[post-merge-pipeline] ⚠️ analyze-execution failed (non-fatal): ${reason}`,
+    );
+    return { status: 'failed', reason };
   }
 }
 
@@ -384,13 +492,13 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
   { name: 'branch-cleanup', fn: branchCleanupPhase, stateKey: 'branchCleanup' },
   { name: 'ticket-closure', fn: ticketClosurePhase, stateKey: 'ticketClosure' },
   { name: 'notification', fn: notificationPhase },
-  { name: 'health-monitor', fn: healthMonitorPhase, stateKey: 'healthUpdated' },
   {
     name: 'dashboard-refresh',
     fn: dashboardRefreshPhase,
     stateKey: 'manifestUpdated',
   },
   { name: 'temp-cleanup', fn: tempCleanupPhase },
+  { name: 'perf-summary', fn: perfSummaryPhase, stateKey: 'perfSummary' },
 ]);
 
 /**
@@ -400,7 +508,7 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
  * `stateKey` (when defined) on the returned state object.
  *
  * @param {object} ctx          Phase collaborators (provider, notify,
- *                              frictionEmitter, logger, progress, etc.).
+ *                              logger, progress, etc.).
  * @param {Array<{name: string, fn: Function, stateKey?: string, fallback?: any}>} [phases]
  *                              Phase descriptors. Defaults to `DEFAULT_POST_MERGE_PHASES`.
  * @returns {Promise<object>}   Aggregated state from each phase.
@@ -414,7 +522,6 @@ export async function runPostMergePipeline(
     worktreeReap: createWorktreeReapState(),
     branchCleanup: { localDeleted: false, remoteDeleted: false },
     ticketClosure: { closedTickets: [], cascadedTo: [], cascadeFailed: [] },
-    healthUpdated: false,
     manifestUpdated: false,
   };
   for (const phase of phases) {
