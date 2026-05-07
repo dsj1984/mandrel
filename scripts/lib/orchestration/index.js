@@ -9,9 +9,13 @@
  *   import { dispatch, hydrateContext } from './lib/orchestration/index.js';
  */
 
-// Audit execution and selection
-export { runAuditSuite } from '../../run-audit-suite.js';
-export { selectAudits } from '../../select-audits.js';
+// Audit execution and selection — re-export the SDK barrel under
+// `lib/audit-suite/` rather than the top-level CLI files. This keeps the
+// orchestration barrel's imports flowing inward (lib → lib) so the
+// dependency graph never crosses out of `lib/` and back. Story #1083
+// (Epic #1072) inverted the prior `../../{run-audit-suite,select-audits}.js`
+// imports.
+export { runAuditSuite, selectAudits } from '../audit-suite/index.js';
 // Context hydration — builds the execution prompt for an agent task
 export {
   hydrateContext,

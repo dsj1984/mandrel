@@ -4,10 +4,18 @@
 
 import { Logger } from '../Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { concurrentMap } from '../util/concurrent-map.js';
 import { parseParentId } from './story-grouper.js';
 import { STATE_LABELS } from './ticketing.js';
 
 const AGENT_DONE_LABEL = STATE_LABELS.DONE;
+
+// Cap=4 — bounded parallelism for ticket-update fan-outs. Reconciliation
+// iterates an Epic-sized set of independent GitHub mutations; cap matches
+// the established pattern across the orchestration layer (wave-gate,
+// progress-reporter, sub-issue link reconcile) and stays well under the
+// secondary rate-limit ceiling observed for issue PATCHes.
+const RECONCILE_CONCURRENCY = 4;
 
 /**
  * Reconcile closed GitHub issues that still have stale `agent::` labels.
@@ -25,36 +33,47 @@ const AGENT_DONE_LABEL = STATE_LABELS.DONE;
 export async function reconcileClosedTasks(tasks, provider, dryRun) {
   const ALL_AGENT_STATES = Object.values(STATE_LABELS);
 
-  for (const task of tasks) {
-    if (task.status !== AGENT_DONE_LABEL) continue;
-    if ((task.labelSet ?? new Set(task.labels)).has(AGENT_DONE_LABEL)) continue;
+  // Filter to the work-units first so concurrentMap sees only candidates
+  // and the bounded fan-out reflects real provider load.
+  const candidates = tasks.filter(
+    (task) =>
+      task.status === AGENT_DONE_LABEL &&
+      !(task.labelSet ?? new Set(task.labels)).has(AGENT_DONE_LABEL),
+  );
 
-    Logger.info(
-      `Reconciling closed issue #${task.id} "${task.title}" → agent::done`,
-    );
+  // cap=4 — independent ticket updates, no ordering required; matches the
+  // RECONCILE_CONCURRENCY house cap (see top of file).
+  await concurrentMap(
+    candidates,
+    async (task) => {
+      Logger.info(
+        `Reconciling closed issue #${task.id} "${task.title}" → agent::done`,
+      );
 
-    if (dryRun) {
-      Logger.info(`[DRY-RUN] Would sync labels and close issue #${task.id}`);
-      continue;
-    }
+      if (dryRun) {
+        Logger.info(`[DRY-RUN] Would sync labels and close issue #${task.id}`);
+        return;
+      }
 
-    try {
-      await provider.updateTicket(task.id, {
-        labels: {
-          add: [AGENT_DONE_LABEL],
-          remove: [
-            ...ALL_AGENT_STATES.filter((s) => s !== AGENT_DONE_LABEL),
-            AGENT_LABELS.BLOCKED,
-          ],
-        },
-        state: 'closed',
-        state_reason: 'completed',
-      });
-      Logger.info(`✅ Synced #${task.id} to agent::done`);
-    } catch (err) {
-      Logger.warn(`Failed to reconcile #${task.id}: ${err.message}`);
-    }
-  }
+      try {
+        await provider.updateTicket(task.id, {
+          labels: {
+            add: [AGENT_DONE_LABEL],
+            remove: [
+              ...ALL_AGENT_STATES.filter((s) => s !== AGENT_DONE_LABEL),
+              AGENT_LABELS.BLOCKED,
+            ],
+          },
+          state: 'closed',
+          state_reason: 'completed',
+        });
+        Logger.info(`✅ Synced #${task.id} to agent::done`);
+      } catch (err) {
+        Logger.warn(`Failed to reconcile #${task.id}: ${err.message}`);
+      }
+    },
+    { concurrency: RECONCILE_CONCURRENCY },
+  );
 }
 
 /**
@@ -155,7 +174,14 @@ export async function reconcileHierarchy(
     .filter((t) => (t.labelSet ?? new Set(t.labels)).has(TYPE_LABELS.FEATURE))
     .map((t) => t.id);
 
-  for (const id of storyIds) await maybeClose(id, 'Story');
+  // cap=4 — Stories are container leaves of this reconcile (their children
+  // are Tasks already settled by reconcileClosedTasks); independent close
+  // mutations can fan out without ordering. Features stay sequential because
+  // a Feature may parent another Feature, and bottom-up close depends on
+  // child-Feature state already being mutated in the same pass.
+  await concurrentMap(storyIds, (id) => maybeClose(id, 'Story'), {
+    concurrency: RECONCILE_CONCURRENCY,
+  });
   for (const id of featureIds) await maybeClose(id, 'Feature');
 
   // EXCLUSION: Epic auto-closure removed.

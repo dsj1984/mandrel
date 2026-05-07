@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
+import { concurrentMap } from './lib/util/concurrent-map.js';
 
 // Paths under these prefixes are treated as template/documentation files
 // that may legitimately contain literal conflict-marker strings (e.g. the
@@ -20,6 +21,11 @@ const SELF_PATH = '.agents/scripts/detect-merges.js';
 // `.test.js`) under any depth below `tests/`.
 const TEST_FIXTURE_PATTERN = /(^|\/)tests\/(?:[^/]+\/)*detect-merges[^/]*\.js$/;
 
+// Cap concurrent `fs.readFile` calls. Unbounded `Promise.all` over every
+// tracked file blows past EMFILE on large repos and starves the event loop;
+// 64 keeps the kernel happy while still saturating typical SSDs.
+export const FILE_READ_CAP = 64;
+
 export function isTemplatePath(file) {
   return TEMPLATE_PATH_PREFIXES.some((prefix) => file.startsWith(prefix));
 }
@@ -36,15 +42,15 @@ function isDetectMergesTestFixture(file) {
  * @returns {Promise<Array<{ file: string, marker: string }>>}
  */
 export async function scanForConflicts(files, root) {
-  const hits = [];
-  await Promise.all(
-    files.map(async (file) => {
+  const mapped = await concurrentMap(
+    files,
+    async (file) => {
       if (
         file === SELF_PATH ||
         isTemplatePath(file) ||
         isDetectMergesTestFixture(file)
       ) {
-        return;
+        return null;
       }
       try {
         const content = await fs.promises.readFile(
@@ -53,15 +59,22 @@ export async function scanForConflicts(files, root) {
         );
         for (const marker of CONFLICT_MARKERS) {
           if (content.includes(marker)) {
-            hits.push({ file, marker });
-            break;
+            return { file, marker };
           }
         }
+        return null;
       } catch (_readErr) {
         // Ignore unreadable files (binaries, broken symlinks, etc.).
+        return null;
       }
-    }),
+    },
+    { concurrency: FILE_READ_CAP },
   );
+  // `concurrentMap` preserves input order, so filtering yields a hit list in
+  // the same order as `files`. Sort by file for byte-stable output regardless
+  // of caller-supplied ordering.
+  const hits = mapped.filter((hit) => hit !== null);
+  hits.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
   return hits;
 }
 

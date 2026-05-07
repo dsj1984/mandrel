@@ -33,8 +33,11 @@ function getProjectRoot() {
 /**
  * Atomic write-then-rename. On any failure, best-effort remove the `.tmp`
  * file and rethrow so the caller can surface a structured result.
+ *
+ * Exported so other writers (e.g. `render-manifest.js`) can route their
+ * `.md` / `.json` artefact writes through the same crash-safe primitive.
  */
-function atomicWrite(finalPath, content) {
+export function atomicWrite(finalPath, content) {
   const tmpPath = `${finalPath}.tmp`;
   try {
     fs.writeFileSync(tmpPath, content, 'utf8');

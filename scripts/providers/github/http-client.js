@@ -8,7 +8,7 @@
  * for backwards compatibility with existing call sites and tests.
  */
 
-import { Logger } from '../lib/Logger.js';
+import { Logger } from '../../lib/Logger.js';
 
 const GITHUB_API = 'https://api.github.com';
 const GITHUB_GRAPHQL = 'https://api.github.com/graphql';
