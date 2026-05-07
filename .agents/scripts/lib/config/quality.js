@@ -18,7 +18,12 @@ export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
   targetDirs: Object.freeze(['src']),
   newMethodCeiling: 30,
   coveragePath: 'coverage/coverage-final.json',
-  tolerance: 0.001,
+  // Raised from 0.001 in 5.36.1 — see check-crap.js:resolveCrapEnvOverrides
+  // for the rationale (CRAP scores are c²·(1−cov)³ + c, so cross-environment
+  // coverage rounding alone produces ~0.01 drift on a clean rebuild; 0.001
+  // flagged that as a regression). 0.05 absorbs the rounding without
+  // missing real regressions, which cross whole-integer thresholds.
+  tolerance: 0.05,
   requireCoverage: true,
   friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
   refreshTag: 'baseline-refresh:',

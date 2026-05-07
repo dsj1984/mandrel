@@ -270,7 +270,8 @@ describe('config-resolver library tests', () => {
         targetDirs: ['src'],
         newMethodCeiling: 30,
         coveragePath: 'coverage/coverage-final.json',
-        tolerance: 0.001,
+        // Default tolerance bumped 0.001 → 0.05 in 5.36.1.
+        tolerance: 0.05,
         requireCoverage: true,
         friction: { markerKey: 'crap-baseline-regression' },
         refreshTag: 'baseline-refresh:',
@@ -380,7 +381,7 @@ describe('config-resolver library tests', () => {
       const crap = config.settings.quality.crap;
       assert.equal(crap.newMethodCeiling, 40);
       assert.equal(crap.enabled, true);
-      assert.equal(crap.tolerance, 0.001);
+      assert.equal(crap.tolerance, 0.05);
       assert.equal(crap.coveragePath, 'coverage/coverage-final.json');
       assert.deepEqual(crap.targetDirs, ['src']);
       assert.deepEqual(crap.friction, {

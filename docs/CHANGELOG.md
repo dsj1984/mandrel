@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.36.1] — 2026-05-06
+
+Patch: raise the default CRAP regression tolerance from 0.001 → 0.05.
+
+### Changed
+
+- **`agentSettings.quality.crap.tolerance` default** — bumped from 0.001
+  to 0.05 in `lib/config/quality.js` (`MAINTAINABILITY_CRAP_DEFAULTS`),
+  `check-crap.js` (`resolveCrapEnvOverrides` fallback), and
+  `baseline-refresh-guardrail.js` (`parseBaseBranchConfig` fallback).
+  CRAP scores follow the formula `c² · (1 − cov)³ + c`, so a sub-percent
+  per-method coverage rounding shift across CI environments — same code,
+  different escomplex / coverage build — moves the score by ~0.01 on a
+  clean rebuild. The 0.001 tolerance flagged that as a regression
+  (5.36.0 CI hit it: `crap=7.01 > baseline=7.00`); 0.05 absorbs the
+  rounding without missing real regressions, which cross whole-integer
+  thresholds (e.g. 8 → 12). Repos that have explicitly set their own
+  `tolerance` in `.agentrc.json` are unaffected. The framework's own
+  `.agentrc.json` is updated in lockstep.
+
 ## [5.36.0] — 2026-05-06
 
 Adds two new opt-in command keys so close-validation works on Prettier /

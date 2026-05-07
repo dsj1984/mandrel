@@ -128,7 +128,9 @@ test('resolveCrapEnvOverrides — negative numeric env var is rejected', () => {
 test('resolveCrapEnvOverrides — missing config fields fall back to documented defaults', () => {
   const result = resolveCrapEnvOverrides({}, {});
   assert.strictEqual(result.newMethodCeiling, 30);
-  assert.strictEqual(result.tolerance, 0.001);
+  // Default tolerance bumped 0.001 → 0.05 in 5.36.1; see check-crap.js
+  // for the cross-environment-rounding rationale.
+  assert.strictEqual(result.tolerance, 0.05);
   assert.strictEqual(result.refreshTag, 'baseline-refresh:');
 });
 

@@ -126,7 +126,7 @@ consumer-extension guidance.
 | `targetDirs`      | No                 | `["src"]`    | Source dirs to score. Accepts list or `{ append/prepend }` form. |
 | `newMethodCeiling`| No                 | `30`         | Max CRAP score allowed for methods absent from the baseline.    |
 | `coveragePath`    | Conditional        | `coverage/coverage-final.json` | Required when `enabled: true` and `requireCoverage: true`. |
-| `tolerance`       | No                 | `0.001`      | Floating-point slack when comparing scores against baseline.    |
+| `tolerance`       | No                 | `0.05`       | Floating-point slack when comparing scores against baseline. Raised 0.001 → 0.05 in 5.36.1 — cross-environment coverage rounding produces ~0.01 drift on a clean rebuild. |
 | `requireCoverage` | No                 | `true`       | When `true`, methods without coverage are skipped (not failed). |
 | `friction.markerKey` | No              | `crap-baseline-regression` | Friction-log marker for regressions.              |
 | `refreshTag`      | No                 | `baseline-refresh:` | Subject prefix the refresh-guardrail expects on baseline-only commits. |

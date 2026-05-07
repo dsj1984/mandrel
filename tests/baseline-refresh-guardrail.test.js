@@ -92,7 +92,8 @@ test('parseBaseBranchConfig — reads crap block from well-formed json', () => {
 test('parseBaseBranchConfig — malformed json falls back to defaults', () => {
   const parsed = parseBaseBranchConfig('not json {');
   assert.strictEqual(parsed.newMethodCeiling, 30);
-  assert.strictEqual(parsed.tolerance, 0.001);
+  // Default tolerance bumped 0.001 → 0.05 in 5.36.1.
+  assert.strictEqual(parsed.tolerance, 0.05);
   assert.strictEqual(parsed.refreshTag, 'baseline-refresh:');
   assert.strictEqual(parsed.enabled, true);
 });
