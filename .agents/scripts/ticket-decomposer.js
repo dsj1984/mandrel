@@ -302,21 +302,23 @@ export async function decomposeEpic(
 
   if (force) {
     console.log('[Decomposer] --force: Closing existing child tickets...');
-    const closePromises = [];
-    for (const child of existingChildren) {
-      if (child.state !== 'closed') {
-        const p = provider
-          .updateTicket(child.id, {
-            state: 'closed',
-            state_reason: 'not_planned',
-          })
-          .then(() => {
-            console.log(`[Decomposer]   Closed #${child.id}: ${child.title}`);
-          });
-        closePromises.push(p);
-      }
-    }
-    await Promise.all(closePromises);
+    // Bound the GitHub close-mutation burst so a wide --force re-plan does
+    // not race the secondary rate limit. concurrentMap surfaces the first
+    // rejection deterministically (later failures from drain-through work
+    // are swallowed) which preserves per-item error reporting via the
+    // single thrown error.
+    const openChildren = existingChildren.filter((c) => c.state !== 'closed');
+    await concurrentMap(
+      openChildren,
+      async (child) => {
+        await provider.updateTicket(child.id, {
+          state: 'closed',
+          state_reason: 'not_planned',
+        });
+        console.log(`[Decomposer]   Closed #${child.id}: ${child.title}`);
+      },
+      { concurrency: 3 },
+    );
     console.log(
       `[Decomposer]   Closed ${existingChildren.length} old ticket(s).`,
     );
