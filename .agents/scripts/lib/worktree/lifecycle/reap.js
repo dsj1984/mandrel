@@ -35,6 +35,36 @@ const WINDOWS_LOCK_RE =
 const WINDOWS_CWD_RE =
   /(current working directory|inside the worktree|cannot remove.*current working directory|used by another process because it is the current working directory)/i;
 
+/**
+ * Decide whether a worktree is safe to remove.
+ *
+ * The merge-reachability gate uses **`git merge-base --is-ancestor HEAD
+ * epicRef`** (run from the main checkout) rather than the prior
+ * branch-vs-epic ancestry heuristic. The branch-name check fails after a
+ * post-merge rebase or force-push because the local branch ref no longer
+ * points at the SHA the Epic actually merged — see Epic #1072 where the
+ * close script needed a five-step manual reap recipe to recover. Comparing
+ * the worktree's *HEAD commit* against the Epic ref captures both the
+ * happy path (branch unchanged since merge) and the post-rebase path
+ * (branch advanced to a SHA still reachable from the Epic merge commit).
+ *
+ * When HEAD is no longer an ancestor (force-push that drops or rewrites
+ * the merged tip), the function falls back to a `merge-commit-reachable`
+ * check: search the Epic ref for a `--no-ff` merge commit whose subject
+ * carries this Story's `(resolves #<id>)` token. Such a merge commit
+ * proves the Story branch was integrated even though the current HEAD
+ * has diverged, so the worktree is still safe to reap.
+ *
+ * `opts.epicRef` is the canonical option name (e.g. `epic/1114`).
+ * `opts.epicBranch` is accepted as a back-compat alias so existing call
+ * sites that thread `{ epicBranch }` through `reap()` keep working until
+ * they migrate.
+ *
+ * @param {object} ctx
+ * @param {string} wtPath
+ * @param {{ epicRef?: string|null, epicBranch?: string|null }} [opts]
+ * @returns {Promise<{ safe: boolean, reason?: string }>}
+ */
 export async function isSafeToRemove(ctx, wtPath, opts = {}) {
   if (!fs.existsSync(wtPath)) {
     return { safe: true, reason: 'path-missing' };
@@ -57,27 +87,72 @@ export async function isSafeToRemove(ctx, wtPath, opts = {}) {
     return { safe: false, reason: 'detached-head' };
   }
 
-  const epicBranch = opts.epicBranch ?? null;
-  if (epicBranch) {
-    const res = ctx.git.gitSpawn(
+  const epicRef = opts.epicRef ?? opts.epicBranch ?? null;
+  if (!epicRef) {
+    return { safe: true };
+  }
+
+  // Resolve HEAD to a commit SHA inside the worktree. The ancestry test
+  // then runs from `ctx.repoRoot` against that SHA so the result is
+  // independent of the local branch ref (which is the whole point — a
+  // post-rebase branch ref may have moved off the merged tip even though
+  // the merged commit still lives on the Epic).
+  const headShaRes = ctx.git.gitSpawn(wtPath, 'rev-parse', 'HEAD');
+  if (headShaRes.status !== 0) {
+    return {
+      safe: false,
+      reason: `rev-parse-failed: ${headShaRes.stderr || 'HEAD'}`,
+    };
+  }
+  const headSha = headShaRes.stdout.trim();
+  const headShort = headSha.slice(0, 7) || 'HEAD';
+
+  // Primary gate: HEAD is reachable from the Epic ref.
+  const ancestor = ctx.git.gitSpawn(
+    ctx.repoRoot,
+    'merge-base',
+    '--is-ancestor',
+    headSha,
+    epicRef,
+  );
+  if (ancestor.status === 0) {
+    return { safe: true, reason: 'head-reachable-from-epic' };
+  }
+  if (ancestor.status !== 1) {
+    return {
+      safe: false,
+      reason: `merge-check-failed: head=${headShort} epic=${epicRef}: ${
+        ancestor.stderr || ancestor.stdout || 'unknown'
+      }`,
+    };
+  }
+
+  // Fallback: a `--no-ff` merge commit on the Epic for this Story exists.
+  // The merge subject is `feat: ... (resolves #<storyId>)` (see
+  // story-close/merge-runner.js), so a one-line `git log --grep` against
+  // the Epic ref is sufficient — we don't need to walk parents ourselves.
+  const storyMatch = /^story-(\d+)$/.exec(branch);
+  if (storyMatch) {
+    const storyId = storyMatch[1];
+    const grep = ctx.git.gitSpawn(
       ctx.repoRoot,
-      'merge-base',
-      '--is-ancestor',
-      branch,
-      epicBranch,
+      'log',
+      epicRef,
+      '--merges',
+      '-n',
+      '1',
+      '--pretty=%H',
+      `--grep=resolves #${storyId}`,
     );
-    if (res.status === 1) {
-      return { safe: false, reason: 'unmerged-commits' };
-    }
-    if (res.status !== 0) {
-      return {
-        safe: false,
-        reason: `merge-check-failed: ${res.stderr || res.stdout || 'unknown'}`,
-      };
+    if (grep.status === 0 && grep.stdout.trim().length > 0) {
+      return { safe: true, reason: 'merge-commit-reachable' };
     }
   }
 
-  return { safe: true };
+  return {
+    safe: false,
+    reason: `unmerged-commits: head=${headShort} epic=${epicRef}`,
+  };
 }
 
 /**
@@ -443,7 +518,7 @@ export async function reap(ctx, storyId, opts = {}) {
   }
 
   const safety = await isSafeToRemove(ctx, wtPath, {
-    epicBranch: opts.epicBranch ?? null,
+    epicRef: opts.epicBranch ?? opts.epicRef ?? null,
   });
   let discardedPaths = null;
   if (!safety.safe) {
