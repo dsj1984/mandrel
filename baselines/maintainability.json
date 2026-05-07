@@ -227,7 +227,7 @@
   ".agents/scripts/story-task-progress.js": 89.13,
   ".agents/scripts/sync-claude-commands.js": 99.196,
   ".agents/scripts/task-commit.js": 82.083,
-  ".agents/scripts/ticket-decomposer.js": 92.29,
+  ".agents/scripts/ticket-decomposer.js": 92.287,
   ".agents/scripts/update-crap-baseline.js": 88.765,
   ".agents/scripts/update-maintainability-baseline.js": 115.738,
   ".agents/scripts/update-self.js": 82.639,
