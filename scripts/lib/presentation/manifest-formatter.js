@@ -283,8 +283,7 @@ export function formatManifestMarkdown(manifest) {
 }
 
 function _formatManifestMarkdownUncached(manifest) {
-  const { epicId, epicTitle, summary, storyManifest, dryRun, generatedAt } =
-    manifest;
+  const { epicId, epicTitle, summary, storyManifest, generatedAt } = manifest;
   const progress = computeProgress(manifest);
   const lines = [];
 
@@ -293,42 +292,20 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('');
   lines.push(`> **${epicTitle}**`);
   lines.push('');
+  lines.push(`_Generated ${generatedAt}_`);
+  lines.push('');
 
   lines.push('## 🤖 Agent Operating Procedures');
   lines.push('');
   lines.push(
-    '> 1. **Identify**: Start with the lowest available wave where `Status` is `🚀 Ready`.',
+    `> 1. **Execute**: Run \`/epic-execute ${epicId}\`. The orchestrator iterates waves in order, fans Stories out in parallel via \`/wave-execute\` → \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
   );
   lines.push(
-    '> 2. **Select**: Pick a Story from the **Execution Plan** that is not yet `✅`.',
+    '> 2. **Resume (granular, optional)**: To re-drive a single wave, run `/wave-execute <epicId> <waveN>`. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
   );
-  lines.push('> 3. **Execute**: Run `/epic-execute [STORY_ID]`.');
   lines.push(
-    '> 4. **Repeat**: Continue iterating on execution until all stories and waves are complete',
+    `> 3. **Close**: With \`epic::auto-close\` set, \`/epic-execute\` chains into \`/epic-close ${epicId}\` automatically. Otherwise run \`/epic-close ${epicId}\` after review/retro.`,
   );
-  lines.push('> 5. **Close**: Run `/epic-close`');
-  lines.push('');
-
-  lines.push('| Field | Value |');
-  lines.push('| :--- | :--- |');
-  lines.push(`| Generated | ${generatedAt} |`);
-  lines.push(`| Mode | ${dryRun ? '🔍 Dry Run' : '🚀 Live Dispatch'} |`);
-  lines.push(
-    `| Progress | **${summary.doneTasks}/${summary.totalTasks}** tasks (${summary.progressPercent}%) |`,
-  );
-  const storyCount = (storyManifest ?? []).filter(
-    (s) => s.storyId !== '__ungrouped__' && s.type === 'story',
-  ).length;
-  const featureCount = (storyManifest ?? []).filter(
-    (s) => s.type === 'feature',
-  ).length;
-  lines.push(`| Stories | ${storyCount} |`);
-  if (featureCount > 0)
-    lines.push(`| Features (containers) | ${featureCount} |`);
-  lines.push(
-    `| Execution Waves | ${progress.storyWaveCount} _(${summary.totalWaves} task-level waves)_ |`,
-  );
-  lines.push(`| Dispatched | ${summary.dispatched} |`);
   lines.push('');
 
   // --- Hero Progress Bar ---
@@ -396,18 +373,6 @@ function _formatManifestMarkdownUncached(manifest) {
     lines.push('---');
     lines.push('');
   }
-
-  // --- Execution instructions ---
-  lines.push('## How to Execute');
-  lines.push('');
-  lines.push('1. Pick a Story from the next ready wave (🚀 status above).');
-  lines.push('2. Run: `/epic-execute #[Story ID]`');
-  lines.push('');
-  lines.push(
-    '> **Tip:** Story closure and dashboard refresh are handled automatically by `story-close.js`. ' +
-      'Check the updated `temp/` manifest files after closing a story.',
-  );
-  lines.push('');
 
   return lines.join('\n');
 }
