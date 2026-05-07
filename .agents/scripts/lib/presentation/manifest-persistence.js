@@ -31,23 +31,37 @@ function getProjectRoot() {
 }
 
 /**
+ * Resolve absolute path for a legacy flat dispatch-manifest sibling.
+ */
+function legacyOrphanPath(epicId, ext, projectRoot, resolved) {
+  const rel = epicArtifactPath(
+    epicId,
+    `dispatch-manifest-${epicId}.${ext}`,
+    resolved,
+  );
+  return path.isAbsolute(rel) ? rel : path.join(projectRoot, rel);
+}
+
+/**
+ * Sweep one legacy orphan; returns the path if removed, else null.
+ */
+function sweepOne(target) {
+  try {
+    if (!fs.existsSync(target)) return null;
+    fs.rmSync(target, { force: true });
+    return target;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Sweep legacy flat-layout dispatch-manifest siblings out of the per-Epic
- * temp dir. The Epic dispatch-manifest layout migrated from
+ * temp dir. The Epic manifest layout migrated from
  * `temp/epic-<id>/dispatch-manifest-<id>.{md,json}` to
- * `temp/epic-<id>/manifest.{md,json}` in Epic #1030 / Story #1040; older
- * worktrees that survived the migration still carry the named-pair
- * orphans alongside the new canonical files. Operators see two manifest
- * paths and ask which is current — sweeping on each render keeps a single
- * canonical artefact in the epic dir.
- *
- * Idempotent: if neither orphan exists, returns `{ removed: [] }` without
- * error. Logs an info-level message the first time a removal happens so
- * operators see the migration take effect; subsequent no-op runs are
- * silent.
- *
- * @param {string} epicId — numeric Epic ID (string or number).
- * @param {{ projectRoot?: string, settings?: object, logger?: { info: Function } }} [opts]
- * @returns {{ removed: string[] }}
+ * `temp/epic-<id>/manifest.{md,json}` in Epic #1030 / Story #1040;
+ * sweeping on each render keeps a single canonical artefact in the
+ * epic dir. Idempotent: returns `{ removed: [] }` when nothing to do.
  */
 export function deleteLegacyFlatManifest(epicId, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
@@ -56,33 +70,10 @@ export function deleteLegacyFlatManifest(epicId, opts = {}) {
     : safeResolveConfig(projectRoot);
   const logger = opts.logger ?? console;
 
-  const relMd = epicArtifactPath(
-    epicId,
-    `dispatch-manifest-${epicId}.md`,
-    resolved,
+  const targets = ['md', 'json'].map((ext) =>
+    legacyOrphanPath(epicId, ext, projectRoot, resolved),
   );
-  const relJson = epicArtifactPath(
-    epicId,
-    `dispatch-manifest-${epicId}.json`,
-    resolved,
-  );
-  const mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
-  const jsonPath = path.isAbsolute(relJson)
-    ? relJson
-    : path.join(projectRoot, relJson);
-
-  const removed = [];
-  for (const target of [mdPath, jsonPath]) {
-    try {
-      if (fs.existsSync(target)) {
-        fs.rmSync(target, { force: true });
-        removed.push(target);
-      }
-    } catch {
-      // best-effort sweep; leave the orphan in place rather than aborting
-      // the render. The next invocation will retry.
-    }
-  }
+  const removed = targets.map(sweepOne).filter(Boolean);
 
   if (removed.length > 0 && typeof logger?.info === 'function') {
     logger.info(
