@@ -3658,10 +3658,10 @@
       "startLine": 53
     },
     {
-      "crap": 29.031148148148148,
+      "crap": 30.030927835051545,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAndNormalizeTickets",
-      "startLine": 9
+      "startLine": 138
     },
     {
       "crap": 5,
@@ -4852,13 +4852,13 @@
       "startLine": 11
     },
     {
-      "crap": 2,
+      "crap": 4.31,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "getTicketComments",
       "startLine": 18
     },
     {
-      "crap": 1,
+      "crap": 1.58,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "deleteComment",
       "startLine": 25
