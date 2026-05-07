@@ -385,25 +385,31 @@
       "crap": 1,
       "file": ".agents/scripts/detect-merges.js",
       "method": "isTemplatePath",
-      "startLine": 23
+      "startLine": 29
     },
     {
       "crap": 1,
       "file": ".agents/scripts/detect-merges.js",
       "method": "isDetectMergesTestFixture",
-      "startLine": 27
+      "startLine": 33
     },
     {
-      "crap": 1.000328016728853,
+      "crap": 1.0005787037037037,
       "file": ".agents/scripts/detect-merges.js",
       "method": "scanForConflicts",
-      "startLine": 38
+      "startLine": 44
+    },
+    {
+      "crap": 5.048828125,
+      "file": ".agents/scripts/detect-merges.js",
+      "method": "<anon method-2>",
+      "startLine": 47
     },
     {
       "crap": 5.571813239851649,
       "file": ".agents/scripts/detect-merges.js",
       "method": "main",
-      "startLine": 68
+      "startLine": 81
     },
     {
       "crap": 9,
