@@ -8,7 +8,9 @@
  *
  * All helpers:
  *   - Take an explicit `cwd` (worktree-isolation friendly).
- *   - Validate branch names via `isSafeBranchComponent`.
+ *   - Validate branch names via the canonical `assertBranchSafe` guard
+ *     in protected mode (rejects `main`, `master`, `HEAD`, and `refs/*`
+ *     before any destructive `git` invocation).
  *   - Treat "branch not found" / "remote ref does not exist" as success
  *     (idempotent), distinguishing it via `reason: 'not-found'`.
  *   - Return `{ deleted: bool, reason: string, stderr?: string }` and
@@ -18,18 +20,8 @@
  * follow-up Story.
  */
 
-import { isSafeBranchComponent } from './dependency-parser.js';
+import { assertBranchSafe, isSafeBranchName } from './branch-name-guard.js';
 import { gitSpawn } from './git-utils.js';
-
-function assertSafeBranch(name) {
-  if (!isSafeBranchComponent(name)) {
-    throw new Error(
-      `[git-branch-cleanup] Unsafe branch name: "${name}". ` +
-        'Branch names must contain only alphanumeric characters, hyphens, ' +
-        'underscores, dots, and slashes.',
-    );
-  }
-}
 
 const NOT_FOUND_LOCAL = /not found|no such branch|did not match any/i;
 const NOT_FOUND_REMOTE = /remote ref does not exist|does not exist/i;
@@ -46,7 +38,7 @@ const NOT_FOUND_REMOTE = /remote ref does not exist|does not exist/i;
  *   `reason` is one of: `'deleted'`, `'not-found'`, `'unmerged'`, `'error'`.
  */
 export function deleteBranchLocal(name, opts = {}) {
-  assertSafeBranch(name);
+  assertBranchSafe(name, { protected: true });
   const force = opts.force !== false;
   const cwd = opts.cwd ?? process.cwd();
   const flag = force ? '-D' : '-d';
@@ -77,9 +69,12 @@ export function deleteBranchLocal(name, opts = {}) {
  *   `reason` is one of: `'deleted'`, `'not-found'`, `'error'`.
  */
 export function deleteBranchRemote(name, opts = {}) {
-  assertSafeBranch(name);
+  assertBranchSafe(name, { protected: true });
   const remote = opts.remote ?? 'origin';
-  if (!isSafeBranchComponent(remote)) {
+  // Remote name (e.g. "origin") is a non-branch identifier; reuse the
+  // shared character-set predicate but raise a remote-scoped error so
+  // the failure message stays accurate.
+  if (!isSafeBranchName(remote)) {
     throw new Error(`[git-branch-cleanup] Unsafe remote name: "${remote}".`);
   }
   const cwd = opts.cwd ?? process.cwd();

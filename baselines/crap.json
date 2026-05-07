@@ -1204,6 +1204,18 @@
       "startLine": 44
     },
     {
+      "crap": 8,
+      "file": ".agents/scripts/lib/branch-name-guard.js",
+      "method": "isSafeBranchName",
+      "startLine": 45
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/branch-name-guard.js",
+      "method": "assertBranchSafe",
+      "startLine": 70
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/changed-files.js",
       "method": "getChangedFiles",
@@ -1846,28 +1858,22 @@
       "startLine": 20
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/git-branch-cleanup.js",
-      "method": "assertSafeBranch",
-      "startLine": 24
-    },
-    {
       "crap": 6,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchLocal",
-      "startLine": 48
+      "startLine": 40
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchRemote",
-      "startLine": 79
+      "startLine": 71
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchBoth",
-      "startLine": 117
+      "startLine": 112
     },
     {
       "crap": 3,
@@ -1876,58 +1882,52 @@
       "startLine": 24
     },
     {
-      "crap": 2.649135987978963,
-      "file": ".agents/scripts/lib/git-branch-lifecycle.js",
-      "method": "assertSafeBranch",
-      "startLine": 30
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "branchExistsLocally",
-      "startLine": 49
+      "startLine": 37
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "branchExistsRemotely",
-      "startLine": 64
+      "startLine": 52
     },
     {
       "crap": 13.420476444298657,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranch",
-      "startLine": 79
+      "startLine": 67
     },
     {
       "crap": 2.864,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "_assertOnBranch",
-      "startLine": 143
+      "startLine": 131
     },
     {
       "crap": 14.498496987686622,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "checkoutStoryBranch",
-      "startLine": 164
+      "startLine": 152
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "planEnsureEpicBranchRefAction",
-      "startLine": 235
+      "startLine": 223
     },
     {
       "crap": 27.974001200274348,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranchRef",
-      "startLine": 240
+      "startLine": 228
     },
     {
       "crap": 5.20262390670554,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureLocalBranch",
-      "startLine": 288
+      "startLine": 276
     },
     {
       "crap": 4.125,
