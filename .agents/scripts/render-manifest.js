@@ -32,6 +32,7 @@ import { epicArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
+import { atomicWrite } from './lib/presentation/manifest-persistence.js';
 import { createProvider } from './lib/provider-factory.js';
 
 export function extractManifestJson(body) {
@@ -71,8 +72,13 @@ export function writeRenderedManifest({
   if (!fs.existsSync(epicDir)) {
     fs.mkdirSync(epicDir, { recursive: true });
   }
-  fs.writeFileSync(mdPath, body, 'utf8');
-  fs.writeFileSync(jsonPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
+  // Both writes go through the atomic write-then-rename helper so a
+  // crash mid-write (rename throws / process killed) leaves either the
+  // pre-existing artefact intact or no file at all — never a partial
+  // truncation. The `.tmp` residue is best-effort removed on failure
+  // (see `atomicWrite` in manifest-persistence.js).
+  atomicWrite(mdPath, body);
+  atomicWrite(jsonPath, `${JSON.stringify(parsed, null, 2)}\n`);
   return { mdPath, jsonPath };
 }
 

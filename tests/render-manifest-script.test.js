@@ -86,6 +86,67 @@ test('renderManifestFromComment exits 1 when no manifest comment exists', async 
   }
 });
 
+test('writeRenderedManifest leaves no partial artefact when rename throws mid-write', () => {
+  // Crash simulation per Story s-render-manifest-atomic / Task #1111.
+  // Stub `fs.renameSync` so the .md write throws after the .tmp file has
+  // been created. The atomic helper must:
+  //   1. Re-raise the error to the caller (no silent corruption).
+  //   2. Best-effort remove the `.tmp` residue.
+  //   3. Never leave a partial `.md` or `.json` at the final path.
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ap-render-crash-'));
+  const origRename = fs.renameSync;
+  let renameCalls = 0;
+  fs.renameSync = () => {
+    renameCalls += 1;
+    throw new Error('simulated rename failure');
+  };
+  try {
+    const body = '## Dispatch Manifest — Epic #9\n\nbody\n';
+    const parsed = { stories: [{ storyId: 5, wave: 0, title: 'x' }] };
+    assert.throws(
+      () =>
+        writeRenderedManifest({
+          epicId: 9,
+          body,
+          parsed,
+          projectRoot: tmp,
+        }),
+      /simulated rename failure/,
+    );
+    assert.strictEqual(
+      renameCalls,
+      1,
+      'rename should have been attempted exactly once before bailing',
+    );
+    const epicDir = path.join(tmp, 'temp', 'epic-9');
+    // Final paths must not exist (no partial truncation).
+    assert.strictEqual(
+      fs.existsSync(path.join(epicDir, 'manifest.md')),
+      false,
+      'partial manifest.md was left behind',
+    );
+    assert.strictEqual(
+      fs.existsSync(path.join(epicDir, 'manifest.json')),
+      false,
+      'partial manifest.json was left behind',
+    );
+    // `.tmp` residue must have been cleaned up by the atomic helper.
+    assert.strictEqual(
+      fs.existsSync(path.join(epicDir, 'manifest.md.tmp')),
+      false,
+      'manifest.md.tmp residue was not cleaned up',
+    );
+    assert.strictEqual(
+      fs.existsSync(path.join(epicDir, 'manifest.json.tmp')),
+      false,
+      'manifest.json.tmp residue was not cleaned up',
+    );
+  } finally {
+    fs.renameSync = origRename;
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('renderManifestFromComment exits 1 when body has no JSON block', async () => {
   const provider = {
     getTicketComments: async () => [
