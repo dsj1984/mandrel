@@ -361,6 +361,27 @@ git push origin [BASE_BRANCH]
 **Skip this phase entirely when `[RUN_RETRO]` is `false` or the operator
 passed `--skip-retro`.** Log the override and proceed to Finalize.
 
+### Step 6.0 — Post the epic-perf-report
+
+Before the retro composes, run the analyzer in Epic mode so the
+`<!-- structured:epic-perf-report -->` structured comment is upserted
+on the Epic ticket. The retro helper reads this comment in place of the
+legacy per-Task friction-comment fan-out (Story #1046 / #1067):
+
+```bash
+node .agents/scripts/analyze-execution.js --epic [EPIC_ID]
+```
+
+The perf-report comment **must exist on the Epic** before the
+`helpers/epic-retro.md` procedure begins — `epic-retro.md` Step 1.2 fetches
+this comment by marker and surfaces its top hotspots in the
+"What Could Be Improved" section. If the analyzer fails (non-zero exit),
+log the failure as a warning and continue: the retro helper falls back to
+its baseline behaviour when the comment is absent, so a missing perf-report
+is non-fatal but observably degraded.
+
+### Step 6.1 — Verify retro comment
+
 When `[RUN_RETRO]` is `true` (default), verify a retrospective comment is
 present on the Epic. Retros are stored as comments on the Epic — there is no
 local retro file.

@@ -17,6 +17,7 @@ import {
   dashboardRefreshPhase,
   healthMonitorPhase,
   notificationPhase,
+  perfSummaryPhase,
   runPostMergePipeline,
   tempCleanupPhase,
   ticketClosurePhase,
@@ -186,6 +187,7 @@ describe('runPostMergePipeline', () => {
       'health-monitor',
       'dashboard-refresh',
       'temp-cleanup',
+      'perf-summary',
     ]);
   });
 });
@@ -591,5 +593,81 @@ describe('tempCleanupPhase', () => {
     // No epicId → only legacy flat layout.
     assert.equal(attempted.length, 2);
     assert.ok(attempted.every((p) => !p.includes('epic-')));
+  });
+});
+
+describe('perfSummaryPhase', () => {
+  it('shells out to analyze-execution.js with story/epic/phase-timings flags', async () => {
+    const calls = [];
+    const spawnFn = (cmd, args, opts) => {
+      calls.push({ cmd, args, opts });
+      return Buffer.from('');
+    };
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      projectRoot: '/repo',
+      progress: () => {},
+      logger: makeLogger(),
+      spawnFn,
+    });
+    assert.equal(result.status, 'ok');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].cmd, process.execPath);
+    const { args } = calls[0];
+    // First arg is the analyzer script path
+    assert.ok(
+      args[0]
+        .replaceAll('\\', '/')
+        .endsWith('.agents/scripts/analyze-execution.js'),
+      `expected analyzer path, got: ${args[0]}`,
+    );
+    // Then the flag pairs
+    assert.equal(args[1], '--story');
+    assert.equal(args[2], '100');
+    assert.equal(args[3], '--epic');
+    assert.equal(args[4], '200');
+    assert.equal(args[5], '--phase-timings');
+    assert.equal(args[6], '/repo/temp/epic-200/story-100/phase-timings.json');
+  });
+
+  it('skips when phaseTimingsPath is missing (returns status=skipped)', async () => {
+    let invoked = 0;
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: null,
+      projectRoot: '/repo',
+      progress: () => {},
+      logger: makeLogger(),
+      spawnFn: () => {
+        invoked += 1;
+      },
+    });
+    assert.equal(result.status, 'skipped');
+    assert.equal(invoked, 0);
+  });
+
+  it('logs warn + returns status=failed when the analyzer throws', async () => {
+    const logger = makeLogger();
+    const spawnFn = () => {
+      throw new Error('ENOENT analyze-execution.js');
+    };
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      projectRoot: '/repo',
+      progress: () => {},
+      logger,
+      spawnFn,
+    });
+    assert.equal(result.status, 'failed');
+    assert.match(result.reason, /ENOENT/);
+    assert.ok(
+      logger.warnings.some((m) => m.includes('analyze-execution failed')),
+      `expected warn log, got: ${JSON.stringify(logger.warnings)}`,
+    );
   });
 });
