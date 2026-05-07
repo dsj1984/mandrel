@@ -31,6 +31,69 @@ function getProjectRoot() {
 }
 
 /**
+ * Sweep legacy flat-layout dispatch-manifest siblings out of the per-Epic
+ * temp dir. The Epic dispatch-manifest layout migrated from
+ * `temp/epic-<id>/dispatch-manifest-<id>.{md,json}` to
+ * `temp/epic-<id>/manifest.{md,json}` in Epic #1030 / Story #1040; older
+ * worktrees that survived the migration still carry the named-pair
+ * orphans alongside the new canonical files. Operators see two manifest
+ * paths and ask which is current — sweeping on each render keeps a single
+ * canonical artefact in the epic dir.
+ *
+ * Idempotent: if neither orphan exists, returns `{ removed: [] }` without
+ * error. Logs an info-level message the first time a removal happens so
+ * operators see the migration take effect; subsequent no-op runs are
+ * silent.
+ *
+ * @param {string} epicId — numeric Epic ID (string or number).
+ * @param {{ projectRoot?: string, settings?: object, logger?: { info: Function } }} [opts]
+ * @returns {{ removed: string[] }}
+ */
+export function deleteLegacyFlatManifest(epicId, opts = {}) {
+  const projectRoot = opts.projectRoot ?? getProjectRoot();
+  const resolved = opts.settings
+    ? { settings: opts.settings }
+    : safeResolveConfig(projectRoot);
+  const logger = opts.logger ?? console;
+
+  const relMd = epicArtifactPath(
+    epicId,
+    `dispatch-manifest-${epicId}.md`,
+    resolved,
+  );
+  const relJson = epicArtifactPath(
+    epicId,
+    `dispatch-manifest-${epicId}.json`,
+    resolved,
+  );
+  const mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
+  const jsonPath = path.isAbsolute(relJson)
+    ? relJson
+    : path.join(projectRoot, relJson);
+
+  const removed = [];
+  for (const target of [mdPath, jsonPath]) {
+    try {
+      if (fs.existsSync(target)) {
+        fs.rmSync(target, { force: true });
+        removed.push(target);
+      }
+    } catch {
+      // best-effort sweep; leave the orphan in place rather than aborting
+      // the render. The next invocation will retry.
+    }
+  }
+
+  if (removed.length > 0 && typeof logger?.info === 'function') {
+    logger.info(
+      `[manifest-persistence] Swept ${removed.length} legacy flat dispatch-manifest orphan(s) for Epic #${epicId}: ${removed.join(', ')}`,
+    );
+  }
+
+  return { removed };
+}
+
+/**
  * Atomic write-then-rename. On any failure, best-effort remove the `.tmp`
  * file and rethrow so the caller can surface a structured result.
  *
@@ -114,6 +177,13 @@ export function persistManifest(manifest, opts = {}) {
     }
   } else if (manifest.epicId) {
     const epicId = manifest.epicId;
+    // Sweep legacy flat dispatch-manifest-<id>.{md,json} orphans before
+    // re-rendering so the per-Epic dir only ever shows the canonical
+    // manifest.{md,json} pair (resolves #1126).
+    deleteLegacyFlatManifest(epicId, {
+      projectRoot,
+      settings: opts.settings ?? resolved.settings,
+    });
     const relJson = epicArtifactPath(epicId, 'manifest.json', tempPathsConfig);
     const relMd = epicArtifactPath(epicId, 'manifest.md', tempPathsConfig);
     jsonPath = path.isAbsolute(relJson)
