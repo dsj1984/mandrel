@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';
 import {
   getBaselines,
@@ -170,6 +171,27 @@ export function parseChangedSinceArg(argv = process.argv.slice(2)) {
   return null;
 }
 
+/**
+ * Resolve `--epic-ref <ref>` from argv. Returns the ref string when present
+ * and non-empty, else null. Story #1120: when set, the gate reads the
+ * baseline file at that git ref via `baseline-loader.readBaselineAtRef`
+ * instead of via the working-tree fs read. The close-validation chain
+ * threads `epic/<id>` into this flag so the gate compares against the
+ * Epic-branch HEAD's committed baseline, not whatever the main checkout's
+ * working tree happens to carry.
+ *
+ * Exported for testing.
+ */
+export function parseEpicRefArg(argv = process.argv.slice(2)) {
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--epic-ref') {
+      const next = argv[i + 1];
+      if (next && !next.startsWith('--')) return next;
+    }
+  }
+  return null;
+}
+
 function parseJsonPathArg(argv = process.argv.slice(2)) {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--json' && argv[i + 1]) return argv[i + 1];
@@ -262,16 +284,56 @@ function printSummaryReport(scores, stats) {
   console.log('------------------------------\n');
 }
 
+/**
+ * Pure helper: resolve the baseline using either the working-tree fs read
+ * (legacy) or `readBaselineAtRef(epicRef, path)` (Story #1120, when
+ * `epicRef` is supplied). Exported so tests can pin the precedence
+ * without spawning the CLI.
+ *
+ * @param {{
+ *   baselinePath: string,
+ *   epicRef: string | null,
+ *   readBaseline?: typeof getBaseline,
+ *   readAtRef?: typeof readBaselineAtRef,
+ *   logger?: { warn: (m: string) => void },
+ * }} opts
+ * @returns {Record<string, number>}
+ */
+export function loadMaintainabilityBaseline({
+  baselinePath,
+  epicRef,
+  readBaseline = getBaseline,
+  readAtRef = readBaselineAtRef,
+  logger = console,
+}) {
+  if (!epicRef) return readBaseline(baselinePath);
+  try {
+    const parsed = readAtRef(epicRef, baselinePath);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (err) {
+    logger.warn(
+      `[Maintainability] ⚠ failed to read baseline at ref "${epicRef}": ${err?.message ?? err}. Falling back to working-tree read.`,
+    );
+    return readBaseline(baselinePath);
+  }
+}
+
 async function main() {
   console.log('[Maintainability] Verifying code quality against baseline...');
 
   const { settings } = resolveConfig();
   const baselinePath = getBaselines({ agentSettings: settings }).maintainability
     .path;
-  const baseline = getBaseline(baselinePath);
+  const epicRef = parseEpicRefArg();
+  const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
+  if (epicRef) {
+    console.log(
+      `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
+    );
+  }
   if (Object.keys(baseline).length === 0) {
     console.warn(
-      `[Maintainability] ⚠️ No baseline found at ${baselinePath}. Run 'npm run maintainability:update' to create one.`,
+      `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
     );
     process.exit(0);
   }

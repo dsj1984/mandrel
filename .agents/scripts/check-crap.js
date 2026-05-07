@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';
 import {
   getBaselines,
@@ -124,6 +125,7 @@ export function parseCliArgs(argv = process.argv.slice(2)) {
     baselinePath: undefined,
     coveragePath: undefined,
     changedSinceRef: null,
+    epicRef: null,
     jsonPath: undefined,
   };
   for (let i = 0; i < argv.length; i += 1) {
@@ -149,6 +151,11 @@ export function parseCliArgs(argv = process.argv.slice(2)) {
       } else {
         out.changedSinceRef = 'main';
       }
+    } else if (argv[i] === '--epic-ref' && argv[i + 1]) {
+      // Story #1120: read the baseline at this git ref (e.g. `epic/1114`)
+      // via baseline-loader instead of via the working-tree fs read.
+      out.epicRef = argv[i + 1];
+      i += 1;
     } else if (argv[i] === '--json' && argv[i + 1]) {
       out.jsonPath = argv[i + 1];
       i += 1;
@@ -532,6 +539,62 @@ async function emitFriction(storyId, epicId, result, orchestration) {
   }
 }
 
+/**
+ * Pure helper: resolve the CRAP baseline either from the working tree
+ * (legacy fs read via `getCrapBaseline`) or, when `epicRef` is supplied,
+ * from `git show <epicRef>:<baselinePath>` via `readBaselineAtRef`.
+ *
+ * Story #1120: the close-validation chain threads `epic/<id>` into the
+ * gate so the comparison runs against the Epic-branch HEAD's committed
+ * baseline, not against whatever `baselines/crap.json` happens to be on
+ * the main checkout's working tree.
+ *
+ * The baseline-loader hands back the raw parsed envelope; this helper
+ * applies the same `kernelVersion` / `escomplexVersion` / `rows` shape
+ * checks that `getCrapBaseline` does, plus the `tsTranspilerVersion`
+ * back-fill, so downstream comparators see a consistent envelope
+ * regardless of which read path produced it.
+ *
+ * Exported for testing.
+ *
+ * @param {{
+ *   baselinePath: string,
+ *   epicRef: string | null,
+ *   readAtRef?: typeof readBaselineAtRef,
+ *   readFromTree?: typeof getCrapBaseline,
+ *   logger?: { warn: (m: string) => void },
+ * }} opts
+ * @returns {ReturnType<typeof getCrapBaseline>}
+ */
+export function loadCrapBaseline({
+  baselinePath,
+  epicRef,
+  readAtRef = readBaselineAtRef,
+  readFromTree = getCrapBaseline,
+  logger = console,
+}) {
+  if (!epicRef) return readFromTree({ baselinePath });
+  let parsed;
+  try {
+    parsed = readAtRef(epicRef, baselinePath);
+  } catch (err) {
+    logger.warn(
+      `[CRAP] ⚠ failed to read baseline at ref "${epicRef}": ${err?.message ?? err}. Falling back to working-tree read.`,
+    );
+    return readFromTree({ baselinePath });
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return null;
+  }
+  if (typeof parsed.kernelVersion !== 'string') return null;
+  if (typeof parsed.escomplexVersion !== 'string') return null;
+  if (!Array.isArray(parsed.rows)) return null;
+  if (typeof parsed.tsTranspilerVersion !== 'string') {
+    parsed.tsTranspilerVersion = '0.0.0';
+  }
+  return parsed;
+}
+
 async function main() {
   const args = parseCliArgs();
   const { settings, ...rest } = resolveConfig();
@@ -567,7 +630,15 @@ async function main() {
 
   const baselinePath =
     args.baselinePath ?? getBaselines({ agentSettings: settings }).crap.path;
-  const baseline = getCrapBaseline({ baselinePath });
+  const baseline = loadCrapBaseline({
+    baselinePath,
+    epicRef: args.epicRef,
+  });
+  if (args.epicRef) {
+    console.log(
+      `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
+    );
+  }
   const runningEscomplex = resolveEscomplexVersion();
   const runningTs = resolveTsTranspilerVersion();
   const compat = evaluateBaselineCompatibility({

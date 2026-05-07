@@ -32,16 +32,24 @@ import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
- * whose message embeds the first failed gate's name, exit code, and hint —
- * the `runAsCli` boundary in `story-close.js` maps the throw to
- * `process.exit(1)`. (See Story #959 — orchestration scripts must throw
- * rather than route through the logger's fatal sink, so a mocked
- * `process.exit` cannot swallow the failure silently.)
+ * whose message embeds the first failed gate's name, exit code, hint, and
+ * the working directory the gate ran in — the `runAsCli` boundary in
+ * `story-close.js` maps the throw to `process.exit(1)`. (See Story #959 —
+ * orchestration scripts must throw rather than route through the logger's
+ * fatal sink, so a mocked `process.exit` cannot swallow the failure
+ * silently.)
+ *
+ * Story #1120: pass `worktreePath` (`.worktrees/story-<id>/`) so every
+ * gate runs against the Story branch's post-rebase tree, not the main
+ * checkout. Without it, gate spawn falls back to `cwd` (the main
+ * checkout) — the legacy single-tree path remains intact.
  *
  * `phaseTimer` may be omitted; when present, lint/test starts are timed.
  */
 export function runPreMergeGates({
   cwd,
+  worktreePath,
+  epicBranch,
   settings,
   storyId,
   epicId,
@@ -52,11 +60,12 @@ export function runPreMergeGates({
   runCloseValidation = defaultRunCloseValidation,
 }) {
   logger.info?.(
-    '[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)...',
+    `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
   const validation = runCloseValidation({
     cwd,
-    gates: buildDefaultGates({ settings }),
+    worktreePath,
+    gates: buildDefaultGates({ settings, epicBranch }),
     log: (m) => logger.info(m),
     onGateStart: (gate) => {
       // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
@@ -72,9 +81,10 @@ export function runPreMergeGates({
     useEvidence,
   });
   if (!validation.ok) {
-    const [{ gate, status }] = validation.failed;
+    const [first] = validation.failed;
+    const { gate, status, cwd: gateCwd } = first;
     throw new Error(
-      `Pre-merge validation failed at "${gate.name}" (exit ${status}).` +
+      `Pre-merge validation failed at "${gate.name}" (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
         (gate.hint ? ` ${gate.hint}` : ''),
     );
   }

@@ -13,16 +13,26 @@
  * Usage:
  *   node .agents/scripts/evidence-gate.js \
  *     --epic-id <epicId> --scope-id <storyOrEpicId> --gate <name> \
- *     [--no-evidence] -- <cmd> [args...]
+ *     [--worktree <path>] [--no-evidence] -- <cmd> [args...]
  *
  * Examples:
  *   node .agents/scripts/evidence-gate.js --epic-id 802 --scope-id 817 --gate lint -- npm run lint
  *   node .agents/scripts/evidence-gate.js --epic-id 1030 --scope-id 1030 --gate test -- npm test
+ *   node .agents/scripts/evidence-gate.js --epic-id 1114 --scope-id 1120 --gate test \
+ *     --worktree .worktrees/story-1120 -- npm test
  *
  * `--epic-id` is required. When `scope-id === epic-id` the evidence file is
  * Epic-scoped (`<tempRoot>/epic-<eid>/validation-evidence.json`); when
  * `scope-id !== epic-id` it is Story-scoped under
  * `<tempRoot>/epic-<eid>/story-<sid>/validation-evidence.json`.
+ *
+ * **Worktree-aware spawn (Story #1120).** `--cwd` (default `PROJECT_ROOT`)
+ * is the *evidence cwd* — it locates the per-Epic temp tree under the main
+ * checkout's `.git/`. `--worktree` is the *spawn cwd* — when supplied, the
+ * gate runner is launched with `cwd: <worktree>` and the HEAD-SHA used as
+ * the evidence key is read from the worktree (so caching keys to the Story
+ * branch's HEAD, not the main branch's). When `--worktree` is omitted,
+ * spawn cwd falls back to `--cwd` (legacy single-tree behaviour).
  *
  * Exit codes:
  *   0 — gate passed (or skipped via evidence)
@@ -74,6 +84,7 @@ export function parseWrapperArgs(argv) {
       gate: { type: 'string' },
       'no-evidence': { type: 'boolean', default: false },
       cwd: { type: 'string' },
+      worktree: { type: 'string' },
     },
     strict: false,
   });
@@ -85,6 +96,7 @@ export function parseWrapperArgs(argv) {
     gate: values.gate ?? null,
     useEvidence: values['no-evidence'] !== true,
     cwd: values.cwd ?? PROJECT_ROOT,
+    worktreePath: values.worktree ?? null,
   };
 }
 
@@ -107,7 +119,11 @@ function resolveHeadShaDefault(cwd, gitSpawnFn) {
  * @param {number}   params.scopeId      — Story / Epic ID (positive integer).
  * @param {string}   params.gate         — Logical gate name (`lint`, `test`, …).
  * @param {boolean}  params.useEvidence  — When false, force the runner.
- * @param {string}   params.cwd          — Working directory passed to spawn.
+ * @param {string}   params.cwd          — Evidence cwd (locates the per-Epic
+ *   temp tree). The runner is spawned in `worktreePath` when set, else `cwd`.
+ * @param {string|null} [params.worktreePath] — Spawn cwd override (Story #1120).
+ *   When set, the runner runs in the Story worktree and the HEAD-SHA used as
+ *   the evidence cache key is read from the worktree, not from `cwd`.
  * @param {string[]} params.runnerArgs   — `[cmd, ...args]` from after `--`.
  * @param {object}   [deps]              — Optional injection hooks (tests).
  * @param {Function} [deps.gitSpawnFn]   — Stub for `gitSpawn`.
@@ -127,18 +143,27 @@ export async function runEvidenceGate(params, deps = {}) {
     recordPassFn = recordPass,
     logger = Logger,
   } = deps;
-  const { scopeId, epicId, gate, useEvidence, cwd, runnerArgs } = params ?? {};
+  const { scopeId, epicId, gate, useEvidence, cwd, worktreePath, runnerArgs } =
+    params ?? {};
 
   if (!scopeId || !epicId || !gate || !runnerArgs || runnerArgs.length === 0) {
     logger.fatal(
-      'Usage: node evidence-gate.js --epic-id <epicId> --scope-id <id> --gate <name> [--no-evidence] -- <cmd> [args...]',
+      'Usage: node evidence-gate.js --epic-id <epicId> --scope-id <id> --gate <name> [--worktree <path>] [--no-evidence] -- <cmd> [args...]',
     );
     return { status: 1, skipped: false };
   }
 
+  // Spawn cwd is the worktree when supplied — every gate command sees the
+  // Story branch's tree, not the main checkout. Evidence cwd stays anchored
+  // to the main checkout so the per-Epic temp tree resolves under the main
+  // `.git/`. The HEAD-SHA used as the cache key is read from the spawn cwd
+  // (the worktree), so cache entries key against the Story branch's HEAD.
+  const spawnCwd = worktreePath ?? cwd;
   const [cmd, ...cmdArgs] = runnerArgs;
-  const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd });
-  const headSha = useEvidence ? resolveHeadShaDefault(cwd, gitSpawnFn) : null;
+  const configHash = hashCommandConfig({ cmd, args: cmdArgs, cwd: spawnCwd });
+  const headSha = useEvidence
+    ? resolveHeadShaDefault(spawnCwd, gitSpawnFn)
+    : null;
 
   if (useEvidence && headSha) {
     const verdict = shouldSkipFn(
@@ -160,16 +185,20 @@ export async function runEvidenceGate(params, deps = {}) {
   }
 
   const startedAt = Date.now();
-  logger.info(`[evidence-gate] ▶ ${gate} → ${cmd} ${cmdArgs.join(' ')}`);
+  logger.info(
+    `[evidence-gate] ▶ ${gate} → ${cmd} ${cmdArgs.join(' ')} (cwd=${spawnCwd})`,
+  );
   const result = spawnFn(cmd, cmdArgs, {
-    cwd,
+    cwd: spawnCwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
   });
   const status = result.status ?? 1;
   if (status !== 0) {
     process.exitCode = status;
-    logger.error(`[evidence-gate] ✖ ${gate} failed (exit ${status})`);
+    logger.error(
+      `[evidence-gate] ✖ ${gate} failed (exit ${status}) in ${spawnCwd}`,
+    );
     return { status, skipped: false };
   }
 
