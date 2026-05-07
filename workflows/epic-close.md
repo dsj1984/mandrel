@@ -50,10 +50,9 @@ strands partial state on GitHub, so run them in order.
      path from `agentSettings.paths.docsRoot`).
 7. Resolve `[RUN_RETRO]` from `agentSettings.epicClose.runRetro` in
    `.agentrc.json` (default: `true`). When `false`, the Retro phase is
-   skipped entirely — no retro is required or produced. The legacy
-   `agentSettings.sprintClose.runRetro` key is read as a fallback with a
-   one-line `Logger.warn(...)` deprecation; remove it from your config to
-   silence the warning. The shim is scheduled for removal in 5.32.0.
+   skipped entirely — no retro is required or produced. (The pre-5.36.4
+   `agentSettings.sprintClose.runRetro` fallback was removed; consumer
+   configs must use the `epicClose` shape.)
 
 ---
 
