@@ -41,6 +41,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
+import { runAsCli } from './lib/cli-utils.js';
 import { signalsFile, storyArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
@@ -412,25 +413,4 @@ async function main(argv = process.argv.slice(2)) {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-const invokedDirectly = (() => {
-  try {
-    const argv1 = process.argv[1] ? path.resolve(process.argv[1]) : '';
-    const here = new URL(import.meta.url).pathname;
-    const norm =
-      process.platform === 'win32' && here.startsWith('/')
-        ? here.slice(1)
-        : here;
-    return path.resolve(norm) === argv1;
-  } catch {
-    return false;
-  }
-})();
-
-if (invokedDirectly) {
-  main().catch((err) => {
-    Logger.error(
-      `[analyze-execution] FATAL: ${err instanceof Error ? err.stack || err.message : String(err)}`,
-    );
-    process.exit(1);
-  });
-}
+runAsCli(import.meta.url, main, { source: 'analyze-execution' });
