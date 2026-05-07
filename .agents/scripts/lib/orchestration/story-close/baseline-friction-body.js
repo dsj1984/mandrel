@@ -4,10 +4,10 @@
  *
  * Story #1124 (Tech Spec #902, "s-baseline-refresh-discipline"). When
  * `classifyBaselineDrift` reports rows on paths the running Story never
- * touched, story-close upserts a `<!-- structured:friction -->` comment on
+ * touched, story-close upserts a `friction`-typed structured comment on
  * the Story so the operator can route the refresh back to the sibling
- * Story whose merge introduced the drift. The body shape is stable so the
- * `diagnose-friction` analyzer can pattern-match the section.
+ * Story whose merge introduced the drift. The body shape is stable so
+ * the `diagnose-friction` analyzer can pattern-match the section.
  *
  * Output contract (markdown):
  *
@@ -52,8 +52,9 @@ function formatSuspectSha(sha) {
 }
 
 /**
- * Render the friction-comment body. The caller wraps the return in the
- * `structured:friction` marker via `upsertStructuredComment`.
+ * Render the friction-comment body. The caller passes the result to
+ * `upsertStructuredComment(provider, ticketId, 'friction', body)` which
+ * applies the canonical structured-comment marker.
  *
  * @param {object} input
  * @param {Array<{
