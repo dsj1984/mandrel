@@ -17,6 +17,33 @@ import { AGENT_LABELS } from '../label-constants.js';
 // ---------------------------------------------------------------------------
 
 /**
+ * Pick the per-Story symbol for the wave-grouped Story table:
+ *   🚧 — at least one task is `agent::blocked`
+ *   ✅ — every task is `agent::done`
+ *   🔄 — some task is `agent::done` or `agent::executing` (not all done)
+ *   ⬜ — nothing started yet (planning-time default)
+ *
+ * Pure: derives state from `s.tasks[].status` only. The runtime fills those
+ * statuses from current GitHub labels via `resolveAndDispatch` so the symbol
+ * advances as `dashboardRefreshPhase` re-renders after each Story merge.
+ *
+ * @param {{ tasks: Array<{ status?: string }> }} story
+ * @returns {string}
+ */
+export function deriveStorySymbol(story) {
+  const tasks = story?.tasks ?? [];
+  if (tasks.length === 0) return '⬜';
+  const blocked = tasks.some((t) => t.status === AGENT_LABELS.BLOCKED);
+  if (blocked) return '🚧';
+  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
+  if (done === tasks.length) return '✅';
+  if (done > 0 || tasks.some((t) => t.status === AGENT_LABELS.EXECUTING)) {
+    return '🔄';
+  }
+  return '⬜';
+}
+
+/**
  * Compute aggregate progress numbers for a dispatch manifest. Pure — derives
  * everything from the manifest fields it is given.
  *
@@ -168,12 +195,8 @@ export function renderStoryTable(storyManifest) {
     lines.push('| :--- | :--- | :--- | :--- |');
 
     for (const s of stories) {
-      const allDone =
-        s.tasks.length > 0 &&
-        s.tasks.every((t) => t.status === AGENT_LABELS.DONE);
-      const storyCheckbox = allDone ? '✅' : '⬜';
       lines.push(
-        `| ${storyCheckbox} | #${s.storyId} | ${s.storySlug} | ${s.tasks.length} |`,
+        `| ${deriveStorySymbol(s)} | #${s.storyId} | ${s.storySlug} | ${s.tasks.length} |`,
       );
     }
     lines.push('');

@@ -88,9 +88,14 @@ contract enforceable, and keeps the mode-B return parser on a uniform code
 path.
 
 When `plan.length > concurrencyCap`, dispatch the first `concurrencyCap`
-Stories in the assistant turn, wait for the batch to return, then emit a
-follow-up turn with the next batch. **Never** dispatch more than
-`concurrencyCap` Stories in flight at once.
+Stories in the initial assistant turn (each as a background `Agent` call
+with `run_in_background: true`). As **each** child returns its task
+notification, dispatch the **next** undispatched Story from `plan`
+immediately — keep the in-flight count at `concurrencyCap` until every
+Story has been dispatched, then drain the remaining returns. **Never**
+exceed `concurrencyCap` in flight, and **never** wait for a whole batch to
+return before refilling — strict batching wastes capacity (one slow Story
+stalls all sibling slots) and is forbidden.
 
 ### Per-child prompt contract
 
