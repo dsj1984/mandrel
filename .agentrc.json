@@ -34,6 +34,13 @@
         "consecutiveErrorCount": 3,
         "stagnationStepCount": 5,
         "maxIntegrationRetries": 2
+      },
+      "signals": {
+        "hotspot": { "p95Multiplier": 1.25 },
+        "rework": { "editsPerFile": 5 },
+        "churn": { "repeatCount": 4 },
+        "idle": { "gapSeconds": 120 },
+        "retry": { "repeatCount": 3 }
       }
     },
     "commands": {

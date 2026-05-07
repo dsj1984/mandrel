@@ -5,10 +5,80 @@ Agent Protocols orchestration engine.
 
 ---
 
-## FrictionEvent (`friction` structured comment)
+## SignalEvent (`signals.ndjson` line)
 
-Posted on Task issues by `FrictionEmitter` when the anti-thrashing or
-gate-failure paths trip. Schema lives at
+One newline-terminated JSON object emitted by `signals-writer.appendSignal`
+to `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+`traces.ndjson` for `kind: trace`). Closed taxonomy of seven record kinds —
+`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace` — defined
+by Epic #1030. Schema lives at
+[`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json);
+the table below mirrors that schema — update both together. See
+[`docs/architecture.md`](architecture.md#performance-signal-telemetry) for
+the producer / detector / analyzer flow and the ADR in
+[`docs/decisions.md`](decisions.md) for the events-local /
+summaries-on-tickets rationale.
+
+| Field      | Type                | Required | Description                                                                                                                |
+| ---------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `ts`       | `ISO8601 date-time` | Yes      | Event timestamp in UTC.                                                                                                    |
+| `kind`     | `enum`              | Yes      | One of `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace`. Drives detector dispatch and analyzer rollup.   |
+| `source`   | `object`            | Yes      | `{ tool: string, script?: string }`. `tool` is the originating surface (`Bash`, `Edit`, `Write`, `Read`, `Grep`, `Glob`, or a script name for derived signals). |
+| `epicId`   | `integer ≥ 1`       | Yes      | Epic the event belongs to. Pins the on-disk path to `temp/epic-<epicId>/`.                                                 |
+| `storyId`  | `integer ≥ 1`       | Yes      | Story the event was sampled inside. Pins the on-disk path to `story-<storyId>/`.                                           |
+| `taskId`   | `integer ≥ 1` \| `null` | No   | Task within the Story, when known. `null` for Story-level events that don't pin to a Task.                                 |
+| `phase`    | `string` \| `null`  | No       | Execution phase the event was sampled inside (`bootstrap`, `implement`, `test`, `close`, …). `null` for raw traces outside a phase boundary. |
+| `details`  | `object`            | No       | Kind-specific payload (free-form for forward compatibility). Common keys: `category`, `command`, `elapsedMs`, `targetHash`. |
+
+---
+
+## StoryPerfSummary (`structured:story-perf-summary` comment)
+
+Payload of the single performance summary comment posted on every Story
+ticket at close (Epic #1030). Replaces the per-Task friction comment fanout
+and the standalone phase-timings comment. Schema lives at
+[`story-perf-summary.schema.json`](../.agents/schemas/story-perf-summary.schema.json).
+
+| Field                     | Type                | Required | Description                                                                                              |
+| ------------------------- | ------------------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| `kind`                    | `const string`      | Yes      | Always `"story-perf-summary"` so the analyzer can index the comment by kind.                              |
+| `storyId`                 | `integer ≥ 1`       | Yes      | Story this summary belongs to.                                                                            |
+| `epicId`                  | `integer ≥ 1`       | Yes      | Epic the Story rolls up to.                                                                               |
+| `closedAt`                | `ISO8601 date-time` | Yes      | When the close transitioned the Story to `agent::done`.                                                   |
+| `frictionByCategory`      | `object`            | Yes      | Counts of friction signals bucketed by category for this Story. Keys are category strings; values ≥ 0.    |
+| `phaseTimingsMs`          | `object`            | Yes      | Elapsed ms per phase, sourced from `phase-timer.js`. Keys are phase names; values ≥ 0.                    |
+| `topSlowPhasesVsBaseline` | `array`             | Yes      | Items: `{ phase, elapsedMs, baselineP95Ms, ratio }`. `ratio = elapsedMs / baselineP95Ms`.                 |
+| `reworkScore`             | `object`            | Yes      | `{ filesEditedBeyondThreshold, topPath?, topPathEdits? }`. Threshold from `signals.rework.editsPerFile`.  |
+| `retryDensity`            | `object`            | Yes      | `{ retries, uniqueCommands }`. `retries / uniqueCommands` is the density per Story.                       |
+
+---
+
+## EpicPerfReport (`structured:epic-perf-report` comment)
+
+Payload of the single Epic-level performance comment posted alongside the
+retro at Epic close (Epic #1030). Aggregates every Story's NDJSON stream
+into one rolled-up report. Schema lives at
+[`epic-perf-report.schema.json`](../.agents/schemas/epic-perf-report.schema.json).
+
+| Field                 | Type                | Required | Description                                                                                                                                                |
+| --------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `kind`                | `const string`      | Yes      | Always `"epic-perf-report"`.                                                                                                                                |
+| `epicId`              | `integer ≥ 1`       | Yes      | Epic this report belongs to.                                                                                                                                |
+| `generatedAt`         | `ISO8601 date-time` | Yes      | When `epic-close.js` produced the report.                                                                                                                   |
+| `signalCounts`        | `object`            | Yes      | Rolled-up counts by `kind` for the entire Epic. Keys: `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry` (each integer ≥ 0).                         |
+| `waveParallelism`     | `array`             | Yes      | Items: `{ wave, wallClockMs, sumStoryMs, utilization, stories }`. `utilization = wallClockMs / sumStoryMs` (lower is better; ideal is `1/N` for `N` slots). |
+| `topHotspots`         | `array`             | Yes      | Items: `{ phase, occurrences, avgRatio }`. Phases that fired the hotspot detector most often, with the average `elapsedMs / baselineP95Ms` ratio.           |
+| `mostFrictionStories` | `array`             | Yes      | Items: `{ storyId, frictionCount }`. Stories that produced the highest count of `kind: friction` events.                                                    |
+
+---
+
+## FrictionEvent (`friction` NDJSON signal)
+
+Appended to `temp/epic-<eid>/story-<sid>/signals.ndjson` by
+`signals-writer.appendSignal` when detector or gate-failure paths
+trip. (Pre Epic #1030 Story #1042 the same payload was posted as a
+GitHub structured comment by the now-deleted in-process emitter.)
+Schema lives at
 [`friction-event.schema.json`](../.agents/schemas/friction-event.schema.json);
 the table below mirrors that schema — update both together.
 
@@ -130,7 +200,7 @@ any prior comment of the same type.
 | `retro`             | `epic-retro` helper                                 | Final retrospective body with the `retro-complete` marker.               |
 | `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |
 | `phase-timings`     | `phase-timer` (on `story-close`)                    | Per-phase elapsed-time spans for the closed Story.                       |
-| `friction`          | `FrictionEmitter`                                   | Rate-limited friction observation tied to a `storyId` + marker hash.     |
+| `friction`          | `signals-writer.appendSignal` (NDJSON, on disk)     | Per-Story friction observation appended to `signals.ndjson` (no GitHub round-trip post Story #1042). |
 | `notification`      | `notify.js`                                         | Operator-facing severity-tiered notification.                            |
 
 The `mcp__agent-protocols__post_structured_comment` tool is **gone**; the
@@ -174,7 +244,7 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
 | `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
 | `progress-signals/crap-drift.js`                    | Detector | Mechanical detector; per-method CRAP drift versus a wave-start baseline. Surfaces a `🧨 CRAP drift: <file>::<method> <score> (ceiling <N>)` bullet when a method crosses the configured ceiling or rises by ≥ threshold. |
-| `FrictionEmitter`                                   | Class    | Rate-limited emitter at `lib/orchestration/friction-emitter.js`. Dedupe key: `storyId` + marker hash; cooldown: 60s. Consumed by `story-close.js` reap-failure, `epic-runner` wave-poller `getTicket` failure, and `check-maintainability.js` baseline-refresh sites. |
+| `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
 | `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-close` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
 | Version-bump-intent snapshot                        | Checkpoint | `/epic-execute` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` runs in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |

@@ -77,12 +77,33 @@ Read execution telemetry directly from GitHub — **not** from local files:
 
 1. **Fetch the Epic and all child tickets** (Features, Stories, Tasks) using
    `provider.getTickets(epicId)`.
-2. **For each Task ticket**, collect:
-   - Final label state (e.g., `agent::done`, `agent::blocked`, `status::blocked`).
-   - All comments of type `friction` (posted via `postStructuredComment`).
-   - Time between `agent::executing` and `agent::done` (from label events, if
-     available).
-3. **Collect aggregate friction signals**:
+2. **Fetch the per-Story `story-perf-summary` and Epic `epic-perf-report`
+   summary comments** (Epic #1030 Story #1046). The retro now reads the
+   unified summary comments instead of fanning out across per-Task `friction`
+   structured comments — `analyze-execution.js` is the single writer of both
+   markers (Story close posts `story-perf-summary`; Epic close Phase 6 posts
+   `epic-perf-report`).
+   - For each closed Story under the Epic, fetch the
+     `<!-- structured:story-perf-summary -->` comment via
+     `provider.getTicketComments(storyId)`. Each payload carries
+     `frictionByCategory`, `phaseTimingsMs`, `topSlowPhasesVsBaseline`,
+     `reworkScore`, and `retryDensity`. Aggregate `frictionByCategory` counts
+     across descendants — that aggregate is the friction count the scorecard
+     and `isCleanManifest` heuristic consume.
+   - Fetch the single `<!-- structured:epic-perf-report -->` comment on the
+     Epic itself via `provider.getTicketComments(epicId)`. This payload
+     carries the cross-Story rollups (median/p95 per phase, top hotspots,
+     baseline drift). It is consumed in Step 2 to populate the
+     **What Could Be Improved → Top hotspots** subsection.
+   - If a Story has no `story-perf-summary` comment (e.g. Story was closed
+     before Story #1046 wired the analyzer), treat its contribution as
+     `frictionByCategory = {}` and continue. The retro still composes; the
+     missing payload is observably degraded but non-fatal. Same fallback
+     applies if the `epic-perf-report` comment is absent — the Top hotspots
+     subsection collapses to `_No epic-perf-report available._`.
+3. **Collect aggregate friction signals** (sourced from the
+   `story-perf-summary` payloads aggregated above, plus per-ticket label
+   reads):
    - Count of Tasks that required a hotfix (`status::blocked` was applied).
    - Count of tickets that raised an `agent::blocked` event mid-sprint (the
      runtime HITL pause point — count distinct tickets that received the
@@ -176,7 +197,16 @@ _Generated [ISO date] · Protocol Version [from .agents/VERSION]_
 
 ### What Could Be Improved
 
-> (Identify Tasks with friction comments; extract root causes)
+> (Identify systemic friction; extract root causes from the
+> `story-perf-summary` aggregate `frictionByCategory` rollup.)
+
+#### Top hotspots
+
+> Sourced from the Epic's `<!-- structured:epic-perf-report -->` comment
+> (Step 1.2). Render the top callouts the analyzer produced — typically a
+> short bullet list of the slowest phases vs. baseline, the highest-rework
+> file paths, and any retry-density outliers. If no `epic-perf-report`
+> comment is present, render `_No epic-perf-report available._` instead.
 
 ### Architectural Debt
 
@@ -254,6 +284,29 @@ systemic friction worth codifying. Restore the full six-section structure by
 re-running the helper with `--full-retro` if you need that section.
 
 ## Step 3 — Post the Retrospective as an Epic Comment
+
+### Step 3.0 — Mirror the composed body to `temp/epic-<id>/retro.md`
+
+Before posting the retro to GitHub, mirror the final composed markdown to a
+local file at `temp/epic-[EPIC_ID]/retro.md` (Epic #1030 Story #1046). The
+mirror is informational — GitHub remains the sole authoritative archive (see
+the "Storage has moved" callout in Step 0) — but the local copy lets
+operators inspect the rendered body without round-tripping through the
+GitHub API and survives mid-post network failures so the body can be
+re-posted from disk after retry.
+
+```bash
+mkdir -p temp/epic-[EPIC_ID]
+# Write the composed markdown to disk (the operator's tooling supplies the
+# body; the path is fixed by convention).
+echo "<final retro markdown>" > temp/epic-[EPIC_ID]/retro.md
+```
+
+The mirror is overwritten on each retro run — one file per Epic, never N.
+Do **not** commit `temp/epic-<id>/retro.md` to git; it is a transient
+operator-facing artefact, like the per-Story manifest pair next to it.
+
+### Step 3.1 — Post via the structured comment API
 
 Post the composed markdown as a structured comment on the Epic issue, tagged
 with the `retro` type. **Never** route the retro body through `notify.js` —

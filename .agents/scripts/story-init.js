@@ -37,6 +37,7 @@ import {
 import { parseBlockedBy } from './lib/dependency-parser.js';
 import { getEpicBranch, getStoryBranch } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { validateBlockers } from './lib/story-init/blocker-validator.js';
@@ -241,6 +242,27 @@ export async function runStoryInit({
     workCwd = branchResult.workCwd;
     worktreeCreated = branchResult.worktreeCreated;
     installStatus = branchResult.installStatus ?? installStatus;
+
+    // Propagate Epic + Story ids to the trace hook (Story #1043). The
+    // hook in `lib/observability/tool-trace-hook.js` is a no-op when
+    // these env vars are unset, so setting them here is what activates
+    // the per-tool-call trace stream. We also export to `.env.local`
+    // inside the worktree so the harness picks the values up on its
+    // next agent spawn.
+    try {
+      setActiveStoryEnv({
+        epicId,
+        storyId,
+        workCwd,
+        logger: stageLogger,
+      });
+    } catch (err) {
+      // Non-fatal: the trace hook degrades to a no-op without these
+      // vars, which only loses observability. Warn and continue.
+      stageLogger.warn(
+        `[story-init] ⚠️ Failed to set active-Story env: ${err?.message ?? err}`,
+      );
+    }
 
     // Clear any stale validation-evidence file in the worktree so a re-run
     // of this Story (recut, branch-recreate, manual restart) always starts

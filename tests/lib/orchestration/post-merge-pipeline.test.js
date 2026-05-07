@@ -6,19 +6,48 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
   branchCleanupPhase,
   DEFAULT_POST_MERGE_PHASES,
   dashboardRefreshPhase,
-  healthMonitorPhase,
   notificationPhase,
+  perfSummaryPhase,
   runPostMergePipeline,
   tempCleanupPhase,
   ticketClosurePhase,
   worktreeReapPhase,
 } from '../../../.agents/scripts/lib/orchestration/post-merge-pipeline.js';
+
+/**
+ * Friction signals land on disk as NDJSON via
+ * `signals-writer.appendSignal` (Epic #1030 Story #1042), which
+ * resolves `temp/epic-<eid>/story-<sid>/signals.ndjson` relative to
+ * `process.cwd()`. The reap-failure tests below switch cwd to a fresh
+ * tmpdir so the asserted writes never collide with the repo's real
+ * `temp/` tree.
+ */
+let prevCwd;
+let workRoot;
+
+function readFrictionSignals(epicId, storyId) {
+  const p = path.join(
+    workRoot,
+    'temp',
+    `epic-${epicId}`,
+    `story-${storyId}`,
+    'signals.ndjson',
+  );
+  if (!existsSync(p)) return [];
+  return readFileSync(p, 'utf8')
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line));
+}
 
 function makeLogger() {
   const errors = [];
@@ -57,7 +86,7 @@ describe('runPostMergePipeline', () => {
           calls.push('b');
           return true;
         },
-        stateKey: 'healthUpdated',
+        stateKey: 'manifestUpdated',
       },
       {
         name: 'c',
@@ -72,7 +101,7 @@ describe('runPostMergePipeline', () => {
       localDeleted: true,
       remoteDeleted: true,
     });
-    assert.equal(state.healthUpdated, true);
+    assert.equal(state.manifestUpdated, true);
   });
 
   it('continues after a phase throws and logs [phase=name]', async () => {
@@ -111,16 +140,16 @@ describe('runPostMergePipeline', () => {
     const logger = makeLogger();
     const phases = [
       {
-        name: 'health',
+        name: 'dashboard',
         fn: () => {
           throw new Error('nope');
         },
-        stateKey: 'healthUpdated',
+        stateKey: 'manifestUpdated',
         fallback: false,
       },
     ];
     const state = await runPostMergePipeline({ logger }, phases);
-    assert.equal(state.healthUpdated, false);
+    assert.equal(state.manifestUpdated, false);
   });
 
   it('seeds default state shape so consumers can destructure safely', async () => {
@@ -143,7 +172,6 @@ describe('runPostMergePipeline', () => {
       cascadedTo: [],
       cascadeFailed: [],
     });
-    assert.equal(state.healthUpdated, false);
     assert.equal(state.manifestUpdated, false);
   });
 
@@ -154,9 +182,9 @@ describe('runPostMergePipeline', () => {
       'branch-cleanup',
       'ticket-closure',
       'notification',
-      'health-monitor',
       'dashboard-refresh',
       'temp-cleanup',
+      'perf-summary',
     ]);
   });
 });
@@ -241,6 +269,17 @@ describe('branchCleanupPhase', () => {
 });
 
 describe('worktreeReapPhase', () => {
+  beforeEach(() => {
+    workRoot = mkdtempSync(path.join(tmpdir(), 'post-merge-pipeline-'));
+    prevCwd = process.cwd();
+    process.chdir(workRoot);
+  });
+
+  afterEach(() => {
+    if (prevCwd) process.chdir(prevCwd);
+    rmSync(workRoot, { recursive: true, force: true });
+  });
+
   function makeWmFactory(overrides = {}) {
     const calls = { reap: [], list: 0 };
     const wm = {
@@ -301,7 +340,7 @@ describe('worktreeReapPhase', () => {
     );
   });
 
-  it('emits friction + OPERATOR ACTION on Windows lock-class reap failure', async () => {
+  it('appends friction signal + OPERATOR ACTION on Windows lock-class reap failure', async () => {
     const { factory } = makeWmFactory({
       reap: {
         removed: false,
@@ -310,20 +349,22 @@ describe('worktreeReapPhase', () => {
       },
     });
     const logger = makeLogger();
-    const emissions = [];
-    const frictionEmitter = { emit: async (e) => emissions.push(e) };
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
-    assert.equal(emissions.length, 1);
-    assert.equal(emissions[0].markerKey, 'reap-failure');
+    const signals = readFrictionSignals(9, 1);
+    assert.equal(signals.length, 1);
+    assert.equal(signals[0].kind, 'friction');
+    assert.equal(signals[0].category, 'reap-failure');
+    assert.equal(signals[0].epicId, 9);
+    assert.equal(signals[0].storyId, 1);
     assert.equal(result.status, 'failed');
     assert.ok(
       logger.errors.some((m) => m.includes('OPERATOR ACTION REQUIRED')),
@@ -343,11 +384,11 @@ describe('worktreeReapPhase', () => {
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger: makeLogger(),
       progress: () => {},
-      frictionEmitter: { emit: async () => {} },
       worktreeManagerFactory: factory,
     });
     assert.equal(result.status, 'deferred-to-sweep');
@@ -364,15 +405,14 @@ describe('worktreeReapPhase', () => {
       },
     });
     const logger = makeLogger();
-    const frictionEmitter = { emit: async () => {} };
     await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
     assert.equal(
@@ -388,16 +428,14 @@ describe('worktreeReapPhase', () => {
       list: [{ path: '/repo/.worktrees/story-1' }],
     });
     const logger = makeLogger();
-    const emissions = [];
-    const frictionEmitter = { emit: async (e) => emissions.push(e) };
     const result = await worktreeReapPhase({
       orchestration: { worktreeIsolation: { enabled: true } },
       storyId: 1,
+      epicId: 9,
       epicBranch: 'epic/9',
       repoRoot: '/repo',
       logger,
       progress: () => {},
-      frictionEmitter,
       worktreeManagerFactory: factory,
     });
     assert.equal(result.status, 'still-registered');
@@ -408,7 +446,9 @@ describe('worktreeReapPhase', () => {
           m.includes('/repo/.worktrees/story-1'),
       ),
     );
-    assert.equal(emissions.length, 1);
+    const signals = readFrictionSignals(9, 1);
+    assert.equal(signals.length, 1);
+    assert.equal(signals[0].category, 'reap-failure');
   });
 });
 
@@ -436,20 +476,7 @@ describe('ticketClosurePhase (smoke)', () => {
   });
 });
 
-describe('healthMonitorPhase / dashboardRefreshPhase / notificationPhase', () => {
-  it('healthMonitorPhase invokes injected updater and returns true', async () => {
-    let called = 0;
-    const result = await healthMonitorPhase({
-      epicId: 9,
-      progress: () => {},
-      updateHealthFn: async () => {
-        called += 1;
-      },
-    });
-    assert.equal(result, true);
-    assert.equal(called, 1);
-  });
-
+describe('dashboardRefreshPhase / notificationPhase', () => {
   it('dashboardRefreshPhase short-circuits when skipDashboard=true', async () => {
     let called = 0;
     const result = await dashboardRefreshPhase({
@@ -505,7 +532,39 @@ describe('healthMonitorPhase / dashboardRefreshPhase / notificationPhase', () =>
 });
 
 describe('tempCleanupPhase', () => {
-  it('attempts to unlink both .md and .json manifests and ignores ENOENT', async () => {
+  it('sweeps per-Epic + legacy paths and ignores ENOENT', async () => {
+    const attempted = [];
+    await tempCleanupPhase({
+      storyId: 100,
+      epicId: 200,
+      projectRoot: '/repo',
+      progress: () => {},
+      unlinkFn: async (p) => {
+        attempted.push(p);
+        // ENOENT on every path — none exist yet.
+        const err = new Error('ENOENT');
+        err.code = 'ENOENT';
+        throw err;
+      },
+    });
+    // Per-Epic: epic-200/story-100/manifest.{md,json} (2)
+    // Legacy:   story-manifest-100.{md,json} (2)
+    assert.equal(attempted.length, 4);
+    assert.ok(
+      attempted.some((p) =>
+        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.md'),
+      ),
+    );
+    assert.ok(
+      attempted.some((p) =>
+        p.replaceAll('\\', '/').endsWith('epic-200/story-100/manifest.json'),
+      ),
+    );
+    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));
+    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.json')));
+  });
+
+  it('skips per-Epic targets when epicId is unknown', async () => {
     const attempted = [];
     await tempCleanupPhase({
       storyId: 100,
@@ -513,15 +572,86 @@ describe('tempCleanupPhase', () => {
       progress: () => {},
       unlinkFn: async (p) => {
         attempted.push(p);
-        if (p.endsWith('.md')) {
-          const err = new Error('ENOENT');
-          err.code = 'ENOENT';
-          throw err;
-        }
       },
     });
+    // No epicId → only legacy flat layout.
     assert.equal(attempted.length, 2);
-    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.md')));
-    assert.ok(attempted.some((p) => p.endsWith('story-manifest-100.json')));
+    assert.ok(attempted.every((p) => !p.includes('epic-')));
+  });
+});
+
+describe('perfSummaryPhase', () => {
+  it('shells out to analyze-execution.js with story/epic/phase-timings flags', async () => {
+    const calls = [];
+    const spawnFn = (cmd, args, opts) => {
+      calls.push({ cmd, args, opts });
+      return Buffer.from('');
+    };
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      projectRoot: '/repo',
+      progress: () => {},
+      logger: makeLogger(),
+      spawnFn,
+    });
+    assert.equal(result.status, 'ok');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].cmd, process.execPath);
+    const { args } = calls[0];
+    // First arg is the analyzer script path
+    assert.ok(
+      args[0]
+        .replaceAll('\\', '/')
+        .endsWith('.agents/scripts/analyze-execution.js'),
+      `expected analyzer path, got: ${args[0]}`,
+    );
+    // Then the flag pairs
+    assert.equal(args[1], '--story');
+    assert.equal(args[2], '100');
+    assert.equal(args[3], '--epic');
+    assert.equal(args[4], '200');
+    assert.equal(args[5], '--phase-timings');
+    assert.equal(args[6], '/repo/temp/epic-200/story-100/phase-timings.json');
+  });
+
+  it('skips when phaseTimingsPath is missing (returns status=skipped)', async () => {
+    let invoked = 0;
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: null,
+      projectRoot: '/repo',
+      progress: () => {},
+      logger: makeLogger(),
+      spawnFn: () => {
+        invoked += 1;
+      },
+    });
+    assert.equal(result.status, 'skipped');
+    assert.equal(invoked, 0);
+  });
+
+  it('logs warn + returns status=failed when the analyzer throws', async () => {
+    const logger = makeLogger();
+    const spawnFn = () => {
+      throw new Error('ENOENT analyze-execution.js');
+    };
+    const result = await perfSummaryPhase({
+      storyId: 100,
+      epicId: 200,
+      phaseTimingsPath: '/repo/temp/epic-200/story-100/phase-timings.json',
+      projectRoot: '/repo',
+      progress: () => {},
+      logger,
+      spawnFn,
+    });
+    assert.equal(result.status, 'failed');
+    assert.match(result.reason, /ENOENT/);
+    assert.ok(
+      logger.warnings.some((m) => m.includes('analyze-execution failed')),
+      `expected warn log, got: ${JSON.stringify(logger.warnings)}`,
+    );
   });
 });

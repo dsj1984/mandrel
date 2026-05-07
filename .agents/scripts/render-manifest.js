@@ -3,15 +3,17 @@
 /**
  * .agents/scripts/render-manifest.js — Derived-view Manifest Renderer
  *
- * Regenerates `temp/dispatch-manifest-<epicId>.{md,json}` from the
- * `dispatch-manifest` structured comment on the Epic. The comment is the
- * single source of truth for which Stories the sprint committed to; the
- * `temp/` files are a convenience view that lets wave-gate runs, local
- * tooling, and CI consumers work offline.
+ * Regenerates `temp/epic-<epicId>/manifest.{md,json}` from the
+ * `dispatch-manifest` structured comment on the Epic (Epic #1030 Story
+ * #1040 / Task #1054 — migrated from the legacy flat
+ * `temp/dispatch-manifest-<epicId>.{md,json}` layout). The comment is
+ * the single source of truth for which Stories the sprint committed to;
+ * the per-Epic files are a convenience view that lets wave-gate runs,
+ * local tooling, and CI consumers work offline.
  *
  * Running this script never mutates GitHub state — it only performs a read
- * of the existing comment and writes the derived artefacts under
- * `<projectRoot>/temp/`.
+ * of the existing comment and writes the derived artefacts under the
+ * per-Epic tree.
  *
  * Usage:
  *   node .agents/scripts/render-manifest.js --epic <EPIC_ID>
@@ -26,6 +28,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
+import { epicArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { findStructuredComment } from './lib/orchestration/ticketing.js';
@@ -54,13 +57,20 @@ export function writeRenderedManifest({
   body,
   parsed,
   projectRoot = PROJECT_ROOT,
+  config,
 }) {
-  const tempDir = path.join(projectRoot, 'temp');
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
+  // Per-Epic layout (Epic #1030 Story #1040): write under
+  // `<projectRoot>/temp/epic-<eid>/manifest.{md,json}`.
+  const relMd = epicArtifactPath(epicId, 'manifest.md', config);
+  const relJson = epicArtifactPath(epicId, 'manifest.json', config);
+  const mdPath = path.isAbsolute(relMd) ? relMd : path.join(projectRoot, relMd);
+  const jsonPath = path.isAbsolute(relJson)
+    ? relJson
+    : path.join(projectRoot, relJson);
+  const epicDir = path.dirname(mdPath);
+  if (!fs.existsSync(epicDir)) {
+    fs.mkdirSync(epicDir, { recursive: true });
   }
-  const mdPath = path.join(tempDir, `dispatch-manifest-${epicId}.md`);
-  const jsonPath = path.join(tempDir, `dispatch-manifest-${epicId}.json`);
   fs.writeFileSync(mdPath, body, 'utf8');
   fs.writeFileSync(jsonPath, `${JSON.stringify(parsed, null, 2)}\n`, 'utf8');
   return { mdPath, jsonPath };

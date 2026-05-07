@@ -26,6 +26,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 import { AGENT_LABELS } from '../../label-constants.js';
+import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
 import { parseFencedJsonComment } from '../structured-comment-parser.js';
@@ -120,7 +121,6 @@ export class ProgressReporter {
    *   concurrency?: number,
    *   cwd?: string,
    *   detectors?: Array<Function|{ detect: Function }>,
-   *   frictionEmitter?: { emit: Function } | null,
    *   logger?: { info?: Function, warn?: Function },
    *   now?: () => Date,
    *   setInterval?: typeof setInterval,
@@ -160,11 +160,9 @@ export class ProgressReporter {
       ? opts.detectors.filter(Boolean)
       : [createStalledWorktreeDetector({ cwd: opts.cwd })];
 
-    // Optional friction emitter for auto-posting structured comments onto
-    // affected Story tickets when the poller's per-Story `getTicket` read
-    // fails. Undefined in legacy callers — those paths keep the prior silent
-    // behavior (warn-log-only) until the coordinator wires an emitter in.
-    this.frictionEmitter = opts.frictionEmitter ?? null;
+    // Friction signals are appended directly to the per-Story
+    // `signals.ndjson` stream via `signals-writer.appendSignal` — no
+    // GitHub-comment emitter is wired here (Epic #1030 Story #1042).
 
     // Optional file sink — when set, every rendered snapshot is appended to
     // this path prefixed by an ISO-timestamped divider. Enables operators
@@ -477,28 +475,24 @@ export class ProgressReporter {
   }
 
   async #emitFetchFailureFriction(storyId, err) {
-    if (!this.frictionEmitter) return;
-    const body = [
-      `### 🚧 Friction — poller getTicket failed`,
-      '',
-      `- Story: \`#${storyId}\``,
-      `- Epic: \`#${this.epicId}\``,
-      `- Error: \`${String(err?.message ?? err).slice(0, 500)}\``,
-      '',
-      "The epic runner failed to read this Story's labels during its wave",
-      'progress poll. If this is the GraphQL `variableNotUsed: $issueId` class',
-      'of failure the Story will render as `unknown` in the progress table and',
-      'the poller will retry next tick.',
-    ].join('\n');
+    if (!Number.isInteger(this.epicId) || !storyId) return;
     try {
-      await this.frictionEmitter.emit({
-        ticketId: Number(storyId),
-        markerKey: 'poller-fetch-failure',
-        body,
+      await appendSignal({
+        epicId: Number(this.epicId),
+        storyId: Number(storyId),
+        signal: {
+          kind: 'friction',
+          timestamp: new Date().toISOString(),
+          epicId: Number(this.epicId),
+          storyId: Number(storyId),
+          category: 'poller-fetch-failure',
+          source: { tool: 'epic-runner/progress-reporter.js' },
+          details: String(err?.message ?? err).slice(0, 500),
+        },
       });
     } catch (emitErr) {
       this.logger.warn?.(
-        `[ProgressReporter] friction emit failed for #${storyId}: ${emitErr?.message ?? emitErr}`,
+        `[ProgressReporter] friction signal append failed for #${storyId}: ${emitErr?.message ?? emitErr}`,
       );
     }
   }

@@ -31,42 +31,50 @@ function unfreeze(value) {
 }
 
 /**
- * Diff two plain objects key-by-key (one level deep is enough for the
- * `limits` block — `friction` and `planningContext` are the only nested
- * bags). Returns a sorted list of `topKey` / `topKey.nestedKey` paths that
- * differ.
- * @param {Record<string, unknown>} expected
- * @param {Record<string, unknown>} actual
+ * Diff two plain objects key-by-key, descending into nested objects as far
+ * as needed. Originally a one-level diff scoped to `friction` /
+ * `planningContext`; Epic #1030 Story #1039 introduced the two-level
+ * `signals.<detector>.<key>` block so the helper now walks the tree.
+ * Arrays compare via JSON-stringification (deep value equality, no
+ * identity sensitivity).
+ *
+ * @param {unknown} expected
+ * @param {unknown} actual
+ * @param {string} prefix
+ * @param {Set<string>} [diffs]
  * @returns {string[]}
  */
-function divergentKeys(expected, actual) {
-  const diffs = new Set();
-  const keys = new Set([...Object.keys(expected), ...Object.keys(actual)]);
-  for (const key of keys) {
-    const exp = expected[key];
-    const act = actual[key];
-    const expIsObj =
-      exp !== null && typeof exp === 'object' && !Array.isArray(exp);
-    const actIsObj =
-      act !== null && typeof act === 'object' && !Array.isArray(act);
-    if (expIsObj && actIsObj) {
-      const nestedKeys = new Set([
-        ...Object.keys(/** @type {object} */ (exp)),
-        ...Object.keys(/** @type {object} */ (act)),
-      ]);
-      for (const nk of nestedKeys) {
-        if (
-          /** @type {Record<string, unknown>} */ (exp)[nk] !==
-          /** @type {Record<string, unknown>} */ (act)[nk]
-        ) {
-          diffs.add(`${key}.${nk}`);
-        }
-      }
-    } else if (exp !== act) {
-      diffs.add(key);
+function divergentKeys(expected, actual, prefix = '', diffs = new Set()) {
+  const expIsObj =
+    expected !== null &&
+    typeof expected === 'object' &&
+    !Array.isArray(expected);
+  const actIsObj =
+    actual !== null && typeof actual === 'object' && !Array.isArray(actual);
+  if (expIsObj && actIsObj) {
+    const keys = new Set([
+      ...Object.keys(/** @type {object} */ (expected)),
+      ...Object.keys(/** @type {object} */ (actual)),
+    ]);
+    for (const key of keys) {
+      const path = prefix ? `${prefix}.${key}` : key;
+      divergentKeys(
+        /** @type {Record<string, unknown>} */ (expected)[key],
+        /** @type {Record<string, unknown>} */ (actual)[key],
+        path,
+        diffs,
+      );
     }
+    return prefix === '' ? [...diffs].sort() : [];
   }
-  return [...diffs].sort();
+  if (Array.isArray(expected) && Array.isArray(actual)) {
+    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+      diffs.add(prefix);
+    }
+  } else if (expected !== actual) {
+    diffs.add(prefix);
+  }
+  return prefix === '' ? [...diffs].sort() : [];
 }
 
 describe('default-agentrc.json agentSettings.limits ↔ LIMITS_DEFAULTS', () => {

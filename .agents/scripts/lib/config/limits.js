@@ -4,12 +4,33 @@
  */
 
 /**
+ * Framework defaults for the performance-signal detector thresholds
+ * (Epic #1030 / Story #1047). Promoted to a standalone export so the
+ * detector wiring layer can `import { SIGNALS_DEFAULTS } from '…/limits.js'`
+ * without reaching into `LIMITS_DEFAULTS.signals` — the two refer to the
+ * same frozen reference, so any drift is structural rather than silent.
+ *
+ * Operators override individual keys via
+ * `agentSettings.limits.signals.<detector>.<key>` in `.agentrc.json`; the
+ * resolver shallow-merges per-detector blocks on top of this object.
+ */
+export const SIGNALS_DEFAULTS = Object.freeze({
+  hotspot: Object.freeze({ p95Multiplier: 1.25 }),
+  rework: Object.freeze({ editsPerFile: 5 }),
+  churn: Object.freeze({ repeatCount: 4 }),
+  idle: Object.freeze({ gapSeconds: 120 }),
+  retry: Object.freeze({ repeatCount: 3 }),
+});
+
+/**
  * Framework defaults for `agentSettings.limits` (Epic #730 Story 8). Mirrors
  * the long-standing flat-key fallbacks the framework used before grouping —
  * `maxTickets: 40`, 5-minute exec timeout, 10MB exec buffer, 200k token
  * budget. `friction` defaults match the prior `frictionThresholds` block.
  * `planningContext` (Epic #817 Story 9) caps `--emit-context` JSON payloads
- * at 50KB before switching to a summary representation.
+ * at 50KB before switching to a summary representation. The `signals`
+ * sub-block is the same frozen reference as the `SIGNALS_DEFAULTS` export
+ * above (Story #1047) — promoted for ergonomic detector imports.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
   maxInstructionSteps: 5,
@@ -27,6 +48,16 @@ export const LIMITS_DEFAULTS = Object.freeze({
     maxBytes: 50000,
     summaryMode: 'auto',
   }),
+  /**
+   * Detector thresholds for the performance-signal taxonomy (Epic #1030).
+   * Each nested block tunes one detector; defaults match the values in
+   * the Tech Spec configuration block. Operators override individual
+   * keys via `agentSettings.limits.signals.<detector>.<key>` in
+   * `.agentrc.json`. This is the same frozen reference as the
+   * `SIGNALS_DEFAULTS` export above (Story #1047) so the two stay in lock
+   * step by construction.
+   */
+  signals: SIGNALS_DEFAULTS,
 });
 
 /**
@@ -57,6 +88,21 @@ export function resolveLimits(userLimits) {
     block.planningContext && typeof block.planningContext === 'object'
       ? block.planningContext
       : {};
+  const userSignals =
+    block.signals && typeof block.signals === 'object' ? block.signals : {};
+  // Per-detector merge: take each detector's defaults and shallow-overlay
+  // any operator-supplied keys, mirroring the friction-block convention.
+  const mergedSignals = {};
+  for (const detector of Object.keys(LIMITS_DEFAULTS.signals)) {
+    const userDetector =
+      userSignals[detector] && typeof userSignals[detector] === 'object'
+        ? userSignals[detector]
+        : {};
+    mergedSignals[detector] = {
+      ...LIMITS_DEFAULTS.signals[detector],
+      ...userDetector,
+    };
+  }
   return {
     maxInstructionSteps:
       block.maxInstructionSteps ?? LIMITS_DEFAULTS.maxInstructionSteps,
@@ -71,6 +117,7 @@ export function resolveLimits(userLimits) {
       ...LIMITS_DEFAULTS.planningContext,
       ...userPlanning,
     },
+    signals: mergedSignals,
   };
 }
 
@@ -85,4 +132,17 @@ export function getLimits(config) {
   const userLimits =
     config?.agentSettings?.limits ?? config?.limits ?? undefined;
   return resolveLimits(userLimits);
+}
+
+/**
+ * Read the merged `agentSettings.limits.signals` block (Story #1047 helper).
+ * Equivalent to `getLimits(config).signals` but spelled out so detectors
+ * can `import { getSignals } from '…/limits.js'` without dragging the
+ * whole limits surface into their bundle.
+ *
+ * @param {{ agentSettings?: { limits?: object } } | object | null | undefined} config
+ * @returns {ReturnType<typeof resolveLimits>['signals']}
+ */
+export function getSignals(config) {
+  return getLimits(config).signals;
 }

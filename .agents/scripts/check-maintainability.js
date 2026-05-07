@@ -11,17 +11,18 @@ import {
   getBaseline,
   scanDirectory,
 } from './lib/maintainability-utils.js';
-import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
-import { createProvider } from './lib/provider-factory.js';
+import { appendSignal } from './lib/observability/signals-writer.js';
 
 /**
  * CI script to verify that maintainability scores haven't regressed.
  * Exit code 1 if regressions are found, 0 otherwise.
  *
- * When invoked with `--story <id>` (or `FRICTION_STORY_ID` env) the script
- * also posts a rate-limited `friction` structured comment to the named Story
- * ticket naming every regressed file — turning the previously silent CI-exit
- * into an in-ticket signal the operator can see without scraping CI logs.
+ * When invoked with `--story <id>` (or `FRICTION_STORY_ID` env) and
+ * `--epic <id>` (or `FRICTION_EPIC_ID` env) the script also appends a
+ * `friction` signal record to the per-Story
+ * `temp/epic-<eid>/story-<sid>/signals.ndjson` stream naming every
+ * regressed file — turning the previously silent CI-exit into a signal
+ * the analyzer can pick up without scraping CI logs.
  *
  * When invoked with `--json <path>` the script writes a structured envelope
  * shaped like the CRAP parity output (`{ kernelVersion, summary, violations }`)
@@ -119,7 +120,7 @@ export function coerceStoryId(value) {
 }
 
 /**
- * Resolve the Story ID for friction comments. CLI arg wins; otherwise
+ * Resolve the Story ID for friction signals. CLI arg wins; otherwise
  * `FRICTION_STORY_ID` env. Returns null when neither yields a positive int.
  *
  * @param {string[]} [argv]
@@ -136,6 +137,26 @@ export function parseStoryIdArg(
     }
   }
   return coerceStoryId(env.FRICTION_STORY_ID);
+}
+
+/**
+ * Resolve the Epic ID for friction signals. CLI arg wins; otherwise
+ * `FRICTION_EPIC_ID` env. Returns null when neither yields a positive int.
+ *
+ * @param {string[]} [argv]
+ * @param {NodeJS.ProcessEnv} [env]
+ */
+export function parseEpicIdArg(
+  argv = process.argv.slice(2),
+  env = process.env,
+) {
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--epic') {
+      const fromArgv = coerceStoryId(argv[i + 1]);
+      if (fromArgv !== null) return fromArgv;
+    }
+  }
+  return coerceStoryId(env.FRICTION_EPIC_ID);
 }
 
 export function parseChangedSinceArg(argv = process.argv.slice(2)) {
@@ -199,44 +220,31 @@ function writeJsonReport(jsonPath, envelope) {
   fs.writeFileSync(abs, `${JSON.stringify(envelope, null, 2)}\n`);
 }
 
-async function emitRegressionFriction(storyId, regressedFiles) {
-  if (!storyId || regressedFiles.length === 0) return;
-  let orchestration;
+async function emitRegressionFriction(storyId, epicId, regressedFiles) {
+  if (!storyId || !epicId || regressedFiles.length === 0) return;
   try {
-    orchestration = resolveConfig();
-  } catch (err) {
-    console.warn(
-      `[Maintainability] friction emit skipped — config resolve failed: ${err?.message ?? err}`,
-    );
-    return;
-  }
-  const provider = createProvider(orchestration);
-  const emitter = createFrictionEmitter({ provider });
-  const body = [
-    '### 🚧 Friction — maintainability baseline regression',
-    '',
-    `Story \`#${storyId}\` — \`check-maintainability\` detected ${regressedFiles.length}`,
-    'file(s) below baseline:',
-    '',
-    '| File | Current | Baseline | Drop |',
-    '|---|---|---|---|',
-    ...regressedFiles.map(
-      (r) =>
-        `| \`${r.file}\` | ${r.current.toFixed(2)} | ${r.baseline.toFixed(2)} | -${r.drop.toFixed(2)} |`,
-    ),
-    '',
-    'Refactor the flagged files or run `npm run maintainability:update` to',
-    'refresh the baseline if the drop is justified.',
-  ].join('\n');
-  try {
-    await emitter.emit({
-      ticketId: storyId,
-      markerKey: 'baseline-refresh-regression',
-      body,
+    await appendSignal({
+      epicId,
+      storyId,
+      signal: {
+        kind: 'friction',
+        timestamp: new Date().toISOString(),
+        epicId,
+        storyId,
+        category: 'baseline-refresh-regression',
+        source: { tool: 'check-maintainability.js' },
+        details: `${regressedFiles.length} file(s) below maintainability baseline`,
+        regressedFiles: regressedFiles.map((r) => ({
+          file: r.file,
+          current: r.current,
+          baseline: r.baseline,
+          drop: r.drop,
+        })),
+      },
     });
   } catch (err) {
     console.warn(
-      `[Maintainability] friction emit failed: ${err?.message ?? err}`,
+      `[Maintainability] friction signal append failed: ${err?.message ?? err}`,
     );
   }
 }
@@ -334,8 +342,9 @@ async function main() {
       '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
     );
     const storyId = parseStoryIdArg();
-    if (storyId) {
-      await emitRegressionFriction(storyId, stats.regressedFiles);
+    const epicId = parseEpicIdArg();
+    if (storyId && epicId) {
+      await emitRegressionFriction(storyId, epicId, stats.regressedFiles);
     }
     process.exit(1);
   }

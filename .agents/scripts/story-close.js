@@ -20,7 +20,6 @@
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { createFrictionEmitter } from './lib/orchestration/friction-emitter.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
 import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix.js';
@@ -177,10 +176,6 @@ export async function runStoryClose({
     );
   }
 
-  const frictionEmitter = createFrictionEmitter({
-    provider,
-    logger: { warn: (m) => Logger.warn?.(m), debug: () => {} },
-  });
   const result = await runPostMergeClose({
     orchestration,
     storyId,
@@ -192,7 +187,6 @@ export async function runStoryClose({
     projectRoot: PROJECT_ROOT,
     provider,
     notify: notifyFn,
-    frictionEmitter,
     tasks,
     skipDashboard,
     progress,

@@ -30,7 +30,13 @@ export {
 // --- Re-exports (facade contract) ---
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
 export { EPIC_CLOSE_DEFAULTS, getEpicClose } from './config/epic-close.js';
-export { getLimits, LIMITS_DEFAULTS, resolveLimits } from './config/limits.js';
+export {
+  getLimits,
+  getSignals,
+  LIMITS_DEFAULTS,
+  resolveLimits,
+  SIGNALS_DEFAULTS,
+} from './config/limits.js';
 export { getPaths, PATHS_DEFAULTS, resolvePaths } from './config/paths.js';
 export {
   getQuality,

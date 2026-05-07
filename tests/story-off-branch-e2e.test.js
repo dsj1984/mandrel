@@ -114,20 +114,17 @@ test('off-branch e2e: WorktreeManager lifecycle methods perform zero git/fs work
 
 test('off-branch e2e: worktreeReapPhase returns skipped-disabled without emitting orphan-worktree friction', async () => {
   const progress = captureProgress();
-  const frictionEmitter = {
-    emit() {
-      throw new Error(
-        'frictionEmitter.emit must not be called when worktree isolation is disabled',
-      );
-    },
-  };
 
+  // Friction signals land on disk as NDJSON via signals-writer.appendSignal
+  // (Epic #1030 Story #1042). The disabled-isolation path bails out before
+  // emitReapFailureFriction is ever reached, so the absence of any signal
+  // write under `temp/epic-100/story-101/` is the post-cutover invariant.
   const state = await worktreeReapPhase({
     orchestration: { worktreeIsolation: { enabled: false } },
     storyId: 101,
+    epicId: 100,
     epicBranch: 'epic/100',
     repoRoot: process.cwd(),
-    frictionEmitter,
     progress: progress.fn,
     logger: SILENT_LOGGER,
   });

@@ -2,26 +2,39 @@
 /* node:coverage ignore file */
 
 /**
- * diagnose-friction.js — v5 Diagnostic Interceptor & Ticket Comment Logger
+ * diagnose-friction.js — v5 Diagnostic Interceptor & Friction Signal Detector
  *
  * Wraps a shell command with telemetry capture. On failure:
  *   1. Prints static diagnostic suggestions to stdout.
- *   2. Posts a structured `friction` comment to the Task ticket via
- *      update-ticket-state.js (if --task is provided).
+ *   2. Appends a structured `friction` record to the per-Story
+ *      `signals.ndjson` stream via `signals-writer.appendSignal` (when
+ *      both `--story` and `--epic` can be resolved).
  *
- * In v5, GitHub is the SSOT — no local friction log files are written.
- * All friction events are persisted to the ticket graph.
+ * In v5 (Epic #1030), friction is a **local NDJSON signal**, not a GitHub
+ * comment. The detector posts no comments; the analyzer reads the NDJSON
+ * stream out-of-band. See Tech Spec #1032 §observability.
  *
  * Usage:
- *   node diagnose-friction.js [--task <TASK_ID>] --cmd <command with args...>
+ *   node diagnose-friction.js [--task <TASK_ID>] [--story <STORY_ID>] \
+ *     [--epic <EPIC_ID>] --cmd <command with args...>
+ *
+ * Story/Epic resolution order:
+ *   1. CLI flags (--story, --epic).
+ *   2. Environment vars (STORY_ID, EPIC_ID / SPRINT_ID).
+ *   3. Task ticket body parse (`parent: #<storyId>`, `Epic: #<epicId>`).
+ *
+ * If neither story nor epic can be resolved, the script still prints
+ * diagnostic suggestions but skips the signal write (a missing signal is
+ * preferable to a halted runner — see signals-writer best-effort contract).
  *
  * @see docs/v5-implementation-plan.md Sprint 3E
+ * @see .agents/scripts/lib/observability/signals-writer.js
  */
 import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import { getLimits, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { postStructuredComment } from './lib/orchestration/ticketing.js';
+import { appendSignal } from './lib/observability/signals-writer.js';
 import { createProvider } from './lib/provider-factory.js';
 
 // ---------------------------------------------------------------------------
@@ -30,16 +43,22 @@ import { createProvider } from './lib/provider-factory.js';
 
 function parseArguments(args) {
   let taskId = null;
+  let storyId = null;
+  let epicId = null;
   let cmdArgs = [];
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--task') {
       taskId = args[++i] || null;
+    } else if (args[i] === '--story') {
+      storyId = args[++i] || null;
+    } else if (args[i] === '--epic') {
+      epicId = args[++i] || null;
     } else if (args[i] === '--cmd') {
       cmdArgs = args.slice(i + 1);
       break;
     }
   }
-  return { taskId, cmdArgs };
+  return { taskId, storyId, epicId, cmdArgs };
 }
 
 function classifyFrictionCategory(errorOutput) {
@@ -83,35 +102,65 @@ function classifyFrictionCategory(errorOutput) {
   };
 }
 
-async function resolveSprintId(provider, taskId, settings) {
-  let resolvedSprintId = process.env.SPRINT_ID || settings.epicId || 'unknown';
-  if (resolvedSprintId === 'unknown' && taskId && !process.env.NO_NETWORK) {
+function toIntOrNull(value) {
+  if (value == null) return null;
+  const n = Number.parseInt(String(value), 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+async function resolveContextIds(
+  provider,
+  { taskId, storyId, epicId },
+  settings,
+) {
+  let resolvedStoryId =
+    toIntOrNull(storyId) ?? toIntOrNull(process.env.STORY_ID);
+  let resolvedEpicId =
+    toIntOrNull(epicId) ??
+    toIntOrNull(process.env.EPIC_ID) ??
+    toIntOrNull(process.env.SPRINT_ID) ??
+    toIntOrNull(settings.epicId);
+
+  if (
+    (resolvedStoryId == null || resolvedEpicId == null) &&
+    taskId &&
+    !process.env.NO_NETWORK
+  ) {
     try {
       const ticket = await provider.getTicket(taskId);
-      const epicMatch = ticket.body?.match(/(?:Epic|parent):\s*#(\d+)/i);
-      if (epicMatch) {
-        resolvedSprintId = epicMatch[1];
+      const body = ticket.body ?? '';
+      if (resolvedStoryId == null) {
+        const storyMatch = body.match(/^parent:\s*#(\d+)/im);
+        if (storyMatch) resolvedStoryId = toIntOrNull(storyMatch[1]);
+      }
+      if (resolvedEpicId == null) {
+        const epicMatch = body.match(/(?:^|\n)Epic:\s*#(\d+)/i);
+        if (epicMatch) resolvedEpicId = toIntOrNull(epicMatch[1]);
       }
     } catch (err) {
       console.error(
-        `⚠️ Failed to dynamically resolve Sprint ID: ${err.message}`,
+        `⚠️ Failed to resolve story/epic context from task #${taskId}: ${err.message}`,
       );
     }
   }
-  return resolvedSprintId;
+
+  return { storyId: resolvedStoryId, epicId: resolvedEpicId };
 }
 
-function buildFrictionEvent(
-  resolvedSprintId,
+function buildFrictionSignal({
+  epicId,
+  storyId,
   taskId,
   category,
   commandStr,
   errorPreview,
-) {
+}) {
   return {
+    kind: 'friction',
     eventId: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
-    sprintId: resolvedSprintId,
+    epicId: epicId ?? null,
+    storyId: storyId ?? null,
     taskId: taskId ? Number.parseInt(taskId, 10) : null,
     category,
     source: {
@@ -127,11 +176,11 @@ function buildFrictionEvent(
 // ---------------------------------------------------------------------------
 
 export async function main(args = process.argv.slice(2)) {
-  const { taskId, cmdArgs } = parseArguments(args);
+  const { taskId, storyId, epicId, cmdArgs } = parseArguments(args);
 
   if (cmdArgs.length === 0) {
     Logger.fatal(
-      'Usage: node diagnose-friction.js [--task <TASK_ID>] --cmd <command with args...>',
+      'Usage: node diagnose-friction.js [--task <TASK_ID>] [--story <STORY_ID>] [--epic <EPIC_ID>] --cmd <command with args...>',
     );
   }
 
@@ -162,38 +211,48 @@ export async function main(args = process.argv.slice(2)) {
     const errorPreview = errorOutput.substring(0, 500);
 
     console.error('\n--- 🛑 DIAGNOSTIC ANALYSIS Triggered ---');
-    console.error('Command failed. Logging friction to GitHub ticket...');
+    console.error(
+      'Command failed. Appending friction signal to NDJSON stream...',
+    );
 
     const { category, remediation } = classifyFrictionCategory(errorOutput);
 
     const provider = createProvider(resolveConfig().orchestration);
-    const resolvedSprintId = await resolveSprintId(provider, taskId, settings);
+    const { storyId: resolvedStoryId, epicId: resolvedEpicId } =
+      await resolveContextIds(provider, { taskId, storyId, epicId }, settings);
 
-    const frictionEvent = buildFrictionEvent(
-      resolvedSprintId,
+    const signal = buildFrictionSignal({
+      epicId: resolvedEpicId,
+      storyId: resolvedStoryId,
       taskId,
       category,
       commandStr,
       errorPreview,
-    );
+    });
 
-    if (taskId) {
+    if (resolvedEpicId != null && resolvedStoryId != null) {
       try {
-        const payloadString = `\`\`\`json\n${JSON.stringify(frictionEvent, null, 2)}\n\`\`\``;
-        await postStructuredComment(
-          provider,
-          Number.parseInt(taskId, 10),
-          'friction',
-          payloadString,
-        );
-        console.error(`✅ Friction posted to Task #${taskId} on GitHub.`);
+        const ok = await appendSignal({
+          epicId: resolvedEpicId,
+          storyId: resolvedStoryId,
+          signal,
+        });
+        if (ok) {
+          console.error(
+            `✅ Friction signal appended (epic=${resolvedEpicId}, story=${resolvedStoryId}, task=${taskId ?? 'n/a'}).`,
+          );
+        } else {
+          console.error(
+            `⚠️ signals-writer returned false for epic=${resolvedEpicId} story=${resolvedStoryId}.`,
+          );
+        }
       } catch (err) {
-        console.error(
-          `⚠️ Failed to post friction comment to Task #${taskId}: ${err.message}`,
-        );
+        console.error(`⚠️ Failed to append friction signal: ${err.message}`);
       }
     } else {
-      console.error('ℹ️ No --task provided; skipping GitHub friction comment.');
+      console.error(
+        `ℹ️ Skipping friction signal write — story/epic context unresolved (story=${resolvedStoryId ?? 'null'}, epic=${resolvedEpicId ?? 'null'}).`,
+      );
     }
 
     console.error('\n💡 [Auto-Remediation Suggestions]:');
