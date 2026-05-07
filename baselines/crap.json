@@ -664,7 +664,7 @@
       "startLine": 141
     },
     {
-      "crap": 27.927001371742115,
+      "crap": 30.338243418983588,
       "file": ".agents/scripts/epic-plan-decompose.js",
       "method": "main",
       "startLine": 184
@@ -1228,40 +1228,58 @@
       "startLine": 46
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "buildFormatHint",
+      "startLine": 60
+    },
+    {
       "crap": 3.0262390670553936,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveTypecheckCommand",
-      "startLine": 61
+      "startLine": 82
+    },
+    {
+      "crap": 3.0885568513119535,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveFormatCheckCommand",
+      "startLine": 108
+    },
+    {
+      "crap": 3.0885568513119535,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "resolveFormatWriteCommand",
+      "startLine": 134
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildDefaultGates",
-      "startLine": 95
+      "startLine": 168
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGetHeadSha",
-      "startLine": 153
+      "startLine": 235
     },
     {
       "crap": 28.871525169045835,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "runCloseValidation",
-      "startLine": 194
+      "startLine": 276
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "projectMaintainabilityRegressions",
-      "startLine": 327
+      "startLine": 409
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "formatMaintainabilityProjection",
-      "startLine": 412
+      "startLine": 494
     },
     {
       "crap": 7,
@@ -1279,7 +1297,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 335
+      "startLine": 343
     },
     {
       "crap": 3,
@@ -1303,7 +1321,7 @@
       "crap": 5,
       "file": ".agents/scripts/lib/config/commands.js",
       "method": "getCommands",
-      "startLine": 33
+      "startLine": 35
     },
     {
       "crap": 6,
@@ -2119,61 +2137,67 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "readFileCached",
-      "startLine": 38
+      "startLine": 39
     },
     {
       "crap": 3.004895919217333,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "buildSkillIndex",
-      "startLine": 54
+      "startLine": 55
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "<anon method-1>",
-      "startLine": 62
+      "startLine": 63
     },
     {
       "crap": 3.0327719617660445,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "<anon method-2>",
-      "startLine": 68
+      "startLine": 69
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "getSkillPath",
-      "startLine": 104
+      "startLine": 105
     },
     {
       "crap": 1.421875,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "__resetContextCache",
-      "startLine": 116
+      "startLine": 117
     },
     {
       "crap": 1.010973936899863,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "getVersion",
-      "startLine": 130
+      "startLine": 131
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "parseHierarchy",
-      "startLine": 149
+      "startLine": 150
     },
     {
       "crap": 3.845229151014275,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "truncateToTokenBudget",
-      "startLine": 170
+      "startLine": 171
     },
     {
-      "crap": 13.441072771217835,
+      "crap": 2.0027478119275393,
+      "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
+      "method": "loadProtocolTemplate",
+      "startLine": 196
+    },
+    {
+      "crap": 13.377923076923077,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "hydrateContext",
-      "startLine": 205
+      "startLine": 254
     },
     {
       "crap": 4,
@@ -3094,7 +3118,7 @@
       "startLine": 140
     },
     {
-      "crap": 7.01,
+      "crap": 7,
       "file": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
       "method": "resolveCloseInputs",
       "startLine": 42
@@ -3121,13 +3145,13 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "listDirtyPaths",
-      "startLine": 42
+      "startLine": 43
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "method": "runFormatAutofix",
-      "startLine": 72
+      "startLine": 73
     },
     {
       "crap": 1.2962962962962963,
@@ -3757,7 +3781,7 @@
       "crap": 1,
       "file": ".agents/scripts/lib/templates/decomposer-prompts.js",
       "method": "renderDecomposerSystemPrompt",
-      "startLine": 3
+      "startLine": 11
     },
     {
       "crap": 1,
