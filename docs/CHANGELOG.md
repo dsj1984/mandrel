@@ -2,6 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.37.0] — 2026-05-07
+
+Epic #1030 — performance-signal telemetry beyond friction. Runtime events
+(hotspot, rework, tool churn, idle gap, retry density) now stream into a
+per-Story `signals.ndjson` and roll up into Story- and Epic-level perf
+summaries that feed the retro. The architecture is consolidated under one
+rule: tickets carry decisions and summaries; NDJSON carries events.
+
+### Added
+
+- **Performance-signal taxonomy.** Five new detectors run during execution
+  — hotspot (phase elapsed vs baseline p95), rework (edits-per-file),
+  churn (repeated tool sequences), idle (gap-second threshold), retry
+  (repeat-count threshold). Thresholds live in
+  `agentSettings.limits.signals` with sensible defaults, all overridable
+  per-project.
+- **`story-perf-summary` and `epic-perf-report` structured comments.**
+  One per Story (posted at close) and one per Epic (posted at retro);
+  both consumed by the retro composer for the perf section.
+- **`analyze-execution` CLI** — Story- and Epic-mode analyzer that reads
+  the NDJSON signal stream and emits the summary/report payloads.
+- **PreToolUse / PostToolUse trace hook** — wired into the Claude Code
+  settings so runtime tool activity feeds the signal stream automatically.
+- **Per-Epic durable temp tree.** All Epic artifacts now live under
+  `temp/epic-<id>/{prd.md, techspec.md, manifest.md, retro.md,
+  perf-report.md, story-<sid>/...}` — a stable layout for forensics and
+  the retro, with no auto-cleanup.
+
+### Changed
+
+- **Friction handling re-architected.** The friction detector no longer
+  posts a ticket comment per occurrence; it appends an NDJSON event that
+  rolls up into the perf summary at close. The pre-existing per-comment
+  cooldown layer is gone with it.
+- **Retro reads perf summaries.** The retro composer now pulls
+  `story-perf-summary` and `epic-perf-report` comments and mirrors the
+  composed retro to `temp/epic-<id>/retro.md`.
+
+### Removed
+
+- **Per-occurrence friction comments + cooldown.** The friction-emitter
+  module and the rate-limit cooldown that propped it up are deleted.
+  Friction now surfaces only via the rolled-up perf summary; tickets
+  carry decisions, NDJSON carries events.
+- **Health-monitor and post-merge health-monitor phase.** Superseded by
+  the signal stream + perf summaries. The `aggregate-phase-timings` and
+  `telemetry` helpers are deleted alongside.
+
+### Migration
+
+- Consumer projects that read `temp/*-epic-<id>.*` paths directly must
+  migrate to the per-Epic tree (`temp/epic-<id>/...`). The framework's
+  own writers and readers are migrated; only out-of-tree tooling is
+  affected.
+- Consumers of friction *comments* on tickets must switch to reading the
+  rolled-up `story-perf-summary` / `epic-perf-report` comments. Per-event
+  comments no longer exist.
+- Add an `agentSettings.limits.signals` block to `.agentrc.json` if you
+  need to override the default thresholds; otherwise the defaults apply
+  on first run.
+
 ## [5.36.4] — 2026-05-07
 
 **Breaking change for consumer `.agentrc.json` files that still set

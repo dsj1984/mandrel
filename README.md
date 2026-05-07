@@ -22,6 +22,10 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
 - **Gate-based quality** — Lint, test, typecheck, MI, and CRAP gates wired
   into close-validation, CI, and pre-push with base-branch-enforced
   baselines.
+- **Performance-signal telemetry** (Epic #1030) — runtime events stream into
+  per-Story `signals.ndjson` and roll up into a Story-level
+  `story-perf-summary` and an Epic-level `epic-perf-report` consumed by the
+  retro. Tickets carry decisions and summaries; NDJSON carries events.
 
 For the full architecture (mermaid flow, module map, state machine, tech
 stack), see [`docs/architecture.md`](docs/architecture.md).
