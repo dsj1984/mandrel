@@ -38,6 +38,13 @@
       "planningContext": {
         "maxBytes": 50000,
         "summaryMode": "auto"
+      },
+      "signals": {
+        "hotspot": { "p95Multiplier": 1.25 },
+        "rework": { "editsPerFile": 5 },
+        "churn": { "repeatCount": 4 },
+        "idle": { "gapSeconds": 120 },
+        "retry": { "repeatCount": 3 }
       }
     },
     "commands": {
