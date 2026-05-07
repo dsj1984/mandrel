@@ -160,4 +160,14 @@ if (syncResult.status !== 0) {
   );
 }
 
+// Step 6 — warn-only check for host-level git perf settings (Windows only).
+const perfCheckScript = path.join(
+  submoduleAbs,
+  'scripts',
+  'check-windows-git-perf.js',
+);
+if (fs.existsSync(perfCheckScript)) {
+  run('node', [perfCheckScript], { cwd: consumerRoot, inherit: true });
+}
+
 process.exit(0);

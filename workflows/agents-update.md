@@ -53,6 +53,11 @@ The script:
    `No changes` if the pointer did not move).
 6. Execs `node .agents/scripts/sync-claude-commands.js` so
    `.claude/commands/` reflects the new workflow set.
+7. Execs `node .agents/scripts/check-windows-git-perf.js` to verify
+   host-level git performance settings on Windows (`core.fsmonitor`,
+   `feature.manyFiles`, per-repo `git maintenance` schedule). Warn-only;
+   no-op on macOS / Linux. Prints the exact commands to run for any
+   missing setting and exits 0 either way.
 
 ## Step 2 — Expected output
 
