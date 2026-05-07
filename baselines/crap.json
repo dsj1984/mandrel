@@ -448,6 +448,60 @@
       "startLine": 178
     },
     {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "main",
+      "startLine": 58
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "logSkipOverrides",
+      "startLine": 117
+    },
+    {
+      "crap": 2.125965884239685,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeAuxiliaryTickets",
+      "startLine": 140
+    },
+    {
+      "crap": 6.318359375,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "<anon method-2>",
+      "startLine": 183
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeEpicClosure",
+      "startLine": 222
+    },
+    {
+      "crap": 272,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseFinalizeBranchCleanup",
+      "startLine": 254
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "emitDiscardFrictionComments",
+      "startLine": 490
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseNotifyBanner",
+      "startLine": 512
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "collectEpicDescendantIds",
+      "startLine": 536
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "parseLintOutput",
@@ -3502,70 +3556,76 @@
       "startLine": 100
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "computeProgress",
+      "method": "deriveStorySymbol",
       "startLine": 33
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "computeProgress",
+      "startLine": 60
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderProgressBar",
-      "startLine": 68
+      "startLine": 95
     },
     {
       "crap": 10,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderWaveSections",
-      "startLine": 82
+      "startLine": 109
     },
     {
-      "crap": 9,
+      "crap": 7,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderStoryTable",
-      "startLine": 141
+      "startLine": 168
     },
     {
       "crap": 9,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderStoryDetailsSection",
-      "startLine": 205
+      "startLine": 228
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 249
+      "startLine": 272
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 259
+      "startLine": 282
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 265
+      "startLine": 288
     },
     {
       "crap": 13.60559798888493,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 285
+      "startLine": 308
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 401
+      "startLine": 424
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 466
+      "startLine": 489
     },
     {
       "crap": 1,
