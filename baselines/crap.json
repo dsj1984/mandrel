@@ -1114,7 +1114,7 @@
       "startLine": 106
     },
     {
-      "crap": 2,
+      "crap": 1,
       "file": ".agents/scripts/lib/audit-suite/runner.js",
       "method": "loadRules",
       "startLine": 27
@@ -1160,6 +1160,30 @@
       "file": ".agents/scripts/lib/audit-suite/runner.js",
       "method": "runAuditSuite",
       "startLine": 179
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "matchesFilePattern",
+      "startLine": 34
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "matchesAnyFilePattern",
+      "startLine": 42
+    },
+    {
+      "crap": 13.034398534500305,
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "selectAudits",
+      "startLine": 74
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/audit-suite/selector.js",
+      "method": "<anon method-4>",
+      "startLine": 104
     },
     {
       "crap": 1,
@@ -3142,28 +3166,40 @@
       "startLine": 528
     },
     {
-      "crap": 4.05088540606554,
+      "crap": 1.0013717421124828,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "reconcileClosedTasks",
-      "startLine": 25
+      "startLine": 33
     },
     {
-      "crap": 3.4523657677356656,
+      "crap": 2.0254026317126455,
+      "file": ".agents/scripts/lib/orchestration/reconciler.js",
+      "method": "<anon method-2>",
+      "startLine": 48
+    },
+    {
+      "crap": 3.3557979274680156,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "reconcileHierarchy",
-      "startLine": 80
+      "startLine": 99
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "isDone",
-      "startLine": 100
+      "startLine": 119
     },
     {
       "crap": 25.545050298877385,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "maybeClose",
-      "startLine": 112
+      "startLine": 131
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/reconciler.js",
+      "method": "<anon method-11>",
+      "startLine": 182
     },
     {
       "crap": 3,
@@ -4360,58 +4396,58 @@
       "startLine": 186
     },
     {
-      "crap": 11.727272727272727,
+      "crap": 18.383571476192568,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isSafeToRemove",
-      "startLine": 38
+      "startLine": 68
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isStoryAlreadyMergedIntoEpic",
-      "startLine": 89
+      "startLine": 164
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "collectDirtyPaths",
-      "startLine": 105
+      "startLine": 180
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "discardWorktreeChanges",
-      "startLine": 119
+      "startLine": 194
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "fsRmWithRetry",
-      "startLine": 132
+      "startLine": 207
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon method-3>",
-      "startLine": 145
+      "startLine": 220
     },
     {
       "crap": 28.02830023109393,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "removeWorktreeWithRecovery",
-      "startLine": 152
+      "startLine": 227
     },
     {
       "crap": 26.890030410125753,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "deleteBranchAfterReap",
-      "startLine": 379
+      "startLine": 454
     },
     {
       "crap": 27.687226676384846,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 426
+      "startLine": 501
     },
     {
       "crap": 1,
@@ -4675,121 +4711,133 @@
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "listIssues",
-      "startLine": 43
+      "startLine": 50
     },
     {
       "crap": 4.6796875,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "listIssuesByLabel",
-      "startLine": 47
+      "startLine": 54
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getEpics",
-      "startLine": 57
+      "startLine": 64
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getEpic",
-      "startLine": 70
+      "startLine": 77
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getTickets",
-      "startLine": 78
+      "startLine": 85
     },
     {
       "crap": 4,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getNativeSubIssues",
-      "startLine": 110
+      "startLine": 117
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getChecklistChildren",
-      "startLine": 152
+      "startLine": 159
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getReferencedChildren",
-      "startLine": 165
+      "startLine": 172
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getSubTickets",
-      "startLine": 178
+      "startLine": 185
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "<anon method-6>",
-      "startLine": 200
+      "startLine": 207
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getTicket",
-      "startLine": 220
+      "startLine": 227
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "primeTicketCache",
-      "startLine": 238
+      "startLine": 245
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "invalidateTicket",
-      "startLine": 242
+      "startLine": 249
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "getTicketDependencies",
-      "startLine": 247
+      "startLine": 254
     },
     {
       "crap": 3.0443832291496102,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "createTicket",
-      "startLine": 256
+      "startLine": 263
     },
     {
       "crap": 4,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "addSubIssue",
-      "startLine": 311
+      "startLine": 318
     },
     {
-      "crap": 6.824196853460686,
+      "crap": 3.182569496619083,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "reconcileSubIssueLinks",
-      "startLine": 361
+      "startLine": 368
+    },
+    {
+      "crap": 2.3645,
+      "file": ".agents/scripts/providers/github/issues.js",
+      "method": "<anon method-9>",
+      "startLine": 396
+    },
+    {
+      "crap": 4.125,
+      "file": ".agents/scripts/providers/github/issues.js",
+      "method": "<anon method-10>",
+      "startLine": 423
     },
     {
       "crap": 1.729,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "removeSubIssue",
-      "startLine": 443
+      "startLine": 468
     },
     {
       "crap": 4,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "applyLabelMutations",
-      "startLine": 462
+      "startLine": 487
     },
     {
       "crap": 8,
       "file": ".agents/scripts/providers/github/issues.js",
       "method": "updateTicket",
-      "startLine": 487
+      "startLine": 512
     },
     {
       "crap": 3,
@@ -4948,40 +4996,16 @@
       "startLine": 68
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/select-audits.js",
-      "method": "matchesFilePattern",
-      "startLine": 56
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/select-audits.js",
-      "method": "matchesAnyFilePattern",
-      "startLine": 64
-    },
-    {
-      "crap": 13.034398534500305,
-      "file": ".agents/scripts/select-audits.js",
-      "method": "selectAudits",
-      "startLine": 96
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/select-audits.js",
-      "method": "<anon method-4>",
-      "startLine": 126
-    },
-    {
       "crap": 1.800655976676385,
       "file": ".agents/scripts/select-audits.js",
       "method": "parseCliArgs",
-      "startLine": 199
+      "startLine": 65
     },
     {
       "crap": 52.73444543576259,
       "file": ".agents/scripts/select-audits.js",
       "method": "main",
-      "startLine": 214
+      "startLine": 80
     },
     {
       "crap": 1,
