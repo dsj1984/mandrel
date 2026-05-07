@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.36.4] — 2026-05-07
+
+**Breaking change for consumer `.agentrc.json` files that still set
+`agentSettings.sprintClose.runRetro`.** The one-release shim shipped in
+5.31.0 was originally targeted for removal in 5.32.0; it has overstayed
+that window by five releases. This patch removes it.
+
+### Removed
+
+- **`agentSettings.sprintClose.runRetro` back-compat shim.** Both the
+  resolver fallback (in `lib/config/epic-close.js`) and the `SPRINT_CLOSE_SCHEMA`
+  back-compat property (in `lib/config-settings-schema.js`) have been
+  deleted. The static mirror at `.agents/schemas/agentrc.schema.json` no
+  longer declares `sprintClose`. With `additionalProperties: false` on
+  the agentSettings root, any `.agentrc.json` that still sets
+  `sprintClose.*` will now fail AJV validation at startup with a clear
+  `additionalProperty` error.
+- **`_legacyWarned` / `_resetLegacyWarned`** — internal state that
+  rate-limited the deprecation warning. Gone.
+- **Shim-fallback test cases** — replaced with a positive assertion that
+  the legacy key is *ignored* (returns the default `runRetro: true`)
+  rather than read.
+
+### Migration
+
+Rename the key in `.agentrc.json`:
+
+```diff
+ "agentSettings": {
+   ...
+-  "sprintClose": { "runRetro": true }
++  "epicClose":   { "runRetro": true }
+ }
+```
+
+That is the entire migration. The block shape is byte-identical; only
+the parent key changed.
+
 ## [5.36.3] — 2026-05-07
 
 Patch: replace the standalone Windows git-perf doc with an automated

@@ -770,78 +770,33 @@ describe('config-resolver library tests', () => {
     });
   });
 
-  describe('getEpicClose (sprint→epic rename, one-release shim)', () => {
-    it('returns runRetro=true when neither key is set', async () => {
-      const { getEpicClose, _resetLegacyWarned } = await import(
+  describe('getEpicClose', () => {
+    it('returns runRetro=true when no key is set', async () => {
+      const { getEpicClose } = await import(
         '../../.agents/scripts/lib/config/epic-close.js'
       );
-      _resetLegacyWarned();
       const out = getEpicClose({ agentSettings: { ...REQ } });
       assert.deepEqual(out, { runRetro: true });
     });
 
     it('reads epicClose.runRetro when present', async () => {
-      const { getEpicClose, _resetLegacyWarned } = await import(
+      const { getEpicClose } = await import(
         '../../.agents/scripts/lib/config/epic-close.js'
       );
-      _resetLegacyWarned();
       const out = getEpicClose({
         agentSettings: { ...REQ, epicClose: { runRetro: false } },
       });
       assert.equal(out.runRetro, false);
     });
 
-    it('falls back to sprintClose.runRetro and warns once when epicClose absent', async () => {
-      const { getEpicClose, _resetLegacyWarned } = await import(
+    it('ignores the legacy sprintClose key (no fallback)', async () => {
+      const { getEpicClose } = await import(
         '../../.agents/scripts/lib/config/epic-close.js'
       );
-      _resetLegacyWarned();
-      const warnings = [];
-      const origWarn = console.warn;
-      console.warn = (msg) => warnings.push(msg);
-      try {
-        const a = getEpicClose({
-          agentSettings: { ...REQ, sprintClose: { runRetro: false } },
-        });
-        const b = getEpicClose({
-          agentSettings: { ...REQ, sprintClose: { runRetro: false } },
-        });
-        assert.equal(a.runRetro, false);
-        assert.equal(b.runRetro, false);
-        const deprecationLines = warnings.filter((w) =>
-          String(w).includes('sprintClose.runRetro'),
-        );
-        assert.equal(deprecationLines.length, 1);
-        assert.match(String(deprecationLines[0]), /5\.32\.0/);
-      } finally {
-        console.warn = origWarn;
-      }
-    });
-
-    it('prefers epicClose over sprintClose when both are set (no warn)', async () => {
-      const { getEpicClose, _resetLegacyWarned } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      _resetLegacyWarned();
-      const warnings = [];
-      const origWarn = console.warn;
-      console.warn = (msg) => warnings.push(msg);
-      try {
-        const out = getEpicClose({
-          agentSettings: {
-            ...REQ,
-            epicClose: { runRetro: true },
-            sprintClose: { runRetro: false },
-          },
-        });
-        assert.equal(out.runRetro, true);
-        const deprecationLines = warnings.filter((w) =>
-          String(w).includes('sprintClose.runRetro'),
-        );
-        assert.equal(deprecationLines.length, 0);
-      } finally {
-        console.warn = origWarn;
-      }
+      const out = getEpicClose({
+        agentSettings: { ...REQ, sprintClose: { runRetro: false } },
+      });
+      assert.equal(out.runRetro, true);
     });
   });
 });

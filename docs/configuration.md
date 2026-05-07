@@ -224,7 +224,6 @@ Added in Epic #817 Story 9.
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
 | `epicClose.runRetro`   | No   | `true`  | When `true`, `/epic-close` invokes the retro helper.                                     |
-| `sprintClose.runRetro` | No   | (none)  | **Deprecated** — alias for `epicClose.runRetro`. Read as a fallback with a `Logger.warn(...)` deprecation; scheduled for removal in a future release (originally targeted 5.32.0; the shim has overstayed and removal is now slated for the next major sweep). |
 | `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 

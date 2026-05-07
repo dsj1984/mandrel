@@ -107,13 +107,6 @@ const EPIC_CLOSE_SCHEMA = {
   additionalProperties: false,
 };
 
-// Same shape as `epicClose` — kept registered as a back-compat property so
-// existing `.agentrc.json` files that still set `sprintClose.runRetro` pass
-// AJV validation. The resolver in `config-resolver.js` reads the new key
-// first and falls back to this with a `Logger.warn(...)` deprecation. The
-// shim is scheduled for removal in 5.32.0.
-const SPRINT_CLOSE_SCHEMA = EPIC_CLOSE_SCHEMA;
-
 const RELEASE_SCHEMA = {
   type: 'object',
   properties: {
@@ -322,7 +315,6 @@ export const AGENT_SETTINGS_SCHEMA = {
     baseBranch: SAFE_STRING,
     docsContextFiles: { type: 'array', items: { type: 'string' } },
     epicClose: EPIC_CLOSE_SCHEMA,
-    sprintClose: SPRINT_CLOSE_SCHEMA,
     release: RELEASE_SCHEMA,
     riskGates: RISK_GATES_SCHEMA,
     quality: QUALITY_SCHEMA,
