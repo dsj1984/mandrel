@@ -132,7 +132,7 @@ export async function runStoryClose({
     // commits the result. The autofix step does that automatically on
     // a clean tree; on a dirty tree it bails out and lets the gate
     // surface the drift with the canonical hint.
-    runFormatAutofix({ cwd, storyId, logger: Logger });
+    runFormatAutofix({ cwd, storyId, settings, logger: Logger });
     runPreMergeGates({
       cwd,
       settings,

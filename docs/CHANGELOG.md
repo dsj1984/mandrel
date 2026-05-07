@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.36.0] — 2026-05-06
+
+Adds two new opt-in command keys so close-validation works on Prettier /
+dprint repos uniformly with biome ones, plus a new stack skill that
+codifies the capture-and-check baseline pattern, plus a small fix to the
+decomposer prompt's `maxTickets` fallback so the cap can't silently drift
+out of sync with the resolved config.
+
+### Added
+
+- **`agentSettings.commands.formatCheck` / `formatWrite`** — new optional
+  command keys (defaults: `npx biome format .` / `npx biome format --write
+  .`). The close-validation format gate (`buildDefaultGates` in
+  `lib/close-validation.js`) and the story-close `runFormatAutofix` step
+  now resolve their command from these instead of hardcoding biome.
+  Prettier-only and dprint-only repos no longer have to bypass the format
+  gate to get through close-validation. Behaviour for repos that haven't
+  set the new keys is unchanged (biome defaults).
+- **`.agents/skills/stack/qa/lighthouse-baseline/SKILL.md`** — codifies
+  the capture-and-check baseline pattern (`baselines/<name>.json` +
+  paired `:capture` / `:check` npm scripts + `--self-test` flag +
+  ±tolerance gate + weekly cadence workflow) as a reusable stack skill.
+  Cross-references the existing `baselines/maintainability.json` and
+  `baselines/crap.json` ratchet conventions and the
+  `baseline-refresh:` commit-subject contract so the new pattern slots
+  into the framework's existing baseline tooling.
+
+### Changed
+
+- **Format gate label.** The close-validation format gate's surfaced
+  label changes from `biome format` → `format` (the underlying command
+  is now config-driven). The failure hint reflects the resolved
+  `formatWrite` command (e.g. `pnpm exec prettier --write .`) rather
+  than always quoting biome. The phase-timer keys are unchanged — only
+  `lint` and `test` drive `phaseTimer.mark()`, so `phase-timings`
+  comments are byte-stable across the rename.
+- **`epic-plan-decompose.js --emit-context`** — logs the resolved
+  `limits.maxTickets` to stderr so a misconfigured `.agentrc.json` (e.g.
+  flat-key `maxTickets` instead of grouped `agentSettings.limits.maxTickets`)
+  is visible to the operator instead of silently falling through to the
+  framework default. The decomposer prompt template
+  (`lib/templates/decomposer-prompts.js`) now imports its in-template
+  fallback from `LIMITS_DEFAULTS` rather than carrying its own `40`
+  literal, so the fallback can't drift out of sync.
+- **`.agents/workflows/epic-plan.md`** — `maxTickets` doc text updated
+  to point at `agentSettings.limits.maxTickets` and the framework-
+  default location instead of repeating the literal `40`.
+
 ## [5.35.1] — 2026-05-06
 
 Generalizes and streamlines the agent prompt surface (`agent-protocol.md`

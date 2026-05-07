@@ -90,13 +90,13 @@ test('story-close script', async (t) => {
 
 test('runCloseValidation', async (t) => {
   await t.test(
-    'DEFAULT_GATES covers typecheck, lint, test, biome format, maintainability, and crap',
+    'DEFAULT_GATES covers typecheck, lint, test, format, maintainability, and crap',
     () => {
       const names = DEFAULT_GATES.map((g) => g.name);
       assert.ok(names.includes('typecheck'));
       assert.ok(names.includes('lint'));
       assert.ok(names.includes('test'));
-      assert.ok(names.some((n) => n.includes('biome format')));
+      assert.ok(names.includes('format'));
       assert.ok(names.some((n) => n.includes('maintainability')));
       assert.ok(names.some((n) => n.includes('crap')));
     },
@@ -185,10 +185,33 @@ test('runCloseValidation', async (t) => {
     },
   );
 
-  await t.test('biome format gate surfaces the --write hint', () => {
-    const gate = DEFAULT_GATES.find((g) => g.name.includes('biome format'));
-    assert.match(gate.hint, /biome format --write/);
-  });
+  await t.test(
+    'format gate defaults to biome and surfaces the --write hint',
+    () => {
+      const gate = DEFAULT_GATES.find((g) => g.name === 'format');
+      assert.equal(gate.cmd, 'npx');
+      assert.deepStrictEqual(gate.args, ['biome', 'format', '.']);
+      assert.match(gate.hint, /biome format --write/);
+    },
+  );
+
+  await t.test(
+    'format gate honours agentSettings.commands.formatCheck / formatWrite',
+    () => {
+      const gates = buildDefaultGates({
+        settings: {
+          commands: {
+            formatCheck: 'pnpm exec prettier --check .',
+            formatWrite: 'pnpm exec prettier --write .',
+          },
+        },
+      });
+      const gate = gates.find((g) => g.name === 'format');
+      assert.equal(gate.cmd, 'pnpm');
+      assert.deepStrictEqual(gate.args, ['exec', 'prettier', '--check', '.']);
+      assert.match(gate.hint, /pnpm exec prettier --write \./);
+    },
+  );
 
   await t.test('maintainability gate surfaces the update-baseline hint', () => {
     const gate = DEFAULT_GATES.find((g) => g.name.includes('maintainability'));

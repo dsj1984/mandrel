@@ -45,7 +45,9 @@
       "lintBaseline": "npx eslint . --format json",
       "test": "npm test",
       "typecheck": null,
-      "build": null
+      "build": null,
+      "formatCheck": "npx biome format .",
+      "formatWrite": "npx biome format --write ."
     },
     "quality": {
       "baselines": {

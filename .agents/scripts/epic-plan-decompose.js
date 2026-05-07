@@ -235,6 +235,14 @@ async function main() {
     const ctx = await buildDecompositionContext(epicId, provider, config, {
       fullContext: values['full-context'],
     });
+    // Surface the resolved cap on stderr so a misconfigured `.agentrc.json`
+    // (e.g. flat-key `maxTickets` instead of grouped `limits.maxTickets`)
+    // is visible to the operator rather than silently falling through to
+    // the framework default. The decomposer prompt embeds the same value
+    // — see ticket-decomposer.js:buildDecompositionContext.
+    console.error(
+      `[epic-plan-decompose] Resolved limits.maxTickets = ${ctx.maxTickets} (prompt cap).`,
+    );
     const json = values.pretty
       ? JSON.stringify(ctx, null, 2)
       : JSON.stringify(ctx);

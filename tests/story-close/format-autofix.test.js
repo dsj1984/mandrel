@@ -136,4 +136,33 @@ describe('runFormatAutofix', () => {
     assert.equal(result.committed, false);
     assert.match(logger.logs.warn[0], /exited non-zero/);
   });
+
+  it('honours agentSettings.commands.formatWrite when configured', () => {
+    const logger = makeLogger();
+    const gitStub = makeGitStub({ statusBefore: '', statusAfter: '' });
+    const spawnCalls = [];
+    const spawn = (cmd, args /*, _opts */) => {
+      spawnCalls.push({ cmd, args });
+      // Mark "ran" so the second status check returns the after-state.
+      gitStub.state.biomeRan = true;
+      return '';
+    };
+    const result = runFormatAutofix({
+      cwd: '/tmp/repo',
+      storyId: 11,
+      settings: {
+        commands: { formatWrite: 'pnpm exec prettier --write .' },
+      },
+      logger,
+      spawnSync: spawn,
+      gitSync: gitStub.git,
+    });
+    assert.equal(result.ran, true);
+    assert.equal(result.committed, false);
+    // The configured prettier invocation, not the biome default.
+    assert.deepEqual(spawnCalls[0], {
+      cmd: 'pnpm',
+      args: ['exec', 'prettier', '--write', '.'],
+    });
+  });
 });
