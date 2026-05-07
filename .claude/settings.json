@@ -39,6 +39,26 @@
             "command": "node -e 'let s=\"\";process.stdin.on(\"data\",d=>s+=d);process.stdin.on(\"end\",()=>{try{const c=JSON.parse(s).tool_input.command;if(/\\brm\\s+-rf\\s+([^\\s]*\\/)?\\.worktrees\\//.test(c))console.log(JSON.stringify({hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"allow\",permissionDecisionReason:\"target inside .worktrees/\"}}));else console.log(\"{}\");}catch(e){console.log(\"{}\");}})'"
           }
         ]
+      },
+      {
+        "matcher": "Bash|Edit|Write|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/scripts/lib/observability/tool-trace-hook.js"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|Read|Grep|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/scripts/lib/observability/tool-trace-hook.js"
+          }
+        ]
       }
     ]
   },
