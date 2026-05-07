@@ -60,7 +60,6 @@ wrappers** that delegate to it.
 | `epic-runner.js` / `epic-runner/` | Long-running Epic orchestrator             |
 | `plan-runner/`              | Plan-runner internals                           |
 | `health-check-service.js`   | Push-based health monitoring                    |
-| `health-refresh-cadence.js` | Cadence rules for health-check refresh          |
 | `error-journal.js`          | Structured error capture for telemetry          |
 | `lint-baseline-service.js`  | Lint ratchet engine                             |
 | `parked-follow-ons.js`      | Follow-on ticket parking                        |
@@ -101,7 +100,6 @@ entry point. They never own business logic.
 | `check-maintainability.js`           | Maintainability score computation and baseline check                    |
 | `update-maintainability-baseline.js` | Updates the maintainability baseline after improvements                 |
 | `diagnose-friction.js`               | Analyzes friction logs for patterns                                     |
-| `health-monitor.js`                  | Push-based Epic health monitoring                                       |
 | `detect-merges.js`                   | Detects and reports merge conflicts                                     |
 | `audit-orchestrator.js`              | Automated, gate-based static analysis and audit runner                  |
 | `handle-approval.js`                 | CI webhook listener for `/approve` commands on audit findings           |
