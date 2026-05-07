@@ -4,7 +4,7 @@
  * shape consumed throughout the orchestration layer.
  *
  * No I/O, no state. All inputs are plain objects as returned by
- * `providers/github-http-client.js`; outputs are the exact shape previously
+ * `providers/github/http-client.js`; outputs are the exact shape previously
  * produced by `GitHubProvider.getTicket` / `_subIssueNodeToTicket`.
  */
 
