@@ -1,5 +1,94 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260507-1030a: Performance-signal telemetry — events local, summaries on tickets
+
+**Status:** Accepted
+**Date:** 2026-05-07
+**Epic:** #1030
+
+### Context
+
+Before Epic #1030 the framework had a single observability surface:
+`diagnose-friction.js` posted one structured comment per friction event
+directly onto the originating Task ticket. As the orchestrator grew —
+hotspots, rework, churn, idle, retry, plus raw tool-call traces — that
+fan-out hit two ceilings simultaneously. Tickets accumulated dozens of
+machine-noise comments per Story, drowning the human review surface.
+And every event paid a synchronous round-trip through the GitHub API,
+forcing detectors to either rate-limit (losing signal) or batch in
+process (losing tail records when sub-agents exit abruptly).
+
+A separate gap sat next to that: detector thresholds were hard-coded in
+each module. Operators tuning hotspot sensitivity for their own repo
+had no override surface, and the framework had no canonical place to
+declare default values that the `.agentrc.json` template could mirror.
+
+### Decision
+
+1. **Split events from summaries.** Detectors and the runtime trace hook
+   write append-only NDJSON to local disk under
+   `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+   `traces.ndjson` for `kind: trace`). GitHub tickets receive **summary
+   payloads only** — one
+   [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
+   comment per Story at close, one
+   [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
+   per Epic alongside the retro. The seven-kind taxonomy
+   (`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace`)
+   is the closed enum on
+   [`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json).
+2. **Per-Epic temp tree, reaped with the worktree.** The on-disk layout
+   `temp/epic-<eid>/story-<sid>/` lets the analyzer scan a single
+   Story's stream cheaply and lets `WorktreeManager.reap` clean every
+   in-flight artifact in one sweep when the Epic closes. Lazy directory
+   creation on first write keeps zero-signal Stories from touching the
+   disk at all.
+3. **Best-effort, unbuffered writer.** `signals-writer.js` opens, writes
+   one newline-terminated JSON line, and closes per call. fs / JSON
+   failures are swallowed via `Logger.warn` so observability MUST NOT
+   take down a wave. In-process buffering is forbidden by the Tech Spec
+   because per-Story sub-agents may exit abruptly and a buffered tail
+   would silently disappear on `process.exit`.
+4. **Detector thresholds are operator-tunable.**
+   `agentSettings.limits.signals` is the single declarative surface;
+   `SIGNALS_DEFAULTS` in `.agents/scripts/lib/config/limits.js` is the
+   canonical default block (`hotspot.p95Multiplier=1.25`,
+   `rework.editsPerFile=5`, `churn.repeatCount=4`,
+   `idle.gapSeconds=120`, `retry.repeatCount=3`). The resolver
+   shallow-merges per-detector overrides so an operator can re-tune a
+   single key without re-listing the others, and `getSignals(config)` is
+   the runtime accessor the detector layer imports.
+
+### Consequences
+
+- **Bounded ticket surface.** A Story carries at most one perf summary
+  comment regardless of how many signals fired; an Epic carries one
+  perf report. Reviewers see one consolidated table per closure boundary
+  instead of an event log.
+- **Detectors can fire freely.** Local NDJSON writes are bounded by
+  disk I/O, not GitHub rate limits, so detectors no longer self-throttle.
+  Raw tool-call traces become economically viable as a data source.
+- **Reap is observability cleanup too.** Closing an Epic and reaping its
+  worktrees deletes the corresponding NDJSON streams. There is no
+  separate retention policy and no orphan-data risk.
+- **Schema rejections become loud at the ticket boundary.** The closed
+  `signal-event.schema.json` enum and the `additionalProperties: false`
+  guards on the summary schemas mean a producer drift fails AJV at
+  close time, not at consumer parse time.
+- **Operator overrides survive template re-bootstraps.**
+  `.agents/default-agentrc.json` mirrors `SIGNALS_DEFAULTS` exactly
+  (the `tests/config/limits-template-drift.test.js` guard fails on any
+  divergence), so an operator who copied the template wholesale and one
+  who merged it on top of an existing block resolve to the same
+  thresholds.
+- **Documentation lock-in.** The Friction Telemetry section of
+  `docs/architecture.md` is rewritten to the events-local /
+  summaries-on-tickets model; `docs/data-dictionary.md` carries
+  field-level rows for `signals.ndjson`, `story-perf-summary`, and
+  `epic-perf-report`; this ADR is the canonical why.
+
+---
+
 ## ADR 20260505-990a: Audit remediation — `.agents` framework hardening + concept removal
 
 **Status:** Accepted

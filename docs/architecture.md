@@ -799,11 +799,51 @@ The framework enforces two circuit breakers to prevent runaway cost:
 
 ## Observability
 
-### Friction Telemetry
+### Performance-Signal Telemetry
 
-Operational difficulties are logged directly to GitHub Task tickets via
-`diagnose-friction.js`. This captures tool failures, command errors, and
-automation candidates as structured comments.
+The framework emits a closed taxonomy of seven NDJSON record kinds —
+`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, and the raw
+`trace` (Epic #1030, schema:
+[`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json)).
+Records are written **append-only to local disk** under
+`temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+`traces.ndjson` for `kind: trace`). GitHub tickets receive **summaries
+only**, never raw events.
+
+The model has three layers:
+
+1. **Producers — `signals-writer.js`.** Detectors and the runtime
+   `tool-trace-hook.js` funnel through `appendSignal` /  `appendTrace`.
+   The writer is **best-effort and unbuffered**: every call opens, writes
+   one newline-terminated JSON line, and closes. fs / JSON failures are
+   swallowed via `Logger.warn` so observability never halts a wave, and
+   detectors that fire from inside a sub-agent that may exit abruptly do
+   not lose their tail. The per-Story directory is created lazily on the
+   first write; `epicId` / `storyId` must be positive integers.
+2. **Detectors — `diagnose-friction.js` and the signal modules.**
+   Detector thresholds resolve from `agentSettings.limits.signals` via
+   `getSignals(config)` (defaults: `hotspot.p95Multiplier=1.25`,
+   `rework.editsPerFile=5`, `churn.repeatCount=4`, `idle.gapSeconds=120`,
+   `retry.repeatCount=3`). Operators override individual keys in
+   `.agentrc.json`; the resolver shallow-merges per detector, so a
+   re-tuned `hotspot.p95Multiplier` does not require re-listing the
+   other detectors.
+3. **Analyzers — Story close + Epic close.** At Story close,
+   `story-close.js` rolls the local NDJSON into a single
+   [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
+   comment carrying friction counts by category, phase timings,
+   top-slow phases vs baseline, a rework score, and retry density. At
+   Epic close, `epic-close.js` aggregates every Story's NDJSON into one
+   [`structured:epic-perf-report`](../.agents/schemas/epic-perf-report.schema.json)
+   comment alongside the retro: per-kind signal counts, per-wave
+   parallelism utilization, top hotspots, and the most-friction Stories.
+
+The split — events local, summaries on tickets — keeps the GitHub
+comment surface bounded (one summary per Story, one report per Epic) and
+keeps the raw stream cheap enough that detectors can fire on every
+tool-call without rate-limiting or batching. The per-Epic temp tree is
+reaped together with the worktree on `WorktreeManager.reap`. See
+[`docs/decisions.md`](decisions.md) ADR for the architectural rationale.
 
 ### Log Levels
 
