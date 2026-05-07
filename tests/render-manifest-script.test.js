@@ -50,8 +50,16 @@ test('writeRenderedManifest produces md + json under temp/', () => {
     assert.strictEqual(fs.readFileSync(mdPath, 'utf8'), body);
     const jsonOnDisk = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
     assert.deepStrictEqual(jsonOnDisk, parsed);
-    assert.ok(mdPath.endsWith('dispatch-manifest-7.md'));
-    assert.ok(jsonPath.endsWith('dispatch-manifest-7.json'));
+    // Per-Epic layout (Epic #1030 Story #1040): the renderer now writes
+    // under `temp/epic-<eid>/manifest.{md,json}`.
+    assert.ok(
+      mdPath.replaceAll('\\', '/').endsWith('temp/epic-7/manifest.md'),
+      `unexpected md path: ${mdPath}`,
+    );
+    assert.ok(
+      jsonPath.replaceAll('\\', '/').endsWith('temp/epic-7/manifest.json'),
+      `unexpected json path: ${jsonPath}`,
+    );
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
   }

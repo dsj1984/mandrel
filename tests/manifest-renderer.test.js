@@ -337,11 +337,13 @@ test('persistManifest', async (t) => {
     };
 
     persistManifest(manifest);
-    assert.ok(fs.existsSync(path.join(tempDir, 'dispatch-manifest-999.json')));
-    assert.ok(fs.existsSync(path.join(tempDir, 'dispatch-manifest-999.md')));
+    // Per-Epic layout (Epic #1030 Story #1040): manifest moved to
+    // `temp/epic-<eid>/manifest.{md,json}`.
+    const epicDir = path.join(tempDir, 'epic-999');
+    assert.ok(fs.existsSync(path.join(epicDir, 'manifest.json')));
+    assert.ok(fs.existsSync(path.join(epicDir, 'manifest.md')));
 
-    fs.rmSync(path.join(tempDir, 'dispatch-manifest-999.json'));
-    fs.rmSync(path.join(tempDir, 'dispatch-manifest-999.md'));
+    fs.rmSync(epicDir, { recursive: true, force: true });
   });
 
   await t.test('writes story manifest files', () => {
@@ -351,6 +353,7 @@ test('persistManifest', async (t) => {
         {
           storyId: 888,
           storyTitle: 'Eight Eighty-Eight',
+          epicId: 1,
           epicBranch: 'epic/1',
           branchName: 'story-888',
           tasks: [],
@@ -360,19 +363,17 @@ test('persistManifest', async (t) => {
     };
 
     persistManifest(manifest);
-    // Find files starting with story-manifest-888 in any plausible temp dir
+    // Per-Epic layout: `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
     const possibleDirs = [tempDir, path.join(process.cwd(), 'temp')];
     let found = false;
     for (const d of possibleDirs) {
-      if (fs.existsSync(path.join(d, 'story-manifest-888.json'))) {
+      const storyDir = path.join(d, 'epic-1', 'story-888');
+      if (fs.existsSync(path.join(storyDir, 'manifest.json'))) {
         found = true;
-        fs.rmSync(path.join(d, 'story-manifest-888.json'));
-        if (fs.existsSync(path.join(d, 'story-manifest-888.md'))) {
-          fs.rmSync(path.join(d, 'story-manifest-888.md'));
-        }
+        fs.rmSync(path.join(d, 'epic-1'), { recursive: true, force: true });
         break;
       }
     }
-    assert.ok(found, 'Should have found the persisted story manifest');
+    assert.ok(found, 'Should have found the persisted per-Story manifest');
   });
 });
