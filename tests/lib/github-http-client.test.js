@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { GithubHttpClient } from '../../.agents/scripts/providers/github-http-client.js';
+import { GithubHttpClient } from '../../.agents/scripts/providers/github/http-client.js';
 
 describe('GithubHttpClient', () => {
   function makeFetchStub(responses) {
