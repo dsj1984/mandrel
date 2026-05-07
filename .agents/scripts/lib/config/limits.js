@@ -27,6 +27,20 @@ export const LIMITS_DEFAULTS = Object.freeze({
     maxBytes: 50000,
     summaryMode: 'auto',
   }),
+  /**
+   * Detector thresholds for the performance-signal taxonomy (Epic #1030).
+   * Each nested block tunes one detector; defaults match the values in
+   * the Tech Spec configuration block. Operators override individual
+   * keys via `agentSettings.limits.signals.<detector>.<key>` in
+   * `.agentrc.json`.
+   */
+  signals: Object.freeze({
+    hotspot: Object.freeze({ p95Multiplier: 1.25 }),
+    rework: Object.freeze({ editsPerFile: 5 }),
+    churn: Object.freeze({ repeatCount: 4 }),
+    idle: Object.freeze({ gapSeconds: 120 }),
+    retry: Object.freeze({ repeatCount: 3 }),
+  }),
 });
 
 /**
@@ -57,6 +71,21 @@ export function resolveLimits(userLimits) {
     block.planningContext && typeof block.planningContext === 'object'
       ? block.planningContext
       : {};
+  const userSignals =
+    block.signals && typeof block.signals === 'object' ? block.signals : {};
+  // Per-detector merge: take each detector's defaults and shallow-overlay
+  // any operator-supplied keys, mirroring the friction-block convention.
+  const mergedSignals = {};
+  for (const detector of Object.keys(LIMITS_DEFAULTS.signals)) {
+    const userDetector =
+      userSignals[detector] && typeof userSignals[detector] === 'object'
+        ? userSignals[detector]
+        : {};
+    mergedSignals[detector] = {
+      ...LIMITS_DEFAULTS.signals[detector],
+      ...userDetector,
+    };
+  }
   return {
     maxInstructionSteps:
       block.maxInstructionSteps ?? LIMITS_DEFAULTS.maxInstructionSteps,
@@ -71,6 +100,7 @@ export function resolveLimits(userLimits) {
       ...LIMITS_DEFAULTS.planningContext,
       ...userPlanning,
     },
+    signals: mergedSignals,
   };
 }
 

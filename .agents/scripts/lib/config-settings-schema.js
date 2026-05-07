@@ -138,6 +138,57 @@ const FRICTION_LIMITS_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `agentSettings.limits.signals` — detector thresholds for the
+ * performance-signal taxonomy introduced in Epic #1030. Each nested block
+ * tunes one detector (hotspot vs phase-baseline p95, rework edits-per-file,
+ * churn target-repeat count, idle gap seconds, retry repeat count). Every
+ * key is optional so an operator can override a single threshold without
+ * re-listing the others; the resolver fills missing keys from
+ * {@link LIMITS_DEFAULTS.signals}.
+ */
+const SIGNALS_LIMITS_SCHEMA = {
+  type: 'object',
+  properties: {
+    hotspot: {
+      type: 'object',
+      properties: {
+        p95Multiplier: { type: 'number', minimum: 0 },
+      },
+      additionalProperties: false,
+    },
+    rework: {
+      type: 'object',
+      properties: {
+        editsPerFile: { type: 'integer', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    churn: {
+      type: 'object',
+      properties: {
+        repeatCount: { type: 'integer', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    idle: {
+      type: 'object',
+      properties: {
+        gapSeconds: { type: 'integer', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+    retry: {
+      type: 'object',
+      properties: {
+        repeatCount: { type: 'integer', minimum: 1 },
+      },
+      additionalProperties: false,
+    },
+  },
+  additionalProperties: false,
+};
+
 const RISK_GATES_SCHEMA = {
   type: 'object',
   properties: {
@@ -244,6 +295,7 @@ const LIMITS_SCHEMA = {
     executionMaxBuffer: { type: 'integer', minimum: 1 },
     friction: FRICTION_LIMITS_SCHEMA,
     planningContext: PLANNING_CONTEXT_SCHEMA,
+    signals: SIGNALS_LIMITS_SCHEMA,
   },
   additionalProperties: false,
 };

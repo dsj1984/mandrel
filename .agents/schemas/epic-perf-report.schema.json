@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dsj1984/agent-protocols/blob/main/.agents/schemas/epic-perf-report.schema.json",
+  "title": "EpicPerfReport",
+  "description": "Payload of the <!-- structured:epic-perf-report --> comment posted once per Epic at close, alongside the retro (Epic #1030).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "epicId",
+    "generatedAt",
+    "signalCounts",
+    "waveParallelism",
+    "topHotspots",
+    "mostFrictionStories"
+  ],
+  "properties": {
+    "kind": { "type": "string", "const": "epic-perf-report" },
+    "epicId": { "type": "integer", "minimum": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "signalCounts": {
+      "type": "object",
+      "description": "Rolled-up signal counts by kind for the entire Epic.",
+      "additionalProperties": false,
+      "properties": {
+        "friction": { "type": "integer", "minimum": 0 },
+        "hotspot": { "type": "integer", "minimum": 0 },
+        "rework": { "type": "integer", "minimum": 0 },
+        "churn": { "type": "integer", "minimum": 0 },
+        "idle": { "type": "integer", "minimum": 0 },
+        "retry": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "waveParallelism": {
+      "type": "array",
+      "description": "Per-wave parallelism utilization. utilization = wallClockMs / sumStoryMs (lower is better; ideal is 1/N).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "wave",
+          "wallClockMs",
+          "sumStoryMs",
+          "utilization",
+          "stories"
+        ],
+        "properties": {
+          "wave": { "type": "integer", "minimum": 0 },
+          "wallClockMs": { "type": "integer", "minimum": 0 },
+          "sumStoryMs": { "type": "integer", "minimum": 0 },
+          "utilization": { "type": "number", "minimum": 0 },
+          "stories": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "topHotspots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase", "occurrences", "avgRatio"],
+        "properties": {
+          "phase": { "type": "string", "minLength": 1 },
+          "occurrences": { "type": "integer", "minimum": 0 },
+          "avgRatio": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "mostFrictionStories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["storyId", "frictionCount"],
+        "properties": {
+          "storyId": { "type": "integer", "minimum": 1 },
+          "frictionCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
