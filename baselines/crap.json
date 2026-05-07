@@ -235,55 +235,55 @@
       "crap": 20.025295232541186,
       "file": ".agents/scripts/check-crap.js",
       "method": "parseCliArgs",
-      "startLine": 113
+      "startLine": 119
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "filterRowsByFileScope",
-      "startLine": 164
+      "startLine": 170
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 199
+      "startLine": 205
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 322
+      "startLine": 328
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 385
+      "startLine": 391
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "writeJsonReport",
-      "startLine": 429
+      "startLine": 435
     },
     {
       "crap": 30,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 437
+      "startLine": 443
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 480
+      "startLine": 486
     },
     {
       "crap": 21.80408333333333,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 514
+      "startLine": 520
     },
     {
       "crap": 5,
@@ -1297,7 +1297,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 343
+      "startLine": 387
     },
     {
       "crap": 3,
@@ -1324,28 +1324,22 @@
       "startLine": 35
     },
     {
-      "crap": 6,
+      "crap": 3,
       "file": ".agents/scripts/lib/config/epic-close.js",
       "method": "getEpicClose",
-      "startLine": 31
+      "startLine": 23
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/config/epic-close.js",
-      "method": "_resetLegacyWarned",
-      "startLine": 56
-    },
-    {
-      "crap": 7,
+      "crap": 11,
       "file": ".agents/scripts/lib/config/limits.js",
       "method": "resolveLimits",
-      "startLine": 52
+      "startLine": 66
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/limits.js",
       "method": "getLimits",
-      "startLine": 84
+      "startLine": 114
     },
     {
       "crap": 3,
@@ -1363,31 +1357,31 @@
       "crap": 4,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolveMaintainabilityCrap",
-      "startLine": 41
+      "startLine": 46
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolveMaintainabilityQuality",
-      "startLine": 92
+      "startLine": 97
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolvePrGate",
-      "startLine": 118
+      "startLine": 123
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolveQuality",
-      "startLine": 143
+      "startLine": 148
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "getQuality",
-      "startLine": 161
+      "startLine": 166
     },
     {
       "crap": 1,
@@ -1436,6 +1430,114 @@
       "file": ".agents/scripts/lib/config/shared.js",
       "method": "<anon method-1>",
       "startLine": 30
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "getResolveConfig",
+      "startLine": 46
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "tempRootFrom",
+      "startLine": 67
+    },
+    {
+      "crap": 1.512,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "tempRootAsync",
+      "startLine": 86
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-1>",
+      "startLine": 92
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-2>",
+      "startLine": 101
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-3>",
+      "startLine": 110
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "epicTempDir",
+      "startLine": 132
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyTempDir",
+      "startLine": 145
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "signalsFile",
+      "startLine": 158
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "epicArtifactPath",
+      "startLine": 173
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "storyArtifactPath",
+      "startLine": 188
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-4>",
+      "startLine": 194
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-5>",
+      "startLine": 196
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-6>",
+      "startLine": 198
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-7>",
+      "startLine": 200
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-8>",
+      "startLine": 202
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-9>",
+      "startLine": 207
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/config/temp-paths.js",
+      "method": "<anon method-10>",
+      "startLine": 209
     },
     {
       "crap": 14,
@@ -3436,7 +3538,7 @@
       "startLine": 265
     },
     {
-      "crap": 14.845560768234243,
+      "crap": 13.60559798888493,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
       "startLine": 285
@@ -3445,13 +3547,13 @@
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 436
+      "startLine": 401
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 501
+      "startLine": 466
     },
     {
       "crap": 1,
