@@ -525,7 +525,7 @@ export async function runEpicCodeReview(args, deps = {}) {
     const evidenceCfg = buildLintEvidenceConfig(changedFiles, PROJECT_ROOT);
     const headSha = resolveCurrentSha(PROJECT_ROOT, gitSpawnFn);
     let evidenceSkip = null;
-    if (args.useEvidence && args.storyId && headSha) {
+    if (args.useEvidence && args.storyId && args.epicId && headSha) {
       const verdict = shouldSkipFn(
         {
           storyId: args.storyId,
@@ -533,7 +533,7 @@ export async function runEpicCodeReview(args, deps = {}) {
           currentSha: headSha,
           configHash: evidenceCfg,
         },
-        { cwd: PROJECT_ROOT },
+        { cwd: PROJECT_ROOT, epicId: args.epicId },
       );
       if (verdict.skip) evidenceSkip = verdict;
     }
@@ -561,6 +561,7 @@ export async function runEpicCodeReview(args, deps = {}) {
       if (
         args.useEvidence &&
         args.storyId &&
+        args.epicId &&
         headSha &&
         lintSummary.errors === 0 &&
         !lintSummary.skipped
@@ -574,7 +575,7 @@ export async function runEpicCodeReview(args, deps = {}) {
               configHash: evidenceCfg,
               exitCode: 0,
             },
-            { cwd: PROJECT_ROOT },
+            { cwd: PROJECT_ROOT, epicId: args.epicId },
           );
         } catch (err) {
           progress(

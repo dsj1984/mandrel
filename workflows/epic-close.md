@@ -212,13 +212,18 @@ trailing as a follow-on commit on `[BASE_BRANCH]`.
 
 Use the **evidence-aware gate wrapper** so identical re-runs against an
 already-validated tree are skipped. Each successful run is recorded under
-`temp/validation-evidence-[EPIC_ID].json` (gitignored); the next caller
-skips when `git rev-parse HEAD` and the resolved command-config still match.
+`temp/epic-[EPIC_ID]/validation-evidence.json` (gitignored, per-Epic tree);
+the next caller skips when `git rev-parse HEAD` and the resolved
+command-config still match.
 
 ```powershell
-node .agents/scripts/evidence-gate.js --scope-id [EPIC_ID] --gate lint -- npm run lint
-node .agents/scripts/evidence-gate.js --scope-id [EPIC_ID] --gate test -- npm test
+node .agents/scripts/evidence-gate.js --epic-id [EPIC_ID] --scope-id [EPIC_ID] --gate lint -- npm run lint
+node .agents/scripts/evidence-gate.js --epic-id [EPIC_ID] --scope-id [EPIC_ID] --gate test -- npm test
 ```
+
+`--epic-id` is required. When `--scope-id` differs from `--epic-id` (i.e.
+the caller is a Story-scoped close), the evidence file lives at
+`temp/epic-[EPIC_ID]/story-[STORY_ID]/validation-evidence.json` instead.
 
 Append `--no-evidence` to either invocation to force a re-run regardless of
 recorded state (e.g., when iterating on a flaky test). If either command

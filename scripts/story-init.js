@@ -268,7 +268,10 @@ export async function runStoryInit({
     // of this Story (recut, branch-recreate, manual restart) always starts
     // with an empty evidence ledger. Story 7 / #830.
     try {
-      const cleared = clearValidationEvidence(storyId, { cwd: workCwd });
+      const cleared = clearValidationEvidence(storyId, {
+        cwd: workCwd,
+        epicId,
+      });
       if (cleared.cleared) {
         progress(
           'EVIDENCE',

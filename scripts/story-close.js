@@ -26,6 +26,7 @@ import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix
 import {
   runFinalizeMerge,
   runResumeMerge,
+  withEpicMergeLock,
 } from './lib/orchestration/story-close/merge-runner.js';
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
 import {
@@ -88,6 +89,54 @@ export async function runStoryClose({
 
   progress('INIT', `Closing Story #${storyId}...`);
 
+  // Hold the per-Epic merge lock across the entire close flow — pre-merge
+  // gates, dispatchRecovery, merge, and post-merge pipeline. The narrower
+  // lock that previously wrapped only the merge+push step let two concurrent
+  // closes interleave validation/post-merge work against a shifting
+  // `origin/<epic>` tip, producing the `merged:true`-but-HEAD-stale failure
+  // mode that mimics a push-hook cascade. Serializing per Epic at script
+  // entry costs wave-close parallelism but eliminates the race outright.
+  return withEpicMergeLock(
+    epicId,
+    { repoRoot: cwd, timeoutMs: 60_000, log: progressLog },
+    () =>
+      runStoryCloseLocked({
+        storyId,
+        epicId,
+        cwd,
+        skipDashboard,
+        skipValidationParam,
+        resumeFlag,
+        restartFlag,
+        noEvidenceFlag,
+        orchestration,
+        settings,
+        provider,
+        story,
+        epicBranch,
+        storyBranch,
+        notifyFn,
+      }),
+  );
+}
+
+async function runStoryCloseLocked({
+  storyId,
+  epicId,
+  cwd,
+  skipDashboard,
+  skipValidationParam,
+  resumeFlag,
+  restartFlag,
+  noEvidenceFlag,
+  orchestration,
+  settings,
+  provider,
+  story,
+  epicBranch,
+  storyBranch,
+  notifyFn,
+}) {
   // Prior-state detection + --resume / --restart dispatch.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
     dispatchRecovery({
@@ -136,6 +185,7 @@ export async function runStoryClose({
       cwd,
       settings,
       storyId,
+      epicId,
       useEvidence: !noEvidenceFlag,
       phaseTimer,
       logger: Logger,

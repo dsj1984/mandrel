@@ -70,9 +70,22 @@ Stories you cannot discover deterministically.
 
 ## Step 2 — Fan out via Agent tool calls
 
+> **You vs. your children — read this first.** *You* (the LLM running this
+> skill) never invoke `/story-execute` yourself. Your only job in this step is
+> to **dispatch** one `Agent` tool call per Story in `plan`. The *children* you
+> spawn — distinct sub-agents, one per Agent call — are the ones that run
+> `/story-execute`. This holds whether you were invoked directly by an
+> operator or as a sub-agent of `/epic-execute`; being a sub-agent does not
+> exempt you from fanning out, and it does not let you collapse the wave to a
+> single `/story-execute` call.
+
 Emit **one assistant turn** containing **N parallel `Agent` tool calls**, one
 per Story in `plan`, where `N === min(plan.length, concurrencyCap)`. Use
-`subagent_type: general-purpose`.
+`subagent_type: general-purpose`. **Even when `plan.length === 1`** you still
+emit exactly one `Agent` call (not a direct `/story-execute` invocation) —
+this preserves the parent-child boundary, keeps the per-child non-interactive
+contract enforceable, and keeps the mode-B return parser on a uniform code
+path.
 
 When `plan.length > concurrencyCap`, dispatch the first `concurrencyCap`
 Stories in the assistant turn, wait for the batch to return, then emit a
@@ -81,11 +94,13 @@ follow-up turn with the next batch. **Never** dispatch more than
 
 ### Per-child prompt contract
 
-Each Agent tool call must include a self-contained prompt that:
+In the rest of this section, "**the child**" means the child sub-agent that
+*this* Agent tool call is spawning — not you. Each Agent tool call must
+include a self-contained prompt that:
 
 1. Names the Story id and the Epic id.
-2. Tells the sub-agent to invoke `/story-execute <storyId>`.
-3. States the **return contract** the sub-agent owes its parent:
+2. Instructs **the child** to invoke `/story-execute <storyId>`.
+3. States the **return contract** the child owes you (its parent):
 
    ```json
    {
@@ -101,16 +116,21 @@ Each Agent tool call must include a self-contained prompt that:
    }
    ```
 
-4. Reminds the sub-agent of the **non-interactive contract** (no clarifying
+4. Reminds **the child** of the **non-interactive contract** (no clarifying
    questions, transition to `agent::blocked` and exit if truly stuck).
-5. Asks the sub-agent to suppress per-Task chat relay (the wave-level
-   rollup is the canonical chat surface) and instead include its
-   **terminal** `renderedBody` in the JSON return so this skill can fold
-   it into the wave-level Notable section.
+5. Asks **the child** to suppress per-Task chat relay (the wave-level rollup
+   is the canonical chat surface) and instead include its **terminal**
+   `renderedBody` in the JSON return so you can fold it into the wave-level
+   Notable section.
 
-Sub-agents inherit the parent's tool permissions and worktree context; they
-do **not** require `--dangerously-skip-permissions` (no subprocess is
-spawned).
+Children inherit the parent's tool permissions and worktree context; they do
+**not** require `--dangerously-skip-permissions` (no subprocess is spawned).
+
+> **Regression guard (2026-05-07).** A general-purpose sub-agent invoked by
+> `/epic-execute`'s wave dispatch read "the sub-agent" in this section as
+> itself and ran a single `/story-execute` call instead of fanning out, so
+> only one Story per wave executed. The disambiguation above ("you" vs. "the
+> child") and the single-Story carve-out are the fix — do not soften them.
 
 ---
 
@@ -191,6 +211,10 @@ cross-wave epic rollup; the assistant text is what the operator sees in
 chat. Do not strip `renderedBody` — `/epic-execute`'s Notable synthesis
 depends on it.
 
+Being a sub-agent **does not** let you skip Step 2's fan-out. The wave-record
+envelope is only valid if it summarises real per-Story child returns; you
+cannot synthesise one by running `/story-execute` directly.
+
 ---
 
 ## Idempotence
@@ -207,6 +231,10 @@ done, some blocked), drive each blocked Story through `/story-execute
 
 ## Constraints
 
+- **Never** invoke `/story-execute` yourself. Your sole dispatch primitive
+  is the `Agent` tool — children run `/story-execute`, you do not. This
+  holds even for single-Story waves and even when *you* are running as a
+  sub-agent of `/epic-execute`.
 - **Never** dispatch more than `concurrencyCap` Stories in flight.
   `concurrencyCap` is sourced from
   `orchestration.runners.epicRunner.concurrencyCap` and surfaced in the
