@@ -128,14 +128,52 @@ include a self-contained prompt that:
    `renderedBody` in the JSON return so you can fold it into the wave-level
    Notable section.
 
-Children inherit the parent's tool permissions and worktree context; they do
-**not** require `--dangerously-skip-permissions` (no subprocess is spawned).
+Children inherit the parent's worktree context; they do **not** require
+`--dangerously-skip-permissions` (no subprocess is spawned). Tool grants,
+however, are **not** automatically inherited — see
+[Harness constraint](#harness-constraint--no-nested-agent-by-default) below.
 
 > **Regression guard (2026-05-07).** A general-purpose sub-agent invoked by
 > `/epic-execute`'s wave dispatch read "the sub-agent" in this section as
 > itself and ran a single `/story-execute` call instead of fanning out, so
 > only one Story per wave executed. The disambiguation above ("you" vs. "the
 > child") and the single-Story carve-out are the fix — do not soften them.
+
+### Harness constraint — no nested Agent by default
+
+**Default `general-purpose` sub-agents do not have the `Agent` tool in this
+Claude Code release.** The earlier statement that "children inherit the
+parent's tool permissions" was an Epic #1072 design assumption that did not
+survive contact with the harness — wave-level fan-out failed entirely on
+the first attempt because the wave-runner sub-agent could not call `Agent`
+to dispatch its per-Story children. Three load-bearing facts:
+
+1. **`general-purpose` sub-agents lack `Agent`.** A wave-level sub-agent
+   dispatched as `subagent_type: general-purpose` cannot fan out — it can
+   only run one Story sequentially via inline `/story-execute` (which
+   collapses the wave) or escalate.
+2. **Wave-level fan-out requires the custom `wave-runner` agent type.**
+   `.claude/agents/wave-runner.md` declares
+   `tools: Agent, Read, Bash, Edit, Write, Glob, Grep, Skill`, granting the
+   wave-level sub-agent the `Agent` tool it needs to dispatch per-Story
+   children. Step 2 must dispatch this skill via
+   `subagent_type: wave-runner`, not `general-purpose`. Story sub-agents
+   spawned by the wave-runner remain `general-purpose` — they do not need
+   `Agent` because they iterate child Tasks sequentially via
+   [`helpers/task-execute.md`](helpers/task-execute.md).
+3. **Host-driven flat fan-out is an emergency fallback only.** The
+   ad-hoc workaround used during Epic #1072 — the host LLM emitting one
+   Agent call per Story directly, bypassing `/wave-execute` entirely — is
+   documented as an emergency-only fallback, not the supported
+   architecture. It loses the wave-level rollup, the parse-failure
+   reconciler, and the per-wave checkpoint; only reach for it when the
+   custom-agent path is itself blocked.
+
+If the harness ever ships a release that disallows nested `Agent` even for
+custom sub-agent types, `/wave-execute` (and by extension `/epic-execute`)
+must STOP and surface to the operator — do **not** silently fall back to
+flat dispatch. The Q6 probe in Epic #1114 Story #1122 captures this branch
+explicitly.
 
 ---
 

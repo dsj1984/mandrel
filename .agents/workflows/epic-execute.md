@@ -109,6 +109,15 @@ For each wave `N` from `0` to `totalWaves - 1`:
    [`wave-execute.md`](wave-execute.md) has been observed to misread "the
    sub-agent" as itself and collapse the wave to a single `/story-execute`
    call (regression: 2026-05-07).
+
+   The wave-level fan-out depends on the wave sub-agent having the `Agent`
+   tool. The default `general-purpose` sub-agent type does **not** carry
+   `Agent` in this Claude Code release — see
+   [Harness constraint — no nested Agent by default](wave-execute.md#harness-constraint--no-nested-agent-by-default)
+   in `wave-execute.md` for the full rationale and the emergency-only
+   host-driven flat-fan-out fallback. The custom `wave-runner` agent type
+   (`.claude/agents/wave-runner.md`) is the supported way to grant the
+   `Agent` tool to a wave-level sub-agent.
 2. **Read the wave summary** from the Agent tool result. `/wave-execute` has
    already upserted a `wave-run-progress` comment on the Epic — that is the
    source of truth for per-Story state.
