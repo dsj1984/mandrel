@@ -946,11 +946,14 @@ CI    ▶ │ ci.yml:                               │
 
 Local close-validation, `epic-code-review`, and `/epic-close` Phase 4 wrap
 each gate in `evidence-gate.js`. On a successful run the wrapper records
-`{ gateName, commitSha, commandConfigHash, timestamp }` in
-`temp/validation-evidence-<scopeId>.json` (gitignored). Subsequent invocations
-against the same `git rev-parse HEAD` and resolved command config skip in
-milliseconds. `--no-evidence` forces a re-run; pre-push and CI ignore the
-evidence file entirely so independent verification is never bypassed.
+`{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
+tree at `temp/epic-<epicId>/validation-evidence.json` for Epic-scoped
+gates and `temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+for Story-scoped gates (both gitignored via `temp/`). Callers must pass
+both `--scope-id` and `--epic-id`. Subsequent invocations against the same
+`git rev-parse HEAD` and resolved command config skip in milliseconds.
+`--no-evidence` forces a re-run; pre-push and CI ignore the evidence file
+entirely so independent verification is never bypassed.
 
 All three sites converge on the same `check-crap.js` binary and the same
 `baselines/crap.json` artifact, so a regression caught at any one site fails

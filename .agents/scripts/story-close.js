@@ -185,6 +185,7 @@ async function runStoryCloseLocked({
       cwd,
       settings,
       storyId,
+      epicId,
       useEvidence: !noEvidenceFlag,
       phaseTimer,
       logger: Logger,

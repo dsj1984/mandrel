@@ -12,20 +12,25 @@
  *
  * Usage:
  *   node .agents/scripts/evidence-gate.js \
- *     --scope-id <storyOrEpicId> --gate <name> [--no-evidence] -- <cmd> [args...]
+ *     --epic-id <epicId> --scope-id <storyOrEpicId> --gate <name> \
+ *     [--no-evidence] -- <cmd> [args...]
  *
  * Examples:
- *   node .agents/scripts/evidence-gate.js --scope-id 817 --gate lint -- npm run lint
- *   node .agents/scripts/evidence-gate.js --scope-id 817 --gate test -- npm test
+ *   node .agents/scripts/evidence-gate.js --epic-id 802 --scope-id 817 --gate lint -- npm run lint
+ *   node .agents/scripts/evidence-gate.js --epic-id 1030 --scope-id 1030 --gate test -- npm test
+ *
+ * `--epic-id` is required. When `scope-id === epic-id` the evidence file is
+ * Epic-scoped (`<tempRoot>/epic-<eid>/validation-evidence.json`); when
+ * `scope-id !== epic-id` it is Story-scoped under
+ * `<tempRoot>/epic-<eid>/story-<sid>/validation-evidence.json`.
  *
  * Exit codes:
  *   0 — gate passed (or skipped via evidence)
  *   N — gate failed (passes through the runner's exit code)
  *
  * `--no-evidence` forces the runner regardless of recorded state. The
- * `temp/validation-evidence-<scope-id>.json` file is gitignored — evidence
- * is a perf optimization, not a trust boundary; pre-push hooks and CI
- * continue to verify independently.
+ * evidence file is gitignored — evidence is a perf optimization, not a
+ * trust boundary; pre-push hooks and CI continue to verify independently.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -65,6 +70,7 @@ export function parseWrapperArgs(argv) {
     args: argv,
     options: {
       'scope-id': { type: 'string' },
+      'epic-id': { type: 'string' },
       gate: { type: 'string' },
       'no-evidence': { type: 'boolean', default: false },
       cwd: { type: 'string' },
@@ -72,8 +78,10 @@ export function parseWrapperArgs(argv) {
     strict: false,
   });
   const scopeId = Number.parseInt(values['scope-id'] ?? '', 10);
+  const epicId = Number.parseInt(values['epic-id'] ?? '', 10);
   return {
     scopeId: Number.isNaN(scopeId) || scopeId <= 0 ? null : scopeId,
+    epicId: Number.isNaN(epicId) || epicId <= 0 ? null : epicId,
     gate: values.gate ?? null,
     useEvidence: values['no-evidence'] !== true,
     cwd: values.cwd ?? PROJECT_ROOT,
@@ -119,11 +127,11 @@ export async function runEvidenceGate(params, deps = {}) {
     recordPassFn = recordPass,
     logger = Logger,
   } = deps;
-  const { scopeId, gate, useEvidence, cwd, runnerArgs } = params ?? {};
+  const { scopeId, epicId, gate, useEvidence, cwd, runnerArgs } = params ?? {};
 
-  if (!scopeId || !gate || !runnerArgs || runnerArgs.length === 0) {
+  if (!scopeId || !epicId || !gate || !runnerArgs || runnerArgs.length === 0) {
     logger.fatal(
-      'Usage: node evidence-gate.js --scope-id <id> --gate <name> [--no-evidence] -- <cmd> [args...]',
+      'Usage: node evidence-gate.js --epic-id <epicId> --scope-id <id> --gate <name> [--no-evidence] -- <cmd> [args...]',
     );
     return { status: 1, skipped: false };
   }
@@ -140,7 +148,7 @@ export async function runEvidenceGate(params, deps = {}) {
         currentSha: headSha,
         configHash,
       },
-      { cwd },
+      { cwd, epicId },
     );
     if (verdict.skip) {
       const ts = verdict.record?.timestamp ?? 'n/a';
@@ -177,7 +185,7 @@ export async function runEvidenceGate(params, deps = {}) {
           exitCode: 0,
           durationMs: Date.now() - startedAt,
         },
-        { cwd },
+        { cwd, epicId },
       );
     } catch (err) {
       logger.warn?.(

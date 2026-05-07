@@ -44,6 +44,7 @@ export function runPreMergeGates({
   cwd,
   settings,
   storyId,
+  epicId,
   useEvidence = true,
   phaseTimer,
   logger = DefaultLogger,
@@ -67,6 +68,7 @@ export function runPreMergeGates({
       }
     },
     storyId,
+    epicId,
     useEvidence,
   });
   if (!validation.ok) {

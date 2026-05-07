@@ -38,6 +38,7 @@ test('runEvidenceGate: skips runner when evidence verdict says skip', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 817,
+      epicId: 802,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -85,6 +86,7 @@ test('runEvidenceGate: runs the runner and records evidence on pass', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 817,
+      epicId: 802,
       gate: 'test',
       useEvidence: true,
       cwd: '/repo',
@@ -127,6 +129,7 @@ test('runEvidenceGate: failing runner does NOT record evidence', async () => {
   const out = await runEvidenceGate(
     {
       scopeId: 901,
+      epicId: 802,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -168,6 +171,7 @@ test('runEvidenceGate: --no-evidence path skips both shouldSkip and recordPass',
   const out = await runEvidenceGate(
     {
       scopeId: 901,
+      epicId: 802,
       gate: 'lint',
       useEvidence: false,
       cwd: '/repo',
@@ -208,6 +212,31 @@ test('runEvidenceGate: missing scopeId falls into fatal-usage path', async () =>
   const out = await runEvidenceGate(
     {
       scopeId: null,
+      epicId: 802,
+      gate: 'lint',
+      useEvidence: true,
+      cwd: '/repo',
+      runnerArgs: ['npm', 'run', 'lint'],
+    },
+    {
+      gitSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
+      spawnFn: () => ({ status: 0 }),
+      shouldSkipFn: () => ({ skip: false }),
+      recordPassFn: () => {},
+      logger,
+    },
+  );
+  assert.equal(out.status, 1);
+  assert.equal(out.skipped, false);
+  assert.equal(logger.calls.fatal.length, 1);
+});
+
+test('runEvidenceGate: missing epicId falls into fatal-usage path', async () => {
+  const logger = makeLogger();
+  const out = await runEvidenceGate(
+    {
+      scopeId: 901,
+      epicId: null,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -231,6 +260,7 @@ test('runEvidenceGate: empty runnerArgs falls into fatal-usage path', async () =
   const out = await runEvidenceGate(
     {
       scopeId: 1,
+      epicId: 1,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',
@@ -253,6 +283,7 @@ test('runEvidenceGate: recordPass exception is swallowed (gate still passes)', a
   const out = await runEvidenceGate(
     {
       scopeId: 1,
+      epicId: 1,
       gate: 'test',
       useEvidence: true,
       cwd: '/repo',
@@ -282,6 +313,7 @@ test('runEvidenceGate: HEAD-resolution failure bypasses evidence (no skip, no re
   const out = await runEvidenceGate(
     {
       scopeId: 1,
+      epicId: 1,
       gate: 'lint',
       useEvidence: true,
       cwd: '/repo',

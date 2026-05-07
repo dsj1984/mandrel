@@ -44,16 +44,52 @@ function makeFakeFs() {
 const FIXED_NOW = new Date('2026-04-25T20:00:00Z');
 const fixedNow = () => FIXED_NOW;
 const FAKE_CWD = path.resolve('/fake-worktree');
+const FAKE_EPIC_ID = 802;
 
 function baseOpts(extra = {}) {
   const fs = extra.fs ?? makeFakeFs();
   const { fs: _ignore, ...rest } = extra;
-  return { cwd: FAKE_CWD, now: fixedNow, ...rest, fs };
+  return {
+    cwd: FAKE_CWD,
+    now: fixedNow,
+    epicId: FAKE_EPIC_ID,
+    ...rest,
+    fs,
+  };
 }
 
-test('evidencePath() resolves under <cwd>/temp/validation-evidence-<storyId>.json', () => {
-  const expected = path.join(FAKE_CWD, 'temp', 'validation-evidence-901.json');
-  assert.equal(evidencePath(901, { cwd: FAKE_CWD }), expected);
+test('evidencePath() resolves a Story-scoped path under temp/epic-<eid>/story-<sid>/', () => {
+  const expected = path.join(
+    FAKE_CWD,
+    'temp',
+    'epic-802',
+    'story-901',
+    'validation-evidence.json',
+  );
+  assert.equal(
+    evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID }),
+    expected,
+  );
+});
+
+test('evidencePath() resolves an Epic-scoped path when scopeId === epicId', () => {
+  const expected = path.join(
+    FAKE_CWD,
+    'temp',
+    'epic-802',
+    'validation-evidence.json',
+  );
+  assert.equal(
+    evidencePath(FAKE_EPIC_ID, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID }),
+    expected,
+  );
+});
+
+test('evidencePath() throws when epicId is missing', () => {
+  assert.throws(
+    () => evidencePath(901, { cwd: FAKE_CWD }),
+    /requires opts\.epicId/,
+  );
 });
 
 test('hashCommandConfig() is deterministic and shape-valid', () => {
@@ -292,30 +328,30 @@ test('forceClear() is a no-op when no evidence file exists', () => {
 
 test('loadEvidence() ignores a corrupt JSON file', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD });
+  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
   fs.writeFileSync(file, 'not-json{{{');
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
   assert.deepEqual(doc.records, []);
 });
 
 test('loadEvidence() ignores a file whose storyId disagrees with the path', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD });
+  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
   fs.writeFileSync(
     file,
     JSON.stringify({ storyId: 902, schemaVersion: 1, records: [] }),
   );
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
   assert.deepEqual(doc.records, []);
 });
 
 test('loadEvidence() ignores a file whose schemaVersion does not match', () => {
   const fs = makeFakeFs();
-  const file = evidencePath(901, { cwd: FAKE_CWD });
+  const file = evidencePath(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID });
   fs.writeFileSync(
     file,
     JSON.stringify({ storyId: 901, schemaVersion: 999, records: [] }),
   );
-  const doc = loadEvidence(901, { cwd: FAKE_CWD, fs });
+  const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
   assert.deepEqual(doc.records, []);
 });

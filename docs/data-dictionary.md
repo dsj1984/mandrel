@@ -379,11 +379,14 @@ Evidence is per-clone, gitignored, and never committed.
 | `timestamp`         | ISO-8601 UTC timestamp of the successful run.                                        |
 | `exitCode`          | The wrapped command's exit code (always `0` for skip-eligible records).               |
 
-Evidence is keyed on `{ scopeId, gateName }` and lives at
-`temp/validation-evidence-<scopeId>.json`. The wrapper at `evidence-gate.js`
-is the only writer; close-validation, `epic-code-review`, and `/epic-close`
-Phase 4 are the readers. `--no-evidence` on any wrapper invocation forces a
-re-run and overwrites the record on success.
+Evidence is keyed on `{ scopeId, gateName }` and lives under the per-Epic
+tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
+`temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+(Story-scoped). Callers must thread both the scope id and the owning Epic
+id through the wrapper. The wrapper at `evidence-gate.js` is the only
+writer; close-validation, `epic-code-review`, and `/epic-close` Phase 4
+are the readers. `--no-evidence` on any wrapper invocation forces a re-run
+and overwrites the record on success.
 
 ---
 

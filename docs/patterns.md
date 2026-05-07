@@ -1046,10 +1046,12 @@ does not apply.
 When the same lint/test/format/maintainability/CRAP command is invoked
 across phases against the same tree, the framework wraps each invocation
 in `evidence-gate.js`. On success the wrapper writes
-`{ gateName, commitSha, commandConfigHash, timestamp }` to
-`temp/validation-evidence-<scopeId>.json`. The next caller reads the
-record, compares against `git rev-parse HEAD` and the resolved command
-config, and skips when both match.
+`{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
+tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
+`temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+(Story-scoped). The next caller reads the record, compares against `git
+rev-parse HEAD` and the resolved command config, and skips when both
+match.
 
 Pattern shape:
 

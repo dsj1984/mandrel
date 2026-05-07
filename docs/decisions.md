@@ -1686,7 +1686,11 @@ submodule paths are internal implementation detail.
     stale pass paper over a fresh regression.
 *   **Decision:** Each successful gate (lint, test, biome format, MI, CRAP)
     writes `{ gateName, commitSha, commandConfigHash, timestamp, exitCode }`
-    to `temp/validation-evidence-<scopeId>.json`. A subsequent caller skips
+    under the per-Epic tree at
+    `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
+    `temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+    (Story-scoped). Callers thread both the scope id and the owning Epic
+    id through `evidence-gate.js`. A subsequent caller skips
     the gate **only** when the current `git rev-parse HEAD` matches the
     recorded `commitSha` AND the resolved command-config hash matches.
     Anything else — dirty tree, new commit, config change, missing

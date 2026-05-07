@@ -248,11 +248,13 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  * recorded but still returns a summary so the caller can decide how to
  * surface the result.
  *
- * Evidence-aware: when `storyId` is provided and `useEvidence !== false`,
- * each gate consults `validation-evidence.shouldSkip()` against the current
- * `git rev-parse HEAD` + the gate's command-config hash. A matching record
- * skips the gate (logged at info level); a successful run is recorded so
- * the next caller in the local hot path can skip in turn.
+ * Evidence-aware: when both `storyId` and `epicId` are provided and
+ * `useEvidence !== false`, each gate consults
+ * `validation-evidence.shouldSkip()` against the current `git rev-parse
+ * HEAD` + the gate's command-config hash. A matching record skips the gate
+ * (logged at info level); a successful run is recorded so the next caller
+ * in the local hot path can skip in turn. Without `epicId`, evidence is
+ * inert (the per-Epic-tree path cannot be resolved).
  *
  * @param {{
  *   cwd: string,
@@ -261,6 +263,7 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   log?: (m: string) => void,
  *   onGateStart?: (gate: Gate) => void,
  *   storyId?: number|null,
+ *   epicId?: number|null,
  *   useEvidence?: boolean,
  *   evidenceClock?: () => number,
  *   getHeadSha?: (cwd: string) => string|null,
@@ -280,6 +283,7 @@ export function runCloseValidation({
   log = () => {},
   onGateStart,
   storyId = null,
+  epicId = null,
   useEvidence = true,
   evidenceClock = () => Date.now(),
   getHeadSha = (resolvedCwd) => defaultGetHeadSha(resolvedCwd),
@@ -288,7 +292,7 @@ export function runCloseValidation({
 } = {}) {
   const failed = [];
   const skipped = [];
-  const evidenceActive = useEvidence && storyId != null;
+  const evidenceActive = useEvidence && storyId != null && epicId != null;
   const headSha = evidenceActive ? getHeadSha(cwd) : null;
 
   for (const gate of gates) {
@@ -306,7 +310,7 @@ export function runCloseValidation({
           currentSha: headSha,
           configHash,
         },
-        { cwd },
+        { cwd, epicId },
       );
       if (verdict.skip) {
         const tsHint = verdict.record?.timestamp
@@ -348,7 +352,7 @@ export function runCloseValidation({
             exitCode: 0,
             durationMs: evidenceClock() - startedAt,
           },
-          { cwd },
+          { cwd, epicId },
         );
       } catch (err) {
         // Recording is best-effort observability — never let an evidence

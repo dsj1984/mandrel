@@ -3,10 +3,19 @@
  *
  * Tech Spec #819 §"Evidence record (Story 7)". Each successful gate run
  * writes a record keyed by `{ gateName, commitSha, commandConfigHash }` to
- * `temp/validation-evidence-<storyId>.json` (gitignored). A subsequent
- * caller can `shouldSkip(...)` to learn whether the same gate has already
- * passed against the current HEAD with an identical command-config — in
- * which case the gate is skipped and only logged.
+ * a per-Epic-tree path under the resolved `tempRoot`:
+ *
+ *   - Epic-scoped (scopeId === epicId):
+ *       `<tempRoot>/epic-<epicId>/validation-evidence.json`
+ *   - Story-scoped (scopeId === storyId):
+ *       `<tempRoot>/epic-<epicId>/story-<storyId>/validation-evidence.json`
+ *
+ * Both paths sit inside the per-Epic durable workspace (Epic #1030, Stories
+ * #1039 + #1054) and are gitignored via `temp/`.
+ *
+ * A subsequent caller can `shouldSkip(...)` to learn whether the same gate
+ * has already passed against the current HEAD with an identical
+ * command-config — in which case the gate is skipped and only logged.
  *
  * The evidence file is a perf optimization, NOT a trust boundary: pre-push
  * hooks and CI continue to run their own checks. An adversarial agent that
@@ -25,9 +34,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import { epicTempDir, storyTempDir } from './config/temp-paths.js';
 
 export const SCHEMA_VERSION = 1;
 const DEFAULT_TEMP_DIR = 'temp';
+const EVIDENCE_FILENAME = 'validation-evidence.json';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // scripts/lib/ → scripts/ → .agents/ → schemas/
@@ -74,16 +85,50 @@ function resolveOpts(opts = {}) {
   };
 }
 
+function requirePositiveInt(value, label) {
+  const n = typeof value === 'number' ? value : Number.parseInt(value, 10);
+  if (!Number.isInteger(n) || n <= 0) {
+    throw new Error(
+      `[validation-evidence] ${label} must be a positive integer; got ${value}`,
+    );
+  }
+  return n;
+}
+
 /**
- * Compute the absolute path of the evidence file for `storyId`.
+ * Compute the absolute path of the evidence file for `scopeId` under the
+ * per-Epic temp tree.
  *
- * @param {number|string} storyId
- * @param {{ cwd?: string, tempDir?: string }} [opts]
+ * The resolution rule mirrors `lib/config/temp-paths.js`:
+ *   - `scopeId === epicId` → `<tempRoot>/epic-<epicId>/validation-evidence.json`
+ *   - `scopeId !== epicId` → treated as a Story id → `<tempRoot>/epic-<epicId>/story-<scopeId>/validation-evidence.json`
+ *
+ * `epicId` is required. The legacy flat
+ * `temp/validation-evidence-<scopeId>.json` layout is no longer supported —
+ * callers must thread the Epic id through (Epic #1030 follow-up to Story
+ * #1054). The synthetic config bag passed to `epicTempDir` keeps the
+ * resolver from doing a disk-bound `.agentrc.json` lookup; bare callers can
+ * pass `tempDir` via `opts` to override the default `'temp'`.
+ *
+ * @param {number|string} scopeId
+ * @param {{ cwd?: string, tempDir?: string, epicId: number|string }} opts
  * @returns {string}
  */
-export function evidencePath(storyId, opts = {}) {
+export function evidencePath(scopeId, opts = {}) {
+  if (opts.epicId == null) {
+    throw new Error(
+      '[validation-evidence] evidencePath requires opts.epicId (Epic-scoped path resolution).',
+    );
+  }
   const { cwd, tempDir } = resolveOpts(opts);
-  return path.join(cwd, tempDir, `validation-evidence-${storyId}.json`);
+  const epicId = requirePositiveInt(opts.epicId, 'epicId');
+  const scope = requirePositiveInt(scopeId, 'scopeId');
+  const configBag = { paths: { tempRoot: tempDir } };
+  const dir =
+    scope === epicId
+      ? epicTempDir(epicId, configBag)
+      : storyTempDir(epicId, scope, configBag);
+  return path.join(cwd, dir, EVIDENCE_FILENAME);
 }
 
 /**
@@ -103,45 +148,49 @@ export function hashCommandConfig({ cmd, args = [], cwd = '' } = {}) {
   return `sha256:${digest}`;
 }
 
-function emptyDoc(storyId) {
+function emptyDoc(scopeId) {
   return {
-    storyId: Number(storyId),
+    storyId: Number(scopeId),
     schemaVersion: SCHEMA_VERSION,
     records: [],
   };
 }
 
 /**
- * Read and validate the evidence file for `storyId`. Returns an empty
+ * Read and validate the evidence file for `scopeId`. Returns an empty
  * document for the missing-file, parse-error, schema-mismatch, and
- * cross-storyId cases — callers don't have to branch on those failure
+ * cross-scopeId cases — callers don't have to branch on those failure
  * modes; they manifest as `shouldSkip()` returning `skip: false`.
  *
- * @param {number|string} storyId
- * @param {object} [opts]
+ * `opts.epicId` is required so the per-Epic-tree path can be resolved.
+ *
+ * @param {number|string} scopeId
+ * @param {{ cwd?: string, tempDir?: string, epicId: number|string, fs?: object }} opts
  * @returns {{ storyId: number, schemaVersion: number, records: object[] }}
  */
-export function loadEvidence(storyId, opts = {}) {
+export function loadEvidence(scopeId, opts = {}) {
   const resolved = resolveOpts(opts);
-  const file = evidencePath(storyId, resolved);
-  if (!resolved.fs.existsSync(file)) return emptyDoc(storyId);
+  const file = evidencePath(scopeId, { ...resolved, epicId: opts.epicId });
+  if (!resolved.fs.existsSync(file)) return emptyDoc(scopeId);
   let parsed;
   try {
     parsed = JSON.parse(resolved.fs.readFileSync(file, 'utf8'));
   } catch {
-    return emptyDoc(storyId);
+    return emptyDoc(scopeId);
   }
   const validator = getEvidenceValidator();
-  if (!validator(parsed)) return emptyDoc(storyId);
-  if (parsed.storyId !== Number(storyId)) return emptyDoc(storyId);
+  if (!validator(parsed)) return emptyDoc(scopeId);
+  if (parsed.storyId !== Number(scopeId)) return emptyDoc(scopeId);
   return parsed;
 }
 
 /**
- * Append a `gateName` pass record to the Story's evidence file, replacing any
+ * Append a `gateName` pass record to the scope's evidence file, replacing any
  * prior record for the same gate. Creates the parent directory if missing.
  * Validates the resulting document against the schema before writing — a
  * malformed write throws so the bug surfaces immediately.
+ *
+ * `opts.epicId` is required so the per-Epic-tree path can be resolved.
  *
  * @param {{
  *   storyId: number|string,
@@ -151,7 +200,7 @@ export function loadEvidence(storyId, opts = {}) {
  *   exitCode?: number,
  *   durationMs?: number|null,
  * }} input
- * @param {object} [opts]
+ * @param {{ cwd?: string, tempDir?: string, epicId: number|string, fs?: object, now?: Function }} opts
  * @returns {object} The persisted record.
  */
 export function recordPass(
@@ -164,7 +213,8 @@ export function recordPass(
     );
   }
   const resolved = resolveOpts(opts);
-  const doc = loadEvidence(storyId, resolved);
+  const evidenceOpts = { ...resolved, epicId: opts.epicId };
+  const doc = loadEvidence(storyId, evidenceOpts);
   const record = {
     gateName,
     commitSha: sha,
@@ -183,7 +233,7 @@ export function recordPass(
     throw new Error(`Evidence document failed schema validation: ${detail}`);
   }
 
-  const file = evidencePath(storyId, resolved);
+  const file = evidencePath(storyId, evidenceOpts);
   resolved.fs.mkdirSync(path.dirname(file), { recursive: true });
   resolved.fs.writeFileSync(file, JSON.stringify(doc, null, 2), 'utf8');
   return record;
@@ -196,8 +246,10 @@ export function recordPass(
  * with a machine-readable `reason` so callers can log why the skip didn't
  * fire.
  *
+ * `opts.epicId` is required so the per-Epic-tree path can be resolved.
+ *
  * @param {{ storyId: number|string, gateName: string, currentSha: string, configHash: string }} input
- * @param {object} [opts]
+ * @param {{ cwd?: string, tempDir?: string, epicId: number|string, fs?: object }} opts
  * @returns {{ skip: boolean, reason: string, record?: object }}
  */
 export function shouldSkip(
@@ -220,17 +272,19 @@ export function shouldSkip(
 }
 
 /**
- * Delete the evidence file for `storyId`. Called by `story-init.js`
- * at the start of each Story so a re-run always starts clean. Idempotent —
+ * Delete the evidence file for `scopeId`. Called by `story-init.js` at the
+ * start of each Story so a re-run always starts clean. Idempotent —
  * absent file is not an error.
  *
- * @param {number|string} storyId
- * @param {object} [opts]
+ * `opts.epicId` is required so the per-Epic-tree path can be resolved.
+ *
+ * @param {number|string} scopeId
+ * @param {{ cwd?: string, tempDir?: string, epicId: number|string, fs?: object }} opts
  * @returns {{ cleared: boolean, path: string }}
  */
-export function forceClear(storyId, opts = {}) {
+export function forceClear(scopeId, opts = {}) {
   const resolved = resolveOpts(opts);
-  const file = evidencePath(storyId, resolved);
+  const file = evidencePath(scopeId, { ...resolved, epicId: opts.epicId });
   if (!resolved.fs.existsSync(file)) return { cleared: false, path: file };
   resolved.fs.unlinkSync(file);
   return { cleared: true, path: file };
