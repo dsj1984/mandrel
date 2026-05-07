@@ -7,8 +7,6 @@
  * exit path) — are explicitly allowlisted. Any other `process.exit(` in the
  * library tree is a bug: libraries must throw or return non-OK results so
  * callers can react, log, and shape the exit code at the CLI boundary.
- *
- * See `docs/deprecation-register.md` for the broader convention rationale.
  */
 
 import assert from 'node:assert';

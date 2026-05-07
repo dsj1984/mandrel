@@ -111,7 +111,7 @@ const EPIC_CLOSE_SCHEMA = {
 // existing `.agentrc.json` files that still set `sprintClose.runRetro` pass
 // AJV validation. The resolver in `config-resolver.js` reads the new key
 // first and falls back to this with a `Logger.warn(...)` deprecation. The
-// shim is scheduled for removal in 5.32.0; see `docs/deprecation-register.md`.
+// shim is scheduled for removal in 5.32.0.
 const SPRINT_CLOSE_SCHEMA = EPIC_CLOSE_SCHEMA;
 
 const RELEASE_SCHEMA = {

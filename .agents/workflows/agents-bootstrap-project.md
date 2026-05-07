@@ -262,7 +262,35 @@ append:
 .mcp.json
 ```
 
-## Step 9 — Report outcome
+## Step 9 — Verify host-level git perf settings (Windows)
+
+Invoke the warn-only perf check:
+
+```bash
+node .agents/scripts/check-windows-git-perf.js
+```
+
+The script probes three settings that materially speed up the framework's
+many per-Story git operations on Windows:
+
+- `core.fsmonitor true` (global) — built-in FS monitor daemon.
+- `feature.manyFiles true` (global) — commit-graph / untracked cache /
+  sparse-index defaults.
+- `git maintenance start` (per-repo schedule) — registers the current
+  clone for background prefetch / commit-graph / incremental repack.
+
+Behaviour:
+
+- **No-op on non-Windows hosts.** Exits 0 silently on macOS / Linux.
+- **Warn-only.** The script never mutates global git config; it prints
+  the exact commands to run for any missing setting and exits 0 either
+  way. The operator decides whether to apply them.
+
+Apply the suggested commands once per host (the global flags) or once per
+clone (`git maintenance start`). They are idempotent — re-running them is
+safe.
+
+## Step 10 — Report outcome
 
 Emit a compact summary showing what was touched on this run:
 
@@ -275,6 +303,7 @@ Emit a compact summary showing what was touched on this run:
   .gitignore             .mcp.json           added | already present
   .claude/commands/                          <N> file(s) synced from workflows
   parity check                               OK | <asymmetry details>
+  windows git perf check                     OK | <N> warning(s) | skipped (non-windows)
 ```
 
 If every row shows `already present` and parity is OK, print a single

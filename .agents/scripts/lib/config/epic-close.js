@@ -3,8 +3,8 @@
  *
  * Reads the new `epicClose.runRetro` key with a one-release back-compat
  * shim that falls back to the legacy `sprintClose.runRetro` and emits a
- * one-shot `Logger.warn(...)` deprecation. The shim is registered in
- * `docs/deprecation-register.md` for removal in 5.32.0.
+ * one-shot `Logger.warn(...)` deprecation. The shim is scheduled for
+ * removal in 5.32.0.
  */
 
 import { Logger } from '../Logger.js';

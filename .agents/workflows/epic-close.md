@@ -53,8 +53,7 @@ strands partial state on GitHub, so run them in order.
    skipped entirely — no retro is required or produced. The legacy
    `agentSettings.sprintClose.runRetro` key is read as a fallback with a
    one-line `Logger.warn(...)` deprecation; remove it from your config to
-   silence the warning. The shim is scheduled for removal in 5.32.0 — see
-   `docs/deprecation-register.md`.
+   silence the warning. The shim is scheduled for removal in 5.32.0.
 
 ---
 

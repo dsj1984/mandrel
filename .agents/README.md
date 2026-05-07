@@ -50,7 +50,6 @@ After step 3 you can run any slash command — `/epic-plan`,
 | The system prompt loaded by your AI tool          | [`instructions.md`](instructions.md)                                            |
 | Every `.agentrc.json` key, default, and override  | [`docs/configuration.md`](../docs/configuration.md)                              |
 | Quality-gate runbooks (CRAP, MI, lint, friction)  | [`docs/quality-gates.md`](../docs/quality-gates.md)                              |
-| Windows Git performance tuning                    | [`docs/windows-git-performance.md`](../docs/windows-git-performance.md)          |
 | Slash-command workflow definitions                | [`workflows/`](workflows/)                                                      |
 | Persona behavior packs                            | [`personas/`](personas/)                                                        |
 | Domain-agnostic baseline rules                    | [`rules/`](rules/)                                                              |

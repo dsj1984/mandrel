@@ -42,9 +42,10 @@ inline so the Epic could complete.
    STOP gate is preserved unchanged.
 3. **Slim `.agents/README.md`** to ≤ 150 lines: activation + a single
    "where to look" pointer table. Detailed reference content moves to
-   `docs/configuration.md`, new `docs/quality-gates.md`, new
-   `docs/windows-git-performance.md`, and
-   `.agents/scripts/lib/orchestration/README.md`.
+   `docs/configuration.md`, new `docs/quality-gates.md`, and
+   `.agents/scripts/lib/orchestration/README.md`. (Windows git-perf
+   guidance was historically a fourth target; superseded by
+   `.agents/scripts/check-windows-git-perf.js` in 5.36.3.)
 4. **Tighten schemas:** `additionalProperties: false` on
    `audit-results`, `friction-event`, and `agentrc` root; `if/then`
    conditional requirements on `healthRefresh.cadence`; closed enum on
@@ -249,8 +250,7 @@ config-key rename ships with a one-release shim so a typical
 - **For consumer `.agentrc.json` files.** Rename
   `agentSettings.sprintClose.runRetro` → `agentSettings.epicClose.runRetro`
   on your next edit. The legacy key still reads with a one-shot
-  deprecation warning until removal in 5.32.0 (registered in
-  `docs/deprecation-register.md`).
+  deprecation warning until removal in 5.32.0.
 - **For sub-agent prompt budget.** Story sub-agents now share the
   parent session's context budget instead of getting a fresh
   subprocess. The Story prompt deliberately scopes to one Story so
@@ -268,8 +268,6 @@ config-key rename ships with a one-release shim so a typical
 - ADR 20260427-868a — open-root dispatch-manifest schema +
   AJV fixture drift test (the pattern this Epic adopts for the
   `wave-run-progress` comment shape).
-- `docs/deprecation-register.md` — registers the
-  `sprintClose.runRetro` shim for removal in 5.32.0.
 - `docs/CHANGELOG.md` 5.31.0 entry — consumer-visible migration
   block for this Epic.
 
