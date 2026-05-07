@@ -248,6 +248,15 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  * recorded but still returns a summary so the caller can decide how to
  * surface the result.
  *
+ * **Worktree locality (Story #1120).** When `worktreePath` is supplied,
+ * every gate runner is spawned with `cwd: worktreePath` so the gate sees
+ * the Story branch's post-rebase tree, not the main checkout's working
+ * tree. Evidence reads/writes still key against `cwd` (the main checkout)
+ * because the per-Epic temp tree lives under the main `.git/`. Failure
+ * messages name the worktree path so the operator can locate the failing
+ * tree without re-deriving it from the Story ID. When `worktreePath` is
+ * omitted, behaviour is unchanged — gate spawn falls back to `cwd`.
+ *
  * Evidence-aware: when both `storyId` and `epicId` are provided and
  * `useEvidence !== false`, each gate consults
  * `validation-evidence.shouldSkip()` against the current `git rev-parse
@@ -258,6 +267,7 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *
  * @param {{
  *   cwd: string,
+ *   worktreePath?: string,
  *   gates?: Gate[],
  *   runner?: typeof spawnSync,
  *   log?: (m: string) => void,
@@ -274,10 +284,11 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   story-close uses it to drive `phaseTimer.mark('lint'|'test')`
  *   so the per-gate wall-clock lands in the `phase-timings` structured
  *   comment. Errors thrown from the hook propagate and halt the run.
- * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number }>, skipped: Array<{ gate: Gate, reason: string }> }}
+ * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
  */
 export function runCloseValidation({
   cwd,
+  worktreePath,
   gates = DEFAULT_GATES,
   runner = spawnSync,
   log = () => {},
@@ -293,13 +304,18 @@ export function runCloseValidation({
   const failed = [];
   const skipped = [];
   const evidenceActive = useEvidence && storyId != null && epicId != null;
-  const headSha = evidenceActive ? getHeadSha(cwd) : null;
+  // Evidence keys against the main checkout's HEAD because the per-Epic
+  // evidence file lives under the main `.git/`. Gate spawn, in contrast,
+  // runs in the worktree when one is supplied — that's the whole point of
+  // Story #1120.
+  const spawnCwd = worktreePath ?? cwd;
+  const headSha = evidenceActive ? getHeadSha(spawnCwd) : null;
 
   for (const gate of gates) {
     const configHash = hashCommandConfig({
       cmd: gate.cmd,
       args: gate.args,
-      cwd,
+      cwd: spawnCwd,
     });
 
     if (evidenceActive && headSha) {
@@ -324,18 +340,22 @@ export function runCloseValidation({
       }
     }
 
-    log(`[close-validation] ▶ ${gate.name}`);
+    log(
+      `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
+    );
     if (typeof onGateStart === 'function') onGateStart(gate);
     const startedAt = evidenceActive ? evidenceClock() : 0;
     const result = runner(gate.cmd, gate.args, {
-      cwd,
+      cwd: spawnCwd,
       stdio: 'inherit',
       shell: process.platform === 'win32',
     });
     const status = result.status ?? 1;
     if (status !== 0) {
-      failed.push({ gate, status });
-      log(`[close-validation] ✖ ${gate.name} failed (exit ${status})`);
+      failed.push({ gate, status, cwd: spawnCwd });
+      log(
+        `[close-validation] ✖ ${gate.name} failed (exit ${status}) in ${spawnCwd}`,
+      );
       if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
       break;
     }

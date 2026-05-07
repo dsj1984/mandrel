@@ -19,6 +19,7 @@
  * the phase timer — those stay in the orchestrator.
  */
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { parseSprintArgs } from '../../cli-args.js';
 import { PROJECT_ROOT, resolveConfig } from '../../config-resolver.js';
@@ -26,6 +27,29 @@ import { getEpicBranch, getStoryBranch } from '../../git-utils.js';
 import { createProvider as defaultCreateProvider } from '../../provider-factory.js';
 import { resolveStoryHierarchy } from '../../story-lifecycle.js';
 import { checkCdOutGuard } from './cd-out-guard.js';
+
+/**
+ * Resolve the path of the Story's worktree given the resolved main `cwd` and
+ * `storyId`. Returns the absolute worktree path when `<cwd>/<root>/story-<id>`
+ * exists on disk; returns `null` otherwise (single-tree mode, or the worktree
+ * was reaped earlier in the close flow). Used by `runStoryClose` to thread
+ * the worktree directory into pre-merge gate spawns so close-validation runs
+ * against the Story branch's post-rebase tree (Story #1120).
+ *
+ * Pure-ish (modulo `fs.existsSync`) — exported so tests can pin the
+ * "what counts as a usable worktree" contract without mocking filesystem
+ * state.
+ */
+export function resolveWorktreePath({ cwd, storyId, worktreeRoot }) {
+  if (!cwd || !storyId) return null;
+  const root = worktreeRoot ?? '.worktrees';
+  const candidate = path.resolve(cwd, root, `story-${storyId}`);
+  try {
+    return fs.existsSync(candidate) ? candidate : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * @param {{
@@ -95,6 +119,11 @@ export async function resolveCloseInputs({
     storyId: parsed.storyId,
     epicId,
     cwd,
+    worktreePath: resolveWorktreePath({
+      cwd,
+      storyId: parsed.storyId,
+      worktreeRoot: orchestration?.worktreeIsolation?.root,
+    }),
     skipDashboard: parsed.skipDashboard,
     resumeFlag: parsed.resume,
     restartFlag: parsed.restart,

@@ -64,6 +64,7 @@ export async function runStoryClose({
     storyId,
     epicId,
     cwd,
+    worktreePath,
     skipDashboard,
     resumeFlag,
     restartFlag,
@@ -104,6 +105,7 @@ export async function runStoryClose({
         storyId,
         epicId,
         cwd,
+        worktreePath,
         skipDashboard,
         skipValidationParam,
         resumeFlag,
@@ -124,6 +126,7 @@ async function runStoryCloseLocked({
   storyId,
   epicId,
   cwd,
+  worktreePath,
   skipDashboard,
   skipValidationParam,
   resumeFlag,
@@ -181,8 +184,14 @@ async function runStoryCloseLocked({
     // a clean tree; on a dirty tree it bails out and lets the gate
     // surface the drift with the canonical hint.
     runFormatAutofix({ cwd, storyId, settings, logger: Logger });
+    // Story #1120: when a worktree exists, every gate runs against the
+    // Story branch's post-rebase tree at `.worktrees/story-<id>/`, not
+    // against whatever the main checkout's working tree happens to be.
+    // The main `cwd` still parameterizes evidence reads/writes and the
+    // MI projection's git-diff range.
     runPreMergeGates({
       cwd,
+      worktreePath,
       settings,
       storyId,
       epicId,
