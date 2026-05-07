@@ -192,6 +192,7 @@ async function runStoryCloseLocked({
     runPreMergeGates({
       cwd,
       worktreePath,
+      epicBranch,
       settings,
       storyId,
       epicId,

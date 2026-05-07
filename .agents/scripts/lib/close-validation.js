@@ -162,10 +162,17 @@ export function resolveFormatWriteCommand(settings) {
  * may customise the command via `agentSettings.commands.typecheck`; otherwise
  * `npm run typecheck` is used.
  *
- * @param {{ settings?: object }} [opts]
+ * Story #1120: when `epicBranch` is supplied, the maintainability and CRAP
+ * gates receive `--epic-ref <epicBranch>` so they read their committed
+ * baseline at the Epic-branch HEAD via `git show` (baseline-loader) rather
+ * than via a working-tree fs read. Without it, those gates fall back to the
+ * legacy fs read — `baselines/*.json` on whatever the spawn cwd's working
+ * tree carries.
+ *
+ * @param {{ settings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ settings } = {}) {
+export function buildDefaultGates({ settings, epicBranch } = {}) {
   const typecheckCmdString = resolveTypecheckCommand(settings);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
@@ -175,6 +182,10 @@ export function buildDefaultGates({ settings } = {}) {
     .split(/\s+/)
     .filter(Boolean);
   const formatWriteString = resolveFormatWriteCommand(settings);
+  const epicRefArgs =
+    typeof epicBranch === 'string' && epicBranch.length > 0
+      ? ['--epic-ref', epicBranch]
+      : [];
   return [
     {
       name: 'typecheck',
@@ -197,7 +208,7 @@ export function buildDefaultGates({ settings } = {}) {
     {
       name: 'check-maintainability',
       cmd: 'node',
-      args: ['.agents/scripts/check-maintainability.js'],
+      args: ['.agents/scripts/check-maintainability.js', ...epicRefArgs],
       hint: 'Run `npm run maintainability:update` to refresh the baseline — the refreshed baseline MUST be committed on the story branch.',
     },
     {
@@ -209,7 +220,7 @@ export function buildDefaultGates({ settings } = {}) {
     {
       name: 'check-crap',
       cmd: 'node',
-      args: ['.agents/scripts/check-crap.js'],
+      args: ['.agents/scripts/check-crap.js', ...epicRefArgs],
       hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
     },
   ];

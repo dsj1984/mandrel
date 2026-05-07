@@ -49,6 +49,7 @@ import { Logger as DefaultLogger } from '../../Logger.js';
 export function runPreMergeGates({
   cwd,
   worktreePath,
+  epicBranch,
   settings,
   storyId,
   epicId,
@@ -59,12 +60,12 @@ export function runPreMergeGates({
   runCloseValidation = defaultRunCloseValidation,
 }) {
   logger.info?.(
-    `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)${worktreePath ? ` in ${worktreePath}` : ''}...`,
+    `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
   const validation = runCloseValidation({
     cwd,
     worktreePath,
-    gates: buildDefaultGates({ settings }),
+    gates: buildDefaultGates({ settings, epicBranch }),
     log: (m) => logger.info(m),
     onGateStart: (gate) => {
       // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
