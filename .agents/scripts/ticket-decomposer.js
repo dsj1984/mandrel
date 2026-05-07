@@ -347,7 +347,12 @@ export async function decomposeEpic(
   console.log(
     `[Decomposer] Running cross-validation on ${tickets.length} tickets...`,
   );
-  const validated = validateAndNormalizeTickets(tickets);
+  // Thread the configured base branch into the validator so the freshness
+  // gate can probe `git cat-file -e <ref>:<path>` for every code-asset path
+  // referenced by a Task body or AC. Defaults to 'main' when the loaded
+  // config omits the field — matching ZERO_CONFIG_DEFAULTS in the resolver.
+  const baseBranchRef = _config?.baseBranch ?? 'main';
+  const validated = validateAndNormalizeTickets(tickets, { baseBranchRef });
   validateTaskBodies(validated);
 
   // Pre-pass cross-type collision check: a planned Story sharing a title with
