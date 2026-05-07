@@ -9,7 +9,7 @@ expected to be finished by hand using the checklist at the bottom.
 ## Status field
 
 The board has a single-select custom field named **`Status`** with these
-eight options, in order:
+seven options, in order:
 
 | # | Option        | Meaning                                                         |
 | - | ------------- | --------------------------------------------------------------- |
@@ -63,7 +63,10 @@ Gives a single-glance view of every Epic's lifecycle column.
 - **Filter**: `label:type::story -status:Done`
 - **Group by**: `Status`
 
-Shows Stories still in flight — useful for a daily standup.
+Shows Stories still in flight — useful for a daily standup. (The
+"Sprint" name predates the Epic-#900 terminology rename and is preserved
+for backward-compat with existing consumer boards; bootstrap creates the
+view under this name in [`label-taxonomy.js`](../.agents/scripts/lib/label-taxonomy.js).)
 
 ### 3. My Queue
 
@@ -87,7 +90,7 @@ Use this when bootstrap logs a warning such as
    `orchestration.github.projectNumber` and
    `orchestration.github.projectOwner` in `.agentrc.json` to match.
 3. **Add the `Status` field.** Settings → `+ New field` → Single select
-   → name `Status` → add the eight options from the table above in
+   → name `Status` → add the seven options from the table above in
    order.
 4. **Create the three views.** For each of Epic Roadmap, Current
    Sprint, My Queue: `+ New view` → Board → paste the filter string →

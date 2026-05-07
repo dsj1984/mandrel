@@ -68,8 +68,10 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github` | Initialize a GitHub repo with the framework label taxonomy, project fields, and the default Kanban board.       |
-| `/agents-update`           | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
+| `/agents-bootstrap-github`  | Initialize a GitHub repo with the framework label taxonomy, project fields, and the default Kanban board.       |
+| `/agents-bootstrap-project` | Wire the local harness around the framework: `.claude/commands/` sync, `package.json` scripts, hooks, gitignore, and a host-level git-perf check on Windows. |
+| `/agents-update`            | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
+| `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
 
 ## Internal / reference-only
 

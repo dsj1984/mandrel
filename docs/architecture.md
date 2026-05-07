@@ -239,7 +239,6 @@ coordinator path.
 | `risk-gate-handler.js`        | Risk labels are metadata only; no runtime gate.                                            |
 | `health-check-service.js`     | Epic Health issue ensure.                                                                  |
 | `epic-lifecycle-detector.js`  | Epic-completion detection + bookend lifecycle fire.                                        |
-| `dispatch-logger.js`          | Shared lazy logger proxy used by every submodule.                                          |
 
 #### Presentation Layer Submodules
 
@@ -279,7 +278,7 @@ context })` so the error surface is auditable after a run completes. See
 
 `lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
 `epic-run-progress` structured comment on the Epic, driven by
-`orchestration.epicRunner.progressReportIntervalSec`.
+`orchestration.runners.epicRunner.progressReportIntervalSec`.
 
 #### Resilience layers
 
@@ -300,7 +299,7 @@ misreported as a zero-delta failure.
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/util/concurrent-map.js`                               | `concurrentMap(items, fn, { concurrency })` bounded-concurrency fanout. Adopted in `wave-gate`, wave-end `commit-assertion`, and `ProgressReporter`. |
 | `providers/github/cache-manager.js`                        | `getTicket(id, { maxAgeMs })` treats entries older than the caller's max age as cache misses; `primeTicketCache` after every `getTickets(epicId)`.   |
-| `lib/orchestration/epic-runner/state-poller.js`            | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
+| `providers/github/issues.js`                               | Bulk `GET /issues?labels=agent::*&state=open` path replaces per-ticket probes when the tracked-story set is large; per-ticket fallback on errors.    |
 | `lib/util/phase-timer.js` + `phase-timer-state.js`         | Records `{ phase, elapsedMs }` spans across the `story-init` → sub-agent → `story-close` boundaries. Posts `phase-timings` comments on Story close.  |
 | `ProgressReporter.setPlan({ waves })`                      | With a plan set, each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column. Reads `phase-timings` to render p50/p95. |
 
@@ -558,7 +557,6 @@ session, with Story sub-agents launched through the Agent tool.
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`; never spawns workers.                                   |
 | `story-launcher`    | Fans out up to `concurrencyCap` `/story-execute <storyId>` Agent-tool sub-agents in one message.    |
-| `state-poller`      | Polls Epic + child-Story labels; emits blocker / cancel / closed events.                            |
 | `checkpointer`      | Upserts the `epic-run-state` structured comment; handles resume.                                    |
 | `blocker-handler`   | The sole runtime pause point; halts on `agent::blocked`, waits to resume.                           |
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
@@ -745,7 +743,7 @@ Both modes share:
 - Deterministic, operator-driven story assignment — `/story-execute` always
   takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
-  configured by `orchestration.closeRetry`) so concurrent closes from
+  configured by `orchestration.runners.closeRetry`) so concurrent closes from
   separate clones converge cleanly.
 
 They differ only in:

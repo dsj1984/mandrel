@@ -45,6 +45,71 @@ warn-only check, condense the changelog, and clean up stale doc pointers.
   cross-reference. Per-shim source-level comments remain authoritative
   for removal versions.
 
+### Documentation pass (audit + consolidate)
+
+A full-set documentation review against the codebase landed in this
+patch alongside the automated git-perf check. High-impact accuracy
+fixes:
+
+- **`docs/configuration.md`** — `orchestration.{epicRunner,planRunner,
+  concurrency,closeRetry}` rewritten as `orchestration.runners.*` to
+  match the post-Epic-#773 schema; consumers copying the doc literally
+  no longer hit AJV validation errors. Added documentation for
+  `commands.formatCheck/formatWrite`, `limits.planningContext`, the
+  seven `paths.*Root` keys, and `runners.decomposer`. Removed the
+  phantom `audits` top-level entry; replaced `npm run mi:update` with
+  the actual `maintainability:update` script.
+- **`docs/data-dictionary.md`** — Friction Log section rewritten to
+  match `friction-event.schema.json` (was diverged on field names,
+  required list, and category enum casing). Stale `dispatch-logger` /
+  `state-poller` references rewritten or removed.
+- **`docs/architecture.md`** — removed two dead module references
+  (`state-poller.js`, `dispatch-logger.js`); replaced one with the
+  correct current home (`providers/github/issues.js`).
+- **`docs/quality-gates.md`** — fixed the `mi:update` script reference
+  and the pre-#773 `orchestration.closeRetry` path.
+- **`README.md`** — corrected directory counts (rules: 10 → 8;
+  workflows: 25 → 28; skills/stack expressed as 5 categories).
+- **`docs/workflows.md`** — added missing rows for
+  `/agents-bootstrap-project` and `/drain-pending-cleanup`.
+- **`docs/project-board.md`** — corrected "eight options" → "seven";
+  cross-referenced `label-taxonomy.js` for the "Current Sprint" view
+  name (which is set in code).
+- **`.agents/SDLC.md`** — same `orchestration.closeRetry` →
+  `orchestration.runners.closeRetry` fix.
+
+Consolidations:
+
+- **`README.md`** trimmed from 197 → 124 lines: removed the
+  Architecture-Overview mermaid (lives in `architecture.md`), the
+  duplicated Documentation table (lives in `.agents/README.md`'s
+  "where to look"), and the duplicated How-to-execute-an-Epic table
+  (lives in `workflows.md`).
+- **`docs/data-dictionary.md`** trimmed from 429 → 342 lines: removed
+  the four sections that duplicated `configuration.md` (worktree-
+  isolation config, grouped agentSettings contract, baseline
+  conventions, notification filters). Stale `Impact Report` /
+  `Epic Health State` blocks (referencing non-existent
+  `ImpactTracker` / `topFrictionCategories` fields) removed.
+- **`docs/quality-gates.md`** anti-thrashing table de-duplicated to a
+  single cross-ref into `configuration.md#agentsettingslimits`.
+- **`docs/patterns.md`** trimmed from 1201 → 1092 lines: collapsed
+  the verbose "Worktree-per-Story Isolation" + "Worktree-off Mode"
+  sections into one shorter "Per-agent filesystem isolation" pattern
+  with cross-refs to `architecture.md` / `configuration.md`. The
+  long-form "Quality gates: maintainability vs CRAP" runbook
+  collapsed to a sibling-gate pattern entry with a cross-ref to
+  `quality-gates.md`.
+- **`docs/decisions.md`** — legacy ADRs 001 / 002 / 003 (April 9–17,
+  pre-Epic-#900 sprint→epic rename) moved to
+  `docs/archive/decisions-pre-900.md`. ADR 004 (Gherkin Standards)
+  remains active in the main file.
+
+`sprintClose.runRetro` shim removal was deferred (was originally
+slated for 5.32.0, but the shim is still load-bearing in
+`config-resolver.js`); the doc text now reads "scheduled for removal
+in a future release" pending a deliberate removal pass.
+
 ## [5.36.2] — 2026-05-06
 
 Patch: refresh dispatch-manifest header / footer to match the current

@@ -8,9 +8,9 @@ Stories close in quick succession.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
-`agentSettings.quality.*` and `orchestration.closeRetry.*`. This file is
-the runbook side — what the gate does, when it fires, and how to bootstrap
-or refresh it.
+`agentSettings.quality.*` and `orchestration.runners.closeRetry.*`. This
+file is the runbook side — what the gate does, when it fires, and how to
+bootstrap or refresh it.
 
 ---
 
@@ -20,8 +20,9 @@ or refresh it.
 branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by
-`orchestration.closeRetry.maxAttempts` (default 3) and
-`orchestration.closeRetry.backoffMs` (default `[250, 500, 1000]`). A real
+`orchestration.runners.closeRetry.maxAttempts` (default 3) and
+`orchestration.runners.closeRetry.backoffMs` (default `[250, 500, 1000]`).
+A real
 content conflict (both stories touched the same lines) aborts the loop
 with a clear error and leaves the local tree clean for manual resolution.
 
@@ -31,21 +32,11 @@ with a clear error and leaves the local tree clean for manual resolution.
 
 Agents MUST halt, summarize blockers, and re-plan if they hit consecutive
 tool errors or perform consecutive analysis steps without modifying a
-file. Controlled by `agentSettings.limits.friction` in `.agentrc.json`:
-
-| Field                    | Default | Purpose                                                |
-| ------------------------ | ------- | ------------------------------------------------------ |
-| `repetitiveCommandCount` | `3`     | Identical commands run consecutively before halting.   |
-| `consecutiveErrorCount`  | `3`     | Tool errors in a row before halting.                   |
-| `stagnationStepCount`    | `5`     | Analysis-only steps without a file edit before halting. |
-| `maxIntegrationRetries`  | `2`     | Retries permitted on integration-test phases.          |
-
-When any of these is tripped the friction logger flips the Story to
-`agent::blocked` and posts a structured `friction` comment on the Task so
-the operator has the trace.
-
-Friction events (repetitive commands, consecutive errors, stagnation) are
-logged as structured comments on the Task issue for post-hoc analysis.
+file. When any threshold under
+[`agentSettings.limits.friction`](configuration.md#agentsettingslimits) is
+tripped, the friction logger flips the Story to `agent::blocked` and
+posts a structured `friction` comment on the Task so the operator has
+the trace.
 
 ---
 
@@ -75,8 +66,8 @@ on cyclomatic complexity, file length, and dependency counts. The
 `baselines/maintainability.json` baseline prevents score degradation
 between Epics.
 
-Refresh with `npm run mi:update` (or the `refreshCommand` configured in
-`agentSettings.quality.baselines.maintainability.refreshCommand`).
+Refresh with `npm run maintainability:update` (or the `refreshCommand`
+configured in `agentSettings.quality.baselines.maintainability.refreshCommand`).
 
 `agentSettings.quality.maintainability.targetDirs` controls the scanned
 directories — defaults to `["src"]`, accepts `{ "append": [...] }` /

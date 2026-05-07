@@ -33,8 +33,8 @@ mirror aligned with the runtime validators.
 | Top-level key   | Required | Purpose                                               |
 | --------------- | -------- | ----------------------------------------------------- |
 | `agentSettings` | Yes      | Project-local execution behaviour (paths, commands, quality gates, limits). |
-| `orchestration` | Yes      | Ticketing provider + runner tuning (GitHub, worktree, Epic runner). |
-| `audits`        | No       | Audit-orchestrator tuning.                            |
+| `orchestration` | Yes      | Ticketing provider + runner tuning (GitHub, worktree, runners). |
+| `release`       | No       | Release / version-bump tuning (`autoVersionBump`, `bumpFiles`, `docs`, `safetyChecks`). |
 | `$schema`       | No       | JSON Schema pointer for editor tooling.               |
 | `title`         | No       | Free-form display label.                              |
 
@@ -61,7 +61,17 @@ Filesystem roots the framework reads from. `agentRoot`, `docsRoot`, and
 | `agentRoot`      | Yes      | (none — must be set)     | Path to the framework submodule (e.g. `.agents`). |
 | `docsRoot`       | Yes      | (none — must be set)     | Path to project documentation (e.g. `docs`).      |
 | `tempRoot`       | Yes      | (none — must be set)     | Path for ephemeral artefacts (e.g. `temp`).       |
-| `auditOutputDir` | No       | (none)                   | Override for audit-orchestrator output. Falls back to `tempRoot` when absent. |
+| `auditOutputDir` | No       | `temp`                   | Override for audit-orchestrator output.           |
+| `scriptsRoot`    | No       | `.agents/scripts`        | Path to the framework's CLI scripts.              |
+| `workflowsRoot`  | No       | `.agents/workflows`      | Path to slash-command workflow definitions.       |
+| `personasRoot`   | No       | `.agents/personas`       | Path to persona behaviour packs.                  |
+| `schemasRoot`    | No       | `.agents/schemas`        | Path to JSON Schemas.                             |
+| `skillsRoot`     | No       | `.agents/skills`         | Path to skill library (core + stack).             |
+| `templatesRoot`  | No       | `.agents/templates`      | Path to context-hydration templates.              |
+| `rulesRoot`      | No       | `.agents/rules`          | Path to domain-agnostic baseline rules.           |
+
+The seven `*Root` directories carry framework defaults; consumers only need to
+override them when the bundle lives somewhere other than `.agents/<subdir>`.
 
 ### `agentSettings.commands`
 
@@ -79,6 +89,8 @@ repo"; `null` is the canonical disabled value, empty strings are rejected.
 | `test`            | No       | (none)  | `string`        | Project test runner.                                    |
 | `typecheck`       | No       | `null`  | `string \| null` | Strict type-checking. `null` = disabled.                |
 | `build`           | No       | `null`  | `string \| null` | Production build. `null` = disabled.                    |
+| `formatCheck`     | No       | `npx biome format .` | `string`  | Read-only format check used by close-validation. Configurable for Prettier / dprint repos. |
+| `formatWrite`     | No       | `npx biome format --write .` | `string` | Auto-format invocation used by `runFormatAutofix`. Pair with `formatCheck`. |
 
 Read with `getCommands(config)` — see
 [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js).
@@ -191,6 +203,17 @@ when any of these are tripped.
 | `stagnationStepCount`    | No       | `5`     | Analysis-only steps without a file edit before halting. |
 | `maxIntegrationRetries`  | No       | `2`     | Retries permitted on integration-test phases.          |
 
+#### `agentSettings.limits.planningContext`
+
+Caps the size of `--emit-context` JSON payloads emitted during `/epic-plan`
+so a runaway PRD / Tech Spec can't blow the planning agent's context budget.
+Added in Epic #817 Story 9.
+
+| Field         | Required | Default  | Purpose                                                                  |
+| ------------- | -------- | -------- | ------------------------------------------------------------------------ |
+| `maxBytes`    | No       | `50000`  | Hard ceiling on the JSON payload size (bytes). Truncation is summary-mode-aware. |
+| `summaryMode` | No       | `'auto'` | `'auto'` truncates intelligently; `'off'` errors over the cap; `'always'` always summarizes. |
+
 ### Other `agentSettings` keys
 
 | Field              | Required | Default | Purpose                                                                                  |
@@ -201,7 +224,7 @@ when any of these are tripped.
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
 | `epicClose.runRetro`   | No   | `true`  | When `true`, `/epic-close` invokes the retro helper.                                     |
-| `sprintClose.runRetro` | No   | (none)  | **Deprecated** — alias for `epicClose.runRetro`. Read as a fallback with a `Logger.warn(...)` deprecation; scheduled for removal in 5.32.0. |
+| `sprintClose.runRetro` | No   | (none)  | **Deprecated** — alias for `epicClose.runRetro`. Read as a fallback with a `Logger.warn(...)` deprecation; scheduled for removal in a future release (originally targeted 5.32.0; the shim has overstayed and removal is now slated for the next major sweep). |
 | `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 
@@ -283,7 +306,15 @@ checkout's HEAD.
 | `windowsPathLengthWarnThreshold` | No              | (none)           | Emit a warning when the worktree path exceeds this length.    |
 | `bootstrapFiles`                 | No              | `[]`             | Untracked files (e.g. `.env`) copied into each new worktree. |
 
-### `orchestration.epicRunner`
+### `orchestration.runners`
+
+Epic #773 (Story 7) grouped every runner-flavoured sub-block under
+`orchestration.runners.*`. Pre-#773 flat keys (`orchestration.epicRunner`,
+`orchestration.planRunner`, `orchestration.concurrency`,
+`orchestration.closeRetry`) are no longer accepted — the schema rejects them
+with `additionalProperties: false`.
+
+#### `orchestration.runners.epicRunner`
 
 | Field                       | Required        | Default | Purpose                                                  |
 | --------------------------- | --------------- | ------- | -------------------------------------------------------- |
@@ -294,14 +325,14 @@ checkout's HEAD.
 | `idleTimeoutSec`            | No              | `900`   | Kill a Story sub-agent after this many idle seconds.     |
 | `logsDir`                   | No              | `temp/epic-runner-logs` | Directory for per-Epic progress logs.            |
 
-### `orchestration.planRunner`
+#### `orchestration.runners.planRunner`
 
 | Field             | Required | Default | Purpose                                       |
 | ----------------- | -------- | ------- | --------------------------------------------- |
 | `enabled`         | No       | `true`  | Master switch.                                |
 | `pollIntervalSec` | No       | `30`    | Plan-runner poll cadence.                     |
 
-### `orchestration.concurrency`
+#### `orchestration.runners.concurrency`
 
 | Field              | Required | Default | Purpose                                          |
 | ------------------ | -------- | ------- | ------------------------------------------------ |
@@ -309,12 +340,18 @@ checkout's HEAD.
 | `commitAssertion`  | No       | (none)  | Concurrency cap for commit-assertion phase.       |
 | `progressReporter` | No       | (none)  | Concurrency cap for progress-reporter phase.      |
 
-### `orchestration.closeRetry`
+#### `orchestration.runners.closeRetry`
 
 | Field         | Required | Default                | Purpose                                       |
 | ------------- | -------- | ---------------------- | --------------------------------------------- |
 | `maxAttempts` | No       | `3`                    | Max retries on non-fast-forward push.          |
 | `backoffMs`   | No       | `[250, 500, 1000]`     | Per-attempt backoff (ms).                     |
+
+#### `orchestration.runners.decomposer`
+
+| Field            | Required | Default | Purpose                                                          |
+| ---------------- | -------- | ------- | ---------------------------------------------------------------- |
+| `concurrencyCap` | No       | `3`     | Max parallel decomposer Stories during `/epic-plan` Phase 2 fan-out. |
 
 ---
 
@@ -366,7 +403,7 @@ the lint ratchet, and the CRAP/MI gates.
 | --------------------------------- | ---------------------------------- | -------------------------------------------------------- |
 | `baselines/lint.json`             | `lint-baseline.js`                 | `node .agents/scripts/lint-baseline.js --refresh`         |
 | `baselines/crap.json`             | `update-crap-baseline.js`          | `npm run crap:update` (or the configured `refreshCommand`) |
-| `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run mi:update` (or the configured `refreshCommand`)  |
+| `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update` (or the configured `refreshCommand`)  |
 
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits with

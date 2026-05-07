@@ -119,114 +119,33 @@ The **Story-Level Branching** pattern restricts the integration scope:
 
 ---
 
-## Worktree-per-Story Isolation
-
-### Problem
-Under parallel Epic execution, multiple story agents share the same working
-tree. Rapid `git checkout` swaps cause one agent's `git add -A` to sweep WIP
-from a different agent's story into the wrong commit. Per-checkout guards
-catch specific observed failure modes but not the underlying class of bug:
-multiple agents mutating one working tree at the same time.
-
-### Solution
-Each dispatched story runs in its own `git worktree`:
-1.  **Worktree root:** `.worktrees/story-<id>/` (path traversal guarded).
-2.  **Single authority:** `WorktreeManager` owns `ensure`, `reap`, `list`,
-    `isSafeToRemove`, `gc`. No other code calls `git worktree` directly.
-3.  **Dispatcher integration:** `dispatch()` ensures the worktree before
-    dispatching and threads its path as `cwd` through the adapter;
-    `story-close` reaps after a successful merge.
-4.  **Fallback:** `orchestration.worktreeIsolation.enabled: false`
-    restores single-tree behavior; the per-checkout pre-commit branch
-    guard remains the primary defense in that mode.
-
-### Benefits
-*   Main-checkout HEAD never moves during a parallel run.
-*   Each story's staging, reflog, and checkout operations are isolated.
-*   Defense-in-depth preserved: pre-commit branch guard runs inside each worktree.
-*   Fallback mode is a first-class supported configuration.
-
-### Trade-offs
-*   Disk usage multiplies with the `per-worktree` `node_modules` strategy;
-    `symlink` and `pnpm-store` mitigate at the cost of platform fragility.
-*   Concurrent `git fetch` can collide on `.git/packed-refs.lock` — handled
-    by bounded retry (`gitFetchWithRetry`) rather than a global mutex.
-*   Windows path limits require a pre-flight warning when estimated depth
-    exceeds the configured threshold.
-
-## Worktree-off Mode
+## Per-agent filesystem isolation
 
 ### Problem
 
-Two execution environments coexist for the four-skill execution surface
-(`/epic-execute` / `/wave-execute` / `/story-execute`): local Claude Code
-sessions on a developer's machine (one shared filesystem, multiple agents) and
-web Claude Code sessions at claude.ai/code (each session is its own sandboxed
-clone). The worktree-isolation pattern was designed for the local case where
-a shared working tree had to be partitioned. On web that problem
-doesn't exist — the session itself is already an isolated clone — so creating
-`.worktrees/story-<id>/` inside an already-isolated clone wastes disk, slows
-the install step, and makes path-length warnings spuriously fire.
-
-A single committed config value (`orchestration.worktreeIsolation.enabled`)
-cannot serve both — flipping it whenever the operator switches between local
-and web would pollute git history.
+Parallel story agents that share one working tree race on `git checkout` and
+`git add -A`, so one agent's WIP can land in another's commit. Per-checkout
+branch guards catch specific failure modes but not the underlying class.
 
 ### Solution
 
-The flag is **resolved**, not just read, by
-`resolveWorktreeEnabled(opts, env)` in `lib/config-resolver.js`. Precedence:
+Each story runs in its own `git worktree` rooted at
+`.worktrees/story-<id>/`, owned by a single `WorktreeManager` façade
+(`ensure` / `reap` / `list` / `isSafeToRemove` / `gc`). The dispatcher threads
+the worktree path as `cwd`; `story-close` reaps after merge.
 
-1. `env.AP_WORKTREE_ENABLED === 'true'` → `true` (explicit operator override).
-2. `env.AP_WORKTREE_ENABLED === 'false'` → `false` (explicit operator override).
-3. `env.CLAUDE_CODE_REMOTE === 'true'` → `false` (web-session auto-detect).
-4. Otherwise → committed `orchestration.worktreeIsolation.enabled`.
+A resolved-at-runtime override lets the same code path handle the *web
+Claude Code* case where each session is already a sandboxed clone:
+`resolveWorktreeEnabled(opts, env)` in `lib/config-resolver.js` checks env
+vars (`AP_WORKTREE_ENABLED`, `CLAUDE_CODE_REMOTE`) before falling back to
+the committed `orchestration.worktreeIsolation.enabled` flag, so the flag
+never has to be flipped per-environment.
 
-The committed config is read-only at runtime; no workflow writes it. A single
-startup log line names the resolved value and the source of the decision so
-the run is auditable from logs alone.
-
-When resolved to `false`, every `WorktreeManager` method short-circuits to a
-no-op, the `.agents/` copy and `nodeModulesStrategy` branches collapse to the
-single repo-root install, and consumers use `process.cwd()` (the resolved
-`PROJECT_ROOT`) wherever they would have used the worktree path. The
-worktree-on path is byte-identical to its pre-resolver behaviour.
-
-### When it engages
-
-- A web Claude Code session: `CLAUDE_CODE_REMOTE` is set automatically.
-- A local session with `AP_WORKTREE_ENABLED=false` exported.
-- A repository whose committed `orchestration.worktreeIsolation.enabled` is
-  `false` (uncommon — most repos leave the default `true`).
-
-### Exercising it locally
-
-Set `AP_WORKTREE_ENABLED=false` in your shell and run `/story-execute
-<storyId>` against a story branch. The init script reports
-`[ENV] worktreeIsolation=off (AP_WORKTREE_ENABLED override)` and runs the
-story directly in the main checkout. Story close merges, reaps (a no-op),
-pushes, and cascades exactly as it would with worktrees on. The same
-`/story-execute` codepath drives both paths — there is no separate
-"web mode" command.
-
-### Identity signals
-
-`runtime.sessionId`, also produced by the resolver, prefers
-`CLAUDE_CODE_REMOTE_SESSION_ID` when available and falls back to a local
-hostname+pid+random short-id. It is surfaced in the startup
-`[ENV] sessionId=…` log line so two parallel sessions on the same
-machine emit distinguishable diagnostics; a web session retains a stable
-id across its run for log correlation.
-
-### Trade-offs
-
-- The off-path is exercised less often than the on-path locally, so
-  regressions can land unnoticed without explicit coverage. The pattern is
-  paired with a diff test that runs the same fixture both ways and asserts
-  the on-branch logs are byte-identical to a saved baseline.
-- The resolver consumes process environment, not config — operators get no
-  schema validation on env-var typos. The string-equality match (`'true'` /
-  `'false'`) is deliberate: any other value falls through to the next rule.
+For the architectural map, config keys, node_modules strategies, and the
+Windows path-length notes see
+[`docs/architecture.md`](architecture.md#worktree-isolation),
+[`docs/configuration.md`](configuration.md#orchestrationworktreeisolation),
+and [`.agents/workflows/worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md).
 
 ---
 
@@ -547,7 +466,8 @@ Epic-health dashboard).
 
 ### Problem
 
-`state-poller.js` and `blocker-handler.js` each carried their own
+Several runner-side modules (e.g. `blocker-handler.js`, the legacy
+state-poll path) each carried their own
 `while (true) { await new Promise(r => setTimeout(r, ms)); … }` loops
 with slightly different jitter, timeout, and abort handling. Adding a
 timeout budget to one did not automatically apply to the other, and
@@ -686,7 +606,7 @@ producing a confusing stack trace instead of a clear schema error.
 Each launcher's `main()` now calls `validateOrchestrationConfig` after
 `resolveConfig()` returns and exits non-zero on validation failure
 before any provider call, GitHub I/O, or wave-loop begins. The
-fixture test removes a required `orchestration.epicRunner` field and
+fixture test removes a required `orchestration.runners.epicRunner` field and
 asserts the launcher exits with a schema error before work starts.
 
 ### Why the explicit call (vs relying on `resolveConfig`)
@@ -931,67 +851,38 @@ comment.
 - Future perf work starts with measurement. The next regression is
   caught by the p95 column drifting, not by a user filing an issue.
 
-## Quality gates: maintainability vs CRAP
+## Quality gates: maintainability vs CRAP (sibling-gate pattern)
 
 ### Problem
 
-The maintainability (MI) gate enforces a no-regression ratchet on a
-per-file composite score, but is **coverage-blind**: a 30-branch
-function scores identically whether it has 0% or 100% test coverage. MI
-catches files that grow gnarlier; it does not catch new untested
-complexity.
+A single composite ratchet (e.g. maintainability index) is coverage-blind:
+a 30-branch function scores the same whether it has 0% or 100% coverage.
+One gate cannot answer both "what should I refactor?" and "what should I
+test next?" without conflating them.
 
 ### Solution
 
-Two sibling gates with complementary signals, both reading from the
-existing `typhonjs-escomplex` and `c8` outputs that the test runner
-already produces:
+Ship two sibling gates with complementary signals, reading from the same
+upstream artefacts the test runner already produces:
 
-| Gate                  | Granularity | Signal                                       | Answers                          |
-| --------------------- | ----------- | -------------------------------------------- | -------------------------------- |
-| `check-maintainability` | Per-file   | Composite MI score vs. baseline              | "What should I refactor?"        |
-| `check-crap`            | Per-method | `c² · (1 − cov)³ + c` vs. baseline + ceiling | "What should I test next?"       |
+| Gate                    | Granularity | Signal                                       | Answers                     |
+| ----------------------- | ----------- | -------------------------------------------- | --------------------------- |
+| `check-maintainability` | Per-file    | Composite MI score vs. baseline              | "What should I refactor?"   |
+| `check-crap`            | Per-method  | `c² · (1 − cov)³ + c` vs. baseline + ceiling | "What should I test next?"  |
 
-Both gates run at the same three sites — pre-push, close-validation, CI
-— and share an envelope shape (`{ kernelVersion, summary, violations }`)
-so an agent can consume both reports through one parser.
+Both gates run at the same three sites (pre-push, close-validation, CI)
+and emit a shared envelope shape (`{ kernelVersion, summary, violations }`)
+so one parser handles both reports.
 
-### Hybrid enforcement (CRAP-specific)
+A baseline-refresh guardrail prevents the obvious gaming pattern (a PR
+that relaxes the threshold *and* lands a violation). Thresholds are read
+from the base branch and re-applied via env-var overrides; baseline-only
+PRs auto-label `review::baseline-refresh` for human review.
 
-CRAP cannot use a flat per-file ratchet because the unit is the method,
-which moves between files. The compromise:
+For the runbook (bootstrap, refresh procedure, `--json` envelope, opt-out)
+see [`docs/quality-gates.md`](quality-gates.md).
 
-1. **Tracked methods** ratchet on `(file, method, startLine)` with a
-   line-drift fallback; current ≤ baseline + tolerance.
-2. **New methods** (no baseline match) must score ≤ `newMethodCeiling`
-   (default 30 — the canonical CRAP threshold).
-3. **Removed methods** are surfaced as a counter in the summary, never
-   a failure — deletion is visible at review without blocking.
-
-### Anti-gaming
-
-A PR that simultaneously relaxes `newMethodCeiling` in `.agentrc.json`
-and adds a method over the new (relaxed) ceiling would otherwise pass
-its own gate. The `baseline-refresh-guardrail` CI job defends against
-this by reading thresholds from the **base branch** and re-running
-`check-crap` with those values forced via `CRAP_NEW_METHOD_CEILING` /
-`CRAP_TOLERANCE` / `CRAP_REFRESH_TAG` env vars. Any PR that touches
-`baselines/crap.json` or `baselines/maintainability.json` must also carry
-a commit whose subject starts with the configured `refreshTag` (default
-`baseline-refresh:`) AND has a non-empty body — the tag alone is not
-enough. Baseline-only PRs are auto-labelled `review::baseline-refresh`
-so a human sees every refresh, even on green CI.
-
-### Consequences
-
-- A regression in test coverage on a complex method now fails CI even
-  if the per-file MI score holds steady.
-- Agents authoring PRs receive `fixGuidance` (`minComplexityAt100Cov`,
-  `minCoverageAtCurrentComplexity`) per offender so they can pick the
-  cheaper axis to fix without parsing stdout.
-- Baseline refreshes are a deliberate, justified, reviewer-visible
-  action. Silent threshold relaxation is impossible without a tagged
-  commit and a label that flags the PR for human eyes.
+---
 
 ## Data-driven defaults over estimated constants
 
