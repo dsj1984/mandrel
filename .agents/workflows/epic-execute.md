@@ -97,7 +97,7 @@ After the CLI returns, flip the Epic to `agent::executing` (idempotent).
 
 For each wave `N` from `0` to `totalWaves - 1`:
 
-1. **Dispatch** one Agent tool call (`subagent_type: general-purpose`) whose
+1. **Dispatch** one Agent tool call (`subagent_type: wave-runner`) whose
    prompt names the Epic id and wave index, instructs the sub-agent to
    invoke `/wave-execute <epicId> <N>`, restates the wave-skill return
    contract (defined in [`wave-execute.md`](wave-execute.md#step-3--record-the-wave-outcome)),
@@ -105,10 +105,19 @@ For each wave `N` from `0` to `totalWaves - 1`:
    spell out, in those words, that the wave sub-agent's job is to
    *dispatch further Agent tool calls* (one per Story in the wave plan, up
    to `concurrencyCap`) — it is **not** to invoke `/story-execute` itself.
-   Without this clause, a general-purpose sub-agent reading
+   Without this clause, a sub-agent reading
    [`wave-execute.md`](wave-execute.md) has been observed to misread "the
    sub-agent" as itself and collapse the wave to a single `/story-execute`
    call (regression: 2026-05-07).
+
+   `subagent_type: wave-runner` is required (see
+   [`.claude/agents/wave-runner.md`](../../.claude/agents/wave-runner.md)).
+   The default `general-purpose` sub-agent type does **not** carry `Agent`
+   in this Claude Code release, so a `general-purpose` wave child cannot
+   fan out per-Story Agent calls. The full rationale, the emergency-only
+   host-driven flat-fan-out fallback, and the Q6 probe outcome live at
+   [Harness constraint — no nested Agent by default](wave-execute.md#harness-constraint--no-nested-agent-by-default)
+   in `wave-execute.md`.
 2. **Read the wave summary** from the Agent tool result. `/wave-execute` has
    already upserted a `wave-run-progress` comment on the Epic — that is the
    source of truth for per-Story state.

@@ -464,6 +464,7 @@
   "tests/wave-execute/wave-prepare.test.js": 103.414,
   "tests/wave-execute/wave-record.test.js": 99.768,
   "tests/wave-gate.test.js": 97.165,
+  "tests/wave-runner-probe.test.js": 0,
   "tests/workflows/epic-close.aux-concurrency.test.js": 104.611,
   "tests/workflows/epic-close.smoke.test.js": 121.097
 }
