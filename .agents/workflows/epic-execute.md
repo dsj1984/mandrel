@@ -101,7 +101,14 @@ For each wave `N` from `0` to `totalWaves - 1`:
    prompt names the Epic id and wave index, instructs the sub-agent to
    invoke `/wave-execute <epicId> <N>`, restates the wave-skill return
    contract (defined in [`wave-execute.md`](wave-execute.md#step-3--record-the-wave-outcome)),
-   and reminds it of the non-interactive contract.
+   and reminds it of the non-interactive contract. The prompt **must**
+   spell out, in those words, that the wave sub-agent's job is to
+   *dispatch further Agent tool calls* (one per Story in the wave plan, up
+   to `concurrencyCap`) — it is **not** to invoke `/story-execute` itself.
+   Without this clause, a general-purpose sub-agent reading
+   [`wave-execute.md`](wave-execute.md) has been observed to misread "the
+   sub-agent" as itself and collapse the wave to a single `/story-execute`
+   call (regression: 2026-05-07).
 2. **Read the wave summary** from the Agent tool result. `/wave-execute` has
    already upserted a `wave-run-progress` comment on the Epic — that is the
    source of truth for per-Story state.
