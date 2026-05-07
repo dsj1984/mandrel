@@ -58,21 +58,21 @@ scraped project docs, and the recommended system prompts.
 
 ```bash
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context \
-  > temp/planner-context-epic-[Epic_ID].json
+  > temp/epic-[Epic_ID]/planner-context.json
 ```
 
 ## Step 2 — Author the PRD
 
-Read `temp/planner-context-epic-[Epic_ID].json`. Using `systemPrompts.prd`
+Read `temp/epic-[Epic_ID]/planner-context.json`. Using `systemPrompts.prd`
 combined with the Epic title/body, write the PRD markdown to
-`temp/prd-epic-[Epic_ID].md`. Use the four-section structure (Context & Goals,
+`temp/epic-[Epic_ID]/prd.md`. Use the four-section structure (Context & Goals,
 User Stories, Acceptance Criteria, Out of Scope) and start the document with
 `## Overview` (no `<h1>`).
 
 ## Step 3 — Author the Tech Spec
 
 Using `systemPrompts.techSpec`, the PRD you just wrote, and `docsContext`,
-write the Tech Spec to `temp/techspec-epic-[Epic_ID].md`. Start with
+write the Tech Spec to `temp/epic-[Epic_ID]/techspec.md`. Start with
 `## Technical Overview` (no `<h1>`).
 
 ## Step 4 — Persist and transition
@@ -80,13 +80,13 @@ write the Tech Spec to `temp/techspec-epic-[Epic_ID].md`. Start with
 ```bash
 # Normal flow
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-  --prd temp/prd-epic-[Epic_ID].md \
-  --techspec temp/techspec-epic-[Epic_ID].md
+  --prd temp/epic-[Epic_ID]/prd.md \
+  --techspec temp/epic-[Epic_ID]/techspec.md
 
 # Re-plan (regenerates an existing PRD / Tech Spec)
 node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-  --prd temp/prd-epic-[Epic_ID].md \
-  --techspec temp/techspec-epic-[Epic_ID].md --force
+  --prd temp/epic-[Epic_ID]/prd.md \
+  --techspec temp/epic-[Epic_ID]/techspec.md --force
 ```
 
 On success the script:

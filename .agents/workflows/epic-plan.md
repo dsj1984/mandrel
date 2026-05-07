@@ -64,32 +64,45 @@ planned.
 
 ## Phase 1: Epic Planning (PRD & Tech Spec)
 
-> **Parallel-safe file naming.** Multiple Epics may be planned or decomposed
-> concurrently. Every temp file written in this workflow MUST include the Epic
-> ID in its name (e.g. `temp/planner-context-epic-[Epic_ID].json`,
-> `temp/prd-epic-[Epic_ID].md`, `temp/techspec-epic-[Epic_ID].md`,
-> `temp/decomposer-context-epic-[Epic_ID].json`,
-> `temp/tickets-epic-[Epic_ID].json`). Do **not** reuse bare names like
-> `temp/prd.md` — they will collide with another agent's run.
+> **Parallel-safe file naming (per-Epic tree).** Multiple Epics may be
+> planned or decomposed concurrently. Every temp file written in this
+> workflow lives under the per-Epic tree
+> (`temp/epic-[Epic_ID]/<artifact>`) — e.g.
+> `temp/epic-[Epic_ID]/planner-context.json`,
+> `temp/epic-[Epic_ID]/prd.md`, `temp/epic-[Epic_ID]/techspec.md`,
+> `temp/epic-[Epic_ID]/decomposer-context.json`,
+> `temp/epic-[Epic_ID]/tickets.json`. The directory namespace is the
+> isolation boundary; basenames inside it are stable. Do **not** reuse
+> bare flat names like `temp/prd.md` or the legacy
+> `temp/<artifact>-epic-<id>.<ext>` shape — both have been retired.
+>
+> **Durability.** The per-Epic tree is durable across runs: only the
+> wrapper scripts perform intra-phase cleanup of files they wrote in
+> the same invocation (see
+> [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js)).
+> Nothing else garbage-collects the tree, so cross-Epic artifacts —
+> retros, perf reports, signals, manifests — accumulate until an
+> operator explicitly removes them.
 
 1. **Gather Authoring Context**: Run the spec-phase CLI in context-emission
    mode to fetch the Epic body, scraped project docs, and the recommended
    system prompts.
 
    ```bash
-   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context > temp/planner-context-epic-[Epic_ID].json
+   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/planner-context.json
    ```
 
-2. **Author the PRD**: Read `temp/planner-context-epic-[Epic_ID].json`. Using
-   the `systemPrompts.prd` guidance combined with the Epic title/body, write the
-   PRD markdown to `temp/prd-epic-[Epic_ID].md`. Keep it to the four-section
-   structure (Context & Goals, User Stories, Acceptance Criteria, Out of Scope)
-   and start the document with `## Overview` (no `<h1>`).
+2. **Author the PRD**: Read `temp/epic-[Epic_ID]/planner-context.json`.
+   Using the `systemPrompts.prd` guidance combined with the Epic
+   title/body, write the PRD markdown to `temp/epic-[Epic_ID]/prd.md`.
+   Keep it to the four-section structure (Context & Goals, User
+   Stories, Acceptance Criteria, Out of Scope) and start the document
+   with `## Overview` (no `<h1>`).
 
 3. **Author the Tech Spec**: Using `systemPrompts.techSpec`, the PRD you just
    wrote, and `docsContext`, write the Tech Spec to
-   `temp/techspec-epic-[Epic_ID].md`. Start with `## Technical Overview` (no
-   `<h1>`).
+   `temp/epic-[Epic_ID]/techspec.md`. Start with `## Technical Overview`
+   (no `<h1>`).
 
 4. **Persist to GitHub**: Use `epic-plan-spec.js` (not the low-level
    `epic-planner.js` — only the wrapper flips the Epic to `agent::review-spec`
@@ -98,13 +111,13 @@ planned.
    ```bash
    # Normal planning
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-     --prd temp/prd-epic-[Epic_ID].md \
-     --techspec temp/techspec-epic-[Epic_ID].md
+     --prd temp/epic-[Epic_ID]/prd.md \
+     --techspec temp/epic-[Epic_ID]/techspec.md
 
    # Re-planning (force regeneration)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
-     --prd temp/prd-epic-[Epic_ID].md \
-     --techspec temp/techspec-epic-[Epic_ID].md --force
+     --prd temp/epic-[Epic_ID]/prd.md \
+     --techspec temp/epic-[Epic_ID]/techspec.md --force
    ```
 
 5. **Verification**:
@@ -124,19 +137,20 @@ planned.
 1. **Gather Decomposition Context**:
 
    ```bash
-   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context > temp/decomposer-context-epic-[Epic_ID].json
+   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/decomposer-context.json
    ```
 
 2. **Author the Ticket Array**: Read
-   `temp/decomposer-context-epic-[Epic_ID].json` — it contains the PRD body,
-   Tech Spec body, risk heuristics, the decomposer system prompt, and a
-   `maxTickets` cap (configurable via `agentSettings.limits.maxTickets` in
-   `.agentrc.json`; the framework default lives in
-   `.agents/scripts/lib/config/limits.js`). The decompose script also logs
-   the resolved cap to stderr so a misconfigured key doesn't silently fall
-   through. Produce a
-   JSON array of Feature/Story/Task objects conforming to the schema in the
-   system prompt and write it to `temp/tickets-epic-[Epic_ID].json`.
+   `temp/epic-[Epic_ID]/decomposer-context.json` — it contains the PRD
+   body, Tech Spec body, risk heuristics, the decomposer system
+   prompt, and a `maxTickets` cap (configurable via
+   `agentSettings.limits.maxTickets` in `.agentrc.json`; the framework
+   default lives in `.agents/scripts/lib/config/limits.js`). The
+   decompose script also logs the resolved cap to stderr so a
+   misconfigured key doesn't silently fall through. Produce a JSON
+   array of Feature/Story/Task objects conforming to the schema in the
+   system prompt and write it to
+   `temp/epic-[Epic_ID]/tickets.json`.
 
 3. **Persist to GitHub**: Use `epic-plan-decompose.js` (not the low-level
    `ticket-decomposer.js` — only the wrapper flips the Epic to `agent::ready`
@@ -145,11 +159,11 @@ planned.
    ```bash
    # Normal decomposition
    node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
-     --tickets temp/tickets-epic-[Epic_ID].json
+     --tickets temp/epic-[Epic_ID]/tickets.json
 
    # Re-planning (close old tickets first)
    node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
-     --tickets temp/tickets-epic-[Epic_ID].json --force
+     --tickets temp/epic-[Epic_ID]/tickets.json --force
    ```
 
 4. **Cross-Validation**:
@@ -177,7 +191,7 @@ planned.
      ```bash
      node .agents/scripts/epic-plan-decompose.js \
        --epic [Epic_ID] \
-       --tickets temp/tickets-epic-[Epic_ID].json \
+       --tickets temp/epic-[Epic_ID]/tickets.json \
        --force
      ```
 
@@ -290,7 +304,7 @@ chooses to gate on them.
 
   ```bash
   node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
-    --tickets temp/tickets-epic-[Epic_ID].json --resume
+    --tickets temp/epic-[Epic_ID]/tickets.json --resume
   ```
 
   `--resume` is idempotent: planned tickets whose title matches an existing
