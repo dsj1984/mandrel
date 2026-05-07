@@ -554,39 +554,43 @@ maintainability-drift) belong in the `Notable` section under the
 table — they fire once per snapshot, not once per row, so a column
 would mostly be blank.
 
-## Per-Story rate-limited friction emission
+## Per-Story friction signal emission (NDJSON)
 
 ### Problem
 
 Several failure sites in the orchestration pipeline (reap failures,
 wave-poller read failures, mid-Story baseline refreshes) can be silent
 to the operator — they log to stdout but never produce a machine-readable
-surface on the Story ticket. A single bad GraphQL variable can mask every
-Story's state as `unknown` for the duration of a wave without a single
-`friction` comment being posted.
+surface. A single bad GraphQL variable can mask every Story's state as
+`unknown` for the duration of a wave without a single `friction` record
+being captured.
 
 ### Solution
 
-`lib/orchestration/friction-emitter.js` wraps `provider.postComment` with
-per-Story deduplication:
+`lib/observability/signals-writer.js#appendSignal` appends one
+newline-terminated JSON record per friction event to
+`temp/epic-<eid>/story-<sid>/signals.ndjson`. Records are best-effort
+(any fs failure is logged via `Logger.warn` and swallowed — observability
+must not halt the runner) and are picked up out-of-band by the analyzer
+(Epic #1030).
 
-1. **Key.** Dedupe key is `storyId` + a hash of the friction body's
-   marker slug (e.g. `friction: reap-skipped`).
-2. **Window.** 60-second cooldown per key — a stuck poller can't spam
-   the ticket but a distinct failure mode still surfaces immediately.
-3. **Emitters.** `story-close.js` reap failure, `epic-runner`
-   wave-poller `getTicket` failure, and `check-maintainability.js`
-   baseline-refresh sites are the three known consumers.
+1. **Shape.** `{ kind: 'friction', timestamp, epicId, storyId,
+   category, source: { tool }, details, ... }` — callers own the rest of
+   the payload.
+2. **Consumers.** `diagnose-friction.js` (per-failure detector),
+   `story-close.js` reap failure (via `post-merge-pipeline.js`),
+   `epic-runner/progress-reporter.js` wave-poller `getTicket` failure,
+   `check-maintainability.js` baseline-refresh, and `check-crap.js`
+   baseline-refresh.
+3. **Replaced.** Story #1042 (Epic #1030) cut the in-process cooldown
+   module and its `upsertStructuredComment` round-trip — friction now
+   lives on disk, not in GitHub comments.
 
 ### When to use
 
 Any silent `catch` + `logger.warn` site whose failure is operator-
-actionable. A rule of thumb: if the operator needs to act on the
-failure (inspect the worktree, re-run a reap, update a doc), emit.
-If the failure is routine (a retry that succeeds on the next tick),
-don't — the cooldown window will suppress duplicates anyway, but
-polluting the ticket with sub-second retry chatter still costs
-attention.
+actionable or signal-worthy. The analyzer dedupes / aggregates
+downstream, so callers do not need their own cooldown logic.
 
 ---
 

@@ -42,6 +42,7 @@
 #  - No log line contains "still-registered" / "orphan-worktree" / "stillRegistered".
 #  - worktreeReapPhase emits exactly:
 #      [WORKTREE] ⏭️ Skipping worktree reap (worktree isolation disabled)
-#  - frictionEmitter.emit is never called for the reap path.
+#  - signals-writer.appendSignal is never invoked for the reap path
+#    (post Story #1042 cutover; previously: frictionEmitter.emit).
 #  - WorktreeManager.{ensure, reap, gc, sweepStaleLocks} short-circuit
 #    without invoking the underlying git adapter.

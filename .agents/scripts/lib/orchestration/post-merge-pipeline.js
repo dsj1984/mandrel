@@ -37,6 +37,7 @@ import { updateHealthMetrics } from '../../health-monitor.js';
 import { notify } from '../../notify.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
+import { appendSignal } from '../observability/signals-writer.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { toDone } from './label-transitions.js';
@@ -68,41 +69,46 @@ function createWorktreeReapState(overrides = {}) {
 }
 
 async function emitReapFailureFriction({
-  frictionEmitter,
   storyId,
+  epicId,
   reapResult,
   epicBranch,
+  logger,
 }) {
-  if (!frictionEmitter) return;
+  if (!epicId || !storyId) return;
   const reason = String(reapResult?.reason ?? 'unknown');
   const wtPath = reapResult?.path ?? '(unknown path)';
-  const body = [
-    `### 🚧 Friction — worktree reap failed`,
-    '',
-    `- Story: \`#${storyId}\``,
-    `- Epic branch: \`${epicBranch}\``,
-    `- Worktree path: \`${wtPath}\``,
-    `- Reason: \`${reason}\``,
-    '',
-    'The Story merge succeeded but the worktree could not be removed. Close',
-    'any editor/terminal holding the path, then run `git worktree remove',
-    '<path> --force && git worktree prune` to clean up. Re-running',
-    '`story-close` is idempotent.',
-  ].join('\n');
-  await frictionEmitter.emit({
-    ticketId: Number(storyId),
-    markerKey: 'reap-failure',
-    body,
-  });
+  try {
+    await appendSignal({
+      epicId: Number(epicId),
+      storyId: Number(storyId),
+      signal: {
+        kind: 'friction',
+        timestamp: new Date().toISOString(),
+        epicId: Number(epicId),
+        storyId: Number(storyId),
+        category: 'reap-failure',
+        source: { tool: 'story-close.js' },
+        details: `Worktree reap failed: ${reason}`,
+        epicBranch,
+        worktreePath: wtPath,
+        reason,
+      },
+    });
+  } catch (err) {
+    logger?.warn?.(
+      `[post-merge-pipeline] friction signal append failed: ${err?.message ?? err}`,
+    );
+  }
 }
 
 export async function worktreeReapPhase(ctx) {
   const {
     orchestration,
     storyId,
+    epicId,
     epicBranch,
     repoRoot,
-    frictionEmitter,
     progress,
     logger,
     worktreeManagerFactory,
@@ -145,10 +151,11 @@ export async function worktreeReapPhase(ctx) {
     log('WORKTREE', `🗑️  Reaped worktree: ${reapResult.path}`);
   } else if (reapResult.reason) {
     await emitReapFailureFriction({
-      frictionEmitter,
       storyId,
+      epicId,
       reapResult,
       epicBranch,
+      logger,
     });
     log(
       'WORKTREE',
@@ -183,13 +190,14 @@ export async function worktreeReapPhase(ctx) {
         '`git worktree remove <path> --force && git worktree prune` to clean up.',
     );
     await emitReapFailureFriction({
-      frictionEmitter,
       storyId,
+      epicId,
       reapResult: {
         path: stillRegistered.path,
         reason: 'still-registered-after-reap',
       },
       epicBranch,
+      logger,
     });
   }
   return state;
@@ -440,7 +448,7 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
  * `stateKey` (when defined) on the returned state object.
  *
  * @param {object} ctx          Phase collaborators (provider, notify,
- *                              frictionEmitter, logger, progress, etc.).
+ *                              logger, progress, etc.).
  * @param {Array<{name: string, fn: Function, stateKey?: string, fallback?: any}>} [phases]
  *                              Phase descriptors. Defaults to `DEFAULT_POST_MERGE_PHASES`.
  * @returns {Promise<object>}   Aggregated state from each phase.

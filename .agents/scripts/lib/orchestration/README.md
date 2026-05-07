@@ -61,7 +61,6 @@ wrappers** that delegate to it.
 | `plan-runner/`              | Plan-runner internals                           |
 | `health-check-service.js`   | Push-based health monitoring                    |
 | `health-refresh-cadence.js` | Cadence rules for health-check refresh          |
-| `friction-emitter.js`       | Structured-friction comment writer              |
 | `error-journal.js`          | Structured error capture for telemetry          |
 | `lint-baseline-service.js`  | Lint ratchet engine                             |
 | `parked-follow-ons.js`      | Follow-on ticket parking                        |

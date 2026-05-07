@@ -285,7 +285,7 @@ context })` so the error surface is auditable after a run completes. See
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `lib/orchestration/friction-emitter.js`             | Rate-limited (`storyId` + marker hash, 60s cooldown) `friction` emitter wrapping `provider.postComment`.                                              |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. Replaced the rate-limited GitHub-comment emitter in Epic #1030 Story #1042. |
 | `lib/orchestration/epic-runner/column-sync.js`      | Drives the Projects v2 Status column from `agent::` labels (best-effort). Missing project rows surface as friction, not as `unknown`.                 |
 
 `CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
