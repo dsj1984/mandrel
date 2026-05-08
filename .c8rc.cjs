@@ -5,10 +5,16 @@
  * the exclude list. Documented from docs/quality-gates.md so operators
  * tracing a failed gate land here.
  *
- * Threshold gates: 85 % lines / 70 % branches / 75 % functions across
- * everything in `.agents/scripts/**`. Anything that lowers the gate is
- * a mainline policy change, not a tactical exclusion — reach for an
- * exclude only when the file genuinely cannot be unit-tested.
+ * Threshold gates: 87 % lines / 80 % branches / 84 % functions across
+ * everything in `.agents/scripts/**` minus the explicit `exclude` list
+ * below. Anything that lowers the gate is a mainline policy change,
+ * not a tactical exclusion — reach for an exclude only when the file
+ * genuinely cannot be unit-tested.
+ *
+ * The thresholds are walked toward 90/90/90 incrementally as tests
+ * land — each ratchet picks up the new floor that the suite produced
+ * without changing scope. Bumping requires `npm run test:coverage`
+ * staying green at the new numbers.
  *
  * The three entries below are excluded because they are thin CLI shells
  * over already-covered library code, and the meaningful logic lives in
@@ -36,6 +42,15 @@
  *     real provider). Validation logic is exercised by the planner
  *     tests under `tests/`; the CLI shell itself is not on a
  *     unit-test path.
+ *   - epic-runner.js — top-level CLI shell with zero exports. All
+ *     orchestration logic lives in `lib/orchestration/epic-runner/*`
+ *     (factory, phases, progress-reporter, wave-scheduler, etc.) and
+ *     is unit-tested there. The shell itself just argv-parses and
+ *     hands off to `factory.create(...)`.
+ *   - retrofit-task-bodies.js — top-level CLI shell with zero exports.
+ *     The retrofit logic is unit-tested under `lib/retrofit/`; the
+ *     shell glue (argv → provider → batch loop) is integration-shaped
+ *     and not on a unit-test path.
  *
  * Files previously on this list that now sit inside the gate:
  *   - dispatcher.js, notify.js, providers/github.js — each has a
@@ -50,9 +65,11 @@ module.exports = {
   exclude: [
     '.agents/scripts/agents-bootstrap-github.js',
     '.agents/scripts/context-hydrator.js',
+    '.agents/scripts/epic-runner.js',
+    '.agents/scripts/retrofit-task-bodies.js',
     '.agents/scripts/ticket-decomposer.js',
   ],
-  lines: 85,
-  branches: 70,
-  functions: 75,
+  lines: 87,
+  branches: 80,
+  functions: 84,
 };

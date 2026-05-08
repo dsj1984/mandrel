@@ -22,12 +22,15 @@
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const COVERAGE_DIR = path.join(ROOT, 'coverage');
+const require = createRequire(import.meta.url);
+const C8_CONFIG = require('../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
 const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
@@ -50,6 +53,12 @@ const testRun = spawnSync(
   },
 );
 
+// `c8 report` honors `--include` / `--exclude` per-call but does NOT
+// auto-load `.c8rc.cjs` — pass them explicitly so the printed table
+// matches the gate's view of scope.
+const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
+const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
+
 const reportRun = spawnSync(
   NPX,
   [
@@ -59,17 +68,29 @@ const reportRun = spawnSync(
     '--reporter=text',
     '--temp-directory',
     V8_TMP,
+    ...includeArgs,
+    ...excludeArgs,
   ],
   { cwd: ROOT, stdio: 'inherit', shell: true },
 );
 
-// Threshold values mirror .c8rc.cjs. Passed explicitly because
+// Threshold + scope values mirror .c8rc.cjs. Passed explicitly because
 // `c8 check-coverage` does not auto-load `.c8rc.cjs` the same way the
-// `c8 <cmd>` wrapper does, and on Windows we observed it falling back
-// to the built-in 90% default. Keep these in sync with `.c8rc.cjs`.
+// `c8 <cmd>` wrapper does — without `--include` / `--exclude` here the
+// gate scores over every entry in `coverage-final.json`, so the exclude
+// list (CLI shells whose meaningful logic lives in unit-tested libs)
+// would silently miss the gate. Keep this list in sync with `.c8rc.cjs`.
 const checkRun = spawnSync(
   NPX,
-  ['c8', 'check-coverage', '--lines=85', '--branches=70', '--functions=75'],
+  [
+    'c8',
+    'check-coverage',
+    `--lines=${C8_CONFIG.lines}`,
+    `--branches=${C8_CONFIG.branches}`,
+    `--functions=${C8_CONFIG.functions}`,
+    ...includeArgs,
+    ...excludeArgs,
+  ],
   { cwd: ROOT, stdio: 'inherit', shell: true },
 );
 
