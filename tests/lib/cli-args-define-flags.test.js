@@ -196,3 +196,119 @@ describe('defineFlags — validation', () => {
     );
   });
 });
+
+describe('defineFlags — inline `--flag=value` syntax', () => {
+  it('string: --flag=value sets the value without consuming a second arg', () => {
+    const spec = { gate: { type: 'string' }, story: { type: 'ticket' } };
+    const { values, positionals } = defineFlags(spec, [
+      '--gate=gate2',
+      '--story=#7',
+      'leftover',
+    ]);
+    assert.equal(values.gate, 'gate2');
+    assert.equal(values.story, 7);
+    assert.deepEqual(positionals, ['leftover']);
+  });
+
+  it('integer: --wave=0 honors the inline zero', () => {
+    const { values } = defineFlags({ wave: { type: 'integer' } }, ['--wave=0']);
+    assert.equal(values.wave, 0);
+  });
+
+  it('string-multi: --paths=a appends like the spaced form', () => {
+    const spec = { paths: { type: 'string-multi' } };
+    const { values } = defineFlags(spec, ['--paths=a', '--paths', 'b']);
+    assert.deepEqual(values.paths, ['a', 'b']);
+  });
+});
+
+describe('defineFlags — argv shapes the parser tolerates', () => {
+  it('unknown long flag is skipped (strict: false semantics)', () => {
+    const spec = { story: { type: 'ticket' } };
+    const { values, positionals } = defineFlags(spec, [
+      '--unknown',
+      '--story',
+      '5',
+    ]);
+    assert.equal(values.story, 5);
+    assert.deepEqual(positionals, []);
+  });
+
+  it('a bare `--` terminator forwards the rest as positionals', () => {
+    const spec = { story: { type: 'ticket' } };
+    const { values, positionals } = defineFlags(spec, [
+      '--story',
+      '5',
+      '--',
+      '--story',
+      '99',
+    ]);
+    assert.equal(values.story, 5);
+    assert.deepEqual(positionals, ['--story', '99']);
+  });
+
+  it('short `-h` resolves through the spec.short map', () => {
+    const spec = { help: { type: 'boolean', short: 'h' } };
+    assert.equal(defineFlags(spec, ['-h']).values.help, true);
+  });
+
+  it('short flag with no spec mapping falls through to positionals', () => {
+    const spec = { help: { type: 'boolean' } };
+    const { values, positionals } = defineFlags(spec, ['-x']);
+    assert.equal(values.help, false);
+    assert.deepEqual(positionals, ['-x']);
+  });
+
+  it('plain positional preceding a flag is preserved in order', () => {
+    const spec = { gate: { type: 'string' } };
+    const { positionals, values } = defineFlags(spec, [
+      'first',
+      '--gate',
+      'g1',
+      'second',
+    ]);
+    assert.equal(values.gate, 'g1');
+    assert.deepEqual(positionals, ['first', 'second']);
+  });
+});
+
+describe('defineFlags — env fallback for non-ticket types', () => {
+  it('string envKey populates an absent flag', () => {
+    const spec = {
+      'base-ref': { type: 'string', envKey: 'BASE_REF' },
+    };
+    const { values } = defineFlags(spec, [], { env: { BASE_REF: 'origin/x' } });
+    assert.equal(values.baseRef, 'origin/x');
+  });
+
+  it('integer envKey coerces via Number', () => {
+    const spec = { wave: { type: 'integer', envKey: 'WAVE_INDEX' } };
+    const { values } = defineFlags(spec, [], { env: { WAVE_INDEX: '4' } });
+    assert.equal(values.wave, 4);
+  });
+
+  it('string-multi envKey seeds a one-element array', () => {
+    const spec = { paths: { type: 'string-multi', envKey: 'EXTRA_PATHS' } };
+    const { values } = defineFlags(spec, [], {
+      env: { EXTRA_PATHS: 'src/foo.js' },
+    });
+    assert.deepEqual(values.paths, ['src/foo.js']);
+  });
+
+  it('flag wins over envKey for non-ticket types', () => {
+    const spec = { gate: { type: 'string', envKey: 'GATE' } };
+    const { values } = defineFlags(spec, ['--gate', 'arg'], {
+      env: { GATE: 'env' },
+    });
+    assert.equal(values.gate, 'arg');
+  });
+
+  it('envKey is ignored when flag matches absent-shape but env entry is non-string', () => {
+    const spec = { gate: { type: 'string', envKey: 'GATE' } };
+    // Simulate a runtime where the env bag has a non-string for this key.
+    const { values } = defineFlags(spec, [], {
+      env: { GATE: undefined },
+    });
+    assert.equal(values.gate, undefined);
+  });
+});

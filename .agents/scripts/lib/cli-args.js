@@ -222,7 +222,10 @@ export function defineFlags(spec, args = [], opts = {}) {
     if (typeof envRaw !== 'string' || envRaw.length === 0) continue;
     const key = keyOf[name];
     const cur = values[key];
-    const absent = def.type === 'ticket' ? cur === null : cur === undefined;
+    let absent;
+    if (def.type === 'ticket') absent = cur === null;
+    else if (def.type === 'string-multi') absent = cur.length === 0;
+    else absent = cur === undefined;
     if (!absent) continue;
     if (def.type === 'string-multi') {
       values[key] = [envRaw];

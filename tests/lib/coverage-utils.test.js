@@ -4,6 +4,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
+  buildCoverageIndex,
+  buildEntryIndex,
   coverageByMethod,
   coverageForMethodInEntry,
   hasCoverageFor,
@@ -220,6 +222,73 @@ test('coverageByMethod — file not in map returns null', () => {
 
 test('coverageByMethod — null map returns null', () => {
   assert.strictEqual(coverageByMethod(null, 'src/x.js', 1), null);
+});
+
+test('buildCoverageIndex — null/array map yields an empty index', () => {
+  assert.deepStrictEqual(buildCoverageIndex(null).byNormalizedSuffix.size, 0);
+  assert.deepStrictEqual(buildCoverageIndex([]).byNormalizedSuffix.size, 0);
+  assert.deepStrictEqual(
+    buildCoverageIndex(undefined).byNormalizedSuffix.size,
+    0,
+  );
+});
+
+test('buildEntryIndex — null/non-object entry yields empty maps', () => {
+  for (const bad of [null, undefined, 42, 'abc']) {
+    const idx = buildEntryIndex(bad);
+    assert.strictEqual(idx.fnByStartLine.size, 0);
+    assert.strictEqual(idx.fnLocByStartLine.size, 0);
+    assert.strictEqual(idx.statementsByLine.size, 0);
+  }
+});
+
+test('buildEntryIndex — indexes a function whose decl line differs from its loc line', () => {
+  const entry = {
+    fnMap: {
+      0: {
+        name: 'wrapped',
+        decl: { start: { line: 7, column: 0 } },
+        loc: { start: { line: 9, column: 0 }, end: { line: 12, column: 1 } },
+      },
+    },
+    statementMap: {
+      0: { start: { line: 10, column: 0 }, end: { line: 10, column: 5 } },
+    },
+    s: { 0: 1 },
+  };
+  const idx = buildEntryIndex(entry);
+  // Both decl line (7) and loc line (9) must resolve to the same fn entry so
+  // callers keying by escomplex's `lineStart` (which can match either) hit.
+  assert.strictEqual(idx.fnByStartLine.has(7), true);
+  assert.strictEqual(idx.fnByStartLine.has(9), true);
+  assert.strictEqual(idx.statementsByLine.size, 1);
+});
+
+test('buildEntryIndex — skips functions with no usable start line', () => {
+  const entry = {
+    fnMap: {
+      0: { name: 'broken', decl: {}, loc: {} },
+    },
+    statementMap: {},
+    s: {},
+  };
+  const idx = buildEntryIndex(entry);
+  assert.strictEqual(idx.fnByStartLine.size, 0);
+});
+
+test('buildEntryIndex — statements without a numeric start line are dropped', () => {
+  const entry = {
+    fnMap: {},
+    statementMap: {
+      0: { start: { column: 0 }, end: { line: 1, column: 5 } },
+      1: { start: { line: 5, column: 0 }, end: { line: 5, column: 5 } },
+    },
+    s: { 0: 1, 1: 0 },
+  };
+  const idx = buildEntryIndex(entry);
+  assert.strictEqual(idx.statementsByLine.size, 1);
+  const bucket = idx.statementsByLine.get(5);
+  assert.deepStrictEqual(bucket, { total: 1, covered: 0 });
 });
 
 test('hasCoverageFor — Object.keys(map) called exactly once across 1000 lookups (O(1) per lookup after build)', () => {
