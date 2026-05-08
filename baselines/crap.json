@@ -4972,7 +4972,7 @@
       "startLine": 18
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "deleteComment",
       "startLine": 25
