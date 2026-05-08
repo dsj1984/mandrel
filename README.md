@@ -32,6 +32,14 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
   `providers/github/`; a canonical `branch-name-guard` replaces two
   duplicate implementations; and `.agents/scripts/README.md` indexes every
   top-level CLI.
+- **Close-time reliability hardening** (Epic #1114) — close-validation
+  gates run inside the per-Story worktree (baselines resolve at the Epic
+  ref, not the main checkout); `WorktreeManager.isSafeToRemove` uses a
+  real `git merge-base --is-ancestor` reachability check; baseline
+  refreshes now attribute to the Story whose diff caused them and block
+  on non-attributable drift; and the `analyze-execution` analyzer is
+  finally wired into both the post-merge pipeline and the Epic-close
+  retro phase.
 
 For the full architecture (mermaid flow, module map, state machine, tech
 stack), see [`docs/architecture.md`](docs/architecture.md).

@@ -330,7 +330,8 @@ ratchet.
 | `orchestration.concurrency`     | Config block     | `{ waveGate: integer ≥ 0, commitAssertion: integer ≥ 1, progressReporter: integer ≥ 1 }`. All keys optional. Defaults: `0` / `4` / `8`. `additionalProperties: false`. |
 | `resolveConcurrency(source)`    | Helper           | `lib/orchestration/concurrency.js`. Returns a frozen `{ waveGate, commitAssertion, progressReporter }`. Falls back to defaults on missing/malformed values. |
 | `concurrentMap(items, fn, opts)` | Utility         | `lib/util/concurrent-map.js`; bounded-concurrency fanout helper. Preserves result order; rejects aggregate on the first thrown error unless the callback swallows it. |
-| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. |
+| `analyze-execution.js`          | CLI              | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` (Story-mode) / `epic-perf-report` (Epic-mode) structured comments. The retro composer reads these for phase p50/p95 and concurrency hints. Wired into `post-merge-pipeline` (Story mode) and Epic close Phase 6.0 (Epic mode) in Epic #1114. |
+| `lib/baseline-loader.js`        | Helper           | `readBaselineAtRef(ref, path)` resolves a baseline JSON file at an arbitrary git ref (`git show <ref>:<path>`). Used by every close-validation gate so the gate compares Story-touched files in the worktree against shared baselines on the Epic ref, eliminating cross-Story drift on the main checkout as a close-blocker. Added in Epic #1114. |
 
 ---
 

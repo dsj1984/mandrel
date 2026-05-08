@@ -2,6 +2,57 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.38.0] — 2026-05-07
+
+Epic #1114 — orchestration framework hardening from #1072's retro. Close-time
+validation moves off the main checkout into the per-Story worktree; the
+WorktreeManager auto-reap predicate is replaced with a real reachability check;
+baseline refreshes attribute to the Story whose diff caused them; and the
+analyze-execution CLI advertised in 5.37.0 finally ships and is wired into
+both the post-merge pipeline and the Epic close phase.
+
+### Added
+
+- **`analyze-execution.js`** — Story-mode (`--story <id> --epic <id>`) and
+  Epic-mode (`--epic <id>`) CLI that reads each Story's `signals.ndjson` and
+  upserts the `story-perf-summary` / `epic-perf-report` structured comments
+  the retro composer consumes. Wired into `post-merge-pipeline` (Story mode
+  per close) and Epic close Phase 6.0 (Epic mode per close). The retro's
+  Top hotspots subsection finally renders.
+- **Custom `wave-runner` sub-agent type.** `.claude/agents/wave-runner.md`
+  declares an agent with the `Agent` tool in its frontmatter, intended to
+  hold nested fan-out for `/wave-execute`. Skill files (`wave-execute.md`,
+  `epic-execute.md`) now dispatch via `subagent_type: wave-runner`.
+- **Decomposer freshness gate.** `/epic-plan` decomposition fails when any
+  Task body or AC names a `.agents/scripts/`, `lib/`, or `tests/` JS file
+  that does not exist on the Epic base branch. Catches the Task #1109
+  class of bug (a deleted file referenced from a planned AC) at planning
+  time instead of at execute time.
+
+### Changed
+
+- **Close-validation gates run inside the worktree, read baselines from the
+  Epic ref.** Lint, format-check, maintainability, CRAP, audit, typecheck,
+  and the evidence-gate wrapper all execute in `.worktrees/story-<id>/` and
+  read baseline files at `epic/<id>` HEAD via the new
+  `lib/baseline-loader.js` helper. Cross-Story drift on the main checkout
+  no longer blocks unrelated Story closes.
+- **`WorktreeManager.isSafeToRemove` uses `git merge-base --is-ancestor`.**
+  Replaces the unmerged-commits heuristic that produced 5 false-positive
+  manual reap recipes during Epic #1072. Includes a merge-commit fallback
+  for force-pushed Story branches.
+- **Story-close blocks on non-attributable baseline drift.** Auto-refresh
+  is allowed only for files the Story's diff actually touched. Drift on
+  un-touched files surfaces as a friction comment naming the suspect
+  sibling Story and blocks the close until operator triage. No more
+  baseline-refresh fix-up commits attributed to the wrong Story.
+
+### Removed
+
+- **Legacy `dispatch-manifest-<id>.{md,json}` orphans** in `temp/epic-<id>/`
+  are now swept on every manifest render, closing the Epic #1030 Story
+  #1040 per-Epic-layout migration. Idempotent — safe to run twice.
+
 ## [5.37.1] — 2026-05-07
 
 Epic #1072 — scripts cleanup: dead surfaces, dependency direction, and

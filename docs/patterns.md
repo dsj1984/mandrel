@@ -134,6 +134,20 @@ Each story runs in its own `git worktree` rooted at
 (`ensure` / `reap` / `list` / `isSafeToRemove` / `gc`). The dispatcher threads
 the worktree path as `cwd`; `story-close` reaps after merge.
 
+Two reliability properties of the worktree primitive — both established in
+Epic #1114 after #1072 surfaced the failure modes:
+
+1. **Close-validation gates run inside the worktree.** Lint / format /
+   maintainability / CRAP / typecheck / `npm audit` all spawn with
+   `cwd=.worktrees/story-<id>/` and read shared baselines at the Epic
+   ref via `lib/baseline-loader.js`. Cross-Story drift on the main
+   checkout cannot block an unrelated Story's close.
+2. **Auto-reap uses real reachability.** `WorktreeManager.isSafeToRemove`
+   uses `git merge-base --is-ancestor HEAD epic/<id>` (with a
+   merge-commit fallback for force-pushed branches). The post-rebase
+   false-positive that produced five manual reap recipes during Epic
+   #1072 is locked down by a regression test.
+
 A resolved-at-runtime override lets the same code path handle the *web
 Claude Code* case where each session is already a sandboxed clone:
 `resolveWorktreeEnabled(opts, env)` in `lib/config-resolver.js` checks env
