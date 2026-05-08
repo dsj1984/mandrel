@@ -5,7 +5,7 @@
  * the exclude list. Documented from docs/quality-gates.md so operators
  * tracing a failed gate land here.
  *
- * Threshold gates: 87 % lines / 80 % branches / 84 % functions across
+ * Threshold gates: 88 % lines / 82 % branches / 86 % functions across
  * everything in `.agents/scripts/**` minus the explicit `exclude` list
  * below. Anything that lowers the gate is a mainline policy change,
  * not a tactical exclusion — reach for an exclude only when the file
@@ -15,6 +15,22 @@
  * land — each ratchet picks up the new floor that the suite produced
  * without changing scope. Bumping requires `npm run test:coverage`
  * staying green at the new numbers.
+ *
+ * Remaining headroom to 90/90/90 (as of this ratchet):
+ *   - Lines (88 → 90): largest residual drag is `lib/orchestration/
+ *     story-close/{merge-runner, pre-merge-validation, post-merge-close}`
+ *     and the top-level shells under `.agents/scripts/` that haven't
+ *     been excluded. Story-close logic is integration-shaped; further
+ *     lift requires fixture-based runner tests.
+ *   - Branches (82 → 90): every `lib/orchestration/*` directory still
+ *     has an uncovered handful of error / fallback paths. Adding tests
+ *     for `lib/orchestration/dispatch-pipeline.js`,
+ *     `lib/orchestration/context-hydration-engine.js`, the
+ *     `progress-signals/*` persistence catches, and `iterate-waves.js`
+ *     would close most of the gap.
+ *   - Functions (86 → 90): top-level scripts (`run-audit-suite.js` at
+ *     0% functions, several `epic-execute-*` shells with untested
+ *     `main`/`parseArgv` exports) account for most of the gap.
  *
  * The three entries below are excluded because they are thin CLI shells
  * over already-covered library code, and the meaningful logic lives in
@@ -85,7 +101,7 @@ module.exports = {
     '.agents/scripts/retrofit-task-bodies.js',
     '.agents/scripts/ticket-decomposer.js',
   ],
-  lines: 87,
-  branches: 80,
-  functions: 84,
+  lines: 88,
+  branches: 82,
+  functions: 86,
 };
