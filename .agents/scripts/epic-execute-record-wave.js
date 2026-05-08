@@ -57,8 +57,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { parseArgs } from 'node:util';
 
+import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
@@ -599,58 +599,90 @@ export function resolveRecordInput(parsed) {
  *
  * @param {string[]} argv
  */
-export function parseCliArgs(argv) {
-  const { values } = parseArgs({
-    args: argv,
-    options: {
-      epic: { type: 'string' },
-      wave: { type: 'string' },
-      'concurrency-cap': { type: 'string' },
-      results: { type: 'string' },
-      returns: { type: 'string' },
+export function parseArgv(argv) {
+  const { values } = defineFlags(
+    {
+      epic: { type: 'integer', alias: 'epicId' },
+      wave: { type: 'integer' },
+      'concurrency-cap': { type: 'integer' },
+      results: { type: 'string', alias: 'resultsRaw' },
+      returns: { type: 'string', alias: 'returnsRaw' },
       help: { type: 'boolean', short: 'h' },
     },
-    strict: false,
+    argv,
+  );
+  return values;
+}
+
+/**
+ * Orchestration body of `main` extracted as a sibling exported function so
+ * the validate / dispatch / envelope-shape ladder is unit-testable without
+ * spawning a process. `main` becomes a thin shell: parse → call this →
+ * render → exit. CLI surface unchanged (same flags, same exit codes, same
+ * stdout JSON schema).
+ *
+ * @param {ReturnType<typeof parseArgv>} values
+ * @param {{
+ *   runRecordWave?: typeof runEpicExecuteRecordWave,
+ *   resolveRecordInput?: typeof resolveRecordInput,
+ *   help?: string,
+ * }} [deps]
+ * @returns {Promise<{ exitCode: number, result: object }>}
+ *   `result.kind` is one of: `'help'`, `'validation-error'`, `'envelope'`.
+ */
+export async function runRecordWaveCli(values, deps = {}) {
+  const helpText = deps.help ?? HELP;
+  if (values.help) {
+    return { exitCode: 0, result: { kind: 'help', text: helpText } };
+  }
+  if (!Number.isInteger(values.epicId) || values.epicId <= 0) {
+    return {
+      exitCode: 2,
+      result: {
+        kind: 'validation-error',
+        message:
+          '[epic-execute-record-wave] ERROR: --epic <epicId> is required.',
+        help: helpText,
+      },
+    };
+  }
+  if (!Number.isInteger(values.wave) || values.wave < 0) {
+    return {
+      exitCode: 2,
+      result: {
+        kind: 'validation-error',
+        message:
+          '[epic-execute-record-wave] ERROR: --wave <index> is required (>= 0).',
+        help: helpText,
+      },
+    };
+  }
+  const resolveInput = deps.resolveRecordInput ?? resolveRecordInput;
+  const runner = deps.runRecordWave ?? runEpicExecuteRecordWave;
+  const envelope = await runner({
+    epicId: values.epicId,
+    wave: values.wave,
+    concurrencyCap: values.concurrencyCap,
+    ...resolveInput(values),
   });
-  return {
-    help: Boolean(values.help),
-    epicId: Number.parseInt(values.epic ?? '', 10),
-    wave: Number.parseInt(values.wave ?? '', 10),
-    concurrencyCap: values['concurrency-cap']
-      ? Number.parseInt(values['concurrency-cap'], 10)
-      : undefined,
-    resultsRaw: values.results,
-    returnsRaw: values.returns,
-  };
+  return { exitCode: 0, result: { kind: 'envelope', envelope } };
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const parsed = parseCliArgs(argv);
-  if (parsed.help) {
-    process.stdout.write(HELP);
+  const values = parseArgv(argv);
+  const { exitCode, result } = await runRecordWaveCli(values);
+
+  if (result.kind === 'help') {
+    process.stdout.write(result.text);
     return;
   }
-  if (!Number.isInteger(parsed.epicId) || parsed.epicId <= 0) {
-    console.error(
-      '[epic-execute-record-wave] ERROR: --epic <epicId> is required.',
-    );
-    console.error(HELP);
-    process.exit(2);
+  if (result.kind === 'validation-error') {
+    console.error(result.message);
+    console.error(result.help);
+    process.exit(exitCode);
   }
-  if (!Number.isInteger(parsed.wave) || parsed.wave < 0) {
-    console.error(
-      '[epic-execute-record-wave] ERROR: --wave <index> is required (>= 0).',
-    );
-    console.error(HELP);
-    process.exit(2);
-  }
-  const out = await runEpicExecuteRecordWave({
-    epicId: parsed.epicId,
-    wave: parsed.wave,
-    concurrencyCap: parsed.concurrencyCap,
-    ...resolveRecordInput(parsed),
-  });
-  process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify(result.envelope, null, 2)}\n`);
+  if (exitCode !== 0) process.exit(exitCode);
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-execute-record-wave' });

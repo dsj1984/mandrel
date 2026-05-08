@@ -105,7 +105,7 @@ export function runLintCommand(
 ) {
   const parsedArgs = parseArgsStringToArgv(cmdConfig);
   if (parsedArgs.length === 0) {
-    console.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
+    Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
     return { errorCount: 0, warningCount: 0 };
   }
   const cmd = parsedArgs.shift();
@@ -147,7 +147,7 @@ function runLintCommandDetailed(
 ) {
   const parsedArgs = parseArgsStringToArgv(cmdConfig);
   if (parsedArgs.length === 0) {
-    console.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
+    Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
     return { errorCount: 0, warningCount: 0, byFile: {} };
   }
   const cmd = parsedArgs.shift();
@@ -180,7 +180,7 @@ export function captureBaseline(
   baselinePathRel,
   gateModeOpts,
 ) {
-  console.log(`▶ [lint-baseline] Capturing lint baseline...`);
+  Logger.info(`▶ [lint-baseline] Capturing lint baseline...`);
   const detailed = runLintCommandDetailed(
     cmdConfig,
     executionTimeoutMs,
@@ -191,10 +191,10 @@ export function captureBaseline(
   const dir = path.dirname(baselinePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(baselinePath, JSON.stringify(detailed, null, 2), 'utf8');
-  console.log(
+  Logger.info(
     `✅ Baseline captured: ${detailed.errorCount} errors, ${detailed.warningCount} warnings.`,
   );
-  console.log(`   Saved to: ${baselinePathRel}`);
+  Logger.info(`   Saved to: ${baselinePathRel}`);
   return detailed;
 }
 
@@ -280,7 +280,7 @@ export function formatDiffTable(rows, { baselineHasByFile } = {}) {
   return lines.join('\n');
 }
 
-function diffBaseline(
+export function diffBaseline(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,
@@ -288,7 +288,7 @@ function diffBaseline(
   baselinePathRel,
   gateModeOpts,
 ) {
-  console.log(`▶ [lint-baseline] Computing per-file regressions...`);
+  Logger.info(`▶ [lint-baseline] Computing per-file regressions...`);
   const current = runLintCommandDetailed(
     cmdConfig,
     executionTimeoutMs,
@@ -306,25 +306,25 @@ function diffBaseline(
       typeof baseline.byFile === 'object' &&
       baseline.byFile !== null;
   } else {
-    console.warn(
+    Logger.warn(
       `⚠️ No baseline found at ${baselinePathRel}. Treating baseline as empty.`,
     );
   }
 
-  console.log(
+  Logger.info(
     `   Baseline: ${baseline.errorCount ?? 0} errors, ${baseline.warningCount ?? 0} warnings`,
   );
-  console.log(
+  Logger.info(
     `   Current:  ${current.errorCount} errors, ${current.warningCount} warnings`,
   );
-  console.log('');
+  Logger.info('');
 
   const rows = diffPerFile(baseline, current);
-  console.log(formatDiffTable(rows, { baselineHasByFile }));
+  Logger.info(formatDiffTable(rows, { baselineHasByFile }));
   return { ...current, regressions: rows };
 }
 
-function checkBaseline(
+export function checkBaseline(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,
@@ -332,7 +332,7 @@ function checkBaseline(
   baselinePathRel,
   gateModeOpts,
 ) {
-  console.log(`▶ [lint-baseline] Checking lint against baseline...`);
+  Logger.info(`▶ [lint-baseline] Checking lint against baseline...`);
   const current = runLintCommand(
     cmdConfig,
     executionTimeoutMs,
@@ -345,15 +345,15 @@ function checkBaseline(
   if (fs.existsSync(baselinePath)) {
     baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
   } else {
-    console.warn(
+    Logger.warn(
       `⚠️ No baseline found at ${baselinePathRel}. Assuming 0 baseline.`,
     );
   }
 
-  console.log(
+  Logger.info(
     `   Baseline: ${baseline.errorCount} errors, ${baseline.warningCount} warnings`,
   );
-  console.log(
+  Logger.info(
     `   Current:  ${current.errorCount} errors, ${current.warningCount} warnings`,
   );
 
@@ -372,54 +372,96 @@ function checkBaseline(
     current.warningCount < baseline.warningCount
   ) {
     fs.writeFileSync(baselinePath, JSON.stringify(current, null, 2), 'utf8');
-    console.log(
+    Logger.info(
       `🎉 Lint health improved! Ratcheted baseline down to current levels.`,
     );
   }
 
-  console.log(`✅ Lint check passed.`);
+  Logger.info(`✅ Lint check passed.`);
   return current;
 }
 
-export async function main(args = process.argv) {
-  const mode = args[2];
+/**
+ * Orchestration body of `main` extracted as a sibling exported function so
+ * the validate / dispatch / classify-degraded ladder is unit-testable
+ * without spawning a process. `main` becomes a thin shell: parse → call
+ * this → render → exit. CLI surface unchanged (same modes, same exit
+ * codes, same stdout JSON schema for degraded envelopes).
+ *
+ * Note: `checkBaseline` itself still calls `Logger.fatal` on real lint
+ * degradation (preserved CLI behaviour). Tests for the validation-error
+ * branch use the explicit `'invalid'` mode which never reaches the runner.
+ *
+ * @param {{ mode: string, gateModeArgv?: string[] }} values
+ * @param {{
+ *   resolveConfig?: typeof resolveConfig,
+ *   runners?: { capture?: Function, check?: Function, diff?: Function },
+ *   env?: Record<string, string|undefined>,
+ *   projectRoot?: string,
+ * }} [deps]
+ * @returns {Promise<{ exitCode: number, result: object }>}
+ *   `result.kind` is one of: `'validation-error'`, `'envelope'`. Envelopes
+ *   carry the raw runner output; `exitCode === 1` iff `isDegraded(envelope)`.
+ */
+export async function runLintBaselineCli(values, deps = {}) {
+  const { mode, gateModeArgv = [] } = values;
   if (mode !== 'capture' && mode !== 'check' && mode !== 'diff') {
-    Logger.fatal(
-      'Usage: node lint-baseline.js <capture|check|diff> [--gate-mode]',
-    );
+    return {
+      exitCode: 1,
+      result: {
+        kind: 'validation-error',
+        message:
+          'Usage: node lint-baseline.js <capture|check|diff> [--gate-mode]',
+      },
+    };
   }
 
-  const { settings } = resolveConfig();
-  const cmdConfig = getCommands({ agentSettings: settings }).lintBaseline;
-  const baselinePathRel = getBaselines({ agentSettings: settings }).lint.path;
-  const baselinePath = path.resolve(PROJECT_ROOT, baselinePathRel);
-  const limits = getLimits({ agentSettings: settings });
-  const executionTimeoutMs = limits.executionTimeoutMs;
-  const executionMaxBuffer = limits.executionMaxBuffer;
+  const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
+  const cmdConfig = getCommands({ agentSettings: cfg.settings }).lintBaseline;
+  const baselinePathRel = getBaselines({ agentSettings: cfg.settings }).lint
+    .path;
+  const projectRoot = deps.projectRoot ?? PROJECT_ROOT;
+  const baselinePath = path.resolve(projectRoot, baselinePathRel);
+  const limits = getLimits({ agentSettings: cfg.settings });
+  const env = deps.env ?? process.env;
 
-  const gateModeOpts = {
-    argv: args.slice(3),
-    env: process.env,
+  const gateModeOpts = { argv: gateModeArgv, env };
+
+  const runners = deps.runners ?? {
+    capture: captureBaseline,
+    check: checkBaseline,
+    diff: diffBaseline,
   };
-
-  let runner;
-  if (mode === 'capture') runner = captureBaseline;
-  else if (mode === 'diff') runner = diffBaseline;
-  else runner = checkBaseline;
-  const result = runner(
+  const runner = runners[mode];
+  const envelope = runner(
     cmdConfig,
-    executionTimeoutMs,
-    executionMaxBuffer,
+    limits.executionTimeoutMs,
+    limits.executionMaxBuffer,
     baselinePath,
     baselinePathRel,
     gateModeOpts,
   );
 
-  if (isDegraded(result)) {
-    process.stdout.write(`${JSON.stringify(result)}\n`);
-    process.exit(1);
+  return {
+    exitCode: isDegraded(envelope) ? 1 : 0,
+    result: { kind: 'envelope', envelope },
+  };
+}
+
+export async function main(args = process.argv) {
+  const values = { mode: args[2], gateModeArgv: args.slice(3) };
+  const { exitCode, result } = await runLintBaselineCli(values);
+
+  if (result.kind === 'validation-error') {
+    Logger.fatal(result.message);
+    return; // unreachable — Logger.fatal exits.
   }
-  process.exit(0);
+  // kind === 'envelope': only print on degraded soft-fail (preserves
+  // pre-refactor stdout contract — happy paths stay quiet on stdout).
+  if (exitCode === 1 && isDegraded(result.envelope)) {
+    process.stdout.write(`${JSON.stringify(result.envelope)}\n`);
+  }
+  process.exit(exitCode);
 }
 
 runAsCli(import.meta.url, main, { source: 'LintBaseline' });
