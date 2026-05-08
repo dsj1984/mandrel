@@ -3460,6 +3460,78 @@
       "startLine": 382
     },
     {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "computeStoryDiffPaths",
+      "startLine": 68
+    },
+    {
+      "crap": 11.768429609307525,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "runRefreshCommit",
+      "startLine": 101
+    },
+    {
+      "crap": 7.088151244743648,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "handleBaselineGateFailure",
+      "startLine": 187
+    },
+    {
+      "crap": 10.774538386783284,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "projectRegressionsForGate",
+      "startLine": 275
+    },
+    {
+      "crap": 6.135506172839506,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "runPreMergeGatesWithAttribution",
+      "startLine": 320
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
+      "method": "normalize",
+      "startLine": 50
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
+      "method": "lookupSuspect",
+      "startLine": 65
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
+      "method": "classifyBaselineDrift",
+      "startLine": 118
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
+      "method": "<anon method-1>",
+      "startLine": 136
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
+      "method": "formatSuspectStory",
+      "startLine": 38
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
+      "method": "formatSuspectSha",
+      "startLine": 50
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js",
+      "method": "renderBaselineFrictionBody",
+      "startLine": 72
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/cd-out-guard.js",
       "method": "checkCdOutGuard",
@@ -3658,7 +3730,31 @@
       "startLine": 53
     },
     {
-      "crap": 30.030927835051545,
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "collectPathsFromText",
+      "startLine": 19
+    },
+    {
+      "crap": 7.338624338624339,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "collectTaskPathReferences",
+      "startLine": 34
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "defaultGitRunner",
+      "startLine": 64
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
+      "method": "validateAcFreshness",
+      "startLine": 91
+    },
+    {
+      "crap": 30.026217569412836,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAndNormalizeTickets",
       "startLine": 138
@@ -3850,22 +3946,40 @@
       "startLine": 28
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
+      "method": "legacyOrphanPath",
+      "startLine": 36
+    },
+    {
+      "crap": 2.0438957475994513,
+      "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
+      "method": "sweepOne",
+      "startLine": 48
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
+      "method": "deleteLegacyFlatManifest",
+      "startLine": 66
+    },
+    {
       "crap": 1.0029154518950438,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "atomicWrite",
-      "startLine": 40
+      "startLine": 94
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "persistManifest",
-      "startLine": 67
+      "startLine": 121
     },
     {
       "crap": 1.0233236151603498,
       "file": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "method": "safeResolveConfig",
-      "startLine": 155
+      "startLine": 216
     },
     {
       "crap": 1,
@@ -4852,13 +4966,13 @@
       "startLine": 11
     },
     {
-      "crap": 4.31,
+      "crap": 2,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "getTicketComments",
       "startLine": 18
     },
     {
-      "crap": 1.58,
+      "crap": 1,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "deleteComment",
       "startLine": 25
@@ -5191,31 +5305,37 @@
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-1>",
-      "startLine": 50
+      "startLine": 48
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/story-close.js",
+      "method": "emitBaselineBlockedResult",
+      "startLine": 56
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryClose",
-      "startLine": 53
+      "startLine": 76
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-2>",
-      "startLine": 88
+      "startLine": 111
     },
     {
-      "crap": 9.777134539033447,
+      "crap": 11.586154741891836,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryCloseLocked",
-      "startLine": 125
+      "startLine": 148
     },
     {
       "crap": 3,
       "file": ".agents/scripts/story-close.js",
       "method": "<anon method-4>",
-      "startLine": 270
+      "startLine": 296
     },
     {
       "crap": 4,
