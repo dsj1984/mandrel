@@ -529,61 +529,115 @@
       "crap": 30,
       "file": ".agents/scripts/epic-close.js",
       "method": "main",
-      "startLine": 59
+      "startLine": 60
     },
     {
       "crap": 20,
       "file": ".agents/scripts/epic-close.js",
       "method": "logSkipOverrides",
-      "startLine": 132
+      "startLine": 133
     },
     {
       "crap": 2.125965884239685,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeAuxiliaryTickets",
-      "startLine": 155
+      "startLine": 156
     },
     {
       "crap": 6.318359375,
       "file": ".agents/scripts/epic-close.js",
       "method": "<anon method-2>",
-      "startLine": 198
+      "startLine": 199
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeEpicClosure",
-      "startLine": 237
+      "startLine": 238
     },
     {
-      "crap": 272,
+      "crap": 5,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "matchesEpicBranch",
+      "startLine": 278
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "makeWorktreeLogger",
+      "startLine": 295
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "applyDrainResult",
+      "startLine": 303
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "applyGcResult",
+      "startLine": 323
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "drainAndReapWorktrees",
+      "startLine": 339
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "pruneWorktreeRegistrations",
+      "startLine": 366
+    },
+    {
+      "crap": 5.6573376755546505,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseReapWorktrees",
+      "startLine": 392
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseEnumerateEpicBranches",
+      "startLine": 445
+    },
+    {
+      "crap": 28.55805836367611,
+      "file": ".agents/scripts/epic-close.js",
+      "method": "phaseDeleteEpicBranches",
+      "startLine": 505
+    },
+    {
+      "crap": 2,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeBranchCleanup",
-      "startLine": 269
+      "startLine": 566
     },
     {
       "crap": 12,
       "file": ".agents/scripts/epic-close.js",
       "method": "emitDiscardFrictionComments",
-      "startLine": 505
+      "startLine": 597
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseNotifyBanner",
-      "startLine": 527
+      "startLine": 619
     },
     {
-      "crap": 20,
+      "crap": 4,
       "file": ".agents/scripts/epic-close.js",
       "method": "collectEpicDescendantIds",
-      "startLine": 551
+      "startLine": 643
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-close.js",
       "method": "phasePostEpicPerfReport",
-      "startLine": 594
+      "startLine": 686
     },
     {
       "crap": 3,
@@ -1987,19 +2041,25 @@
       "crap": 6,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchLocal",
-      "startLine": 40
+      "startLine": 37
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchRemote",
-      "startLine": 71
+      "startLine": 68
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
-      "method": "deleteBranchBoth",
-      "startLine": 112
+      "method": "deleteBranchEverywhere",
+      "startLine": 109
+    },
+    {
+      "crap": 12.208924145435494,
+      "file": ".agents/scripts/lib/git-branch-cleanup.js",
+      "method": "deleteBranchesBatched",
+      "startLine": 151
     },
     {
       "crap": 3,

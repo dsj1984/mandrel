@@ -16,7 +16,7 @@
   ".agents/scripts/diagnose-friction.js": 79.448,
   ".agents/scripts/dispatcher.js": 97.813,
   ".agents/scripts/drain-pending-cleanup.js": 106.095,
-  ".agents/scripts/epic-close.js": 93.475,
+  ".agents/scripts/epic-close.js": 94.878,
   ".agents/scripts/epic-code-review.js": 84.288,
   ".agents/scripts/epic-execute-prepare.js": 93.605,
   ".agents/scripts/epic-execute-record-wave.js": 85.326,
@@ -79,7 +79,7 @@
   ".agents/scripts/lib/epic-merge-lock.js": 97.937,
   ".agents/scripts/lib/errors/index.js": 133.238,
   ".agents/scripts/lib/fs-utils.js": 150.398,
-  ".agents/scripts/lib/git-branch-cleanup.js": 87.581,
+  ".agents/scripts/lib/git-branch-cleanup.js": 80.202,
   ".agents/scripts/lib/git-branch-lifecycle.js": 99.537,
   ".agents/scripts/lib/git-merge-orchestrator.js": 96.52,
   ".agents/scripts/lib/git-utils.js": 102.56,
@@ -482,5 +482,6 @@
   "tests/wave-runner-probe.test.js": 0,
   "tests/workflows/epic-close.aux-concurrency.test.js": 104.611,
   "tests/workflows/epic-close.phase-6.test.js": 113.261,
+  "tests/workflows/epic-close.phase-7.test.js": 99.13,
   "tests/workflows/epic-close.smoke.test.js": 121.097
 }
