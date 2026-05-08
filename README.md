@@ -67,7 +67,7 @@ confuse:
 
 | File                            | Audience                          | Role                                                                                                                              |
 | ------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)     | The framework dogfooding itself   | Live config used when running `/epic-*`, `/wave-execute`, `/story-execute` against this repo. Exercises the framework end-to-end. |
+| `.agentrc.json` (repo root)     | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-execute` against this repo. Exercises the framework end-to-end. |
 | `.agents/default-agentrc.json`  | Downstream consumer repos         | Template a consumer copies via `cp .agents/default-agentrc.json .agentrc.json` when bootstrapping. Sane defaults for any repo.    |
 
 The two files share a schema; where they legitimately diverge (target

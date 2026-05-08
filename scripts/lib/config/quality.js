@@ -5,9 +5,9 @@
  * grouped field without re-running merge logic at the call site.
  */
 
+import { Logger } from '../Logger.js';
 import { resolveBaselines } from './baselines.js';
 import { resolveListValue } from './shared.js';
-
 /** Framework defaults for `agentSettings.quality.crap` (lifted out of the
  * legacy `agentSettings.maintainability.crap` nest in Epic #730 Story 6).
  * Applied via {@link resolveQuality} so a consumer repo that omits the block
@@ -38,7 +38,7 @@ const MAINTAINABILITY_CRAP_KEYS = new Set(
 /**
  * Merge a user-supplied `quality.crap` block with framework defaults.
  * Scalar keys replace; `targetDirs` supports the list-extender shape; unknown
- * keys emit a `console.warn` but do not fail resolution (AC19).
+ * keys emit a `Logger.warn` but do not fail resolution (AC19).
  *
  * @param {object|undefined} userCrap
  * @returns {object}
@@ -60,7 +60,7 @@ export function resolveMaintainabilityCrap(userCrap) {
 
   for (const key of Object.keys(userCrap)) {
     if (!MAINTAINABILITY_CRAP_KEYS.has(key)) {
-      console.warn(`[config] Unknown key 'quality.crap.${key}' — ignoring.`);
+      Logger.warn(`[config] Unknown key 'quality.crap.${key}' — ignoring.`);
     }
   }
 

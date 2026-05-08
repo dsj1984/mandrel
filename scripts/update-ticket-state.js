@@ -60,30 +60,30 @@ if (
       // Label-only mutation path — no state transition. Callers that just
       // need to drop a single label without flipping the agent::* state.
       if (removeLabel && !state) {
-        console.log(
+        Logger.info(
           `[State-Sync] Removing label \`${removeLabel}\` from ticket #${ticketId}...`,
         );
         await provider.updateTicket(ticketId, {
           labels: { remove: [removeLabel] },
         });
-        console.log('[State-Sync] ✅ Success');
+        Logger.info('[State-Sync] ✅ Success');
         return;
       }
 
-      console.log(
+      Logger.info(
         `[State-Sync] Transitioning ticket #${ticketId} to ${state}...`,
       );
       await transitionTicketState(provider, ticketId, state);
 
       if (state === STATE_LABELS.DONE) {
-        console.log(`[State-Sync] Cascading completion from #${ticketId}...`);
+        Logger.info(`[State-Sync] Cascading completion from #${ticketId}...`);
         const cascade = await cascadeCompletion(provider, ticketId);
         // Hoisted out of the `for...of` initializer because typhonjs-escomplex
         // mis-parses optional chaining there (it would zero out this file's
         // maintainability score).
         const cascadeFailures = cascade?.failed ?? [];
         for (const { parentId, error } of cascadeFailures) {
-          console.warn(
+          Logger.warn(
             `[State-Sync] ⚠️  Cascade partial-failure on parent #${parentId}: ${error}`,
           );
         }
@@ -97,7 +97,7 @@ if (
         });
       }
 
-      console.log('[State-Sync] ✅ Success');
+      Logger.info('[State-Sync] ✅ Success');
     } catch (err) {
       Logger.fatal(err.message);
     }

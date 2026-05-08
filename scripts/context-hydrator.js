@@ -35,7 +35,7 @@ async function main() {
   const { orchestration } = resolveConfig();
   const provider = createProvider(orchestration);
 
-  console.error(
+  Logger.error(
     `[Hydrator] Hydrating context for Ticket #${ticketId} (Epic #${epicId})...`,
   );
 

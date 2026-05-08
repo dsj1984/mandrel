@@ -127,7 +127,7 @@ export async function planEpic(
     );
   }
 
-  console.log(`[Epic Planner] Fetching Epic #${epicId}...`);
+  Logger.info(`[Epic Planner] Fetching Epic #${epicId}...`);
   const epic = await provider.getEpic(epicId);
 
   if (!epic) {
@@ -139,7 +139,7 @@ export async function planEpic(
 
   // M-8: Resumable planning — if PRD exists but Tech Spec doesn't, resume from PRD.
   if (!force && epic.linkedIssues?.prd && epic.linkedIssues?.techSpec) {
-    console.warn(
+    Logger.warn(
       `[Epic Planner] Epic #${epicId} already has both PRD and Tech Spec. Aborting to prevent duplicates. Use --force to re-plan.`,
     );
     return;
@@ -148,25 +148,25 @@ export async function planEpic(
 
   let prdId;
   if (existingPrdId) {
-    console.log(
+    Logger.info(
       `[Epic Planner] Reusing existing PRD #${existingPrdId}. Skipping PRD creation.`,
     );
     prdId = existingPrdId;
   } else {
-    console.log(`[Epic Planner] Creating PRD issue for "${epic.title}"...`);
+    Logger.info(`[Epic Planner] Creating PRD issue for "${epic.title}"...`);
     const prdTicket = await provider.createTicket(epicId, {
       title: `[PRD] ${epic.title}`,
       body: prdContent,
       labels: ['context::prd'],
       dependencies: [],
     });
-    console.log(
+    Logger.info(
       `[Epic Planner] Created PRD Issue #${prdTicket.id} (${prdTicket.url})`,
     );
     prdId = prdTicket.id;
   }
 
-  console.log(
+  Logger.info(
     `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
   );
   const techSpecTicket = await provider.createTicket(epicId, {
@@ -175,11 +175,11 @@ export async function planEpic(
     labels: ['context::tech-spec'],
     dependencies: [prdId],
   });
-  console.log(
+  Logger.info(
     `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
   );
 
-  console.log(
+  Logger.info(
     `[Epic Planner] Updating Epic #${epicId} with linked documents...`,
   );
 
@@ -191,13 +191,13 @@ export async function planEpic(
     body: newBody,
   });
 
-  console.log(`[Epic Planner] Epic #${epicId} updated successfully.`);
-  console.log(`[Epic Planner] Planning pipeline complete!`);
+  Logger.info(`[Epic Planner] Epic #${epicId} updated successfully.`);
+  Logger.info(`[Epic Planner] Planning pipeline complete!`);
 }
 
-/* node:coverage ignore next */
-async function main() {
+export function parseEpicPlannerArgs(argv = process.argv.slice(2)) {
   const { values } = parseArgs({
+    args: argv,
     options: {
       epic: { type: 'string' },
       force: { type: 'boolean', default: false },
@@ -207,47 +207,115 @@ async function main() {
       prd: { type: 'string' },
       techspec: { type: 'string' },
     },
+    strict: false,
   });
+  return values;
+}
 
+/**
+ * Orchestration body of `main` extracted as a sibling exported function so
+ * the validate / dispatch / mode-routing ladder is unit-testable without
+ * spawning a process. `main` becomes a thin shell: parse → call this →
+ * render → exit. CLI surface unchanged (same flags, same exit codes, same
+ * stdout JSON schema for `--emit-context`).
+ *
+ * @param {ReturnType<typeof parseEpicPlannerArgs>} values
+ * @param {{
+ *   resolveConfig?: typeof resolveConfig,
+ *   createProvider?: (orchestration: object) => object,
+ *   buildAuthoringContext?: typeof buildAuthoringContext,
+ *   planEpic?: typeof planEpic,
+ *   readFile?: typeof readFile,
+ * }} [deps]
+ * @returns {Promise<{ exitCode: number, result: object }>}
+ *   `result.kind` is one of: `'validation-error'`, `'emit-context'`, `'plan'`.
+ */
+export async function runEpicPlannerCli(values, deps = {}) {
   if (!values.epic) {
-    Logger.fatal(
-      'Usage: epic-planner.js --epic <ID> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
-    );
+    return {
+      exitCode: 1,
+      result: {
+        kind: 'validation-error',
+        message:
+          'Usage: epic-planner.js --epic <ID> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
+      },
+    };
   }
 
   const epicId = Number.parseInt(values.epic, 10);
   if (Number.isNaN(epicId)) {
-    Logger.fatal(`Invalid epic ID: "${values.epic}" — must be a number.`);
+    return {
+      exitCode: 1,
+      result: {
+        kind: 'validation-error',
+        message: `Invalid epic ID: "${values.epic}" — must be a number.`,
+      },
+    };
   }
 
-  const { orchestration, settings } = resolveConfig();
-  const provider = createProvider(orchestration);
+  const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
+  const provider = deps.createProvider
+    ? deps.createProvider(cfg.orchestration)
+    : createProvider(cfg.orchestration);
+  const buildCtx = deps.buildAuthoringContext ?? buildAuthoringContext;
+  const plan = deps.planEpic ?? planEpic;
+  const read = deps.readFile ?? readFile;
 
   if (values['emit-context']) {
-    const ctx = await buildAuthoringContext(epicId, provider, settings, {
-      fullContext: values['full-context'],
+    const context = await buildCtx(epicId, provider, cfg.settings, {
+      fullContext: Boolean(values['full-context']),
     });
-    const json = values.pretty
-      ? JSON.stringify(ctx, null, 2)
-      : JSON.stringify(ctx);
-    process.stdout.write(`${json}\n`);
-    return;
+    return {
+      exitCode: 0,
+      result: {
+        kind: 'emit-context',
+        context,
+        pretty: Boolean(values.pretty),
+      },
+    };
   }
 
   if (!values.prd || !values.techspec) {
-    Logger.fatal(
-      'Missing --prd and/or --techspec file paths. (Use --emit-context first to gather authoring context.)',
-    );
+    return {
+      exitCode: 1,
+      result: {
+        kind: 'validation-error',
+        message:
+          'Missing --prd and/or --techspec file paths. (Use --emit-context first to gather authoring context.)',
+      },
+    };
   }
 
   const [prdContent, techSpecContent] = await Promise.all([
-    readFile(values.prd, 'utf8'),
-    readFile(values.techspec, 'utf8'),
+    read(values.prd, 'utf8'),
+    read(values.techspec, 'utf8'),
   ]);
 
-  await planEpic(epicId, provider, { prdContent, techSpecContent }, settings, {
-    force: values.force,
+  await plan(epicId, provider, { prdContent, techSpecContent }, cfg.settings, {
+    force: Boolean(values.force),
   });
+  return { exitCode: 0, result: { kind: 'plan', epicId } };
+}
+
+/* node:coverage ignore next */
+async function main() {
+  const values = parseEpicPlannerArgs();
+  const { exitCode, result } = await runEpicPlannerCli(values);
+
+  if (result.kind === 'validation-error') {
+    Logger.fatal(result.message);
+    return; // unreachable — Logger.fatal exits.
+  }
+  if (result.kind === 'emit-context') {
+    const json = result.pretty
+      ? JSON.stringify(result.context, null, 2)
+      : JSON.stringify(result.context);
+    process.stdout.write(`${json}\n`);
+    return;
+  }
+  // kind === 'plan': planEpic emitted its own progress lines; nothing more
+  // to write. Non-zero exit codes still propagate.
+  if (exitCode !== 0) process.exit(exitCode);
 }
 
 runAsCli(import.meta.url, main, { source: 'EpicPlanner' });

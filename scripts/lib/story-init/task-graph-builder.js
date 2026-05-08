@@ -9,6 +9,7 @@
 
 import { parseBlockedBy } from '../dependency-parser.js';
 import { buildGraph, detectCycle, topologicalSort } from '../Graph.js';
+import { Logger } from '../Logger.js';
 import { fetchChildTasks } from '../story-lifecycle.js';
 
 function sortTasksByDependencies(tasks) {
@@ -43,7 +44,7 @@ function sortTasksByDependencies(tasks) {
  */
 export async function buildTaskGraph({ provider, logger, input }) {
   const { storyId } = input;
-  const warn = logger?.warn ?? ((msg) => console.error(msg));
+  const warn = logger?.warn ?? ((msg) => Logger.error(msg));
   const progress = logger?.progress ?? (() => {});
 
   const tasks = await fetchChildTasks(provider, storyId);

@@ -1,3 +1,4 @@
+import { Logger } from '../../lib/Logger.js';
 /**
  * GitHub Branches & Pull Requests.
  *
@@ -46,7 +47,7 @@ export async function createPullRequest(
       await ctx.hooks.addItemToProject(pr.node_id);
     }
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[GitHubProvider] Failed to add PR #${pr.number} to project: ${err.message}`,
     );
   }

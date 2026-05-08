@@ -204,7 +204,15 @@ export function loadEvidence(scopeId, opts = {}) {
  * @returns {object} The persisted record.
  */
 export function recordPass(
-  { storyId, gateName, sha, configHash, exitCode = 0, durationMs = null },
+  {
+    storyId,
+    gateName,
+    sha,
+    configHash,
+    exitCode = 0,
+    durationMs = null,
+    inputFingerprint = null,
+  },
   opts = {},
 ) {
   if (storyId == null || !gateName || !sha || !configHash) {
@@ -221,6 +229,10 @@ export function recordPass(
     commandConfigHash: configHash,
     exitCode,
     durationMs,
+    inputFingerprint:
+      typeof inputFingerprint === 'string' && inputFingerprint.length > 0
+        ? inputFingerprint
+        : null,
     timestamp: resolved.now().toISOString(),
   };
   doc.records = [...doc.records.filter((r) => r.gateName !== gateName), record];
@@ -253,7 +265,7 @@ export function recordPass(
  * @returns {{ skip: boolean, reason: string, record?: object }}
  */
 export function shouldSkip(
-  { storyId, gateName, currentSha, configHash },
+  { storyId, gateName, currentSha, configHash, inputFingerprint = null },
   opts = {},
 ) {
   if (storyId == null || !gateName || !currentSha || !configHash) {
@@ -262,13 +274,23 @@ export function shouldSkip(
   const doc = loadEvidence(storyId, opts);
   const match = doc.records.find((r) => r.gateName === gateName);
   if (!match) return { skip: false, reason: 'no-record' };
-  if (match.commitSha !== currentSha) {
-    return { skip: false, reason: 'sha-mismatch', record: match };
-  }
   if (match.commandConfigHash !== configHash) {
     return { skip: false, reason: 'config-hash-mismatch', record: match };
   }
-  return { skip: true, reason: 'evidence-match', record: match };
+  if (match.commitSha === currentSha) {
+    return { skip: true, reason: 'evidence-match', record: match };
+  }
+  // SHA moved but the gate's effective inputs may still be byte-identical.
+  if (
+    typeof inputFingerprint === 'string' &&
+    inputFingerprint.length > 0 &&
+    typeof match.inputFingerprint === 'string' &&
+    match.inputFingerprint.length > 0 &&
+    match.inputFingerprint === inputFingerprint
+  ) {
+    return { skip: true, reason: 'fingerprint-match', record: match };
+  }
+  return { skip: false, reason: 'sha-mismatch', record: match };
 }
 
 /**

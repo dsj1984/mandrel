@@ -16,8 +16,8 @@ import {
   resolveTsTranspilerVersion,
   scanAndScore,
 } from './lib/crap-utils.js';
+import { Logger } from './lib/Logger.js';
 import { appendSignal } from './lib/observability/signals-writer.js';
-
 /**
  * CLI: verify CRAP scores against the committed baseline.
  *
@@ -90,7 +90,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
       newMethodCeiling = parsed;
       overrides.push(`newMethodCeiling=${parsed} (CRAP_NEW_METHOD_CEILING)`);
     } else {
-      console.warn(
+      Logger.warn(
         `[CRAP] ⚠ ignoring malformed CRAP_NEW_METHOD_CEILING=${rawCeiling}; keeping config value ${newMethodCeiling}`,
       );
     }
@@ -103,7 +103,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
       tolerance = parsed;
       overrides.push(`tolerance=${parsed} (CRAP_TOLERANCE)`);
     } else {
-      console.warn(
+      Logger.warn(
         `[CRAP] ⚠ ignoring malformed CRAP_TOLERANCE=${rawTolerance}; keeping config value ${tolerance}`,
       );
     }
@@ -118,7 +118,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
   return { newMethodCeiling, tolerance, refreshTag, overrides };
 }
 
-export function parseCliArgs(argv = process.argv.slice(2)) {
+export function parseArgv(argv = process.argv.slice(2)) {
   const out = {
     storyId: null,
     epicId: null,
@@ -458,42 +458,42 @@ function writeJsonReport(jsonPath, envelope) {
 }
 
 function printSummary(result, scanSummary) {
-  console.log('\n--- CRAP Report ---');
-  console.log(`Total methods scanned: ${result.total}`);
-  console.log(`Regressions:           ${result.regressions}`);
-  console.log(`New-method violations: ${result.newViolations}`);
-  console.log(`Drifted (matched):     ${result.drifted}`);
-  console.log(`Removed from baseline: ${result.removed}`);
+  Logger.info('\n--- CRAP Report ---');
+  Logger.info(`Total methods scanned: ${result.total}`);
+  Logger.info(`Regressions:           ${result.regressions}`);
+  Logger.info(`New-method violations: ${result.newViolations}`);
+  Logger.info(`Drifted (matched):     ${result.drifted}`);
+  Logger.info(`Removed from baseline: ${result.removed}`);
   if (scanSummary?.skippedFilesNoCoverage) {
-    console.log(
+    Logger.info(
       `Files without coverage:${' '.repeat(1)}${scanSummary.skippedFilesNoCoverage}`,
     );
   }
-  console.log('-------------------\n');
+  Logger.info('-------------------\n');
 
   for (const v of result.violations) {
     if (v.kind === 'new') {
-      console.error(
+      Logger.error(
         `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
       );
-      console.error(
+      Logger.error(
         `       crap=${v.crap.toFixed(2)} > ceiling=${v.ceiling} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
       );
     } else {
-      console.error(
+      Logger.error(
         `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${v.kind === 'drifted-regression' ? `, baseline line ${v.baselineStartLine}` : ''})`,
       );
-      console.error(
+      Logger.error(
         `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
       );
     }
   }
   if (result.removed > 0) {
-    console.log(
+    Logger.info(
       `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
     );
     for (const r of result.removedRows) {
-      console.log(
+      Logger.info(
         `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
       );
     }
@@ -533,9 +533,7 @@ async function emitFriction(storyId, epicId, result, orchestration) {
       },
     });
   } catch (err) {
-    console.warn(
-      `[CRAP] friction signal append failed: ${err?.message ?? err}`,
-    );
+    Logger.warn(`[CRAP] friction signal append failed: ${err?.message ?? err}`);
   }
 }
 
@@ -596,12 +594,12 @@ export function loadCrapBaseline({
 }
 
 async function main() {
-  const args = parseCliArgs();
+  const args = parseArgv();
   const { settings, ...rest } = resolveConfig();
   const crap = getQuality({ agentSettings: settings }).crap;
 
   if (crap.enabled === false) {
-    console.log('[CRAP] gate skipped (disabled)');
+    Logger.info('[CRAP] gate skipped (disabled)');
     return 0;
   }
 
@@ -617,11 +615,11 @@ async function main() {
         cwd: process.cwd(),
       });
       scopeSet = new Set(changed);
-      console.log(
+      Logger.info(
         `[CRAP] --changed-since ${args.changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
       );
     } catch (err) {
-      console.error(
+      Logger.error(
         `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
       );
       return 1;
@@ -635,7 +633,7 @@ async function main() {
     epicRef: args.epicRef,
   });
   if (args.epicRef) {
-    console.log(
+    Logger.info(
       `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
     );
   }
@@ -648,12 +646,12 @@ async function main() {
     runningTsTranspilerVersion: runningTs,
   });
   if (!compat.ok) {
-    if (compat.exitCode === 0) console.log(compat.message);
-    else console.error(compat.message);
+    if (compat.exitCode === 0) Logger.info(compat.message);
+    else Logger.error(compat.message);
     return compat.exitCode;
   }
   for (const warning of compat.warnings ?? []) {
-    console.warn(warning);
+    Logger.warn(warning);
   }
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
@@ -663,12 +661,12 @@ async function main() {
   const { newMethodCeiling, tolerance, refreshTag, overrides } =
     resolveCrapEnvOverrides(crap, process.env);
   if (overrides.length > 0) {
-    console.log(`[CRAP] env overrides active: ${overrides.join(', ')}`);
+    Logger.info(`[CRAP] env overrides active: ${overrides.join(', ')}`);
   }
 
   const coverage = loadCoverage(path.resolve(process.cwd(), coveragePath));
 
-  const scan = scanAndScore({
+  const scan = await scanAndScore({
     targetDirs,
     coverage,
     requireCoverage,
@@ -699,16 +697,16 @@ async function main() {
     });
     try {
       writeJsonReport(args.jsonPath, envelope);
-      console.log(`[CRAP] structured report written: ${args.jsonPath}`);
+      Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
     } catch (err) {
-      console.warn(
+      Logger.warn(
         `[CRAP] failed to write --json report: ${err?.message ?? err}`,
       );
     }
   }
 
   if (result.regressions > 0 || result.newViolations > 0) {
-    console.error(
+    Logger.error(
       `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
     );
     if (args.storyId && args.epicId) {
@@ -720,7 +718,7 @@ async function main() {
     return 1;
   }
 
-  console.log('[CRAP] ✅ check passed.');
+  Logger.info('[CRAP] ✅ check passed.');
   return 0;
 }
 
@@ -742,7 +740,7 @@ if (isDirect) {
   main()
     .then((code) => process.exit(code ?? 0))
     .catch((err) => {
-      console.error(
+      Logger.error(
         `[CRAP] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`,
       );
       process.exit(1);

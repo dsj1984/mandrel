@@ -46,7 +46,7 @@ import { Logger as DefaultLogger } from '../../Logger.js';
  *
  * `phaseTimer` may be omitted; when present, lint/test starts are timed.
  */
-export function runPreMergeGates({
+export async function runPreMergeGates({
   cwd,
   worktreePath,
   epicBranch,
@@ -62,7 +62,7 @@ export function runPreMergeGates({
   logger.info?.(
     `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
-  const validation = runCloseValidation({
+  const validation = await runCloseValidation({
     cwd,
     worktreePath,
     gates: buildDefaultGates({ settings, epicBranch }),

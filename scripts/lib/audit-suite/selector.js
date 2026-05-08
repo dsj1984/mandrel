@@ -1,9 +1,9 @@
 /**
  * lib/audit-suite/selector.js — `selectAudits` rule-matching core.
  *
- * Extracted from `.agents/scripts/select-audits.js` (Story #1083, Epic #1072) so
- * the orchestration barrel (`lib/orchestration/index.js`) can re-export the
- * public audit-suite SDK without importing upward from a top-level CLI file.
+ * Extracted from `.agents/scripts/select-audits.js` (Story #1083, Epic
+ * #1072) so the audit-suite SDK barrel at `./index.js` can re-export it
+ * without importing upward from a top-level CLI file.
  *
  * Pure (modulo `gitSpawn`) — exposed helpers are:
  *   - matchesFilePattern    — single file × single glob (picomatch with `dot`)

@@ -7,6 +7,7 @@ import {
   getQuality,
   resolveConfig,
 } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import {
   calculateAll,
   getBaseline,
@@ -53,7 +54,7 @@ export function resolveMaintainabilityEnvOverrides(env) {
       tolerance = parsed;
       overrides.push(`tolerance=${parsed} (CRAP_TOLERANCE)`);
     } else {
-      console.warn(
+      Logger.warn(
         `[Maintainability] ⚠ ignoring malformed CRAP_TOLERANCE=${raw}; keeping default ${TOLERANCE}`,
       );
     }
@@ -78,7 +79,7 @@ function compareScores(scores, baseline, tolerance) {
     const baselineScore = baseline[file];
 
     if (baselineScore === undefined) {
-      console.log(
+      Logger.info(
         `[Maintainability] 🆕 New file detected: ${file} (Score: ${score.toFixed(2)})`,
       );
       newFiles++;
@@ -87,10 +88,10 @@ function compareScores(scores, baseline, tolerance) {
 
     if (score < baselineScore - tolerance) {
       const diff = baselineScore - score;
-      console.error(`[Maintainability] ❌ REGRESSION in ${file}`);
-      console.error(`                Current: ${score.toFixed(2)}`);
-      console.error(`                Baseline: ${baselineScore.toFixed(2)}`);
-      console.error(`                Drop: -${diff.toFixed(2)}`);
+      Logger.error(`[Maintainability] ❌ REGRESSION in ${file}`);
+      Logger.error(`                Current: ${score.toFixed(2)}`);
+      Logger.error(`                Baseline: ${baselineScore.toFixed(2)}`);
+      Logger.error(`                Drop: -${diff.toFixed(2)}`);
       regressions++;
       regressedFiles.push({
         file,
@@ -265,7 +266,7 @@ async function emitRegressionFriction(storyId, epicId, regressedFiles) {
       },
     });
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[Maintainability] friction signal append failed: ${err?.message ?? err}`,
     );
   }
@@ -273,15 +274,15 @@ async function emitRegressionFriction(storyId, epicId, regressedFiles) {
 
 function printSummaryReport(scores, stats) {
   const { regressions, improvements, newFiles } = stats;
-  console.log('\n--- Maintainability Report ---');
-  console.log(`Total Files Checked: ${Object.keys(scores).length}`);
-  console.log(
+  Logger.info('\n--- Maintainability Report ---');
+  Logger.info(`Total Files Checked: ${Object.keys(scores).length}`);
+  Logger.info(
     `Pass:                ${Object.keys(scores).length - regressions}`,
   );
-  console.log(`Regressions:         ${regressions}`);
-  console.log(`Improvements:        ${improvements}`);
-  console.log(`New Files:           ${newFiles}`);
-  console.log('------------------------------\n');
+  Logger.info(`Regressions:         ${regressions}`);
+  Logger.info(`Improvements:        ${improvements}`);
+  Logger.info(`New Files:           ${newFiles}`);
+  Logger.info('------------------------------\n');
 }
 
 /**
@@ -319,7 +320,7 @@ export function loadMaintainabilityBaseline({
 }
 
 async function main() {
-  console.log('[Maintainability] Verifying code quality against baseline...');
+  Logger.info('[Maintainability] Verifying code quality against baseline...');
 
   const { settings } = resolveConfig();
   const baselinePath = getBaselines({ agentSettings: settings }).maintainability
@@ -327,12 +328,12 @@ async function main() {
   const epicRef = parseEpicRefArg();
   const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
   if (epicRef) {
-    console.log(
+    Logger.info(
       `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
     );
   }
   if (Object.keys(baseline).length === 0) {
-    console.warn(
+    Logger.warn(
       `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
     );
     process.exit(0);
@@ -356,13 +357,13 @@ async function main() {
         cwd: process.cwd(),
       });
     } catch (err) {
-      console.error(
+      Logger.error(
         `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
       );
       process.exit(1);
     }
     const scopeSet = new Set(changedList);
-    console.log(
+    Logger.info(
       `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
     );
     scopedFiles = files.filter((abs) => {
@@ -374,13 +375,13 @@ async function main() {
     );
   }
 
-  const scores = calculateAll(scopedFiles);
+  const scores = await calculateAll(scopedFiles);
 
   const { tolerance, overrides } = resolveMaintainabilityEnvOverrides(
     process.env,
   );
   if (overrides.length > 0) {
-    console.log(
+    Logger.info(
       `[Maintainability] env overrides active: ${overrides.join(', ')}`,
     );
   }
@@ -391,16 +392,16 @@ async function main() {
   if (jsonPath) {
     try {
       writeJsonReport(jsonPath, buildMaintainabilityReport(scores, stats));
-      console.log(`[Maintainability] structured report written: ${jsonPath}`);
+      Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
     } catch (err) {
-      console.warn(
+      Logger.warn(
         `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
       );
     }
   }
 
   if (stats.regressions > 0) {
-    console.error(
+    Logger.error(
       '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
     );
     const storyId = parseStoryIdArg();
@@ -411,7 +412,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log('[Maintainability] ✅ Clean Code check passed.');
+  Logger.info('[Maintainability] ✅ Clean Code check passed.');
 }
 
 // cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; the bespoke logic predates runAsCli and stays for parity with check-crap.js.
@@ -430,7 +431,7 @@ const isDirect = (() => {
 
 if (isDirect) {
   main().catch((err) => {
-    console.error(`[Maintainability] ❌ Fatal error: ${err.message}`);
+    Logger.error(`[Maintainability] ❌ Fatal error: ${err.message}`);
     process.exit(1);
   });
 }

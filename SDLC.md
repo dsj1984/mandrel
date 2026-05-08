@@ -16,15 +16,15 @@ From zero to shipped:
    framework generates a PRD, a Tech Spec, and the full Feature → Story → Task
    hierarchy under the Epic.
 3. **Execute the Epic.** Run `/epic-execute <epicId>` in your IDE. The skill
-   owns the wave loop, fans out each wave through `/wave-execute`, and each
-   wave fans out one `/story-execute` Agent-tool sub-agent per Story (capped
-   at `concurrencyCap`). Everything runs in your Claude session against your
-   Max subscription quota; no subprocess spawn, no GitHub Actions minutes.
+   owns the wave loop and fans each wave out as one `/story-execute`
+   Agent-tool sub-agent per Story (capped at `concurrencyCap`). Everything
+   runs in your Claude session against your Max subscription quota; no
+   subprocess spawn, no GitHub Actions minutes.
 
    For a single Story off the dispatch table, run `/story-execute <storyId>`
-   directly. The four-skill split (`/epic-execute`, `/wave-execute`,
-   `/story-execute`, plus the inline `task-execute.md` helper) lets the
-   operator stop or resume at any level of the hierarchy.
+   directly. The three-skill split (`/epic-execute`, `/story-execute`, plus
+   the inline `task-execute.md` helper) lets the operator stop or resume at
+   any level of the hierarchy.
 
 4. **Close the Epic.** When the final wave lands, the Epic flips to
    `agent::review`. Run **`/epic-close <epicId>`** — that one workflow
@@ -55,15 +55,15 @@ default flow requires adjustment.
   shared `story-<id>` branch. Stories merge into `epic/<epicId>`; the Epic
   branch merges into `main` only at close.
 - **Hierarchy-aligned skills.** Execution is split along the ticket hierarchy:
-  `/epic-execute` owns the wave loop, `/wave-execute` fans out one wave,
+  `/epic-execute` owns the wave loop and fans each wave out directly,
   `/story-execute` runs init → task loop → close for one Story, and the
-  inline `task-execute.md` helper documents per-Task discipline. All four
+  inline `task-execute.md` helper documents per-Task discipline. All three
   share the same primitives (`Graph.computeWaves`, `cascadeCompletion`,
   `ticketing.js`, `WorktreeManager`).
-- **Single-session fan-out.** `/wave-execute` launches Story sub-agents via the
-  Agent tool — every Story runs inside the operator's Claude session, with no
-  subprocess boundary. Worktree filesystem isolation is preserved; only the
-  process boundary is gone.
+- **Single-session fan-out.** `/epic-execute` launches Story sub-agents via
+  the Agent tool — every Story runs inside the operator's Claude session,
+  with no subprocess boundary. Worktree filesystem isolation is preserved;
+  only the process boundary is gone.
 - **HITL-minimal by default.** Exactly two operator touchpoints on the happy
   path — blocker resolution and review hand-off. Everything else is
   autonomous.
@@ -101,10 +101,8 @@ graph LR
     subgraph Phase3 ["Phase 3: Execution"]
         direction TB
         E["👤 /epic-execute <epicId>"]:::manual
-        W["🤖 /wave-execute <epicId> <waveN>"]:::agentic
-        F["🤖 /story-execute <storyId> per slot"]:::agentic
-        E --> W
-        W --> F
+        F["🤖 /story-execute <storyId> per slot per wave"]:::agentic
+        E --> F
         F -.-> F_Art["📄 Story Branch Commits"]:::artifact
     end
 
@@ -202,14 +200,14 @@ closure.
 
 | Mode             | Entry point                          | When to use                                                                            |
 | ---------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| **Whole Epic**   | `/epic-execute <epicId>`             | Drive an Epic end-to-end. Owns the wave loop; fans out via `/wave-execute`.            |
-| **Single wave**  | `/wave-execute <epicId> <waveN>`     | Run one wave only. Fans out Stories via the Agent tool, capped at `concurrencyCap`.    |
+| **Whole Epic**   | `/epic-execute <epicId>`             | Drive an Epic end-to-end. Owns the wave loop; fans Stories out directly per wave.      |
 | **Single Story** | `/story-execute <storyId>`           | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.        |
 
-The four-skill split mirrors how the engine already decomposes work
-(wave-scheduler, story-launcher, wave-observer); promoting them to slash
-commands lets the operator stop or resume at any level. There is no
-single-entry-point router — each level has its own skill.
+The two-skill split (plus the inline `task-execute.md` helper) mirrors
+how the engine already decomposes work (wave-scheduler, story-launcher,
+wave-observer); promoting them to slash commands lets the operator stop
+or resume at any level. There is no single-entry-point router — each
+level has its own skill.
 
 ### Story-centric branching
 
@@ -220,7 +218,7 @@ single-entry-point router — each level has its own skill.
 ### Story execution lifecycle
 
 Whether the Story is launched directly by the operator or fanned out by
-`/wave-execute`, the same three phases run:
+`/epic-execute`'s wave loop, the same three phases run:
 
 1. **Initialization** (`story-init.js`):
    - Verifies all upstream dependencies are satisfied.
@@ -273,11 +271,11 @@ dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
 ### Story assignment (deterministic)
 
-`/story-execute` requires an explicit Story id. The parent `/wave-execute`
-picks Story ids off the frozen dispatch manifest deterministically and
-launches one Agent-tool sub-agent per id; sibling sub-agents never race on
-the same Story. Operators driving Stories by hand pick ids off the same
-dispatch table.
+`/story-execute` requires an explicit Story id. The parent `/epic-execute`
+wave loop picks Story ids off the frozen dispatch manifest
+deterministically and launches one Agent-tool sub-agent per id per wave;
+sibling sub-agents never race on the same Story. Operators driving
+Stories by hand pick ids off the same dispatch table.
 
 `runtime.sessionId` survives as a stable per-process identity surfaced in
 the startup `[ENV]` log line for operator correlation. It is a 12-char
@@ -371,8 +369,9 @@ fires. This is the entirety of the operator interface mid-run.
 `/epic-execute` drives the long-running coordinator inside the operator's
 Claude session. The Epic Runner
 (`.agents/scripts/lib/orchestration/epic-runner.js`) composes the submodules
-listed below; `/wave-execute` and `/story-execute` are launched as Agent-tool
-sub-agents — no `child_process.spawn`, no GitHub Actions runner.
+listed below; `/story-execute` is launched as an Agent-tool sub-agent of
+`/epic-execute`'s wave loop — no `child_process.spawn`, no GitHub
+Actions runner.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
@@ -587,8 +586,7 @@ execution.
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/agents-bootstrap-github`                       | Initialize repo labels and project fields                                                                                                                                    |
 | `/epic-plan <epicId>`                            | Generate PRD, Tech Spec, and full task hierarchy                                                                                                                             |
-| `/epic-execute <epicId>`                         | Drive a whole Epic end-to-end. Owns the wave loop; fans out via `/wave-execute`.                                                                                             |
-| `/wave-execute <epicId> <waveN>`                 | Run one wave only. Fans out Stories via Agent-tool sub-agents (one per slot).                                                                                                |
+| `/epic-execute <epicId>`                         | Drive a whole Epic end-to-end. Owns the wave loop; fans Stories out directly per wave via Agent-tool sub-agents (one per slot).                                              |
 | `/story-execute <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                 |
 | Label Epic `epic::auto-close`                    | Authorize autonomous bookend chain at startup.                                                                                                                               |
 | `/epic-close <epicId>`                           | Close the Epic — auto-invokes code-review + retro, then merges to `main` and closes Epic + context issues. **The only bookend command an operator runs by hand.**            |

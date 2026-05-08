@@ -29,6 +29,7 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners, resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
 import { runBuildWaveDagPhase } from './lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapshot.js';
@@ -127,18 +128,18 @@ async function main() {
   });
 
   if (values.help) {
-    console.log(HELP);
+    Logger.info(HELP);
     return;
   }
   const epicId = Number.parseInt(values.epic ?? '', 10);
   if (Number.isNaN(epicId) || epicId <= 0) {
-    console.error('[epic-execute-prepare] ERROR: --epic <epicId> is required.');
-    console.error(HELP);
+    Logger.error('[epic-execute-prepare] ERROR: --epic <epicId> is required.');
+    Logger.error(HELP);
     process.exit(2);
   }
 
   const result = await runEpicExecutePrepare({ epicId });
-  console.log(JSON.stringify(result, null, 2));
+  Logger.info(JSON.stringify(result, null, 2));
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-execute-prepare' });

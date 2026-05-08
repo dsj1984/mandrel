@@ -13,12 +13,13 @@
 import { exec as nodeExec } from 'node:child_process';
 import nodeFs from 'node:fs';
 import * as defaultGit from './git-utils.js';
+import { Logger } from './Logger.js';
 import { resolveConcurrency } from './orchestration/concurrency.js';
 
 const CONSOLE_LOGGER = Object.freeze({
-  info: (m) => console.log(m),
-  warn: (m) => console.warn(m),
-  error: (m) => console.error(m),
+  info: (m) => Logger.info(m),
+  warn: (m) => Logger.warn(m),
+  error: (m) => Logger.error(m),
 });
 
 /**

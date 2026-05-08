@@ -34,7 +34,7 @@
  * envelope. `renderedBody` is the markdown body that was upserted onto the
  * Story ticket — `/story-execute` relays it as a chat message after each
  * transition so operators see the same task-progress table the parent
- * `/wave-execute` aggregator reads.
+ * `/epic-execute` aggregator reads.
  */
 
 import fs from 'node:fs';
@@ -314,7 +314,7 @@ export async function runStoryTaskProgress(args) {
   return { ok: true, taskState: state, phase, payload, renderedBody };
 }
 
-export function parseCliArgs(argv) {
+export function parseArgv(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {
@@ -340,7 +340,7 @@ export function parseCliArgs(argv) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const parsed = parseCliArgs(argv);
+  const parsed = parseArgv(argv);
   if (parsed.help) {
     process.stdout.write(HELP);
     return;

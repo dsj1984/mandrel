@@ -39,7 +39,6 @@ import { createStalledWorktreeDetector } from './progress-signals/stalled-worktr
 export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
 export const PHASE_TIMINGS_TYPE = 'phase-timings';
 export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
-export const WAVE_RUN_PROGRESS_TYPE = 'wave-run-progress';
 
 /**
  * Parse a `story-run-progress` structured comment posted by `/story-execute`.
@@ -651,72 +650,18 @@ function formatElapsed(ms) {
 }
 
 /**
- * Parse a `wave-run-progress` structured comment posted by `/wave-execute`.
- *
- * Returns the canonical payload object on success, or `null` for any
- * malformed input — the caller (epic-execute Step 5 rollup) treats `null`
- * as "wave snapshot unavailable" and substitutes `{ wave: N, stories: [] }`
- * rather than crashing the rollup.
- *
- * The schema mirrors the writer in `wave-run-progress-writer.js` and is
- * pinned by tech spec #902:
- *
- *   {
- *     "kind": "wave-run-progress",
- *     "epicId": <number>,
- *     "wave": <number>,
- *     "concurrencyCap": <number>,
- *     "stories": [ { id, title, state, ... } ],
- *     "updatedAt": "<iso8601>"
- *   }
- *
- * Validation is intentionally strict on the discriminator (`kind`) and the
- * shape of `stories[]`, but tolerant on optional fields (e.g. missing
- * `concurrencyCap` defaults to `0`) so a future schema bump that adds
- * fields doesn't break the parser.
- *
- * @param {{ body?: unknown } | null | undefined} comment
- * @returns {{
- *   kind: 'wave-run-progress',
- *   epicId: number,
- *   wave: number,
- *   concurrencyCap: number,
- *   stories: object[],
- *   updatedAt?: string,
- * } | null}
- */
-export function parseWaveRunProgressComment(comment) {
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') return null;
-  if (payload.kind !== WAVE_RUN_PROGRESS_TYPE) return null;
-  const epicId = Number(payload.epicId);
-  const wave = Number(payload.wave);
-  if (!Number.isInteger(epicId) || epicId <= 0) return null;
-  if (!Number.isInteger(wave) || wave < 0) return null;
-  if (!Array.isArray(payload.stories)) return null;
-  const concurrencyCap = Number.isInteger(payload.concurrencyCap)
-    ? Number(payload.concurrencyCap)
-    : 0;
-  return {
-    kind: WAVE_RUN_PROGRESS_TYPE,
-    epicId,
-    wave,
-    concurrencyCap,
-    stories: payload.stories,
-    updatedAt:
-      typeof payload.updatedAt === 'string' ? payload.updatedAt : undefined,
-  };
-}
-
-/**
  * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
  *
- * Called by `/epic-execute` Step 5 after each wave completes. Aggregates the
- * per-wave snapshots produced by `parseWaveRunProgressComment` into a single
- * operator-facing summary (header + per-wave table) and persists it as a
- * fenced-JSON payload on the Epic ticket via `upsertStructuredComment`.
+ * Called by `/epic-execute` Step 2b (`epic-execute-record-wave.js`) after
+ * each wave completes. The caller folds `state.waves[]` from the
+ * `epic-run-state` checkpoint into the per-wave rows and persists the
+ * unified rollup as a fenced-JSON payload on the Epic ticket via
+ * `upsertStructuredComment`. There is no separate per-wave structured
+ * comment — `epic-run-progress` is the single operator-facing summary,
+ * grouped by wave.
  *
- * The payload schema is pinned by `epic-execute.md` Step 5 / tech spec #902:
+ * The payload schema is pinned by `epic-execute.md` Step 2b / tech spec
+ * #902:
  *
  *   {
  *     "kind": "epic-run-progress",
@@ -729,8 +674,8 @@ export function parseWaveRunProgressComment(comment) {
  *   }
  *
  * The function does not re-derive Story state from labels — it trusts the
- * `waves` argument supplied by the caller, which itself is folded from the
- * already-validated `wave-run-progress` snapshots.
+ * `waves` argument supplied by the caller, which itself is the projection
+ * of the validated, verified per-Story rows recorded on the checkpoint.
  *
  * @param {{
  *   provider: import('../../ITicketingProvider.js').ITicketingProvider,

@@ -90,7 +90,7 @@ context:
 2. If you genuinely cannot proceed, transition to `agent::blocked`, post a
    `friction` structured comment naming the decision required and the
    default assumption you would have made, and exit non-zero. The parent
-   `/wave-execute` aggregator will surface the block.
+   `/epic-execute` aggregator will surface the block.
 3. **Never** stall waiting for input that will never arrive.
 
 This is the only documented exception to the "Manage Confusion Actively"

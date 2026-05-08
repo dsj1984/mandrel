@@ -62,15 +62,10 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
   'story-init',
-  // Story #913 — /wave-execute upserts a `wave-run-progress` snapshot on
-  // the Epic per wave, listing each child Story's terminal status. The
-  // progress reporter and `/epic-execute` rollup read these comments to
-  // compose the cross-wave epic-run-progress view.
-  'wave-run-progress',
   // Story #908 — /story-execute upserts a `story-run-progress` snapshot
-  // on each Story per Task transition. The wave-run-progress aggregator
-  // and the epic-runner progress reporter both read this comment to
-  // derive Story-level state without re-fetching ticket labels.
+  // on each Story per Task transition. The /epic-execute aggregator and
+  // the epic-runner progress reporter both read this comment to derive
+  // Story-level state without re-fetching ticket labels.
   'story-run-progress',
   // Story #1123 — analyze-execution.js upserts perf summaries at close
   // time. Story-mode posts `story-perf-summary` on each Story; Epic-mode
@@ -397,7 +392,7 @@ export async function upsertStructuredComment(
     try {
       await provider.deleteComment(existing.id);
     } catch (err) {
-      console.warn(
+      Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
       );
     }
@@ -523,7 +518,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
         parent.labels.includes('context::prd') ||
         parent.labels.includes('context::tech-spec');
       if (isEpic || isPlanning) {
-        console.warn(
+        Logger.warn(
           `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (reserved for epic-close).`,
         );
         continue;
@@ -547,7 +542,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
       failed.push(...nested.failed);
     } catch (err) {
       failed.push({ parentId, error: err.message ?? String(err) });
-      console.warn(
+      Logger.warn(
         `[Ticketing] Cascade to parent #${parentId} failed: ${err.message ?? err}`,
       );
     }

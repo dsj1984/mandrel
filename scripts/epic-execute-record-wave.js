@@ -2,69 +2,349 @@
 /* node:coverage ignore file */
 
 /**
- * epic-execute-record-wave.js — advance the `epic-run-state` checkpoint after
- * one wave's Agent-tool fan-out completes.
+ * epic-execute-record-wave.js — record one wave's per-Story returns,
+ * advance the `epic-run-state` checkpoint, and re-render the unified
+ * `epic-run-progress` rollup on the Epic.
  *
- * The operator pipes the wave-execute result JSON into this CLI, which:
+ * The slash-command (`/epic-execute`) calls this CLI once per wave, after
+ * its host-level Agent-tool fan-out drains. It is the only writer of the
+ * `epic-run-progress` structured comment for the wave-completion path —
+ * there is no separate `/wave-execute` skill, no `wave-run-progress`
+ * comment, and no separate rollup CLI. The host LLM owns wave dispatch;
+ * this CLI owns the post-wave persistence and operator-facing summary.
  *
- *   1. Reads the existing `epic-run-state` comment via `Checkpointer.read()`.
- *      A missing checkpoint is fatal — `epic-execute-prepare.js` must run
- *      first so the autoClose snapshot, totalWaves, and concurrencyCap are
- *      pinned to the run's authoritative value.
- *   2. Appends the wave outcome `{ index, status, stories, completedAt }` to
- *      `state.waves[]`. The `index` recorded is the canonical zero-based
- *      wave number from the input `wave` argument; `--wave 0` records the
- *      first wave's outcome.
- *   3. Bumps `state.currentWave` to `wave + 1` and re-writes the checkpoint
- *      so a resume after a halt picks up at the correct wave boundary.
- *   4. Classifies the next action via the truth table from
- *      `/epic-execute` Steps 4 & 6:
- *        - `complete` + more waves remaining → `dispatch-next`
- *        - `complete` + last wave           → `finalize`
- *        - `blocked`                        → `halt-blocked`
- *        - `failed`                         → `halt-failed`
- *
- * Stdout: `{ epicId, wave, recorded: true, nextAction, remainingWaves }`.
+ *   1. Parse / reconcile / verify the per-Story returns.
+ *      - `--returns` (raw sub-agent text) goes through `parseStoryAgentReturn`
+ *        and reconciles parse failures from GitHub. A single rolled-up
+ *        friction comment lists every malformed child.
+ *      - `--results` accepts already-parsed `/story-execute` return objects.
+ *      - `done` claims are verified against the live ticket label
+ *        (`agent::done` or `state: closed`); any unverified claim is
+ *        downgraded to `failed`.
+ *   2. Aggregate the wave's terminal status:
+ *        - `complete` iff every Story returned `done`.
+ *        - `blocked`  iff at least one `blocked` and no `failed`.
+ *        - `failed`   iff at least one `failed`.
+ *   3. Append the wave outcome to `state.waves[]` (replacing any prior
+ *      record at the same index — re-runs are idempotent), bump
+ *      `state.currentWave` on `complete`, and re-write the checkpoint.
+ *   4. Re-render `epic-run-progress` from `state.waves[]` (cross-looking
+ *      titles from the dispatch-manifest) and upsert the comment in place.
+ *   5. Print the next action for the slash-command:
+ *        - `complete` + more waves → `dispatch-next`
+ *        - `complete` + last wave  → `finalize`
+ *        - `blocked`               → `halt-blocked`
+ *        - `failed`                → `halt-failed`
  *
  * Usage:
  *   node .agents/scripts/epic-execute-record-wave.js \
- *     --epic <id> --wave <N> --result @<file>            (file mode)
- *   node .agents/scripts/epic-execute-record-wave.js \
- *     --epic <id> --wave <N> --result '<inline-json>'    (inline mode)
+ *     --epic <id> --wave <N> [--concurrency-cap <N>] \
+ *     (--returns @<file>|<inline> | --results @<file>|<inline>)
  *
- * The result JSON shape mirrors `wave-execute` output:
+ * Two input modes:
  *
- *   {
- *     "status": "complete" | "blocked" | "failed",
- *     "stories": [
- *       { "storyId": <number>, "status": "done"|"blocked"|"failed", ... }
- *     ]
- *   }
+ *   --returns   The raw per-Story sub-agent return texts, as a JSON array
+ *               of `{ storyId, returnText }` pairs. Each entry is parsed
+ *               through `parseStoryAgentReturn`; entries that don't match
+ *               the contract are reconciled from GitHub and a friction
+ *               comment is posted on the Epic naming each malformed child.
+ *               Prefer this mode — the wave is guaranteed to surface a
+ *               non-`complete` status if any child return failed to parse.
+ *
+ *   --results   The validated array of `/story-execute` return objects.
+ *               Use this only when the host LLM has already verified each
+ *               sub-agent's text matches the canonical envelope.
  */
 
 import { readFileSync } from 'node:fs';
-import { parseArgs } from 'node:util';
 
+import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
+import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
+import {
+  parseStoryAgentReturn,
+  reconcileStoryFromGitHub,
+  renderMalformedReturnsFriction,
+} from './lib/orchestration/epic-runner/sub-agent-return.js';
+import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
+import {
+  findStructuredComment,
+  postStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-execute-record-wave.js \\
-  --epic <epicId> --wave <waveIndex> --result @<file-or-inline-json>
+  --epic <epicId> --wave <waveIndex> [--concurrency-cap <N>] \\
+  (--returns @<file>|<inline-json> | --results @<file>|<inline-json>)
 
-Advances the epic-run-state checkpoint with the just-completed wave's outcome
-and prints the next action for the /epic-execute slash command.
+Records the wave's per-Story outcomes, advances the epic-run-state
+checkpoint, and upserts the unified epic-run-progress rollup on the Epic.
+Prints the next action for the /epic-execute slash command.
 `;
 
 const VALID_RESULT_STATUSES = new Set(['complete', 'blocked', 'failed']);
+
+/** Per-Story return statuses we accept off /story-execute sub-agents. */
+const VALID_STORY_STATUSES = new Set(['done', 'blocked', 'failed']);
+
+/**
+ * Story status → rollup-row state. Post-fan-out every Story is in a
+ * terminal state, so we only emit the three terminal forms here.
+ */
+const STORY_STATUS_TO_ROW_STATE = {
+  done: 'done',
+  blocked: 'blocked',
+  failed: 'failed',
+};
+
+/**
+ * Validate and normalize an inbound `--results` array into the per-Story
+ * shape the rest of the pipeline consumes.
+ *
+ * @param {unknown} raw
+ */
+export function validateResults(raw) {
+  if (!Array.isArray(raw)) {
+    throw new TypeError(
+      'epic-execute-record-wave: --results must be a JSON array of per-Story result objects',
+    );
+  }
+  return raw.map((entry, idx) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError(
+        `epic-execute-record-wave: results[${idx}] must be an object; got ${typeof entry}`,
+      );
+    }
+    const storyId = Number(entry.storyId ?? entry.id);
+    if (!Number.isInteger(storyId) || storyId <= 0) {
+      throw new TypeError(
+        `epic-execute-record-wave: results[${idx}].storyId must be a positive integer; got ${JSON.stringify(entry.storyId)}`,
+      );
+    }
+    const status = String(entry.status ?? '');
+    if (!VALID_STORY_STATUSES.has(status)) {
+      throw new RangeError(
+        `epic-execute-record-wave: results[${idx}].status "${status}" must be one of: ${[...VALID_STORY_STATUSES].join(', ')}`,
+      );
+    }
+    const out = { storyId, status };
+    if (typeof entry.phase === 'string') out.phase = entry.phase;
+    if (Number.isInteger(entry.tasksDone)) out.tasksDone = entry.tasksDone;
+    if (Number.isInteger(entry.tasksTotal)) out.tasksTotal = entry.tasksTotal;
+    if (entry.blockerCommentId != null) {
+      out.blockerCommentId = String(entry.blockerCommentId);
+    }
+    return out;
+  });
+}
+
+/**
+ * Parse a `--results` / `--returns` argv value, supporting both `@<file>`
+ * and inline JSON. `flag` controls which CLI name appears in error messages.
+ *
+ * @param {string} value
+ * @param {{ readFile?: (path: string) => string, flag?: string }} [deps]
+ */
+export function parseInputArg(value, deps = {}) {
+  const flag = deps.flag ?? '--results';
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new TypeError(
+      `epic-execute-record-wave: ${flag} is required (use \`@<file>\` or an inline JSON array).`,
+    );
+  }
+  const reader = deps.readFile ?? ((p) => readFileSync(p, 'utf8'));
+  let raw;
+  if (value.startsWith('@')) {
+    const filePath = value.slice(1);
+    if (!filePath) {
+      throw new TypeError(
+        `epic-execute-record-wave: ${flag} @<file> requires a path after \`@\`.`,
+      );
+    }
+    raw = reader(filePath);
+  } else {
+    raw = value;
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new SyntaxError(
+      `epic-execute-record-wave: ${flag} value is not valid JSON: ${err.message}`,
+    );
+  }
+}
+
+/**
+ * Normalize raw `--returns` payload (per-Story sub-agent return texts) into
+ * the same shape `validateResults` produces. Entries that fail to parse are
+ * reconciled from GitHub and recorded as parse failures; the caller posts a
+ * single rolled-up friction comment listing every failure.
+ *
+ * @param {{ provider: object, returns: Array<{ storyId: number, returnText: string }> }} args
+ */
+export async function normalizeReturns({ provider, returns } = {}) {
+  if (!Array.isArray(returns)) {
+    throw new TypeError(
+      'epic-execute-record-wave: --returns must be a JSON array of { storyId, returnText } objects',
+    );
+  }
+  const results = [];
+  const parseFailures = [];
+  for (const [idx, entry] of returns.entries()) {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError(
+        `epic-execute-record-wave: returns[${idx}] must be an object; got ${typeof entry}`,
+      );
+    }
+    const storyId = Number(entry.storyId ?? entry.id);
+    if (!Number.isInteger(storyId) || storyId <= 0) {
+      throw new TypeError(
+        `epic-execute-record-wave: returns[${idx}].storyId must be a positive integer; got ${JSON.stringify(entry.storyId)}`,
+      );
+    }
+    const returnText =
+      typeof entry.returnText === 'string'
+        ? entry.returnText
+        : entry.returnText == null
+          ? ''
+          : JSON.stringify(entry.returnText);
+
+    const parsed = parseStoryAgentReturn(returnText);
+    if (parsed.ok && Number(parsed.value.storyId) === storyId) {
+      results.push(parsed.value);
+      continue;
+    }
+
+    const reconciled = await reconcileStoryFromGitHub({ provider, storyId });
+    results.push(reconciled);
+    parseFailures.push({
+      storyId,
+      error: parsed.ok
+        ? `parsed envelope storyId ${parsed.value.storyId} disagrees with expected ${storyId}`
+        : parsed.error,
+      returnText,
+    });
+  }
+  return { results, parseFailures };
+}
+
+/**
+ * Aggregate validated per-Story rows into the wave-level outcome. Pure.
+ *
+ * @param {Array<{ storyId: number, status: string }>} results
+ */
+export function aggregateWaveStatus(results) {
+  const rows = Array.isArray(results) ? results : [];
+  const failed = rows.filter((r) => r.status === 'failed');
+  const blocked = rows.filter((r) => r.status === 'blocked');
+  let status;
+  if (failed.length > 0) {
+    status = 'failed';
+  } else if (blocked.length > 0) {
+    status = 'blocked';
+  } else {
+    status = 'complete';
+  }
+  return {
+    status,
+    blockedStoryIds: blocked.map((r) => r.storyId),
+  };
+}
+
+/**
+ * Re-fetch each Story's actual ticket state and downgrade any
+ * `status: 'done'` claim whose ticket has not actually reached
+ * `agent::done` (or `state: 'closed'`). Returns the verified rows plus
+ * a list of discrepancies for friction reporting.
+ *
+ * Verification reads each Story ticket fresh (`{ fresh: true }`) so a
+ * stale cache cannot mask the discrepancy. A network failure during
+ * verification cannot prove the claim either way, so the row is
+ * downgraded to `failed` and a `verify-error` discrepancy is recorded —
+ * an unverifiable `done` must not let the wave aggregate to `complete`,
+ * which is what callers read as "GitHub agrees everything is done."
+ *
+ * @param {{ provider: { getTicket?: Function }, results: Array<object> }} args
+ */
+export async function verifyWaveResults({ provider, results } = {}) {
+  if (!provider || typeof provider.getTicket !== 'function') {
+    return { verified: results ?? [], discrepancies: [] };
+  }
+  const verified = [];
+  const discrepancies = [];
+  for (const r of results ?? []) {
+    if (r.status !== 'done') {
+      verified.push(r);
+      continue;
+    }
+    let ticket;
+    try {
+      ticket = await provider.getTicket(r.storyId, { fresh: true });
+    } catch (err) {
+      const message = err?.message ?? String(err);
+      discrepancies.push({
+        storyId: r.storyId,
+        claimed: 'done',
+        actual: 'verify-error',
+        verifyError: message,
+      });
+      verified.push({ ...r, status: 'failed', verifyError: message });
+      continue;
+    }
+    const labels = ticket?.labels ?? [];
+    const isDone = labels.includes('agent::done') || ticket?.state === 'closed';
+    if (isDone) {
+      verified.push(r);
+      continue;
+    }
+    const actualLabel =
+      labels.find((l) => typeof l === 'string' && l.startsWith('agent::')) ??
+      'unknown';
+    discrepancies.push({
+      storyId: r.storyId,
+      claimed: 'done',
+      actual: actualLabel,
+    });
+    verified.push({ ...r, status: 'failed' });
+  }
+  return { verified, discrepancies };
+}
+
+/**
+ * Best-effort cross-look of the dispatch-manifest titles. Failure to read
+ * or parse the manifest is non-fatal — empty title is acceptable.
+ *
+ * @param {{ provider: object, epicId: number }} args
+ */
+async function loadManifestTitleMap({ provider, epicId }) {
+  try {
+    const comment = await findStructuredComment(
+      provider,
+      epicId,
+      'dispatch-manifest',
+    );
+    if (!comment) return new Map();
+    const payload = parseFencedJsonComment(comment);
+    if (!payload || !Array.isArray(payload.stories)) return new Map();
+    return new Map(
+      payload.stories
+        .map((s) => [Number(s.storyId ?? s.id), String(s.title ?? '')])
+        .filter(([id]) => Number.isFinite(id)),
+    );
+  } catch {
+    return new Map();
+  }
+}
 
 /**
  * Classify the wave outcome into the next operator action. Pure helper —
  * exported so tests can pin each branch without touching the provider.
  *
  * @param {{ resultStatus: string, currentWave: number, totalWaves: number }} args
- * @returns {{ nextAction: 'dispatch-next'|'halt-blocked'|'halt-failed'|'finalize', remainingWaves: number }}
  */
 export function classifyWaveOutcome({ resultStatus, currentWave, totalWaves }) {
   const remainingWaves = Math.max(
@@ -89,31 +369,47 @@ export function classifyWaveOutcome({ resultStatus, currentWave, totalWaves }) {
 }
 
 /**
+ * Build the rollup-row shape the unified `epic-run-progress` writer
+ * consumes. Returns `{ id, title, state, tasksDone?, tasksTotal?,
+ * blockerCommentId? }`.
+ */
+function toRollupRow(verified, titleById) {
+  const row = {
+    id: verified.storyId,
+    title: titleById.get(verified.storyId) ?? '',
+    state: STORY_STATUS_TO_ROW_STATE[verified.status] ?? 'unknown',
+  };
+  if (Number.isInteger(verified.tasksDone)) row.tasksDone = verified.tasksDone;
+  if (Number.isInteger(verified.tasksTotal))
+    row.tasksTotal = verified.tasksTotal;
+  if (verified.status === 'blocked' && verified.blockerCommentId != null) {
+    row.blockerCommentId = String(verified.blockerCommentId);
+  }
+  return row;
+}
+
+/**
  * End-to-end record-wave. DI-friendly: tests pass `injectedProvider` and a
- * fully-formed `result` object to skip the real network/file-system reads.
+ * fully-formed `results` (or `returns`) array to skip real network reads.
  *
  * @param {{
  *   epicId: number,
  *   wave: number,
- *   result: { status: string, stories?: object[] } | null | undefined,
- *   autoClose?: boolean,
+ *   results?: unknown,
+ *   returns?: unknown,
+ *   concurrencyCap?: number,
  *   cwd?: string,
  *   injectedProvider?: object,
  *   injectedConfig?: object,
  *   now?: () => Date,
  * }} args
- * @returns {Promise<{
- *   epicId: number,
- *   wave: number,
- *   recorded: true,
- *   nextAction: 'dispatch-next'|'halt-blocked'|'halt-failed'|'finalize',
- *   remainingWaves: number,
- * }>}
  */
 export async function runEpicExecuteRecordWave({
   epicId,
   wave,
-  result,
+  results,
+  returns,
+  concurrencyCap: concurrencyCapOverride,
   cwd,
   injectedProvider,
   injectedConfig,
@@ -129,21 +425,19 @@ export async function runEpicExecuteRecordWave({
       'runEpicExecuteRecordWave: --wave must be a non-negative integer',
     );
   }
-  if (!result || typeof result !== 'object') {
+  if (results == null && returns == null) {
     throw new TypeError(
-      'runEpicExecuteRecordWave: --result must be a JSON object',
+      'runEpicExecuteRecordWave: either `results` or `returns` is required',
     );
   }
-  const resultStatus = String(result.status ?? '');
-  if (!VALID_RESULT_STATUSES.has(resultStatus)) {
-    throw new RangeError(
-      `runEpicExecuteRecordWave: result.status "${resultStatus}" must be one of: ${[...VALID_RESULT_STATUSES].join(', ')}`,
+  if (results != null && returns != null) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: pass `results` OR `returns`, not both',
     );
   }
 
-  const provider =
-    injectedProvider ??
-    createProvider((injectedConfig ?? resolveConfig({ cwd })).orchestration);
+  const config = injectedConfig ?? resolveConfig({ cwd });
+  const provider = injectedProvider ?? createProvider(config.orchestration);
 
   const checkpointer = new Checkpointer({ provider, epicId });
   const existing = await checkpointer.read();
@@ -155,16 +449,69 @@ export async function runEpicExecuteRecordWave({
   }
 
   const totalWaves = Number(existing.totalWaves ?? 0);
+  const epicRunner = getRunners(config).epicRunner ?? {};
+  const concurrencyCap =
+    concurrencyCapOverride ??
+    Number(existing.concurrencyCap) ??
+    Number(epicRunner.concurrencyCap) ??
+    1;
+  if (!Number.isInteger(concurrencyCap) || concurrencyCap < 1) {
+    throw new RangeError(
+      `runEpicExecuteRecordWave: resolved concurrencyCap "${concurrencyCap}" must be a positive integer; ` +
+        'pass --concurrency-cap or set `orchestration.runners.epicRunner.concurrencyCap`.',
+    );
+  }
 
-  // Append (or replace) this wave's record. Replacement covers the resume
-  // path where the operator re-runs record-wave for a wave that had been
-  // recorded previously — the checkpoint must remain idempotent.
+  // 1. Parse / reconcile the per-Story returns.
+  let parseFailures = [];
+  let resolvedResults;
+  if (returns != null) {
+    const normalized = await normalizeReturns({ provider, returns });
+    resolvedResults = normalized.results;
+    parseFailures = normalized.parseFailures;
+    if (parseFailures.length > 0) {
+      try {
+        const body = renderMalformedReturnsFriction({
+          epicId,
+          wave,
+          failures: parseFailures,
+        });
+        await postStructuredComment(provider, epicId, 'friction', body);
+      } catch (err) {
+        Logger.error(
+          `[epic-execute-record-wave] Failed to post malformed-return friction on Epic #${epicId}: ${err?.message ?? err}`,
+        );
+      }
+    }
+  } else {
+    resolvedResults = results;
+  }
+
+  const validated = validateResults(resolvedResults);
+
+  // 2. Verify every `done` claim against the live ticket label.
+  const { verified, discrepancies } = await verifyWaveResults({
+    provider,
+    results: validated,
+  });
+
+  // 3. Aggregate the wave-level status.
+  const { status, blockedStoryIds } = aggregateWaveStatus(verified);
+
+  // 4. Cross-look manifest titles for the rollup rows.
+  const titleById = await loadManifestTitleMap({ provider, epicId });
+  const rollupRows = verified.map((r) => toRollupRow(r, titleById));
+
+  // 5. Append (or replace) this wave's record on the checkpoint. Replacing
+  //    covers the resume path where the operator re-runs record-wave for a
+  //    wave that had been recorded previously — the checkpoint must remain
+  //    idempotent.
   const priorWaves = Array.isArray(existing.waves) ? existing.waves : [];
-  const stories = Array.isArray(result.stories) ? result.stories : [];
   const newRecord = {
     index: wave,
-    status: resultStatus,
-    stories,
+    status,
+    concurrencyCap,
+    stories: rollupRows,
     completedAt: now().toISOString(),
   };
   const filtered = priorWaves.filter((w) => Number(w?.index) !== Number(wave));
@@ -173,7 +520,7 @@ export async function runEpicExecuteRecordWave({
   );
 
   const nextCurrentWave =
-    resultStatus === 'complete'
+    status === 'complete'
       ? Math.min(totalWaves, wave + 1)
       : Number(existing.currentWave ?? wave);
 
@@ -184,79 +531,167 @@ export async function runEpicExecuteRecordWave({
     waves: nextWaves,
   });
 
+  // 6. Re-render the unified `epic-run-progress` rollup from the checkpoint
+  //    state. This is the only operator-facing summary — there is no
+  //    separate per-wave structured comment.
+  const rollupWaves = nextWaves.map((w) => ({
+    wave: Number(w.index),
+    concurrencyCap: Number(w.concurrencyCap) || concurrencyCap,
+    stories: Array.isArray(w.stories) ? w.stories : [],
+  }));
+  const { body: renderedBody } = await upsertEpicRunProgress({
+    provider,
+    epicId,
+    waves: rollupWaves,
+    currentWave: nextCurrentWave,
+    totalWaves,
+    startedAt: existing.startedAt,
+    now,
+  });
+
+  // 7. Classify next action for the slash command.
   const { nextAction, remainingWaves } = classifyWaveOutcome({
-    resultStatus,
+    resultStatus: status,
     currentWave: wave,
     totalWaves,
   });
 
-  return {
+  const envelope = {
     epicId,
     wave,
     recorded: true,
+    status,
+    stories: verified.map((r) => ({ id: r.storyId, status: r.status })),
+    blockedStoryIds,
     nextAction,
     remainingWaves,
+    renderedBody,
   };
+  if (discrepancies.length > 0) {
+    envelope.discrepancies = discrepancies;
+  }
+  if (parseFailures.length > 0) {
+    envelope.parseFailures = parseFailures.map((f) => ({
+      storyId: f.storyId,
+      error: f.error,
+    }));
+  }
+  return envelope;
 }
 
 /**
- * Resolve the `--result` argument: either an inline JSON string or a path
- * prefixed with `@` (mirrors `gh api` and the curl convention). Exposed for
- * tests so the file-mode branch can be exercised without a real fs.
+ * Resolve the parsed `--results` / `--returns` argv into the input shape
+ * `runEpicExecuteRecordWave` expects.
  *
- * @param {string} raw
- * @param {{ readFileImpl?: typeof readFileSync }} [opts]
+ * @param {{ resultsRaw?: string, returnsRaw?: string }} parsed
  */
-export function resolveResultArg(raw, { readFileImpl = readFileSync } = {}) {
-  if (typeof raw !== 'string' || raw.length === 0) {
-    throw new TypeError('--result is required');
-  }
-  const text = raw.startsWith('@') ? readFileImpl(raw.slice(1), 'utf8') : raw;
-  try {
-    return JSON.parse(text);
-  } catch (err) {
-    throw new Error(
-      `--result is not valid JSON: ${err.message ?? err}. ` +
-        'Pass either an inline JSON object or `@<path>` pointing at a JSON file.',
+export function resolveRecordInput(parsed) {
+  const hasResults = Boolean(parsed?.resultsRaw);
+  const hasReturns = Boolean(parsed?.returnsRaw);
+  if (hasResults && hasReturns) {
+    throw new TypeError(
+      'epic-execute-record-wave: pass --results OR --returns, not both',
     );
   }
+  if (!hasResults && !hasReturns) {
+    throw new TypeError(
+      'epic-execute-record-wave: --results or --returns is required',
+    );
+  }
+  return hasResults
+    ? { results: parseInputArg(parsed.resultsRaw, { flag: '--results' }) }
+    : { returns: parseInputArg(parsed.returnsRaw, { flag: '--returns' }) };
 }
 
-async function main() {
-  const { values } = parseArgs({
-    options: {
-      epic: { type: 'string' },
-      wave: { type: 'string' },
-      result: { type: 'string' },
+/**
+ * Parse argv into the runner contract.
+ *
+ * @param {string[]} argv
+ */
+export function parseArgv(argv) {
+  const { values } = defineFlags(
+    {
+      epic: { type: 'integer', alias: 'epicId' },
+      wave: { type: 'integer' },
+      'concurrency-cap': { type: 'integer' },
+      results: { type: 'string', alias: 'resultsRaw' },
+      returns: { type: 'string', alias: 'returnsRaw' },
       help: { type: 'boolean', short: 'h' },
     },
-    strict: false,
-  });
+    argv,
+  );
+  return values;
+}
 
+/**
+ * Orchestration body of `main` extracted as a sibling exported function so
+ * the validate / dispatch / envelope-shape ladder is unit-testable without
+ * spawning a process. `main` becomes a thin shell: parse → call this →
+ * render → exit. CLI surface unchanged (same flags, same exit codes, same
+ * stdout JSON schema).
+ *
+ * @param {ReturnType<typeof parseArgv>} values
+ * @param {{
+ *   runRecordWave?: typeof runEpicExecuteRecordWave,
+ *   resolveRecordInput?: typeof resolveRecordInput,
+ *   help?: string,
+ * }} [deps]
+ * @returns {Promise<{ exitCode: number, result: object }>}
+ *   `result.kind` is one of: `'help'`, `'validation-error'`, `'envelope'`.
+ */
+export async function runRecordWaveCli(values, deps = {}) {
+  const helpText = deps.help ?? HELP;
   if (values.help) {
-    console.log(HELP);
+    return { exitCode: 0, result: { kind: 'help', text: helpText } };
+  }
+  if (!Number.isInteger(values.epicId) || values.epicId <= 0) {
+    return {
+      exitCode: 2,
+      result: {
+        kind: 'validation-error',
+        message:
+          '[epic-execute-record-wave] ERROR: --epic <epicId> is required.',
+        help: helpText,
+      },
+    };
+  }
+  if (!Number.isInteger(values.wave) || values.wave < 0) {
+    return {
+      exitCode: 2,
+      result: {
+        kind: 'validation-error',
+        message:
+          '[epic-execute-record-wave] ERROR: --wave <index> is required (>= 0).',
+        help: helpText,
+      },
+    };
+  }
+  const resolveInput = deps.resolveRecordInput ?? resolveRecordInput;
+  const runner = deps.runRecordWave ?? runEpicExecuteRecordWave;
+  const envelope = await runner({
+    epicId: values.epicId,
+    wave: values.wave,
+    concurrencyCap: values.concurrencyCap,
+    ...resolveInput(values),
+  });
+  return { exitCode: 0, result: { kind: 'envelope', envelope } };
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const values = parseArgv(argv);
+  const { exitCode, result } = await runRecordWaveCli(values);
+
+  if (result.kind === 'help') {
+    process.stdout.write(result.text);
     return;
   }
-  const epicId = Number.parseInt(values.epic ?? '', 10);
-  const wave = Number.parseInt(values.wave ?? '', 10);
-  if (Number.isNaN(epicId) || epicId <= 0) {
-    console.error(
-      '[epic-execute-record-wave] ERROR: --epic <epicId> is required.',
-    );
-    console.error(HELP);
-    process.exit(2);
+  if (result.kind === 'validation-error') {
+    Logger.error(result.message);
+    Logger.error(result.help);
+    process.exit(exitCode);
   }
-  if (Number.isNaN(wave) || wave < 0) {
-    console.error(
-      '[epic-execute-record-wave] ERROR: --wave <index> is required (>= 0).',
-    );
-    console.error(HELP);
-    process.exit(2);
-  }
-
-  const result = resolveResultArg(values.result);
-  const out = await runEpicExecuteRecordWave({ epicId, wave, result });
-  console.log(JSON.stringify(out, null, 2));
+  process.stdout.write(`${JSON.stringify(result.envelope, null, 2)}\n`);
+  if (exitCode !== 0) process.exit(exitCode);
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-execute-record-wave' });

@@ -192,8 +192,8 @@ async function main() {
   }
 
   const { info, errors } = renderHumanReport(result);
-  for (const line of info) console.log(line);
-  for (const line of errors) console.error(line);
+  for (const line of info) Logger.info(line);
+  for (const line of errors) Logger.error(line);
   if (!result.ok) process.exit(1);
 }
 

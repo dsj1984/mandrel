@@ -14,9 +14,9 @@ into the wrong commit. Epic #229 moves each dispatched story into its own
 activity are isolated per-story. The main checkout stays quiet.
 
 This document is the operator and reviewer reference. See
-[`epic-execute`](epic-execute.md), [`wave-execute`](wave-execute.md), and
-[`story-execute`](story-execute.md) for the broader execution flow and the
-Epic-229 Tech Spec for architectural rationale.
+[`epic-execute`](epic-execute.md) and [`story-execute`](story-execute.md)
+for the broader execution flow and the Epic-229 Tech Spec for
+architectural rationale.
 
 ## Configuration
 

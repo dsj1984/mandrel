@@ -210,7 +210,7 @@ export async function runSpecPhase(
     completedAt: new Date().toISOString(),
   });
 
-  console.log(
+  Logger.info(
     `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
@@ -218,11 +218,11 @@ export async function runSpecPhase(
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
-  console.log(
+  Logger.info(
     `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}.`,
   );
   if (cleanup.deleted.length > 0) {
-    console.log(
+    Logger.info(
       `[epic-plan-spec] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
     );
   }
@@ -274,7 +274,7 @@ async function main() {
       provider,
     });
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[epic-plan-spec] pending-cleanup drain skipped: ${err.message}`,
     );
   }

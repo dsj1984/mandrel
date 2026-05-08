@@ -13,6 +13,8 @@ import {
   scanAndScore,
 } from './lib/crap-utils.js';
 
+import { Logger } from './lib/Logger.js';
+
 /**
  * CLI: scan → score → save the CRAP baseline.
  *
@@ -55,18 +57,18 @@ async function main() {
   const baselinePath =
     args.baselinePath ?? getBaselines({ agentSettings: settings }).crap.path;
 
-  console.log('[CRAP] Updating baseline...');
-  console.log(`[CRAP] Target dirs: ${targetDirs.join(', ')}`);
-  console.log(
+  Logger.info('[CRAP] Updating baseline...');
+  Logger.info(`[CRAP] Target dirs: ${targetDirs.join(', ')}`);
+  Logger.info(
     `[CRAP] Coverage source: ${coveragePath}${requireCoverage ? ' (required)' : ' (optional)'}`,
   );
 
   const coverage = loadCoverage(path.resolve(process.cwd(), coveragePath));
   if (!coverage && requireCoverage) {
-    console.warn(
+    Logger.warn(
       `[CRAP] ⚠ No coverage artifact at ${coveragePath}. All files will be skipped under requireCoverage=true.`,
     );
-    console.warn(
+    Logger.warn(
       "[CRAP] ⚠ Run 'npm run test:coverage' before 'npm run crap:update'.",
     );
   }
@@ -76,7 +78,7 @@ async function main() {
     scannedFiles,
     skippedFilesNoCoverage,
     skippedMethodsNoCoverage,
-  } = scanAndScore({
+  } = await scanAndScore({
     targetDirs,
     coverage,
     requireCoverage,
@@ -92,26 +94,26 @@ async function main() {
   });
   saveCrapBaseline(envelope, { baselinePath });
 
-  console.log(
+  Logger.info(
     `[CRAP] Scanned ${scannedFiles} file(s); wrote ${envelope.rows.length} row(s).`,
   );
   if (skippedFilesNoCoverage > 0) {
-    console.log(
+    Logger.info(
       `[CRAP] Skipped ${skippedFilesNoCoverage} file(s) without coverage entries.`,
     );
   }
   if (skippedMethodsNoCoverage > 0) {
-    console.log(
+    Logger.info(
       `[CRAP] Skipped ${skippedMethodsNoCoverage} method(s) whose per-method coverage was unresolved.`,
     );
   }
-  console.log(
+  Logger.info(
     `[CRAP] ✅ Baseline updated (kernelVersion=${envelope.kernelVersion}, escomplexVersion=${escomplexVersion}, tsTranspilerVersion=${tsTranspilerVersion}).`,
   );
 }
 
 // cli-opt-out: top-level main().catch predates runAsCli; never imported elsewhere so the auto-run risk is moot.
 main().catch((err) => {
-  console.error(`[CRAP] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`);
+  Logger.error(`[CRAP] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`);
   process.exit(1);
 });

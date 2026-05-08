@@ -2,6 +2,8 @@ import { ValidationError } from '../errors/index.js';
 import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
+import { Logger } from '../Logger.js';
+
 /**
  * Regex matching code-asset paths the freshness gate cares about. The three
  * roots — `.agents/scripts`, `lib`, and `tests` — cover the executable surface
@@ -295,11 +297,11 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   }
 
   if (crossStoryLifted.length > 0) {
-    console.warn(
+    Logger.warn(
       `[Decomposer] ⚠️  Lifted ${crossStoryLifted.length} cross-story task dep(s) to story-level:`,
     );
     for (const lift of crossStoryLifted) {
-      console.warn(
+      Logger.warn(
         `  Task "${lift.task}" → dep "${lift.dep}" lifted to Story "${lift.fromStory}" → Story "${lift.toStory}"`,
       );
     }

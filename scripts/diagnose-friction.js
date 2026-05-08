@@ -138,7 +138,7 @@ async function resolveContextIds(
         if (epicMatch) resolvedEpicId = toIntOrNull(epicMatch[1]);
       }
     } catch (err) {
-      console.error(
+      Logger.error(
         `⚠️ Failed to resolve story/epic context from task #${taskId}: ${err.message}`,
       );
     }
@@ -190,7 +190,7 @@ export async function main(args = process.argv.slice(2)) {
   const executionMaxBuffer = limits.executionMaxBuffer;
 
   const commandStr = cmdArgs.join(' ');
-  console.error(`[Diagnostic Interceptor] Executing: ${commandStr}`);
+  Logger.error(`[Diagnostic Interceptor] Executing: ${commandStr}`);
 
   const result = spawnSync(cmdArgs[0], cmdArgs.slice(1), {
     stdio: 'pipe',
@@ -210,8 +210,8 @@ export async function main(args = process.argv.slice(2)) {
     ).trim();
     const errorPreview = errorOutput.substring(0, 500);
 
-    console.error('\n--- 🛑 DIAGNOSTIC ANALYSIS Triggered ---');
-    console.error(
+    Logger.error('\n--- 🛑 DIAGNOSTIC ANALYSIS Triggered ---');
+    Logger.error(
       'Command failed. Appending friction signal to NDJSON stream...',
     );
 
@@ -238,26 +238,26 @@ export async function main(args = process.argv.slice(2)) {
           signal,
         });
         if (ok) {
-          console.error(
+          Logger.error(
             `✅ Friction signal appended (epic=${resolvedEpicId}, story=${resolvedStoryId}, task=${taskId ?? 'n/a'}).`,
           );
         } else {
-          console.error(
+          Logger.error(
             `⚠️ signals-writer returned false for epic=${resolvedEpicId} story=${resolvedStoryId}.`,
           );
         }
       } catch (err) {
-        console.error(`⚠️ Failed to append friction signal: ${err.message}`);
+        Logger.error(`⚠️ Failed to append friction signal: ${err.message}`);
       }
     } else {
-      console.error(
+      Logger.error(
         `ℹ️ Skipping friction signal write — story/epic context unresolved (story=${resolvedStoryId ?? 'null'}, epic=${resolvedEpicId ?? 'null'}).`,
       );
     }
 
-    console.error('\n💡 [Auto-Remediation Suggestions]:');
-    console.error(remediation);
-    console.error('----------------------------------------\n');
+    Logger.error('\n💡 [Auto-Remediation Suggestions]:');
+    Logger.error(remediation);
+    Logger.error('----------------------------------------\n');
 
     process.exit(result.status);
   } else {

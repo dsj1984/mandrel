@@ -1,9 +1,9 @@
 /**
  * sub-agent-return.js — parse and reconcile per-Story sub-agent return text.
  *
- * `/wave-execute` Step 2 dispatches one `Agent` tool call per Story. Each
- * sub-agent owes its parent the JSON return contract documented in
- * `.agents/workflows/wave-execute.md`:
+ * `/epic-execute` Step 2 dispatches one `Agent` tool call per Story per
+ * wave. Each sub-agent owes its parent the JSON return contract documented
+ * in `.agents/workflows/epic-execute.md`:
  *
  *   {
  *     "storyId": <number>,
@@ -19,10 +19,11 @@
  *
  * In practice, sub-agents sometimes return plain prose mid-task (Domio Epic
  * #604, 2026-05-04: a child returned `"Clean. Now commit Task 622."` after
- * 32 tool calls of real work). Without validation, the wave-runner used to
- * silently propagate the fragment and report the wave `complete`.
+ * 32 tool calls of real work). Without validation, the wave dispatcher
+ * used to silently propagate the fragment and report the wave `complete`.
  *
- * This module provides the two helpers the wave-runner now uses:
+ * This module provides the two helpers `/epic-execute`'s wave dispatcher
+ * now uses:
  *
  *   - `parseStoryAgentReturn(raw)` — accept an already-parsed object, a JSON
  *     string, or a fenced ```json ...``` block. Returns
@@ -271,7 +272,7 @@ export async function reconcileStoryFromGitHub({ provider, storyId } = {}) {
  */
 export function renderMalformedReturnsFriction({ epicId, wave, failures }) {
   const lines = [
-    `### 🚧 wave-execute friction — Epic #${epicId}, wave ${wave}`,
+    `### 🚧 epic-execute friction — Epic #${epicId}, wave ${wave}`,
     '',
     `**Reason:** \`malformed-subagent-return\``,
     '',

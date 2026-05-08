@@ -3,6 +3,7 @@ import {
   getQuality,
   resolveConfig,
 } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import {
   calculateAll,
   saveBaseline,
@@ -21,28 +22,28 @@ async function main() {
     .targetDirs;
   const baselinePath = getBaselines({ agentSettings: settings }).maintainability
     .path;
-  console.log('[Maintainability] Updating baseline...');
+  Logger.info('[Maintainability] Updating baseline...');
 
   const files = [];
   targetDirs.forEach((dir) => {
-    console.log(`[Maintainability] Scanning ${dir}...`);
+    Logger.info(`[Maintainability] Scanning ${dir}...`);
     scanDirectory(dir, files);
   });
 
-  console.log(
+  Logger.info(
     `[Maintainability] Calculating scores for ${files.length} files...`,
   );
-  const scores = calculateAll(files);
+  const scores = await calculateAll(files);
 
   saveBaseline(scores, baselinePath);
 
-  console.log(
+  Logger.info(
     `[Maintainability] ✅ Baseline updated successfully at ${baselinePath}`,
   );
 }
 
 // cli-opt-out: top-level main().catch predates runAsCli; never imported elsewhere so the auto-run risk is moot.
 main().catch((err) => {
-  console.error(`[Maintainability] ❌ Fatal error: ${err.message}`);
+  Logger.error(`[Maintainability] ❌ Fatal error: ${err.message}`);
   process.exit(1);
 });

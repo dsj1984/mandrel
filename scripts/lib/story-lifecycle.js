@@ -11,12 +11,12 @@
  * cover those would over-abstract — they are genuinely different concerns.
  */
 
+import { Logger } from './Logger.js';
 import { TYPE_LABELS } from './label-constants.js';
 import {
   STATE_LABELS,
   transitionTicketState,
 } from './orchestration/ticketing.js';
-
 /**
  * Parse the `Epic: #N` and `parent: #N` references from a Story body.
  *
@@ -148,7 +148,7 @@ export async function batchTransitionTickets(
     });
     if (onError) onError(ticket.id, lastErr);
     else
-      console.error(`  #${ticket.id} → FAILED: ${lastErr?.message ?? lastErr}`);
+      Logger.error(`  #${ticket.id} → FAILED: ${lastErr?.message ?? lastErr}`);
   };
 
   // Process in batches to avoid overwhelming the API with concurrent requests.

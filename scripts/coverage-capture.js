@@ -28,6 +28,8 @@ import {
   runCapture,
 } from './lib/coverage-capture.js';
 
+import { Logger } from './lib/Logger.js';
+
 function parseArgs(argv) {
   const out = {
     skipWhenNoCrapFiles: false,
@@ -49,7 +51,7 @@ function main() {
   const { crap } = getQuality({ agentSettings: settings });
 
   if (crap.enabled === false) {
-    console.log('[coverage-capture] CRAP gate disabled — skipping capture.');
+    Logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
     return 0;
   }
 
@@ -60,13 +62,13 @@ function main() {
     } catch (err) {
       // A bad ref must not silently relax the gate. Fall through to the
       // freshness check so coverage still gets captured if needed.
-      console.warn(
+      Logger.warn(
         `[coverage-capture] ⚠ ${err?.message ?? err} — falling back to freshness check.`,
       );
       changed = null;
     }
     if (changed && !anyChangedUnderTargets(changed, crap.targetDirs)) {
-      console.log(
+      Logger.info(
         `[coverage-capture] No changed files under [${crap.targetDirs.join(', ')}] — skipping capture.`,
       );
       return 0;
@@ -79,18 +81,18 @@ function main() {
     cwd: args.cwd,
   });
   if (freshness.fresh) {
-    console.log(
+    Logger.info(
       `[coverage-capture] Coverage at ${path.resolve(args.cwd, crap.coveragePath)} is ${freshness.reason} — skipping capture.`,
     );
     return 0;
   }
 
-  console.log(
+  Logger.info(
     `[coverage-capture] Coverage at ${crap.coveragePath} is ${freshness.reason}; running npm run test:coverage…`,
   );
-  const code = runCapture({ cwd: args.cwd, log: (m) => console.log(m) });
+  const code = runCapture({ cwd: args.cwd, log: (m) => Logger.info(m) });
   if (code !== 0) {
-    console.error(
+    Logger.error(
       `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,
     );
   }
@@ -101,6 +103,6 @@ function main() {
 try {
   process.exit(main());
 } catch (err) {
-  console.error('[coverage-capture] unexpected error:', err);
+  Logger.error('[coverage-capture] unexpected error:', err);
   process.exit(1);
 }

@@ -113,7 +113,7 @@ export async function runDecomposePhase(
     completedAt: new Date().toISOString(),
   });
 
-  console.log(
+  Logger.info(
     `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.READY);
@@ -121,11 +121,11 @@ export async function runDecomposePhase(
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
 
-  console.log(
+  Logger.info(
     `[epic-plan-decompose] ✅ Decompose phase complete for Epic #${epicId}. ${tickets.length} ticket(s) persisted.`,
   );
   if (cleanup.deleted.length > 0) {
-    console.log(
+    Logger.info(
       `[epic-plan-decompose] 🧹 Cleaned up ${cleanup.deleted.length} temp file(s).`,
     );
   }
@@ -139,15 +139,15 @@ export async function runDecomposePhase(
  * Never throws — diagnostics must not eclipse the original failure.
  */
 async function reportPartialFailure({ epicId, provider, err }) {
-  console.error('');
-  console.error('[epic-plan-decompose] ❌ Decompose phase aborted.');
-  console.error(`[epic-plan-decompose] Reason: ${err?.message ?? err}`);
+  Logger.error('');
+  Logger.error('[epic-plan-decompose] ❌ Decompose phase aborted.');
+  Logger.error(`[epic-plan-decompose] Reason: ${err?.message ?? err}`);
   try {
     if (typeof provider.getEpic === 'function') {
       const epic = await provider.getEpic(epicId);
       const lifecycleLabel =
         (epic?.labels || []).find((l) => l.startsWith('agent::')) ?? 'unknown';
-      console.error(
+      Logger.error(
         `[epic-plan-decompose] Epic #${epicId} current label: ${lifecycleLabel}`,
       );
     }
@@ -163,21 +163,21 @@ async function reportPartialFailure({ epicId, provider, err }) {
           (t.labels || []).some((l) => childTypes.includes(l)) &&
           t.state !== 'closed',
       ).length;
-      console.error(
+      Logger.error(
         `[epic-plan-decompose] Children currently open under Epic: ${created}`,
       );
     }
   } catch (probeErr) {
-    console.error(
+    Logger.error(
       `[epic-plan-decompose] (diagnostics probe failed: ${probeErr.message})`,
     );
   }
-  console.error('');
-  console.error('[epic-plan-decompose] To resume from the partial backlog:');
-  console.error(
+  Logger.error('');
+  Logger.error('[epic-plan-decompose] To resume from the partial backlog:');
+  Logger.error(
     `[epic-plan-decompose]   node .agents/scripts/epic-plan-decompose.js --epic ${epicId} --tickets <tickets-file> --resume`,
   );
-  console.error('');
+  Logger.error('');
 }
 
 /* node:coverage ignore next */
@@ -226,9 +226,7 @@ async function main() {
       provider,
     });
   } catch (err) {
-    console.warn(
-      `[epic-plan-decompose] worktree sweep skipped: ${err.message}`,
-    );
+    Logger.warn(`[epic-plan-decompose] worktree sweep skipped: ${err.message}`);
   }
 
   if (values['emit-context']) {
@@ -240,7 +238,7 @@ async function main() {
     // is visible to the operator rather than silently falling through to
     // the framework default. The decomposer prompt embeds the same value
     // — see ticket-decomposer.js:buildDecompositionContext.
-    console.error(
+    Logger.error(
       `[epic-plan-decompose] Resolved limits.maxTickets = ${ctx.maxTickets} (prompt cap).`,
     );
     const json = values.pretty

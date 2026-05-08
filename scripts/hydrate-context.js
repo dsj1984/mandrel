@@ -98,7 +98,7 @@ export async function runHydrateContext({ ticketId, epicId, provider }) {
   return { prompt };
 }
 
-export function parseCliArgs(argv) {
+export function parseArgv(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {
@@ -112,7 +112,7 @@ export function parseCliArgs(argv) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const values = parseCliArgs(argv);
+  const values = parseArgv(argv);
 
   if (values.help) {
     process.stdout.write(HELP);

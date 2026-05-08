@@ -14,7 +14,7 @@
  * ship a `baseline-refresh:` commit atomically with the Story PR.
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { getCommands } from './config/commands.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
@@ -238,6 +238,120 @@ export function buildDefaultGates({ settings, epicBranch } = {}) {
 export const DEFAULT_GATES = buildDefaultGates();
 
 /**
+ * Gates whose I/O is read-only against the working tree (no shared mutable
+ * state, no overlapping ports/sockets). Safe to run concurrently — see
+ * `runCloseValidation` for the Promise.all + AbortController plumbing.
+ */
+export const INDEPENDENT_GATE_NAMES = new Set(['lint', 'format', 'typecheck']);
+
+/**
+ * Partition a gate list into the parallel-safe set and the order-sensitive
+ * remainder. Order is preserved within each bucket so the serial walk stays
+ * cheapest-fast-fail-first (test → check-maintainability → coverage → crap).
+ *
+ * @param {Gate[]} gates
+ * @returns {{ independent: Gate[], serial: Gate[] }}
+ */
+export function partitionGates(gates) {
+  const independent = [];
+  const serial = [];
+  for (const gate of gates) {
+    if (INDEPENDENT_GATE_NAMES.has(gate.name)) independent.push(gate);
+    else serial.push(gate);
+  }
+  return { independent, serial };
+}
+
+/**
+ * Pipe a child stream's output line-by-line through `emit`, prepending
+ * `prefix` to each line. Tail bytes without a trailing newline flush on
+ * `end` so the operator never loses the last line of a gate's output.
+ */
+function pipePrefixed(stream, prefix, emit) {
+  let buf = '';
+  stream.setEncoding('utf8');
+  stream.on('data', (chunk) => {
+    buf += chunk;
+    while (true) {
+      const nl = buf.indexOf('\n');
+      if (nl === -1) break;
+      emit(prefix + buf.slice(0, nl));
+      buf = buf.slice(nl + 1);
+    }
+  });
+  stream.on('end', () => {
+    if (buf.length > 0) emit(prefix + buf);
+  });
+}
+
+/**
+ * Default async gate runner — used by `runCloseValidation` when no `runner`
+ * is injected. Spawns the gate via `child_process.spawn`, prefixes every
+ * stdout/stderr line with `[gate-name] ` (so concurrent gates don't bleed
+ * into each other in the operator's terminal), and resolves only when the
+ * child exits.
+ *
+ * Honours `opts.signal`: a TERM is delivered to the child the moment the
+ * signal fires, so a sibling gate's failure aborts the rest of the wave
+ * promptly. The promise still resolves (rather than rejecting) on abort —
+ * `runCloseValidation` sees a non-zero status and folds it into the
+ * already-recorded first-failure.
+ *
+ * @param {string} cmd
+ * @param {string[]} args
+ * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void }} opts
+ * @returns {Promise<{ status: number }>}
+ */
+function defaultGateRunner(cmd, args, opts = {}) {
+  const { cwd, signal, gateName, log } = opts;
+  const child = spawn(cmd, args, {
+    cwd,
+    shell: process.platform === 'win32',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const prefix = gateName ? `[${gateName}] ` : '';
+  const emit =
+    typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
+  pipePrefixed(child.stdout, prefix, emit);
+  pipePrefixed(child.stderr, prefix, emit);
+
+  let onAbort = null;
+  if (signal) {
+    if (signal.aborted) {
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        /* child may have exited */
+      }
+    } else {
+      onAbort = () => {
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          /* race: already exited */
+        }
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+    }
+  }
+
+  return new Promise((resolve) => {
+    child.on('exit', (code, sig) => {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      // SIGTERM (no exit code) on abort → surface as non-zero so the gate
+      // counts as failed. `runCloseValidation` swallows aborted-sibling
+      // failures because firstFailure is already pinned.
+      const status = typeof code === 'number' ? code : sig ? 143 : 1;
+      resolve({ status });
+    });
+    child.on('error', () => {
+      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      resolve({ status: 1 });
+    });
+  });
+}
+
+/**
  * Resolve the current `git rev-parse HEAD` SHA inside `cwd`. Returns `null`
  * when git is unavailable or the call fails — callers treat that as
  * "evidence skip disabled" so the gate runs as before.
@@ -280,7 +394,7 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   cwd: string,
  *   worktreePath?: string,
  *   gates?: Gate[],
- *   runner?: typeof spawnSync,
+ *   runner?: (cmd: string, args: string[], opts: { cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void }) => Promise<{ status: number }> | { status: number },
  *   log?: (m: string) => void,
  *   onGateStart?: (gate: Gate) => void,
  *   storyId?: number|null,
@@ -297,11 +411,11 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   comment. Errors thrown from the hook propagate and halt the run.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
  */
-export function runCloseValidation({
+export async function runCloseValidation({
   cwd,
   worktreePath,
   gates = DEFAULT_GATES,
-  runner = spawnSync,
+  runner = defaultGateRunner,
   log = () => {},
   onGateStart,
   storyId = null,
@@ -322,78 +436,156 @@ export function runCloseValidation({
   const spawnCwd = worktreePath ?? cwd;
   const headSha = evidenceActive ? getHeadSha(spawnCwd) : null;
 
-  for (const gate of gates) {
+  // Helper closures so the parallel and serial passes share evidence
+  // bookkeeping bit-for-bit.
+
+  /** Returns a `{ skip: true }` verdict when evidence makes the gate redundant. */
+  const evidenceVerdict = (gate, configHash) => {
+    if (!(evidenceActive && headSha)) return { skip: false };
+    const verdict = shouldSkip(
+      {
+        storyId,
+        gateName: gate.name,
+        currentSha: headSha,
+        configHash,
+        inputFingerprint: gate.inputFingerprint ?? null,
+      },
+      { cwd, epicId },
+    );
+    if (verdict.skip) {
+      const tsHint = verdict.record?.timestamp
+        ? ` recorded ${verdict.record.timestamp}`
+        : '';
+      log(
+        `[close-validation] ⏭ ${gate.name} skipped (${verdict.reason}: SHA=${headSha.slice(0, 7)}${tsHint})`,
+      );
+    }
+    return verdict;
+  };
+
+  const recordIfActive = (gate, configHash, durationMs) => {
+    if (!(evidenceActive && headSha)) return;
+    try {
+      recordPass(
+        {
+          storyId,
+          gateName: gate.name,
+          sha: headSha,
+          configHash,
+          exitCode: 0,
+          durationMs,
+          inputFingerprint: gate.inputFingerprint ?? null,
+        },
+        { cwd, epicId },
+      );
+    } catch (err) {
+      log(
+        `[close-validation]   ⚠ failed to record evidence for ${gate.name}: ${err?.message ?? err}`,
+      );
+    }
+  };
+
+  /** Run a single gate through the injected runner; returns `{ status }`. */
+  const dispatchGate = async (gate, signal) => {
+    log(
+      `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
+    );
+    if (typeof onGateStart === 'function') onGateStart(gate);
+    const result = await runner(gate.cmd, gate.args, {
+      cwd: spawnCwd,
+      gateName: gate.name,
+      log,
+      signal,
+    });
+    return { status: result?.status ?? 1 };
+  };
+
+  const { independent, serial } = partitionGates(gates);
+
+  // ── Phase 1: independent gates in parallel ──────────────────────────
+  // First non-zero exit pins `firstFailure` and aborts every in-flight
+  // sibling via SIGTERM. Other gates' results are still awaited (so we
+  // never leak children) but their non-zero status is intentionally
+  // dropped: only one error surfaces.
+  const ac = new AbortController();
+  let firstIndepFailure = null;
+
+  const indepTasks = independent.map(async (gate) => {
     const configHash = hashCommandConfig({
       cmd: gate.cmd,
       args: gate.args,
       cwd: spawnCwd,
     });
-
-    if (evidenceActive && headSha) {
-      const verdict = shouldSkip(
-        {
-          storyId,
-          gateName: gate.name,
-          currentSha: headSha,
-          configHash,
-        },
-        { cwd, epicId },
-      );
-      if (verdict.skip) {
-        const tsHint = verdict.record?.timestamp
-          ? ` recorded ${verdict.record.timestamp}`
-          : '';
-        log(
-          `[close-validation] ⏭ ${gate.name} skipped (evidence match: SHA=${headSha.slice(0, 7)}${tsHint})`,
-        );
-        skipped.push({ gate, reason: 'evidence-match' });
-        continue;
-      }
+    const verdict = evidenceVerdict(gate, configHash);
+    if (verdict.skip) {
+      skipped.push({ gate, reason: verdict.reason });
+      return;
     }
-
-    log(
-      `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
-    );
-    if (typeof onGateStart === 'function') onGateStart(gate);
     const startedAt = evidenceActive ? evidenceClock() : 0;
-    const result = runner(gate.cmd, gate.args, {
+    let result;
+    try {
+      result = await dispatchGate(gate, ac.signal);
+    } catch (err) {
+      result = { status: 1, error: err };
+    }
+    if (result.status !== 0) {
+      if (!firstIndepFailure) {
+        firstIndepFailure = { gate, status: result.status, cwd: spawnCwd };
+        ac.abort();
+      }
+      return;
+    }
+    log(`[close-validation] ✓ ${gate.name}`);
+    recordIfActive(
+      gate,
+      configHash,
+      evidenceActive ? evidenceClock() - startedAt : 0,
+    );
+  });
+
+  await Promise.all(indepTasks);
+
+  if (firstIndepFailure) {
+    failed.push(firstIndepFailure);
+    log(
+      `[close-validation] ✖ ${firstIndepFailure.gate.name} failed (exit ${firstIndepFailure.status}) in ${spawnCwd}`,
+    );
+    if (firstIndepFailure.gate.hint) {
+      log(`[close-validation]   hint: ${firstIndepFailure.gate.hint}`);
+    }
+    return { ok: false, failed, skipped };
+  }
+
+  // ── Phase 2: serial gates in declared order ─────────────────────────
+  for (const gate of serial) {
+    const configHash = hashCommandConfig({
+      cmd: gate.cmd,
+      args: gate.args,
       cwd: spawnCwd,
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
     });
-    const status = result.status ?? 1;
-    if (status !== 0) {
-      failed.push({ gate, status, cwd: spawnCwd });
+    const verdict = evidenceVerdict(gate, configHash);
+    if (verdict.skip) {
+      skipped.push({ gate, reason: verdict.reason });
+      continue;
+    }
+    const startedAt = evidenceActive ? evidenceClock() : 0;
+    const result = await dispatchGate(gate);
+    if (result.status !== 0) {
+      failed.push({ gate, status: result.status, cwd: spawnCwd });
       log(
-        `[close-validation] ✖ ${gate.name} failed (exit ${status}) in ${spawnCwd}`,
+        `[close-validation] ✖ ${gate.name} failed (exit ${result.status}) in ${spawnCwd}`,
       );
       if (gate.hint) log(`[close-validation]   hint: ${gate.hint}`);
       break;
     }
     log(`[close-validation] ✓ ${gate.name}`);
-
-    if (evidenceActive && headSha) {
-      try {
-        recordPass(
-          {
-            storyId,
-            gateName: gate.name,
-            sha: headSha,
-            configHash,
-            exitCode: 0,
-            durationMs: evidenceClock() - startedAt,
-          },
-          { cwd, epicId },
-        );
-      } catch (err) {
-        // Recording is best-effort observability — never let an evidence
-        // write failure mask a successful gate run.
-        log(
-          `[close-validation]   ⚠ failed to record evidence for ${gate.name}: ${err?.message ?? err}`,
-        );
-      }
-    }
+    recordIfActive(
+      gate,
+      configHash,
+      evidenceActive ? evidenceClock() - startedAt : 0,
+    );
   }
+
   return { ok: failed.length === 0, failed, skipped };
 }
 

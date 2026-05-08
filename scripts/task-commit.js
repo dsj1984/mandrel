@@ -197,7 +197,7 @@ export function runTaskCommit(args) {
  *   paths: string[],
  * }}
  */
-export function parseCliArgs(argv) {
+export function parseArgv(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     options: {
@@ -227,7 +227,7 @@ export function parseCliArgs(argv) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const parsed = parseCliArgs(argv);
+  const parsed = parseArgv(argv);
   if (parsed.help) {
     process.stdout.write(HELP);
     return;

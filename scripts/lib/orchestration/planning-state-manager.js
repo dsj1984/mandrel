@@ -7,8 +7,8 @@
  * (state_reason: 'not_planned') and detached.
  */
 
+import { Logger } from '../Logger.js';
 import { concurrentMap } from '../util/concurrent-map.js';
-
 /**
  * Snapshot of the Epic's planning-artifact state as seen / mutated by
  * {@link PlanningStateManager}. Mirrors the `epic-plan-state` structured
@@ -81,13 +81,13 @@ export class PlanningStateManager {
     // Heal linkedIssues if empty but tickets exist
     if (!epic.linkedIssues.prd && canonicalPrd?.state === 'open') {
       epic.linkedIssues.prd = canonicalPrd.id;
-      console.log(
+      Logger.info(
         `[Epic Planner] Healed dangling PRD reference: #${epic.linkedIssues.prd}`,
       );
     }
     if (!epic.linkedIssues.techSpec && canonicalSpec?.state === 'open') {
       epic.linkedIssues.techSpec = canonicalSpec.id;
-      console.log(
+      Logger.info(
         `[Epic Planner] Healed dangling Tech Spec reference: #${epic.linkedIssues.techSpec}`,
       );
     }
@@ -109,7 +109,7 @@ export class PlanningStateManager {
         const successorId = t.labels.includes('context::prd')
           ? canonicalPrdId
           : canonicalSpecId;
-        console.log(
+        Logger.info(
           `[Epic Planner] Cleaning up redundant artifact #${t.id} (superseded by #${successorId})...`,
         );
 
@@ -132,12 +132,12 @@ export class PlanningStateManager {
         // Detach the sub-issue from the Epic to prevent orphaned links
         try {
           await this.provider.removeSubIssue(epicId, t.id);
-          console.log(
+          Logger.info(
             `[Epic Planner]   Detached #${t.id} from Epic #${epicId}.`,
           );
         } catch (_err) {
           // Already detached or API doesn't support — safe to ignore
-          console.log(
+          Logger.info(
             `[Epic Planner]   Could not detach #${t.id} (may already be detached).`,
           );
         }
@@ -152,7 +152,7 @@ export class PlanningStateManager {
       epic.linkedIssues.techSpec &&
       !epic.body.includes('## Planning Artifacts')
     ) {
-      console.log(
+      Logger.info(
         `[Epic Planner] Persisting healed references to Epic body...`,
       );
       const appendBody = `\n\n## Planning Artifacts\n- [ ] PRD: #${epic.linkedIssues.prd}\n- [ ] Tech Spec: #${epic.linkedIssues.techSpec}\n`;
@@ -172,7 +172,7 @@ export class PlanningStateManager {
       }
 
       if (idsToClose.size > 0) {
-        console.log(
+        Logger.info(
           '[Epic Planner] --force: Closing old planning artifacts...',
         );
         // Bound the force-close burst at 3 so wide --force re-plans do
@@ -185,10 +185,10 @@ export class PlanningStateManager {
                 state: 'closed',
                 state_reason: 'not_planned',
               });
-              console.log(`[Epic Planner]   Closed old artifact #${oldId}`);
+              Logger.info(`[Epic Planner]   Closed old artifact #${oldId}`);
             } catch (err) {
               if (err.message.includes('404') || err.message.includes('410')) {
-                console.log(
+                Logger.info(
                   `[Epic Planner]   Old artifact #${oldId} was already removed or is inaccessible. Skipping.`,
                 );
               } else {
@@ -214,7 +214,7 @@ export class PlanningStateManager {
       if (stripped !== epic.body) {
         await this.provider.updateTicket(epicId, { body: stripped });
         epic.body = stripped;
-        console.log(
+        Logger.info(
           '[Epic Planner]   Stripped old Planning Artifacts section from Epic body.',
         );
       }

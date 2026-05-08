@@ -210,7 +210,7 @@ function reportEmptyDocs(epicId, json) {
     );
     return;
   }
-  console.log(
+  Logger.info(
     `[docs-freshness] ⏭  No docs configured under release.docs or ` +
       `docsContextFiles — nothing to check.`,
   );
@@ -222,12 +222,12 @@ function reportGateOutcome({ epicId, json, ok, results }) {
     if (!ok) process.exit(1);
     return;
   }
-  for (const r of results) console.log(renderFreshnessLine(r));
+  for (const r of results) Logger.info(renderFreshnessLine(r));
   if (ok) {
-    console.log(renderFreshnessSuccessMessage(epicId, results.length));
+    Logger.info(renderFreshnessSuccessMessage(epicId, results.length));
     return;
   }
-  console.error(renderFreshnessFailureMessage(epicId));
+  Logger.error(renderFreshnessFailureMessage(epicId));
   process.exit(1);
 }
 

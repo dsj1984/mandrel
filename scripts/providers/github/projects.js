@@ -7,6 +7,7 @@
  * importing this file directly — preserving the ctx-threading discipline.
  */
 
+import { Logger } from '../../lib/Logger.js';
 import { runGraphql } from './graphql.js';
 import {
   ADD_PROJECT_ITEM_MUTATION,
@@ -20,7 +21,6 @@ import {
   STATUS_FIELD_FRAGMENT,
   UPDATE_SINGLE_SELECT_FIELD_MUTATION,
 } from './graphql-builder.js';
-
 /**
  * Detect whether a GraphQL error represents a missing Projects V2 permission
  * scope. Bootstrap treats these as soft failures.
@@ -50,7 +50,7 @@ async function fetchProjectV2(ctx, fragment) {
     );
     if (userProjectData?.user?.projectV2) return userProjectData.user.projectV2;
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[GitHubProvider] ProjectV2 user lookup failed (owner=${ctx.projectOwner}): ${err.message}`,
     );
   }
@@ -63,7 +63,7 @@ async function fetchProjectV2(ctx, fragment) {
     );
     return orgProjectData?.organization?.projectV2;
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[GitHubProvider] ProjectV2 org lookup failed (owner=${ctx.projectOwner}): ${err.message}`,
     );
   }

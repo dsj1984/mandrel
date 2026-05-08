@@ -10,8 +10,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { Logger } from '../Logger.js';
 import { AGENT_LABELS } from '../label-constants.js';
-
 // ---------------------------------------------------------------------------
 // Pure render helpers (Story #484 — exported for direct fixture testing)
 // ---------------------------------------------------------------------------
@@ -321,10 +321,10 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('## 🤖 Agent Operating Procedures');
   lines.push('');
   lines.push(
-    `> 1. **Execute**: Run \`/epic-execute ${epicId}\`. The orchestrator iterates waves in order, fans Stories out in parallel via \`/wave-execute\` → \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
+    `> 1. **Execute**: Run \`/epic-execute ${epicId}\`. The orchestrator iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
   );
   lines.push(
-    '> 2. **Resume (granular, optional)**: To re-drive a single wave, run `/wave-execute <epicId> <waveN>`. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
+    '> 2. **Resume (granular, optional)**: Re-running `/epic-execute` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
   );
   lines.push(
     `> 3. **Close**: With \`epic::auto-close\` set, \`/epic-execute\` chains into \`/epic-close ${epicId}\` automatically. Otherwise run \`/epic-close ${epicId}\` after review/retro.`,
@@ -479,7 +479,7 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
 
 /**
  * Print the CLI Story Dispatch Table. Writes to the supplied `logger.log`
- * channel (defaults to `console.log`). Keeping the sink injectable makes the
+ * channel (defaults to `Logger.info`). Keeping the sink injectable makes the
  * function testable without capturing stdout.
  *
  * @param {object[]} storyManifest
@@ -487,7 +487,7 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
  */
 /* node:coverage ignore next */
 export function printStoryDispatchTable(storyManifest, opts = {}) {
-  const log = opts.logger?.log ?? ((line) => console.log(line));
+  const log = opts.logger?.log ?? ((line) => Logger.info(line));
   if (!storyManifest || storyManifest.length === 0) return;
 
   // Split into wave-eligible Stories and Feature containers

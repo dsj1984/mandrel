@@ -1,13 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { hasCoverageFor } from './coverage-utils.js';
+import { findCoverageEntry } from './coverage-utils.js';
+import { runOnPool } from './cpu-pool.js';
 import { calculateCrapForSource } from './crap-engine.js';
+import { Logger } from './Logger.js';
 import {
   resolveTsTranspilerVersion,
   scanDirectory,
   transpileIfNeeded,
 } from './maintainability-utils.js';
 
+const CRAP_WORKER_URL = new URL('./workers/crap-worker.js', import.meta.url);
+
+// Below this batch size the pool's spawn overhead dominates — fall
+// back to in-process serial scoring. The full repo (~200+ files)
+// always takes the pool path; tests with handful-of-files fixtures
+// stay serial and remain byte-identical to the pre-pool output.
+const SERIAL_THRESHOLD = 8;
 // 1.1.0 — TypeScript support landed in 5.29.0. Bumped from 1.0.0 because
 // the scanner now emits CRAP rows for TS/TSX paths that the previous
 // kernel could never reach. The CRAP formula and per-method scoring
@@ -16,27 +25,6 @@ export const KERNEL_VERSION = '1.1.0';
 export { resolveTsTranspilerVersion };
 
 const SCHEMA_REF = '.agents/schemas/crap-baseline.schema.json';
-
-function normalizeSep(p) {
-  return String(p).replace(/\\/g, '/');
-}
-
-function stripLeadingDotSlash(p) {
-  return p.replace(/^\.\/+/, '').replace(/^\/+/, '');
-}
-
-function findCoverageEntry(map, relPath) {
-  if (!map || !relPath) return null;
-  const suffix = stripLeadingDotSlash(normalizeSep(relPath));
-  if (!suffix) return null;
-  for (const key of Object.keys(map)) {
-    const norm = normalizeSep(key);
-    if (norm === suffix || norm.endsWith(`/${suffix}`)) {
-      return map[key] ?? null;
-    }
-  }
-  return null;
-}
 
 /**
  * Resolve the running `typhonjs-escomplex` version by walking up from `cwd`
@@ -109,14 +97,14 @@ export function getCrapBaseline(opts = {}) {
   try {
     raw = fs.readFileSync(filePath, 'utf-8');
   } catch (err) {
-    console.warn(`[crap-utils] unable to read baseline: ${err.message}`);
+    Logger.warn(`[crap-utils] unable to read baseline: ${err.message}`);
     return null;
   }
   let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    console.warn(`[crap-utils] baseline is not valid JSON: ${err.message}`);
+    Logger.warn(`[crap-utils] baseline is not valid JSON: ${err.message}`);
     return null;
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
@@ -261,7 +249,7 @@ export function saveCrapBaseline(envelope, opts = {}) {
  *   skippedMethodsNoCoverage: number,
  * }}
  */
-export function scanAndScore({
+export async function scanAndScore({
   targetDirs,
   coverage,
   requireCoverage = true,
@@ -284,41 +272,45 @@ export function scanAndScore({
   }
   files.sort();
 
-  const rows = [];
-  let scannedFiles = 0;
-  let skippedFilesNoCoverage = 0;
-  let skippedMethodsNoCoverage = 0;
-
+  // Build the work-queue first so scopeFile filtering happens before
+  // any I/O / IPC. `scannedFiles` is the in-scope count.
+  const queue = [];
   for (const abs of files) {
     const relPath = path.relative(cwd, abs).replace(/\\/g, '/');
     if (scopeSet && !scopeSet.has(relPath)) continue;
-    scannedFiles += 1;
-    const hasFile = hasCoverageFor(coverage, relPath);
-    if (requireCoverage && !hasFile) {
+    queue.push({ abs, relPath, requireCoverage });
+  }
+  const scannedFiles = queue.length;
+
+  const perFile =
+    queue.length < SERIAL_THRESHOLD
+      ? queue.map((item) => ({ item, result: scoreFileSerial(item, coverage) }))
+      : await scoreFilesViaPool(queue, coverage);
+
+  const rows = [];
+  let skippedFilesNoCoverage = 0;
+  let skippedMethodsNoCoverage = 0;
+  for (const { item, result } of perFile) {
+    if (!result) continue; // unrecoverable per-file failure: drop silently to match pre-pool semantics
+    if (result.skippedFileNoCoverage) {
       skippedFilesNoCoverage += 1;
       continue;
     }
-    const entry = hasFile ? findCoverageEntry(coverage, relPath) : null;
-    let source;
-    try {
-      source = fs.readFileSync(abs, 'utf-8');
-    } catch {
+    if (result.rows === null) {
+      // read/transpile/parse failure: drop and move on, but if the worker
+      // attached an error message (calculateCrapForSource throw) surface it
+      // so the run isn't silent on the ops side.
+      if (result.error) {
+        Logger.warn(
+          `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
+        );
+      }
       continue;
     }
-    // TS/TSX → strip-then-analyze. Coverage-entry lookup above used the
-    // ORIGINAL source path (vitest's coverage-final.json keys on the .ts
-    // file, not transpiled output) so the transpile is purely about
-    // making the code parseable by the Esprima-based escomplex kernel.
-    const prepared = transpileIfNeeded(abs, source);
-    if (prepared === null) continue;
-    const methodRows = calculateCrapForSource(prepared, entry);
-    for (const mr of methodRows) {
-      if (mr.crap === null || mr.coverage === null) {
-        skippedMethodsNoCoverage += 1;
-        continue;
-      }
+    skippedMethodsNoCoverage += result.skippedMethodsNoCoverage ?? 0;
+    for (const mr of result.rows) {
       rows.push({
-        file: relPath,
+        file: item.relPath,
         method: mr.method,
         startLine: mr.startLine,
         cyclomatic: mr.cyclomatic,
@@ -341,4 +333,80 @@ export function scanAndScore({
     skippedFilesNoCoverage,
     skippedMethodsNoCoverage,
   };
+}
+
+/**
+ * In-process scorer used by both the small-batch fast path and as the
+ * reference implementation against which the worker output is asserted
+ * byte-for-byte in the cpu-pool tests.
+ */
+function scoreFileSerial({ abs, relPath, requireCoverage }, coverage) {
+  const entry = findCoverageEntry(coverage, relPath);
+  if (requireCoverage && entry === null) {
+    return {
+      skippedFileNoCoverage: true,
+      rows: [],
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  let source;
+  try {
+    source = fs.readFileSync(abs, 'utf-8');
+  } catch {
+    return {
+      skippedFileNoCoverage: false,
+      rows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  const prepared = transpileIfNeeded(abs, source);
+  if (prepared === null) {
+    return {
+      skippedFileNoCoverage: false,
+      rows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  let methodRows;
+  try {
+    methodRows = calculateCrapForSource(prepared, entry);
+  } catch {
+    return {
+      skippedFileNoCoverage: false,
+      rows: null,
+      skippedMethodsNoCoverage: 0,
+    };
+  }
+  const rows = [];
+  let skippedMethodsNoCoverage = 0;
+  for (const mr of methodRows) {
+    if (mr.crap === null || mr.coverage === null) {
+      skippedMethodsNoCoverage += 1;
+      continue;
+    }
+    rows.push({
+      method: mr.method,
+      startLine: mr.startLine,
+      cyclomatic: mr.cyclomatic,
+      coverage: mr.coverage,
+      crap: mr.crap,
+    });
+  }
+  return { skippedFileNoCoverage: false, rows, skippedMethodsNoCoverage };
+}
+
+async function scoreFilesViaPool(queue, coverage) {
+  const results = await runOnPool(CRAP_WORKER_URL, queue, {
+    workerData: { coverage },
+  });
+  return results.map((r, i) => {
+    const item = queue[i];
+    if (!r || r.__cpuPoolError) {
+      Logger.warn(
+        `[crap-utils] worker pool error for ${item.relPath}: ${r?.message ?? 'unknown'}`,
+      );
+      return { item, result: null };
+    }
+    return { item, result: r };
+  });
 }

@@ -3,6 +3,8 @@ import path from 'node:path';
 import { isDegraded, softFailOrThrow } from './lib/degraded-mode.js';
 import { gitSpawn, gitSync } from './lib/git-utils.js';
 
+import { Logger } from './lib/Logger.js';
+
 /**
  * CLI: base-branch-enforced anti-gaming guardrail for the maintainability /
  * CRAP baselines. Runs on `pull_request` events.
@@ -48,7 +50,7 @@ const BASELINE_REFRESH_LABEL_DESCRIPTION =
 const DEFAULT_REFRESH_TAG = 'baseline-refresh:';
 const COMMIT_DELIMITER = '----END-COMMIT----';
 
-export function parseCliArgs(argv = process.argv.slice(2)) {
+export function parseArgv(argv = process.argv.slice(2)) {
   const out = {
     baseRef: 'origin/main',
     prNumber: null,
@@ -301,7 +303,7 @@ function listCommitsSinceBase(baseRef, cwd) {
   const format = `%H%n%s%n%b%n${COMMIT_DELIMITER}`;
   const out = gitSpawn(cwd, 'log', `${baseRef}..HEAD`, `--format=${format}`);
   if (out.status !== 0) {
-    console.warn(
+    Logger.warn(
       `[guardrail] ⚠ git log against ${baseRef} failed: ${out.stderr?.trim() ?? 'no stderr'}`,
     );
     return [];
@@ -319,7 +321,7 @@ function listCommitsSinceBase(baseRef, cwd) {
  */
 export function applyBaselineRefreshLabel({ prNumber, cwd, runner = runGh }) {
   if (!prNumber) {
-    console.warn(
+    Logger.warn(
       '[guardrail] ⚠ --pr-number not supplied; skipping label application.',
     );
     return { applied: false, reason: 'no-pr-number' };
@@ -342,7 +344,7 @@ export function applyBaselineRefreshLabel({ prNumber, cwd, runner = runGh }) {
       stderr.includes('name-exists') ||
       stderr.includes('code:already_exists');
     if (!benign) {
-      console.warn(
+      Logger.warn(
         `[guardrail] ⚠ gh label create failed (continuing): ${createRes.stderr?.trim()}`,
       );
     }
@@ -355,12 +357,12 @@ export function applyBaselineRefreshLabel({ prNumber, cwd, runner = runGh }) {
     BASELINE_REFRESH_LABEL,
   ]);
   if (editRes.status !== 0) {
-    console.warn(
+    Logger.warn(
       `[guardrail] ⚠ gh pr edit --add-label failed: ${editRes.stderr?.trim()}`,
     );
     return { applied: false, reason: 'gh-error' };
   }
-  console.log(
+  Logger.info(
     `[guardrail] 🏷  applied \`${BASELINE_REFRESH_LABEL}\` to PR #${prNumber}.`,
   );
   return { applied: true };
@@ -414,8 +416,8 @@ function spawnSyncWrapper(cmd, args, opts) {
  * @param {{ log?: (m: string) => void, error?: (m: string) => void }} [io]
  */
 export function emitVerdictMessages(verdict, io = console) {
-  const log = io.log ?? console.log;
-  const error = io.error ?? console.error;
+  const log = io.log ?? Logger.info;
+  const error = io.error ?? Logger.error;
   const sink = verdict.ok ? log : error;
   for (const m of verdict.messages) sink(m);
 }
@@ -449,8 +451,8 @@ export function performCrapRecheck({
   args,
   baseConfig,
   run = runCheckCrapWithBaseConfig,
-  log = console.log,
-  error = console.error,
+  log = Logger.info,
+  error = Logger.error,
 }) {
   if (args.skipCheckCrap) {
     log('[guardrail] --skip-check-crap set; skipping base-enforced re-run.');
@@ -475,8 +477,8 @@ export function performCrapRecheck({
 }
 
 async function main() {
-  const args = parseCliArgs();
-  console.log(
+  const args = parseArgv();
+  Logger.info(
     `[guardrail] base-ref=${args.baseRef} pr=${args.prNumber ?? '(unknown)'} cwd=${args.cwd}`,
   );
 
@@ -485,17 +487,17 @@ async function main() {
     const raw = readBaseBranchConfigRaw(args.baseRef, args.cwd);
     baseConfig = parseBaseBranchConfig(raw);
   } catch (err) {
-    console.error(
+    Logger.error(
       `[guardrail] ❌ failed to read .agentrc.json from ${args.baseRef}: ${err?.message ?? err}`,
     );
     return 1;
   }
-  console.log(
+  Logger.info(
     `[guardrail] base config: newMethodCeiling=${baseConfig.newMethodCeiling} tolerance=${baseConfig.tolerance} refreshTag=${baseConfig.refreshTag} enabled=${baseConfig.enabled}`,
   );
 
   if (!baseConfig.enabled) {
-    console.log(
+    Logger.info(
       '[guardrail] base branch has crap.enabled=false — skipping guardrail.',
     );
     return 0;
@@ -512,14 +514,14 @@ async function main() {
   );
   if (isDegraded(changedFilesResult)) {
     process.stdout.write(`${JSON.stringify(changedFilesResult)}\n`);
-    console.error(
+    Logger.error(
       `[guardrail] ❌ ${changedFilesResult.reason}: ${changedFilesResult.detail}`,
     );
     return 1;
   }
   const changedFiles = changedFilesResult;
   const commits = listCommitsSinceBase(args.baseRef, args.cwd);
-  console.log(
+  Logger.info(
     `[guardrail] diff: ${changedFiles.length} file(s); commits: ${commits.length}`,
   );
 
@@ -553,7 +555,7 @@ if (isDirect) {
   main()
     .then((code) => process.exit(code ?? 0))
     .catch((err) => {
-      console.error(
+      Logger.error(
         `[guardrail] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`,
       );
       process.exit(1);

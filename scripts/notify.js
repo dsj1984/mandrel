@@ -17,7 +17,7 @@
  *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
  *      `text` always populated for back-compat with `{text}`-only consumers.
  *   3. TERMINAL — gated by `notifications.terminalMinLevel`. Controls the
- *      `console.log` chatter this dispatcher emits about its own activity.
+ *      `Logger.info` chatter this dispatcher emits about its own activity.
  *
  * Each channel filters independently — no fallback chain. All three
  * `*MinLevel` keys are mandatory in the schema; this module defaults missing
@@ -107,12 +107,12 @@ async function sendWebhook(url, payloadBody) {
       body: payloadBody,
     });
     if (!res.ok) {
-      console.warn(
+      Logger.warn(
         `[Notify] Webhook returned ${res.status}: ${await res.text().catch(() => '')}`,
       );
     }
   } catch (err) {
-    console.warn(`[Notify] Failed to send webhook: ${err.message}`);
+    Logger.warn(`[Notify] Failed to send webhook: ${err.message}`);
   }
 }
 
@@ -146,7 +146,7 @@ export async function notify(ticketId, payload, opts = {}) {
   const operator = orchestration.github.operatorHandle || '@operator';
   const channels = resolveChannelLevels(orchestration.notifications);
   const log = (line) => {
-    if (meetsMinLevel(severity, channels.terminal)) console.log(line);
+    if (meetsMinLevel(severity, channels.terminal)) Logger.info(line);
   };
 
   const numericId = Number.parseInt(ticketId, 10);
