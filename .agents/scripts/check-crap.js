@@ -118,7 +118,7 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
   return { newMethodCeiling, tolerance, refreshTag, overrides };
 }
 
-export function parseCliArgs(argv = process.argv.slice(2)) {
+export function parseArgv(argv = process.argv.slice(2)) {
   const out = {
     storyId: null,
     epicId: null,
@@ -594,7 +594,7 @@ export function loadCrapBaseline({
 }
 
 async function main() {
-  const args = parseCliArgs();
+  const args = parseArgv();
   const { settings, ...rest } = resolveConfig();
   const crap = getQuality({ agentSettings: settings }).crap;
 

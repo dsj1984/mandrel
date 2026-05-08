@@ -9,8 +9,8 @@ import {
   evaluateGuardrail,
   findRefreshCommits,
   listChangedFiles,
+  parseArgv,
   parseBaseBranchConfig,
-  parseCliArgs,
   parseCommitLog,
   performCrapRecheck,
 } from '../.agents/scripts/baseline-refresh-guardrail.js';
@@ -261,9 +261,9 @@ test('evaluateGuardrail — scenario: mixed PR (baseline + source) → no label 
   );
 });
 
-test('parseCliArgs — defaults and override combinations', () => {
+test('parseArgv — defaults and override combinations', () => {
   assert.deepStrictEqual(
-    parseCliArgs(['--base-ref', 'origin/develop', '--pr-number', '42']),
+    parseArgv(['--base-ref', 'origin/develop', '--pr-number', '42']),
     {
       baseRef: 'origin/develop',
       prNumber: 42,
@@ -273,19 +273,19 @@ test('parseCliArgs — defaults and override combinations', () => {
       gateMode: false,
     },
   );
-  const defaults = parseCliArgs([]);
+  const defaults = parseArgv([]);
   assert.strictEqual(defaults.baseRef, 'origin/main');
   assert.strictEqual(defaults.prNumber, null);
   assert.strictEqual(defaults.gateMode, false);
 });
 
-test('parseCliArgs — --gate-mode flag toggles gate-mode', () => {
-  const parsed = parseCliArgs(['--gate-mode']);
+test('parseArgv — --gate-mode flag toggles gate-mode', () => {
+  const parsed = parseArgv(['--gate-mode']);
   assert.strictEqual(parsed.gateMode, true);
 });
 
-test('parseCliArgs — --skip-label and --skip-check-crap flags', () => {
-  const parsed = parseCliArgs([
+test('parseArgv — --skip-label and --skip-check-crap flags', () => {
+  const parsed = parseArgv([
     '--pr-number',
     '7',
     '--skip-label',
@@ -295,8 +295,8 @@ test('parseCliArgs — --skip-label and --skip-check-crap flags', () => {
   assert.strictEqual(parsed.skipCheckCrap, true);
 });
 
-test('parseCliArgs — non-integer pr-number is rejected (left null)', () => {
-  const parsed = parseCliArgs(['--pr-number', 'NaN']);
+test('parseArgv — non-integer pr-number is rejected (left null)', () => {
+  const parsed = parseArgv(['--pr-number', 'NaN']);
   assert.strictEqual(parsed.prNumber, null);
 });
 

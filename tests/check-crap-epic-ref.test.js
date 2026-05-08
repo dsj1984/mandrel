@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import {
-  loadCrapBaseline,
-  parseCliArgs,
-} from '../.agents/scripts/check-crap.js';
+import { loadCrapBaseline, parseArgv } from '../.agents/scripts/check-crap.js';
 import { clearBaselineCache } from '../.agents/scripts/lib/baseline-loader.js';
 import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 
@@ -26,13 +23,13 @@ describe('check-crap — --epic-ref (Story #1120)', () => {
     clearBaselineCache();
   });
 
-  it('parseCliArgs picks up --epic-ref', () => {
-    const out = parseCliArgs(['--epic-ref', 'epic/1114', '--changed-since']);
+  it('parseArgv picks up --epic-ref', () => {
+    const out = parseArgv(['--epic-ref', 'epic/1114', '--changed-since']);
     assert.equal(out.epicRef, 'epic/1114');
   });
 
-  it('parseCliArgs leaves epicRef null when --epic-ref is absent', () => {
-    const out = parseCliArgs([]);
+  it('parseArgv leaves epicRef null when --epic-ref is absent', () => {
+    const out = parseArgv([]);
     assert.equal(out.epicRef, null);
   });
 

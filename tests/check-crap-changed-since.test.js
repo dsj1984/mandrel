@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   compareCrap,
   filterRowsByFileScope,
-  parseCliArgs,
+  parseArgv,
 } from '../.agents/scripts/check-crap.js';
 import { scanAndScore } from '../.agents/scripts/lib/crap-utils.js';
 
@@ -52,25 +52,25 @@ function makeCoverageMap(dir, relPaths) {
   return map;
 }
 
-describe('parseCliArgs — --changed-since', () => {
+describe('parseArgv — --changed-since', () => {
   it('captures an explicit ref argument', () => {
-    const out = parseCliArgs(['--changed-since', 'origin/main']);
+    const out = parseArgv(['--changed-since', 'origin/main']);
     assert.equal(out.changedSinceRef, 'origin/main');
   });
 
   it('falls back to "main" when no ref follows the flag', () => {
-    const out = parseCliArgs(['--changed-since']);
+    const out = parseArgv(['--changed-since']);
     assert.equal(out.changedSinceRef, 'main');
   });
 
   it('does not consume the next flag as a ref', () => {
-    const out = parseCliArgs(['--changed-since', '--story', '42']);
+    const out = parseArgv(['--changed-since', '--story', '42']);
     assert.equal(out.changedSinceRef, 'main');
     assert.equal(out.storyId, 42);
   });
 
   it('leaves ref null when flag is absent', () => {
-    const out = parseCliArgs(['--story', '7']);
+    const out = parseArgv(['--story', '7']);
     assert.equal(out.changedSinceRef, null);
     assert.equal(out.storyId, 7);
   });

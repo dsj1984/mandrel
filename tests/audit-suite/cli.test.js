@@ -3,8 +3,8 @@ import test from 'node:test';
 
 import {
   HELP,
+  parseArgv,
   parseAuditList,
-  parseCliArgs,
 } from '../../.agents/scripts/lib/audit-suite/cli.js';
 
 test('HELP: documents the canonical flag set', () => {
@@ -33,8 +33,8 @@ test('parseAuditList: returns [] for null/undefined', () => {
   assert.deepEqual(parseAuditList(undefined), []);
 });
 
-test('parseCliArgs: maps short forms onto the values bag', () => {
-  const v = parseCliArgs([
+test('parseArgv: maps short forms onto the values bag', () => {
+  const v = parseArgv([
     '--audits',
     'a,b',
     '--ticket',
@@ -55,12 +55,12 @@ test('parseCliArgs: maps short forms onto the values bag', () => {
   assert.equal(v['run-id'], 'gate1-525');
 });
 
-test('parseCliArgs: --help yields a boolean flag', () => {
-  const v = parseCliArgs(['--help']);
+test('parseArgv: --help yields a boolean flag', () => {
+  const v = parseArgv(['--help']);
   assert.equal(v.help, true);
 });
 
-test('parseCliArgs: tolerates unknown flags (strict: false)', () => {
-  const v = parseCliArgs(['--audits', 'a', '--unknown', 'x']);
+test('parseArgv: tolerates unknown flags (strict: false)', () => {
+  const v = parseArgv(['--audits', 'a', '--unknown', 'x']);
   assert.equal(v.audits, 'a');
 });

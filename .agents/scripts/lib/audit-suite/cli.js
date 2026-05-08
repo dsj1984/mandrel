@@ -46,7 +46,7 @@ export function parseAuditList(commaList) {
  * @param {string[]} argv
  * @returns {Record<string, unknown>}
  */
-export function parseCliArgs(argv) {
+export function parseArgv(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {

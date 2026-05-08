@@ -50,7 +50,7 @@ const BASELINE_REFRESH_LABEL_DESCRIPTION =
 const DEFAULT_REFRESH_TAG = 'baseline-refresh:';
 const COMMIT_DELIMITER = '----END-COMMIT----';
 
-export function parseCliArgs(argv = process.argv.slice(2)) {
+export function parseArgv(argv = process.argv.slice(2)) {
   const out = {
     baseRef: 'origin/main',
     prNumber: null,
@@ -477,7 +477,7 @@ export function performCrapRecheck({
 }
 
 async function main() {
-  const args = parseCliArgs();
+  const args = parseArgv();
   Logger.info(
     `[guardrail] base-ref=${args.baseRef} pr=${args.prNumber ?? '(unknown)'} cwd=${args.cwd}`,
   );

@@ -39,7 +39,8 @@ const coverage = workerData?.coverage ?? null;
 
 parentPort.on('message', (msg) => {
   if (msg && msg.exit === true) {
-    process.exit(0);
+    parentPort.close();
+    return;
   }
   const item = msg?.item;
   if (

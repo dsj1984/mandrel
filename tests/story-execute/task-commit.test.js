@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import {
   buildCommitSubject,
-  parseCliArgs,
+  parseArgv,
   runTaskCommit,
 } from '../../.agents/scripts/task-commit.js';
 
@@ -171,8 +171,8 @@ test('runTaskCommit: surfaces git commit failure (e.g. hook reject)', () => {
   );
 });
 
-test('parseCliArgs: --paths multiple flag instances all collected', () => {
-  const parsed = parseCliArgs([
+test('parseArgv: --paths multiple flag instances all collected', () => {
+  const parsed = parseArgv([
     '--story',
     '7',
     '--task',
