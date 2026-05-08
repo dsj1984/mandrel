@@ -5,7 +5,7 @@
  * the exclude list. Documented from docs/quality-gates.md so operators
  * tracing a failed gate land here.
  *
- * Threshold gates: 88 % lines / 82 % branches / 86 % functions across
+ * Threshold gates: 89 % lines / 83 % branches / 86 % functions across
  * everything in `.agents/scripts/**` minus the explicit `exclude` list
  * below. Anything that lowers the gate is a mainline policy change,
  * not a tactical exclusion — reach for an exclude only when the file
@@ -101,7 +101,7 @@ module.exports = {
     '.agents/scripts/retrofit-task-bodies.js',
     '.agents/scripts/ticket-decomposer.js',
   ],
-  lines: 88,
-  branches: 82,
+  lines: 89,
+  branches: 83,
   functions: 86,
 };
