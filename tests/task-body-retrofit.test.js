@@ -26,6 +26,68 @@ function ticket(overrides) {
   };
 }
 
+describe('unifiedDiff — edge cases', () => {
+  it('emits a header pair even for empty inputs', () => {
+    const out = unifiedDiff('', '', 'task#1');
+    assert.match(out, /^--- task#1 \(current\)\n\+\+\+ task#1 \(proposed\)/);
+  });
+
+  it('returns equal lines as `  ` context when texts match', () => {
+    const out = unifiedDiff('a\nb\nc', 'a\nb\nc', 't');
+    const body = out.split('\n').slice(2);
+    assert.deepEqual(body, ['  a', '  b', '  c']);
+  });
+
+  it('emits `- old` and `+ new` for divergent lines', () => {
+    const out = unifiedDiff('a\nx\nc', 'a\ny\nc', 't');
+    assert.ok(out.includes('- x'));
+    assert.ok(out.includes('+ y'));
+  });
+
+  it('handles old shorter than new (pure additions at the end)', () => {
+    const out = unifiedDiff('a', 'a\nb\nc', 't');
+    const body = out.split('\n').slice(2);
+    // first line equal, then two additions
+    assert.equal(body[0], '  a');
+    assert.ok(body.some((line) => line === '+ b'));
+    assert.ok(body.some((line) => line === '+ c'));
+  });
+
+  it('handles new shorter than old (pure deletions at the end)', () => {
+    const out = unifiedDiff('a\nb\nc', 'a', 't');
+    const body = out.split('\n').slice(2);
+    assert.equal(body[0], '  a');
+    assert.ok(body.some((line) => line === '- b'));
+    assert.ok(body.some((line) => line === '- c'));
+  });
+
+  it('null/undefined arms split into a single empty line each', () => {
+    const out = unifiedDiff(null, null, 't');
+    assert.equal(out.split('\n').slice(2).join(''), '  ');
+  });
+});
+
+describe('isTaskTicket / isStoryTicket', () => {
+  // Re-imported here so this batch's tests are self-contained.
+  it('treats absent labels array as no-label', async () => {
+    const m = await import(
+      '../.agents/scripts/lib/retrofit/task-body-retrofit.js'
+    );
+    assert.equal(m.isTaskTicket({}), false);
+    assert.equal(m.isStoryTicket({}), false);
+  });
+
+  it('returns true only for the matching type label', async () => {
+    const m = await import(
+      '../.agents/scripts/lib/retrofit/task-body-retrofit.js'
+    );
+    assert.equal(m.isTaskTicket({ labels: ['type::task'] }), true);
+    assert.equal(m.isStoryTicket({ labels: ['type::story'] }), true);
+    assert.equal(m.isTaskTicket({ labels: ['type::story'] }), false);
+    assert.equal(m.isStoryTicket({ labels: ['type::task'] }), false);
+  });
+});
+
 describe('parseFooterParent / parseFooterBlockers', () => {
   it('extracts parent and blocked-by from the legacy footer', () => {
     const body = [

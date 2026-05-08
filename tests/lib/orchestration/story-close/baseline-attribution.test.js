@@ -160,4 +160,85 @@ describe('classifyBaselineDrift — branch coverage', () => {
     assert.equal(result.attributable[0].path, 'lib/a.js');
     assert.equal(result.attributable[1].path, 'lib/b.js');
   });
+
+  it('skips rows whose path/file is missing or empty', () => {
+    const { runner, calls } = makeRecordingGit();
+    const result = classifyBaselineDrift({
+      regressions: [{}, { path: '' }, { file: 42 }, { path: 'lib/ok.js' }],
+      storyDiffPaths: ['lib/ok.js'],
+      epicRef: 'origin/epic/1114',
+      cwd: '/repo',
+      gitRunner: runner,
+    });
+    // Only the well-formed row survives the filter.
+    assert.equal(result.attributable.length, 1);
+    assert.equal(result.nonAttributable.length, 0);
+    assert.equal(calls.length, 0);
+  });
+
+  it('falsy epicRef skips git lookup; suspect fields land null', () => {
+    const { runner, calls } = makeRecordingGit();
+    const result = classifyBaselineDrift({
+      regressions: [{ path: 'lib/x.js' }],
+      storyDiffPaths: [],
+      epicRef: null,
+      cwd: '/repo',
+      gitRunner: runner,
+    });
+    assert.equal(result.nonAttributable.length, 1);
+    assert.equal(result.nonAttributable[0].suspectSha, null);
+    assert.equal(result.nonAttributable[0].suspectStoryNumber, null);
+    assert.equal(calls.length, 0);
+  });
+
+  it('non-array regressions defaults to []; non-iterable storyDiffPaths is tolerated as empty Set', () => {
+    const { runner } = makeRecordingGit();
+    const result = classifyBaselineDrift({
+      regressions: null,
+      storyDiffPaths: undefined,
+      epicRef: 'epic/x',
+      cwd: '/repo',
+      gitRunner: runner,
+    });
+    assert.deepEqual(result.attributable, []);
+    assert.deepEqual(result.nonAttributable, []);
+  });
+
+  it('git log subject without whitespace yields suspectSha = full line, no story number', () => {
+    const { runner } = makeRecordingGit({
+      'log --oneline -n 1 epic/x -- lib/oneword.js': {
+        status: 0,
+        stdout: 'beefdead\n',
+        stderr: '',
+      },
+    });
+    const result = classifyBaselineDrift({
+      regressions: [{ path: 'lib/oneword.js' }],
+      storyDiffPaths: [],
+      epicRef: 'epic/x',
+      cwd: '/repo',
+      gitRunner: runner,
+    });
+    assert.equal(result.nonAttributable[0].suspectSha, 'beefdead');
+    assert.equal(result.nonAttributable[0].suspectStoryNumber, null);
+  });
+
+  it('empty git stdout (status 0 but no commits) yields null suspect', () => {
+    const { runner } = makeRecordingGit({
+      'log --oneline -n 1 epic/x -- lib/empty.js': {
+        status: 0,
+        stdout: '',
+        stderr: '',
+      },
+    });
+    const result = classifyBaselineDrift({
+      regressions: [{ path: 'lib/empty.js' }],
+      storyDiffPaths: [],
+      epicRef: 'epic/x',
+      cwd: '/repo',
+      gitRunner: runner,
+    });
+    assert.equal(result.nonAttributable[0].suspectSha, null);
+    assert.equal(result.nonAttributable[0].suspectStoryNumber, null);
+  });
 });

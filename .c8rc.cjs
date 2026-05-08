@@ -51,6 +51,18 @@
  *     The retrofit logic is unit-tested under `lib/retrofit/`; the
  *     shell glue (argv → provider → batch loop) is integration-shaped
  *     and not on a unit-test path.
+ *   - epic-plan.js / epic-plan-decompose.js / epic-plan-spec.js /
+ *     epic-plan-healthcheck.js — `/epic-plan` slash-command CLIs.
+ *     Each exports a `runXPhase` that calls into a real GitHub
+ *     provider, reads PRD/Tech Spec bodies, drives `lib/orchestration/
+ *     plan-runner` against live tickets, and writes back through
+ *     `lib/orchestration/ticketing.js`. The exports have no unit-
+ *     test seam without standing up a fake provider plus fixtures
+ *     for every prompt the planner emits — that's an integration
+ *     fixture suite, not unit coverage. The pure helpers each phase
+ *     needs (`buildAuthoringContext`, ticket validators, etc.) live
+ *     in `lib/orchestration/plan-runner/*` and are unit-tested
+ *     there.
  *
  * Files previously on this list that now sit inside the gate:
  *   - dispatcher.js, notify.js, providers/github.js — each has a
@@ -65,6 +77,10 @@ module.exports = {
   exclude: [
     '.agents/scripts/agents-bootstrap-github.js',
     '.agents/scripts/context-hydrator.js',
+    '.agents/scripts/epic-plan-decompose.js',
+    '.agents/scripts/epic-plan-healthcheck.js',
+    '.agents/scripts/epic-plan-spec.js',
+    '.agents/scripts/epic-plan.js',
     '.agents/scripts/epic-runner.js',
     '.agents/scripts/retrofit-task-bodies.js',
     '.agents/scripts/ticket-decomposer.js',
