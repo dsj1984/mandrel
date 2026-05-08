@@ -862,78 +862,6 @@
       "startLine": 146
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/epic-plan-decompose.js",
-      "method": "setEpicLabel",
-      "startLine": 51
-    },
-    {
-      "crap": 40.33872985839844,
-      "file": ".agents/scripts/epic-plan-decompose.js",
-      "method": "runDecomposePhase",
-      "startLine": 71
-    },
-    {
-      "crap": 30,
-      "file": ".agents/scripts/epic-plan-decompose.js",
-      "method": "reportPartialFailure",
-      "startLine": 141
-    },
-    {
-      "crap": 29.756582754629637,
-      "file": ".agents/scripts/epic-plan-decompose.js",
-      "method": "main",
-      "startLine": 184
-    },
-    {
-      "crap": 3.064471560213856,
-      "file": ".agents/scripts/epic-plan-spec.js",
-      "method": "drainPendingCleanupAtBoot",
-      "startLine": 68
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-plan-spec.js",
-      "method": "<anon method-1>",
-      "startLine": 83
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-plan-spec.js",
-      "method": "setEpicLabel",
-      "startLine": 152
-    },
-    {
-      "crap": 19.213259259259257,
-      "file": ".agents/scripts/epic-plan-spec.js",
-      "method": "runSpecPhase",
-      "startLine": 172
-    },
-    {
-      "crap": 18.962890625,
-      "file": ".agents/scripts/epic-plan-spec.js",
-      "method": "main",
-      "startLine": 234
-    },
-    {
-      "crap": 1.9167113702623908,
-      "file": ".agents/scripts/epic-plan.js",
-      "method": "runSprintPlan",
-      "startLine": 58
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-plan.js",
-      "method": "describePlanResumePoint",
-      "startLine": 102
-    },
-    {
-      "crap": 18.47796882912572,
-      "file": ".agents/scripts/epic-plan.js",
-      "method": "main",
-      "startLine": 116
-    },
-    {
       "crap": 4,
       "file": ".agents/scripts/epic-planner.js",
       "method": "buildAuthoringContext",
@@ -1954,19 +1882,19 @@
       "startLine": 235
     },
     {
-      "crap": 3.0687766090658655,
+      "crap": 3.0020035061357375,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "runOnPool",
       "startLine": 55
     },
     {
-      "crap": 8.03688970651975,
+      "crap": 7.030205253171262,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "runWorker",
       "startLine": 68
     },
     {
-      "crap": 1.0658639622212107,
+      "crap": 1,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "dispatchOne",
       "startLine": 128
@@ -1978,19 +1906,19 @@
       "startLine": 130
     },
     {
-      "crap": 6.972,
+      "crap": 6,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "<anon method-6>",
       "startLine": 135
     },
     {
-      "crap": 1.125,
+      "crap": 1,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "<anon method-7>",
       "startLine": 155
     },
     {
-      "crap": 4.603851851851852,
+      "crap": 2,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "<anon method-8>",
       "startLine": 159
@@ -2278,19 +2206,19 @@
       "startLine": 52
     },
     {
-      "crap": 13.420476444298657,
+      "crap": 9,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranch",
       "startLine": 67
     },
     {
-      "crap": 2.864,
+      "crap": 2,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "_assertOnBranch",
       "startLine": 131
     },
     {
-      "crap": 14.498496987686622,
+      "crap": 7,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "checkoutStoryBranch",
       "startLine": 152
@@ -2302,13 +2230,13 @@
       "startLine": 223
     },
     {
-      "crap": 27.974001200274348,
+      "crap": 5,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureEpicBranchRef",
       "startLine": 228
     },
     {
-      "crap": 5.20262390670554,
+      "crap": 2,
       "file": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureLocalBranch",
       "startLine": 276
@@ -2530,7 +2458,7 @@
       "startLine": 54
     },
     {
-      "crap": 3.3333333333333335,
+      "crap": 3.0540946656649135,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "transpileIfNeeded",
       "startLine": 77
@@ -2542,19 +2470,19 @@
       "startLine": 114
     },
     {
-      "crap": 7.278124999999999,
+      "crap": 5,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "getBaseline",
       "startLine": 128
     },
     {
-      "crap": 17.717999999999996,
+      "crap": 4,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "saveBaseline",
       "startLine": 154
     },
     {
-      "crap": 6.031098153547133,
+      "crap": 6,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "scanDirectory",
       "startLine": 195
@@ -2938,7 +2866,7 @@
       "startLine": 190
     },
     {
-      "crap": 11.988222576240329,
+      "crap": 5,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "runWorktreeGc",
       "startLine": 210
@@ -3034,7 +2962,7 @@
       "startLine": 44
     },
     {
-      "crap": 3.745410408132302,
+      "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/finalize.js",
       "method": "runFinalizePhase",
       "startLine": 15
@@ -3142,7 +3070,7 @@
       "startLine": 887
     },
     {
-      "crap": 16.81716710766064,
+      "crap": 16.078678343482082,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "createCrapDriftDetector",
       "startLine": 53
@@ -3166,13 +3094,13 @@
       "startLine": 91
     },
     {
-      "crap": 3.5386927122464313,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "readCoverageMap",
       "startLine": 118
     },
     {
-      "crap": 9.017707642881003,
+      "crap": 9,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
       "method": "createMaintainabilityDriftDetector",
       "startLine": 41
@@ -3832,19 +3760,19 @@
       "startLine": 73
     },
     {
-      "crap": 1.2962962962962963,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "lockPathDisplay",
       "startLine": 61
     },
     {
-      "crap": 1.0115135443590346,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "withEpicMergeLock",
       "startLine": 82
     },
     {
-      "crap": 67.73478587528174,
+      "crap": 8,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "pushEpicAndHandleConflicts",
       "startLine": 140
@@ -3874,13 +3802,13 @@
       "startLine": 405
     },
     {
-      "crap": 4.031949601178682,
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
       "method": "runPostMergeClose",
       "startLine": 59
     },
     {
-      "crap": 6.1449567993989485,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
       "method": "runPreMergeGates",
       "startLine": 49
@@ -3892,13 +3820,13 @@
       "startLine": 69
     },
     {
-      "crap": 11.5281207133059,
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
       "method": "<anon method-2>",
       "startLine": 70
     },
     {
-      "crap": 18.629350702218602,
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
       "method": "emitMaintainabilityProjection",
       "startLine": 99
@@ -4240,13 +4168,13 @@
       "startLine": 78
     },
     {
-      "crap": 11.425710939426317,
+      "crap": 3,
       "file": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "method": "postManifestEpicComment",
       "startLine": 93
     },
     {
-      "crap": 11.517962434259955,
+      "crap": 3,
       "file": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "method": "postParkedFollowOnsComment",
       "startLine": 148
@@ -4702,6 +4630,18 @@
       "startLine": 307
     },
     {
+      "crap": 13,
+      "file": ".agents/scripts/lib/workers/crap-worker.js",
+      "method": "handleCrapWorkerMessage",
+      "startLine": 57
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/workers/maintainability-worker.js",
+      "method": "handleMaintainabilityWorkerMessage",
+      "startLine": 30
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/workspace-provisioner.js",
       "method": "resolveWorkspaceFiles",
@@ -4846,7 +4786,7 @@
       "startLine": 40
     },
     {
-      "crap": 11.470728,
+      "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/drift-detection.js",
       "method": "sweepStaleLocks",
       "startLine": 13
@@ -5212,7 +5152,7 @@
       "startLine": 22
     },
     {
-      "crap": 4.916,
+      "crap": 2,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "getBranchProtection",
       "startLine": 15
@@ -5428,13 +5368,13 @@
       "startLine": 28
     },
     {
-      "crap": 12,
+      "crap": 3,
       "file": ".agents/scripts/providers/github/projects.js",
       "method": "fetchProjectV2",
       "startLine": 42
     },
     {
-      "crap": 7.040374755859375,
+      "crap": 7,
       "file": ".agents/scripts/providers/github/projects.js",
       "method": "fetchProjectV2Strict",
       "startLine": 78
@@ -5458,7 +5398,7 @@
       "startLine": 139
     },
     {
-      "crap": 10.503358436800326,
+      "crap": 3.0494606146957053,
       "file": ".agents/scripts/providers/github/projects.js",
       "method": "resolveExistingProject",
       "startLine": 153
@@ -5488,7 +5428,7 @@
       "startLine": 251
     },
     {
-      "crap": 6.359705052344106,
+      "crap": 6,
       "file": ".agents/scripts/providers/github/projects.js",
       "method": "ensureProjectViews",
       "startLine": 343
