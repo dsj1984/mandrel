@@ -87,7 +87,16 @@ test('story-close cd-out guard (subprocess)', async (t) => {
         assert.match(output, /story-999/);
         assert.match(output, /Run instead:\s+cd "/);
       } finally {
-        fs.rmSync(tmp, { recursive: true, force: true });
+        // Windows can briefly hold a handle on the directory after the
+        // spawned subprocess exits (it inherited cwd=tmp), so the rmdir
+        // races a stale handle and EBUSYs out. maxRetries with a short
+        // delay lets the OS release the handle before we retry.
+        fs.rmSync(tmp, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 100,
+        });
       }
     },
   );
@@ -115,7 +124,16 @@ test('story-close cd-out guard (subprocess)', async (t) => {
           /Refusing to close while CWD is the worktree/,
         );
       } finally {
-        fs.rmSync(tmp, { recursive: true, force: true });
+        // Windows can briefly hold a handle on the directory after the
+        // spawned subprocess exits (it inherited cwd=tmp), so the rmdir
+        // races a stale handle and EBUSYs out. maxRetries with a short
+        // delay lets the OS release the handle before we retry.
+        fs.rmSync(tmp, {
+          recursive: true,
+          force: true,
+          maxRetries: 10,
+          retryDelay: 100,
+        });
       }
     },
   );
