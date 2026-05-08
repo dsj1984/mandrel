@@ -20,6 +20,7 @@
 
 import path from 'node:path';
 import * as defaultGit from './git-utils.js';
+import { Logger } from './Logger.js';
 import { assertPathContainment } from './path-security.js';
 import {
   DEFAULT_WORKSPACE_FILES,
@@ -79,9 +80,9 @@ export class WorktreeManager {
       ...config,
     };
     this.logger = logger ?? {
-      info: (m) => console.log(`[WorktreeManager] ${m}`),
-      warn: (m) => console.warn(`[WorktreeManager] ⚠️ ${m}`),
-      error: (m) => console.error(`[WorktreeManager] ❌ ${m}`),
+      info: (m) => Logger.info(`[WorktreeManager] ${m}`),
+      warn: (m) => Logger.warn(`[WorktreeManager] ⚠️ ${m}`),
+      error: (m) => Logger.error(`[WorktreeManager] ❌ ${m}`),
     };
     this.git = git;
     this.platform = platform;

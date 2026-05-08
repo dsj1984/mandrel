@@ -20,7 +20,7 @@
 export const SUB_ISSUES_QUERY = `query($id: ID!, $cursor: String) {
   node(id: $id) {
     ... on Issue {
-      subIssues(first: 50, after: $cursor) {
+      subIssues(first: 100, after: $cursor) {
         pageInfo { hasNextPage endCursor }
         nodes {
           number

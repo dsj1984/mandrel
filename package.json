@@ -4,9 +4,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --experimental-test-module-mocks --test \"tests/**/*.test.js\"",
+    "test": "node --experimental-test-module-mocks --test --test-concurrency=8 \"tests/**/*.test.js\"",
     "typecheck": "node -e \"process.exit(0)\"",
-    "test:coverage": "c8 node --experimental-test-module-mocks --test \"tests/**/*.test.js\"",
+    "test:coverage": "node bench/run-coverage.js",
     "lint:md": "markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
     "lint": "biome lint . && markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
     "format": "biome format --write .",

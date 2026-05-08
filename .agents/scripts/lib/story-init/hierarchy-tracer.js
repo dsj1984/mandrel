@@ -1,3 +1,4 @@
+import { Logger } from '../Logger.js';
 /**
  * hierarchy-tracer.js — Stage 2 of the story-init pipeline.
  *
@@ -17,7 +18,7 @@
  */
 export async function traceHierarchy({ provider, logger, input }) {
   const { epicId } = input;
-  const warn = logger?.warn ?? ((msg) => console.error(msg));
+  const warn = logger?.warn ?? ((msg) => Logger.error(msg));
 
   let prdId = null;
   let techSpecId = null;

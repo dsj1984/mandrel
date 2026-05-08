@@ -28,14 +28,47 @@ with a clear error and leaves the local tree clean for manual resolution.
 
 ---
 
+## Test runner concurrency
+
+`npm test` pins the Node test runner to `--test-concurrency=8`. Without
+the flag, Node defaults to `os.availableParallelism()`, which on
+modern dev hosts (12–16 logical cores) over-subscribes the suite and
+reliably surfaces flakes from shared FS fixtures (`memfs` mounts,
+`temp/` snapshot dirs, the `coverage/` artifact directory shared with
+the CRAP gate). On the GitHub Actions 2-vCPU runner, oversubscription
+goes the other way — the default of 2 leaves wall-clock on the table
+because most test files spend their time awaiting `setImmediate` /
+mocked HTTP, not on CPU.
+
+Pinning at 8 lands a stable middle: high enough to keep the local
+244-file suite under ~30 s on a 12-core host, low enough to avoid the
+filesystem-race surface that the cap=4 / cap=8 orchestration helpers
+(`SUBTICKET_HYDRATION_CONCURRENCY`, the wave-gate, the link-reconciler)
+already settled on as the project house-style ceiling. Any change to
+this number must be paired with a benchmark run on both a Windows dev
+host and a GitHub Actions runner to confirm it doesn't reintroduce the
+flakes the pin is preventing.
+
+---
+
 ## Coverage threshold gate
 
-`npm run test:coverage` runs the full unit-test suite under `c8` and
-fails the gate when coverage drops below **85 % lines / 70 % branches /
-75 % functions** across `.agents/scripts/**`. The configuration is
-declared in [`.c8rc.cjs`](../.c8rc.cjs) — the rc file is the single
-source of truth for the include scope, the threshold values, and the
-exclusion list.
+`npm run test:coverage` drives [`bench/run-coverage.js`](../bench/run-coverage.js),
+which runs the unit-test suite with `NODE_V8_COVERAGE` set, then post-processes
+the V8 dumps with `c8 report` and `c8 check-coverage`. The gate fails when
+coverage drops below **85 % lines / 70 % branches / 75 % functions** across
+`.agents/scripts/**`. Scope (include/exclude) and the threshold values are
+declared in [`.c8rc.cjs`](../.c8rc.cjs); the same threshold numbers are passed
+to `c8 check-coverage` explicitly because the sub-command does not auto-load
+`.c8rc.cjs` and otherwise falls back to the c8 default of 90 %.
+
+The `c8 <cmd>` wrap form (the previous shape of this script) was retired
+after [`bench/coverage-bench.js`](../bench/coverage-bench.js) showed the
+NODE_V8_COVERAGE path is ~19 % faster end-to-end on a Windows dev host
+(median 49 s vs 61 s across 3 runs each) while producing identical
+line / branch / function percentages and the same `coverage-final.json`
+artifact for the CRAP gate. See [`bench/results.log`](../bench/results.log)
+for the run-by-run numbers.
 
 Three files are deliberately outside the gate:
 

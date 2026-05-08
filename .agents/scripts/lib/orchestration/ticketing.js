@@ -392,7 +392,7 @@ export async function upsertStructuredComment(
     try {
       await provider.deleteComment(existing.id);
     } catch (err) {
-      console.warn(
+      Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
       );
     }
@@ -518,7 +518,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
         parent.labels.includes('context::prd') ||
         parent.labels.includes('context::tech-spec');
       if (isEpic || isPlanning) {
-        console.warn(
+        Logger.warn(
           `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (reserved for epic-close).`,
         );
         continue;
@@ -542,7 +542,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
       failed.push(...nested.failed);
     } catch (err) {
       failed.push({ parentId, error: err.message ?? String(err) });
-      console.warn(
+      Logger.warn(
         `[Ticketing] Cascade to parent #${parentId} failed: ${err.message ?? err}`,
       );
     }

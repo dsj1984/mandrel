@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { gitSpawn } from './lib/git-utils.js';
 
+import { Logger } from './lib/Logger.js';
 export function assertBranch(expected, { cwd = PROJECT_ROOT } = {}) {
   if (!expected || typeof expected !== 'string') {
     return { ok: false, reason: 'missing --expected <branch>' };
@@ -74,8 +75,8 @@ if (isMain) {
   const cwd = flagCwd || process.env.AGENT_WORKTREE_ROOT || PROJECT_ROOT;
   const result = assertBranch(expected, { cwd });
   if (!result.ok) {
-    console.error(`[assert-branch] ${result.reason}`);
+    Logger.error(`[assert-branch] ${result.reason}`);
     process.exit(1);
   }
-  console.log(`[assert-branch] ✅ on ${result.actual}`);
+  Logger.info(`[assert-branch] ✅ on ${result.actual}`);
 }

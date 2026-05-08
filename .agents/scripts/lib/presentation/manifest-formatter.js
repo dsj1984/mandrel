@@ -10,8 +10,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { Logger } from '../Logger.js';
 import { AGENT_LABELS } from '../label-constants.js';
-
 // ---------------------------------------------------------------------------
 // Pure render helpers (Story #484 — exported for direct fixture testing)
 // ---------------------------------------------------------------------------
@@ -479,7 +479,7 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
 
 /**
  * Print the CLI Story Dispatch Table. Writes to the supplied `logger.log`
- * channel (defaults to `console.log`). Keeping the sink injectable makes the
+ * channel (defaults to `Logger.info`). Keeping the sink injectable makes the
  * function testable without capturing stdout.
  *
  * @param {object[]} storyManifest
@@ -487,7 +487,7 @@ export function formatStoryManifestMarkdown(manifest, opts = {}) {
  */
 /* node:coverage ignore next */
 export function printStoryDispatchTable(storyManifest, opts = {}) {
-  const log = opts.logger?.log ?? ((line) => console.log(line));
+  const log = opts.logger?.log ?? ((line) => Logger.info(line));
   if (!storyManifest || storyManifest.length === 0) return;
 
   // Split into wave-eligible Stories and Feature containers

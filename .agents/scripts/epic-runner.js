@@ -15,6 +15,8 @@
  */
 import { runAsCli } from './lib/cli-utils.js';
 
+import { Logger } from './lib/Logger.js';
+
 function parseArgs(argv) {
   const args = { epicId: null, dryRun: false };
   for (let i = 0; i < argv.length; i++) {
@@ -31,7 +33,7 @@ function parseArgs(argv) {
 }
 
 function printUsage() {
-  console.log(
+  Logger.info(
     'Usage: node .agents/scripts/epic-runner.js --epic <epicId> [--dry-run]',
   );
 }
@@ -45,7 +47,7 @@ async function main() {
   }
 
   if (!args.epicId || Number.isNaN(args.epicId)) {
-    console.error('[epic-runner] ERROR: --epic <epicId> is required.');
+    Logger.error('[epic-runner] ERROR: --epic <epicId> is required.');
     printUsage();
     process.exit(2);
   }
@@ -58,14 +60,14 @@ async function main() {
     config = resolveConfig();
     validateOrchestrationConfig(config.orchestration);
   } catch (err) {
-    console.error(
+    Logger.error(
       `[epic-runner] ERROR: orchestration config schema validation failed:\n${err.message}`,
     );
     process.exit(2);
   }
 
   if (!config.orchestration) {
-    console.error(
+    Logger.error(
       '[epic-runner] ERROR: no orchestration block in .agentrc.json.',
     );
     process.exit(1);
@@ -79,7 +81,7 @@ async function main() {
       orchestration: config.orchestration,
       concurrencyCap: epicRunner.concurrencyCap,
     });
-    console.log(
+    Logger.info(
       JSON.stringify(
         {
           epicId: args.epicId,
@@ -94,7 +96,7 @@ async function main() {
     return;
   }
 
-  console.error(
+  Logger.error(
     '[epic-runner] ERROR: this CLI no longer dispatches Stories on its own.\n' +
       '  Story fan-out runs in-session via the Agent tool — invoke the\n' +
       '  `/epic-execute <epicId>` slash command from a Claude session, or\n' +

@@ -91,7 +91,7 @@ async function main() {
     logger: {
       info: (m) => progress('DRAIN', m),
       warn: (m) => progress('DRAIN', `⚠️ ${m}`),
-      error: (m) => console.error(`[drain-pending-cleanup] ${m}`),
+      error: (m) => Logger.error(`[drain-pending-cleanup] ${m}`),
     },
   });
 

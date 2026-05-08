@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { epicArtifactPath } from '../config/temp-paths.js';
+import { Logger } from '../Logger.js';
 import { findStructuredComment } from '../orchestration/ticketing.js';
 
 const DONE_LABEL = 'agent::done';
@@ -258,7 +259,7 @@ export async function runDispatchManifestGuard({
   });
 
   if (!load.ok) {
-    const warn = logger?.warn ?? ((m) => console.error(m));
+    const warn = logger?.warn ?? ((m) => Logger.error(m));
     warn(
       `[warn] dispatch-manifest dependency guard skipped: ${load.reason}. Proceeding without blocker verification — regenerate via /epic-plan to restore the guard.`,
     );
@@ -267,7 +268,7 @@ export async function runDispatchManifestGuard({
 
   const check = validateBlockersMerged(load.manifest, storyId);
   if (!check.ok) {
-    console.error(formatBlockerReport(storyId, check.blockers));
+    Logger.error(formatBlockerReport(storyId, check.blockers));
     return { blocked: true, openBlockers: check.blockers };
   }
 

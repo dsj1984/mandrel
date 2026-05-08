@@ -92,7 +92,7 @@ export async function runWaveGate({
     'dispatch-manifest',
   );
   if (!comment) {
-    console.error(
+    Logger.error(
       `[wave-gate] No dispatch-manifest comment on Epic #${epicId}. ` +
         `Run \`node .agents/scripts/dispatcher.js <epicId>\` to produce one.`,
     );
@@ -101,7 +101,7 @@ export async function runWaveGate({
 
   const parsed = parseFencedJsonComment(comment);
   if (!parsed || !Array.isArray(parsed.stories)) {
-    console.error(
+    Logger.error(
       `[wave-gate] dispatch-manifest comment #${comment.id} on Epic #${epicId} did not contain a parseable story list.`,
     );
     process.exit(2);
@@ -219,12 +219,12 @@ export async function runWaveGate({
   }
 
   if (problems.length > 0) {
-    console.error(
+    Logger.error(
       `[wave-gate] ❌ Wave-completeness gate FAILED for Epic #${epicId}:`,
     );
-    for (const p of problems) console.error(p);
-    console.error('');
-    console.error(
+    for (const p of problems) Logger.error(p);
+    Logger.error('');
+    Logger.error(
       'Resolve the open items with `/epic-execute <storyId>` or close them manually, then re-run `/epic-close`.',
     );
     process.exit(1);
@@ -234,7 +234,7 @@ export async function runWaveGate({
     followOns.recuts.length > 0 || followOns.parked.length > 0
       ? ` · ${followOns.recuts.length} recut + ${followOns.parked.length} parked (all closed)`
       : '';
-  console.log(
+  Logger.info(
     `[wave-gate] ✅ All ${parsed.stories.length} manifest story(ies) for Epic #${epicId} are closed${followOnNote}.`,
   );
   return {

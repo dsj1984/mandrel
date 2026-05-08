@@ -8,6 +8,7 @@
  */
 
 import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
+import { Logger } from '../../lib/Logger.js';
 import { TYPE_LABELS } from '../../lib/label-constants.js';
 import { composeTaskBody } from '../../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
@@ -139,12 +140,12 @@ export async function getNativeSubIssues(ctx, parentNodeId, parentId) {
   } catch (err) {
     const category = classifyGithubError(err);
     if (category === 'feature-disabled') {
-      console.warn(
+      Logger.warn(
         `[GitHubProvider] sub-issues GraphQL unavailable (parent #${parentId}); using checklist fallback`,
       );
       return [];
     }
-    console.error(
+    Logger.error(
       `[GitHubProvider] sub-issues GraphQL failed (parent #${parentId}, category=${category}): ${err.message}`,
     );
     throw err;
@@ -175,7 +176,7 @@ export async function getReferencedChildren(ctx, parentId) {
     primeTicketCache(ctx, issues);
     return issues.map((i) => i.id);
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[GitHubProvider] reverse dependency lookup (parent #${parentId}): ${err.message}`,
     );
     return [];
@@ -214,7 +215,7 @@ export async function getSubTickets(ctx, parentId) {
         // see the gap; we still return null to preserve the "best-effort"
         // partial-read contract that the orchestrator depends on.
         const msg = err?.message ?? String(err);
-        console.warn(
+        Logger.warn(
           `[GitHubProvider] getSubTickets: child #${id} fetch failed (parent #${parentId}): ${msg}`,
         );
         return null;
@@ -293,7 +294,7 @@ export async function createTicket(ctx, parentId, ticketData) {
       await ctx.hooks.addItemToProject(issue.node_id);
     }
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[GitHubProvider] Failed to add Issue #${issue.number} to project: ${err.message}`,
     );
   }
@@ -346,7 +347,7 @@ export async function addSubIssue(
       );
       const delay =
         base + Math.floor(Math.random() * SUB_ISSUE_RETRY_JITTER_MS);
-      console.warn(
+      Logger.warn(
         `[GitHubProvider] sub-issue link transient error for parent #${parentNumber} (attempt ${attempt + 1}/${SUB_ISSUE_RETRY_MAX_ATTEMPTS}); retrying in ${delay}ms: ${err.message}`,
       );
       await new Promise((r) => setTimeout(r, delay));

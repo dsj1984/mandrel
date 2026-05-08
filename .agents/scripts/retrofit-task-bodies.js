@@ -120,7 +120,7 @@ async function runEmitContext(epicId, provider, { out, pretty }) {
   if (out) {
     await mkdir(path.dirname(out), { recursive: true });
     await writeFile(out, `${json}\n`, 'utf8');
-    console.log(
+    Logger.info(
       `[retrofit] Wrote ${ctx.tasks.length} task context(s) to ${out}`,
     );
   } else {
@@ -178,7 +178,7 @@ async function runApply(epicId, provider, { bodiesFile, dryRun }) {
       );
     }
     if (hasStructuredHeader(existing.body)) {
-      console.log(`[retrofit] SKIP #${taskId} — already four-section format`);
+      Logger.info(`[retrofit] SKIP #${taskId} — already four-section format`);
       summaryLines.push(`- #${taskId} — skipped (already conforming)`);
       skipped++;
       continue;
@@ -204,15 +204,15 @@ async function runApply(epicId, provider, { bodiesFile, dryRun }) {
     );
 
     if (dryRun) {
-      console.log(diff);
-      console.log('');
+      Logger.info(diff);
+      Logger.info('');
       continue;
     }
 
     try {
       await provider.updateTicket(taskId, { body: newBody });
       applied++;
-      console.log(`[retrofit] Applied #${taskId}`);
+      Logger.info(`[retrofit] Applied #${taskId}`);
     } catch (err) {
       throw new Error(
         `[retrofit] Failed to update task #${taskId}: ${err.message}`,
@@ -228,11 +228,11 @@ async function runApply(epicId, provider, { bodiesFile, dryRun }) {
   );
   await writeFile(summaryPath, summaryLines.join('\n'), 'utf8');
 
-  console.log('');
-  console.log(
+  Logger.info('');
+  Logger.info(
     `[retrofit] ${dryRun ? 'DRY-RUN' : 'APPLIED'}: ${applied} updated, ${skipped} skipped, ${bodies.length - applied - skipped} previewed.`,
   );
-  console.log(`[retrofit] Summary written to ${summaryPath}`);
+  Logger.info(`[retrofit] Summary written to ${summaryPath}`);
 }
 
 async function main() {

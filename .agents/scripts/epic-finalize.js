@@ -28,6 +28,7 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { BookendChainer } from './lib/orchestration/epic-runner/bookend-chainer.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
@@ -151,17 +152,17 @@ async function main() {
     strict: false,
   });
   if (values.help) {
-    console.log(HELP);
+    Logger.info(HELP);
     return;
   }
   const epicId = Number.parseInt(values.epic ?? '', 10);
   if (Number.isNaN(epicId) || epicId <= 0) {
-    console.error('[epic-finalize] ERROR: --epic <epicId> is required.');
-    console.error(HELP);
+    Logger.error('[epic-finalize] ERROR: --epic <epicId> is required.');
+    Logger.error(HELP);
     process.exit(2);
   }
   const out = await runEpicFinalize({ epicId });
-  console.log(JSON.stringify(out, null, 2));
+  Logger.info(JSON.stringify(out, null, 2));
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-finalize' });

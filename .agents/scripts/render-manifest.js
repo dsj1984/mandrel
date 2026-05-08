@@ -99,7 +99,7 @@ export async function renderManifestFromComment({
     'dispatch-manifest',
   );
   if (!comment) {
-    console.error(
+    Logger.error(
       `[render-manifest] No dispatch-manifest comment on Epic #${epicId}. ` +
         `Run the dispatcher (\`node .agents/scripts/dispatcher.js ${epicId}\`) first.`,
     );
@@ -108,7 +108,7 @@ export async function renderManifestFromComment({
 
   const parsed = extractManifestJson(comment.body);
   if (!parsed) {
-    console.error(
+    Logger.error(
       `[render-manifest] dispatch-manifest comment #${comment.id} on Epic #${epicId} did not contain a parseable JSON block.`,
     );
     process.exit(1);
@@ -121,7 +121,7 @@ export async function renderManifestFromComment({
   });
 
   const storyCount = Array.isArray(parsed.stories) ? parsed.stories.length : 0;
-  console.log(
+  Logger.info(
     `[render-manifest] ✅ Rendered ${storyCount} story(ies) for Epic #${epicId}:\n` +
       `  - ${mdPath}\n` +
       `  - ${jsonPath}`,

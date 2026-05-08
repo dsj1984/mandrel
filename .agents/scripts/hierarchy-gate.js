@@ -111,7 +111,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
   try {
     descendants = await collectDescendants(provider, epicId);
   } catch (err) {
-    console.error(`[hierarchy-gate] ${err.message}`);
+    Logger.error(`[hierarchy-gate] ${err.message}`);
     process.exit(2);
   }
 
@@ -140,7 +140,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     failures.other.length;
 
   if (totalOpen > 0) {
-    console.error(
+    Logger.error(
       `[hierarchy-gate] ❌ Hierarchy-completeness gate FAILED for Epic #${epicId}: ${totalOpen} descendant(s) incomplete.`,
     );
     const sections = [
@@ -151,12 +151,12 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     ];
     for (const [key, label] of sections) {
       if (failures[key].length === 0) continue;
-      console.error(`\n  ${label}:`);
+      Logger.error(`\n  ${label}:`);
       for (const item of failures[key]) {
-        console.error(`    - #${item.id} (${item.reason}) — ${item.title}`);
+        Logger.error(`    - #${item.id} (${item.reason}) — ${item.title}`);
       }
     }
-    console.error(
+    Logger.error(
       '\nClose the open descendants — Tasks must carry `agent::done` — ' +
         'and re-run `/epic-close`.',
     );
@@ -167,7 +167,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     auxiliaryDeferred > 0
       ? ` (${auxiliaryDeferred} auxiliary ticket${auxiliaryDeferred === 1 ? '' : 's'} deferred to Phase 7)`
       : '';
-  console.log(
+  Logger.info(
     `[hierarchy-gate] ✅ All ${descendants.length - auxiliaryDeferred} planned descendant(s) under Epic #${epicId} are closed${auxNote}.`,
   );
   return {

@@ -215,8 +215,8 @@ function runSelectedAction(action, cwd) {
 }
 
 function emitRebaseHuman(result) {
-  for (const line of renderRebaseHumanLines(result)) console.log(line);
-  if (result.stderr?.trim()) console.error(result.stderr.trim());
+  for (const line of renderRebaseHumanLines(result)) Logger.info(line);
+  if (result.stderr?.trim()) Logger.error(result.stderr.trim());
 }
 
 /* node:coverage ignore next */

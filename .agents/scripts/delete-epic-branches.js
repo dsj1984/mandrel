@@ -212,18 +212,18 @@ function emitJson(payload, fail) {
 }
 
 function emitDryRunHuman(plan) {
-  for (const line of renderDryRun(plan)) console.log(line);
+  for (const line of renderDryRun(plan)) Logger.info(line);
 }
 
 function emitExecutionHuman(epicId, result) {
-  for (const r of result.local) console.log(renderDeletionLine(r, 'local'));
-  for (const r of result.remote) console.log(renderDeletionLine(r, 'remote'));
+  for (const r of result.local) Logger.info(renderDeletionLine(r, 'local'));
+  for (const r of result.remote) Logger.info(renderDeletionLine(r, 'remote'));
   const summary = renderExecutionSummary(epicId, result);
   if (result.ok) {
-    console.log(summary);
+    Logger.info(summary);
     return;
   }
-  console.error(summary);
+  Logger.error(summary);
   process.exit(1);
 }
 

@@ -270,7 +270,7 @@ export async function decomposeEpic(
     );
   }
 
-  console.log(`[Decomposer] Fetching Epic #${epicId}...`);
+  Logger.info(`[Decomposer] Fetching Epic #${epicId}...`);
   const epic = await provider.getEpic(epicId);
 
   if (!epic?.linkedIssues?.prd || !epic.linkedIssues.techSpec) {
@@ -301,7 +301,7 @@ export async function decomposeEpic(
   );
 
   if (force) {
-    console.log('[Decomposer] --force: Closing existing child tickets...');
+    Logger.info('[Decomposer] --force: Closing existing child tickets...');
     // Bound the GitHub close-mutation burst so a wide --force re-plan does
     // not race the secondary rate limit. concurrentMap surfaces the first
     // rejection deterministically (later failures from drain-through work
@@ -315,11 +315,11 @@ export async function decomposeEpic(
           state: 'closed',
           state_reason: 'not_planned',
         });
-        console.log(`[Decomposer]   Closed #${child.id}: ${child.title}`);
+        Logger.info(`[Decomposer]   Closed #${child.id}: ${child.title}`);
       },
       { concurrency: 3 },
     );
-    console.log(
+    Logger.info(
       `[Decomposer]   Closed ${existingChildren.length} old ticket(s).`,
     );
   }
@@ -339,12 +339,12 @@ export async function decomposeEpic(
 
   const maxTickets = getLimits(_config).maxTickets;
   if (tickets.length >= maxTickets) {
-    console.warn(
+    Logger.warn(
       `[Decomposer] ⚠️  Received ${tickets.length} tickets (at or above the ${maxTickets}-ticket cap). Verify every Story still has child Tasks or split the Epic into smaller scopes.`,
     );
   }
 
-  console.log(
+  Logger.info(
     `[Decomposer] Running cross-validation on ${tickets.length} tickets...`,
   );
   // Thread the configured base branch into the validator so the freshness
@@ -379,7 +379,7 @@ export async function decomposeEpic(
     DEFAULT_DECOMPOSER.concurrencyCap;
   let activeCap = configuredCap;
 
-  console.log(
+  Logger.info(
     `[Decomposer] Identified ${validated.length} tickets. Starting creation (concurrencyCap=${activeCap}${childIndex.size > 0 ? `, existing=${childIndex.size}` : ''})...`,
   );
 
@@ -420,7 +420,7 @@ export async function decomposeEpic(
 
   await reconcileSubIssueLinks(epicId, provider);
 
-  console.log(
+  Logger.info(
     `[Decomposer] Backlog for Epic #${epicId} populated successfully!`,
   );
 }
@@ -439,7 +439,7 @@ export async function decomposeEpic(
 async function reconcileSubIssueLinks(epicId, provider) {
   if (typeof provider.reconcileSubIssueLinks !== 'function') return;
 
-  console.log(
+  Logger.info(
     `[Decomposer] Reconciling sub-issue API links for Epic #${epicId}...`,
   );
   const result = await provider.reconcileSubIssueLinks(epicId);
@@ -447,7 +447,7 @@ async function reconcileSubIssueLinks(epicId, provider) {
 
   if (failed === 0) {
     const reconciledNote = reconciled > 0 ? ` (${reconciled} reconciled)` : '';
-    console.log(
+    Logger.info(
       `[Decomposer] linked ${alreadyLinked + reconciled}/${totalExpected} sub-issues${reconciledNote}`,
     );
     return;
@@ -514,7 +514,7 @@ async function runCreationPass(
 
       const existingEntry = childIndex.get(t.title);
       if (existingEntry && existingEntry.state !== 'closed') {
-        console.log(
+        Logger.info(
           `[Decomposer] SKIP (already created): #${existingEntry.id} ${t.title}`,
         );
         slugMap.set(t.slug, existingEntry.id);
@@ -527,7 +527,7 @@ async function runCreationPass(
         );
       }
 
-      console.log(
+      Logger.info(
         `[Decomposer] [${t.type.toUpperCase()}] Creating "${t.title}"...`,
       );
 
@@ -548,7 +548,7 @@ async function runCreationPass(
           dependencies,
           auditSnapshot,
         });
-        console.log(`[Decomposer] -> Created Issue #${created.id}`);
+        Logger.info(`[Decomposer] -> Created Issue #${created.id}`);
         slugMap.set(t.slug, created.id);
         deferred.get(t.slug).resolve(created.id);
         return created.id;

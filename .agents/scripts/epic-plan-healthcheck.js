@@ -331,7 +331,7 @@ export async function runPlanHealthcheck(opts = {}) {
   }
 
   // The structured result is the only thing on stdout.
-  console.log(JSON.stringify(result));
+  Logger.info(JSON.stringify(result));
 
   return result;
 }

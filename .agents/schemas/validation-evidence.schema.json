@@ -60,6 +60,10 @@
             "minimum": 0,
             "description": "Wall-clock duration of the passing run, in milliseconds. Optional."
           },
+          "inputFingerprint": {
+            "type": ["string", "null"],
+            "description": "Optional sha256 (or other stable digest) of the byte-identical inputs the gate consumed. When present, shouldSkip() will match on this even if the commit SHA has moved — letting docs-only or whitespace-only commits skip an unchanged gate."
+          },
           "timestamp": {
             "type": "string",
             "format": "date-time",

@@ -18,6 +18,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { Logger } from './lib/Logger.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
@@ -44,7 +46,7 @@ const sourceSet = new Set(sources);
 for (const file of existing) {
   if (!sourceSet.has(file)) {
     fs.unlinkSync(path.join(DEST_DIR, file));
-    console.log(`  removed  ${file} (no longer in workflows)`);
+    Logger.info(`  removed  ${file} (no longer in workflows)`);
   }
 }
 
@@ -72,10 +74,10 @@ await Promise.all(
 
     await fs.promises.writeFile(dest, target, 'utf8');
     synced++;
-    console.log(`  synced   ${file}`);
+    Logger.info(`  synced   ${file}`);
   }),
 );
 
-console.log(
+Logger.info(
   `\n✔ ${synced} file(s) synced, ${sources.length} total commands in .claude/commands/`,
 );

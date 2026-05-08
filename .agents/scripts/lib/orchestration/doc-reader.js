@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPaths } from '../config-resolver.js';
+import { Logger } from '../Logger.js';
 import { applyBudget } from './planning-context-budget.js';
 
 async function readDocsFromRoot(docsRoot, settings) {
@@ -52,17 +53,17 @@ export async function scrapeProjectDocs(settings) {
   if (!docsRoot || !fs.existsSync(docsRoot)) {
     return { docs: [], usedFallback: false };
   }
-  console.log(`[Epic Planner] Scraping project docs from ${docsRoot}...`);
+  Logger.info(`[Epic Planner] Scraping project docs from ${docsRoot}...`);
   try {
     const result = await readDocsFromRoot(docsRoot, settings);
     if (result.usedFallback) {
-      console.warn(
+      Logger.warn(
         '[Epic Planner] ⚠️  agentSettings.docsContextFiles is unset — falling back to every top-level *.md under docsRoot. Configure docsContextFiles for production planning.',
       );
     }
     return result;
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[Epic Planner] Warning: Failed to read docsRoot: ${err.message}`,
     );
     return { docs: [], usedFallback: false };

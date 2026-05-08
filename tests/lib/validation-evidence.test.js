@@ -355,3 +355,87 @@ test('loadEvidence() ignores a file whose schemaVersion does not match', () => {
   const doc = loadEvidence(901, { cwd: FAKE_CWD, epicId: FAKE_EPIC_ID, fs });
   assert.deepEqual(doc.records, []);
 });
+
+test('shouldSkip() grants skip on inputFingerprint when SHA differs but inputs are byte-identical', () => {
+  const fs = makeFakeFs();
+  const opts = baseOpts({ fs });
+  const configHash = hashCommandConfig({
+    cmd: 'fake-lint',
+    args: ['--no-cache'],
+    cwd: FAKE_CWD,
+  });
+
+  // Record a pass against an old SHA, with an input fingerprint over the
+  // gate's effective inputs.
+  recordPass(
+    {
+      storyId: 901,
+      gateName: 'lint',
+      sha: 'a1b2c3d4e5f60000',
+      configHash,
+      inputFingerprint: 'sha256:beef',
+    },
+    opts,
+  );
+
+  // SHA has moved (e.g. a docs-only commit) but the gate's inputs hashed to
+  // the same fingerprint — skip should fire on the fingerprint.
+  const verdict = shouldSkip(
+    {
+      storyId: 901,
+      gateName: 'lint',
+      currentSha: '9a8b7c6d5e4f0000',
+      configHash,
+      inputFingerprint: 'sha256:beef',
+    },
+    opts,
+  );
+  assert.equal(verdict.skip, true);
+  assert.equal(verdict.reason, 'fingerprint-match');
+  assert.equal(verdict.record.commitSha, 'a1b2c3d4e5f60000');
+
+  // Different fingerprint → no skip (inputs actually changed).
+  const noSkip = shouldSkip(
+    {
+      storyId: 901,
+      gateName: 'lint',
+      currentSha: '9a8b7c6d5e4f0000',
+      configHash,
+      inputFingerprint: 'sha256:cafe',
+    },
+    opts,
+  );
+  assert.equal(noSkip.skip, false);
+  assert.equal(noSkip.reason, 'sha-mismatch');
+
+  // No fingerprint supplied → falls back to legacy SHA-mismatch behaviour.
+  const legacyMiss = shouldSkip(
+    {
+      storyId: 901,
+      gateName: 'lint',
+      currentSha: '9a8b7c6d5e4f0000',
+      configHash,
+    },
+    opts,
+  );
+  assert.equal(legacyMiss.skip, false);
+  assert.equal(legacyMiss.reason, 'sha-mismatch');
+
+  // configHash mismatch must always lose, regardless of fingerprint.
+  const configMiss = shouldSkip(
+    {
+      storyId: 901,
+      gateName: 'lint',
+      currentSha: 'a1b2c3d4e5f60000',
+      configHash: hashCommandConfig({
+        cmd: 'fake-lint',
+        args: ['--cache'],
+        cwd: FAKE_CWD,
+      }),
+      inputFingerprint: 'sha256:beef',
+    },
+    opts,
+  );
+  assert.equal(configMiss.skip, false);
+  assert.equal(configMiss.reason, 'config-hash-mismatch');
+});

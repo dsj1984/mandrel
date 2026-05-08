@@ -42,15 +42,18 @@ function listJsFiles(dir) {
 
 /**
  * Scrub comments and string literals from JS source while preserving line
- * count. Block comments and strings are replaced with spaces / newlines so
- * a regex scanner can match real code without tripping on JSDoc references
- * to the call pattern.
+ * count AND byte offsets. Block comments and strings are replaced with
+ * spaces / newlines so a regex scanner can match real code without tripping
+ * on JSDoc references to the call pattern.
  *
  * String literal bodies are scrubbed too — if a `Logger.fatal` literally
  * appears inside a quoted message argument, we don't want to confuse it
  * with a call-site. The downside is that we can't see the call's argument
  * via the scrubbed text; we read the argument back from the raw source
- * using a paren-balance walk.
+ * using a paren-balance walk. Length preservation matters because
+ * `scanFileForBadFatal` uses a `match.index` from the cleaned text to
+ * seek into the raw text — any drift between the two would land the
+ * arg-walker in unrelated code.
  */
 function stripCommentsAndStrings(source) {
   let out = '';
@@ -59,6 +62,7 @@ function stripCommentsAndStrings(source) {
     const ch = source[i];
     const next = source[i + 1];
     if (ch === '/' && next === '*') {
+      out += '  ';
       i += 2;
       while (
         i < source.length &&
@@ -67,11 +71,17 @@ function stripCommentsAndStrings(source) {
         out += source[i] === '\n' ? '\n' : ' ';
         i += 1;
       }
-      i += 2;
+      if (i < source.length) {
+        out += '  ';
+        i += 2;
+      }
       continue;
     }
     if (ch === '/' && next === '/') {
-      while (i < source.length && source[i] !== '\n') i += 1;
+      while (i < source.length && source[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
       continue;
     }
     if (ch === '"' || ch === "'" || ch === '`') {
@@ -80,6 +90,7 @@ function stripCommentsAndStrings(source) {
       i += 1;
       while (i < source.length && source[i] !== quote) {
         if (source[i] === '\\') {
+          out += '  ';
           i += 2;
           continue;
         }
@@ -87,8 +98,10 @@ function stripCommentsAndStrings(source) {
         out += source[i] === '\n' ? '\n' : ' ';
         i += 1;
       }
-      out += ' ';
-      i += 1;
+      if (i < source.length) {
+        out += ' ';
+        i += 1;
+      }
       continue;
     }
     out += ch;

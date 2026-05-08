@@ -221,3 +221,28 @@ test('coverageByMethod — file not in map returns null', () => {
 test('coverageByMethod — null map returns null', () => {
   assert.strictEqual(coverageByMethod(null, 'src/x.js', 1), null);
 });
+
+test('hasCoverageFor — Object.keys(map) called exactly once across 1000 lookups (O(1) per lookup after build)', () => {
+  const map = {};
+  for (let i = 0; i < 1000; i += 1) {
+    map[`/repo/src/file${i}.js`] = { fnMap: {}, statementMap: {}, s: {} };
+  }
+  const originalKeys = Object.keys;
+  let callsForMap = 0;
+  Object.keys = function patched(obj) {
+    if (obj === map) callsForMap += 1;
+    return originalKeys.call(Object, obj);
+  };
+  try {
+    for (let i = 0; i < 1000; i += 1) {
+      assert.strictEqual(hasCoverageFor(map, `/repo/src/file${i}.js`), true);
+    }
+  } finally {
+    Object.keys = originalKeys;
+  }
+  assert.strictEqual(
+    callsForMap,
+    1,
+    `Expected Object.keys(map) to be called exactly once, got ${callsForMap}`,
+  );
+});

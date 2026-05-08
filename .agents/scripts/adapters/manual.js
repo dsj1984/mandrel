@@ -19,6 +19,7 @@
 import { randomUUID } from 'node:crypto';
 import { IExecutionAdapter } from '../lib/IExecutionAdapter.js';
 
+import { Logger } from '../lib/Logger.js';
 /** @typedef {'pending'|'executing'|'done'|'failed'|'blocked'} DispatchStatus */
 
 export class ManualDispatchAdapter extends IExecutionAdapter {
@@ -63,7 +64,7 @@ export class ManualDispatchAdapter extends IExecutionAdapter {
     const { taskId, epicId, branch, persona, mode, cwd } = taskDispatch;
 
     const cwdPart = cwd ? ` cwd=${cwd}` : '';
-    console.log(
+    Logger.info(
       `[manual] dispatch task=#${taskId} epic=#${epicId} branch=${branch} persona=${persona} mode=${mode} id=${dispatchId}${cwdPart}`,
     );
 

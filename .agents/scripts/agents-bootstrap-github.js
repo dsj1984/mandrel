@@ -142,7 +142,7 @@ export async function runBootstrap(orchestration, opts = {}) {
   const provider =
     opts.providerOverride ??
     createProvider(orchestration, { token: opts.token });
-  const log = opts.quiet ? () => {} : console.log;
+  const log = opts.quiet ? () => {} : Logger.info;
   const providerConfig = orchestration[orchestration.provider];
 
   log('[bootstrap] Starting idempotent setup...');
@@ -185,17 +185,17 @@ function formatProjectSummary(project) {
 }
 
 function printSummary(result) {
-  console.log('\n=== Bootstrap Summary ===');
-  console.log(`Labels created: ${result.labels.created.length}`);
-  console.log(`Labels skipped: ${result.labels.skipped.length}`);
-  console.log(`Fields created: ${result.fields.created.length}`);
-  console.log(`Fields skipped: ${result.fields.skipped.length}`);
-  console.log(`Project: ${formatProjectSummary(result.project)}`);
-  console.log(`Status field: ${result.statusField.status}`);
+  Logger.info('\n=== Bootstrap Summary ===');
+  Logger.info(`Labels created: ${result.labels.created.length}`);
+  Logger.info(`Labels skipped: ${result.labels.skipped.length}`);
+  Logger.info(`Fields created: ${result.fields.created.length}`);
+  Logger.info(`Fields skipped: ${result.fields.skipped.length}`);
+  Logger.info(`Project: ${formatProjectSummary(result.project)}`);
+  Logger.info(`Status field: ${result.statusField.status}`);
   const unavailableSuffix = result.views.unavailable
     ? ' (mutation unavailable)'
     : '';
-  console.log(
+  Logger.info(
     `Views — created: ${result.views.created.length}, skipped: ${result.views.skipped.length}${unavailableSuffix}`,
   );
 }
@@ -217,7 +217,7 @@ async function main() {
   try {
     validateOrchestrationConfig(config.orchestration);
   } catch (err) {
-    console.error(`[bootstrap] ERROR: ${err.message}`);
+    Logger.error(`[bootstrap] ERROR: ${err.message}`);
     process.exit(1);
   }
 

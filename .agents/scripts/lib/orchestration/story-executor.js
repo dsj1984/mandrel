@@ -1,8 +1,8 @@
 import { extractEpicIdFromBody } from '../dependency-parser.js';
 import { buildGraph, detectCycle, topologicalSort } from '../Graph.js';
 import { getEpicBranch, getStoryBranch } from '../git-utils.js';
+import { Logger } from '../Logger.js';
 import { fetchTasks } from './task-fetcher.js';
-
 /**
  * Execute a single Story
  * Identifies the parent Epic, retrieves sibling tasks, sorts them by DAG,
@@ -51,7 +51,7 @@ export async function executeStory(options) {
     }
     sortedTasks = topologicalSort(adjacency, taskMap);
   } catch (err) {
-    console.error(
+    Logger.error(
       `[executeStory] DAG sort failed for Story #${story.id}:`,
       err.message,
     );

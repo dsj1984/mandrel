@@ -61,7 +61,7 @@ const progress = Logger.createProgress('story-init', { stderr: true });
 
 const stageLogger = {
   progress,
-  warn: (msg) => console.error(msg),
+  warn: (msg) => Logger.error(msg),
   error: (msg) => Logger.error(`[story-init] ${msg}`),
 };
 
@@ -168,11 +168,11 @@ export async function runStoryInit({
         progress('BLOCKERS', `   - #${b.id} "${b.title}" (${b.state})`);
       }
     } else {
-      console.error(
+      Logger.error(
         `\n❌ BLOCKED: Story #${storyId} is blocked by ${openBlockers.length} incomplete prerequisite(s):`,
       );
       for (const b of openBlockers) {
-        console.error(`   - #${b.id} "${b.title}" (${b.state})`);
+        Logger.error(`   - #${b.id} "${b.title}" (${b.state})`);
       }
       return { success: false, blocked: true, openBlockers };
     }
@@ -304,10 +304,10 @@ export async function runStoryInit({
           `⚠️ ${transition.failed.length} task(s) failed to transition after retries: ${failedSummary}. Continuing (continueOnPartialTransition=true) — agent may be working with stale state.`,
         );
       } else {
-        console.error(
+        Logger.error(
           `\n❌ ${transition.failed.length} task(s) failed to transition after retries: ${failedSummary}`,
         );
-        console.error(
+        Logger.error(
           'Story init aborted. Fix the underlying error and re-run, or set ' +
             '`orchestration.storyInit.continueOnPartialTransition: true` to opt into ' +
             'the old lenient behavior.',
@@ -331,7 +331,7 @@ export async function runStoryInit({
         transitioned: transition.transitioned ?? [],
       });
     } catch (err) {
-      console.error(
+      Logger.error(
         `[story-init] ⚠️ Failed to post batched transition summary: ${err.message}`,
       );
     }
@@ -345,7 +345,7 @@ export async function runStoryInit({
     } catch (err) {
       // Non-fatal: losing the snapshot only degrades observability, it
       // does not affect merge correctness. Warn and continue.
-      console.error(
+      Logger.error(
         `[story-init] ⚠️ Failed to persist phase-timer state: ${err.message}`,
       );
     }
@@ -514,9 +514,9 @@ export function renderStoryInitCommentBody(result) {
 }
 
 function emitStoryInitResult(result, { storyId, dryRun, taskCount }) {
-  console.log('\n--- STORY INIT RESULT ---');
-  console.log(JSON.stringify(result, null, 2));
-  console.log('--- END RESULT ---\n');
+  Logger.info('\n--- STORY INIT RESULT ---');
+  Logger.info(JSON.stringify(result, null, 2));
+  Logger.info('--- END RESULT ---\n');
 
   progress(
     'DONE',

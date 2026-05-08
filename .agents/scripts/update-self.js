@@ -31,12 +31,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import { Logger } from './lib/Logger.js';
+
 const MAX_ATTEMPTS = 3;
 const BACKOFF_MS = 2000;
 const SUBMODULE_PATH = '.agents';
 
 function fatal(message) {
-  console.error(`[update-self] ${message}`);
+  Logger.error(`[update-self] ${message}`);
   process.exit(1);
 }
 
@@ -73,9 +75,9 @@ if (!fs.existsSync(submoduleAbs)) {
 // Step 1 — refuse dirty submodule before touching anything.
 const dirty = gitCapture(submoduleAbs, 'status', '--porcelain');
 if (dirty) {
-  console.error('[update-self] .agents/ has uncommitted changes:');
-  console.error(dirty);
-  console.error(
+  Logger.error('[update-self] .agents/ has uncommitted changes:');
+  Logger.error(dirty);
+  Logger.error(
     '[update-self] Commit or discard changes inside .agents/ before re-running.',
   );
   process.exit(1);
@@ -91,7 +93,7 @@ if (!isCI) updateArgs.push('--remote');
 updateArgs.push(SUBMODULE_PATH);
 
 if (isCI) {
-  console.log(
+  Logger.info(
     '[update-self] CI=true — skipping --remote; honouring committed SHA.',
   );
 }
@@ -106,7 +108,7 @@ for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     updated = true;
     break;
   }
-  console.error(
+  Logger.error(
     `[update-self] Attempt ${attempt}/${MAX_ATTEMPTS} failed (exit code ${result.status})`,
   );
   if (attempt < MAX_ATTEMPTS) await sleep(BACKOFF_MS);
@@ -121,9 +123,9 @@ if (!updated) {
 // Step 4 — report the diff.
 const newSha = gitCapture(submoduleAbs, 'rev-parse', 'HEAD');
 if (oldSha === newSha) {
-  console.log(`[update-self] No changes — .agents/ already at ${newSha}.`);
+  Logger.info(`[update-self] No changes — .agents/ already at ${newSha}.`);
 } else {
-  console.log(`[update-self] ${oldSha.slice(0, 12)}..${newSha.slice(0, 12)}`);
+  Logger.info(`[update-self] ${oldSha.slice(0, 12)}..${newSha.slice(0, 12)}`);
   const shortlog = gitCapture(
     submoduleAbs,
     'log',
@@ -131,9 +133,9 @@ if (oldSha === newSha) {
     `${oldSha}..${newSha}`,
   );
   if (shortlog) {
-    console.log('[update-self] New commits:');
+    Logger.info('[update-self] New commits:');
     for (const line of shortlog.split('\n')) {
-      console.log(`  ${line}`);
+      Logger.info(`  ${line}`);
     }
   }
 }

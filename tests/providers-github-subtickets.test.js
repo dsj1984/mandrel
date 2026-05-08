@@ -180,6 +180,47 @@ describe('_getNativeSubIssues', () => {
     assert.equal(provider._cache.peek(2).state, 'closed');
   });
 
+  it('paginates 250 children in exactly 3 GraphQL invocations (page size = 100)', async () => {
+    const TOTAL = 250;
+    const PAGE = 100;
+    let calls = 0;
+    const provider = createProviderWithStubs({
+      graphql: async (_query, vars) => {
+        calls++;
+        const offset = vars.cursor ? Number.parseInt(vars.cursor, 10) : 0;
+        const end = Math.min(offset + PAGE, TOTAL);
+        const nodes = [];
+        for (let i = offset; i < end; i++) {
+          nodes.push({
+            number: i + 1,
+            databaseId: i + 1,
+            id: `g${i + 1}`,
+            title: `t${i + 1}`,
+            state: 'OPEN',
+            labels: { nodes: [] },
+            assignees: { nodes: [] },
+          });
+        }
+        return {
+          node: {
+            subIssues: {
+              pageInfo: {
+                hasNextPage: end < TOTAL,
+                endCursor: end < TOTAL ? String(end) : null,
+              },
+              nodes,
+            },
+          },
+        };
+      },
+    });
+    const ids = await provider._getNativeSubIssues('parent-node', 5);
+    assert.equal(ids.length, TOTAL);
+    assert.equal(ids[0], 1);
+    assert.equal(ids[TOTAL - 1], TOTAL);
+    assert.equal(calls, 3, 'expected ceil(250 / 100) = 3 GraphQL invocations');
+  });
+
   it('returns [] when sub-issues feature is disabled (feature-disabled)', async () => {
     const provider = createProviderWithStubs({
       graphql: async () => {

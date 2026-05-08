@@ -35,7 +35,7 @@ describe('graphql-builder — sub-issue operations', () => {
     assert.match(builder.SUB_ISSUES_QUERY, /\$cursor: String/);
     assert.match(
       builder.SUB_ISSUES_QUERY,
-      /subIssues\(first: 50, after: \$cursor\)/,
+      /subIssues\(first: 100, after: \$cursor\)/,
     );
     for (const field of ['number', 'databaseId', 'title', 'body', 'state']) {
       assert.ok(

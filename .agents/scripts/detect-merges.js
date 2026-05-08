@@ -90,7 +90,7 @@ export async function main() {
 
     if (hits.length > 0) {
       for (const { file, marker } of hits) {
-        console.error(
+        Logger.error(
           `Conflict marker '${marker.trim()}' found in tracked file: ${file}`,
         );
       }
@@ -98,7 +98,7 @@ export async function main() {
         '\nERROR: Merge conflicts detected. Please resolve them before proceeding.',
       );
     } else {
-      console.log('No conflict markers found in tracked files.');
+      Logger.info('No conflict markers found in tracked files.');
       process.exit(0);
     }
   } catch (err) {

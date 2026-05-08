@@ -62,7 +62,7 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
     nonAttributable: gateOutcome.nonAttributable ?? [],
     commentId: gateOutcome.commentId ?? null,
   };
-  console.log(
+  Logger.info(
     `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
   log(
@@ -281,7 +281,7 @@ async function runStoryCloseLocked({
     clearPhaseTimerState,
   });
 
-  console.log(
+  Logger.info(
     `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
   progress(

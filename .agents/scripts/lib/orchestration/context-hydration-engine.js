@@ -26,6 +26,8 @@ import {
   resolveConfig,
 } from '../config-resolver.js';
 
+import { Logger } from '../Logger.js';
+
 // ---------------------------------------------------------------------------
 // File-content cache — the agent-protocol template, persona files, and
 // skill files are read-only during a dispatch run. Reading them via
@@ -223,7 +225,7 @@ function loadProtocolTemplate({
       .replace(/\{\{TEST_CMD\}\}/g, commands.test)
       .replace(/\{\{PROTECTED_BRANCHES\}\}/g, protectedList);
   } catch (err) {
-    console.warn(`[Hydrator] Failed to load agent-protocol.md: ${err.message}`);
+    Logger.warn(`[Hydrator] Failed to load agent-protocol.md: ${err.message}`);
     return '';
   }
 }
@@ -266,7 +268,7 @@ export async function hydrateContext(
   // 1. Version Mismatch Check
   if (task.protocolVersion && task.protocolVersion !== currentVersion) {
     warnings += `⚠️ WARNING: Protocol version mismatch. Task was planned with v${task.protocolVersion}, but is executing with v${currentVersion}.\n\n`;
-    console.warn(
+    Logger.warn(
       `[Hydrator] Protocol version mismatch on Task #${task.id}: planned with v${task.protocolVersion}, executing with v${currentVersion}`,
     );
   }
@@ -294,7 +296,7 @@ export async function hydrateContext(
         personaContext = `## Persona: ${task.persona}\n\n${readFileCached(pPath)}`;
       }
     } catch (err) {
-      console.warn(
+      Logger.warn(
         `[Hydrator] Failed to load persona ${task.persona}: ${err.message}`,
       );
     }
@@ -312,9 +314,7 @@ export async function hydrateContext(
           skillsContext += `### Skill: ${skill}\n${readFileCached(sPath)}\n\n`;
         }
       } catch (err) {
-        console.warn(
-          `[Hydrator] Failed to load skill ${skill}: ${err.message}`,
-        );
+        Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
       }
     }
   }
@@ -353,7 +353,7 @@ export async function hydrateContext(
           // partial context. Surface the error in the prompt + a stderr warn
           // so downstream callers (and test fixtures) can see the gap.
           const detail = err?.message ? `: ${err.message}` : '';
-          console.warn(
+          Logger.warn(
             `[Hydrator] hierarchy fetch failed for ${item.key} #${item.id}${detail}`,
           );
           return `### ${item.key}: #${item.id} — ⚠️ unavailable (fetch failed${detail})\n`;

@@ -448,7 +448,7 @@ export function buildReviewReport({
  * @param {Function} [deps.upsertCommentFn] — Stub for `upsertStructuredComment`
  * @param {Function} [deps.resolveConfigFn] — Stub for `resolveConfig`
  * @param {object}   [deps.logger]          — Logger-shaped object (info/warn/error/fatal)
- * @param {Function} [deps.print]           — Stub for `console.log` (the rendered report)
+ * @param {Function} [deps.print]           — Stub for `Logger.info` (the rendered report)
  * @returns {Promise<{ status: 'ok'|'no-changes'|'invalid', report?: string, posted?: boolean, severity?: object }>}
  */
 export async function runEpicCodeReview(args, deps = {}) {
@@ -462,7 +462,7 @@ export async function runEpicCodeReview(args, deps = {}) {
     upsertCommentFn = upsertStructuredComment,
     resolveConfigFn = resolveConfig,
     logger = Logger,
-    print = (s) => console.log(s),
+    print = (s) => Logger.info(s),
   } = deps;
 
   const progress =

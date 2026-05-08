@@ -1,3 +1,4 @@
+import { Logger } from '../Logger.js';
 /**
  * lib/util/phase-timer.js — Per-phase wall-clock timer for the Story lifecycle.
  *
@@ -77,7 +78,7 @@ const ALLOWED_SET = new Set(ALLOWED_PHASE_NAMES);
  */
 export function createPhaseTimer(storyId, opts = {}) {
   const now = opts.now ?? Date.now;
-  const logger = opts.logger ?? ((line) => console.log(line));
+  const logger = opts.logger ?? ((line) => Logger.info(line));
 
   let createdAt;
   let phases;

@@ -157,7 +157,7 @@ test('runCloseValidation', async (t) => {
 
   await t.test(
     'a failing typecheck halts runCloseValidation and surfaces the hint',
-    () => {
+    async () => {
       const gates = buildDefaultGates();
       const tcArgs = gates[0].args;
       const tcCmd = gates[0].cmd;
@@ -170,7 +170,7 @@ test('runCloseValidation', async (t) => {
         return { status: 0 };
       };
       const logs = [];
-      const result = runCloseValidationOnly({
+      const result = await runCloseValidationOnly({
         cwd: '.',
         gates,
         runner,
@@ -179,7 +179,26 @@ test('runCloseValidation', async (t) => {
       assert.equal(result.ok, false);
       assert.equal(result.failed.length, 1);
       assert.equal(result.failed[0].gate.name, 'typecheck');
-      assert.equal(calls.length, 1, 'should halt before running lint/test');
+      // Independent gates (typecheck/lint/format) start in parallel — the
+      // typecheck failure aborts the wave before the serial phase begins,
+      // so test / maintainability / coverage / crap must not have run.
+      const serialNames = new Set([
+        'test',
+        'check-maintainability',
+        'coverage-capture',
+        'check-crap',
+      ]);
+      const serialCalls = calls.filter((c) => {
+        const matched = gates.find(
+          (g) => g.cmd === c.cmd && g.args.join(' ') === c.args.join(' '),
+        );
+        return matched && serialNames.has(matched.name);
+      });
+      assert.equal(
+        serialCalls.length,
+        0,
+        'should halt before running any serial gate (test/MI/coverage/crap)',
+      );
       assert.ok(logs.some((m) => /TypeScript regression/.test(m)));
     },
   );
@@ -232,7 +251,7 @@ test('runCloseValidation', async (t) => {
     },
   );
 
-  await t.test('returns ok when every gate exits 0', () => {
+  await t.test('returns ok when every gate exits 0', async () => {
     const calls = [];
     const runner = (cmd, args) => {
       calls.push({ cmd, args });
@@ -242,12 +261,12 @@ test('runCloseValidation', async (t) => {
       { name: 'a', cmd: 'a', args: [] },
       { name: 'b', cmd: 'b', args: [] },
     ];
-    const result = runCloseValidationOnly({ cwd: '.', gates, runner });
+    const result = await runCloseValidationOnly({ cwd: '.', gates, runner });
     assert.deepEqual(result, { ok: true, failed: [], skipped: [] });
     assert.equal(calls.length, 2);
   });
 
-  await t.test('stops and reports on first non-zero gate', () => {
+  await t.test('stops and reports on first non-zero gate', async () => {
     const runner = (cmd) => ({ status: cmd === 'a' ? 0 : 3 });
     const gates = [
       { name: 'a', cmd: 'a', args: [] },
@@ -255,7 +274,7 @@ test('runCloseValidation', async (t) => {
       { name: 'c', cmd: 'c', args: [] },
     ];
     const logs = [];
-    const result = runCloseValidationOnly({
+    const result = await runCloseValidationOnly({
       cwd: '.',
       gates,
       runner,

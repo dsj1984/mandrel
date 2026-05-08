@@ -62,6 +62,7 @@ import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
 import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
@@ -469,7 +470,7 @@ export async function runEpicExecuteRecordWave({
         });
         await postStructuredComment(provider, epicId, 'friction', body);
       } catch (err) {
-        console.error(
+        Logger.error(
           `[epic-execute-record-wave] Failed to post malformed-return friction on Epic #${epicId}: ${err?.message ?? err}`,
         );
       }
@@ -677,8 +678,8 @@ export async function main(argv = process.argv.slice(2)) {
     return;
   }
   if (result.kind === 'validation-error') {
-    console.error(result.message);
-    console.error(result.help);
+    Logger.error(result.message);
+    Logger.error(result.help);
     process.exit(exitCode);
   }
   process.stdout.write(`${JSON.stringify(result.envelope, null, 2)}\n`);

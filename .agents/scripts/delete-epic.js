@@ -150,16 +150,16 @@ async function main() {
   const owner = provider.owner;
   const repo = provider.repo;
 
-  console.log(`\nTarget: ${owner}/${repo} Epic #${epicNumber}`);
-  console.log(`Mode:   ${dryRun ? 'DRY RUN (no deletions)' : 'LIVE'}`);
+  Logger.info(`\nTarget: ${owner}/${repo} Epic #${epicNumber}`);
+  Logger.info(`Mode:   ${dryRun ? 'DRY RUN (no deletions)' : 'LIVE'}`);
   if (excludeRoot) {
-    console.log('Option: --exclude-root (Keeping the Epic issue itself)\n');
+    Logger.info('Option: --exclude-root (Keeping the Epic issue itself)\n');
   } else {
-    console.log('\n');
+    Logger.info('\n');
   }
 
   // 1. Collect the full issue tree
-  console.log('Collecting issue tree...');
+  Logger.info('Collecting issue tree...');
   let tree;
   try {
     tree = await collectTree(provider, epicNumber);
@@ -171,18 +171,18 @@ async function main() {
     Logger.fatal(`[delete-epic] Failed to collect issue tree: ${err.message}`);
   }
 
-  console.log(`Found ${tree.length} issue(s) to delete:\n`);
+  Logger.info(`Found ${tree.length} issue(s) to delete:\n`);
   for (const issue of tree) {
-    console.log(`  #${issue.number} — ${issue.title}`);
+    Logger.info(`  #${issue.number} — ${issue.title}`);
   }
 
   if (dryRun) {
-    console.log('\n✅ Dry run complete. No issues were deleted.');
+    Logger.info('\n✅ Dry run complete. No issues were deleted.');
     return;
   }
 
   // 2. Delete in order (children first)
-  console.log('\nDeleting issues...\n');
+  Logger.info('\nDeleting issues...\n');
   let deleted = 0;
   let failed = 0;
 
@@ -190,14 +190,14 @@ async function main() {
     try {
       await deleteIssue(provider, issue.nodeId);
       deleted++;
-      console.log(`  ✓ Deleted #${issue.number} — ${issue.title}`);
+      Logger.info(`  ✓ Deleted #${issue.number} — ${issue.title}`);
     } catch (err) {
       failed++;
-      console.error(`  ✗ Failed #${issue.number}: ${err.message}`);
+      Logger.error(`  ✗ Failed #${issue.number}: ${err.message}`);
     }
   }
 
-  console.log(
+  Logger.info(
     `\n✅ Recursive deletion complete. Deleted: ${deleted}, Failed: ${failed}`,
   );
 }

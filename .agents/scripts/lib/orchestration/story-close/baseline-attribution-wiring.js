@@ -343,7 +343,7 @@ export async function runPreMergeGatesWithAttribution({
   while (attempt < maxAttempts) {
     attempt += 1;
     try {
-      runPreMergeGates({
+      await runPreMergeGates({
         cwd,
         worktreePath,
         epicBranch,
@@ -394,7 +394,7 @@ export async function runPreMergeGatesWithAttribution({
   }
   // Two attempts still failing → re-run so the throw propagates with the
   // canonical hint.
-  runPreMergeGates({
+  await runPreMergeGates({
     cwd,
     worktreePath,
     epicBranch,
