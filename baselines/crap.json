@@ -1882,13 +1882,13 @@
       "startLine": 235
     },
     {
-      "crap": 3.0020035061357375,
+      "crap": 3.0008170572039337,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "runOnPool",
       "startLine": 55
     },
     {
-      "crap": 7.030205253171262,
+      "crap": 9.015113702623907,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "runWorker",
       "startLine": 68
@@ -1897,31 +1897,31 @@
       "crap": 1,
       "file": ".agents/scripts/lib/cpu-pool.js",
       "method": "dispatchOne",
-      "startLine": 128
+      "startLine": 151
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-5>",
-      "startLine": 130
+      "method": "<anon method-6>",
+      "startLine": 153
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-6>",
-      "startLine": 135
+      "method": "<anon method-7>",
+      "startLine": 158
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-7>",
-      "startLine": 155
+      "method": "<anon method-8>",
+      "startLine": 178
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/cpu-pool.js",
-      "method": "<anon method-8>",
-      "startLine": 159
+      "method": "<anon method-9>",
+      "startLine": 182
     },
     {
       "crap": 4,
@@ -3337,19 +3337,25 @@
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "isStoryDone",
-      "startLine": 42
+      "startLine": 45
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "storyIdFromPath",
-      "startLine": 49
+      "startLine": 52
     },
     {
-      "crap": 15.000188914338683,
+      "crap": 16.000104049179495,
       "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
       "method": "sweepStaleStoryWorktrees",
-      "startLine": 72
+      "startLine": 79
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js",
+      "method": "<anon method-1>",
+      "startLine": 131
     },
     {
       "crap": 2,
