@@ -474,7 +474,7 @@
   "tests/schemas/signal-schemas.test.js": 105.795,
   "tests/select-audits-cli.test.js": 109.859,
   "tests/shipped-configs-validate.test.js": 105.887,
-  "tests/story-close-cd-out-guard.test.js": 101.576,
+  "tests/story-close-cd-out-guard.test.js": 100.748,
   "tests/story-close-recovery.test.js": 101.607,
   "tests/story-close.test.js": 103.768,
   "tests/story-close/format-autofix.test.js": 100.79,
