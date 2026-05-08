@@ -31,95 +31,124 @@ import { findCoverageEntry } from '../coverage-utils.js';
 import { calculateCrapForSource } from '../crap-engine.js';
 import { transpileIfNeeded } from '../maintainability-utils.js';
 
-if (!parentPort) {
-  throw new Error('crap-worker.js must run inside a worker_threads Worker');
-}
+/**
+ * Pure handler for a single inbound worker message. Exported so unit
+ * tests can exercise every branch (bad-shape rejection, missing
+ * coverage, fs/transpile/escomplex failures, success rows, skipped
+ * methods) without spawning a real `Worker` thread.
+ *
+ * Returns one of:
+ *   - `{ kind: 'exit' }`             — caller should close the port.
+ *   - `{ kind: 'reply', message }`   — caller should `postMessage(message)`.
+ *
+ * Side effects (fs, transpile, escomplex) are wired through `deps` so
+ * tests pass deterministic stubs.
+ *
+ * @param {unknown} msg
+ * @param {object|null} coverage
+ * @param {{
+ *   readFile?: (abs: string) => string,
+ *   transpile?: (abs: string, source: string) => string | null,
+ *   calculateCrap?: (source: string, entry: object|null) => Array<object>,
+ *   findEntry?: (map: object|null, relPath: string) => object|null,
+ * }} [deps]
+ * @returns {{kind: 'exit'} | {kind: 'reply', message: object}}
+ */
+export function handleCrapWorkerMessage(msg, coverage, deps = {}) {
+  if (msg && msg.exit === true) return { kind: 'exit' };
 
-const coverage = workerData?.coverage ?? null;
-
-parentPort.on('message', (msg) => {
-  if (msg && msg.exit === true) {
-    parentPort.close();
-    return;
-  }
   const item = msg?.item;
   if (
     !item ||
     typeof item.abs !== 'string' ||
     typeof item.relPath !== 'string'
   ) {
-    parentPort.postMessage({
-      ok: false,
-      error: `bad worker message: ${JSON.stringify(msg)}`,
-    });
-    return;
+    return {
+      kind: 'reply',
+      message: {
+        ok: false,
+        error: `bad worker message: ${JSON.stringify(msg)}`,
+      },
+    };
   }
   const { abs, relPath, requireCoverage } = item;
+  const findEntry = deps.findEntry ?? findCoverageEntry;
+  const readFile = deps.readFile ?? ((p) => fs.readFileSync(p, 'utf-8'));
+  const transpile = deps.transpile ?? transpileIfNeeded;
+  const calculateCrap = deps.calculateCrap ?? calculateCrapForSource;
 
-  const entry = findCoverageEntry(coverage, relPath);
+  const entry = findEntry(coverage, relPath);
   if (requireCoverage && entry === null) {
-    parentPort.postMessage({
-      ok: true,
-      result: {
-        relPath,
-        skippedFileNoCoverage: true,
-        rows: [],
-        skippedMethodsNoCoverage: 0,
+    return {
+      kind: 'reply',
+      message: {
+        ok: true,
+        result: {
+          relPath,
+          skippedFileNoCoverage: true,
+          rows: [],
+          skippedMethodsNoCoverage: 0,
+        },
       },
-    });
-    return;
+    };
   }
 
   let source;
   try {
-    source = fs.readFileSync(abs, 'utf-8');
+    source = readFile(abs);
   } catch {
-    parentPort.postMessage({
-      ok: true,
-      result: {
-        relPath,
-        skippedFileNoCoverage: false,
-        rows: null,
-        skippedMethodsNoCoverage: 0,
+    return {
+      kind: 'reply',
+      message: {
+        ok: true,
+        result: {
+          relPath,
+          skippedFileNoCoverage: false,
+          rows: null,
+          skippedMethodsNoCoverage: 0,
+        },
       },
-    });
-    return;
+    };
   }
 
   // TS/TSX → strip-then-analyze. Coverage lookup above used the original
   // source path (vitest's coverage-final.json keys on the .ts file, not
   // transpiled output); the transpile is purely about making the code
   // parseable by the Esprima-based escomplex kernel.
-  const prepared = transpileIfNeeded(abs, source);
+  const prepared = transpile(abs, source);
   if (prepared === null) {
-    parentPort.postMessage({
-      ok: true,
-      result: {
-        relPath,
-        skippedFileNoCoverage: false,
-        rows: null,
-        skippedMethodsNoCoverage: 0,
+    return {
+      kind: 'reply',
+      message: {
+        ok: true,
+        result: {
+          relPath,
+          skippedFileNoCoverage: false,
+          rows: null,
+          skippedMethodsNoCoverage: 0,
+        },
       },
-    });
-    return;
+    };
   }
 
   let methodRows;
   try {
-    methodRows = calculateCrapForSource(prepared, entry);
+    methodRows = calculateCrap(prepared, entry);
   } catch (err) {
-    parentPort.postMessage({
-      ok: true,
-      result: {
-        relPath,
-        skippedFileNoCoverage: false,
-        rows: null,
-        skippedMethodsNoCoverage: 0,
-        error:
-          err && typeof err.message === 'string' ? err.message : String(err),
+    return {
+      kind: 'reply',
+      message: {
+        ok: true,
+        result: {
+          relPath,
+          skippedFileNoCoverage: false,
+          rows: null,
+          skippedMethodsNoCoverage: 0,
+          error:
+            err && typeof err.message === 'string' ? err.message : String(err),
+        },
       },
-    });
-    return;
+    };
   }
 
   const rows = [];
@@ -137,13 +166,28 @@ parentPort.on('message', (msg) => {
       crap: mr.crap,
     });
   }
-  parentPort.postMessage({
-    ok: true,
-    result: {
-      relPath,
-      skippedFileNoCoverage: false,
-      rows,
-      skippedMethodsNoCoverage,
+  return {
+    kind: 'reply',
+    message: {
+      ok: true,
+      result: {
+        relPath,
+        skippedFileNoCoverage: false,
+        rows,
+        skippedMethodsNoCoverage,
+      },
     },
+  };
+}
+
+if (parentPort) {
+  const coverage = workerData?.coverage ?? null;
+  parentPort.on('message', (msg) => {
+    const out = handleCrapWorkerMessage(msg, coverage);
+    if (out.kind === 'exit') {
+      parentPort.close();
+      return;
+    }
+    parentPort.postMessage(out.message);
   });
-});
+}
