@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { persistManifest } from '../../.agents/scripts/lib/presentation/manifest-persistence.js';
+import {
+  deleteLegacyFlatManifest,
+  persistManifest,
+} from '../../.agents/scripts/lib/presentation/manifest-persistence.js';
 
 function makeTmpRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'manifest-persist-'));
@@ -180,6 +183,78 @@ test('persistence: returns { persisted:false, error } on fs failure instead of t
   assert.equal(typeof result.error, 'string');
   assert.ok(result.error.length > 0);
   assert.ok(result.path?.includes('manifest.json'));
+});
+
+function seedOrphans(root, epicId) {
+  const epicDir = path.join(root, 'temp', `epic-${epicId}`);
+  fs.mkdirSync(epicDir, { recursive: true });
+  const md = path.join(epicDir, `dispatch-manifest-${epicId}.md`);
+  const json = path.join(epicDir, `dispatch-manifest-${epicId}.json`);
+  fs.writeFileSync(md, 'x');
+  fs.writeFileSync(json, '{}');
+  return { epicDir, md, json };
+}
+
+test('sweep: deleteLegacyFlatManifest removes both orphans + logs once', () => {
+  const root = makeTmpRoot();
+  const { md, json } = seedOrphans(root, 77);
+  const messages = [];
+  const result = deleteLegacyFlatManifest(77, {
+    projectRoot: root,
+    logger: { info: (m) => messages.push(m) },
+  });
+  assert.equal(result.removed.length, 2);
+  assert.ok(!fs.existsSync(md));
+  assert.ok(!fs.existsSync(json));
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /Epic #77/);
+});
+
+test('sweep: deleteLegacyFlatManifest is a no-op when orphans are absent', () => {
+  const root = makeTmpRoot();
+  fs.mkdirSync(path.join(root, 'temp', 'epic-77'), { recursive: true });
+  const messages = [];
+  const result = deleteLegacyFlatManifest(77, {
+    projectRoot: root,
+    logger: { info: (m) => messages.push(m) },
+  });
+  assert.deepEqual(result.removed, []);
+  assert.equal(messages.length, 0);
+});
+
+test('sweep: deleteLegacyFlatManifest is idempotent across calls', () => {
+  const root = makeTmpRoot();
+  seedOrphans(root, 77);
+  const first = deleteLegacyFlatManifest(77, { projectRoot: root });
+  const second = deleteLegacyFlatManifest(77, { projectRoot: root });
+  assert.equal(first.removed.length, 2);
+  assert.deepEqual(second.removed, []);
+});
+
+test('sweep: persistManifest invokes the sweep on Epic dispatch render', () => {
+  const root = makeTmpRoot();
+  const { epicDir, md, json } = seedOrphans(root, 77);
+  persistManifest(
+    {
+      epicId: 77,
+      epicTitle: 'Epic 77',
+      dryRun: false,
+      generatedAt: 'now',
+      summary: {
+        totalTasks: 0,
+        doneTasks: 0,
+        progressPercent: 0,
+        dispatched: 0,
+        totalWaves: 0,
+      },
+      storyManifest: [],
+    },
+    { projectRoot: root },
+  );
+  assert.ok(!fs.existsSync(md));
+  assert.ok(!fs.existsSync(json));
+  assert.ok(fs.existsSync(path.join(epicDir, 'manifest.md')));
+  assert.ok(fs.existsSync(path.join(epicDir, 'manifest.json')));
 });
 
 test('persistence: on writeFileSync failure, no .tmp residue remains and final path untouched', () => {

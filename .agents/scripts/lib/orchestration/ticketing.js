@@ -72,6 +72,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // and the epic-runner progress reporter both read this comment to
   // derive Story-level state without re-fetching ticket labels.
   'story-run-progress',
+  // Story #1123 — analyze-execution.js upserts perf summaries at close
+  // time. Story-mode posts `story-perf-summary` on each Story; Epic-mode
+  // posts `epic-perf-report` on the Epic. Both replace the legacy
+  // per-Task `friction` fan-out and the standalone `phase-timings`
+  // surface (Epic #1030).
+  'story-perf-summary',
+  'epic-perf-report',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

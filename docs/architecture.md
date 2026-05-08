@@ -222,7 +222,7 @@ graph TB
 | `context-hydrator.js`    | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).   |
 | `update-ticket-state.js` | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).              |
 | `notify.js`              | Dispatches notifications via @mention and webhook channels.                          |
-| `analyze-execution.js`   | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro (Epic #1030).  |
+| `analyze-execution.js`   | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Advertised in Epic #1030; actually shipped + wired into the post-merge pipeline and Epic close Phase 6.0 in Epic #1114.  |
 
 #### Dispatch Engine Submodules
 
