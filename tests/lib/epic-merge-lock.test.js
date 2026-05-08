@@ -127,7 +127,15 @@ describe('epic-merge-lock', () => {
     // --git-common-dir` returns the parent's .git/. This is the scenario
     // that previously crashed with EEXIST: cwd is the worktree, .git there
     // is a gitlink file, and the legacy lockPathFor tried to mkdir on it.
-    const mainRepo = fs.mkdtempSync(path.join(os.tmpdir(), 'epic-lock-main-'));
+    // Canonicalize through realpathSync.native so the path is in the
+    // long-name form even when os.tmpdir() returned the 8.3 short form
+    // (Windows GH Actions runners surface either, depending on which
+    // API populated TEMP). The native variant calls Windows'
+    // GetFinalPathNameByHandle, which expands short-name segments;
+    // the JS realpathSync does not.
+    const mainRepo = fs.realpathSync.native(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'epic-lock-main-')),
+    );
     try {
       const run = (args, cwd = mainRepo) =>
         execFileSync('git', args, { cwd, stdio: 'ignore' });
@@ -153,13 +161,18 @@ describe('epic-merge-lock', () => {
 
         // The fix: lock acquisition resolves to the *common* gitdir.
         // git rev-parse emits forward slashes on Windows; normalize both
-        // sides through path.resolve + realpathSync before comparing.
-        // realpath is required on Windows CI because os.tmpdir() returns
-        // the long form (e.g. C:\Users\runneradmin\…) while
-        // `git rev-parse --git-common-dir` emits the 8.3 short-name form
-        // (C:\Users\RUNNER~1\…). Both refer to the same directory, but
-        // string equality fails. realpath canonicalizes them.
-        const norm = (p) => fs.realpathSync(path.resolve(p));
+        // sides before comparing. We use `fs.realpathSync.native` (which
+        // calls Windows' GetFinalPathNameByHandle) rather than the JS
+        // `fs.realpathSync` because only the native variant expands 8.3
+        // short-name segments. On GH Actions Windows runners os.tmpdir()
+        // can return either the long form (C:\Users\runneradmin\…) or
+        // the short form (C:\Users\RUNNER~1\…) depending on which API
+        // populated TEMP, and `git rev-parse --git-common-dir` may
+        // emit the opposite form. realpathSync.native canonicalizes
+        // both to the long form. Lower-cased to neutralize drive-letter
+        // and any residual segment-case differences.
+        const norm = (p) =>
+          fs.realpathSync.native(path.resolve(p)).toLowerCase();
         const expectedGitDir = norm(path.join(mainRepo, '.git'));
         assert.equal(
           norm(resolveGitCommonDir(worktreeRoot)),

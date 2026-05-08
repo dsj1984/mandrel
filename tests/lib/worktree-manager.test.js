@@ -642,7 +642,16 @@ test('prune: runs git worktree prune through WorktreeManager', () => {
 // ─────────────────── Integration test (real git) ───────────────────
 
 test('integration: round-trips worktree add and remove on a real repo', async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-int-'));
+  // Canonicalize via realpathSync.native so paths are in long-name form
+  // before WorktreeManager registers them with git. On Windows GH Actions
+  // os.tmpdir() can return the 8.3 short form (C:\Users\RUNNER~1\…); git
+  // and Node may report the same directory differently downstream, which
+  // breaks samePath()-based idempotence checks. The native realpath
+  // variant calls Windows' GetFinalPathNameByHandle, which expands short
+  // segments; the JS realpathSync does not.
+  const tmp = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'wt-int-')),
+  );
   const run = (cwd, ...args) =>
     execFileSync('git', args, {
       cwd,
@@ -693,7 +702,15 @@ test('integration: round-trips worktree add and remove on a real repo', async ()
 test('integration: reap() tolerates drive-letter-case mismatch on repoRoot (v5.11.5 regression)', {
   skip: process.platform !== 'win32',
 }, async () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-case-'));
+  // Canonicalize via realpathSync.native so the baseline path is
+  // long-name form. The test then deliberately flips the drive-letter
+  // case below to exercise the v5.11.5 regression — that flip stays
+  // load-bearing — but we want the *base* path consistent with what git
+  // will report so the reap() drive-case path-comparison branch is the
+  // only difference under test.
+  const tmp = fs.realpathSync.native(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'wt-case-')),
+  );
   const run = (cwd, ...args) =>
     execFileSync('git', args, {
       cwd,
