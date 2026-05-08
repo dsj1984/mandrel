@@ -4,7 +4,7 @@
  * Consolidates the "delete this branch from local and/or origin" pattern
  * that `delete-epic-branches.js`, `epic-close.js`, and
  * `story-close.js` had each re-implemented with subtly different
- * idempotency rules.
+ * idempotency rules. All three call sites now route through this module.
  *
  * All helpers:
  *   - Take an explicit `cwd` (worktree-isolation friendly).
@@ -15,9 +15,6 @@
  *     (idempotent), distinguishing it via `reason: 'not-found'`.
  *   - Return `{ deleted: bool, reason: string, stderr?: string }` and
  *     never throw on git's normal failure modes (caller inspects the result).
- *
- * Migration is out of scope for this task — call sites migrate in a
- * follow-up Story.
  */
 
 import { assertBranchSafe, isSafeBranchName } from './branch-name-guard.js';
@@ -109,7 +106,7 @@ export function deleteBranchRemote(name, opts = {}) {
  *   idempotent not-found). `reason` is `'deleted'`, `'partial'`, or
  *   `'error'`.
  */
-export function deleteBranchBoth(name, opts = {}) {
+export function deleteBranchEverywhere(name, opts = {}) {
   const local = deleteBranchLocal(name, opts);
   const remote = deleteBranchRemote(name, opts);
   const bothOk = local.deleted && remote.deleted;
@@ -118,4 +115,89 @@ export function deleteBranchBoth(name, opts = {}) {
   else if (local.deleted || remote.deleted) reason = 'partial';
   else reason = 'error';
   return { deleted: bothOk, reason, local, remote };
+}
+
+/**
+ * Backwards-compatible alias for `deleteBranchEverywhere`. Older call
+ * sites and tests imported this name; keeping the alias avoids touching
+ * them in the migration.
+ *
+ * @deprecated prefer `deleteBranchEverywhere`.
+ */
+export const deleteBranchBoth = deleteBranchEverywhere;
+
+/**
+ * Delete N branches in a single batched git call (push --delete X Y Z, or
+ * branch -D X Y Z), falling back to per-ref delete via
+ * `deleteBranchLocal` / `deleteBranchRemote` if the batched call fails.
+ * The fallback is what makes idempotency contract-correct: a batched call
+ * fails as a unit if even one ref does not exist, but the per-ref retry
+ * resolves each ref's outcome independently — `not-found` is reported as
+ * deleted, real failures are surfaced.
+ *
+ * @param {string[]} names - Branch names. Empty / falsy entries are
+ *   filtered out before any git work.
+ * @param {{ scope: 'local'|'remote', cwd?: string, force?: boolean, remote?: string, noVerify?: boolean }} opts
+ *   - `scope`: required. `'local'` runs `git branch -D|-d`; `'remote'`
+ *     runs `git push <remote> --delete`.
+ *   - `force`, `remote`, `noVerify`: forwarded to the per-ref helper on
+ *     the fallback path; `force` and `noVerify` are also honoured on the
+ *     batched call.
+ * @returns {{ deleted: string[], failed: Array<{ name: string, reason: string, stderr?: string }> }}
+ *   `deleted` lists names that were successfully deleted (or were
+ *   already gone). `failed` lists names whose per-ref retry returned a
+ *   non-deleted result, with the lib's `reason` propagated.
+ */
+export function deleteBranchesBatched(names, opts = {}) {
+  const list = (Array.isArray(names) ? names : []).filter(Boolean);
+  if (list.length === 0) return { deleted: [], failed: [] };
+
+  const scope = opts.scope;
+  if (scope !== 'local' && scope !== 'remote') {
+    throw new Error(
+      `deleteBranchesBatched: scope must be "local" or "remote", got "${scope}".`,
+    );
+  }
+  // Validate every name before any destructive call so a single bad
+  // entry can never leak into a batched git invocation.
+  for (const n of list) assertBranchSafe(n, { protected: true });
+
+  const cwd = opts.cwd ?? process.cwd();
+
+  let batchedRes;
+  if (scope === 'local') {
+    const flag = opts.force === false ? '-d' : '-D';
+    batchedRes = gitSpawn(cwd, 'branch', flag, ...list);
+  } else {
+    const remote = opts.remote ?? 'origin';
+    if (!isSafeBranchName(remote)) {
+      throw new Error(`[git-branch-cleanup] Unsafe remote name: "${remote}".`);
+    }
+    const args = ['push'];
+    if (opts.noVerify) args.push('--no-verify');
+    args.push(remote, '--delete', ...list);
+    batchedRes = gitSpawn(cwd, ...args);
+  }
+
+  if (batchedRes.status === 0) {
+    return { deleted: [...list], failed: [] };
+  }
+
+  // Per-ref fallback. Each call independently classifies its outcome —
+  // already-gone refs are reported as `not-found` (counted as deleted),
+  // real failures surface in `failed[]`.
+  const deleted = [];
+  const failed = [];
+  for (const n of list) {
+    const r =
+      scope === 'local'
+        ? deleteBranchLocal(n, opts)
+        : deleteBranchRemote(n, opts);
+    if (r.deleted) {
+      deleted.push(n);
+    } else {
+      failed.push({ name: n, reason: r.reason, stderr: r.stderr });
+    }
+  }
+  return { deleted, failed };
 }

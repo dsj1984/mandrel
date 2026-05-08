@@ -26,6 +26,10 @@
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT } from './lib/config-resolver.js';
+import {
+  deleteBranchLocal,
+  deleteBranchRemote,
+} from './lib/git-branch-cleanup.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 
@@ -72,20 +76,30 @@ function listRemoteBranches(epicId, cwd = PROJECT_ROOT) {
 }
 
 function deleteLocalBranch(branch, cwd = PROJECT_ROOT) {
-  const res = gitSpawn(cwd, 'branch', '-D', branch);
-  return { branch, ok: res.status === 0, stderr: res.stderr?.trim() };
+  const r = deleteBranchLocal(branch, { cwd, force: true });
+  return {
+    branch,
+    deleted: r.deleted,
+    reason: r.reason,
+    // Legacy fields preserved for `executeDeletion` / `renderDeletionLine`
+    // / existing tests; mirrors the lib's `deleted` / `reason === 'not-found'`.
+    ok: r.deleted,
+    alreadyGone: r.reason === 'not-found',
+    stderr: r.stderr?.trim(),
+  };
 }
 
 function deleteRemoteBranch(branch, cwd = PROJECT_ROOT) {
-  const res = gitSpawn(cwd, 'push', 'origin', '--delete', branch);
-  const stderr = res.stderr?.trim() ?? '';
-  // "remote ref does not exist" is idempotent success — treat as ok.
-  const alreadyGone = /remote ref does not exist|does not exist/i.test(stderr);
+  const r = deleteBranchRemote(branch, { cwd });
   return {
     branch,
-    ok: res.status === 0 || alreadyGone,
-    alreadyGone,
-    stderr,
+    deleted: r.deleted,
+    reason: r.reason,
+    // Legacy fields preserved for `executeDeletion` / `renderDeletionLine`
+    // / existing tests; mirrors the lib's `deleted` / `reason === 'not-found'`.
+    ok: r.deleted,
+    alreadyGone: r.reason === 'not-found',
+    stderr: r.stderr?.trim(),
   };
 }
 

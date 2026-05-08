@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { after, describe, it } from 'node:test';
 import {
   executeDeletion,
   parseDeleteArgs,
@@ -8,6 +9,7 @@ import {
   renderDryRun,
   renderExecutionSummary,
 } from '../.agents/scripts/delete-epic-branches.js';
+import { __setGitRunners } from '../.agents/scripts/lib/git-utils.js';
 
 describe('delete-epic-branches.parseDeleteArgs', () => {
   it('returns null epicId when missing or invalid', () => {
@@ -158,5 +160,57 @@ describe('delete-epic-branches.executeDeletion', () => {
     });
     assert.equal(result.ok, true);
     assert.equal(result.remote[0].alreadyGone, true);
+  });
+});
+
+describe('delete-epic-branches — wrapper integration with git-branch-cleanup', () => {
+  after(() => {
+    __setGitRunners(execFileSync, spawnSync);
+  });
+
+  it("treats 'remote ref does not exist' as deleted: true, reason: 'not-found' (regression)", () => {
+    // Drives executeDeletion through the real wrappers (no `deleteRemote`
+    // injection), which now delegate to `deleteBranchRemote` from the
+    // shared cleanup lib. Mock the spawn layer to emit git's exact
+    // already-gone error so the lib's NOT_FOUND_REMOTE matcher fires.
+    __setGitRunners(
+      () => '',
+      (_cmd, args) => {
+        // Only the per-ref `git push origin --delete <branch>` is
+        // expected here — listing happens via `planDeletion`'s injected
+        // listers, so the test doesn't drive the real branch-list calls.
+        assert.deepEqual(args, [
+          'push',
+          'origin',
+          '--delete',
+          'story/epic-9/already-gone',
+        ]);
+        return {
+          status: 1,
+          stdout: '',
+          stderr:
+            "error: unable to delete 'story/epic-9/already-gone': remote ref does not exist",
+        };
+      },
+    );
+
+    const plan = {
+      epicId: 9,
+      local: [],
+      remote: ['story/epic-9/already-gone'],
+    };
+    const result = executeDeletion({ plan });
+
+    // The wrapper carries both the new lib shape (deleted/reason) and
+    // the legacy shape (ok/alreadyGone) so executeDeletion's `failures`
+    // filter and `renderDeletionLine`'s annotation both stay correct.
+    assert.equal(result.ok, true);
+    assert.equal(result.failures.length, 0);
+    const row = result.remote[0];
+    assert.equal(row.branch, 'story/epic-9/already-gone');
+    assert.equal(row.deleted, true);
+    assert.equal(row.reason, 'not-found');
+    assert.equal(row.ok, true);
+    assert.equal(row.alreadyGone, true);
   });
 });
