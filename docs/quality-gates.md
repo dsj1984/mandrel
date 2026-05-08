@@ -28,6 +28,41 @@ with a clear error and leaves the local tree clean for manual resolution.
 
 ---
 
+## Coverage threshold gate
+
+`npm run test:coverage` runs the full unit-test suite under `c8` and
+fails the gate when coverage drops below **85 % lines / 70 % branches /
+75 % functions** across `.agents/scripts/**`. The configuration is
+declared in [`.c8rc.cjs`](../.c8rc.cjs) — the rc file is the single
+source of truth for the include scope, the threshold values, and the
+exclusion list.
+
+Three files are deliberately outside the gate:
+
+- `.agents/scripts/agents-bootstrap-github.js` — one-shot bootstrap CLI
+  whose meaningful logic (label taxonomy + project field defs) lives
+  in `lib/label-taxonomy.js` and is unit-tested there. The CLI shell
+  itself is integration-only against a live GitHub repo.
+- `.agents/scripts/context-hydrator.js` — thin wrapper around the
+  unit-tested hydration engine; end-to-end coverage requires a real
+  provider tree and Story prompt context, which lives in integration
+  tests.
+- `.agents/scripts/ticket-decomposer.js` — `/epic-plan` decomposition
+  driver. Validation logic is exercised by the planner tests; the
+  CLI's two modes (`--emit-context` and the validate-then-create
+  default) require real PRD/Tech-Spec bodies and a live Epic id.
+
+Each excluded file also carries `/* node:coverage ignore file */` at
+the top of its source as a second line of defence; new exclusions
+must be justified in the comment block at the top of `.c8rc.cjs`
+before the threshold gate is altered. `dispatcher.js`, `notify.js`,
+and `providers/github.js` were previously excluded but now have
+dedicated test files (`tests/dispatcher.test.js`,
+`tests/notify.test.js`, `tests/providers-github*.test.js`) and sit
+inside the gate.
+
+---
+
 ## Anti-thrashing protocol
 
 Agents MUST halt, summarize blockers, and re-plan if they hit consecutive
