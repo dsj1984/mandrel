@@ -126,7 +126,6 @@
   ".agents/scripts/lib/orchestration/epic-runner/wave-scheduler.js": 121.571,
   ".agents/scripts/lib/orchestration/error-journal.js": 99.718,
   ".agents/scripts/lib/orchestration/health-check-service.js": 109.92,
-  ".agents/scripts/lib/orchestration/index.js": 171,
   ".agents/scripts/lib/orchestration/label-transitions.js": 129.161,
   ".agents/scripts/lib/orchestration/lint-baseline-service.js": 98.112,
   ".agents/scripts/lib/orchestration/manifest-builder.js": 102.258,

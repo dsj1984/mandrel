@@ -14,14 +14,13 @@
  *   - substitutions.js   — `{{key}}` templating + CLI implicit defaults
  *   - workflow-loader.js — filesystem IO for workflow markdown + artifacts
  *   - findings.js        — severity histogram aggregation
- *   - cli.js             — `parseAuditList`, `parseCliArgs`, HELP banner
+ *   - cli.js             — `parseAuditList`, `parseArgv`, HELP banner
  *   - runner.js          — `runAuditSuite` aggregation core
  *
  * This file is the orchestration entry-point: it parses argv, glues the
  * helpers together, writes the JSON envelope to stdout, and re-exports the
- * symbols that downstream callers (`audit-orchestrator.js`,
- * `lib/orchestration/index.js`, the test suite) already import from this
- * path.
+ * symbols that downstream callers (`audit-orchestrator.js` and the test
+ * suite) already import from this path.
  *
  * Usage:
  *   node .agents/scripts/run-audit-suite.js \
@@ -36,7 +35,7 @@
  *   non-zero — argument or substitution validation failure (error on stderr)
  */
 
-import { HELP, parseAuditList, parseCliArgs } from './lib/audit-suite/cli.js';
+import { HELP, parseArgv, parseAuditList } from './lib/audit-suite/cli.js';
 import { runAuditSuite } from './lib/audit-suite/runner.js';
 import {
   applyImplicitSubstitutions,
@@ -44,16 +43,16 @@ import {
 } from './lib/audit-suite/substitutions.js';
 import { runAsCli } from './lib/cli-utils.js';
 
-export { parseAuditList, parseCliArgs } from './lib/audit-suite/cli.js';
+export { parseArgv, parseAuditList } from './lib/audit-suite/cli.js';
 export { aggregateSummary } from './lib/audit-suite/findings.js';
 export {
   extractFrontmatter,
   summarizeWorkflow,
 } from './lib/audit-suite/frontmatter.js';
 // --- Re-exports preserved for back-compat with existing import sites ---
-// `audit-orchestrator.js`, `lib/orchestration/index.js`, and the test suite
-// all import these from `run-audit-suite.js`. Keep them re-exported here so
-// the decomposition is internal-only.
+// `audit-orchestrator.js` and the test suite import these from
+// `run-audit-suite.js`. Keep them re-exported here so the decomposition
+// is internal-only.
 export { runAuditSuite } from './lib/audit-suite/runner.js';
 export {
   applyImplicitSubstitutions,
@@ -66,7 +65,7 @@ function abort(message, code = 2) {
 }
 
 export async function main(argv = process.argv.slice(2)) {
-  const values = parseCliArgs(argv);
+  const values = parseArgv(argv);
 
   if (values.help) {
     process.stdout.write(HELP);
@@ -90,7 +89,7 @@ export async function main(argv = process.argv.slice(2)) {
   const result = await runAuditSuite({
     auditWorkflows,
     substitutions,
-    artifactPrefix: values['run-id'],
+    artifactPrefix: values.runId,
   });
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }

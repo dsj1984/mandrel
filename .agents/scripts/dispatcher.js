@@ -16,20 +16,19 @@
  *
  * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
  *
- * @see .agents/scripts/lib/orchestration/index.js (SDK barrel)
  * @see .agents/schemas/dispatch-manifest.json
  */
 
 import { runAsCli } from './lib/cli-utils.js';
-import { resolveAndDispatch } from './lib/orchestration/index.js';
+import {
+  dispatch,
+  resolveAndDispatch,
+} from './lib/orchestration/dispatch-engine.js';
+import { executeStory } from './lib/orchestration/story-executor.js';
 
 // Re-export SDK functions so that direct consumers of dispatcher.js
 // (tests, CI scripts) continue to work without modification.
-export {
-  dispatch,
-  executeStory,
-  resolveAndDispatch,
-} from './lib/orchestration/index.js';
+export { dispatch, executeStory, resolveAndDispatch };
 
 // ---------------------------------------------------------------------------
 // Presentation helpers (CLI-only — not part of the SDK)
@@ -37,6 +36,7 @@ export {
 
 import { parseSprintArgs } from './lib/cli-args.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
 import {
   persistManifest,
   postManifestEpicComment,
@@ -44,7 +44,6 @@ import {
   printStoryDispatchTable,
 } from './lib/presentation/manifest-renderer.js';
 import { createProvider } from './lib/provider-factory.js';
-
 /**
  * High-level orchestrator that resolves the execution strategy, generates the manifest,
  * persists the files to temp, and outputs summaries.
@@ -82,13 +81,13 @@ export async function generateAndSaveManifest(
     try {
       const result = await postManifestEpicComment(manifest, provider);
       if (result.posted) {
-        console.log(
+        Logger.info(
           `[Dispatcher] 💬 Dispatch manifest comment posted on Epic #${manifest.epicId}`,
         );
       }
     } catch (err) {
       /* node:coverage ignore next */
-      console.warn(
+      Logger.warn(
         `[Dispatcher] Non-fatal: could not post manifest comment — ${err.message}`,
       );
     }
@@ -97,7 +96,7 @@ export async function generateAndSaveManifest(
       const parkedResult = await postParkedFollowOnsComment(manifest, provider);
       if (parkedResult.posted) {
         const hasExtras = parkedResult.recuts > 0 || parkedResult.parked > 0;
-        console.log(
+        Logger.info(
           hasExtras
             ? `[Dispatcher] 🪝 Parked follow-ons comment posted on Epic #${manifest.epicId} (${parkedResult.recuts} recut, ${parkedResult.parked} parked)`
             : `[Dispatcher] 🪝 No out-of-manifest Stories detected on Epic #${manifest.epicId}`,
@@ -105,7 +104,7 @@ export async function generateAndSaveManifest(
       }
     } catch (err) {
       /* node:coverage ignore next */
-      console.warn(
+      Logger.warn(
         `[Dispatcher] Non-fatal: could not post parked-follow-ons comment — ${err.message}`,
       );
     }
@@ -120,30 +119,30 @@ export async function generateAndSaveManifest(
     const eid = stories.find((s) => s?.epicId)?.epicId;
     if (eid && stories.length === 1) {
       const sid = stories[0].storyId;
-      console.log(
+      Logger.info(
         `\n[Dispatcher] ✅ Story manifest: temp/epic-${eid}/story-${sid}/manifest.json`,
       );
-      console.log(
+      Logger.info(
         `[Dispatcher] 📄 Markdown: temp/epic-${eid}/story-${sid}/manifest.md\n`,
       );
     } else {
       const key = stories.map((s) => s.storyId).join('-');
-      console.log(
+      Logger.info(
         `\n[Dispatcher] ✅ Story manifest: temp/story-manifest-${key}.json`,
       );
-      console.log(`[Dispatcher] 📄 Markdown: temp/story-manifest-${key}.md\n`);
+      Logger.info(`[Dispatcher] 📄 Markdown: temp/story-manifest-${key}.md\n`);
     }
     // Omit console dump for brevity
   } else {
     const epicId = manifest.epicId;
-    console.log(
+    Logger.info(
       `\n[Dispatcher] ✅ Manifest: temp/epic-${epicId}/manifest.json`,
     );
-    console.log(`[Dispatcher] 📄 Markdown: temp/epic-${epicId}/manifest.md`);
-    console.log(
+    Logger.info(`[Dispatcher] 📄 Markdown: temp/epic-${epicId}/manifest.md`);
+    Logger.info(
       `[Dispatcher] Progress: ${manifest.summary.doneTasks}/${manifest.summary.totalTasks} tasks done (${manifest.summary.progressPercent}%)`,
     );
-    console.log(`[Dispatcher] Dispatched: ${manifest.summary.dispatched}`);
+    Logger.info(`[Dispatcher] Dispatched: ${manifest.summary.dispatched}`);
     printStoryDispatchTable(manifest.storyManifest);
   }
   return manifest;
@@ -159,7 +158,7 @@ async function main() {
   const { ticketId, dryRun, executor } = parseSprintArgs();
 
   if (!ticketId) {
-    console.error(
+    Logger.error(
       '[Dispatcher] Error: No valid Issue ID provided.\n' +
         'Usage: node dispatcher.js <ticketId> [--dry-run]',
     );
@@ -172,7 +171,7 @@ async function main() {
 runAsCli(import.meta.url, main, {
   source: 'Dispatcher',
   onError: (err) => {
-    console.error('[Dispatcher] Fatal error:', err.message);
+    Logger.error('[Dispatcher] Fatal error:', err.message);
     process.exit(1);
   },
 });
