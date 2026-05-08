@@ -153,10 +153,16 @@ describe('epic-merge-lock', () => {
 
         // The fix: lock acquisition resolves to the *common* gitdir.
         // git rev-parse emits forward slashes on Windows; normalize both
-        // sides through path.resolve before comparing.
-        const expectedGitDir = path.resolve(mainRepo, '.git');
+        // sides through path.resolve + realpathSync before comparing.
+        // realpath is required on Windows CI because os.tmpdir() returns
+        // the long form (e.g. C:\Users\runneradmin\…) while
+        // `git rev-parse --git-common-dir` emits the 8.3 short-name form
+        // (C:\Users\RUNNER~1\…). Both refer to the same directory, but
+        // string equality fails. realpath canonicalizes them.
+        const norm = (p) => fs.realpathSync(path.resolve(p));
+        const expectedGitDir = norm(path.join(mainRepo, '.git'));
         assert.equal(
-          path.resolve(resolveGitCommonDir(worktreeRoot)),
+          norm(resolveGitCommonDir(worktreeRoot)),
           expectedGitDir,
           'common gitdir resolves to the parent repo',
         );
@@ -167,7 +173,7 @@ describe('epic-merge-lock', () => {
         });
         try {
           assert.equal(
-            path.resolve(path.dirname(handle.filePath)),
+            norm(path.dirname(handle.filePath)),
             expectedGitDir,
             'lock file lands in the parent repo .git/, not the worktree gitlink',
           );

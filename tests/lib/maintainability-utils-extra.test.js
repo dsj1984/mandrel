@@ -54,12 +54,18 @@ describe('getBaseline', () => {
   });
 
   it('resolves a relative path against process.cwd()', () => {
-    const rel = path.relative(process.cwd(), path.join(tmp, 'rel.json'));
-    fs.writeFileSync(path.join(process.cwd(), rel), JSON.stringify({ x: 1 }));
+    // Must live under cwd so the path is genuinely relative. On Windows
+    // CI runners, os.tmpdir() can be on a different drive than cwd
+    // (e.g. cwd=D:\…, tmpdir=C:\…), and path.relative() across drives
+    // returns the absolute target — which then breaks fs.writeFile and
+    // defeats the test.
+    const rel = `mi_extra_rel_${process.pid}_${Date.now()}.json`;
+    const abs = path.join(process.cwd(), rel);
+    fs.writeFileSync(abs, JSON.stringify({ x: 1 }));
     try {
       assert.deepEqual(getBaseline(rel), { x: 1 });
     } finally {
-      fs.unlinkSync(path.join(process.cwd(), rel));
+      fs.unlinkSync(abs);
     }
   });
 });

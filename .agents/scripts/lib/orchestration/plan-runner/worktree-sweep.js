@@ -34,8 +34,11 @@ import path from 'node:path';
 import * as defaultGit from '../../git-utils.js';
 import { NOOP_LOGGER } from '../../Logger.js';
 import { AGENT_LABELS } from '../../label-constants.js';
+import { concurrentMap } from '../../util/concurrent-map.js';
 import { parseWorktreePorcelain } from '../../worktree/inspector.js';
 import { forceDrainPendingCleanup } from '../../worktree/lifecycle/force-drain.js';
+
+const TICKET_READ_CONCURRENCY = 8;
 
 const DONE_LABEL = AGENT_LABELS.DONE;
 
@@ -57,6 +60,10 @@ function storyIdFromPath(wtPath) {
  * Scan registered worktrees and force-remove any whose parent Story is
  * done (closed or `agent::done`). Never touches worktrees whose Story is
  * still open — those are live or in-flight.
+ *
+ * Provider reads are fanned out at concurrency 8 via `concurrentMap`; the
+ * subsequent `git worktree remove` calls stay sequential because they
+ * mutate `.git/worktrees/`.
  *
  * @param {object} opts
  * @param {object} opts.provider    ITicketingProvider-compatible; only
@@ -114,33 +121,62 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
   }
 
   const entries = parseWorktreePorcelain(listRes.stdout || '');
-  for (const entry of entries) {
-    const wtPath = entry.path;
-    if (!wtPath) continue;
-    const storyId = storyIdFromPath(wtPath);
-    if (storyId === null) continue;
 
-    let ticket;
-    try {
-      ticket = await provider.getTicket(storyId);
-    } catch (err) {
+  // Phase 1 — fan out provider reads. Each mapper call captures its own
+  // error so a single transient provider hiccup doesn't trip
+  // concurrentMap's first-rejection-wins policy and abort the whole sweep;
+  // we want the original per-entry skip/continue semantics preserved.
+  const reads = await concurrentMap(
+    entries,
+    async (entry) => {
+      const wtPath = entry.path;
+      if (!wtPath) return { kind: 'no-path' };
+      const storyId = storyIdFromPath(wtPath);
+      if (storyId === null) return { kind: 'non-story' };
+      try {
+        const ticket = await provider.getTicket(storyId);
+        return { kind: 'ok', wtPath, storyId, ticket };
+      } catch (err) {
+        return { kind: 'provider-error', wtPath, storyId, error: err };
+      }
+    },
+    { concurrency: TICKET_READ_CONCURRENCY },
+  );
+
+  // Phase 2 — sequential `git worktree remove`. These mutate
+  // .git/worktrees/ and the per-worktree admin dir; serializing avoids
+  // racing git's own locking on Windows where a half-removed entry can
+  // leave a partial admin dir that the next remove then trips over.
+  for (const r of reads) {
+    if (r.kind === 'no-path' || r.kind === 'non-story') continue;
+    if (r.kind === 'provider-error') {
       skipped.push({
-        storyId,
-        path: wtPath,
-        reason: `provider-error: ${err.message}`,
+        storyId: r.storyId,
+        path: r.wtPath,
+        reason: `provider-error: ${r.error.message}`,
       });
       logger.warn(
-        `worktree-sweep: provider.getTicket(#${storyId}) failed: ${err.message}`,
+        `worktree-sweep: provider.getTicket(#${r.storyId}) failed: ${r.error.message}`,
       );
       continue;
     }
 
-    if (!isStoryDone(ticket)) {
-      skipped.push({ storyId, path: wtPath, reason: 'story-open' });
+    if (!isStoryDone(r.ticket)) {
+      skipped.push({
+        storyId: r.storyId,
+        path: r.wtPath,
+        reason: 'story-open',
+      });
       continue;
     }
 
-    const res = git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
+    const res = git.gitSpawn(
+      repoRoot,
+      'worktree',
+      'remove',
+      '--force',
+      r.wtPath,
+    );
     if (res.status !== 0) {
       const reason = (
         res.stderr ||
@@ -148,18 +184,18 @@ export async function sweepStaleStoryWorktrees(opts = {}) {
         'worktree-remove-failed'
       ).trim();
       skipped.push({
-        storyId,
-        path: wtPath,
+        storyId: r.storyId,
+        path: r.wtPath,
         reason: `remove-failed: ${reason}`,
       });
       logger.warn(
-        `worktree-sweep: failed to reap storyId=${storyId} path=${wtPath}: ${reason}`,
+        `worktree-sweep: failed to reap storyId=${r.storyId} path=${r.wtPath}: ${reason}`,
       );
       continue;
     }
-    reaped.push({ storyId, path: wtPath });
+    reaped.push({ storyId: r.storyId, path: r.wtPath });
     logger.info(
-      `worktree-sweep: reaped stale worktree storyId=${storyId} path=${wtPath}`,
+      `worktree-sweep: reaped stale worktree storyId=${r.storyId} path=${r.wtPath}`,
     );
   }
 

@@ -262,6 +262,77 @@ test('sweepStaleStoryWorktrees: throws when repoRoot is missing', async () => {
   );
 });
 
+test('sweepStaleStoryWorktrees: provider reads fan out at concurrency=8', async () => {
+  const N = 10;
+  const LATENCY_MS = 80;
+  const ids = Array.from({ length: N }, (_, i) => 1000 + i);
+
+  const tickets = {};
+  for (const id of ids) {
+    tickets[id] = {
+      id,
+      title: `S${id}`,
+      labels: ['type::story', 'agent::executing'],
+      state: 'open',
+    };
+  }
+  const provider = new MockProvider({ tickets });
+  const baseGet = provider.getTicket.bind(provider);
+  let inFlight = 0;
+  let peakInFlight = 0;
+  provider.getTicket = async (id) => {
+    inFlight++;
+    if (inFlight > peakInFlight) peakInFlight = inFlight;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, LATENCY_MS));
+      return baseGet(id);
+    } finally {
+      inFlight--;
+    }
+  };
+
+  const git = makeFakeGit({
+    listStdout: porcelain(ids.map((id) => `/repo/.worktrees/story-${id}`)),
+  });
+  const { logger } = quietLogger();
+
+  const start = Date.now();
+  const result = await sweepStaleStoryWorktrees({
+    provider,
+    repoRoot: REPO,
+    git,
+    logger,
+  });
+  const elapsed = Date.now() - start;
+
+  // All open → all skipped, none reaped.
+  assert.equal(result.reaped.length, 0);
+  assert.equal(result.skipped.length, N);
+
+  // ceil(10/8) = 2 batches; bound generously to absorb timer jitter on
+  // CI but stay well below the sequential 10 × LATENCY_MS = 800 ms floor.
+  const batches = Math.ceil(N / 8);
+  const upperBound = batches * LATENCY_MS + 200;
+  assert.ok(
+    elapsed < upperBound,
+    `expected elapsed ${elapsed}ms < ${upperBound}ms (sequential floor would be ~${N * LATENCY_MS}ms)`,
+  );
+  assert.ok(
+    elapsed < N * LATENCY_MS - 100,
+    `expected elapsed ${elapsed}ms to clearly beat sequential ${N * LATENCY_MS}ms`,
+  );
+
+  // Concurrency was actually exercised — at least 2 in flight, capped at 8.
+  assert.ok(
+    peakInFlight >= 2,
+    `expected peakInFlight >= 2, got ${peakInFlight}`,
+  );
+  assert.ok(
+    peakInFlight <= 8,
+    `expected peakInFlight <= 8, got ${peakInFlight}`,
+  );
+});
+
 test('sweepStaleStoryWorktrees: drains the pending-cleanup manifest when Stage 1 retry succeeds', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sweep-drain-'));
   const wtRoot = path.join(tmp, '.worktrees');

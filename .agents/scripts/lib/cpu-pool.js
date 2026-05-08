@@ -67,6 +67,16 @@ export async function runOnPool(workerScript, items, opts = {}) {
 
   async function runWorker() {
     const worker = new Worker(workerScript, { workerData });
+    // Track exit at worker scope so the finally block can short-circuit
+    // when the worker has already gone away (e.g. mid-dispatch
+    // process.exit). Registering a single persistent listener here also
+    // sidesteps the race where worker.once('exit', ...) added inside
+    // finally arrives after the 'exit' event has already fired and
+    // therefore never resolves.
+    let workerExited = false;
+    worker.on('exit', () => {
+      workerExited = true;
+    });
     try {
       while (firstFatalError === null) {
         const myIndex = nextIndex++;
@@ -94,17 +104,30 @@ export async function runOnPool(workerScript, items, opts = {}) {
         }
       }
     } finally {
-      try {
-        worker.postMessage({ exit: true });
-      } catch {
-        // worker may already be terminating
+      if (!workerExited) {
+        try {
+          worker.postMessage({ exit: true });
+        } catch {
+          // worker may already be terminating
+        }
+        // Wait briefly for clean exit, then force-terminate. Re-check
+        // workerExited because the dispatch loop may have observed the
+        // exit between the guard above and here.
+        if (!workerExited) {
+          const exited = new Promise((resolve) => {
+            if (workerExited) resolve();
+            else worker.once('exit', resolve);
+          });
+          // Do NOT .unref() the fallback timer: an unrefed timer lets
+          // the event loop appear idle while this promise is pending,
+          // which trips Node's test runner cancellation under cold-CI
+          // conditions.
+          await Promise.race([
+            exited,
+            new Promise((resolve) => setTimeout(resolve, 1000)),
+          ]);
+        }
       }
-      // Wait briefly for clean exit, then force-terminate.
-      const exited = new Promise((resolve) => worker.once('exit', resolve));
-      await Promise.race([
-        exited,
-        new Promise((resolve) => setTimeout(resolve, 1000).unref()),
-      ]);
       try {
         await worker.terminate();
       } catch {
