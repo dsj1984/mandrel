@@ -9,17 +9,17 @@
  *   2. Ticket-state-transition events — `transitionTicketState` invokes
  *      `notify()` directly when a `notify` function is injected via opts.
  *   3. Structured-comment mirrors — the progress writers
- *      (`upsertStoryRunProgress`, `upsertWaveRunProgress`,
- *      `ProgressReporter`) call `notify()` after a successful upsert with
- *      `skipComment: true` so the webhook carries the same cadence as
- *      GitHub watchers see in the issue thread.
+ *      (`upsertStoryRunProgress`, `ProgressReporter`) call `notify()`
+ *      after a successful upsert with `skipComment: true` so the webhook
+ *      carries the same cadence as GitHub watchers see in the issue
+ *      thread.
  *
  * Severity vocabulary: low | medium | high.
  *   - low    — routine pipeline progress: task transitions and
  *              `story-run-progress` upserts. Filtered out at the default
  *              `medium` threshold on every channel.
  *   - medium — operator-visible milestones: story state transitions,
- *              wave-run-progress, epic-run-progress, epic-complete. Default
+ *              epic-run-progress, epic-complete. Default
  *              threshold for delivery on every channel.
  *   - high   — operator must act: epic blockers, HITL gates,
  *              autonomous-chain failures. Webhook prefix is

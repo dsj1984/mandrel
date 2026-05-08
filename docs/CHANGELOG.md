@@ -36,6 +36,75 @@ on `main` undetected.
   only executes on Linux runners. The Linux leg remains the source of
   truth for the secret-scan gate.
 
+### Removed — `/wave-execute` and the `wave-runner` agent type
+
+`/wave-execute` is retired. `/epic-execute` (the host LLM) now owns the
+wave loop and fans Stories out directly, with `subagent_type:
+general-purpose`. This eliminates the dependency on a custom sub-agent
+type that the framework documented but never scaffolded into consumer
+projects (the failure surfaced in agent-protocols Epic #32: "Agent type
+not found" at wave 0). The host-driven flat fan-out documented as
+emergency-only in #1072 / #1114 is now *the* architecture.
+
+See ADR `20260508-flatten` for full rationale.
+
+#### Deleted surface
+
+- `.agents/workflows/wave-execute.md` and `.claude/commands/wave-execute.md`
+  (auto-removed by `npm run sync:commands`).
+- `.claude/agents/wave-runner.md`.
+- `.agents/scripts/wave-prepare.js`.
+- `.agents/scripts/wave-record.js`.
+- `.agents/scripts/epic-rollup.js`.
+- `.agents/scripts/lib/orchestration/epic-runner/wave-run-progress-writer.js`.
+- `parseWaveRunProgressComment` and `WAVE_RUN_PROGRESS_TYPE` exports from
+  `progress-reporter.js`.
+- `tests/wave-runner-probe.test.js`,
+  `tests/wave-execute/{wave-prepare,wave-record}.test.js`,
+  `tests/epic-runner/wave-run-progress-writer.test.js`,
+  `tests/epic-execute/epic-rollup.test.js`.
+- The `wave-run-progress` structured-comment type. `epic-run-progress`
+  now carries the entire run state, grouped by wave. Existing Epics with
+  legacy `wave-run-progress` comments are unaffected — nothing reads
+  them anymore; resume continues to work from the `epic-run-state`
+  checkpoint.
+
+#### Reshaped surface
+
+- **`epic-execute-record-wave.js` absorbs `wave-record` + `epic-rollup`.**
+  The CLI now accepts the full per-Story return contract via `--results`
+  (parsed) or `--returns` (raw sub-agent text, with parse-failure
+  reconciliation). It parses, reconciles, verifies live `done` claims,
+  aggregates the wave-level status, appends the wave outcome to
+  `state.waves[]`, re-renders `epic-run-progress` from the checkpoint,
+  and prints the next-action envelope (`dispatch-next` / `halt-blocked`
+  / `halt-failed` / `finalize`). One CLI per wave; no separate rollup
+  step.
+- **`epic-execute.md` Step 2 absorbs the per-wave fan-out.** The host
+  LLM emits one assistant turn per wave with `min(plan[N].length,
+  concurrencyCap)` parallel `Agent` tool calls (all
+  `subagent_type: general-purpose`), pumping refills as background
+  children return. The "you vs. your children" disambiguation and the
+  per-child prompt contract from `wave-execute.md` move into Step 2's
+  prose verbatim.
+- **`story-execute.md` and `worktree-lifecycle.md`** dropped their
+  `/wave-execute` cross-references; the topology is now
+  `/epic-execute → /story-execute`.
+- **`SDLC.md` and `docs/architecture.md`** updated to describe the
+  three-skill execution surface (`/epic-plan`, `/epic-execute`,
+  `/story-execute`) instead of the four-skill split.
+
+#### Operator impact
+
+- `/epic-execute <epicId>` resumes from the checkpoint after this
+  upgrade — no manual migration needed. A blocked Epic at wave N
+  re-fires wave N on resume; an in-progress wave whose checkpoint was
+  written by 5.38.0 reads cleanly because the schema (`state.waves[]`)
+  is unchanged.
+- Per-wave operator re-entry (`/wave-execute <epicId> <waveN>`) is no
+  longer available. Manual re-entry is `/epic-execute <id>` (resumes
+  from checkpoint) or `/story-execute <id>` per Story.
+
 ## [5.38.0] — 2026-05-07
 
 Epic #1114 — orchestration framework hardening from #1072's retro. Close-time

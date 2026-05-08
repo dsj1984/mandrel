@@ -210,7 +210,7 @@ export async function getSubTickets(ctx, parentId) {
         // swallowed silently (`.catch(() => null)`), which made rate-limit
         // and not-found cases invisible to callers iterating sub-tickets
         // (Stories deciding which Tasks to dispatch, etc.). Warn loudly so
-        // the operator and downstream aggregator (epic-runner / wave-record)
+        // the operator and downstream aggregator (epic-runner / epic-execute-record-wave)
         // see the gap; we still return null to preserve the "best-effort"
         // partial-read contract that the orchestrator depends on.
         const msg = err?.message ?? String(err);

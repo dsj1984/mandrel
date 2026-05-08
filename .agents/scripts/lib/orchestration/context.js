@@ -11,9 +11,9 @@
  *     and its submodules (`dispatch`, `concurrencyCap`, `storyRetryCount`,
  *     `blockerTimeoutHours`, plus the optional `worktreeResolver`,
  *     `fetchImpl`, `runSkill` injection points). `dispatch` is invoked once
- *     per wave with the `StoryLauncher.planWave` output; the `/wave-execute`
- *     skill provides the production adapter that issues parallel Agent-tool
- *     calls for the wave.
+ *     per wave with the `StoryLauncher.planWave` output; the `/epic-execute`
+ *     skill's host-driven wave loop provides the production adapter that
+ *     issues parallel Agent-tool calls for the wave.
  *   - `PlanRunnerContext` adds the planning `phase` plus the host-LLM
  *     `plannerClient` adapter threaded through `epic-plan-spec` and
  *     `epic-plan-decompose`.
@@ -86,7 +86,7 @@ export class EpicRunnerContext extends OrchestrationContext {
     }
     if (typeof this.dispatch !== 'function') {
       throw new TypeError(
-        'EpicRunnerContext requires a dispatch adapter (the /wave-execute skill provides this in production).',
+        'EpicRunnerContext requires a dispatch adapter (the /epic-execute skill provides this in production).',
       );
     }
     if (!Number.isInteger(this.concurrencyCap) || this.concurrencyCap < 1) {

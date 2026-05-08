@@ -1,8 +1,76 @@
 # Architecture Decision Records (ADR)
 
-## ADR 20260507-1114a: Wave-runner is a custom sub-agent type, not `general-purpose`
+## ADR 20260508-flatten: Retire `/wave-execute`; `/epic-execute` owns the wave loop directly
 
 **Status:** Accepted
+**Date:** 2026-05-08
+**Supersedes:** ADR 20260507-1114a (Wave-runner is a custom sub-agent type)
+
+### Context
+
+The three-level topology — `/epic-execute` → `wave-runner` →
+`/wave-execute` → `/story-execute` — depended on a custom `wave-runner`
+sub-agent type whose frontmatter granted the `Agent` tool to the
+wave-level child. That contract was documented in framework code, but
+**the agent file was never scaffolded into consumer projects** by
+`agents-bootstrap-project` or `agents-update`. Downstream consumers
+running `/epic-execute` saw the host harness reject `subagent_type:
+wave-runner` with "Agent type not found" before any Story sub-agent
+could be dispatched, halting at wave 0. The host-driven flat fan-out
+(documented as emergency-only in ADR 20260507-1114a) had to be reached
+for under any circumstance — meaning the supposedly "supported"
+architecture was unreachable from a clean consumer install.
+
+Even if the agent file were scaffolded, the topology has a second
+load-bearing harness assumption: that custom sub-agent types continue to
+be granted nested `Agent`. That assumption has wobbled across releases
+(see `feedback_subagents_no_agent_tool.md`). Two-level dispatch with the
+host LLM as the wave dispatcher needs neither assumption.
+
+### Decision
+
+Retire `/wave-execute` entirely. `/epic-execute` (the host LLM) owns the
+wave loop and fans Stories out directly, one assistant turn per wave,
+with `subagent_type: general-purpose`. The custom `wave-runner` agent
+type is removed.
+
+Concrete changes:
+
+- Delete `.agents/workflows/wave-execute.md`,
+  `.claude/commands/wave-execute.md`, and `.claude/agents/wave-runner.md`.
+- Delete `.agents/scripts/wave-prepare.js`,
+  `.agents/scripts/wave-record.js`, and `.agents/scripts/epic-rollup.js`.
+- Merge their behavior into `.agents/scripts/epic-execute-record-wave.js`,
+  which now: parses / reconciles / verifies the per-Story returns,
+  appends the wave outcome to `state.waves[]`, and re-renders the unified
+  `epic-run-progress` rollup from the checkpoint.
+- Delete the `wave-run-progress` structured-comment type and its writer
+  (`wave-run-progress-writer.js`). `epic-run-progress` becomes the
+  single operator-facing summary, grouped by wave.
+- `epic-execute.md` Step 2 absorbs the per-wave fan-out (one assistant
+  turn per wave; pump-and-refill at `concurrencyCap`).
+
+### Consequences
+
+- Works on every Claude Code release — no dependency on custom-sub-agent
+  `Agent` grants and no dependency on framework-shipped agent files.
+- One execution model. The host-driven flat fan-out documented as
+  emergency-only in #1072 / #1114 is now *the* architecture.
+- Per-wave operator re-entry (`/wave-execute <epicId> <waveN>`) is no
+  longer a slash command. Manual re-entry is `/epic-execute <id>`
+  (resumes from checkpoint, re-fires the next undispatched wave) or
+  `/story-execute <id>` per Story. Strictly fewer escape hatches.
+- Existing Epics with `wave-run-progress` comments on their tickets are
+  unaffected — nothing reads those comments anymore; they remain as
+  cosmetic leftovers and do not block resume.
+- Bumps the framework to a new minor version (5.39.0). No data
+  migration is required.
+
+---
+
+## ADR 20260507-1114a: Wave-runner is a custom sub-agent type, not `general-purpose` (superseded)
+
+**Status:** Superseded by ADR 20260508-flatten
 **Date:** 2026-05-07
 **Epic:** #1114
 **Story:** #1122

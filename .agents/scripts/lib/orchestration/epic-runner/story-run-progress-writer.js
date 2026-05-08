@@ -180,7 +180,7 @@ export function renderStoryRunProgressBody(input) {
 /**
  * Upsert the story-run-progress structured comment on the Story. Returns
  * `{ body, payload }` so callers can both pass the payload back to
- * `/wave-execute` and surface the rendered markdown body to chat without
+ * `/epic-execute` and surface the rendered markdown body to chat without
  * re-rendering.
  *
  * When `notify` is supplied, mirrors the upsert to the webhook channel as a

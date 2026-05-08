@@ -195,7 +195,7 @@ any prior comment of the same type.
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at epic-close gate (recuts + parked).   |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
 | `story-run-progress`| `/story-execute`                                    | Per-Task transitions inside one Story.                                   |
-| `wave-run-progress` | `/wave-execute`                                     | Story-level roll-up for one wave.                                        |
+| `epic-run-progress` | `/epic-execute` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
 | `code-review`       | `epic-code-review` helper                           | Findings report posted on the Epic.                                      |
 | `retro`             | `epic-retro` helper                                 | Final retrospective body with the `retro-complete` marker.               |
 | `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |

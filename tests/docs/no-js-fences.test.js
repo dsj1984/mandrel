@@ -9,7 +9,6 @@ const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const TARGETS = [
   '.agents/workflows/epic-execute.md',
-  '.agents/workflows/wave-execute.md',
   '.agents/workflows/story-execute.md',
   '.agents/workflows/helpers/task-execute.md',
 ];

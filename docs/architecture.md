@@ -150,11 +150,13 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
-operator-facing surface is split by hierarchy level into four narrow skills:
-`/epic-plan`, `/epic-execute`, `/wave-execute`, `/story-execute`, with
-`/epic-close` bookending the lifecycle. Story sub-agents launch through the
-Agent tool inside the operator's Claude session — there is no subprocess
-spawn pathway and no GitHub Actions runner.
+operator-facing surface is split by hierarchy level into three narrow
+skills: `/epic-plan`, `/epic-execute`, `/story-execute`, with
+`/epic-close` bookending the lifecycle. `/epic-execute`'s host LLM owns
+the wave loop and fans Story sub-agents out directly via the Agent tool
+inside the operator's Claude session — there is no intermediate
+`/wave-execute` skill, no subprocess spawn pathway, and no GitHub
+Actions runner.
 
 #### Component Diagram
 
@@ -699,9 +701,9 @@ and escape hatches.
 
 ### Execution-model modes
 
-The four-skill execution surface (`/epic-execute`, `/wave-execute`,
-`/story-execute`) runs in two execution-model modes that share one codepath
-and differ only in whether worktrees are created. The `resolveWorktreeEnabled`
+The three-skill execution surface (`/epic-plan`, `/epic-execute`,
+`/story-execute`) runs in two execution-model modes that share one
+codepath and differ only in whether worktrees are created. The `resolveWorktreeEnabled`
 function in `lib/config-resolver.js` selects the mode at startup based on
 `AP_WORKTREE_ENABLED` and `CLAUDE_CODE_REMOTE` (precedence in
 [`patterns.md`](patterns.md)):
@@ -737,7 +739,7 @@ function in `lib/config-resolver.js` selects the mode at startup based on
 Both modes share:
 
 - The same `/story-execute` Agent-tool sub-agent contract and the same
-  parent-driven dispatch logic out of `/wave-execute`.
+  parent-driven dispatch logic out of `/epic-execute`'s wave loop.
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
 - Deterministic, operator-driven story assignment — `/story-execute` always
@@ -874,9 +876,9 @@ one channel never affects the others. Per-Task `agent::executing` transitions
 during Story init batch into a single Story-level summary comment regardless
 of any filter. Webhook subscribers receive a typed envelope
 (`{ text, severity, ticketId, event?, level?, epicId?, phase? }`) so progress
-events from `story-run-progress` / `wave-run-progress` / `epic-run-progress`
-upserts are routable alongside the existing `state-transition` /
-`epic-blocked` / `epic-complete` events.
+events from `story-run-progress` / `epic-run-progress` upserts are
+routable alongside the existing `state-transition` / `epic-blocked` /
+`epic-complete` events.
 
 ---
 

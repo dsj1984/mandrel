@@ -55,8 +55,8 @@ test('parseStoryAgentReturn — accepts inline {…} substring with chat prelude
 
 test('parseStoryAgentReturn — rejects free-text fragment (Epic #604 reproducer)', () => {
   // The exact return text the general-purpose sub-agent emitted on
-  // 2026-05-04 mid-Task-#624. Without this guard the wave-runner used to
-  // propagate the fragment into the wave-record results array.
+  // 2026-05-04 mid-Task-#624. Without this guard the wave dispatcher used
+  // to propagate the fragment into the per-wave results array.
   const out = parseStoryAgentReturn('Clean. Now commit Task 622.');
   assert.equal(out.ok, false);
   assert.match(out.error, /no parseable JSON envelope/);

@@ -23,8 +23,7 @@ its children via the Agent tool inside the operator's Claude session.
 
 | Command                              | Purpose                                                                                  |
 | ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `/epic-execute <epicId>`             | Owns the wave loop for the whole Epic; fans out via `/wave-execute`.                     |
-| `/wave-execute <epicId> <waveN>`     | Runs one wave only; fans out Stories via Agent-tool sub-agents (cap = `concurrencyCap`). |
+| `/epic-execute <epicId>`             | Owns the wave loop for the whole Epic; fans Stories out directly per wave via Agent-tool sub-agents (cap = `concurrencyCap`). |
 | `/story-execute <storyId>`           | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. |
 
 ## Closure

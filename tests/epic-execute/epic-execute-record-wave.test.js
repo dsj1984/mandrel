@@ -2,16 +2,18 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  aggregateWaveStatus,
   classifyWaveOutcome,
-  resolveResultArg,
+  parseInputArg,
   runEpicExecuteRecordWave,
+  validateResults,
 } from '../../.agents/scripts/epic-execute-record-wave.js';
 import { Checkpointer } from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
 
-function createFakeProvider() {
+function createFakeProvider({ ticketsById } = {}) {
   let autoId = 1;
   const comments = new Map();
-  return {
+  const provider = {
     _comments: comments,
     async getTicketComments(ticketId) {
       return comments.get(ticketId) ?? [];
@@ -30,6 +32,13 @@ function createFakeProvider() {
       }
     },
   };
+  // Only attach `getTicket` when the test has seeded ticket state.
+  // `verifyWaveResults` short-circuits when the provider lacks `getTicket`,
+  // so happy-path tests that don't care about verification can omit it.
+  if (ticketsById) {
+    provider.getTicket = async (id) => ticketsById[id] ?? null;
+  }
+  return provider;
 }
 
 async function seedCheckpoint(provider, epicId, overrides = {}) {
@@ -41,6 +50,10 @@ async function seedCheckpoint(provider, epicId, overrides = {}) {
     ...overrides,
   });
 }
+
+const TEST_CONFIG = {
+  orchestration: { runners: { epicRunner: { concurrencyCap: 2 } } },
+};
 
 describe('classifyWaveOutcome', () => {
   it('complete + remaining waves → dispatch-next', () => {
@@ -97,27 +110,93 @@ describe('classifyWaveOutcome', () => {
   });
 });
 
-describe('resolveResultArg', () => {
-  it('parses inline JSON', () => {
-    assert.deepEqual(resolveResultArg('{"status":"complete","stories":[]}'), {
+describe('aggregateWaveStatus', () => {
+  it('all done → complete', () => {
+    assert.deepEqual(
+      aggregateWaveStatus([
+        { storyId: 1, status: 'done' },
+        { storyId: 2, status: 'done' },
+      ]),
+      { status: 'complete', blockedStoryIds: [] },
+    );
+  });
+
+  it('any blocked + no failed → blocked', () => {
+    assert.deepEqual(
+      aggregateWaveStatus([
+        { storyId: 1, status: 'done' },
+        { storyId: 2, status: 'blocked' },
+      ]),
+      { status: 'blocked', blockedStoryIds: [2] },
+    );
+  });
+
+  it('any failed → failed', () => {
+    const out = aggregateWaveStatus([
+      { storyId: 1, status: 'failed' },
+      { storyId: 2, status: 'blocked' },
+    ]);
+    assert.equal(out.status, 'failed');
+  });
+
+  it('empty → complete (no-op fan-out)', () => {
+    assert.deepEqual(aggregateWaveStatus([]), {
       status: 'complete',
-      stories: [],
+      blockedStoryIds: [],
     });
+  });
+});
+
+describe('validateResults', () => {
+  it('accepts canonical /story-execute return rows', () => {
+    const out = validateResults([
+      { storyId: 1, status: 'done', tasksDone: 3, tasksTotal: 3 },
+      { storyId: 2, status: 'blocked', blockerCommentId: 'c-99' },
+    ]);
+    assert.deepEqual(out[0], {
+      storyId: 1,
+      status: 'done',
+      tasksDone: 3,
+      tasksTotal: 3,
+    });
+    assert.equal(out[1].blockerCommentId, 'c-99');
+  });
+
+  it('rejects non-array input', () => {
+    assert.throws(
+      () => validateResults({ storyId: 1 }),
+      /must be a JSON array/,
+    );
+  });
+
+  it('rejects unknown status', () => {
+    assert.throws(
+      () => validateResults([{ storyId: 1, status: 'glorbo' }]),
+      /must be one of/,
+    );
+  });
+});
+
+describe('parseInputArg', () => {
+  it('parses inline JSON array', () => {
+    assert.deepEqual(parseInputArg('[{"storyId":1,"status":"done"}]'), [
+      { storyId: 1, status: 'done' },
+    ]);
   });
 
   it('parses @<file> via injected reader', () => {
     const fakeRead = (p) => {
-      assert.equal(p, '/tmp/wave.json');
-      return '{"status":"blocked"}';
+      assert.equal(p, '/tmp/results.json');
+      return '[{"storyId":2,"status":"blocked"}]';
     };
     assert.deepEqual(
-      resolveResultArg('@/tmp/wave.json', { readFileImpl: fakeRead }),
-      { status: 'blocked' },
+      parseInputArg('@/tmp/results.json', { readFile: fakeRead }),
+      [{ storyId: 2, status: 'blocked' }],
     );
   });
 
   it('throws on malformed JSON', () => {
-    assert.throws(() => resolveResultArg('not-json'), /not valid JSON/);
+    assert.throws(() => parseInputArg('not-json'), /not valid JSON/);
   });
 });
 
@@ -129,17 +208,18 @@ describe('runEpicExecuteRecordWave', () => {
     const out = await runEpicExecuteRecordWave({
       epicId: 555,
       wave: 0,
-      result: {
-        status: 'complete',
-        stories: [{ storyId: 1, status: 'done' }],
-      },
+      results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
       now: () => new Date('2026-05-02T12:00:00Z'),
     });
 
     assert.equal(out.recorded, true);
+    assert.equal(out.status, 'complete');
     assert.equal(out.nextAction, 'dispatch-next');
     assert.equal(out.remainingWaves, 2);
+    assert.equal(typeof out.renderedBody, 'string');
+    assert.match(out.renderedBody, /Epic Progress/);
 
     const cp = new Checkpointer({ provider, epicId: 555 });
     const state = await cp.read();
@@ -147,6 +227,9 @@ describe('runEpicExecuteRecordWave', () => {
     assert.equal(state.waves[0].index, 0);
     assert.equal(state.waves[0].status, 'complete');
     assert.equal(state.waves[0].completedAt, '2026-05-02T12:00:00.000Z');
+    assert.equal(state.waves[0].concurrencyCap, 2);
+    assert.equal(state.waves[0].stories[0].id, 1);
+    assert.equal(state.waves[0].stories[0].state, 'done');
     assert.equal(state.currentWave, 1);
   });
 
@@ -154,35 +237,39 @@ describe('runEpicExecuteRecordWave', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 556, { totalWaves: 2 });
 
-    // First wave already recorded.
     await runEpicExecuteRecordWave({
       epicId: 556,
       wave: 0,
-      result: { status: 'complete', stories: [] },
+      results: [],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
     });
     const out = await runEpicExecuteRecordWave({
       epicId: 556,
       wave: 1,
-      result: { status: 'complete', stories: [] },
+      results: [],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
     });
     assert.equal(out.nextAction, 'finalize');
     assert.equal(out.remainingWaves, 0);
   });
 
-  it('returns halt-blocked when the wave is blocked', async () => {
+  it('returns halt-blocked when any Story returned blocked', async () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 557);
     const out = await runEpicExecuteRecordWave({
       epicId: 557,
       wave: 0,
-      result: {
-        status: 'blocked',
-        stories: [{ storyId: 9, status: 'blocked' }],
-      },
+      results: [
+        { storyId: 1, status: 'done' },
+        { storyId: 9, status: 'blocked' },
+      ],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
     });
+    assert.equal(out.status, 'blocked');
+    assert.deepEqual(out.blockedStoryIds, [9]);
     assert.equal(out.nextAction, 'halt-blocked');
     // currentWave must NOT advance on a halt — resume re-dispatches the same wave.
     const state = await new Checkpointer({ provider, epicId: 557 }).read();
@@ -195,51 +282,114 @@ describe('runEpicExecuteRecordWave', () => {
     await runEpicExecuteRecordWave({
       epicId: 558,
       wave: 0,
-      result: { status: 'failed', stories: [] },
+      results: [{ storyId: 1, status: 'failed' }],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
     });
     await runEpicExecuteRecordWave({
       epicId: 558,
       wave: 0,
-      result: { status: 'complete', stories: [{ storyId: 1, status: 'done' }] },
+      results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
     });
     const state = await new Checkpointer({ provider, epicId: 558 }).read();
     assert.equal(state.waves.length, 1);
     assert.equal(state.waves[0].status, 'complete');
   });
 
+  it('downgrades unverified `done` claims to failed', async () => {
+    // Live ticket carries `agent::executing`, not `agent::done` — verify path
+    // catches the mismatch and reclassifies the wave row.
+    const provider = createFakeProvider({
+      ticketsById: {
+        7: { labels: ['agent::executing'], state: 'open' },
+      },
+    });
+    await seedCheckpoint(provider, 559);
+    const out = await runEpicExecuteRecordWave({
+      epicId: 559,
+      wave: 0,
+      results: [{ storyId: 7, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+    });
+    assert.equal(out.status, 'failed');
+    assert.ok(Array.isArray(out.discrepancies));
+    assert.equal(out.discrepancies.length, 1);
+    assert.equal(out.discrepancies[0].storyId, 7);
+    assert.equal(out.discrepancies[0].claimed, 'done');
+  });
+
+  it('upserts a single epic-run-progress comment grouped by wave', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 560, { totalWaves: 2 });
+    await runEpicExecuteRecordWave({
+      epicId: 560,
+      wave: 0,
+      results: [{ storyId: 1, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+    });
+    await runEpicExecuteRecordWave({
+      epicId: 560,
+      wave: 1,
+      results: [{ storyId: 2, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+    });
+    const epicComments = provider._comments.get(560) ?? [];
+    const epicProgress = epicComments.filter((c) =>
+      /epic-run-progress/.test(c.body),
+    );
+    // upsert keeps a single comment; no `wave-run-progress` companion
+    assert.equal(epicProgress.length, 1);
+    const waveProgress = epicComments.filter((c) =>
+      /wave-run-progress/.test(c.body),
+    );
+    assert.equal(waveProgress.length, 0);
+  });
+
   it('throws when no checkpoint exists', async () => {
     const provider = createFakeProvider();
     await assert.rejects(
       runEpicExecuteRecordWave({
-        epicId: 559,
+        epicId: 561,
         wave: 0,
-        result: { status: 'complete' },
+        results: [],
         injectedProvider: provider,
+        injectedConfig: TEST_CONFIG,
       }),
       /no epic-run-state checkpoint found/,
     );
   });
 
-  it('throws on malformed wave result', async () => {
+  it('rejects passing both results and returns', async () => {
     const provider = createFakeProvider();
-    await seedCheckpoint(provider, 560);
+    await seedCheckpoint(provider, 562);
     await assert.rejects(
       runEpicExecuteRecordWave({
-        epicId: 560,
+        epicId: 562,
         wave: 0,
-        result: null,
+        results: [],
+        returns: [],
         injectedProvider: provider,
+        injectedConfig: TEST_CONFIG,
       }),
-      /must be a JSON object/,
+      /not both/,
     );
+  });
+
+  it('rejects malformed per-Story rows', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 563);
     await assert.rejects(
       runEpicExecuteRecordWave({
-        epicId: 560,
+        epicId: 563,
         wave: 0,
-        result: { status: 'gibberish' },
+        results: [{ storyId: 1, status: 'gibberish' }],
         injectedProvider: provider,
+        injectedConfig: TEST_CONFIG,
       }),
       /must be one of/,
     );

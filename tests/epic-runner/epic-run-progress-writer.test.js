@@ -3,9 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   EPIC_RUN_PROGRESS_TYPE,
-  parseWaveRunProgressComment,
   upsertEpicRunProgress,
-  WAVE_RUN_PROGRESS_TYPE,
 } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
@@ -40,89 +38,6 @@ function extractPayload(body) {
   const match = body.match(/```json\s*\n([\s\S]*?)\n```/);
   return match ? JSON.parse(match[1]) : null;
 }
-
-function buildWaveCommentBody(payload) {
-  const marker = structuredCommentMarker(WAVE_RUN_PROGRESS_TYPE);
-  return `${marker}\n\n### 🌊 Wave ${payload.wave}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\`\n`;
-}
-
-describe('parseWaveRunProgressComment', () => {
-  it('parses a canonical wave-run-progress payload', () => {
-    const payload = {
-      kind: 'wave-run-progress',
-      epicId: 900,
-      wave: 1,
-      concurrencyCap: 3,
-      stories: [
-        { id: 912, title: 'A', state: 'done', tasksDone: 2, tasksTotal: 2 },
-        { id: 916, title: 'B', state: 'blocked', blockerCommentId: 'IC_x' },
-      ],
-      updatedAt: '2026-05-01T12:00:00Z',
-    };
-    const parsed = parseWaveRunProgressComment({
-      body: buildWaveCommentBody(payload),
-    });
-    assert.equal(parsed.kind, 'wave-run-progress');
-    assert.equal(parsed.epicId, 900);
-    assert.equal(parsed.wave, 1);
-    assert.equal(parsed.concurrencyCap, 3);
-    assert.equal(parsed.stories.length, 2);
-    assert.equal(parsed.updatedAt, '2026-05-01T12:00:00Z');
-  });
-
-  it('returns null for missing comment / missing body', () => {
-    assert.equal(parseWaveRunProgressComment(null), null);
-    assert.equal(parseWaveRunProgressComment(undefined), null);
-    assert.equal(parseWaveRunProgressComment({}), null);
-  });
-
-  it('returns null for malformed bodies (no fence, bad JSON, wrong kind)', () => {
-    assert.equal(
-      parseWaveRunProgressComment({ body: 'plain text — no fence' }),
-      null,
-    );
-    assert.equal(
-      parseWaveRunProgressComment({ body: '```json\nnot-json\n```' }),
-      null,
-    );
-    assert.equal(
-      parseWaveRunProgressComment({
-        body: '```json\n{"kind":"phase-timings","epicId":1,"wave":0,"stories":[]}\n```',
-      }),
-      null,
-    );
-  });
-
-  it('returns null when required numeric fields are out of range', () => {
-    assert.equal(
-      parseWaveRunProgressComment({
-        body: '```json\n{"kind":"wave-run-progress","epicId":0,"wave":0,"stories":[]}\n```',
-      }),
-      null,
-    );
-    assert.equal(
-      parseWaveRunProgressComment({
-        body: '```json\n{"kind":"wave-run-progress","epicId":1,"wave":-1,"stories":[]}\n```',
-      }),
-      null,
-    );
-    assert.equal(
-      parseWaveRunProgressComment({
-        body: '```json\n{"kind":"wave-run-progress","epicId":1,"wave":0,"stories":"nope"}\n```',
-      }),
-      null,
-    );
-  });
-
-  it('defaults concurrencyCap to 0 when absent and tolerates missing updatedAt', () => {
-    const parsed = parseWaveRunProgressComment({
-      body: '```json\n{"kind":"wave-run-progress","epicId":7,"wave":2,"stories":[]}\n```',
-    });
-    assert.equal(parsed.concurrencyCap, 0);
-    assert.equal(parsed.updatedAt, undefined);
-    assert.deepEqual(parsed.stories, []);
-  });
-});
 
 describe('upsertEpicRunProgress', () => {
   it('renders an epic-run-progress payload and upserts via the provider', async () => {
