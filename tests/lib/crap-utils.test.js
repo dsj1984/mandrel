@@ -318,7 +318,7 @@ test('schema rejects baseline with non-semver kernelVersion', () => {
   );
 });
 
-test('scanAndScore — skips files without coverage when requireCoverage=true', () => {
+test('scanAndScore — skips files without coverage when requireCoverage=true', async () => {
   const cwd = mkTmpCwd();
   try {
     const srcDir = path.join(cwd, 'src');
@@ -334,7 +334,7 @@ test('scanAndScore — skips files without coverage when requireCoverage=true', 
     const coverage = {
       [path.join(srcDir, 'covered.js')]: coverageEntryFor(1, 1.0),
     };
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: ['src'],
       coverage,
       requireCoverage: true,
@@ -353,7 +353,7 @@ test('scanAndScore — skips files without coverage when requireCoverage=true', 
   }
 });
 
-test('scanAndScore — scores uncovered files when requireCoverage=false', () => {
+test('scanAndScore — scores uncovered files when requireCoverage=false', async () => {
   const cwd = mkTmpCwd();
   try {
     const srcDir = path.join(cwd, 'src');
@@ -362,7 +362,7 @@ test('scanAndScore — scores uncovered files when requireCoverage=false', () =>
       path.join(srcDir, 'a.js'),
       'export function a(x) { return x + 1; }\n',
     );
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: ['src'],
       coverage: null,
       requireCoverage: false,
@@ -379,7 +379,7 @@ test('scanAndScore — scores uncovered files when requireCoverage=false', () =>
   }
 });
 
-test('scanAndScore — returns deterministic, POSIX-normalized paths sorted by (file, startLine)', () => {
+test('scanAndScore — returns deterministic, POSIX-normalized paths sorted by (file, startLine)', async () => {
   const cwd = mkTmpCwd();
   try {
     const dir = path.join(cwd, 'src');
@@ -426,7 +426,7 @@ test('scanAndScore — returns deterministic, POSIX-normalized paths sorted by (
         s: { 0: 1, 1: 1 },
       },
     };
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: ['src'],
       coverage,
       requireCoverage: true,
@@ -451,17 +451,17 @@ test('scanAndScore — returns deterministic, POSIX-normalized paths sorted by (
   }
 });
 
-test('scanAndScore — throws when targetDirs is not an array', () => {
-  assert.throws(
+test('scanAndScore — rejects when targetDirs is not an array', async () => {
+  await assert.rejects(
     () => scanAndScore({ targetDirs: 'src', coverage: null }),
     /targetDirs/,
   );
 });
 
-test('scanAndScore — tolerates non-existent target directories', () => {
+test('scanAndScore — tolerates non-existent target directories', async () => {
   const cwd = mkTmpCwd();
   try {
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: ['does-not-exist'],
       coverage: null,
       cwd,

@@ -57,7 +57,7 @@ export function tally(items) {
 }
 `;
 
-test('maintainability — JS scoring is byte-identical to pinned snapshot (no kernel drift)', () => {
+test('maintainability — JS scoring is byte-identical to pinned snapshot (no kernel drift)', async () => {
   const dir = mkTmp();
   const cwd = process.cwd();
   try {
@@ -82,7 +82,10 @@ test('maintainability — JS scoring is byte-identical to pinned snapshot (no ke
       'tally() score must match pre-bump kernel output exactly',
     );
 
-    const all = calculateAll([path.join(dir, 'a.js'), path.join(dir, 'b.mjs')]);
+    const all = await calculateAll([
+      path.join(dir, 'a.js'),
+      path.join(dir, 'b.mjs'),
+    ]);
     assert.deepStrictEqual(all, {
       'a.js': 129.178,
       'b.mjs': 132.146,
@@ -93,7 +96,7 @@ test('maintainability — JS scoring is byte-identical to pinned snapshot (no ke
   }
 });
 
-test('CRAP — JS scan rows are byte-identical to pinned snapshot (no kernel drift)', () => {
+test('CRAP — JS scan rows are byte-identical to pinned snapshot (no kernel drift)', async () => {
   const dir = mkTmp();
   try {
     fs.writeFileSync(path.join(dir, 'a.js'), FIXTURE_A);
@@ -130,7 +133,7 @@ test('CRAP — JS scan rows are byte-identical to pinned snapshot (no kernel dri
       },
     };
 
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: [dir],
       coverage,
       requireCoverage: true,

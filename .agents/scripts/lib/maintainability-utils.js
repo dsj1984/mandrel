@@ -1,9 +1,22 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { runOnPool } from './cpu-pool.js';
+import { Logger } from './Logger.js';
 import { calculateForFile } from './maintainability-engine.js';
 
 const require = createRequire(import.meta.url);
+
+const MAINTAINABILITY_WORKER_URL = new URL(
+  './workers/maintainability-worker.js',
+  import.meta.url,
+);
+
+// Below this batch size the pool's spawn overhead dominates — fall back
+// to in-process serial scoring for `--changed-since` runs that touch
+// only a handful of files. Tuned against the test suite's tmpdir
+// fixtures (n=2 stays serial; the full repo n≈470 takes the pool path).
+const SERIAL_THRESHOLD = 8;
 
 const JS_EXTS = new Set(['.js', '.mjs', '.cjs']);
 const TS_EXTS = new Set(['.ts', '.tsx', '.mts', '.cts']);
@@ -65,7 +78,7 @@ export function transpileIfNeeded(filePath, source) {
   if (!isTypeScriptPath(filePath)) return source;
   const ts = loadTypeScript();
   if (!ts) {
-    console.warn(
+    Logger.warn(
       `[Maintainability] ⚠ typescript package not resolvable; cannot score ${filePath}. ` +
         "Install with 'npm install --save-dev typescript' (peer dep, >=5.0.0).",
     );
@@ -88,7 +101,7 @@ export function transpileIfNeeded(filePath, source) {
     });
     return result.outputText;
   } catch (err) {
-    console.warn(
+    Logger.warn(
       `[Maintainability] ⚠ TS transpile failed for ${filePath}: ${err?.message ?? err}; skipping.`,
     );
     return null;
@@ -126,9 +139,7 @@ export function getBaseline(baselinePath) {
     try {
       return JSON.parse(fs.readFileSync(abs, 'utf-8'));
     } catch (err) {
-      console.warn(
-        `[Maintainability] Failed to parse baseline: ${err.message}`,
-      );
+      Logger.warn(`[Maintainability] Failed to parse baseline: ${err.message}`);
       return {};
     }
   }
@@ -205,19 +216,72 @@ export function scanDirectory(dir, fileList = []) {
 
 /**
  * Calculates maintainability scores for a list of file paths.
+ *
+ * Each file's transpile-then-analyze unit is dispatched to a
+ * worker_threads pool sized to `os.availableParallelism()`. Workers
+ * are recycled across files so TypeScript loads at most once per
+ * worker. The pool is bypassed for batches of fewer than
+ * `SERIAL_THRESHOLD` files because spawn overhead dominates at small
+ * sizes — the in-process path matches the pre-pool serial behaviour
+ * byte-for-byte.
+ *
+ * Output is sorted by relative file path so the returned object is
+ * insertion-order-stable regardless of which worker happened to
+ * finish first. Files that fail to read/transpile/parse are dropped
+ * from the result (matching the pre-pool log-and-continue contract);
+ * worker-side per-item failures surface as a `null` score that is
+ * filtered out before assembly.
+ *
  * @param {string[]} paths
- * @returns {Record<string, number>}
+ * @returns {Promise<Record<string, number>>}
  */
-export function calculateAll(paths) {
+export async function calculateAll(paths) {
+  const cwd = process.cwd();
+  const indexed = paths.map((p) => ({
+    abs: p,
+    relPath: path.relative(cwd, p).replace(/\\/g, '/'),
+  }));
+
+  let perFile;
+  if (indexed.length < SERIAL_THRESHOLD) {
+    perFile = indexed.map(({ abs, relPath }) => {
+      try {
+        return { relPath, score: calculateForFile(abs) };
+      } catch (err) {
+        Logger.error(
+          `[Maintainability] Failed to process ${abs}: ${err.message}`,
+        );
+        return { relPath, score: null };
+      }
+    });
+  } else {
+    const results = await runOnPool(
+      MAINTAINABILITY_WORKER_URL,
+      indexed.map((e) => e.abs),
+    );
+    perFile = results.map((r, i) => {
+      const { abs, relPath } = indexed[i];
+      if (!r || r.__cpuPoolError) {
+        Logger.error(
+          `[Maintainability] Worker pool error for ${abs}: ${r?.message ?? 'unknown'}`,
+        );
+        return { relPath, score: null };
+      }
+      if (r.score === null && r.error) {
+        Logger.error(`[Maintainability] Failed to process ${abs}: ${r.error}`);
+      }
+      return { relPath, score: r.score };
+    });
+  }
+
+  perFile.sort((a, b) =>
+    a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0,
+  );
+
   const scores = {};
-  paths.forEach((p) => {
-    // Use relative paths for the baseline to ensure portability
-    const relativePath = path.relative(process.cwd(), p).replace(/\\/g, '/');
-    try {
-      scores[relativePath] = calculateForFile(p);
-    } catch (err) {
-      console.error(`[Maintainability] Failed to process ${p}: ${err.message}`);
-    }
-  });
+  for (const { relPath, score } of perFile) {
+    if (score === null) continue;
+    scores[relPath] = score;
+  }
   return scores;
 }

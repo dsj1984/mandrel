@@ -101,7 +101,7 @@ describe('filterRowsByFileScope', () => {
 });
 
 describe('scanAndScore — scopeFiles narrowing (PR touching 2 files)', () => {
-  it('scans only files in scopeFiles even when more files are on disk', () => {
+  it('scans only files in scopeFiles even when more files are on disk', async () => {
     // Fixture: a "repo" with 4 JS files under src/. The simulated PR touched
     // only 2 of them — scanAndScore must touch those 2 and leave the others
     // entirely unread so the performance win of --changed-since is realized
@@ -127,7 +127,7 @@ describe('scanAndScore — scopeFiles narrowing (PR touching 2 files)', () => {
       const coverage = makeCoverageMap(tmp, relPaths);
       const scoped = ['src/a.js', 'src/sub/c.js'];
 
-      const result = scanAndScore({
+      const result = await scanAndScore({
         targetDirs: ['src'],
         coverage,
         requireCoverage: false,
@@ -153,7 +153,7 @@ describe('scanAndScore — scopeFiles narrowing (PR touching 2 files)', () => {
     }
   });
 
-  it('null scopeFiles falls back to full-repo scan (default behavior unchanged)', () => {
+  it('null scopeFiles falls back to full-repo scan (default behavior unchanged)', async () => {
     const tmp = makeTmpDir('scope-null');
     try {
       const relPaths = ['src/a.js', 'src/b.js'];
@@ -161,7 +161,7 @@ describe('scanAndScore — scopeFiles narrowing (PR touching 2 files)', () => {
       for (const rel of relPaths) writeJsFile(tmp, rel, body);
       const coverage = makeCoverageMap(tmp, relPaths);
 
-      const full = scanAndScore({
+      const full = await scanAndScore({
         targetDirs: ['src'],
         coverage,
         requireCoverage: false,

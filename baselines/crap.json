@@ -1822,6 +1822,48 @@
       "startLine": 126
     },
     {
+      "crap": 3.0687766090658655,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "runOnPool",
+      "startLine": 54
+    },
+    {
+      "crap": 8.03688970651975,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "runWorker",
+      "startLine": 67
+    },
+    {
+      "crap": 1.0658639622212107,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "dispatchOne",
+      "startLine": 127
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "<anon method-5>",
+      "startLine": 129
+    },
+    {
+      "crap": 6.972,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "<anon method-6>",
+      "startLine": 134
+    },
+    {
+      "crap": 1.125,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "<anon method-7>",
+      "startLine": 154
+    },
+    {
+      "crap": 4.603851851851852,
+      "file": ".agents/scripts/lib/cpu-pool.js",
+      "method": "<anon method-8>",
+      "startLine": 158
+    },
+    {
       "crap": 4,
       "file": ".agents/scripts/lib/crap-engine.js",
       "method": "calculateCrapForSource",
@@ -1861,55 +1903,67 @@
       "crap": 7.019915663262714,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "resolveEscomplexVersion",
-      "startLine": 50
+      "startLine": 38
     },
     {
       "crap": 5.5026296018031555,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "resolveBaselinePath",
-      "startLine": 78
+      "startLine": 66
     },
     {
       "crap": 9.847869873046875,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "getCrapBaseline",
-      "startLine": 105
+      "startLine": 93
     },
     {
       "crap": 1.015625,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "sortRows",
-      "startLine": 138
+      "startLine": 126
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeRow",
-      "startLine": 147
+      "startLine": 135
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeEnvelope",
-      "startLine": 156
+      "startLine": 144
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "buildBaselineEnvelope",
-      "startLine": 182
+      "startLine": 170
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "saveCrapBaseline",
-      "startLine": 219
+      "startLine": 207
     },
     {
-      "crap": 13.020352212192886,
+      "crap": 11.002294518518518,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "scanAndScore",
-      "startLine": 264
+      "startLine": 252
+    },
+    {
+      "crap": 7.333333333333334,
+      "file": ".agents/scripts/lib/crap-utils.js",
+      "method": "scoreFileSerial",
+      "startLine": 333
+    },
+    {
+      "crap": 1.037037037037037,
+      "file": ".agents/scripts/lib/crap-utils.js",
+      "method": "scoreFilesViaPool",
+      "startLine": 388
     },
     {
       "crap": 1,
@@ -2317,55 +2371,55 @@
       "crap": 3.182569496619083,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "loadTypeScript",
-      "startLine": 15
+      "startLine": 28
     },
     {
       "crap": 3.072,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "resolveTsTranspilerVersion",
-      "startLine": 35
+      "startLine": 48
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "isTypeScriptPath",
-      "startLine": 41
+      "startLine": 54
     },
     {
       "crap": 3.3333333333333335,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "transpileIfNeeded",
-      "startLine": 64
+      "startLine": 77
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "isSupportedSourceFile",
-      "startLine": 101
+      "startLine": 114
     },
     {
-      "crap": 8.125,
+      "crap": 7.278124999999999,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "getBaseline",
-      "startLine": 115
+      "startLine": 128
     },
     {
       "crap": 17.717999999999996,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "saveBaseline",
-      "startLine": 143
+      "startLine": 154
     },
     {
       "crap": 6.031098153547133,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "scanDirectory",
-      "startLine": 184
+      "startLine": 195
     },
     {
-      "crap": 1.003641329085116,
+      "crap": 3.124416,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "calculateAll",
-      "startLine": 211
+      "startLine": 238
     },
     {
       "crap": 1,

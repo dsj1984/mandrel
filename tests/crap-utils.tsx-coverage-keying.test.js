@@ -92,7 +92,7 @@ function coverageEntryForGreeting(absPath, methodStartLine) {
   };
 }
 
-test('scanAndScore — TSX source resolves coverage keyed on original .tsx path', () => {
+test('scanAndScore — TSX source resolves coverage keyed on original .tsx path', async () => {
   const dir = mkTmp();
   try {
     const tsxPath = path.join(dir, 'Greeting.tsx');
@@ -104,7 +104,7 @@ test('scanAndScore — TSX source resolves coverage keyed on original .tsx path'
     // per-method lookup actually matches what escomplex reports.
     const coverage = coverageEntryForGreeting(tsxPath, 2);
 
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: [dir],
       coverage,
       requireCoverage: true,
@@ -134,7 +134,7 @@ test('scanAndScore — TSX source resolves coverage keyed on original .tsx path'
   }
 });
 
-test('scanAndScore — TSX source without coverage entry is skipped under requireCoverage=true', () => {
+test('scanAndScore — TSX source without coverage entry is skipped under requireCoverage=true', async () => {
   const dir = mkTmp();
   try {
     const tsxPath = path.join(dir, 'NoCov.tsx');
@@ -142,7 +142,7 @@ test('scanAndScore — TSX source without coverage entry is skipped under requir
 
     // Coverage map deliberately empty — verifies the file path filter
     // and skip path treat .tsx the same as .js.
-    const result = scanAndScore({
+    const result = await scanAndScore({
       targetDirs: [dir],
       coverage: {},
       requireCoverage: true,
