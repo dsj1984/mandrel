@@ -125,6 +125,79 @@ async function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// In-process registry of acquirers waiting on a given lock path. Populated
+// the first time a call hits EEXIST (i.e. real contention) and decremented
+// in `finally` when the call returns or throws. The holder itself never
+// counts — it acquires on the first openSync attempt and exits the
+// function, so its count never gets incremented. Exposed via
+// `pendingAcquires` so tests can deterministically observe contention
+// instead of racing a wall-clock sentinel.
+const pendingByPath = new Map();
+
+function incPending(filePath) {
+  pendingByPath.set(filePath, (pendingByPath.get(filePath) ?? 0) + 1);
+}
+
+function decPending(filePath) {
+  const next = (pendingByPath.get(filePath) ?? 0) - 1;
+  if (next <= 0) pendingByPath.delete(filePath);
+  else pendingByPath.set(filePath, next);
+}
+
+/**
+ * Number of in-flight `acquireEpicMergeLock` calls currently waiting on
+ * the given epic's lock — i.e. callers that hit EEXIST and have not yet
+ * acquired or thrown. Excludes the current holder (which acquired on its
+ * first attempt and is no longer inside `acquireEpicMergeLock`).
+ *
+ * Tests use this to assert blocking behaviour without racing real time.
+ *
+ * @param {number|string} epicId
+ * @param {{ repoRoot: string }} opts
+ * @returns {number}
+ */
+export function pendingAcquires(epicId, { repoRoot } = {}) {
+  if (!repoRoot) throw new Error('pendingAcquires: repoRoot is required');
+  const filePath = lockPathFor(epicId, repoRoot);
+  return pendingByPath.get(filePath) ?? 0;
+}
+
+// Inner polling loop. Reports contention via `onWait`, which is invoked
+// the first time openSync returns EEXIST (i.e. when the call has truly
+// started waiting). Kept separate from `acquireEpicMergeLock` so the
+// public function's cyclomatic complexity stays flat under CRAP — the
+// pending-count bookkeeping lives in the outer wrapper, where its
+// branches don't compound with the polling logic.
+async function pollForLock(epicId, filePath, timeoutMs, onWait) {
+  const started = Date.now();
+  while (true) {
+    try {
+      const fd = fs.openSync(filePath, 'wx');
+      const acquiredAt = Date.now();
+      fs.writeSync(
+        fd,
+        JSON.stringify({ pid: process.pid, acquiredAt }, null, 2),
+      );
+      fs.closeSync(fd);
+      return { epicId, filePath, acquiredAt };
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      onWait();
+      if (tryStealStale(filePath, timeoutMs)) continue;
+      if (Date.now() - started >= timeoutMs) {
+        const meta = readLockMeta(filePath);
+        const detail = meta
+          ? ` (held by pid ${meta.pid} since ${new Date(meta.acquiredAt).toISOString()})`
+          : '';
+        throw new Error(
+          `acquireEpicMergeLock timed out after ${timeoutMs}ms for epic ${epicId}${detail}`,
+        );
+      }
+      await sleep(POLL_INTERVAL_MS);
+    }
+  }
+}
+
 /**
  * Acquire an exclusive Epic merge lock.
  *
@@ -144,32 +217,16 @@ export async function acquireEpicMergeLock(
   // tests use a temp dir and need us to be forgiving).
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 
-  const started = Date.now();
-  while (true) {
-    try {
-      const fd = fs.openSync(filePath, 'wx');
-      const acquiredAt = Date.now();
-      fs.writeSync(
-        fd,
-        JSON.stringify({ pid: process.pid, acquiredAt }, null, 2),
-      );
-      fs.closeSync(fd);
-      return { epicId, filePath, acquiredAt };
-    } catch (err) {
-      if (err.code !== 'EEXIST') throw err;
-      // Try stealing if the current holder is stale.
-      if (tryStealStale(filePath, timeoutMs)) continue;
-      if (Date.now() - started >= timeoutMs) {
-        const meta = readLockMeta(filePath);
-        const detail = meta
-          ? ` (held by pid ${meta.pid} since ${new Date(meta.acquiredAt).toISOString()})`
-          : '';
-        throw new Error(
-          `acquireEpicMergeLock timed out after ${timeoutMs}ms for epic ${epicId}${detail}`,
-        );
-      }
-      await sleep(POLL_INTERVAL_MS);
-    }
+  let counted = false;
+  const onWait = () => {
+    if (counted) return;
+    incPending(filePath);
+    counted = true;
+  };
+  try {
+    return await pollForLock(epicId, filePath, timeoutMs, onWait);
+  } finally {
+    if (counted) decPending(filePath);
   }
 }
 
