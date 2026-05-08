@@ -296,7 +296,17 @@ export async function scanAndScore({
       skippedFilesNoCoverage += 1;
       continue;
     }
-    if (result.rows === null) continue; // read/transpile/parse failure: drop and move on
+    if (result.rows === null) {
+      // read/transpile/parse failure: drop and move on, but if the worker
+      // attached an error message (calculateCrapForSource throw) surface it
+      // so the run isn't silent on the ops side.
+      if (result.error) {
+        Logger.warn(
+          `[crap-utils] failed to score ${item.relPath}: ${result.error}`,
+        );
+      }
+      continue;
+    }
     skippedMethodsNoCoverage += result.skippedMethodsNoCoverage ?? 0;
     for (const mr of result.rows) {
       rows.push({

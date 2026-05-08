@@ -77,6 +77,10 @@ function getCoverageIndex(map) {
  * `coverage-final.json` keys are typically absolute, platform-specific paths,
  * while callers pass POSIX-ish repo-relative strings. Match by exact equality
  * or by `/`-bounded suffix so we tolerate both Windows and POSIX producers.
+ * If two distinct keys both end with the same `/`-bounded suffix (duplicate
+ * basenames in different trees), the suffix is ambiguous — return null
+ * rather than picking the first iteration-order hit and silently scoring
+ * the wrong file.
  */
 function findFileEntry(map, relPath) {
   if (!map || !relPath) return null;
@@ -87,10 +91,13 @@ function findFileEntry(map, relPath) {
   const direct = idx.byNormalizedSuffix.get(suffix);
   if (direct !== undefined) return direct ?? null;
   const needle = `/${suffix}`;
+  let match = null;
   for (const [norm, entry] of idx.byNormalizedSuffix) {
-    if (norm.endsWith(needle)) return entry ?? null;
+    if (!norm.endsWith(needle)) continue;
+    if (match !== null) return null; // ambiguous suffix — refuse to guess
+    match = entry ?? null;
   }
-  return null;
+  return match;
 }
 
 export { findFileEntry as findCoverageEntry };

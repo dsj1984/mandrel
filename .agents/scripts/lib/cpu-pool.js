@@ -17,11 +17,12 @@
  *
  * Failure handling:
  *   - The worker contract is: emit `{ ok: true, result }` per item, or
- *     `{ ok: false, error: string }` for a per-item failure. A per-item
- *     failure surfaces as a thrown CpuPoolItemError on the corresponding
- *     `await runOnPool` call only when `opts.throwOnItemError !== false`;
- *     the default is to capture errors as `{ __cpuPoolError: true,
- *     message }` entries so a single bad input does not abort the run.
+ *     `{ ok: false, error: string }` for a per-item failure. The default
+ *     is to capture per-item failures as `{ __cpuPoolError: true,
+ *     message }` entries at the corresponding result index so one bad
+ *     input does not abort the run. Pass `opts.throwOnItemError === true`
+ *     (an explicit `true`, not just truthy) to flip to the abort-on-first
+ *     mode, which rejects the whole `runOnPool` call.
  *   - A worker that crashes (`error` event) or exits non-zero rejects
  *     the whole pool — that is not a per-item failure, it is a host-level
  *     fault and must surface.

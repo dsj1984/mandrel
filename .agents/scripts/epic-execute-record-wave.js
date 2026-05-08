@@ -262,10 +262,11 @@ export function aggregateWaveStatus(results) {
  * a list of discrepancies for friction reporting.
  *
  * Verification reads each Story ticket fresh (`{ fresh: true }`) so a
- * stale cache cannot mask the discrepancy. Network failures during
- * verification are non-fatal — the original claim is preserved and a
- * `verifyError` is recorded so the caller can surface it without
- * aborting the wave.
+ * stale cache cannot mask the discrepancy. A network failure during
+ * verification cannot prove the claim either way, so the row is
+ * downgraded to `failed` and a `verify-error` discrepancy is recorded —
+ * an unverifiable `done` must not let the wave aggregate to `complete`,
+ * which is what callers read as "GitHub agrees everything is done."
  *
  * @param {{ provider: { getTicket?: Function }, results: Array<object> }} args
  */
@@ -284,7 +285,14 @@ export async function verifyWaveResults({ provider, results } = {}) {
     try {
       ticket = await provider.getTicket(r.storyId, { fresh: true });
     } catch (err) {
-      verified.push({ ...r, verifyError: err?.message ?? String(err) });
+      const message = err?.message ?? String(err);
+      discrepancies.push({
+        storyId: r.storyId,
+        claimed: 'done',
+        actual: 'verify-error',
+        verifyError: message,
+      });
+      verified.push({ ...r, status: 'failed', verifyError: message });
       continue;
     }
     const labels = ticket?.labels ?? [];
