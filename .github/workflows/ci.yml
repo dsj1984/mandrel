@@ -14,10 +14,15 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate and Test
-    runs-on: ubuntu-latest
+    name: Validate and Test (${{ matrix.os }}, node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node-version: [22]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
       - name: Install Dependencies
@@ -37,6 +42,10 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Secret Scanning (TruffleHog)
+        # trufflesecurity/trufflehog is a Docker container action and only
+        # runs on Linux runners. Skip on Windows — the Linux leg is the
+        # source of truth for the secret-scan gate.
+        if: runner.os == 'Linux'
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --debug --only-verified
@@ -53,6 +62,9 @@ jobs:
         # Capture stderr too — Node's test runner and the coverage-threshold
         # gate both emit failures on stderr, and a stdout-only redirect
         # hides them in the uploaded artifact (see Epic #441 Story 4.1).
+        # Force bash so `set -o pipefail` and `tee` work the same on Windows
+        # runners (default shell there is pwsh).
+        shell: bash
         run: |
           set -o pipefail
           npm run test:coverage 2>&1 | tee test-output.txt
@@ -61,7 +73,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-node-22
+          name: test-results-${{ matrix.os }}-node-${{ matrix.node-version }}
           path: test-output.txt
 
       # Persist the istanbul/c8 coverage map so the CRAP gate (next step) and
@@ -72,7 +84,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-final-node-22
+          name: coverage-final-${{ matrix.os }}-node-${{ matrix.node-version }}
           path: coverage/coverage-final.json
           if-no-files-found: warn
 
@@ -83,6 +95,8 @@ jobs:
         # PR. Self-skips when `agentSettings.quality.crap.enabled` is
         # false. The `--json` artifact is uploaded for downstream agent
         # workflows.
+        # Force bash so `mkdir -p` and `[[ ... ]]` keep working on Windows.
+        shell: bash
         run: |
           mkdir -p temp
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -97,7 +111,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: crap-report
+          name: crap-report-${{ matrix.os }}-node-${{ matrix.node-version }}
           path: temp/crap-report.json
 
   publish:

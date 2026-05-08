@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.39.0] — 2026-05-08
+
+CI hardening — the `validate` job now runs on a `[ubuntu-latest,
+windows-latest]` × Node 22 matrix with `fail-fast: false`. Closes the
+single-OS gap flagged in the `/audit-quality` report: Windows is a
+first-class supported platform (twelve Windows-specific feedback memories
+on file, Story-close worktree reap, PowerShell vs bash separator, etc.)
+but CI was previously ubuntu-only, so Windows-only regressions could land
+on `main` undetected.
+
+### Changed
+
+- **`.github/workflows/ci.yml` `validate` job is now a matrix.** `runs-on`
+  resolves to `${{ matrix.os }}`; `node-version` resolves to
+  `${{ matrix.node-version }}`. `fail-fast: false` so a failure on one
+  leg does not mask the other. `publish` already gates on
+  `needs: [validate]`, which under a matrix means "every leg must pass"
+  — no change required there.
+- **"Run Tests with Coverage" and "CRAP Check" pinned to `shell: bash`.**
+  Both steps use `set -o pipefail`, `tee`, `mkdir -p`, and `[[ ... ]]`,
+  none of which work under the default Windows shell (pwsh). Git for
+  Windows ships bash, so `shell: bash` resolves on both legs.
+- **Artifact names are matrix-aware.** `test-results-*`, `coverage-final-*`,
+  and `crap-report-*` now carry `${{ matrix.os }}-node-${{ matrix.node-version }}`
+  suffixes — `actions/upload-artifact@v4` errors on duplicate names within
+  a workflow run, and the previous flat names would collide across legs.
+
+### Skipped on non-Linux
+
+- **TruffleHog secret scan** is gated on `runner.os == 'Linux'`. The
+  `trufflesecurity/trufflehog` action is a Docker container action and
+  only executes on Linux runners. The Linux leg remains the source of
+  truth for the secret-scan gate.
+
 ## [5.38.0] — 2026-05-07
 
 Epic #1114 — orchestration framework hardening from #1072's retro. Close-time
