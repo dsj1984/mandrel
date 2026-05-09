@@ -59,7 +59,6 @@ wrappers** that delegate to it.
 | `epic-lifecycle-detector.js`| Epic-state inference from ticket graph          |
 | `epic-runner.js` / `epic-runner/` | Long-running Epic orchestrator             |
 | `plan-runner/`              | Plan-runner internals                           |
-| `health-check-service.js`   | Push-based health monitoring                    |
 | `error-journal.js`          | Structured error capture for telemetry          |
 | `lint-baseline-service.js`  | Lint ratchet engine                             |
 | `parked-follow-ons.js`      | Follow-on ticket parking                        |

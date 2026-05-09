@@ -107,10 +107,10 @@ The gate enforces:
 2. **Stories** — closed.
 3. **Features** — closed.
 
-Auxiliary tickets (`context::prd`, `context::tech-spec`, `type::health`)
-are intentionally **deferred** here — Phase 7 (`epic-close.js`) closes
-them automatically as part of the same workflow run, so failing the gate
-on them would block every Epic.
+Auxiliary tickets (`context::prd`, `context::tech-spec`) are
+intentionally **deferred** here — Phase 7 (`epic-close.js`) closes them
+automatically as part of the same workflow run, so failing the gate on
+them would block every Epic.
 
 If ANY planned descendant is still open, the script exits non-zero and
 lists every open id. **STOP IMMEDIATELY** and resolve the open work
@@ -444,11 +444,10 @@ node [SCRIPTS_ROOT]/epic-close.js --epic [EPIC_ID]
 
 The script performs three phase-internal functions:
 
-1. **Close auxiliary tickets** — `context::prd`, `context::tech-spec`, and
-   `type::health` (Sprint Health dashboard) tickets are transitioned to
-   `agent::done` and closed. These tickets hold no planned work; leaving them
-   open after the Epic closes produces orphan children that pollute future
-   project views.
+1. **Close auxiliary tickets** — `context::prd` and `context::tech-spec`
+   tickets are transitioned to `agent::done` and closed. These tickets hold
+   no planned work; leaving them open after the Epic closes produces orphan
+   children that pollute future project views.
 2. **Close the Epic** — posts a shipping notification comment, then closes
    the issue with `state_reason=completed`.
 3. **Branch cleanup** — reaps stale worktrees, prunes stale worktree

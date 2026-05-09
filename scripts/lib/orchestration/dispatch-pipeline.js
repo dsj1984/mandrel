@@ -16,7 +16,6 @@ import { TYPE_LABELS } from '../label-constants.js';
 import { createProvider } from '../provider-factory.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { autoSerializeOverlaps } from './dependency-analyzer.js';
-import { ensureSprintHealthIssue } from './health-check-service.js';
 import { reconcileClosedTasks, reconcileHierarchy } from './reconciler.js';
 import { parseTasks } from './task-fetcher.js';
 import { collectOpenStoryIds } from './wave-dispatcher.js';
@@ -131,8 +130,8 @@ export async function fetchEpicContext(ctx) {
 }
 
 /**
- * Ensure the Sprint Health issue exists, then propagate already-done work
- * up the hierarchy so the manifest reflects reality before dispatch.
+ * Propagate already-done work up the hierarchy so the manifest reflects
+ * reality before dispatch.
  *
  * @param {DispatchContext} ctx  Dispatch context.
  * @param {FetchedEpic} fetched  Result of {@link fetchEpicContext}.
@@ -142,7 +141,6 @@ export async function reconcileEpicState(ctx, fetched) {
   const { provider, dryRun, epicId } = ctx;
   const { epic, allTickets, tasks } = fetched;
 
-  await ensureSprintHealthIssue(epicId, epic, allTickets, provider, dryRun);
   await reconcileClosedTasks(tasks, provider, dryRun);
   await reconcileHierarchy(provider, epicId, epic, tasks, allTickets, dryRun);
 }

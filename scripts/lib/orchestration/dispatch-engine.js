@@ -3,7 +3,6 @@
  *
  * Thin facade composing:
  *   - `wave-dispatcher.js`          — wave iteration + per-task dispatch
- *   - `health-check-service.js`     — Sprint Health issue ensure
  *   - `epic-lifecycle-detector.js`  — epic-completion + bookend fire
  *   - `dispatch-pipeline.js`        — internal resolve/fetch/reconcile/graph/scaffold/GC helpers
  *

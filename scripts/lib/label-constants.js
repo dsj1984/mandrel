@@ -20,7 +20,6 @@ export const TYPE_LABELS = {
   FEATURE: 'type::feature',
   STORY: 'type::story',
   TASK: 'type::task',
-  HEALTH: 'type::health',
 };
 
 export const EPIC_LABELS = {
