@@ -63,6 +63,18 @@ Run from the **main checkout** (the worktree does not exist yet):
 node .agents/scripts/story-init.js --story <storyId>
 ```
 
+> **Execution mode (sub-agents must read).** This command typically takes
+> 3–6 minutes when the worktree's per-tree install runs. Invoke it
+> **synchronously** with the Bash tool's maximum timeout
+> (`Bash(timeout: 600000)`). Do **not** use `run_in_background` + `Monitor`
+> here: `Monitor`'s return is not equivalent to script exit, and a sub-agent
+> that exits during a `Monitor` wait kills `story-init.js` mid-batch — the
+> worktree is left half-initialized (some child Tasks transitioned, no
+> `story-init` comment, no Story-level `agent::*` label flip) and the parent
+> wave aggregator records the Story as failed. The script is idempotent on
+> partial state, so the recovery is to re-run it synchronously, but
+> prevention is cheaper: just give Bash the 10-minute timeout and block.
+
 The script validates `type::story`, checks blockers, traces the
 Feature → Epic → PRD/Tech-Spec hierarchy, enumerates child Tasks in
 dependency order, seeds `story-<id>` from the Epic branch, and (when

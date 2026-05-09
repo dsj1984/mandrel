@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.39.1] — 2026-05-09
+
+Documentation patch — warn `/story-execute` sub-agents to invoke
+`story-init.js` synchronously with the 10-minute Bash timeout instead of
+`run_in_background` + `Monitor`. Closes the bail-out failure mode observed
+in Wave 0 of Epic #961 in the `athlete-portal` consumer, where three of six
+parallel Story sub-agents exited mid-`transitionTaskStates` because they
+treated a `Monitor` return as script exit. The script itself was already
+idempotent on partial-batch state (`batchTransitionTickets` skips tasks
+already at the target label, `postBatchedTransitionSummary` no-ops on an
+empty list, the `story-init` structured comment is upserted), so the fix
+is prevention at the prompt layer rather than recovery at the script
+layer.
+
+### Changed
+
+- **`.agents/workflows/story-execute.md` Step 0 callout.** Added an
+  explicit "Execution mode" note instructing sub-agents to call
+  `node .agents/scripts/story-init.js --story <id>` with
+  `Bash(timeout: 600000)` and to never background the call with
+  `Monitor`. Documents the recovery (re-run synchronously) and the
+  reason (the script is idempotent, so prevention is cheaper than the
+  half-initialized worktree it leaves behind on a mid-flight kill).
+
 ## [5.39.0] — 2026-05-08
 
 CI hardening — the `validate` job now runs on a `[ubuntu-latest,
