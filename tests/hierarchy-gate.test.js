@@ -118,15 +118,15 @@ describe('runHierarchyGate', () => {
     }
   });
 
-  it('defers auxiliary tickets (context::prd / type::health) — they close in Phase 7', async () => {
+  it('defers auxiliary tickets (context::prd / context::tech-spec) — they close in Phase 7', async () => {
     const provider = new GraphProvider({
       100: [
         { id: 250, title: 'PRD', state: 'open', labels: ['context::prd'] },
         {
           id: 251,
-          title: 'Sprint Health',
+          title: 'Tech Spec',
           state: 'open',
-          labels: ['type::health'],
+          labels: ['context::tech-spec'],
         },
         {
           id: 252,

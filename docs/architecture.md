@@ -239,7 +239,6 @@ coordinator path.
 | `dispatch-pipeline.js`        | Resolve context, fetch Epic, reconcile state, build DAG, scaffold branch, run worktree GC. |
 | `wave-dispatcher.js`          | `dispatchWave`, `dispatchNextWave`, per-task dispatch, `collectOpenStoryIds`.              |
 | `risk-gate-handler.js`        | Risk labels are metadata only; no runtime gate.                                            |
-| `health-check-service.js`     | Epic Health issue ensure.                                                                  |
 | `epic-lifecycle-detector.js`  | Epic-completion detection + bookend lifecycle fire.                                        |
 
 #### Presentation Layer Submodules
@@ -775,8 +774,7 @@ They differ only in:
   embedded JSON Schema via `ajv`. As of Epic #990 (audit remediation),
   the static `.agents/schemas/*.json` mirrors and the runtime AJV
   schemas declare `additionalProperties: false` on the document root of
-  `audit-results`, `friction-event`, and `agentrc`; carry `if/then`
-  conditional requirements on `healthRefresh.cadence`; and use a closed
+  `audit-results`, `friction-event`, and `agentrc`; and use a closed
   enum for `validation-evidence.gateName`. Payloads with extra keys or
   free-text discriminators now fail validation rather than silently
   passing.

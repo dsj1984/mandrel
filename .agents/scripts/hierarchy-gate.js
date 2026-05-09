@@ -20,7 +20,7 @@
  *   - Features  — must be closed.
  *   - Stories   — must be closed.
  *   - Tasks     — must be closed AND carry `agent::done`.
- *   - Auxiliary (context::prd, context::tech-spec, type::health) — ignored.
+ *   - Auxiliary (context::prd, context::tech-spec) — ignored.
  *     These are closed by `epic-close.js` Phase 7 (later in the same
  *     workflow run), so requiring them closed here would block every Epic.
  *
@@ -51,8 +51,7 @@ function classify(ticket) {
   if (labels.includes(TYPE_LABELS.FEATURE)) return 'feature';
   if (
     labels.includes(CONTEXT_LABELS.PRD) ||
-    labels.includes(CONTEXT_LABELS.TECH_SPEC) ||
-    labels.includes(TYPE_LABELS.HEALTH)
+    labels.includes(CONTEXT_LABELS.TECH_SPEC)
   ) {
     return 'auxiliary';
   }

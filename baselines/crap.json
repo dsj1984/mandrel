@@ -547,115 +547,115 @@
       "crap": 30,
       "file": ".agents/scripts/epic-close.js",
       "method": "main",
-      "startLine": 60
+      "startLine": 59
     },
     {
       "crap": 20,
       "file": ".agents/scripts/epic-close.js",
       "method": "logSkipOverrides",
-      "startLine": 133
+      "startLine": 132
     },
     {
       "crap": 2.105107298679249,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeAuxiliaryTickets",
-      "startLine": 156
+      "startLine": 155
     },
     {
       "crap": 6.318359375,
       "file": ".agents/scripts/epic-close.js",
       "method": "<anon method-2>",
-      "startLine": 199
+      "startLine": 182
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeEpicClosure",
-      "startLine": 236
+      "startLine": 214
     },
     {
       "crap": 5,
       "file": ".agents/scripts/epic-close.js",
       "method": "matchesEpicBranch",
-      "startLine": 276
+      "startLine": 254
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-close.js",
       "method": "makeWorktreeLogger",
-      "startLine": 293
+      "startLine": 271
     },
     {
       "crap": 20,
       "file": ".agents/scripts/epic-close.js",
       "method": "applyDrainResult",
-      "startLine": 301
+      "startLine": 279
     },
     {
       "crap": 12,
       "file": ".agents/scripts/epic-close.js",
       "method": "applyGcResult",
-      "startLine": 321
+      "startLine": 299
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-close.js",
       "method": "drainAndReapWorktrees",
-      "startLine": 337
+      "startLine": 315
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-close.js",
       "method": "pruneWorktreeRegistrations",
-      "startLine": 364
+      "startLine": 342
     },
     {
       "crap": 5.6573376755546505,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseReapWorktrees",
-      "startLine": 390
+      "startLine": 368
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseEnumerateEpicBranches",
-      "startLine": 443
+      "startLine": 421
     },
     {
       "crap": 28.55805836367611,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseDeleteEpicBranches",
-      "startLine": 503
+      "startLine": 481
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeBranchCleanup",
-      "startLine": 564
+      "startLine": 542
     },
     {
       "crap": 12,
       "file": ".agents/scripts/epic-close.js",
       "method": "emitDiscardFrictionComments",
-      "startLine": 595
+      "startLine": 573
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseNotifyBanner",
-      "startLine": 617
+      "startLine": 595
     },
     {
       "crap": 4,
       "file": ".agents/scripts/epic-close.js",
       "method": "collectEpicDescendantIds",
-      "startLine": 641
+      "startLine": 619
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-close.js",
       "method": "phasePostEpicPerfReport",
-      "startLine": 684
+      "startLine": 662
     },
     {
       "crap": 3,
@@ -1045,25 +1045,25 @@
       "crap": 4,
       "file": ".agents/scripts/hierarchy-gate.js",
       "method": "ticketIsComplete",
-      "startLine": 62
+      "startLine": 61
     },
     {
       "crap": 3,
       "file": ".agents/scripts/hierarchy-gate.js",
       "method": "collectDescendants",
-      "startLine": 80
+      "startLine": 79
     },
     {
       "crap": 11.002039818607866,
       "file": ".agents/scripts/hierarchy-gate.js",
       "method": "runHierarchyGate",
-      "startLine": 102
+      "startLine": 101
     },
     {
       "crap": 2,
       "file": ".agents/scripts/hierarchy-gate.js",
       "method": "main",
-      "startLine": 181
+      "startLine": 180
     },
     {
       "crap": 1,
@@ -1525,7 +1525,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 334
+      "startLine": 272
     },
     {
       "crap": 2,
@@ -2809,67 +2809,67 @@
       "crap": 1.512,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "ensureBranch",
-      "startLine": 43
+      "startLine": 42
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "defaultLintBaselineExec",
-      "startLine": 61
+      "startLine": 60
     },
     {
       "crap": 1.669921875,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "captureLintBaseline",
-      "startLine": 75
+      "startLine": 74
     },
     {
       "crap": 16,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
-      "startLine": 89
+      "startLine": 88
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "dispatch",
-      "startLine": 136
+      "startLine": 135
     },
     {
       "crap": 4.067134369440435,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "resolveDispatchContext",
-      "startLine": 72
+      "startLine": 71
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "fetchEpicContext",
-      "startLine": 111
+      "startLine": 110
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "reconcileEpicState",
-      "startLine": 141
+      "startLine": 140
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "buildDispatchGraph",
-      "startLine": 158
+      "startLine": 156
     },
     {
       "crap": 2.108,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "ensureEpicScaffolding",
-      "startLine": 190
+      "startLine": 188
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/dispatch-pipeline.js",
       "method": "runWorktreeGc",
-      "startLine": 210
+      "startLine": 208
     },
     {
       "crap": 3.002197265625,
@@ -3242,12 +3242,6 @@
       "file": ".agents/scripts/lib/orchestration/error-journal.js",
       "method": "emitMasksFor",
       "startLine": 118
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/health-check-service.js",
-      "method": "ensureSprintHealthIssue",
-      "startLine": 19
     },
     {
       "crap": 1,

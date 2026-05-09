@@ -149,7 +149,7 @@ without a major version bump.
 | Façade (public)                          | Submodule directory                 | Internal submodules                                                                                             |
 | ---------------------------------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `lib/worktree-manager.js`                | `lib/worktree/`                     | `lifecycle-manager`, `node-modules-strategy`, `bootstrapper`, `inspector`                                       |
-| `lib/orchestration/dispatch-engine.js`   | `lib/orchestration/` (co-located)   | `dispatch-pipeline`, `wave-dispatcher`, `risk-gate-handler`, `health-check-service`, `epic-lifecycle-detector` |
+| `lib/orchestration/dispatch-engine.js`   | `lib/orchestration/` (co-located)   | `dispatch-pipeline`, `wave-dispatcher`, `risk-gate-handler`, `epic-lifecycle-detector`                          |
 | `lib/presentation/manifest-renderer.js`  | `lib/presentation/` (co-located)    | `manifest-formatter` (pure), `manifest-persistence` (fs I/O)                                                    |
 
 Downstream consumers must import from the façade column. Tests, MCP tools, and

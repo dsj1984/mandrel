@@ -312,67 +312,6 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
-  it('accepts every cadence option on epicRunner.healthRefresh on both sides', () => {
-    for (const cadence of [
-      'every-close',
-      'every-n-closes',
-      'wave-boundary',
-      'min-interval',
-    ]) {
-      assertAgree(
-        'orchestration',
-        {
-          provider: 'github',
-          github: { owner: 'org', repo: 'repo' },
-          runners: {
-            epicRunner: {
-              enabled: true,
-              concurrencyCap: 3,
-              healthRefresh: { cadence },
-            },
-          },
-        },
-        `healthRefresh cadence=${cadence}`,
-      );
-    }
-  });
-
-  it('rejects an unknown cadence value on epicRunner.healthRefresh on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        runners: {
-          epicRunner: {
-            enabled: true,
-            concurrencyCap: 3,
-            healthRefresh: { cadence: 'bogus' },
-          },
-        },
-      },
-      'unknown healthRefresh cadence',
-    );
-  });
-
-  it('rejects an unknown property on epicRunner.healthRefresh on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        runners: {
-          epicRunner: {
-            enabled: true,
-            concurrencyCap: 3,
-            healthRefresh: { cadence: 'wave-boundary', unknownField: 1 },
-          },
-        },
-      },
-      'unknown healthRefresh property',
-    );
-  });
-
   it('rejects flat epicRunner under orchestration on both sides', () => {
     assertAgree(
       'orchestration',

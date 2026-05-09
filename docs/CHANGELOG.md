@@ -2,6 +2,44 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.39.2] — 2026-05-09
+
+Sprint Health residue removed. The `health-monitor.js` writer was deleted
+in 5.37.0, but the **creator** of the `📉 Sprint Health: …` /
+`type::health` issue was left in the dispatch pipeline, so every
+`/epic-plan` Phase 4 still scaffolded a ticket that nothing ever wrote
+to. This patch removes the creator, the close-side reaping, the
+`type::health` label constant, the dead `epicRunner.healthRefresh`
+config knob (cadence for the deleted health refresh), and all related
+tests.
+
+### Removed
+
+- **`lib/orchestration/health-check-service.js`** (creator) and its
+  test. Called from `dispatch-pipeline.js::reconcileEpicState`; that
+  call is gone too.
+- **`epic-close.js` Sprint Health closure branch.** Auxiliary close now
+  matches `context::prd` / `context::tech-spec` only. The `type::health`
+  / `📉 Sprint Health:`-title fallbacks are deleted.
+- **`hierarchy-gate.js` auxiliary classification of `type::health`.**
+  The label no longer exists, so the gate no longer needs to defer it.
+- **`TYPE_LABELS.HEALTH`** in `lib/label-constants.js`.
+- **`orchestration.runners.epicRunner.healthRefresh`** config schema
+  block (`HEALTH_REFRESH_SCHEMA`, `DEFAULT_HEALTH_REFRESH`, the
+  `agentrc.schema.json` `$defs.healthRefresh` mirror, and the three
+  `config-schema-mirror-drift` tests). The cadence knob existed only to
+  configure the deleted health-monitor; nothing reads it anywhere in
+  the codebase.
+
+### Migration
+
+- Repos that already have an open `📉 Sprint Health: …` ticket from a
+  previous run will need to close it manually (or via `gh issue close`).
+  The new `epic-close.js` will not touch it. New Epics never get one.
+- `.agentrc.json` files that set `orchestration.runners.epicRunner.healthRefresh`
+  must drop the field — `additionalProperties: false` on `epicRunner` will
+  now reject it.
+
 ## [5.39.1] — 2026-05-09
 
 Documentation patch — warn `/story-execute` sub-agents to invoke

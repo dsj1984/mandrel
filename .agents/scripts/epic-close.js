@@ -11,7 +11,7 @@
  * invokes before the merge.
  *
  * Finalize (Phase 7):
- *   1. Close auxiliary tickets (PRD, Tech Spec, Sprint Health dashboard).
+ *   1. Close auxiliary tickets (PRD, Tech Spec).
  *   2. Close the Epic issue with a notification comment.
  *   3. Reap stale worktrees and delete local + remote Epic/Story branches.
  *
@@ -47,7 +47,6 @@ import { deleteBranchesBatched } from './lib/git-branch-cleanup.js';
 import * as gitUtils from './lib/git-utils.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
-import { TYPE_LABELS } from './lib/label-constants.js';
 import { toDone } from './lib/orchestration/label-transitions.js';
 import { postStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
@@ -149,9 +148,9 @@ function logSkipOverrides({ skipRetro, skipCodeReview, fullRetro }) {
 }
 
 /**
- * Close `context::prd`, `context::tech-spec`, and `type::health` tickets
- * that belong to the Epic. Per-ticket failures are isolated so a misbehaving
- * auxiliary ticket never discards progress on its siblings.
+ * Close `context::prd` and `context::tech-spec` tickets that belong to the
+ * Epic. Per-ticket failures are isolated so a misbehaving auxiliary ticket
+ * never discards progress on its siblings.
  */
 export async function phaseFinalizeAuxiliaryTickets(
   provider,
@@ -159,53 +158,32 @@ export async function phaseFinalizeAuxiliaryTickets(
   warnings,
 ) {
   try {
-    progress(
-      'CONTEXT',
-      'Searching for PRD, Tech Spec, and Sprint Health tickets...',
-    );
+    progress('CONTEXT', 'Searching for PRD and Tech Spec tickets...');
     const subTickets = await provider.getSubTickets(epicId);
 
-    const auxiliaryTickets = subTickets.filter((t) => {
-      if (
+    const auxiliaryTickets = subTickets.filter(
+      (t) =>
         t.labels.includes('context::prd') ||
-        t.labels.includes('context::tech-spec')
-      ) {
-        return true;
-      }
-      if (t.labels.includes(TYPE_LABELS.HEALTH)) return true;
-      if (
-        typeof t.title === 'string' &&
-        t.title.startsWith('📉 Sprint Health:')
-      )
-        return true;
-      return false;
-    });
+        t.labels.includes('context::tech-spec'),
+    );
 
     if (auxiliaryTickets.length === 0) {
-      progress(
-        'CONTEXT',
-        'No open PRD / Tech Spec / Sprint Health tickets found.',
-      );
+      progress('CONTEXT', 'No open PRD / Tech Spec tickets found.');
       return;
     }
 
-    // Bound the auxiliary-ticket close burst at 3 so a wide PRD / Tech
-    // Spec / Sprint Health fan-out at Epic close does not race the GitHub
-    // secondary rate limit. Per-item failures still land in `warnings[]`
-    // — concurrentMap only short-circuits on a thrown rejection, and the
-    // catch-block above swallows individual failures into warnings.
+    // Bound the auxiliary-ticket close burst at 3 so a wide PRD / Tech Spec
+    // fan-out at Epic close does not race the GitHub secondary rate limit.
+    // Per-item failures still land in `warnings[]` — concurrentMap only
+    // short-circuits on a thrown rejection, and the catch-block above
+    // swallows individual failures into warnings.
     await concurrentMap(
       auxiliaryTickets,
       async (ticket) => {
         if (ticket.state === 'closed') return;
 
         const kind =
-          ticket.labels.find((l) => l.startsWith('context::')) ??
-          (ticket.labels.includes(TYPE_LABELS.HEALTH) ||
-          (typeof ticket.title === 'string' &&
-            ticket.title.startsWith('📉 Sprint Health:'))
-            ? TYPE_LABELS.HEALTH
-            : 'auxiliary');
+          ticket.labels.find((l) => l.startsWith('context::')) ?? 'auxiliary';
 
         progress('CONTEXT', `Closing ${kind} #${ticket.id}...`);
         try {

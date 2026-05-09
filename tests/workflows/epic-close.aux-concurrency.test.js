@@ -2,10 +2,9 @@
  * epic-close — auxiliary-ticket close concurrency cap.
  *
  * Story #1087 / Task #1107: the auxiliary-ticket close burst at Epic close
- * (PRD + Tech Spec + Sprint Health dashboard) used to fan out via
- * `Promise.all`, which races the GitHub secondary rate limit on Epics with
- * many sub-issues. The fix replaces it with `concurrentMap(..., {
- * concurrency: 3 })`.
+ * (PRD + Tech Spec) used to fan out via `Promise.all`, which races the
+ * GitHub secondary rate limit on Epics with many sub-issues. The fix
+ * replaces it with `concurrentMap(..., { concurrency: 3 })`.
  *
  * This test wires a stub provider whose `updateTicket` records peak
  * in-flight calls and asserts the cap holds when the auxiliary list is
@@ -17,15 +16,6 @@ import { describe, it } from 'node:test';
 import { phaseFinalizeAuxiliaryTickets } from '../../.agents/scripts/epic-close.js';
 
 function makeAuxTicket(id, kind) {
-  if (kind === 'health') {
-    return {
-      id,
-      title: `📉 Sprint Health: Aux ${id}`,
-      labels: ['type::health'],
-      state: 'open',
-      body: '',
-    };
-  }
   return {
     id,
     title: `Aux ${kind} ${id}`,
@@ -39,10 +29,9 @@ describe('epic-close — auxiliary-ticket close concurrency cap', () => {
   it('caps in-flight auxiliary close mutations at 3', async () => {
     // Build 9 auxiliary tickets so the burst is wider than the cap.
     const auxiliaries = [];
-    auxiliaries.push(makeAuxTicket(101, 'prd'));
-    auxiliaries.push(makeAuxTicket(102, 'tech-spec'));
-    for (let i = 0; i < 7; i++) {
-      auxiliaries.push(makeAuxTicket(200 + i, 'health'));
+    for (let i = 0; i < 9; i++) {
+      const kind = i % 2 === 0 ? 'prd' : 'tech-spec';
+      auxiliaries.push(makeAuxTicket(101 + i, kind));
     }
 
     let inFlight = 0;
