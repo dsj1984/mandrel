@@ -88,7 +88,7 @@ describe('runEpicFinalize', () => {
     const out = await runEpicFinalize({
       epicId: 100,
       injectedProvider: provider,
-      injectedConfig: { orchestration: { runners: { epicRunner: {} } } },
+      injectedConfig: { orchestration: { runners: { deliverRunner: {} } } },
       loggerImpl: quietLogger(),
       // No-project column-sync stub.
       columnSyncImpl: {
@@ -127,7 +127,7 @@ describe('runEpicFinalize', () => {
     const out = await runEpicFinalize({
       epicId: 101,
       injectedProvider: provider,
-      injectedConfig: { orchestration: { runners: { epicRunner: {} } } },
+      injectedConfig: { orchestration: { runners: { deliverRunner: {} } } },
       loggerImpl: quietLogger(),
       columnSyncImpl: {
         async sync() {
@@ -153,7 +153,7 @@ describe('runEpicFinalize', () => {
     const out = await runEpicFinalize({
       epicId: 102,
       injectedProvider: provider,
-      injectedConfig: { orchestration: { runners: { epicRunner: {} } } },
+      injectedConfig: { orchestration: { runners: { deliverRunner: {} } } },
       loggerImpl: quietLogger(),
       columnSyncImpl: {
         async sync() {

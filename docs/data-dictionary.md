@@ -170,7 +170,7 @@ taxonomy.
 | `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume.                      |
 | `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                  |
 | `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                          |
-| `concurrencyCap`           | Config (integer)    | `orchestration.runners.epicRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.        |
+| `concurrencyCap`           | Config (integer)    | `orchestration.runners.deliverRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.        |
 | Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                               |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                       |
 
@@ -346,7 +346,7 @@ ratchet.
 | `resolveWorktreeEnabled(opts, env)` | Helper      | `lib/config-resolver.js`. Returns the resolved boolean (env override → web auto-detect → committed config).                                                                                                          |
 | `resolveSessionId(env)`           | Helper        | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line.                                                                                                                    |
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
-| `orchestration.runners.closeRetry`| Config block  | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close.                |
+| `orchestration.runners.storyMergeRetry`| Config block  | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close. Renamed from `closeRetry` in 5.40.0. |
 | `pushEpicWithRetry(...)`          | Helper        | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work.                |
 | `runDispatchManifestGuard(opts)`  | Helper        | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `story-init.js` startup. Refuses launch if any of the story's blockers are unmerged.                                                              |
 

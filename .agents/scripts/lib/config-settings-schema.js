@@ -183,10 +183,17 @@ const SIGNALS_LIMITS_SCHEMA = {
   additionalProperties: false,
 };
 
-const RISK_GATES_SCHEMA = {
+/**
+ * `agentSettings.planning` — grouped home for planning/decomposition tuning
+ * knobs. Epic #1142 Story #1157 lifted the prior flat
+ * `agentSettings.riskGates.heuristics` array under here as
+ * `planning.riskHeuristics` so the planning surface (formerly scattered
+ * across `riskGates`, `limits.planningContext`, etc.) has a stable parent.
+ */
+const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
-    heuristics: {
+    riskHeuristics: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
     },
@@ -197,14 +204,30 @@ const RISK_GATES_SCHEMA = {
 /**
  * `quality.prGate.checks` is the configurable lint/format/test trio
  * `git-pr-quality-gate.js` runs on every `/git-merge-pr` invocation. Renamed
- * from the flat `agentSettings.qualityGate` block in Epic #730 Story 6.
+ * from the flat `agentSettings.qualityGate` block in Epic #730 Story 6;
+ * promoted into the framework default-agentrc shape in Epic #1142 Story
+ * #1157 — items are `{ name, cmd }` objects so the runner can spawn each
+ * check directly without a name->cmd lookup table. `cmd` is an argv array
+ * (no shell expansion).
  */
 const PR_GATE_SCHEMA = {
   type: 'object',
   properties: {
     checks: {
       type: 'array',
-      items: { type: 'string', minLength: 1 },
+      items: {
+        type: 'object',
+        required: ['name', 'cmd'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          cmd: {
+            type: 'array',
+            minItems: 1,
+            items: { type: 'string', minLength: 1 },
+          },
+        },
+        additionalProperties: false,
+      },
     },
   },
   additionalProperties: false,
@@ -361,7 +384,7 @@ export const AGENT_SETTINGS_SCHEMA = {
     baseBranch: SAFE_STRING,
     docsContextFiles: { type: 'array', items: { type: 'string' } },
     release: RELEASE_SCHEMA,
-    riskGates: RISK_GATES_SCHEMA,
+    planning: PLANNING_SCHEMA,
     quality: QUALITY_SCHEMA,
     commands: COMMANDS_SCHEMA,
     paths: PATHS_SCHEMA,

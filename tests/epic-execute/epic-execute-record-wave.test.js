@@ -52,7 +52,7 @@ async function seedCheckpoint(provider, epicId, overrides = {}) {
 }
 
 const TEST_CONFIG = {
-  orchestration: { runners: { epicRunner: { concurrencyCap: 2 } } },
+  orchestration: { runners: { deliverRunner: { concurrencyCap: 2 } } },
 };
 
 describe('classifyWaveOutcome', () => {

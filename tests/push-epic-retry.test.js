@@ -92,7 +92,7 @@ describe('pushEpicWithRetry — retry on non-fast-forward', () => {
       cwd: '/repo',
       epicBranch: 'epic/1',
       storyBranch: 'story-2',
-      closeRetry: { maxAttempts: 3, backoffMs: [10, 20, 30] },
+      storyMergeRetry: { maxAttempts: 3, backoffMs: [10, 20, 30] },
       git,
       sleep,
     });
@@ -126,7 +126,7 @@ describe('pushEpicWithRetry — retry on non-fast-forward', () => {
       cwd: '/repo',
       epicBranch: 'epic/1',
       storyBranch: 'story-2',
-      closeRetry: { maxAttempts: 2, backoffMs: [0] },
+      storyMergeRetry: { maxAttempts: 2, backoffMs: [0] },
       git,
       sleep: async () => {},
     });
@@ -135,7 +135,7 @@ describe('pushEpicWithRetry — retry on non-fast-forward', () => {
     assert.equal(result.attempts, 2);
   });
 
-  it('uses default closeRetry when none provided (3 attempts, 3 backoffs)', async () => {
+  it('uses default storyMergeRetry when none provided (3 attempts, 3 backoffs)', async () => {
     const { git } = makeGit({
       push: [
         { status: 1, stdout: '', stderr: 'non-fast-forward' },
@@ -173,7 +173,7 @@ describe('pushEpicWithRetry — non-retryable push errors', () => {
       cwd: '/repo',
       epicBranch: 'epic/1',
       storyBranch: 'story-2',
-      closeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
+      storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
       git,
       sleep: async () => {},
     });
@@ -205,7 +205,7 @@ describe('pushEpicWithRetry — content-conflict abort', () => {
           cwd: '/repo',
           epicBranch: 'epic/1',
           storyBranch: 'story-2',
-          closeRetry: { maxAttempts: 3, backoffMs: [0, 0] },
+          storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0] },
           git,
           sleep: async () => {},
         }),
@@ -242,7 +242,7 @@ describe('pushEpicWithRetry — fetch failure mid-retry', () => {
       cwd: '/repo',
       epicBranch: 'epic/1',
       storyBranch: 'story-2',
-      closeRetry: { maxAttempts: 3, backoffMs: [0, 0] },
+      storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0] },
       git,
       sleep: async () => {},
     });
@@ -365,7 +365,7 @@ describe('pushEpicWithRetry — integration (real git, bare origin)', () => {
       cwd: session1,
       epicBranch: 'epic/1',
       storyBranch: 'story-10',
-      closeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
+      storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
       git: realGit,
       sleep: async () => {},
     });
@@ -408,7 +408,7 @@ describe('pushEpicWithRetry — integration (real git, bare origin)', () => {
           cwd: session1,
           epicBranch: 'epic/1',
           storyBranch: 'story-10',
-          closeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
+          storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
           git: realGit,
           sleep: async () => {},
         }),
@@ -441,7 +441,7 @@ describe('pushEpicWithRetry — integration (real git, bare origin)', () => {
       cwd: session1,
       epicBranch: 'epic/1',
       storyBranch: 'story-10',
-      closeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
+      storyMergeRetry: { maxAttempts: 3, backoffMs: [0, 0, 0] },
       git: realGit,
       sleep: async () => {},
     });

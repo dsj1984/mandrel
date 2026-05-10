@@ -106,7 +106,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,
@@ -182,7 +182,7 @@ describe('EpicRunner integration', () => {
         gitAdapter: async () => 1,
         config: {
           runners: {
-            epicRunner: {
+            deliverRunner: {
               enabled: true,
               concurrencyCap: 1,
               storyRetryCount: 0,
@@ -212,7 +212,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,
@@ -274,7 +274,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,

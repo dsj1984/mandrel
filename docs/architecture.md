@@ -279,7 +279,7 @@ context })` so the error surface is auditable after a run completes. See
 
 `lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
 `epic-run-progress` structured comment on the Epic, driven by
-`orchestration.runners.epicRunner.progressReportIntervalSec`.
+`orchestration.runners.deliverRunner.progressReportIntervalSec`.
 
 #### Resilience layers
 
@@ -744,7 +744,7 @@ Both modes share:
 - Deterministic, operator-driven story assignment — `/story-execute` always
   takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
-  configured by `orchestration.runners.closeRetry`) so concurrent closes from
+  configured by `orchestration.runners.storyMergeRetry`) so concurrent closes from
   separate clones converge cleanly.
 
 They differ only in:
@@ -784,7 +784,7 @@ They differ only in:
 The sole runtime pause is `agent::blocked` on the Epic. `risk::high` is
 informational/planning metadata only — it ranks work in the dispatch table and
 helps reviewers prioritize, but does not pause execution.
-`riskGates.heuristics` in `.agentrc.json` drives the ranking heuristics.
+`planning.riskHeuristics` in `.agentrc.json` drives the ranking heuristics.
 
 ### Anti-Thrashing Protocol
 

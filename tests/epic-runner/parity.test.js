@@ -87,7 +87,7 @@ function buildFakeProvider({ epicId, stories, initialEpicLabels }) {
 
 const defaultConfig = {
   runners: {
-    epicRunner: {
+    deliverRunner: {
       enabled: true,
       concurrencyCap: 2,
       storyRetryCount: 0,

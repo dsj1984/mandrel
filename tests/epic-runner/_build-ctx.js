@@ -61,7 +61,7 @@ export function buildCtx(overrides = {}) {
     provider: {},
     config: {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,

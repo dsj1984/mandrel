@@ -63,29 +63,39 @@ describe('AGENT_SETTINGS_SCHEMA — explicit number/object entries', () => {
     );
   });
 
-  it('accepts riskGates with heuristics array', () => {
+  it('accepts planning with riskHeuristics array', () => {
     assert.equal(
-      validate({ ...REQ, riskGates: { heuristics: ['no destructive ops'] } }),
+      validate({
+        ...REQ,
+        planning: { riskHeuristics: ['no destructive ops'] },
+      }),
       true,
     );
   });
 
-  it('rejects unknown property on riskGates', () => {
+  it('rejects unknown property on planning', () => {
     expectErrors(
-      { riskGates: { heuristic: ['x'] } },
+      { planning: { riskHeuristic: ['x'] } },
       /must NOT have additional properties/,
     );
   });
 
-  it('rejects non-string heuristics entries', () => {
-    expectErrors({ riskGates: { heuristics: [42] } }, /heuristics\/0/);
+  it('rejects non-string riskHeuristics entries', () => {
+    expectErrors({ planning: { riskHeuristics: [42] } }, /riskHeuristics\/0/);
   });
 
-  it('accepts quality.prGate with checks array', () => {
+  it('accepts quality.prGate with object-shaped checks array', () => {
     assert.equal(
       validate({
         ...REQ,
-        quality: { prGate: { checks: ['lint', 'test'] } },
+        quality: {
+          prGate: {
+            checks: [
+              { name: 'lint', cmd: ['npm', 'run', 'lint'] },
+              { name: 'test', cmd: ['npm', 'test'] },
+            ],
+          },
+        },
       }),
       true,
     );

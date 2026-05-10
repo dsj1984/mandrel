@@ -163,7 +163,7 @@ export async function buildDecompositionContext(
     provider.getTicket(epic.linkedIssues.techSpec),
   ]);
 
-  const heuristics = config.agentSettings?.riskGates?.heuristics || [];
+  const heuristics = config.agentSettings?.planning?.riskHeuristics || [];
   const limits = getLimits(config);
   const maxTickets = limits.maxTickets;
   const planningLimits = limits.planningContext;

@@ -26,7 +26,7 @@ mirror aligned with the runtime validators.
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "agentSettings": { /* paths, commands, quality, limits, ... */ },
-  "orchestration":  { /* provider, github, worktreeIsolation, epicRunner, ... */ }
+  "orchestration":  { /* provider, github, worktreeIsolation, deliverRunner, ... */ }
 }
 ```
 
@@ -223,7 +223,7 @@ Added in Epic #817 Story 9.
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
-| `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
+| `planning.riskHeuristics` | No | `[]`  | Free-form rubric for `risk::high` decisions (informational). Renamed from `riskGates.heuristics` in 5.40.0 (Epic #1142). |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 
 ---
@@ -236,12 +236,11 @@ Added in Epic #817 Story 9.
 | `github`          | Yes\*    | (none)  | Required when `provider: "github"`. See sub-block.                 |
 | `executor`        | No       | (none)  | Executor adapter id (advanced; rarely set).                        |
 | `notifications`   | No       | `{}`    | Notifier behaviour. See sub-block.                                 |
-| `hitl`            | No       | `{}`    | Reserved for future HITL knobs.                                    |
 | `worktreeIsolation` | No     | (see sub-block) | Worktree-per-Story isolation tuning.                            |
-| `epicRunner`      | No       | (see sub-block) | Long-running Epic orchestrator tuning.                          |
+| `deliverRunner`   | No       | (see sub-block) | `/epic-deliver` fan-out tuning. Renamed from `epicRunner` in 5.40.0. |
 | `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
 | `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
-| `closeRetry`      | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes.   |
+| `storyMergeRetry` | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes. Renamed from `closeRetry` in 5.40.0. |
 
 ### `orchestration.github`
 
@@ -310,9 +309,12 @@ Epic #773 (Story 7) grouped every runner-flavoured sub-block under
 `orchestration.runners.*`. Pre-#773 flat keys (`orchestration.epicRunner`,
 `orchestration.planRunner`, `orchestration.concurrency`,
 `orchestration.closeRetry`) are no longer accepted — the schema rejects them
-with `additionalProperties: false`.
+with `additionalProperties: false`. Epic #1142 Story #1157 renamed two of
+the grouped sub-blocks: `epicRunner` → `deliverRunner`, `closeRetry` →
+`storyMergeRetry`. The legacy names are rejected by AJV; the merged
+`default-agentrc.json` ships with the new names.
 
-#### `orchestration.runners.epicRunner`
+#### `orchestration.runners.deliverRunner`
 
 | Field                       | Required        | Default | Purpose                                                  |
 | --------------------------- | --------------- | ------- | -------------------------------------------------------- |
@@ -338,7 +340,7 @@ with `additionalProperties: false`.
 | `commitAssertion`  | No       | (none)  | Concurrency cap for commit-assertion phase.       |
 | `progressReporter` | No       | (none)  | Concurrency cap for progress-reporter phase.      |
 
-#### `orchestration.runners.closeRetry`
+#### `orchestration.runners.storyMergeRetry`
 
 | Field         | Required | Default                | Purpose                                       |
 | ------------- | -------- | ---------------------- | --------------------------------------------- |
@@ -475,7 +477,7 @@ entirely — useful when the consumer wants exactly its own dirs.
 
 `.agentrc.local.json` (gitignored) is layered on top of `.agentrc.json` by the
 resolver. Use it for machine-specific tuning (e.g. lower
-`epicRunner.concurrencyCap` on a laptop) that should never reach git.
+`deliverRunner.concurrencyCap` on a laptop) that should never reach git.
 
 ### Adding a new top-level key (framework change)
 

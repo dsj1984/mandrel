@@ -449,16 +449,16 @@ export async function runEpicExecuteRecordWave({
   }
 
   const totalWaves = Number(existing.totalWaves ?? 0);
-  const epicRunner = getRunners(config).epicRunner ?? {};
+  const deliverRunner = getRunners(config).deliverRunner ?? {};
   const concurrencyCap =
     concurrencyCapOverride ??
     Number(existing.concurrencyCap) ??
-    Number(epicRunner.concurrencyCap) ??
+    Number(deliverRunner.concurrencyCap) ??
     1;
   if (!Number.isInteger(concurrencyCap) || concurrencyCap < 1) {
     throw new RangeError(
       `runEpicExecuteRecordWave: resolved concurrencyCap "${concurrencyCap}" must be a positive integer; ` +
-        'pass --concurrency-cap or set `orchestration.runners.epicRunner.concurrencyCap`.',
+        'pass --concurrency-cap or set `orchestration.runners.deliverRunner.concurrencyCap`.',
     );
   }
 

@@ -73,20 +73,20 @@ async function main() {
     process.exit(1);
   }
 
-  const { epicRunner } = getRunners(config.orchestration);
+  const { deliverRunner } = getRunners(config.orchestration);
 
   if (args.dryRun) {
     const dispatchPlan = await buildDispatchPlan({
       epicId: args.epicId,
       orchestration: config.orchestration,
-      concurrencyCap: epicRunner.concurrencyCap,
+      concurrencyCap: deliverRunner.concurrencyCap,
     });
     Logger.info(
       JSON.stringify(
         {
           epicId: args.epicId,
           dryRun: true,
-          epicRunner,
+          deliverRunner,
           waves: dispatchPlan,
         },
         null,

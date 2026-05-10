@@ -31,7 +31,7 @@ including optional keys the template does not declare.
 
 This is a deliberate departure from the previous "structural diff against
 template" behaviour, which silently stripped legitimate optional keys (e.g.
-`orchestration.concurrency`, `closeRetry`, `github.projectName`,
+`orchestration.concurrency`, `storyMergeRetry`, `github.projectName`,
 `agentSettings.quality.prGate`) on every sync.
 
 The reconciliation rules are:
@@ -114,7 +114,7 @@ mergeMissing(template, project):
   keys; it never replaces a project value with a template value.
 - **Arrays are opaque, project-owned.** The merge does not append-merge array
   elements. Operators who want new defaults from the template must edit those
-  arrays (`docsContextFiles`, `release.docs`, `riskGates.heuristics`, etc.)
+  arrays (`docsContextFiles`, `release.docs`, `planning.riskHeuristics`, etc.)
   manually.
 - **Optional keys absent from the template are preserved.** Unlike the
   previous template-diff behaviour, the project may carry schema-valid keys

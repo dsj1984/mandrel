@@ -80,8 +80,8 @@ export async function runEpicDeliverPrepare({
     );
   }
   const provider = injectedProvider ?? createProvider(config.orchestration);
-  const { epicRunner } = getRunners(config.orchestration);
-  const concurrencyCap = epicRunner.concurrencyCap;
+  const { deliverRunner } = getRunners(config.orchestration);
+  const concurrencyCap = deliverRunner.concurrencyCap;
 
   const ctx = { epicId, provider };
   let state = {};

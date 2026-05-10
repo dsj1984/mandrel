@@ -8,7 +8,7 @@ Stories close in quick succession.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
-`agentSettings.quality.*` and `orchestration.runners.closeRetry.*`. This
+`agentSettings.quality.*` and `orchestration.runners.storyMergeRetry.*`. This
 file is the runbook side — what the gate does, when it fires, and how to
 bootstrap or refresh it.
 
@@ -20,8 +20,8 @@ bootstrap or refresh it.
 `epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by
-`orchestration.runners.closeRetry.maxAttempts` (default 3) and
-`orchestration.runners.closeRetry.backoffMs` (default `[250, 500, 1000]`).
+`orchestration.runners.storyMergeRetry.maxAttempts` (default 3) and
+`orchestration.runners.storyMergeRetry.backoffMs` (default `[250, 500, 1000]`).
 A real
 content conflict (both stories touched the same lines) aborts the loop
 with a clear error and leaves the local tree clean for manual resolution.
@@ -295,5 +295,5 @@ lacking explicit authorization), it flips the ticket/Epic to
 `agent::blocked`, posts friction context, and waits for operator resume
 (`agent::executing`).
 
-`agentSettings.riskGates.heuristics` remains the rubric for identifying
+`agentSettings.planning.riskHeuristics` remains the rubric for identifying
 high-impact operations that should trigger blocker escalation.

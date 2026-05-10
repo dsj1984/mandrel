@@ -47,7 +47,7 @@ function createFakeProvider({ epic, descendants }) {
 const baseConfig = {
   orchestration: {
     runners: {
-      epicRunner: {
+      deliverRunner: {
         enabled: true,
         concurrencyCap: 3,
         storyRetryCount: 0,

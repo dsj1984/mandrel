@@ -151,7 +151,7 @@ for high-risk operations.
   `agent::blocked`, summarize the blocker, and wait for operator resume.
 - **Resume contract**: continue only after the operator explicitly unblocks
   (`agent::executing` or equivalent workflow instruction).
-- **High-risk heuristic**: use `agentSettings.riskGates.heuristics` from
+- **High-risk heuristic**: use `agentSettings.planning.riskHeuristics` from
   `.agentrc.json` to decide when to escalate via `agent::blocked`. Typical
   triggers include destructive/irreversible data mutations, shared
   auth/security changes, CI/CD gate changes, monorepo-wide rewrites, and

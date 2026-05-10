@@ -9,7 +9,7 @@ import {
 
 const MIN_EPIC_CFG = {
   runners: {
-    epicRunner: { enabled: true, concurrencyCap: 2 },
+    deliverRunner: { enabled: true, concurrencyCap: 2 },
   },
 };
 
@@ -51,7 +51,7 @@ describe('OrchestrationContext family', () => {
           epicId: 1,
           provider: {},
           config: {
-            runners: { epicRunner: { enabled: true, concurrencyCap: 0 } },
+            runners: { deliverRunner: { enabled: true, concurrencyCap: 0 } },
           },
           dispatch: () => {},
         }),
@@ -59,14 +59,14 @@ describe('OrchestrationContext family', () => {
     );
   });
 
-  it('EpicRunnerContext refuses to construct when epicRunner.enabled is false', () => {
+  it('EpicRunnerContext refuses to construct when deliverRunner.enabled is false', () => {
     assert.throws(
       () =>
         new EpicRunnerContext({
           epicId: 1,
           provider: {},
           config: {
-            runners: { epicRunner: { enabled: false, concurrencyCap: 1 } },
+            runners: { deliverRunner: { enabled: false, concurrencyCap: 1 } },
           },
           dispatch: () => {},
         }),

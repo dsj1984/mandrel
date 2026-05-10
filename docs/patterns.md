@@ -624,7 +624,7 @@ producing a confusing stack trace instead of a clear schema error.
 Each launcher's `main()` now calls `validateOrchestrationConfig` after
 `resolveConfig()` returns and exits non-zero on validation failure
 before any provider call, GitHub I/O, or wave-loop begins. The
-fixture test removes a required `orchestration.runners.epicRunner` field and
+fixture test removes a required `orchestration.runners.deliverRunner` field and
 asserts the launcher exits with a schema error before work starts.
 
 ### Why the explicit call (vs relying on `resolveConfig`)

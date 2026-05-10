@@ -1,7 +1,7 @@
 /**
  * ProgressReporter — emits periodic progress snapshots during a wave.
  *
- * Fires every `intervalSec` (from `orchestration.runners.epicRunner.progressReportIntervalSec`).
+ * Fires every `intervalSec` (from `orchestration.runners.deliverRunner.progressReportIntervalSec`).
  * Each fire:
  *   1. Reads current state of the active wave's stories via `provider.getTicket`.
  *   2. Renders a markdown table: ID | State | Title.

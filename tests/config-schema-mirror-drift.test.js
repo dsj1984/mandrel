@@ -130,7 +130,9 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
             tolerance: 0.001,
             requireCoverage: true,
           },
-          prGate: { checks: ['lint'] },
+          prGate: {
+            checks: [{ name: 'lint', cmd: ['npm', 'run', 'lint'] }],
+          },
         },
         release: {
           docs: ['README.md'],
@@ -138,7 +140,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           packageJson: true,
           autoVersionBump: true,
         },
-        riskGates: { heuristics: ['no destructive ops'] },
+        planning: { riskHeuristics: ['no destructive ops'] },
       },
       'fully populated',
     );
@@ -179,11 +181,23 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
-  it('rejects unknown property on riskGates on both sides', () => {
+  it('rejects unknown property on planning on both sides', () => {
     assertAgree(
       'agentSettings',
-      { riskGates: { heuristic: ['x'] } },
-      'riskGates typo',
+      { planning: { riskHeuristic: ['x'] } },
+      'planning typo',
+    );
+  });
+
+  // Epic #1142 Story #1157: legacy `riskGates` block at the root rejected.
+  it('rejects legacy agentSettings.riskGates on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        riskGates: { heuristics: ['x'] },
+      },
+      'legacy riskGates post-1157',
     );
   });
 
@@ -195,6 +209,19 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
         quality: { prGate: { check: ['x'] } },
       },
       'quality.prGate typo',
+    );
+  });
+
+  // Epic #1142 Story #1157: prGate.checks promoted to object items
+  // (`{ name, cmd[] }`) so the runner can spawn each check directly.
+  it('rejects prGate.checks string items on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { prGate: { checks: ['lint'] } },
+      },
+      'prGate.checks string item post-1157',
     );
   });
 
@@ -326,7 +353,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           nodeModulesStrategy: 'per-worktree',
         },
         runners: {
-          epicRunner: {
+          deliverRunner: {
             enabled: true,
             concurrencyCap: 3,
             progressReportIntervalSec: 30,
@@ -338,15 +365,42 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
-  it('rejects flat epicRunner under orchestration on both sides', () => {
+  it('rejects flat deliverRunner under orchestration on both sides', () => {
     assertAgree(
       'orchestration',
       {
         provider: 'github',
         github: { owner: 'org', repo: 'repo' },
-        epicRunner: { enabled: true, concurrencyCap: 3 },
+        deliverRunner: { enabled: true, concurrencyCap: 3 },
       },
-      'flat epicRunner is no longer allowed at the orchestration root',
+      'flat deliverRunner is no longer allowed at the orchestration root',
+    );
+  });
+
+  // Epic #1142 Story #1157: legacy `epicRunner` / `closeRetry` keys under
+  // `runners` are rejected — repos must rename to deliverRunner /
+  // storyMergeRetry in `.agentrc.json`.
+  it('rejects legacy runners.epicRunner key on both sides', () => {
+    assertAgree(
+      'orchestration',
+      {
+        provider: 'github',
+        github: { owner: 'org', repo: 'repo' },
+        runners: { epicRunner: { enabled: true, concurrencyCap: 3 } },
+      },
+      'legacy runners.epicRunner post-1157',
+    );
+  });
+
+  it('rejects legacy runners.closeRetry key on both sides', () => {
+    assertAgree(
+      'orchestration',
+      {
+        provider: 'github',
+        github: { owner: 'org', repo: 'repo' },
+        runners: { closeRetry: { maxAttempts: 3 } },
+      },
+      'legacy runners.closeRetry post-1157',
     );
   });
 

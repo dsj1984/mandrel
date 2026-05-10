@@ -21,7 +21,7 @@ import { checkVersionBumpIntent } from '../version-bump-intent.js';
 
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
-  const { concurrencyCap } = getRunners(config).epicRunner;
+  const { concurrencyCap } = getRunners(config).deliverRunner;
   const {
     notify: notifyFn,
     checkpointer,
