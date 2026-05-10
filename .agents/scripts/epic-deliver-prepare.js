@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-execute-prepare.js — Step 0/1 of the operator-driven `/epic-execute`.
+ * epic-deliver-prepare.js — Step 0/1 of the operator-driven `/epic-deliver`.
  *
  * Composes the existing engine phases that the in-process epic-runner used to
  * call sequentially, but does NOT dispatch any waves. The CLI is the single
@@ -22,7 +22,7 @@
  * re-reading any tickets.
  *
  * Usage:
- *   node .agents/scripts/epic-execute-prepare.js --epic <epicId>
+ *   node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
  */
 
 import { parseArgs } from 'node:util';
@@ -36,7 +36,7 @@ import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapsho
 import { StoryLauncher } from './lib/orchestration/epic-runner/story-launcher.js';
 import { createProvider } from './lib/provider-factory.js';
 
-const HELP = `Usage: node .agents/scripts/epic-execute-prepare.js --epic <epicId>
+const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
 
 Snapshots Epic #<id>, builds the wave DAG, initializes the epic-run-state
 checkpoint, and prints the per-wave dispatch plan as JSON.
@@ -61,7 +61,7 @@ checkpoint, and prints the per-wave dispatch plan as JSON.
  *   checkpointInitializedAt: string,
  * }>}
  */
-export async function runEpicExecutePrepare({
+export async function runEpicDeliverPrepare({
   epicId,
   cwd,
   injectedProvider,
@@ -69,14 +69,14 @@ export async function runEpicExecutePrepare({
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
-      'runEpicExecutePrepare: --epic must be a positive integer',
+      'runEpicDeliverPrepare: --epic must be a positive integer',
     );
   }
 
   const config = injectedConfig ?? resolveConfig({ cwd });
   if (!config.orchestration) {
     throw new Error(
-      'runEpicExecutePrepare: no orchestration block in .agentrc.json',
+      'runEpicDeliverPrepare: no orchestration block in .agentrc.json',
     );
   }
   const provider = injectedProvider ?? createProvider(config.orchestration);
@@ -133,13 +133,13 @@ async function main() {
   }
   const epicId = Number.parseInt(values.epic ?? '', 10);
   if (Number.isNaN(epicId) || epicId <= 0) {
-    Logger.error('[epic-execute-prepare] ERROR: --epic <epicId> is required.');
+    Logger.error('[epic-deliver-prepare] ERROR: --epic <epicId> is required.');
     Logger.error(HELP);
     process.exit(2);
   }
 
-  const result = await runEpicExecutePrepare({ epicId });
+  const result = await runEpicDeliverPrepare({ epicId });
   Logger.info(JSON.stringify(result, null, 2));
 }
 
-runAsCli(import.meta.url, main, { source: 'epic-execute-prepare' });
+runAsCli(import.meta.url, main, { source: 'epic-deliver-prepare' });

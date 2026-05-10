@@ -11,8 +11,8 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 const SCRIPTS = [
   {
-    name: 'epic-runner',
-    relPath: '.agents/scripts/epic-runner.js',
+    name: 'epic-deliver-runner',
+    relPath: '.agents/scripts/epic-deliver-runner.js',
     args: ['--epic', '1'],
   },
   {

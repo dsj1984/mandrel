@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /* node:coverage ignore file */
 /**
- * Epic Runner — thin CLI wrapper around `lib/orchestration/epic-runner.js`.
+ * Epic Deliver Runner — thin CLI wrapper around `lib/orchestration/epic-runner.js`.
  *
  * Usage:
- *   node .agents/scripts/epic-runner.js --epic <epicId> [--dry-run]
+ *   node .agents/scripts/epic-deliver-runner.js --epic <epicId> [--dry-run]
  *
  * The engine no longer fans out via `child_process.spawn`. Story dispatch is
- * performed in-session by the `/epic-execute` slash command using the Agent
+ * performed in-session by the `/epic-deliver` slash command using the Agent
  * tool, so this CLI is dry-run-only — it computes the per-wave dispatch list
  * the skill would consume and prints it without touching ticket state.
- * Operators driving an Epic to completion should use `/epic-execute <epicId>`
+ * Operators driving an Epic to completion should use `/epic-deliver <epicId>`
  * from their Claude session.
  */
 import { runAsCli } from './lib/cli-utils.js';
@@ -34,7 +34,7 @@ function parseArgs(argv) {
 
 function printUsage() {
   Logger.info(
-    'Usage: node .agents/scripts/epic-runner.js --epic <epicId> [--dry-run]',
+    'Usage: node .agents/scripts/epic-deliver-runner.js --epic <epicId> [--dry-run]',
   );
 }
 
@@ -47,7 +47,7 @@ async function main() {
   }
 
   if (!args.epicId || Number.isNaN(args.epicId)) {
-    Logger.error('[epic-runner] ERROR: --epic <epicId> is required.');
+    Logger.error('[epic-deliver-runner] ERROR: --epic <epicId> is required.');
     printUsage();
     process.exit(2);
   }
@@ -61,14 +61,14 @@ async function main() {
     validateOrchestrationConfig(config.orchestration);
   } catch (err) {
     Logger.error(
-      `[epic-runner] ERROR: orchestration config schema validation failed:\n${err.message}`,
+      `[epic-deliver-runner] ERROR: orchestration config schema validation failed:\n${err.message}`,
     );
     process.exit(2);
   }
 
   if (!config.orchestration) {
     Logger.error(
-      '[epic-runner] ERROR: no orchestration block in .agentrc.json.',
+      '[epic-deliver-runner] ERROR: no orchestration block in .agentrc.json.',
     );
     process.exit(1);
   }
@@ -97,9 +97,9 @@ async function main() {
   }
 
   Logger.error(
-    '[epic-runner] ERROR: this CLI no longer dispatches Stories on its own.\n' +
+    '[epic-deliver-runner] ERROR: this CLI no longer dispatches Stories on its own.\n' +
       '  Story fan-out runs in-session via the Agent tool — invoke the\n' +
-      '  `/epic-execute <epicId>` slash command from a Claude session, or\n' +
+      '  `/epic-deliver <epicId>` slash command from a Claude session, or\n' +
       '  re-run with `--dry-run` to print the per-wave dispatch plan.',
   );
   process.exit(2);
@@ -142,4 +142,4 @@ async function buildDispatchPlan({ epicId, orchestration, concurrencyCap }) {
   }));
 }
 
-runAsCli(import.meta.url, main, { source: 'EpicRunner' });
+runAsCli(import.meta.url, main, { source: 'EpicDeliverRunner' });

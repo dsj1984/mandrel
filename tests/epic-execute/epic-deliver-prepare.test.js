@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { runEpicExecutePrepare } from '../../.agents/scripts/epic-execute-prepare.js';
+import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepare.js';
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
@@ -57,7 +57,7 @@ const baseConfig = {
   },
 };
 
-describe('runEpicExecutePrepare', () => {
+describe('runEpicDeliverPrepare', () => {
   it('snapshots the epic, builds the DAG, initializes the checkpoint, and returns the plan', async () => {
     const epic = { id: 100, labels: ['type::epic', 'epic::auto-close'] };
     const descendants = [
@@ -78,7 +78,7 @@ describe('runEpicExecutePrepare', () => {
     ];
     const provider = createFakeProvider({ epic, descendants });
 
-    const out = await runEpicExecutePrepare({
+    const out = await runEpicDeliverPrepare({
       epicId: 100,
       injectedProvider: provider,
       injectedConfig: baseConfig,
@@ -126,7 +126,7 @@ describe('runEpicExecutePrepare', () => {
       },
     ];
     const provider = createFakeProvider({ epic, descendants });
-    const out = await runEpicExecutePrepare({
+    const out = await runEpicDeliverPrepare({
       epicId: 101,
       injectedProvider: provider,
       injectedConfig: baseConfig,
@@ -139,7 +139,7 @@ describe('runEpicExecutePrepare', () => {
     const epic = { id: 102, labels: ['type::epic'] };
     const provider = createFakeProvider({ epic, descendants: [] });
     await assert.rejects(
-      runEpicExecutePrepare({
+      runEpicDeliverPrepare({
         epicId: 102,
         injectedProvider: provider,
         injectedConfig: baseConfig,
@@ -150,11 +150,11 @@ describe('runEpicExecutePrepare', () => {
 
   it('rejects non-positive epicId', async () => {
     await assert.rejects(
-      runEpicExecutePrepare({ epicId: 0 }),
+      runEpicDeliverPrepare({ epicId: 0 }),
       /must be a positive integer/,
     );
     await assert.rejects(
-      runEpicExecutePrepare({ epicId: -5 }),
+      runEpicDeliverPrepare({ epicId: -5 }),
       /must be a positive integer/,
     );
   });

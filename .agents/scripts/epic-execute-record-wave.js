@@ -444,7 +444,7 @@ export async function runEpicExecuteRecordWave({
   if (!existing) {
     throw new Error(
       `runEpicExecuteRecordWave: no epic-run-state checkpoint found on Epic #${epicId}; ` +
-        'run `node .agents/scripts/epic-execute-prepare.js --epic <id>` first.',
+        'run `node .agents/scripts/epic-deliver-prepare.js --epic <id>` first.',
     );
   }
 
