@@ -95,7 +95,7 @@ describe('eventSeverity', () => {
       eventSeverity({
         kind: 'state-transition',
         ticket: { type: 'story' },
-        toState: 'agent::review',
+        toState: 'agent::ready',
       }),
       'low',
     );

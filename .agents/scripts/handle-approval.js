@@ -40,7 +40,6 @@ export async function handleApproval(ticketId, commentBody) {
   const ALL_AGENT_STATES = [
     AGENT_LABELS.READY,
     AGENT_LABELS.EXECUTING,
-    AGENT_LABELS.REVIEW,
     AGENT_LABELS.DONE,
   ];
 
@@ -52,7 +51,7 @@ export async function handleApproval(ticketId, commentBody) {
   });
 
   Logger.info(`Posting feedback to Ticket #${ticketId}...`);
-  const responseComment = `🚀 **Fixes Approved!**\n\nAn agent has been dispatched to implement the required changes. Once the agent completes its work and transitions the ticket to \`agent::review\`, verification audits will re-run automatically.`;
+  const responseComment = `🚀 **Fixes Approved!**\n\nAn agent has been dispatched to implement the required changes. Once the agent completes its work, verification audits will re-run automatically.`;
   await provider.postComment(ticketId, {
     body: responseComment,
     type: 'notification',

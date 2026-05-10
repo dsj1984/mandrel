@@ -16,8 +16,8 @@
  *      body sourced from the Epic ticket. Post a structured `code-review`-
  *      adjacent hand-off comment on the Epic linking the PR.
  *
- * No state-flip on the Epic. No BookendChainer. The PR's existence is the
- * operator's signal to merge.
+ * No state-flip on the Epic. The PR's existence is the operator's signal
+ * to merge.
  *
  * Stdout: a single JSON envelope with `{ epicId, ffOk, pushed, prUrl,
  * postedHandoff }`.

@@ -544,120 +544,6 @@
       "startLine": 173
     },
     {
-      "crap": 30,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "main",
-      "startLine": 59
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "logSkipOverrides",
-      "startLine": 132
-    },
-    {
-      "crap": 2.0590285940743027,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseFinalizeAuxiliaryTickets",
-      "startLine": 155
-    },
-    {
-      "crap": 2.2000291587695,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "<anon method-2>",
-      "startLine": 182
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseFinalizeEpicClosure",
-      "startLine": 214
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "matchesEpicBranch",
-      "startLine": 254
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "makeWorktreeLogger",
-      "startLine": 271
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "applyDrainResult",
-      "startLine": 279
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "applyGcResult",
-      "startLine": 299
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "drainAndReapWorktrees",
-      "startLine": 315
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "pruneWorktreeRegistrations",
-      "startLine": 342
-    },
-    {
-      "crap": 5.6573376755546505,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseReapWorktrees",
-      "startLine": 368
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseEnumerateEpicBranches",
-      "startLine": 421
-    },
-    {
-      "crap": 28.55805836367611,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseDeleteEpicBranches",
-      "startLine": 481
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseFinalizeBranchCleanup",
-      "startLine": 542
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "emitDiscardFrictionComments",
-      "startLine": 573
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phaseNotifyBanner",
-      "startLine": 595
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "collectEpicDescendantIds",
-      "startLine": 619
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-close.js",
-      "method": "phasePostEpicPerfReport",
-      "startLine": 662
-    },
-    {
       "crap": 3,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "parseLintOutput",
@@ -1580,12 +1466,6 @@
       "file": ".agents/scripts/lib/config/commands.js",
       "method": "getCommands",
       "startLine": 35
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/config/epic-close.js",
-      "method": "getEpicClose",
-      "startLine": 23
     },
     {
       "crap": 11,
@@ -3026,18 +2906,6 @@
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js",
       "method": "buildStoryDag",
       "startLine": 44
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/phases/finalize.js",
-      "method": "runFinalizePhase",
-      "startLine": 15
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/phases/finalize.js",
-      "method": "<anon method-1>",
-      "startLine": 19
     },
     {
       "crap": 10.635065792816135,

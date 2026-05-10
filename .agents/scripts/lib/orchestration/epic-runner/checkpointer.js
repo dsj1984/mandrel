@@ -80,15 +80,14 @@ export class Checkpointer {
    * Initial checkpoint for a brand-new run. Idempotent against re-dispatch —
    * if a checkpoint already exists it is returned unchanged.
    *
-   * @param {{ totalWaves: number, concurrencyCap: number, autoClose: boolean }} opts
+   * @param {{ totalWaves: number, concurrencyCap: number }} opts
    */
-  async initialize({ totalWaves, concurrencyCap, autoClose }) {
+  async initialize({ totalWaves, concurrencyCap }) {
     const existing = await this.read();
     if (existing) return existing;
     return this.write({
       epicId: this.epicId,
       startedAt: new Date().toISOString(),
-      autoClose: Boolean(autoClose),
       currentWave: 0,
       totalWaves,
       concurrencyCap,

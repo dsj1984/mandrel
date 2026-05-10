@@ -131,7 +131,7 @@ export function buildDecomposerSystemPrompt(
   const base = renderDecomposerSystemPrompt({ maxTickets });
   const heuristicsStr =
     heuristics.length > 0
-      ? `### RISK HEURISTICS (Flag as risk::medium if any apply):\n- ${heuristics.join('\n- ')}`
+      ? `### RISK HEURISTICS (planning metadata if any apply):\n- ${heuristics.join('\n- ')}`
       : '';
   return `${base}${heuristicsStr ? `\n\n${heuristicsStr}` : ''}`;
 }

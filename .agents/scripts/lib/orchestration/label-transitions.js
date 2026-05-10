@@ -22,11 +22,6 @@ export function toExecuting(provider, ticketId, opts) {
   );
 }
 
-/** Transition a ticket to `agent::review`. */
-export function toReview(provider, ticketId, opts) {
-  return transitionTicketState(provider, ticketId, STATE_LABELS.REVIEW, opts);
-}
-
 /**
  * Transition an array of tickets to `agent::done`, in order. Each call
  * triggers its own cascade (via `transitionTicketState`). Failures for

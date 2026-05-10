@@ -46,7 +46,6 @@ async function seedCheckpoint(provider, epicId, overrides = {}) {
   return cp.initialize({
     totalWaves: 3,
     concurrencyCap: 2,
-    autoClose: false,
     ...overrides,
   });
 }

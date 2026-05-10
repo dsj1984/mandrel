@@ -1,23 +1,24 @@
 /**
- * EpicRunner — thin coordinator composing a collaborator factory and four
+ * EpicRunner — thin coordinator composing a collaborator factory and three
  * sequential phase modules.
  *
  * Public API: `runEpic({ epicId, provider, config, fetchImpl, ... })`
  * or `runEpic({ ctx })` with a pre-built `EpicRunnerContext`.
  *
  * Flow:
- *   1. snapshot       — fetch Epic, snapshot `epic::auto-close`.
+ *   1. snapshot       — fetch Epic.
  *   2. build-wave-dag — filter child Stories, compute waves.
  *   3. iterate-waves  — flip label, init checkpoint, run wave loop,
  *                       delegate blocker halts.
- *   4. finalize       — flip to review + run bookends (completed) or
- *                       settle blocked column sync (halted).
+ *
+ * Close-tail behavior (validation → review → retro → finalize) lives in
+ * `lib/orchestration/epic-deliver-close-tail.js` and is invoked by the
+ * `/epic-deliver` slash command after this runner completes successfully.
  */
 
 import { EpicRunnerContext } from './context.js';
 import { createEpicRunnerCollaborators } from './epic-runner/factory.js';
 import { runBuildWaveDagPhase } from './epic-runner/phases/build-wave-dag.js';
-import { runFinalizePhase } from './epic-runner/phases/finalize.js';
 import { runIterateWavesPhase } from './epic-runner/phases/iterate-waves.js';
 import { runSnapshotPhase } from './epic-runner/phases/snapshot.js';
 import { ErrorJournal } from './error-journal.js';
@@ -61,8 +62,16 @@ export async function runEpicWithContext(ctx) {
   });
 
   let state = {};
-  state = await runSnapshotPhase(ctx, collaborators, state);
-  state = await runBuildWaveDagPhase(ctx, collaborators, state);
-  state = await runIterateWavesPhase(ctx, collaborators, state);
-  return runFinalizePhase(ctx, collaborators, state);
+  try {
+    state = await runSnapshotPhase(ctx, collaborators, state);
+    state = await runBuildWaveDagPhase(ctx, collaborators, state);
+    state = await runIterateWavesPhase(ctx, collaborators, state);
+    return {
+      epicId,
+      state: state.completionState ?? 'completed',
+      waveHistory: state.waveHistory ?? [],
+    };
+  } finally {
+    await journal?.finalize?.();
+  }
 }

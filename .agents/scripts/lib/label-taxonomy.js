@@ -12,11 +12,8 @@ import { fileURLToPath } from 'node:url';
 import {
   AGENT_LABELS,
   CONTEXT_LABELS,
-  EPIC_LABELS,
-  EXECUTION_LABELS,
   LABEL_COLORS,
   PERSONA_LABEL_PREFIX,
-  RISK_LABELS,
   STATUS_LABELS,
   TYPE_LABELS,
 } from './label-constants.js';
@@ -89,21 +86,9 @@ export const LABEL_TAXONOMY = [
     description: 'Agent is working on this',
   },
   {
-    name: AGENT_LABELS.REVIEW,
-    color: LABEL_COLORS.AGENT,
-    description: 'Awaiting human review',
-  },
-  {
     name: AGENT_LABELS.DONE,
     color: LABEL_COLORS.AGENT,
     description: 'Agent work completed',
-  },
-
-  // Epic modifiers
-  {
-    name: EPIC_LABELS.AUTO_CLOSE,
-    color: LABEL_COLORS.EPIC,
-    description: 'Opt-in — autonomous review → retro → close + merge-to-main',
   },
 
   // Status
@@ -111,13 +96,6 @@ export const LABEL_TAXONOMY = [
     name: STATUS_LABELS.BLOCKED,
     color: LABEL_COLORS.STATUS_BLOCKED,
     description: 'Blocked by a dependency',
-  },
-
-  // Risk
-  {
-    name: RISK_LABELS.MEDIUM,
-    color: LABEL_COLORS.RISK,
-    description: 'Medium-risk change',
   },
 
   // Persona — dynamically derived from .agents/personas/*.md
@@ -133,18 +111,6 @@ export const LABEL_TAXONOMY = [
     name: CONTEXT_LABELS.TECH_SPEC,
     color: LABEL_COLORS.CONTEXT,
     description: 'Technical Specification',
-  },
-
-  // Execution
-  {
-    name: EXECUTION_LABELS.SEQUENTIAL,
-    color: LABEL_COLORS.EXECUTION,
-    description: 'Must execute sequentially',
-  },
-  {
-    name: EXECUTION_LABELS.CONCURRENT,
-    color: LABEL_COLORS.EXECUTION,
-    description: 'Can execute concurrently',
   },
 ];
 

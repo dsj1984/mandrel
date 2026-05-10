@@ -40,11 +40,9 @@ describe('Checkpointer', () => {
     const state = await cp.initialize({
       totalWaves: 3,
       concurrencyCap: 2,
-      autoClose: true,
     });
     assert.equal(state.version, CHECKPOINT_SCHEMA_VERSION);
     assert.equal(state.totalWaves, 3);
-    assert.equal(state.autoClose, true);
     assert.equal(state.currentWave, 0);
 
     const comments = provider._comments.get(321) ?? [];
@@ -57,11 +55,10 @@ describe('Checkpointer', () => {
   it('initialize() is idempotent when state exists', async () => {
     const provider = createFakeProvider();
     const cp = new Checkpointer({ provider, epicId: 321 });
-    await cp.initialize({ totalWaves: 3, concurrencyCap: 2, autoClose: false });
+    await cp.initialize({ totalWaves: 3, concurrencyCap: 2 });
     const second = await cp.initialize({
       totalWaves: 9,
       concurrencyCap: 9,
-      autoClose: true,
     });
     assert.equal(second.totalWaves, 3, 'existing state wins on re-initialize');
     const comments = provider._comments.get(321) ?? [];
@@ -71,7 +68,7 @@ describe('Checkpointer', () => {
   it('write() overwrites prior checkpoints via marker upsert', async () => {
     const provider = createFakeProvider();
     const cp = new Checkpointer({ provider, epicId: 321 });
-    await cp.initialize({ totalWaves: 3, concurrencyCap: 2, autoClose: false });
+    await cp.initialize({ totalWaves: 3, concurrencyCap: 2 });
     await cp.write({ epicId: 321, currentWave: 1, totalWaves: 3, waves: [] });
     await cp.write({ epicId: 321, currentWave: 2, totalWaves: 3, waves: [] });
 

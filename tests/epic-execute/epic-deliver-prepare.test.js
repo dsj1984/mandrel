@@ -59,7 +59,7 @@ const baseConfig = {
 
 describe('runEpicDeliverPrepare', () => {
   it('snapshots the epic, builds the DAG, initializes the checkpoint, and returns the plan', async () => {
-    const epic = { id: 100, labels: ['type::epic', 'epic::auto-close'] };
+    const epic = { id: 100, labels: ['type::epic'] };
     const descendants = [
       {
         id: 201,
@@ -85,7 +85,6 @@ describe('runEpicDeliverPrepare', () => {
     });
 
     assert.equal(out.epicId, 100);
-    assert.equal(out.autoClose, true, 'autoClose label must be reflected');
     assert.equal(out.totalWaves, 2, 'two waves from 201 → 202 chain');
     assert.equal(out.concurrencyCap, 3);
     assert.equal(out.plan.length, 2);
@@ -111,10 +110,9 @@ describe('runEpicDeliverPrepare', () => {
       epicComments[0].body,
       new RegExp(`"version":\\s*${CHECKPOINT_SCHEMA_VERSION}`),
     );
-    assert.match(epicComments[0].body, /"autoClose":\s*true/);
   });
 
-  it('autoClose=false when the label is absent', async () => {
+  it('builds the plan for a single-story Epic', async () => {
     const epic = { id: 101, labels: ['type::epic'] };
     const descendants = [
       {
@@ -131,7 +129,6 @@ describe('runEpicDeliverPrepare', () => {
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.autoClose, false);
     assert.equal(out.totalWaves, 1);
   });
 

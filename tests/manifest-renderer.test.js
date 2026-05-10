@@ -77,8 +77,7 @@ test('renderManifestMarkdown', async (t) => {
     const manifest = makeBaseManifest();
     const output = renderManifestMarkdown(manifest);
     assert.match(output, /Agent Operating Procedures/);
-    assert.match(output, /\/epic-execute/);
-    assert.match(output, /\/epic-close/);
+    assert.match(output, /\/epic-deliver/);
   });
 
   await t.test('renders 0% progress bar when no tasks done', () => {

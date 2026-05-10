@@ -8,12 +8,11 @@
  * call sequentially, but does NOT dispatch any waves. The CLI is the single
  * point at which the slash-command captures:
  *
- *   1. The Epic ticket snapshot (`runSnapshotPhase`) — including the
- *      `epic::auto-close` boolean read once at dispatch time.
+ *   1. The Epic ticket snapshot (`runSnapshotPhase`).
  *   2. The wave DAG (`runBuildWaveDagPhase`) computed from every child Story.
  *   3. The seeded `epic-run-state` checkpoint (`Checkpointer.initialize`) —
  *      idempotent, so re-running prepare against a partially-driven Epic
- *      preserves the original `startedAt`/`autoClose`.
+ *      preserves the original `startedAt`.
  *   4. The per-wave dispatch plan (`StoryLauncher.planWave`) — a deterministic
  *      list of `{ storyId, worktree }` entries that the slash command feeds
  *      into N parallel `Agent` tool calls per wave.
@@ -54,7 +53,6 @@ checkpoint, and prints the per-wave dispatch plan as JSON.
  * }} args
  * @returns {Promise<{
  *   epicId: number,
- *   autoClose: boolean,
  *   totalWaves: number,
  *   concurrencyCap: number,
  *   plan: Array<{ wave: number, stories: Array<{ storyId: number, title: string, worktree?: string }> }>,
@@ -93,7 +91,6 @@ export async function runEpicDeliverPrepare({
   const checkpointState = await checkpointer.initialize({
     totalWaves,
     concurrencyCap,
-    autoClose: state.autoClose,
   });
 
   const launcher = new StoryLauncher({ concurrencyCap });
@@ -107,7 +104,6 @@ export async function runEpicDeliverPrepare({
 
   return {
     epicId,
-    autoClose: Boolean(state.autoClose),
     totalWaves,
     concurrencyCap,
     plan,
