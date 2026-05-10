@@ -2,33 +2,39 @@
  * Notification helpers — shared severity vocabulary and webhook URL resolver.
  *
  * The unified `notify()` API in `notify.js` is the single dispatch entry
- * point for both:
+ * point for:
  *
  *   1. Manual orchestration milestones (story merged, epic complete, HITL
  *      gates) — called explicitly by orchestration scripts.
  *   2. Ticket-state-transition events — `transitionTicketState` invokes
  *      `notify()` directly when a `notify` function is injected via opts.
- *   3. Structured-comment mirrors — the progress writers
- *      (`upsertStoryRunProgress`, `ProgressReporter`) call `notify()`
- *      after a successful upsert with `skipComment: true` so the webhook
- *      carries the same cadence as GitHub watchers see in the issue
- *      thread.
+ *   3. Curated epic-level webhook fires — `epic-started`, `epic-progress`,
+ *      `epic-blocked`, `epic-unblocked`, `epic-complete`. These are the
+ *      only event names routed to the Slack webhook by the default
+ *      allowlist; story-level events still flow to GitHub comments but no
+ *      longer reach the webhook.
  *
- * Severity vocabulary: low | medium | high.
+ * Severity vocabulary: low | medium | high. Severity drives the
+ * GitHub-comment and terminal channels and is carried as webhook envelope
+ * metadata, but it is *not* a routing factor for the webhook channel —
+ * that channel is gated by an event-name allowlist
+ * (`notifications.webhookEvents`).
  *   - low    — routine pipeline progress: task transitions and
  *              `story-run-progress` upserts. Filtered out at the default
- *              `medium` threshold on every channel.
+ *              `medium` threshold on comment/terminal channels.
  *   - medium — operator-visible milestones: story state transitions,
- *              epic-run-progress, epic-complete. Default
- *              threshold for delivery on every channel.
+ *              epic-progress, epic-complete. Default threshold for
+ *              comment/terminal delivery.
  *   - high   — operator must act: epic blockers, HITL gates,
  *              autonomous-chain failures. Webhook prefix is
  *              `[Action Required]`; callers should also lead the message
  *              body with `🚨 Action Required:` so the GitHub comment
  *              carries the same signal.
  *
- * Channel gates: per-channel `commentMinLevel`, `webhookMinLevel`, and
- * `terminalMinLevel` filter independently — there is no fallback chain.
+ * Channel gates: `commentMinLevel` and `terminalMinLevel` filter their
+ * respective channels by severity; `webhookEvents` filters the webhook
+ * channel by event name. Each channel filters independently — there is no
+ * fallback chain.
  *
  * Webhook URL resolution: `process.env.NOTIFICATION_WEBHOOK_URL` only —
  * loaded from `.env` locally, the Claude Code web environment-variables UI,

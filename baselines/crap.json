@@ -238,52 +238,58 @@
       "startLine": 187
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "checkCrapRegression",
+      "startLine": 242
+    },
+    {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 222
+      "startLine": 253
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 345
+      "startLine": 368
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 408
+      "startLine": 431
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "writeJsonReport",
-      "startLine": 452
+      "startLine": 475
     },
     {
       "crap": 30,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 460
+      "startLine": 483
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 503
+      "startLine": 526
     },
     {
       "crap": 9.029518950437318,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 567
+      "startLine": 590
     },
     {
       "crap": 27.9140567779541,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 596
+      "startLine": 619
     },
     {
       "crap": 5,
@@ -643,49 +649,49 @@
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrCreateArgs",
-      "startLine": 51
+      "startLine": 52
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrTitle",
-      "startLine": 69
+      "startLine": 70
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrBody",
-      "startLine": 79
+      "startLine": 80
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildHandoffBody",
-      "startLine": 98
+      "startLine": 99
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "defaultGhSpawn",
-      "startLine": 110
+      "startLine": 111
     },
     {
       "crap": 5.000925925925926,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "checkEpicFastForward",
-      "startLine": 129
+      "startLine": 130
     },
     {
       "crap": 9.252007406217661,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "runEpicDeliverFinalize",
-      "startLine": 182
+      "startLine": 183
     },
     {
       "crap": 30,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "main",
-      "startLine": 320
+      "startLine": 321
     },
     {
       "crap": 4.006503073718437,
@@ -835,31 +841,31 @@
       "crap": 2,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "splitOnDashDash",
-      "startLine": 64
+      "startLine": 65
     },
     {
       "crap": 5,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "parseWrapperArgs",
-      "startLine": 78
+      "startLine": 79
     },
     {
       "crap": 4,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "resolveHeadShaDefault",
-      "startLine": 103
+      "startLine": 104
     },
     {
       "crap": 13,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "runEvidenceGate",
-      "startLine": 138
+      "startLine": 139
     },
     {
       "crap": 2,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "main",
-      "startLine": 228
+      "startLine": 229
     },
     {
       "crap": 12,
@@ -1465,7 +1471,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 280
+      "startLine": 306
     },
     {
       "crap": 2,
@@ -1561,7 +1567,7 @@
       "crap": 1,
       "file": ".agents/scripts/lib/config/runners.js",
       "method": "getRunners",
-      "startLine": 36
+      "startLine": 37
     },
     {
       "crap": 4,
@@ -1718,6 +1724,78 @@
       "file": ".agents/scripts/lib/config/validate-orchestration.js",
       "method": "validateOrchestrationConfig",
       "startLine": 30
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "toForwardSlash",
+      "startLine": 36
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "buildScopePredicate",
+      "startLine": 46
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "<anon method-1>",
+      "startLine": 48
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "<anon method-2>",
+      "startLine": 50
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "scoreEntry",
+      "startLine": 70
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "<anon method-4>",
+      "startLine": 96
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "scoreCoverageFinal",
+      "startLine": 112
+    },
+    {
+      "crap": 2.0054869684499312,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "readCoverageFinal",
+      "startLine": 128
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "readBaseline",
+      "startLine": 144
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "writeBaseline",
+      "startLine": 150
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "axisToleranceFor",
+      "startLine": 184
+    },
+    {
+      "crap": 11,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "compareScores",
+      "startLine": 214
     },
     {
       "crap": 2.0054869684499312,
@@ -2473,25 +2551,25 @@
       "crap": 1,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "meetsMinLevel",
-      "startLine": 45
+      "startLine": 51
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "eventSeverity",
-      "startLine": 61
+      "startLine": 67
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "renderTransitionMessage",
-      "startLine": 74
+      "startLine": 80
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "resolveWebhookUrl",
-      "startLine": 87
+      "startLine": 93
     },
     {
       "crap": 1,
@@ -2950,7 +3028,7 @@
       "startLine": 41
     },
     {
-      "crap": 1.0034783092634332,
+      "crap": 1.003641329085116,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "createEpicRunnerCollaborators",
       "startLine": 26
@@ -2959,13 +3037,13 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "<anon method-2>",
-      "startLine": 61
+      "startLine": 60
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "<anon method-3>",
-      "startLine": 62
+      "startLine": 61
     },
     {
       "crap": 2,
@@ -2980,22 +3058,22 @@
       "startLine": 44
     },
     {
-      "crap": 10.759099039209753,
+      "crap": 11.255555068949535,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
       "method": "runIterateWavesPhase",
-      "startLine": 20
+      "startLine": 25
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
       "method": "<anon method-1>",
-      "startLine": 33
+      "startLine": 38
     },
     {
       "crap": 1.015625,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-4>",
-      "startLine": 107
+      "method": "<anon method-5>",
+      "startLine": 140
     },
     {
       "crap": 1,
@@ -3007,67 +3085,85 @@
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parseStoryRunProgressComment",
-      "startLine": 58
+      "startLine": 72
     },
     {
       "crap": 42,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "phaseToState",
-      "startLine": 75
+      "startLine": 89
     },
     {
       "crap": 7,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "deriveState",
-      "startLine": 622
+      "startLine": 614
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "truncate",
-      "startLine": 633
+      "startLine": 625
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "escapePipes",
-      "startLine": 638
+      "startLine": 630
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "formatElapsed",
-      "startLine": 642
+      "startLine": 634
     },
     {
       "crap": 15,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "upsertEpicRunProgress",
-      "startLine": 698
+      "startLine": 690
+    },
+    {
+      "crap": 12.495227603995245,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "emitEpicProgress",
+      "startLine": 825
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "emitEpicStarted",
+      "startLine": 884
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "emitEpicUnblocked",
+      "startLine": 922
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
-      "startLine": 813
+      "startLine": 962
     },
     {
       "crap": 7.467679550324179,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
-      "startLine": 837
+      "startLine": 986
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
-      "startLine": 871
+      "startLine": 1020
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 887
+      "startLine": 1036
     },
     {
       "crap": 16.078678343482082,
@@ -3247,13 +3343,13 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/label-transitions.js",
       "method": "toExecuting",
-      "startLine": 16
+      "startLine": 17
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/label-transitions.js",
       "method": "toDone",
-      "startLine": 35
+      "startLine": 36
     },
     {
       "crap": 3,
@@ -4429,7 +4525,7 @@
       "crap": 4,
       "file": ".agents/scripts/lib/story-init/transition-summary.js",
       "method": "postBatchedTransitionSummary",
-      "startLine": 22
+      "startLine": 25
     },
     {
       "crap": 3,
@@ -5101,43 +5197,49 @@
       "crap": 1,
       "file": ".agents/scripts/notify.js",
       "method": "resolveChannelLevels",
-      "startLine": 51
+      "startLine": 58
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/notify.js",
+      "method": "resolveWebhookEvents",
+      "startLine": 71
     },
     {
       "crap": 12,
       "file": ".agents/scripts/notify.js",
       "method": "buildWebhookPayload",
-      "startLine": 60
+      "startLine": 77
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/notify.js",
       "method": "sendWebhook",
-      "startLine": 94
+      "startLine": 111
     },
     {
-      "crap": 16,
+      "crap": 17,
       "file": ".agents/scripts/notify.js",
       "method": "notify",
-      "startLine": 136
+      "startLine": 153
     },
     {
       "crap": 2,
       "file": ".agents/scripts/notify.js",
-      "method": "<anon method-2>",
-      "startLine": 148
+      "method": "<anon method-3>",
+      "startLine": 166
     },
     {
       "crap": 11.406371724957973,
       "file": ".agents/scripts/notify.js",
       "method": "parseNotifyArgs",
-      "startLine": 201
+      "startLine": 222
     },
     {
       "crap": 2,
       "file": ".agents/scripts/notify.js",
       "method": "main",
-      "startLine": 260
+      "startLine": 281
     },
     {
       "crap": 1,
@@ -5545,19 +5647,19 @@
       "crap": 1.7865270823850707,
       "file": ".agents/scripts/select-audits.js",
       "method": "parseArgv",
-      "startLine": 65
+      "startLine": 61
     },
     {
       "crap": 9,
       "file": ".agents/scripts/select-audits.js",
       "method": "runSelectAuditsCli",
-      "startLine": 99
+      "startLine": 95
     },
     {
       "crap": 17.60431549788599,
       "file": ".agents/scripts/select-audits.js",
       "method": "main",
-      "startLine": 152
+      "startLine": 148
     },
     {
       "crap": 1,
@@ -5656,7 +5758,7 @@
       "startLine": 65
     },
     {
-      "crap": 18.87456565742464,
+      "crap": 18.821347773698136,
       "file": ".agents/scripts/story-init.js",
       "method": "runStoryInit",
       "startLine": 78
@@ -5671,43 +5773,43 @@
       "crap": 1,
       "file": ".agents/scripts/story-init.js",
       "method": "<anon method-4>",
-      "startLine": 113
+      "startLine": 116
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-init.js",
       "method": "<anon method-5>",
-      "startLine": 239
+      "startLine": 242
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-init.js",
       "method": "buildStoryInitResult",
-      "startLine": 390
+      "startLine": 393
     },
     {
       "crap": 3.072,
       "file": ".agents/scripts/story-init.js",
       "method": "mapDependenciesInstalled",
-      "startLine": 443
+      "startLine": 446
     },
     {
       "crap": 1.0046296296296295,
       "file": ".agents/scripts/story-init.js",
       "method": "postStoryInitComment",
-      "startLine": 454
+      "startLine": 457
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "renderStoryInitCommentBody",
-      "startLine": 480
+      "startLine": 483
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "emitStoryInitResult",
-      "startLine": 516
+      "startLine": 519
     },
     {
       "crap": 4.916,

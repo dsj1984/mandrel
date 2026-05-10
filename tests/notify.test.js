@@ -4,6 +4,23 @@ import { notify, parseNotifyArgs } from '../.agents/scripts/notify.js';
 
 const DEFAULT_WEBHOOK = 'https://webhook.example.com/action';
 
+// Permissive allowlist for the test mock — covers the curated `epic-*`
+// vocabulary plus the legacy story/task event names tests still exercise to
+// prove envelope shape. Production `.agentrc.json` ships only the five
+// `epic-*` events; tests deliberately broaden it so each case can choose
+// whether the dispatch carries an allowlisted event.
+const DEFAULT_WEBHOOK_EVENTS = [
+  'epic-started',
+  'epic-progress',
+  'epic-blocked',
+  'epic-unblocked',
+  'epic-complete',
+  'story-merged',
+  'story-run-progress',
+  'state-transition',
+  'task-transition',
+];
+
 describe('notify script', () => {
   let mockProvider;
   let mockOrchestration;
@@ -37,8 +54,8 @@ describe('notify script', () => {
       notifications: {
         mentionOperator: true,
         commentMinLevel: 'medium',
-        webhookMinLevel: 'medium',
         terminalMinLevel: 'medium',
+        webhookEvents: [...DEFAULT_WEBHOOK_EVENTS],
       },
     };
 
@@ -49,10 +66,16 @@ describe('notify script', () => {
     };
   });
 
-  it('medium with mentionOperator=true posts mentioned comment + fires medium webhook with typed envelope', async () => {
+  it('medium with mentionOperator=true posts mentioned comment + fires allowlisted webhook with typed envelope', async () => {
     await notify(
       123,
-      { severity: 'medium', message: 'Story merged.' },
+      {
+        severity: 'medium',
+        message: 'Story merged.',
+        event: 'story-merged',
+        level: 'story',
+        epicId: 456,
+      },
       defaultOpts,
     );
 
@@ -67,9 +90,9 @@ describe('notify script', () => {
     assert.equal(body.text, '[medium] widgets#123: Story merged.');
     assert.equal(body.severity, 'medium');
     assert.equal(body.ticketId, 123);
-    // event/level/epicId/phase only populated when caller provides them.
-    assert.equal(body.event, undefined);
-    assert.equal(body.level, undefined);
+    assert.equal(body.event, 'story-merged');
+    assert.equal(body.level, 'story');
+    assert.equal(body.epicId, 456);
   });
 
   it('typed envelope carries event/level/epicId/phase when provided', async () => {
@@ -83,17 +106,7 @@ describe('notify script', () => {
         epicId: 946,
         phase: 'implementing',
       },
-      {
-        ...defaultOpts,
-        orchestration: {
-          ...mockOrchestration,
-          notifications: {
-            ...mockOrchestration.notifications,
-            webhookMinLevel: 'low',
-          },
-        },
-        skipComment: true,
-      },
+      { ...defaultOpts, skipComment: true },
     );
 
     assert.equal(fetchCalls.length, 1);
@@ -107,12 +120,18 @@ describe('notify script', () => {
     assert.match(body.text, /\[low\] widgets#1234:/);
   });
 
-  it('high always @mentions and fires [Action Required] webhook', async () => {
+  it('high always @mentions and fires [Action Required] webhook when event is allowlisted', async () => {
     mockOrchestration.notifications.mentionOperator = false;
 
     await notify(
       124,
-      { severity: 'high', message: '🚨 Action Required: Approve deploy?' },
+      {
+        severity: 'high',
+        message: '🚨 Action Required: Approve deploy?',
+        event: 'epic-blocked',
+        level: 'epic',
+        epicId: 124,
+      },
       defaultOpts,
     );
 
@@ -132,17 +151,110 @@ describe('notify script', () => {
     assert.equal(body.severity, 'high');
   });
 
-  it('low is filtered out of BOTH comment and webhook at default channel thresholds', async () => {
-    // Defaults: comment=medium, webhook=medium. A `low` notify suppresses
-    // both surfaces.
+  it('dispatches without an event field never reach the webhook', async () => {
+    // The webhook channel is gated by event-name allowlist. An untyped
+    // `notify()` call (no `event` field) carries no routing key and is
+    // dropped from the webhook regardless of severity.
+    await notify(
+      125,
+      { severity: 'high', message: 'Untyped milestone.' },
+      defaultOpts,
+    );
+
+    assert.equal(
+      mockProvider.comments.length,
+      1,
+      'high comment still posts — comment channel is severity-gated',
+    );
+    assert.equal(
+      fetchCalls.length,
+      0,
+      'untyped dispatch never reaches the webhook',
+    );
+  });
+
+  it('dispatches with an event NOT on the allowlist are dropped from the webhook', async () => {
+    mockOrchestration.notifications.webhookEvents = ['epic-blocked'];
+
+    await notify(
+      201,
+      {
+        severity: 'medium',
+        message: 'Story merged.',
+        event: 'story-merged',
+        level: 'story',
+      },
+      defaultOpts,
+    );
+
+    assert.equal(
+      mockProvider.comments.length,
+      1,
+      'comment still posts (severity-gated, allowlist is webhook-only)',
+    );
+    assert.equal(
+      fetchCalls.length,
+      0,
+      'story-merged not in allowlist — webhook suppressed',
+    );
+  });
+
+  it('empty webhookEvents allowlist suppresses every webhook', async () => {
+    mockOrchestration.notifications.webhookEvents = [];
+
+    await notify(
+      202,
+      {
+        severity: 'high',
+        message: '🚨 Action Required: Approve deploy?',
+        event: 'epic-blocked',
+      },
+      defaultOpts,
+    );
+
+    assert.equal(
+      fetchCalls.length,
+      0,
+      'empty allowlist suppresses the webhook even for high-severity allowlisted-name events',
+    );
+  });
+
+  it('severity is carried as envelope metadata regardless of allowlist routing', async () => {
+    mockOrchestration.notifications.webhookEvents = ['epic-progress'];
+
+    await notify(
+      300,
+      {
+        severity: 'low',
+        message: 'Epic #300 progress · 1/5 stories done',
+        event: 'epic-progress',
+        level: 'epic',
+        epicId: 300,
+      },
+      { ...defaultOpts, skipComment: true },
+    );
+
+    assert.equal(fetchCalls.length, 1);
+    const body = JSON.parse(fetchCalls[0].options.body);
+    assert.equal(body.severity, 'low');
+    assert.equal(body.event, 'epic-progress');
+  });
+
+  it('low is filtered out of the comment channel at the default commentMinLevel=medium', async () => {
     await notify(
       200,
-      { severity: 'low', message: 'Step 3 done.' },
+      {
+        severity: 'low',
+        message: 'Step 3 done.',
+        event: 'story-run-progress',
+      },
       defaultOpts,
     );
 
     assert.equal(mockProvider.comments.length, 0, 'low filtered from comments');
-    assert.equal(fetchCalls.length, 0, 'low filtered from webhook');
+    // Webhook channel is event-gated, not severity-gated — `story-run-progress`
+    // is in the test allowlist, so the webhook still fires.
+    assert.equal(fetchCalls.length, 1);
   });
 
   it('low posts a progress comment when commentMinLevel=low', async () => {
@@ -150,24 +262,29 @@ describe('notify script', () => {
 
     await notify(
       200,
-      { severity: 'low', message: 'Step 3 done.' },
+      {
+        severity: 'low',
+        message: 'Step 3 done.',
+        event: 'story-run-progress',
+      },
       defaultOpts,
     );
 
     assert.equal(mockProvider.comments.length, 1);
     assert.equal(mockProvider.comments[0].data.type, 'progress');
     assert.equal(mockProvider.comments[0].data.body, 'Step 3 done.');
-    // Webhook still gated by webhookMinLevel (default medium).
-    assert.equal(fetchCalls.length, 0);
   });
 
-  it('commentMinLevel=high suppresses medium comment but webhookMinLevel=medium still fires webhook', async () => {
+  it('commentMinLevel=high suppresses medium comment but webhook still fires when event is allowlisted', async () => {
     mockOrchestration.notifications.commentMinLevel = 'high';
-    mockOrchestration.notifications.webhookMinLevel = 'medium';
 
     await notify(
       201,
-      { severity: 'medium', message: 'Story merged.' },
+      {
+        severity: 'medium',
+        message: 'Story merged.',
+        event: 'story-merged',
+      },
       defaultOpts,
     );
 
@@ -179,17 +296,20 @@ describe('notify script', () => {
     assert.equal(
       fetchCalls.length,
       1,
-      'webhook still fires at webhookMinLevel=medium',
+      'webhook still fires — story-merged is allowlisted',
     );
   });
 
-  it('skipComment opt suppresses comment but webhook still fires when webhookMinLevel allows', async () => {
-    mockOrchestration.notifications.webhookMinLevel = 'low';
+  it('skipComment opt suppresses comment but webhook still fires when event is allowlisted', async () => {
     mockOrchestration.notifications.commentMinLevel = 'low';
 
     await notify(
       210,
-      { severity: 'low', message: 'task #N → executing' },
+      {
+        severity: 'low',
+        message: 'task #N → executing',
+        event: 'task-transition',
+      },
       { ...defaultOpts, skipComment: true },
     );
 
@@ -197,38 +317,6 @@ describe('notify script', () => {
     assert.equal(fetchCalls.length, 1);
     const body = JSON.parse(fetchCalls[0].options.body);
     assert.equal(body.text, '[low] widgets#210: task #N → executing');
-  });
-
-  it('low fires when webhookMinLevel is explicitly set to low', async () => {
-    mockOrchestration.notifications.webhookMinLevel = 'low';
-
-    await notify(
-      200,
-      { severity: 'low', message: 'Step 3 done.' },
-      defaultOpts,
-    );
-
-    assert.equal(fetchCalls.length, 1);
-    const body = JSON.parse(fetchCalls[0].options.body);
-    assert.equal(body.text, '[low] widgets#200: Step 3 done.');
-  });
-
-  it('webhookMinLevel=high suppresses medium and fires high', async () => {
-    mockOrchestration.notifications.webhookMinLevel = 'high';
-
-    await notify(
-      201,
-      { severity: 'medium', message: 'Story merged.' },
-      defaultOpts,
-    );
-    assert.equal(fetchCalls.length, 0);
-
-    await notify(
-      201,
-      { severity: 'high', message: '🚨 Action Required: Review.' },
-      defaultOpts,
-    );
-    assert.equal(fetchCalls.length, 1);
   });
 
   it('terminalMinLevel=high silences notify console.log for medium events', async () => {
@@ -239,14 +327,18 @@ describe('notify script', () => {
     try {
       await notify(
         220,
-        { severity: 'medium', message: 'Story merged.' },
+        {
+          severity: 'medium',
+          message: 'Story merged.',
+          event: 'story-merged',
+        },
         defaultOpts,
       );
     } finally {
       console.log = originalLog;
     }
     // Terminal is silent at medium when terminalMinLevel=high; comment +
-    // webhook still fire because their thresholds are independent.
+    // webhook still fire because their gates are independent.
     assert.equal(lines.length, 0, 'no console.log lines emitted by notify');
     assert.equal(mockProvider.comments.length, 1);
     assert.equal(fetchCalls.length, 1);
@@ -255,14 +347,17 @@ describe('notify script', () => {
   it('terminalMinLevel=low surfaces notify console.log for low events', async () => {
     mockOrchestration.notifications.terminalMinLevel = 'low';
     mockOrchestration.notifications.commentMinLevel = 'low';
-    mockOrchestration.notifications.webhookMinLevel = 'low';
     const originalLog = console.log;
     const lines = [];
     console.log = (...args) => lines.push(args.join(' '));
     try {
       await notify(
         221,
-        { severity: 'low', message: 'Task done.' },
+        {
+          severity: 'low',
+          message: 'Task done.',
+          event: 'task-transition',
+        },
         defaultOpts,
       );
     } finally {
@@ -284,7 +379,11 @@ describe('notify script', () => {
   it('tolerates webhook failures silently', async () => {
     await notify(
       125,
-      { severity: 'high', message: 'Review needed.' },
+      {
+        severity: 'high',
+        message: 'Review needed.',
+        event: 'epic-blocked',
+      },
       {
         ...defaultOpts,
         webhookUrl: 'https://webhook.example.com/fail',
@@ -298,7 +397,11 @@ describe('notify script', () => {
   it('skips webhook if url is not configured', async () => {
     await notify(
       126,
-      { severity: 'high', message: 'Review needed.' },
+      {
+        severity: 'high',
+        message: 'Review needed.',
+        event: 'epic-blocked',
+      },
       {
         provider: mockProvider,
         orchestration: mockOrchestration,
@@ -313,7 +416,11 @@ describe('notify script', () => {
   it('skips GitHub comment if ticketId is 0 or missing', async () => {
     await notify(
       0,
-      { severity: 'medium', message: 'Sidecar message' },
+      {
+        severity: 'medium',
+        message: 'Sidecar message',
+        event: 'epic-progress',
+      },
       defaultOpts,
     );
 
@@ -325,7 +432,11 @@ describe('notify script', () => {
 
     await notify(
       127,
-      { severity: 'medium', message: 'Story merged.' },
+      {
+        severity: 'medium',
+        message: 'Story merged.',
+        event: 'story-merged',
+      },
       defaultOpts,
     );
 
@@ -340,7 +451,11 @@ describe('notify script', () => {
     try {
       await notify(
         128,
-        { severity: 'high', message: 'Secret action' },
+        {
+          severity: 'high',
+          message: 'Secret action',
+          event: 'epic-blocked',
+        },
         defaultOpts,
       );
 
@@ -353,13 +468,18 @@ describe('notify script', () => {
     }
   });
 
-  it('defaults severity to medium when omitted', async () => {
-    await notify(129, { message: 'Default sev.' }, defaultOpts);
+  it('defaults severity to medium when omitted; webhook still requires an allowlisted event', async () => {
+    await notify(
+      129,
+      { message: 'Default sev.', event: 'epic-complete' },
+      defaultOpts,
+    );
 
     assert.equal(fetchCalls.length, 1);
     const body = JSON.parse(fetchCalls[0].options.body);
     assert.equal(body.text, '[medium] widgets#129: Default sev.');
     assert.equal(body.severity, 'medium');
+    assert.equal(body.event, 'epic-complete');
   });
 });
 

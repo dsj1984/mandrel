@@ -627,16 +627,21 @@ Severity vocabulary (assigned by callers; `eventSeverity()` in
 | `high`   | Operator must act (HITL gates, epic blockers, autonomous-chain failures). Message body should also lead with `🚨 Action Required:`. | `[Action Required]`  |
 
 Three independent filter knobs in `orchestration.notifications`
-(all mandatory, default `medium`):
+(all mandatory):
 
-- `commentMinLevel` — gates GitHub comment posting.
-- `webhookMinLevel` — gates `NOTIFICATION_WEBHOOK_URL` deliveries.
-- `terminalMinLevel` — gates `notify()`'s own stdout chatter.
+- `commentMinLevel` — severity gate for GitHub comment posting (default `medium`).
+- `terminalMinLevel` — severity gate for `notify()`'s own stdout chatter (default `medium`).
+- `webhookEvents` — event-name allowlist for `NOTIFICATION_WEBHOOK_URL` deliveries.
+  Default: `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]`.
 
-Each channel filters independently; there is no fallback chain. Drop one to
-`low` to widen that surface (e.g. `webhookMinLevel: low` to follow Task-level
-churn over Slack); raise one to `high` to suppress everything but
-action-required events on that channel.
+Each channel filters independently; there is no fallback chain. Severity
+controls the comment + terminal channels but is **not** a routing factor
+for the webhook — the webhook is curated for the epic narrative
+(% progress + blockers) via the explicit allowlist. To suppress the
+webhook entirely set `webhookEvents: []`; to widen it, extend the array
+(the schema enum pins the closed `epic-*` vocabulary, so adding custom
+event names requires loosening the enum in
+`.agents/scripts/lib/config-schema.js`).
 
 Webhook URL resolution:
 

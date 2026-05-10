@@ -61,12 +61,17 @@ describe('postBatchedTransitionSummary', () => {
       github: { owner: 'acme', repo: 'widgets', operatorHandle: '@op' },
       notifications: {
         commentMinLevel: 'low',
-        webhookMinLevel: 'high',
         terminalMinLevel: 'medium',
+        // Empty allowlist: webhook channel suppressed regardless of event
+        // name. The summary dispatch carries no `event` field either way,
+        // so it would be dropped even with a permissive allowlist — but
+        // the explicit empty list makes the test's webhook-quiet
+        // assertion unambiguous.
+        webhookEvents: [],
       },
     };
     // Stub fetch defensively per the documented webhook-leak pattern. Even
-    // though webhookMinLevel=high suppresses the webhook, leaving fetch
+    // though the empty allowlist suppresses the webhook, leaving fetch
     // unstubbed would attempt a real network call if the filter ever
     // regresses.
     const fetchCalls = [];
@@ -97,7 +102,7 @@ describe('postBatchedTransitionSummary', () => {
       assert.equal(
         fetchCalls.length,
         0,
-        'webhook suppressed by webhookMinLevel=high',
+        'webhook suppressed by empty webhookEvents allowlist',
       );
     } finally {
       global.fetch = originalFetch;
