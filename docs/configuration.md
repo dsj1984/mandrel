@@ -223,7 +223,6 @@ Added in Epic #817 Story 9.
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
-| `epicClose.runRetro`   | No   | `true`  | When `true`, `/epic-close` invokes the retro helper.                                     |
 | `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 

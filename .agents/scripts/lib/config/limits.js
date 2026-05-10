@@ -25,8 +25,10 @@ export const SIGNALS_DEFAULTS = Object.freeze({
 /**
  * Framework defaults for `agentSettings.limits` (Epic #730 Story 8). Mirrors
  * the long-standing flat-key fallbacks the framework used before grouping —
- * `maxTickets: 40`, 5-minute exec timeout, 10MB exec buffer, 200k token
- * budget. `friction` defaults match the prior `frictionThresholds` block.
+ * `maxTickets: 60` (bumped from 40 in Epic #1142 to fit larger 5.40.x
+ * Epics without per-repo override), 5-minute exec timeout, 10MB exec
+ * buffer, 200k token budget. `friction` defaults match the prior
+ * `frictionThresholds` block.
  * `planningContext` (Epic #817 Story 9) caps `--emit-context` JSON payloads
  * at 50KB before switching to a summary representation. The `signals`
  * sub-block is the same frozen reference as the `SIGNALS_DEFAULTS` export
@@ -34,7 +36,7 @@ export const SIGNALS_DEFAULTS = Object.freeze({
  */
 export const LIMITS_DEFAULTS = Object.freeze({
   maxInstructionSteps: 5,
-  maxTickets: 40,
+  maxTickets: 60,
   maxTokenBudget: 200000,
   executionTimeoutMs: 300000,
   executionMaxBuffer: 10485760,

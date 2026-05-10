@@ -107,7 +107,7 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           build: null,
         },
         limits: {
-          maxTickets: 40,
+          maxTickets: 60,
           maxInstructionSteps: 5,
           maxTokenBudget: 200000,
           executionTimeoutMs: 300000,
@@ -138,10 +138,36 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
           packageJson: true,
           autoVersionBump: true,
         },
-        epicClose: { runRetro: true },
         riskGates: { heuristics: ['no destructive ops'] },
       },
       'fully populated',
+    );
+  });
+
+  // Epic #1142 Story #1157: epicClose + orchestration.hitl deleted from
+  // both AJV schemas and the static mirror. Legacy v5.39.x configs that
+  // still carry these blocks must fail with `additionalProperties` errors
+  // on both validators.
+  it('rejects legacy epicClose at the agentSettings root on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        epicClose: { runRetro: true },
+      },
+      'legacy epicClose post-1157',
+    );
+  });
+
+  it('rejects legacy orchestration.hitl on both sides', () => {
+    assertAgree(
+      'orchestration',
+      {
+        provider: 'github',
+        github: { owner: 'org', repo: 'repo' },
+        hitl: {},
+      },
+      'legacy orchestration.hitl post-1157',
     );
   });
 

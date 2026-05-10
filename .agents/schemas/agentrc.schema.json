@@ -89,11 +89,6 @@
       },
       "additionalProperties": false
     },
-    "epicClose": {
-      "type": "object",
-      "properties": { "runRetro": { "type": "boolean" } },
-      "additionalProperties": false
-    },
     "frictionLimits": {
       "type": "object",
       "properties": {
@@ -352,7 +347,6 @@
       "properties": {
         "baseBranch": { "$ref": "#/$defs/safeString" },
         "docsContextFiles": { "type": "array", "items": { "type": "string" } },
-        "epicClose": { "$ref": "#/$defs/epicClose" },
         "release": { "$ref": "#/$defs/release" },
         "riskGates": { "$ref": "#/$defs/riskGates" },
         "quality": { "$ref": "#/$defs/quality" },
@@ -499,11 +493,6 @@
         "github": { "$ref": "#/$defs/github" },
         "executor": { "type": "string" },
         "notifications": { "$ref": "#/$defs/notifications" },
-        "hitl": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": false
-        },
         "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
         "runners": { "$ref": "#/$defs/runners" }
       },

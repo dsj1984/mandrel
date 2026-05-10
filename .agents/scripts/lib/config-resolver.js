@@ -29,7 +29,6 @@ export {
 } from './config/baselines.js';
 // --- Re-exports (facade contract) ---
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
-export { EPIC_CLOSE_DEFAULTS, getEpicClose } from './config/epic-close.js';
 export {
   getLimits,
   getSignals,

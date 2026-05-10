@@ -771,33 +771,8 @@ describe('config-resolver library tests', () => {
     });
   });
 
-  describe('getEpicClose', () => {
-    it('returns runRetro=true when no key is set', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({ agentSettings: { ...REQ } });
-      assert.deepEqual(out, { runRetro: true });
-    });
-
-    it('reads epicClose.runRetro when present', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({
-        agentSettings: { ...REQ, epicClose: { runRetro: false } },
-      });
-      assert.equal(out.runRetro, false);
-    });
-
-    it('ignores the legacy sprintClose key (no fallback)', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({
-        agentSettings: { ...REQ, sprintClose: { runRetro: false } },
-      });
-      assert.equal(out.runRetro, true);
-    });
-  });
+  // Epic #1142 Story #1157: getEpicClose / EPIC_CLOSE_DEFAULTS / the
+  // `agentSettings.epicClose` block were deleted. The retro skip is now
+  // CLI-only via `--skip-retro` on /epic-close. The accessor block that
+  // used to live here was removed in lockstep.
 });

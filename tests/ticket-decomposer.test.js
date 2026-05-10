@@ -843,7 +843,7 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
   it('returns the base prompt (with default maxTickets) when no heuristics are supplied', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.equal(prompt, renderDecomposerSystemPrompt());
-    assert.ok(prompt.includes('Do NOT generate more than 40 tickets in total'));
+    assert.ok(prompt.includes('Do NOT generate more than 60 tickets in total'));
   });
 
   it('appends risk heuristics when supplied', () => {

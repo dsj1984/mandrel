@@ -48,11 +48,12 @@ strands partial state on GitHub, so run them in order.
    - All files listed in `release.docs`.
    - All files listed in `agentSettings.docsContextFiles` (prefixed with the
      path from `agentSettings.paths.docsRoot`).
-7. Resolve `[RUN_RETRO]` from `agentSettings.epicClose.runRetro` in
-   `.agentrc.json` (default: `true`). When `false`, the Retro phase is
-   skipped entirely — no retro is required or produced. (The pre-5.36.4
-   `agentSettings.sprintClose.runRetro` fallback was removed; consumer
-   configs must use the `epicClose` shape.)
+7. Resolve `[RUN_RETRO]` from the CLI: `false` only when the operator
+   passed `--skip-retro` to `/epic-close`; otherwise `true`. The
+   `agentSettings.epicClose.runRetro` config key was removed in 5.40.0
+   (Epic #1142) — the retro is now run by default and skipped by flag
+   only. Repos still carrying the `epicClose` block in `.agentrc.json`
+   will fail validation under the post-1142 schema; drop it.
 
 ---
 
@@ -363,8 +364,9 @@ git push origin [BASE_BRANCH]
 
 ## Phase 6 — Retro
 
-**Skip this phase entirely when `[RUN_RETRO]` is `false` or the operator
-passed `--skip-retro`.** Log the override and proceed to Finalize.
+**Skip this phase entirely when `[RUN_RETRO]` is `false` (i.e. the
+operator passed `--skip-retro`).** Log the override and proceed to
+Finalize.
 
 ### Step 6.0 — Post the epic-perf-report
 

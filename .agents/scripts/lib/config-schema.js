@@ -249,7 +249,6 @@ export const ORCHESTRATION_SCHEMA = {
         'The execution adapter to use (e.g., "manual", "subprocess").',
     },
     notifications: NOTIFICATIONS_SCHEMA,
-    hitl: { type: 'object', properties: {}, additionalProperties: false },
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
     runners: RUNNERS_SCHEMA,
   },

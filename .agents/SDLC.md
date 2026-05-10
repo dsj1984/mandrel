@@ -426,10 +426,10 @@ Once Story waves complete, the bookend lifecycle begins.
      audit; halts close on 🔴 Critical Blockers, otherwise continues.
    - **Retro gate** (`workflows/helpers/epic-retro.md`) — summarises wins and
      friction from the ticket graph and posts the retro as a structured
-     comment on the Epic (no local files). Skippable via
-     `agentSettings.epicClose.runRetro: false` or `--skip-retro`.
-     (The pre-5.36.4 `agentSettings.sprintClose.runRetro` fallback was
-     removed; consumer configs must use the `epicClose` shape.)
+     comment on the Epic (no local files). Skippable via `--skip-retro`
+     on `/epic-close`. (The `agentSettings.epicClose.runRetro` config
+     toggle was removed in 5.40.0 / Epic #1142; the CLI flag is the sole
+     opt-out.)
    - **Merge + release.** Merges `epic/<epicId>` into `main`, validates
      documentation freshness, bumps the version, tags the release, and closes
      the Epic (including PRD / Tech Spec context tickets).

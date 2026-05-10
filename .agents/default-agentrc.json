@@ -20,12 +20,9 @@
       "packageJson": true,
       "autoVersionBump": true
     },
-    "epicClose": {
-      "runRetro": true
-    },
     "limits": {
       "maxInstructionSteps": 5,
-      "maxTickets": 40,
+      "maxTickets": 60,
       "maxTokenBudget": 200000,
       "executionTimeoutMs": 300000,
       "executionMaxBuffer": 10485760,
@@ -101,7 +98,6 @@
       "webhookMinLevel": "medium",
       "terminalMinLevel": "medium"
     },
-    "hitl": {},
     "worktreeIsolation": {
       "enabled": true,
       "root": ".worktrees",

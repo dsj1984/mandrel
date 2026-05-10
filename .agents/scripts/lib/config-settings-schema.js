@@ -99,14 +99,6 @@ const MAINTAINABILITY_QUALITY_SCHEMA = {
   additionalProperties: false,
 };
 
-const EPIC_CLOSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    runRetro: { type: 'boolean' },
-  },
-  additionalProperties: false,
-};
-
 const RELEASE_SCHEMA = {
   type: 'object',
   properties: {
@@ -368,7 +360,6 @@ export const AGENT_SETTINGS_SCHEMA = {
   properties: {
     baseBranch: SAFE_STRING,
     docsContextFiles: { type: 'array', items: { type: 'string' } },
-    epicClose: EPIC_CLOSE_SCHEMA,
     release: RELEASE_SCHEMA,
     riskGates: RISK_GATES_SCHEMA,
     quality: QUALITY_SCHEMA,
