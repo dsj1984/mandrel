@@ -89,6 +89,47 @@ opening a duplicate.
 3. **No-match fast path**: If the module returns `[]`, proceed
    immediately to Phase 0c — no operator intervention required.
 
+## Phase 0c: Render Epic Body from One-Pager
+
+Runs after Phase 0b clears (no duplicates, or operator confirmed the
+new Epic is genuinely distinct).
+
+1. **Render the body**: Call
+   `renderEpicBody({ onePager, template })` exported from
+   [`.agents/scripts/lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js).
+   The `template` argument is the contents of
+   [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md),
+   which carries the five canonical sections (Problem, Direction,
+   Assumptions, MVP Scope, Not Doing). Sections missing from the
+   one-pager are rendered as `_(not specified)_` rather than left as
+   raw `{{token}}` placeholders.
+
+2. **HITL stop — confirm the body**: Display the rendered body to the
+   operator and **STOP**. Do not proceed to Phase 0d until the user
+   explicitly confirms the body is correct. This is the last chance to
+   tweak wording before the GitHub Issue is opened.
+
+## Phase 0d: Open the GitHub Issue (`type::epic` only)
+
+1. **Open the Epic Issue**: Call
+   `openEpicFromOnePager({ onePager, template, createIssue })` from the
+   same `epic-plan-ideation.js` module. Pass a `createIssue` port that
+   delegates to the resolved ticketing provider (`provider-factory.js`)
+   so the labels and body land via the canonical I/O surface.
+
+2. **Label discipline**: The Issue is opened with **only** the
+   `type::epic` label. **Do not** add any `state::*` label at creation
+   time — the Epic carries only `type::epic` until PRD authoring
+   advances it to `agent::review-spec` in Phase 1. The
+   `openEpicFromOnePager` helper already enforces this; the workflow
+   prose codifies the intent so future label-set tweaks don't silently
+   widen it.
+
+3. **Continue to Phase 0**: The captured Epic ID becomes the new
+   `[Epic_ID]` for the rest of the planning pipeline. Re-Plan Detection
+   (the original Phase 0) will short-circuit because no PRD/Tech Spec
+   is linked yet, so the run flows naturally into Phase 1.
+
 ## Phase 0: Re-Plan Detection
 
 Before generating any artifacts, check whether the Epic has already been
