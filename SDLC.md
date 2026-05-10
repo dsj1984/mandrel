@@ -10,34 +10,54 @@ per-iteration directories, no JSON state files.
 
 From zero to shipped:
 
-1. **Define the Epic.** Open a GitHub Issue, label it `type::epic`, and write a
-   plain-English goal and scope.
-2. **Plan the work.** Run `/epic-plan <epicId>` in your agentic IDE. The
-   framework generates a PRD, a Tech Spec, and the full Feature → Story → Task
-   hierarchy under the Epic.
-3. **Execute the Epic.** Run `/epic-execute <epicId>` in your IDE. The skill
-   owns the wave loop and fans each wave out as one `/story-execute`
-   Agent-tool sub-agent per Story (capped at `concurrencyCap`). Everything
-   runs in your Claude session against your Max subscription quota; no
-   subprocess spawn, no GitHub Actions minutes.
+1. **Plan the work.** Run `/epic-plan` in your agentic IDE.
+   - With **no arguments** (or `--idea "<seed>"`), the workflow runs
+     ideation: it sharpens the seed into a one-pager, searches for
+     duplicate open Epics, opens a fresh `type::epic` Issue from the
+     confirmed body, then proceeds to PRD + Tech Spec authoring.
+   - With **`<epicId>`**, the workflow skips ideation and runs PRD +
+     Tech Spec + decomposition for an Epic Issue you have already
+     opened.
 
-   For a single Story off the dispatch table, run `/story-execute <storyId>`
-   directly. The three-skill split (`/epic-execute`, `/story-execute`, plus
-   the inline `task-execute.md` helper) lets the operator stop or resume at
+   The framework generates a PRD, a Tech Spec, and the full Feature →
+   Story → Task hierarchy under the Epic, then transitions the Epic to
+   `agent::ready`.
+
+2. **Deliver the Epic.** Run `/epic-deliver <epicId>` in your IDE. The
+   skill drives the merged execute + close flow end-to-end:
+
+   1. **Phase 1 — prepare** — snapshot the Epic, build the wave DAG,
+      initialise the `epic-run-state` checkpoint.
+   2. **Phase 2 — wave loop** — fan one `/story-execute` Agent-tool
+      sub-agent out per Story per wave (capped at `concurrencyCap`).
+      Stories run in parallel inside the operator's Claude session
+      against your Max subscription quota; no subprocess spawn, no
+      GitHub Actions minutes.
+   3. **Phase 3 — close-validation** — lint, test, and the project's
+      ratcheted baselines run against the Epic branch. Evidence is
+      cached by HEAD SHA so re-runs short-circuit.
+   4. **Phase 4 — code-review** — auto-invokes
+      `helpers/epic-code-review.md`; findings persist as a
+      `code-review` structured comment on the Epic. Critical findings
+      halt the run.
+   5. **Phase 5 — retro** — auto-invokes the in-process
+      `lib/orchestration/retro-runner.js` (extracted from the old
+      retro helper) and posts the structured retro comment on the
+      Epic. The retro fires **before** the PR is opened so it has
+      full env access in the operator's local session.
+   6. **Phase 6 — finalize** — pushes `epic/<epicId>` to `origin`,
+      opens a pull request to `main`, sets the required-checks
+      expectation from `agentSettings.quality.prGate.checks`, posts
+      the hand-off comment naming the PR URL, and **stops**. The
+      Epic stays at `agent::executing` until the operator merges the
+      PR through the GitHub UI; the merge fires the standard
+      transition that flips the Epic to `agent::done`.
+
+   For a single Story off the dispatch table (re-driving a hotfix,
+   resuming after a halt), run `/story-execute <storyId>` directly. The
+   two-skill split (`/epic-deliver` and `/story-execute`, plus the
+   inline `task-execute.md` helper) lets the operator stop or resume at
    any level of the hierarchy.
-
-4. **Close the Epic.** When the final wave lands, the Epic flips to
-   `agent::review`. Run **`/epic-close <epicId>`** — that one workflow
-   internally auto-invokes the code-review helper
-   (`workflows/helpers/epic-code-review.md`) and the retro helper
-   (`workflows/helpers/epic-retro.md`) before merging to `main`. The
-   helpers are not slash commands; you never run the review or retro by
-   hand.
-
-   If you'd rather have close run autonomously when the final wave completes (no
-   manual invocation at all), add `epic::auto-close` to the Epic **before Step
-   3**. The runner detects the snapshot label at startup and chains
-   `/epic-close` automatically once the Epic reaches `agent::review`.
 
 That is the whole happy path. Everything below is **detail** — branching
 conventions, HITL escalation, audit gates — that you only need when the
@@ -53,20 +73,27 @@ default flow requires adjustment.
   abstract interface with a shipped GitHub implementation.
 - **Story-Level Branching.** All Tasks within a Story execute sequentially on a
   shared `story-<id>` branch. Stories merge into `epic/<epicId>`; the Epic
-  branch merges into `main` only at close.
+  branch reaches `main` only via a pull request the operator merges through
+  the GitHub UI.
 - **Hierarchy-aligned skills.** Execution is split along the ticket hierarchy:
-  `/epic-execute` owns the wave loop and fans each wave out directly,
-  `/story-execute` runs init → task loop → close for one Story, and the
-  inline `task-execute.md` helper documents per-Task discipline. All three
-  share the same primitives (`Graph.computeWaves`, `cascadeCompletion`,
-  `ticketing.js`, `WorktreeManager`).
-- **Single-session fan-out.** `/epic-execute` launches Story sub-agents via
+  `/epic-plan` builds the backlog (with optional ideation entry),
+  `/epic-deliver` owns the merged wave-loop + close-tail, `/story-execute`
+  runs init → task loop → close for one Story, and the inline
+  `task-execute.md` helper documents per-Task discipline. All four share the
+  same primitives (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
+  `WorktreeManager`).
+- **Single-session fan-out.** `/epic-deliver` launches Story sub-agents via
   the Agent tool — every Story runs inside the operator's Claude session,
   with no subprocess boundary. Worktree filesystem isolation is preserved;
   only the process boundary is gone.
+- **Operator-merges-PR exit.** `/epic-deliver` ends with a PR open against
+  `main`. The workflow never executes `git merge` against `main`. The PR is
+  the explicit human gate that authorises promotion of an Epic into the
+  release branch — branch protection on `main` enforces required-checks
+  before the merge button is reachable.
 - **HITL-minimal by default.** Exactly two operator touchpoints on the happy
-  path — blocker resolution and review hand-off. Everything else is
-  autonomous.
+  path — blocker resolution mid-run, and the PR merge at the end. Everything
+  else is autonomous.
 
 ---
 
@@ -85,38 +112,35 @@ graph LR
 
     subgraph Phase1 ["Phase 1: Initiation"]
         direction TB
-        A["👤 Create GitHub Epic"]:::manual
-        B["👤 /epic-plan"]:::manual
-        A --> B
+        A["👤 /epic-plan (ideation)<br/>or 👤 Create GitHub Epic + /epic-plan &lt;id&gt;"]:::manual
     end
 
     subgraph Phase2 ["Phase 2: Planning"]
         direction TB
-        C["🤖 Epic Planner"]:::agentic
+        C["🤖 PRD + Tech Spec authoring"]:::agentic
         D["🤖 Ticket Decomposer"]:::agentic
         C --> D
         D -.-> D_Art["📄 GitHub Issue Hierarchy"]:::artifact
     end
 
-    subgraph Phase3 ["Phase 3: Execution"]
+    subgraph Phase3 ["Phase 3: Delivery"]
         direction TB
-        E["👤 /epic-execute <epicId>"]:::manual
-        F["🤖 /story-execute <storyId> per slot per wave"]:::agentic
-        E --> F
-        F -.-> F_Art["📄 Story Branch Commits"]:::artifact
+        E["👤 /epic-deliver &lt;epicId&gt;"]:::manual
+        F["🤖 wave loop (one /story-execute sub-agent per Story per wave)"]:::agentic
+        G["🤖 close-validation → code-review → retro → open PR"]:::agentic
+        E --> F --> G
+        G -.-> G_Art["📄 PR open against main"]:::artifact
     end
 
-    subgraph Phase4 ["Phase 4: Closure"]
+    subgraph Phase4 ["Phase 4: Operator merge"]
         direction TB
-        G["🤖 Story Close → Epic Merge"]:::agentic
-        H["🤖 Code Review → Retro → /epic-close"]:::agentic
-        G --> H
+        H["👤 Merge PR via GitHub UI"]:::manual
     end
 
     Z --> A
-    B --> C
+    A --> C
     D --> E
-    F --> G
+    G --> H
 ```
 
 ---
@@ -124,7 +148,8 @@ graph LR
 ## Phase 0: Bootstrap (One-Time Setup)
 
 Before any Epic workflow, bootstrap your GitHub repository to create the
-labels and project fields the orchestration engine depends on.
+labels, project fields, and (when enabled) main-branch protection the
+orchestration engine depends on.
 
 1. **Configure.** Copy `.agents/default-agentrc.json` to `.agentrc.json` at your
    project root and fill in the `orchestration` block (owner, repo, etc.).
@@ -132,21 +157,52 @@ labels and project fields the orchestration engine depends on.
    Authentication in [README.md](README.md)).
 3. **Run bootstrap.** Execute `/agents-bootstrap-github` (or
    `node .agents/scripts/agents-bootstrap-github.js`). Idempotently creates
-   the label taxonomy (including `epic::auto-close`) and optional GitHub
-   Project V2 fields.
+   the label taxonomy and optional GitHub Project V2 fields, and — when
+   `agentSettings.quality.prGate.enforceBranchProtection` is `true`
+   (default) — creates or merges branch protection on `main` with the
+   project's `prGate.checks` as required status checks. This step is
+   load-bearing for the v5.40 SDL because PR merges to `main` are now the
+   sole promotion gate.
 
 > [!NOTE] Bootstrap runs once per repository. It is safe to re-run — existing
-> labels and fields are skipped.
+> labels, fields, and branch-protection entries are preserved; missing ones
+> are added.
 
 ---
 
-## Phase 1: Initiation (Human)
+## Phase 1: Initiation
 
-The product lead defines the objective by creating a GitHub Issue labelled
-`type::epic`.
+The product lead defines the objective and triggers planning.
 
-1. **Write the Epic.** Clear, plain-English description of the goal and scope.
-2. **Trigger planning.** Run `/epic-plan <epicId>` in the agentic IDE.
+### 1a. Ideation entry (optional)
+
+Run `/epic-plan` with no arguments (or `--idea "<seed>"`) to enter ideation
+mode:
+
+1. **Sharpen the idea.** The `idea-refinement` skill drives a divergent →
+   convergent → sharpen loop and emits a markdown one-pager with the
+   canonical sections (Problem Statement, Recommended Direction, Key
+   Assumptions, MVP Scope, Not Doing).
+2. **Cross-Epic duplicate search.** `lib/duplicate-search.js` queries the
+   open Epics in the repo, scores by title + body keyword overlap, and
+   surfaces matches above a threshold. The operator either confirms the
+   new idea is genuinely distinct or folds it into an existing Epic
+   (`/epic-plan` exits and the operator resumes work on the existing
+   id).
+3. **Render and confirm the Epic body.** The one-pager is rendered into
+   the canonical Epic-from-idea template; the operator confirms before
+   the GitHub Issue is opened.
+4. **Open the Epic.** The Issue is opened with **only** the `type::epic`
+   label — no `state::*` label is applied at creation. PRD authoring in
+   Phase 1b advances it to `agent::review-spec`.
+
+### 1b. Existing-Epic entry
+
+Run `/epic-plan <epicId>` directly when the Epic Issue already exists. The
+ideation phases (1a) are skipped.
+
+In both modes the planning flow continues into Phase 2 with the captured
+Epic id.
 
 ---
 
@@ -154,7 +210,7 @@ The product lead defines the objective by creating a GitHub Issue labelled
 
 The framework reads the Epic and autonomously builds the entire work breakdown.
 
-1. **Epic Planner** (`epic-planner.js`):
+1. **Epic Planner** (`epic-plan-spec.js`):
    - Synthesizes the Epic body with project documentation.
    - Generates a **PRD** (`context::prd`) and **Tech Spec**
      (`context::tech-spec`) as linked GitHub Issues.
@@ -165,7 +221,7 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > [`rules/gherkin-standards.md`](rules/gherkin-standards.md) for the canonical
 > clause grammar, tag taxonomy, and forbidden patterns.
 
-1. **Ticket Decomposer** (`ticket-decomposer.js`):
+1. **Ticket Decomposer** (`epic-plan-decompose.js`):
    - Recursively decomposes specs into a 4-tier hierarchy:
 
      ```text
@@ -187,27 +243,32 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
    - **Metadata.** Each Task is stamped with persona, model recommendations,
      estimated files, and agent prompts.
 
+When decomposition completes the Epic flips to `agent::ready` and the
+dispatch manifest is posted as a structured comment on the Epic. That
+manifest is the source of truth for the wave layout `/epic-deliver`
+consumes in Phase 1.
+
 ---
 
-## Phase 3: Execution (Agentic)
+## Phase 3: Delivery (Agentic)
 
-Execution is driven by the **Epic Runner** for whole-Epic flows and the **Story
-Init/Close** scripts for individual Stories. All entry points share the same
-primitives — DAG computation, context hydration, worktree isolation, and cascade
-closure.
+Delivery is driven by the **Epic Deliver Runner**
+(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) for whole-Epic
+flows and the **Story Init/Close** scripts for individual Stories. All entry
+points share the same primitives — DAG computation, context hydration,
+worktree isolation, and cascade closure.
 
 ### Invocation modes
 
-| Mode             | Entry point                          | When to use                                                                            |
-| ---------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| **Whole Epic**   | `/epic-execute <epicId>`             | Drive an Epic end-to-end. Owns the wave loop; fans Stories out directly per wave.      |
-| **Single Story** | `/story-execute <storyId>`           | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.        |
+| Mode             | Entry point                     | When to use                                                                                  |
+| ---------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Whole Epic**   | `/epic-deliver <epicId>`        | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
+| **Single Story** | `/story-execute <storyId>`      | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.              |
 
-The two-skill split (plus the inline `task-execute.md` helper) mirrors
-how the engine already decomposes work (wave-scheduler, story-launcher,
-wave-observer); promoting them to slash commands lets the operator stop
-or resume at any level. There is no single-entry-point router — each
-level has its own skill.
+The two-skill split (plus the inline `task-execute.md` helper) mirrors how
+the engine already decomposes work; promoting them to slash commands lets
+the operator stop or resume at any level. There is no single-entry-point
+router — each level has its own skill.
 
 ### Story-centric branching
 
@@ -218,7 +279,7 @@ level has its own skill.
 ### Story execution lifecycle
 
 Whether the Story is launched directly by the operator or fanned out by
-`/epic-execute`'s wave loop, the same three phases run:
+`/epic-deliver`'s wave loop, the same three phases run:
 
 1. **Initialization** (`story-init.js`):
    - Verifies all upstream dependencies are satisfied.
@@ -253,16 +314,18 @@ assembles a self-contained prompt:
 
 Agents update their state in real-time on GitHub:
 
-- **Labels**: `agent::ready` → `agent::executing` → `agent::review` →
-  `agent::done`. The `WaveObserver` submodule additionally syncs a GitHub
-  Projects v2 Status column on each transition when a `projectNumber` is
-  configured.
+- **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
+  intermediate review label was removed from the taxonomy in v5.40.0; the
+  PR opened by `/epic-deliver` Phase 6 is the equivalent "ready to merge"
+  signal at the Epic level. The `WaveObserver` submodule additionally
+  syncs a GitHub Projects v2 Status column on each transition when a
+  `projectNumber` is configured.
 - **Tasklists**: subtasks are checked off in the ticket body (`- [ ]` →
   `- [x]`).
 - **Friction**: friction logs are posted as structured comments on the Task.
-- **Wave transitions**: the Epic Runner emits `wave-N-start` and `wave-N-end`
-  structured comments on the Epic, each carrying the wave manifest, story
-  outcomes, and timing.
+- **Wave transitions**: the Epic Deliver Runner emits `wave-N-start` and
+  `wave-N-end` structured comments on the Epic, each carrying the wave
+  manifest, story outcomes, and timing.
 
 ### Dependency unblocking
 
@@ -271,11 +334,11 @@ dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
 ### Story assignment (deterministic)
 
-`/story-execute` requires an explicit Story id. The parent `/epic-execute`
-wave loop picks Story ids off the frozen dispatch manifest
-deterministically and launches one Agent-tool sub-agent per id per wave;
-sibling sub-agents never race on the same Story. Operators driving
-Stories by hand pick ids off the same dispatch table.
+`/story-execute` requires an explicit Story id. The parent `/epic-deliver`
+wave loop picks Story ids off the frozen dispatch manifest deterministically
+and launches one Agent-tool sub-agent per id per wave; sibling sub-agents
+never race on the same Story. Operators driving Stories by hand pick ids
+off the same dispatch table.
 
 `runtime.sessionId` survives as a stable per-process identity surfaced in
 the startup `[ENV]` log line for operator correlation. It is a 12-char
@@ -301,18 +364,53 @@ wrapped in a bounded retry: on rejection the script fetches
 `origin/epic/<id>`, replays the Story merge on top of the new remote tip,
 and pushes again. Bounds:
 
-- `orchestration.runners.closeRetry.maxAttempts` — default 3.
-- `orchestration.runners.closeRetry.backoffMs` — default `[250, 500, 1000]`.
+- `orchestration.runners.storyMergeRetry.maxAttempts` — default 3.
+- `orchestration.runners.storyMergeRetry.backoffMs` — default `[250, 500, 1000]`.
 
 A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
 manual resolution. The retry path is a wrapper around the existing happy path.
 
+### Close-tail (Phases 3–6 of `/epic-deliver`)
+
+After the wave loop returns `complete`, `/epic-deliver` runs four sequential
+phases against the Epic branch before opening the PR:
+
+1. **Close-validation.** Lint + test + project-extended ratchets
+   (maintainability, CRAP, lint baseline) run via `evidence-gate.js` keyed
+   on `git rev-parse HEAD`. A clean tree on a re-run short-circuits in
+   milliseconds. A failing gate halts the workflow until the regression is
+   fixed on a hotfix branch and re-merged into the Epic.
+2. **Code-review.** `lib/orchestration/code-review.js` (extracted from the
+   `epic-code-review.md` helper) audits the diff and posts the findings as
+   a `code-review` structured comment on the Epic. 🔴 Critical findings
+   halt the run; 🟠/🟡/🟢 findings flow through as non-blocking.
+3. **Retro.** `lib/orchestration/retro-runner.js` (extracted from the old
+   retro helper) aggregates perf signals, friction counts, hotfix counts,
+   recut counts, parked counts, and HITL count using
+   `retro-heuristics.js`. The structured retro comment is posted on the
+   Epic. The retro fires **before** the PR opens — this keeps it inside
+   the operator's local session with full env access (env vars,
+   credentials, MCP servers); pushing it after PR-open would deny it
+   that access.
+4. **Finalize.** `epic-deliver-finalize.js` verifies `epic/<id>`
+   fast-forward-merges the current `main`, pushes the Epic branch to
+   `origin`, and runs `gh pr create --base main --head epic/<id>` with a
+   title and body sourced from the Epic's PRD summary. The PR's
+   required-checks expectation is set from
+   `agentSettings.quality.prGate.checks` so the GitHub branch-protection
+   gate matches the Epic-level validation that just ran. The Epic stays
+   at `agent::executing`; a hand-off structured comment names the PR
+   URL.
+
+`/epic-deliver` exits cleanly without merging. The operator merges through
+the GitHub UI.
+
 ---
 
 ## HITL (Human-in-the-Loop) model
 
-Exactly **two** operator touchpoints during an Epic run after `/epic-execute`
+Exactly **two** operator touchpoints during an Epic run after `/epic-deliver`
 fires. This is the entirety of the operator interface mid-run.
 
 1. **Blocker resolution.** If the orchestrator hits an unresolvable condition,
@@ -322,19 +420,12 @@ fires. This is the entirety of the operator interface mid-run.
    resolves the underlying issue (e.g. a hand-fix commit on the Story branch
    or a scope edit on the blocking ticket), then flips the Epic back to
    `agent::executing` to resume.
-2. **Close hand-off.** At `agent::review`, the run stops by default — you run
-   `/epic-close <epicId>`, which internally auto-invokes the code-review
-   helper (`workflows/helpers/epic-code-review.md`) and the retro helper
-   (`workflows/helpers/epic-retro.md`) before merging to main. If
-   `epic::auto-close` was present at startup, the `BookendChainer` invokes
-   `/epic-close` automatically with no further prompts.
-
-### Snapshot labels (read once, ignored mid-run)
-
-- `epic::auto-close` is a **snapshot** captured at `/epic-execute` startup and
-  written into the `epic-run-state` checkpoint comment. Applying or removing
-  the label mid-run has no effect. This prevents post-hoc authorization of an
-  autonomous merge-to-main.
+2. **PR merge.** At the end of `/epic-deliver`, the workflow opens a PR to
+   `main` and stops. The operator inspects the required-checks summary, the
+   `code-review` structured comment, and the retro comment; when satisfied
+   they merge the PR through the GitHub UI. The merge fires the standard
+   transition that flips the Epic to `agent::done`. There is no separate
+   close command.
 
 ### What triggers `agent::blocked`
 
@@ -352,9 +443,9 @@ fires. This is the entirety of the operator interface mid-run.
 
 - `risk::high` tasks **run without pause.** The label remains as planning
   metadata and retro telemetry, but as of v5.14.0 it does **not** halt the
-  dispatcher, `/epic-execute`, or `/epic-close`. Branch protection on `main`
-  and `BlockerHandler`-driven escalation are the new defenses for destructive
-  actions.
+  dispatcher or `/epic-deliver`. Branch protection on `main` and
+  `BlockerHandler`-driven escalation are the runtime defenses for
+  destructive actions.
 - Wave boundaries — the runner advances as soon as wave N completes.
 - Individual story completion — no per-story approval prompt.
 
@@ -364,29 +455,30 @@ fires. This is the entirety of the operator interface mid-run.
 
 ---
 
-## Epic runner internals
+## Epic Deliver Runner internals
 
-`/epic-execute` drives the long-running coordinator inside the operator's
-Claude session. The Epic Runner
-(`.agents/scripts/lib/orchestration/epic-runner.js`) composes the submodules
-listed below; `/story-execute` is launched as an Agent-tool sub-agent of
-`/epic-execute`'s wave loop — no `child_process.spawn`, no GitHub
-Actions runner.
+`/epic-deliver` drives the long-running coordinator inside the operator's
+Claude session. The runner
+(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) composes the
+submodules listed below; `/story-execute` is launched as an Agent-tool
+sub-agent of `/epic-deliver`'s wave loop — no `child_process.spawn`, no
+GitHub Actions runner.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`.                                                                             |
 | `story-launcher`    | Fans out up to `concurrencyCap` Agent-tool Story sub-agents per wave.                                                   |
-| `checkpointer`      | Upserts the `epic-run-state` structured comment; handles resume.                                                        |
+| `checkpointer`      | Upserts the `epic-run-state` structured comment; handles phase-granular resume across all six phases.                   |
 | `blocker-handler`   | The sole runtime pause point — halts on `agent::blocked`.                                                               |
 | `notification-hook` | Fire-and-forget webhook for blocker / wave-transition events.                                                           |
-| `bookend-chainer`   | Auto-invokes `/epic-close` when `epic::auto-close` was set at startup.                                                  |
 | `wave-observer`     | Emits `wave-N-start` / `wave-N-end` comments and reads each Story's `story-run-progress` snapshot.                      |
 | `column-sync`       | Syncs the Projects v2 Status column from `agent::` labels.                                                              |
+| `code-review`       | `lib/orchestration/code-review.js` — Phase 4 inline audit; halts on critical findings.                                  |
+| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 5 retro authoring; posts structured retro comment.                          |
 
 ### Claude Max quota
 
-`/epic-execute` consumes Max subscription quota (5-hour rolling window with
+`/epic-deliver` consumes Max subscription quota (5-hour rolling window with
 overage disabled at the org level by default). If a long Epic exceeds the
 5-hour window, `BlockerHandler` surfaces the rate-limit error as
 `agent::blocked` so you can resume after the quota rolls.
@@ -403,40 +495,41 @@ the project's `CI / CD` workflow. Two mitigations:
 
 ---
 
-## Phase 4: Integration & Closure
+## Phase 4: Operator merge
 
-Once Story waves complete, the bookend lifecycle begins.
+Once the wave loop, close-validation, code-review, and retro have all
+completed, `/epic-deliver` opens a pull request from `epic/<epicId>` to
+`main` and stops. The operator's remaining responsibility is to merge the
+PR through the GitHub UI.
 
-1. **Story branch merging.** Stories merge into `epic/<epicId>` automatically
-   during Story closure (`story-close.js`).
-2. **Completion cascade.** When the last Task in a Story reaches `agent::done`,
-   status cascades upward:
+1. **Story merging.** Stories merge into `epic/<epicId>` automatically
+   during Story closure (`story-close.js`). The Epic branch is the rolling
+   integration target.
+2. **Completion cascade.** When the last Task in a Story reaches
+   `agent::done`, status cascades upward:
 
    ```text
    Task Done → Story Done → Feature Done
    ```
 
-   Epics, PRDs, and Tech Specs are explicitly excluded from auto-cascade to
-   ensure final verification happens during formal closure.
+   Epics, PRDs, and Tech Specs are explicitly excluded from auto-cascade —
+   the Epic only flips to `agent::done` when the operator merges the PR
+   to `main`.
 
-3. **Single operator command: `/epic-close <epicId>`.** Close is the only
-   bookend workflow an operator runs by hand. It internally auto-invokes, in
-   order:
-   - **Code review gate** (`workflows/helpers/epic-code-review.md`) — inline
-     audit; halts close on 🔴 Critical Blockers, otherwise continues.
-   - **Retro gate** (`workflows/helpers/epic-retro.md`) — summarises wins and
-     friction from the ticket graph and posts the retro as a structured
-     comment on the Epic (no local files). Skippable via
-     `agentSettings.epicClose.runRetro: false` or `--skip-retro`.
-     (The pre-5.36.4 `agentSettings.sprintClose.runRetro` fallback was
-     removed; consumer configs must use the `epicClose` shape.)
-   - **Merge + release.** Merges `epic/<epicId>` into `main`, validates
-     documentation freshness, bumps the version, tags the release, and closes
-     the Epic (including PRD / Tech Spec context tickets).
-4. **Optional autonomous close.** With `epic::auto-close` set at startup,
-   `BookendChainer` invokes `/epic-close` automatically once the final wave
-   completes, so no operator input is needed between `agent::review` and
-   `agent::done`.
+3. **PR merge — the sole promotion gate.** When the operator merges the PR
+   via the GitHub UI:
+   - the Epic-to-`main` merge lands as a real PR merge with a real
+     reviewer-trail and required-checks history;
+   - the standard label-transition pathway flips the Epic to
+     `agent::done`;
+   - branch cleanup runs out-of-band via `/delete-epic-branches`.
+
+If the operator chooses not to merge (rolling back, deferring, re-scoping),
+`/epic-deliver` has not poisoned `main`. The Epic branch can be amended
+in place; re-running `/epic-deliver <epicId>` re-runs Phase 3 / 4 / 5
+against the new HEAD (the evidence wrapper picks up the new SHA) and
+updates the same PR — no duplicate PRs are opened against the same Epic
+branch.
 
 ---
 
@@ -477,12 +570,12 @@ defined in `.agents/schemas/audit-rules.json` (schema:
 
 ### Epic lifecycle gates
 
-| Gate   | When                            | What Runs                                  |
-| ------ | ------------------------------- | ------------------------------------------ |
-| Gate 1 | After Story completion          | Content-triggered audits (clean-code, etc) |
-| Gate 2 | Pre-integration                 | Dependency + DevOps audits                 |
-| Gate 3 | Code review phase               | Full automated audit pass                  |
-| Gate 4 | Epic close (before Epic→main)   | `audit-sre` production readiness gate      |
+| Gate   | When                                       | What Runs                                  |
+| ------ | ------------------------------------------ | ------------------------------------------ |
+| Gate 1 | After Story completion                     | Content-triggered audits (clean-code, etc) |
+| Gate 2 | Pre-integration                            | Dependency + DevOps audits                 |
+| Gate 3 | `/epic-deliver` Phase 4 (code-review)      | Full automated audit pass                  |
+| Gate 4 | `/epic-deliver` Phase 6 (pre-PR-open)      | `audit-sre` production readiness gate      |
 
 ### Review & feedback loop
 
@@ -554,7 +647,7 @@ Webhook URL resolution:
 Because `notify()` is called in-band from the orchestration SDK, it captures
 changes from:
 
-- The Epic runner (coordinator-driven state flips).
+- The Epic Deliver Runner (coordinator-driven state flips).
 - Per-story scripts (`story-init.js`, `story-close.js`).
 - Any script that routes state changes through `transitionTicketState`.
 
@@ -562,19 +655,19 @@ It does **not** capture manual label clicks in the GitHub UI (no webhook
 receiver). For programmatic orchestration workflows this covers >95% of
 lifecycle transitions.
 
-### 2. Epic-runner blocker / HITL notifications
+### 2. Deliver-runner blocker / HITL notifications
 
-The `NotificationHook` inside the Epic runner fires on blocker-escalation events
-(`agent::blocked`) and operator-attention events (`agent::review` hand-off, run
-cancellation). Fire-and-forget by design; webhook failures never block
-execution.
+The `NotificationHook` inside the Epic Deliver Runner fires on
+blocker-escalation events (`agent::blocked`) and operator-attention events
+(PR-open hand-off, run cancellation). Fire-and-forget by design; webhook
+failures never block execution.
 
 | Event              | Type       | Channel            | Operator Action        |
 | ------------------ | ---------- | ------------------ | ---------------------- |
 | `task-complete`    | **INFO**   | @mention           | Review when convenient |
 | `feature-complete` | **INFO**   | @mention           | Informational only     |
 | `epic-complete`    | **INFO**   | @mention + webhook | Final review           |
-| `review-needed`    | **ACTION** | @mention + webhook | Review and approve PR  |
+| `pr-opened`        | **ACTION** | @mention + webhook | Inspect checks + merge |
 | `epic-blocked`     | **ACTION** | webhook            | Resolve and re-flip    |
 | `wave-transition`  | **INFO**   | webhook            | Informational only     |
 
@@ -584,15 +677,14 @@ execution.
 
 | Command                                          | Purpose                                                                                                                                                                      |
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github`                       | Initialize repo labels and project fields                                                                                                                                    |
-| `/epic-plan <epicId>`                            | Generate PRD, Tech Spec, and full task hierarchy                                                                                                                             |
-| `/epic-execute <epicId>`                         | Drive a whole Epic end-to-end. Owns the wave loop; fans Stories out directly per wave via Agent-tool sub-agents (one per slot).                                              |
-| `/story-execute <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                 |
-| Label Epic `epic::auto-close`                    | Authorize autonomous bookend chain at startup.                                                                                                                               |
-| `/epic-close <epicId>`                           | Close the Epic — auto-invokes code-review + retro, then merges to `main` and closes Epic + context issues. **The only bookend command an operator runs by hand.**            |
-| _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-execute` per Task; not a slash command.                                                                                                               |
-| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-close` Phase 3 and by `/epic-execute` bookends; not a slash command.                                                                                  |
-| _helper_ `workflows/helpers/epic-retro.md`       | Auto-invoked by `/epic-close` Phase 6; not a slash command.                                                                                                                  |
+| `/agents-bootstrap-github`                       | Initialize repo labels, project fields, and (when enabled) main-branch protection.                                                                                            |
+| `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
+| `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
+| `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
+| `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main`. Operator merges via the GitHub UI.                                         |
+| `/story-execute <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
+| _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-execute` per Task; not a slash command.                                                                                                                |
+| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 4; not a slash command.                                                                                                                 |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `/delete-epic-branches <epicId>`                 | Hard reset — delete all Epic-scoped branches                                                                                                                                 |

@@ -89,11 +89,6 @@
       },
       "additionalProperties": false
     },
-    "epicClose": {
-      "type": "object",
-      "properties": { "runRetro": { "type": "boolean" } },
-      "additionalProperties": false
-    },
     "frictionLimits": {
       "type": "object",
       "properties": {
@@ -171,10 +166,10 @@
       },
       "additionalProperties": false
     },
-    "riskGates": {
+    "planning": {
       "type": "object",
       "properties": {
-        "heuristics": {
+        "riskHeuristics": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
         }
@@ -186,8 +181,21 @@
       "properties": {
         "checks": {
           "type": "array",
-          "items": { "type": "string", "minLength": 1 }
-        }
+          "items": {
+            "type": "object",
+            "required": ["name", "cmd"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "cmd": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "minLength": 1 }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "enforceBranchProtection": { "type": "boolean" }
       },
       "additionalProperties": false
     },
@@ -352,9 +360,8 @@
       "properties": {
         "baseBranch": { "$ref": "#/$defs/safeString" },
         "docsContextFiles": { "type": "array", "items": { "type": "string" } },
-        "epicClose": { "$ref": "#/$defs/epicClose" },
         "release": { "$ref": "#/$defs/release" },
-        "riskGates": { "$ref": "#/$defs/riskGates" },
+        "planning": { "$ref": "#/$defs/planning" },
         "quality": { "$ref": "#/$defs/quality" },
         "commands": { "$ref": "#/$defs/commands" },
         "paths": { "$ref": "#/$defs/paths" },
@@ -425,7 +432,7 @@
         }
       ]
     },
-    "epicRunner": {
+    "deliverRunner": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
@@ -462,7 +469,7 @@
       },
       "additionalProperties": false
     },
-    "closeRetry": {
+    "storyMergeRetry": {
       "type": "object",
       "properties": {
         "maxAttempts": { "type": "integer", "minimum": 1 },
@@ -483,10 +490,10 @@
     "runners": {
       "type": "object",
       "properties": {
-        "epicRunner": { "$ref": "#/$defs/epicRunner" },
+        "deliverRunner": { "$ref": "#/$defs/deliverRunner" },
         "planRunner": { "$ref": "#/$defs/planRunner" },
         "concurrency": { "$ref": "#/$defs/concurrency" },
-        "closeRetry": { "$ref": "#/$defs/closeRetry" },
+        "storyMergeRetry": { "$ref": "#/$defs/storyMergeRetry" },
         "decomposer": { "$ref": "#/$defs/decomposer" }
       },
       "additionalProperties": false
@@ -499,11 +506,6 @@
         "github": { "$ref": "#/$defs/github" },
         "executor": { "type": "string" },
         "notifications": { "$ref": "#/$defs/notifications" },
-        "hitl": {
-          "type": "object",
-          "properties": {},
-          "additionalProperties": false
-        },
         "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
         "runners": { "$ref": "#/$defs/runners" }
       },

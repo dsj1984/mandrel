@@ -321,13 +321,13 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('## 🤖 Agent Operating Procedures');
   lines.push('');
   lines.push(
-    `> 1. **Execute**: Run \`/epic-execute ${epicId}\`. The orchestrator iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
+    `> 1. **Deliver**: Run \`/epic-deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
   );
   lines.push(
-    '> 2. **Resume (granular, optional)**: Re-running `/epic-execute` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
+    '> 2. **Resume (granular, optional)**: Re-running `/epic-deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
   );
   lines.push(
-    `> 3. **Close**: With \`epic::auto-close\` set, \`/epic-execute\` chains into \`/epic-close ${epicId}\` automatically. Otherwise run \`/epic-close ${epicId}\` after review/retro.`,
+    `> 3. **Close**: \`/epic-deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
   );
   lines.push('');
 
@@ -409,22 +409,22 @@ export const renderManifestMarkdown = formatManifestMarkdown;
 
 /**
  * Format the per-story execution manifest. Pure: caller must supply
- * `opts.settings` (typically the resolved agentSettings bag) so we can cite
- * the canonical `story-init.js` / `story-close.js` paths without
- * touching `resolveConfig` (fs).
+ * `opts.agentSettings` (the resolved `agentSettings` bag) so we can cite the
+ * canonical `story-init.js` / `story-close.js` paths without touching
+ * `resolveConfig` (fs).
  *
- * `scriptsRoot` lives under `settings.paths.*` post-Epic #773 Story 9 (it
- * was a flat agentSettings key prior). The fallback string keeps the
+ * `scriptsRoot` lives under `agentSettings.paths.*` post-Epic #773 Story 9
+ * (it was a flat agentSettings key prior). The fallback string keeps the
  * formatter usable in tiny test fixtures that omit the paths block.
  *
  * @param {object} manifest
- * @param {{ settings: { paths?: { scriptsRoot?: string }, commands?: { validate?: string, test?: string } } }} opts
+ * @param {{ agentSettings: { paths?: { scriptsRoot?: string }, commands?: { validate?: string, test?: string } } }} opts
  * @returns {string}
  */
 export function formatStoryManifestMarkdown(manifest, opts = {}) {
-  const settings = opts.settings ?? {};
-  const scriptsRoot = settings.paths?.scriptsRoot ?? '.agents/scripts';
-  const commands = settings.commands ?? {};
+  const agentSettings = opts.agentSettings ?? {};
+  const scriptsRoot = agentSettings.paths?.scriptsRoot ?? '.agents/scripts';
+  const commands = agentSettings.commands ?? {};
   const validateCmd = commands.validate ?? 'npm run lint';
   const testCmd = commands.test ?? 'npm test';
 
@@ -526,7 +526,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   );
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
-  log('  💡 Use /epic-execute #[Story ID] to execute a Story.');
+  log('  💡 Use /epic-deliver #[Story ID] to execute a Story.');
 
   if (features.length > 0) {
     log('');

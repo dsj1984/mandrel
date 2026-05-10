@@ -300,7 +300,7 @@ export function formatBlockerReport(storyId, blockers) {
   }
   lines.push('');
   lines.push(
-    'Merge the blocker Stories first, then re-run /epic-execute. ' +
+    'Merge the blocker Stories first, then re-run /epic-deliver. ' +
       'Guard source: dispatch manifest (regenerate via /epic-plan).',
   );
   lines.push('');

@@ -31,11 +31,7 @@
  *   non-zero — validation or provider failure (error on stderr)
  */
 
-import {
-  matchesAnyFilePattern,
-  matchesFilePattern,
-  selectAudits,
-} from './lib/audit-suite/index.js';
+import { selectAudits } from './lib/audit-suite/index.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';

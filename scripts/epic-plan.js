@@ -145,7 +145,7 @@ async function main() {
       `Orchestration config schema validation failed:\n${err.message}`,
     );
   }
-  const { orchestration, settings } = config;
+  const { orchestration, agentSettings } = config;
   const provider = createProvider(orchestration);
 
   if (values['describe-resume-point']) {
@@ -178,7 +178,7 @@ async function main() {
   const result = await runSprintPlan({
     epicId,
     provider,
-    settings,
+    settings: agentSettings,
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,

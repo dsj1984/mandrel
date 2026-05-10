@@ -1,9 +1,9 @@
 /**
  * sub-agent-return.js — parse and reconcile per-Story sub-agent return text.
  *
- * `/epic-execute` Step 2 dispatches one `Agent` tool call per Story per
+ * `/epic-deliver` Step 2 dispatches one `Agent` tool call per Story per
  * wave. Each sub-agent owes its parent the JSON return contract documented
- * in `.agents/workflows/epic-execute.md`:
+ * in `.agents/workflows/epic-deliver.md`:
  *
  *   {
  *     "storyId": <number>,
@@ -22,7 +22,7 @@
  * 32 tool calls of real work). Without validation, the wave dispatcher
  * used to silently propagate the fragment and report the wave `complete`.
  *
- * This module provides the two helpers `/epic-execute`'s wave dispatcher
+ * This module provides the two helpers `/epic-deliver`'s wave dispatcher
  * now uses:
  *
  *   - `parseStoryAgentReturn(raw)` — accept an already-parsed object, a JSON

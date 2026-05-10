@@ -475,8 +475,8 @@ export async function runEpicCodeReview(args, deps = {}) {
     return { status: 'invalid' };
   }
 
-  const { settings, orchestration } = resolveConfigFn();
-  const baseBranch = args.baseBranch ?? settings.baseBranch ?? 'main';
+  const { agentSettings, orchestration } = resolveConfigFn();
+  const baseBranch = args.baseBranch ?? agentSettings.baseBranch ?? 'main';
   const epicBranch = `epic/${args.epicId}`;
   const scopeLint = args.scopeLint;
 

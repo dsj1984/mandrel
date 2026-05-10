@@ -99,14 +99,6 @@ const MAINTAINABILITY_QUALITY_SCHEMA = {
   additionalProperties: false,
 };
 
-const EPIC_CLOSE_SCHEMA = {
-  type: 'object',
-  properties: {
-    runRetro: { type: 'boolean' },
-  },
-  additionalProperties: false,
-};
-
 const RELEASE_SCHEMA = {
   type: 'object',
   properties: {
@@ -191,10 +183,17 @@ const SIGNALS_LIMITS_SCHEMA = {
   additionalProperties: false,
 };
 
-const RISK_GATES_SCHEMA = {
+/**
+ * `agentSettings.planning` — grouped home for planning/decomposition tuning
+ * knobs. Epic #1142 Story #1157 lifted the prior flat heuristics array
+ * under here as `planning.riskHeuristics` so the planning surface has a
+ * stable parent. See `docs/CHANGELOG.md` 5.40.0 for the renamed-from
+ * key history.
+ */
+const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
-    heuristics: {
+    riskHeuristics: {
       type: 'array',
       items: { type: 'string', minLength: 1 },
     },
@@ -205,15 +204,38 @@ const RISK_GATES_SCHEMA = {
 /**
  * `quality.prGate.checks` is the configurable lint/format/test trio
  * `git-pr-quality-gate.js` runs on every `/git-merge-pr` invocation. Renamed
- * from the flat `agentSettings.qualityGate` block in Epic #730 Story 6.
+ * from the flat `agentSettings.qualityGate` block in Epic #730 Story 6;
+ * promoted into the framework default-agentrc shape in Epic #1142 Story
+ * #1157 — items are `{ name, cmd }` objects so the runner can spawn each
+ * check directly without a name->cmd lookup table. `cmd` is an argv array
+ * (no shell expansion).
+ *
+ * `enforceBranchProtection` (default `true`) controls whether
+ * `/agents-bootstrap-github` writes the `prGate.checks` names into
+ * GitHub's branch-protection rule on `main`. Operators that manage
+ * branch protection out-of-band (Terraform, manual UI, an org-level
+ * ruleset) can set this to `false` to skip the bootstrap step.
  */
 const PR_GATE_SCHEMA = {
   type: 'object',
   properties: {
     checks: {
       type: 'array',
-      items: { type: 'string', minLength: 1 },
+      items: {
+        type: 'object',
+        required: ['name', 'cmd'],
+        properties: {
+          name: { type: 'string', minLength: 1 },
+          cmd: {
+            type: 'array',
+            minItems: 1,
+            items: { type: 'string', minLength: 1 },
+          },
+        },
+        additionalProperties: false,
+      },
     },
+    enforceBranchProtection: { type: 'boolean' },
   },
   additionalProperties: false,
 };
@@ -368,9 +390,8 @@ export const AGENT_SETTINGS_SCHEMA = {
   properties: {
     baseBranch: SAFE_STRING,
     docsContextFiles: { type: 'array', items: { type: 'string' } },
-    epicClose: EPIC_CLOSE_SCHEMA,
     release: RELEASE_SCHEMA,
-    riskGates: RISK_GATES_SCHEMA,
+    planning: PLANNING_SCHEMA,
     quality: QUALITY_SCHEMA,
     commands: COMMANDS_SCHEMA,
     paths: PATHS_SCHEMA,

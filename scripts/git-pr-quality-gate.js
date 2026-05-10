@@ -56,10 +56,10 @@ function resolveChecks(settings) {
   if (!Array.isArray(configured) || configured.length === 0) {
     return DEFAULT_CHECKS;
   }
-  return configured.map((c) => ({
-    name: c.name,
-    cmd: Array.isArray(c.cmd) ? c.cmd : String(c.cmd).split(/\s+/),
-  }));
+  // Schema (post Epic #1142 Story #1157) requires items as `{ name, cmd }`
+  // objects with `cmd` as an argv array. AJV validation upstream rejects
+  // string-shape items, so the previous string-fallback branch is gone.
+  return configured.map((c) => ({ name: c.name, cmd: c.cmd }));
 }
 
 function runCheck(check, cwd) {
@@ -179,8 +179,8 @@ async function main() {
     },
     strict: false,
   });
-  const { settings } = resolveConfig();
-  const checks = resolveChecks(settings);
+  const { agentSettings } = resolveConfig();
+  const checks = resolveChecks(agentSettings);
   const skip = parseSkipList(values.skip);
 
   const result = runQualityGate({ checks, skip });

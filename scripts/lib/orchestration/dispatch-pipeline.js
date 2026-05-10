@@ -33,7 +33,7 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  * @typedef {object} DispatchContext
  * @property {number} epicId                                  Epic ticket number under dispatch.
  * @property {boolean} dryRun                                 When true, mutating side-effects are skipped.
- * @property {object} settings                                Resolved `.agentrc.json` settings block.
+ * @property {object} agentSettings                           Resolved `.agentrc.json` `agentSettings` block.
  * @property {object} orchestration                           Resolved `.agentrc.json` `orchestration` block.
  * @property {import('../ITicketingProvider.js').ITicketingProvider} provider  Ticketing provider (may come from cache).
  * @property {object} adapter                                 Execution adapter (CLI / MCP / in-process).
@@ -54,7 +54,7 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  */
 
 /**
- * Resolve the runtime context for a dispatch: settings, provider, adapter,
+ * Resolve the runtime context for a dispatch: agentSettings, provider, adapter,
  * worktree manager, base/epic branch names, and the `ensureBranch` bound
  * helper supplied by the caller.
  *
@@ -71,7 +71,7 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
 export function resolveDispatchContext(options, ensureBranch) {
   const { epicId, dryRun = false, executorOverride } = options;
 
-  const { settings, orchestration } = resolveConfig();
+  const { agentSettings, orchestration } = resolveConfig();
   const provider = options.provider ?? createProvider(orchestration);
   const adapter =
     options.adapter ??
@@ -89,12 +89,12 @@ export function resolveDispatchContext(options, ensureBranch) {
   return {
     epicId,
     dryRun,
-    settings,
+    agentSettings,
     orchestration,
     provider,
     adapter,
     worktreeManager,
-    baseBranch: settings.baseBranch ?? 'main',
+    baseBranch: agentSettings.baseBranch ?? 'main',
     epicBranch: getEpicBranch(epicId),
     ensureBranch,
   };
@@ -182,18 +182,18 @@ export function buildDispatchGraph(tasks) {
  * in dry-run.
  *
  * @param {DispatchContext} ctx  Dispatch context.
- * @param {(epicBranch: string, settings: object) => (Promise<void> | void)} captureLintBaseline  Injected baseline-capture implementation (legacy function or `LintBaselineService.capture`-bound closure).
+ * @param {(epicBranch: string, agentSettings: object) => (Promise<void> | void)} captureLintBaseline  Injected baseline-capture implementation (legacy function or `LintBaselineService.capture`-bound closure).
  * @returns {void}
  */
 export function ensureEpicScaffolding(ctx, captureLintBaseline) {
-  const { dryRun, epicBranch, baseBranch, settings, ensureBranch } = ctx;
+  const { dryRun, epicBranch, baseBranch, agentSettings, ensureBranch } = ctx;
   if (dryRun) {
     Logger.info('Dry-run mode: skipping branch creation.');
     return;
   }
   Logger.info(`Ensuring Epic base branch: ${epicBranch}`);
   ensureBranch(epicBranch, baseBranch);
-  captureLintBaseline(epicBranch, settings);
+  captureLintBaseline(epicBranch, agentSettings);
 }
 
 /**

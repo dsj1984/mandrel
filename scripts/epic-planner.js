@@ -262,7 +262,7 @@ export async function runEpicPlannerCli(values, deps = {}) {
   const read = deps.readFile ?? readFile;
 
   if (values['emit-context']) {
-    const context = await buildCtx(epicId, provider, cfg.settings, {
+    const context = await buildCtx(epicId, provider, cfg.agentSettings, {
       fullContext: Boolean(values['full-context']),
     });
     return {
@@ -291,9 +291,15 @@ export async function runEpicPlannerCli(values, deps = {}) {
     read(values.techspec, 'utf8'),
   ]);
 
-  await plan(epicId, provider, { prdContent, techSpecContent }, cfg.settings, {
-    force: Boolean(values.force),
-  });
+  await plan(
+    epicId,
+    provider,
+    { prdContent, techSpecContent },
+    cfg.agentSettings,
+    {
+      force: Boolean(values.force),
+    },
+  );
   return { exitCode: 0, result: { kind: 'plan', epicId } };
 }
 

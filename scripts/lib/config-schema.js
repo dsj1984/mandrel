@@ -96,7 +96,13 @@ const WORKTREE_ISOLATION_SCHEMA = {
   ],
 };
 
-const EPIC_RUNNER_SCHEMA = {
+/**
+ * `orchestration.runners.deliverRunner` — bounded-concurrency knob for the
+ * epic-deliver fan-out (Epic #773 Story 7). Renamed in Epic #1142 Story
+ * #1157 to match the `/epic-deliver` workflow it drives; the schema shape
+ * is unchanged. See `docs/CHANGELOG.md` 5.40.0 for the rename history.
+ */
+const DELIVER_RUNNER_SCHEMA = {
   type: 'object',
   properties: {
     enabled: { type: 'boolean' },
@@ -104,7 +110,7 @@ const EPIC_RUNNER_SCHEMA = {
     progressReportIntervalSec: { type: 'integer', minimum: 0 },
   },
   additionalProperties: false,
-  // `concurrencyCap` is required only when the epic runner is active.
+  // `concurrencyCap` is required only when the deliver runner is active.
   // Operators flipping `enabled: false` shouldn't have to declare a cap they
   // never use; absent `enabled` (the common case) defaults to active and
   // therefore requires the cap.
@@ -132,15 +138,18 @@ const PLAN_RUNNER_SCHEMA = {
 };
 
 /**
- * `orchestration.runners.closeRetry` — bounded retry policy for the epic-branch push
- * step in `story-close.js`. Protects concurrent story closures against
- * non-fast-forward rejections when a sibling session lands on the same Epic
- * branch between our fetch and our push.
+ * `orchestration.runners.storyMergeRetry` — bounded retry policy for the
+ * epic-branch push step in `story-close.js`. Protects concurrent story
+ * closures against non-fast-forward rejections when a sibling session lands
+ * on the same Epic branch between our fetch and our push. Renamed in
+ * Epic #1142 Story #1157 to make the intent (story-close push retry)
+ * explicit at the call site. See `docs/CHANGELOG.md` 5.40.0 for the
+ * rename history.
  *
  * Both keys are optional. Defaults (applied by the consumer, not the schema)
  * are `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`.
  */
-const CLOSE_RETRY_SCHEMA = {
+const STORY_MERGE_RETRY_SCHEMA = {
   type: 'object',
   properties: {
     maxAttempts: { type: 'integer', minimum: 1 },
@@ -152,8 +161,8 @@ const CLOSE_RETRY_SCHEMA = {
   additionalProperties: false,
 };
 
-/** Default applied when `orchestration.runners.closeRetry` is absent or incomplete. */
-export const DEFAULT_CLOSE_RETRY = Object.freeze({
+/** Default applied when `orchestration.runners.storyMergeRetry` is absent or incomplete. */
+export const DEFAULT_STORY_MERGE_RETRY = Object.freeze({
   maxAttempts: 3,
   backoffMs: Object.freeze([250, 500, 1000]),
 });
@@ -213,18 +222,19 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
 
 /**
  * `orchestration.runners` — typed grouping of every runner-flavoured sub-block
- * (epicRunner, planRunner, concurrency, closeRetry, decomposer) introduced in
- * Epic #773 Story 7. Replaces the prior flat layout where each sub-block sat
- * directly under `orchestration`. Each sub-schema is preserved byte-for-byte;
- * only the parent location changes.
+ * introduced in Epic #773 Story 7. Replaces the prior flat layout where each
+ * sub-block sat directly under `orchestration`. Epic #1142 Story #1157
+ * renamed two of the grouped sub-blocks; see `docs/CHANGELOG.md` 5.40.0
+ * for the legacy → new key mapping. The sub-schemas themselves are
+ * preserved.
  */
 const RUNNERS_SCHEMA = {
   type: 'object',
   properties: {
-    epicRunner: EPIC_RUNNER_SCHEMA,
+    deliverRunner: DELIVER_RUNNER_SCHEMA,
     planRunner: PLAN_RUNNER_SCHEMA,
     concurrency: CONCURRENCY_SCHEMA,
-    closeRetry: CLOSE_RETRY_SCHEMA,
+    storyMergeRetry: STORY_MERGE_RETRY_SCHEMA,
     decomposer: DECOMPOSER_SCHEMA,
   },
   additionalProperties: false,
@@ -249,7 +259,6 @@ export const ORCHESTRATION_SCHEMA = {
         'The execution adapter to use (e.g., "manual", "subprocess").',
     },
     notifications: NOTIFICATIONS_SCHEMA,
-    hitl: { type: 'object', properties: {}, additionalProperties: false },
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
     runners: RUNNERS_SCHEMA,
   },

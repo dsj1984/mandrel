@@ -11,9 +11,17 @@ import {
   findStructuredComment,
   upsertStructuredComment,
 } from '../ticketing.js';
+import { assertValidDeliverPhase } from './deliver-phases.js';
 
 export const EPIC_RUN_STATE_TYPE = 'epic-run-state';
 export const CHECKPOINT_SCHEMA_VERSION = 1;
+
+// Re-export the phase enum + index helper so downstream importers
+// continue to use `checkpointer.js` as a single import target.
+export {
+  DELIVER_PHASES,
+  phaseIndex,
+} from './deliver-phases.js';
 
 export class Checkpointer {
   /**
@@ -72,20 +80,38 @@ export class Checkpointer {
    * Initial checkpoint for a brand-new run. Idempotent against re-dispatch —
    * if a checkpoint already exists it is returned unchanged.
    *
-   * @param {{ totalWaves: number, concurrencyCap: number, autoClose: boolean }} opts
+   * @param {{ totalWaves: number, concurrencyCap: number }} opts
    */
-  async initialize({ totalWaves, concurrencyCap, autoClose }) {
+  async initialize({ totalWaves, concurrencyCap }) {
     const existing = await this.read();
     if (existing) return existing;
     return this.write({
       epicId: this.epicId,
       startedAt: new Date().toISOString(),
-      autoClose: Boolean(autoClose),
       currentWave: 0,
       totalWaves,
       concurrencyCap,
+      phase: 'prepare',
       waves: [],
       blockerHistory: [],
     });
+  }
+
+  /**
+   * Advance the checkpoint's `phase` field to the next `/epic-deliver`
+   * phase. Reads the current state first so the caller does not need to
+   * keep an in-memory copy. Other state fields are preserved verbatim.
+   *
+   * Story #1155 / Epic #1142 — phase-granular resume. The runner writes
+   * the **next phase to run** here, not the phase that just finished, so
+   * a resume can match `phase === 'code-review'` to mean "Phase D is the
+   * next thing to do."
+   *
+   * @param {string} nextPhase - One of `DELIVER_PHASES` or `'done'`.
+   */
+  async setPhase(nextPhase) {
+    assertValidDeliverPhase(nextPhase);
+    const existing = (await this.read()) ?? {};
+    return this.write({ ...existing, phase: nextPhase });
   }
 }

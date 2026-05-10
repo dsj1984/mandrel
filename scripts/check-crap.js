@@ -219,6 +219,37 @@ export function filterRowsByFileScope(rows, scopeSet) {
  *   removedRows: Array<object>,
  * }}
  */
+/**
+ * Pure helper: decide whether a single (current, baseline) row pair counts
+ * as a CRAP regression. Returns the violation object to push, or `null`
+ * when the row passes (within tolerance, or exempted).
+ *
+ * Trivial (cyclomatic=1) methods are exempted from the regression check.
+ * Their CRAP score collapses to a pure coverage proxy in [1, 2] — under
+ * non-deterministic Node 22 V8 instrumentation on Windows CI, single-
+ * statement wrappers like `deleteComment(ctx, id)` flap between cov=1.00
+ * (crap=1) and cov=0.17 (crap≈1.58) across runs of identical source. A
+ * real regression on a c=1 method requires it to gain branches, at which
+ * point row.cyclomatic is no longer 1 and this exemption no longer
+ * applies. New-method ceiling enforcement is unaffected.
+ *
+ * @param {{cyclomatic: number, crap: number}} row
+ * @param {{crap: number, startLine: number}} baseline
+ * @param {number} tolerance
+ * @param {'regression'|'drifted-regression'} kind
+ * @returns {object | null}
+ */
+export function checkCrapRegression(row, baseline, tolerance, kind) {
+  if (row?.cyclomatic === 1) return null;
+  if (row.crap <= baseline.crap + tolerance) return null;
+  return {
+    ...row,
+    kind,
+    baseline: baseline.crap,
+    baselineStartLine: baseline.startLine,
+  };
+}
+
 export function compareCrap({
   currentRows,
   baselineRows,
@@ -246,14 +277,10 @@ export function compareCrap({
     const exact = exactIndex.get(exactKey);
     if (exact) {
       seenBaselineKeys.add(exactKey);
-      if (row.crap > exact.crap + tolerance) {
+      const v = checkCrapRegression(row, exact, tolerance, 'regression');
+      if (v) {
         regressions += 1;
-        violations.push({
-          ...row,
-          kind: 'regression',
-          baseline: exact.crap,
-          baselineStartLine: exact.startLine,
-        });
+        violations.push(v);
       }
       continue;
     }
@@ -276,14 +303,10 @@ export function compareCrap({
       if (!pick) pick = candidates[0];
       seenBaselineKeys.add(`${pick.file}::${pick.method}@${pick.startLine}`);
       drifted += 1;
-      if (row.crap > pick.crap + tolerance) {
+      const v = checkCrapRegression(row, pick, tolerance, 'drifted-regression');
+      if (v) {
         regressions += 1;
-        violations.push({
-          ...row,
-          kind: 'drifted-regression',
-          baseline: pick.crap,
-          baselineStartLine: pick.startLine,
-        });
+        violations.push(v);
       }
       continue;
     }
@@ -595,8 +618,8 @@ export function loadCrapBaseline({
 
 async function main() {
   const args = parseArgv();
-  const { settings, ...rest } = resolveConfig();
-  const crap = getQuality({ agentSettings: settings }).crap;
+  const { agentSettings, ...rest } = resolveConfig();
+  const crap = getQuality({ agentSettings }).crap;
 
   if (crap.enabled === false) {
     Logger.info('[CRAP] gate skipped (disabled)');
@@ -627,7 +650,7 @@ async function main() {
   }
 
   const baselinePath =
-    args.baselinePath ?? getBaselines({ agentSettings: settings }).crap.path;
+    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
   const baseline = loadCrapBaseline({
     baselinePath,
     epicRef: args.epicRef,
@@ -712,7 +735,7 @@ async function main() {
     if (args.storyId && args.epicId) {
       await emitFriction(args.storyId, args.epicId, result, {
         ...rest,
-        agentSettings: settings,
+        agentSettings,
       });
     }
     return 1;

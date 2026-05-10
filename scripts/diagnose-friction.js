@@ -184,8 +184,8 @@ export async function main(args = process.argv.slice(2)) {
     );
   }
 
-  const { settings } = resolveConfig();
-  const limits = getLimits({ agentSettings: settings });
+  const { agentSettings } = resolveConfig();
+  const limits = getLimits({ agentSettings });
   const executionTimeoutMs = limits.executionTimeoutMs;
   const executionMaxBuffer = limits.executionMaxBuffer;
 
@@ -219,7 +219,11 @@ export async function main(args = process.argv.slice(2)) {
 
     const provider = createProvider(resolveConfig().orchestration);
     const { storyId: resolvedStoryId, epicId: resolvedEpicId } =
-      await resolveContextIds(provider, { taskId, storyId, epicId }, settings);
+      await resolveContextIds(
+        provider,
+        { taskId, storyId, epicId },
+        agentSettings,
+      );
 
     const signal = buildFrictionSignal({
       epicId: resolvedEpicId,

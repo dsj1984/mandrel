@@ -102,7 +102,7 @@ export async function runStoryInit({
   }
 
   const config = injectedConfig || resolveConfig({ cwd });
-  const { settings, orchestration } = config;
+  const { agentSettings, orchestration } = config;
   const provider = injectedProvider || createProvider(orchestration);
   const notifyFn = (ticketId, payload, opts = {}) =>
     notify(ticketId, payload, { orchestration, provider, ...opts });
@@ -232,7 +232,7 @@ export async function runStoryInit({
         storyId,
         epicBranch,
         storyBranch,
-        baseBranch: settings.baseBranch ?? 'main',
+        baseBranch: agentSettings.baseBranch ?? 'main',
         cwd,
         worktreeEnabled,
         wtConfig,

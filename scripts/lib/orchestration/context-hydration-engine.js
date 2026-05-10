@@ -260,8 +260,8 @@ export async function hydrateContext(
   taskBranch,
   epicId,
 ) {
-  const { settings } = resolveConfig();
-  const paths = getPaths({ agentSettings: settings });
+  const { agentSettings } = resolveConfig();
+  const paths = getPaths({ agentSettings });
   const currentVersion = getVersion();
   let warnings = '';
 
@@ -276,7 +276,7 @@ export async function hydrateContext(
   // 2. Load Agent Protocol Template
   const protocolTpl = loadProtocolTemplate({
     paths,
-    settings,
+    settings: agentSettings,
     currentVersion,
     taskBranch,
     epicBranch,
@@ -323,7 +323,7 @@ export async function hydrateContext(
   const hierarchyKeys = parseHierarchy(task.body);
   let hierarchyContext = '## Work Breakdown Hierarchy\n\n';
 
-  const depth = settings?.contextDepth ?? 'standard';
+  const depth = agentSettings?.contextDepth ?? 'standard';
   const idsToFetch = [];
 
   if (depth === 'full') {
@@ -378,6 +378,8 @@ export async function hydrateContext(
   );
 
   // 7. Token Budget
-  const budget = getLimits({ agentSettings: settings ?? {} }).maxTokenBudget;
+  const budget = getLimits({
+    agentSettings: agentSettings ?? {},
+  }).maxTokenBudget;
   return truncateToTokenBudget(fullPrompt, budget);
 }

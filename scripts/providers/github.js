@@ -190,6 +190,10 @@ export class GitHubProvider extends ITicketingProvider {
     return branches.getBranchProtection(this._ctx, branch);
   }
 
+  async setBranchProtection(branch, opts) {
+    return branches.setBranchProtection(this._ctx, branch, opts);
+  }
+
   async ensureLabels(labelDefs) {
     return labels.ensureLabels(this._ctx, labelDefs);
   }

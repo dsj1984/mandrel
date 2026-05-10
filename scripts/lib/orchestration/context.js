@@ -11,7 +11,7 @@
  *     and its submodules (`dispatch`, `concurrencyCap`, `storyRetryCount`,
  *     `blockerTimeoutHours`, plus the optional `worktreeResolver`,
  *     `fetchImpl`, `runSkill` injection points). `dispatch` is invoked once
- *     per wave with the `StoryLauncher.planWave` output; the `/epic-execute`
+ *     per wave with the `StoryLauncher.planWave` output; the `/epic-deliver`
  *     skill's host-driven wave loop provides the production adapter that
  *     issues parallel Agent-tool calls for the wave.
  *   - `PlanRunnerContext` adds the planning `phase` plus the host-LLM
@@ -56,7 +56,7 @@ export class OrchestrationContext {
 export class EpicRunnerContext extends OrchestrationContext {
   constructor(opts = {}) {
     super(opts);
-    const runnerCfg = opts.config?.runners?.epicRunner ?? {};
+    const runnerCfg = opts.config?.runners?.deliverRunner ?? {};
     this.dispatch = opts.dispatch ?? opts.spawn ?? null;
     this.concurrencyCap =
       opts.concurrencyCap ?? runnerCfg.concurrencyCap ?? null;
@@ -79,14 +79,14 @@ export class EpicRunnerContext extends OrchestrationContext {
 
   validate() {
     super.validate();
-    if (!this.config?.runners?.epicRunner?.enabled) {
+    if (!this.config?.runners?.deliverRunner?.enabled) {
       throw new Error(
-        'orchestration.runners.epicRunner.enabled is false — refusing to run.',
+        'orchestration.runners.deliverRunner.enabled is false — refusing to run.',
       );
     }
     if (typeof this.dispatch !== 'function') {
       throw new TypeError(
-        'EpicRunnerContext requires a dispatch adapter (the /epic-execute skill provides this in production).',
+        'EpicRunnerContext requires a dispatch adapter (the /epic-deliver skill provides this in production).',
       );
     }
     if (!Number.isInteger(this.concurrencyCap) || this.concurrencyCap < 1) {

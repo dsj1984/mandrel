@@ -6,7 +6,7 @@
  * Reads the latest `dispatch-manifest` structured comment on an Epic — the
  * single source of truth for which Stories the sprint committed to — and
  * verifies every Story in the manifest is closed. Exits non-zero if any
- * remain open so `/epic-close` can halt before any merge-to-main work
+ * remain open so `/epic-deliver` can halt before any merge-to-main work
  * begins.
  *
  * The gate never reads `temp/dispatch-manifest-<epicId>.{md,json}`: those
@@ -225,7 +225,7 @@ export async function runWaveGate({
     for (const p of problems) Logger.error(p);
     Logger.error('');
     Logger.error(
-      'Resolve the open items with `/epic-execute <storyId>` or close them manually, then re-run `/epic-close`.',
+      'Resolve the open items with `/epic-deliver <storyId>` or close them manually, then re-run `/epic-deliver`.',
     );
     process.exit(1);
   }

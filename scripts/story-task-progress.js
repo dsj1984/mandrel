@@ -34,7 +34,7 @@
  * envelope. `renderedBody` is the markdown body that was upserted onto the
  * Story ticket — `/story-execute` relays it as a chat message after each
  * transition so operators see the same task-progress table the parent
- * `/epic-execute` aggregator reads.
+ * `/epic-deliver` aggregator reads.
  */
 
 import fs from 'node:fs';

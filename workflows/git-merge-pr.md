@@ -187,7 +187,7 @@ gh pr merge [PR_NUMBER] --squash --subject "[PR_TITLE] (#[PR_NUMBER])" --delete-
 
 After the merge command returns, perform a conflict marker scan to confirm no
 stray markers entered the base branch. Delegate to `detect-merges.js` — it
-owns the scan logic and is the same script used by `/epic-close` Phase 5.3.
+owns the scan logic and is the same script used by `/epic-deliver` Phase 5.3.
 
 ```powershell
 git checkout [BASE_BRANCH]

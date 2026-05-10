@@ -154,7 +154,7 @@ export async function pushEpicAndHandleConflicts({
       cwd,
       epicBranch,
       storyBranch,
-      closeRetry: getRunners(orchestration).closeRetry,
+      storyMergeRetry: getRunners(orchestration).storyMergeRetry,
       git,
       log,
     });

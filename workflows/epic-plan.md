@@ -42,7 +42,93 @@ artifacts you author.
 ## Prerequisites
 
 1. **GitHub Epic**: An existing GitHub Issue with the `type/epic` label.
+   Skipped when entering via Phase 0a / `--idea` (the Epic does not exist
+   yet — Phases 0a–0d will create it).
 2. **API Keys**: `GITHUB_TOKEN` must be set in the `.env` file.
+
+## Phase 0a: Idea Refinement (s-plan-ideation entry)
+
+This phase runs **only** when no `<epic#>` argument is supplied, or when
+`--idea "<seed>"` is passed. If an Epic ID was provided, skip directly to
+Phase 0 (Re-Plan Detection).
+
+1. **Invoke the ideation skill**: Use the `Skill` tool with
+   `skill: idea-refinement` and `args` set to the `--idea` value (or a
+   user-supplied seed if no argument was given). The skill drives its own
+   three-phase divergent → convergent → sharpen loop and returns a
+   markdown one-pager with the canonical sections (Problem Statement,
+   Recommended Direction, Key Assumptions, MVP Scope, Not Doing).
+
+2. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
+   to the operator and **STOP**. Do not proceed to Phase 0b until the
+   user explicitly confirms the direction. This is the same gate the
+   skill's own Phase 3 enforces; surfacing it here makes the wait
+   contract visible to `/epic-plan` callers.
+
+## Phase 0b: Cross-Epic Duplicate Search
+
+Runs immediately after Phase 0a (and only on the s-plan-ideation path).
+Its job is to surface open Epics whose scope already overlaps with the
+sharpened one-pager so the operator can fold the work in rather than
+opening a duplicate.
+
+1. **Invoke the duplicate-search module**: Call
+   `findSimilarOpenEpics({ onePager, provider })` exported from
+   [`.agents/scripts/lib/duplicate-search.js`](../scripts/lib/duplicate-search.js).
+   The `provider` is the resolved ticketing provider
+   (`provider-factory.js`), and `onePager` is the markdown returned by
+   Phase 0a.
+
+2. **HITL pause on match**: If the module returns a non-empty ranked
+   list, render the candidates (id, title, score, URL) and **STOP**. Do
+   not proceed to Phase 0c until the user either (a) confirms the new
+   Epic is genuinely distinct or (b) chooses to fold the idea into one of
+   the existing Epics, in which case `/epic-plan` exits and the operator
+   resumes work on the existing Epic ID.
+
+3. **No-match fast path**: If the module returns `[]`, proceed
+   immediately to Phase 0c — no operator intervention required.
+
+## Phase 0c: Render Epic Body from One-Pager
+
+Runs after Phase 0b clears (no duplicates, or operator confirmed the
+new Epic is genuinely distinct).
+
+1. **Render the body**: Call
+   `renderEpicBody({ onePager, template })` exported from
+   [`.agents/scripts/lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js).
+   The `template` argument is the contents of
+   [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md),
+   which carries the five canonical sections (Problem, Direction,
+   Assumptions, MVP Scope, Not Doing). Sections missing from the
+   one-pager are rendered as `_(not specified)_` rather than left as
+   raw `{{token}}` placeholders.
+
+2. **HITL stop — confirm the body**: Display the rendered body to the
+   operator and **STOP**. Do not proceed to Phase 0d until the user
+   explicitly confirms the body is correct. This is the last chance to
+   tweak wording before the GitHub Issue is opened.
+
+## Phase 0d: Open the GitHub Issue (`type::epic` only)
+
+1. **Open the Epic Issue**: Call
+   `openEpicFromOnePager({ onePager, template, createIssue })` from the
+   same `epic-plan-ideation.js` module. Pass a `createIssue` port that
+   delegates to the resolved ticketing provider (`provider-factory.js`)
+   so the labels and body land via the canonical I/O surface.
+
+2. **Label discipline**: The Issue is opened with **only** the
+   `type::epic` label. **Do not** add any `state::*` label at creation
+   time — the Epic carries only `type::epic` until PRD authoring
+   advances it to `agent::review-spec` in Phase 1. The
+   `openEpicFromOnePager` helper already enforces this; the workflow
+   prose codifies the intent so future label-set tweaks don't silently
+   widen it.
+
+3. **Continue to Phase 0**: The captured Epic ID becomes the new
+   `[Epic_ID]` for the rest of the planning pipeline. Re-Plan Detection
+   (the original Phase 0) will short-circuit because no PRD/Tech Spec
+   is linked yet, so the run flows naturally into Phase 1.
 
 ## Phase 0: Re-Plan Detection
 
@@ -222,19 +308,19 @@ planned.
    > **Manifest persistence (v5.9.0):** the dispatcher also posts the manifest
    > as a `dispatch-manifest` structured comment on the Epic (idempotent —
    > re-runs replace the prior comment). That comment is the source of truth for
-   > the Wave Completeness Gate in `/epic-close` Step 0.5 and for any external
+   > the Wave Completeness Gate in `/epic-deliver` Step 0.5 and for any external
    > wave-tracking tooling.
 
 3. **Handoff**: Provide the user with the recommended next step:
 
-   > "Planning is complete. Run `/epic-execute #[Epic ID]` to start the wave
+   > "Planning is complete. Run `/epic-deliver #[Epic ID]` to start the wave
    > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
    > ID]` to drive it directly."
 
 ## Phase 4: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/epic-execute`. The default `--fast` mode runs only the cheap checks
+`/epic-deliver`. The default `--fast` mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. It is non-blocking
 — the script always exits 0; the structured JSON on stdout reports findings.
 
@@ -279,7 +365,7 @@ chooses to gate on them.
      the notification script:
 
    ```bash
-   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-execute." --action
+   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-deliver." --action
    ```
 
 ## Troubleshooting

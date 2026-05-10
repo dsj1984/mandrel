@@ -277,13 +277,12 @@ export function projectRegressionsForGate({
   cwd,
   epicBranch,
   storyBranch,
-  settings,
+  agentSettings,
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
   if (gateName !== 'check-maintainability') return [];
-  const baselinePath = getBaselines({ agentSettings: settings })
-    ?.maintainability?.path;
+  const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
   if (!baselinePath) return [];
   const projection = projectMaintainability({
     cwd,
@@ -322,7 +321,7 @@ export async function runPreMergeGatesWithAttribution({
   worktreePath,
   epicBranch,
   storyBranch,
-  settings,
+  agentSettings,
   storyId,
   epicId,
   useEvidence,
@@ -347,7 +346,7 @@ export async function runPreMergeGatesWithAttribution({
         cwd,
         worktreePath,
         epicBranch,
-        settings,
+        agentSettings,
         storyId,
         epicId,
         useEvidence,
@@ -363,7 +362,7 @@ export async function runPreMergeGatesWithAttribution({
         cwd: gateCwd,
         epicBranch,
         storyBranch,
-        settings,
+        agentSettings,
       });
       const outcome = await handleBaselineGateFailureFn({
         gateName,
@@ -398,7 +397,7 @@ export async function runPreMergeGatesWithAttribution({
     cwd,
     worktreePath,
     epicBranch,
-    settings,
+    agentSettings,
     storyId,
     epicId,
     useEvidence,
