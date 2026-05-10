@@ -1,0 +1,369 @@
+/**
+ * Contract test for `/epic-deliver` close-tail resume semantics.
+ *
+ * Story #1155 (Epic #1142, 5.40.0). Asserts the phase-granular resume
+ * contract documented in tech spec #1147:
+ *
+ *   "A mid-flight crash during code-review resumes at code-review on
+ *    next /epic-deliver invocation, not from the start of the wave loop."
+ *
+ * The test drives `runEpicDeliverCloseTail` against a fake provider whose
+ * `epic-run-state` checkpoint is mutated between the two invocations to
+ * simulate a clean run-then-crash sequence:
+ *
+ *   1. First run: close-validation succeeds, code-review succeeds, then
+ *      the runner crashes during retro composition (the test injects a
+ *      throwing `runRetroFn`).
+ *   2. The checkpoint after that crash records `phase: 'retro'` (the
+ *      next phase to run — written by `setPhase('retro')` after
+ *      code-review completed).
+ *   3. Second run: the runner reads the checkpoint, skips
+ *      close-validation + code-review, runs retro + finalize.
+ *
+ * This is the resume contract — the test fails if the runner re-enters
+ * code-review on resume (which would mean the close-tail is not honoring
+ * the phase field).
+ */
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  CLOSE_TAIL_PHASES,
+  runEpicDeliverCloseTail,
+  shouldSkipPhase,
+} from '../../.agents/scripts/lib/orchestration/epic-deliver-close-tail.js';
+import {
+  CHECKPOINT_SCHEMA_VERSION,
+  Checkpointer,
+  DELIVER_PHASES,
+} from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+
+/**
+ * In-memory provider with `getTicketComments` / `postComment` /
+ * `deleteComment` — the only surface the Checkpointer exercises.
+ */
+function makeCheckpointProvider(initialPhase = null) {
+  const comments = new Map();
+  let nextId = 1;
+
+  // Seed with an initial epic-run-state if a phase was supplied.
+  if (initialPhase) {
+    const marker = `<!-- ap:structured-comment type="epic-run-state" -->`;
+    const payload = {
+      version: CHECKPOINT_SCHEMA_VERSION,
+      epicId: 42,
+      phase: initialPhase,
+    };
+    const body = `${marker}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+    comments.set(42, [{ id: nextId++, body }]);
+  }
+
+  return {
+    posted: [],
+    async getTicketComments(ticketId) {
+      return comments.get(ticketId) ?? [];
+    },
+    async postComment(ticketId, payload) {
+      const id = nextId++;
+      this.posted.push({ id, ticketId, ...payload });
+      const list = comments.get(ticketId) ?? [];
+      list.push({ id, body: payload.body });
+      comments.set(ticketId, list);
+      return { commentId: id };
+    },
+    async deleteComment(id) {
+      for (const [ticketId, list] of comments) {
+        const next = list.filter((c) => c.id !== id);
+        if (next.length !== list.length) comments.set(ticketId, next);
+      }
+    },
+    async getTicket(id) {
+      return { id, title: `Epic ${id}` };
+    },
+  };
+}
+
+test('phase list: includes the four close-tail phases plus prepare + wave-loop', () => {
+  // The full DELIVER_PHASES list is the documented checkpoint contract;
+  // the close-tail subset is what this module walks.
+  assert.deepEqual(DELIVER_PHASES, [
+    'prepare',
+    'wave-loop',
+    'close-validation',
+    'code-review',
+    'retro',
+    'finalize',
+  ]);
+  assert.deepEqual(CLOSE_TAIL_PHASES, [
+    'close-validation',
+    'code-review',
+    'retro',
+    'finalize',
+  ]);
+});
+
+test('shouldSkipPhase: phases below the checkpoint are skipped, current+ are not', () => {
+  assert.equal(shouldSkipPhase('retro', 'close-validation'), true);
+  assert.equal(shouldSkipPhase('retro', 'code-review'), true);
+  assert.equal(shouldSkipPhase('retro', 'retro'), false);
+  assert.equal(shouldSkipPhase('retro', 'finalize'), false);
+  assert.equal(shouldSkipPhase('prepare', 'close-validation'), false);
+});
+
+test('runEpicDeliverCloseTail: happy path runs all four phases and writes phase=done', async () => {
+  const provider = makeCheckpointProvider('close-validation');
+  const phasesObserved = [];
+
+  const out = await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => {
+      phasesObserved.push('wave-gate');
+      return { exitCode: 0 };
+    },
+    runHierarchyGateFn: async () => {
+      phasesObserved.push('hierarchy-gate');
+      return { exitCode: 0 };
+    },
+    runCodeReviewFn: async () => {
+      phasesObserved.push('code-review');
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        halted: false,
+        blockerReason: null,
+        posted: true,
+      };
+    },
+    runRetroFn: async () => {
+      phasesObserved.push('retro');
+      return { posted: true, compact: true, scorecard: {}, body: '' };
+    },
+    runFinalizeFn: async () => {
+      phasesObserved.push('finalize');
+      return {
+        epicId: 42,
+        ffOk: true,
+        pushed: true,
+        prUrl: 'https://x/pull/1',
+        postedHandoff: true,
+      };
+    },
+  });
+
+  assert.equal(out.completed, true);
+  assert.deepEqual(out.phasesRun, [
+    'close-validation',
+    'code-review',
+    'retro',
+    'finalize',
+  ]);
+  assert.deepEqual(out.phasesSkipped, []);
+  assert.deepEqual(phasesObserved, [
+    'wave-gate',
+    'hierarchy-gate',
+    'code-review',
+    'retro',
+    'finalize',
+  ]);
+
+  // The final checkpoint write must record phase=done.
+  const checkpointer = new Checkpointer({ provider, epicId: 42 });
+  const final = await checkpointer.read();
+  assert.equal(final.phase, 'done');
+});
+
+test('runEpicDeliverCloseTail: code-review critical halts before retro', async () => {
+  const provider = makeCheckpointProvider('close-validation');
+  let retroCalled = false;
+  let finalizeCalled = false;
+
+  const out = await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => ({ exitCode: 0 }),
+    runHierarchyGateFn: async () => ({ exitCode: 0 }),
+    runCodeReviewFn: async () => ({
+      status: 'ok',
+      severity: { critical: 2, high: 0, medium: 0, suggestion: 0 },
+      halted: true,
+      blockerReason: '2 critical findings',
+      posted: true,
+    }),
+    runRetroFn: async () => {
+      retroCalled = true;
+      return {};
+    },
+    runFinalizeFn: async () => {
+      finalizeCalled = true;
+      return {};
+    },
+  });
+
+  assert.equal(out.completed, false);
+  assert.equal(out.blocker.phase, 'code-review');
+  assert.equal(out.blocker.reason, 'critical-findings');
+  assert.equal(retroCalled, false, 'retro must not run after critical');
+  assert.equal(finalizeCalled, false, 'finalize must not run after critical');
+});
+
+test('runEpicDeliverCloseTail: close-validation halts on wave-gate failure', async () => {
+  const provider = makeCheckpointProvider('close-validation');
+  let codeReviewCalled = false;
+
+  const out = await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => ({ exitCode: 1, message: 'open story #99' }),
+    runHierarchyGateFn: async () => ({ exitCode: 0 }),
+    runCodeReviewFn: async () => {
+      codeReviewCalled = true;
+      return {};
+    },
+    runRetroFn: async () => ({}),
+    runFinalizeFn: async () => ({}),
+  });
+
+  assert.equal(out.completed, false);
+  assert.equal(out.blocker.phase, 'close-validation');
+  assert.equal(out.blocker.reason, 'wave-gate-failed');
+  assert.equal(codeReviewCalled, false);
+});
+
+test('CONTRACT: crash during retro → resume runs retro + finalize, NOT close-validation/code-review', async () => {
+  const provider = makeCheckpointProvider('close-validation');
+
+  // Counts to assert exactly which phases re-ran on resume.
+  let waveGateCalls = 0;
+  let hierarchyGateCalls = 0;
+  let codeReviewCalls = 0;
+  let retroCalls = 0;
+  let finalizeCalls = 0;
+
+  // ============ First run — crash during retro ============
+  await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => {
+      waveGateCalls++;
+      return { exitCode: 0 };
+    },
+    runHierarchyGateFn: async () => {
+      hierarchyGateCalls++;
+      return { exitCode: 0 };
+    },
+    runCodeReviewFn: async () => {
+      codeReviewCalls++;
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        halted: false,
+      };
+    },
+    runRetroFn: async () => {
+      retroCalls++;
+      throw new Error('simulated retro crash');
+    },
+    runFinalizeFn: async () => {
+      finalizeCalls++;
+      return { ffOk: true, pushed: true, prUrl: 'x', postedHandoff: true };
+    },
+  });
+
+  // After the first run, close-validation + code-review ran exactly once
+  // each, retro raised once (crash), and finalize never ran.
+  assert.equal(waveGateCalls, 1);
+  assert.equal(hierarchyGateCalls, 1);
+  assert.equal(codeReviewCalls, 1);
+  assert.equal(retroCalls, 1);
+  assert.equal(finalizeCalls, 0);
+
+  // The checkpoint must record phase=retro (the runner advanced after
+  // code-review and before invoking retro).
+  const checkpointer = new Checkpointer({ provider, epicId: 42 });
+  const cp = await checkpointer.read();
+  assert.equal(cp.phase, 'retro');
+
+  // ============ Second run — resume from retro ============
+  const out = await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => {
+      waveGateCalls++;
+      return { exitCode: 0 };
+    },
+    runHierarchyGateFn: async () => {
+      hierarchyGateCalls++;
+      return { exitCode: 0 };
+    },
+    runCodeReviewFn: async () => {
+      codeReviewCalls++;
+      return {
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        halted: false,
+      };
+    },
+    runRetroFn: async () => {
+      retroCalls++;
+      return { posted: true, compact: true, scorecard: {}, body: '' };
+    },
+    runFinalizeFn: async () => {
+      finalizeCalls++;
+      return {
+        epicId: 42,
+        ffOk: true,
+        pushed: true,
+        prUrl: 'https://x/pull/9',
+        postedHandoff: true,
+      };
+    },
+  });
+
+  // ===== Contract assertions =====
+  assert.equal(out.completed, true);
+  assert.equal(out.resumedFrom, 'retro');
+
+  // Skipped phases: close-validation and code-review.
+  assert.deepEqual(out.phasesSkipped, ['close-validation', 'code-review']);
+  // Run phases on the resume: retro and finalize.
+  assert.deepEqual(out.phasesRun, ['retro', 'finalize']);
+
+  // Critical contract assertion: wave-gate, hierarchy-gate, and
+  // code-review were NOT re-run on the resume.
+  assert.equal(waveGateCalls, 1, 'wave-gate must not run on resume');
+  assert.equal(hierarchyGateCalls, 1, 'hierarchy-gate must not run on resume');
+  assert.equal(codeReviewCalls, 1, 'code-review must not run on resume');
+
+  // retro re-ran (the crashed phase) and finalize ran for the first time.
+  assert.equal(retroCalls, 2);
+  assert.equal(finalizeCalls, 1);
+
+  // Final checkpoint must be done.
+  const finalCp = await checkpointer.read();
+  assert.equal(finalCp.phase, 'done');
+});
+
+test('runEpicDeliverCloseTail: rejects missing args', async () => {
+  await assert.rejects(
+    () =>
+      runEpicDeliverCloseTail({
+        provider: {},
+        runFinalizeFn: async () => ({}),
+      }),
+    /epicId is required/,
+  );
+  await assert.rejects(
+    () =>
+      runEpicDeliverCloseTail({
+        epicId: 1,
+        runFinalizeFn: async () => ({}),
+      }),
+    /provider is required/,
+  );
+  await assert.rejects(
+    () => runEpicDeliverCloseTail({ epicId: 1, provider: {} }),
+    /runFinalizeFn is required/,
+  );
+});
