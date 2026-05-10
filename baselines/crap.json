@@ -364,7 +364,7 @@
       "startLine": 303
     },
     {
-      "crap": 35.19317684793701,
+      "crap": 36.853747776174,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
       "startLine": 322
@@ -520,7 +520,7 @@
       "startLine": 150
     },
     {
-      "crap": 10.048654621692584,
+      "crap": 10.042642756885314,
       "file": ".agents/scripts/diagnose-friction.js",
       "method": "main",
       "startLine": 178
@@ -556,13 +556,13 @@
       "startLine": 132
     },
     {
-      "crap": 2.105107298679249,
+      "crap": 2.0590285940743027,
       "file": ".agents/scripts/epic-close.js",
       "method": "phaseFinalizeAuxiliaryTickets",
       "startLine": 155
     },
     {
-      "crap": 6.318359375,
+      "crap": 2.2000291587695,
       "file": ".agents/scripts/epic-close.js",
       "method": "<anon method-2>",
       "startLine": 182
@@ -755,15 +755,39 @@
     },
     {
       "crap": 4.005830903790088,
-      "file": ".agents/scripts/epic-execute-prepare.js",
-      "method": "runEpicExecutePrepare",
+      "file": ".agents/scripts/epic-deliver-prepare.js",
+      "method": "runEpicDeliverPrepare",
       "startLine": 64
     },
     {
       "crap": 20,
-      "file": ".agents/scripts/epic-execute-prepare.js",
+      "file": ".agents/scripts/epic-deliver-prepare.js",
       "method": "main",
       "startLine": 121
+    },
+    {
+      "crap": 6.839650145772595,
+      "file": ".agents/scripts/epic-deliver-runner.js",
+      "method": "parseArgs",
+      "startLine": 20
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-runner.js",
+      "method": "printUsage",
+      "startLine": 35
+    },
+    {
+      "crap": 17.410593538692716,
+      "file": ".agents/scripts/epic-deliver-runner.js",
+      "method": "main",
+      "startLine": 41
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-runner.js",
+      "method": "buildDispatchPlan",
+      "startLine": 115
     },
     {
       "crap": 2.0521066558111136,
@@ -889,7 +913,7 @@
       "crap": 26.25674296544686,
       "file": ".agents/scripts/epic-planner.js",
       "method": "main",
-      "startLine": 301
+      "startLine": 307
     },
     {
       "crap": 2,
@@ -1036,7 +1060,7 @@
       "startLine": 223
     },
     {
-      "crap": 7.017857142857143,
+      "crap": 6.0163859808830225,
       "file": ".agents/scripts/hierarchy-gate.js",
       "method": "classify",
       "startLine": 47
@@ -1519,7 +1543,7 @@
       "crap": 7,
       "file": ".agents/scripts/lib/config-resolver.js",
       "method": "resolveConfig",
-      "startLine": 128
+      "startLine": 133
     },
     {
       "crap": 2,
@@ -1537,19 +1561,19 @@
       "crap": 3,
       "file": ".agents/scripts/lib/config/baselines.js",
       "method": "getBaselines",
-      "startLine": 31
+      "startLine": 34
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/config/baselines.js",
       "method": "<anon method-1>",
-      "startLine": 36
+      "startLine": 39
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/baselines.js",
       "method": "resolveBaselines",
-      "startLine": 62
+      "startLine": 65
     },
     {
       "crap": 5,
@@ -1681,103 +1705,103 @@
       "crap": 5,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "tempRootFrom",
-      "startLine": 67
+      "startLine": 68
     },
     {
       "crap": 1.512,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "tempRootAsync",
-      "startLine": 86
+      "startLine": 87
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-1>",
-      "startLine": 92
+      "startLine": 93
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-2>",
-      "startLine": 101
+      "startLine": 102
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-3>",
-      "startLine": 110
+      "startLine": 111
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "epicTempDir",
-      "startLine": 132
+      "startLine": 133
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyTempDir",
-      "startLine": 145
+      "startLine": 146
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "signalsFile",
-      "startLine": 158
+      "startLine": 159
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "epicArtifactPath",
-      "startLine": 173
+      "startLine": 174
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "storyArtifactPath",
-      "startLine": 188
+      "startLine": 189
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-4>",
-      "startLine": 194
+      "startLine": 195
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-5>",
-      "startLine": 196
+      "startLine": 197
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-6>",
-      "startLine": 198
+      "startLine": 199
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-7>",
-      "startLine": 200
+      "startLine": 201
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-8>",
-      "startLine": 202
+      "startLine": 203
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-9>",
-      "startLine": 207
+      "startLine": 208
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/temp-paths.js",
       "method": "<anon method-10>",
-      "startLine": 209
+      "startLine": 210
     },
     {
       "crap": 14,
@@ -2074,6 +2098,30 @@
       "startLine": 112
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/lib/duplicate-search.js",
+      "method": "tokenize",
+      "startLine": 85
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/duplicate-search.js",
+      "method": "overlapScore",
+      "startLine": 102
+    },
+    {
+      "crap": 5.048828125,
+      "file": ".agents/scripts/lib/duplicate-search.js",
+      "method": "buildEpicUrl",
+      "startLine": 118
+    },
+    {
+      "crap": 11,
+      "file": ".agents/scripts/lib/duplicate-search.js",
+      "method": "findSimilarOpenEpics",
+      "startLine": 141
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/env-loader.js",
       "method": "loadEnv",
@@ -2156,6 +2204,24 @@
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "releaseEpicMergeLock",
       "startLine": 238
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/epic-plan-ideation.js",
+      "method": "parseOnePager",
+      "startLine": 42
+    },
+    {
+      "crap": 3.0262390670553936,
+      "file": ".agents/scripts/lib/epic-plan-ideation.js",
+      "method": "renderEpicBody",
+      "startLine": 91
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/epic-plan-ideation.js",
+      "method": "openEpicFromOnePager",
+      "startLine": 121
     },
     {
       "crap": 1,
@@ -2782,7 +2848,7 @@
       "startLine": 198
     },
     {
-      "crap": 13.271975994110107,
+      "crap": 13.259615384615385,
       "file": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
       "method": "hydrateContext",
       "startLine": 256
@@ -3640,7 +3706,7 @@
       "startLine": 187
     },
     {
-      "crap": 10.774538386783284,
+      "crap": 10.716375,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectRegressionsForGate",
       "startLine": 275
@@ -3649,7 +3715,7 @@
       "crap": 6.135506172839506,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "runPreMergeGatesWithAttribution",
-      "startLine": 320
+      "startLine": 319
     },
     {
       "crap": 2,
@@ -5062,7 +5128,7 @@
       "startLine": 327
     },
     {
-      "crap": 6.011410593538693,
+      "crap": 6.0099860277800605,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintBaselineCli",
       "startLine": 406
@@ -5071,7 +5137,7 @@
       "crap": 17.008592592592592,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "main",
-      "startLine": 451
+      "startLine": 453
     },
     {
       "crap": 1,
@@ -5194,7 +5260,7 @@
       "startLine": 18
     },
     {
-      "crap": 2,
+      "crap": 1,
       "file": ".agents/scripts/providers/github/comments.js",
       "method": "deleteComment",
       "startLine": 25
