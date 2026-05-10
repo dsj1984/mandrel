@@ -42,7 +42,52 @@ artifacts you author.
 ## Prerequisites
 
 1. **GitHub Epic**: An existing GitHub Issue with the `type/epic` label.
+   Skipped when entering via Phase 0a / `--idea` (the Epic does not exist
+   yet — Phases 0a–0d will create it).
 2. **API Keys**: `GITHUB_TOKEN` must be set in the `.env` file.
+
+## Phase 0a: Idea Refinement (s-plan-ideation entry)
+
+This phase runs **only** when no `<epic#>` argument is supplied, or when
+`--idea "<seed>"` is passed. If an Epic ID was provided, skip directly to
+Phase 0 (Re-Plan Detection).
+
+1. **Invoke the ideation skill**: Use the `Skill` tool with
+   `skill: idea-refinement` and `args` set to the `--idea` value (or a
+   user-supplied seed if no argument was given). The skill drives its own
+   three-phase divergent → convergent → sharpen loop and returns a
+   markdown one-pager with the canonical sections (Problem Statement,
+   Recommended Direction, Key Assumptions, MVP Scope, Not Doing).
+
+2. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
+   to the operator and **STOP**. Do not proceed to Phase 0b until the
+   user explicitly confirms the direction. This is the same gate the
+   skill's own Phase 3 enforces; surfacing it here makes the wait
+   contract visible to `/epic-plan` callers.
+
+## Phase 0b: Cross-Epic Duplicate Search
+
+Runs immediately after Phase 0a (and only on the s-plan-ideation path).
+Its job is to surface open Epics whose scope already overlaps with the
+sharpened one-pager so the operator can fold the work in rather than
+opening a duplicate.
+
+1. **Invoke the duplicate-search module**: Call
+   `findSimilarOpenEpics({ onePager, provider })` exported from
+   [`.agents/scripts/lib/duplicate-search.js`](../scripts/lib/duplicate-search.js).
+   The `provider` is the resolved ticketing provider
+   (`provider-factory.js`), and `onePager` is the markdown returned by
+   Phase 0a.
+
+2. **HITL pause on match**: If the module returns a non-empty ranked
+   list, render the candidates (id, title, score, URL) and **STOP**. Do
+   not proceed to Phase 0c until the user either (a) confirms the new
+   Epic is genuinely distinct or (b) chooses to fold the idea into one of
+   the existing Epics, in which case `/epic-plan` exits and the operator
+   resumes work on the existing Epic ID.
+
+3. **No-match fast path**: If the module returns `[]`, proceed
+   immediately to Phase 0c — no operator intervention required.
 
 ## Phase 0: Re-Plan Detection
 
