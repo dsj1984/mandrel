@@ -1,0 +1,37 @@
+{
+  "id": 14286998,
+  "name": "Protect Main",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "dsj1984/agent-protocols",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": ["~DEFAULT_BRANCH"]
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Validate and Test (ubuntu-latest, node 22)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Validate and Test (windows-latest, node 22)",
+            "integration_id": 15368
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": []
+}
