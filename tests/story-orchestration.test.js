@@ -88,7 +88,7 @@ test.beforeEach(() => {
 });
 
 const mockConfig = {
-  settings: { mainBranch: 'main' },
+  agentSettings: { mainBranch: 'main' },
   orchestration: {
     provider: 'github',
     // Webhook safety: these tests invoke runStoryInit without a sandboxed cwd,

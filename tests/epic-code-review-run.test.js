@@ -54,7 +54,7 @@ test('runEpicCodeReview: missing epicId yields invalid + fatal', async () => {
   const logger = makeLogger();
   const out = await runEpicCodeReview(baseArgs({ epicId: null }), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
   });
   assert.equal(out.status, 'invalid');
@@ -68,7 +68,7 @@ test('runEpicCodeReview: empty diff returns no-changes (no lint, no post)', asyn
 
   const out = await runEpicCodeReview(baseArgs({ post: true }), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: fakeDiff(''),
     runScopedLintFn: (...a) => {
       lintCalls.push(a);
@@ -109,7 +109,7 @@ test('runEpicCodeReview: --scope-lint=off skips lint runner but still builds rep
     baseArgs({ scopeLint: 'off', post: false }),
     {
       logger,
-      resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+      resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
       gitSpawnFn: fakeDiff('a.js\nb.js\n'),
       runScopedLintFn: (...a) => {
         lintCalls.push(a);
@@ -148,7 +148,7 @@ test('runEpicCodeReview: storyId + evidence-skip verdict bypasses lint runner', 
     baseArgs({ storyId: 901, useEvidence: true }),
     {
       logger,
-      resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+      resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
       gitSpawnFn: fakeDiff('src/x.js\n'),
       runScopedLintFn: (...a) => {
         lintCalls.push(a);
@@ -193,7 +193,7 @@ test('runEpicCodeReview: clean lint with --story records evidence', async () => 
     baseArgs({ storyId: 901, useEvidence: true }),
     {
       logger,
-      resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+      resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
       gitSpawnFn: fakeDiff('src/x.js\n'),
       runScopedLintFn: () => ({
         errors: 0,
@@ -229,7 +229,7 @@ test('runEpicCodeReview: lint with errors does NOT record evidence', async () =>
 
   await runEpicCodeReview(baseArgs({ storyId: 901, useEvidence: true }), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: fakeDiff('src/x.js\n'),
     runScopedLintFn: () => ({
       errors: 3,
@@ -265,7 +265,7 @@ test('runEpicCodeReview: --no-evidence path skips both shouldSkip and recordPass
 
   await runEpicCodeReview(baseArgs({ storyId: 901, useEvidence: false }), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: fakeDiff('src/x.js\n'),
     runScopedLintFn: () => ({
       errors: 0,
@@ -300,7 +300,7 @@ test('runEpicCodeReview: post=true upserts structured comment on the Epic', asyn
 
   const out = await runEpicCodeReview(baseArgs({ epicId: 42, post: true }), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: fakeDiff('a.js\n'),
     runScopedLintFn: () => ({
       errors: 0,
@@ -337,7 +337,7 @@ test('runEpicCodeReview: post=false does NOT upsert', async () => {
   const upsertCalls = [];
   await runEpicCodeReview(baseArgs({ post: false }), {
     logger: makeLogger(),
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: fakeDiff('a.js\n'),
     runScopedLintFn: () => ({ errors: 0, warnings: 0, skipped: true }),
     analyzeChangedFilesFn: () => ({
@@ -362,7 +362,7 @@ test('runEpicCodeReview: failed git diff yields invalid + fatal', async () => {
   const logger = makeLogger();
   const out = await runEpicCodeReview(baseArgs(), {
     logger,
-    resolveConfigFn: () => ({ settings: {}, orchestration: {} }),
+    resolveConfigFn: () => ({ agentSettings: {}, orchestration: {} }),
     gitSpawnFn: () => ({
       status: 128,
       stdout: '',
@@ -381,7 +381,7 @@ test('runEpicCodeReview: settings.baseBranch wins over default when args.baseBra
   await runEpicCodeReview(baseArgs({ baseBranch: null }), {
     logger,
     resolveConfigFn: () => ({
-      settings: { baseBranch: 'develop' },
+      agentSettings: { baseBranch: 'develop' },
       orchestration: {},
     }),
     gitSpawnFn: (_cwd, sub, ref) => {

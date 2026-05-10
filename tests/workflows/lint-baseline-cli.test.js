@@ -15,7 +15,7 @@ import { describe, it } from 'node:test';
 import { runLintBaselineCli } from '../../.agents/scripts/lint-baseline.js';
 
 const FAKE_CONFIG = {
-  settings: {
+  agentSettings: {
     quality: {
       commands: { lintBaseline: 'echo []' },
       baselines: { lint: { path: 'baselines/lint.json' } },

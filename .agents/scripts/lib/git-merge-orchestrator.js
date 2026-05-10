@@ -141,10 +141,10 @@ export function mergeFeatureBranch(cwd, featureBranch, vlog, opts = {}) {
     fileList: conflicts.fileList,
   });
 
-  const { settings } = resolveConfig();
+  const { agentSettings } = resolveConfig();
   const severity = classifyConflictSeverity(
     conflicts,
-    settings.mergeThresholds,
+    agentSettings.mergeThresholds,
   );
   if (severity === 'major') {
     gitSpawn(cwd, 'merge', '--abort');

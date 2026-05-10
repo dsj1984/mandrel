@@ -179,8 +179,8 @@ async function main() {
     },
     strict: false,
   });
-  const { settings } = resolveConfig();
-  const checks = resolveChecks(settings);
+  const { agentSettings } = resolveConfig();
+  const checks = resolveChecks(agentSettings);
   const skip = parseSkipList(values.skip);
 
   const result = runQualityGate({ checks, skip });

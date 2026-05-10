@@ -92,7 +92,7 @@ export async function resolveCloseInputs({
     );
   }
 
-  const { orchestration, settings } = resolveConfig({ cwd });
+  const { orchestration, agentSettings } = resolveConfig({ cwd });
 
   const guard = checkCdOutGuard({
     cwdExplicit: parsed.cwd != null,
@@ -129,7 +129,7 @@ export async function resolveCloseInputs({
     restartFlag: parsed.restart,
     noEvidenceFlag: parsed.noEvidence,
     orchestration,
-    settings,
+    agentSettings,
     provider,
     story,
     epicBranch: getEpicBranch(epicId),

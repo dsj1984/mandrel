@@ -276,8 +276,9 @@ export async function runPlanHealthcheck(opts = {}) {
   const { epicId, paranoid, primeInstall, dryRun } = parsed;
   const cwd = PROJECT_ROOT;
 
-  const { settings, orchestration } = opts.injectedConfig || resolveConfig();
-  const baseBranch = settings.baseBranch ?? 'main';
+  const { agentSettings, orchestration } =
+    opts.injectedConfig || resolveConfig();
+  const baseBranch = agentSettings.baseBranch ?? 'main';
 
   progress(
     'HEALTH',

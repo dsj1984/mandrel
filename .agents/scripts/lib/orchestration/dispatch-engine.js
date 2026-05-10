@@ -159,7 +159,7 @@ export async function dispatch(options) {
     new LintBaselineService({
       exec: defaultLintBaselineExec,
       logger: Logger,
-      settings: ctx.settings,
+      settings: ctx.agentSettings,
     });
   ensureEpicScaffolding(ctx, (epicBranch) =>
     lintBaselineService.capture(epicBranch),

@@ -409,22 +409,22 @@ export const renderManifestMarkdown = formatManifestMarkdown;
 
 /**
  * Format the per-story execution manifest. Pure: caller must supply
- * `opts.settings` (typically the resolved agentSettings bag) so we can cite
- * the canonical `story-init.js` / `story-close.js` paths without
- * touching `resolveConfig` (fs).
+ * `opts.agentSettings` (the resolved `agentSettings` bag) so we can cite the
+ * canonical `story-init.js` / `story-close.js` paths without touching
+ * `resolveConfig` (fs).
  *
- * `scriptsRoot` lives under `settings.paths.*` post-Epic #773 Story 9 (it
- * was a flat agentSettings key prior). The fallback string keeps the
+ * `scriptsRoot` lives under `agentSettings.paths.*` post-Epic #773 Story 9
+ * (it was a flat agentSettings key prior). The fallback string keeps the
  * formatter usable in tiny test fixtures that omit the paths block.
  *
  * @param {object} manifest
- * @param {{ settings: { paths?: { scriptsRoot?: string }, commands?: { validate?: string, test?: string } } }} opts
+ * @param {{ agentSettings: { paths?: { scriptsRoot?: string }, commands?: { validate?: string, test?: string } } }} opts
  * @returns {string}
  */
 export function formatStoryManifestMarkdown(manifest, opts = {}) {
-  const settings = opts.settings ?? {};
-  const scriptsRoot = settings.paths?.scriptsRoot ?? '.agents/scripts';
-  const commands = settings.commands ?? {};
+  const agentSettings = opts.agentSettings ?? {};
+  const scriptsRoot = agentSettings.paths?.scriptsRoot ?? '.agents/scripts';
+  const commands = agentSettings.commands ?? {};
   const validateCmd = commands.validate ?? 'npm run lint';
   const testCmd = commands.test ?? 'npm test';
 

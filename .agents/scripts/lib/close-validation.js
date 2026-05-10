@@ -169,19 +169,19 @@ export function resolveFormatWriteCommand(settings) {
  * legacy fs read — `baselines/*.json` on whatever the spawn cwd's working
  * tree carries.
  *
- * @param {{ settings?: object, epicBranch?: string }} [opts]
+ * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ settings, epicBranch } = {}) {
-  const typecheckCmdString = resolveTypecheckCommand(settings);
+export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
+  const typecheckCmdString = resolveTypecheckCommand(agentSettings);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
     .filter(Boolean);
-  const formatCheckString = resolveFormatCheckCommand(settings);
+  const formatCheckString = resolveFormatCheckCommand(agentSettings);
   const [formatCmd, ...formatArgs] = formatCheckString
     .split(/\s+/)
     .filter(Boolean);
-  const formatWriteString = resolveFormatWriteCommand(settings);
+  const formatWriteString = resolveFormatWriteCommand(agentSettings);
   const epicRefArgs =
     typeof epicBranch === 'string' && epicBranch.length > 0
       ? ['--epic-ref', epicBranch]
@@ -227,10 +227,10 @@ export function buildDefaultGates({ settings, epicBranch } = {}) {
 }
 
 /**
- * Default gate list resolved with no consumer settings — uses the
+ * Default gate list resolved with no consumer agentSettings — uses the
  * `npm run typecheck` fallback for the typecheck gate. Call sites that have a
- * resolved settings object in scope (e.g. `story-close.js`) should
- * prefer `buildDefaultGates({ settings })` so a configured
+ * resolved agentSettings object in scope (e.g. `story-close.js`) should
+ * prefer `buildDefaultGates({ agentSettings })` so a configured
  * `agentSettings.commands.typecheck` is honoured.
  *
  * @type {Gate[]}

@@ -36,14 +36,14 @@ export {
  * Backwards-compatible Markdown renderer for story-execution manifests.
  * Resolves config internally to cite the canonical script paths. The pure
  * variant lives at `manifest-formatter.js::formatStoryManifestMarkdown` — new
- * call-sites should prefer that and inject `settings` explicitly.
+ * call-sites should prefer that and inject `agentSettings` explicitly.
  *
  * @param {object} manifest
  * @returns {string}
  */
 export function renderStoryManifestMarkdown(manifest) {
-  const { settings } = resolveConfig();
-  return formatStoryManifestMarkdown(manifest, { settings });
+  const { agentSettings } = resolveConfig();
+  return formatStoryManifestMarkdown(manifest, { agentSettings });
 }
 
 /**

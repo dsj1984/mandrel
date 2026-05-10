@@ -80,12 +80,12 @@ export async function selectAudits({
   gitTimeoutMsOverride,
   gateModeOpts,
 }) {
-  const { settings } = resolveConfig();
+  const { agentSettings } = resolveConfig();
   const timeoutMs = gitTimeoutMsOverride ?? DEFAULT_GIT_TIMEOUT_MS;
 
   const rulesPath = path.join(
     PROJECT_ROOT,
-    getPaths({ agentSettings: settings }).schemasRoot,
+    getPaths({ agentSettings }).schemasRoot,
     'audit-rules.json',
   );
   let rulesData;

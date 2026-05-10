@@ -73,7 +73,7 @@ function listDirtyPaths(cwd, run) {
 export function runFormatAutofix({
   cwd,
   storyId,
-  settings,
+  agentSettings,
   logger = DefaultLogger,
   spawnSync = execFileSync,
   gitSync,
@@ -84,7 +84,7 @@ export function runFormatAutofix({
   // Resolve the formatter command from `agentSettings.commands.formatWrite`
   // so Prettier / dprint repos use their own formatter. Falls back to the
   // historical `npx biome format --write .` for repos that haven't opted in.
-  const writeCmdString = resolveFormatWriteCommand(settings);
+  const writeCmdString = resolveFormatWriteCommand(agentSettings);
   const [writeCmd, ...writeArgs] = writeCmdString.split(/\s+/).filter(Boolean);
 
   // Refuse to act when the tree is already dirty for unrelated reasons —

@@ -18,7 +18,7 @@ import { runEpicPlannerCli } from '../../.agents/scripts/epic-planner.js';
 
 const FAKE_CONFIG = {
   orchestration: { provider: 'github' },
-  settings: { quality: {} },
+  agentSettings: { quality: {} },
 };
 const FAKE_RESOLVE_CONFIG = () => FAKE_CONFIG;
 const FAKE_PROVIDER = { id: 'stub' };

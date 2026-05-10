@@ -239,8 +239,8 @@ async function main() {
     );
   }
   const { epicId, json, docsList } = args;
-  const { settings } = resolveConfig();
-  const docs = docsList ?? resolveDocList(settings);
+  const { agentSettings } = resolveConfig();
+  const docs = docsList ?? resolveDocList(agentSettings);
   if (docs.length === 0) {
     reportEmptyDocs(epicId, json);
     return;

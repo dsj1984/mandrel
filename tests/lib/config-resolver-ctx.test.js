@@ -34,7 +34,7 @@ describe('resolveConfig with injected ctx.fs', () => {
     });
 
     assert.equal(resolved.source, agentrcPath);
-    assert.equal(resolved.settings.baseBranch, 'develop');
+    assert.equal(resolved.agentSettings.baseBranch, 'develop');
     assert.deepEqual(reads, [agentrcPath]);
   });
 
@@ -60,7 +60,7 @@ describe('resolveConfig with injected ctx.fs', () => {
     // keys are not silently filled in. The seven `*Root` keys moved under
     // `paths.*` in Epic #773 Story 9; their framework defaults still flow
     // through `resolvePaths`.
-    assert.equal(resolved.settings.paths.agentRoot, undefined);
-    assert.equal(resolved.settings.paths.scriptsRoot, '.agents/scripts');
+    assert.equal(resolved.agentSettings.paths.agentRoot, undefined);
+    assert.equal(resolved.agentSettings.paths.scriptsRoot, '.agents/scripts');
   });
 });

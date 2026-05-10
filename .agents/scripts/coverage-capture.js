@@ -47,8 +47,8 @@ function parseArgs(argv) {
 
 function main() {
   const args = parseArgs(process.argv);
-  const { settings } = resolveConfig({ cwd: args.cwd });
-  const { crap } = getQuality({ agentSettings: settings });
+  const { agentSettings } = resolveConfig({ cwd: args.cwd });
+  const { crap } = getQuality({ agentSettings });
 
   if (crap.enabled === false) {
     Logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');

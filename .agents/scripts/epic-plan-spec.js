@@ -258,7 +258,7 @@ async function main() {
   let orchestration;
   let settings;
   try {
-    ({ orchestration, settings } = resolveConfig());
+    ({ orchestration, agentSettings: settings } = resolveConfig());
     validateOrchestrationConfig(orchestration);
   } catch (err) {
     Logger.fatal(
