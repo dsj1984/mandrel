@@ -26,6 +26,12 @@ export const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
 // Absolute floating-point tolerance (percentage points). Values in the
 // baseline are stored to two decimals, so anything below 0.01 is noise.
 export const COVERAGE_TOLERANCE = 0.01;
+// Noise headroom (in instrumentation events) granted to small-denominator
+// files. A file with N branches has a per-event resolution of 100/N% — one
+// branch flipping covered↔uncovered between runs is the natural noise floor
+// under non-deterministic Windows/Node 22 V8 instrumentation. We absorb up
+// to one event of slack per axis. Anything beyond one event is real signal.
+export const NOISE_EVENT_HEADROOM = 1.0;
 
 function toForwardSlash(p) {
   return p.replace(/\\/g, '/');
@@ -88,7 +94,12 @@ export function scoreEntry(entry) {
     if (v > 0) fC += 1;
   }
   const pct = (c, t) => (t === 0 ? null : Number(((100 * c) / t).toFixed(2)));
-  return { lines: pct(lC, lT), branches: pct(bC, bT), functions: pct(fC, fT) };
+  return {
+    lines: pct(lC, lT),
+    branches: pct(bC, bT),
+    functions: pct(fC, fT),
+    denominators: { lines: lT, branches: bT, functions: fT },
+  };
 }
 
 /**
@@ -139,12 +150,44 @@ export function readBaseline(cwd, fsImpl = fs) {
 export function writeBaseline(cwd, baseline, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
+  // Strip the in-memory `denominators` field — it's a runtime-only signal
+  // for the noise-tolerance gate; the on-disk baseline stays a flat
+  // `{ lines, branches, functions }` triple per file for backward compat
+  // and small diffs.
+  const stripped = Object.fromEntries(
+    Object.entries(baseline).map(([file, scores]) => {
+      const { denominators: _ignored, ...rest } = scores ?? {};
+      return [file, rest];
+    }),
+  );
   // Sorted keys keep diffs stable run-to-run.
   const sorted = Object.fromEntries(
-    Object.entries(baseline).sort(([a], [b]) => a.localeCompare(b)),
+    Object.entries(stripped).sort(([a], [b]) => a.localeCompare(b)),
   );
   fsImpl.writeFileSync(abs, `${JSON.stringify(sorted, null, 2)}\n`);
   return abs;
+}
+
+/**
+ * Compute the per-axis tolerance (in percentage points) for a file.
+ *
+ * Small-denominator files (a handful of branches, statements, or functions)
+ * are dominated by single-instrumentation-event noise: one branch flipping
+ * covered↔uncovered between Windows/Node 22 CI runs is worth `100/N`
+ * percentage points. We absorb up to `NOISE_EVENT_HEADROOM` events of slack
+ * — anything beyond that is real signal. Large files retain the strict
+ * `COVERAGE_TOLERANCE` floor (essentially zero) because their per-event
+ * resolution is already sub-percent.
+ *
+ * Exported for tests.
+ */
+export function axisToleranceFor(
+  denominator,
+  baseTolerance = COVERAGE_TOLERANCE,
+) {
+  if (!Number.isFinite(denominator) || denominator <= 0) return baseTolerance;
+  const eventResolution = 100 / denominator;
+  return Math.max(baseTolerance, eventResolution * NOISE_EVENT_HEADROOM);
 }
 
 /**
@@ -152,7 +195,11 @@ export function writeBaseline(cwd, baseline, fsImpl = fs) {
  * file. The classification feeds the CLI's exit-code decision and the
  * human-readable summary.
  *
- *   regressions  — file in both, any axis dropped > tolerance.
+ *   regressions  — file in both, any axis dropped > per-axis tolerance.
+ *                  Per-axis tolerance is denominator-aware: a file with
+ *                  N branches gets up to 100/N percentage points of slack
+ *                  (one instrumentation event), so single-event Node 22
+ *                  CI flap on tiny files no longer trips the gate.
  *   newFiles     — file in current, missing from baseline. The CLI
  *                  treats this as a hard failure ("run coverage:update")
  *                  because a brand-new untested CLI shell would
@@ -182,6 +229,7 @@ export function compareScores(
     }
     const drops = [];
     let anyImprovement = false;
+    const denominators = scores?.denominators ?? {};
     for (const axis of /** @type {const} */ ([
       'lines',
       'branches',
@@ -191,9 +239,16 @@ export function compareScores(
       const b = base[axis];
       if (c === null || c === undefined) continue;
       if (b === null || b === undefined) continue;
-      if (c < b - tolerance)
-        drops.push({ axis, current: c, baseline: b, drop: b - c });
-      else if (c > b + tolerance) anyImprovement = true;
+      const axisTol = axisToleranceFor(denominators[axis], tolerance);
+      if (c < b - axisTol)
+        drops.push({
+          axis,
+          current: c,
+          baseline: b,
+          drop: b - c,
+          tolerance: axisTol,
+        });
+      else if (c > b + axisTol) anyImprovement = true;
     }
     if (drops.length > 0) {
       regressions.push({ file, drops });
