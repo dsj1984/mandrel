@@ -362,3 +362,77 @@ test('evaluateBaselineCompatibility — matching kernel + escomplex + ts returns
   });
   assert.deepStrictEqual(r, { ok: true, warnings: [] });
 });
+
+test('compareCrap — trivial (cyclomatic=1) methods are exempted from regression check (Node 22 instrumentation noise)', () => {
+  // c=1 methods have no decision points; their CRAP score collapses to a
+  // pure coverage proxy in [1, 2]. Single-statement wrappers like
+  // `deleteComment(ctx, id)` flap between cov=1.00 (crap=1) and cov=0.17
+  // (crap≈1.58) across Windows/Node 22 CI runs of identical source. The
+  // gate should not regress on them — a real "regression" requires the
+  // method to gain branches, at which point cyclomatic > 1.
+  const current = [
+    makeCurrentRow({
+      file: '.agents/scripts/providers/github/comments.js',
+      method: 'deleteComment',
+      startLine: 25,
+      cyclomatic: 1,
+      coverage: 0.17,
+      crap: 1.58,
+    }),
+  ];
+  const baseline = [
+    makeBaselineRow({
+      file: '.agents/scripts/providers/github/comments.js',
+      method: 'deleteComment',
+      startLine: 25,
+      crap: 1.0,
+    }),
+  ];
+  const result = compareCrap({
+    currentRows: current,
+    baselineRows: baseline,
+    newMethodCeiling: 30,
+    tolerance: 0.05,
+  });
+  assert.strictEqual(result.regressions, 0);
+  assert.strictEqual(result.violations.length, 0);
+});
+
+test('compareCrap — trivial method exemption only applies to c=1 (c=2 still regresses)', () => {
+  // Guardrail: the exemption must not bleed into c≥2 methods. A method that
+  // grew a branch (c=1 → c=2) and saw a CRAP jump is real signal.
+  const current = [
+    makeCurrentRow({ cyclomatic: 2, coverage: 0.17, crap: 4.5 }),
+  ];
+  const baseline = [makeBaselineRow({ crap: 1.0 })];
+  const result = compareCrap({
+    currentRows: current,
+    baselineRows: baseline,
+    newMethodCeiling: 30,
+    tolerance: 0.05,
+  });
+  assert.strictEqual(result.regressions, 1);
+  assert.strictEqual(result.violations[0].kind, 'regression');
+});
+
+test('compareCrap — drifted c=1 method does not regress on coverage flap', () => {
+  // Same file+method, line shifted (drift fallback path). c=1 must still
+  // be exempt from the regression check there.
+  const current = [
+    makeCurrentRow({
+      cyclomatic: 1,
+      coverage: 0.0,
+      crap: 2.0,
+      startLine: 42,
+    }),
+  ];
+  const baseline = [makeBaselineRow({ crap: 1.0, startLine: 10 })];
+  const result = compareCrap({
+    currentRows: current,
+    baselineRows: baseline,
+    newMethodCeiling: 30,
+    tolerance: 0.05,
+  });
+  assert.strictEqual(result.drifted, 1);
+  assert.strictEqual(result.regressions, 0);
+});

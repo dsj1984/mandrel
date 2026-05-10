@@ -264,6 +264,11 @@
     "branches": 83.33,
     "functions": 100
   },
+  ".agents/scripts/lib/coverage-baseline.js": {
+    "lines": 99.62,
+    "branches": 90.48,
+    "functions": 100
+  },
   ".agents/scripts/lib/coverage-utils.js": {
     "lines": 100,
     "branches": 88.76,
