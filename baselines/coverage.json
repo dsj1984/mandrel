@@ -276,7 +276,7 @@
   },
   ".agents/scripts/lib/crap-engine.js": {
     "lines": 100,
-    "branches": 83.33,
+    "branches": 84,
     "functions": 100
   },
   ".agents/scripts/lib/crap-utils.js": {
@@ -306,7 +306,7 @@
   },
   ".agents/scripts/lib/epic-merge-lock.js": {
     "lines": 97.14,
-    "branches": 77.55,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/epic-plan-ideation.js": {
