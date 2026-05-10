@@ -20,6 +20,11 @@
  *
  * The reporter is tolerant of read failures — a failed provider call logs a
  * warning and skips the fire rather than crashing the runner.
+ *
+ * The reporter is responsible for the GitHub-comment narrative only.
+ * Webhook delivery of the curated `epic-progress` event is event-driven
+ * (wave boundaries, blocker transitions) and lives in `emitEpicProgress()`
+ * below — the periodic timer does not mirror to the webhook.
  */
 
 import { appendFile, mkdir } from 'node:fs/promises';
@@ -39,6 +44,15 @@ import { createStalledWorktreeDetector } from './progress-signals/stalled-worktr
 export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
 export const PHASE_TIMINGS_TYPE = 'phase-timings';
 export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
+
+/**
+ * Webhook event name for the curated epic-progress rollup. Distinct from
+ * the `epic-run-progress` structured-comment kind above — the comment is
+ * the operator-facing per-poll snapshot on the Epic ticket, the webhook
+ * event is the coarse-grained rollup that fires at wave boundaries and
+ * after blocker transitions.
+ */
+export const EPIC_PROGRESS_EVENT = 'epic-progress';
 
 /**
  * Parse a `story-run-progress` structured comment posted by `/story-execute`.
@@ -140,12 +154,12 @@ export class ProgressReporter {
     }
     this.intervalSec = Number(opts.intervalSec ?? 0);
     this.logger = opts.logger ?? console;
-    // Optional `notify` hook — when provided, each fire mirrors the
-    // `epic-run-progress` upsert to the webhook channel as a typed
-    // `epic-run-progress` event at `medium` severity. The hook is the same
-    // wrapped `notify(ticketId, payload, opts)` shape the epic-runner uses
-    // throughout; tests pass a stub.
-    this.notify = typeof opts.notify === 'function' ? opts.notify : null;
+    // The periodic timer no longer mirrors to the webhook. Webhook
+    // delivery of `epic-progress` is event-driven (wave boundaries,
+    // blocker transitions) — see `emitEpicProgress()` below — so the
+    // webhook narrative stays focused on the epic rollup instead of every
+    // poll interval. Factory passes no `notify` to the reporter anymore;
+    // the field is removed to make the responsibility split obvious.
     const cap = opts.concurrency ?? DEFAULT_CONCURRENCY.progressReporter;
     this.concurrency =
       Number.isInteger(cap) && cap >= 1
@@ -396,28 +410,6 @@ export class ProgressReporter {
         this.logger.warn?.(
           `[ProgressReporter] comment upsert failed: ${err.message}`,
         );
-      }
-      if (this.notify) {
-        const done = rows.filter((r) => r.state === 'done').length;
-        const total = rows.length;
-        const message = `Epic #${this.epicId} progress · ${done}/${total} stories done`;
-        await Promise.resolve(
-          this.notify(
-            this.epicId,
-            {
-              severity: 'medium',
-              message,
-              event: EPIC_RUN_PROGRESS_TYPE,
-              level: 'epic',
-              epicId: this.epicId,
-            },
-            { skipComment: true },
-          ),
-        ).catch((err) => {
-          this.logger.warn?.(
-            `[ProgressReporter] webhook mirror failed: ${err?.message ?? err}`,
-          );
-        });
       }
       return { rows, body };
     } finally {
@@ -801,6 +793,163 @@ export async function upsertEpicRunProgress({
   );
 
   return { body, payload };
+}
+
+/**
+ * Fire a curated `epic-progress` webhook event. Event-driven only — called
+ * at wave boundaries and after blocker raise/clear transitions. Carries
+ * the rollup payload `{ pct, done, total, currentWave, totalWaves, phase,
+ * openBlockers }`, which Slack consumers and downstream subscribers use to
+ * track epic progress without subscribing to per-story chatter.
+ *
+ * The dispatch passes `skipComment: true` — the operator-facing GitHub
+ * comment is owned by `ProgressReporter.fire()` and `upsertEpicRunProgress`,
+ * not by this webhook fire.
+ *
+ * Failures are swallowed by design: the runner must keep moving even if
+ * the webhook URL is misconfigured or the network is flaky.
+ *
+ * @param {{
+ *   notify: Function|null,
+ *   epicId: number,
+ *   done: number,
+ *   total: number,
+ *   currentWave: number,
+ *   totalWaves: number,
+ *   phase?: string,
+ *   openBlockers?: Array<{ reason: string, storyId?: number }>,
+ *   logger?: { warn?: Function },
+ * }} args
+ * @returns {Promise<{ payload: object } | null>}
+ */
+export async function emitEpicProgress({
+  notify,
+  epicId,
+  done,
+  total,
+  currentWave,
+  totalWaves,
+  phase,
+  openBlockers = [],
+  logger,
+}) {
+  if (typeof notify !== 'function') return null;
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
+  const totalN = Math.max(0, Number(total) || 0);
+  const doneN = Math.max(0, Math.min(totalN, Number(done) || 0));
+  const pct = totalN === 0 ? 0 : Math.round((doneN / totalN) * 100);
+  const blockerCount = Array.isArray(openBlockers) ? openBlockers.length : 0;
+  const blockerSuffix =
+    blockerCount > 0
+      ? ` · 🚧 ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}`
+      : '';
+  const message = `Epic #${epicIdNum} progress · Wave ${currentWave}/${totalWaves} · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
+
+  const payload = {
+    severity: blockerCount > 0 ? 'high' : 'medium',
+    message,
+    event: EPIC_PROGRESS_EVENT,
+    level: 'epic',
+    epicId: epicIdNum,
+  };
+  if (phase) payload.phase = phase;
+
+  try {
+    await notify(epicIdNum, payload, { skipComment: true });
+  } catch (err) {
+    logger?.warn?.(
+      `[emitEpicProgress] notify dispatch failed (swallowed): ${err?.message ?? err}`,
+    );
+    return null;
+  }
+  return {
+    payload: {
+      pct,
+      done: doneN,
+      total: totalN,
+      currentWave,
+      totalWaves,
+      phase,
+      openBlockers: openBlockers ?? [],
+    },
+  };
+}
+
+/**
+ * Fire a curated `epic-started` webhook event at /epic-deliver kickoff.
+ * The Slack consumer anchors the rest of the epic narrative to this fire.
+ * Failures are swallowed.
+ */
+export async function emitEpicStarted({
+  notify,
+  epicId,
+  totalWaves,
+  totalStories,
+  title,
+  logger,
+}) {
+  if (typeof notify !== 'function') return null;
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
+  const message = `Epic #${epicIdNum} started · ${totalWaves} wave${totalWaves === 1 ? '' : 's'} · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
+  try {
+    await notify(
+      epicIdNum,
+      {
+        severity: 'medium',
+        message,
+        event: 'epic-started',
+        level: 'epic',
+        epicId: epicIdNum,
+      },
+      { skipComment: true },
+    );
+  } catch (err) {
+    logger?.warn?.(
+      `[emitEpicStarted] notify dispatch failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Fire a curated `epic-unblocked` webhook event after the operator flips
+ * the Epic label back to `agent::executing`. Paired with `epic-blocked` so
+ * downstream consumers can track open-blocker lifecycle. Failures are
+ * swallowed.
+ */
+export async function emitEpicUnblocked({
+  notify,
+  epicId,
+  resolvedBlocker,
+  logger,
+}) {
+  if (typeof notify !== 'function') return null;
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
+  const reasonPart = resolvedBlocker?.reason
+    ? ` (${resolvedBlocker.reason})`
+    : '';
+  const message = `Epic #${epicIdNum} unblocked${reasonPart} · resuming.`;
+  try {
+    await notify(
+      epicIdNum,
+      {
+        severity: 'medium',
+        message,
+        event: 'epic-unblocked',
+        level: 'epic',
+        epicId: epicIdNum,
+      },
+      { skipComment: true },
+    );
+  } catch (err) {
+    logger?.warn?.(
+      `[emitEpicUnblocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+  return null;
 }
 
 /**

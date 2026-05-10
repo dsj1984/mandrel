@@ -15,6 +15,11 @@ import { AGENT_LABELS } from '../../../label-constants.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../../concurrency.js';
 import { STATE_LABELS, transitionTicketState } from '../../ticketing.js';
+import {
+  emitEpicProgress,
+  emitEpicStarted,
+  emitEpicUnblocked,
+} from '../progress-reporter.js';
 import { checkVersionBumpIntent } from '../version-bump-intent.js';
 
 export async function runIterateWavesPhase(ctx, collaborators, state) {
@@ -53,6 +58,34 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   await checkpointer.initialize({
     totalWaves: scheduler.totalWaves,
     concurrencyCap,
+  });
+
+  // Curated webhook fires: `epic-started` anchors the epic narrative; the
+  // initial `epic-progress` puts the consumer at 0% with the full
+  // story-count denominator. Both are fire-and-forget; webhook misconfig
+  // must not block dispatch.
+  const totalStories = waves.reduce(
+    (acc, w) => acc + (Array.isArray(w) ? w.length : 0),
+    0,
+  );
+  await emitEpicStarted({
+    notify: notifyFn,
+    epicId,
+    totalWaves: scheduler.totalWaves,
+    totalStories,
+    title: epic?.title,
+    logger,
+  });
+  await emitEpicProgress({
+    notify: notifyFn,
+    epicId,
+    done: 0,
+    total: totalStories,
+    currentWave: 0,
+    totalWaves: scheduler.totalWaves,
+    phase: 'iterate-waves',
+    openBlockers: [],
+    logger,
   });
 
   try {
@@ -164,14 +197,60 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       waves: waveHistory,
     });
 
+    // Wave-boundary `epic-progress` fire — sum done stories across the
+    // committed wave history. Counts come from per-wave `results.status`
+    // (the result type WaveObserver returned), not from re-querying
+    // labels, so the snapshot matches what the operator just observed
+    // settle. When there are failures we delay this fire until after the
+    // blocker handler so `openBlockers` carries the actual reason instead
+    // of being empty for one tick.
+    const doneStoriesSoFar = waveHistory.reduce(
+      (acc, w) =>
+        acc + (w.stories ?? []).filter((s) => s?.status === 'done').length,
+      0,
+    );
+    if (!failures.length) {
+      await emitEpicProgress({
+        notify: notifyFn,
+        epicId,
+        done: doneStoriesSoFar,
+        total: totalStories,
+        currentWave: scheduler.currentWave,
+        totalWaves: scheduler.totalWaves,
+        phase: 'iterate-waves',
+        openBlockers: [],
+        logger,
+      });
+    }
+
     if (failures.length) {
       const firstFailure = failures[0];
-      await syncColumn(epicId, [AGENT_LABELS.BLOCKED]);
-      const halt = await blockerHandler.halt({
+      const blockerInfo = {
         reason:
           firstFailure.status === 'blocked' ? 'story_blocked' : 'story_failed',
         storyId: firstFailure.storyId,
         detail: firstFailure.detail,
+      };
+      await syncColumn(epicId, [AGENT_LABELS.BLOCKED]);
+      // Post-blocked progress refresh: BlockerHandler.halt fires the
+      // `epic-blocked` notify itself; we follow up with an `epic-progress`
+      // snapshot carrying the open blocker so a Slack consumer sees the
+      // current state alongside the action-required ping. The progress
+      // fire still runs on the no-resume path so the snapshot survives the
+      // halted bail-out.
+      const halt = await blockerHandler.halt(blockerInfo);
+      await emitEpicProgress({
+        notify: notifyFn,
+        epicId,
+        done: doneStoriesSoFar,
+        total: totalStories,
+        currentWave: scheduler.currentWave,
+        totalWaves: scheduler.totalWaves,
+        phase: 'iterate-waves',
+        openBlockers: [
+          { reason: blockerInfo.reason, storyId: blockerInfo.storyId },
+        ],
+        logger,
       });
       if (!halt.resumed) {
         return {
@@ -181,6 +260,26 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         };
       }
       await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
+      // Post-unblocked: explicit `epic-unblocked` fire + an
+      // `epic-progress` snapshot showing the cleared blocker list so the
+      // consumer can drop the "🚧 open blocker" badge.
+      await emitEpicUnblocked({
+        notify: notifyFn,
+        epicId,
+        resolvedBlocker: blockerInfo,
+        logger,
+      });
+      await emitEpicProgress({
+        notify: notifyFn,
+        epicId,
+        done: doneStoriesSoFar,
+        total: totalStories,
+        currentWave: scheduler.currentWave,
+        totalWaves: scheduler.totalWaves,
+        phase: 'iterate-waves',
+        openBlockers: [],
+        logger,
+      });
     }
   }
 

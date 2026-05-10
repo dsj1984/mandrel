@@ -106,10 +106,13 @@ export async function runStoryInit({
   const provider = injectedProvider || createProvider(orchestration);
   const notifyFn = (ticketId, payload, opts = {}) =>
     notify(ticketId, payload, { orchestration, provider, ...opts });
-  // Per-Task transition hook: keeps the webhook fanout intact (so operators
-  // running with `webhookMinLevel: low` still see one webhook per Task) but
-  // suppresses the GitHub-comment surface. The Story-level summary below
-  // replaces the N per-Task comments with a single message.
+  // Per-Task transition hook: GitHub-comment surface suppressed (the
+  // Story-level summary below replaces the N per-Task comments with a
+  // single message). The webhook channel is now gated by the
+  // `notifications.webhookEvents` allowlist, so per-Task transitions
+  // reach Slack only when the operator opts the `task-transition` event
+  // into the allowlist — the default curated vocabulary (`epic-*` events)
+  // excludes them.
   const notifyWebhookOnly = (ticketId, payload) =>
     notify(ticketId, payload, {
       orchestration,
