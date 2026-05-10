@@ -77,7 +77,7 @@
   ".agents/scripts/lib/dependency-parser.js": 111.597,
   ".agents/scripts/lib/duplicate-search.js": 98.772,
   ".agents/scripts/lib/env-loader.js": 102.643,
-  ".agents/scripts/lib/epic-merge-lock.js": 99.873,
+  ".agents/scripts/lib/epic-merge-lock.js": 99.737,
   ".agents/scripts/lib/epic-plan-ideation.js": 93.441,
   ".agents/scripts/lib/errors/index.js": 133.238,
   ".agents/scripts/lib/fs-utils.js": 150.398,
