@@ -253,7 +253,7 @@ them automatically; agents commit on the execution branch only.
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
 | Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
-| Epic integration | `epic/<epicId>`              | `epic-runner.js`       | Story branches merge into this branch with `--no-ff`. Pushed per wave.                        |
+| Epic integration | `epic/<epicId>`              | `epic-deliver-runner.js` | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
 
 - **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
@@ -267,15 +267,15 @@ prompted.
 
 - **Sync Tool**:
   `node .agents/scripts/update-ticket-state.js --ticket [ID] --state [STATUS]`
-- **Status Labels**: `agent::ready`, `agent::executing`, `agent::review`,
-  `agent::done`
+- **Status Labels**: `agent::ready`, `agent::executing`, `agent::done`.
 
 ### C. History Hygiene
 
 Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
 the Epic branch automatically by `/story-execute` (via `story-close.js`);
-the Epic branch is merged into `main` only by `/epic-close`. There is no
-separate integration workflow.
+the Epic branch reaches `main` via the pull request that `/epic-deliver`
+opens at the end of its run — the operator merges through the GitHub UI.
+There is no in-script merge to `main`.
 
 ---
 

@@ -47,9 +47,10 @@ From zero to shipped:
       full env access in the operator's local session.
    6. **Phase 6 — finalize** — pushes `epic/<epicId>` to `origin`,
       opens a pull request to `main`, sets the required-checks
-      expectation from `agentSettings.quality.prGate.checks`, flips
-      the Epic to `agent::review`, and **stops**. The operator merges
-      the PR through the GitHub UI; the merge fires the standard
+      expectation from `agentSettings.quality.prGate.checks`, posts
+      the hand-off comment naming the PR URL, and **stops**. The
+      Epic stays at `agent::executing` until the operator merges the
+      PR through the GitHub UI; the merge fires the standard
       transition that flips the Epic to `agent::done`.
 
    For a single Story off the dispatch table (re-driving a hotfix,
@@ -313,12 +314,12 @@ assembles a self-contained prompt:
 
 Agents update their state in real-time on GitHub:
 
-- **Labels**: `agent::ready` → `agent::executing` → `agent::done`.
-  `agent::review` was removed from the taxonomy in v5.40.0; the PR opened
-  by `/epic-deliver` Phase 6 is the equivalent "ready to merge" signal at
-  the Epic level. The `WaveObserver` submodule additionally syncs a GitHub
-  Projects v2 Status column on each transition when a `projectNumber` is
-  configured.
+- **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
+  intermediate review label was removed from the taxonomy in v5.40.0; the
+  PR opened by `/epic-deliver` Phase 6 is the equivalent "ready to merge"
+  signal at the Epic level. The `WaveObserver` submodule additionally
+  syncs a GitHub Projects v2 Status column on each transition when a
+  `projectNumber` is configured.
 - **Tasklists**: subtasks are checked off in the ticket body (`- [ ]` →
   `- [x]`).
 - **Friction**: friction logs are posted as structured comments on the Task.
@@ -398,8 +399,8 @@ phases against the Epic branch before opening the PR:
    title and body sourced from the Epic's PRD summary. The PR's
    required-checks expectation is set from
    `agentSettings.quality.prGate.checks` so the GitHub branch-protection
-   gate matches the Epic-level validation that just ran. The Epic flips
-   to `agent::review` and a hand-off structured comment names the PR
+   gate matches the Epic-level validation that just ran. The Epic stays
+   at `agent::executing`; a hand-off structured comment names the PR
    URL.
 
 `/epic-deliver` exits cleanly without merging. The operator merges through
