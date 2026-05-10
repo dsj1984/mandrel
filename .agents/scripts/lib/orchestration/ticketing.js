@@ -62,7 +62,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // node_modules presence.
   'story-init',
   // Story #908 — /story-execute upserts a `story-run-progress` snapshot
-  // on each Story per Task transition. The /epic-execute aggregator and
+  // on each Story per Task transition. The /epic-deliver aggregator and
   // the epic-runner progress reporter both read this comment to derive
   // Story-level state without re-fetching ticket labels.
   'story-run-progress',
@@ -500,7 +500,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
 
       // EXCLUSION: Epics and Planning tickets (PRDs, Tech Specs) do not
       // auto-close via cascade.
-      //   - Epics close via formal /epic-close (their own machinery
+      //   - Epics close via formal /epic-deliver (their own machinery
       //     handles branch merges, version bumps, release tags).
       //   - Planning tickets (context::prd, context::tech-spec) close by
       //     operator once the Epic is finalized.
@@ -518,7 +518,7 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
         parent.labels.includes('context::tech-spec');
       if (isEpic || isPlanning) {
         Logger.warn(
-          `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (reserved for epic-close).`,
+          `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (Epics close via the operator's PR merge; Planning tickets close manually post-merge).`,
         );
         continue;
       }

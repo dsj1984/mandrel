@@ -1,12 +1,11 @@
 ---
 description: >-
   Drive an Epic from `agent::ready` to an open pull request against `main`. The
-  six-phase flow folds today's `/epic-execute` wave loop with the
-  `/epic-close` close-tail (validation, code-review, retro) and ends by opening
-  a PR — the operator merges through the GitHub UI. There is no in-script
-  merge to `main`. The runtime engine is `epic-deliver-runner` (the renamed
-  `epic-runner`); `epic-deliver-prepare` (the renamed `epic-execute-prepare`)
-  builds the wave plan; `epic-deliver-finalize` opens the PR.
+  six-phase flow runs the wave loop, close-validation, code-review, retro, and
+  finalize end-to-end; ends by opening a PR — the operator merges through the
+  GitHub UI. There is no in-script merge to `main`. The runtime engine is
+  `epic-deliver-runner`; `epic-deliver-prepare` builds the wave plan;
+  `epic-deliver-finalize` opens the PR.
 ---
 
 # /epic-deliver #[Epic ID]
@@ -14,8 +13,8 @@ description: >-
 ## Overview
 
 `/epic-deliver` is the **single SDL execution command** in the 5.40 surface.
-It replaces the v5.39.x `/epic-execute → /epic-close` pair — the implicit
-in-script merge to `main` from `/epic-close` becomes an explicit human PR
+It replaces the v5.39.x execute + close pair — the implicit in-script
+merge to `main` from the legacy close path becomes an explicit human PR
 merge through the GitHub UI:
 
 ```text
@@ -85,8 +84,8 @@ Epic ticket's labels or from `orchestration.runners.deliverRunner` in
   `epic/<epicId>` to `main` and **stops**. The workflow never merges to
   `main` itself. The PR's existence is the operator's signal to inspect
   the required-checks summary and merge through the GitHub UI. This is
-  the explicit human gate that replaces v5.39.x's implicit in-script
-  merge inside `/epic-close`.
+  the explicit human gate that replaces the v5.39.x implicit in-script
+  merge inside the prior close workflow.
 
 ---
 
@@ -239,7 +238,7 @@ When all waves return `complete`, the iteration phase is done.
 
 Run lint + test + project-extended ratchets against `epic/<epicId>`
 before opening the PR. This is the same chain v5.39.x ran inside
-`/epic-close` Phase 4, lifted into the `/epic-deliver` tail so the
+the v5.39.x close-validation chain, lifted into the `/epic-deliver` tail so the
 operator's required-checks dashboard reflects a clean tree at PR-open
 time.
 
@@ -347,34 +346,38 @@ The CLI:
 3. Sets the PR's required-checks expectation from
    `agentSettings.quality.prGate.checks` so the GitHub branch
    protection gate matches the Epic-level validation that just ran.
-4. Flips the Epic to `agent::review` and posts a hand-off structured
-   comment naming the PR URL and the operator's remaining action.
+4. Posts a hand-off structured comment naming the PR URL and the
+   operator's remaining action. The Epic stays at `agent::executing`
+   until the operator's PR merge fires the standard transition to
+   `agent::done`.
 5. **Exits cleanly without merging.** The operator merges through the
    GitHub UI once the required checks are green and the review is
    accepted.
 
-There is no `epic-finalize.js` from the v5.39.x close path —
-`/epic-deliver` does not run `BookendChainer`, does not auto-invoke
-`/epic-close`, and does not delete branches. Branch cleanup is handled
-out-of-band by `/delete-epic-branches` after the PR has merged.
+`/epic-deliver` does not run any autonomous chainer, does not invoke a
+separate close command, and does not delete branches. Branch cleanup is
+handled out-of-band by `/delete-epic-branches` after the PR has merged.
+The v5.39.x close-path artefacts (autonomous merge to `main`, the
+chainer, the separate finalize CLI) were removed in 5.40.0 — see the
+`docs/CHANGELOG.md` 5.40.0 entry for the full deletion list.
 
 ---
 
 ## Operator-merges-PR exit condition
 
 `/epic-deliver` ends at the moment the PR is open, the required-checks
-expectation is configured, and the Epic carries `agent::review`. The
-**operator** is the gate that promotes the Epic branch into `main` —
-the workflow never executes `git merge` against `main`. This is the
-explicit human decision point that replaces v5.39.x's implicit
-in-script merge inside `/epic-close`.
+expectation is configured, and the hand-off comment names the PR URL.
+The **operator** is the gate that promotes the Epic branch into
+`main` — the workflow never executes `git merge` against `main`. This
+is the explicit human decision point that replaces the v5.39.x
+implicit in-script merge inside the prior close workflow.
 
 When the operator merges the PR via the GitHub UI:
 
 - the Epic-to-`main` merge lands as a real PR merge with a real
   reviewer-trail and required-checks history;
 - branch cleanup runs out-of-band via `/delete-epic-branches`;
-- the operator-driven workflow is done — no separate `/epic-close`
+- the operator-driven workflow is done — no separate close
   invocation, no separate retro command, because the retro already
   fired locally inside Phase 5.
 

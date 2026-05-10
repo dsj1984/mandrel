@@ -106,7 +106,7 @@ async function main() {
 }
 
 /**
- * Build the per-wave dispatch list the `/epic-execute` skill consumes.
+ * Build the per-wave dispatch list the `/epic-deliver` skill consumes.
  * Reuses the engine's snapshot + build-wave-dag phases so the dry-run output
  * matches what the skill will dispatch at runtime.
  *

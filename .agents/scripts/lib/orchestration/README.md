@@ -64,7 +64,7 @@ wrappers** that delegate to it.
 | `parked-follow-ons.js`      | Follow-on ticket parking                        |
 | `post-merge-pipeline.js`    | Post-merge cascade (cascadeCompletion etc.)    |
 | `recut.js`                  | Branch re-cut helper                            |
-| `retro-heuristics.js`       | Retro heuristics for `/epic-close`              |
+| `retro-heuristics.js`       | Retro heuristics for `/epic-deliver`              |
 | `story-close/`              | Story-close internals                           |
 | `story-close-recovery.js`   | Recovery path for partially-closed Stories      |
 | `doc-reader.js`             | Doc/section lookup for context hydration        |
@@ -90,7 +90,7 @@ entry point. They never own business logic.
 | `context-hydrator.js`                | CLI wrapper — assembles self-contained agent prompts                    |
 | `story-init.js`                      | Initializes Story execution: branches, deps, state transitions          |
 | `story-close.js`                     | Finalizes Story: merges to Epic branch, cascades completions            |
-| `epic-close.js`                      | Epic closure: doc freshness gate, version bump, tag release             |
+| `epic-deliver runner`                      | Epic closure: doc freshness gate, version bump, tag release             |
 | `epic-code-review.js`                | Automated code review execution                                         |
 | `update-ticket-state.js`             | CLI wrapper — label-based state machine with cascade                    |
 | `delete-epic.js`                     | Recursive issue deletion/clearing via GraphQL                           |

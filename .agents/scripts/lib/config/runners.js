@@ -9,9 +9,10 @@
  * the remaining sub-blocks fall back to an empty object so callers can
  * destructure without guarding.
  *
- * Story #1157 renamed `epicRunner` → `deliverRunner` and `closeRetry` →
- * `storyMergeRetry`. The accessor surfaces only the new names — repos with
- * stale `.agentrc.json` will fail AJV validation upstream of this read.
+ * Story #1157 renamed two sub-blocks under `orchestration.runners`; see
+ * `docs/CHANGELOG.md` 5.40.0 for the legacy → new key mapping. The
+ * accessor surfaces only the new names — repos with stale `.agentrc.json`
+ * will fail AJV validation upstream of this read.
  */
 
 import {

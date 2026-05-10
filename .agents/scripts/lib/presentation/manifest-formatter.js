@@ -526,7 +526,7 @@ export function printStoryDispatchTable(storyManifest, opts = {}) {
   );
   log('');
   log('  💡 Stories in the same [Wave] can be executed in parallel.');
-  log('  💡 Use /epic-execute #[Story ID] to execute a Story.');
+  log('  💡 Use /epic-deliver #[Story ID] to execute a Story.');
 
   if (features.length > 0) {
     log('');

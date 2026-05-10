@@ -4,7 +4,8 @@
 /**
  * epic-deliver-finalize.js — Phase F of the merged `/epic-deliver` flow.
  *
- * Story #1155 (Epic #1142, 5.40.0). Replaces `epic-finalize.js`. Three
+ * Story #1155 (Epic #1142, 5.40.0). Replaces the v5.39.x finalize CLI
+ * (renamed; see `docs/CHANGELOG.md` 5.40.0 for the rename history). Three
  * responsibilities:
  *
  *   1. Verify `epic/<id>` fast-forward-merges the current `main`. If

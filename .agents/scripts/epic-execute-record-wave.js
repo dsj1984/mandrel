@@ -6,7 +6,7 @@
  * advance the `epic-run-state` checkpoint, and re-render the unified
  * `epic-run-progress` rollup on the Epic.
  *
- * The slash-command (`/epic-execute`) calls this CLI once per wave, after
+ * The slash-command (`/epic-deliver`) calls this CLI once per wave, after
  * its host-level Agent-tool fan-out drains. It is the only writer of the
  * `epic-run-progress` structured comment for the wave-completion path —
  * there is no separate `/wave-execute` skill, no `wave-run-progress`
@@ -83,7 +83,7 @@ const HELP = `Usage: node .agents/scripts/epic-execute-record-wave.js \\
 
 Records the wave's per-Story outcomes, advances the epic-run-state
 checkpoint, and upserts the unified epic-run-progress rollup on the Epic.
-Prints the next action for the /epic-execute slash command.
+Prints the next action for the /epic-deliver slash command.
 `;
 
 const VALID_RESULT_STATUSES = new Set(['complete', 'blocked', 'failed']);

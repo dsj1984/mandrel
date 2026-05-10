@@ -6,9 +6,9 @@ description: >-
 # Sprint Code Review (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/epic-close` Phase 3 and from the Bookend Lifecycle in `/epic-execute`
+> `/epic-deliver` Phase 3 and from the Bookend Lifecycle in `/epic-deliver`
 > when all Tasks reach `agent::done`. To run a review directly, use
-> `/epic-close [Epic_ID]` — it delegates here (or pass `--skip-code-review`
+> `/epic-deliver [Epic_ID]` — it delegates here (or pass `--skip-code-review`
 > to bypass).
 
 This helper performs a comprehensive code review of **all code changes** on an
@@ -16,7 +16,7 @@ Epic branch before it is merged to `main`. It is a mandatory Bookend phase —
 every sprint must pass a code review before closure.
 
 > **When to run**: After all Stories are merged into the Epic branch and before
-> `/epic-close`. The Bookend Lifecycle in `/epic-execute` invokes this
+> `/epic-deliver`. The Bookend Lifecycle in `/epic-deliver` invokes this
 > automatically when all Tasks reach `agent::done`.
 >
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
@@ -177,7 +177,7 @@ If the operator instructs you to fix any findings:
    ```
 
 If no fixes are requested, this workflow is complete. The operator may proceed
-to `/epic-close`.
+to `/epic-deliver`.
 
 ## Constraint
 

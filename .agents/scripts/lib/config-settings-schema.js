@@ -185,10 +185,10 @@ const SIGNALS_LIMITS_SCHEMA = {
 
 /**
  * `agentSettings.planning` — grouped home for planning/decomposition tuning
- * knobs. Epic #1142 Story #1157 lifted the prior flat
- * `agentSettings.riskGates.heuristics` array under here as
- * `planning.riskHeuristics` so the planning surface (formerly scattered
- * across `riskGates`, `limits.planningContext`, etc.) has a stable parent.
+ * knobs. Epic #1142 Story #1157 lifted the prior flat heuristics array
+ * under here as `planning.riskHeuristics` so the planning surface has a
+ * stable parent. See `docs/CHANGELOG.md` 5.40.0 for the renamed-from
+ * key history.
  */
 const PLANNING_SCHEMA = {
   type: 'object',

@@ -16,7 +16,7 @@ bootstrap or refresh it.
 
 ## Concurrent close safety
 
-`/epic-execute`'s wave loop may close multiple Stories into the same
+`/epic-deliver`'s wave loop may close multiple Stories into the same
 `epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by

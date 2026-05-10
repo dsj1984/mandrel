@@ -114,7 +114,7 @@ export async function postManifestEpicComment(manifest, provider) {
     `- **Stories:** ${stories.length}`,
     `- **Generated:** ${manifest.generatedAt}`,
     '',
-    'Source of truth for the wave-completeness gate run at `/epic-close`.',
+    'Source of truth for the wave-completeness gate run at `/epic-deliver`.',
     '',
     '```json',
     JSON.stringify({ stories }, null, 2),

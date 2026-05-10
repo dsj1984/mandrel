@@ -15,11 +15,10 @@ seven options, in order:
 | - | ------------- | --------------------------------------------------------------- |
 | 1 | `Backlog`     | Open work item, not yet scheduled.                              |
 | 2 | `Spec Review` | `agent::review-spec` — awaiting human review of PRD/Tech Spec.  |
-| 3 | `Ready`       | `agent::ready` — manifest ready, awaiting `/epic-execute`.      |
-| 4 | `In Progress` | `agent::executing` — active work.                               |
+| 3 | `Ready`       | `agent::ready` — manifest ready, awaiting `/epic-deliver`.      |
+| 4 | `In Progress` | `agent::executing` — active work (covers PR-open hand-off too). |
 | 5 | `Blocked`     | `agent::blocked` — waiting on a dependency or HITL.             |
-| 6 | `Review`      | `agent::review` — PR open or awaiting human sign-off.           |
-| 7 | `Done`        | `agent::done` — work complete, cascaded.                        |
+| 6 | `Done`        | `agent::done` — work complete, cascaded; PR merged for Epics.   |
 
 Bootstrap treats the option list as additive — it never removes existing
 options, so extending the field with team-specific states (e.g.
@@ -38,7 +37,6 @@ Spec Review > Ready > In Progress).
 | `agent::ready`       | `Ready`       |
 | `agent::executing`   | `In Progress` |
 | `agent::blocked`     | `Blocked`     |
-| `agent::review`      | `Review`      |
 | `agent::done`        | `Done`        |
 
 ## Default Views

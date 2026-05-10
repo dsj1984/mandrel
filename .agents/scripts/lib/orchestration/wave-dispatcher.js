@@ -102,7 +102,7 @@ async function dispatchTaskInWave(task, ctx) {
   }
 
   // JIT-only: story branches and worktrees are created exclusively by
-  // story-init (invoked via `/epic-execute #<storyId>`). If the
+  // story-init (invoked via `/epic-deliver #<storyId>`). If the
   // story hasn't been initialized yet, skip its tasks so the operator can
   // start that story explicitly — never create it as a side effect of
   // Epic-level dispatch.
@@ -116,7 +116,7 @@ async function dispatchTaskInWave(task, ctx) {
     if (!initialized) {
       Logger.info(
         `⏭️  Skipping Task #${task.id}: Story #${storyId} not initialized. ` +
-          `Run \`/epic-execute #${storyId}\` to begin this story.`,
+          `Run \`/epic-deliver #${storyId}\` to begin this story.`,
       );
       return { taskId: task.id, status: 'skipped-not-initialized' };
     }

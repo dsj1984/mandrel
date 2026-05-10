@@ -83,7 +83,7 @@ export async function reconcileClosedTasks(tasks, provider, dryRun) {
  * container are done, closes the container and applies `agent::done`.
  *
  * Epic auto-closure is intentionally excluded — Epics close only through
- * the formal `/epic-close` workflow.
+ * the formal `/epic-deliver` workflow.
  *
  * Per-ticket provider failures are logged and swallowed so a single bad
  * ticket cannot halt reconciliation across the rest of the graph.
@@ -181,5 +181,5 @@ export async function reconcileHierarchy(
   for (const id of featureIds) await maybeClose(id, 'Feature');
 
   // EXCLUSION: Epic auto-closure removed.
-  // The Epic ticket now stays open until the formal /epic-close workflow is executed.
+  // The Epic ticket now stays open until the formal /epic-deliver workflow is executed.
 }

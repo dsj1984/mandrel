@@ -98,9 +98,9 @@ const WORKTREE_ISOLATION_SCHEMA = {
 
 /**
  * `orchestration.runners.deliverRunner` — bounded-concurrency knob for the
- * epic-deliver fan-out (Epic #773 Story 7). Renamed from `epicRunner` in
- * Epic #1142 Story #1157 to match the `/epic-deliver` workflow it drives;
- * the schema shape is unchanged from the prior `epicRunner` block.
+ * epic-deliver fan-out (Epic #773 Story 7). Renamed in Epic #1142 Story
+ * #1157 to match the `/epic-deliver` workflow it drives; the schema shape
+ * is unchanged. See `docs/CHANGELOG.md` 5.40.0 for the rename history.
  */
 const DELIVER_RUNNER_SCHEMA = {
   type: 'object',
@@ -141,9 +141,10 @@ const PLAN_RUNNER_SCHEMA = {
  * `orchestration.runners.storyMergeRetry` — bounded retry policy for the
  * epic-branch push step in `story-close.js`. Protects concurrent story
  * closures against non-fast-forward rejections when a sibling session lands
- * on the same Epic branch between our fetch and our push. Renamed from
- * `closeRetry` in Epic #1142 Story #1157 to make the intent (story-close
- * push retry) explicit at the call site.
+ * on the same Epic branch between our fetch and our push. Renamed in
+ * Epic #1142 Story #1157 to make the intent (story-close push retry)
+ * explicit at the call site. See `docs/CHANGELOG.md` 5.40.0 for the
+ * rename history.
  *
  * Both keys are optional. Defaults (applied by the consumer, not the schema)
  * are `{ maxAttempts: 3, backoffMs: [250, 500, 1000] }`.
@@ -223,9 +224,9 @@ export const DEFAULT_DECOMPOSER = Object.freeze({
  * `orchestration.runners` — typed grouping of every runner-flavoured sub-block
  * introduced in Epic #773 Story 7. Replaces the prior flat layout where each
  * sub-block sat directly under `orchestration`. Epic #1142 Story #1157
- * renamed `epicRunner` → `deliverRunner` and `closeRetry` →
- * `storyMergeRetry` to make the per-block intent explicit; the sub-schemas
- * themselves are preserved.
+ * renamed two of the grouped sub-blocks; see `docs/CHANGELOG.md` 5.40.0
+ * for the legacy → new key mapping. The sub-schemas themselves are
+ * preserved.
  */
 const RUNNERS_SCHEMA = {
   type: 'object',

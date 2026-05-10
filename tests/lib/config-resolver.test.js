@@ -771,8 +771,8 @@ describe('config-resolver library tests', () => {
     });
   });
 
-  // Epic #1142 Story #1157: getEpicClose / EPIC_CLOSE_DEFAULTS / the
-  // `agentSettings.epicClose` block were deleted. The retro skip is now
-  // CLI-only via `--skip-retro` on /epic-close. The accessor block that
-  // used to live here was removed in lockstep.
+  // Epic #1142 Story #1157 deleted the prior close-tail config accessor
+  // block in lockstep with the SDL surface collapse. The retro skip is
+  // now CLI-only via `--skip-retro` on /epic-deliver. See
+  // `docs/CHANGELOG.md` 5.40.0 for the full deletion list and migration.
 });

@@ -527,7 +527,7 @@ sequenceDiagram
     CH-->>EDR: Self-contained prompt
     EDR->>A: Dispatch story (Agent-tool sub-agent)
     A->>GH: Update labels (agent::executing → done)
-    EDR->>GH: Open PR to main, flip Epic to agent::review
+    EDR->>GH: Open PR to main, post hand-off comment
     H->>GH: Merge PR via GitHub UI → Epic flips to agent::done
 ```
 

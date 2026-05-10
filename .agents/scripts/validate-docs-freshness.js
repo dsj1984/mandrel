@@ -194,7 +194,7 @@ export function renderFreshnessFailureMessage(epicId) {
   return (
     `[docs-freshness] ❌ Documentation freshness gate FAILED for Epic #${epicId}.\n\n` +
     `Update each failing file so its commit message or body references #${epicId}, ` +
-    `then re-run /epic-close.`
+    `then re-run /epic-deliver.`
   );
 }
 

@@ -7,7 +7,7 @@
  *
  * Runs at the end of /epic-plan (Phase 4) to validate the backlog and
  * optionally prime the execution environment before handing off to
- * /epic-execute.
+ * /epic-deliver.
  *
  * Modes (additive — fast checks always run):
  *   --fast (default)  — config validation + git remote check only.

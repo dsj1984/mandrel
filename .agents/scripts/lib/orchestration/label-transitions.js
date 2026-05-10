@@ -3,8 +3,9 @@
  *
  * These are deliberately thin: each helper names the *target* state and
  * forwards to the underlying SDK call. They exist so that init / close /
- * epic-close read as prose ("toExecuting(provider, taskId)") instead of
- * forcing readers to parse the `STATE_LABELS.X` constant at every call site.
+ * deliver-tail call sites read as prose ("toExecuting(provider, taskId)")
+ * instead of forcing readers to parse the `STATE_LABELS.X` constant at
+ * every call site.
  *
  * Not an abstraction — the underlying `transitionTicketState` remains the
  * authoritative single-ticket transition path. Opts are forwarded verbatim.

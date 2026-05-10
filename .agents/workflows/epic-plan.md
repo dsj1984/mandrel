@@ -308,19 +308,19 @@ planned.
    > **Manifest persistence (v5.9.0):** the dispatcher also posts the manifest
    > as a `dispatch-manifest` structured comment on the Epic (idempotent —
    > re-runs replace the prior comment). That comment is the source of truth for
-   > the Wave Completeness Gate in `/epic-close` Step 0.5 and for any external
+   > the Wave Completeness Gate in `/epic-deliver` Step 0.5 and for any external
    > wave-tracking tooling.
 
 3. **Handoff**: Provide the user with the recommended next step:
 
-   > "Planning is complete. Run `/epic-execute #[Epic ID]` to start the wave
+   > "Planning is complete. Run `/epic-deliver #[Epic ID]` to start the wave
    > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
    > ID]` to drive it directly."
 
 ## Phase 4: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
-`/epic-execute`. The default `--fast` mode runs only the cheap checks
+`/epic-deliver`. The default `--fast` mode runs only the cheap checks
 (config + git remote) and targets sub-2-second turnaround. It is non-blocking
 — the script always exits 0; the structured JSON on stdout reports findings.
 
@@ -365,7 +365,7 @@ chooses to gate on them.
      the notification script:
 
    ```bash
-   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-execute." --action
+   node .agents/scripts/notify.js [Epic_ID] "Planning complete, review tickets. Backlog decomposition complete. Epic is ready for /epic-deliver." --action
    ```
 
 ## Troubleshooting

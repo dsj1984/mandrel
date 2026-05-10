@@ -21,7 +21,7 @@
  *     Phase E (retro) when set.
  *
  * Halting on critical findings is the in-process replacement for the
- * helper's "operator must remediate before /epic-close" gate.
+ * helper's "operator must remediate before /epic-deliver" gate.
  */
 
 import { runEpicCodeReview } from '../../epic-code-review.js';

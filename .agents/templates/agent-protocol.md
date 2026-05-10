@@ -42,6 +42,8 @@ When your implementation is complete and verified:
    Exception: you may run them interactively while iterating on a fix.
 3. The Story branch is auto-merged into the Epic branch by `/story-execute`
    (via `story-close.js`) after all Tasks are done — do **not** merge manually.
-4. Transition the task label to `agent::review` via `update-ticket-state.js`.
+4. Transition the task label to `agent::done` via `update-ticket-state.js`
+   once `task-commit.js` confirms the commit landed. The Story-level
+   close is automatic via `story-close.js` after the last Task closes.
 
 ---

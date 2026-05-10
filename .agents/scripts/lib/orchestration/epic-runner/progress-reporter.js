@@ -11,7 +11,7 @@
  *      structured comment on the Epic issue so operators watching the ticket
  *      see a single in-place update rather than N comments.
  *   5. When `logFile` is set, also appends the rendered snapshot (with an
- *      ISO-timestamped divider) to that path. This lets the /epic-execute
+ *      ISO-timestamped divider) to that path. This lets the /epic-deliver
  *      skill tail the file via `Monitor` to stream progress into IDE chat even
  *      when the runner itself is invoked in a background Bash that doesn't
  *      surface stdout live.
@@ -165,7 +165,7 @@ export class ProgressReporter {
 
     // Optional file sink — when set, every rendered snapshot is appended to
     // this path prefixed by an ISO-timestamped divider. Enables operators
-    // (or the /epic-execute skill) to tail progress in real time even when
+    // (or the /epic-deliver skill) to tail progress in real time even when
     // the runner's stdout is swallowed by a background Bash invocation.
     // Tests omit `logFile` to keep the filesystem clean.
     this.logFile = opts.logFile ?? null;
@@ -652,7 +652,7 @@ function formatElapsed(ms) {
 /**
  * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
  *
- * Called by `/epic-execute` Step 2b (`epic-execute-record-wave.js`) after
+ * Called by `/epic-deliver` Step 2b (`epic-execute-record-wave.js`) after
  * each wave completes. The caller folds `state.waves[]` from the
  * `epic-run-state` checkpoint into the per-wave rows and persists the
  * unified rollup as a fenced-JSON payload on the Epic ticket via
