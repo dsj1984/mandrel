@@ -24,13 +24,13 @@
  *        └─ <name>            (storyArtifactPath escape hatch)
  *
  * tempRoot resolution: the helper accepts an optional `config` argument
- * (the full resolved config or the bare `agentSettings` bag); when omitted
- * it lazy-loads via `resolveConfig()` so call sites already inside the
- * resolver can pass their own bag and avoid the round-trip. The
- * missing-tempRoot fallback resolves to `'temp'` — the framework default
- * shipped in `.agents/default-agentrc.json`. Note that the AJV schema
- * marks `tempRoot` as required for any loaded `.agentrc.json`, so the
- * fallback only matters in zero-config callers (tests, ad-hoc scripts).
+ * (the full resolved config `{ agentSettings, ... }` or the bare
+ * `agentSettings` bag); when omitted it lazy-loads via `resolveConfig()` so
+ * call sites already inside the resolver can pass their own bag and avoid the
+ * round-trip. The missing-tempRoot fallback resolves to `'temp'` — the
+ * framework default shipped in `.agents/default-agentrc.json`. Note that the
+ * AJV schema marks `tempRoot` as required for any loaded `.agentrc.json`, so
+ * the fallback only matters in zero-config callers (tests, ad-hoc scripts).
  */
 
 import path from 'node:path';
@@ -52,11 +52,12 @@ async function getResolveConfig() {
 }
 
 /**
- * Synchronous tempRoot extraction. Accepts:
- *   - a full resolved config `{ settings, ... }`,
- *   - an `agentSettings` bag,
- *   - a `paths` bag,
- *   - or `undefined` (returns the default `'temp'`).
+ * Synchronous tempRoot extraction. Accepts the canonical two-shape contract
+ * shared by every accessor in this directory:
+ *   - the full resolved config `{ agentSettings, ... }` (resolver wrapper), or
+ *   - the bare `agentSettings` bag (already-unwrapped).
+ *
+ * Returns `'temp'` for `undefined` / non-object input.
  *
  * Cross-script callers that already hold a resolved config should pass it
  * here; bare callers omit the argument and accept the framework default.
@@ -66,8 +67,8 @@ async function getResolveConfig() {
  */
 export function tempRootFrom(config) {
   if (!config || typeof config !== 'object') return 'temp';
-  const settings = config.settings ?? config.agentSettings ?? config;
-  const paths = settings?.paths ?? config?.paths;
+  const agentSettings = config.agentSettings ?? config;
+  const paths = agentSettings?.paths;
   const tempRoot = paths?.tempRoot;
   return typeof tempRoot === 'string' && tempRoot.length > 0
     ? tempRoot

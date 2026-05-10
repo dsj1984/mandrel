@@ -25,7 +25,7 @@ import { WaveObserver } from './wave-observer.js';
 
 export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const { provider, config, logger } = ctx;
-  const { epicRunner } = getRunners(config);
+  const { deliverRunner } = getRunners(config);
   const journal = errorJournal ?? ctx.errorJournal;
 
   // Wrapper forwards caller `opts` into `notify()` so structured-comment
@@ -50,7 +50,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const progressReporter = new ProgressReporter({
     provider,
     epicId: ctx.epicId,
-    intervalSec: Number(epicRunner.progressReportIntervalSec ?? 0),
+    intervalSec: Number(deliverRunner.progressReportIntervalSec ?? 0),
     logger,
     concurrency: ctx.concurrency?.progressReporter,
     cwd: ctx.cwd,

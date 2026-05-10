@@ -21,8 +21,8 @@
  *   - Stories   — must be closed.
  *   - Tasks     — must be closed AND carry `agent::done`.
  *   - Auxiliary (context::prd, context::tech-spec) — ignored.
- *     These are closed by `epic-close.js` Phase 7 (later in the same
- *     workflow run), so requiring them closed here would block every Epic.
+ *     These are closed by the operator after the Epic PR merges, so
+ *     requiring them closed here would block every Epic.
  *
  * Usage:
  *   node .agents/scripts/hierarchy-gate.js --epic <EPIC_ID>
@@ -157,7 +157,7 @@ export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
     }
     Logger.error(
       '\nClose the open descendants — Tasks must carry `agent::done` — ' +
-        'and re-run `/epic-close`.',
+        'and re-run `/epic-deliver`.',
     );
     process.exit(1);
   }

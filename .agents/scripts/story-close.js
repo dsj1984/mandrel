@@ -93,7 +93,7 @@ export async function runStoryClose({
     restartFlag,
     noEvidenceFlag,
     orchestration,
-    settings,
+    agentSettings,
     provider,
     story,
     epicBranch,
@@ -135,7 +135,7 @@ export async function runStoryClose({
         restartFlag,
         noEvidenceFlag,
         orchestration,
-        settings,
+        agentSettings,
         provider,
         story,
         epicBranch,
@@ -156,7 +156,7 @@ async function runStoryCloseLocked({
   restartFlag,
   noEvidenceFlag,
   orchestration,
-  settings,
+  agentSettings,
   provider,
   story,
   epicBranch,
@@ -206,7 +206,7 @@ async function runStoryCloseLocked({
     // commits the result. The autofix step does that automatically on
     // a clean tree; on a dirty tree it bails out and lets the gate
     // surface the drift with the canonical hint.
-    runFormatAutofix({ cwd, storyId, settings, logger: Logger });
+    runFormatAutofix({ cwd, storyId, agentSettings, logger: Logger });
     // Story #1120: gates spawn in the worktree, not main. Story #1124:
     // baseline-gate failures route through the attribution classifier —
     // attributable drift auto-refreshes + retries; non-attributable posts
@@ -216,7 +216,7 @@ async function runStoryCloseLocked({
       worktreePath,
       epicBranch,
       storyBranch,
-      settings,
+      agentSettings,
       storyId,
       epicId,
       useEvidence: !noEvidenceFlag,
@@ -230,7 +230,7 @@ async function runStoryCloseLocked({
       cwd,
       epicBranch,
       storyBranch,
-      settings,
+      agentSettings,
       logger: Logger,
     });
   }

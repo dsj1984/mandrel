@@ -114,7 +114,7 @@ describe('pushEpicAndHandleConflicts — happy path', () => {
       storyBranch: 'story-100',
       orchestration: {},
       pushEpicWithRetry,
-      getRunners: () => ({ closeRetry: { maxAttempts: 3 } }),
+      getRunners: () => ({ storyMergeRetry: { maxAttempts: 3 } }),
     });
     assert.equal(out.ok, true);
     assert.equal(pushEpicWithRetry.mock.callCount(), 1);
@@ -136,7 +136,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
               'merge conflict in stderr',
             );
           },
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /lib\/x\.js/,
     );
@@ -153,7 +153,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
           pushEpicWithRetry: async () => {
             throw new Error('generic boom');
           },
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /generic boom/,
     );
@@ -173,7 +173,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
             reason: 'retry-exhausted',
             result: { stderr: 'rejected' },
           }),
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /retries exhausted after 3 attempt\(s\)\): rejected/,
     );
@@ -193,7 +193,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
             reason: 'other-failure',
             result: { stderr: 'ssh denied' },
           }),
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /Push failed \(other-failure\): ssh denied/,
     );
@@ -214,7 +214,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
             reason: 'something-went-wrong',
             result: { stderr: 'auth' },
           }),
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       // The resume-mode helper produces operator-friendly copy; we just assert it threw.
       (err) => err instanceof Error && err.message.length > 0,
@@ -235,7 +235,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
             reason: 'other',
             result: { stdout: 'fallback', stderr: '' },
           }),
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /fallback/,
     );
@@ -255,7 +255,7 @@ describe('pushEpicAndHandleConflicts — failure modes', () => {
             reason: 'other',
             result: {},
           }),
-          getRunners: () => ({ closeRetry: {} }),
+          getRunners: () => ({ storyMergeRetry: {} }),
         }),
       /unknown/,
     );

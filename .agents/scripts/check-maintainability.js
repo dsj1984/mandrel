@@ -322,9 +322,8 @@ export function loadMaintainabilityBaseline({
 async function main() {
   Logger.info('[Maintainability] Verifying code quality against baseline...');
 
-  const { settings } = resolveConfig();
-  const baselinePath = getBaselines({ agentSettings: settings }).maintainability
-    .path;
+  const { agentSettings } = resolveConfig();
+  const baselinePath = getBaselines({ agentSettings }).maintainability.path;
   const epicRef = parseEpicRefArg();
   const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
   if (epicRef) {
@@ -339,8 +338,7 @@ async function main() {
     process.exit(0);
   }
 
-  const targetDirs = getQuality({ agentSettings: settings }).maintainability
-    .targetDirs;
+  const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
   const files = [];
   targetDirs.forEach((dir) => {
     scanDirectory(dir, files);

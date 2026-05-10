@@ -595,8 +595,8 @@ export function loadCrapBaseline({
 
 async function main() {
   const args = parseArgv();
-  const { settings, ...rest } = resolveConfig();
-  const crap = getQuality({ agentSettings: settings }).crap;
+  const { agentSettings, ...rest } = resolveConfig();
+  const crap = getQuality({ agentSettings }).crap;
 
   if (crap.enabled === false) {
     Logger.info('[CRAP] gate skipped (disabled)');
@@ -627,7 +627,7 @@ async function main() {
   }
 
   const baselinePath =
-    args.baselinePath ?? getBaselines({ agentSettings: settings }).crap.path;
+    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
   const baseline = loadCrapBaseline({
     baselinePath,
     epicRef: args.epicRef,
@@ -712,7 +712,7 @@ async function main() {
     if (args.storyId && args.epicId) {
       await emitFriction(args.storyId, args.epicId, result, {
         ...rest,
-        agentSettings: settings,
+        agentSettings,
       });
     }
     return 1;

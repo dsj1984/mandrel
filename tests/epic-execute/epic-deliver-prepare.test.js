@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { runEpicExecutePrepare } from '../../.agents/scripts/epic-execute-prepare.js';
+import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepare.js';
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
@@ -47,7 +47,7 @@ function createFakeProvider({ epic, descendants }) {
 const baseConfig = {
   orchestration: {
     runners: {
-      epicRunner: {
+      deliverRunner: {
         enabled: true,
         concurrencyCap: 3,
         storyRetryCount: 0,
@@ -57,9 +57,9 @@ const baseConfig = {
   },
 };
 
-describe('runEpicExecutePrepare', () => {
+describe('runEpicDeliverPrepare', () => {
   it('snapshots the epic, builds the DAG, initializes the checkpoint, and returns the plan', async () => {
-    const epic = { id: 100, labels: ['type::epic', 'epic::auto-close'] };
+    const epic = { id: 100, labels: ['type::epic'] };
     const descendants = [
       {
         id: 201,
@@ -78,14 +78,13 @@ describe('runEpicExecutePrepare', () => {
     ];
     const provider = createFakeProvider({ epic, descendants });
 
-    const out = await runEpicExecutePrepare({
+    const out = await runEpicDeliverPrepare({
       epicId: 100,
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
 
     assert.equal(out.epicId, 100);
-    assert.equal(out.autoClose, true, 'autoClose label must be reflected');
     assert.equal(out.totalWaves, 2, 'two waves from 201 → 202 chain');
     assert.equal(out.concurrencyCap, 3);
     assert.equal(out.plan.length, 2);
@@ -111,10 +110,9 @@ describe('runEpicExecutePrepare', () => {
       epicComments[0].body,
       new RegExp(`"version":\\s*${CHECKPOINT_SCHEMA_VERSION}`),
     );
-    assert.match(epicComments[0].body, /"autoClose":\s*true/);
   });
 
-  it('autoClose=false when the label is absent', async () => {
+  it('builds the plan for a single-story Epic', async () => {
     const epic = { id: 101, labels: ['type::epic'] };
     const descendants = [
       {
@@ -126,12 +124,11 @@ describe('runEpicExecutePrepare', () => {
       },
     ];
     const provider = createFakeProvider({ epic, descendants });
-    const out = await runEpicExecutePrepare({
+    const out = await runEpicDeliverPrepare({
       epicId: 101,
       injectedProvider: provider,
       injectedConfig: baseConfig,
     });
-    assert.equal(out.autoClose, false);
     assert.equal(out.totalWaves, 1);
   });
 
@@ -139,7 +136,7 @@ describe('runEpicExecutePrepare', () => {
     const epic = { id: 102, labels: ['type::epic'] };
     const provider = createFakeProvider({ epic, descendants: [] });
     await assert.rejects(
-      runEpicExecutePrepare({
+      runEpicDeliverPrepare({
         epicId: 102,
         injectedProvider: provider,
         injectedConfig: baseConfig,
@@ -150,11 +147,11 @@ describe('runEpicExecutePrepare', () => {
 
   it('rejects non-positive epicId', async () => {
     await assert.rejects(
-      runEpicExecutePrepare({ epicId: 0 }),
+      runEpicDeliverPrepare({ epicId: 0 }),
       /must be a positive integer/,
     );
     await assert.rejects(
-      runEpicExecutePrepare({ epicId: -5 }),
+      runEpicDeliverPrepare({ epicId: -5 }),
       /must be a positive integer/,
     );
   });

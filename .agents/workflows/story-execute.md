@@ -11,11 +11,11 @@ description: >-
 ## Overview
 
 `/story-execute` is the **single-Story worker**. It sits below
-[`/epic-execute`](epic-execute.md) (which fans out one Story sub-agent per
+[`/epic-deliver`](epic-execute.md) (which fans out one Story sub-agent per
 slot, per wave) and runs one Story from init to close in one invocation.
 
 ```text
-/epic-execute <epicId>
+/epic-deliver <epicId>
   → for each wave N:
       Agent tool × concurrencyCap parallel calls (one assistant turn):
         /story-execute <storyId>
@@ -25,7 +25,7 @@ slot, per wave) and runs one Story from init to close in one invocation.
 ```
 
 The argument is always a **Story ID** (`type::story`). Epic IDs go through
-[`/epic-execute`](epic-execute.md); Tasks are not directly executable —
+[`/epic-deliver`](epic-execute.md); Tasks are not directly executable —
 they are implemented by their parent Story's loop.
 
 > **Worktree isolation.** When `orchestration.worktreeIsolation.enabled` is
@@ -39,7 +39,7 @@ they are implemented by their parent Story's loop.
 
 ## Non-interactive execution contract
 
-`/story-execute` runs as a sub-agent of `/epic-execute`'s per-wave fan-out
+`/story-execute` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
 (common case) or interactively for a single Story. Sub-agent runs share
 the parent's permissions but have **no input channel** mid-run.
 
@@ -117,7 +117,7 @@ The CLI's stdout JSON envelope carries a `renderedBody` field — the markdown
 body that was upserted onto the Story ticket. **Relay it verbatim to chat**
 so operators see the initial task table before the first commit lands. Do
 the same after every transition in Step 1 / Step 3 (the body is the
-hierarchical Story-level rollup the parent `/epic-execute` aggregator
+hierarchical Story-level rollup the parent `/epic-deliver` aggregator
 reads).
 
 ---
@@ -237,7 +237,7 @@ When run as a sub-agent, return one JSON object:
 `renderedBody` is the **most recent** `renderedBody` returned by
 `story-task-progress.js` (typically the `phase: 'done'` snapshot at close,
 or the `phase: 'blocked'` snapshot on a blocker). The parent
-`/epic-execute` may inline a digest of this in its wave-level Notable
+`/epic-deliver` may inline a digest of this in its wave-level Notable
 section. When run interactively (no parent), omit it — the chat already
 has the latest body relayed during Step 1 / Step 3.
 

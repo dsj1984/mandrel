@@ -1,5 +1,158 @@
 # Architecture Decision Records (ADR)
 
+## ADR 20260510-sdl-collapse: 5.40.0 — collapse to /epic-plan + /epic-deliver, fold retro into deliver tail
+
+**Status:** Accepted
+**Date:** 2026-05-10
+**Supersedes:**
+
+- Prior decisions documenting `epic::auto-close` as the runtime
+  authorization for autonomous merge-to-main (now obsolete: the SDL
+  no longer merges to `main` — the operator does, via the GitHub UI).
+- Prior decisions documenting `agentSettings.epicClose.runRetro`
+  toggle (now obsolete: the retro is always-on inside the new
+  `/epic-deliver` tail; the configuration knob has been deleted from
+  the schema).
+- Two-skill execution surface decisions that named `/epic-execute` +
+  `/epic-close` as the canonical critical path. The 5.40 critical
+  path is `/epic-plan` + `/epic-deliver`.
+
+### Context
+
+By v5.39 the SDL critical path was three slash commands —
+`/epic-plan`, `/epic-execute`, `/epic-close` — with the close phase
+silently merging to `main` from inside an LLM session.  Three failure
+modes accumulated against that shape:
+
+1. **Implicit merge-to-main from an LLM session.**  The close phase
+   ran `git merge` against `main` from inside the operator's IDE.  No
+   GitHub PR existed, no required-checks dashboard was consulted, no
+   reviewer trail was recorded.  The branch-protection story was
+   ad-hoc and easy to skip.
+2. **Retro firing after merge-to-main.**  Because the retro was the
+   last step of close, it ran with the operator's local env access
+   (env vars, MCP servers, credentials) but only after the
+   irrevocable merge.  Any retro-detected regression had no clean
+   rollback path.
+3. **Two slash commands for one continuous flow.**  Operators
+   routinely typed `/epic-close` immediately after `/epic-execute`
+   returned.  The split offered no real choice — a human gate
+   between "execute" and "close" was nominal at best.  Meanwhile
+   `epic::auto-close` and `BookendChainer` existed solely to skip
+   that nominal gate, adding mid-run authorization complexity that
+   nothing benefited from.
+
+### Decision
+
+Collapse the v5.39 critical path to two slash commands:
+
+- **`/epic-plan`** stays the planning entry point and gains an
+  optional **ideation mode** (`/epic-plan` with no args, or
+  `/epic-plan --idea "<seed>"`) that sharpens a raw idea into an
+  Epic body, runs cross-Epic duplicate search via the new
+  `lib/duplicate-search.js`, opens the GitHub Issue with only
+  `type::epic`, then proceeds into the existing PRD + Tech Spec +
+  decomposition flow.  The existing-Epic mode (`/epic-plan <id>`)
+  is preserved verbatim.
+- **`/epic-deliver`** replaces the v5.39 `/epic-execute` +
+  `/epic-close` pair.  Six phases run end-to-end: prepare → wave
+  loop → close-validation → code-review → retro → finalize.  The
+  finalize phase opens a pull request from `epic/<id>` to `main`
+  and **stops**; the operator merges the PR through the GitHub UI.
+  There is no in-script merge to `main`.
+
+The retro fires inside Phase 5, **before** the PR is opened, so it
+keeps full env access in the operator's local session and any
+retro-detected concern can be fixed on the Epic branch before the
+human merge gate is reached.
+
+The runtime engine renames in lockstep: `epic-runner.js` (top-level
+CLI) → `epic-deliver-runner.js`; `epic-execute-prepare.js` →
+`epic-deliver-prepare.js`; `epic-finalize.js` →
+`epic-deliver-finalize.js`.  `epic-close.js` is deleted entirely;
+the close-tail logic is folded into the deliver runner alongside two
+new in-process modules (`lib/orchestration/code-review.js` extracted
+from the helper, and `lib/orchestration/retro-runner.js` extracted
+from the now-deleted retro helper).
+
+The supporting deletions land atomically:
+
+- `BookendChainer` and the `epic::auto-close` snapshot label.
+- The `agent::review` epic-level label (the PR's existence is the
+  equivalent signal at the Epic level).
+- `risk::medium`, `execution::sequential`, and `execution::concurrent`
+  labels.
+- `agentSettings.epicClose` config block (including `runRetro`).
+- `orchestration.hitl` empty placeholder block.
+- `agentSettings.riskGates` config block (heuristics moved to
+  `agentSettings.planning.riskHeuristics`).
+- `orchestration.runners.epicRunner` → renamed to
+  `orchestration.runners.deliverRunner`.
+- `orchestration.runners.closeRetry` → renamed to
+  `orchestration.runners.storyMergeRetry`.
+- The resolver wrapper key `settings` → renamed to `agentSettings`
+  (matches the `.agentrc.json` literal top-level key, fixing the
+  silent override-drop bug where every accessor read
+  `cfg?.agentSettings?.X ?? cfg?.X` against a wrapper that never
+  carried `agentSettings`).
+
+`agentSettings.quality.prGate` is promoted from schema-only to
+default config and gains an `enforceBranchProtection` boolean
+(default `true`).  `/agents-bootstrap-github` gains an
+`ensureMainBranchProtection({ checks })` step that creates or merges
+branch protection on `main` with the configured `prGate.checks` as
+required status checks.  Branch protection is now load-bearing
+because the operator's PR merge is the sole promotion gate.
+
+`agentSettings.limits.maxTickets` default bumps 40 → 60.
+
+### Consequences
+
+- **One human gate at the end of the SDL.**  The PR merge is the
+  explicit, auditable promotion to `main` — required-checks history,
+  reviewer trail, and the GitHub branch-protection enforcement all
+  apply.  The framework no longer authorizes its own merge.
+- **Retro is always-on.**  The `epicClose.runRetro` toggle is gone.
+  Operators who genuinely need to skip a retro on a one-off pass an
+  explicit `--skip-retro` flag to `/epic-deliver`.  This trades a
+  configuration knob for a hot-path CLI flag, which is the right
+  trade for a rarely-skipped step.
+- **No mid-run authorization.**  `epic::auto-close`, `BookendChainer`,
+  and the snapshot-label semantics are gone.  Every `/epic-deliver`
+  run completes with the same exit condition: a PR opens and the
+  operator merges.
+- **Branch protection is load-bearing.**  Consumers that previously
+  relied on the in-script merge to gate red trees from `main` must
+  ensure `enforceBranchProtection: true` and re-run
+  `/agents-bootstrap-github` so the required-checks set is wired up.
+  The default flips this on; the migration path is documented in
+  the 5.40.0 CHANGELOG entry.
+- **Resolver-key alignment fixes the silent override-drop bug.**
+  Any consumer that did `const { settings } = resolveConfig()` must
+  rename the destructure to `agentSettings`.  This is one mechanical
+  change per call site; the framework's ~50 call sites are updated
+  in the same PR via Story #1155.
+- **Deletion-completeness test guards future regressions.**
+  `tests/deletion-completeness.test.js` ripgreps the repo for every
+  removed concept on every CI run.  Reintroducing any deleted token
+  (e.g. a stray `BookendChainer` reference) fails the test with the
+  exact file:line, preventing slow drift back toward the v5.39 shape.
+- **Operator workflow simplification.**  Two commands replace three
+  on the SDL critical path.  Ideation entry replaces an opaque manual
+  Epic-body-authoring step.  The HITL touchpoints reduce from
+  "blocker resolution + close hand-off" to "blocker resolution + PR
+  merge".
+
+### Migration
+
+See the 5.40.0 entry in [`CHANGELOG.md`](CHANGELOG.md) for the
+full operator migration script (config renames, command-shape
+updates, deletion-completeness test wiring).  The CHANGELOG carries
+side-by-side `.agentrc.json` before/after blocks for every removed,
+renamed, moved, promoted, and bumped key.
+
+---
+
 ## ADR 20260508-flatten: Retire `/wave-execute`; `/epic-execute` owns the wave loop directly
 
 **Status:** Accepted

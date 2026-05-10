@@ -2,6 +2,392 @@
 
 All notable changes to this project will be documented in this file.
 
+## [5.40.0] — 2026-05-10
+
+The 5.40 release collapses the v5.39 SDL critical path from three slash
+commands (`/epic-plan` + `/epic-execute` + `/epic-close`) to two
+(`/epic-plan` + `/epic-deliver`); folds the retro into the new deliver
+tail; expands `/epic-plan` with a raw-idea entry mode; fixes the
+resolver-key naming bug that silently dropped `.agentrc.json` overrides;
+lands three honest config renames; bumps the `maxTickets` default 40 →
+60; promotes `prGate` to default config with a new
+`enforceBranchProtection` boolean; and wires branch protection on `main`
+into `/agents-bootstrap-github`. The 25 advanced/operator workflows are
+explicitly preserved — only the SDL critical path, the config layer, and
+the docs that describe them are touched.
+
+This is a hard cut. There are no aliases. v5.39.x configs that ship
+deleted/renamed keys will fail AJV validation against the 5.40 schema
+with actionable errors. Follow the migration block at the bottom.
+
+### Removed
+
+- **`/epic-execute` and `/epic-close` slash commands.** Replaced by
+  `/epic-deliver`, which fans out the wave loop, runs close-validation,
+  fires the retro, and opens a pull request to `main` in one continuous
+  flow. The operator merges the PR through the GitHub UI; the workflow
+  never executes `git merge` against `main` itself.
+- **`epic-runner.js` (top-level CLI).** Renamed to
+  `epic-deliver-runner.js` (see Renamed). The library at
+  `lib/orchestration/epic-runner.js` and the `lib/orchestration/epic-runner/`
+  submodule directory are preserved — only the operator-facing entry
+  point moved.
+- **`epic-execute-prepare.js`.** Renamed to `epic-deliver-prepare.js`.
+- **`epic-finalize.js`.** Renamed to `epic-deliver-finalize.js` with a
+  new responsibility: open a PR to `main` instead of merging.
+- **`epic-close.js`.** Deleted entirely. Close-tail logic folded into
+  the deliver runner alongside two new in-process modules
+  (`lib/orchestration/code-review.js` extracted from
+  `helpers/epic-code-review.md`, and `lib/orchestration/retro-runner.js`
+  extracted from the now-deleted retro helper).
+- **`workflows/helpers/epic-retro.md`.** Retro logic moved in-process
+  to `lib/orchestration/retro-runner.js`; the helper was the only
+  consumer.
+- **`BookendChainer` and `epic::auto-close`.** The autonomous-merge
+  authorization flow no longer makes sense in a world where the human
+  PR merge is the sole promotion gate. The chainer module, the
+  `epic::auto-close` snapshot label, the `bookend-chainer` filename,
+  and every `epic::auto-close` mention in the bootstrap label
+  taxonomy are deleted.
+- **`agent::review` epic-level label.** The PR opened by
+  `/epic-deliver` Phase 6 is the equivalent "ready to merge" signal at
+  the Epic level; an on-Issue marker is redundant. Removed from
+  `label-constants.js`, `label-taxonomy.js`, and the
+  `dispatch-manifest.json` `finalState` enum.
+- **`risk::medium` label.** The entire `RISK_LABELS` constant is
+  removed. `risk::high` survives as planning-metadata only (it has not
+  gated runtime behaviour since v5.14).
+- **`execution::sequential` and `execution::concurrent` labels.** The
+  `EXECUTION_LABELS` constant and `LABEL_COLORS.EXECUTION` palette are
+  deleted. Wave-level execution mode is an internal scheduling
+  property, not a label.
+- **`agentSettings.epicClose` config block.** Including
+  `agentSettings.epicClose.runRetro` — the retro is always-on inside
+  `/epic-deliver` Phase 5 (override with the `--skip-retro` CLI flag
+  on a one-off basis).
+- **`agentSettings.riskGates` config block.** The heuristics array
+  moved to `agentSettings.planning.riskHeuristics` (see Renamed).
+  The `riskGates` name implied runtime gating that has not existed
+  since v5.14.
+- **`orchestration.hitl` empty placeholder block.** Carried no
+  consumers.
+- **`orchestration.executor` (audit & delete).** Audited as unread by
+  the runtime in 5.40; removed from the schema. The
+  `IExecutionAdapter` interface and `ManualDispatchAdapter` ship
+  unchanged for downstream consumers, but the `executor` config key
+  is no longer recognised.
+- **`/wave-execute` artefacts** (residual references). Already
+  removed in v5.39.0; the deletion-completeness test now enforces
+  there is no resurrection path.
+- **The "settings" wrapper key on `resolveConfig()`'s return value.**
+  See "Resolver-key alignment" below.
+
+### Renamed
+
+| Before                                                         | After                                                              | Notes                                                                                              |
+| -------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `/epic-execute` + `/epic-close` slash commands                 | `/epic-deliver`                                                    | Single SDL execution command. PR-open exit; operator merges via GitHub UI.                         |
+| `.agents/scripts/epic-runner.js`                               | `.agents/scripts/epic-deliver-runner.js`                           | Top-level CLI only; the library at `lib/orchestration/epic-runner.js` is unchanged.                |
+| `.agents/scripts/epic-execute-prepare.js`                      | `.agents/scripts/epic-deliver-prepare.js`                          | Same JSON envelope contract for the slash-command parser.                                          |
+| `.agents/scripts/epic-finalize.js`                             | `.agents/scripts/epic-deliver-finalize.js`                         | New responsibility: open PR to `main` instead of merging.                                          |
+| `.agents/workflows/epic-execute.md`                            | `.agents/workflows/epic-deliver.md`                                | Six-phase merged execute + close workflow.                                                         |
+| `agentSettings.riskGates.heuristics`                           | `agentSettings.planning.riskHeuristics`                            | Honesty rename — riskGates implied runtime gating that does not exist.                             |
+| `orchestration.runners.epicRunner`                             | `orchestration.runners.deliverRunner`                              | Whole sub-block (`enabled`, `concurrencyCap`, `progressReportIntervalSec`, `idleTimeoutSec`, …).   |
+| `orchestration.runners.closeRetry`                             | `orchestration.runners.storyMergeRetry`                            | Honesty rename — the retry was always for non-fast-forward push of the Story merge to the Epic.    |
+| `resolveConfig()` wrapper key `settings`                       | `resolveConfig()` wrapper key `agentSettings`                      | Matches `.agentrc.json`'s literal top-level key; fixes the silent override-drop bug.               |
+
+### Added
+
+- **`/epic-plan` ideation entry.** Run with no arguments (or
+  `--idea "<seed>"`) to enter ideation mode: the
+  `idea-refinement` skill drives a divergent → convergent → sharpen
+  loop, the new `lib/duplicate-search.js` module surfaces overlapping
+  open Epics, the operator confirms the rendered Epic body, and the
+  GitHub Issue is opened with only `type::epic`. The existing-Epic
+  mode (`/epic-plan <id>`) is preserved verbatim.
+- **`/epic-deliver` workflow.** Six phases run end-to-end:
+  1. Prepare (`epic-deliver-prepare.js`) — snapshot, build wave DAG,
+     initialise `epic-run-state`.
+  2. Wave loop — Agent-tool fan-out per Story per wave at
+     `concurrencyCap` (today's `/epic-execute` mechanics).
+  3. Close-validation — lint, test, and project-extended ratchets
+     (MI, CRAP, lint baseline) against the Epic branch.
+  4. Code-review — `lib/orchestration/code-review.js` (extracted
+     from the helper); halts on critical findings; persists results
+     as a `code-review` structured comment on the Epic.
+  5. Retro — `lib/orchestration/retro-runner.js` (extracted from
+     the helper); fires before the PR opens to keep full env access
+     in the operator's local session; posts the structured retro
+     comment.
+  6. Finalize (`epic-deliver-finalize.js`) — verifies FF, pushes
+     `epic/<id>`, opens the PR, sets the required-checks expectation
+     from `agentSettings.quality.prGate.checks`, posts the hand-off
+     comment naming the PR URL, and exits.
+- **`lib/duplicate-search.js`.** Cross-Epic title + body keyword
+  search. Given a sharpened one-pager, scores open Epics and returns
+  candidates above a threshold. Returns `[]` when nothing significant
+  matches.
+- **`lib/orchestration/code-review.js`.** In-process module callable
+  from `epic-deliver-runner.js` Phase 4. Halts the runner on critical
+  findings (sets `agent::blocked`, posts structured friction comment,
+  exits non-zero).
+- **`lib/orchestration/retro-runner.js`.** In-process module callable
+  from `epic-deliver-runner.js` Phase 5. Aggregates perf signals,
+  friction counts, hotfix counts, recut counts, parked counts, and
+  HITL count using `retro-heuristics.js`.
+- **`agentSettings.quality.prGate.enforceBranchProtection`.** Boolean,
+  default `true`. When `true`, `/agents-bootstrap-github` calls
+  `ensureMainBranchProtection({ checks })` to create or merge branch
+  protection on `main` with `prGate.checks` as required status checks.
+- **`agentSettings.planning.riskHeuristics`.** Replaces
+  `agentSettings.riskGates.heuristics`. Same shape; same consumer
+  (the decomposer system prompt). Rename only — no behaviour change.
+- **`agentSettings.epicClose` removed.** Not added — listed in
+  Removed for completeness.
+- **`agents-bootstrap-github.js` `ensureMainBranchProtection` step.**
+  Idempotent and additive: existing protections are preserved; missing
+  required checks are added. Gated behind
+  `agentSettings.quality.prGate.enforceBranchProtection: true`
+  (default).
+- **`tests/deletion-completeness.test.js`.** Ripgrep-based regression
+  test that asserts zero references to the removed concepts
+  (`BookendChainer`, `epic::auto-close`, `agent::review`, `runRetro`,
+  `risk::medium`, `execution::sequential`, `execution::concurrent`,
+  `epicClose` config key, `orchestration.hitl`, `epicRunner` config
+  key, `closeRetry` config key, `riskGates` config key,
+  `bookend-chainer` filename, `epic-finalize` filename, `epic-close`
+  filename, plus a heuristic regex for `\.settings\b` reads against
+  `resolveConfig()` return values) outside an allowlist of
+  `docs/CHANGELOG.md`, `docs/decisions.md`, `docs/archive/`, and the
+  test file itself. Each forbidden term registers as a per-term
+  subtest so failures pinpoint the offending concept and file:line.
+- **`tests/lib/config/limits-override.test.js`.** Regression test for
+  the resolver-key alignment. Constructs a fixture `.agentrc.json`
+  with `agentSettings.limits.maxTickets: 75`, calls
+  `resolveConfig({ cwd: fixturePath })` then `getLimits(resolved)`,
+  and asserts the returned `maxTickets` is `75`. Without the fix,
+  this test fails (returns `60`, the new framework default).
+
+### Changed
+
+- **Resolver-key alignment.** `resolveConfig()` now returns
+  `{ agentSettings, orchestration, raw, source }` instead of
+  `{ settings, orchestration, raw, source }`. Every accessor in
+  `lib/config/*.js` already reads
+  `cfg?.agentSettings?.X ?? cfg?.X` — under v5.39.x the wrapper's
+  `settings` key never matched, so passing the wrapper directly to
+  an accessor silently fell through to framework defaults. 5.40 picks
+  one canonical name end-to-end. The framework's ~50 destructure
+  sites are updated mechanically; the seven accessor JSDocs document
+  only two accepted shapes (the wrapper and the bare `agentSettings`
+  bag). This is a breaking API change for any consumer of the
+  resolver — see Migration.
+- **`agentSettings.limits.maxTickets` default** bumped 40 → 60.
+  Reflects the observed working range across recent dogfood Epics
+  and removes the per-project override that 80% of consumers were
+  carrying anyway.
+- **`agentSettings.quality.prGate` promoted from schema-only to
+  default config.** The default `checks` array ships as
+  `["validate", "test", "lint-baseline", "crap-check",
+  "maintainability"]` — the same gate names already enforced by
+  close-validation, pre-push, and CI. Consumers who already had
+  `prGate` populated keep their values (project-wins on merge).
+- **Retro timing.** Today's retro fires after merge-to-main from
+  inside `/epic-close`. Under 5.40 it fires inside `/epic-deliver`
+  Phase 5, **before** the PR is opened. Retro analyses still see all
+  completed work (every Story has merged into the Epic branch) but
+  reflect on it before the human merge gate, not after. Programmatic
+  consumers that ingest retro output downstream should review the
+  timing change.
+- **HITL touchpoints reduced from "blocker resolution + close
+  hand-off" to "blocker resolution + PR merge".** The PR is the
+  explicit, auditable promotion gate.
+- **`epic-run-state` checkpoint schema.** Gains a `phase` field
+  tracking which of the six `/epic-deliver` phases is in flight, so a
+  mid-flight crash during code-review resumes at code-review (not
+  at the start of the wave loop). The `autoClose` field is removed
+  from new writes; existing in-flight Epics from v5.39.x carrying
+  `autoClose` are tolerated by the 5.40 reader (the field is ignored,
+  not rejected) so a v5.39 → 5.40 upgrade mid-Epic does not strand
+  the run.
+
+### Migration
+
+The 5.40 schema rejects every removed/renamed v5.39.x key with a clear
+AJV error. Follow these steps in order; each is a single mechanical
+edit.
+
+#### 1. Rename the resolver wrapper destructure (~50 sites in-tree;
+likely 1–5 sites in your project)
+
+```js
+// Before — silently dropped overrides
+const { settings, orchestration } = resolveConfig();
+
+// After — overrides flow through correctly
+const { agentSettings, orchestration } = resolveConfig();
+```
+
+Every internal reference that previously read `cfg.settings` becomes
+`cfg.agentSettings`.
+
+#### 2. Update `.agentrc.json` deleted/renamed keys
+
+```jsonc
+// Before (v5.39.x)
+{
+  "agentSettings": {
+    "epicClose": {
+      "runRetro": true,
+      "skipDocsFreshness": false
+    },
+    "riskGates": {
+      "heuristics": ["destructive-migration", "auth-change"]
+    }
+  },
+  "orchestration": {
+    "hitl": {},
+    "runners": {
+      "epicRunner": {
+        "enabled": true,
+        "concurrencyCap": 3,
+        "progressReportIntervalSec": 120
+      },
+      "closeRetry": {
+        "maxAttempts": 3,
+        "backoffMs": [250, 500, 1000]
+      }
+    }
+  }
+}
+```
+
+```jsonc
+// After (5.40.0)
+{
+  "agentSettings": {
+    "planning": {
+      "riskHeuristics": ["destructive-migration", "auth-change"]
+    },
+    "quality": {
+      "prGate": {
+        "checks": ["validate", "test", "lint-baseline", "crap-check", "maintainability"],
+        "enforceBranchProtection": true
+      }
+    }
+  },
+  "orchestration": {
+    "runners": {
+      "deliverRunner": {
+        "enabled": true,
+        "concurrencyCap": 3,
+        "progressReportIntervalSec": 120
+      },
+      "storyMergeRetry": {
+        "maxAttempts": 3,
+        "backoffMs": [250, 500, 1000]
+      }
+    }
+  }
+}
+```
+
+#### 3. `maxTickets` default bump
+
+The framework default is now `60` (was `40`). If your project pinned
+`agentSettings.limits.maxTickets: 40` solely to override the old
+default, remove the override and inherit the new value:
+
+```jsonc
+// Before (v5.39.x)
+{
+  "agentSettings": {
+    "limits": {
+      "maxTickets": 40
+    }
+  }
+}
+```
+
+```jsonc
+// After (5.40.0) — drop the override; inherit default 60
+{
+  "agentSettings": {
+    "limits": {}
+  }
+}
+```
+
+If your project genuinely needs a lower or higher cap, keep the
+override at the value you want.
+
+#### 4. `prGate` promotion + branch protection
+
+`agentSettings.quality.prGate.enforceBranchProtection` defaults to
+`true`. After upgrading, re-run `/agents-bootstrap-github` once so
+the bootstrap step calls `ensureMainBranchProtection({ checks })`
+and creates or merges branch protection on `main`. The step is
+idempotent: existing protections are preserved, missing checks are
+added.
+
+If you maintain branch protection by hand and want to opt out, set:
+
+```jsonc
+{
+  "agentSettings": {
+    "quality": {
+      "prGate": {
+        "enforceBranchProtection": false
+      }
+    }
+  }
+}
+```
+
+#### 5. SDL command change
+
+Wherever your runbooks, README, or onboarding docs say:
+
+```text
+# v5.39.x
+/epic-plan <id>
+/epic-execute <id>
+/epic-close <id>
+```
+
+…replace with:
+
+```text
+# 5.40.0
+/epic-plan          # ideation entry — sharpens raw idea, opens Epic, decomposes
+/epic-plan <id>     # existing-Epic entry — PRD + Tech Spec + decomposition
+/epic-deliver <id>  # wave loop → close-validation → review → retro → open PR to main
+```
+
+The operator merges the PR through the GitHub UI. There is no
+separate close command. The retro fires automatically inside
+`/epic-deliver` Phase 5 before the PR opens.
+
+#### 6. Remove `epic::auto-close` references
+
+`epic::auto-close` is no longer recognised. Drop the label from any
+Epic Issue templates, automation rules, or runbook macros. The
+removal is purely cosmetic in 5.40 — the runner ignores the label —
+but the deletion-completeness test will fail on any in-tree
+reference outside the allowlist (CHANGELOG, decisions, archive,
+test file).
+
+#### 7. Re-run lint and test
+
+```powershell
+npm run lint
+npm test
+```
+
+The new deletion-completeness test (`tests/deletion-completeness.test.js`)
+will fail loudly if any forbidden token survives in the tree. Each
+failure carries a `file:line` pointer to the offending reference.
+
 ## [5.39.2] — 2026-05-09
 
 Sprint Health residue removed. The `health-monitor.js` writer was deleted

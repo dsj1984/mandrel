@@ -280,7 +280,7 @@ describe('runPreMergeGates — worktree thread-through', () => {
     await runPreMergeGates({
       cwd: '/main/repo',
       worktreePath: '/main/repo/.worktrees/story-1120',
-      settings: {},
+      agentSettings: {},
       storyId: 1120,
       epicId: 1114,
       useEvidence: false,
@@ -309,7 +309,7 @@ describe('runPreMergeGates — worktree thread-through', () => {
         runPreMergeGates({
           cwd: '/main/repo',
           worktreePath: '/main/repo/.worktrees/story-1120',
-          settings: {},
+          agentSettings: {},
           storyId: 1120,
           epicId: 1114,
           useEvidence: false,

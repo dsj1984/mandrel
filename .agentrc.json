@@ -20,9 +20,6 @@
       "packageJson": true,
       "autoVersionBump": true
     },
-    "epicClose": {
-      "runRetro": true
-    },
     "limits": {
       "maxInstructionSteps": 5,
       "maxTickets": 60,
@@ -70,8 +67,8 @@
         "refreshTag": "baseline-refresh:"
       }
     },
-    "riskGates": {
-      "heuristics": [
+    "planning": {
+      "riskHeuristics": [
         "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
         "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
         "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
@@ -95,7 +92,6 @@
       "webhookMinLevel": "medium",
       "terminalMinLevel": "medium"
     },
-    "hitl": {},
     "worktreeIsolation": {
       "enabled": true,
       "root": ".worktrees",
@@ -105,7 +101,7 @@
       "bootstrapFiles": [".env"]
     },
     "runners": {
-      "epicRunner": {
+      "deliverRunner": {
         "enabled": true,
         "concurrencyCap": 3,
         "progressReportIntervalSec": 120

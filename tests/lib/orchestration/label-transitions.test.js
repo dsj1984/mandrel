@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import {
   toDone,
   toExecuting,
-  toReview,
 } from '../../../.agents/scripts/lib/orchestration/label-transitions.js';
 
 function recordingProvider(existingLabels = []) {
@@ -30,17 +29,8 @@ describe('label-transitions', () => {
     const { labels, state } = provider.updates[0].mutations;
     assert.ok(labels.add.includes('agent::executing'));
     assert.ok(labels.remove.includes('agent::ready'));
-    assert.ok(labels.remove.includes('agent::review'));
     assert.ok(labels.remove.includes('agent::done'));
     assert.equal(state, 'open');
-  });
-
-  it('toReview adds agent::review', async () => {
-    const provider = recordingProvider(['type::epic', 'agent::executing']);
-    await toReview(provider, 200);
-    const mut = provider.updates[0].mutations;
-    assert.ok(mut.labels.add.includes('agent::review'));
-    assert.ok(mut.labels.remove.includes('agent::executing'));
   });
 
   it('toDone transitions each ticket in the array and closes them', async () => {

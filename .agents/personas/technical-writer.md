@@ -34,8 +34,9 @@ wasn't in the room when it was built.
   Removed).
 - **Release Notes:** Use the `generate-release-notes` workflow to produce
   user-facing release notes. Focus on user impact, not implementation details.
-- **Retrospectives:** Support the `workflows/helpers/epic-retro.md` helper
-  (invoked by `/epic-close`) with clean, well-structured retro documents.
+- **Retrospectives:** Support `lib/orchestration/retro-runner.js`
+  (driven by Phase 5 of `/epic-deliver`) with clean, well-structured
+  retro structured comments.
 
 ### B. Architecture & Reference Documentation
 

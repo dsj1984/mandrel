@@ -50,7 +50,7 @@ export async function runPreMergeGates({
   cwd,
   worktreePath,
   epicBranch,
-  settings,
+  agentSettings,
   storyId,
   epicId,
   useEvidence = true,
@@ -65,7 +65,7 @@ export async function runPreMergeGates({
   const validation = await runCloseValidation({
     cwd,
     worktreePath,
-    gates: buildDefaultGates({ settings, epicBranch }),
+    gates: buildDefaultGates({ agentSettings, epicBranch }),
     log: (m) => logger.info(m),
     onGateStart: (gate) => {
       // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
@@ -100,15 +100,14 @@ export function emitMaintainabilityProjection({
   cwd,
   epicBranch,
   storyBranch,
-  settings,
+  agentSettings,
   logger = DefaultLogger,
   getBaselines = defaultGetBaselines,
   projectMaintainabilityRegressions = defaultProjectMaintainabilityRegressions,
   formatMaintainabilityProjection = defaultFormatMaintainabilityProjection,
 }) {
   try {
-    const baselinePath = getBaselines({ agentSettings: settings })
-      ?.maintainability?.path;
+    const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
     if (!baselinePath) return;
     const projection = projectMaintainabilityRegressions({
       cwd,

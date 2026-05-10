@@ -64,7 +64,7 @@ into one rolled-up report. Schema lives at
 | --------------------- | ------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `kind`                | `const string`      | Yes      | Always `"epic-perf-report"`.                                                                                                                                |
 | `epicId`              | `integer ≥ 1`       | Yes      | Epic this report belongs to.                                                                                                                                |
-| `generatedAt`         | `ISO8601 date-time` | Yes      | When `epic-close.js` produced the report.                                                                                                                   |
+| `generatedAt`         | `ISO8601 date-time` | Yes      | When `epic-deliver runner` produced the report.                                                                                                                   |
 | `signalCounts`        | `object`            | Yes      | Rolled-up counts by `kind` for the entire Epic. Keys: `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry` (each integer ≥ 0).                         |
 | `waveParallelism`     | `array`             | Yes      | Items: `{ wave, wallClockMs, sumStoryMs, utilization, stories }`. `utilization = wallClockMs / sumStoryMs` (lower is better; ideal is `1/N` for `N` slots). |
 | `topHotspots`         | `array`             | Yes      | Items: `{ phase, occurrences, avgRatio }`. Phases that fired the hotspot detector most often, with the average `elapsedMs / baselineP95Ms` ratio.           |
@@ -159,20 +159,19 @@ the responsibility map.
 
 ---
 
-## Epic Runner Vocabulary
+## Epic Deliver Runner Vocabulary
 
 Vocabulary specific to the runner over and above the existing label/comment
 taxonomy.
 
-| Term                       | Kind                | Definition                                                                                                     |
-| -------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `epic::auto-close`         | Label (snapshot)    | Opt-in modifier captured at dispatch. Authorises the bookend chain (`review → retro → close → merge-to-main`). |
-| `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume.                      |
-| `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                  |
-| `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                          |
-| `concurrencyCap`           | Config (integer)    | `orchestration.runners.epicRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.        |
-| Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                               |
-| Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                       |
+| Term                       | Kind                | Definition                                                                                                                          |
+| -------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/epic-deliver` phases.    |
+| `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                                       |
+| `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                                               |
+| `concurrencyCap`           | Config (integer)    | `orchestration.runners.deliverRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.                  |
+| Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                                                    |
+| Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                                            |
 
 `risk::high` is metadata only — it ranks work in the dispatch table and helps
 reviewers prioritize, but does not pause execution.
@@ -192,12 +191,12 @@ any prior comment of the same type.
 | `wave-<N>-end`      | `WaveObserver.waveEnd`                              | Per-wave outcomes + duration.                                            |
 | `epic-plan-state`   | `/epic-plan` checkpoint                             | Phase 1/2 progress so re-plans resume cleanly.                           |
 | `dispatch-manifest` | `/epic-plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
-| `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at epic-close gate (recuts + parked).   |
+| `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
 | `story-run-progress`| `/story-execute`                                    | Per-Task transitions inside one Story.                                   |
-| `epic-run-progress` | `/epic-execute` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
-| `code-review`       | `epic-code-review` helper                           | Findings report posted on the Epic.                                      |
-| `retro`             | `epic-retro` helper                                 | Final retrospective body with the `retro-complete` marker.               |
+| `epic-run-progress` | `/epic-deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
+| `code-review`       | `lib/orchestration/code-review.js` (Phase 4)        | Findings report posted on the Epic.                                      |
+| `retro`             | `lib/orchestration/retro-runner.js` (Phase 5)       | Final retrospective body with the `retro-complete` marker.               |
 | `retro-partial`     | `epic-retro` helper                                 | Mid-run checkpoint so a crashed retro can resume without re-collecting.  |
 | `phase-timings`     | `phase-timer` (on `story-close`)                    | Per-phase elapsed-time spans for the closed Story.                       |
 | `friction`          | `signals-writer.appendSignal` (NDJSON, on disk)     | Per-Story friction observation appended to `signals.ndjson` (no GitHub round-trip post Story #1042). |
@@ -239,14 +238,14 @@ the Epic is the SSOT; the on-disk file is a renderer cache regenerable via
 | `CommitAssertion`                                   | Class    | Post-wave guard wired into `wave-observer`; reclassifies a `done` wave with zero new commits on `origin/story-<id>` as `halted`. Lives at `lib/orchestration/epic-runner/commit-assertion.js`. Falls back to a `resolves #<storyId>` grep on `origin/epic/<id>` when `origin/story-<id>` is already deleted by `story-close`. |
 | `detectPriorPhase()`                                | Function | Recovery-state detector exported by `lib/orchestration/story-close-recovery.js`; classifies the close-time situation as `clean` / `unmerged-story-branch` / `merge-in-progress` / `dirty-worktree` so `--resume` and `--restart` can branch. |
 | `--resume` / `--restart`                            | CLI flag | `story-close.js` flags. `--resume` picks up at the merge-resolution step from a failed prior close without re-running init/implement/validate; `--restart` aborts any partial state and re-inits. |
-| `hierarchy-gate.js`                                 | Script   | `/epic-close` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories → Tasks plus auxiliary tickets) and exits non-zero if any descendant is open or any Task is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
+| `hierarchy-gate.js`                                 | Script   | `/epic-deliver` Phase 1.2 gate; walks the Epic's full sub-issue graph (Features → Stories → Tasks plus auxiliary tickets) and exits non-zero if any descendant is open or any Task is closed without `agent::done`. Pairs with `wave-gate.js` (manifest view) for the Phase 1 Feature Completeness Check. |
 | `setPlan({ waves })`                                | Method   | `ProgressReporter` API. Called once at runner start so each fire renders every wave + story (queued / in-flight / done / blocked) with a `Wave` column rather than only the active wave.                |
 | `progress-signals/stalled-worktree.js`              | Detector | Mechanical `ProgressReporter` detector; flags Stories where `agent::done` ships with a live `.worktrees/story-<id>/` directory still on disk.                                                          |
 | `progress-signals/maintainability-drift.js`         | Detector | Mechanical detector; emits a Notable bullet when the maintainability score for any tracked file drifts negatively from the wave-start baseline.                                                        |
 | `progress-signals/crap-drift.js`                    | Detector | Mechanical detector; per-method CRAP drift versus a wave-start baseline. Surfaces a `🧨 CRAP drift: <file>::<method> <score> (ceiling <N>)` bullet when a method crosses the configured ceiling or rises by ≥ threshold. |
 | `signals-writer.appendSignal`                       | Helper   | Append-only NDJSON writer at `lib/observability/signals-writer.js`. Writes one JSON record per line to `temp/epic-<eid>/story-<sid>/signals.ndjson`. Consumers: `diagnose-friction.js`, `story-close.js` reap-failure (via `post-merge-pipeline.js`), `epic-runner/progress-reporter.js` poller-failure, `check-maintainability.js`, and `check-crap.js`. Replaced the deleted in-process emitter class in Epic #1030 Story #1042. |
-| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-close` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
-| Version-bump-intent snapshot                        | Checkpoint | `/epic-execute` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
+| `--reap-discard-after-merge` / `--no-reap-discard-after-merge` | CLI flag | `/epic-deliver` Phase 7 flag. Default force-reaps worktrees whose Story branch is already merged into `epic/<id>` (per `git merge-base --is-ancestor`), discarding uncommitted post-merge drift; the `--no-` form preserves prior skip-on-uncommitted behavior. Force-reap emits a `friction` comment listing discarded paths. |
+| Version-bump-intent snapshot                        | Checkpoint | `/epic-deliver` Phase 0.5 parses the Epic body for `Release target:` / `--segment` directives and posts a `notification` structured comment on the Epic (marker `<!-- notification: version-bump-intent -->`) when they disagree with `release.autoVersionBump`.            |
 | Launcher-level config validation                    | Contract | `validateOrchestrationConfig(config)` runs in `main()` of `epic-runner.js`, `plan-runner.js`, `epic-plan-spec.js`, and `epic-plan-decompose.js` — a schema-invalid `.agentrc.json` exits non-zero before any long-running flow begins. |
 
 ---
@@ -346,7 +345,7 @@ ratchet.
 | `resolveWorktreeEnabled(opts, env)` | Helper      | `lib/config-resolver.js`. Returns the resolved boolean (env override → web auto-detect → committed config).                                                                                                          |
 | `resolveSessionId(env)`           | Helper        | `lib/config-resolver.js`. Returns the sanitised, 12-char session-id used in the startup log line.                                                                                                                    |
 | `resolveRuntime(opts, env)`       | Helper        | `lib/config-resolver.js`. Returns `{ worktreeEnabled, sessionId, isRemote }` plus the source attribution string used in the startup log line.                                                                        |
-| `orchestration.runners.closeRetry`| Config block  | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close.                |
+| `orchestration.runners.storyMergeRetry`| Config block  | `{ maxAttempts: integer ≥ 1, backoffMs: integer[] }`. Both keys optional. Defaults: `maxAttempts: 3`, `backoffMs: [250, 500, 1000]`. Drives the bounded retry on the epic-branch push at story close. Renamed in 5.40.0; see `docs/CHANGELOG.md` for the rename history. |
 | `pushEpicWithRetry(...)`          | Helper        | `lib/push-epic-retry.js`. Wraps the `git push origin epic/<id>` step with fetch-replay-push retry on non-fast-forward rejection. Aborts cleanly on real content conflicts; never destroys local work.                |
 | `runDispatchManifestGuard(opts)`  | Helper        | `lib/story-init/dependency-guard.js`. Pre-flight blocker check at `story-init.js` startup. Refuses launch if any of the story's blockers are unmerged.                                                              |
 
@@ -388,7 +387,7 @@ tree at `temp/epic-<epicId>/validation-evidence.json` (Epic-scoped) or
 `temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
 (Story-scoped). Callers must thread both the scope id and the owning Epic
 id through the wrapper. The wrapper at `evidence-gate.js` is the only
-writer; close-validation, `epic-code-review`, and `/epic-close` Phase 4
+writer; close-validation, `epic-code-review`, and `/epic-deliver` Phase 4
 are the readers. `--no-evidence` on any wrapper invocation forces a re-run
 and overwrites the record on success.
 
@@ -402,7 +401,7 @@ structured comment is refreshed during Epic execution:
 | Value             | Behaviour                                                                  |
 | ----------------- | -------------------------------------------------------------------------- |
 | `every-close`     | Refresh on every story-close.                                              |
-| `wave-boundary`   | Refresh only at wave transitions and at epic-close. **Default.**           |
+| `wave-boundary`   | Refresh only at wave transitions and at the deliver-tail. **Default.**     |
 | `every-n-closes`  | Refresh every Nth close, where N comes from `healthMonitor.everyNCloses`.  |
 
 `wave-boundary` is the recommended setting for large Epics; the per-close
@@ -416,4 +415,4 @@ health visibility.
 | Term                       | Kind     | Definition                                                                                                                                                |
 | -------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `isCleanManifest(signals)` | Predicate | `lib/orchestration/retro-heuristics.js`. Returns `true` iff `friction === 0 && parked === 0 && recuts === 0 && hotfixes === 0 && hitl === 0`. Drives the compact-retro branch of the `epic-retro` helper. |
-| `--full-retro`             | CLI flag | `/epic-close` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |
+| `--full-retro`             | CLI flag | `/epic-deliver` override forcing the six-section retro body regardless of `isCleanManifest`. Mirrors `--skip-retro` / `--skip-code-review`.                 |

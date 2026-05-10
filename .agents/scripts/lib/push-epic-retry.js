@@ -16,7 +16,7 @@
  * `PushRetryConflictError` naming the conflicting files.
  */
 
-import { DEFAULT_CLOSE_RETRY } from './config-schema.js';
+import { DEFAULT_STORY_MERGE_RETRY } from './config-schema.js';
 
 /**
  * Stderr patterns git emits when `git push` is rejected because the remote
@@ -86,7 +86,7 @@ function collectConflictFiles(cwd, git) {
  * @param {string} opts.cwd
  * @param {string} opts.epicBranch
  * @param {string} opts.storyBranch
- * @param {{ maxAttempts?: number, backoffMs?: number[] }} [opts.closeRetry]
+ * @param {{ maxAttempts?: number, backoffMs?: number[] }} [opts.storyMergeRetry]
  * @param {{ gitSpawn: (cwd: string, ...args: string[]) => { status: number, stdout: string, stderr: string } }} opts.git
  * @param {(ms: number) => Promise<void>} [opts.sleep]
  * @param {(msg: string) => void} [opts.log]
@@ -97,7 +97,7 @@ export async function pushEpicWithRetry({
   cwd,
   epicBranch,
   storyBranch,
-  closeRetry,
+  storyMergeRetry,
   git,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
   log = () => {},
@@ -111,8 +111,9 @@ export async function pushEpicWithRetry({
   }
 
   const maxAttempts =
-    closeRetry?.maxAttempts ?? DEFAULT_CLOSE_RETRY.maxAttempts;
-  const backoffMs = closeRetry?.backoffMs ?? DEFAULT_CLOSE_RETRY.backoffMs;
+    storyMergeRetry?.maxAttempts ?? DEFAULT_STORY_MERGE_RETRY.maxAttempts;
+  const backoffMs =
+    storyMergeRetry?.backoffMs ?? DEFAULT_STORY_MERGE_RETRY.backoffMs;
 
   let lastResult;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {

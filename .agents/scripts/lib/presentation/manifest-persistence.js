@@ -65,8 +65,8 @@ function sweepOne(target) {
  */
 export function deleteLegacyFlatManifest(epicId, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
-  const resolved = opts.settings
-    ? { settings: opts.settings }
+  const resolved = opts.agentSettings
+    ? { agentSettings: opts.agentSettings }
     : safeResolveConfig(projectRoot);
   const logger = opts.logger ?? console;
 
@@ -115,17 +115,17 @@ export function atomicWrite(finalPath, content) {
  * left untouched.
  *
  * @param {object} manifest
- * @param {{ projectRoot?: string, settings?: object }} [opts]
+ * @param {{ projectRoot?: string, agentSettings?: object }} [opts]
  * @returns {{ persisted: boolean, path: string|null, error: string|null }}
  */
 export function persistManifest(manifest, opts = {}) {
   const projectRoot = opts.projectRoot ?? getProjectRoot();
   // Resolve config once so `epicArtifactPath` / `storyArtifactPath`
-  // honour any `agentSettings.paths.tempRoot` override. Settings can
-  // also be threaded via `opts.settings` (story-init does this to
+  // honour any `agentSettings.paths.tempRoot` override. agentSettings can
+  // also be threaded via `opts.agentSettings` (story-init does this to
   // avoid a redundant resolve).
-  const resolved = opts.settings
-    ? { settings: opts.settings }
+  const resolved = opts.agentSettings
+    ? { agentSettings: opts.agentSettings }
     : safeResolveConfig(projectRoot);
   const tempPathsConfig = resolved;
 
@@ -173,7 +173,7 @@ export function persistManifest(manifest, opts = {}) {
     // manifest.{md,json} pair (resolves #1126).
     deleteLegacyFlatManifest(epicId, {
       projectRoot,
-      settings: opts.settings ?? resolved.settings,
+      agentSettings: opts.agentSettings ?? resolved.agentSettings,
     });
     const relJson = epicArtifactPath(epicId, 'manifest.json', tempPathsConfig);
     const relMd = epicArtifactPath(epicId, 'manifest.md', tempPathsConfig);
@@ -190,7 +190,7 @@ export function persistManifest(manifest, opts = {}) {
     const mdContent =
       manifest.type === 'story-execution'
         ? formatStoryManifestMarkdown(manifest, {
-            settings: opts.settings ?? resolved.settings,
+            agentSettings: opts.agentSettings ?? resolved.agentSettings,
           })
         : formatManifestMarkdown(manifest);
 
@@ -217,6 +217,6 @@ function safeResolveConfig(projectRoot) {
   try {
     return resolveConfig({ cwd: projectRoot });
   } catch {
-    return { settings: undefined };
+    return { agentSettings: undefined };
   }
 }

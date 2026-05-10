@@ -10,7 +10,6 @@ describe('columnForLabels', () => {
   it('maps agent lifecycle labels to board columns', () => {
     assert.equal(columnForLabels(['agent::executing']), 'In Progress');
     assert.equal(columnForLabels(['agent::blocked']), 'Blocked');
-    assert.equal(columnForLabels(['agent::review']), 'Review');
     assert.equal(columnForLabels(['agent::done']), 'Done');
   });
 
@@ -25,8 +24,8 @@ describe('columnForLabels', () => {
       columnForLabels(['agent::executing', 'agent::blocked']),
       'Blocked',
     );
-    // review + done → Done
-    assert.equal(columnForLabels(['agent::review', 'agent::done']), 'Done');
+    // executing + done → Done (terminal beats active)
+    assert.equal(columnForLabels(['agent::executing', 'agent::done']), 'Done');
     // ready + executing → Ready (parking outranks execution at the board level)
     assert.equal(
       columnForLabels(['agent::ready', 'agent::executing']),

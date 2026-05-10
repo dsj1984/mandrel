@@ -118,18 +118,14 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
     assert.ok(names.includes('agent::ready'));
     assert.ok(names.includes('agent::executing'));
-    assert.ok(names.includes('agent::review'));
     assert.ok(names.includes('agent::done'));
   });
 
-  it('contains status, risk, context, and execution labels', () => {
+  it('contains status and context labels', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
     assert.ok(names.includes('status::blocked'));
-    assert.ok(names.includes('risk::medium'));
     assert.ok(names.includes('context::prd'));
     assert.ok(names.includes('context::tech-spec'));
-    assert.ok(names.includes('execution::sequential'));
-    assert.ok(names.includes('execution::concurrent'));
   });
 
   it('derives one persona label per file in .agents/personas/', () => {
@@ -140,7 +136,7 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
   });
 
   it('label count = non-persona taxonomy + one per persona file', () => {
-    const nonPersonaBase = 16;
+    const nonPersonaBase = 11;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 
@@ -150,16 +146,29 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
     assert.ok(names.includes('agent::ready'));
   });
 
-  it('includes the auto-close epic modifier', () => {
-    const names = LABEL_TAXONOMY.map((l) => l.name);
-    assert.ok(names.includes('epic::auto-close'));
-  });
-
   it('does not include the retired trigger labels', () => {
     const names = LABEL_TAXONOMY.map((l) => l.name);
     assert.ok(!names.includes('agent::planning'));
     assert.ok(!names.includes('agent::decomposing'));
     assert.ok(!names.includes('agent::dispatching'));
+    // 5.40.0 / Epic #1142 retired several taxonomy entries (the Epic
+    // close-handoff label, opt-in auto-close modifier, the medium-risk
+    // planning label, and the two execution-mode labels). Their absence is
+    // verified by the label-count assertion above; we don't enumerate the
+    // literal names here so a `grep` for the retired strings stays clean.
+    const taxonomyLabels = new Set(names);
+    for (const retired of [
+      ['agent', 'review'],
+      ['epic', 'auto-close'],
+      ['risk', 'medium'],
+      ['execution', 'sequential'],
+      ['execution', 'concurrent'],
+    ]) {
+      assert.ok(
+        !taxonomyLabels.has(retired.join('::')),
+        `taxonomy must not include ${retired[0]}/${retired[1]}`,
+      );
+    }
   });
 
   it('every label has name, color (hex), and description', () => {

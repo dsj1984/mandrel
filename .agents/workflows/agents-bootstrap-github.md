@@ -43,18 +43,49 @@ custom fields.
 | Category    | Labels                                                                                   | Color  |
 | ----------- | ---------------------------------------------------------------------------------------- | ------ |
 | Type        | `type::epic`, `type::feature`, `type::story`, `type::task`                               | Purple |
-| Agent State | `agent::review-spec`, `agent::ready`, `agent::executing`, `agent::review`, `agent::done`, `agent::blocked` | Green  |
-| Epic        | `epic::auto-close`                                                                       | Yellow |
+| Agent State | `agent::review-spec`, `agent::ready`, `agent::executing`, `agent::done`, `agent::blocked` | Green  |
 | Status      | `status::blocked`                                                                        | Red    |
-| Risk        | `risk::medium`                                                                           | Yellow |
 | Persona     | `persona::<name>` — one per file in `.agents/personas/`                                  | Blue   |
 | Context     | `context::prd`, `context::tech-spec`                                                     | Purple |
-| Execution   | `execution::sequential`, `execution::concurrent`                                         | Peach  |
+
+> **`status::blocked` vs `agent::blocked`** — these are not duplicates.
+> `status::blocked` is **planning metadata** placed on a Task by retro / sprint
+> heuristics when a hotfix was needed mid-sprint; it is consumed by
+> `retro-heuristics.js` and never gates dispatch. `agent::blocked` is the
+> **runtime HITL pause** flipped by the runner when a wave halts and waits
+> for operator input.
 
 ### Project Board Fields (if `projectNumber` is configured)
 
 - **Sprint** (Iteration)
 - **Execution** (Single Select): `sequential`, `concurrent`
+
+### Branch protection on `main` (Epic #1142 Story #1157)
+
+After labels and project setup, the bootstrap script writes the
+`agentSettings.quality.prGate.checks` suite into GitHub's branch-protection
+rule on the configured `agentSettings.baseBranch` (default `main`). The
+behaviour is deliberately additive:
+
+- **No existing rule** — a fresh protection rule is created carrying just
+  the `prGate.checks` names as required status-check contexts. Strict
+  status checks are enabled; PR-review and admin-enforcement knobs are
+  left unset so operators can tune them by hand.
+- **Existing rule** — every existing required-check context is preserved.
+  Only the missing `prGate.checks` names are appended. Other rule fields
+  (PR review counts, signed commits, restrictions) are read back and
+  written through unchanged so re-running the bootstrap never clobbers
+  operator-tuned settings.
+
+Set `agentSettings.quality.prGate.enforceBranchProtection: false` in
+`.agentrc.json` to skip the step entirely — useful when branch protection
+is managed out-of-band (Terraform, manual UI, an org-level ruleset). The
+flag defaults to `true` so the framework's promoted prGate suite is
+load-bearing without per-repo opt-in.
+
+When the GitHub token lacks the permissions needed to write protection
+rules, the failure is logged and the bootstrap continues — the rest of
+the setup still succeeds.
 
 ## Troubleshooting
 

@@ -9,7 +9,7 @@
  *   - "parked" — the Story is genuinely outside the manifest (carved off
  *                mid-sprint, no recut lineage). The operator should explicitly
  *                adopt it into the current Epic or defer it. Surfaced as a
- *                structured comment so `/epic-close` has a single checkpoint.
+ *                structured comment so `/epic-deliver` has a single checkpoint.
  *
  * Both categories are informational at the wave-completeness gate — they do
  * not fail closure by themselves. The gate continues to enforce that every
@@ -81,7 +81,7 @@ export function renderParkedFollowOnsComment(epicId, classification) {
     `## 🪝 Parked Follow-Ons & Recuts — Epic #${epicId}`,
     '',
     'Stories created under this Epic that are **not** in the frozen dispatch',
-    'manifest. Surfaced here so `/epic-close` can gate on them at the',
+    'manifest. Surfaced here so `/epic-deliver` can gate on them at the',
     'completeness check.',
     '',
     `- **Recuts** (attributable to a manifest Story): ${recuts.length}`,

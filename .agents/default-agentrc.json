@@ -20,12 +20,9 @@
       "packageJson": true,
       "autoVersionBump": true
     },
-    "epicClose": {
-      "runRetro": true
-    },
     "limits": {
       "maxInstructionSteps": 5,
-      "maxTickets": 40,
+      "maxTickets": 60,
       "maxTokenBudget": 200000,
       "executionTimeoutMs": 300000,
       "executionMaxBuffer": 10485760,
@@ -74,10 +71,18 @@
         "requireCoverage": true,
         "friction": { "markerKey": "crap-baseline-regression" },
         "refreshTag": "baseline-refresh:"
+      },
+      "prGate": {
+        "checks": [
+          { "name": "lint", "cmd": ["npm", "run", "lint"] },
+          { "name": "format:check", "cmd": ["npm", "run", "format:check"] },
+          { "name": "test", "cmd": ["npm", "test"] }
+        ],
+        "enforceBranchProtection": true
       }
     },
-    "riskGates": {
-      "heuristics": [
+    "planning": {
+      "riskHeuristics": [
         "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
         "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
         "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
@@ -101,7 +106,6 @@
       "webhookMinLevel": "medium",
       "terminalMinLevel": "medium"
     },
-    "hitl": {},
     "worktreeIsolation": {
       "enabled": true,
       "root": ".worktrees",
@@ -111,7 +115,7 @@
       "bootstrapFiles": [".env"]
     },
     "runners": {
-      "epicRunner": {
+      "deliverRunner": {
         "enabled": true,
         "concurrencyCap": 3,
         "progressReportIntervalSec": 120

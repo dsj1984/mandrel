@@ -18,7 +18,7 @@
  *     fetching each `story-perf-summary` structured comment from the
  *     ticketing provider. Posts the
  *     `<!-- structured:epic-perf-report -->` comment on the Epic ticket.
- *     Run from the retro composer / `/epic-close` Phase 6.0.
+ *     Run from the retro composer / `/epic-deliver` Phase 6.0.
  *
  * Both modes are idempotent: `upsertStructuredComment` deletes the prior
  * marker before posting the new one.
@@ -27,8 +27,8 @@
  * NDJSON for a Story, no children for an Epic) so the close pipelines
  * never block on observability output. Hard failures (bad CLI args,
  * provider error, schema-violating payload) exit non-zero — the call
- * sites in post-merge-pipeline / epic-close treat that as a non-fatal
- * warning.
+ * sites in post-merge-pipeline / `/epic-deliver` Phase 5 treat that
+ * as a non-fatal warning.
  *
  * Usage:
  *   node .agents/scripts/analyze-execution.js --story <sid> --epic <eid> \

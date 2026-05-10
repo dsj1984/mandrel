@@ -2,8 +2,8 @@
 
 This rule governs the shape of per-release entries in the project CHANGELOG
 (typically `docs/CHANGELOG.md` or `CHANGELOG.md`). It applies whenever a
-release entry is authored or edited — most commonly during `/epic-close`
-Phase 1.3 (Documentation Freshness Gate).
+release entry is authored or edited — most commonly inside Story #N's
+docs sweep before `/epic-deliver` opens the release PR.
 
 The contract is **guidance-tier** in v1: no automated gate fails a close when
 an entry drifts off-template. It still binds every author.
@@ -165,11 +165,11 @@ entry `skip-worktree`. `reap()` removes the symlink before
 `git worktree remove`. Auto-detected: if `.gitmodules` declares
 `.agents` as a submodule path, the symlink applies.
 
-### Epic-close auto-invokes pre-merge gates
+### Deliver tail auto-invokes pre-merge gates
 
-`/epic-close` auto-invokes the code-review helper (new Step 1.4) and
-the retro helper (revised Step 1.5) inline instead of halting to ask
-the operator to run them separately. `--skip-code-review` available as
+`/epic-deliver` auto-invokes the code-review module (Phase 4) and
+the retro runner (Phase 5) inline instead of halting to ask the
+operator to run them separately. `--skip-code-review` available as
 an override.
 
 ### Epic Health ticket closed alongside PRD/Tech Spec
@@ -184,7 +184,7 @@ or a title starting with `📉 Epic Health:`, in addition to
 well-known lock files (`index.lock`, `HEAD.lock`, `packed-refs.lock`,
 `config.lock`, `shallow.lock`) whose mtime exceeds the threshold.
 Fresh locks belonging to in-flight ops are skipped. Runs at
-`/epic-execute` start, before worktree GC.
+`/epic-deliver` start, before worktree GC.
 ```
 
 Contract violations: five separate `###` sub-sections where one theme
@@ -212,12 +212,12 @@ submodule.
 - **`.agents` submodule-aware worktrees.** Consumer projects that declare
   `.agents` as a submodule no longer need a manual cleanup step —
   worktree reap handles the gitlink automatically.
-- **`/epic-close` auto-invokes pre-merge gates** (code review, retro)
+- **`/epic-deliver` auto-invokes pre-merge gates** (code review, retro)
   inline. `--skip-code-review` is available as an override.
 - **Closure sweep covers Epic Health tickets** in addition to PRD and
   Tech Spec tickets.
 - **Stale-lock sweep** on the shared `.git/` directory runs at
-  `/epic-execute` start, clearing lock files left behind by interrupted
+  `/epic-deliver` start, clearing lock files left behind by interrupted
   operations.
 ```
 

@@ -5,7 +5,7 @@ description: QA Epic-testing workflow — ingest the Cucumber report from the BD
 # Epic Testing (helper)
 
 > **Helper module.** Not a slash command. Invoked from the QA gate during
-> `/epic-close` or directly by an operator when the Epic-testing ticket
+> `/epic-deliver` or directly by an operator when the Epic-testing ticket
 > needs refreshed evidence. For ad-hoc BDD runs use `/run-bdd-suite` — this
 > helper owns the Epic-evidence ticket lifecycle on top of it.
 
@@ -15,7 +15,7 @@ consuming project's BDD suite (typically via `/run-bdd-suite`), **not** a
 hand-ticked markdown checklist.
 
 > **When to run**: During the QA phase of an Epic, after all Story merges
-> have landed on the Epic branch and before `/epic-close`. Also run ad-hoc
+> have landed on the Epic branch and before `/epic-deliver`. Also run ad-hoc
 > when a regression is suspected mid-Epic.
 >
 > **Persona**: `qa-engineer` · **Skills**:
@@ -81,7 +81,7 @@ do not paste — large artifacts.
    - One-line symptom.
    - Link to the failing scenario's trace zip.
 
-Do not close the Epic-testing ticket on a failed run. `/epic-close`
+Do not close the Epic-testing ticket on a failed run. `/epic-deliver`
 depends on green evidence.
 
 ## Deprecated — Markdown Checklist Flow

@@ -53,7 +53,7 @@ function makePipelineProvider({ story, epic, subTickets = [], blockers = {} }) {
 
 function baseConfig() {
   return {
-    settings: { baseBranch: 'main' },
+    agentSettings: { baseBranch: 'main' },
     orchestration: {
       worktreeIsolation: { enabled: false },
       notifications: { level: 'silent', channels: [] },

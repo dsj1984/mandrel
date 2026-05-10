@@ -7,7 +7,7 @@
  *
  * Runs at the end of /epic-plan (Phase 4) to validate the backlog and
  * optionally prime the execution environment before handing off to
- * /epic-execute.
+ * /epic-deliver.
  *
  * Modes (additive — fast checks always run):
  *   --fast (default)  — config validation + git remote check only.
@@ -276,8 +276,9 @@ export async function runPlanHealthcheck(opts = {}) {
   const { epicId, paranoid, primeInstall, dryRun } = parsed;
   const cwd = PROJECT_ROOT;
 
-  const { settings, orchestration } = opts.injectedConfig || resolveConfig();
-  const baseBranch = settings.baseBranch ?? 'main';
+  const { agentSettings, orchestration } =
+    opts.injectedConfig || resolveConfig();
+  const baseBranch = agentSettings.baseBranch ?? 'main';
 
   progress(
     'HEALTH',

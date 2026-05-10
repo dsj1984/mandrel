@@ -26,7 +26,7 @@ mirror aligned with the runtime validators.
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "agentSettings": { /* paths, commands, quality, limits, ... */ },
-  "orchestration":  { /* provider, github, worktreeIsolation, epicRunner, ... */ }
+  "orchestration":  { /* provider, github, worktreeIsolation, deliverRunner, ... */ }
 }
 ```
 
@@ -171,9 +171,18 @@ subject + non-empty body so the refresh-guardrail accepts it.
 
 #### `agentSettings.quality.prGate`
 
-| Field    | Required | Default | Purpose                                                          |
-| -------- | -------- | ------- | ---------------------------------------------------------------- |
-| `checks` | No       | `[]`    | Names of additional gate checks to run inside `git-pr-quality-gate.js`. |
+Promoted from schema-only to default config in 5.40.0 (Epic #1142). The
+`checks` array drives both the close-validation chain inside
+`/epic-deliver` Phase 3 and the required-status-checks expectation that
+`/epic-deliver` Phase 6 sets on the PR. `enforceBranchProtection` is the
+load-bearing knob that controls whether `/agents-bootstrap-github`
+creates branch protection on `main` — load-bearing because the PR merge
+is now the sole promotion gate to `main`.
+
+| Field                       | Required | Default                                                              | Purpose                                                                                                                                                                |
+| --------------------------- | -------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `checks`                    | No       | `["validate", "test", "lint-baseline", "crap-check", "maintainability"]` | Required-status-check names enforced by branch protection and re-run inside `/epic-deliver` Phase 3.                                                                  |
+| `enforceBranchProtection`   | No       | `true`                                                               | When `true`, `/agents-bootstrap-github` calls `ensureMainBranchProtection({ checks })` to create or merge protection on `main`. Set to `false` to opt out (not recommended). |
 
 Read with `getQuality(config)` (composes `getBaselines`, MI, CRAP, prGate
 sub-objects).
@@ -219,12 +228,11 @@ Added in Epic #817 Story 9.
 | Field              | Required | Default | Purpose                                                                                  |
 | ------------------ | -------- | ------- | ---------------------------------------------------------------------------------------- |
 | `baseBranch`       | No       | (none)  | Default branch name (e.g. `main`). Read by close, push, and rebase paths.                |
-| `release.docs`     | No       | `[]`    | Files refreshed during `/epic-close` doc-freshness gate.                                 |
+| `release.docs`     | No       | `[]`    | Files refreshed during the post-PR-merge release tagging step.                           |
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
-| `release.autoVersionBump` | No | `false` | Enables automatic semver bumping on `/epic-close`.                                      |
-| `epicClose.runRetro`   | No   | `true`  | When `true`, `/epic-close` invokes the retro helper.                                     |
-| `riskGates.heuristics` | No   | `[]`    | Free-form rubric for `risk::high` decisions (informational).                             |
+| `release.autoVersionBump` | No | `false` | Enables automatic semver bumping at release tagging.                                    |
+| `planning.riskHeuristics` | No | `[]`  | Free-form rubric for `risk::high` decisions (informational). Renamed in 5.40.0 (Epic #1142); the prior name lives in `docs/CHANGELOG.md` 5.40.0 entry. |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 
 ---
@@ -237,12 +245,11 @@ Added in Epic #817 Story 9.
 | `github`          | Yes\*    | (none)  | Required when `provider: "github"`. See sub-block.                 |
 | `executor`        | No       | (none)  | Executor adapter id (advanced; rarely set).                        |
 | `notifications`   | No       | `{}`    | Notifier behaviour. See sub-block.                                 |
-| `hitl`            | No       | `{}`    | Reserved for future HITL knobs.                                    |
 | `worktreeIsolation` | No     | (see sub-block) | Worktree-per-Story isolation tuning.                            |
-| `epicRunner`      | No       | (see sub-block) | Long-running Epic orchestrator tuning.                          |
+| `deliverRunner`   | No       | (see sub-block) | `/epic-deliver` fan-out tuning. Renamed in 5.40.0; the prior name is documented in the CHANGELOG 5.40.0 entry. |
 | `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
 | `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
-| `closeRetry`      | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes.   |
+| `storyMergeRetry` | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes. Renamed in 5.40.0; the prior name is documented in the CHANGELOG 5.40.0 entry. |
 
 ### `orchestration.github`
 
@@ -308,12 +315,15 @@ checkout's HEAD.
 ### `orchestration.runners`
 
 Epic #773 (Story 7) grouped every runner-flavoured sub-block under
-`orchestration.runners.*`. Pre-#773 flat keys (`orchestration.epicRunner`,
-`orchestration.planRunner`, `orchestration.concurrency`,
-`orchestration.closeRetry`) are no longer accepted — the schema rejects them
-with `additionalProperties: false`.
+`orchestration.runners.*`. Pre-#773 flat keys (the legacy
+`orchestration.epic-runner`-style flat layout) are no longer accepted —
+the schema rejects them with `additionalProperties: false`. Epic #1142
+Story #1157 renamed two of the grouped sub-blocks; the rename details
+and the legacy → new key mapping live in `docs/CHANGELOG.md` under the
+5.40.0 entry. The legacy names are rejected by AJV; the merged
+`default-agentrc.json` ships with the new names.
 
-#### `orchestration.runners.epicRunner`
+#### `orchestration.runners.deliverRunner`
 
 | Field                       | Required        | Default | Purpose                                                  |
 | --------------------------- | --------------- | ------- | -------------------------------------------------------- |
@@ -339,7 +349,7 @@ with `additionalProperties: false`.
 | `commitAssertion`  | No       | (none)  | Concurrency cap for commit-assertion phase.       |
 | `progressReporter` | No       | (none)  | Concurrency cap for progress-reporter phase.      |
 
-#### `orchestration.runners.closeRetry`
+#### `orchestration.runners.storyMergeRetry`
 
 | Field         | Required | Default                | Purpose                                       |
 | ------------- | -------- | ---------------------- | --------------------------------------------- |
@@ -476,7 +486,7 @@ entirely — useful when the consumer wants exactly its own dirs.
 
 `.agentrc.local.json` (gitignored) is layered on top of `.agentrc.json` by the
 resolver. Use it for machine-specific tuning (e.g. lower
-`epicRunner.concurrencyCap` on a laptop) that should never reach git.
+`deliverRunner.concurrencyCap` on a laptop) that should never reach git.
 
 ### Adding a new top-level key (framework change)
 

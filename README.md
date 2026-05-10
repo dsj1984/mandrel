@@ -13,9 +13,12 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
 
 - **GitHub as SSOT** — Issues, Labels, and Projects V2 are the single source
   of truth. No local playbooks or per-iteration files.
-- **Hierarchy-aligned slash commands** — `/epic-plan` generates PRDs, Tech
-  Specs, and the full 4-tier ticket hierarchy. `/epic-execute` →
-  `/wave-execute` → `/story-execute` drive execution; `/epic-close` bookends.
+- **Two-command SDL critical path** — `/epic-plan` generates PRDs, Tech
+  Specs, and the full 4-tier ticket hierarchy (with optional ideation
+  entry from a raw idea). `/epic-deliver` drives the wave loop, runs
+  close-validation, fires the retro, and opens a pull request to `main`
+  — the operator merges through the GitHub UI. There is no in-script
+  merge to `main`.
 - **Single-session fan-out** — Stories run in parallel via Agent-tool
   sub-agents inside the operator's Claude session, with per-story `git
   worktree` filesystem isolation.
@@ -38,7 +41,7 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
   real `git merge-base --is-ancestor` reachability check; baseline
   refreshes now attribute to the Story whose diff caused them and block
   on non-attributable drift; and the `analyze-execution` analyzer is
-  finally wired into both the post-merge pipeline and the Epic-close
+  finally wired into both the post-merge pipeline and the Epic-deliver
   retro phase.
 
 For the full architecture (mermaid flow, module map, state machine, tech
@@ -46,49 +49,24 @@ stack), see [`docs/architecture.md`](docs/architecture.md).
 
 ## Get Started
 
-### 1. Install & bootstrap
+Five commands take you from zero to a planned, delivered Epic:
 
 ```powershell
-# Add submodule (uses the dist branch)
 git submodule add -b dist https://github.com/dsj1984/agent-protocols.git .agents
-
-# Run idempotent bootstrap (creates labels, project fields)
 node .agents/scripts/agents-bootstrap-github.js --install-workflows
+cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.github
+# in your agentic IDE:
+/epic-plan          # ideation entry — sharpen idea, create the Epic, decompose
+/epic-deliver <id>  # wave loop → validation → review → retro → open PR to main
 ```
 
-### 2. Configure
-
-Copy `.agents/default-agentrc.json` to your project root as `.agentrc.json` and
-set your repository details:
-
-```json
-{
-  "orchestration": {
-    "provider": "github",
-    "github": {
-      "owner": "your-org",
-      "repo": "your-repo",
-      "operatorHandle": "@your-username"
-    }
-  }
-}
-```
-
-Set `GITHUB_TOKEN` in your environment (or a `.env` file at the project root).
+Set `GITHUB_TOKEN` (or `GH_TOKEN`) in `.env` at the project root so the
+orchestration scripts can authenticate.
 
 The full configuration reference is in
 [`docs/configuration.md`](docs/configuration.md); the static JSON Schema at
-`.agents/schemas/agentrc.schema.json` powers editor autocomplete.
-
-### 3. Plan your first Epic
-
-Create a GitHub Issue with the `type::epic` label, then run:
-
-```text
-/epic-plan [EPIC_NUMBER]
-```
-
-See [`.agents/SDLC.md`](.agents/SDLC.md) for the full end-to-end workflow,
+`.agents/schemas/agentrc.schema.json` powers editor autocomplete. See
+[`.agents/SDLC.md`](.agents/SDLC.md) for the end-to-end workflow narrative
 and [`docs/workflows.md`](docs/workflows.md) for the slash-command index.
 
 ---
@@ -107,7 +85,7 @@ agent-protocols/
 │   ├── skills/
 │   │   ├── core/             # Universal process skills (20)
 │   │   └── stack/            # Tech-stack guardrails (5 categories)
-│   ├── workflows/            # Slash-command automation (28)
+│   ├── workflows/            # Slash-command automation
 │   ├── scripts/              # Orchestration engine (lib + providers)
 │   ├── schemas/              # JSON Schemas
 │   └── templates/            # Context hydration templates

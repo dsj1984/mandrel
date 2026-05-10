@@ -843,7 +843,7 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
   it('returns the base prompt (with default maxTickets) when no heuristics are supplied', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.equal(prompt, renderDecomposerSystemPrompt());
-    assert.ok(prompt.includes('Do NOT generate more than 40 tickets in total'));
+    assert.ok(prompt.includes('Do NOT generate more than 60 tickets in total'));
   });
 
   it('appends risk heuristics when supplied', () => {
@@ -885,7 +885,7 @@ describe('ticket-decomposer buildDecompositionContext', () => {
 
     const ctx = await buildDecompositionContext(1, provider, {
       agentSettings: {
-        riskGates: { heuristics: ['Heuristic A'] },
+        planning: { riskHeuristics: ['Heuristic A'] },
         limits: { maxTickets: 60 },
       },
     });

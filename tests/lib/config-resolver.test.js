@@ -47,11 +47,11 @@ describe('config-resolver library tests', () => {
     assert.equal(config.source, 'built-in defaults');
     // `agentRoot` is no longer a zero-config default — it is hard-required by
     // the schema so a config without it cannot be silently filled in.
-    assert.equal(config.settings.paths.agentRoot, undefined);
+    assert.equal(config.agentSettings.paths.agentRoot, undefined);
     // The seven `*Root` keys moved under `paths` in Epic #773 Story 9 —
     // their defaults flow through `resolvePaths`, not the top-level apply
     // loop, so they live at `settings.paths.scriptsRoot` (etc.) now.
-    assert.equal(config.settings.paths.scriptsRoot, '.agents/scripts');
+    assert.equal(config.agentSettings.paths.scriptsRoot, '.agents/scripts');
     assert.equal(config.orchestration, null);
   });
 
@@ -158,8 +158,8 @@ describe('config-resolver library tests', () => {
     const cfgA = resolveConfig({ bustCache: true, cwd: rootA });
     const cfgB = resolveConfig({ bustCache: true, cwd: rootB });
 
-    assert.equal(cfgA.settings.paths.agentRoot, 'A-agents');
-    assert.equal(cfgB.settings.paths.agentRoot, 'B-agents');
+    assert.equal(cfgA.agentSettings.paths.agentRoot, 'A-agents');
+    assert.equal(cfgB.agentSettings.paths.agentRoot, 'B-agents');
     assert.equal(cfgA.source, path.join(rootA, '.agentrc.json'));
     assert.equal(cfgB.source, path.join(rootB, '.agentrc.json'));
   });
@@ -188,7 +188,7 @@ describe('config-resolver library tests', () => {
 
     assert.equal(a1, a2, 'same root → cached identity');
     assert.notEqual(a1, b1, 'different roots → different cached objects');
-    assert.equal(b1.settings.paths.agentRoot, 'Y');
+    assert.equal(b1.agentSettings.paths.agentRoot, 'Y');
   });
 
   it('falls back to defaults when the injected cwd has no .agentrc.json', () => {
@@ -200,7 +200,7 @@ describe('config-resolver library tests', () => {
     assert.equal(cfg.orchestration, null);
   });
 
-  it('throws when orchestration.runners.epicRunner is missing concurrencyCap', () => {
+  it('throws when orchestration.runners.deliverRunner is missing concurrencyCap', () => {
     const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
     vol.mkdirSync(PROJECT_ROOT, { recursive: true });
     vol.writeFileSync(
@@ -211,7 +211,7 @@ describe('config-resolver library tests', () => {
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
           runners: {
-            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
+            deliverRunner: { enabled: true, progressReportIntervalSec: 30 },
           },
         },
       }),
@@ -234,7 +234,7 @@ describe('config-resolver library tests', () => {
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
           runners: {
-            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
+            deliverRunner: { enabled: true, progressReportIntervalSec: 30 },
           },
         },
       }),
@@ -258,14 +258,14 @@ describe('config-resolver library tests', () => {
     );
 
     const config = resolveConfig({ bustCache: true });
-    assert.equal(config.settings.paths.agentRoot, 'custom-agents');
-    assert.equal(config.settings.paths.scriptsRoot, '.agents/scripts'); // default
+    assert.equal(config.agentSettings.paths.agentRoot, 'custom-agents');
+    assert.equal(config.agentSettings.paths.scriptsRoot, '.agents/scripts'); // default
   });
 
   describe('quality.crap defaults + deep-merge', () => {
     it('injects full crap defaults when the block is absent', () => {
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.crap, {
+      assert.deepEqual(config.agentSettings.quality.crap, {
         enabled: true,
         targetDirs: ['src'],
         newMethodCeiling: 30,
@@ -287,8 +287,8 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.equal(config.settings.quality.crap.newMethodCeiling, 30);
-      assert.deepEqual(config.settings.quality.crap.targetDirs, ['src']);
+      assert.equal(config.agentSettings.quality.crap.newMethodCeiling, 30);
+      assert.deepEqual(config.agentSettings.quality.crap.targetDirs, ['src']);
     });
 
     it('{ append } extends targetDirs and dedupes within user input', () => {
@@ -313,7 +313,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.crap.targetDirs, [
+      assert.deepEqual(config.agentSettings.quality.crap.targetDirs, [
         'src',
         'packages/foo/src',
       ]);
@@ -340,7 +340,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.crap.targetDirs, [
+      assert.deepEqual(config.agentSettings.quality.crap.targetDirs, [
         'apps/web/src',
         'src',
         'packages/lib/src',
@@ -361,7 +361,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.crap.targetDirs, ['src']);
+      assert.deepEqual(config.agentSettings.quality.crap.targetDirs, ['src']);
     });
 
     it('scalar override leaves other crap defaults intact', () => {
@@ -378,7 +378,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      const crap = config.settings.quality.crap;
+      const crap = config.agentSettings.quality.crap;
       assert.equal(crap.newMethodCeiling, 40);
       assert.equal(crap.enabled, true);
       assert.equal(crap.tolerance, 0.05);
@@ -408,7 +408,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.equal(config.settings.quality.crap.newMethodCeiling, 40);
+      assert.equal(config.agentSettings.quality.crap.newMethodCeiling, 40);
       assert.ok(
         warnings.some((m) => /nonsenseKey/.test(m)),
         `expected a warning mentioning 'nonsenseKey'; got ${JSON.stringify(warnings)}`,
@@ -431,9 +431,10 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.maintainability.targetDirs, [
-        'packages/foo',
-      ]);
+      assert.deepEqual(
+        config.agentSettings.quality.maintainability.targetDirs,
+        ['packages/foo'],
+      );
     });
 
     it('friction.markerKey override merges shallowly with defaults', () => {
@@ -452,7 +453,7 @@ describe('config-resolver library tests', () => {
       );
 
       const config = resolveConfig({ bustCache: true });
-      assert.deepEqual(config.settings.quality.crap.friction, {
+      assert.deepEqual(config.agentSettings.quality.crap.friction, {
         markerKey: 'custom-marker',
       });
     });
@@ -630,8 +631,8 @@ describe('config-resolver library tests', () => {
           },
         }),
       });
-      const { settings } = resolveConfig({ bustCache: true });
-      const cmds = getCommands({ agentSettings: settings });
+      const { agentSettings } = resolveConfig({ bustCache: true });
+      const cmds = getCommands({ agentSettings });
       assert.equal(cmds.validate, 'npm run check');
       assert.equal(cmds.test, 'npm run spec');
       assert.equal(cmds.typecheck, 'tsc --noEmit');
@@ -770,33 +771,8 @@ describe('config-resolver library tests', () => {
     });
   });
 
-  describe('getEpicClose', () => {
-    it('returns runRetro=true when no key is set', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({ agentSettings: { ...REQ } });
-      assert.deepEqual(out, { runRetro: true });
-    });
-
-    it('reads epicClose.runRetro when present', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({
-        agentSettings: { ...REQ, epicClose: { runRetro: false } },
-      });
-      assert.equal(out.runRetro, false);
-    });
-
-    it('ignores the legacy sprintClose key (no fallback)', async () => {
-      const { getEpicClose } = await import(
-        '../../.agents/scripts/lib/config/epic-close.js'
-      );
-      const out = getEpicClose({
-        agentSettings: { ...REQ, sprintClose: { runRetro: false } },
-      });
-      assert.equal(out.runRetro, true);
-    });
-  });
+  // Epic #1142 Story #1157 deleted the prior close-tail config accessor
+  // block in lockstep with the SDL surface collapse. The retro skip is
+  // now CLI-only via `--skip-retro` on /epic-deliver. See
+  // `docs/CHANGELOG.md` 5.40.0 for the full deletion list and migration.
 });

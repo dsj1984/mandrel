@@ -21,7 +21,7 @@ This helper is the **decompose phase** of the split planning pipeline. It
 reads the PRD and Tech Spec previously produced by the spec phase helper
 ([`epic-plan-spec.md`](epic-plan-spec.md)), generates the Feature / Story
 / Task ticket hierarchy, persists it to GitHub, and flips the Epic to
-`agent::ready` (parking) so a human can run `/epic-execute` when execution
+`agent::ready` (parking) so a human can run `/epic-deliver` when execution
 should begin.
 
 The ticket array is authored **directly by you, the host LLM**.
@@ -40,7 +40,7 @@ Epic lifecycle state.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics
   may be decomposed concurrently; bare names will collide.
 - **Do not** flip the Epic past `agent::ready` from this helper. Execution
-  begins when an operator runs `/epic-execute [Epic_ID]`.
+  begins when an operator runs `/epic-deliver [Epic_ID]`.
 
 ## Prerequisites
 
@@ -124,7 +124,7 @@ is the single source of truth for which temp paths this phase owns.
 - Surface the backlog summary and the Wave 0 candidates to the operator:
 
   > "Decomposition complete. Epic #[ID] is on `agent::ready` with NN ticket(s)
-  > across MM Stories. Run `/epic-execute [Epic_ID]` to begin execution."
+  > across MM Stories. Run `/epic-deliver [Epic_ID]` to begin execution."
 
 ## Troubleshooting
 

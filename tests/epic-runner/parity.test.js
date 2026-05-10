@@ -87,7 +87,7 @@ function buildFakeProvider({ epicId, stories, initialEpicLabels }) {
 
 const defaultConfig = {
   runners: {
-    epicRunner: {
+    deliverRunner: {
       enabled: true,
       concurrencyCap: 2,
       storyRetryCount: 0,
@@ -114,7 +114,9 @@ describe('epic-runner parity', () => {
 
     assert.equal(result.state, 'completed');
     const epic = provider._tickets.get(epicId);
-    assert.ok(epic.labels.includes('agent::review'));
+    // The runner no longer flips the Epic to review at end of wave loop;
+    // the close-tail handles the remaining lifecycle.
+    assert.ok(epic.labels.includes('agent::executing'));
 
     const epicComments = provider._comments.get(epicId) ?? [];
     const checkpointMarker = structuredCommentMarker(EPIC_RUN_STATE_TYPE);
@@ -160,12 +162,13 @@ describe('epic-runner parity', () => {
     });
 
     const labelsAfter = provider._tickets.get(epicId).labels;
-    assert.ok(labelsAfter.includes('agent::review'));
-    // Executing was present initially; orchestrator removed it and added review.
-    // Story label transitions are Story-local.
+    // The runner now leaves the Epic in `agent::executing` after the wave
+    // loop (the close-tail drives the rest); story label transitions are
+    // Story-local.
+    assert.ok(labelsAfter.includes('agent::executing'));
     assert.ok(
-      !labelsBefore.includes('agent::review'),
-      'sanity: review not present before run',
+      labelsBefore.includes('agent::executing'),
+      'sanity: executing was present before run',
     );
     const storyLabels = provider._tickets.get(400).labels;
     assert.ok(storyLabels.includes('agent::executing'));

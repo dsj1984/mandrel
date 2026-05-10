@@ -106,7 +106,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,
@@ -131,10 +131,12 @@ describe('EpicRunner integration', () => {
     );
     assert.deepEqual([...spawned].sort(), [400, 401, 402]);
 
-    // Final label: agent::review.
+    // After the wave loop the Epic is no longer flipped to a review state by
+    // the runner; the close-tail (in `epic-deliver-close-tail.js`) drives the
+    // remaining lifecycle. The Epic stays in `agent::executing` here until
+    // the close-tail runs.
     const epic = provider._tickets.get(epicId);
-    assert.ok(epic.labels.includes('agent::review'));
-    assert.ok(!epic.labels.includes('agent::executing'));
+    assert.ok(epic.labels.includes('agent::executing'));
 
     // Exactly one checkpoint comment survives.
     const marker = structuredCommentMarker(EPIC_RUN_STATE_TYPE);
@@ -182,7 +184,7 @@ describe('EpicRunner integration', () => {
         gitAdapter: async () => 1,
         config: {
           runners: {
-            epicRunner: {
+            deliverRunner: {
               enabled: true,
               concurrencyCap: 1,
               storyRetryCount: 0,
@@ -212,7 +214,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,
@@ -274,7 +276,7 @@ describe('EpicRunner integration', () => {
 
     const config = {
       runners: {
-        epicRunner: {
+        deliverRunner: {
           enabled: true,
           concurrencyCap: 2,
           storyRetryCount: 0,

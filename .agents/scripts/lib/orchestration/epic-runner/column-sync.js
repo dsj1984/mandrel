@@ -7,7 +7,6 @@
  *   agent::ready       → Ready
  *   agent::executing   → In Progress
  *   agent::blocked     → Blocked
- *   agent::review      → Review
  *   agent::done        → Done
  *
  * No-op (soft fail) when:
@@ -27,21 +26,18 @@ export const LABEL_TO_COLUMN = Object.freeze({
   [AGENT_LABELS.READY]: 'Ready',
   [AGENT_LABELS.EXECUTING]: 'In Progress',
   [AGENT_LABELS.BLOCKED]: 'Blocked',
-  [AGENT_LABELS.REVIEW]: 'Review',
   [AGENT_LABELS.DONE]: 'Done',
 });
 
 /**
  * Pick the target column for a set of labels. Precedence:
- *   done > blocked > review > spec-review > ready > in-progress.
- * Terminal states win (done beats review); the active blocker outranks
- * execution.
+ *   done > blocked > spec-review > ready > in-progress.
+ * Terminal states win; the active blocker outranks execution.
  */
 export function columnForLabels(labels) {
   const set = new Set(labels);
   if (set.has(AGENT_LABELS.DONE)) return 'Done';
   if (set.has(AGENT_LABELS.BLOCKED)) return 'Blocked';
-  if (set.has(AGENT_LABELS.REVIEW)) return 'Review';
   if (set.has(AGENT_LABELS.REVIEW_SPEC)) return 'Spec Review';
   if (set.has(AGENT_LABELS.READY)) return 'Ready';
   if (set.has(AGENT_LABELS.EXECUTING)) return 'In Progress';

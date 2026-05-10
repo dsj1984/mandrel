@@ -150,7 +150,7 @@ describe('runFormatAutofix', () => {
     const result = runFormatAutofix({
       cwd: '/tmp/repo',
       storyId: 11,
-      settings: {
+      agentSettings: {
         commands: { formatWrite: 'pnpm exec prettier --write .' },
       },
       logger,

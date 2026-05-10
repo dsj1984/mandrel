@@ -141,7 +141,7 @@ test('off-branch e2e: worktreeReapPhase returns skipped-disabled without emittin
 
 test('off-branch e2e: regression baseline log shape matches expected operator surface', () => {
   // The baseline is the exact set of leading log tokens an operator should
-  // see during a fresh /epic-execute run with AP_WORKTREE_ENABLED=false.
+  // see during a fresh /epic-deliver run with AP_WORKTREE_ENABLED=false.
   // Future changes that add per-call noise or undefined-path warnings will
   // fail this membership check.
   const expectedLogPrefixes = new Set([

@@ -188,7 +188,7 @@ describe('handleBaselineGateFailure — full split routing', () => {
       },
     });
     const upsertSpy = { calls: [] };
-    const upsertStructuredComment = async (provider, ticketId, type, body) => {
+    const upsertStructuredComment = async (_provider, ticketId, type, body) => {
       upsertSpy.calls.push({ ticketId, type, body });
       return { commentId: 42 };
     };
@@ -331,7 +331,7 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       worktreePath: '/repo/.worktrees/story-1124',
       epicBranch: 'epic/1114',
       storyBranch: 'story-1124',
-      settings: {},
+      agentSettings: {},
       storyId: 1124,
       epicId: 1114,
       useEvidence: false,
@@ -364,7 +364,7 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       worktreePath: '/repo/.worktrees/story-1124',
       epicBranch: 'epic/1114',
       storyBranch: 'story-1124',
-      settings: {},
+      agentSettings: {},
       storyId: 1124,
       epicId: 1114,
       useEvidence: false,
@@ -392,7 +392,7 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
         worktreePath: '/repo/.worktrees/story-1124',
         epicBranch: 'epic/1114',
         storyBranch: 'story-1124',
-        settings: {},
+        agentSettings: {},
         storyId: 1124,
         epicId: 1114,
         useEvidence: false,

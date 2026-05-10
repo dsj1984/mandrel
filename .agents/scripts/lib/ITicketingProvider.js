@@ -293,4 +293,23 @@ export class ITicketingProvider {
   async getBranchProtection(_branch) {
     throw new Error('Not implemented: getBranchProtection');
   }
+
+  /**
+   * Create or additively-merge a branch-protection rule on `_branch`. The
+   * `contexts` array names required status-check contexts; existing
+   * contexts are preserved (additive merge). When no rule exists one is
+   * created with sensible defaults and just the supplied contexts.
+   *
+   * Returns a summary `{ created, added, existing }` describing the diff
+   * the bootstrap orchestrator surfaces to the operator. Implementations
+   * MAY ignore other branch-protection knobs (PR review counts, signed
+   * commits, etc.) so operator-tuned settings survive re-runs.
+   *
+   * @param {string} _branch
+   * @param {{ contexts: string[], strict?: boolean }} _opts
+   * @returns {Promise<{ created: boolean, added: string[], existing: string[] }>}
+   */
+  async setBranchProtection(_branch, _opts) {
+    throw new Error('Not implemented: setBranchProtection');
+  }
 }

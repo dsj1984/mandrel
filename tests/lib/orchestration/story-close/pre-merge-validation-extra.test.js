@@ -36,7 +36,7 @@ describe('runPreMergeGates — onGateStart wiring', () => {
     ];
     await runPreMergeGates({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger: silentLogger(),
       phaseTimer,
       buildDefaultGates: () => gates,
@@ -53,7 +53,7 @@ describe('runPreMergeGates — onGateStart wiring', () => {
   it('skips mark entirely when phaseTimer is omitted', async () => {
     await runPreMergeGates({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger: silentLogger(),
       buildDefaultGates: () => [{ name: 'lint' }, { name: 'test' }],
       runCloseValidation: async ({ onGateStart }) => {
@@ -73,7 +73,7 @@ describe('runPreMergeGates — failure throw shape', () => {
       () =>
         runPreMergeGates({
           cwd: '/repo',
-          settings: {},
+          agentSettings: {},
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'lint' }],
           runCloseValidation: async () => ({
@@ -96,7 +96,7 @@ describe('runPreMergeGates — failure throw shape', () => {
       () =>
         runPreMergeGates({
           cwd: '/repo',
-          settings: {},
+          agentSettings: {},
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'format' }],
           runCloseValidation: async () => ({
@@ -123,7 +123,7 @@ describe('runPreMergeGates — failure throw shape', () => {
       () =>
         runPreMergeGates({
           cwd: '/repo',
-          settings: {},
+          agentSettings: {},
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'typecheck' }],
           runCloseValidation: async () => ({
@@ -147,7 +147,7 @@ describe('emitMaintainabilityProjection', () => {
     const logger = silentLogger();
     emitMaintainabilityProjection({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger,
       getBaselines: () => ({ maintainability: { path: null } }),
       projectMaintainabilityRegressions: () => {
@@ -163,7 +163,7 @@ describe('emitMaintainabilityProjection', () => {
     const logger = silentLogger();
     emitMaintainabilityProjection({
       cwd: '/repo',
-      settings: { quality: {} },
+      agentSettings: { quality: {} },
       logger,
       getBaselines: () => ({
         maintainability: { path: 'baselines/maintainability.json' },
@@ -182,7 +182,7 @@ describe('emitMaintainabilityProjection', () => {
     const logger = silentLogger();
     emitMaintainabilityProjection({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger,
       getBaselines: () => ({
         maintainability: { path: 'baselines/maintainability.json' },
@@ -201,7 +201,7 @@ describe('emitMaintainabilityProjection', () => {
     const logger = silentLogger();
     emitMaintainabilityProjection({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger,
       getBaselines: () => ({
         maintainability: { path: 'baselines/maintainability.json' },
@@ -218,7 +218,7 @@ describe('emitMaintainabilityProjection', () => {
     assert.doesNotThrow(() =>
       emitMaintainabilityProjection({
         cwd: '/repo',
-        settings: {},
+        agentSettings: {},
         logger,
         getBaselines: () => ({
           maintainability: { path: 'baselines/maintainability.json' },
@@ -240,7 +240,7 @@ describe('emitMaintainabilityProjection', () => {
     const logger = silentLogger();
     emitMaintainabilityProjection({
       cwd: '/repo',
-      settings: {},
+      agentSettings: {},
       logger,
       getBaselines: () => ({
         maintainability: { path: 'baselines/maintainability.json' },

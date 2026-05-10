@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// cli-opt-out: top-level CLI driver invoked via npm run test:coverage; spawns child processes rather than parsing argv, so runAsCli() does not apply.
 /**
  * Cross-platform driver for `npm run test:coverage`.
  *
@@ -8,16 +9,24 @@
  * argument and node never sees the env var. Wrapping the run in this
  * Node script keeps the env injection portable.
  *
- * The benchmark in `bench/coverage-bench.js` showed Path B
- * (NODE_V8_COVERAGE + `c8 report`) is ~19% faster on a Windows dev host
- * than Path A (`c8 <cmd>` wrapper) — both produce equivalent line /
- * branch / function percentages and an identical
- * `coverage/coverage-final.json` artifact for the CRAP gate. See
- * `bench/results.log` for the run-by-run numbers.
+ * Pipeline:
+ *   1. Run the test suite under `NODE_V8_COVERAGE` so each worker writes
+ *      raw V8 dumps under `coverage/tmp/`.
+ *   2. `c8 report` post-processes the dumps into `coverage/coverage-final.json`
+ *      plus the printed text table. Include/exclude scope from `.c8rc.cjs`
+ *      is passed explicitly because `c8 report` does not auto-load the
+ *      config file.
+ *   3. `check-coverage-baseline.js` compares the per-file
+ *      lines/branches/functions percentages in `coverage-final.json`
+ *      against the recorded floors in `baselines/coverage.json` and
+ *      fails on any regression. Update the baseline with
+ *      `npm run coverage:update` when you intentionally change scope.
  *
- * Threshold gate (--lines=85 --branches=70 --functions=75) and the
- * include/exclude scope live in `.c8rc.cjs`; this script does not
- * override them.
+ * The previous shape of this script wrapped tests in `c8 <cmd>`. A
+ * one-off A/B benchmark (now retired) showed the NODE_V8_COVERAGE +
+ * `c8 report` path is ~19% faster end-to-end on a Windows dev host
+ * while producing an identical `coverage-final.json` artifact for the
+ * CRAP gate.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -27,10 +36,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..');
+const ROOT = path.resolve(__dirname, '..', '..');
 const COVERAGE_DIR = path.join(ROOT, 'coverage');
 const require = createRequire(import.meta.url);
-const C8_CONFIG = require('../.c8rc.cjs');
+const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
 const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
@@ -53,9 +62,6 @@ const testRun = spawnSync(
   },
 );
 
-// `c8 report` honors `--include` / `--exclude` per-call but does NOT
-// auto-load `.c8rc.cjs` — pass them explicitly so the printed table
-// matches the gate's view of scope.
 const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
 
@@ -74,24 +80,10 @@ const reportRun = spawnSync(
   { cwd: ROOT, stdio: 'inherit', shell: true },
 );
 
-// Threshold + scope values mirror .c8rc.cjs. Passed explicitly because
-// `c8 check-coverage` does not auto-load `.c8rc.cjs` the same way the
-// `c8 <cmd>` wrapper does — without `--include` / `--exclude` here the
-// gate scores over every entry in `coverage-final.json`, so the exclude
-// list (CLI shells whose meaningful logic lives in unit-tested libs)
-// would silently miss the gate. Keep this list in sync with `.c8rc.cjs`.
 const checkRun = spawnSync(
-  NPX,
-  [
-    'c8',
-    'check-coverage',
-    `--lines=${C8_CONFIG.lines}`,
-    `--branches=${C8_CONFIG.branches}`,
-    `--functions=${C8_CONFIG.functions}`,
-    ...includeArgs,
-    ...excludeArgs,
-  ],
-  { cwd: ROOT, stdio: 'inherit', shell: true },
+  process.execPath,
+  [path.join(ROOT, '.agents', 'scripts', 'check-coverage-baseline.js')],
+  { cwd: ROOT, stdio: 'inherit' },
 );
 
 const exitCode =

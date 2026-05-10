@@ -4,7 +4,6 @@ import { ITicketingProvider } from '../../.agents/scripts/lib/ITicketingProvider
 import {
   assertValidStructuredCommentType,
   cascadeCompletion,
-  findStructuredComment,
   isValidStructuredCommentType,
   postStructuredComment,
   STRUCTURED_COMMENT_TYPES,
@@ -90,17 +89,16 @@ test('ticketing.js', async (t) => {
   });
 
   await t.test('transitionTicketState logic', async () => {
-    await transitionTicketState(mock, 2, 'agent::review');
-    assert.deepEqual(mock.updates[0].mutations.labels.add, ['agent::review']);
+    await transitionTicketState(mock, 2, 'agent::ready');
+    assert.deepEqual(mock.updates[0].mutations.labels.add, ['agent::ready']);
     assert.deepEqual(mock.updates[0].mutations.labels.remove, [
-      'agent::ready',
       'agent::executing',
       'agent::done',
     ]);
     // Non-done states should reopen the issue
     assert.strictEqual(mock.updates[0].mutations.state, 'open');
     assert.strictEqual(mock.updates[0].mutations.state_reason, null);
-    assert.ok(mock.tickets[2].labels.includes('agent::review'));
+    assert.ok(mock.tickets[2].labels.includes('agent::ready'));
     assert.ok(!mock.tickets[2].labels.includes('agent::executing'));
   });
 
@@ -142,7 +140,7 @@ test('ticketing.js', async (t) => {
         return Promise.resolve();
       };
 
-      await transitionTicketState(mock, 2, 'agent::review', {
+      await transitionTicketState(mock, 2, 'agent::ready', {
         notify: fakeNotify,
       });
       // Allow the fire-and-forget promise to settle.
@@ -155,7 +153,7 @@ test('ticketing.js', async (t) => {
       assert.equal(calls[0].ticketId, 1);
       assert.match(calls[0].payload.message, /story #2/);
       assert.match(calls[0].payload.message, /agent::executing/);
-      assert.match(calls[0].payload.message, /agent::review/);
+      assert.match(calls[0].payload.message, /agent::ready/);
     },
   );
 
@@ -193,8 +191,8 @@ test('ticketing.js', async (t) => {
     async () => {
       // Guard against a regression where an unconditional call on an undefined
       // notify would throw.
-      await transitionTicketState(mock, 2, 'agent::review');
-      assert.ok(mock.tickets[2].labels.includes('agent::review'));
+      await transitionTicketState(mock, 2, 'agent::ready');
+      assert.ok(mock.tickets[2].labels.includes('agent::ready'));
     },
   );
 
@@ -212,7 +210,7 @@ test('ticketing.js', async (t) => {
       console.warn = (msg) => warnings.push(String(msg));
 
       try {
-        await transitionTicketState(isolated, 2, 'agent::review', {
+        await transitionTicketState(isolated, 2, 'agent::ready', {
           notify: failingNotify,
         });
         // The fire-and-forget chain queues the .catch on the microtask queue;
@@ -628,7 +626,7 @@ test('ticketing.js', async (t) => {
       //   - Story auto-closes via cascade
       //   - Feature auto-closes via cascade (pinned behavior — Features are
       //     purely hierarchical groupings with no standalone branch/merge)
-      //   - Epic does NOT auto-close via cascade (reserved for /epic-close)
+      //   - Epic does NOT auto-close via cascade (reserved for /epic-deliver)
       // This test pins that contract so a future edit that adds Feature to
       // the exclusion list or drops Epic from it fails loudly.
       mock.tickets[10] = {
@@ -681,7 +679,7 @@ test('ticketing.js', async (t) => {
       );
       assert.ok(
         !mock.tickets[10].labels.includes('agent::done'),
-        'Epic must NOT auto-close via cascade — reserved for /epic-close',
+        'Epic must NOT auto-close via cascade — reserved for /epic-deliver',
       );
       assert.ok(
         mock.tickets[10].labels.includes('agent::executing'),

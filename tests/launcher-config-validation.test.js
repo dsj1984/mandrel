@@ -11,8 +11,8 @@ const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 const SCRIPTS = [
   {
-    name: 'epic-runner',
-    relPath: '.agents/scripts/epic-runner.js',
+    name: 'epic-deliver-runner',
+    relPath: '.agents/scripts/epic-deliver-runner.js',
     args: ['--epic', '1'],
   },
   {
@@ -36,9 +36,9 @@ function buildFixtureWithoutRequiredEpicRunnerField() {
   const raw = JSON.parse(
     fs.readFileSync(path.join(PROJECT_ROOT, '.agentrc.json'), 'utf8'),
   );
-  // Schema requires orchestration.runners.epicRunner.concurrencyCap — drop it
+  // Schema requires orchestration.runners.deliverRunner.concurrencyCap — drop it
   // to force a validation failure before any long-running flow begins.
-  delete raw.orchestration.runners.epicRunner.concurrencyCap;
+  delete raw.orchestration.runners.deliverRunner.concurrencyCap;
   return raw;
 }
 
@@ -62,7 +62,7 @@ describe('launcher-level orchestration config validation', () => {
   });
 
   for (const s of SCRIPTS) {
-    test(`${s.name} exits non-zero with schema error when epicRunner.concurrencyCap is missing`, () => {
+    test(`${s.name} exits non-zero with schema error when deliverRunner.concurrencyCap is missing`, () => {
       const res = spawnSync(
         process.execPath,
         [path.join(PROJECT_ROOT, s.relPath), ...s.args],

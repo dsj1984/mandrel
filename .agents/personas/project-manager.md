@@ -61,9 +61,9 @@ code, SQL, or UI components — stop immediately.
 
 - **QA Tasks:** Delegate QA Stories to the `/audit-quality` workflow. Do not
   write custom QA instructions.
-- **Retro Tasks:** Delegate the Epic retro to the
-  `workflows/helpers/epic-retro.md` helper invoked by `/epic-close`. Do
-  not write custom retro instructions.
+- **Retro Tasks:** Delegate the Epic retro to Phase 5 of
+  `/epic-deliver`, which runs `lib/orchestration/retro-runner.js`
+  in-process. Do not write custom retro instructions.
 - **Task Finalization:** Ensure every Task's body incorporates a step to
   self-verify its own context (PRD/Tech Spec linkage, parent Story) before
   starting work.

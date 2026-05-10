@@ -33,18 +33,14 @@ describe('lib/config/temp-paths.js — tempRoot resolution', () => {
     assert.equal(tempRootFrom({}), 'temp');
   });
 
-  it('reads from a full resolved config (settings.paths.tempRoot)', () => {
-    const config = { settings: { paths: { tempRoot: 'tmp/work' } } };
+  it('reads from a full resolved config (agentSettings.paths.tempRoot)', () => {
+    const config = { agentSettings: { paths: { tempRoot: 'tmp/work' } } };
     assert.equal(tempRootFrom(config), 'tmp/work');
   });
 
   it('reads from a bare agentSettings bag', () => {
-    const config = { agentSettings: { paths: { tempRoot: 'workspace' } } };
+    const config = { paths: { tempRoot: 'workspace' } };
     assert.equal(tempRootFrom(config), 'workspace');
-  });
-
-  it('reads from a flat `paths` bag', () => {
-    assert.equal(tempRootFrom({ paths: { tempRoot: 'tmp' } }), 'tmp');
   });
 
   it('falls back to "temp" when tempRoot is empty / non-string', () => {

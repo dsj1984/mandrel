@@ -131,7 +131,7 @@ export function buildDecomposerSystemPrompt(
   const base = renderDecomposerSystemPrompt({ maxTickets });
   const heuristicsStr =
     heuristics.length > 0
-      ? `### RISK HEURISTICS (Flag as risk::medium if any apply):\n- ${heuristics.join('\n- ')}`
+      ? `### RISK HEURISTICS (planning metadata if any apply):\n- ${heuristics.join('\n- ')}`
       : '';
   return `${base}${heuristicsStr ? `\n\n${heuristicsStr}` : ''}`;
 }
@@ -163,7 +163,7 @@ export async function buildDecompositionContext(
     provider.getTicket(epic.linkedIssues.techSpec),
   ]);
 
-  const heuristics = config.agentSettings?.riskGates?.heuristics || [];
+  const heuristics = config.agentSettings?.planning?.riskHeuristics || [];
   const limits = getLimits(config);
   const maxTickets = limits.maxTickets;
   const planningLimits = limits.planningContext;

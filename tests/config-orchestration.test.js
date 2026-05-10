@@ -252,13 +252,13 @@ describe('validateOrchestrationConfig — schema violations', () => {
     );
   });
 
-  it('rejects typos in the epicRunner sub-block', () => {
+  it('rejects typos in the deliverRunner sub-block', () => {
     assert.throws(
       () =>
         validateOrchestrationConfig({
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
-          runners: { epicRunner: { concurencyCap: 3 } },
+          runners: { deliverRunner: { concurencyCap: 3 } },
         }),
       /must NOT have additional properties/,
     );
@@ -266,14 +266,14 @@ describe('validateOrchestrationConfig — schema violations', () => {
 
   it('rejects flat runner sub-blocks at the orchestration root', () => {
     // Story 7 atomic cutover: every runner block now lives under
-    // `orchestration.runners`. A flat `epicRunner` is an additional-property
+    // `orchestration.runners`. A flat `deliverRunner` is an additional-property
     // violation at the orchestration root.
     assert.throws(
       () =>
         validateOrchestrationConfig({
           provider: 'github',
           github: { owner: 'org', repo: 'repo' },
-          epicRunner: { enabled: true, concurrencyCap: 3 },
+          deliverRunner: { enabled: true, concurrencyCap: 3 },
         }),
       /must NOT have additional properties/,
     );
@@ -288,39 +288,39 @@ describe('validateOrchestrationConfig — schema violations', () => {
 });
 
 // ---------------------------------------------------------------------------
-// validateOrchestrationConfig — closeRetry
+// validateOrchestrationConfig — storyMergeRetry
 // ---------------------------------------------------------------------------
-describe('validateOrchestrationConfig — closeRetry', () => {
+describe('validateOrchestrationConfig — storyMergeRetry', () => {
   const baseGithub = { owner: 'org', repo: 'repo' };
 
-  it('accepts a full closeRetry block', () => {
+  it('accepts a full storyMergeRetry block', () => {
     assert.doesNotThrow(() =>
       validateOrchestrationConfig({
         provider: 'github',
         github: baseGithub,
         runners: {
-          closeRetry: { maxAttempts: 3, backoffMs: [250, 500, 1000] },
+          storyMergeRetry: { maxAttempts: 3, backoffMs: [250, 500, 1000] },
         },
       }),
     );
   });
 
-  it('accepts partial closeRetry (just maxAttempts)', () => {
+  it('accepts partial storyMergeRetry (just maxAttempts)', () => {
     assert.doesNotThrow(() =>
       validateOrchestrationConfig({
         provider: 'github',
         github: baseGithub,
-        runners: { closeRetry: { maxAttempts: 5 } },
+        runners: { storyMergeRetry: { maxAttempts: 5 } },
       }),
     );
   });
 
-  it('accepts an empty closeRetry block (defaults apply at consumer)', () => {
+  it('accepts an empty storyMergeRetry block (defaults apply at consumer)', () => {
     assert.doesNotThrow(() =>
       validateOrchestrationConfig({
         provider: 'github',
         github: baseGithub,
-        runners: { closeRetry: {} },
+        runners: { storyMergeRetry: {} },
       }),
     );
   });
@@ -331,7 +331,7 @@ describe('validateOrchestrationConfig — closeRetry', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { closeRetry: { maxAttempts: 0 } },
+          runners: { storyMergeRetry: { maxAttempts: 0 } },
         }),
       /must be >= 1/,
     );
@@ -343,7 +343,7 @@ describe('validateOrchestrationConfig — closeRetry', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { closeRetry: { maxAttempts: 1.5 } },
+          runners: { storyMergeRetry: { maxAttempts: 1.5 } },
         }),
       /must be integer/,
     );
@@ -355,7 +355,7 @@ describe('validateOrchestrationConfig — closeRetry', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { closeRetry: { backoffMs: 500 } },
+          runners: { storyMergeRetry: { backoffMs: 500 } },
         }),
       /must be array/,
     );
@@ -367,19 +367,19 @@ describe('validateOrchestrationConfig — closeRetry', () => {
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { closeRetry: { backoffMs: [100, -50] } },
+          runners: { storyMergeRetry: { backoffMs: [100, -50] } },
         }),
       /must be >= 0/,
     );
   });
 
-  it('rejects typos in closeRetry block', () => {
+  it('rejects typos in storyMergeRetry block', () => {
     assert.throws(
       () =>
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { closeRetry: { maxAttemps: 3 } },
+          runners: { storyMergeRetry: { maxAttemps: 3 } },
         }),
       /must NOT have additional properties/,
     );
@@ -538,45 +538,45 @@ describe('validateOrchestrationConfig — shell injection', () => {
 
 // ---------------------------------------------------------------------------
 // Conditional required keys (Epic #730 Story 4)
-//   - epicRunner.concurrencyCap when enabled !== false
+//   - deliverRunner.concurrencyCap when enabled !== false
 //   - worktreeIsolation.root    when enabled === true
 // ---------------------------------------------------------------------------
 describe('validateOrchestrationConfig — conditional required keys', () => {
   const baseGithub = { owner: 'org', repo: 'repo' };
 
-  it('rejects epicRunner without concurrencyCap when enabled is omitted', () => {
+  it('rejects deliverRunner without concurrencyCap when enabled is omitted', () => {
     assert.throws(
       () =>
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
-          runners: { epicRunner: { progressReportIntervalSec: 30 } },
+          runners: { deliverRunner: { progressReportIntervalSec: 30 } },
         }),
       /must have required property 'concurrencyCap'/,
     );
   });
 
-  it('rejects epicRunner without concurrencyCap when enabled is true', () => {
+  it('rejects deliverRunner without concurrencyCap when enabled is true', () => {
     assert.throws(
       () =>
         validateOrchestrationConfig({
           provider: 'github',
           github: baseGithub,
           runners: {
-            epicRunner: { enabled: true, progressReportIntervalSec: 30 },
+            deliverRunner: { enabled: true, progressReportIntervalSec: 30 },
           },
         }),
       /must have required property 'concurrencyCap'/,
     );
   });
 
-  it('accepts epicRunner without concurrencyCap when enabled is false', () => {
+  it('accepts deliverRunner without concurrencyCap when enabled is false', () => {
     assert.doesNotThrow(() =>
       validateOrchestrationConfig({
         provider: 'github',
         github: baseGithub,
         runners: {
-          epicRunner: { enabled: false, progressReportIntervalSec: 30 },
+          deliverRunner: { enabled: false, progressReportIntervalSec: 30 },
         },
       }),
     );

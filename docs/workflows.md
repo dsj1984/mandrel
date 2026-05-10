@@ -9,29 +9,21 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 `.claude/commands/<name>.md` by `npm run sync:commands` so it shows up as a
 `/`-prefixed slash command in Claude Code.
 
-## Planning
+## SDL critical path
 
-| Command       | Purpose                                                                                          | Typical caller  |
-| ------------- | ------------------------------------------------------------------------------------------------ | --------------- |
-| `/epic-plan`  | One-shot wrapper: generate PRD + Tech Spec, pause for confirmation, then decompose. No flags.    | Operator in IDE |
+The SDL critical path is two commands in v5.40+. `/epic-plan` builds the
+backlog (with an optional ideation entry from a raw idea); `/epic-deliver`
+drives the merged wave-loop + close-tail and opens a pull request to `main`.
+The operator merges the PR through the GitHub UI — the workflow never merges
+to `main` itself.
 
-## Execution
-
-The execution surface is split by hierarchy level. Pick the
-level you want to drive — each skill takes an explicit ticket id and dispatches
-its children via the Agent tool inside the operator's Claude session.
-
-| Command                              | Purpose                                                                                  |
-| ------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `/epic-execute <epicId>`             | Owns the wave loop for the whole Epic; fans Stories out directly per wave via Agent-tool sub-agents (cap = `concurrencyCap`). |
-| `/story-execute <storyId>`           | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. |
-
-## Closure
-
-| Command              | Purpose                                                                                                                       |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `/epic-close`        | Close an Epic end-to-end. Internally auto-invokes the `epic-code-review` and `epic-retro` helpers before merging to `main`.   |
-| `/run-bdd-suite`     | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper).             |
+| Command                           | Purpose                                                                                                                                            |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/epic-plan`                      | Ideation mode (no args) — sharpen a raw idea, search for duplicates, create the Epic, then run PRD + Tech Spec + decomposition.                    |
+| `/epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
+| `/epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
+| `/epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
+| `/story-execute <storyId>`        | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. Used directly when re-driving a single Story off-table.   |
 
 ## Audit suite
 
@@ -67,25 +59,25 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github`  | Initialize a GitHub repo with the framework label taxonomy, project fields, and the default Kanban board.       |
+| `/agents-bootstrap-github`  | Initialize a GitHub repo with the framework label taxonomy, project fields, the default Kanban board, and (when `agentSettings.quality.prGate.enforceBranchProtection` is enabled) main-branch protection. |
 | `/agents-bootstrap-project` | Wire the local harness around the framework: `.claude/commands/` sync, `package.json` scripts, hooks, gitignore, and a host-level git-perf check on Windows. |
 | `/agents-update`            | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
 | `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
+| `/run-bdd-suite`            | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper). |
 
 ## Internal / reference-only
 
 Not invoked directly by operators, but referenced from other workflows:
 
 - `helpers/_merge-conflict-template.md` — canonical procedure for resolving a
-  merge conflict, included by reference from `story-execute`, `epic-close`,
+  merge conflict, included by reference from `story-execute`, `epic-deliver`,
   and `git-merge-pr`.
 - `helpers/epic-code-review.md` — comprehensive code-review procedure,
-  auto-invoked by `epic-close` (Phase 3) and the `epic-execute` bookends.
-- `helpers/epic-retro.md` — retrospective authoring procedure, auto-invoked
-  by `epic-close` (Phase 6).
+  auto-invoked by `/epic-deliver` Phase 4 (close-tail). Findings persist as
+  a `code-review` structured comment on the Epic ticket.
 - `helpers/epic-testing.md` — QA evidence ingest for the Epic-testing
-  ticket, invoked by `epic-close` / operator; consumes `/run-bdd-suite`
-  output.
+  ticket; consumes `/run-bdd-suite` output. Invoked by operators or by the
+  `/epic-deliver` close-tail when an Epic-testing ticket is present.
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
   phase procedures delegated to by `/epic-plan`.
 - `helpers/task-execute.md` — single-Task implementation procedure read
@@ -95,6 +87,10 @@ Not invoked directly by operators, but referenced from other workflows:
   moves (formerly shipped as `/agents-sync-config`).
 - `worktree-lifecycle.md` — per-story `git worktree` isolation model, including
   node_modules strategies, Windows notes, and escape hatches.
+
+The retro is no longer a separate helper — its logic lives inline at
+`lib/orchestration/retro-runner.js` and fires automatically during
+`/epic-deliver` Phase 5 before the PR is opened.
 
 ## Adding a new workflow
 

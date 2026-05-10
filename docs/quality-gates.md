@@ -8,7 +8,7 @@ Stories close in quick succession.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
-`agentSettings.quality.*` and `orchestration.runners.closeRetry.*`. This
+`agentSettings.quality.*` and `orchestration.runners.storyMergeRetry.*`. This
 file is the runbook side — what the gate does, when it fires, and how to
 bootstrap or refresh it.
 
@@ -16,12 +16,12 @@ bootstrap or refresh it.
 
 ## Concurrent close safety
 
-`/epic-execute`'s wave loop may close multiple Stories into the same
+`/epic-deliver`'s wave loop may close multiple Stories into the same
 `epic/<epicId>` branch in quick succession. The push step inside `story-close.js` retries
 on a non-fast-forward rejection — fetch, replay the story merge on top of
 the new remote tip, push again — bounded by
-`orchestration.runners.closeRetry.maxAttempts` (default 3) and
-`orchestration.runners.closeRetry.backoffMs` (default `[250, 500, 1000]`).
+`orchestration.runners.storyMergeRetry.maxAttempts` (default 3) and
+`orchestration.runners.storyMergeRetry.backoffMs` (default `[250, 500, 1000]`).
 A real
 content conflict (both stories touched the same lines) aborts the loop
 with a clear error and leaves the local tree clean for manual resolution.
@@ -51,26 +51,41 @@ flakes the pin is preventing.
 
 ---
 
-## Coverage threshold gate
+## Coverage baseline gate
 
-`npm run test:coverage` drives [`bench/run-coverage.js`](../bench/run-coverage.js),
-which runs the unit-test suite with `NODE_V8_COVERAGE` set, then post-processes
-the V8 dumps with `c8 report` and `c8 check-coverage`. The gate fails when
-coverage drops below **85 % lines / 70 % branches / 75 % functions** across
-`.agents/scripts/**`. Scope (include/exclude) and the threshold values are
-declared in [`.c8rc.cjs`](../.c8rc.cjs); the same threshold numbers are passed
-to `c8 check-coverage` explicitly because the sub-command does not auto-load
-`.c8rc.cjs` and otherwise falls back to the c8 default of 90 %.
+`npm run test:coverage` drives
+[`.agents/scripts/run-coverage.js`](../.agents/scripts/run-coverage.js),
+which runs the unit-test suite with `NODE_V8_COVERAGE` set, post-processes
+the V8 dumps with `c8 report`, then delegates to
+[`.agents/scripts/check-coverage-baseline.js`](../.agents/scripts/check-coverage-baseline.js)
+for the gate decision. There is no global `lines/branches/functions`
+threshold — the gate compares **per-file** coverage in
+`coverage/coverage-final.json` against the floors recorded in
+[`baselines/coverage.json`](../baselines/coverage.json) and fails on:
 
-The `c8 <cmd>` wrap form (the previous shape of this script) was retired
-after [`bench/coverage-bench.js`](../bench/coverage-bench.js) showed the
-NODE_V8_COVERAGE path is ~19 % faster end-to-end on a Windows dev host
-(median 49 s vs 61 s across 3 runs each) while producing identical
-line / branch / function percentages and the same `coverage-final.json`
-artifact for the CRAP gate. See [`bench/results.log`](../bench/results.log)
-for the run-by-run numbers.
+- a regression on any axis (lines, branches, or functions) for any file
+  whose coverage dropped more than `0.01` percentage points below its
+  recorded floor;
+- an in-scope file with no baseline entry (a brand-new untested CLI
+  shell would otherwise sail through with 0 % coverage and no recorded
+  floor to drop below).
 
-Three files are deliberately outside the gate:
+Scope (include/exclude) and reporters are declared in
+[`.c8rc.cjs`](../.c8rc.cjs); the gate reads the same file so `c8 report`
+and the per-file checker agree on what's in scope. Bootstrap or
+ratchet the baseline when an intentional scope change shifts coverage:
+
+```bash
+npm run test:coverage   # produces coverage/coverage-final.json (gate
+                        # warns + passes when no baseline exists yet)
+npm run coverage:update # writes baselines/coverage.json from the run
+```
+
+`npm run coverage:check` runs the gate standalone against an existing
+`coverage-final.json` artifact (useful from CI hooks or close-validation
+runners that orchestrate coverage capture separately).
+
+The same files-out-of-scope list as before, declared in `.c8rc.cjs`:
 
 - `.agents/scripts/agents-bootstrap-github.js` — one-shot bootstrap CLI
   whose meaningful logic (label taxonomy + project field defs) lives
@@ -84,15 +99,22 @@ Three files are deliberately outside the gate:
   driver. Validation logic is exercised by the planner tests; the
   CLI's two modes (`--emit-context` and the validate-then-create
   default) require real PRD/Tech-Spec bodies and a live Epic id.
+- `epic-plan.js`, `epic-plan-decompose.js`, `epic-plan-spec.js`,
+  `epic-plan-healthcheck.js`, `epic-runner.js`,
+  `retrofit-task-bodies.js` — top-level CLI shells with no unit-test
+  seam; the meaningful orchestration logic lives in `lib/orchestration/*`
+  and `lib/retrofit/` respectively, and is unit-tested there.
 
 Each excluded file also carries `/* node:coverage ignore file */` at
-the top of its source as a second line of defence; new exclusions
-must be justified in the comment block at the top of `.c8rc.cjs`
-before the threshold gate is altered. `dispatcher.js`, `notify.js`,
-and `providers/github.js` were previously excluded but now have
-dedicated test files (`tests/dispatcher.test.js`,
-`tests/notify.test.js`, `tests/providers-github*.test.js`) and sit
-inside the gate.
+the top of its source as a second line of defence; the full
+justification for each exclusion lives in the header comment of
+[`.c8rc.cjs`](../.c8rc.cjs) and MUST be updated when the list changes.
+
+The current shape of this pipeline (NODE_V8_COVERAGE +
+`c8 report` instead of wrapping the run in `c8 <cmd>`) was chosen
+after a one-off A/B benchmark showed it was ~19 % faster end-to-end
+on a Windows dev host while producing the same `coverage-final.json`
+artifact.
 
 ---
 
@@ -295,5 +317,5 @@ lacking explicit authorization), it flips the ticket/Epic to
 `agent::blocked`, posts friction context, and waits for operator resume
 (`agent::executing`).
 
-`agentSettings.riskGates.heuristics` remains the rubric for identifying
+`agentSettings.planning.riskHeuristics` remains the rubric for identifying
 high-impact operations that should trigger blocker escalation.

@@ -8,7 +8,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const TARGETS = [
-  '.agents/workflows/epic-execute.md',
+  '.agents/workflows/epic-deliver.md',
   '.agents/workflows/story-execute.md',
   '.agents/workflows/helpers/task-execute.md',
 ];

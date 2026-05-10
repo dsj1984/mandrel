@@ -1,12 +1,14 @@
 {
   "name": "agent-protocols",
-  "version": "5.39.2",
+  "version": "5.40.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "test": "node --experimental-test-module-mocks --test --test-concurrency=8 \"tests/**/*.test.js\"",
     "typecheck": "node -e \"process.exit(0)\"",
-    "test:coverage": "node bench/run-coverage.js",
+    "test:coverage": "node .agents/scripts/run-coverage.js",
+    "coverage:check": "node .agents/scripts/check-coverage-baseline.js",
+    "coverage:update": "node .agents/scripts/update-coverage-baseline.js",
     "lint:md": "markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
     "lint": "biome lint . && markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
     "format": "biome format --write .",

@@ -2,8 +2,7 @@
  * Iterate-waves phase — the wave loop.
  *
  * Before the loop: flip Epic to `agent::executing`, initialize checkpoint,
- * run the version-bump-intent check, construct the BookendChainer (which
- * the finalize phase later invokes).
+ * run the version-bump-intent check.
  *
  * Inside the loop: dispatch each wave via StoryLauncher, let WaveObserver
  * reclassify zero-delta stories, record wave history, checkpoint, and
@@ -16,12 +15,11 @@ import { AGENT_LABELS } from '../../../label-constants.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../../concurrency.js';
 import { STATE_LABELS, transitionTicketState } from '../../ticketing.js';
-import { BookendChainer } from '../bookend-chainer.js';
 import { checkVersionBumpIntent } from '../version-bump-intent.js';
 
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
-  const { concurrencyCap } = getRunners(config).epicRunner;
+  const { concurrencyCap } = getRunners(config).deliverRunner;
   const {
     notify: notifyFn,
     checkpointer,
@@ -33,7 +31,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     journal,
   } = collaborators;
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
-  const { scheduler, waves, epic, autoClose } = state;
+  const { scheduler, waves, epic } = state;
 
   progressReporter.setPlan({ waves });
 
@@ -52,10 +50,9 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   });
   await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
 
-  const checkpointState = await checkpointer.initialize({
+  await checkpointer.initialize({
     totalWaves: scheduler.totalWaves,
     concurrencyCap,
-    autoClose,
   });
 
   try {
@@ -77,17 +74,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       recovery: 'swallowed',
     });
   }
-
-  // Authoritative snapshot — on a resume, re-use whatever autoClose was
-  // captured at dispatch time, ignoring mid-run label changes.
-  const effectiveAutoClose = Boolean(checkpointState.autoClose);
-
-  const bookends = new BookendChainer({
-    ctx,
-    autoClose: effectiveAutoClose,
-    postComment: (id, payload) => provider.postComment(id, payload),
-    errorJournal: journal,
-  });
 
   const waveHistory = [];
   while (scheduler.hasMoreWaves()) {
@@ -173,11 +159,9 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       completedAt: new Date().toISOString(),
     });
     await checkpointer.write({
-      ...checkpointState,
       currentWave: scheduler.currentWave,
       totalWaves: scheduler.totalWaves,
       waves: waveHistory,
-      autoClose: effectiveAutoClose,
     });
 
     if (failures.length) {
@@ -193,7 +177,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         return {
           ...state,
           waveHistory,
-          bookends,
           completionState: 'halted',
         };
       }
@@ -204,7 +187,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   return {
     ...state,
     waveHistory,
-    bookends,
     completionState: 'completed',
   };
 }

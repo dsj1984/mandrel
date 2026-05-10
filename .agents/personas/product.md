@@ -42,9 +42,10 @@ UI copy, metadata, and structural assumptions align with it.
 
 ### B. Epic Lifecycle & Retrospectives
 
-- **Retrospectives:** Own the Epic retrospective process. Use the
-  `workflows/helpers/epic-retro.md` helper (invoked by `/epic-close`) to
-  generate retro documents, analyze execution, and formulate action items.
+- **Retrospectives:** Own the Epic retrospective process. Phase 5 of
+  `/epic-deliver` runs `lib/orchestration/retro-runner.js` in-process
+  to generate retro structured comments, analyze execution, and
+  formulate action items.
 - **Epic Definition:** Lock upcoming features into a clear Epic scope.
 - **Goal Alignment:** Define acceptance criteria boundaries so downstream
   workflows understand the "definition of done."

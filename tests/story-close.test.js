@@ -130,7 +130,9 @@ test('runCloseValidation', async (t) => {
     'typecheck gate honours agentSettings.commands.typecheck when configured',
     () => {
       const gates = buildDefaultGates({
-        settings: { commands: { typecheck: 'pnpm exec turbo run typecheck' } },
+        agentSettings: {
+          commands: { typecheck: 'pnpm exec turbo run typecheck' },
+        },
       });
       const gate = gates.find((g) => g.name === 'typecheck');
       assert.equal(gate.cmd, 'pnpm');
@@ -217,7 +219,7 @@ test('runCloseValidation', async (t) => {
     'format gate honours agentSettings.commands.formatCheck / formatWrite',
     () => {
       const gates = buildDefaultGates({
-        settings: {
+        agentSettings: {
           commands: {
             formatCheck: 'pnpm exec prettier --check .',
             formatWrite: 'pnpm exec prettier --write .',
