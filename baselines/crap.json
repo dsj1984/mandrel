@@ -640,16 +640,64 @@
       "startLine": 614
     },
     {
-      "crap": 4.005830903790088,
+      "crap": 1,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "buildPrCreateArgs",
+      "startLine": 51
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "buildPrTitle",
+      "startLine": 69
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "buildPrBody",
+      "startLine": 79
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "buildHandoffBody",
+      "startLine": 98
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "defaultGhSpawn",
+      "startLine": 110
+    },
+    {
+      "crap": 5.000925925925926,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "checkEpicFastForward",
+      "startLine": 129
+    },
+    {
+      "crap": 9.252007406217661,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "runEpicDeliverFinalize",
+      "startLine": 182
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "main",
+      "startLine": 320
+    },
+    {
+      "crap": 4.006503073718437,
       "file": ".agents/scripts/epic-deliver-prepare.js",
       "method": "runEpicDeliverPrepare",
-      "startLine": 64
+      "startLine": 62
     },
     {
       "crap": 20,
       "file": ".agents/scripts/epic-deliver-prepare.js",
       "method": "main",
-      "startLine": 121
+      "startLine": 117
     },
     {
       "crap": 6.839650145772595,
@@ -752,24 +800,6 @@
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
       "startLine": 680
-    },
-    {
-      "crap": 4.003728720983159,
-      "file": ".agents/scripts/epic-finalize.js",
-      "method": "runEpicFinalize",
-      "startLine": 80
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/epic-finalize.js",
-      "method": "<anon method-1>",
-      "startLine": 127
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/epic-finalize.js",
-      "method": "main",
-      "startLine": 146
     },
     {
       "crap": 4,
@@ -1429,19 +1459,19 @@
       "crap": 7,
       "file": ".agents/scripts/lib/config-resolver.js",
       "method": "resolveConfig",
-      "startLine": 133
+      "startLine": 132
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 272
+      "startLine": 280
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 389
+      "startLine": 410
     },
     {
       "crap": 3,
@@ -1471,19 +1501,19 @@
       "crap": 11,
       "file": ".agents/scripts/lib/config/limits.js",
       "method": "resolveLimits",
-      "startLine": 83
+      "startLine": 85
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/limits.js",
       "method": "getLimits",
-      "startLine": 131
+      "startLine": 133
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/limits.js",
       "method": "getSignals",
-      "startLine": 146
+      "startLine": 148
     },
     {
       "crap": 3,
@@ -1510,28 +1540,28 @@
       "startLine": 97
     },
     {
-      "crap": 4,
+      "crap": 5,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolvePrGate",
-      "startLine": 123
+      "startLine": 127
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolveQuality",
-      "startLine": 148
+      "startLine": 159
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "getQuality",
-      "startLine": 166
+      "startLine": 177
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/config/runners.js",
       "method": "getRunners",
-      "startLine": 27
+      "startLine": 36
     },
     {
       "crap": 4,
@@ -2128,7 +2158,7 @@
       "startLine": 109
     },
     {
-      "crap": 12.208924145435494,
+      "crap": 148.001880747194,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchesBatched",
       "startLine": 151
@@ -2353,7 +2383,7 @@
       "crap": 1,
       "file": ".agents/scripts/lib/label-taxonomy.js",
       "method": "buildPersonaLabels",
-      "startLine": 36
+      "startLine": 33
     },
     {
       "crap": 1,
@@ -2626,6 +2656,18 @@
       "startLine": 311
     },
     {
+      "crap": 7.0087619547876425,
+      "file": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "runCodeReview",
+      "startLine": 51
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/code-review.js",
+      "method": "<anon method-1>",
+      "startLine": 83
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/concurrency.js",
       "method": "coerceNonNegativeInt",
@@ -2836,7 +2878,25 @@
       "startLine": 84
     },
     {
-      "crap": 4.003404674112175,
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
+      "method": "shouldSkipPhase",
+      "startLine": 57
+    },
+    {
+      "crap": 6.8522,
+      "file": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
+      "method": "runCloseValidationPhase",
+      "startLine": 75
+    },
+    {
+      "crap": 12.96724141405321,
+      "file": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
+      "method": "runEpicDeliverCloseTail",
+      "startLine": 161
+    },
+    {
+      "crap": 4.004296599644188,
       "file": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
       "method": "detectEpicCompletion",
       "startLine": 26
@@ -2845,19 +2905,19 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner.js",
       "method": "runEpic",
-      "startLine": 47
+      "startLine": 48
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner.js",
       "method": "runEpicWithContext",
-      "startLine": 56
+      "startLine": 57
     },
     {
-      "crap": 7,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-runner/column-sync.js",
       "method": "columnForLabels",
-      "startLine": 40
+      "startLine": 37
     },
     {
       "crap": 2,
@@ -2876,6 +2936,18 @@
       "file": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
       "method": "countResolvesOnEpic",
       "startLine": 154
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js",
+      "method": "phaseIndex",
+      "startLine": 31
+    },
+    {
+      "crap": 4.125,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js",
+      "method": "assertValidDeliverPhase",
+      "startLine": 41
     },
     {
       "crap": 1.0034783092634332,
@@ -2908,34 +2980,28 @@
       "startLine": 44
     },
     {
-      "crap": 10.635065792816135,
+      "crap": 10.759099039209753,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
       "method": "runIterateWavesPhase",
-      "startLine": 22
+      "startLine": 20
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
       "method": "<anon method-1>",
-      "startLine": 35
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-3>",
-      "startLine": 88
+      "startLine": 33
     },
     {
       "crap": 1.015625,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "method": "<anon method-5>",
-      "startLine": 121
+      "method": "<anon method-4>",
+      "startLine": 107
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
       "method": "runSnapshotPhase",
-      "startLine": 11
+      "startLine": 8
     },
     {
       "crap": 6,
@@ -3184,16 +3250,10 @@
       "startLine": 16
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/label-transitions.js",
-      "method": "toReview",
-      "startLine": 26
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/label-transitions.js",
       "method": "toDone",
-      "startLine": 40
+      "startLine": 35
     },
     {
       "crap": 3,
@@ -3436,7 +3496,7 @@
       "startLine": 48
     },
     {
-      "crap": 3.3557979274680156,
+      "crap": 3.2690147197507073,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "reconcileHierarchy",
       "startLine": 99
@@ -3448,7 +3508,7 @@
       "startLine": 119
     },
     {
-      "crap": 25.545050298877385,
+      "crap": 24.028394056584574,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "maybeClose",
       "startLine": 131
@@ -3457,7 +3517,7 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/reconciler.js",
       "method": "<anon method-11>",
-      "startLine": 182
+      "startLine": 178
     },
     {
       "crap": 3,
@@ -3488,6 +3548,36 @@
       "file": ".agents/scripts/lib/orchestration/retro-heuristics.js",
       "method": "normalize",
       "startLine": 48
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "sumFriction",
+      "startLine": 42
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "collectDescendants",
+      "startLine": 56
+    },
+    {
+      "crap": 5.004286694101509,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "gatherRetroSignals",
+      "startLine": 88
+    },
+    {
+      "crap": 9.00104284286499,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "composeRetroBody",
+      "startLine": 197
+    },
+    {
+      "crap": 5.010869716448229,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "runRetro",
+      "startLine": 347
     },
     {
       "crap": 1,
@@ -3859,61 +3949,61 @@
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "isValidStructuredCommentType",
-      "startLine": 93
+      "startLine": 92
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "assertValidStructuredCommentType",
-      "startLine": 109
+      "startLine": 108
     },
     {
       "crap": 12.117546894272282,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
-      "startLine": 134
+      "startLine": 133
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 251
+      "startLine": 250
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 293
+      "startLine": 292
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 319
+      "startLine": 318
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 345
+      "startLine": 344
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 380
+      "startLine": 379
     },
     {
       "crap": 10.0262144,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 428
+      "startLine": 427
     },
     {
       "crap": 3.67181804927832,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "<anon method-7>",
-      "startLine": 476
+      "startLine": 475
     },
     {
       "crap": 7,
@@ -4132,7 +4222,7 @@
       "startLine": 68
     },
     {
-      "crap": 15.843394553259873,
+      "crap": 15.819299044151116,
       "file": ".agents/scripts/lib/push-epic-retry.js",
       "method": "pushEpicWithRetry",
       "startLine": 96
@@ -5092,10 +5182,16 @@
       "startLine": 15
     },
     {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github/branches.js",
+      "method": "setBranchProtection",
+      "startLine": 44
+    },
+    {
       "crap": 2.032,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "createPullRequest",
-      "startLine": 27
+      "startLine": 97
     },
     {
       "crap": 6,

@@ -1,42 +1,19 @@
 /**
- * c8 coverage configuration for `npm run test:coverage`.
+ * c8 configuration for `npm run test:coverage`.
  *
- * Single source of truth for the coverage scope, threshold gates, and
- * the exclude list. Documented from docs/quality-gates.md so operators
- * tracing a failed gate land here.
+ * Source of truth for the coverage **scope** (include/exclude) and the
+ * c8 reporters. The numeric coverage gate is no longer expressed here —
+ * it lives per-file in [`baselines/coverage.json`](./baselines/coverage.json),
+ * checked by `.agents/scripts/check-coverage-baseline.js` and updated
+ * via `npm run coverage:update`. See [`docs/quality-gates.md`](./docs/quality-gates.md)
+ * for the full ratchet workflow.
  *
- * Threshold gates: 89 % lines / 83 % branches / 86 % functions across
- * everything in `.agents/scripts/**` minus the explicit `exclude` list
- * below. Anything that lowers the gate is a mainline policy change,
- * not a tactical exclusion — reach for an exclude only when the file
- * genuinely cannot be unit-tested.
- *
- * The thresholds are walked toward 90/90/90 incrementally as tests
- * land — each ratchet picks up the new floor that the suite produced
- * without changing scope. Bumping requires `npm run test:coverage`
- * staying green at the new numbers.
- *
- * Remaining headroom to 90/90/90 (as of this ratchet):
- *   - Lines (88 → 90): largest residual drag is `lib/orchestration/
- *     story-close/{merge-runner, pre-merge-validation, post-merge-close}`
- *     and the top-level shells under `.agents/scripts/` that haven't
- *     been excluded. Story-close logic is integration-shaped; further
- *     lift requires fixture-based runner tests.
- *   - Branches (82 → 90): every `lib/orchestration/*` directory still
- *     has an uncovered handful of error / fallback paths. Adding tests
- *     for `lib/orchestration/dispatch-pipeline.js`,
- *     `lib/orchestration/context-hydration-engine.js`, the
- *     `progress-signals/*` persistence catches, and `iterate-waves.js`
- *     would close most of the gap.
- *   - Functions (86 → 90): top-level scripts (`run-audit-suite.js` at
- *     0% functions, several `epic-execute-*` shells with untested
- *     `main`/`parseArgv` exports) account for most of the gap.
- *
- * The three entries below are excluded because they are thin CLI shells
- * over already-covered library code, and the meaningful logic lives in
- * the libs (which the threshold gate exercises). Each carries
- * `/* node:coverage ignore file *​/` at the top of the source as a
- * second line of defence.
+ * The `exclude` list below removes thin CLI shells whose meaningful
+ * logic lives in `lib/` (which the per-file baseline still scores).
+ * Each excluded file also carries `/* node:coverage ignore file *​/`
+ * at the top of its source as a second line of defence; new exclusions
+ * MUST add that pragma at the same time as touching this list, or
+ * `c8 report` and the baseline checker disagree on what's in scope.
  *
  *   - agents-bootstrap-github.js — one-shot bootstrap CLI run once per
  *     consuming repo to seed labels, project fields, and views from
@@ -79,12 +56,6 @@
  *     needs (`buildAuthoringContext`, ticket validators, etc.) live
  *     in `lib/orchestration/plan-runner/*` and are unit-tested
  *     there.
- *
- * Files previously on this list that now sit inside the gate:
- *   - dispatcher.js, notify.js, providers/github.js — each has a
- *     dedicated test file (`tests/dispatcher.test.js`,
- *     `tests/notify.test.js`, `tests/providers-github*.test.js`),
- *     so they're now part of the threshold gate.
  */
 
 module.exports = {
@@ -101,7 +72,4 @@ module.exports = {
     '.agents/scripts/retrofit-task-bodies.js',
     '.agents/scripts/ticket-decomposer.js',
   ],
-  lines: 89,
-  branches: 83,
-  functions: 86,
 };
