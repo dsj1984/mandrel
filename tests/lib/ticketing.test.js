@@ -4,7 +4,6 @@ import { ITicketingProvider } from '../../.agents/scripts/lib/ITicketingProvider
 import {
   assertValidStructuredCommentType,
   cascadeCompletion,
-  findStructuredComment,
   isValidStructuredCommentType,
   postStructuredComment,
   STRUCTURED_COMMENT_TYPES,

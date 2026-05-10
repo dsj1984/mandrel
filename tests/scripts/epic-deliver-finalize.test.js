@@ -208,7 +208,7 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off', async 
         stderr: '',
       };
     },
-    upsertCommentFn: async (provider, ticketId, type, body) => {
+    upsertCommentFn: async (_provider, ticketId, type, body) => {
       upsertCalls.push({ ticketId, type, body });
       return { commentId: 99 };
     },

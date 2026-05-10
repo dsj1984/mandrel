@@ -188,7 +188,7 @@ describe('handleBaselineGateFailure — full split routing', () => {
       },
     });
     const upsertSpy = { calls: [] };
-    const upsertStructuredComment = async (provider, ticketId, type, body) => {
+    const upsertStructuredComment = async (_provider, ticketId, type, body) => {
       upsertSpy.calls.push({ ticketId, type, body });
       return { commentId: 42 };
     };

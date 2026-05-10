@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// cli-opt-out: top-level main()-driven CLI invoked via npm run coverage:update; no runAsCli() wrapper required.
 /**
  * Refresh `baselines/coverage.json` from the most recent
  * `coverage/coverage-final.json`. Run this when you intentionally add,

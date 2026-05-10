@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// cli-opt-out: top-level CLI driver invoked via npm run test:coverage; spawns child processes rather than parsing argv, so runAsCli() does not apply.
 /**
  * Cross-platform driver for `npm run test:coverage`.
  *

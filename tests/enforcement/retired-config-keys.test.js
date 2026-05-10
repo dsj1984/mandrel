@@ -104,4 +104,4 @@ test('workflow markdown has no retired flat config keys', () => {
   );
 });
 
-export { scanForRetiredKeys, listWorkflowMarkdown, RETIRED_FLAT_KEYS };
+export { listWorkflowMarkdown, RETIRED_FLAT_KEYS, scanForRetiredKeys };

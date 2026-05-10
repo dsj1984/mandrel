@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// cli-opt-out: top-level main()-driven CLI invoked via npm run coverage:check; no runAsCli() wrapper required.
 /**
  * Per-file coverage gate. Compares the current
  * `coverage/coverage-final.json` against the floors recorded in
