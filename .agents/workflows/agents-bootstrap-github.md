@@ -43,13 +43,17 @@ custom fields.
 | Category    | Labels                                                                                   | Color  |
 | ----------- | ---------------------------------------------------------------------------------------- | ------ |
 | Type        | `type::epic`, `type::feature`, `type::story`, `type::task`                               | Purple |
-| Agent State | `agent::review-spec`, `agent::ready`, `agent::executing`, `agent::review`, `agent::done`, `agent::blocked` | Green  |
-| Epic        | `epic::auto-close`                                                                       | Yellow |
+| Agent State | `agent::review-spec`, `agent::ready`, `agent::executing`, `agent::done`, `agent::blocked` | Green  |
 | Status      | `status::blocked`                                                                        | Red    |
-| Risk        | `risk::medium`                                                                           | Yellow |
 | Persona     | `persona::<name>` — one per file in `.agents/personas/`                                  | Blue   |
 | Context     | `context::prd`, `context::tech-spec`                                                     | Purple |
-| Execution   | `execution::sequential`, `execution::concurrent`                                         | Peach  |
+
+> **`status::blocked` vs `agent::blocked`** — these are not duplicates.
+> `status::blocked` is **planning metadata** placed on a Task by retro / sprint
+> heuristics when a hotfix was needed mid-sprint; it is consumed by
+> `retro-heuristics.js` and never gates dispatch. `agent::blocked` is the
+> **runtime HITL pause** flipped by the runner when a wave halts and waits
+> for operator input.
 
 ### Project Board Fields (if `projectNumber` is configured)
 
