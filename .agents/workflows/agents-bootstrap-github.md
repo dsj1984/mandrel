@@ -56,6 +56,33 @@ custom fields.
 - **Sprint** (Iteration)
 - **Execution** (Single Select): `sequential`, `concurrent`
 
+### Branch protection on `main` (Epic #1142 Story #1157)
+
+After labels and project setup, the bootstrap script writes the
+`agentSettings.quality.prGate.checks` suite into GitHub's branch-protection
+rule on the configured `agentSettings.baseBranch` (default `main`). The
+behaviour is deliberately additive:
+
+- **No existing rule** — a fresh protection rule is created carrying just
+  the `prGate.checks` names as required status-check contexts. Strict
+  status checks are enabled; PR-review and admin-enforcement knobs are
+  left unset so operators can tune them by hand.
+- **Existing rule** — every existing required-check context is preserved.
+  Only the missing `prGate.checks` names are appended. Other rule fields
+  (PR review counts, signed commits, restrictions) are read back and
+  written through unchanged so re-running the bootstrap never clobbers
+  operator-tuned settings.
+
+Set `agentSettings.quality.prGate.enforceBranchProtection: false` in
+`.agentrc.json` to skip the step entirely — useful when branch protection
+is managed out-of-band (Terraform, manual UI, an org-level ruleset). The
+flag defaults to `true` so the framework's promoted prGate suite is
+load-bearing without per-repo opt-in.
+
+When the GitHub token lacks the permissions needed to write protection
+rules, the failure is logged and the bootstrap continues — the rest of
+the setup still succeeds.
+
 ## Troubleshooting
 
 - **"No orchestration block"**: Add the `orchestration` object to your

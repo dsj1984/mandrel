@@ -209,6 +209,12 @@ const PLANNING_SCHEMA = {
  * #1157 — items are `{ name, cmd }` objects so the runner can spawn each
  * check directly without a name->cmd lookup table. `cmd` is an argv array
  * (no shell expansion).
+ *
+ * `enforceBranchProtection` (default `true`) controls whether
+ * `/agents-bootstrap-github` writes the `prGate.checks` names into
+ * GitHub's branch-protection rule on `main`. Operators that manage
+ * branch protection out-of-band (Terraform, manual UI, an org-level
+ * ruleset) can set this to `false` to skip the bootstrap step.
  */
 const PR_GATE_SCHEMA = {
   type: 'object',
@@ -229,6 +235,7 @@ const PR_GATE_SCHEMA = {
         additionalProperties: false,
       },
     },
+    enforceBranchProtection: { type: 'boolean' },
   },
   additionalProperties: false,
 };

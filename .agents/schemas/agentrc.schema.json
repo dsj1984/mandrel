@@ -194,7 +194,8 @@
             },
             "additionalProperties": false
           }
-        }
+        },
+        "enforceBranchProtection": { "type": "boolean" }
       },
       "additionalProperties": false
     },

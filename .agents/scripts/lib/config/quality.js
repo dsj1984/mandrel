@@ -108,26 +108,37 @@ export function resolveMaintainabilityQuality(userBlock) {
  * Framework defaults for `agentSettings.quality.prGate`. `checks` defaults to
  * an empty array so `git-pr-quality-gate.js` falls back to its hardcoded
  * DEFAULT_CHECKS trio (lint / format:check / test) when the operator hasn't
- * customised the suite.
+ * customised the suite. `enforceBranchProtection` defaults to `true` —
+ * `/agents-bootstrap-github` (Epic #1142 Story #1157) writes the
+ * `prGate.checks` names into GitHub's branch-protection rule on `main`
+ * unless this flag is explicitly disabled.
  */
 export const PR_GATE_DEFAULTS = Object.freeze({
   checks: Object.freeze([]),
+  enforceBranchProtection: true,
 });
 
 /**
  * Merge the user-supplied `quality.prGate` block with framework defaults.
  *
  * @param {object|undefined} userBlock
- * @returns {{ checks: string[] }}
+ * @returns {{ checks: object[], enforceBranchProtection: boolean }}
  */
 export function resolvePrGate(userBlock) {
   if (userBlock == null || typeof userBlock !== 'object') {
-    return { checks: [...PR_GATE_DEFAULTS.checks] };
+    return {
+      checks: [...PR_GATE_DEFAULTS.checks],
+      enforceBranchProtection: PR_GATE_DEFAULTS.enforceBranchProtection,
+    };
   }
   return {
     checks: Array.isArray(userBlock.checks)
       ? [...userBlock.checks]
       : [...PR_GATE_DEFAULTS.checks],
+    enforceBranchProtection:
+      typeof userBlock.enforceBranchProtection === 'boolean'
+        ? userBlock.enforceBranchProtection
+        : PR_GATE_DEFAULTS.enforceBranchProtection,
   };
 }
 

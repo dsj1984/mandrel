@@ -133,10 +133,77 @@ async function ensureProjectFields(provider, project, log) {
 }
 
 /**
+ * Create or additively-merge branch protection on `baseBranch` (typically
+ * `main`) so the `agentSettings.quality.prGate.checks` suite is required
+ * before merge. Behaviour rules:
+ *
+ *   - `enforceBranchProtection: false` → skip, log the opt-out, return a
+ *     `{ status: 'skipped' }` summary.
+ *   - `prGate.checks` empty or absent → skip with a clear log, since there
+ *     is nothing to enforce.
+ *   - Existing protection rule → preserve every existing required-check
+ *     context and append only the missing prGate names.
+ *   - No existing rule → create a fresh one carrying just the prGate
+ *     contexts plus minimal sensible defaults (strict status checks).
+ *
+ * Errors (insufficient scopes, repo permission denied, etc.) are logged
+ * and return a `{ status: 'failed' }` summary so the bootstrap CLI
+ * surfaces a non-fatal warning rather than aborting the entire run —
+ * matching how the project-board provisioning steps degrade.
+ */
+async function ensureMainBranchProtection(
+  provider,
+  { baseBranch, prGate },
+  log,
+) {
+  if (prGate?.enforceBranchProtection === false) {
+    log(
+      `[bootstrap] Branch protection on '${baseBranch}': skipped (agentSettings.quality.prGate.enforceBranchProtection=false).`,
+    );
+    return { status: 'skipped', reason: 'opt-out' };
+  }
+
+  const checkNames = (prGate?.checks ?? [])
+    .map((c) => c?.name)
+    .filter((n) => typeof n === 'string' && n.length > 0);
+  if (checkNames.length === 0) {
+    log(
+      `[bootstrap] Branch protection on '${baseBranch}': skipped (no prGate.checks configured).`,
+    );
+    return { status: 'skipped', reason: 'no-checks' };
+  }
+
+  try {
+    const result = await provider.setBranchProtection(baseBranch, {
+      contexts: checkNames,
+    });
+    const verb = result.created ? 'Created' : 'Updated';
+    const addedSuffix = result.added.length
+      ? ` (added: ${result.added.join(', ')})`
+      : ' (all required checks already present)';
+    log(
+      `[bootstrap] Branch protection on '${baseBranch}': ${verb} rule${addedSuffix}.`,
+    );
+    return { status: result.created ? 'created' : 'merged', ...result };
+  } catch (err) {
+    log(
+      `[bootstrap] Branch protection on '${baseBranch}': failed — ${err.message}. Proceeding without it.`,
+    );
+    return { status: 'failed', reason: err.message };
+  }
+}
+
+/**
  * Run the idempotent bootstrap sequence.
  *
  * @param {object} orchestration - The orchestration config from .agentrc.json.
- * @param {{ token?: string, quiet?: boolean }} [opts]
+ * @param {{
+ *   token?: string,
+ *   quiet?: boolean,
+ *   providerOverride?: object,
+ *   agentSettings?: object,
+ *   baseBranch?: string,
+ * }} [opts]
  */
 export async function runBootstrap(orchestration, opts = {}) {
   const provider =
@@ -169,8 +236,28 @@ export async function runBootstrap(orchestration, opts = {}) {
     log('[bootstrap] No active project — skipping legacy project-field setup.');
   }
 
+  // Epic #1142 Story #1157 — make the `prGate.checks` promotion
+  // load-bearing by writing the configured contexts into branch
+  // protection on the base branch. Default base branch is `main`; opts
+  // override is honoured for tests.
+  const baseBranch =
+    opts.baseBranch ?? opts.agentSettings?.baseBranch ?? 'main';
+  const prGate = opts.agentSettings?.quality?.prGate ?? null;
+  const branchProtection = await ensureMainBranchProtection(
+    provider,
+    { baseBranch, prGate },
+    log,
+  );
+
   log('[bootstrap] Done.');
-  return { labels, fields, project, statusField, views };
+  return {
+    labels,
+    fields,
+    project,
+    statusField,
+    views,
+    branchProtection,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +269,19 @@ function formatProjectSummary(project) {
   if (project.created) return `created #${project.projectNumber}`;
   if (project.projectNumber) return `adopted #${project.projectNumber}`;
   return 'skipped';
+}
+
+function formatBranchProtectionSummary(bp) {
+  if (!bp) return 'not-run';
+  if (bp.status === 'created') return `created (added: ${bp.added.join(', ')})`;
+  if (bp.status === 'merged') {
+    return bp.added.length
+      ? `merged (added: ${bp.added.join(', ')})`
+      : 'merged (no changes)';
+  }
+  if (bp.status === 'skipped') return `skipped (${bp.reason})`;
+  if (bp.status === 'failed') return `failed (${bp.reason})`;
+  return bp.status;
 }
 
 function printSummary(result) {
@@ -197,6 +297,9 @@ function printSummary(result) {
     : '';
   Logger.info(
     `Views — created: ${result.views.created.length}, skipped: ${result.views.skipped.length}${unavailableSuffix}`,
+  );
+  Logger.info(
+    `Branch protection: ${formatBranchProtectionSummary(result.branchProtection)}`,
   );
 }
 
@@ -226,11 +329,15 @@ async function main() {
   try {
     const result = await runBootstrap(config.orchestration, {
       installWorkflows,
+      agentSettings: config.agentSettings,
     });
     printSummary(result);
   } catch (err) {
     Logger.fatal(`[bootstrap] runBootstrap failed: ${err.message}`);
   }
 }
+
+// Re-export internal helper for test consumers (no production caller imports it).
+export { ensureMainBranchProtection };
 
 runAsCli(import.meta.url, main, { source: 'Bootstrap' });

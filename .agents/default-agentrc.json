@@ -77,7 +77,8 @@
           { "name": "lint", "cmd": ["npm", "run", "lint"] },
           { "name": "format:check", "cmd": ["npm", "run", "format:check"] },
           { "name": "test", "cmd": ["npm", "test"] }
-        ]
+        ],
+        "enforceBranchProtection": true
       }
     },
     "planning": {
