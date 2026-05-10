@@ -123,7 +123,12 @@ const LOADED_CONFIG_APPLY_KEYS = ['docsContextFiles', 'baseBranch'];
  *   - `ctx`: runtime context from `lib/runtime-context.js`. When provided,
  *     `ctx.fs` is used for `.agentrc.json` I/O instead of the module-level
  *     `node:fs`.
- * @returns {{ settings: object, orchestration: object|null, raw: object|null, source: string }}
+ * @returns {{ agentSettings: object, orchestration: object|null, raw: object|null, source: string }}
+ *   The `agentSettings` key mirrors the on-disk `.agentrc.json` field name so
+ *   destructure sites read identically to the file shape they describe. The
+ *   accessors (`getLimits`, `getQuality`, `getPaths`, `getCommands`,
+ *   `getBaselines`) accept this wrapper *or* a bare `agentSettings` bag — the
+ *   two-shape contract documented on each accessor.
  */
 export function resolveConfig(opts) {
   // Test-only override: `AP_AGENTRC_CWD` lets fixture tests point launcher
@@ -157,10 +162,10 @@ export function resolveConfig(opts) {
       );
     }
 
-    const settings = raw.agentSettings ?? {};
+    const agentSettings = raw.agentSettings ?? {};
 
     const validateSettings = getSettingsValidator();
-    if (!validateSettings(settings)) {
+    if (!validateSettings(agentSettings)) {
       const details = validateSettings.errors
         .map((e) => `${e.instancePath || '(agentSettings)'} ${e.message}`)
         .join(', ');
@@ -172,27 +177,27 @@ export function resolveConfig(opts) {
     const orchestration = raw.orchestration ?? null;
 
     for (const key of LOADED_CONFIG_APPLY_KEYS) {
-      settings[key] = settings[key] ?? LOADED_CONFIG_DEFAULTS[key];
+      agentSettings[key] = agentSettings[key] ?? LOADED_CONFIG_DEFAULTS[key];
     }
 
-    settings.quality = resolveQuality(settings.quality);
-    settings.paths = resolvePaths(settings.paths);
-    settings.limits = resolveLimits(settings.limits);
+    agentSettings.quality = resolveQuality(agentSettings.quality);
+    agentSettings.paths = resolvePaths(agentSettings.paths);
+    agentSettings.limits = resolveLimits(agentSettings.limits);
 
     if (validate) validateOrchestrationConfig(orchestration);
 
-    const resolved = { settings, orchestration, raw, source: agentrcPath };
+    const resolved = { agentSettings, orchestration, raw, source: agentrcPath };
     _cacheByRoot.set(root, resolved);
     return resolved;
   }
 
   // Hard-coded defaults (zero-config experience)
-  const zeroSettings = { ...ZERO_CONFIG_DEFAULTS };
-  zeroSettings.quality = resolveQuality(zeroSettings.quality);
-  zeroSettings.paths = resolvePaths(zeroSettings.paths);
-  zeroSettings.limits = resolveLimits(zeroSettings.limits);
+  const zeroAgentSettings = { ...ZERO_CONFIG_DEFAULTS };
+  zeroAgentSettings.quality = resolveQuality(zeroAgentSettings.quality);
+  zeroAgentSettings.paths = resolvePaths(zeroAgentSettings.paths);
+  zeroAgentSettings.limits = resolveLimits(zeroAgentSettings.limits);
   const resolved = {
-    settings: zeroSettings,
+    agentSettings: zeroAgentSettings,
     orchestration: null,
     audits: null,
     raw: null,

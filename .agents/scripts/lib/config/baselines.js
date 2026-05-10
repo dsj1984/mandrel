@@ -25,6 +25,9 @@ export const BASELINES_DEFAULTS = Object.freeze({
  * omitted. Returns a `{ lint, crap, maintainability }` trio whose entries are
  * each `{ path, refreshCommand }` — never `undefined`.
  *
+ * Accepts either the full resolved config (`{ agentSettings, ... }` wrapper)
+ * or a bare `agentSettings` bag — the canonical two-shape accessor contract.
+ *
  * @param {{ agentSettings?: { quality?: { baselines?: object } } } | object | null | undefined} config
  * @returns {{ lint: { path: string, refreshCommand: string|null }, crap: { path: string, refreshCommand: string|null }, maintainability: { path: string, refreshCommand: string|null } }}
  */
@@ -55,7 +58,7 @@ export function getBaselines(config) {
  * Merge the user-supplied `quality.baselines` block with framework defaults.
  * Mirrors {@link getBaselines} but returns the same `{ lint, crap,
  * maintainability }` trio shape — used during the in-place defaults pass so
- * `settings.quality.baselines` is fully populated for any direct reader.
+ * `agentSettings.quality.baselines` is fully populated for any direct reader.
  *
  * @param {object|undefined} userBlock
  */
