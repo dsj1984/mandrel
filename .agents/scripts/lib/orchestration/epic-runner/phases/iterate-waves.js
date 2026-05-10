@@ -235,7 +235,10 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       // Post-blocked progress refresh: BlockerHandler.halt fires the
       // `epic-blocked` notify itself; we follow up with an `epic-progress`
       // snapshot carrying the open blocker so a Slack consumer sees the
-      // current state alongside the action-required ping.
+      // current state alongside the action-required ping. The progress
+      // fire still runs on the no-resume path so the snapshot survives the
+      // halted bail-out.
+      const halt = await blockerHandler.halt(blockerInfo);
       await emitEpicProgress({
         notify: notifyFn,
         epicId,
@@ -249,7 +252,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         ],
         logger,
       });
-      const halt = await blockerHandler.halt(blockerInfo);
       if (!halt.resumed) {
         return {
           ...state,
