@@ -32,13 +32,32 @@ const GITHUB_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * Curated webhook event vocabulary. The webhook channel is gated by an
+ * explicit allowlist of event names rather than a severity threshold — the
+ * webhook narrative is "epic % progress + blockers", not the firehose of
+ * per-story transitions that the GitHub-comment channel still receives.
+ *
+ * The enum below is the closed set of values valid for
+ * `notifications.webhookEvents`. Severity remains routable to the comment
+ * and terminal channels via `commentMinLevel` / `terminalMinLevel` and is
+ * still carried as envelope metadata for Slack consumers that color-code
+ * by it, but it is no longer a routing decision for the webhook channel.
+ */
+export const WEBHOOK_EVENT_NAMES = Object.freeze([
+  'epic-started',
+  'epic-progress',
+  'epic-blocked',
+  'epic-unblocked',
+  'epic-complete',
+]);
+
 const NOTIFICATIONS_SCHEMA = {
   type: 'object',
   properties: {
     mentionOperator: { type: 'boolean' },
-    // Per-channel severity gates. Each channel filters independently — there
-    // is no fallback chain. Events below the channel's threshold are dropped
-    // for that channel only. All three are mandatory; default `medium`.
+    // Severity gates for the GitHub-comment and terminal channels. Each
+    // channel filters independently — there is no fallback chain.
     //
     // Severity assignment by event hierarchy:
     //   - Task transitions, `story-run-progress` upserts → `low`
@@ -49,16 +68,22 @@ const NOTIFICATIONS_SCHEMA = {
       type: 'string',
       enum: ['low', 'medium', 'high'],
     },
-    webhookMinLevel: {
-      type: 'string',
-      enum: ['low', 'medium', 'high'],
-    },
     terminalMinLevel: {
       type: 'string',
       enum: ['low', 'medium', 'high'],
     },
+    // Webhook channel allowlist. Only events whose `event` field appears in
+    // this list reach the Slack webhook; severity is *not* a routing factor
+    // for the webhook (it's only payload metadata). The default vocabulary
+    // is the five `epic-*` events; operators who want additional events
+    // routed should extend the list explicitly.
+    webhookEvents: {
+      type: 'array',
+      items: { type: 'string', enum: [...WEBHOOK_EVENT_NAMES] },
+      uniqueItems: true,
+    },
   },
-  required: ['commentMinLevel', 'webhookMinLevel', 'terminalMinLevel'],
+  required: ['commentMinLevel', 'terminalMinLevel', 'webhookEvents'],
   additionalProperties: false,
 };
 

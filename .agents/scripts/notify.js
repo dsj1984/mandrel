@@ -7,21 +7,28 @@
  * Single dispatch entry point for orchestration notifications across three
  * independent channels:
  *
- *   1. GITHUB COMMENT — gated by `notifications.commentMinLevel`. @mentions
- *      operator on `high`; on `medium` when `mentionOperator` is set.
- *      Callers may pass `opts.skipComment: true` to suppress the comment for
- *      a single dispatch while still firing webhook/terminal (used both for
- *      batched task-start fanout and for the structured-comment webhook
- *      mirror, where the GitHub comment was already written by the upsert).
- *   2. WEBHOOK — gated by `notifications.webhookMinLevel`. Payload envelope:
- *      `{ text, severity, event?, level?, ticketId?, epicId?, phase? }` —
- *      `text` always populated for back-compat with `{text}`-only consumers.
- *   3. TERMINAL — gated by `notifications.terminalMinLevel`. Controls the
- *      `Logger.info` chatter this dispatcher emits about its own activity.
+ *   1. GITHUB COMMENT — gated by `notifications.commentMinLevel` (severity).
+ *      @mentions operator on `high`; on `medium` when `mentionOperator` is
+ *      set. Callers may pass `opts.skipComment: true` to suppress the
+ *      comment for a single dispatch while still firing webhook/terminal
+ *      (used for batched task-start fanout and for the structured-comment
+ *      webhook mirror where the GitHub comment was already written by the
+ *      upsert).
+ *   2. WEBHOOK — gated by `notifications.webhookEvents` (event allowlist).
+ *      Only dispatches whose `event` name appears in the allowlist reach
+ *      the webhook. Severity is *not* a routing factor for this channel —
+ *      it is carried as envelope metadata for Slack consumers that
+ *      color-code by it. The webhook channel is curated for the epic
+ *      narrative (% progress + blockers), not the firehose of per-story
+ *      transitions; the default allowlist is the five `epic-*` events.
+ *      Payload envelope: `{ text, severity, event?, level?, ticketId?,
+ *      epicId?, phase? }` — `text` always populated for back-compat with
+ *      `{text}`-only consumers.
+ *   3. TERMINAL — gated by `notifications.terminalMinLevel` (severity).
+ *      Controls the `Logger.info` chatter this dispatcher emits about its
+ *      own activity.
  *
- * Each channel filters independently — no fallback chain. All three
- * `*MinLevel` keys are mandatory in the schema; this module defaults missing
- * keys to `medium` defensively (e.g., for partial test orchestrations).
+ * Each channel filters independently — no fallback chain.
  *
  * Severity vocabulary: low | medium | high. See `lib/notifications/notifier.js`
  * for full details and the `eventSeverity()` helper used by ticket-state-
@@ -52,9 +59,19 @@ function resolveChannelLevels(notifications) {
   const ns = notifications ?? {};
   return {
     comment: ns.commentMinLevel ?? DEFAULT_LEVEL,
-    webhook: ns.webhookMinLevel ?? DEFAULT_LEVEL,
     terminal: ns.terminalMinLevel ?? DEFAULT_LEVEL,
   };
+}
+
+/**
+ * Resolve the webhook event allowlist. Returns a `Set<string>` for O(1)
+ * membership lookups. An absent/empty allowlist suppresses the webhook
+ * entirely — there is no implicit fallback to a severity-based gate.
+ */
+function resolveWebhookEvents(notifications) {
+  const list = notifications?.webhookEvents;
+  if (!Array.isArray(list)) return new Set();
+  return new Set(list.filter((e) => typeof e === 'string' && e));
 }
 
 function buildWebhookPayload({
@@ -145,6 +162,7 @@ export async function notify(ticketId, payload, opts = {}) {
   }
   const operator = orchestration.github.operatorHandle || '@operator';
   const channels = resolveChannelLevels(orchestration.notifications);
+  const webhookEvents = resolveWebhookEvents(orchestration.notifications);
   const log = (line) => {
     if (meetsMinLevel(severity, channels.terminal)) Logger.info(line);
   };
@@ -175,13 +193,16 @@ export async function notify(ticketId, payload, opts = {}) {
     );
   }
 
-  if (meetsMinLevel(severity, channels.webhook)) {
+  // Webhook channel: gated by event-name allowlist, not severity. A
+  // dispatch without an `event` field can never reach the webhook — there
+  // is no implicit category for unlabelled notifications.
+  if (event && webhookEvents.has(event)) {
     // `opts.webhookUrl === undefined` → resolve from process env.
     // Explicit `null` or string → caller was explicit; don't resolve.
     const webhookUrl =
       opts.webhookUrl === undefined ? resolveWebhookUrl() : opts.webhookUrl;
     if (webhookUrl) {
-      log(`[Notify] Firing webhook (${severity}) to ${webhookUrl}...`);
+      log(`[Notify] Firing webhook (${event}) to ${webhookUrl}...`);
       const payloadBody = buildWebhookPayload({
         orchestration,
         ticketId,

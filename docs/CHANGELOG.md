@@ -2,6 +2,68 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **Webhook channel is now event-allowlist-gated, not severity-gated.**
+  `orchestration.notifications.webhookMinLevel` is removed. Its
+  replacement, `orchestration.notifications.webhookEvents`, is an explicit
+  allowlist of event names. The default vocabulary is the curated
+  `epic-*` set: `["epic-started", "epic-progress", "epic-blocked",
+  "epic-unblocked", "epic-complete"]`. Severity stays useful for the
+  GitHub-comment and terminal channels (`commentMinLevel`,
+  `terminalMinLevel`) and is carried as webhook envelope metadata, but it
+  is no longer a routing factor for the webhook. The Slack feed
+  consequently focuses on the epic narrative — % progress + blockers —
+  instead of every per-story state transition. Set `webhookEvents: []`
+  to suppress the webhook entirely.
+- **`epic-progress` is the curated rollup event.** Previously the
+  ProgressReporter periodic timer mirrored `epic-run-progress` to the
+  webhook every `progressReportIntervalSec`. The webhook fire is now
+  strictly event-driven: it emits only at wave boundaries (wave N →
+  N+1) and immediately after `epic-blocked` and `epic-unblocked`
+  transitions, carrying the payload
+  `{ pct, done, total, currentWave, totalWaves, openBlockers }`. The
+  `epic-run-progress` structured-comment kind on the Epic ticket is
+  unchanged — it remains the operator-facing per-poll snapshot in
+  GitHub.
+
+### Added
+
+- **`epic-started` webhook event.** Fired at `/epic-deliver` kickoff
+  with `{ totalWaves, totalStories, title }`. Anchors the rest of the
+  epic narrative in the Slack channel.
+- **`epic-unblocked` webhook event.** Fired after the operator flips
+  the Epic label back to `agent::executing`, paired with `epic-blocked`
+  so downstream consumers can track open-blocker lifecycle.
+
+### Migration
+
+Operators with a custom `notifications` block in `.agentrc.json` must
+drop `webhookMinLevel` and add `webhookEvents`. The 5.40 schema requires
+exactly this:
+
+```diff
+ "notifications": {
+   "mentionOperator": false,
+   "commentMinLevel": "medium",
+-  "webhookMinLevel": "medium",
+-  "terminalMinLevel": "medium"
++  "terminalMinLevel": "medium",
++  "webhookEvents": [
++    "epic-started",
++    "epic-progress",
++    "epic-blocked",
++    "epic-unblocked",
++    "epic-complete"
++  ]
+ }
+```
+
+Configs that retain `webhookMinLevel` will fail AJV validation against
+the new schema. There is no alias.
+
 ## [5.40.0] — 2026-05-10
 
 The 5.40 release collapses the v5.39 SDL critical path from three slash

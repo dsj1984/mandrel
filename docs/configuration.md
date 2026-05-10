@@ -264,35 +264,45 @@ Added in Epic #817 Story 9.
 
 ### `orchestration.notifications`
 
-| Field              | Required | Default    | Purpose                                                                                              |
-| ------------------ | -------- | ---------- | ---------------------------------------------------------------------------------------------------- |
-| `mentionOperator`  | No       | `false`    | When `true`, friction comments @-mention `operatorHandle`.                                           |
-| `commentMinLevel`  | **Yes**  | `medium`   | Minimum severity that posts a GitHub comment (`low`/`medium`/`high`).                                 |
-| `webhookMinLevel`  | **Yes**  | `medium`   | Minimum severity that fires the `NOTIFICATION_WEBHOOK_URL` webhook (`low`/`medium`/`high`).            |
-| `terminalMinLevel` | **Yes**  | `medium`   | Minimum severity that emits `notify()` chatter to stdout (`low`/`medium`/`high`).                     |
+| Field              | Required | Default                                  | Purpose                                                                                                                                       |
+| ------------------ | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mentionOperator`  | No       | `false`                                  | When `true`, friction comments @-mention `operatorHandle`.                                                                                    |
+| `commentMinLevel`  | **Yes**  | `medium`                                 | Minimum severity that posts a GitHub comment (`low`/`medium`/`high`).                                                                          |
+| `terminalMinLevel` | **Yes**  | `medium`                                 | Minimum severity that emits `notify()` chatter to stdout (`low`/`medium`/`high`).                                                              |
+| `webhookEvents`    | **Yes**  | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative (% progress + blockers); story-level events are excluded by default. |
 
-> **Per-channel gating, no fallback.** Each channel filters independently:
-> set `webhookMinLevel: high` for a quiet Slack feed while keeping
-> `commentMinLevel: medium` for a richer audit trail on the Epic / Story
-> tickets, and `terminalMinLevel: low` while debugging an in-flight runner.
-> All three keys are mandatory in the schema; the merged
-> `default-agentrc.json` populates them at `medium` for operators that
-> don't override the block.
+> **Two gating models in one block.** Comment + terminal channels are
+> severity-gated (`commentMinLevel`, `terminalMinLevel`); the webhook
+> channel is event-name-gated (`webhookEvents`). Severity is no longer a
+> routing factor for the webhook — it is carried as envelope metadata for
+> Slack consumers that color-code by it. To suppress the webhook entirely,
+> set `webhookEvents: []`. To add story-level chatter back to Slack,
+> extend the array (allowed values are the closed `epic-*` vocabulary in
+> the schema enum; loosen the enum to add custom events).
 >
 > **Severity assignment by event hierarchy.** Task transitions and
 > `story-run-progress` upserts fire `low` (frequency-driven). Story state
 > transitions, `wave-run-progress`, `epic-run-progress`, and
 > epic-completion fire `medium`. Epic blockers and HITL gates fire `high`
-> (webhook prefix `[Action Required]`). Per-Task `agent::executing`
-> transitions during Story init batch into a single Story-level summary
-> comment regardless of either filter.
+> (webhook prefix `[Action Required]` when an allowlisted blocker event
+> reaches the webhook). Per-Task `agent::executing` transitions during
+> Story init batch into a single Story-level summary comment that never
+> reaches the webhook (no `event` field).
+>
+> **Curated webhook event vocabulary.** Five `epic-*` events drive the
+> Slack narrative: `epic-started` (kickoff anchor), `epic-progress`
+> (wave-boundary + post-blocker snapshots carrying
+> `{ pct, done, total, currentWave, totalWaves, openBlockers }`),
+> `epic-blocked` (`[Action Required]`), `epic-unblocked` (operator
+> resumed), `epic-complete` (terminal). `epic-progress` fires strictly on
+> event boundaries — wave N → N+1, blocker raise, blocker clear — not on
+> a periodic timer, so volume tracks the epic narrative rather than
+> story-execution churn.
 >
 > **Typed webhook envelope.** Webhook subscribers receive
 > `{ text, severity, ticketId, event?, level?, epicId?, phase? }`. `text`
 > stays populated for back-compat with `{text}`-only consumers; the typed
-> fields let routable subscribers filter by event (`state-transition`,
-> `story-run-progress`, `wave-run-progress`, `epic-run-progress`,
-> `epic-blocked`, `epic-complete`, `story-merged`) or hierarchy level.
+> fields let routable subscribers filter by event or hierarchy level.
 
 ### `orchestration.worktreeIsolation`
 

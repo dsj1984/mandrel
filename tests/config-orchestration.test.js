@@ -65,8 +65,14 @@ describe('validateOrchestrationConfig — valid configs', () => {
         notifications: {
           mentionOperator: true,
           commentMinLevel: 'medium',
-          webhookMinLevel: 'medium',
           terminalMinLevel: 'medium',
+          webhookEvents: [
+            'epic-started',
+            'epic-progress',
+            'epic-blocked',
+            'epic-unblocked',
+            'epic-complete',
+          ],
         },
       }),
     );

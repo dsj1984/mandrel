@@ -390,16 +390,26 @@
           "type": "string",
           "enum": ["low", "medium", "high"]
         },
-        "webhookMinLevel": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
-        },
         "terminalMinLevel": {
           "type": "string",
           "enum": ["low", "medium", "high"]
+        },
+        "webhookEvents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "epic-started",
+              "epic-progress",
+              "epic-blocked",
+              "epic-unblocked",
+              "epic-complete"
+            ]
+          },
+          "uniqueItems": true
         }
       },
-      "required": ["commentMinLevel", "webhookMinLevel", "terminalMinLevel"],
+      "required": ["commentMinLevel", "terminalMinLevel", "webhookEvents"],
       "additionalProperties": false
     },
     "worktreeIsolation": {

@@ -893,16 +893,20 @@ reaped together with the worktree on `WorktreeManager.reap`. See
 | `approval-required` | ACTION   | Webhook            |
 | `blocked`           | ACTION   | Webhook            |
 
-`agentSettings.notifications` carries three independent per-channel gates —
-`commentMinLevel`, `webhookMinLevel`, `terminalMinLevel` — each mandatory and
-each defaulting to `medium`. There is no fallback chain; raising or lowering
-one channel never affects the others. Per-Task `agent::executing` transitions
-during Story init batch into a single Story-level summary comment regardless
-of any filter. Webhook subscribers receive a typed envelope
-(`{ text, severity, ticketId, event?, level?, epicId?, phase? }`) so progress
-events from `story-run-progress` / `epic-run-progress` upserts are
-routable alongside the existing `state-transition` / `epic-blocked` /
-`epic-complete` events.
+`agentSettings.notifications` carries three independent per-channel gates,
+but they use **two different gating models**: `commentMinLevel` and
+`terminalMinLevel` filter by severity (`low`/`medium`/`high`), while
+`webhookEvents` filters by event-name allowlist. There is no fallback
+chain; raising or lowering one channel never affects the others. The
+default webhook allowlist is the curated `epic-*` vocabulary —
+`epic-started`, `epic-progress`, `epic-blocked`, `epic-unblocked`,
+`epic-complete` — so Slack consumers see the epic narrative
+(% progress + blockers) without the per-story firehose. Per-Task
+`agent::executing` transitions during Story init batch into a single
+Story-level summary comment regardless of any filter. Webhook subscribers
+receive a typed envelope
+(`{ text, severity, ticketId, event?, level?, epicId?, phase? }`) so
+allowlisted events stay routable by event name and hierarchy level.
 
 ---
 
