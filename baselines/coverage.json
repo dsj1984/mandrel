@@ -5,9 +5,9 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.31,
-    "branches": 61.64,
-    "functions": 100
+    "lines": 92.55,
+    "branches": 64.86,
+    "functions": 91.67
   },
   ".agents/scripts/assert-branch.js": {
     "lines": 65.85,
@@ -56,8 +56,8 @@
   },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.28,
-    "branches": 88.06,
-    "functions": 81.25
+    "branches": 88.72,
+    "functions": 76.47
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 84.01,
@@ -76,8 +76,8 @@
   },
   ".agents/scripts/epic-execute-record-wave.js": {
     "lines": 75.61,
-    "branches": 64.96,
-    "functions": 71.43
+    "branches": 65.52,
+    "functions": 66.67
   },
   ".agents/scripts/epic-planner.js": {
     "lines": 89.91,
@@ -276,7 +276,7 @@
   },
   ".agents/scripts/lib/crap-engine.js": {
     "lines": 100,
-    "branches": 84,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/crap-utils.js": {
@@ -342,7 +342,7 @@
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
     "branches": 75.41,
-    "functions": 89.47
+    "functions": 85
   },
   ".agents/scripts/lib/Graph.js": {
     "lines": 100,
@@ -406,7 +406,7 @@
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 97.24,
-    "branches": 74.36,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -502,7 +502,7 @@
   ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
     "lines": 89.01,
     "branches": 57.14,
-    "functions": 66.67
+    "functions": 75
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js": {
     "lines": 100,
@@ -522,7 +522,7 @@
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
     "lines": 88.75,
     "branches": 75.49,
-    "functions": 96.3
+    "functions": 96.43
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
     "lines": 94.88,
@@ -680,8 +680,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 98.55,
-    "branches": 81.82,
+    "lines": 95.65,
+    "branches": 76.19,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -691,8 +691,8 @@
   },
   ".agents/scripts/lib/orchestration/story-close/format-autofix.js": {
     "lines": 100,
-    "branches": 76.47,
-    "functions": 100
+    "branches": 81.25,
+    "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
     "lines": 58.29,
@@ -766,8 +766,8 @@
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 96.12,
-    "branches": 81.68,
-    "functions": 100
+    "branches": 82.31,
+    "functions": 92.31
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
     "lines": 97.3,
@@ -816,13 +816,13 @@
   },
   ".agents/scripts/lib/story-init/dependency-guard.js": {
     "lines": 93.18,
-    "branches": 74.39,
-    "functions": 100
+    "branches": 75.31,
+    "functions": 87.5
   },
   ".agents/scripts/lib/story-init/hierarchy-tracer.js": {
     "lines": 100,
     "branches": 100,
-    "functions": 100
+    "functions": 50
   },
   ".agents/scripts/lib/story-init/state-transitioner.js": {
     "lines": 100,
@@ -832,7 +832,7 @@
   ".agents/scripts/lib/story-init/task-graph-builder.js": {
     "lines": 100,
     "branches": 94.44,
-    "functions": 100
+    "functions": 75
   },
   ".agents/scripts/lib/story-init/transition-summary.js": {
     "lines": 100,
@@ -887,11 +887,11 @@
   ".agents/scripts/lib/validation-evidence.js": {
     "lines": 97.12,
     "branches": 93.75,
-    "functions": 100
+    "functions": 90.91
   },
   ".agents/scripts/lib/workers/crap-worker.js": {
     "lines": 100,
-    "branches": 97.22,
+    "branches": 97.37,
     "functions": 100
   },
   ".agents/scripts/lib/workers/maintainability-worker.js": {
@@ -985,13 +985,13 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 92.24,
+    "lines": 91.43,
     "branches": 100,
-    "functions": 78.57
+    "functions": 76.19
   },
   ".agents/scripts/providers/github/auth.js": {
-    "lines": 75,
-    "branches": 87.5,
+    "lines": 100,
+    "branches": 100,
     "functions": 100
   },
   ".agents/scripts/providers/github/branches.js": {
@@ -1005,9 +1005,9 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/comments.js": {
-    "lines": 88.1,
-    "branches": 88.89,
-    "functions": 75
+    "lines": 76.19,
+    "branches": 87.5,
+    "functions": 50
   },
   ".agents/scripts/providers/github/error-classifier.js": {
     "lines": 100,
@@ -1026,7 +1026,7 @@
   },
   ".agents/scripts/providers/github/http-client.js": {
     "lines": 91.3,
-    "branches": 85.71,
+    "branches": 86.44,
     "functions": 100
   },
   ".agents/scripts/providers/github/http.js": {
@@ -1076,8 +1076,8 @@
   },
   ".agents/scripts/story-execute-prepare.js": {
     "lines": 84.74,
-    "branches": 60.42,
-    "functions": 62.5
+    "branches": 61.7,
+    "functions": 55.56
   },
   ".agents/scripts/story-init.js": {
     "lines": 88.18,
