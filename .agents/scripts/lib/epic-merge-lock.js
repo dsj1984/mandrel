@@ -105,9 +105,16 @@ function tryStealStale(filePath, timeoutMs) {
   }
 
   const meta = readLockMeta(filePath);
-  const ageMs = Date.now() - stats.mtimeMs;
+  // Corrupted lock file (null meta): we can't verify the writer's PID and
+  // the age comparison is unsafe on Windows where NTFS mtime vs Date.now()
+  // can disagree by hundreds of milliseconds, falsely flipping `ancient`
+  // true at short timeouts. Treat the file as held; the caller times out.
+  // A truly stuck corrupted lock has to be cleared manually — that's the
+  // safer failure mode than wrongly stealing a lock another process owns.
+  if (!meta) return false;
 
-  const pidDead = meta && !isProcessRunning(meta.pid);
+  const ageMs = Date.now() - stats.mtimeMs;
+  const pidDead = !isProcessRunning(meta.pid);
   const ancient = ageMs > timeoutMs * 2;
 
   if (pidDead || ancient) {
