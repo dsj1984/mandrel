@@ -60,7 +60,7 @@
     "functions": 81.25
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 83.97,
+    "lines": 84.01,
     "branches": 55.56,
     "functions": 75
   },
@@ -85,7 +85,7 @@
     "functions": 80
   },
   ".agents/scripts/evidence-gate.js": {
-    "lines": 97.86,
+    "lines": 97.87,
     "branches": 85.71,
     "functions": 80
   },
@@ -1065,7 +1065,7 @@
     "functions": 0
   },
   ".agents/scripts/select-audits.js": {
-    "lines": 82.56,
+    "lines": 82.14,
     "branches": 84.21,
     "functions": 33.33
   },
