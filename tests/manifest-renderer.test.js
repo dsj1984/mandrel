@@ -80,7 +80,7 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /\/epic-deliver/);
   });
 
-  await t.test('renders 0% progress bar when no tasks done', () => {
+  await t.test('header meta line carries done/total task counts', () => {
     const manifest = makeBaseManifest({
       summary: {
         totalTasks: 4,
@@ -91,39 +91,11 @@ test('renderManifestMarkdown', async (t) => {
       },
     });
     const output = renderManifestMarkdown(manifest);
-    assert.match(output, /0%/);
     assert.match(output, /0\/4 tasks/);
-    // Should use construction emoji for 0%
-    assert.match(output, /🏗️/);
-  });
-
-  await t.test('renders 100% progress bar and celebration emoji', () => {
-    const manifest = makeBaseManifest({
-      summary: {
-        totalTasks: 4,
-        doneTasks: 4,
-        progressPercent: 100,
-        totalWaves: 1,
-        dispatched: 4,
-      },
-    });
-    const output = renderManifestMarkdown(manifest);
-    assert.match(output, /100%/);
-    assert.match(output, /🎉/);
-  });
-
-  await t.test('renders fire emoji for 50%+ progress', () => {
-    const manifest = makeBaseManifest({
-      summary: {
-        totalTasks: 4,
-        doneTasks: 2,
-        progressPercent: 50,
-        totalWaves: 1,
-        dispatched: 2,
-      },
-    });
-    const output = renderManifestMarkdown(manifest);
-    assert.match(output, /🔥/);
+    // Hero progress block + status emoji are gone — the meta line carries
+    // the totals and the Wave Summary table breaks them down per wave.
+    assert.doesNotMatch(output, /Sprint Progress/);
+    assert.doesNotMatch(output, /🏗️|🔥|🎉/);
   });
 
   await t.test('renders wave summary table for stories', () => {

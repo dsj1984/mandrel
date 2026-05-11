@@ -1,14 +1,15 @@
 /**
- * End-to-end manifest layout fixture (Story #1194 Task #1215).
+ * End-to-end manifest layout fixture.
  *
  * Renders a synthetic 4-wave / 7-Story / 19-Task manifest through
  * `formatManifestMarkdown` and asserts the structural invariants of the
- * nested Wave → Story → Task layout shipped by Tasks #1210–#1214:
+ * post-cleanup layout (see `feat/manifest-ux-cleanup`):
  *
  *   • No legacy `## Execution Plan` or `## Story Details` headings.
  *   • Every Wave Summary TOC link round-trips to a real H2 anchor via
  *     the `slugifyHeading` helper.
- *   • An inline legend blockquote sits between the TOC and the first H2.
+ *   • The first wave H2 follows the TOC table directly — no inline
+ *     legend blockquote.
  *   • Exactly one bottom `<details>` block; no other HTML tags appear
  *     anywhere else in the rendered output.
  *   • Every Task line uses native markdown checkboxes (`- [ ]` / `- [x]`)
@@ -159,18 +160,15 @@ test('layout fixture: every Wave Summary TOC link round-trips to a real H2 ancho
   }
 });
 
-test('layout fixture: inline legend blockquote sits directly between TOC and first wave H2', () => {
+test('layout fixture: first wave H2 follows the TOC table directly (no inline legend)', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildLayoutFixture());
-  const tocPos = md.indexOf('| Wave | Status | Progress | Stories | Tasks |');
-  const legendPos = md.indexOf('**Legend:**');
-  const firstH2Pos = md.search(/^## (?:🚀 Ready|✅ Done|⏳ Blocked) Wave 0$/m);
+  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
+  const firstH2Pos = md.search(/^## (?:🚀|✅|⏳) Wave 0$/m);
   assert.ok(tocPos >= 0, 'TOC table missing');
-  assert.ok(legendPos > tocPos, 'inline legend should sit after the TOC table');
-  assert.ok(
-    firstH2Pos > legendPos,
-    'first wave H2 should sit after the inline legend',
-  );
+  assert.ok(firstH2Pos > tocPos, 'first wave H2 should sit after the TOC');
+  // Inline legend retired — full legend lives in the bottom <details>.
+  assert.doesNotMatch(md, /\*\*Legend:\*\*/);
 });
 
 test('layout fixture: exactly one bottom <details> block, no other HTML tags anywhere', () => {

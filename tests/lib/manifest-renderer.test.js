@@ -31,7 +31,7 @@ test('manifest-renderer: renders simple manifest', () => {
   // Verify Wave Header and Table Structure
   assert.ok(output.includes('## Wave Summary'), 'Missing waves section');
   assert.ok(
-    output.includes('| Wave | Status | Progress | Stories | Tasks |'),
+    output.includes('| Wave | Status | Stories | Tasks |'),
     'Missing wave summary table header',
   );
   assert.ok(output.includes('Wave 1'), 'Missing wave row data');
