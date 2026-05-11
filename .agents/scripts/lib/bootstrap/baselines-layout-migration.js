@@ -42,6 +42,101 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+const BASELINE_FILE_RE = /^(maintainability|crap)\.json$/;
+const LOOSE_FILE_RE = /^epic-(\d+)-(maintainability|crap)\.json$/;
+
+/**
+ * Move a single snapshot file to its temp-namespace target. When the target
+ * already holds a canonical copy, the source is discarded instead of
+ * overwriting.
+ */
+function moveOneSnapshot({ from, to, label, moves }) {
+  if (fs.existsSync(to)) {
+    fs.rmSync(from);
+    moves.push({ from, to, action: 'discarded-superseded' });
+    return;
+  }
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.renameSync(from, to);
+  moves.push({ from, to, action: label });
+}
+
+/**
+ * Drop a directory if it exists on disk and is empty.
+ */
+function dropEmptyDir(absDir) {
+  if (fs.existsSync(absDir) && fs.readdirSync(absDir).length === 0) {
+    fs.rmdirSync(absDir);
+  }
+}
+
+/**
+ * Walk a per-Epic source directory (`<srcRoot>/<id>/*.json`) and migrate
+ * each baseline file into `<tempEpicRoot>/<id>/baselines/`. Returns the
+ * Epic dirs that were touched so the caller can run per-Epic cleanup
+ * (e.g. `git rm` for the committed shape).
+ */
+function migrateEpicDir({ srcRoot, tempEpicRoot, label, moves }) {
+  const touched = [];
+  if (!fs.existsSync(srcRoot) || !fs.statSync(srcRoot).isDirectory()) {
+    return touched;
+  }
+  for (const epicEnt of fs.readdirSync(srcRoot, { withFileTypes: true })) {
+    if (!epicEnt.isDirectory() || !/^\d+$/.test(epicEnt.name)) continue;
+    const epicId = epicEnt.name;
+    const fromDir = path.join(srcRoot, epicId);
+    const toDir = path.join(tempEpicRoot, epicId, 'baselines');
+    for (const fileEnt of fs.readdirSync(fromDir, { withFileTypes: true })) {
+      if (!fileEnt.isFile() || !BASELINE_FILE_RE.test(fileEnt.name)) continue;
+      moveOneSnapshot({
+        from: path.join(fromDir, fileEnt.name),
+        to: path.join(toDir, fileEnt.name),
+        label,
+        moves,
+      });
+    }
+    dropEmptyDir(fromDir);
+    touched.push({ epicId, fromDir });
+  }
+  return touched;
+}
+
+/**
+ * Migrate shape 1: loose per-Epic snapshots at the root of `baselines/`.
+ */
+function migrateLooseShape({ baselinesDir, tempEpicRoot, moves }) {
+  for (const ent of fs.readdirSync(baselinesDir, { withFileTypes: true })) {
+    if (!ent.isFile()) continue;
+    const m = ent.name.match(LOOSE_FILE_RE);
+    if (!m) continue;
+    const [, epicId, gate] = m;
+    moveOneSnapshot({
+      from: path.join(baselinesDir, ent.name),
+      to: path.join(tempEpicRoot, epicId, 'baselines', `${gate}.json`),
+      label: 'relocated-loose',
+      moves,
+    });
+  }
+}
+
+/**
+ * Stage the prune of a now-empty committed `baselines/epic/<id>/` via
+ * `git rm -r --quiet --ignore-unmatch`. `--ignore-unmatch` keeps the call
+ * safe when the path is not tracked (fresh-clone case).
+ */
+function pruneCommittedEpic({ fromDir, repoRoot, spawnSync, prunedDirs }) {
+  const epicRelPath = path
+    .relative(repoRoot, fromDir)
+    .split(path.sep)
+    .join('/');
+  const rm = spawnSync(
+    'git',
+    ['rm', '-r', '--quiet', '--ignore-unmatch', '--', epicRelPath],
+    { cwd: repoRoot, encoding: 'utf-8', stdio: 'pipe', shell: false },
+  );
+  prunedDirs.push({ path: epicRelPath, gitStatus: rm.status ?? null });
+}
+
 /**
  * Detect and migrate any legacy per-Epic snapshot under `baselinesDir` into
  * the `temp/epic/<id>/baselines/` shape under `repoRoot`. Returns one of
@@ -70,121 +165,33 @@ export function migrateBaselinesLayout(args) {
   const tempEpicRoot = path.join(repoRoot, 'temp', 'epic');
 
   // Shape 1: loose per-Epic snapshots at the root.
-  const entries = fs.readdirSync(baselinesDir, { withFileTypes: true });
-  const looseRe = /^epic-(\d+)-(maintainability|crap)\.json$/;
-  for (const ent of entries) {
-    if (!ent.isFile()) continue;
-    const m = ent.name.match(looseRe);
-    if (!m) continue;
-    const [, epicId, gate] = m;
-    const from = path.join(baselinesDir, ent.name);
-    const toDir = path.join(tempEpicRoot, epicId, 'baselines');
-    const to = path.join(toDir, `${gate}.json`);
-    if (fs.existsSync(to)) {
-      // Target already populated by an earlier migration or the /epic-plan
-      // fork. Discard the legacy file rather than overwriting the canonical
-      // snapshot.
-      fs.rmSync(from);
-      moves.push({ from, to, action: 'discarded-superseded' });
-      continue;
-    }
-    fs.mkdirSync(toDir, { recursive: true });
-    fs.renameSync(from, to);
-    moves.push({ from, to, action: 'relocated-loose' });
-  }
+  migrateLooseShape({ baselinesDir, tempEpicRoot, moves });
 
   // Shape 2: prototype `baselines/snapshots/<id>/` tree.
   const protoRoot = path.join(baselinesDir, 'snapshots');
-  if (fs.existsSync(protoRoot) && fs.statSync(protoRoot).isDirectory()) {
-    for (const epicEnt of fs.readdirSync(protoRoot, { withFileTypes: true })) {
-      if (!epicEnt.isDirectory()) continue;
-      if (!/^\d+$/.test(epicEnt.name)) continue;
-      const epicId = epicEnt.name;
-      const fromDir = path.join(protoRoot, epicId);
-      const toDir = path.join(tempEpicRoot, epicId, 'baselines');
-      for (const fileEnt of fs.readdirSync(fromDir, { withFileTypes: true })) {
-        if (!fileEnt.isFile()) continue;
-        if (!/^(maintainability|crap)\.json$/.test(fileEnt.name)) continue;
-        const from = path.join(fromDir, fileEnt.name);
-        const to = path.join(toDir, fileEnt.name);
-        if (fs.existsSync(to)) {
-          fs.rmSync(from);
-          moves.push({ from, to, action: 'discarded-superseded' });
-          continue;
-        }
-        fs.mkdirSync(toDir, { recursive: true });
-        fs.renameSync(from, to);
-        moves.push({ from, to, action: 'relocated-prototype' });
-      }
-      // Drop the now-empty prototype dir to keep the tree clean.
-      const remaining = fs.readdirSync(fromDir);
-      if (remaining.length === 0) fs.rmdirSync(fromDir);
-    }
-    // Drop the prototype root if it ends up empty.
-    const remainingProto = fs.readdirSync(protoRoot);
-    if (remainingProto.length === 0) fs.rmdirSync(protoRoot);
-  }
+  migrateEpicDir({
+    srcRoot: protoRoot,
+    tempEpicRoot,
+    label: 'relocated-prototype',
+    moves,
+  });
+  dropEmptyDir(protoRoot);
 
   // Shape 3: committed `baselines/epic/<id>/` subdirectory layout (the
-  // shape Story #1396 introduced; superseded by the temp-namespace contract
-  // in Story #1467). Move snapshots OUT to temp and prune the committed
-  // tree via `git rm -r`.
+  // shape Story #1396 introduced; superseded by the temp-namespace
+  // contract in Story #1467). Move snapshots OUT to temp, prune each
+  // committed per-Epic dir via `git rm`, then drop the parent.
   const committedEpicRoot = path.join(baselinesDir, 'epic');
-  if (
-    fs.existsSync(committedEpicRoot) &&
-    fs.statSync(committedEpicRoot).isDirectory()
-  ) {
-    for (const epicEnt of fs.readdirSync(committedEpicRoot, {
-      withFileTypes: true,
-    })) {
-      if (!epicEnt.isDirectory()) continue;
-      if (!/^\d+$/.test(epicEnt.name)) continue;
-      const epicId = epicEnt.name;
-      const fromDir = path.join(committedEpicRoot, epicId);
-      const toDir = path.join(tempEpicRoot, epicId, 'baselines');
-      for (const fileEnt of fs.readdirSync(fromDir, { withFileTypes: true })) {
-        if (!fileEnt.isFile()) continue;
-        if (!/^(maintainability|crap)\.json$/.test(fileEnt.name)) continue;
-        const from = path.join(fromDir, fileEnt.name);
-        const to = path.join(toDir, fileEnt.name);
-        if (fs.existsSync(to)) {
-          fs.rmSync(from);
-          moves.push({ from, to, action: 'discarded-superseded' });
-          continue;
-        }
-        fs.mkdirSync(toDir, { recursive: true });
-        fs.renameSync(from, to);
-        moves.push({ from, to, action: 'relocated-committed' });
-      }
-      // Drop the now-empty committed dir and stage the removal via git so
-      // the next commit prunes the tracked tree. `--ignore-unmatch` keeps
-      // the call safe when the path is not tracked (fresh-clone case).
-      const remaining = fs.readdirSync(fromDir);
-      if (remaining.length === 0) {
-        fs.rmdirSync(fromDir);
-      }
-      const epicRelPath = path
-        .relative(repoRoot, fromDir)
-        .split(path.sep)
-        .join('/');
-      const rm = spawnSync(
-        'git',
-        ['rm', '-r', '--quiet', '--ignore-unmatch', '--', epicRelPath],
-        { cwd: repoRoot, encoding: 'utf-8', stdio: 'pipe', shell: false },
-      );
-      prunedDirs.push({
-        path: epicRelPath,
-        gitStatus: rm.status ?? null,
-      });
-    }
-    // Drop the committed root if it ends up empty on disk.
-    const remainingCommitted = fs.existsSync(committedEpicRoot)
-      ? fs.readdirSync(committedEpicRoot)
-      : [];
-    if (remainingCommitted.length === 0 && fs.existsSync(committedEpicRoot)) {
-      fs.rmdirSync(committedEpicRoot);
-    }
+  const touched = migrateEpicDir({
+    srcRoot: committedEpicRoot,
+    tempEpicRoot,
+    label: 'relocated-committed',
+    moves,
+  });
+  for (const { fromDir } of touched) {
+    pruneCommittedEpic({ fromDir, repoRoot, spawnSync, prunedDirs });
   }
+  dropEmptyDir(committedEpicRoot);
 
   return {
     action:
