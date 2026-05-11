@@ -1186,6 +1186,12 @@
       "startLine": 19
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
+      "method": "validateFrontmatter",
+      "startLine": 27
+    },
+    {
       "crap": 7,
       "file": ".agents/scripts/lib/audit-suite/frontmatter.js",
       "method": "extractFrontmatter",
@@ -1552,7 +1558,7 @@
       "startLine": 59
     },
     {
-      "crap": 7,
+      "crap": 8,
       "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
       "method": "scanFile",
       "startLine": 100
@@ -6374,6 +6380,12 @@
       "file": ".agents/scripts/story-task-progress.js",
       "method": "main",
       "startLine": 437
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/sync-claude-commands.js",
+      "method": "<anon method-1>",
+      "startLine": 44
     },
     {
       "crap": 11.090909090909092,
