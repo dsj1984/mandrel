@@ -6223,25 +6223,37 @@
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 106
+      "startLine": 120
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isNotFoundError",
+      "startLine": 139
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isLabelAlreadyExistsError",
+      "startLine": 164
     },
     {
       "crap": 5.0407083248524325,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 125
+      "startLine": 203
     },
     {
       "crap": 5.002194787379972,
       "file": ".agents/scripts/providers/github.js",
       "method": "createInlineTicketCache",
-      "startLine": 171
+      "startLine": 249
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github.js",
       "method": "primeIfAbsent",
-      "startLine": 175
+      "startLine": 253
     },
     {
       "crap": 1,
@@ -6268,7 +6280,7 @@
       "startLine": 55
     },
     {
-      "crap": 2.032,
+      "crap": 5.613185185185185,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "createPullRequest",
       "startLine": 138
@@ -6304,12 +6316,6 @@
       "startLine": 69
     },
     {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github/labels.js",
-      "method": "ensureLabels",
-      "startLine": 9
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon method-1>",
@@ -6322,7 +6328,7 @@
       "startLine": 24
     },
     {
-      "crap": 5.390625,
+      "crap": 15.546875,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveToken",
       "startLine": 31
@@ -6380,18 +6386,6 @@
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "addItemToProject",
       "startLine": 259
-    },
-    {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "getMergeMethods",
-      "startLine": 27
-    },
-    {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "setMergeMethods",
-      "startLine": 52
     },
     {
       "crap": 4.012021036814425,
