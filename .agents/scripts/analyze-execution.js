@@ -44,7 +44,9 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { signalsFile, storyArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { computeBaselineRefreshRate } from './lib/observability/baseline-refresh-rate.js';
 import {
   computeEpicPerfReport,
   computeStoryPerfSummary,
@@ -140,7 +142,31 @@ function renderStoryBody(payload) {
   return lines.join('\n');
 }
 
-function renderEpicBody(payload) {
+/**
+ * Render the per-Epic baseline-refresh-rate row (Story #1400 / Task #1427).
+ * Returns an empty string when `refresh` is null so the caller can
+ * concatenate unconditionally.
+ */
+function renderBaselineRefreshRateRow(refresh) {
+  if (!refresh) return '';
+  const row = (refresh.perEpic ?? [])[0];
+  if (!row) {
+    return [
+      '',
+      `**Baseline refresh discipline (trailing ${refresh.windowDays}d):** no Story merges in window`,
+      '',
+    ].join('\n');
+  }
+  const pct = (row.cleanMergeRate * 100).toFixed(1);
+  const target = row.cleanMergeRate >= 0.9 ? '✅' : '⚠️';
+  return [
+    '',
+    `**Baseline refresh discipline (trailing ${refresh.windowDays}d):** ${target} ${pct}% clean-merge rate (${row.storyMerges - row.baselineRefreshes}/${row.storyMerges} Stories landed without follow-up refresh; ${row.baselineRefreshes} \`baseline-refresh:\` commit(s))`,
+    '',
+  ].join('\n');
+}
+
+function renderEpicBody(payload, extras = {}) {
   const counts = payload.signalCounts ?? {};
   const countLine = Object.entries(counts)
     .map(([k, v]) => `${k}=${v}`)
@@ -168,6 +194,7 @@ function renderEpicBody(payload) {
     friction.length > 0
       ? `**Most-friction Stories:**\n${friction}`
       : '**Most-friction Stories:** none recorded',
+    renderBaselineRefreshRateRow(extras.baselineRefreshRate),
     '',
     '```json',
     JSON.stringify(payload, null, 2),
@@ -310,23 +337,75 @@ async function collectStorySummaries(provider, epicId, logger) {
 }
 
 /**
+ * Default git-log gatherer for the baseline-refresh-rate reporter
+ * (Story #1400 / Task #1427). Reads commits on `epic/<id>` over the
+ * trailing window and shapes them into the record format the pure
+ * reporter expects. Returns `[]` on any spawn failure so the retro
+ * comment keeps composing — the reporter then prints "no Story merges
+ * in window" and the operator can investigate offline.
+ *
+ * Injectable via `runEpicMode({ gatherEpicCommitsFn })` so the unit test
+ * can pin behavior without a temp git repo.
+ */
+function gatherEpicCommitsFromGit({ epicId, windowDays, cwd, logger }) {
+  const ref = `epic/${epicId}`;
+  const since = `${windowDays} days ago`;
+  // Subject (%s) carries the Story-merge `(resolves #N)` and the
+  // `baseline-refresh:` prefix; ISO commit date (%cI) drives the window
+  // filter inside the reporter. Tab separator avoids subjects that
+  // contain pipes.
+  const res = gitSpawn(
+    cwd,
+    'log',
+    ref,
+    `--since=${since}`,
+    '--pretty=format:%H%x09%cI%x09%s',
+  );
+  if (res.status !== 0) {
+    logger.warn?.(
+      `[analyze-execution] git log ${ref} failed (non-fatal): ${res.stderr || res.stdout}`,
+    );
+    return [];
+  }
+  const lines = (res.stdout || '').split('\n').filter(Boolean);
+  return lines.map((line) => {
+    const [sha, isoDate, ...rest] = line.split('\t');
+    return {
+      sha,
+      isoDate,
+      subject: rest.join('\t'),
+      epicId,
+    };
+  });
+}
+
+/**
  * Epic mode: collect every Story's perf summary, roll them up, upsert
  * the epic-perf-report comment.
  *
  * @param {{
  *   epicId: number,
  *   provider: object,
+ *   config?: object,
+ *   cwd?: string,
+ *   windowDays?: number,
  *   logger?: object,
  *   now?: () => Date,
  *   collectSummariesFn?: typeof collectStorySummaries,
+ *   gatherEpicCommitsFn?: typeof gatherEpicCommitsFromGit,
  * }} ctx
- * @returns {Promise<{ commentId: number, payload: object }>}
+ * @returns {Promise<{ commentId: number, payload: object, baselineRefreshRate: object | null }>}
  */
 export async function runEpicMode(ctx) {
   const { epicId, provider } = ctx;
   const logger = ctx.logger ?? Logger;
   const now = ctx.now ?? (() => new Date());
+  const windowDays =
+    Number.isFinite(ctx.windowDays) && ctx.windowDays > 0
+      ? Math.floor(ctx.windowDays)
+      : 28;
   const collectFn = ctx.collectSummariesFn ?? collectStorySummaries;
+  const gatherCommitsFn = ctx.gatherEpicCommitsFn ?? gatherEpicCommitsFromGit;
 
   logger.info?.(`[analyze-execution] epic-mode epic=#${epicId}`);
 
@@ -336,7 +415,33 @@ export async function runEpicMode(ctx) {
     generatedAt: now().toISOString(),
   });
 
-  const body = renderEpicBody(payload);
+  // Story #1400 / Task #1427 — baseline-refresh-rate row. Pure reporter
+  // operates on a fixture of git-log records gathered by the injected
+  // `gatherEpicCommitsFn`. A spawn failure surfaces as `[]` and degrades
+  // to the "no Story merges in window" line in the rendered body.
+  let baselineRefreshRate = null;
+  try {
+    const commits = await gatherCommitsFn({
+      epicId,
+      windowDays,
+      cwd: ctx.cwd ?? process.cwd(),
+      logger,
+    });
+    baselineRefreshRate = computeBaselineRefreshRate(commits, {
+      windowDays,
+      now,
+    });
+  } catch (err) {
+    logger.warn?.(
+      `[analyze-execution] baseline-refresh-rate gather failed (non-fatal): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
+  const body = renderEpicBody(payload, {
+    baselineRefreshRate,
+  });
   const result = await upsertStructuredComment(
     provider,
     epicId,
@@ -346,7 +451,11 @@ export async function runEpicMode(ctx) {
   logger.info?.(
     `[analyze-execution] epic-perf-report upserted on Epic #${epicId} (commentId=${result.commentId}, stories=${summaries.length})`,
   );
-  return { commentId: result.commentId, payload };
+  return {
+    commentId: result.commentId,
+    payload,
+    baselineRefreshRate,
+  };
 }
 
 function parseCli(argv) {
@@ -356,16 +465,23 @@ function parseCli(argv) {
       story: { type: 'string' },
       epic: { type: 'string' },
       'phase-timings': { type: 'string' },
+      'window-days': { type: 'string' },
       cwd: { type: 'string' },
     },
     strict: false,
   });
   const story = values.story != null ? Number.parseInt(values.story, 10) : null;
   const epic = values.epic != null ? Number.parseInt(values.epic, 10) : null;
+  const windowDays =
+    values['window-days'] != null
+      ? Number.parseInt(values['window-days'], 10)
+      : null;
   return {
     storyId: Number.isInteger(story) && story > 0 ? story : null,
     epicId: Number.isInteger(epic) && epic > 0 ? epic : null,
     phaseTimingsPath: values['phase-timings'] ?? null,
+    windowDays:
+      Number.isInteger(windowDays) && windowDays > 0 ? windowDays : null,
     cwd: values.cwd ?? null,
   };
 }
@@ -409,6 +525,9 @@ async function main(argv = process.argv.slice(2)) {
   const result = await runEpicMode({
     epicId: args.epicId,
     provider,
+    config,
+    cwd,
+    windowDays: args.windowDays ?? undefined,
   });
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
