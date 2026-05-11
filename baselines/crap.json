@@ -2704,7 +2704,7 @@
       "startLine": 153
     },
     {
-      "crap": 4.001194343198717,
+      "crap": 4.0005038635369585,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
       "startLine": 250
@@ -6220,6 +6220,18 @@
       "startLine": 93
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "parseApiJson",
+      "startLine": 107
+    },
+    {
+      "crap": 5.0407083248524325,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "paginateRest",
+      "startLine": 126
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/providers/github/auth.js",
       "method": "__setExecSyncForTests",
@@ -6268,30 +6280,6 @@
       "startLine": 45
     },
     {
-      "crap": 4.314814814814815,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "getRecentComments",
-      "startLine": 11
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "getTicketComments",
-      "startLine": 18
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "deleteComment",
-      "startLine": 25
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "postComment",
-      "startLine": 32
-    },
-    {
       "crap": 35,
       "file": ".agents/scripts/providers/github/error-classifier.js",
       "method": "classifyGithubError",
@@ -6308,138 +6296,6 @@
       "file": ".agents/scripts/providers/github/graphql.js",
       "method": "runGraphql",
       "startLine": 10
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "listIssues",
-      "startLine": 51
-    },
-    {
-      "crap": 4.6796875,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "listIssuesByLabel",
-      "startLine": 55
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getEpics",
-      "startLine": 65
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getEpic",
-      "startLine": 78
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTickets",
-      "startLine": 86
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getNativeSubIssues",
-      "startLine": 118
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getChecklistChildren",
-      "startLine": 160
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getReferencedChildren",
-      "startLine": 173
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getSubTickets",
-      "startLine": 186
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-6>",
-      "startLine": 208
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTicket",
-      "startLine": 228
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "primeTicketCache",
-      "startLine": 246
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "invalidateTicket",
-      "startLine": 250
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTicketDependencies",
-      "startLine": 255
-    },
-    {
-      "crap": 3.0443832291496102,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "createTicket",
-      "startLine": 264
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "addSubIssue",
-      "startLine": 319
-    },
-    {
-      "crap": 3.182569496619083,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "reconcileSubIssueLinks",
-      "startLine": 369
-    },
-    {
-      "crap": 2.3645,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-9>",
-      "startLine": 397
-    },
-    {
-      "crap": 4.125,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-10>",
-      "startLine": 424
-    },
-    {
-      "crap": 1.729,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "removeSubIssue",
-      "startLine": 469
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "applyLabelMutations",
-      "startLine": 488
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "updateTicket",
-      "startLine": 513
     },
     {
       "crap": 3,

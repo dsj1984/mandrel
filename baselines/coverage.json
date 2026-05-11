@@ -465,8 +465,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/gh-exec.js": {
-    "lines": 96.89,
-    "branches": 90,
+    "lines": 97.1,
+    "branches": 92.22,
     "functions": 78.57
   },
   ".agents/scripts/lib/git-branch-cleanup.js": {
@@ -1165,9 +1165,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 90.94,
-    "branches": 100,
-    "functions": 75
+    "lines": 91.29,
+    "branches": 79.29,
+    "functions": 78.43
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1183,11 +1183,6 @@
     "lines": 100,
     "branches": 96.97,
     "functions": 100
-  },
-  ".agents/scripts/providers/github/comments.js": {
-    "lines": 88.1,
-    "branches": 87.5,
-    "functions": 75
   },
   ".agents/scripts/providers/github/error-classifier.js": {
     "lines": 100,
@@ -1206,18 +1201,13 @@
   },
   ".agents/scripts/providers/github/http-client.js": {
     "lines": 91.3,
-    "branches": 85.45,
+    "branches": 82.69,
     "functions": 100
   },
   ".agents/scripts/providers/github/http.js": {
     "lines": 100,
     "branches": 100,
     "functions": null
-  },
-  ".agents/scripts/providers/github/issues.js": {
-    "lines": 90.57,
-    "branches": 77.66,
-    "functions": 90.91
   },
   ".agents/scripts/providers/github/labels.js": {
     "lines": 100,
