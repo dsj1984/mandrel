@@ -19,7 +19,7 @@ import {
  * routing.
  */
 function makeSpyProbes(overrides = {}) {
-  const calls = { git: [], fs: [], env: [] };
+  const calls = { git: [], fs: [], env: [], lock: [], pidLiveness: [] };
   return {
     calls,
     probes: {
@@ -34,6 +34,14 @@ function makeSpyProbes(overrides = {}) {
       env: (name) => {
         calls.env.push(name);
         return overrides.env?.(name) ?? 'missing';
+      },
+      lock: (absPath) => {
+        calls.lock.push(absPath);
+        return overrides.lock?.(absPath) ?? { exists: false };
+      },
+      pidLiveness: (pid) => {
+        calls.pidLiveness.push(pid);
+        return overrides.pidLiveness?.(pid) ?? false;
       },
     },
   };
@@ -83,12 +91,85 @@ describe('assembleState', () => {
     assert.equal(state.fs.dotEnv, undefined);
     assert.equal(state.fs.dotMcp, undefined);
     // git probe was called for: headRef (1), epicBranches (1), coreBare (1),
-    // plus epicBranchSync local+origin for each of 2 branches (4) = 7 total.
-    assert.equal(calls.git.length, 7);
-    // fs probe was called for .worktrees only (1)
+    // epicBranchSync local+origin for 2 branches (4), and the
+    // git-common-dir lookup driven by fs.epicMergeLocks (1) = 8 total.
+    assert.equal(calls.git.length, 8);
+    // fs probe was called for .worktrees only (1). epicMergeLocks routes to
+    // the dedicated lock probe, not the existence-only fs probe.
     assert.equal(calls.fs.length, 1);
+    // lock probe was called once per epic branch (2). pidLiveness was not
+    // called because no lock files exist in this fixture.
+    assert.equal(calls.lock.length, 2);
     // env probe was called for GITHUB_TOKEN only (1)
     assert.deepEqual(calls.env, ['GITHUB_TOKEN']);
+  });
+
+  it('fs.epicMergeLocks probes each epic branch and reports holder liveness', () => {
+    const { probes } = makeSpyProbes({
+      git: (_cwd, ...args) => {
+        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+          return { ok: true, stdout: 'story-x' };
+        }
+        if (args[0] === 'for-each-ref') {
+          return { ok: true, stdout: 'epic/1143' };
+        }
+        if (args[0] === 'config') return { ok: true, stdout: 'false' };
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          return { ok: true, stdout: 'aaaa' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
+          return { ok: true, stdout: '/repo/.git' };
+        }
+        return { ok: false, stdout: '' };
+      },
+      lock: (lockPath) => {
+        if (lockPath.endsWith('epic-1143.merge.lock')) {
+          return {
+            exists: true,
+            pid: 99999,
+            acquiredAt: 1000,
+            mtimeMs: 1000,
+          };
+        }
+        return { exists: false };
+      },
+      pidLiveness: (pid) => pid === 1, // never matches 99999
+    });
+    const state = assembleState({
+      scope: 'story-close',
+      cwd: '/repo',
+      probes,
+    });
+    const lock = state.fs.epicMergeLocks['1143'];
+    assert.equal(lock.exists, true);
+    assert.equal(lock.pid, 99999);
+    assert.equal(lock.holderAlive, false);
+    assert.match(lock.path, /epic-1143\.merge\.lock$/);
+  });
+
+  it('fs.epicMergeLocks reports exists:false when no lock file is present', () => {
+    const { probes } = makeSpyProbes({
+      git: (_cwd, ...args) => {
+        if (args[0] === 'for-each-ref') {
+          return { ok: true, stdout: 'epic/1143' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
+          return { ok: true, stdout: '/repo/.git' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          return { ok: true, stdout: 'aaaa' };
+        }
+        return { ok: false, stdout: '' };
+      },
+      lock: () => ({ exists: false }),
+    });
+    const state = assembleState({
+      scope: 'story-close',
+      cwd: '/repo-no-lock',
+      probes,
+    });
+    assert.equal(state.fs.epicMergeLocks['1143'].exists, false);
+    assert.equal(state.fs.epicMergeLocks['1143'].holderAlive, false);
   });
 
   it('epicBranchSync flags branches whose local SHA differs from origin', () => {
