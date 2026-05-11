@@ -20,6 +20,7 @@
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
+import { runAutoRefresh } from './lib/orchestration/story-close/auto-refresh-runner.js';
 import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
@@ -331,6 +332,46 @@ async function runStoryCloseLocked({
       agentSettings,
       logger: Logger,
     });
+
+    // Story #1398 (Epic #1386) — bounded baseline auto-refresh. Pre-merge
+    // gates have passed; regenerate baseline rows scoped to the Story diff
+    // and amend them into HEAD if every row's delta is at or below the
+    // configured caps. Over-cap rows surface a `baseline-refresh-regression`
+    // friction signal and the close commit is left untouched (the merge
+    // proceeds with the original Story tree). Failure modes are advisory:
+    // a regen / amend / signal-write failure is logged but does not block
+    // the close — the Story is already green per the pre-merge gates, and
+    // refusing the merge over a refresh-side failure would punish the
+    // operator for an observability glitch.
+    try {
+      const refreshResult = await runAutoRefresh({
+        storyId,
+        epicId,
+        cwd: worktreePath || cwd,
+        epicBranch,
+        storyBranch,
+        agentSettings,
+      });
+      if (refreshResult.status === 'amended') {
+        progress(
+          'AUTO-REFRESH',
+          `Amended bounded baseline drift into HEAD (${refreshResult.sha}).`,
+        );
+      } else if (refreshResult.status === 'refused') {
+        progress(
+          'AUTO-REFRESH',
+          `Refused — ${refreshResult.refusalReasons.length} cap breach(es); friction signal ${refreshResult.dedup ? 'already present' : refreshResult.signalAppended ? 'appended' : 'not written'}.`,
+        );
+      } else if (refreshResult.status === 'failed') {
+        Logger.warn(
+          `[auto-refresh] ${refreshResult.reason}: ${refreshResult.detail ?? ''}`,
+        );
+      }
+    } catch (err) {
+      Logger.warn(
+        `[auto-refresh] runner threw: ${err?.stack || err?.message || err}`,
+      );
+    }
   }
 
   // Everything past validation is the `close` phase; runPostMergeClose
