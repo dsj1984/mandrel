@@ -162,39 +162,56 @@ describe('agents-update — baselines layout migration', () => {
     return { spawnSync, calls };
   }
 
-  it('relocates loose epic-<id>-*.json files under temp/epic/<id>/baselines/', () => {
+  // Common fixture setup: a project root with a `baselines/` dir already
+  // mkdir'd. Returns the absolute paths the tests need.
+  function setupBaselineFixture() {
     const projectRoot = path.join(tmpRoot, 'project');
     const baselinesDir = path.join(projectRoot, 'baselines');
     fs.mkdirSync(baselinesDir, { recursive: true });
-    // Main-tracked baselines (must NOT be moved).
-    fs.writeFileSync(
-      path.join(baselinesDir, 'maintainability.json'),
-      '{"main":true}\n',
-    );
-    fs.writeFileSync(
-      path.join(baselinesDir, 'crap.json'),
-      '{"kernelVersion":"1.0"}\n',
-    );
-    // Legacy loose snapshots for two Epics.
-    fs.writeFileSync(
-      path.join(baselinesDir, 'epic-1386-maintainability.json'),
-      '{"epic":1386}\n',
-    );
-    fs.writeFileSync(
-      path.join(baselinesDir, 'epic-1386-crap.json'),
-      '{"epic":1386,"crap":true}\n',
-    );
-    fs.writeFileSync(
-      path.join(baselinesDir, 'epic-1142-maintainability.json'),
-      '{"epic":1142}\n',
-    );
+    return { projectRoot, baselinesDir };
+  }
 
+  // Temp-namespace destination for a per-Epic baseline file.
+  function tempEpicPath(projectRoot, epicId, kind) {
+    return path.join(
+      projectRoot,
+      'temp',
+      'epic',
+      String(epicId),
+      'baselines',
+      `${kind}.json`,
+    );
+  }
+
+  // Run the helper with the standard git stub + repoRoot wiring.
+  function runMigrate(projectRoot, baselinesDir) {
     const git = makeGitStub();
     const result = migrateBaselinesLayout({
       baselinesDir,
       repoRoot: projectRoot,
       spawnSync: git.spawnSync,
     });
+    return { git, result };
+  }
+
+  it('relocates loose epic-<id>-*.json files under temp/epic/<id>/baselines/', () => {
+    const { projectRoot, baselinesDir } = setupBaselineFixture();
+    // Main-tracked baselines (must NOT be moved).
+    writeJson(path.join(baselinesDir, 'maintainability.json'), { main: true });
+    writeJson(path.join(baselinesDir, 'crap.json'), { kernelVersion: '1.0' });
+    // Legacy loose snapshots for two Epics.
+    writeJson(path.join(baselinesDir, 'epic-1386-maintainability.json'), {
+      epic: 1386,
+    });
+    writeJson(path.join(baselinesDir, 'epic-1386-crap.json'), {
+      epic: 1386,
+      crap: true,
+    });
+    writeJson(path.join(baselinesDir, 'epic-1142-maintainability.json'), {
+      epic: 1142,
+    });
+
+    const { result } = runMigrate(projectRoot, baselinesDir);
     assert.equal(result.action, 'migrated');
     assert.equal(result.moves.length, 3);
     for (const move of result.moves) {
@@ -202,25 +219,12 @@ describe('agents-update — baselines layout migration', () => {
     }
 
     // Per-Epic snapshots landed under the temp namespace.
-    const ep1386Mi = path.join(
-      projectRoot,
-      'temp',
-      'epic',
-      '1386',
-      'baselines',
-      'maintainability.json',
-    );
+    const ep1386Mi = tempEpicPath(projectRoot, 1386, 'maintainability');
     assert.ok(fs.existsSync(ep1386Mi));
     assert.equal(readJson(ep1386Mi).epic, 1386);
-    const ep1142Mi = path.join(
-      projectRoot,
-      'temp',
-      'epic',
-      '1142',
-      'baselines',
-      'maintainability.json',
+    assert.ok(
+      fs.existsSync(tempEpicPath(projectRoot, 1142, 'maintainability')),
     );
-    assert.ok(fs.existsSync(ep1142Mi));
 
     // Nothing landed under the committed baselines/epic/ shape.
     assert.ok(!fs.existsSync(path.join(baselinesDir, 'epic')));
@@ -234,76 +238,41 @@ describe('agents-update — baselines layout migration', () => {
     );
 
     // Re-run is a no-op.
-    const second = migrateBaselinesLayout({
-      baselinesDir,
-      repoRoot: projectRoot,
-      spawnSync: makeGitStub().spawnSync,
-    });
+    const second = runMigrate(projectRoot, baselinesDir).result;
     assert.equal(second.action, 'no-change');
   });
 
   it('migrates the prototype baselines/snapshots/<id>/ tree to temp/epic/<id>/baselines/', () => {
-    const projectRoot = path.join(tmpRoot, 'project');
-    const baselinesDir = path.join(projectRoot, 'baselines');
-    fs.mkdirSync(baselinesDir, { recursive: true });
+    const { projectRoot, baselinesDir } = setupBaselineFixture();
     const protoDir = path.join(baselinesDir, 'snapshots', '1386');
     fs.mkdirSync(protoDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(protoDir, 'maintainability.json'),
-      '{"proto":true}\n',
-    );
-    fs.writeFileSync(
-      path.join(protoDir, 'crap.json'),
-      '{"proto":true,"crap":1}\n',
-    );
+    writeJson(path.join(protoDir, 'maintainability.json'), { proto: true });
+    writeJson(path.join(protoDir, 'crap.json'), { proto: true, crap: 1 });
 
-    const git = makeGitStub();
-    const result = migrateBaselinesLayout({
-      baselinesDir,
-      repoRoot: projectRoot,
-      spawnSync: git.spawnSync,
-    });
+    const { result } = runMigrate(projectRoot, baselinesDir);
     assert.equal(result.action, 'migrated');
     assert.equal(result.moves.length, 2);
     for (const move of result.moves) {
       assert.equal(move.action, 'relocated-prototype');
     }
     assert.ok(
-      fs.existsSync(
-        path.join(
-          projectRoot,
-          'temp',
-          'epic',
-          '1386',
-          'baselines',
-          'maintainability.json',
-        ),
-      ),
+      fs.existsSync(tempEpicPath(projectRoot, 1386, 'maintainability')),
     );
     // Empty prototype tree is cleaned up.
     assert.ok(!fs.existsSync(path.join(baselinesDir, 'snapshots')));
   });
 
   it('relocates committed baselines/epic/<id>/ to temp/epic/<id>/baselines/ and stages a git rm', () => {
-    const projectRoot = path.join(tmpRoot, 'project');
-    const baselinesDir = path.join(projectRoot, 'baselines');
+    const { projectRoot, baselinesDir } = setupBaselineFixture();
     const committedDir = path.join(baselinesDir, 'epic', '1181');
     fs.mkdirSync(committedDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(committedDir, 'maintainability.json'),
-      '{"epic":1181}\n',
-    );
-    fs.writeFileSync(
-      path.join(committedDir, 'crap.json'),
-      '{"epic":1181,"crap":true}\n',
-    );
-
-    const git = makeGitStub();
-    const result = migrateBaselinesLayout({
-      baselinesDir,
-      repoRoot: projectRoot,
-      spawnSync: git.spawnSync,
+    writeJson(path.join(committedDir, 'maintainability.json'), { epic: 1181 });
+    writeJson(path.join(committedDir, 'crap.json'), {
+      epic: 1181,
+      crap: true,
     });
+
+    const { git, result } = runMigrate(projectRoot, baselinesDir);
 
     assert.equal(result.action, 'migrated');
     assert.equal(result.moves.length, 2);
@@ -311,21 +280,11 @@ describe('agents-update — baselines layout migration', () => {
       assert.equal(move.action, 'relocated-committed');
     }
 
-    // Snapshots landed under temp/epic/<id>/baselines/.
+    // Snapshots landed under temp/epic/<id>/baselines/ and the committed
+    // tree is removed from disk.
     assert.ok(
-      fs.existsSync(
-        path.join(
-          projectRoot,
-          'temp',
-          'epic',
-          '1181',
-          'baselines',
-          'maintainability.json',
-        ),
-      ),
+      fs.existsSync(tempEpicPath(projectRoot, 1181, 'maintainability')),
     );
-
-    // Committed tree is removed from disk.
     assert.ok(!fs.existsSync(committedDir));
     assert.ok(!fs.existsSync(path.join(baselinesDir, 'epic')));
 
@@ -345,42 +304,21 @@ describe('agents-update — baselines layout migration', () => {
   });
 
   it('discards a legacy loose snapshot when the temp-namespace target is already populated', () => {
-    const projectRoot = path.join(tmpRoot, 'project');
-    const baselinesDir = path.join(projectRoot, 'baselines');
-    const canonicalDir = path.join(
-      projectRoot,
-      'temp',
-      'epic',
-      '1386',
-      'baselines',
-    );
-    fs.mkdirSync(canonicalDir, { recursive: true });
-    fs.mkdirSync(baselinesDir, { recursive: true });
+    const { projectRoot, baselinesDir } = setupBaselineFixture();
+    const canonicalMi = tempEpicPath(projectRoot, 1386, 'maintainability');
     // Canonical snapshot (the source of truth) is already in place.
-    fs.writeFileSync(
-      path.join(canonicalDir, 'maintainability.json'),
-      '{"canonical":true}\n',
-    );
+    writeJson(canonicalMi, { canonical: true });
     // Legacy loose copy that would otherwise overwrite it.
-    fs.writeFileSync(
-      path.join(baselinesDir, 'epic-1386-maintainability.json'),
-      '{"legacy":true,"stale":true}\n',
-    );
-
-    const git = makeGitStub();
-    const result = migrateBaselinesLayout({
-      baselinesDir,
-      repoRoot: projectRoot,
-      spawnSync: git.spawnSync,
+    writeJson(path.join(baselinesDir, 'epic-1386-maintainability.json'), {
+      legacy: true,
+      stale: true,
     });
+
+    const { result } = runMigrate(projectRoot, baselinesDir);
     assert.equal(result.action, 'migrated');
     assert.equal(result.moves[0].action, 'discarded-superseded');
-    // Canonical snapshot is preserved.
-    assert.equal(
-      readJson(path.join(canonicalDir, 'maintainability.json')).canonical,
-      true,
-    );
-    // Legacy file is gone.
+    // Canonical snapshot is preserved; legacy loose file is gone.
+    assert.equal(readJson(canonicalMi).canonical, true);
     assert.ok(
       !fs.existsSync(path.join(baselinesDir, 'epic-1386-maintainability.json')),
     );
