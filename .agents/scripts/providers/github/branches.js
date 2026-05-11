@@ -29,17 +29,28 @@ export async function getBranchProtection(ctx, branch) {
  * preserved; only the missing entries from `contexts` are appended. When no
  * protection rule exists, a fresh one is created carrying just the
  * supplied contexts plus minimal sensible defaults (strict status checks,
- * no enforce-admins). The remaining branch-protection knobs (PR review
- * counts, conversation resolution, signed commits, restrictions) are
- * intentionally left unset so operators retain the freedom to tune them
- * by hand without having the bootstrap clobber their choices on re-run.
+ * no enforce-admins).
+ *
+ * Epic #1235 Story 5 — the writer now accepts opinionated overrides
+ * (`enforceAdmins`, `requiredApprovingReviewCount`) so the consumer-facing
+ * bootstrap can promote the framework's hands-off-pipeline stance. The
+ * caller (`bootstrap/branch-protection.js`) gates behaviour-shifting
+ * applications through `hitlConfirm` so this writer never silently flips
+ * `enforce_admins` or the approval count under the operator. When the
+ * overrides are absent (legacy callers / existing tests) the writer
+ * preserves the operator's existing values exactly as before.
  *
  * Returns a summary the bootstrap orchestrator surfaces in its log:
  *   { created: boolean, added: string[], existing: string[] }
  *
  * @param {object} ctx
  * @param {string} branch
- * @param {{ contexts: string[], strict?: boolean }} opts
+ * @param {{
+ *   contexts: string[],
+ *   strict?: boolean,
+ *   enforceAdmins?: boolean,
+ *   requiredApprovingReviewCount?: number,
+ * }} opts
  */
 export async function setBranchProtection(ctx, branch, opts) {
   const contexts = Array.isArray(opts?.contexts) ? opts.contexts : [];
@@ -62,25 +73,55 @@ export async function setBranchProtection(ctx, branch, opts) {
     }
   }
 
+  // Decide whether to override the behaviour-shifting fields. We honour
+  // explicit `undefined` from legacy callers by falling through to the
+  // operator's existing values (or the create-from-scratch defaults).
+  const overrideEnforceAdmins = typeof opts?.enforceAdmins === 'boolean';
+  const overrideApprovalCount =
+    typeof opts?.requiredApprovingReviewCount === 'number';
+
+  let enforceAdmins;
+  if (overrideEnforceAdmins) {
+    enforceAdmins = opts.enforceAdmins;
+  } else if (current.enabled) {
+    enforceAdmins = current.raw?.enforce_admins?.enabled ?? false;
+  } else {
+    enforceAdmins = false;
+  }
+
+  let prReviews;
+  if (overrideApprovalCount) {
+    // We do NOT clobber operator-set review flags (dismiss-stale, code-
+    // owners, etc.) — only the count gets promoted.
+    const baseReviews = current.enabled
+      ? (current.raw?.required_pull_request_reviews ?? {})
+      : {};
+    prReviews = {
+      ...baseReviews,
+      required_approving_review_count: opts.requiredApprovingReviewCount,
+    };
+  } else {
+    prReviews = current.enabled
+      ? (current.raw?.required_pull_request_reviews ?? null)
+      : null;
+  }
+
   // The PUT endpoint requires every top-level field in the body — null
-  // disables a section. We pass through the existing values when
-  // protection is already enabled so we never silently drop the
-  // operator's PR-review or admin-enforcement choices.
+  // disables a section.
   const body = current.enabled
     ? {
         required_status_checks: {
           strict: current.raw?.required_status_checks?.strict ?? strict,
           contexts: merged,
         },
-        enforce_admins: current.raw?.enforce_admins?.enabled ?? false,
-        required_pull_request_reviews:
-          current.raw?.required_pull_request_reviews ?? null,
+        enforce_admins: enforceAdmins,
+        required_pull_request_reviews: prReviews,
         restrictions: current.raw?.restrictions ?? null,
       }
     : {
         required_status_checks: { strict, contexts: merged },
-        enforce_admins: false,
-        required_pull_request_reviews: null,
+        enforce_admins: enforceAdmins,
+        required_pull_request_reviews: prReviews,
         restrictions: null,
       };
 

@@ -312,4 +312,38 @@ export class ITicketingProvider {
   async setBranchProtection(_branch, _opts) {
     throw new Error('Not implemented: setBranchProtection');
   }
+
+  /**
+   * Read the repo's merge-method allowlist + auto-merge / delete-branch
+   * flags. Returns a sparse object containing only the fields the upstream
+   * API exposes (consumers should treat missing keys as "unknown").
+   *
+   * @returns {Promise<Partial<{
+   *   allow_squash_merge: boolean,
+   *   allow_rebase_merge: boolean,
+   *   allow_merge_commit: boolean,
+   *   allow_auto_merge: boolean,
+   *   delete_branch_on_merge: boolean,
+   * }>>}
+   */
+  async getMergeMethods() {
+    throw new Error('Not implemented: getMergeMethods');
+  }
+
+  /**
+   * PATCH the repo with the supplied merge-method settings. Body is sparse —
+   * only the supplied fields are sent / touched.
+   *
+   * @param {Partial<{
+   *   allow_squash_merge: boolean,
+   *   allow_rebase_merge: boolean,
+   *   allow_merge_commit: boolean,
+   *   allow_auto_merge: boolean,
+   *   delete_branch_on_merge: boolean,
+   * }>} _settings
+   * @returns {Promise<{ patched: string[] }>}
+   */
+  async setMergeMethods(_settings) {
+    throw new Error('Not implemented: setMergeMethods');
+  }
 }

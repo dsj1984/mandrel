@@ -87,6 +87,66 @@ When the GitHub token lacks the permissions needed to write protection
 rules, the failure is logged and the bootstrap continues — the rest of
 the setup still succeeds.
 
+### Repo settings + workflow templates (Epic #1235 Stories 1–5)
+
+After branch protection, the bootstrap promotes the framework's
+hands-off-pipeline stance onto the consumer repo. Three new steps run in
+sequence:
+
+1. **Branch protection (extended).** On top of the additive merge of
+   `prGate.checks` (above), the writer now stamps
+   `enforce_admins: true` and
+   `required_pull_request_reviews.required_approving_review_count: 0`
+   onto the rule. Admins can no longer bypass the CI suite; the
+   approval-count is zero so the **bot approver** (Story 3, see runbook
+   below) is the load-bearing reviewer rather than a human queue.
+
+   If the consumer's existing rule diverges on either of those fields,
+   the bootstrap routes the proposed payload through the HITL confirm
+   gate before applying it.
+
+2. **Merge methods.** GitHub repo settings are PATCHed to match the
+   framework defaults:
+
+   | Field | Default | Why |
+   | --- | --- | --- |
+   | `allow_squash_merge` | `true` | One commit per PR; clean history. |
+   | `allow_rebase_merge` | `false` | Rebase-merge would need status checks re-run per commit. |
+   | `allow_merge_commit` | `false` | No merge commits cluttering `main`. |
+   | `allow_auto_merge` | `true` | Required for the auto-merge label (Story 1). |
+   | `delete_branch_on_merge` | `true` | Head branches are throwaway. |
+
+   Override per-consumer via `agentSettings.quality.mergeMethods` in
+   `.agentrc.json`. Any drift between config + live repo routes through
+   HITL before a PATCH lands.
+
+3. **Workflow templates.** The Story 2 (`triage-pr-failure`) and Story 4
+   (`auto-fix`) workflows + their helper scripts are copied from
+   `.agents/templates/` into the consumer's `.github/workflows/` and
+   `.agents/scripts/`. First-run consumers get them by default; re-runs
+   are idempotent (content-identical files are skipped). If a target
+   file has drifted from the framework source, the copier routes through
+   HITL before overwriting it.
+
+#### Non-interactive contract
+
+Every behavior-shifting step calls `bootstrap/hitl-confirm.js`. When
+stdout is not a TTY (CI, sub-agents, redirected pipes), the gate logs
+`[bootstrap] aborting: no TTY available for HITL confirm (set --assume-yes to bypass)`
+to stderr and returns false — the step is then a no-op rather than a
+silent apply. CI callers that *do* want to apply automatically pass
+`--assume-yes`. Pure-additive changes (label creation, project field
+appends, status-check name appends) are non-interactive as before; only
+the new behavior-shifting steps route through the gate.
+
+#### Story 3 — bot approver (operator-driven)
+
+The bot approver is **not** auto-provisioned. Operators install the
+PAT-backed approver workflow per the Story 3 runbook (see
+`docs/runbooks/bot-approver.md`). The bootstrap stamps the
+`required_approving_review_count: 0` rule that makes the bot's approval
+the load-bearing reviewer, but the bot itself is opt-in.
+
 ## Troubleshooting
 
 - **"No orchestration block"**: Add the `orchestration` object to your
