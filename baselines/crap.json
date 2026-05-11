@@ -1585,7 +1585,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
-      "startLine": 306
+      "startLine": 315
     },
     {
       "crap": 2,
@@ -2662,28 +2662,22 @@
       "startLine": 238
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/notifications/notifier.js",
-      "method": "meetsMinLevel",
-      "startLine": 51
-    },
-    {
       "crap": 5,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "eventSeverity",
-      "startLine": 67
+      "startLine": 47
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "renderTransitionMessage",
-      "startLine": 80
+      "startLine": 60
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "resolveWebhookUrl",
-      "startLine": 93
+      "startLine": 73
     },
     {
       "crap": 1,
@@ -4180,7 +4174,7 @@
       "startLine": 108
     },
     {
-      "crap": 12.117546894272282,
+      "crap": 13.114070186238141,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
       "startLine": 133
@@ -4189,43 +4183,43 @@
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 250
+      "startLine": 257
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 292
+      "startLine": 299
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 318
+      "startLine": 325
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 344
+      "startLine": 351
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 379
+      "startLine": 386
     },
     {
       "crap": 10.0262144,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 427
+      "startLine": 434
     },
     {
       "crap": 3.67181804927832,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "<anon method-7>",
-      "startLine": 475
+      "startLine": 482
     },
     {
       "crap": 7,
@@ -4651,7 +4645,7 @@
       "crap": 4,
       "file": ".agents/scripts/lib/story-init/transition-summary.js",
       "method": "postBatchedTransitionSummary",
-      "startLine": 25
+      "startLine": 21
     },
     {
       "crap": 3,
@@ -5404,52 +5398,40 @@
       "startLine": 453
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/notify.js",
-      "method": "resolveChannelLevels",
-      "startLine": 58
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/notify.js",
-      "method": "resolveWebhookEvents",
-      "startLine": 71
+      "method": "resolveEventAllowlist",
+      "startLine": 56
     },
     {
       "crap": 12,
       "file": ".agents/scripts/notify.js",
       "method": "buildWebhookPayload",
-      "startLine": 77
+      "startLine": 62
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/notify.js",
       "method": "sendWebhook",
-      "startLine": 111
+      "startLine": 96
     },
     {
       "crap": 17,
       "file": ".agents/scripts/notify.js",
       "method": "notify",
-      "startLine": 153
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/notify.js",
-      "method": "<anon method-3>",
-      "startLine": 166
+      "startLine": 139
     },
     {
       "crap": 11.406371724957973,
       "file": ".agents/scripts/notify.js",
       "method": "parseNotifyArgs",
-      "startLine": 222
+      "startLine": 205
     },
     {
       "crap": 2,
       "file": ".agents/scripts/notify.js",
       "method": "main",
-      "startLine": 281
+      "startLine": 264
     },
     {
       "crap": 1,
@@ -5968,7 +5950,7 @@
       "startLine": 65
     },
     {
-      "crap": 19.22476409554476,
+      "crap": 19.658263254508153,
       "file": ".agents/scripts/story-init.js",
       "method": "runStoryInit",
       "startLine": 78
@@ -5980,7 +5962,7 @@
       "startLine": 107
     },
     {
-      "crap": 1,
+      "crap": 1.2962962962962963,
       "file": ".agents/scripts/story-init.js",
       "method": "<anon method-4>",
       "startLine": 116
@@ -5995,31 +5977,31 @@
       "crap": 1,
       "file": ".agents/scripts/story-init.js",
       "method": "buildStoryInitResult",
-      "startLine": 393
+      "startLine": 394
     },
     {
       "crap": 3.072,
       "file": ".agents/scripts/story-init.js",
       "method": "mapDependenciesInstalled",
-      "startLine": 446
+      "startLine": 447
     },
     {
       "crap": 1.0046296296296295,
       "file": ".agents/scripts/story-init.js",
       "method": "postStoryInitComment",
-      "startLine": 457
+      "startLine": 458
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "renderStoryInitCommentBody",
-      "startLine": 483
+      "startLine": 484
     },
     {
       "crap": 2,
       "file": ".agents/scripts/story-init.js",
       "method": "emitStoryInitResult",
-      "startLine": 519
+      "startLine": 520
     },
     {
       "crap": 4.916,

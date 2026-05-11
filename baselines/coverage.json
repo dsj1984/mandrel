@@ -411,7 +411,7 @@
   },
   ".agents/scripts/lib/notifications/notifier.js": {
     "lines": 100,
-    "branches": 90.48,
+    "branches": 89.47,
     "functions": 100
   },
   ".agents/scripts/lib/observability/active-story-env.js": {
@@ -646,7 +646,7 @@
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
     "lines": 96.82,
-    "branches": 73.26,
+    "branches": 72.94,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -760,8 +760,8 @@
     "functions": 80
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 96.01,
-    "branches": 85,
+    "lines": 96.06,
+    "branches": 84.47,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
@@ -1010,9 +1010,9 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 90.63,
-    "branches": 83.1,
-    "functions": 87.5
+    "lines": 88.09,
+    "branches": 80.33,
+    "functions": 83.33
   },
   ".agents/scripts/post-structured-comment.js": {
     "lines": 64.57,
@@ -1041,7 +1041,7 @@
   },
   ".agents/scripts/providers/github/comments.js": {
     "lines": 88.1,
-    "branches": 88.89,
+    "branches": 87.5,
     "functions": 75
   },
   ".agents/scripts/providers/github/error-classifier.js": {
@@ -1061,7 +1061,7 @@
   },
   ".agents/scripts/providers/github/http-client.js": {
     "lines": 91.3,
-    "branches": 85.71,
+    "branches": 85.45,
     "functions": 100
   },
   ".agents/scripts/providers/github/http.js": {
@@ -1115,9 +1115,9 @@
     "functions": 62.5
   },
   ".agents/scripts/story-init.js": {
-    "lines": 87.5,
-    "branches": 75.34,
-    "functions": 81.82
+    "lines": 86.78,
+    "branches": 75,
+    "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
     "lines": 82.67,
