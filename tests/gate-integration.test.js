@@ -164,7 +164,14 @@ function runCheckCrap(cwd) {
   // resolveConfig() at the temp dir's synthetic `.agentrc.json` instead of
   // the real repo's. Without it, the subprocess would resolve config from
   // the real project root and ignore the fixture entirely.
-  return spawnSync('node', [CHECK_CRAP_SCRIPT], {
+  //
+  // Story #1394 (Epic #1386): the gate CLI now defaults to a diff-scoped
+  // scan against `main`. The temp fixture is not a git repo, so the diff
+  // resolution would fail before reaching the bootstrap / disabled paths
+  // these tests want to exercise. `--full-scope` opts back into the legacy
+  // whole-repo behavior — exactly the surface these behavior tests pre-
+  // existed to validate.
+  return spawnSync('node', [CHECK_CRAP_SCRIPT, '--full-scope'], {
     cwd,
     env: { ...process.env, AP_AGENTRC_CWD: cwd },
     encoding: 'utf8',

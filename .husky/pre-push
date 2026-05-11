@@ -1,7 +1,5 @@
 npm run lint
 npm run format:check
-npm run maintainability:check
-npm audit --audit-level=high
 # Diff against the REMOTE main (origin/main), not the local main ref.
 # When pushing from a feature branch that's caught up to local main, the two
 # are equivalent. When pushing FROM main (a release commit, an emergency
@@ -10,5 +8,13 @@ npm audit --audit-level=high
 # slip into CI's full-repo scan (regression seen on the 5.29.0 push).
 # `origin/main` makes the diff equal to "unpushed commits", which is exactly
 # what pre-push should validate. (Story #829, 2026-04-26.)
+#
+# Story #1394 (Epic #1386): the gate CLIs now default `--changed-since` to
+# the local `main` ref. We pass `origin/main` explicitly here so the diff
+# stays aligned with what's actually being pushed, regardless of how stale
+# the local `main` happens to be on the operator's machine. MI grew the
+# explicit ref for symmetry with CRAP — both gates now scope identically.
+npm run maintainability:check -- --changed-since origin/main
+npm audit --audit-level=high
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check -- --changed-since origin/main
