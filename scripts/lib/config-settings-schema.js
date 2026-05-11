@@ -56,6 +56,13 @@ const MAINTAINABILITY_CRAP_SCHEMA = {
     newMethodCeiling: { type: 'integer', minimum: 1 },
     coveragePath: { ...SAFE_STRING, minLength: 1 },
     tolerance: { type: 'number', minimum: 0 },
+    // c=1 method exemption strategy. "blanket" (default) preserves the
+    // current Windows-V8-noise carve-out for trivial methods; "confidenceBand"
+    // replaces it with a per-method statistical band sourced from the
+    // noise-study artifact. Epic #1386 lands the schema in advance; the
+    // gate scripts default to "blanket" until a noise study justifies
+    // flipping the project setting.
+    c1Exemption: { type: 'string', enum: ['blanket', 'confidenceBand'] },
     requireCoverage: { type: 'boolean' },
     friction: {
       type: 'object',
@@ -101,6 +108,11 @@ const MAINTAINABILITY_QUALITY_SCHEMA = {
     // escomplex updates) where typical noise is +/- 0.3; tighten it on
     // stable codebases that want hyper-strict tracking.
     tolerance: { type: 'number', minimum: 0 },
+    // Optional separate tolerance for the Halstead-volume term of MI; when
+    // null (the default), the unified `tolerance` above governs the whole
+    // MI score. Epic #1386 noise-study-driven re-tune may flip this to a
+    // small positive number once cross-platform variance is measured.
+    halsteadTolerance: { type: ['number', 'null'], minimum: 0 },
   },
   additionalProperties: false,
 };
@@ -296,6 +308,58 @@ const BASELINE_ENTRY_SCHEMA = {
 };
 
 /**
+ * `quality.codingGuardrails` — Story #1399 (Epic #1386). Numeric coding-time
+ * thresholds the helper at `.agents/workflows/helpers/code-quality-guardrails.md`
+ * cites. Promoting the numbers into config means projects can tune them via
+ * `.agentrc.json` without forking the helper. `cyclomaticFlag` /
+ * `cyclomaticMustFix` drive the review-time annotation vs must-fix split;
+ * `miDropRefactor` is the per-file MI-drop ceiling above which a regression
+ * requires a same-Story refactor; `requireSiblingTest` (default `false`) is
+ * the structural enforcement toggle for the sibling-test convention enforced
+ * by `task-commit.js --require-sibling-test`.
+ */
+const CODING_GUARDRAILS_SCHEMA = {
+  type: 'object',
+  properties: {
+    cyclomaticFlag: { type: 'integer', minimum: 1 },
+    cyclomaticMustFix: { type: 'integer', minimum: 1 },
+    miDropRefactor: { type: 'number', minimum: 0 },
+    requireSiblingTest: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
+/**
+ * `agentSettings.quality.autoRefresh` — bounded baseline auto-refresh at
+ * story-close (Story #1398, Epic #1386). When `enabled`, story-close
+ * regenerates the baseline rows scoped to the Story diff after pre-merge
+ * validation passes and amends them into the close commit if every row's
+ * delta is at or below the configured caps. Over-cap rows are surfaced as
+ * a `baseline-refresh-regression` friction signal and the close commit
+ * is left untouched.
+ *
+ *   - `miDropCap` — maximum allowed drop in per-file MI score (higher MI
+ *     is better; default 1.5).
+ *   - `crapJumpCap` — maximum allowed jump in per-method CRAP score (lower
+ *     CRAP is better; default 5).
+ *   - `scope` — `'diff'` restricts auto-refresh to files the Story changed
+ *     vs `epic/<id>` (default); `'full'` regenerates the full baseline.
+ *
+ * Both cap fields are required-when-present-and-positive numbers; the
+ * resolver fills missing keys from the framework defaults.
+ */
+const AUTO_REFRESH_SCHEMA = {
+  type: 'object',
+  properties: {
+    enabled: { type: 'boolean' },
+    miDropCap: { type: 'number', minimum: 0 },
+    crapJumpCap: { type: 'number', minimum: 0 },
+    scope: { type: 'string', enum: ['diff', 'full'] },
+  },
+  additionalProperties: false,
+};
+
+/**
  * `agentSettings.quality` is the unified home for every enforcement engine in
  * the framework: ratchet baselines (Story 5.5), per-method MI targeting,
  * CRAP scoring, and the PR-gate command suite (Story 6). The old flat
@@ -319,6 +383,8 @@ const QUALITY_SCHEMA = {
     crap: MAINTAINABILITY_CRAP_SCHEMA,
     prGate: PR_GATE_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
+    codingGuardrails: CODING_GUARDRAILS_SCHEMA,
+    autoRefresh: AUTO_REFRESH_SCHEMA,
   },
   additionalProperties: false,
 };

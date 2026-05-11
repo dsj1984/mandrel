@@ -34,6 +34,7 @@ import { parseArgs } from 'node:util';
 
 import { assertBranch } from './assert-branch.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import { gitSpawn, gitSync } from './lib/git-utils.js';
 
 const VALID_TYPES = new Set([
@@ -52,7 +53,7 @@ const VALID_TYPES = new Set([
 
 const HELP = `Usage: node .agents/scripts/task-commit.js \\
   --story <id> --task <id> --type <type> --title "<title>" \\
-  [--scope <scope>] [--paths <p1> <p2> ...]
+  [--scope <scope>] [--paths <p1> <p2> ...] [--require-sibling-test]
 
 Flags:
   --story    Story ID — used to derive the expected branch (\`story-<id>\`).
@@ -64,6 +65,11 @@ Flags:
              when blank.
   --paths    Optional explicit paths to stage. When omitted, falls back to
              \`git add -u\` (modified-tracked-files only).
+  --require-sibling-test
+             Refuse to commit when a staged-add source file under \`src/\` lacks
+             a sibling \`<basename>.test.<ext>\` in the same commit. Default
+             sourced from \`agentSettings.quality.codingGuardrails.requireSiblingTest\`.
+             Story #1399 (Epic #1386).
   --help     Show this message.
 
 Output: JSON { sha: <7-char>, branch, subject } on stdout.
@@ -105,6 +111,128 @@ export function buildCommitSubject({ type, scope, title, taskId }) {
   return `${type}${scopeChunk}: ${lowered} (resolves #${taskId})`;
 }
 
+// File extensions the sibling-test guard treats as "source" — only modules
+// that escomplex / CRAP would key on get the structural rule.
+const SOURCE_EXTENSIONS = new Set([
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.tsx',
+  '.jsx',
+]);
+
+// Story #1399 (Epic #1386) — stripping the source extension off a basename so
+// `<basename>.test.<ext>` can be matched without re-encoding the extension
+// table. Returns null when the file is not a recognised source extension.
+function basenameWithoutSourceExt(file) {
+  const slashIdx = Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\'));
+  const base = slashIdx === -1 ? file : file.slice(slashIdx + 1);
+  const dotIdx = base.lastIndexOf('.');
+  if (dotIdx <= 0) return null;
+  const ext = base.slice(dotIdx);
+  if (!SOURCE_EXTENSIONS.has(ext)) return null;
+  return base.slice(0, dotIdx);
+}
+
+/**
+ * Story #1399 (Epic #1386) — partition the `git diff --cached --name-status`
+ * output into "new source files needing a sibling test" and "test files added
+ * in the same commit". A staged add (`A` status) under `src/` whose extension
+ * is recognised source AND whose basename does not already end in `.test`
+ * counts as the source side; any staged add (or modify, `M`) whose basename
+ * ends in `<sourceBase>.test.<ext>` counts as a sibling test for that
+ * sourceBase. The check intentionally only looks at `src/` so production code
+ * is the sole target — `.agents/scripts/` and `tests/` themselves are
+ * exempt.
+ *
+ * Exported for unit tests so the policy is exercised without a real git
+ * staging area.
+ *
+ * @param {string} stagedNameStatusStdout - raw stdout from `git diff --cached --name-status`
+ * @returns {{ missing: string[], present: string[] }}
+ */
+export function partitionStagedForSiblingTest(stagedNameStatusStdout) {
+  const lines = String(stagedNameStatusStdout || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  const newSourceBases = []; // [{ file, base }]
+  const stagedTestBases = new Set();
+
+  for (const line of lines) {
+    // `git diff --cached --name-status` emits `<status>\t<path>` (and
+    // `<status>\t<old>\t<new>` for renames). We treat the rename target as
+    // the staged path.
+    const parts = line.split(/\t/);
+    const status = parts[0];
+    const file = parts[parts.length - 1];
+    if (!file) continue;
+    // Normalise to forward slashes so cross-platform paths compare cleanly.
+    const norm = file.replace(/\\/g, '/');
+    const base = basenameWithoutSourceExt(norm);
+    if (!base) continue;
+    // Sibling test detection — any staged file whose basename ends `.test`
+    // (e.g. `foo.test.js`) is a sibling for `foo`.
+    if (base.endsWith('.test')) {
+      stagedTestBases.add(base.slice(0, -'.test'.length));
+      continue;
+    }
+    // Only newly-added (`A`) production source under `src/` triggers the
+    // requirement. Modifies / deletes are ignored — the rule is structural,
+    // about brand-new modules, not every churned file.
+    if (status === 'A' && norm.startsWith('src/')) {
+      newSourceBases.push({ file: norm, base });
+    }
+  }
+
+  const missing = [];
+  const present = [];
+  for (const { file, base } of newSourceBases) {
+    if (stagedTestBases.has(base)) present.push(file);
+    else missing.push(file);
+  }
+  return { missing, present };
+}
+
+/**
+ * Story #1399 (Epic #1386) — resolve the effective `requireSiblingTest`
+ * setting. Priority order: explicit boolean from the CLI flag (`true` /
+ * `false`) wins; otherwise load `.agentrc.json` from `cwd` and read
+ * `agentSettings.quality.codingGuardrails.requireSiblingTest` (which itself
+ * defaults to `false` in the resolver). Exported for tests; tests pass a
+ * `resolveConfigImpl` that returns a synthetic config wrapper so the gate
+ * decision is exercised without touching disk.
+ *
+ * @param {{
+ *   cliFlag?: boolean,
+ *   cwd?: string,
+ *   resolveConfigImpl?: typeof resolveConfig,
+ *   getQualityImpl?: typeof getQuality,
+ * }} args
+ * @returns {boolean}
+ */
+export function resolveSiblingTestFlag(args = {}) {
+  const {
+    cliFlag,
+    cwd,
+    resolveConfigImpl = resolveConfig,
+    getQualityImpl = getQuality,
+  } = args;
+  if (typeof cliFlag === 'boolean') return cliFlag;
+  try {
+    const config = resolveConfigImpl({ cwd });
+    const quality = getQualityImpl(config);
+    return Boolean(quality?.codingGuardrails?.requireSiblingTest);
+  } catch {
+    // If config resolution fails (no .agentrc.json, missing fields), fall
+    // back to the framework default — the rule is opt-in and we never want
+    // a config hiccup to start failing commits silently.
+    return false;
+  }
+}
+
 /**
  * Stage + commit + verify. Dependency-injection-friendly so tests can swap the
  * git runner and the branch-asserter.
@@ -117,9 +245,11 @@ export function buildCommitSubject({ type, scope, title, taskId }) {
  *   scope?: string,
  *   paths?: string[],
  *   cwd?: string,
+ *   requireSiblingTest?: boolean,
  *   gitSpawnImpl?: typeof gitSpawn,
  *   gitSyncImpl?: typeof gitSync,
  *   assertBranchImpl?: typeof assertBranch,
+ *   getQualityImpl?: typeof getQuality,
  * }} args
  * @returns {{ sha: string, branch: string, subject: string }}
  */
@@ -132,9 +262,12 @@ export function runTaskCommit(args) {
     scope,
     paths = [],
     cwd = process.cwd(),
+    requireSiblingTest,
     gitSpawnImpl = gitSpawn,
     gitSyncImpl = gitSync,
     assertBranchImpl = assertBranch,
+    resolveConfigImpl = resolveConfig,
+    getQualityImpl = getQuality,
   } = args ?? {};
 
   if (!Number.isInteger(storyId) || storyId <= 0) {
@@ -158,6 +291,34 @@ export function runTaskCommit(args) {
     throw new Error(
       `[task-commit] git ${stageArgs.join(' ')} failed: ${stage.stderr}`,
     );
+  }
+
+  // 2.5. Sibling-test guard (Story #1399). When the flag is on (CLI override
+  //      or `agentSettings.quality.codingGuardrails.requireSiblingTest`), any
+  //      newly-added `src/**/*.<source-ext>` must come with a same-commit
+  //      sibling `<basename>.test.<ext>`. The check fires after staging so
+  //      the user-supplied --paths set has already taken effect.
+  const siblingFlagOn = resolveSiblingTestFlag({
+    cliFlag: requireSiblingTest,
+    cwd,
+    resolveConfigImpl,
+    getQualityImpl,
+  });
+  if (siblingFlagOn) {
+    const staged = gitSpawnImpl(cwd, 'diff', '--cached', '--name-status');
+    if (staged.status !== 0) {
+      throw new Error(
+        `[task-commit] git diff --cached --name-status failed: ${staged.stderr}`,
+      );
+    }
+    const { missing } = partitionStagedForSiblingTest(staged.stdout);
+    if (missing.length) {
+      throw new Error(
+        `[task-commit] requireSiblingTest: new source file(s) lack a sibling test in this commit:\n  ${missing.join(
+          '\n  ',
+        )}\nAdd a sibling \`<basename>.test.<ext>\` next to the source file (or pass --no-require-sibling-test to opt out — but see helpers/code-quality-guardrails.md).`,
+      );
+    }
   }
 
   // 3. Build the subject + 4. commit (hooks run — never --no-verify).
@@ -207,6 +368,8 @@ export function parseArgv(argv) {
       title: { type: 'string' },
       scope: { type: 'string' },
       paths: { type: 'string', multiple: true },
+      'require-sibling-test': { type: 'boolean' },
+      'no-require-sibling-test': { type: 'boolean' },
       help: { type: 'boolean' },
     },
     allowPositionals: true,
@@ -215,6 +378,11 @@ export function parseArgv(argv) {
   // node:util parseArgs only treats `--paths` flag instances as repeats; allow
   // a trailing positional list too so `--paths a b c` works as documented.
   const paths = [...(values.paths ?? []), ...(positionals ?? [])];
+  // Story #1399 — explicit overrides win over config; passing neither leaves
+  // the resolver to consult `quality.codingGuardrails.requireSiblingTest`.
+  let requireSiblingTest;
+  if (values['no-require-sibling-test']) requireSiblingTest = false;
+  else if (values['require-sibling-test']) requireSiblingTest = true;
   return {
     help: Boolean(values.help),
     storyId: Number.parseInt(values.story ?? '', 10),
@@ -223,6 +391,7 @@ export function parseArgv(argv) {
     title: values.title,
     scope: values.scope,
     paths,
+    requireSiblingTest,
   };
 }
 

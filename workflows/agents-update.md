@@ -105,6 +105,69 @@ If the helper reports `No changes required`, the config is already in
 sync — carry on. Otherwise, review the change report before the
 commit in Step 4.
 
+## Step 3.5 — Upgrade the stabilized-quality-gates surface (Epic #1386)
+
+A framework bump that crosses the Epic #1386 boundary requires four
+additive installs on the consumer project so the new gate behaviour is
+actually wired into the consumer's commit / push / CI surfaces. The
+installs share the same idempotent helpers
+[`/agents-bootstrap-project`](agents-bootstrap-project.md) Step 7.5 uses,
+so a project that already ran the bootstrap on a post-Epic #1386
+framework version sees `no-change` everywhere here.
+
+Run from the consumer repo root:
+
+```bash
+node -e "
+  Promise.all([
+    import('./.agents/scripts/lib/bootstrap/quality-bootstrap.js'),
+    import('./.agents/scripts/lib/bootstrap/baselines-layout-migration.js'),
+  ]).then(([qb, bm]) => {
+    const root = process.cwd();
+    const quality = qb.applyQualityBootstrap({ projectRoot: root });
+    const baselines = bm.migrateBaselinesLayout({
+      baselinesDir: require('node:path').join(root, 'baselines'),
+    });
+    console.log(JSON.stringify({ quality, baselines }, null, 2));
+  });
+"
+```
+
+The four `quality-bootstrap` outcomes:
+
+1. **`helper`** — copies
+   [`code-quality-guardrails.md`](helpers/code-quality-guardrails.md)
+   into the project's `.agents/workflows/helpers/`. Reports
+   `present-via-submodule` when `.agents/` is a submodule (the helper
+   already lives upstream).
+2. **`hook`** — installs `.husky/pre-commit` carrying the
+   diff-scoped `quality:preview` invocation. **Custom hooks are
+   preserved**: when a non-framework hook already exists the action is
+   `custom-hook-skip` and the helper returns the recommended snippet
+   the operator should append by hand. Print the notice and move on —
+   never overwrite a custom hook silently.
+3. **`scripts`** — backfills `quality:preview` and `quality:watch` in
+   `package.json` only when the keys are absent. Existing operator
+   values survive.
+4. **`config`** — seeds `agentSettings.quality.codingGuardrails` and
+   `agentSettings.quality.autoRefresh` defaults in `.agentrc.json`.
+   Only missing keys are written — operator overrides survive.
+
+The `baselines-layout-migration` step relocates legacy per-Epic
+snapshots into the `baselines/epic/<id>/` subdirectory contract that
+Story #1396 of Epic #1386 introduced:
+
+- Loose `baselines/epic-<id>-{maintainability,crap}.json` files →
+  moved under `baselines/epic/<id>/`.
+- Legacy `baselines/snapshots/<id>/{maintainability,crap}.json` trees →
+  re-keyed under `baselines/epic/<id>/`.
+- The main-tracked `baselines/{maintainability,crap}.json` files at
+  the root are **not** touched — they remain the `main`-baseline
+  contract for the framework.
+
+A second run produces `no-change` on every install path, which is the
+guarantee `agents-update`'s idempotence contract requires.
+
 ## Step 4 — Review the CHANGELOG and update consumer-side memories
 
 Framework upgrades change behaviour the consumer project's own

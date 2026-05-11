@@ -24,8 +24,14 @@ velocity.
 
 Analyze the repository with a focus on:
 
-- **Logic Complexity:** Identify functions with high cyclomatic complexity or
-  deep nesting.
+- **Logic Complexity:** Apply the cyclomatic / Maintainability-Index ceilings
+  from
+  [`helpers/code-quality-guardrails.md`](helpers/code-quality-guardrails.md):
+  cyclomatic complexity > 8 (`agentSettings.quality.codingGuardrails.cyclomaticFlag`)
+  is **flag in review** (annotate or split); > 12
+  (`codingGuardrails.cyclomaticMustFix`) is **must-fix** before the work merges.
+  A per-file MI drop > 1.5pt (`codingGuardrails.miDropRefactor`) requires a
+  refactor in the same Story rather than a baseline bump.
 - **Duplication:** Find "copy-paste" logic that should be abstracted into
   reusable utilities or hooks.
 - **Component Health:** In UI code, look for "component bloat" (files > 300

@@ -38,10 +38,14 @@ export {
 } from './config/limits.js';
 export { getPaths, PATHS_DEFAULTS, resolvePaths } from './config/paths.js';
 export {
+  AUTO_REFRESH_DEFAULTS,
+  CODING_GUARDRAILS_DEFAULTS,
   getQuality,
   MAINTAINABILITY_CRAP_DEFAULTS,
   MAINTAINABILITY_QUALITY_DEFAULTS,
   PR_GATE_DEFAULTS,
+  resolveAutoRefresh,
+  resolveCodingGuardrails,
   resolveMaintainabilityCrap,
   resolveMaintainabilityQuality,
   resolvePrGate,
