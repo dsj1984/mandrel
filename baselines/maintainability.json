@@ -280,7 +280,7 @@
   "tests/baselines-byte-identical-js-only.test.js": 86.955,
   "tests/bootstrap.test.js": 110.318,
   "tests/bootstrap/agents-bootstrap-github.integration.test.js": 102.568,
-  "tests/bootstrap/agents-update-migration.test.js": 90.127,
+  "tests/bootstrap/agents-update-migration.test.js": 92.974,
   "tests/bootstrap/branch-protection.test.js": 94.744,
   "tests/bootstrap/hitl-confirm.test.js": 102.141,
   "tests/bootstrap/merge-methods.test.js": 106.594,

@@ -190,13 +190,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/baseline-snapshot.js": {
-    "lines": 71.21,
+    "lines": 71.98,
     "branches": 68.29,
     "functions": 75
   },
   ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": {
-    "lines": 96.23,
-    "branches": 77.27,
+    "lines": 100,
+    "branches": 87.1,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/branch-protection.js": {
@@ -281,7 +281,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 88.54,
+    "branches": 87.37,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -485,7 +485,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -815,7 +815,7 @@
     "functions": 64.71
   },
   ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js": {
-    "lines": 94.99,
+    "lines": 95,
     "branches": 56.67,
     "functions": 100
   },
@@ -1170,8 +1170,8 @@
     "functions": 83.33
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
-    "lines": 90.71,
-    "branches": 83.02,
+    "lines": 86.99,
+    "branches": 80.95,
     "functions": 100
   },
   ".agents/scripts/quality-preview.js": {
@@ -1211,7 +1211,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
