@@ -5,7 +5,7 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.31,
+    "lines": 93.27,
     "branches": 61.64,
     "functions": 100
   },
@@ -43,6 +43,11 @@
     "lines": 82.8,
     "branches": 72,
     "functions": 100
+  },
+  ".agents/scripts/diagnose.js": {
+    "lines": 87.31,
+    "branches": 83.33,
+    "functions": 66.67
   },
   ".agents/scripts/dispatcher.js": {
     "lines": 56.5,
@@ -195,6 +200,56 @@
     "functions": 100
   },
   ".agents/scripts/lib/changed-files.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/core-bare-clean.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/delete-epic-branches-naming.js": {
+    "lines": 100,
+    "branches": 75,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/epic-merge-lock-stale.js": {
+    "lines": 100,
+    "branches": 64.29,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/index.js": {
+    "lines": 95.51,
+    "branches": 72,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/notifier-stub-required.js": {
+    "lines": 97.74,
+    "branches": 81.08,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/stale-origin-epic.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/state.js": {
+    "lines": 92.33,
+    "branches": 87.23,
+    "functions": 81.82
+  },
+  ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
+    "lines": 96.7,
+    "branches": 81.25,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
+    "lines": 96.7,
+    "branches": 72.73,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
     "lines": 100,
     "branches": 100,
     "functions": 100
@@ -370,7 +425,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -431,12 +486,12 @@
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
     "lines": 98.63,
-    "branches": 81.2,
+    "branches": 81.03,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 97.24,
-    "branches": 74.36,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -1131,7 +1186,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
