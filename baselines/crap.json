@@ -544,6 +544,60 @@
       "startLine": 614
     },
     {
+      "crap": 7,
+      "file": ".agents/scripts/epic-deliver-automerge.js",
+      "method": "parseAutomergeArgs",
+      "startLine": 47
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-deliver-automerge.js",
+      "method": "buildGhMergeArgs",
+      "startLine": 79
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-deliver-automerge.js",
+      "method": "defaultGhSpawn",
+      "startLine": 83
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/epic-deliver-automerge.js",
+      "method": "runEpicDeliverAutomerge",
+      "startLine": 122
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/epic-deliver-automerge.js",
+      "method": "main",
+      "startLine": 202
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/epic-deliver-cleanup.js",
+      "method": "parseCleanupArgs",
+      "startLine": 47
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/epic-deliver-cleanup.js",
+      "method": "runEpicDeliverCleanup",
+      "startLine": 82
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/epic-deliver-cleanup.js",
+      "method": "renderSummaryLines",
+      "startLine": 162
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/epic-deliver-cleanup.js",
+      "method": "main",
+      "startLine": 175
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrCreateArgs",
@@ -596,6 +650,24 @@
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "main",
       "startLine": 350
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/epic-deliver-note-intervention.js",
+      "method": "parseNoteArgs",
+      "startLine": 48
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-deliver-note-intervention.js",
+      "method": "runNoteIntervention",
+      "startLine": 84
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/epic-deliver-note-intervention.js",
+      "method": "main",
+      "startLine": 115
     },
     {
       "crap": 4.006503073718437,
@@ -2674,6 +2746,30 @@
       "startLine": 311
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/automerge-predicate.js",
+      "method": "parseSeverityCounts",
+      "startLine": 41
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/automerge-predicate.js",
+      "method": "<anon method-1>",
+      "startLine": 45
+    },
+    {
+      "crap": 25.015443015501585,
+      "file": ".agents/scripts/lib/orchestration/automerge-predicate.js",
+      "method": "deriveAutoMergeVerdict",
+      "startLine": 83
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/automerge-predicate.js",
+      "method": "evaluateAutoMergePredicate",
+      "startLine": 200
+    },
+    {
       "crap": 7.0087619547876425,
       "file": ".agents/scripts/lib/orchestration/code-review.js",
       "method": "runCodeReview",
@@ -4180,82 +4276,76 @@
       "startLine": 141
     },
     {
-      "crap": 10,
+      "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderWaveSections",
-      "startLine": 155
+      "method": "deriveWaveStatus",
+      "startLine": 158
     },
     {
-      "crap": 1,
+      "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderInlineLegend",
-      "startLine": 229
+      "method": "renderWaveSections",
+      "startLine": 182
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderProceduresAndLegendDetails",
-      "startLine": 246
+      "startLine": 231
     },
     {
       "crap": 13.061588921282798,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "topoSortTasks",
-      "startLine": 293
+      "startLine": 278
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "computeStoryProgress",
-      "startLine": 357
+      "startLine": 342
     },
     {
-      "crap": 6,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "deriveWaveStatusLabel",
-      "startLine": 375
-    },
-    {
-      "crap": 16.00014814814815,
+      "crap": 18.0001875,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderNestedWaveSections",
-      "startLine": 400
+      "startLine": 358
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 529
+      "startLine": 487
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 539
+      "startLine": 497
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 545
+      "startLine": 503
     },
     {
-      "crap": 13.657950387700984,
+      "crap": 14.563826200895583,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 565
+      "startLine": 523
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 680
+      "startLine": 613
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 745
+      "startLine": 678
     },
     {
       "crap": 1,

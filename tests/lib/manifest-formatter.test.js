@@ -3,10 +3,10 @@ import test from 'node:test';
 import {
   computeProgress,
   computeStoryProgress,
+  deriveWaveStatus,
   formatManifestMarkdown,
   formatStoryManifestMarkdown,
   printStoryDispatchTable,
-  renderInlineLegend,
   renderManifestMarkdown,
   renderNestedWaveSections,
   renderProceduresAndLegendDetails,
@@ -65,25 +65,35 @@ function epicManifest(overrides = {}) {
   };
 }
 
-test('formatter: renders epic header, progress, wave TOC, and nested H2/H3 layout', () => {
+test('formatter: renders epic header, meta line, wave TOC, and nested H2/H3 layout', () => {
   const md = formatManifestMarkdown(epicManifest());
   assert.ok(md.includes('# 📋 Dispatch Manifest — Epic #42'));
   assert.ok(md.includes('> **Demo Epic**'));
-  // TOC table
+  // Meta line folds timestamp + totals on one line; no separate hero section.
+  assert.ok(md.includes('1/4 tasks · 0/2 stories · 2 waves'));
+  assert.ok(!md.includes('## 🏗️ Sprint Progress'));
+  assert.ok(!md.includes('Sprint Progress'));
+  // TOC table — no Progress column (Tasks already shows done/total).
   assert.ok(md.includes('## Wave Summary'));
-  assert.ok(md.includes('| Wave | Status | Progress | Stories | Tasks |'));
-  // Per-wave H2 sections (replace legacy Execution Plan / Story Details)
-  assert.ok(md.includes('## 🚀 Ready Wave 0'));
-  assert.ok(md.includes('## ⏳ Blocked Wave 1'));
-  // Per-Story H3 carries symbol, #id, branch in backticks, 10-cell bar
-  assert.ok(md.includes('### 🔄 #101 — '));
-  assert.ok(md.includes('`story-101`'));
+  assert.ok(md.includes('| Wave | Status | Stories | Tasks |'));
+  assert.ok(!md.includes('| Wave | Status | Progress |'));
+  // Per-wave H2 carries emoji + label only (status word lives in the TOC).
+  assert.ok(md.includes('## 🚀 Wave 0'));
+  assert.ok(md.includes('## ⏳ Wave 1'));
+  assert.ok(!md.includes('## 🚀 Ready Wave 0'));
+  // Per-Story H3 carries symbol, #id, title, done/total tasks. No branch
+  // backticks, no progress bar, no `~?` ETA placeholder.
+  assert.ok(md.includes('### 🔄 #101 — Alpha Story · 1/2 tasks'));
+  assert.ok(!md.includes('`story-101`'));
+  assert.ok(!md.includes('~?'));
   // Tasks render as plain checkbox lines
   assert.ok(md.includes('- [x] #201 — t-a1'));
   assert.ok(md.includes('- [ ] #203 — t-b1'));
   // Legacy headings are gone
   assert.ok(!md.includes('## Execution Plan'));
   assert.ok(!md.includes('## Story Details'));
+  // Inline legend blockquote retired — full legend lives in <details>.
+  assert.ok(!md.includes('**Legend:**'));
 });
 
 test('formatter: feature containers row when features present', () => {
@@ -240,22 +250,26 @@ test('renderProgressBar: respects custom width and clamps out-of-range input', (
   assert.equal(renderProgressBar(-10, { width: 4 }), '░░░░');
 });
 
-test('renderWaveSections: renders one row per wave with status & mini bar', () => {
+test('renderWaveSections: renders one row per wave with status (no Progress column)', () => {
   const md = renderWaveSections(epicManifest().storyManifest);
   assert.ok(md.includes('## Wave Summary'));
-  assert.ok(md.includes('| Wave | Status | Progress | Stories | Tasks |'));
-  // The wave-cell is now a markdown link to the corresponding H2 anchor.
+  assert.ok(md.includes('| Wave | Status | Stories | Tasks |'));
+  assert.ok(!md.includes('| Wave | Status | Progress |'));
+  // The wave-cell is a markdown link to the corresponding H2 anchor.
   assert.ok(md.includes('| [Wave 0](#'));
   assert.ok(md.includes('| [Wave 1](#'));
   assert.ok(md.includes('🚀 Ready'));
   assert.ok(md.includes('⏳ Blocked'));
 });
 
-test('renderWaveSections: each TOC row links to the slug of its wave heading', () => {
+test('renderWaveSections: each TOC row links to the slug of its emoji-only wave heading', () => {
   const md = renderWaveSections(epicManifest().storyManifest);
-  // Wave 0 (no prior waves) is Ready; Wave 1 depends on incomplete Wave 0 → Blocked.
-  const expectedW0 = `#${slugifyHeading(waveHeadingText('Wave 0', '🚀 Ready'))}`;
-  const expectedW1 = `#${slugifyHeading(waveHeadingText('Wave 1', '⏳ Blocked'))}`;
+  // The H2 emits `## <emoji> Wave N`, so the TOC anchor strips the emoji
+  // and produces `wave-N`.
+  const expectedW0 = `#${slugifyHeading(waveHeadingText('Wave 0', '🚀'))}`;
+  const expectedW1 = `#${slugifyHeading(waveHeadingText('Wave 1', '⏳'))}`;
+  assert.equal(expectedW0, '#wave-0');
+  assert.equal(expectedW1, '#wave-1');
   assert.ok(
     md.includes(`| [Wave 0](${expectedW0}) |`),
     `expected Wave 0 link to ${expectedW0}`,
@@ -264,6 +278,30 @@ test('renderWaveSections: each TOC row links to the slug of its wave heading', (
     md.includes(`| [Wave 1](${expectedW1}) |`),
     `expected Wave 1 link to ${expectedW1}`,
   );
+});
+
+test('deriveWaveStatus: returns emoji + word + label for Ready / Blocked / Done', () => {
+  const stats = new Map([
+    [0, { tasks: 2, done: 2 }],
+    [1, { tasks: 2, done: 0 }],
+    [2, { tasks: 2, done: 0 }],
+  ]);
+  const sorted = [0, 1, 2];
+  assert.deepEqual(deriveWaveStatus(0, stats, sorted), {
+    emoji: '✅',
+    word: 'Done',
+    label: '✅ Done',
+  });
+  assert.deepEqual(deriveWaveStatus(1, stats, sorted), {
+    emoji: '🚀',
+    word: 'Ready',
+    label: '🚀 Ready',
+  });
+  assert.deepEqual(deriveWaveStatus(2, stats, sorted), {
+    emoji: '⏳',
+    word: 'Blocked',
+    label: '⏳ Blocked',
+  });
 });
 
 test('slugifyHeading: lowercases ASCII headings', () => {
@@ -315,7 +353,7 @@ test('renderWaveSections: marks a wave done when every task completed', () => {
   assert.ok(md.includes('✅ Done'));
 });
 
-test('renderNestedWaveSections: emits one ## Wave H2 per wave with H3 stories and checkbox tasks', () => {
+test('renderNestedWaveSections: emits one ## emoji Wave N H2 per wave with H3 stories and checkbox tasks', () => {
   const manifest = epicManifest();
   manifest.storyManifest.push({
     storyId: 103,
@@ -327,18 +365,29 @@ test('renderNestedWaveSections: emits one ## Wave H2 per wave with H3 stories an
     tasks: [{ taskId: 205, taskSlug: 't-c1', status: 'agent::ready' }],
   });
   const md = renderNestedWaveSections(manifest.storyManifest);
-  // One H2 per wave; legacy headings gone
+  // One H2 per wave; legacy headings gone; status word stays out of the
+  // heading (it's already in the Wave Summary table).
   assert.ok(!md.includes('## Execution Plan'));
   assert.ok(!md.includes('## Story Details'));
-  const w0 = md.match(/^## 🚀 Ready Wave 0$/gm) || [];
-  const w1 = md.match(/^## ⏳ Blocked Wave 1$/gm) || [];
+  const w0 = md.match(/^## 🚀 Wave 0$/gm) || [];
+  const w1 = md.match(/^## ⏳ Wave 1$/gm) || [];
   assert.equal(w0.length, 1, 'exactly one Wave 0 H2');
   assert.equal(w1.length, 1, 'exactly one Wave 1 H2');
-  // Single-line wave summary with parallel hint when stories > 1
-  assert.ok(md.includes('✅ 2 stories can run in parallel'));
-  // Per-Story H3 carries symbol, #id, branch in backticks, 10-cell bar
-  assert.ok(md.includes('### 🔄 #101 — Alpha Story · `story-101` ·'));
-  assert.ok(md.match(/### 🔄 #101.*[█░]{10}/));
+  // Wave 1 is Blocked → tail names the gating wave.
+  assert.ok(md.includes('· gated on Wave 0'));
+  // Wave 0 is Ready with 1 story → no parallel tail.
+  // Switch Story 103 into Wave 0 to exercise the parallel hint.
+  const md2 = renderNestedWaveSections([
+    ...manifest.storyManifest.slice(0, 1),
+    { ...manifest.storyManifest[2], earliestWave: 0 },
+  ]);
+  assert.ok(md2.includes('· 2 run in parallel'));
+  // Per-Story H3: symbol + #id + title + done/total tasks; no branch
+  // backticks, no progress bar, no `~?` ETA placeholder.
+  assert.ok(md.includes('### 🔄 #101 — Alpha Story · 1/2 tasks'));
+  assert.ok(!md.includes('`story-101`'));
+  assert.ok(!md.includes('~?'));
+  assert.ok(!/### 🔄 #101.*[█░]/.test(md));
   // Tasks rendered as plain checkbox lines (no HTML, no bold)
   assert.ok(md.includes('- [x] #201 — t-a1'));
   assert.ok(md.includes('- [ ] #205 — t-c1'));
@@ -570,25 +619,8 @@ test('computeStoryProgress: derives pct, done, total from story.tasks[]', () => 
 });
 
 // ---------------------------------------------------------------------------
-// Inline legend + bottom <details> block (Story #1194 Task #1214)
+// Bottom <details> block (operating procedures + full symbol legend)
 // ---------------------------------------------------------------------------
-
-test('renderInlineLegend: renders a single blockquote covering every emitted symbol', () => {
-  const md = renderInlineLegend();
-  // Every line in the legend must be a blockquote line.
-  for (const line of md.split('\n')) {
-    assert.ok(line.startsWith('> '), `legend line not blockquote: "${line}"`);
-  }
-  // Decoder mentions every symbol family the manifest emits.
-  assert.match(md, /⬜.*pending/);
-  assert.match(md, /🔄.*in-flight/);
-  assert.match(md, /✅.*done/);
-  assert.match(md, /🚧.*blocked/i);
-  assert.match(md, /🚀 Ready/);
-  assert.match(md, /⏳ Blocked/);
-  assert.match(md, /█.*░/);
-  assert.match(md, /\*\(after #N\)\*/);
-});
 
 test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> pair', () => {
   const md = renderProceduresAndLegendDetails(42);
@@ -609,7 +641,7 @@ test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> p
   assert.match(md, /\/epic-deliver 42/);
 });
 
-test('formatManifestMarkdown: bottom <details> block is the only HTML; inline legend sits between TOC and first H2', () => {
+test('formatManifestMarkdown: bottom <details> block is the only HTML; first wave H2 follows the TOC directly', () => {
   const md = formatManifestMarkdown(epicManifest());
   // Exactly one <details> tag pair in the entire rendered document.
   assert.equal(
@@ -625,21 +657,21 @@ test('formatManifestMarkdown: bottom <details> block is the only HTML; inline le
   // Strip the details block, then assert the rest contains no HTML tags.
   const detailsRe = /<details>[\s\S]*?<\/details>/;
   const outsideDetails = md.replace(detailsRe, '');
-  // Match any HTML tag outside the details block.
   const stray = outsideDetails.match(/<[a-zA-Z/][^>]*>/g) || [];
   assert.deepEqual(
     stray,
     [],
     `unexpected HTML tags outside <details> block: ${JSON.stringify(stray)}`,
   );
-  // Inline legend sits between the Wave Summary table and the first wave H2.
-  const tocPos = md.indexOf('| Wave | Status | Progress | Stories | Tasks |');
-  const legendPos = md.indexOf('**Legend:**');
-  const firstH2Pos = md.search(/^## 🚀 Ready Wave 0$/m);
+  // No inline legend — full legend lives in <details> only.
+  assert.ok(!md.includes('**Legend:**'));
+  // First wave H2 follows the TOC table directly.
+  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
+  const firstH2Pos = md.search(/^## 🚀 Wave 0$/m);
   assert.ok(tocPos >= 0, 'TOC table missing');
-  assert.ok(legendPos > tocPos, 'inline legend should follow the TOC table');
-  assert.ok(firstH2Pos > legendPos, 'first wave H2 should follow the legend');
-  // No top-level "## 🤖 Agent Operating Procedures" anymore — that moved
-  // into the bottom <details> block.
+  assert.ok(firstH2Pos > tocPos, 'first wave H2 should follow the TOC');
+  // No top-level "## 🤖 Agent Operating Procedures" or Sprint Progress
+  // headings anymore — both folded into the meta line / details block.
   assert.ok(!md.includes('## 🤖 Agent Operating Procedures'));
+  assert.ok(!md.includes('Sprint Progress'));
 });

@@ -1,50 +1,28 @@
 /**
- * End-to-end manifest regeneration fixture (Story #1198 Task #1230).
+ * End-to-end manifest regeneration fixture.
  *
  * Renders a synthetic Epic with multiple waves, a cross-Story Task
  * dependency that survives Story-edge promotion, and inferred
  * file-contention edges through `formatManifestMarkdown`, then asserts
- * every Acceptance-Criteria item from the PRD's Manifest-rendering
- * section. This is the canonical regression for Epic #1178 — referenced
- * from `docs/CHANGELOG.md`.
+ * the post-cleanup layout (see `feat/manifest-ux-cleanup`):
  *
- * Coverage matrix (PRD Manifest-rendering AC → assertion):
- *
- *   • single nested Wave → Story → Task layout
- *       → no `## Execution Plan` / `## Story Details` headings
- *   • Sprint summary at top
- *       → `## 🏗️ Sprint Progress` heading + done/total counts
- *   • Wave Summary TOC table with anchor links
- *       → every `[Wave N](#…)` link round-trips to a real H2 anchor via
- *         `slugifyHeading`
- *   • inline legend blockquote between TOC and first wave H2
- *   • per-wave H2 nests Stories with branch + per-Story progress bar +
- *     per-Story estimate placeholder
- *       → `### <symbol> #<id> — <title> · \`story-<id>\` · <bar> N% · ~?`
- *   • Tasks rendered in execution order with `*(after #N)*` for in-Story
- *     dependencies; cross-Story dependencies do NOT render as `*(after #)*`
- *     (they are handled at the wave-ordering layer by the analyzer's
- *     Story-edge promotion in `dependency-analyzer.js`)
- *   • native `- [ ]` / `- [x]` checkboxes everywhere; no HTML inside task
- *     lines
- *   • exactly one bottom `<details>` block; no other HTML tags anywhere
- *   • TOC link slugs match the H2 emoji-prefixed text via `slugifyHeading`
- *
- * Per-Story progress bar derived from `tasks[].status` is exercised by
- * mixing `agent::done`, `agent::executing`, `agent::ready`, and
- * `agent::blocked` Task statuses across the synthetic fixture.
- *
- * Deferred AC documentation:
- *
- *   The PRD also lists `Dispatch (⌈N/cap⌉ rounds)` + `Est. wall-clock`
- *   Wave Summary columns, calibrated estimator range display
- *   (P25–P75), and a per-wave "Decomposition notes" subsection driven by
- *   `analysis.decompositionNotes`. The renderer integration for those
- *   items did not land on `epic/1178` (Stories #1195 / #1196 closed
- *   without their formatter wiring reaching the Epic branch). The
- *   fixture asserts the *current* shipped output exactly so any future
- *   wiring patch will trip these locks and force the author to extend
- *   the assertions in lock-step.
+ *   • Title + subtitle + a single `_Generated …_` meta line that folds
+ *     timestamp + done/total tasks + done/total stories + wave count
+ *     (no separate Sprint Progress hero block, no follow-on counts
+ *     blockquote).
+ *   • Wave Summary TOC table — `Wave | Status | Stories | Tasks` (no
+ *     Progress column; the Tasks cell already shows done/total).
+ *   • Per-wave `## <emoji> Wave N` H2 (status word lives only in the
+ *     TOC). Each H2 is followed by a one-line blockquote that adds a
+ *     "gated on Wave M" tail for Blocked waves and a "N run in parallel"
+ *     tail for Ready waves with multiple Stories.
+ *   • Per-Story `### <symbol> #<id> — <title> · X/Y tasks` H3 (no branch
+ *     backticks, no progress bar, no `~?` ETA placeholder).
+ *   • Tasks render as native `- [x]`/`- [ ]` checkboxes in topo order
+ *     with `*(after #N)*` callouts for in-Story dependencies only.
+ *   • Exactly one bottom `<details>` block carrying the operating
+ *     procedures + full symbol legend; no other HTML anywhere.
+ *   • TOC anchors round-trip to the matching H2 via `slugifyHeading`.
  */
 
 import assert from 'node:assert/strict';
@@ -165,14 +143,19 @@ test('e2e fixture: layout has no legacy Execution Plan / Story Details headings'
   );
 });
 
-test('e2e fixture: Sprint Progress hero shows done/total task counts', () => {
+test('e2e fixture: header meta line folds done/total tasks + stories + wave count', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildE2EFixture());
-  assert.match(md, /^## (?:🏗️|🔥|🎉) Sprint Progress$/m);
-  // Hero progress bar carries the literal `(4/14 tasks)` count.
-  assert.match(md, /\(4\/14 tasks\)/);
-  // The per-Story counts surface in a follow-on blockquote.
-  assert.match(md, /\*\*Stories:\*\* \d+\/5 complete · \*\*Tasks:\*\* 4\/14/);
+  // No Sprint Progress hero anymore — meta line carries the totals.
+  assert.doesNotMatch(md, /Sprint Progress/);
+  assert.doesNotMatch(md, /^## (?:🏗️|🔥|🎉)/m);
+  // Single `_Generated …_` line carries timestamp + tasks + stories +
+  // wave count. Story #100 is the only one with all tasks done; the
+  // fixture has 5 stories total.
+  assert.match(
+    md,
+    /_Generated 2026-05-11T00:00:00\.000Z · 4\/14 tasks · 0\/5 stories · 3 waves_/,
+  );
 });
 
 test('e2e fixture: every Wave Summary TOC link round-trips to a real H2 anchor', () => {
@@ -197,34 +180,46 @@ test('e2e fixture: every Wave Summary TOC link round-trips to a real H2 anchor',
   }
 });
 
-test('e2e fixture: inline legend blockquote sits between the TOC table and the first wave H2', () => {
+test('e2e fixture: first wave H2 follows the TOC table directly (no inline legend)', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildE2EFixture());
-  const tocPos = md.indexOf('| Wave | Status | Progress | Stories | Tasks |');
-  const legendPos = md.indexOf('**Legend:**');
-  const firstH2Pos = md.search(/^## (?:🚀 Ready|✅ Done|⏳ Blocked) Wave 0$/m);
+  const tocPos = md.indexOf('| Wave | Status | Stories | Tasks |');
+  const firstH2Pos = md.search(/^## (?:🚀|✅|⏳) Wave 0$/m);
   assert.ok(tocPos > 0, 'TOC table must render');
-  assert.ok(legendPos > tocPos, 'inline legend must sit after the TOC');
-  assert.ok(firstH2Pos > legendPos, 'first wave H2 must sit after the legend');
+  assert.ok(firstH2Pos > tocPos, 'first wave H2 must sit after the TOC');
+  // Inline legend was retired — full legend lives in the bottom <details>.
+  assert.doesNotMatch(md, /\*\*Legend:\*\*/);
 });
 
-test('e2e fixture: per-Story heading carries branch name, progress bar, percent, and estimate placeholder', () => {
+test('e2e fixture: per-Story heading carries done/total tasks (no branch, no bar, no ~?)', () => {
   __resetManifestFormatterCache();
   const md = formatManifestMarkdown(buildE2EFixture());
-  // Story #100: 2 of 3 tasks done → 67%.
+  // Story #100: 2 of 3 tasks done.
   assert.match(
     md,
-    /^### .* #100 — Sprint Bootstrap · `story-100` · [█░]+ 67% · ~\?$/m,
-    'Story #100 heading must carry branch + progress bar + 67% + ~? estimate',
+    /^### .* #100 — Sprint Bootstrap · 2\/3 tasks$/m,
+    'Story #100 heading must carry done/total tasks',
   );
-  // Story #200: 0 of 3 done → 0%.
+  // Story #200: 0 of 3 done.
   assert.match(
     md,
-    /^### .* #200 — Render TOC · `story-200` · [█░]+ 0% · ~\?$/m,
-    'Story #200 heading must carry branch + progress bar + 0% + ~? estimate',
+    /^### .* #200 — Render TOC · 0\/3 tasks$/m,
+    'Story #200 heading must carry done/total tasks',
   );
   // Story #300 has a blocked Task → 🚧 symbol on the H3.
   assert.match(md, /^### 🚧 #300 — Order Tasks/m);
+  // Decorations the old format carried are gone everywhere.
+  assert.doesNotMatch(md, /`story-\d+`/, 'no branch backticks in H3s');
+  assert.doesNotMatch(md, /~\?/, 'no ETA placeholder');
+  // Per-Story progress bar removed (the long `[█░]+ NN%` ribbon is gone).
+  assert.doesNotMatch(
+    md
+      .split('\n')
+      .filter((l) => l.startsWith('### '))
+      .join('\n'),
+    /[█░]/,
+    'no progress bar in H3s',
+  );
 });
 
 test('e2e fixture: in-Story Task dependency renders as `*(after #N)*`; cross-Story dep does NOT', () => {
