@@ -80,28 +80,56 @@ export function resolveMaintainabilityCrap(userCrap) {
  * Framework defaults for `agentSettings.quality.maintainability` — the per-file
  * MI targeting block. Empty `targetDirs` means "no MI scan unless the operator
  * declares targets". Lifted out of the old flat-key default in Story 6.
+ *
+ * Story #1394 (Epic #1386): `defaultScope` flips to `"diff"` so the MI gate
+ * scopes by changed files by default. `diffRef` defaults to `"main"` so the
+ * scoped diff resolves against the repo's primary integration branch unless
+ * the project overrides it (e.g. monorepos with a different baseBranch).
  */
 export const MAINTAINABILITY_QUALITY_DEFAULTS = Object.freeze({
   targetDirs: Object.freeze([]),
+  defaultScope: 'diff',
+  diffRef: 'main',
 });
 
 /**
  * Merge a user-supplied `quality.maintainability` block with framework
- * defaults. The grouped block now carries only `targetDirs`; the legacy
- * nested `crap` was lifted to `quality.crap` and is resolved separately by
- * {@link resolveMaintainabilityCrap} via {@link resolveQuality}.
+ * defaults. The grouped block carries `targetDirs` (per-file scan roots),
+ * `tolerance` (resolved by `check-maintainability.js`'s env-override helper),
+ * and — added in Story #1394 — `defaultScope` + `diffRef` which drive the
+ * diff-scoped gate default.
  *
  * @param {object|undefined} userBlock
- * @returns {{ targetDirs: string[] }}
+ * @returns {{ targetDirs: string[], defaultScope: string, diffRef: string, tolerance?: number }}
  */
 export function resolveMaintainabilityQuality(userBlock) {
-  const defaultTargetDirs = MAINTAINABILITY_QUALITY_DEFAULTS.targetDirs;
+  const defaults = MAINTAINABILITY_QUALITY_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
-    return { targetDirs: [...defaultTargetDirs] };
+    return {
+      targetDirs: [...defaults.targetDirs],
+      defaultScope: defaults.defaultScope,
+      diffRef: defaults.diffRef,
+    };
   }
-  return {
-    targetDirs: resolveListValue(defaultTargetDirs, userBlock.targetDirs),
+  const out = {
+    targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
+    defaultScope:
+      userBlock.defaultScope === 'full' || userBlock.defaultScope === 'diff'
+        ? userBlock.defaultScope
+        : defaults.defaultScope,
+    diffRef:
+      typeof userBlock.diffRef === 'string' && userBlock.diffRef.length > 0
+        ? userBlock.diffRef
+        : defaults.diffRef,
   };
+  // `tolerance` flows through because `check-maintainability.js` reads it
+  // off the resolved block via `resolveMaintainabilityEnvOverrides`. We do
+  // not default-fill it here — the env-override helper carries the framework
+  // default (0.5) directly so the precedence layering stays in one place.
+  if (typeof userBlock.tolerance === 'number') {
+    out.tolerance = userBlock.tolerance;
+  }
+  return out;
 }
 
 /**

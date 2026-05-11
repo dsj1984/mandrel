@@ -200,6 +200,83 @@ export function parseChangedSinceArg(argv = process.argv.slice(2)) {
 }
 
 /**
+ * Pure: detect the `--full-scope` opt-out flag in argv. When present, the
+ * caller forces a full-repo scan regardless of config / env defaults.
+ *
+ * Exported for testing.
+ *
+ * @param {string[]} [argv]
+ * @returns {boolean}
+ */
+export function parseFullScopeArg(argv = process.argv.slice(2)) {
+  return argv.includes('--full-scope');
+}
+
+/**
+ * Pure: resolve the effective `--changed-since` ref by layering precedence:
+ *   1. CLI `--full-scope` → returns null (full-scope wins; documented opt-out).
+ *   2. CLI `--changed-since <ref>` (or bare flag, defaults to 'main').
+ *   3. Env `MAINTAINABILITY_CHANGED_SINCE` (or `CRAP_CHANGED_SINCE` for parity).
+ *   4. `agentSettings.quality.maintainability.diffRef` from the resolved config.
+ *   5. Framework default 'main' when `defaultScope === 'diff'`.
+ *
+ * Returns the ref string when diff-scoping should run, or `null` for a full-
+ * repo scan. The Tech Spec (Epic #1386) flips the framework default from "off"
+ * to diff-scoped on `main`, with `--full-scope` as the explicit opt-out so
+ * operators that need a full-repo scan retain a one-flag escape hatch.
+ *
+ * Exported for testing.
+ *
+ * @param {{
+ *   argv?: string[],
+ *   env?: NodeJS.ProcessEnv,
+ *   maintainabilityConfig?: { defaultScope?: string, diffRef?: string },
+ * }} [opts]
+ * @returns {{ ref: string | null, scope: 'diff' | 'full', source: string }}
+ */
+export function resolveChangedSinceRef({
+  argv = process.argv.slice(2),
+  env = process.env,
+  maintainabilityConfig,
+} = {}) {
+  // Layer 1: --full-scope opt-out wins over everything.
+  if (parseFullScopeArg(argv)) {
+    return { ref: null, scope: 'full', source: '--full-scope' };
+  }
+  // Layer 2: explicit --changed-since flag.
+  const fromArgv = parseChangedSinceArg(argv);
+  if (fromArgv) {
+    return { ref: fromArgv, scope: 'diff', source: '--changed-since' };
+  }
+  // Layer 3: env var override.
+  const fromEnv = env?.MAINTAINABILITY_CHANGED_SINCE ?? env?.CRAP_CHANGED_SINCE;
+  if (typeof fromEnv === 'string' && fromEnv.length > 0) {
+    return {
+      ref: fromEnv,
+      scope: 'diff',
+      source: env?.MAINTAINABILITY_CHANGED_SINCE
+        ? 'MAINTAINABILITY_CHANGED_SINCE'
+        : 'CRAP_CHANGED_SINCE',
+    };
+  }
+  // Layer 4: project config.
+  const configuredScope = maintainabilityConfig?.defaultScope;
+  const configuredRef = maintainabilityConfig?.diffRef;
+  if (configuredScope === 'full') {
+    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
+  }
+  if (typeof configuredRef === 'string' && configuredRef.length > 0) {
+    return {
+      ref: configuredRef,
+      scope: 'diff',
+      source: 'config.diffRef',
+    };
+  }
+  // Layer 5: framework default — diff-scope against 'main'.
+  return { ref: 'main', scope: 'diff', source: 'default' };
+}
+
+/**
  * Resolve `--epic-ref <ref>` from argv. Returns the ref string when present
  * and non-empty, else null. Story #1120: when set, the gate reads the
  * baseline file at that git ref via `baseline-loader.readBaselineAtRef`
@@ -232,6 +309,13 @@ function parseJsonPathArg(argv = process.argv.slice(2)) {
  *   { kernelVersion, summary, violations }
  * sans `fixGuidance` (MI scores don't decompose along the two CRAP axes).
  *
+ * Story #1394: `summary` now carries `scope` ("diff" | "full") and `diffRef`
+ * (the resolved git ref the diff was scoped against, or null for full-scope
+ * runs). Downstream tooling (`quality-preview`, the auto-refresh evaluator)
+ * needs the scope tag to decide whether the envelope can be merged with a
+ * peer envelope from the other gate or whether a full-repo refresh just
+ * happened.
+ *
  * @param {Record<string, number>} scores current MI scores keyed by file
  * @param {{
  *   regressions: number,
@@ -239,9 +323,10 @@ function parseJsonPathArg(argv = process.argv.slice(2)) {
  *   improvements: number,
  *   regressedFiles: Array<{file: string, current: number, baseline: number, drop: number}>
  * }} stats
+ * @param {{ scope?: 'diff' | 'full', diffRef?: string | null }} [scopeInfo]
  * @returns {{ kernelVersion: string, summary: object, violations: Array<object> }}
  */
-export function buildMaintainabilityReport(scores, stats) {
+export function buildMaintainabilityReport(scores, stats, scopeInfo) {
   const total = Object.keys(scores ?? {}).length;
   const violations = (stats?.regressedFiles ?? []).map((r) => ({
     file: r.file,
@@ -250,6 +335,8 @@ export function buildMaintainabilityReport(scores, stats) {
     drop: r.drop,
     kind: 'regression',
   }));
+  const scope = scopeInfo?.scope === 'full' ? 'full' : 'diff';
+  const diffRef = scope === 'full' ? null : (scopeInfo?.diffRef ?? null);
   return {
     kernelVersion: MI_REPORT_KERNEL_VERSION,
     summary: {
@@ -257,6 +344,8 @@ export function buildMaintainabilityReport(scores, stats) {
       regressions: stats?.regressions ?? 0,
       newFiles: stats?.newFiles ?? 0,
       improvements: stats?.improvements ?? 0,
+      scope,
+      diffRef,
     },
     violations,
   };
@@ -372,7 +461,16 @@ async function main() {
     scanDirectory(dir, files);
   });
 
-  const changedSinceRef = parseChangedSinceArg();
+  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
+  const resolvedScope = resolveChangedSinceRef({
+    argv: process.argv.slice(2),
+    env: process.env,
+    maintainabilityConfig,
+  });
+  const changedSinceRef = resolvedScope.ref;
+  Logger.info(
+    `[Maintainability] scope=${resolvedScope.scope}${changedSinceRef ? ` ref=${changedSinceRef}` : ''} (source=${resolvedScope.source})`,
+  );
   let scopedFiles = files;
   let scopedBaseline = baseline;
   if (changedSinceRef) {
@@ -403,7 +501,6 @@ async function main() {
 
   const scores = await calculateAll(scopedFiles);
 
-  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
   const { tolerance, overrides } = resolveMaintainabilityEnvOverrides(
     process.env,
     maintainabilityConfig,
@@ -419,7 +516,13 @@ async function main() {
   const jsonPath = parseJsonPathArg();
   if (jsonPath) {
     try {
-      writeJsonReport(jsonPath, buildMaintainabilityReport(scores, stats));
+      writeJsonReport(
+        jsonPath,
+        buildMaintainabilityReport(scores, stats, {
+          scope: resolvedScope.scope,
+          diffRef: resolvedScope.ref,
+        }),
+      );
       Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
     } catch (err) {
       Logger.warn(

@@ -28,6 +28,7 @@ test('buildMaintainabilityReport — empty envelope validates against mi-report.
   const envelope = buildMaintainabilityReport(
     {},
     { regressions: 0, newFiles: 0, improvements: 0, regressedFiles: [] },
+    { scope: 'diff', diffRef: 'main' },
   );
   assert.ok(
     validate(envelope),
@@ -36,6 +37,28 @@ test('buildMaintainabilityReport — empty envelope validates against mi-report.
   assert.strictEqual(envelope.kernelVersion, MI_REPORT_KERNEL_VERSION);
   assert.strictEqual(envelope.violations.length, 0);
   assert.strictEqual(envelope.summary.total, 0);
+  assert.strictEqual(envelope.summary.scope, 'diff');
+  assert.strictEqual(envelope.summary.diffRef, 'main');
+});
+
+test('buildMaintainabilityReport — defaults scope=diff diffRef=null when scopeInfo omitted', () => {
+  const validate = loadValidator();
+  const envelope = buildMaintainabilityReport({}, {});
+  assert.ok(validate(envelope), JSON.stringify(validate.errors));
+  assert.strictEqual(envelope.summary.scope, 'diff');
+  assert.strictEqual(envelope.summary.diffRef, null);
+});
+
+test('buildMaintainabilityReport — full-scope nulls diffRef', () => {
+  const validate = loadValidator();
+  const envelope = buildMaintainabilityReport(
+    {},
+    {},
+    { scope: 'full', diffRef: 'main' },
+  );
+  assert.ok(validate(envelope), JSON.stringify(validate.errors));
+  assert.strictEqual(envelope.summary.scope, 'full');
+  assert.strictEqual(envelope.summary.diffRef, null);
 });
 
 test('buildMaintainabilityReport — regression envelope validates and omits fixGuidance', () => {
