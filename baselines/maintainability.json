@@ -389,7 +389,7 @@
   "tests/lib/maintainability-engine.test.js": 107.883,
   "tests/lib/maintainability-utils-extra.test.js": 113.827,
   "tests/lib/manifest-formatter-cache.test.js": 90.952,
-  "tests/lib/manifest-formatter.test.js": 94.74,
+  "tests/lib/manifest-formatter.test.js": 93.14,
   "tests/lib/manifest-persistence.test.js": 90.804,
   "tests/lib/manifest-renderer-eligibility.test.js": 121.964,
   "tests/lib/manifest-renderer-post.test.js": 110.146,

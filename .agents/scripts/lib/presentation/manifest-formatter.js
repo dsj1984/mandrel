@@ -117,17 +117,17 @@ export function slugifyHeading(text) {
 }
 
 /**
- * Build the visible H2 text for a wave row, e.g. `🚀 Wave 0 — Ready`. Used
- * both as the row label in the TOC and (later, by Task #1212) as the literal
- * `## …` text in the per-wave section. Centralising the formatting here is
- * what lets `slugifyHeading` produce identical slugs on both sides.
+ * Build the visible H2 text for a wave row, e.g. `🚀 Wave 0`. The status
+ * word lives only in the Wave Summary TOC; the H2 carries the emoji as a
+ * visual anchor and nothing else, so the per-wave section reads cleanly
+ * top-to-bottom without echoing the table.
  *
- * @param {string} waveLabel  e.g. `Wave 0` or `Ungrouped`
- * @param {string} statusLabel e.g. `✅ Done`, `🚀 Ready`, `⏳ Blocked`
+ * @param {string} waveLabel e.g. `Wave 0` or `Ungrouped`
+ * @param {string} emoji     e.g. `🚀`, `⏳`, `✅`
  * @returns {string}
  */
-export function waveHeadingText(waveLabel, statusLabel) {
-  return `${statusLabel} ${waveLabel}`;
+export function waveHeadingText(waveLabel, emoji) {
+  return `${emoji} ${waveLabel}`;
 }
 
 /**
@@ -143,6 +143,33 @@ export function renderProgressBar(percent, opts = {}) {
   const pct = Math.max(0, Math.min(100, Number(percent) || 0));
   const filled = Math.round((pct / 100) * width);
   return '█'.repeat(filled) + '░'.repeat(width - filled);
+}
+
+/**
+ * Derive the per-wave status label and emoji used by both the TOC table and
+ * the per-wave H2 heading. Single source of truth so the TOC link slug and
+ * the H2 anchor stay in lock-step.
+ *
+ * @param {number} waveIdx                — current wave index (or -1)
+ * @param {Map<number, { tasks: number, done: number }>} waveStats
+ * @param {number[]} sortedWaves          — every wave index in ascending order
+ * @returns {{ emoji: string, word: string, label: string }}
+ */
+export function deriveWaveStatus(waveIdx, waveStats, sortedWaves) {
+  const stat = waveStats.get(waveIdx);
+  const isDone = stat && stat.tasks > 0 && stat.done === stat.tasks;
+  if (isDone) return { emoji: '✅', word: 'Done', label: '✅ Done' };
+  const isReady =
+    waveIdx === 0 ||
+    sortedWaves
+      .filter((sw) => sw < waveIdx)
+      .every((sw) => {
+        const swStat = waveStats.get(sw);
+        return swStat.done === swStat.tasks;
+      });
+  return isReady
+    ? { emoji: '🚀', word: 'Ready', label: '🚀 Ready' }
+    : { emoji: '⏳', word: 'Blocked', label: '⏳ Blocked' };
 }
 
 /**
@@ -171,67 +198,25 @@ export function renderWaveSections(waveEligible) {
   const lines = [
     '## Wave Summary',
     '',
-    '| Wave | Status | Progress | Stories | Tasks |',
-    '| :--- | :--- | :--- | :--- | :--- |',
+    '| Wave | Status | Stories | Tasks |',
+    '| :--- | :--- | :--- | :--- |',
   ];
 
   for (const w of sortedWaves) {
     const stat = waveStats.get(w);
-    const isDone = stat.tasks > 0 && stat.done === stat.tasks;
     const waveLabel = w === -1 ? 'Ungrouped' : `Wave ${w}`;
-    const isReady =
-      w === 0 ||
-      sortedWaves
-        .filter((sw) => sw < w)
-        .every((sw) => {
-          const swStat = waveStats.get(sw);
-          return swStat.done === swStat.tasks;
-        });
-
-    const statusLabel = isDone
-      ? '✅ Done'
-      : isReady
-        ? '🚀 Ready'
-        : '⏳ Blocked';
-    const wavePct =
-      stat.tasks > 0 ? Math.round((stat.done / stat.tasks) * 100) : 0;
-    const waveBar = renderProgressBar(wavePct, { width: 10 });
-    // The TOC cell links into the per-wave H2 section emitted downstream
-    // (Task #1212). The slug is derived from the same heading text both
-    // sides will use, so the anchor stays correct as long as both call
-    // `waveHeadingText` + `slugifyHeading` in lock-step.
-    const headingText = waveHeadingText(waveLabel, statusLabel);
+    const status = deriveWaveStatus(w, waveStats, sortedWaves);
+    // The TOC cell links into the matching per-wave H2 section. Both sides
+    // call `waveHeadingText` + `slugifyHeading` so the anchor stays correct.
+    const headingText = waveHeadingText(waveLabel, status.emoji);
     const anchor = slugifyHeading(headingText);
     const waveCell = `[${waveLabel}](#${anchor})`;
     lines.push(
-      `| ${waveCell} | ${statusLabel} | ${waveBar} ${wavePct}% | ${stat.stories} | ${stat.done}/${stat.tasks} |`,
+      `| ${waveCell} | ${status.label} | ${stat.stories} | ${stat.done}/${stat.tasks} |`,
     );
   }
   lines.push('');
   return lines.join('\n');
-}
-
-// Legacy `renderStoryTable` (`## Execution Plan` table + per-wave H3 rows)
-// was removed in Story #1194 Task #1212; the same surface is now produced
-// inline by `renderNestedWaveSections` below.
-
-/**
- * One-line decoder rendered as a single blockquote. Sits directly under the
- * Wave Summary TOC table (Story #1194 Task #1214) so steady-state readers can
- * decipher symbols without scrolling to the bottom <details> block.
- *
- * Pure: no inputs, no I/O. The legend mirrors the symbols emitted by
- * `deriveStorySymbol`, `deriveWaveStatusLabel`, `renderProgressBar`, and the
- * `*(after #N)*` callout from Task #1213.
- *
- * @returns {string}
- */
-export function renderInlineLegend() {
-  return [
-    '> **Legend:** Status `⬜ pending · 🔄 in-flight · ✅ done · 🚧 blocked` ·',
-    '> Wave `🚀 Ready · ⏳ Blocked · ✅ Done` · Progress `█ done / ░ remaining` ·',
-    '> `*(after #N)*` marks an in-Story dependency on Task #N.',
-  ].join('\n');
 }
 
 /**
@@ -363,36 +348,9 @@ export function computeStoryProgress(story) {
 }
 
 /**
- * Derive the per-wave status label used by both the TOC row and the H2
- * heading. Mirrors the logic in `renderWaveSections` so callers (and Task
- * #1212's nested layout) share one source of truth.
- *
- * @param {number} waveIdx                — current wave index (or -1)
- * @param {Map<number, { tasks: number, done: number }>} waveStats
- * @param {number[]} sortedWaves          — every wave index in ascending order
- * @returns {string} `'✅ Done' | '🚀 Ready' | '⏳ Blocked'`
- */
-function deriveWaveStatusLabel(waveIdx, waveStats, sortedWaves) {
-  const stat = waveStats.get(waveIdx);
-  const isDone = stat && stat.tasks > 0 && stat.done === stat.tasks;
-  if (isDone) return '✅ Done';
-  const isReady =
-    waveIdx === 0 ||
-    sortedWaves
-      .filter((sw) => sw < waveIdx)
-      .every((sw) => {
-        const swStat = waveStats.get(sw);
-        return swStat.done === swStat.tasks;
-      });
-  return isReady ? '🚀 Ready' : '⏳ Blocked';
-}
-
-/**
- * Render one `## Wave N — <Status>` section per wave with nested per-Story
- * H3 headings and inline checkbox Task lists. Replaces the legacy split
- * between `## Execution Plan` and `## Story Details` (Story #1194 Task
- * #1212): the TOC links from `renderWaveSections` jump straight into these
- * H2 anchors.
+ * Render one `## <emoji> Wave N` section per wave with nested per-Story H3
+ * headings and inline checkbox Task lists. The TOC links from
+ * `renderWaveSections` jump straight into these H2 anchors.
  *
  * @param {object[]} storyManifest
  * @returns {string} Markdown block, or empty string when nothing to render.
@@ -427,35 +385,35 @@ export function renderNestedWaveSections(storyManifest) {
     const stories = waveGroups.get(waveIdx);
     const stat = waveStats.get(waveIdx);
     const waveLabel = waveIdx === -1 ? 'Ungrouped' : `Wave ${waveIdx}`;
-    const statusLabel = deriveWaveStatusLabel(waveIdx, waveStats, sortedWaves);
+    const status = deriveWaveStatus(waveIdx, waveStats, sortedWaves);
 
     // The H2 text and slug must match `renderWaveSections` exactly so the
     // TOC links land on the right anchor.
-    lines.push(`## ${waveHeadingText(waveLabel, statusLabel)}`);
+    lines.push(`## ${waveHeadingText(waveLabel, status.emoji)}`);
     lines.push('');
 
-    // Single-line wave summary: progress + parallel hint.
-    const wavePct =
-      stat.tasks > 0 ? Math.round((stat.done / stat.tasks) * 100) : 0;
-    const parallelHint =
-      stories.length > 1
-        ? ` · ✅ ${stories.length} stories can run in parallel`
-        : '';
+    // Single-line wave summary. Add a context-specific tail only when it
+    // tells the reader something the table doesn't: which wave is gating
+    // a Blocked one, or that a Ready wave fans out in parallel.
+    let tail = '';
+    if (status.word === 'Blocked') {
+      const priorWaves = sortedWaves.filter((sw) => sw < waveIdx);
+      const lastPrior = priorWaves[priorWaves.length - 1];
+      if (lastPrior !== undefined) tail = ` · gated on Wave ${lastPrior}`;
+    } else if (status.word === 'Ready' && stories.length > 1) {
+      tail = ` · ${stories.length} run in parallel`;
+    }
     lines.push(
-      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks (${wavePct}%)${parallelHint}`,
+      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks${tail}`,
     );
     lines.push('');
 
     for (const story of stories) {
       const sp = computeStoryProgress(story);
-      const bar = renderProgressBar(sp.pct, { width: 10 });
       const symbol = deriveStorySymbol(story);
       const titleCandidate = story.storyTitle || story.storySlug || '';
-      // Estimate placeholder is filled in by the wave-dispatch-and-estimator
-      // story; leaving the literal `~?` keeps the column visible so the
-      // estimator drop-in doesn't have to alter the layout.
       lines.push(
-        `### ${symbol} #${story.storyId} — ${titleCandidate} · \`${story.branchName}\` · ${bar} ${sp.pct}% · ~?`,
+        `### ${symbol} #${story.storyId} — ${titleCandidate} · ${sp.done}/${sp.total} tasks`,
       );
       lines.push('');
 
@@ -568,31 +526,17 @@ function _formatManifestMarkdownUncached(manifest) {
   const lines = [];
 
   // --- Header ---
+  // Title + subtitle + a single meta line that folds the timestamp and the
+  // task / story / wave totals together. The Wave Summary table (next)
+  // breaks the totals down per wave, so a hero progress block here would
+  // just echo the same numbers a third time.
   lines.push(`# 📋 Dispatch Manifest — Epic #${epicId}`);
   lines.push('');
   lines.push(`> **${epicTitle}**`);
   lines.push('');
-  lines.push(`_Generated ${generatedAt}_`);
-  lines.push('');
-
-  // The Operating Procedures + full symbol legend now live inside the
-  // bottom `<details>` block (Story #1194 Task #1214) so steady-state
-  // readers see the Sprint Progress hero immediately.
-
-  // --- Hero Progress Bar ---
-  const pct = progress.taskPct;
-  const bar = renderProgressBar(pct);
-  const statusEmoji = pct === 100 ? '🎉' : pct >= 50 ? '🔥' : '🏗️';
-  lines.push(`## ${statusEmoji} Sprint Progress`);
-  lines.push('');
-  lines.push('```');
+  const waveCount = progress.storyWaveCount;
   lines.push(
-    `  ${bar}  ${pct}%  (${summary.doneTasks}/${summary.totalTasks} tasks)`,
-  );
-  lines.push('```');
-  lines.push('');
-  lines.push(
-    `> **Stories:** ${progress.doneStories}/${progress.totalStories} complete · **Tasks:** ${summary.doneTasks}/${summary.totalTasks} complete`,
+    `_Generated ${generatedAt} · ${summary.doneTasks}/${summary.totalTasks} tasks · ${progress.doneStories}/${progress.totalStories} stories · ${waveCount} wave${waveCount === 1 ? '' : 's'}_`,
   );
   lines.push('');
 
@@ -606,25 +550,14 @@ function _formatManifestMarkdownUncached(manifest) {
   const waveBlock = renderWaveSections(waveEligible);
   if (waveBlock) lines.push(waveBlock);
 
-  // --- Inline legend (Story #1194 Task #1214) ---
-  // Sits directly under the Wave Summary table and above the first per-wave
-  // H2 so steady-state readers can decode the symbols at a glance. The full
-  // legend (with explanations) lives in the bottom <details> block.
-  lines.push(renderInlineLegend());
-  lines.push('');
-
   // --- Per-wave H2 sections nesting Stories (H3) and Tasks (checkbox lists)
-  // (Story #1194 Task #1212): one anchor per Wave; the Wave Summary TOC
-  // jumps into these headings. Replaces the legacy `## Execution Plan` +
-  // `## Story Details` split.
   if (storyManifest && storyManifest.length > 0) {
     const nestedBlock = renderNestedWaveSections(storyManifest);
     if (nestedBlock) lines.push(nestedBlock);
   }
 
-  // --- Bottom <details> block (Story #1194 Task #1214) ---
-  // Operating procedures + full symbol legend, collapsed by default. This
-  // is the only HTML in the manifest by AC.
+  // --- Bottom <details> block: operating procedures + full symbol legend.
+  // The only HTML in the document; collapsed by default.
   lines.push(renderProceduresAndLegendDetails(epicId));
   lines.push('');
 

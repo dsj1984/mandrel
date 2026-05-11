@@ -810,8 +810,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
-    "lines": 96.74,
-    "branches": 83.96,
+    "lines": 96.44,
+    "branches": 84.27,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
