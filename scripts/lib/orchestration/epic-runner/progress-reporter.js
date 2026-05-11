@@ -133,6 +133,7 @@ export class ProgressReporter {
    *   intervalSec?: number,
    *   concurrency?: number,
    *   cwd?: string,
+   *   config?: object,
    *   detectors?: Array<Function|{ detect: Function }>,
    *   logger?: { info?: Function, warn?: Function },
    *   now?: () => Date,
@@ -142,10 +143,14 @@ export class ProgressReporter {
    *   appendFile?: typeof import('node:fs/promises').appendFile,
    *   mkdir?: typeof import('node:fs/promises').mkdir,
    * }} opts
+   *   `config`: resolved config bag forwarded to `signals-writer.appendSignal`
+   *   so the per-Story `signals.ndjson` stream lands under the configured
+   *   `tempRoot` instead of `process.cwd()`/'temp'.
    */
   constructor(opts = {}) {
     this.provider = opts.provider;
     this.epicId = opts.epicId;
+    this.config = opts.config;
     if (!this.provider) {
       throw new TypeError('ProgressReporter requires a provider');
     }
@@ -480,6 +485,7 @@ export class ProgressReporter {
           source: { tool: 'epic-runner/progress-reporter.js' },
           details: String(err?.message ?? err).slice(0, 500),
         },
+        config: this.config,
       });
     } catch (emitErr) {
       this.logger.warn?.(
