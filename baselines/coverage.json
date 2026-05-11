@@ -54,10 +54,25 @@
     "branches": 88.06,
     "functions": 81.25
   },
+  ".agents/scripts/epic-deliver-automerge.js": {
+    "lines": 84.89,
+    "branches": 80,
+    "functions": 60
+  },
+  ".agents/scripts/epic-deliver-cleanup.js": {
+    "lines": 84.49,
+    "branches": 76.47,
+    "functions": 66.67
+  },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 85.25,
     "branches": 54.55,
     "functions": 77.78
+  },
+  ".agents/scripts/epic-deliver-note-intervention.js": {
+    "lines": 81.12,
+    "branches": 77.78,
+    "functions": 66.67
   },
   ".agents/scripts/epic-deliver-prepare.js": {
     "lines": 80.85,
@@ -355,7 +370,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 94.99,
+    "lines": 95.26,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -429,6 +444,11 @@
     "branches": 66.67,
     "functions": 88.89
   },
+  ".agents/scripts/lib/orchestration/automerge-predicate.js": {
+    "lines": 98.7,
+    "branches": 89.09,
+    "functions": 100
+  },
   ".agents/scripts/lib/orchestration/code-review.js": {
     "lines": 96.69,
     "branches": 73.33,
@@ -474,6 +494,11 @@
     "branches": 85,
     "functions": 100
   },
+  ".agents/scripts/lib/orchestration/epic-cleanup.js": {
+    "lines": 98.08,
+    "branches": 82.46,
+    "functions": 100
+  },
   ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js": {
     "lines": 84.21,
     "branches": 64.58,
@@ -495,8 +520,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/checkpointer.js": {
-    "lines": 98.29,
-    "branches": 76.92,
+    "lines": 98.7,
+    "branches": 79.17,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/column-sync.js": {
@@ -786,7 +811,7 @@
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 96.74,
-    "branches": 83.87,
+    "branches": 83.96,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
@@ -1106,7 +1131,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 74.65,
+    "branches": 75,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
