@@ -1420,6 +1420,60 @@
       "startLine": 75
     },
     {
+      "crap": 6.0052485785099865,
+      "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
+      "method": "diffProtection",
+      "startLine": 48
+    },
+    {
+      "crap": 3.0262390670553936,
+      "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
+      "method": "isBehaviorShifting",
+      "startLine": 87
+    },
+    {
+      "crap": 10.011192979203795,
+      "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
+      "method": "applyBranchProtection",
+      "startLine": 109
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
+      "method": "confirm",
+      "startLine": 40
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/bootstrap/hitl-confirm.js",
+      "method": "<anon method-1>",
+      "startLine": 71
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/bootstrap/merge-methods.js",
+      "method": "diffMergeMethods",
+      "startLine": 39
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/bootstrap/merge-methods.js",
+      "method": "applyMergeMethods",
+      "startLine": 60
+    },
+    {
+      "crap": 2.0625,
+      "file": ".agents/scripts/lib/bootstrap/workflow-templates.js",
+      "method": "tryReadFile",
+      "startLine": 81
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/bootstrap/workflow-templates.js",
+      "method": "copyWorkflowTemplates",
+      "startLine": 99
+    },
+    {
       "crap": 8,
       "file": ".agents/scripts/lib/branch-name-guard.js",
       "method": "isSafeBranchName",
@@ -1591,7 +1645,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 410
+      "startLine": 434
     },
     {
       "crap": 3,
@@ -5476,16 +5530,16 @@
       "startLine": 15
     },
     {
-      "crap": 5,
+      "crap": 10.188167642315893,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "setBranchProtection",
-      "startLine": 44
+      "startLine": 55
     },
     {
       "crap": 2.032,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "createPullRequest",
-      "startLine": 97
+      "startLine": 138
     },
     {
       "crap": 6,
@@ -5762,6 +5816,18 @@
       "file": ".agents/scripts/providers/github/projects.js",
       "method": "ensureProjectFields",
       "startLine": 410
+    },
+    {
+      "crap": 4.809327846364883,
+      "file": ".agents/scripts/providers/github/repo.js",
+      "method": "getMergeMethods",
+      "startLine": 27
+    },
+    {
+      "crap": 4.809327846364883,
+      "file": ".agents/scripts/providers/github/repo.js",
+      "method": "setMergeMethods",
+      "startLine": 52
     },
     {
       "crap": 4.012021036814425,
