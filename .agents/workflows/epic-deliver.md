@@ -1,12 +1,12 @@
 ---
 description: >-
-  Drive an Epic from `agent::ready` to a green, mergeable pull request against
-  `main`. The seven-phase flow runs the wave loop, close-validation,
-  code-review, retro, finalize, and a watch-and-iterate loop that drives the
-  open PR's CI to green via `gh pr checks --watch` + local fixes. There is no
-  in-script merge to `main` — the operator merges through the GitHub UI. The
-  runtime engine is `epic-deliver-runner`; `epic-deliver-prepare` builds the
-  wave plan; `epic-deliver-finalize` opens the PR.
+  Drive an Epic from `agent::ready` to a merged pull request against `main`.
+  The nine-phase flow runs the wave loop, close-validation, code-review, retro,
+  finalize, watch-and-iterate, conditional auto-merge, and local branch
+  cleanup. When the run is end-to-end clean (zero manual interventions, zero
+  🔴/🟠 review findings, compact retro) the PR auto-merges via `gh pr merge
+  --squash --delete-branch`; otherwise the workflow falls back to the
+  operator-merges-button path so a human inspects the surface area.
 ---
 
 # /epic-deliver #[Epic ID]
@@ -15,19 +15,25 @@ description: >-
 
 `/epic-deliver` is the **single SDL execution command** in the 5.40 surface.
 It replaces the v5.39.x execute + close pair — the implicit in-script
-merge to `main` from the legacy close path becomes an explicit human PR
-merge through the GitHub UI:
+merge to `main` from the legacy close path is reintroduced as a
+**conditional** auto-merge that only fires when every signal certifies a
+clean run, with the operator-merges-button path as the explicit fallback:
 
 ```text
 /epic-deliver <epicId>
-  → Phase 1 — prepare           (epic-deliver-prepare.js)
-  → Phase 2 — wave loop         (Agent fan-out × concurrencyCap → /story-execute)
-  → Phase 3 — close-validation  (lint + test + ratchets on epic/<id>)
-  → Phase 4 — code-review       (helpers/epic-code-review.md, persisted as
-                                 a `code-review` structured comment)
-  → Phase 5 — retro             (helpers/epic-retro.md, fired locally)
-  → Phase 6 — finalize          (epic-deliver-finalize.js → open PR to main)
-  → Phase 7 — watch-and-iterate (poll `gh pr checks`; fix locally until green)
+  → Phase 1 — prepare              (epic-deliver-prepare.js)
+  → Phase 2 — wave loop            (Agent fan-out × concurrencyCap → /story-execute)
+  → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
+  → Phase 4 — code-review          (helpers/epic-code-review.md, persisted as
+                                    a `code-review` structured comment)
+  → Phase 5 — retro                (helpers/epic-retro.md, fired locally)
+  → Phase 6 — finalize             (epic-deliver-finalize.js → open PR to main)
+  → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
+  → Phase 7.5 — auto-merge gate    (epic-deliver-automerge.js — predicate +
+                                    `gh pr merge --squash --delete-branch`,
+                                    OR fall back to operator-merges-button)
+  → Phase 8 — cleanup              (epic-deliver-cleanup.js — local worktree +
+                                    branch reap, only after PR merged)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
@@ -383,10 +389,9 @@ gh pr checks <prNumber> --watch
 `gh pr checks --watch` blocks until the check-runs settle. Treat its exit
 code as the loop verdict:
 
-- **Exit 0** (all required checks green) → relay the PR URL to the
-  operator and stop. Their merge through the GitHub UI fires the standard
-  `agent::done` transition; branch cleanup runs out-of-band via
-  `/delete-epic-branches`.
+- **Exit 0** (all required checks green) → proceed to Phase 7.5 (auto-merge
+  gate). Do not stop at PR-URL relay anymore; the gate decides whether to
+  fire the merge or hand the button to the operator.
 - **Non-zero exit** (any required check failed) → drop into the
   remediation loop below.
 
@@ -452,8 +457,9 @@ time.
 
 ### 7.3 What you must not do
 
-- **Never** `gh pr merge` from inside this skill. The operator is the
-  merge gate.
+- **Never** `gh pr merge` from inside Phase 7. Phase 7.5 is the only legal
+  merge site, and only when the auto-merge predicate certifies a clean
+  run.
 - **Never** force-push to `main`. The Epic branch is the only legal
   push target.
 - **Never** re-run a check by pushing an empty commit to dodge the
@@ -466,29 +472,111 @@ time.
 
 ---
 
-## Operator-merges-PR exit condition
+## Phase 7.5 — Auto-merge gate
 
-`/epic-deliver` ends at the moment the PR is open, the required-checks
-expectation is configured, and the hand-off comment names the PR URL.
-The **operator** is the gate that promotes the Epic branch into
-`main` — the workflow never executes `git merge` against `main`. This
-is the explicit human decision point that replaces the v5.39.x
-implicit in-script merge inside the prior close workflow.
+After Phase 7's watch loop exits 0, evaluate the auto-merge predicate.
+This is the gate that decides whether the operator's "click merge" button
+is doing real work or just rubber-stamping a clean run. When every signal
+is clean, the workflow fires `gh pr merge --squash --delete-branch`
+itself; otherwise it relays the disqualifying reasons and hands the
+button to the operator.
 
-When the operator merges the PR via the GitHub UI:
+```bash
+node .agents/scripts/epic-deliver-automerge.js --epic <epicId> --pr <prNumber>
+```
 
-- the Epic-to-`main` merge lands as a real PR merge with a real
-  reviewer-trail and required-checks history;
-- branch cleanup runs out-of-band via `/delete-epic-branches`;
-- the operator-driven workflow is done — no separate close
-  invocation, no separate retro command, because the retro already
-  fired locally inside Phase 5.
+The CLI:
 
-If the operator chooses **not** to merge (rolling back, deferring,
-re-scoping), `/epic-deliver` has not poisoned `main` and the Epic
-branch can be amended in place. Re-running `/epic-deliver <epicId>`
-after a force-pushed Epic-branch change re-runs Phase 3 / 4 / 5 (the
-evidence wrapper picks up the new `HEAD`) and updates the same PR.
+1. Reads the `epic-run-state` checkpoint, the `code-review` structured
+   comment, and the `retro` / `retro-partial` structured comment via
+   `lib/orchestration/automerge-predicate.js`.
+2. Returns `clean: true` only when **all** of the following hold:
+   - `state.manualInterventions[]` is empty;
+   - every wave's `status === "complete"`;
+   - no story envelope carries a `blockerCommentId` or a non-`done` status;
+   - the code-review comment reports `0` 🔴 Critical Blockers **and** `0`
+     🟠 High Risk findings;
+   - the retro is the compact "🟢 Clean sprint" body.
+3. When `clean: true`, fires `gh pr merge <prNumber> --squash --delete-branch`.
+4. When `clean: false`, prints the disqualifying reasons and exits without
+   merging — the workflow falls back to the operator-merges-button path.
+
+Branch on `merged`:
+
+- **`merged: true`** → proceed to Phase 8 (cleanup).
+- **`merged: false`** → relay the verdict to the operator with the PR URL
+  and the reasons list, **STOP**. The operator inspects the surface area
+  and either clicks merge themselves or amends the Epic branch and
+  re-runs `/epic-deliver`.
+
+### Recording manual interventions
+
+The auto-merge predicate's manual-intervention signal exists because *the
+host LLM* is the only thing that knows when it stepped outside the happy
+path. Any time you do one of the following during a delivery, **append a
+record to the checkpoint** with:
+
+```bash
+node .agents/scripts/epic-deliver-note-intervention.js \
+  --epic <epicId> --reason "<one-line description>"
+```
+
+Triggers — non-exhaustive but covers the patterns observed to date:
+
+- you call `AskUserQuestion` to the operator mid-run;
+- you `git restore` or `git reset` against the working tree to discard
+  drift;
+- a Story child reports manual `--no-ff` recovery, a stash dance, or any
+  out-of-band merge surgery in its return contract;
+- a Story child closes via `--skipValidation` (currently universal due
+  to `feedback_close_validation_main_drift` — see "Open caveats" below
+  for the version-1 carve-out);
+- you discard CI failures by force-pushing or empty-committing to dodge
+  diagnosis.
+
+Each entry disqualifies the Epic from auto-merge. The cost of forgetting
+to log an intervention is that the predicate certifies the run as clean
+when it wasn't — be conservative.
+
+### Open caveats
+
+- **`--skipValidation` is excluded from v1 predicate.** While
+  `feedback_close_validation_main_drift` remains unresolved, every story
+  closes via the programmatic skip path. Counting that as a manual
+  intervention would prevent auto-merge from ever firing. Once the
+  underlying gate is fixed, tighten the predicate so `skipValidation`
+  becomes a disqualifier and remove this carve-out.
+
+---
+
+## Phase 8 — Local branch cleanup
+
+Once Phase 7.5 has merged the PR (auto or via the operator-merges-button
+fallback), reap the Epic's local branches + worktrees:
+
+```bash
+node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>
+```
+
+The CLI reads the `epic-run-state` checkpoint, enumerates `epic/<id>`
+plus every `story-<storyId>`, removes any still-registered worktree
+(with the Windows-lock fallback recipe from
+`feedback_sprint_story_close_reap`), prunes the worktree registry, and
+drops the local refs. Remote branches are out of scope —
+`gh pr merge --delete-branch` already deleted `origin/epic/<id>` and
+the story branches were deleted at story-close time.
+
+Fall back to `/delete-epic-branches` for the "scrap and reset" flow that
+also walks the remote refs (`task/epic-<id>/*`, `feature/epic-<id>/*`).
+Phase 8 is narrower by design — post-merge, the only refs that remain
+are local, and the cleanup script is purpose-built for that pattern.
+
+### When the PR did not auto-merge
+
+If Phase 7.5 fell back to the operator-merges-button path, **do not**
+run Phase 8 yourself. The operator merges via the GitHub UI when they
+are ready; they can invoke `/epic-deliver-cleanup <id>` (or
+`/delete-epic-branches <id>`) after the merge to reclaim the local refs.
 
 ---
 
@@ -509,9 +597,10 @@ the merged checkpoint state.
 
 ## Constraints
 
-- **Never** merge `epic/<epicId>` into `main` from inside this
-  workflow. Phase 6 opens the PR and Phase 7 drives it to green; the
-  operator merges through the GitHub UI.
+- **Never** merge `epic/<epicId>` into `main` from anywhere other than
+  Phase 7.5's auto-merge CLI. Phase 6 opens the PR, Phase 7 drives it
+  to green, Phase 7.5 evaluates the predicate; everything else hands
+  the button to the operator.
 - **Never** dispatch more than one wave at a time. Concurrency lives
   **inside** a single wave's fan-out (Phase 2a).
 - **Never** dispatch more than `concurrencyCap` Stories in flight per
