@@ -102,8 +102,7 @@
     },
     "notifications": {
       "mentionOperator": false,
-      "commentMinLevel": "medium",
-      "terminalMinLevel": "medium",
+      "commentEvents": ["state-transition", "story-merged", "operator-message"],
       "webhookEvents": [
         "epic-started",
         "epic-progress",

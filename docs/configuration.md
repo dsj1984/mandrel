@@ -266,19 +266,25 @@ Added in Epic #817 Story 9.
 
 | Field              | Required | Default                                  | Purpose                                                                                                                                       |
 | ------------------ | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mentionOperator`  | No       | `false`                                  | When `true`, friction comments @-mention `operatorHandle`.                                                                                    |
-| `commentMinLevel`  | **Yes**  | `medium`                                 | Minimum severity that posts a GitHub comment (`low`/`medium`/`high`).                                                                          |
-| `terminalMinLevel` | **Yes**  | `medium`                                 | Minimum severity that emits `notify()` chatter to stdout (`low`/`medium`/`high`).                                                              |
+| `mentionOperator`  | No       | `false`                                  | When `true`, friction comments @-mention `operatorHandle` for `medium`-severity dispatches (high always @mentions).                          |
+| `commentEvents`    | **Yes**  | `["state-transition", "story-merged", "operator-message"]` | Allowlist of event names that reach the GitHub ticket comment channel.                                                                       |
 | `webhookEvents`    | **Yes**  | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative (% progress + blockers); story-level events are excluded by default. |
 
-> **Two gating models in one block.** Comment + terminal channels are
-> severity-gated (`commentMinLevel`, `terminalMinLevel`); the webhook
-> channel is event-name-gated (`webhookEvents`). Severity is no longer a
-> routing factor for the webhook — it is carried as envelope metadata for
-> Slack consumers that color-code by it. To suppress the webhook entirely,
-> set `webhookEvents: []`. To add story-level chatter back to Slack,
-> extend the array (allowed values are the closed `epic-*` vocabulary in
-> the schema enum; loosen the enum to add custom events).
+> **Both channels gate on event name, not severity.** `commentEvents`
+> and `webhookEvents` filter independently — each is a closed allowlist
+> of event names. Severity is carried as envelope metadata (and still
+> drives `@mention` behavior on the comment channel) but is no longer a
+> routing factor for either channel. To suppress a channel entirely, set
+> its array to `[]`. The closed enums are pinned in the schema:
+>
+> - `commentEvents`: `state-transition`, `story-merged`, `operator-message`
+> - `webhookEvents`: `epic-started`, `epic-progress`, `epic-blocked`,
+>   `epic-unblocked`, `epic-complete`
+>
+> `transitionTicketState` suppresses the `notify()` dispatch entirely
+> for low-severity transitions (task-level, non-terminal story / epic
+> flips) so the comment channel sees only the medium-severity
+> story-level events operators expect on the ticket timeline.
 >
 > **Severity assignment by event hierarchy.** Task transitions and
 > `story-run-progress` upserts fire `low` (frequency-driven). Story state

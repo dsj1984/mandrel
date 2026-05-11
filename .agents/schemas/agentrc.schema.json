@@ -386,13 +386,13 @@
       "type": "object",
       "properties": {
         "mentionOperator": { "type": "boolean" },
-        "commentMinLevel": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
-        },
-        "terminalMinLevel": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
+        "commentEvents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["state-transition", "story-merged", "operator-message"]
+          },
+          "uniqueItems": true
         },
         "webhookEvents": {
           "type": "array",
@@ -409,7 +409,7 @@
           "uniqueItems": true
         }
       },
-      "required": ["commentMinLevel", "terminalMinLevel", "webhookEvents"],
+      "required": ["commentEvents", "webhookEvents"],
       "additionalProperties": false
     },
     "worktreeIsolation": {

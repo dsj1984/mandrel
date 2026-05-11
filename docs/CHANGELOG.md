@@ -6,18 +6,33 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **Comment channel is now event-allowlist-gated, not severity-gated;
+  terminal channel removed.** `orchestration.notifications.commentMinLevel`
+  is replaced by `commentEvents` (analogous to `webhookEvents`).
+  `terminalMinLevel` is removed entirely — the terminal channel was
+  effectively dead in the host-LLM `/epic-deliver` flow because nothing
+  captures or surfaces the Logger.info chatter it controlled. Default
+  `commentEvents` is `["state-transition", "story-merged",
+  "operator-message"]`. To preserve the previous "only story / epic →
+  `agent::done` lands on the ticket" behavior, `transitionTicketState`
+  now suppresses the `notify()` dispatch entirely for low-severity
+  transitions (task-level, non-terminal story / epic flips); the noise
+  filter moved from the channel boundary to the emit point. Severity is
+  carried as envelope metadata and still drives `@mention` behavior on
+  the comment channel (high always mentions; medium mentions when
+  `mentionOperator: true`), but no longer routes either channel. CLI
+  invocations of `notify.js` now carry an `operator-message` event by
+  default so they route through the same allowlist.
 - **Webhook channel is now event-allowlist-gated, not severity-gated.**
   `orchestration.notifications.webhookMinLevel` is removed. Its
   replacement, `orchestration.notifications.webhookEvents`, is an explicit
   allowlist of event names. The default vocabulary is the curated
   `epic-*` set: `["epic-started", "epic-progress", "epic-blocked",
-  "epic-unblocked", "epic-complete"]`. Severity stays useful for the
-  GitHub-comment and terminal channels (`commentMinLevel`,
-  `terminalMinLevel`) and is carried as webhook envelope metadata, but it
-  is no longer a routing factor for the webhook. The Slack feed
-  consequently focuses on the epic narrative — % progress + blockers —
-  instead of every per-story state transition. Set `webhookEvents: []`
-  to suppress the webhook entirely.
+  "epic-unblocked", "epic-complete"]`. Severity is carried as webhook
+  envelope metadata, but it is no longer a routing factor for the
+  webhook. The Slack feed consequently focuses on the epic narrative —
+  % progress + blockers — instead of every per-story state transition.
+  Set `webhookEvents: []` to suppress the webhook entirely.
 - **`epic-progress` is the curated rollup event.** Previously the
   ProgressReporter periodic timer mirrored `epic-run-progress` to the
   webhook every `progressReportIntervalSec`. The webhook fire is now
@@ -41,16 +56,21 @@ All notable changes to this project will be documented in this file.
 ### Migration
 
 Operators with a custom `notifications` block in `.agentrc.json` must
-drop `webhookMinLevel` and add `webhookEvents`. The 5.40 schema requires
-exactly this:
+drop `commentMinLevel`, `terminalMinLevel`, and `webhookMinLevel`, and
+add `commentEvents` + `webhookEvents`. The new schema requires exactly
+this:
 
 ```diff
  "notifications": {
    "mentionOperator": false,
-   "commentMinLevel": "medium",
--  "webhookMinLevel": "medium",
--  "terminalMinLevel": "medium"
-+  "terminalMinLevel": "medium",
+-  "commentMinLevel": "medium",
+-  "terminalMinLevel": "medium",
+-  "webhookMinLevel": "medium"
++  "commentEvents": [
++    "state-transition",
++    "story-merged",
++    "operator-message"
++  ],
 +  "webhookEvents": [
 +    "epic-started",
 +    "epic-progress",
@@ -61,8 +81,11 @@ exactly this:
  }
 ```
 
-Configs that retain `webhookMinLevel` will fail AJV validation against
-the new schema. There is no alias.
+Configs that retain any of the `*MinLevel` keys will fail AJV validation
+against the new schema. There is no alias. `commentEvents` accepts the
+closed enum `["state-transition", "story-merged", "operator-message"]`;
+`webhookEvents` accepts the closed enum `["epic-started",
+"epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]`.
 
 ## [5.40.0] — 2026-05-10
 

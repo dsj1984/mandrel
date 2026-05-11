@@ -3,16 +3,12 @@
  * fanout produced by `transitionTaskStates`.
  *
  * Replaces the previous N-per-Task `agent::executing` GitHub-comment fanout
- * with a single `low` notification routed to the Story. The notification
- * still passes through `notify()` so `notifications.commentMinLevel`
- * continues to gate the GitHub comment — at the default `medium`
- * threshold the comment is filtered out, so init becomes silent on the
- * GitHub timeline. The summary dispatch carries no `event` field, so it
- * never reaches the webhook channel (which is gated by the
- * `notifications.webhookEvents` allowlist). Per-Task transition notifies
- * fired by the caller's `notify` hook follow the same rule — they reach
- * the webhook only when their event name is on the allowlist (story-level
- * events are excluded from the default curated vocabulary).
+ * with a single `low` notification routed to the Story. The dispatch
+ * carries no `event` field, so under the curated `commentEvents` /
+ * `webhookEvents` allowlists it never reaches either channel — init stays
+ * silent on the GitHub timeline by default. The call remains as a sentinel
+ * for operators who curate a `story-task-summary` event into their
+ * `commentEvents` allowlist (out-of-tree extension).
  */
 
 /**
