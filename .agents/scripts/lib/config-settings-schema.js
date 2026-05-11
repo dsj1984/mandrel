@@ -296,6 +296,28 @@ const BASELINE_ENTRY_SCHEMA = {
 };
 
 /**
+ * `quality.codingGuardrails` — Story #1399 (Epic #1386). Numeric coding-time
+ * thresholds the helper at `.agents/workflows/helpers/code-quality-guardrails.md`
+ * cites. Promoting the numbers into config means projects can tune them via
+ * `.agentrc.json` without forking the helper. `cyclomaticFlag` /
+ * `cyclomaticMustFix` drive the review-time annotation vs must-fix split;
+ * `miDropRefactor` is the per-file MI-drop ceiling above which a regression
+ * requires a same-Story refactor; `requireSiblingTest` (default `false`) is
+ * the structural enforcement toggle for the sibling-test convention enforced
+ * by `task-commit.js --require-sibling-test`.
+ */
+const CODING_GUARDRAILS_SCHEMA = {
+  type: 'object',
+  properties: {
+    cyclomaticFlag: { type: 'integer', minimum: 1 },
+    cyclomaticMustFix: { type: 'integer', minimum: 1 },
+    miDropRefactor: { type: 'number', minimum: 0 },
+    requireSiblingTest: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
+/**
  * `agentSettings.quality` is the unified home for every enforcement engine in
  * the framework: ratchet baselines (Story 5.5), per-method MI targeting,
  * CRAP scoring, and the PR-gate command suite (Story 6). The old flat
@@ -319,6 +341,7 @@ const QUALITY_SCHEMA = {
     crap: MAINTAINABILITY_CRAP_SCHEMA,
     prGate: PR_GATE_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
+    codingGuardrails: CODING_GUARDRAILS_SCHEMA,
   },
   additionalProperties: false,
 };

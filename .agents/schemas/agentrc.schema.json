@@ -291,6 +291,17 @@
       },
       "additionalProperties": false
     },
+    "codingGuardrails": {
+      "type": "object",
+      "description": "Story #1399 (Epic #1386) — numeric coding-time thresholds the helper at .agents/workflows/helpers/code-quality-guardrails.md cites. Tunable via .agentrc.json so projects do not fork the helper.",
+      "properties": {
+        "cyclomaticFlag": { "type": "integer", "minimum": 1 },
+        "cyclomaticMustFix": { "type": "integer", "minimum": 1 },
+        "miDropRefactor": { "type": "number", "minimum": 0 },
+        "requireSiblingTest": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -306,7 +317,8 @@
         "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
         "crap": { "$ref": "#/$defs/maintainabilityCrap" },
         "prGate": { "$ref": "#/$defs/prGate" },
-        "mergeMethods": { "$ref": "#/$defs/mergeMethods" }
+        "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
+        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" }
       },
       "additionalProperties": false
     },

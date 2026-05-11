@@ -212,6 +212,49 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
+  // Story #1399 (Epic #1386) — `quality.codingGuardrails` is the new numeric
+  // thresholds block the helper at code-quality-guardrails.md cites. Both
+  // surfaces must accept the populated block + reject typos / out-of-range.
+  it('accepts a populated quality.codingGuardrails block on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: {
+          codingGuardrails: {
+            cyclomaticFlag: 8,
+            cyclomaticMustFix: 12,
+            miDropRefactor: 1.5,
+            requireSiblingTest: false,
+          },
+        },
+      },
+      'codingGuardrails populated',
+    );
+  });
+
+  it('rejects unknown property on quality.codingGuardrails on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { codingGuardrails: { cyclomatic: 8 } },
+      },
+      'codingGuardrails typo',
+    );
+  });
+
+  it('rejects negative miDropRefactor on quality.codingGuardrails on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { codingGuardrails: { miDropRefactor: -0.5 } },
+      },
+      'codingGuardrails negative',
+    );
+  });
+
   // Epic #1142 Story #1157: prGate.checks promoted to object items
   // (`{ name, cmd[] }`) so the runner can spawn each check directly.
   it('rejects prGate.checks string items on both sides', () => {

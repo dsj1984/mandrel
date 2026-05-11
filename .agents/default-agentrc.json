@@ -89,6 +89,12 @@
         "allow_merge_commit": false,
         "allow_auto_merge": true,
         "delete_branch_on_merge": true
+      },
+      "codingGuardrails": {
+        "cyclomaticFlag": 8,
+        "cyclomaticMustFix": 12,
+        "miDropRefactor": 1.5,
+        "requireSiblingTest": false
       }
     },
     "planning": {

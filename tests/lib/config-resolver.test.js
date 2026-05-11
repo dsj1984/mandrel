@@ -4,6 +4,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
 import {
   BASELINES_DEFAULTS,
+  CODING_GUARDRAILS_DEFAULTS,
   COMMANDS_DEFAULTS,
   getCommands,
   getLimits,
@@ -13,6 +14,7 @@ import {
   MAINTAINABILITY_CRAP_DEFAULTS,
   PR_GATE_DEFAULTS,
   PROJECT_ROOT,
+  resolveCodingGuardrails,
   resolveConfig,
   resolveListValue,
   resolveMaintainabilityCrap,
@@ -578,6 +580,61 @@ describe('config-resolver library tests', () => {
     it('returns defaults for null/undefined input', () => {
       assert.deepEqual(getQuality(null).prGate.checks, []);
       assert.deepEqual(getQuality(undefined).prGate.checks, []);
+    });
+  });
+
+  // Story #1399 (Epic #1386) — `quality.codingGuardrails` carries the numeric
+  // coding-time thresholds the `code-quality-guardrails.md` helper cites.
+  describe('resolveCodingGuardrails / quality.codingGuardrails (Story #1399)', () => {
+    it('returns framework defaults when the block is absent', () => {
+      const out = resolveCodingGuardrails(undefined);
+      assert.equal(out.cyclomaticFlag, 8);
+      assert.equal(out.cyclomaticMustFix, 12);
+      assert.equal(out.miDropRefactor, 1.5);
+      assert.equal(out.requireSiblingTest, false);
+      // Mutating the result must not mutate the frozen defaults.
+      out.cyclomaticFlag = 99;
+      assert.equal(CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag, 8);
+    });
+
+    it('honours partial overrides (sibling keys keep defaults)', () => {
+      const out = resolveCodingGuardrails({
+        cyclomaticFlag: 6,
+        requireSiblingTest: true,
+      });
+      assert.equal(out.cyclomaticFlag, 6);
+      assert.equal(out.cyclomaticMustFix, 12);
+      assert.equal(out.miDropRefactor, 1.5);
+      assert.equal(out.requireSiblingTest, true);
+    });
+
+    it('returns defaults for null / non-object input', () => {
+      assert.deepEqual(resolveCodingGuardrails(null), {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+      assert.deepEqual(resolveCodingGuardrails('nope'), {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+    });
+
+    it('resolveQuality + getQuality expose codingGuardrails on the merged tree', () => {
+      const resolved = resolveQuality(undefined);
+      assert.deepEqual(resolved.codingGuardrails, {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+      const fromConfig = getQuality({
+        agentSettings: {
+          ...REQ,
+          quality: {
+            codingGuardrails: { cyclomaticMustFix: 10, miDropRefactor: 2 },
+          },
+        },
+      });
+      assert.equal(fromConfig.codingGuardrails.cyclomaticMustFix, 10);
+      assert.equal(fromConfig.codingGuardrails.miDropRefactor, 2);
+      // Defaults for sibling keys preserved.
+      assert.equal(fromConfig.codingGuardrails.cyclomaticFlag, 8);
+      assert.equal(fromConfig.codingGuardrails.requireSiblingTest, false);
     });
   });
 
