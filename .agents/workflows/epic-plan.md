@@ -397,4 +397,4 @@ chooses to gate on them.
   open child of the Epic are skipped (their issue IDs flow through the
   parent/dep wiring), and only the missing ones are created. To force-throttle
   from the first call on a known-large Epic, set
-  `orchestration.runners.decomposer.concurrencyCap: 1` in `.agentrc.json`.
+  `orchestration.concurrency.decomposer: 1` in `.agentrc.json`.
