@@ -4,6 +4,78 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.41.0] — 2026-05-11
+
+The 5.41 release lands the Epic #1235 **hands-off PR pipeline**: CI is
+promoted to the real merge gate, admin bypass-always is removed, a bot
+identity (not the author) supplies the approving review on green CI, a
+single triage comment summarizes each red run, and lint/format-only
+failures self-heal once per PR. The consumer-facing
+`/agents-bootstrap-github` propagates the same primitives into other
+projects with an HITL diff/confirm gate so behavior shifts on existing
+consumers are explicit, not silent. The comment-channel and
+webhook-channel event-allowlist work that landed during the Epic also
+rolls up here.
+
+### Added — Epic #1235 (hands-off PR pipeline)
+
+- **Ruleset enforcement on `main`.** Both CI legs
+  (`Validate and Test (ubuntu-latest, node 22)` and
+  `Validate and Test (windows-latest, node 22)`) are required status
+  checks under ruleset `14286998`; `bypass_actors: []` removes the
+  admin one-click escape. The checked-in `.github/ruleset.json`
+  artifact captures the desired state. Operators apply via
+  `docs/runbooks/story-1-config-flip.md`.
+- **Squash-only + auto-merge.** Repo settings flip to
+  `allow_squash_merge=true`, `allow_rebase_merge=false`,
+  `allow_merge_commit=false`, `allow_auto_merge=true`,
+  `delete_branch_on_merge=true`. The `git-merge-pr` skill default
+  changes to `gh pr merge --auto --squash --delete-branch` so opening
+  a PR with `--auto` lands it the moment CI is green.
+- **PR-failure triage workflow.** `.github/workflows/triage-pr-failure.yml`
+  reacts to `workflow_run: completed` with `conclusion=='failure'`,
+  downloads the existing `test-results-*` and `crap-report-*` artifacts,
+  and posts a single marker-keyed comment
+  (`<!-- ci-triage-comment v1 -->`) summarizing the last ~30 stderr
+  lines and top 5 CRAP regressions. Re-runs edit the existing comment
+  rather than re-post. Pure parsers live under
+  `.agents/scripts/lib/triage/`.
+- **Bot approver workflow.** `.github/workflows/bot-approve.yml`
+  reacts to `workflow_run: completed` with `conclusion=='success'`,
+  mints an installation token via `actions/create-github-app-token@v1`,
+  and POSTs an approving review as the `agent-protocols-reviewer`
+  GitHub App identity. The self-approval guard no-ops on commits
+  whose author matches the bot or whose subject starts with
+  `[auto-fix]`. The GitHub App is operator-provisioned per
+  `docs/runbooks/bot-approver-setup.md`.
+- **Auto-fix loop.** `.github/workflows/auto-fix.yml` reacts to the
+  same CI-failure trigger as the triage workflow. Failure-class
+  detection (pure function under `.agents/scripts/lib/auto-fix/`)
+  splits lint/format → run `biome check --apply` and
+  `biome format --write` (tests/** excluded), commit as the bot
+  identity with a `[auto-fix]` subject, push, set the
+  `auto-fix-attempted` label. Coverage, CRAP, maintainability, and
+  test failures bail with a marker-keyed comment
+  (`<!-- auto-fix-bail v1 -->`). Hard caps: 1 attempt per PR, no
+  action on fork PRs, no edits to test files.
+- **Consumer parity via `/agents-bootstrap-github`.** The bootstrap
+  entrypoint now applies the merge-method settings, extends the
+  branch-protection writer with `enforce_admins=true` and
+  `required_approving_review_count=0`, and copies the Story 2 +
+  Story 4 workflow files from `.agents/templates/` into the
+  consumer's `.github/workflows/` and `.agents/scripts/` trees.
+  Every behavior-shifting change diffs against current consumer
+  state and pauses for operator confirmation via
+  `lib/bootstrap/hitl-confirm.js`. In non-TTY contexts the gate
+  defaults to **abort** with an explicit stderr message — silent
+  applies on existing consumers are impossible.
+- New defaults in `.agents/default-agentrc.json`:
+  `agentSettings.quality.mergeMethods`,
+  `agentSettings.quality.prGate.enforceAdmins` (true),
+  `agentSettings.quality.prGate.requiredApprovingReviewCount` (0),
+  `agentSettings.quality.botApprover.enabled` (false; surfaces the
+  runbook link when off).
+
 ### Changed
 
 - **Comment channel is now event-allowlist-gated, not severity-gated;
