@@ -174,6 +174,26 @@
     "branches": 70,
     "functions": 100
   },
+  ".agents/scripts/lib/bootstrap/branch-protection.js": {
+    "lines": 96.34,
+    "branches": 85.96,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/hitl-confirm.js": {
+    "lines": 100,
+    "branches": 63.16,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/merge-methods.js": {
+    "lines": 100,
+    "branches": 93.1,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/workflow-templates.js": {
+    "lines": 98.74,
+    "branches": 95.24,
+    "functions": 100
+  },
   ".agents/scripts/lib/branch-name-guard.js": {
     "lines": 100,
     "branches": 96.43,
@@ -380,9 +400,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/ITicketingProvider.js": {
-    "lines": 96.19,
+    "lines": 95.99,
     "branches": 100,
-    "functions": 71.43
+    "functions": 69.57
   },
   ".agents/scripts/lib/label-constants.js": {
     "lines": 100,
@@ -1020,9 +1040,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 92.24,
+    "lines": 90.94,
     "branches": 100,
-    "functions": 78.57
+    "functions": 75
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1030,8 +1050,8 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/branches.js": {
-    "lines": 95.24,
-    "branches": 68.18,
+    "lines": 90.42,
+    "branches": 66.67,
     "functions": 100
   },
   ".agents/scripts/providers/github/cache-manager.js": {
@@ -1083,6 +1103,11 @@
     "lines": 72.31,
     "branches": 82.8,
     "functions": 69.23
+  },
+  ".agents/scripts/providers/github/repo.js": {
+    "lines": 73.33,
+    "branches": 100,
+    "functions": 0
   },
   ".agents/scripts/providers/github/ticket-mapper.js": {
     "lines": 99.17,
