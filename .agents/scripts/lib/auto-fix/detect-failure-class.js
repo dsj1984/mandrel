@@ -50,27 +50,38 @@
  * should not count).
  */
 export const CLASS_MARKERS = Object.freeze({
-  // Maintainability regression banner from .agents/scripts/check-maintainability.js
-  maintainability: [/^.*maintainability .* regression/i],
-  // CRAP regression banner from .agents/scripts/check-crap.js
-  crap: [/^.*CRAP .* regression/i],
+  // Maintainability regression banner from .agents/scripts/check-maintainability.js.
+  // The banner shape is "Maintainability regression in <file>: ..." or
+  // "Maintainability ... regression" — we accept either by making the
+  // middle "<something>" optional.
+  maintainability: [/\bmaintainability\b.*\bregression\b/i],
+  // CRAP regression banner from .agents/scripts/check-crap.js. Same
+  // shape: "CRAP regression in <file>: ..." (no required middle words).
+  crap: [/\bCRAP\b.*\bregression\b/i],
   // c8 / node:test coverage gate
-  coverage: [/coverage threshold .* not met/i, /^.*coverage .* below/i],
-  // node:test TAP-style failures, pretty reporter, and the FAIL banner
+  coverage: [/coverage threshold .* not met/i, /\bcoverage\b.*\bbelow\b/i],
+  // node:test TAP-style failures, pretty reporter, and the FAIL banner.
+  // We also accept indented `✖` from the pretty reporter — the lint /
+  // format markers below are matched first via CLASS_PRIORITY so a
+  // `✖ lint` line still routes to lint, not test.
   test: [/^not ok\b/, /^#\s*fail\s+\d+/i, /^✖\s/, /^FAIL\b/],
-  // biome lint diagnostics — biome prints `lint/<group>/<rule>` headers and
-  // a `Found N error(s)` summary on stderr; either is sufficient.
+  // biome lint diagnostics — biome prints `lint/<group>/<rule>` headers,
+  // a "Biome check found N errors" summary, or a leading `✖ lint` line.
   lint: [
     /\blint\/[a-z]+\/[A-Za-z0-9]+/, // diagnostic header e.g. lint/correctness/noUnusedVars
-    /biome .* found \d+ error/i,
+    /\bbiome\b.*\bfound\b.*\d+\s*error/i,
     /^\s*✖\s+lint\b/i,
   ],
-  // biome formatter / prettier diff
+  // biome formatter / prettier diff. The line shapes we see in practice:
+  //   "./foo.js  Formatter would have made changes."
+  //   "Found 2 unformatted files."
+  //   "biome format reports differences"
+  //   "✖ format/..."
   format: [
     /^\s*✖\s+format\b/i,
-    /\bformat .* would (?:reformat|change)/i,
-    /\bbiome format .*differs/i,
-    /^Formatter would have made changes/i,
+    /\bFormatter\s+would\s+have\s+made\s+changes/i,
+    /\bunformatted\s+files?\b/i,
+    /\bbiome\s+format\b/i,
   ],
 });
 
