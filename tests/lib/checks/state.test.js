@@ -120,8 +120,14 @@ describe('assembleState', () => {
     // The contract: when no probes are injected, the result is cached. We
     // assert identity equality on the returned object, which is the
     // proof-of-cache.
-    const first = assembleState({ scope: 'epic-close', cwd: '/repo-default' });
-    const second = assembleState({ scope: 'epic-close', cwd: '/repo-default' });
+    const first = assembleState({
+      scope: 'epic-deliver',
+      cwd: '/repo-default',
+    });
+    const second = assembleState({
+      scope: 'epic-deliver',
+      cwd: '/repo-default',
+    });
     assert.strictEqual(first, second, 'cached object must be reused');
   });
 

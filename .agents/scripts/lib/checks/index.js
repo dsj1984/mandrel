@@ -2,7 +2,7 @@
  * checks/index.js — Discovery-based registry + runner for self-healing checks.
  *
  * This module is the single entry point for every consumer surface that
- * runs checks (preflight guards at `epic-close.js` / `story-close.js`, the
+ * runs checks (preflight guards at `epic-deliver.js` / `story-close.js`, the
  * `npm test` wrapper, the `/diagnose` CLI, and the retro hook in
  * `retro-runner.js`). Each surface calls `runChecks({ scope, autoFix, state })`
  * with its own scope and gets back `{ findings, fixed }`.
@@ -177,7 +177,7 @@ export async function getCheck(id, opts) {
  *
  * @param {object} opts
  * @param {string} [opts.scope]      Surface scope, e.g. 'story-close',
- *   'epic-close', 'retro', 'diagnose'. When omitted, every check runs.
+ *   'epic-deliver', 'retro', 'diagnose'. When omitted, every check runs.
  * @param {boolean} [opts.autoFix=false]  Invoke `fix()` for checks with
  *   `autoCorrect: 'auto'`. Forbidden when `scope === 'retro'`.
  * @param {object} opts.state        Probed state from `assembleState()`.

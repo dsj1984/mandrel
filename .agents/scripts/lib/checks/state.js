@@ -5,7 +5,7 @@
  * that checks declared for the given scope actually need. The runner in
  * `index.js` filters the registry by `scope` first, then asks this module
  * for state; the per-scope projection keeps probe cost proportional to the
- * call site (e.g. `story-close` does not pay for `epic-close` probes, and
+ * call site (e.g. `story-close` does not pay for `epic-deliver` probes, and
  * the `retro` consumer only probes inputs the retro-scoped checks need).
  *
  * Privacy contract:
@@ -53,7 +53,7 @@ const SCOPE_KEYS = Object.freeze({
     'fs.worktrees',
     'env.GITHUB_TOKEN',
   ]),
-  'epic-close': Object.freeze([
+  'epic-deliver': Object.freeze([
     'git.headRef',
     'git.epicBranches',
     'git.coreBare',

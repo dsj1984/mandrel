@@ -21,7 +21,7 @@ Each check module default-exports an object with this shape:
 export default {
   id: 'stale-origin-epic',                            // unique kebab-case
   severity: 'blocker',                                // 'blocker' | 'warning' | 'info'
-  scope: ['epic-close', 'story-close', 'retro'],      // surfaces this check runs on
+  scope: ['epic-deliver', 'story-close', 'retro'],    // surfaces this check runs on
   autoCorrect: 'refuse-and-print',                    // 'auto' | 'refuse-and-print'
   detect(state) {
     // returns a Finding object, or null when nothing is wrong.
@@ -86,7 +86,7 @@ A check with `autoCorrect: 'auto'` and a `fix()` body MUST NOT:
 
 - **No `git push`** to any remote, ever. The fix may write commits to a
   Story branch but never publish them. Publishing is the
-  `story-close`/`epic-close` writer's job, and the auto-correct boundary
+  `story-close`/`epic-deliver` writer's job, and the auto-correct boundary
   is the local worktree.
 - **No commits to `epic/*` or `main`**. The fix may touch the working
   tree on a Story branch, but it must not `git commit` against an
@@ -101,7 +101,7 @@ A check with `autoCorrect: 'auto'` and a `fix()` body MUST NOT:
   command in `fixCommand`.
 - **No writes to remote GitHub state**. No `gh issue close`, no
   `gh pr merge`, no label transitions. The orchestration writers
-  (`story-close.js`, `epic-close.js`) own that surface.
+  (`story-close.js`, `epic-deliver-*.js`) own that surface.
 - **No reading of secret values**. State assembly returns `env`
   projections as `'set' | 'missing'` strings; checks must never read raw
   `process.env.X` for any name that could be a secret.

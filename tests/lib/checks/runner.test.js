@@ -67,7 +67,7 @@ describe('runChecks', () => {
       }),
       makeCheck({
         id: 'b',
-        scope: ['epic-close'],
+        scope: ['epic-deliver'],
         detect: () => {
           seen.push('b');
           return null;
@@ -206,7 +206,7 @@ describe('runChecks', () => {
     const registry = ['a', 'b'].map((id) =>
       makeCheck({
         id,
-        scope: ['story-close', 'epic-close'],
+        scope: ['story-close', 'epic-deliver'],
         detect: () => {
           seen.push(id);
           return null;
