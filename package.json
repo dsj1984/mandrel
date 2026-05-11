@@ -19,6 +19,7 @@
     "crap:check": "node .agents/scripts/check-crap.js",
     "crap:update": "node .agents/scripts/update-crap-baseline.js",
     "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD",
+    "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node .agents/scripts/sync-claude-commands.js",
     "prepare": "husky && npm run sync:commands"
   },
@@ -39,6 +40,7 @@
     "ajv": "^8.18.0",
     "ajv-formats": "^3.0.1",
     "c8": "^11.0.0",
+    "chokidar": "^4.0.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "markdownlint-cli": "^0.48.0",
