@@ -61,6 +61,173 @@ export class GhExecTimeoutError extends GhExecError {
 }
 
 /**
+ * `gh` is not on PATH (ENOENT on spawn, or stderr literally contains the
+ * "command not found" / "is not recognized" phrasing for Windows). Callers
+ * (`agents-bootstrap-github`) treat this as a hard preflight failure and
+ * print install instructions.
+ */
+export class GhNotInstalledError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhNotInstalledError';
+  }
+}
+
+/** `gh auth login` has not been run (or the token expired). */
+export class GhAuthError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhAuthError';
+  }
+}
+
+/**
+ * Hit a primary or secondary rate limit. Distinct from auth so caller retry
+ * loops can back off rather than re-prompt for credentials.
+ */
+export class GhRateLimitError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhRateLimitError';
+  }
+}
+
+/** Resource (issue, PR, repo, branch) does not exist or is not visible. */
+export class GhNotFoundError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhNotFoundError';
+  }
+}
+
+/**
+ * The authenticated user is authenticated but missing a required scope (e.g.
+ * `project` for Projects V2). `gh auth refresh -s <scope>` is the canonical
+ * recovery.
+ */
+export class GhScopeError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhScopeError';
+  }
+}
+
+/**
+ * GraphQL endpoint returned `errors[]` (most commonly emitted by
+ * `gh api graphql`). The stderr carries the rendered error string; we
+ * surface it as-is so callers can pattern-match on the specific GraphQL
+ * failure if they care.
+ */
+export class GhGraphqlError extends GhExecError {
+  constructor(message, details = {}) {
+    super(message, details);
+    this.name = 'GhGraphqlError';
+  }
+}
+
+/**
+ * Classify a non-zero `gh` invocation into the most specific typed error
+ * subclass available. Pure function — no side effects, no I/O.
+ *
+ * Pattern table (order-sensitive: more specific patterns first):
+ *
+ *   spawnError.code === 'ENOENT'  → GhNotInstalledError
+ *   /command not found|not recognized/i (no spawnError) → GhNotInstalledError
+ *   /requires authentication|auth (login|status)/i      → GhAuthError
+ *   /rate limit|secondary rate limit|API rate limit/i   → GhRateLimitError
+ *   /missing.*scope|requires the .* scope/i             → GhScopeError
+ *   /HTTP 404|not found|could not resolve/i             → GhNotFoundError
+ *   /GraphQL: |graphql.*error/i                         → GhGraphqlError
+ *   anything else                                       → GhExecError
+ *
+ * @param {object} ctx
+ * @param {string} [ctx.stderr]
+ * @param {number|null} [ctx.code]
+ * @param {string[]} [ctx.args]
+ * @param {string} [ctx.stdout]
+ * @param {Error}  [ctx.spawnError]
+ *   Raw error thrown by `spawn` (e.g. ENOENT). Passed through so the auth
+ *   path can distinguish "missing binary" from "binary present, said no".
+ * @returns {GhExecError}
+ */
+export function classify({
+  stderr = '',
+  code = null,
+  args,
+  stdout = '',
+  spawnError,
+} = {}) {
+  const details = { args, stdout, stderr, code };
+  const haystack = `${stderr}`.toLowerCase();
+
+  if (spawnError && spawnError.code === 'ENOENT') {
+    return new GhNotInstalledError(
+      `gh-exec: gh CLI is not installed or not on PATH: ${spawnError.message}`,
+      details,
+    );
+  }
+  if (
+    !spawnError &&
+    (/command not found/.test(haystack) ||
+      /is not recognized/.test(haystack) ||
+      /no such file or directory.*gh/.test(haystack))
+  ) {
+    return new GhNotInstalledError(
+      'gh-exec: gh CLI is not installed or not on PATH',
+      details,
+    );
+  }
+
+  if (
+    /requires authentication/.test(haystack) ||
+    /not logged into/.test(haystack) ||
+    /authentication required/.test(haystack)
+  ) {
+    return new GhAuthError(
+      'gh-exec: gh is not authenticated — run `gh auth login`',
+      details,
+    );
+  }
+
+  if (
+    /secondary rate limit/.test(haystack) ||
+    /api rate limit exceeded/.test(haystack) ||
+    /rate limit exceeded/.test(haystack)
+  ) {
+    return new GhRateLimitError('gh-exec: gh API rate limit exceeded', details);
+  }
+
+  if (
+    /missing.*scope/.test(haystack) ||
+    /requires the .* scope/.test(haystack) ||
+    /your token has not been granted the required scopes/.test(haystack)
+  ) {
+    return new GhScopeError(
+      'gh-exec: gh token is missing a required OAuth scope',
+      details,
+    );
+  }
+
+  if (
+    /http 404/.test(haystack) ||
+    /could not resolve to a/.test(haystack) ||
+    /not found/.test(haystack)
+  ) {
+    return new GhNotFoundError('gh-exec: resource not found', details);
+  }
+
+  if (
+    /^graphql:/.test(haystack) ||
+    /graphql error/.test(haystack) ||
+    /graphql.*errors/.test(haystack)
+  ) {
+    return new GhGraphqlError('gh-exec: GraphQL error from gh api', details);
+  }
+
+  return new GhExecError(`gh-exec: gh exited with code ${code}`, details);
+}
+
+/**
  * Spawn `gh` with the given args. Returns a Promise.
  *
  * @param {object} opts
@@ -107,9 +274,7 @@ export function exec({
     try {
       child = spawnImpl('gh', args, spawnOpts);
     } catch (err) {
-      reject(
-        new GhExecError(`gh-exec: spawn failed: ${err.message}`, { args }),
-      );
+      reject(classify({ spawnError: err, args }));
       return;
     }
 
@@ -127,13 +292,7 @@ export function exec({
     child.on('error', (err) => {
       if (settled) return;
       settled = true;
-      reject(
-        new GhExecError(`gh-exec: process error: ${err.message}`, {
-          args,
-          stdout,
-          stderr,
-        }),
-      );
+      reject(classify({ spawnError: err, args, stdout, stderr, code: null }));
     });
 
     child.on('close', (code, signal) => {
@@ -151,6 +310,11 @@ export function exec({
             { args, stdout, stderr, code, timeoutMs: spawnOpts.timeout },
           ),
         );
+        return;
+      }
+
+      if (code !== 0) {
+        reject(classify({ args, stdout, stderr, code }));
         return;
       }
 
