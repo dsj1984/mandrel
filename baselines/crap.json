@@ -739,49 +739,55 @@
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrCreateArgs",
-      "startLine": 52
+      "startLine": 54
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrTitle",
-      "startLine": 70
+      "startLine": 72
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildPrBody",
-      "startLine": 80
+      "startLine": 82
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "buildHandoffBody",
-      "startLine": 99
+      "startLine": 101
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "defaultGhSpawn",
-      "startLine": 120
+      "startLine": 122
     },
     {
       "crap": 5.000925925925926,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "checkEpicFastForward",
-      "startLine": 139
+      "startLine": 141
     },
     {
-      "crap": 9.252007406217661,
+      "crap": 9.174012285589608,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "runEpicDeliverFinalize",
-      "startLine": 192
+      "startLine": 194
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-deliver-finalize.js",
+      "method": "<anon method-1>",
+      "startLine": 333
     },
     {
       "crap": 30,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "main",
-      "startLine": 330
+      "startLine": 350
     },
     {
       "crap": 4.006503073718437,
@@ -823,79 +829,79 @@
       "crap": 2.0521066558111136,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "validateResults",
-      "startLine": 118
+      "startLine": 117
     },
     {
       "crap": 5.5830903790087465,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseInputArg",
-      "startLine": 160
+      "startLine": 159
     },
     {
       "crap": 124.1112647462277,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "normalizeReturns",
-      "startLine": 197
+      "startLine": 196
     },
     {
       "crap": 4,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "aggregateWaveStatus",
-      "startLine": 248
+      "startLine": 247
     },
     {
       "crap": 7.854629152150125,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "verifyWaveResults",
-      "startLine": 281
+      "startLine": 280
     },
     {
       "crap": 5.700539437235749,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "loadManifestTitleMap",
-      "startLine": 331
+      "startLine": 330
     },
     {
       "crap": 5,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "classifyWaveOutcome",
-      "startLine": 357
+      "startLine": 356
     },
     {
       "crap": 5.072886297376093,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "toRollupRow",
-      "startLine": 384
+      "startLine": 383
     },
     {
-      "crap": 29.125364431486883,
+      "crap": 28.06007806069825,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runEpicExecuteRecordWave",
-      "startLine": 415
+      "startLine": 414
     },
     {
       "crap": 36.013433747201304,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveRecordInput",
-      "startLine": 695
+      "startLine": 690
     },
     {
       "crap": 1.800655976676385,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseArgv",
-      "startLine": 718
+      "startLine": 713
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runRecordWaveCli",
-      "startLine": 749
+      "startLine": 744
     },
     {
       "crap": 17.18359375,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
-      "startLine": 787
+      "startLine": 782
     },
     {
       "crap": 4,
@@ -3136,10 +3142,10 @@
       "startLine": 161
     },
     {
-      "crap": 4.004296599644188,
+      "crap": 4.000812884214804,
       "file": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
       "method": "detectEpicCompletion",
-      "startLine": 26
+      "startLine": 29
     },
     {
       "crap": 2,
@@ -3310,34 +3316,34 @@
       "startLine": 963
     },
     {
-      "crap": 8.087791495198903,
+      "crap": 9.087391898042785,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "emitEpicComplete",
-      "startLine": 1006
+      "startLine": 1019
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
-      "startLine": 1050
+      "startLine": 1066
     },
     {
       "crap": 7.467679550324179,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
-      "startLine": 1074
+      "startLine": 1090
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
-      "startLine": 1108
+      "startLine": 1124
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 1124
+      "startLine": 1140
     },
     {
       "crap": 16.078678343482082,
@@ -4228,52 +4234,52 @@
       "startLine": 108
     },
     {
-      "crap": 13.114070186238141,
+      "crap": 14.11929165104514,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
-      "startLine": 133
+      "startLine": 139
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 257
+      "startLine": 267
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 299
+      "startLine": 309
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 325
+      "startLine": 335
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 351
+      "startLine": 361
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 386
+      "startLine": 396
     },
     {
       "crap": 10.0262144,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 434
+      "startLine": 444
     },
     {
       "crap": 3.67181804927832,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "<anon method-7>",
-      "startLine": 482
+      "startLine": 492
     },
     {
       "crap": 7,
@@ -6073,55 +6079,61 @@
       "crap": 4.916,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "resolveCachePath",
-      "startLine": 96
+      "startLine": 115
     },
     {
       "crap": 3.0987654320987654,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "readCache",
-      "startLine": 114
+      "startLine": 133
     },
     {
       "crap": 1,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "writeCache",
-      "startLine": 130
+      "startLine": 149
     },
     {
       "crap": 11.099700927734375,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "applyTransition",
-      "startLine": 149
+      "startLine": 168
     },
     {
       "crap": 5,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "hydrateFromComment",
-      "startLine": 190
+      "startLine": 209
     },
     {
-      "crap": 11.752640458737469,
+      "crap": 3,
+      "file": ".agents/scripts/story-task-progress.js",
+      "method": "isCommitReachableFromHead",
+      "startLine": 239
+    },
+    {
+      "crap": 17.460358418311294,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
-      "startLine": 229
+      "startLine": 274
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "<anon method-3>",
-      "startLine": 268
+      "startLine": 313
     },
     {
       "crap": 1.8801359953703705,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "parseArgv",
-      "startLine": 317
+      "startLine": 412
     },
     {
       "crap": 4.809327846364883,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "main",
-      "startLine": 342
+      "startLine": 437
     },
     {
       "crap": 11.090909090909092,
