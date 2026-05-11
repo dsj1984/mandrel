@@ -60,7 +60,7 @@ import {
 } from './github/graphql-builder.js';
 import { GithubHttpClient } from './github/http.js';
 import * as labels from './github/labels.js';
-import * as projects from './github/projects.js';
+import * as projects from './github/projects-v2-graphql.js';
 import * as repo from './github/repo.js';
 import {
   issueToEpic,
