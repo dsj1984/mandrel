@@ -49,6 +49,7 @@ const SCOPE_KEYS = Object.freeze({
   'story-close': Object.freeze([
     'git.headRef',
     'git.epicBranches',
+    'git.epicBranchSync',
     'git.coreBare',
     'fs.worktrees',
     'env.GITHUB_TOKEN',
@@ -161,6 +162,30 @@ function probeGit(keys, cwd, git) {
     } else if (field === 'coreBare') {
       const result = git(cwd, 'config', '--get', 'core.bare');
       out.coreBare = result.ok ? result.stdout : null;
+    } else if (field === 'epicBranchSync') {
+      // Build a map of epic branch → { local, remote, ahead } sync state.
+      // Depends on `epicBranches` being assembled; the SCOPE_KEYS ordering
+      // ensures it appears first. Each entry probes:
+      //   - the local SHA of `epic/<id>` via `git rev-parse <ref>`
+      //   - the remote SHA of `origin/epic/<id>` via `git rev-parse <ref>`
+      // `ahead` is true when the local SHA exists, the remote SHA exists,
+      // and they differ — i.e. local is potentially ahead of (or has
+      // diverged from) origin. The check consumer treats divergence as a
+      // blocker because the close script's rebase will fight a stale base.
+      const sync = {};
+      const branches = out.epicBranches ?? [];
+      for (const branch of branches) {
+        const local = git(cwd, 'rev-parse', '--verify', branch);
+        const remote = git(cwd, 'rev-parse', '--verify', `origin/${branch}`);
+        const localSha = local.ok ? local.stdout : null;
+        const remoteSha = remote.ok ? remote.stdout : null;
+        sync[branch] = {
+          local: localSha,
+          remote: remoteSha,
+          ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
+        };
+      }
+      out.epicBranchSync = sync;
     }
   }
   return out;
