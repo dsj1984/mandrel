@@ -44,6 +44,11 @@
     "branches": 72,
     "functions": 100
   },
+  ".agents/scripts/diagnose.js": {
+    "lines": 87.31,
+    "branches": 83.33,
+    "functions": 66.67
+  },
   ".agents/scripts/dispatcher.js": {
     "lines": 56.5,
     "branches": 50,
@@ -199,11 +204,6 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
-    "lines": 99.04,
-    "branches": 70,
-    "functions": 100
-  },
   ".agents/scripts/lib/checks/core-bare-clean.js": {
     "lines": 100,
     "branches": 80,
@@ -229,20 +229,15 @@
     "branches": 81.08,
     "functions": 100
   },
-  ".agents/scripts/lib/checks/push-hook-parity.js": {
-    "lines": 100,
-    "branches": 86.36,
-    "functions": 100
-  },
   ".agents/scripts/lib/checks/stale-origin-epic.js": {
     "lines": 100,
     "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/checks/state.js": {
-    "lines": 87.29,
-    "branches": 84.76,
-    "functions": 87.1
+    "lines": 92.33,
+    "branches": 87.23,
+    "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
     "lines": 96.7,
@@ -257,16 +252,6 @@
   ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
     "lines": 100,
     "branches": 100,
-    "functions": 100
-  },
-  ".agents/scripts/lib/checks/worktree-bootstrap-env.js": {
-    "lines": 100,
-    "branches": 87.5,
-    "functions": 100
-  },
-  ".agents/scripts/lib/checks/worktree-residue-biome.js": {
-    "lines": 100,
-    "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
