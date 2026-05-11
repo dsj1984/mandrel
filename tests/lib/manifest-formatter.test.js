@@ -9,6 +9,8 @@ import {
   renderProgressBar,
   renderStoryTable,
   renderWaveSections,
+  slugifyHeading,
+  waveHeadingText,
 } from '../../.agents/scripts/lib/presentation/manifest-formatter.js';
 
 function epicManifest(overrides = {}) {
@@ -229,10 +231,55 @@ test('renderProgressBar: respects custom width and clamps out-of-range input', (
 test('renderWaveSections: renders one row per wave with status & mini bar', () => {
   const md = renderWaveSections(epicManifest().storyManifest);
   assert.ok(md.includes('## Wave Summary'));
-  assert.ok(md.includes('| Wave 0 |'));
-  assert.ok(md.includes('| Wave 1 |'));
+  assert.ok(md.includes('| Wave | Status | Progress | Stories | Tasks |'));
+  // The wave-cell is now a markdown link to the corresponding H2 anchor.
+  assert.ok(md.includes('| [Wave 0](#'));
+  assert.ok(md.includes('| [Wave 1](#'));
   assert.ok(md.includes('🚀 Ready'));
   assert.ok(md.includes('⏳ Blocked'));
+});
+
+test('renderWaveSections: each TOC row links to the slug of its wave heading', () => {
+  const md = renderWaveSections(epicManifest().storyManifest);
+  // Wave 0 (no prior waves) is Ready; Wave 1 depends on incomplete Wave 0 → Blocked.
+  const expectedW0 = `#${slugifyHeading(waveHeadingText('Wave 0', '🚀 Ready'))}`;
+  const expectedW1 = `#${slugifyHeading(waveHeadingText('Wave 1', '⏳ Blocked'))}`;
+  assert.ok(
+    md.includes(`| [Wave 0](${expectedW0}) |`),
+    `expected Wave 0 link to ${expectedW0}`,
+  );
+  assert.ok(
+    md.includes(`| [Wave 1](${expectedW1}) |`),
+    `expected Wave 1 link to ${expectedW1}`,
+  );
+});
+
+test('slugifyHeading: lowercases ASCII headings', () => {
+  assert.equal(slugifyHeading('Wave 0 Ready'), 'wave-0-ready');
+  assert.equal(slugifyHeading('UPPER CASE'), 'upper-case');
+});
+
+test('slugifyHeading: strips emojis and other punctuation', () => {
+  // Emoji + em-dash both vanish; the surrounding whitespace then collapses.
+  assert.equal(slugifyHeading('🚀 Wave 0 — Ready'), 'wave-0-ready');
+  assert.equal(slugifyHeading('✅ Done!'), 'done');
+  assert.equal(slugifyHeading('foo, bar; baz.'), 'foo-bar-baz');
+});
+
+test('slugifyHeading: collapses internal whitespace runs into single hyphens', () => {
+  assert.equal(slugifyHeading('many   spaces  here'), 'many-spaces-here');
+  assert.equal(slugifyHeading('tabs\tand\nnewlines'), 'tabs-and-newlines');
+});
+
+test('slugifyHeading: trims leading and trailing hyphens', () => {
+  assert.equal(slugifyHeading('   leading   '), 'leading');
+  assert.equal(slugifyHeading('--dash--wrapped--'), 'dash-wrapped');
+});
+
+test('slugifyHeading: handles null/undefined gracefully', () => {
+  assert.equal(slugifyHeading(null), '');
+  assert.equal(slugifyHeading(undefined), '');
+  assert.equal(slugifyHeading(''), '');
 });
 
 test('renderWaveSections: returns empty string for empty input', () => {

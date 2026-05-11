@@ -85,6 +85,52 @@ export function computeProgress(manifest) {
 }
 
 /**
+ * Derive a GitHub-flavoured Markdown anchor slug from a heading's visible text.
+ *
+ * GitHub's slug algorithm (per `jch/html-pipeline`'s TocFilter) is:
+ *   1. Lowercase the text.
+ *   2. Strip emojis and other non-letter/digit/space/hyphen Unicode.
+ *   3. Replace runs of whitespace with a single hyphen.
+ *   4. Trim leading/trailing hyphens.
+ *
+ * Used by both the Wave Summary TOC and the per-wave H2 emission so the
+ * link `href` and the anchor stay in lock-step. Exporting this from the
+ * formatter (rather than a utility module) keeps the TOC ↔ H2 contract
+ * inside one file — drift here would manifest as broken jump-links in the
+ * rendered manifest.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function slugifyHeading(text) {
+  const raw = String(text ?? '');
+  // Lowercase, then drop anything that isn't a letter, digit, space, or hyphen.
+  // The Unicode property escapes match the GitHub behaviour for accented chars
+  // (kept) and emoji / punctuation (dropped).
+  const stripped = raw
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]+/gu, '')
+    .trim();
+  // Collapse any run of whitespace (or pre-existing hyphens) into a single
+  // hyphen and strip the boundaries.
+  return stripped.replace(/[\s-]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Build the visible H2 text for a wave row, e.g. `🚀 Wave 0 — Ready`. Used
+ * both as the row label in the TOC and (later, by Task #1212) as the literal
+ * `## …` text in the per-wave section. Centralising the formatting here is
+ * what lets `slugifyHeading` produce identical slugs on both sides.
+ *
+ * @param {string} waveLabel  e.g. `Wave 0` or `Ungrouped`
+ * @param {string} statusLabel e.g. `✅ Done`, `🚀 Ready`, `⏳ Blocked`
+ * @returns {string}
+ */
+export function waveHeadingText(waveLabel, statusLabel) {
+  return `${statusLabel} ${waveLabel}`;
+}
+
+/**
  * Render a fixed-width unicode progress bar, e.g. `█████░░░░░░░░░░░░░░░`.
  *
  * @param {number} percent  0..100
@@ -125,7 +171,7 @@ export function renderWaveSections(waveEligible) {
   const lines = [
     '## Wave Summary',
     '',
-    '| Wave | Stories | Progress | Tasks | Status |',
+    '| Wave | Status | Progress | Stories | Tasks |',
     '| :--- | :--- | :--- | :--- | :--- |',
   ];
 
@@ -150,8 +196,15 @@ export function renderWaveSections(waveEligible) {
     const wavePct =
       stat.tasks > 0 ? Math.round((stat.done / stat.tasks) * 100) : 0;
     const waveBar = renderProgressBar(wavePct, { width: 10 });
+    // The TOC cell links into the per-wave H2 section emitted downstream
+    // (Task #1212). The slug is derived from the same heading text both
+    // sides will use, so the anchor stays correct as long as both call
+    // `waveHeadingText` + `slugifyHeading` in lock-step.
+    const headingText = waveHeadingText(waveLabel, statusLabel);
+    const anchor = slugifyHeading(headingText);
+    const waveCell = `[${waveLabel}](#${anchor})`;
     lines.push(
-      `| ${waveLabel} | ${stat.stories} | ${waveBar} ${wavePct}% | ${stat.done}/${stat.tasks} | ${statusLabel} |`,
+      `| ${waveCell} | ${statusLabel} | ${waveBar} ${wavePct}% | ${stat.stories} | ${stat.done}/${stat.tasks} |`,
     );
   }
   lines.push('');
