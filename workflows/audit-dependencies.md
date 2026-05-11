@@ -1,6 +1,9 @@
 ---
 description: Audit and upgrade project dependencies
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: structured manifest + CVE lookup work — minimal reasoning, A/B parity with sonnet. -->
 
 # Dependency Update Audit
 
@@ -15,6 +18,8 @@ vulnerable, or bloated packages and suggest a safe upgrade path that maintains
 system stability.
 
 ## Step 1: Inventory & Stale Check
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 1. Run `npm outdated` (or equivalent for the package manager) to see which
    packages are behind.

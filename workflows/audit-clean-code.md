@@ -1,6 +1,9 @@
 ---
 description: Run a clean code and maintainability audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: mechanical pattern-scan over naming, duplication, and shape — Haiku A/B matched sonnet output. -->
 
 # Clean Code & Maintainability Audit
 
@@ -16,6 +19,8 @@ violations of clean code principles (SOLID, DRY, KISS) that hinder long-term
 velocity.
 
 ## Step 1: Quality Scan
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Analyze the repository with a focus on:
 

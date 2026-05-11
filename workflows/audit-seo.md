@@ -1,6 +1,9 @@
 ---
 description: Run an SEO and Generative Engine Optimization audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: structured HTML/JSON-LD/schema scan against a checklist — Haiku A/B matched sonnet. -->
 
 # SEO & Generative Engine Optimization Audit
 
@@ -19,6 +22,8 @@ improvements that will increase discoverability in both traditional search
 indexes and AI-powered answer engines — without making any immediate changes.
 
 ## Step 1: Context Gathering (Read-Only Scan)
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Before generating the report, silently scan the codebase. Pay special attention
 to:

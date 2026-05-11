@@ -99,12 +99,17 @@ function walkSources(dir) {
  */
 function scanFile(file, src) {
   const offences = [];
-  // Don't flag the actual story-init script or self-references.
+  // Don't flag the actual story-init script, self-references, or the
+  // parallel-tooling helper — the helper documents both Rule 2
+  // (run_in_background) and the story-init.js anti-pattern in adjacent
+  // bullets, which collides with the scanner's ±20-line window even
+  // though there is no real invocation in the prose.
   const basename = path.basename(file);
   if (
     basename === 'story-init.js' ||
     basename === 'story-init-not-backgrounded.js' ||
-    basename === 'story-init-not-backgrounded.test.js'
+    basename === 'story-init-not-backgrounded.test.js' ||
+    basename === 'parallel-tooling.md'
   ) {
     return offences;
   }

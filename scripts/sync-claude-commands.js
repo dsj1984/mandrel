@@ -23,8 +23,16 @@ import { Logger } from './lib/Logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
-const SRC_DIR = path.join(PROJECT_ROOT, '.agents', 'workflows');
-const DEST_DIR = path.join(PROJECT_ROOT, '.claude', 'commands');
+// Env-var overrides exist so the sync logic can be exercised against a
+// fixture workflow tree in isolation (regression test for the Epic #1185
+// frontmatter pass-through contract). When unset, behaviour is unchanged
+// — the script defaults to the real workflows / commands directories.
+const SRC_DIR =
+  process.env.SYNC_CLAUDE_COMMANDS_SRC ??
+  path.join(PROJECT_ROOT, '.agents', 'workflows');
+const DEST_DIR =
+  process.env.SYNC_CLAUDE_COMMANDS_DEST ??
+  path.join(PROJECT_ROOT, '.claude', 'commands');
 
 const HEADER =
   '<!-- AUTO-GENERATED — do not edit. Source of truth: .agents/workflows/ -->\n<!-- Re-run: npm run sync:commands -->\n\n';

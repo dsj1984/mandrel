@@ -1,6 +1,9 @@
 ---
 description: Run a performance and bottleneck audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: hotpath/big-O pattern-spotting against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Performance & Bottleneck Audit
 
@@ -15,6 +18,8 @@ gaps. Your goal is to identify why a system is slow or where it might fail under
 load.
 
 ## Step 1: Bottleneck Discovery
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Investigate the following areas:
 

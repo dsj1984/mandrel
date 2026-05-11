@@ -1,6 +1,9 @@
 ---
 description: Run a testing and quality assurance audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: coverage/test-shape audit against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Testing & Quality Assurance Audit
 
@@ -31,6 +34,8 @@ integrations, and test environment stability.
 2.  Identify the target codebase paths for the audit.
 
 ## Step 1: Context Gathering (Read-Only Scan)
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Before generating the report, silently scan the workspace for testing-related
 files. Pay special attention to:

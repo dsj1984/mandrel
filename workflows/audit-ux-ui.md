@@ -1,6 +1,9 @@
 ---
 description: Audit UX/UI consistency and design system adherence
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: design-token + component-shape consistency scan — Haiku A/B matched sonnet. -->
 
 # UX/UI & Design System Audit
 
@@ -15,6 +18,8 @@ adherence to the project's design system. Ensure the application feels premium
 and cohesive.
 
 ## Step 1: Visual Consistency Check
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Scan frontend components for:
 

@@ -1,6 +1,9 @@
 ---
 description: Run a DevOps infrastructure audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: config/IaC pattern-scan against a known rubric — Haiku A/B matched sonnet findings. -->
 
 # DevOps Infrastructure Audit
 
@@ -16,6 +19,8 @@ goal is to identify inefficiencies, security risks, and areas for modernization
 without making any immediate changes.
 
 ## Step 1: Context Gathering (Read-Only Scan)
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Before generating the report, silently scan the workspace for relevant
 configuration files. Pay special attention to:
