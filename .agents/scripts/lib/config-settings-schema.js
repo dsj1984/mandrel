@@ -318,6 +318,36 @@ const CODING_GUARDRAILS_SCHEMA = {
 };
 
 /**
+ * `agentSettings.quality.autoRefresh` — bounded baseline auto-refresh at
+ * story-close (Story #1398, Epic #1386). When `enabled`, story-close
+ * regenerates the baseline rows scoped to the Story diff after pre-merge
+ * validation passes and amends them into the close commit if every row's
+ * delta is at or below the configured caps. Over-cap rows are surfaced as
+ * a `baseline-refresh-regression` friction signal and the close commit
+ * is left untouched.
+ *
+ *   - `miDropCap` — maximum allowed drop in per-file MI score (higher MI
+ *     is better; default 1.5).
+ *   - `crapJumpCap` — maximum allowed jump in per-method CRAP score (lower
+ *     CRAP is better; default 5).
+ *   - `scope` — `'diff'` restricts auto-refresh to files the Story changed
+ *     vs `epic/<id>` (default); `'full'` regenerates the full baseline.
+ *
+ * Both cap fields are required-when-present-and-positive numbers; the
+ * resolver fills missing keys from the framework defaults.
+ */
+const AUTO_REFRESH_SCHEMA = {
+  type: 'object',
+  properties: {
+    enabled: { type: 'boolean' },
+    miDropCap: { type: 'number', minimum: 0 },
+    crapJumpCap: { type: 'number', minimum: 0 },
+    scope: { type: 'string', enum: ['diff', 'full'] },
+  },
+  additionalProperties: false,
+};
+
+/**
  * `agentSettings.quality` is the unified home for every enforcement engine in
  * the framework: ratchet baselines (Story 5.5), per-method MI targeting,
  * CRAP scoring, and the PR-gate command suite (Story 6). The old flat
@@ -342,6 +372,7 @@ const QUALITY_SCHEMA = {
     prGate: PR_GATE_SCHEMA,
     mergeMethods: MERGE_METHODS_SCHEMA,
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
+    autoRefresh: AUTO_REFRESH_SCHEMA,
   },
   additionalProperties: false,
 };

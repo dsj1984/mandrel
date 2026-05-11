@@ -95,6 +95,12 @@
         "cyclomaticMustFix": 12,
         "miDropRefactor": 1.5,
         "requireSiblingTest": false
+      },
+      "autoRefresh": {
+        "enabled": true,
+        "miDropCap": 1.5,
+        "crapJumpCap": 5,
+        "scope": "diff"
       }
     },
     "planning": {

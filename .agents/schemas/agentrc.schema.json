@@ -302,6 +302,17 @@
       },
       "additionalProperties": false
     },
+    "autoRefresh": {
+      "type": "object",
+      "description": "Bounded baseline auto-refresh at story-close (Story #1398). When enabled, story-close regenerates baseline rows scoped to the Story diff and amends them into the close commit if every row's delta is at or below miDropCap (per-file MI drop) and crapJumpCap (per-method CRAP jump). Over-cap rows surface a baseline-refresh-regression friction signal instead.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "miDropCap": { "type": "number", "minimum": 0 },
+        "crapJumpCap": { "type": "number", "minimum": 0 },
+        "scope": { "type": "string", "enum": ["diff", "full"] }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -318,7 +329,8 @@
         "crap": { "$ref": "#/$defs/maintainabilityCrap" },
         "prGate": { "$ref": "#/$defs/prGate" },
         "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
-        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" }
+        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" }
       },
       "additionalProperties": false
     },
