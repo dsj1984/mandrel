@@ -40,6 +40,7 @@ import {
  *   epicBranch: string,
  *   cwd: string,
  *   projectRoot: string,
+ *   config?: object,
  *   provider: object,
  *   notify: Function,
  *   tasks: object[],
@@ -54,6 +55,10 @@ import {
  *   writeFileFn?: typeof writeFile,
  *   mkdirFn?: typeof mkdir,
  * }} opts
+ *   `config`: resolved config bag (`{ agentSettings, orchestration }` or the
+ *   bare `agentSettings`) used by downstream temp-paths helpers + signal
+ *   writers so per-story artifacts honor the configured `tempRoot` instead
+ *   of leaking under the framework `projectRoot` / `process.cwd()`.
  * @returns {Promise<object>} the final close result object.
  */
 export async function runPostMergeClose({
@@ -65,6 +70,7 @@ export async function runPostMergeClose({
   epicBranch,
   cwd,
   projectRoot,
+  config,
   provider,
   notify,
   tasks,
@@ -119,6 +125,7 @@ export async function runPostMergeClose({
     epicBranch,
     repoRoot: cwd,
     projectRoot,
+    config,
     provider,
     notify,
     tasks,

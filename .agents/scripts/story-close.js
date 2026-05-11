@@ -271,6 +271,7 @@ async function runStoryCloseLocked({
     epicBranch,
     cwd,
     projectRoot: PROJECT_ROOT,
+    config: { agentSettings, orchestration },
     provider,
     notify: notifyFn,
     tasks,
