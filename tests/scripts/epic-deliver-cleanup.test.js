@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   parseCleanupArgs,
+  renderSummaryLines,
   runEpicDeliverCleanup,
 } from '../../.agents/scripts/epic-deliver-cleanup.js';
 
@@ -106,5 +107,43 @@ describe('runEpicDeliverCleanup', () => {
       () => runEpicDeliverCleanup({ epicId: 0 }),
       /must be a positive integer/,
     );
+  });
+});
+
+describe('renderSummaryLines', () => {
+  it('renders the header + one line per reaped branch', () => {
+    const lines = renderSummaryLines({
+      dryRun: false,
+      reaped: [
+        { branch: 'story-1', method: 'worktree-remove', branchDeleted: true },
+        {
+          branch: 'epic/100',
+          method: 'no-worktree',
+          branchDeleted: false,
+          stderr: 'still checked out',
+        },
+      ],
+      failures: [
+        {
+          branch: 'epic/100',
+          method: 'no-worktree',
+          branchDeleted: false,
+          stderr: 'still checked out',
+        },
+      ],
+    });
+    assert.equal(lines.length, 3);
+    assert.match(lines[0], /reaped=2 failures=1/);
+    assert.match(lines[1], /story-1.*wt=worktree-remove.*branch=deleted/);
+    assert.match(lines[2], /epic\/100.*branch=kept.*stderr=still checked out/);
+  });
+
+  it('prefixes (dry-run) in the header when dry', () => {
+    const [header] = renderSummaryLines({
+      dryRun: true,
+      reaped: [],
+      failures: [],
+    });
+    assert.match(header, /\(dry-run\)/);
   });
 });

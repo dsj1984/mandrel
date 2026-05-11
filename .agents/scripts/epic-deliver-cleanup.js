@@ -154,6 +154,24 @@ export async function runEpicDeliverCleanup({
   };
 }
 
+/**
+ * Pure: render the non-JSON summary lines. Exported for tests.
+ * @param {object} out — runEpicDeliverCleanup envelope.
+ * @returns {string[]}
+ */
+export function renderSummaryLines(out) {
+  const lines = [
+    `[epic-deliver-cleanup] ${out.dryRun ? '(dry-run) ' : ''}reaped=${out.reaped.length} failures=${out.failures.length}`,
+  ];
+  for (const r of out.reaped) {
+    const tail = r.stderr ? ` stderr=${r.stderr}` : '';
+    lines.push(
+      `  ${r.branch} → wt=${r.method} branch=${r.branchDeleted ? 'deleted' : 'kept'}${tail}`,
+    );
+  }
+  return lines;
+}
+
 async function main() {
   const args = parseCleanupArgs(process.argv.slice(2));
   if (args.help) {
@@ -169,18 +187,10 @@ async function main() {
     epicId: args.epicId,
     dryRun: args.dryRun,
   });
-  if (args.json) {
-    Logger.info(JSON.stringify(out, null, 2));
-  } else {
-    Logger.info(
-      `[epic-deliver-cleanup] ${args.dryRun ? '(dry-run) ' : ''}reaped=${out.reaped.length} failures=${out.failures.length}`,
-    );
-    for (const r of out.reaped) {
-      Logger.info(
-        `  ${r.branch} → wt=${r.method} branch=${r.branchDeleted ? 'deleted' : 'kept'}${r.stderr ? ` stderr=${r.stderr}` : ''}`,
-      );
-    }
-  }
+  const rendered = args.json
+    ? [JSON.stringify(out, null, 2)]
+    : renderSummaryLines(out);
+  for (const line of rendered) Logger.info(line);
   if (!out.ok) process.exit(1);
 }
 
