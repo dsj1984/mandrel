@@ -32,7 +32,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -40,52 +40,48 @@ import path from 'node:path';
  * need. Adding a new scope (or extending an existing one) is a deliberate
  * edit here — checks should not silently grow the probe surface.
  *
- * Keys are namespaced by category (`git.*`, `fs.*`, `env.*`, `gates.*`) so
- * the probe dispatcher can route them without re-parsing.
+ * Keys are namespaced by category (`git.*`, `fs.*`, `env.*`) so the probe
+ * dispatcher can route them without re-parsing.
  *
  * @type {Record<string, readonly string[]>}
  */
+// Shared key set: story-close and epic-close probe the same surface
+// (integration branch + worktree set). Story #1289 introduced the
+// `epic-close` and `npm-test` aliases.
+const STORY_CLOSE_KEYS = Object.freeze([
+  'git.headRef',
+  'git.epicBranches',
+  'git.epicBranchSync',
+  'git.localBranches',
+  'git.coreBare',
+  'fs.worktrees',
+  'fs.epicMergeLocks',
+  'env.GITHUB_TOKEN',
+]);
+
+const EPIC_DELIVER_KEYS = Object.freeze([
+  'git.headRef',
+  'git.epicBranches',
+  'git.coreBare',
+  'fs.worktrees',
+  'fs.dotEnv',
+  'fs.dotMcp',
+  'env.GITHUB_TOKEN',
+]);
+
 const SCOPE_KEYS = Object.freeze({
-  'story-close': Object.freeze([
+  'story-close': STORY_CLOSE_KEYS,
+  'epic-close': STORY_CLOSE_KEYS,
+  'epic-deliver': EPIC_DELIVER_KEYS,
+  'npm-test': Object.freeze([
     'git.headRef',
-    'git.epicBranches',
-    'git.epicBranchSync',
-    'git.localBranches',
     'git.coreBare',
     'fs.worktrees',
-    'fs.worktreePaths',
-    'fs.worktreeBiomeOrphans',
-    'fs.worktreeBootstrapStatus',
-    'fs.epicMergeLocks',
-    'env.GITHUB_TOKEN',
-  ]),
-  'epic-deliver': Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.worktreePaths',
-    'fs.worktreeBiomeOrphans',
-    'fs.worktreeBootstrapStatus',
     'fs.dotEnv',
     'fs.dotMcp',
-    'env.GITHUB_TOKEN',
   ]),
   retro: Object.freeze(['git.headRef', 'git.epicBranches', 'fs.worktrees']),
-  diagnose: Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.worktreePaths',
-    'fs.worktreeBiomeOrphans',
-    'fs.worktreeBootstrapStatus',
-    'gates.biome',
-    'gates.miGate',
-    'fs.dotEnv',
-    'fs.dotMcp',
-    'env.GITHUB_TOKEN',
-  ]),
+  diagnose: EPIC_DELIVER_KEYS,
 });
 
 /**
@@ -129,30 +125,6 @@ function defaultGitProbe(cwd, ...args) {
  */
 function defaultFsProbe(absPath) {
   return existsSync(absPath);
-}
-
-/**
- * Default directory-listing probe — returns immediate child entry names of
- * `absPath`, filtered to directories. Returns an empty array if `absPath`
- * does not exist or is not a directory. Never reads file contents.
- *
- * @param {string} absPath
- * @returns {string[]}
- */
-function defaultFsListProbe(absPath) {
-  try {
-    if (!existsSync(absPath)) return [];
-    const entries = readdirSync(absPath);
-    return entries.filter((entry) => {
-      try {
-        return statSync(path.join(absPath, entry)).isDirectory();
-      } catch {
-        return false;
-      }
-    });
-  } catch {
-    return [];
-  }
 }
 
 /**
@@ -221,214 +193,148 @@ function defaultPidLivenessProbe(pid) {
 }
 
 /**
- * Default gate probe — executes a named pre-push gate (`biome`, `miGate`)
- * in a dry-run mode against HEAD and reports its pass/fail status. Tests
- * inject a fake `gates` probe to avoid the spawn cost.
- *
- * @param {string} cwd
- * @param {'biome' | 'miGate'} gate
- * @returns {{ ok: boolean, output: string }}
- */
-const GATE_COMMANDS = {
-  biome: {
-    cmd: 'npx',
-    args: ['biome', 'check', '--no-errors-on-unmatched', '.'],
-  },
-  miGate: { cmd: 'npm', args: ['run', '--silent', 'check:maintainability'] },
-};
-
-function runGate(cwd, cmd, args) {
-  const result = spawnSync(cmd, args, {
-    cwd,
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  });
-  if (result.error) return { ok: false, output: String(result.error.message) };
-  return {
-    ok: result.status === 0,
-    output: `${result.stdout ?? ''}${result.stderr ?? ''}`.trim(),
-  };
-}
-
-function defaultGateProbe(cwd, gate) {
-  const spec = GATE_COMMANDS[gate];
-  if (!spec) return { ok: false, output: `unknown gate: ${gate}` };
-  return runGate(cwd, spec.cmd, spec.args);
-}
-
-const GIT_HANDLERS = {
-  headRef: (git, cwd) => {
-    const result = git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
-    return result.ok ? result.stdout : null;
-  },
-  epicBranches: (git, cwd) => {
-    const result = git(
-      cwd,
-      'for-each-ref',
-      '--format=%(refname:short)',
-      'refs/heads/epic/',
-    );
-    if (!result.ok || !result.stdout) return [];
-    return result.stdout
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  },
-  localBranches: (git, cwd) => {
-    const result = git(
-      cwd,
-      'for-each-ref',
-      '--format=%(refname:short)',
-      'refs/heads/',
-    );
-    if (!result.ok || !result.stdout) return [];
-    return result.stdout
-      .split('\n')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  },
-  coreBare: (git, cwd) => {
-    const result = git(cwd, 'config', '--get', 'core.bare');
-    return result.ok ? result.stdout : null;
-  },
-};
-
-/**
- * Build sync state per epic branch: { local, remote, ahead }. The check
- * consumer treats divergence as a blocker because the close script's
- * rebase will fight a stale base.
- */
-function buildEpicSync(git, cwd, branches) {
-  const sync = {};
-  for (const branch of branches) {
-    const local = git(cwd, 'rev-parse', '--verify', branch);
-    const remote = git(cwd, 'rev-parse', '--verify', `origin/${branch}`);
-    const localSha = local.ok ? local.stdout : null;
-    const remoteSha = remote.ok ? remote.stdout : null;
-    sync[branch] = {
-      local: localSha,
-      remote: remoteSha,
-      ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
-    };
-  }
-  return sync;
-}
-
-/**
  * Build the git projection for a key list.
+ *
+ * @param {readonly string[]} keys
+ * @param {string} cwd
+ * @param {(cwd: string, ...args: string[]) => { ok: boolean, stdout: string }} git
+ * @returns {Record<string, unknown>}
  */
 function probeGit(keys, cwd, git) {
   const out = {};
   for (const key of keys) {
     if (!key.startsWith('git.')) continue;
     const field = key.slice(4);
-    if (field === 'epicBranchSync') continue; // handled below (depends on epicBranches)
-    const handler = GIT_HANDLERS[field];
-    if (handler) out[field] = handler(git, cwd);
-  }
-  if (keys.includes('git.epicBranchSync')) {
-    out.epicBranchSync = buildEpicSync(git, cwd, out.epicBranches ?? []);
+    if (field === 'headRef') {
+      const result = git(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
+      out.headRef = result.ok ? result.stdout : null;
+    } else if (field === 'epicBranches') {
+      const result = git(
+        cwd,
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/epic/',
+      );
+      out.epicBranches =
+        result.ok && result.stdout
+          ? result.stdout
+              .split('\n')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    } else if (field === 'localBranches') {
+      // All local branches (refs/heads/), short name form. Used by checks
+      // that grep over the branch list for legacy naming patterns.
+      const result = git(
+        cwd,
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/',
+      );
+      out.localBranches =
+        result.ok && result.stdout
+          ? result.stdout
+              .split('\n')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    } else if (field === 'coreBare') {
+      const result = git(cwd, 'config', '--get', 'core.bare');
+      out.coreBare = result.ok ? result.stdout : null;
+    } else if (field === 'epicBranchSync') {
+      // Build a map of epic branch → { local, remote, ahead } sync state.
+      // Depends on `epicBranches` being assembled; the SCOPE_KEYS ordering
+      // ensures it appears first. Each entry probes:
+      //   - the local SHA of `epic/<id>` via `git rev-parse <ref>`
+      //   - the remote SHA of `origin/epic/<id>` via `git rev-parse <ref>`
+      // `ahead` is true when the local SHA exists, the remote SHA exists,
+      // and they differ — i.e. local is potentially ahead of (or has
+      // diverged from) origin. The check consumer treats divergence as a
+      // blocker because the close script's rebase will fight a stale base.
+      const sync = {};
+      const branches = out.epicBranches ?? [];
+      for (const branch of branches) {
+        const local = git(cwd, 'rev-parse', '--verify', branch);
+        const remote = git(cwd, 'rev-parse', '--verify', `origin/${branch}`);
+        const localSha = local.ok ? local.stdout : null;
+        const remoteSha = remote.ok ? remote.stdout : null;
+        sync[branch] = {
+          local: localSha,
+          remote: remoteSha,
+          ahead: Boolean(localSha && remoteSha && localSha !== remoteSha),
+        };
+      }
+      out.epicBranchSync = sync;
+    }
   }
   return out;
 }
 
 /**
- * Build per-worktree bootstrap status — presence only, never reads file
- * contents (privacy contract: see feedback_worktree_untracked_files.md).
- */
-function buildBootstrapStatus(paths, fs) {
-  const status = {};
-  for (const p of paths) {
-    status[p] = {
-      dotEnv: fs(path.join(p, '.env')),
-      dotMcp: fs(path.join(p, '.mcp.json')),
-    };
-  }
-  return status;
-}
-
-/**
- * Build per-epic-branch lock-file projection. Mirrors epic-merge-lock.js's
- * `lockPathFor()`: `<gitCommonDir>/epic-<id>.merge.lock`.
- */
-function buildEpicMergeLocks(branches, commonDir, lockProbe, pidLivenessProbe) {
-  const locks = {};
-  for (const branch of branches) {
-    const id = branch.replace(/^epic\//, '');
-    const lockPath = path.join(commonDir, `epic-${id}.merge.lock`);
-    const meta = lockProbe(lockPath);
-    if (!meta.exists) {
-      locks[id] = {
-        exists: false,
-        path: lockPath,
-        pid: null,
-        holderAlive: false,
-        acquiredAt: null,
-        mtimeMs: null,
-      };
-      continue;
-    }
-    locks[id] = {
-      exists: true,
-      path: lockPath,
-      pid: meta.pid ?? null,
-      acquiredAt: meta.acquiredAt ?? null,
-      mtimeMs: meta.mtimeMs ?? null,
-      holderAlive: pidLivenessProbe(meta.pid ?? null),
-    };
-  }
-  return locks;
-}
-
-/**
  * Build the fs projection for a key list.
  *
- * `fs.worktreePaths` — absolute paths to the immediate subdirectories of
- *   `.worktrees/`. Empty array if `.worktrees/` does not exist.
- * `fs.worktreeBiomeOrphans` — paths to worktree subdirectories that
- *   contain a nested `biome.json` (root biome lint will fail; see
- *   feedback_orphan_worktree_biome_block.md).
- * `fs.worktreeBootstrapStatus` — per-worktree bootstrap file presence,
- *   shape: `{ [absPath]: { dotEnv: boolean, dotMcp: boolean } }`. Presence
- *   only — never reads `.env` contents (see
- *   feedback_worktree_untracked_files.md).
+ * @param {readonly string[]} keys
+ * @param {string} cwd
+ * @param {(absPath: string) => boolean} fs
+ * @param {{ epicBranches?: string[], gitCommonDir?: string }} ctx
+ * @param {(absPath: string) => object} lockProbe
+ * @param {(pid: number|null) => boolean} pidLivenessProbe
+ * @returns {Record<string, unknown>}
  */
-function probeFs(keys, cwd, fs, fsList, ctx, lockProbe, pidLivenessProbe) {
+function probeFs(keys, cwd, fs, ctx, lockProbe, pidLivenessProbe) {
   const out = {};
-  let cachedPaths = null;
-  const paths = () => {
-    if (cachedPaths !== null) return cachedPaths;
-    const wtRoot = path.join(cwd, '.worktrees');
-    cachedPaths = fsList(wtRoot).map((entry) => path.join(wtRoot, entry));
-    return cachedPaths;
-  };
-  const handlers = {
-    worktrees: () => fs(path.join(cwd, '.worktrees')),
-    dotEnv: () => fs(path.join(cwd, '.env')),
-    dotMcp: () => fs(path.join(cwd, '.mcp.json')),
-    worktreePaths: () => paths(),
-    worktreeBiomeOrphans: () =>
-      paths().filter((p) => fs(path.join(p, 'biome.json'))),
-    worktreeBootstrapStatus: () => buildBootstrapStatus(paths(), fs),
-    epicMergeLocks: () =>
-      buildEpicMergeLocks(
-        ctx.epicBranches ?? [],
-        ctx.gitCommonDir ?? path.join(cwd, '.git'),
-        lockProbe,
-        pidLivenessProbe,
-      ),
-  };
   for (const key of keys) {
     if (!key.startsWith('fs.')) continue;
     const field = key.slice(3);
-    const handler = handlers[field];
-    if (handler) out[field] = handler();
+    if (field === 'worktrees') {
+      out.worktrees = fs(path.join(cwd, '.worktrees'));
+    } else if (field === 'dotEnv') {
+      out.dotEnv = fs(path.join(cwd, '.env'));
+    } else if (field === 'dotMcp') {
+      out.dotMcp = fs(path.join(cwd, '.mcp.json'));
+    } else if (field === 'epicMergeLocks') {
+      // For each epic branch, probe the matching lock file in the git
+      // common dir. The lock path mirrors epic-merge-lock.js's
+      // `lockPathFor()`: `<gitCommonDir>/epic-<id>.merge.lock`.
+      const commonDir = ctx.gitCommonDir ?? path.join(cwd, '.git');
+      const locks = {};
+      const branches = ctx.epicBranches ?? [];
+      for (const branch of branches) {
+        const id = branch.replace(/^epic\//, '');
+        const lockPath = path.join(commonDir, `epic-${id}.merge.lock`);
+        const meta = lockProbe(lockPath);
+        if (!meta.exists) {
+          locks[id] = {
+            exists: false,
+            path: lockPath,
+            pid: null,
+            holderAlive: false,
+            acquiredAt: null,
+            mtimeMs: null,
+          };
+          continue;
+        }
+        locks[id] = {
+          exists: true,
+          path: lockPath,
+          pid: meta.pid ?? null,
+          acquiredAt: meta.acquiredAt ?? null,
+          mtimeMs: meta.mtimeMs ?? null,
+          holderAlive: pidLivenessProbe(meta.pid ?? null),
+        };
+      }
+      out.epicMergeLocks = locks;
+    }
   }
   return out;
 }
 
 /**
  * Build the env projection for a key list. Presence only.
+ *
+ * @param {readonly string[]} keys
+ * @param {(name: string) => 'set' | 'missing'} env
+ * @returns {Record<string, 'set' | 'missing'>}
  */
 function probeEnv(keys, env) {
   const out = {};
@@ -441,49 +347,24 @@ function probeEnv(keys, env) {
 }
 
 /**
- * Build the gates projection for a key list.
- */
-function probeGates(keys, cwd, gates) {
-  const out = {};
-  for (const key of keys) {
-    if (!key.startsWith('gates.')) continue;
-    const gate = key.slice(6);
-    out[gate] = gates(cwd, gate);
-  }
-  return out;
-}
-
-/**
- * Resolve the git common dir for lock-file probing. In a linked worktree
- * this points at the parent repo's .git/, matching epic-merge-lock.js's
- * lookup.
- */
-function resolveGitCommonDir(gitProbe, cwd) {
-  const r = gitProbe(cwd, 'rev-parse', '--git-common-dir');
-  if (r.ok && r.stdout) {
-    return path.isAbsolute(r.stdout) ? r.stdout : path.resolve(cwd, r.stdout);
-  }
-  return path.join(cwd, '.git');
-}
-
-/**
  * Scope-aware state assembler. Returns a frozen state object with
- * `{ git, fs, env, gates, scope, cwd }` projections populated only for the
- * keys the scope declares. Memoized per `(scope, cwd)`.
+ * `{ git, fs, env, scope }` projections populated only for the keys the
+ * scope declares. Memoized per `(scope, cwd)`.
  *
  * @param {object} [opts]
- * @param {string} [opts.scope]
+ * @param {string} [opts.scope]  Required in practice — every consumer is
+ *   scope-specific. An undefined scope returns an empty projection (used
+ *   only by tests that want to verify the no-op path).
  * @param {string} [opts.cwd=process.cwd()]
- * @param {object} [opts.probes] Test injection — `{ git, fs, fsList, env, gates, lock, pidLiveness }` spies.
+ * @param {object} [opts.probes]  Test injection — `{ git, fs, env }` spies.
+ *   Production callers omit this and get the default probes.
  * @returns {StateObject}
  *
  * @typedef {object} StateObject
  * @property {string|undefined} scope
- * @property {string} cwd
  * @property {Record<string, unknown>} git
- * @property {Record<string, unknown>} fs
+ * @property {Record<string, boolean>} fs
  * @property {Record<string, 'set' | 'missing'>} env
- * @property {Record<string, unknown>} gates
  */
 export function assembleState({ scope, cwd = process.cwd(), probes } = {}) {
   const cacheKey = `${scope ?? ''}::${cwd}`;
@@ -493,33 +374,44 @@ export function assembleState({ scope, cwd = process.cwd(), probes } = {}) {
   const keys = scope ? (SCOPE_KEYS[scope] ?? []) : [];
   const gitProbe = probes?.git ?? defaultGitProbe;
   const fsProbe = probes?.fs ?? defaultFsProbe;
-  const fsListProbe = probes?.fsList ?? defaultFsListProbe;
   const envProbe = probes?.env ?? defaultEnvProbe;
   const lockProbe = probes?.lock ?? defaultLockProbe;
   const pidLivenessProbe = probes?.pidLiveness ?? defaultPidLivenessProbe;
-  const gatesProbe = probes?.gates ?? defaultGateProbe;
   const gitProjection = probeGit(keys, cwd, gitProbe);
-  const gitCommonDir = keys.includes('fs.epicMergeLocks')
-    ? resolveGitCommonDir(gitProbe, cwd)
-    : undefined;
+  // Lock probes need the resolved git common dir; query it via the git
+  // probe so test injection still works. In a linked worktree this points
+  // at the parent repo's .git/, matching epic-merge-lock.js's lookup.
+  let gitCommonDir;
+  if (keys.includes('fs.epicMergeLocks')) {
+    const r = gitProbe(cwd, 'rev-parse', '--git-common-dir');
+    if (r.ok && r.stdout) {
+      gitCommonDir = path.isAbsolute(r.stdout)
+        ? r.stdout
+        : path.resolve(cwd, r.stdout);
+    } else {
+      gitCommonDir = path.join(cwd, '.git');
+    }
+  }
   const fsProjection = probeFs(
     keys,
     cwd,
     fsProbe,
-    fsListProbe,
     { epicBranches: gitProjection.epicBranches, gitCommonDir },
     lockProbe,
     pidLivenessProbe,
   );
+  // Story #1289: `cwd` is surfaced so fs-scanning checks target the
+  // worktree they were assembled for.
   const state = Object.freeze({
     scope,
     cwd,
     git: Object.freeze(gitProjection),
     fs: Object.freeze(fsProjection),
     env: Object.freeze(probeEnv(keys, envProbe)),
-    gates: Object.freeze(probeGates(keys, cwd, gatesProbe)),
   });
   if (!probes) {
+    // Only memoize the default-probe path. Tests with injected spies want
+    // to observe call counts on every invocation.
     cache.set(cacheKey, state);
   }
   return state;
