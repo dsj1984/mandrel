@@ -88,4 +88,65 @@ describe('Checkpointer', () => {
     });
     assert.equal(await cp.read(), null);
   });
+
+  it('initialize() seeds an empty manualInterventions array', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    const state = await cp.initialize({ totalWaves: 1, concurrencyCap: 1 });
+    assert.deepEqual(state.manualInterventions, []);
+  });
+
+  it('appendIntervention() appends a record with default source/ts', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    await cp.initialize({ totalWaves: 1, concurrencyCap: 1 });
+    const state = await cp.appendIntervention({
+      reason: 'discarded -593 lines of working-tree drift',
+    });
+    assert.equal(state.manualInterventions.length, 1);
+    const entry = state.manualInterventions[0];
+    assert.equal(entry.reason, 'discarded -593 lines of working-tree drift');
+    assert.equal(entry.source, 'host-llm');
+    assert.match(entry.ts, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('appendIntervention() preserves prior entries and other state fields', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    await cp.initialize({ totalWaves: 2, concurrencyCap: 3 });
+    await cp.appendIntervention({ reason: 'first', source: 'host' });
+    const state = await cp.appendIntervention({ reason: 'second' });
+    assert.equal(state.manualInterventions.length, 2);
+    assert.equal(state.manualInterventions[0].reason, 'first');
+    assert.equal(state.manualInterventions[0].source, 'host');
+    assert.equal(state.manualInterventions[1].reason, 'second');
+    assert.equal(state.totalWaves, 2, 'unrelated fields preserved');
+    assert.equal(state.concurrencyCap, 3);
+  });
+
+  it('appendIntervention() rejects missing reason', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    await cp.initialize({ totalWaves: 1, concurrencyCap: 1 });
+    await assert.rejects(
+      () => cp.appendIntervention({ reason: '' }),
+      /reason: string/,
+    );
+    await assert.rejects(() => cp.appendIntervention({}), /reason: string/);
+  });
+
+  it('appendIntervention() works when manualInterventions was missing (legacy state)', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    // Write a checkpoint without the field (legacy run).
+    await cp.write({
+      epicId: 321,
+      currentWave: 0,
+      totalWaves: 1,
+      waves: [],
+    });
+    const state = await cp.appendIntervention({ reason: 'legacy upgrade' });
+    assert.equal(state.manualInterventions.length, 1);
+    assert.equal(state.manualInterventions[0].reason, 'legacy upgrade');
+  });
 });

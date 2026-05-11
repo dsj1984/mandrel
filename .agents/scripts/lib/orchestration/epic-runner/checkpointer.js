@@ -94,6 +94,43 @@ export class Checkpointer {
       phase: 'prepare',
       waves: [],
       blockerHistory: [],
+      manualInterventions: [],
+    });
+  }
+
+  /**
+   * Append a manual-intervention record to the checkpoint. Out-of-band
+   * recovery steps the host LLM performs during a delivery — `AskUserQuestion`
+   * calls, `git restore`/`git reset` against the working tree, manual `--no-ff`
+   * recovery merges, story-close `--skipValidation` overrides — disqualify the
+   * Epic from auto-merge. The auto-merge predicate reads this array and only
+   * fires when it is empty.
+   *
+   * @param {{ reason: string, source?: string, ts?: string }} entry
+   * @returns {Promise<object>} the persisted state
+   */
+  async appendIntervention(entry) {
+    if (
+      !entry ||
+      typeof entry.reason !== 'string' ||
+      entry.reason.length === 0
+    ) {
+      throw new TypeError(
+        'appendIntervention: { reason: string } is required.',
+      );
+    }
+    const existing = (await this.read()) ?? {};
+    const list = Array.isArray(existing.manualInterventions)
+      ? existing.manualInterventions
+      : [];
+    const record = {
+      reason: entry.reason,
+      source: typeof entry.source === 'string' ? entry.source : 'host-llm',
+      ts: typeof entry.ts === 'string' ? entry.ts : new Date().toISOString(),
+    };
+    return this.write({
+      ...existing,
+      manualInterventions: [...list, record],
     });
   }
 
