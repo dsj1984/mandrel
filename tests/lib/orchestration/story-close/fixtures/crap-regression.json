@@ -1,0 +1,50 @@
+{
+  "$comment": "Story #1291 / Task #1321 — fixture pair for projectCrapRegressions. The 'baseline' envelope is what would be committed at origin/<epicBranch>; 'head' is what the Story branch would re-emit after npm run crap:update. lib/touched.js::doWork crosses the integer-tolerance threshold (8 → 14); lib/touched.js::trivial passes (within tolerance). lib/sibling.js::other regressed too but lives outside the story's touched-files set in the second test case.",
+  "baseline": {
+    "$schema": ".agents/schemas/crap-baseline.schema.json",
+    "kernelVersion": "1.1.0",
+    "escomplexVersion": "0.1.0",
+    "tsTranspilerVersion": "0.0.0",
+    "rows": [
+      {
+        "file": "lib/touched.js",
+        "method": "doWork",
+        "startLine": 12,
+        "crap": 8
+      },
+      {
+        "file": "lib/touched.js",
+        "method": "trivial",
+        "startLine": 60,
+        "crap": 3
+      },
+      { "file": "lib/sibling.js", "method": "other", "startLine": 4, "crap": 5 }
+    ]
+  },
+  "head": {
+    "$schema": ".agents/schemas/crap-baseline.schema.json",
+    "kernelVersion": "1.1.0",
+    "escomplexVersion": "0.1.0",
+    "tsTranspilerVersion": "0.0.0",
+    "rows": [
+      {
+        "file": "lib/touched.js",
+        "method": "doWork",
+        "startLine": 14,
+        "crap": 14
+      },
+      {
+        "file": "lib/touched.js",
+        "method": "trivial",
+        "startLine": 62,
+        "crap": 3.02
+      },
+      {
+        "file": "lib/sibling.js",
+        "method": "other",
+        "startLine": 4,
+        "crap": 11
+      }
+    ]
+  }
+}
