@@ -6223,25 +6223,37 @@
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 106
+      "startLine": 120
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isNotFoundError",
+      "startLine": 139
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isLabelAlreadyExistsError",
+      "startLine": 164
     },
     {
       "crap": 5.0407083248524325,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 125
+      "startLine": 203
     },
     {
       "crap": 5.002194787379972,
       "file": ".agents/scripts/providers/github.js",
       "method": "createInlineTicketCache",
-      "startLine": 171
+      "startLine": 249
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github.js",
       "method": "primeIfAbsent",
-      "startLine": 175
+      "startLine": 253
     },
     {
       "crap": 1,
@@ -6268,7 +6280,7 @@
       "startLine": 55
     },
     {
-      "crap": 2.032,
+      "crap": 5.613185185185185,
       "file": ".agents/scripts/providers/github/branches.js",
       "method": "createPullRequest",
       "startLine": 138
@@ -6304,94 +6316,88 @@
       "startLine": 69
     },
     {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github/labels.js",
-      "method": "ensureLabels",
-      "startLine": 9
-    },
-    {
       "crap": 1,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-1>",
-      "startLine": 12
+      "file": ".agents/scripts/providers/github/graphql.js",
+      "method": "runGraphql",
+      "startLine": 10
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-2>",
-      "startLine": 24
-    },
-    {
-      "crap": 5.390625,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveToken",
-      "startLine": 31
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-3>",
-      "startLine": 52
+      "crap": 4,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "isInsufficientScopes",
+      "startLine": 28
     },
     {
       "crap": 3,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "<anon method-4>",
-      "startLine": 54
-    },
-    {
-      "crap": 3.0059176460918877,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "gql",
-      "startLine": 57
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "fetchProjectV2",
+      "startLine": 42
     },
     {
       "crap": 7,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "lookupProject",
-      "startLine": 81
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "fetchProjectV2Strict",
+      "startLine": 78
     },
     {
-      "crap": 7.946286327824611,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "resolveOrCreateProject",
-      "startLine": 100
+      "crap": 8.208333333333336,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "fetchProjectMetadata",
+      "startLine": 112
     },
     {
-      "crap": 7.142857142857143,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureStatusField",
-      "startLine": 142
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectViews",
-      "startLine": 192
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "ensureProjectFields",
-      "startLine": 233
+      "crap": 4.6796875,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "addItemToProject",
+      "startLine": 123
     },
     {
       "crap": 3,
-      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "method": "addItemToProject",
-      "startLine": 259
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "isScopesMissingEnvelope",
+      "startLine": 139
     },
     {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "getMergeMethods",
-      "startLine": 27
+      "crap": 3.0494606146957053,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "resolveExistingProject",
+      "startLine": 153
     },
     {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "setMergeMethods",
-      "startLine": 52
+      "crap": 5.146108329540283,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "lookupOwnerNodeId",
+      "startLine": 176
+    },
+    {
+      "crap": 10.8276671675432,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "createProjectForOwner",
+      "startLine": 195
+    },
+    {
+      "crap": 26.743519909842227,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "resolveOrCreateProject",
+      "startLine": 223
+    },
+    {
+      "crap": 8.28596132709139,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "ensureStatusField",
+      "startLine": 251
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "ensureProjectViews",
+      "startLine": 343
+    },
+    {
+      "crap": 35.40589298923317,
+      "file": ".agents/scripts/providers/github/projects.js",
+      "method": "ensureProjectFields",
+      "startLine": 410
     },
     {
       "crap": 4.012021036814425,
