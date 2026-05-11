@@ -5,7 +5,7 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.31,
+    "lines": 93.27,
     "branches": 61.64,
     "functions": 100
   },
@@ -199,6 +199,36 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
+    "lines": 99.04,
+    "branches": 70,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/index.js": {
+    "lines": 95.51,
+    "branches": 72,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/push-hook-parity.js": {
+    "lines": 100,
+    "branches": 86.36,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/state.js": {
+    "lines": 91.02,
+    "branches": 89.71,
+    "functions": 91.67
+  },
+  ".agents/scripts/lib/checks/worktree-bootstrap-env.js": {
+    "lines": 100,
+    "branches": 87.5,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/worktree-residue-biome.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
   ".agents/scripts/lib/cli-args.js": {
     "lines": 98.13,
     "branches": 88.99,
@@ -370,7 +400,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -431,12 +461,12 @@
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
     "lines": 98.63,
-    "branches": 81.2,
+    "branches": 81.03,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 97.24,
-    "branches": 74.36,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -1131,7 +1161,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
