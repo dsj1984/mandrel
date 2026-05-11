@@ -198,6 +198,13 @@ export async function notify(ticketId, payload, opts = {}) {
         phase,
       });
       await sendWebhook(webhookUrl, payloadBody);
+    } else {
+      // Event was on the allowlist but no URL is available — surface this
+      // so the operator notices a missing/empty NOTIFICATION_WEBHOOK_URL
+      // instead of silently dropping the dispatch.
+      Logger.warn(
+        `[Notify] Webhook event (${event}) suppressed — no webhook URL resolved (NOTIFICATION_WEBHOOK_URL unset or empty).`,
+      );
     }
   }
 }

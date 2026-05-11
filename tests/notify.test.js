@@ -356,6 +356,40 @@ describe('notify script', () => {
     assert.equal(fetchCalls.length, 0);
   });
 
+  it('emits a Logger.warn when an allowlisted event is suppressed by a missing webhook URL', async () => {
+    const warnCalls = [];
+    const originalWarn = console.warn;
+    console.warn = (msg) => {
+      warnCalls.push(String(msg));
+    };
+    try {
+      await notify(
+        126,
+        {
+          severity: 'high',
+          message: 'Review needed.',
+          event: 'epic-blocked',
+        },
+        {
+          provider: mockProvider,
+          orchestration: mockOrchestration,
+          webhookUrl: null,
+        },
+      );
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    const suppressionWarn = warnCalls.find((m) =>
+      m.includes('Webhook event (epic-blocked) suppressed'),
+    );
+    assert.ok(
+      suppressionWarn,
+      `expected a suppression warn line, got: ${JSON.stringify(warnCalls)}`,
+    );
+    assert.match(suppressionWarn, /NOTIFICATION_WEBHOOK_URL/);
+  });
+
   it('skips GitHub comment if ticketId is 0 or missing', async () => {
     await notify(
       0,
