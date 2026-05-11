@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { createGh } from '../../.agents/scripts/lib/gh-exec.js';
 import { ProgressReporter } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import { GitHubProvider } from '../../.agents/scripts/providers/github.js';
 
@@ -26,21 +27,18 @@ describe('ProgressReporter fanout concurrency cap', () => {
     let peak = 0;
     const releases = [];
 
-    // Each fetchImpl invocation increments the in-flight counter, returns a
+    // Each gh-exec call increments the in-flight counter and returns a
     // promise that settles only when we explicitly release it. The test
     // releases responses one at a time so that concurrency can build up to
     // at most `concurrency` workers before any single one completes.
-    const fetchImpl = (_url) => {
+    const exec = () => {
       inFlight++;
       peak = Math.max(peak, inFlight);
       return new Promise((resolve) => {
         releases.push(() => {
           inFlight--;
           resolve({
-            ok: true,
-            status: 200,
-            headers: { get: () => null },
-            json: async () => ({
+            stdout: JSON.stringify({
               number: 0,
               id: 0,
               node_id: 'n',
@@ -49,14 +47,17 @@ describe('ProgressReporter fanout concurrency cap', () => {
               labels: [{ name: 'agent::executing' }],
               state: 'open',
             }),
+            stderr: '',
+            code: 0,
           });
         });
       });
     };
+    const gh = createGh(exec);
 
     const provider = new GitHubProvider(
       { owner: 'o', repo: 'r' },
-      { fetchImpl, token: 'mock' },
+      { gh, token: 'mock' },
     );
 
     // Neuter the Epic-comment upsert so fire() doesn't try to post.

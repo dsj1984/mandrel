@@ -6,6 +6,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { createGh } from '../.agents/scripts/lib/gh-exec.js';
 import { fetchTasks } from '../.agents/scripts/lib/orchestration/task-fetcher.js';
 import { GitHubProvider } from '../.agents/scripts/providers/github.js';
 
@@ -24,30 +25,38 @@ function makeIssue(number, extraLabels = []) {
   };
 }
 
-function jsonResponse(body) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => body,
-    text: async () => '',
+/**
+ * Build a fake gh-exec for the prime-after-sweep integration. The sweep
+ * endpoint (`/issues?...`) returns the canned issue list; any other call
+ * throws so a regression that misroutes a getTicket fetch fails loudly.
+ */
+function ghForSweep(issues, calls) {
+  const exec = async ({ args, input }) => {
+    calls.push({ args, input });
+    const endpoint = args[3] ?? '';
+    // Paginated list — page=1 returns the issues, page>1 stops the loop.
+    if (/\/issues\?/.test(endpoint)) {
+      const pageMatch = /\bpage=(\d+)\b/.exec(endpoint);
+      const page = pageMatch ? Number(pageMatch[1]) : 1;
+      if (page === 1) {
+        return { stdout: JSON.stringify(issues), stderr: '', code: 0 };
+      }
+      return { stdout: '[]', stderr: '', code: 0 };
+    }
+    throw new Error(`unexpected gh call to ${endpoint}`);
   };
+  return createGh(exec);
 }
 
 describe('integration: primeTicketCache after getTickets sweep', () => {
   it('GitHubProvider direct: 10 getTicket reads after sweep → 0 extra HTTP calls', async () => {
     const issues = Array.from({ length: 10 }, (_, i) => makeIssue(100 + i));
     const calls = [];
-    const fetchImpl = async (url) => {
-      calls.push(String(url));
-      if (String(url).includes('/issues?')) {
-        return jsonResponse(issues);
-      }
-      throw new Error(`unexpected fetch to ${url}`);
-    };
+    const gh = ghForSweep(issues, calls);
 
     const provider = new GitHubProvider(
       { owner: 'o', repo: 'r' },
-      { fetchImpl, token: 'mock-token' },
+      { gh, token: 'mock-token' },
     );
 
     const sweep = await provider.getTickets(10);
@@ -71,17 +80,11 @@ describe('integration: primeTicketCache after getTickets sweep', () => {
   it('fetchTasks path: getTicket loop for sweep children → 0 extra HTTP calls', async () => {
     const issues = Array.from({ length: 10 }, (_, i) => makeIssue(200 + i));
     const calls = [];
-    const fetchImpl = async (url) => {
-      calls.push(String(url));
-      if (String(url).includes('/issues?')) {
-        return jsonResponse(issues);
-      }
-      throw new Error(`unexpected fetch to ${url}`);
-    };
+    const gh = ghForSweep(issues, calls);
 
     const provider = new GitHubProvider(
       { owner: 'o', repo: 'r' },
-      { fetchImpl, token: 'mock-token' },
+      { gh, token: 'mock-token' },
     );
 
     const tasks = await fetchTasks(provider, 10);

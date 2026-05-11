@@ -24,10 +24,59 @@ const { GitHubProvider } = await import(
     .href
 );
 
+/**
+ * Adapter — wraps an old-style `{ rest, restPaginated, graphql }` stub into
+ * the gh-exec facade shape the new GitHubProvider expects. The provider's
+ * issue/comment surface now calls `gh.api({ method, endpoint, body })` and
+ * JSON.parses the stdout, so we translate each shape:
+ *
+ *   gh.api({ method: 'GET',  endpoint })  → stubs.rest(endpoint)
+ *   gh.api({ method: 'GET',  endpoint + 'page=N' }) → stubs.restPaginated
+ *   gh.api({ method: 'POST'|'PATCH'|'DELETE', endpoint, body })
+ *                                         → stubs.rest(endpoint, { method, body })
+ *   gh.api({ method: 'POST', endpoint: 'graphql', body: { query, variables } })
+ *                                         → stubs.graphql(query, variables)
+ *
+ * For the GraphQL path the adapter wraps `{ data }` so the provider's
+ * `JSON.parse(result.stdout)` lands on the expected shape.
+ */
+function ghAdapter(httpStubs) {
+  return {
+    api: async ({ method = 'GET', endpoint, body }) => {
+      // GraphQL escape
+      if (endpoint === 'graphql' && body && body.query) {
+        const data = await httpStubs.graphql(body.query, body.variables ?? {});
+        return { stdout: JSON.stringify({ data }), stderr: '', code: 0 };
+      }
+      // Paginated GET list — `paginateRest` in providers/github.js appends
+      // `page=N&per_page=100`. Route the first page to restPaginated (it
+      // returns the whole list), then short-circuit subsequent pages with
+      // an empty array.
+      if (method === 'GET' && /\bpage=(\d+)\b/.test(endpoint)) {
+        const pageNum = Number(/\bpage=(\d+)\b/.exec(endpoint)[1]);
+        if (pageNum === 1 && typeof httpStubs.restPaginated === 'function') {
+          const stripped = endpoint
+            .replace(/[?&]page=\d+/, '')
+            .replace(/[?&]per_page=\d+/, '');
+          const json = await httpStubs.restPaginated(stripped);
+          return { stdout: JSON.stringify(json), stderr: '', code: 0 };
+        }
+        if (pageNum > 1) {
+          // restPaginated returned the full set on page=1; short page stops the loop.
+          return { stdout: '[]', stderr: '', code: 0 };
+        }
+      }
+      const opts = body ? { method, body } : { method };
+      const json = await httpStubs.rest(endpoint, opts);
+      return { stdout: JSON.stringify(json ?? {}), stderr: '', code: 0 };
+    },
+  };
+}
+
 function createProvider(httpStubs) {
   return new GitHubProvider(
     { owner: 'o', repo: 'r', operatorHandle: '@t' },
-    { token: 'x', http: httpStubs },
+    { token: 'x', http: httpStubs, gh: ghAdapter(httpStubs) },
   );
 }
 

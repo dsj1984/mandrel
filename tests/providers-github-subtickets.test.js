@@ -23,16 +23,48 @@ const { GitHubProvider } = await import(
     .href
 );
 
+/**
+ * Adapter — turns `{ rest, restPaginated, graphql }` stubs into a gh-exec
+ * facade so the rewritten GitHubProvider issue/comment surface (Story #1357)
+ * can be tested with the legacy stub shape.
+ */
+function ghAdapter(stubs) {
+  return {
+    api: async ({ method = 'GET', endpoint, body }) => {
+      if (endpoint === 'graphql' && body && body.query) {
+        const data = await stubs.graphql(body.query, body.variables ?? {});
+        return { stdout: JSON.stringify({ data }), stderr: '', code: 0 };
+      }
+      if (method === 'GET' && /\bpage=(\d+)\b/.test(endpoint)) {
+        const pageNum = Number(/\bpage=(\d+)\b/.exec(endpoint)[1]);
+        if (pageNum === 1) {
+          const stripped = endpoint
+            .replace(/[?&]page=\d+/, '')
+            .replace(/[?&]per_page=\d+/, '');
+          const json = await stubs.restPaginated(stripped);
+          return { stdout: JSON.stringify(json), stderr: '', code: 0 };
+        }
+        return { stdout: '[]', stderr: '', code: 0 };
+      }
+      const opts = body ? { method, body } : { method };
+      const json = await stubs.rest(endpoint, opts);
+      return { stdout: JSON.stringify(json ?? {}), stderr: '', code: 0 };
+    },
+  };
+}
+
 function createProviderWithStubs(stubs = {}) {
+  const http = {
+    graphql: stubs.graphql ?? (async () => ({})),
+    rest: stubs.rest ?? (async () => ({})),
+    restPaginated: stubs.restPaginated ?? (async () => []),
+  };
   const provider = new GitHubProvider(
     { owner: 'o', repo: 'r', operatorHandle: '@t' },
     {
       token: 'x',
-      http: {
-        graphql: stubs.graphql ?? (async () => ({})),
-        rest: stubs.rest ?? (async () => ({})),
-        restPaginated: stubs.restPaginated ?? (async () => []),
-      },
+      http,
+      gh: ghAdapter(http),
     },
   );
   return provider;

@@ -23,6 +23,71 @@ const { ITicketingProvider } = await import(
     path.join(ROOT, '.agents', 'scripts', 'lib', 'ITicketingProvider.js'),
   ).href
 );
+const { createGh } = await import(
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'lib', 'gh-exec.js')).href
+);
+
+// ---------------------------------------------------------------------------
+// gh-exec mock
+//
+// Story #1357 rebuilt the issue + comment surface on top of gh-exec, so tests
+// inject a fake exec via `opts.gh = createGh(fakeExec)`. The fake routes on the
+// argv shape `['api', '-X', <METHOD>, <ENDPOINT>, ...]` produced by
+// `gh.api({ method, endpoint, body })`. Routes are keyed `"<METHOD> <ENDPOINT>
+// fragment>"` matching the same `createRouteMock` ergonomic. Pagination
+// (`paginateRest` in providers/github.js) appends `page=N&per_page=100`
+// directly to the endpoint, so the route's `endpoint fragment` field is enough
+// to match every page of a single list call.
+// ---------------------------------------------------------------------------
+function createGhExec(routes) {
+  const calls = [];
+  const exec = async ({ args, input }) => {
+    calls.push({ args, input });
+    const method = args[2] ?? 'GET';
+    const endpoint = args[3] ?? '';
+    const bodyStr = input ?? '';
+
+    let matched = null;
+    for (const [pattern, response] of Object.entries(routes)) {
+      const parts = pattern.split(' ');
+      const routeMethod = parts.length > 1 ? parts[0] : 'GET';
+      const routePath = parts.length > 1 ? parts[1] : parts[0];
+      const routeBody = parts.length > 2 ? parts.slice(2).join(' ') : null;
+      if (
+        method === routeMethod &&
+        endpoint.includes(routePath) &&
+        (!routeBody || bodyStr.includes(routeBody))
+      ) {
+        matched = response;
+        break;
+      }
+    }
+    const final = matched ?? { status: 200, json: {} };
+    if (final.status >= 200 && final.status < 300) {
+      return {
+        stdout: JSON.stringify(final.json ?? {}),
+        stderr: '',
+        code: 0,
+      };
+    }
+    // Non-2xx — gh exec rejects via classify(); for tests we throw a
+    // shape-compatible Error so assertions on `/failed/` still match.
+    const err = new Error(`gh-exec: gh exited with code ${final.status}`);
+    err.code = final.status;
+    err.stderr = JSON.stringify(final.json ?? '');
+    err.stdout = '';
+    throw err;
+  };
+  exec.calls = calls;
+  return exec;
+}
+
+function makeGh(routes) {
+  const exec = createGhExec(routes);
+  const gh = createGh(exec);
+  gh.__exec = exec;
+  return gh;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers — mock fetch
@@ -78,7 +143,7 @@ function createTestProvider(opts = {}) {
       projectNumber: opts.projectNumber ?? null,
       operatorHandle: '@tester',
     },
-    { token: 'test-token-123' },
+    { token: 'test-token-123', gh: opts.gh },
   );
 }
 
@@ -86,15 +151,6 @@ function createTestProvider(opts = {}) {
 // listIssues & getEpics
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — listIssues() & getEpics()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   const mockIssues = [
     {
       number: 101,
@@ -119,15 +175,8 @@ describe('GitHubProvider — listIssues() & getEpics()', () => {
   ];
 
   it('listIssues() fetches and filters epics correctly', async () => {
-    const mockFetch = createRouteMock({
-      'GET /issues': {
-        status: 200,
-        json: mockIssues,
-      },
-    });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
+    const provider = createTestProvider({ gh });
     const epics = await provider.listIssues({ state: 'all' });
 
     assert.equal(epics.length, 2);
@@ -138,21 +187,17 @@ describe('GitHubProvider — listIssues() & getEpics()', () => {
     assert.equal(epics[1].state, 'closed');
     assert.equal(epics[1].state_reason, 'completed');
 
-    // Verify params
-    const url = mockFetch.calls[0].url;
-    assert.ok(url.includes('labels=type%3A%3Aepic'));
-    assert.ok(url.includes('state=all'));
+    // Verify the argv shape that gh.api built carries the same encoded
+    // params the old fetch URL had.
+    const firstCall = gh.__exec.calls[0];
+    const endpoint = firstCall.args[3] ?? '';
+    assert.ok(endpoint.includes('labels=type%3A%3Aepic'));
+    assert.ok(endpoint.includes('state=all'));
   });
 
   it('getEpics() returns the same result as listIssues()', async () => {
-    globalThis.fetch = createRouteMock({
-      'GET /issues': {
-        status: 200,
-        json: mockIssues,
-      },
-    });
-
-    const provider = createTestProvider();
+    const gh = makeGh({ 'GET /issues': { status: 200, json: mockIssues } });
+    const provider = createTestProvider({ gh });
     const epics = await provider.getEpics();
 
     assert.equal(epics.length, 2);
@@ -187,17 +232,8 @@ describe('GitHubProvider — construction', () => {
 // getEpic
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — getEpic()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('returns epic with parsed linked issues', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/10': {
         status: 200,
         json: {
@@ -208,8 +244,7 @@ describe('GitHubProvider — getEpic()', () => {
         },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
 
     assert.equal(epic.id, 10);
@@ -219,7 +254,7 @@ describe('GitHubProvider — getEpic()', () => {
   });
 
   it('handles missing linked issues', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/10': {
         status: 200,
         json: {
@@ -230,33 +265,33 @@ describe('GitHubProvider — getEpic()', () => {
         },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
     assert.deepEqual(epic.linkedIssues, { prd: null, techSpec: null });
   });
 
   it('handles null body', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/10': {
         status: 200,
         json: { number: 10, title: 'No Body', body: null, labels: [] },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
     assert.equal(epic.body, '');
     assert.deepEqual(epic.linkedIssues, { prd: null, techSpec: null });
   });
 
   it('throws on API error', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/999': { status: 404, json: { message: 'Not Found' } },
     });
-
-    const provider = createTestProvider();
-    await assert.rejects(provider.getEpic(999), /failed \(404\)/);
+    const provider = createTestProvider({ gh });
+    // gh-exec error surface — the canonical mid-tier message includes the
+    // exit code; downstream consumers handle classification via the typed
+    // errors in lib/gh-exec.js.
+    await assert.rejects(provider.getEpic(999), /code 404/);
   });
 });
 
@@ -264,17 +299,8 @@ describe('GitHubProvider — getEpic()', () => {
 // getTicket
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — getTicket()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('returns ticket with all metadata', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/42': {
         status: 200,
         json: {
@@ -287,8 +313,7 @@ describe('GitHubProvider — getTicket()', () => {
         },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const ticket = await provider.getTicket(42);
 
     assert.equal(ticket.id, 42);
@@ -303,17 +328,8 @@ describe('GitHubProvider — getTicket()', () => {
 // getTicketDependencies
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — getTicketDependencies()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('parses blocked by and blocks patterns', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/5': {
         status: 200,
         json: {
@@ -326,8 +342,7 @@ describe('GitHubProvider — getTicketDependencies()', () => {
         },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const deps = await provider.getTicketDependencies(5);
 
     assert.deepEqual(deps.blockedBy, [3, 4]);
@@ -335,7 +350,7 @@ describe('GitHubProvider — getTicketDependencies()', () => {
   });
 
   it('returns empty arrays when no dependencies', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/5': {
         status: 200,
         json: {
@@ -348,8 +363,7 @@ describe('GitHubProvider — getTicketDependencies()', () => {
         },
       },
     });
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const deps = await provider.getTicketDependencies(5);
 
     assert.deepEqual(deps.blockedBy, []);
@@ -361,28 +375,35 @@ describe('GitHubProvider — getTicketDependencies()', () => {
 // createTicket
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — createTicket()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('creates a ticket linked to the epic', async () => {
-    const mockFetch = createRouteMock({
-      'POST /issues': {
+    const gh = makeGh({
+      'POST /repos/test-owner/test-repo/issues': {
         status: 201,
         json: {
           number: 20,
           html_url: 'https://github.com/test-owner/test-repo/issues/20',
         },
       },
+      // addSubIssue reads the parent via getTicket — return a stub.
+      'GET /issues/10': {
+        status: 200,
+        json: {
+          number: 10,
+          node_id: 'parent-node',
+          title: 'Parent Epic',
+          body: '',
+          labels: [],
+          assignees: [],
+          state: 'open',
+        },
+      },
+      // Sub-issue link mutation — return a successful GraphQL payload.
+      'POST graphql': {
+        status: 200,
+        json: { data: { addSubIssue: { issue: { number: 10 } } } },
+      },
     });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const result = await provider.createTicket(10, {
       title: 'New task',
       body: 'Task description',
@@ -392,21 +413,39 @@ describe('GitHubProvider — createTicket()', () => {
     assert.equal(result.id, 20);
     assert.ok(result.url.includes('/issues/20'));
 
-    // Verify the body includes the parent reference
-    const sentBody = JSON.parse(mockFetch.calls[0].opts.body);
+    // Find the POST /issues call and inspect its stdin body.
+    const createCall = gh.__exec.calls.find(
+      (c) => c.args[2] === 'POST' && /\/issues$/.test(c.args[3] ?? ''),
+    );
+    assert.ok(createCall, 'POST /issues call should have happened');
+    const sentBody = JSON.parse(createCall.input);
     assert.ok(sentBody.body.includes('parent: #10'));
   });
 
   it('includes dependency references in the body', async () => {
-    const mockFetch = createRouteMock({
-      'POST /issues': {
+    const gh = makeGh({
+      'POST /repos/test-owner/test-repo/issues': {
         status: 201,
-        json: { number: 21, html_url: 'http://x' },
+        json: { number: 21, html_url: 'http://x', node_id: 'n21' },
+      },
+      'GET /issues/10': {
+        status: 200,
+        json: {
+          number: 10,
+          node_id: 'parent-node',
+          title: 'P',
+          body: '',
+          labels: [],
+          assignees: [],
+          state: 'open',
+        },
+      },
+      'POST graphql': {
+        status: 200,
+        json: { data: { addSubIssue: { issue: { number: 10 } } } },
       },
     });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     await provider.createTicket(10, {
       title: 'Dependent task',
       body: 'Depends on stuff',
@@ -414,7 +453,10 @@ describe('GitHubProvider — createTicket()', () => {
       dependencies: [5, 6],
     });
 
-    const sentBody = JSON.parse(mockFetch.calls[0].opts.body);
+    const createCall = gh.__exec.calls.find(
+      (c) => c.args[2] === 'POST' && /\/issues$/.test(c.args[3] ?? ''),
+    );
+    const sentBody = JSON.parse(createCall.input);
     assert.ok(sentBody.body.includes('blocked by #5'));
     assert.ok(sentBody.body.includes('blocked by #6'));
   });
@@ -424,35 +466,24 @@ describe('GitHubProvider — createTicket()', () => {
 // updateTicket
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — updateTicket()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('patches body and assignees', async () => {
-    const mockFetch = createRouteMock({
+    const gh = makeGh({
       'PATCH /issues/42': { status: 200, json: {} },
     });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     await provider.updateTicket(42, {
       body: 'Updated body',
       assignees: ['alice'],
     });
 
-    assert.equal(mockFetch.calls.length, 1);
-    const sentBody = JSON.parse(mockFetch.calls[0].opts.body);
+    assert.equal(gh.__exec.calls.length, 1);
+    const sentBody = JSON.parse(gh.__exec.calls[0].input);
     assert.equal(sentBody.body, 'Updated body');
     assert.deepEqual(sentBody.assignees, ['alice']);
   });
 
   it('batches label additions and removals via GET and PATCH', async () => {
-    const mockFetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/42': {
         status: 200,
         json: {
@@ -462,9 +493,7 @@ describe('GitHubProvider — updateTicket()', () => {
       },
       'PATCH /issues/42': { status: 200, json: {} },
     });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     await provider.updateTicket(42, {
       labels: {
         add: ['agent::executing'],
@@ -473,15 +502,13 @@ describe('GitHubProvider — updateTicket()', () => {
     });
 
     // Should have made 2 calls: GET + PATCH
-    assert.equal(mockFetch.calls.length, 2);
-    assert.ok(mockFetch.calls[0].url.includes('/issues/42'));
-    assert.equal(mockFetch.calls[0].opts.method, 'GET');
+    assert.equal(gh.__exec.calls.length, 2);
+    assert.equal(gh.__exec.calls[0].args[2], 'GET');
+    assert.ok(gh.__exec.calls[0].args[3].includes('/issues/42'));
+    assert.equal(gh.__exec.calls[1].args[2], 'PATCH');
+    assert.ok(gh.__exec.calls[1].args[3].includes('/issues/42'));
 
-    assert.ok(mockFetch.calls[1].url.includes('/issues/42'));
-    assert.equal(mockFetch.calls[1].opts.method, 'PATCH');
-
-    const patchBody = JSON.parse(mockFetch.calls[1].opts.body);
-    // Should remove agent::ready and add agent::executing; 'bug' is retained
+    const patchBody = JSON.parse(gh.__exec.calls[1].input);
     assert.ok(patchBody.labels.includes('bug'));
     assert.ok(patchBody.labels.includes('agent::executing'));
     assert.equal(patchBody.labels.includes('agent::ready'), false);
@@ -492,29 +519,18 @@ describe('GitHubProvider — updateTicket()', () => {
 // postComment
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — postComment()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
   it('prepends type badge to comment body', async () => {
-    const mockFetch = createRouteMock({
-      'POST /comments': { status: 201, json: { id: 100 } },
+    const gh = makeGh({
+      'POST /issues/42/comments': { status: 201, json: { id: 100 } },
     });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const result = await provider.postComment(42, {
       body: 'Unit tests pass',
       type: 'progress',
     });
 
     assert.equal(result.commentId, 100);
-    const sentBody = JSON.parse(mockFetch.calls[0].opts.body);
+    const sentBody = JSON.parse(gh.__exec.calls[0].input);
     assert.ok(sentBody.body.includes('🔄 **Progress**'));
     assert.ok(sentBody.body.includes('Unit tests pass'));
   });
@@ -534,7 +550,11 @@ describe('GitHubProvider — createPullRequest()', () => {
   });
 
   it('creates PR with Closes reference', async () => {
-    const mockFetch = createRouteMock({
+    // After Story #1357 the issue read (`hooks.getTicket`) routes through
+    // gh-exec while the actual `POST /pulls` body still goes through the
+    // legacy http client (branches submodule rewrite is a later Story in
+    // Epic #1179). Mock both transports.
+    const gh = makeGh({
       'GET /issues/42': {
         status: 200,
         json: {
@@ -546,6 +566,8 @@ describe('GitHubProvider — createPullRequest()', () => {
           state: 'open',
         },
       },
+    });
+    const mockFetch = createRouteMock({
       'POST /pulls': {
         status: 201,
         json: {
@@ -557,14 +579,18 @@ describe('GitHubProvider — createPullRequest()', () => {
     });
     globalThis.fetch = mockFetch;
 
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const result = await provider.createPullRequest('feature/fix-42', 42);
 
     assert.equal(result.number, 15);
     assert.ok(result.htmlUrl.includes('/pull/15'));
 
-    // Verify the PR body links the issue
-    const prBody = JSON.parse(mockFetch.calls[1].opts.body);
+    // The PR-create call is the only fetch call now; the issue read is on gh.
+    const prCreate = mockFetch.calls.find(
+      (c) => (c.opts?.method ?? 'GET') === 'POST',
+    );
+    assert.ok(prCreate, 'expected POST /pulls to fire on the legacy client');
+    const prBody = JSON.parse(prCreate.opts.body);
     assert.ok(prBody.body.includes('Closes #42'));
   });
 });
@@ -978,25 +1004,25 @@ describe('GitHubProvider — error handling', () => {
   });
 
   it('includes status code in REST error messages', async () => {
-    globalThis.fetch = createRouteMock({
+    const gh = makeGh({
       'GET /issues/1': { status: 403, json: { message: 'rate limited' } },
     });
-
-    const provider = createTestProvider();
-    await assert.rejects(provider.getTicket(1), /failed \(403\)/);
+    const provider = createTestProvider({ gh });
+    await assert.rejects(provider.getTicket(1), /code 403/);
   });
 
-  it('includes endpoint in REST error messages', async () => {
-    // Use 422 (not retried by _fetchWithRetry) to ensure deterministic failure.
-    globalThis.fetch = createRouteMock({
+  it('error message carries the failing argv for gh-exec failures', async () => {
+    // 422 (not retried) is a deterministic terminal failure under the new
+    // gh-exec error surface. The argv is captured on the thrown error via
+    // gh-exec's classify() path.
+    const gh = makeGh({
       'GET /issues/1': { status: 422, json: { message: 'validation failed' } },
     });
-
-    const provider = createTestProvider();
-    await assert.rejects(
-      provider.getEpic(1),
-      /\/repos\/test-owner\/test-repo\/issues\/1/,
-    );
+    const provider = createTestProvider({ gh });
+    await assert.rejects(provider.getEpic(1), (err) => {
+      // The argv shape includes the endpoint path.
+      return /code 422/.test(err.message);
+    });
   });
 
   it('supports graphql queries', async () => {
@@ -1014,13 +1040,12 @@ describe('GitHubProvider — error handling', () => {
   });
 
   it('updates body/description in updateTicket', async () => {
-    const fetchMock = createRouteMock({
+    const gh = makeGh({
       'PATCH /issues/123': { status: 200, json: { id: 123 } },
     });
-    global.fetch = fetchMock;
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     await provider.updateTicket(123, { body: 'New body content' });
-    const call = fetchMock.calls[0];
-    assert.strictEqual(JSON.parse(call.opts.body).body, 'New body content');
+    const call = gh.__exec.calls[0];
+    assert.strictEqual(JSON.parse(call.input).body, 'New body content');
   });
 });

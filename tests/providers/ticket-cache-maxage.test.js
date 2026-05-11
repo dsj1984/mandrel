@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { createGh } from '../../.agents/scripts/lib/gh-exec.js';
 import { createTicketCacheManager } from '../../.agents/scripts/providers/github/cache-manager.js';
 import { GitHubProvider } from '../../.agents/scripts/providers/github.js';
 
@@ -27,18 +28,22 @@ function fakeClock(start = 1000) {
   };
 }
 
-function countingFetch(issueFactory) {
+/**
+ * gh-exec replacement for `countingFetch`. Returns `{ gh, state }` where
+ * `state.calls` is the number of times the underlying `gh api …` invocation
+ * was issued. The fake responds to every API call with `issueFactory(call)`.
+ */
+function countingGh(issueFactory) {
   const state = { calls: 0 };
-  const impl = async (_url, _opts) => {
+  const exec = async () => {
     state.calls++;
     return {
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => issueFactory(state.calls),
+      stdout: JSON.stringify(issueFactory(state.calls)),
+      stderr: '',
+      code: 0,
     };
   };
-  return { impl, state };
+  return { gh: createGh(exec), state };
 }
 
 describe('createTicketCacheManager: insertedAt + peekFresh', () => {
@@ -87,12 +92,8 @@ describe('createTicketCacheManager: insertedAt + peekFresh', () => {
 });
 
 describe('GitHubProvider.getTicket: maxAgeMs', () => {
-  function buildProvider(fetchImpl) {
-    const provider = new GitHubProvider(
-      { owner: 'o', repo: 'r' },
-      { fetchImpl, token: 'mock' },
-    );
-    return provider;
+  function buildProvider(gh) {
+    return new GitHubProvider({ owner: 'o', repo: 'r' }, { gh, token: 'mock' });
   }
 
   function issuePayload(n) {
@@ -108,8 +109,8 @@ describe('GitHubProvider.getTicket: maxAgeMs', () => {
   }
 
   it('two reads within maxAgeMs issue exactly 1 HTTP call', async () => {
-    const { impl, state } = countingFetch(issuePayload);
-    const provider = buildProvider(impl);
+    const { gh, state } = countingGh(issuePayload);
+    const provider = buildProvider(gh);
     const clock = fakeClock();
     provider._cache = createTicketCacheManager({ now: clock.now });
 
@@ -119,13 +120,12 @@ describe('GitHubProvider.getTicket: maxAgeMs', () => {
 
     assert.equal(state.calls, 1);
     assert.equal(first.title, 'Ticket v1');
-    // Cache should have returned the same object on the second read.
     assert.equal(second.title, 'Ticket v1');
   });
 
   it('second read past maxAgeMs refetches', async () => {
-    const { impl, state } = countingFetch(issuePayload);
-    const provider = buildProvider(impl);
+    const { gh, state } = countingGh(issuePayload);
+    const provider = buildProvider(gh);
     const clock = fakeClock();
     provider._cache = createTicketCacheManager({ now: clock.now });
 
@@ -138,8 +138,8 @@ describe('GitHubProvider.getTicket: maxAgeMs', () => {
   });
 
   it('opts.fresh still bypasses regardless of maxAgeMs', async () => {
-    const { impl, state } = countingFetch(issuePayload);
-    const provider = buildProvider(impl);
+    const { gh, state } = countingGh(issuePayload);
+    const provider = buildProvider(gh);
     const clock = fakeClock();
     provider._cache = createTicketCacheManager({ now: clock.now });
 
@@ -151,8 +151,8 @@ describe('GitHubProvider.getTicket: maxAgeMs', () => {
   });
 
   it('default getTicket (no opts) keeps legacy cache-hit behavior', async () => {
-    const { impl, state } = countingFetch(issuePayload);
-    const provider = buildProvider(impl);
+    const { gh, state } = countingGh(issuePayload);
+    const provider = buildProvider(gh);
 
     await provider.getTicket(42);
     await provider.getTicket(42);
