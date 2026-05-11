@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added (Epic #1185 — Dispatch performance pass — model hints + parallelism conventions)
+
+Four additive, opt-in surfaces ship together. **All four are optional and
+non-breaking** — every consumer of the affected schemas, skills, and
+helpers keeps working unchanged when none of the new fields are set.
+
+1. **Workflow frontmatter — optional `recommendedModel` field.** Skill
+   authors can hint at the model class best suited for a workflow (`haiku`
+   | `sonnet` | `opus`). Consumers that ignore the field behave exactly as
+   before; the dispatcher reads it as a non-binding suggestion only.
+
+2. **Workflow frontmatter — optional `dispatchModel` field.** Skill
+   authors can pin the dispatch-time model class for a workflow's
+   sub-agent calls (same enum). Absent → dispatcher falls back to its
+   existing default. No schema field becomes required.
+
+3. **`.agents/workflows/helpers/parallel-tooling.md` convention.** A new
+   helper documents the canonical "fan out independent tool calls in a
+   single assistant turn" pattern audit-\* skills reference inline. Pure
+   documentation; no runtime contract change.
+
+4. **`audit-fan-out` skill.** A new audit workflow that demonstrates the
+   parallel-tooling convention end-to-end. Opt-in: only invoked when an
+   operator runs `/audit-fan-out` (or a future audit driver enumerates
+   it); no existing skill is altered.
+
+5. **`epic-perf-report` schema — optional `dispatchModel` on per-Story
+   records.** `mostFrictionStories[]` items may now carry an optional
+   `dispatchModel` enum (`haiku` | `sonnet` | `opus`). The field is
+   omitted entirely (never `null`) when absent so pre-Epic payloads remain
+   byte-identical to the pre-#1185 shape. `perf-aggregator.js`
+   propagates the value through from the per-Story summary when present
+   and ignores invalid strings. Story #1178's calibration estimator can
+   bucket by model once the upstream signal carries the hint.
+
+See PRD #1276, Tech Spec #1277, and Stories #1326–#1329 for the full
+rollout.
+
 ### Changed (Epic #1178 — Decomposition + manifest sharpening)
 
 Four breaking changes ship as a coordinated cut. Hard cut — no aliases, no

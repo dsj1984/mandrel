@@ -1,6 +1,9 @@
 ---
 description: Run a privacy and PII data audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: regex/keyword PII scan against a fixed taxonomy — Haiku A/B matched sonnet. -->
 
 # Privacy and PII Data Audit
 
@@ -16,6 +19,8 @@ protection standards (GDPR, CCPA). Your goal is to find accidental logging,
 insecure storage, or unnecessary collection of sensitive data.
 
 ## Step 1: Scanning for PII Patterns
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 Scan the codebase for patterns related to sensitive data. Pay attention to:
 

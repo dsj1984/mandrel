@@ -1,6 +1,9 @@
 ---
 description: Run a Lighthouse audit (Performance / Accessibility / Best Practices / SEO) and produce a structured findings report
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: parses structured Lighthouse JSON against fixed thresholds — Haiku A/B matched sonnet. -->
 
 # Lighthouse Audit & Analysis
 
@@ -30,6 +33,8 @@ inflate Performance scores misleadingly.
 **Mobile** instead and note the choice in the report.
 
 ## Step 1: Pre-flight
+
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
 
 1. Confirm the target URL is reachable (HTTP 200) before invoking Lighthouse.
    If the server is not running, stop and ask the operator to start it — do
