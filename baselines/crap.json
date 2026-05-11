@@ -646,16 +646,16 @@
       "startLine": 82
     },
     {
-      "crap": 4,
+      "crap": 7,
       "file": ".agents/scripts/epic-deliver-cleanup.js",
       "method": "renderSummaryLines",
-      "startLine": 162
+      "startLine": 167
     },
     {
       "crap": 30,
       "file": ".agents/scripts/epic-deliver-cleanup.js",
       "method": "main",
-      "startLine": 175
+      "startLine": 191
     },
     {
       "crap": 1,
@@ -2920,7 +2920,7 @@
       "startLine": 196
     },
     {
-      "crap": 18.001749526169995,
+      "crap": 18.001179790623578,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeEpicPerfReport",
       "startLine": 251

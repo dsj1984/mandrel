@@ -2,11 +2,15 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  deleteWtBranchIfPresent,
   findWorktreePathForBranch,
+  getCheckedOutBranch,
   listEpicBranchesFromState,
   parseWorktreeList,
+  pruneRemoteTrackingRefs,
   reapBranch,
   reapEpicBranches,
+  switchCheckoutOffBranch,
 } from '../../../.agents/scripts/lib/orchestration/epic-cleanup.js';
 
 describe('listEpicBranchesFromState', () => {
@@ -265,5 +269,268 @@ describe('reapEpicBranches', () => {
     assert.equal(out.ok, false);
     assert.equal(out.failures.length, 1);
     assert.equal(out.failures[0].branch, 'story-99');
+  });
+
+  it('switches main checkout off epic/<id> before deleting it', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'epic/77', stderr: '' };
+      }
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 77, waves: [{ stories: [{ id: 1 }] }] },
+      cwd: '/repo',
+      gitSpawn,
+      baseBranch: 'develop',
+    });
+    assert.equal(out.switched.switched, true);
+    assert.equal(out.switched.from, 'epic/77');
+    assert.equal(out.switched.to, 'develop');
+    // The checkout call must precede the epic/77 branch -D call.
+    const idxCheckout = calls.findIndex((c) => c === 'checkout develop');
+    const idxDelEpic = calls.findIndex((c) => c === 'branch -D epic/77');
+    assert.ok(idxCheckout >= 0 && idxDelEpic > idxCheckout);
+  });
+
+  it('does not switch when the checkout is already off the epic branch', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'main', stderr: '' };
+      }
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 78, waves: [{ stories: [{ id: 1 }] }] },
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.equal(out.switched.switched, false);
+    assert.equal(out.switched.from, 'main');
+  });
+
+  it('reports pruned tracking refs and a deleted wt-branch', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'main', stderr: '' };
+      }
+      if (args[0] === 'worktree' && args[1] === 'list') {
+        return { status: 0, stdout: '', stderr: '' };
+      }
+      if (args[0] === 'remote' && args[1] === 'prune') {
+        return {
+          status: 0,
+          stdout:
+            'Pruning origin\nURL: https://example/repo.git\n * [pruned] origin/epic/100\n * [pruned] origin/story-1',
+          stderr: '',
+        };
+      }
+      if (args[0] === 'rev-parse') {
+        return { status: 0, stdout: 'abc123', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = reapEpicBranches({
+      state: { epicId: 100, waves: [{ stories: [{ id: 1 }] }] },
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.deepEqual(out.pruned.pruned, ['origin/epic/100', 'origin/story-1']);
+    assert.equal(out.wtBranch.deleted, true);
+    assert.equal(out.wtBranch.present, true);
+  });
+});
+
+describe('getCheckedOutBranch', () => {
+  it('returns the branch name when symbolic-ref succeeds', () => {
+    const gitSpawn = () => ({ status: 0, stdout: 'epic/42\n', stderr: '' });
+    assert.equal(getCheckedOutBranch({ cwd: '/repo', gitSpawn }), 'epic/42');
+  });
+
+  it('returns null on detached HEAD (symbolic-ref non-zero)', () => {
+    const gitSpawn = () => ({ status: 1, stdout: '', stderr: '' });
+    assert.equal(getCheckedOutBranch({ cwd: '/repo', gitSpawn }), null);
+  });
+
+  it('returns null when symbolic-ref prints whitespace', () => {
+    const gitSpawn = () => ({ status: 0, stdout: '   \n', stderr: '' });
+    assert.equal(getCheckedOutBranch({ cwd: '/repo', gitSpawn }), null);
+  });
+});
+
+describe('switchCheckoutOffBranch', () => {
+  it('checks out the target when the checkout is on the from-branch', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'epic/9', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: 'epic/9',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.equal(out.switched, true);
+    assert.ok(calls.includes('checkout main'));
+  });
+
+  it('no-ops when the checkout is on a different branch', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'main', stderr: '' };
+      }
+      throw new Error(`unexpected call: ${args.join(' ')}`);
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: 'epic/9',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.equal(out.switched, false);
+  });
+
+  it('returns early when fromBranch or toBranch is missing', () => {
+    const gitSpawn = () => {
+      throw new Error('gitSpawn should not be called');
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: '',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.equal(out.switched, false);
+    assert.equal(out.from, null);
+    assert.equal(out.to, null);
+  });
+
+  it('surfaces stderr when the checkout call fails', () => {
+    const warnings = [];
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'epic/9', stderr: '' };
+      }
+      return { status: 1, stdout: '', stderr: 'working tree dirty' };
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: 'epic/9',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    assert.equal(out.switched, false);
+    assert.equal(out.stderr, 'working tree dirty');
+    assert.ok(warnings.some((w) => /could not switch/.test(w)));
+  });
+});
+
+describe('pruneRemoteTrackingRefs', () => {
+  it('parses pruned refs from `git remote prune` output', () => {
+    const gitSpawn = () => ({
+      status: 0,
+      stdout:
+        'Pruning origin\nURL: https://example/repo.git\n * [pruned] origin/epic/1\n * [pruned] origin/story-2',
+      stderr: '',
+    });
+    const out = pruneRemoteTrackingRefs({ cwd: '/repo', gitSpawn });
+    assert.deepEqual(out.pruned, ['origin/epic/1', 'origin/story-2']);
+  });
+
+  it('returns an empty list with stderr when prune fails', () => {
+    const gitSpawn = () => ({
+      status: 1,
+      stdout: '',
+      stderr: 'no such remote',
+    });
+    const out = pruneRemoteTrackingRefs({ cwd: '/repo', gitSpawn });
+    assert.deepEqual(out.pruned, []);
+    assert.equal(out.stderr, 'no such remote');
+  });
+
+  it('returns an empty list when prune output has no [pruned] lines', () => {
+    const gitSpawn = () => ({
+      status: 0,
+      stdout: 'Pruning origin\nURL: https://example/repo.git\n',
+      stderr: '',
+    });
+    const out = pruneRemoteTrackingRefs({ cwd: '/repo', gitSpawn });
+    assert.deepEqual(out.pruned, []);
+  });
+});
+
+describe('deleteWtBranchIfPresent', () => {
+  it('deletes wt-branch when the ref exists and is not checked out', () => {
+    const calls = [];
+    const gitSpawn = (_cwd, ...args) => {
+      calls.push(args.join(' '));
+      if (args[0] === 'rev-parse') {
+        return { status: 0, stdout: 'abc123', stderr: '' };
+      }
+      return { status: 0, stdout: '', stderr: '' };
+    };
+    const out = deleteWtBranchIfPresent({ cwd: '/repo', gitSpawn });
+    assert.equal(out.deleted, true);
+    assert.equal(out.present, true);
+    assert.ok(calls.includes('branch -D wt-branch'));
+  });
+
+  it('skips deletion when wt-branch is checked out in a worktree', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'rev-parse') {
+        return { status: 0, stdout: 'abc123', stderr: '' };
+      }
+      throw new Error(`unexpected call: ${args.join(' ')}`);
+    };
+    const out = deleteWtBranchIfPresent({
+      cwd: '/repo',
+      gitSpawn,
+      worktrees: [{ path: '/elsewhere', branch: 'wt-branch' }],
+    });
+    assert.equal(out.deleted, false);
+    assert.equal(out.present, true);
+    assert.equal(out.reason, 'checked-out');
+  });
+
+  it('no-ops when the ref does not exist', () => {
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'rev-parse') return { status: 1, stdout: '', stderr: '' };
+      throw new Error(`unexpected call: ${args.join(' ')}`);
+    };
+    const out = deleteWtBranchIfPresent({ cwd: '/repo', gitSpawn });
+    assert.equal(out.deleted, false);
+    assert.equal(out.present, false);
+  });
+
+  it('surfaces stderr when the branch -D call fails', () => {
+    const warnings = [];
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'rev-parse') {
+        return { status: 0, stdout: 'abc123', stderr: '' };
+      }
+      return { status: 1, stdout: '', stderr: 'unmerged commits' };
+    };
+    const out = deleteWtBranchIfPresent({
+      cwd: '/repo',
+      gitSpawn,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    assert.equal(out.deleted, false);
+    assert.equal(out.present, true);
+    assert.equal(out.stderr, 'unmerged commits');
+    assert.ok(warnings.some((w) => /could not delete wt-branch/.test(w)));
   });
 });
