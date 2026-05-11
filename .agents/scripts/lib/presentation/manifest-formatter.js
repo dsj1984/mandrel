@@ -216,6 +216,75 @@ export function renderWaveSections(waveEligible) {
 // inline by `renderNestedWaveSections` below.
 
 /**
+ * Topologically sort a Story's Tasks by their `dependencies` (in-Story
+ * `depends_on` ids). Stable: ties resolve in the original declaration order
+ * so a Story with no edges renders Tasks exactly as authored. Cross-Story
+ * dependencies (ids that aren't in the same `tasks[]`) are ignored — the
+ * runtime resolves those at the wave-ordering layer.
+ *
+ * Pure / O(n + e) — Kahn's algorithm with a deterministic tie-breaker.
+ *
+ * @param {Array<{ taskId: number|string, dependencies?: Array<number|string> }>} tasks
+ * @returns {Array} same task objects, sorted root → blocked-last.
+ */
+export function topoSortTasks(tasks) {
+  if (!tasks || tasks.length === 0) return [];
+  // Build the in-Story id set first so we can ignore cross-Story deps.
+  const idSet = new Set(tasks.map((t) => String(t.taskId)));
+  const order = new Map();
+  tasks.forEach((t, idx) => {
+    order.set(String(t.taskId), idx);
+  });
+
+  const inDegree = new Map();
+  const adj = new Map();
+  for (const t of tasks) {
+    const tid = String(t.taskId);
+    if (!inDegree.has(tid)) inDegree.set(tid, 0);
+    if (!adj.has(tid)) adj.set(tid, []);
+    for (const dep of t.dependencies ?? []) {
+      const did = String(dep);
+      if (!idSet.has(did)) continue; // cross-Story edge: skip
+      inDegree.set(tid, (inDegree.get(tid) ?? 0) + 1);
+      if (!adj.has(did)) adj.set(did, []);
+      adj.get(did).push(tid);
+    }
+  }
+
+  // Ready queue ordered by original declaration index for determinism.
+  const ready = tasks
+    .map((t) => String(t.taskId))
+    .filter((tid) => (inDegree.get(tid) ?? 0) === 0)
+    .sort((a, b) => order.get(a) - order.get(b));
+
+  const out = [];
+  const byId = new Map(tasks.map((t) => [String(t.taskId), t]));
+  while (ready.length > 0) {
+    const tid = ready.shift();
+    out.push(byId.get(tid));
+    for (const next of adj.get(tid) ?? []) {
+      inDegree.set(next, inDegree.get(next) - 1);
+      if (inDegree.get(next) === 0) {
+        // Insert by original declaration order to preserve stability.
+        let i = 0;
+        while (i < ready.length && order.get(ready[i]) < order.get(next)) i++;
+        ready.splice(i, 0, next);
+      }
+    }
+  }
+
+  // Cycle fallback: append any leftover tasks in original order so we never
+  // silently drop work. The Tech Spec forbids cycles within a Story, but
+  // this keeps the renderer robust if upstream validation drifts.
+  if (out.length < tasks.length) {
+    for (const t of tasks) {
+      if (!out.includes(t)) out.push(t);
+    }
+  }
+  return out;
+}
+
+/**
  * Compute per-Story aggregates for the nested wave layout: a 0..100 progress
  * percent and the done/total task counts. Pure — derived from `story.tasks[]`.
  *
@@ -330,11 +399,37 @@ export function renderNestedWaveSections(storyManifest) {
       if (story.tasks.length === 0) {
         lines.push('_(no tasks)_');
       } else {
-        for (const task of story.tasks) {
+        // Order Tasks root → blocked-last so the manifest reads in
+        // execution order. We then annotate each Task that has any
+        // in-Story dependency with the most recent dep (Story #1194 Task
+        // #1213) — "most recent" is defined as the dep with the largest
+        // position in the sorted list (the one whose work has to land
+        // last for this Task to unblock).
+        const sortedTasks = topoSortTasks(story.tasks);
+        const inStoryIds = new Set(story.tasks.map((t) => String(t.taskId)));
+        const positionInSort = new Map(
+          sortedTasks.map((t, idx) => [String(t.taskId), idx]),
+        );
+        for (const task of sortedTasks) {
           const isDone = task.status === AGENT_LABELS.DONE;
           const checkbox = isDone ? '[x]' : '[ ]';
           const taskTitle = task.taskSlug || task.title || '';
-          lines.push(`- ${checkbox} #${task.taskId} — ${taskTitle}`);
+          const inStoryDeps = (task.dependencies ?? []).filter((d) =>
+            inStoryIds.has(String(d)),
+          );
+          let suffix = '';
+          if (inStoryDeps.length > 0) {
+            // Pick the dep that appears latest in the sorted order — that's
+            // the one whose completion actually unblocks this Task.
+            const latest = inStoryDeps.reduce((a, b) =>
+              (positionInSort.get(String(a)) ?? -1) >
+              (positionInSort.get(String(b)) ?? -1)
+                ? a
+                : b,
+            );
+            suffix = ` *(after #${latest})*`;
+          }
+          lines.push(`- ${checkbox} #${task.taskId} — ${taskTitle}${suffix}`);
         }
       }
       lines.push('');

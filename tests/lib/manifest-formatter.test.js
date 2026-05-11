@@ -11,6 +11,7 @@ import {
   renderProgressBar,
   renderWaveSections,
   slugifyHeading,
+  topoSortTasks,
   waveHeadingText,
 } from '../../.agents/scripts/lib/presentation/manifest-formatter.js';
 
@@ -391,6 +392,164 @@ test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
       `TOC anchor #${anchor} has no matching H2 (slugs: ${slugs.join(', ')})`,
     );
   }
+});
+
+test('topoSortTasks: orders T1 → T2 → T3 root-first when T2 deps T1, T3 deps T2', () => {
+  const tasks = [
+    { taskId: 3, dependencies: [2] },
+    { taskId: 1, dependencies: [] },
+    { taskId: 2, dependencies: [1] },
+  ];
+  const sorted = topoSortTasks(tasks);
+  assert.deepEqual(
+    sorted.map((t) => t.taskId),
+    [1, 2, 3],
+  );
+});
+
+test('topoSortTasks: preserves declaration order when no edges exist', () => {
+  const tasks = [
+    { taskId: 7, dependencies: [] },
+    { taskId: 4, dependencies: [] },
+    { taskId: 9, dependencies: [] },
+  ];
+  assert.deepEqual(
+    topoSortTasks(tasks).map((t) => t.taskId),
+    [7, 4, 9],
+  );
+});
+
+test('topoSortTasks: ignores cross-Story dependency ids', () => {
+  // 99 is not in this Story → must not block 2.
+  const tasks = [
+    { taskId: 1, dependencies: [] },
+    { taskId: 2, dependencies: [99] },
+  ];
+  assert.deepEqual(
+    topoSortTasks(tasks).map((t) => t.taskId),
+    [1, 2],
+  );
+});
+
+test('topoSortTasks: degrades gracefully for empty / null input', () => {
+  assert.deepEqual(topoSortTasks([]), []);
+  assert.deepEqual(topoSortTasks(null), []);
+});
+
+test('renderNestedWaveSections: renders Tasks in topo order with *(after #N)* callouts', () => {
+  const stories = [
+    {
+      storyId: 500,
+      storyTitle: 'Linear Story',
+      type: 'story',
+      earliestWave: 0,
+      branchName: 'story-500',
+      tasks: [
+        // intentionally out-of-order to verify the sort, not the input.
+        {
+          taskId: 503,
+          taskSlug: 't3',
+          status: 'agent::ready',
+          dependencies: [502],
+        },
+        {
+          taskId: 501,
+          taskSlug: 't1',
+          status: 'agent::ready',
+          dependencies: [],
+        },
+        {
+          taskId: 502,
+          taskSlug: 't2',
+          status: 'agent::ready',
+          dependencies: [501],
+        },
+      ],
+    },
+  ];
+  const md = renderNestedWaveSections(stories);
+  // Tasks render in topo order T1, T2, T3
+  const idxT1 = md.indexOf('- [ ] #501 — t1');
+  const idxT2 = md.indexOf('- [ ] #502 — t2 *(after #501)*');
+  const idxT3 = md.indexOf('- [ ] #503 — t3 *(after #502)*');
+  assert.ok(idxT1 >= 0, 'T1 line missing');
+  assert.ok(idxT2 > idxT1, 'T2 should appear after T1');
+  assert.ok(idxT3 > idxT2, 'T3 should appear after T2');
+});
+
+test('renderNestedWaveSections: omits *(after …)* callouts when no in-Story deps exist', () => {
+  const stories = [
+    {
+      storyId: 600,
+      storyTitle: 'Independent Story',
+      type: 'story',
+      earliestWave: 0,
+      branchName: 'story-600',
+      tasks: [
+        {
+          taskId: 601,
+          taskSlug: 't1',
+          status: 'agent::ready',
+          dependencies: [],
+        },
+        {
+          taskId: 602,
+          taskSlug: 't2',
+          status: 'agent::ready',
+          dependencies: [],
+        },
+      ],
+    },
+  ];
+  const md = renderNestedWaveSections(stories);
+  assert.ok(md.includes('- [ ] #601 — t1\n'));
+  assert.ok(md.includes('- [ ] #602 — t2\n'));
+  assert.ok(!md.includes('*(after #'), 'should not emit any after-callouts');
+});
+
+test('renderNestedWaveSections: callout names the latest in-Story dependency when multiple exist', () => {
+  const stories = [
+    {
+      storyId: 700,
+      storyTitle: 'Diamond Story',
+      type: 'story',
+      earliestWave: 0,
+      branchName: 'story-700',
+      tasks: [
+        {
+          taskId: 701,
+          taskSlug: 'root',
+          status: 'agent::ready',
+          dependencies: [],
+        },
+        {
+          taskId: 702,
+          taskSlug: 'left',
+          status: 'agent::ready',
+          dependencies: [701],
+        },
+        {
+          taskId: 703,
+          taskSlug: 'right',
+          status: 'agent::ready',
+          dependencies: [701],
+        },
+        // 704 depends on both: latest in topo order is the one whose work lands last.
+        {
+          taskId: 704,
+          taskSlug: 'merge',
+          status: 'agent::ready',
+          dependencies: [702, 703],
+        },
+      ],
+    },
+  ];
+  const md = renderNestedWaveSections(stories);
+  // 703 sits later in the sorted order than 702 → that's the named dep.
+  assert.ok(
+    md.includes('- [ ] #704 — merge *(after #703)*'),
+    `expected callout to name #703; rendered: ${md}`,
+  );
 });
 
 test('computeStoryProgress: derives pct, done, total from story.tasks[]', () => {
