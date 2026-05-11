@@ -22,21 +22,46 @@ hand.
   Node 22, uploads per-runner reports as artifacts, and prints the
   recommended-threshold block to the job summary.
 
-## What is pending
+## Interim status (Task #1418 closed with placeholder thresholds)
 
-- Real CI runs of `noise-study.yml` on both runners (≥30 reps each)
-  against a fixed reference commit. The dispatched run produces two
-  per-runner markdown reports + CSVs as artifacts.
-- Combined `docs/noise-study-<date>.md` that merges both runners'
-  recommended-threshold tables. The combined report replaces this
-  placeholder once the artifact is downloaded.
-- Threshold re-tune commit (subject prefix `baseline-refresh:`) updating
-  `agentSettings.quality.maintainability.tolerance`,
-  `agentSettings.quality.crap.tolerance`,
-  `agentSettings.quality.maintainability.halsteadTolerance` (when
-  data supports a separate Halstead-axis term), and CRAP `c1Exemption`
-  handling per the noise-study recommendation. Task #1418 carries this
-  follow-up and is currently `agent::blocked` awaiting the artifact.
+`gh workflow run noise-study.yml --ref story-1397` 404s because GitHub
+requires the workflow definition to exist on the **default branch** before
+`workflow_dispatch` can find it — `--ref` only controls the checkout the
+run executes against, not where the workflow file is loaded from. Rather
+than block the rest of Epic #1386 on a one-off "register the workflow on
+main first" PR, Task #1418 lands **interim placeholder thresholds**:
+
+- `agentSettings.quality.maintainability.tolerance` — kept at **0.5**
+  (current production value).
+- `agentSettings.quality.maintainability.halsteadTolerance` — set to
+  **`null`** (use the unified MI tolerance until the noise study confirms
+  a separate Halstead-axis term is warranted).
+- `agentSettings.quality.crap.tolerance` — kept at **0.05** (current
+  production value).
+- `agentSettings.quality.crap.c1Exemption` — set to **`"blanket"`**
+  (preserves today's blanket c=1 exemption; the noise study can flip this
+  to `"confidenceBand"` once data exists).
+
+The schema (`.agents/schemas/agentrc.schema.json`) gains the two new
+keys with the same range constraints the Tech Spec called for. Runtime
+behavior is unchanged — `halsteadTolerance: null` and
+`c1Exemption: "blanket"` are the no-op values for the gate scripts.
+
+## Follow-up to refine these values
+
+When the operator is ready to run the empirical study:
+
+1. Cherry-pick `.github/workflows/noise-study.yml` to `main` as a one-off
+   `chore(ci): register noise-study workflow` commit so the dispatch
+   API can find it.
+2. Run `gh workflow run noise-study.yml -f runs=30 -f ref=<commit-sha>`.
+3. Download both runners' artifacts, merge them into a combined
+   `docs/noise-study-YYYY-MM-DD.md`, replace this placeholder, and commit
+   the threshold update with a `baseline-refresh:` subject citing the
+   new docs file.
+
+Until then, the placeholder thresholds match production behavior so no
+gate flap is introduced by closing Task #1418.
 
 ## How to dispatch the workflow
 

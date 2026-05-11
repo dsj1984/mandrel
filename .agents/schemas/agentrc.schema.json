@@ -45,6 +45,10 @@
           ]
         },
         "tolerance": { "type": "number", "minimum": 0 },
+        "c1Exemption": {
+          "type": "string",
+          "enum": ["blanket", "confidenceBand"]
+        },
         "requireCoverage": { "type": "boolean" },
         "friction": {
           "type": "object",
@@ -225,7 +229,8 @@
       "type": "object",
       "properties": {
         "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
-        "tolerance": { "type": "number", "minimum": 0 }
+        "tolerance": { "type": "number", "minimum": 0 },
+        "halsteadTolerance": { "type": ["number", "null"], "minimum": 0 }
       },
       "additionalProperties": false
     },
