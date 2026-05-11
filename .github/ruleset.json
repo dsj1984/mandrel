@@ -12,9 +12,15 @@
     }
   },
   "rules": [
-    { "type": "deletion" },
-    { "type": "non_fast_forward" },
-    { "type": "required_linear_history" },
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_linear_history"
+    },
     {
       "type": "required_status_checks",
       "parameters": {
@@ -23,10 +29,6 @@
         "required_status_checks": [
           {
             "context": "Validate and Test (ubuntu-latest, node 22)",
-            "integration_id": 15368
-          },
-          {
-            "context": "Validate and Test (windows-latest, node 22)",
             "integration_id": 15368
           }
         ]

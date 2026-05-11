@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **Windows CI leg removed.** The `windows-latest` runner in
+  `.github/workflows/ci.yml` was producing repeated c8/timing
+  coverage flap with no corresponding source defects, forcing per-PR
+  `baseline-refresh:` ratchets on otherwise-unchanged files. Since the
+  maintainer runs Windows locally, the pre-push hook is already the
+  real Windows gate. Removed from the workflow matrix and from the
+  live ruleset `14286998` required-status-checks set (only the Ubuntu
+  leg is now required). The `.github/ruleset.json` artifact tracks the
+  new shape. See #1267 for the per-OS baseline plan if Windows-leg CI
+  is reinstated later.
+
 ## [5.41.0] — 2026-05-11
 
 The 5.41 release lands the Epic #1235 **hands-off PR pipeline**: CI is
