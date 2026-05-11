@@ -537,6 +537,39 @@ describe('config-resolver library tests', () => {
       assert.deepEqual(out.prGate.checks, []);
       assert.equal(out.baselines.lint.path, BASELINES_DEFAULTS.lint.path);
     });
+
+    // Story #1398 (Epic #1386): bounded auto-refresh defaults.
+    it('resolveQuality: surfaces autoRefresh defaults when block is absent', () => {
+      const out = resolveQuality(undefined);
+      assert.equal(out.autoRefresh.enabled, true);
+      assert.equal(out.autoRefresh.miDropCap, 1.5);
+      assert.equal(out.autoRefresh.crapJumpCap, 5);
+      assert.equal(out.autoRefresh.scope, 'diff');
+    });
+
+    it('resolveQuality: honours autoRefresh user overrides', () => {
+      const out = resolveQuality({
+        autoRefresh: {
+          enabled: false,
+          miDropCap: 0.25,
+          crapJumpCap: 1,
+          scope: 'full',
+        },
+      });
+      assert.equal(out.autoRefresh.enabled, false);
+      assert.equal(out.autoRefresh.miDropCap, 0.25);
+      assert.equal(out.autoRefresh.crapJumpCap, 1);
+      assert.equal(out.autoRefresh.scope, 'full');
+    });
+
+    it('resolveQuality: falls back to defaults on negative caps / unknown scope (resolver-side guard)', () => {
+      const out = resolveQuality({
+        autoRefresh: { miDropCap: -1, crapJumpCap: -2, scope: 'sideways' },
+      });
+      assert.equal(out.autoRefresh.miDropCap, 1.5);
+      assert.equal(out.autoRefresh.crapJumpCap, 5);
+      assert.equal(out.autoRefresh.scope, 'diff');
+    });
   });
 
   describe('getQuality (Epic #730 Story 6)', () => {

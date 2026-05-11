@@ -201,6 +201,69 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
+  // Story #1398 (Epic #1386): autoRefresh under quality.
+  it('accepts quality.autoRefresh defaults on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: {
+          autoRefresh: {
+            enabled: true,
+            miDropCap: 1.5,
+            crapJumpCap: 5,
+            scope: 'diff',
+          },
+        },
+      },
+      'autoRefresh defaults',
+    );
+  });
+
+  it('rejects negative autoRefresh.miDropCap on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { autoRefresh: { miDropCap: -0.5 } },
+      },
+      'negative miDropCap',
+    );
+  });
+
+  it('rejects negative autoRefresh.crapJumpCap on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { autoRefresh: { crapJumpCap: -1 } },
+      },
+      'negative crapJumpCap',
+    );
+  });
+
+  it('rejects unknown autoRefresh.scope value on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { autoRefresh: { scope: 'sideways' } },
+      },
+      'unknown scope',
+    );
+  });
+
+  it('rejects unknown property under quality.autoRefresh on both sides', () => {
+    assertAgree(
+      'agentSettings',
+      {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        quality: { autoRefresh: { whoops: true } },
+      },
+      'autoRefresh typo',
+    );
+  });
+
   it('rejects unknown property on quality.prGate on both sides', () => {
     assertAgree(
       'agentSettings',
