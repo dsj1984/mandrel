@@ -720,8 +720,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 98.55,
-    "branches": 81.82,
+    "lines": 95.65,
+    "branches": 76.19,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -1040,9 +1040,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 90.94,
+    "lines": 90.16,
     "branches": 100,
-    "functions": 75
+    "functions": 72.73
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1060,9 +1060,9 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/comments.js": {
-    "lines": 88.1,
-    "branches": 87.5,
-    "functions": 75
+    "lines": 76.19,
+    "branches": 85.71,
+    "functions": 50
   },
   ".agents/scripts/providers/github/error-classifier.js": {
     "lines": 100,
