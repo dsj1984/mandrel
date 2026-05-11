@@ -29,11 +29,38 @@ import path from 'node:path';
 const TESTS_DIR_DEFAULT = 'tests';
 
 /**
+ * Path segments under the tests root whose contents are exempt from the
+ * scan. `lib/checks/` is the unit-test tree for the lib/checks/ modules
+ * — those test files exist to exercise the checks and frequently embed
+ * literal `new Notifier(...)` substrings inside fixture strings as test
+ * data. Scanning them is a guaranteed false-positive surface; nothing
+ * inside the check-registry test tree is a real production-pattern
+ * Notifier construction.
+ *
+ * Stored as a path-fragment array (forward slashes; normalized to the
+ * platform separator at compare time) so the exclusion is robust on
+ * both POSIX and Windows.
+ */
+const EXEMPT_PATH_FRAGMENTS = ['lib/checks'];
+
+/**
  * The pattern that constructs a Notifier or NotificationHook. We require
  * the call to pass an object literal with both `cwd` and `fetchImpl`
  * keys on the same line (or within the same constructor call).
  */
 const CONSTRUCTOR_RE = /\bnew\s+(Notifier|NotificationHook)\s*\(/g;
+
+/**
+ * Returns true when `relPath` (a tests-rooted relative path with `/`
+ * separators) lives under one of the exempt subtrees.
+ */
+function isExemptPath(relPath) {
+  for (const frag of EXEMPT_PATH_FRAGMENTS) {
+    if (relPath === frag) return true;
+    if (relPath.startsWith(`${frag}/`)) return true;
+  }
+  return false;
+}
 
 /**
  * Walk a directory recursively, yielding absolute file paths that end in
@@ -113,6 +140,8 @@ function findOffences(rootDir) {
   const offences = [];
   const files = walkJsFiles(rootDir);
   for (const file of files) {
+    const relForExempt = path.relative(rootDir, file).replace(/\\/g, '/');
+    if (isExemptPath(relForExempt)) continue;
     let src;
     try {
       src = readFileSync(file, 'utf8');

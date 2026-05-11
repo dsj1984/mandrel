@@ -126,4 +126,39 @@ describe('notifier-stub-required.detect', () => {
     const finding = check.detect({ scanRoot: fixture.root });
     assert.equal(finding, null);
   });
+
+  it('exempts the lib/checks/ test tree — check unit-test fixtures contain literal `new Notifier(` substrings as test data, not real productions', () => {
+    // Mirrors the production false-positive surface that blocked Story
+    // #1290's close: the check's own unit tests under tests/lib/checks/
+    // embed fixture strings like `'const n = new Notifier({})'` which
+    // the substring regex would otherwise flag. Confirm the exemption
+    // suppresses those false positives.
+    fixture.write(
+      'lib/checks/notifier-stub-required.test.js',
+      [
+        '// Fixture data — these strings are *content*, not real productions:',
+        "fixture.write('leaky.test.js', 'const n = new Notifier({})');",
+        "fixture.write('partial.test.js', 'new NotificationHook({ cwd: x })');",
+      ].join('\n'),
+    );
+    fixture.write(
+      'lib/checks/some-other-check.test.js',
+      'const n = new Notifier({ channel: "#alerts" });',
+    );
+    // Real production-pattern offence outside the exempt tree — should still fire.
+    fixture.write(
+      'real-leak.test.js',
+      'const n = new Notifier({ channel: "#alerts" });',
+    );
+    const finding = check.detect({ scanRoot: fixture.root });
+    assert.ok(
+      finding,
+      'real offence outside the exempt tree should still fire',
+    );
+    assert.ok(
+      !/lib\/checks\//.test(finding.detail),
+      `lib/checks/ paths should not appear in detail, got: ${finding.detail}`,
+    );
+    assert.ok(/real-leak\.test\.js:/.test(finding.detail));
+  });
 });
