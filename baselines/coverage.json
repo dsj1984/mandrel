@@ -40,7 +40,7 @@
     "functions": 80
   },
   ".agents/scripts/diagnose-friction.js": {
-    "lines": 82.73,
+    "lines": 82.8,
     "branches": 72,
     "functions": 100
   },
@@ -60,9 +60,9 @@
     "functions": 60
   },
   ".agents/scripts/epic-deliver-cleanup.js": {
-    "lines": 84.49,
-    "branches": 76.47,
-    "functions": 66.67
+    "lines": 89.34,
+    "branches": 83.33,
+    "functions": 75
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 85.25,
@@ -200,8 +200,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.37,
-    "branches": 90,
+    "lines": 98.13,
+    "branches": 88.99,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -540,7 +540,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
-    "lines": 88.89,
+    "lines": 89.01,
     "branches": 57.14,
     "functions": 66.67
   },
@@ -560,7 +560,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.23,
+    "lines": 91.27,
     "branches": 70.45,
     "functions": 96.88
   },
@@ -665,7 +665,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 96.82,
+    "lines": 96.85,
     "branches": 72.94,
     "functions": 100
   },
@@ -695,9 +695,9 @@
     "functions": 64.71
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
-    "lines": 87.25,
-    "branches": 63.46,
-    "functions": 80
+    "lines": 84.97,
+    "branches": 59.55,
+    "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
     "lines": 100,
@@ -720,8 +720,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 98.55,
-    "branches": 81.82,
+    "lines": 98.59,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -1120,7 +1120,7 @@
     "functions": 33.33
   },
   ".agents/scripts/story-close.js": {
-    "lines": 78.88,
+    "lines": 79.08,
     "branches": 46.67,
     "functions": 66.67
   },
@@ -1135,8 +1135,8 @@
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
-    "lines": 83.22,
-    "branches": 63.33,
+    "lines": 86.35,
+    "branches": 70.49,
     "functions": 60
   },
   ".agents/scripts/task-commit.js": {
