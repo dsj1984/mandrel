@@ -21,6 +21,7 @@ import { GithubHttpClient } from './github/http.js';
 import * as issues from './github/issues.js';
 import * as labels from './github/labels.js';
 import * as projects from './github/projects.js';
+import * as repo from './github/repo.js';
 
 export { __setExecSyncForTests } from './github/auth.js';
 
@@ -192,6 +193,14 @@ export class GitHubProvider extends ITicketingProvider {
 
   async setBranchProtection(branch, opts) {
     return branches.setBranchProtection(this._ctx, branch, opts);
+  }
+
+  async getMergeMethods() {
+    return repo.getMergeMethods(this._ctx);
+  }
+
+  async setMergeMethods(settings) {
+    return repo.setMergeMethods(this._ctx, settings);
   }
 
   async ensureLabels(labelDefs) {

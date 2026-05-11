@@ -199,6 +199,17 @@
       },
       "additionalProperties": false
     },
+    "mergeMethods": {
+      "type": "object",
+      "properties": {
+        "allow_squash_merge": { "type": "boolean" },
+        "allow_rebase_merge": { "type": "boolean" },
+        "allow_merge_commit": { "type": "boolean" },
+        "allow_auto_merge": { "type": "boolean" },
+        "delete_branch_on_merge": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "maintainabilityQuality": {
       "type": "object",
       "properties": {
@@ -277,7 +288,8 @@
         },
         "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
         "crap": { "$ref": "#/$defs/maintainabilityCrap" },
-        "prGate": { "$ref": "#/$defs/prGate" }
+        "prGate": { "$ref": "#/$defs/prGate" },
+        "mergeMethods": { "$ref": "#/$defs/mergeMethods" }
       },
       "additionalProperties": false
     },

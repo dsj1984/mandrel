@@ -241,6 +241,29 @@ const PR_GATE_SCHEMA = {
 };
 
 /**
+ * `quality.mergeMethods` — Epic #1235 Story 5. The merge-method allowlist
+ * the consumer bootstrap promotes onto the target repo. Field names match
+ * GitHub's `PATCH /repos/{owner}/{repo}` shape so the consumer can read
+ * the framework's intent without translation. Framework defaults are
+ * `{ allow_squash_merge: true, allow_rebase_merge: false,
+ * allow_merge_commit: false, allow_auto_merge: true,
+ * delete_branch_on_merge: true }`; any of these may be overridden
+ * per-consumer, but drift between this config and the live repo state
+ * routes through the HITL confirm gate before a PATCH lands.
+ */
+const MERGE_METHODS_SCHEMA = {
+  type: 'object',
+  properties: {
+    allow_squash_merge: { type: 'boolean' },
+    allow_rebase_merge: { type: 'boolean' },
+    allow_merge_commit: { type: 'boolean' },
+    allow_auto_merge: { type: 'boolean' },
+    delete_branch_on_merge: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
+/**
  * Per-baseline shape used inside `agentSettings.quality.baselines`. Each entry
  * carries a required on-disk `path` (the canonical baseline file the
  * lint/CRAP/MI ratchet reads + writes) and an optional `refreshCommand` that
@@ -279,6 +302,7 @@ const QUALITY_SCHEMA = {
     maintainability: MAINTAINABILITY_QUALITY_SCHEMA,
     crap: MAINTAINABILITY_CRAP_SCHEMA,
     prGate: PR_GATE_SCHEMA,
+    mergeMethods: MERGE_METHODS_SCHEMA,
   },
   additionalProperties: false,
 };
