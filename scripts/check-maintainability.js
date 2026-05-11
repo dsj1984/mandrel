@@ -36,9 +36,10 @@ import { appendSignal } from './lib/observability/signals-writer.js';
 // noise (Node-version churn, escomplex internal updates, typhonjs-escomplex
 // rounding) routinely drifts +/- 0.05 to 0.3 on otherwise-unchanged files —
 // well below the threshold of "actually less maintainable." A 0.5 floor
-// stops the pre-push hook from auto-ratcheting the baseline on noise, which
-// in turn stops the baseline-refresh-guardrail from flagging every PR.
-// Projects that want stricter MI tracking can override via
+// stops the pre-push hook from auto-ratcheting the baseline on noise.
+// (The CI guardrail that mechanically flagged unlabeled baseline edits
+// was removed in 5.42; the floor stays because the underlying noise is
+// real.) Projects that want stricter MI tracking can override via
 // `agentSettings.quality.maintainability.tolerance` in `.agentrc.json`.
 const DEFAULT_TOLERANCE = 0.5;
 

@@ -1,15 +1,13 @@
 /**
- * bootstrap/branch-protection — Epic #1235 Story 5
+ * bootstrap/branch-protection
  *
- * Consumer-parity branch-protection writer. Extracted from the inline step
- * in `agents-bootstrap-github.js` so the consumer-facing bootstrap can
- * apply the same hands-off-pipeline stance every project in the framework
- * inherits:
+ * Consumer-parity branch-protection writer. The bootstrap applies a
+ * CI-gates-only stance every project in the framework inherits:
  *
  *   - `enforce_admins: true` — admins do not bypass the prGate suite.
  *   - `required_pull_request_reviews.required_approving_review_count: 0` —
- *     CI is the gate, not human approval theater (bot approver lives in
- *     Story 3, see runbook).
+ *     CI is the gate; the operator monitors and iterates the open PR
+ *     to green via `/epic-deliver`'s Phase 7 watch loop.
  *
  * Behaviour rules
  * ---------------
@@ -61,8 +59,9 @@ export function diffProtection(current, targetContexts) {
   // Live `null` means "PR reviews not configured at all". We *do* want to
   // promote the explicit zero-approval policy in that case, so the diff
   // reports it as a flip from null → { required_approving_review_count: 0 }.
-  // That's still load-bearing for the bot-approver pipeline (Story 3): an
-  // explicit zero-count rule blocks any future operator drift back to 1+.
+  // An explicit zero-count rule blocks any future operator drift back to
+  // 1+, which would re-introduce the approval-theater dependency the
+  // framework deliberately stripped out.
   const liveApprovalCount = liveReviews?.required_approving_review_count;
   if (liveApprovalCount !== TARGET_APPROVAL_COUNT) {
     diff.approvingReviewCount = {
@@ -147,7 +146,7 @@ export async function applyBranchProtection({
     const approved =
       typeof hitlConfirm === 'function'
         ? await hitlConfirm({
-            summary: `Branch protection on '${baseBranch}' diverges from the framework's hands-off-pipeline stance (enforce_admins=true, required_approving_review_count=0).`,
+            summary: `Branch protection on '${baseBranch}' diverges from the framework's CI-gates-only stance (enforce_admins=true, required_approving_review_count=0).`,
             current: {
               enforce_admins: current?.enforce_admins?.enabled ?? false,
               required_approving_review_count:
