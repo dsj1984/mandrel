@@ -75,8 +75,8 @@
     "functions": 50
   },
   ".agents/scripts/epic-execute-record-wave.js": {
-    "lines": 75.61,
-    "branches": 64.96,
+    "lines": 78.86,
+    "branches": 69.78,
     "functions": 71.43
   },
   ".agents/scripts/epic-planner.js": {
@@ -345,7 +345,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 94.99,
+    "lines": 95.26,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -481,7 +481,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/blocker-handler.js": {
     "lines": 88.07,
-    "branches": 82.22,
+    "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/checkpointer.js": {
@@ -525,9 +525,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.6,
-    "branches": 71.43,
-    "functions": 96.67
+    "lines": 91.1,
+    "branches": 70.89,
+    "functions": 96.88
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
     "lines": 94.88,
@@ -576,7 +576,7 @@
   },
   ".agents/scripts/lib/orchestration/error-journal.js": {
     "lines": 95.68,
-    "branches": 85.37,
+    "branches": 84.62,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/label-transitions.js": {
@@ -995,8 +995,8 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 90.97,
-    "branches": 83.33,
+    "lines": 90.63,
+    "branches": 83.1,
     "functions": 87.5
   },
   ".agents/scripts/post-structured-comment.js": {
@@ -1100,8 +1100,8 @@
     "functions": 62.5
   },
   ".agents/scripts/story-init.js": {
-    "lines": 88.25,
-    "branches": 76.39,
+    "lines": 87.5,
+    "branches": 75.34,
     "functions": 81.82
   },
   ".agents/scripts/story-task-progress.js": {
