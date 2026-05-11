@@ -55,7 +55,7 @@
   ".agents/scripts/lib/auto-refresh-baselines.js": 87.316,
   ".agents/scripts/lib/baseline-loader.js": 105.28,
   ".agents/scripts/lib/baseline-snapshot.js": 74.892,
-  ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": 56.199,
+  ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": 88.081,
   ".agents/scripts/lib/bootstrap/branch-protection.js": 94.555,
   ".agents/scripts/lib/bootstrap/ci-workflow-template.js": 125.329,
   ".agents/scripts/lib/bootstrap/hitl-confirm.js": 99.662,
