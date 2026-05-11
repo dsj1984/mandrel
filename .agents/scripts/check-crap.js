@@ -49,10 +49,12 @@ import { appendSignal } from './lib/observability/signals-writer.js';
  *   - `CRAP_TOLERANCE`          — float;   overrides `crap.tolerance`.
  *   - `CRAP_REFRESH_TAG`        — string;  overrides `crap.refreshTag` (surfaced
  *                                          in the failure hint).
- * These are intended for the base-branch-enforced `baseline-refresh-guardrail`
- * CI job (see Story #610) so CI can force base-branch values regardless of
- * what the PR branch config says. Malformed values log a warning and fall
- * back to the config value — a typo in CI must never silently relax the gate.
+ * These were originally consumed by the (since-removed) baseline-refresh CI
+ * guardrail so it could force base-branch values regardless of what the PR
+ * branch config said. Retained as a general-purpose override for local
+ * re-runs and operator-driven baseline diagnosis. Malformed values log a
+ * warning and fall back to the config value — a typo must never silently
+ * relax the gate.
  */
 
 /**

@@ -18,7 +18,6 @@
 import { applyBranchProtection } from './lib/bootstrap/branch-protection.js';
 import { confirm as defaultHitlConfirm } from './lib/bootstrap/hitl-confirm.js';
 import { applyMergeMethods } from './lib/bootstrap/merge-methods.js';
-import { copyWorkflowTemplates } from './lib/bootstrap/workflow-templates.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import {
@@ -240,12 +239,11 @@ export async function runBootstrap(orchestration, opts = {}) {
     log('[bootstrap] No active project — skipping legacy project-field setup.');
   }
 
-  // Epic #1235 Story 5 — the consumer-facing bootstrap promotes the
-  // framework's hands-off-pipeline stance: branch protection with
-  // enforce_admins + 0-approval-count, the squash-only merge-method
-  // allowlist, and the Story 2/4 CI workflow templates. Each step routes
-  // behavior-shifting drift through the HITL confirm gate — non-TTY runs
-  // abort with a clear stderr message rather than silently apply.
+  // Consumer-facing bootstrap promotes the framework's CI-gates-only
+  // stance: branch protection with enforce_admins + 0-approval-count and
+  // the squash-only merge-method allowlist. Behavior-shifting drift on
+  // either step routes through the HITL confirm gate — non-TTY runs abort
+  // with a clear stderr message rather than silently apply.
   //
   // The legacy `ensureMainBranchProtection` helper is preserved (re-
   // exported below) so the Epic #1142 Story #1157 contract tests stay
@@ -275,12 +273,6 @@ export async function runBootstrap(orchestration, opts = {}) {
     hitlConfirm,
     log,
   });
-  const workflowTemplates = await copyWorkflowTemplates({
-    targetRoot: opts.targetRoot ?? process.cwd(),
-    hitlConfirm,
-    templateRoot: opts.templateRoot,
-    log,
-  });
 
   log('[bootstrap] Done.');
   return {
@@ -291,7 +283,6 @@ export async function runBootstrap(orchestration, opts = {}) {
     views,
     branchProtection,
     mergeMethods,
-    workflowTemplates,
   };
 }
 
@@ -329,11 +320,6 @@ function formatMergeMethodsSummary(mm) {
   return mm.status;
 }
 
-function formatWorkflowTemplatesSummary(wt) {
-  if (!wt) return 'not-run';
-  return `copied: ${wt.copied.length}, unchanged: ${wt.unchanged.length}, drifted (left as-is): ${wt.drifted.length}`;
-}
-
 function printSummary(result) {
   Logger.info('\n=== Bootstrap Summary ===');
   Logger.info(`Labels created: ${result.labels.created.length}`);
@@ -353,9 +339,6 @@ function printSummary(result) {
   );
   Logger.info(
     `Merge methods: ${formatMergeMethodsSummary(result.mergeMethods)}`,
-  );
-  Logger.info(
-    `Workflow templates: ${formatWorkflowTemplatesSummary(result.workflowTemplates)}`,
   );
 }
 

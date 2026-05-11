@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- **Bot approver, auto-triage, auto-fix, and baseline-refresh-guardrail
+  CI jobs removed.** Epic #1235's "hands-off PR pipeline" was generating
+  more friction than it removed: the bot approver depended on a GitHub
+  App identity the operator had to provision and rotate, the auto-fix
+  loop's `[auto-fix]` commit + bot-approver self-check produced a
+  cascade of post-merge push-hook failures, the baseline-refresh
+  guardrail flapped on every benign baseline edit, and the triage
+  comment duplicated information the operator already gets from
+  `gh run view --log-failed`. The replacement is a Phase 7
+  watch-and-iterate loop inside `/epic-deliver` that polls
+  `gh pr checks --watch` and drives the open PR to green via local
+  fixes — see [`.agents/workflows/epic-deliver.md`](../.agents/workflows/epic-deliver.md).
+  Deletions:
+  - `.github/workflows/{bot-approve,auto-fix,triage-pr-failure,baseline-refresh-guardrail}.yml`
+  - `.agents/scripts/{auto-fix-step,auto-fix-bail,triage-ci-failure,baseline-refresh-guardrail}.js`
+  - `.agents/scripts/lib/auto-fix/`, `.agents/scripts/lib/triage/`,
+    `.agents/scripts/lib/bootstrap/workflow-templates.js`
+  - `.agents/templates/scripts/`, `.agents/templates/workflows/`
+  - `tests/auto-fix/`, `tests/triage/`,
+    `tests/baseline-refresh-guardrail.test.js`,
+    `tests/bootstrap/workflow-templates.test.js`
+  - `.github/ruleset.json` — `pull_request` rule
+    (`required_approving_review_count: 1`) removed. The live ruleset
+    must be re-PUT to match: `gh api -X PUT
+    repos/:owner/:repo/rulesets/14286998 --input .github/ruleset.json`.
+    `BOT_APPROVER_APP_ID` / `BOT_APPROVER_PRIVATE_KEY` secrets become
+    orphan and should be deleted from the repo settings UI; the
+    `agent-protocols-reviewer` GitHub App can be suspended or deleted.
+  - `agents-bootstrap-github` no longer copies CI workflow templates
+    into consumer repos (`copyWorkflowTemplates` import and call site
+    removed from `.agents/scripts/agents-bootstrap-github.js`).
+
 ### Changed
 
 - **Tasks close at commit-time; Story stays `agent::executing` until merge.**

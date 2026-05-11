@@ -589,10 +589,10 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
   into `close-validation` after `check-maintainability`, the `ci.yml` step
   after `test:coverage`, and `.husky/pre-push`. Tracks complexity × coverage
   risk per method against `baselines/crap.json`. Self-skips when
-  `agentSettings.quality.crap.enabled` is `false`. A separate
-  `baseline-refresh-guardrail.yml` workflow enforces base-branch thresholds
-  on PRs and requires a `baseline-refresh:`-tagged commit (with a non-empty
-  body) on any PR that edits a committed baseline.
+  `agentSettings.quality.crap.enabled` is `false`. The
+  `baseline-refresh:`-tagged commit convention for baseline edits is still
+  the project standard, but the CI guardrail that enforced it was removed
+  in 5.42 — the operator is the gate now during `/epic-deliver` Phase 7.
 - **Auto-fixing.** If High or Critical findings are detected, the system halts
   for human review. A human can reply to the ticket with `/approve` or
   `/approve-audit-fixes` (processed by `handle-approval.js`).

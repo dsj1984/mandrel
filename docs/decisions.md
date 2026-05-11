@@ -1906,7 +1906,12 @@ submodule paths are internal implementation detail.
 
 ## ADR-20260424-596b: Base-branch-enforced anti-gaming guardrail
 
-*   **Status:** Accepted
+*   **Status:** Reverted (2026-05-12) — see CHANGELOG 5.42 entry. The
+    `baseline-refresh-guardrail.yml` workflow and its supporting CLI
+    script were removed alongside the bot-approver pipeline. The
+    `baseline-refresh:`-tagged commit convention is preserved as an
+    operator standard but is no longer machine-enforced. Decision text
+    retained for historical context.
 *   **Date:** 2026-04-24
 *   **Epic:** #596
 *   **Context:** A PR that simultaneously raises `newMethodCeiling` in

@@ -937,17 +937,15 @@ A single GitHub Actions workflow (`ci.yml`) runs on every push and PR:
    Diff-scoped on PRs (`--changed-since origin/<base_ref>`); full-repo scan on
    push-to-main so a regression in an untouched file cannot ride in alongside
    an unrelated PR. JSON report uploaded as the `crap-report` artifact.
-6. **Baseline-refresh guardrail** — separate `pull_request`-only workflow
-   (`.github/workflows/baseline-refresh-guardrail.yml`) that reads the **base
-   branch** `.agentrc.json` via `git show origin/<base>:.agentrc.json`,
-   re-runs `check-crap` with those values forced via `CRAP_NEW_METHOD_CEILING`
-   / `CRAP_TOLERANCE` / `CRAP_REFRESH_TAG` env vars, and enforces that any PR
-   touching `baselines/crap.json` or `baselines/maintainability.json` carries
-   a commit whose subject starts with the configured `refreshTag` (default
-   `baseline-refresh:`) and has a non-empty body. Baseline-only PRs receive
-   the `review::baseline-refresh` label automatically.
-7. **Dist Sync** — On merge to `main`, syncs `.agents/` to the `dist` branch
+6. **Dist Sync** — On merge to `main`, syncs `.agents/` to the `dist` branch
    for consumer submodule distribution.
+
+The baseline-refresh CI guardrail was removed alongside the bot-approver
+pipeline; the `baseline-refresh:` commit subject + non-empty body
+convention is preserved (the pre-push hook and local close-validation
+still consume it) but it is no longer machine-enforced on PRs. The
+operator owns refresh justification during `/epic-deliver`'s Phase 7
+watch loop.
 
 ### Quality-gate diagram
 
@@ -970,10 +968,6 @@ close ▶ │ close-validation DEFAULT_GATES:       │
 CI    ▶ │ ci.yml:                               │
         │   lint+format → MI → test:coverage →  │
         │   check-crap → upload crap-report     │
-        │ baseline-refresh-guardrail.yml:       │
-        │   base-config → tag check →           │
-        │   check-crap (CRAP_*=base) →          │
-        │   review::baseline-refresh label      │
         └───────────────────────────────────────┘
 ```
 
@@ -993,10 +987,7 @@ entirely so independent verification is never bypassed.
 
 All three sites converge on the same `check-crap.js` binary and the same
 `baselines/crap.json` artifact, so a regression caught at any one site fails
-the gate identically at the others. The base-enforced re-run in the guardrail
-workflow exists so a PR cannot simultaneously raise `newMethodCeiling` AND
-ship a method over the base ceiling — the guardrail rejects it under
-base-branch values regardless of what the PR-branch config says.
+the gate identically at the others.
 
 ### Local Hooks
 

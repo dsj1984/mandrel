@@ -19,28 +19,13 @@
     "branches": 93.94,
     "functions": 71.43
   },
-  ".agents/scripts/auto-fix-bail.js": {
-    "lines": 93.53,
-    "branches": 90.7,
-    "functions": 75
-  },
-  ".agents/scripts/auto-fix-step.js": {
-    "lines": 91.35,
-    "branches": 88.24,
-    "functions": 71.43
-  },
-  ".agents/scripts/baseline-refresh-guardrail.js": {
-    "lines": 78.15,
-    "branches": 82.02,
-    "functions": 64.71
-  },
   ".agents/scripts/check-crap.js": {
-    "lines": 79.77,
+    "lines": 79.82,
     "branches": 73.29,
     "functions": 75
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 63.93,
+    "lines": 64.01,
     "branches": 82.76,
     "functions": 57.14
   },
@@ -164,34 +149,24 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/lib/auto-fix/detect-failure-class.js": {
-    "lines": 100,
-    "branches": 91.18,
-    "functions": 100
-  },
   ".agents/scripts/lib/baseline-loader.js": {
     "lines": 100,
     "branches": 70,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/branch-protection.js": {
-    "lines": 96.34,
+    "lines": 96.32,
     "branches": 85.96,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/hitl-confirm.js": {
     "lines": 100,
-    "branches": 88.89,
+    "branches": 63.16,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/merge-methods.js": {
     "lines": 100,
     "branches": 93.1,
-    "functions": 100
-  },
-  ".agents/scripts/lib/bootstrap/workflow-templates.js": {
-    "lines": 98.74,
-    "branches": 95,
     "functions": 100
   },
   ".agents/scripts/lib/branch-name-guard.js": {
@@ -899,21 +874,6 @@
     "branches": 80,
     "functions": 100
   },
-  ".agents/scripts/lib/triage/parse-crap-report.js": {
-    "lines": 100,
-    "branches": 83.33,
-    "functions": 100
-  },
-  ".agents/scripts/lib/triage/parse-test-output.js": {
-    "lines": 100,
-    "branches": 95.45,
-    "functions": 100
-  },
-  ".agents/scripts/lib/triage/render-comment.js": {
-    "lines": 93.23,
-    "branches": 44.44,
-    "functions": 100
-  },
   ".agents/scripts/lib/util/concurrent-map.js": {
     "lines": 93.22,
     "branches": 88.89,
@@ -1152,11 +1112,6 @@
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
     "branches": 69.7,
-    "functions": 75
-  },
-  ".agents/scripts/triage-ci-failure.js": {
-    "lines": 91.64,
-    "branches": 80.77,
     "functions": 75
   },
   ".agents/scripts/validate-docs-freshness.js": {
