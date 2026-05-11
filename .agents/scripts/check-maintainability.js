@@ -32,21 +32,47 @@ import { appendSignal } from './lib/observability/signals-writer.js';
  * decomposition, so per-violation guidance is intentionally absent.
  */
 
-const TOLERANCE = 0.001; // Allow for tiny floating point variances
+// Framework default MI tolerance. Raised from 0.001 to 0.5 because real-world
+// noise (Node-version churn, escomplex internal updates, typhonjs-escomplex
+// rounding) routinely drifts +/- 0.05 to 0.3 on otherwise-unchanged files —
+// well below the threshold of "actually less maintainable." A 0.5 floor
+// stops the pre-push hook from auto-ratcheting the baseline on noise, which
+// in turn stops the baseline-refresh-guardrail from flagging every PR.
+// Projects that want stricter MI tracking can override via
+// `agentSettings.quality.maintainability.tolerance` in `.agentrc.json`.
+const DEFAULT_TOLERANCE = 0.5;
 
 /**
- * Pure helper: resolve the effective MI tolerance by layering the
- * `CRAP_TOLERANCE` env-var on top of the default. Shared with `check-crap.js`
- * so the baseline-refresh-guardrail CI job can force base-branch values on
- * both gates with a single environment variable. Malformed values warn and
- * fall back to the default — a typo in CI must never silently relax the gate.
+ * Pure helper: resolve the effective MI tolerance by layering precedence:
+ *   1. `CRAP_TOLERANCE` env-var (CI override — the baseline-refresh-
+ *      guardrail uses this to force base-branch values on both gates).
+ *   2. `agentSettings.quality.maintainability.tolerance` from the config.
+ *   3. `DEFAULT_TOLERANCE` (0.5).
+ *
+ * Malformed env values warn and fall through to the next layer — a typo in
+ * CI must never silently relax the gate, but it also must not skip the
+ * configured project value.
  *
  * @param {NodeJS.ProcessEnv} env
+ * @param {{ tolerance?: number }} [maintainabilityConfig]
  * @returns {{ tolerance: number, overrides: string[] }}
  */
-export function resolveMaintainabilityEnvOverrides(env) {
+export function resolveMaintainabilityEnvOverrides(env, maintainabilityConfig) {
   const overrides = [];
-  let tolerance = TOLERANCE;
+  let tolerance = DEFAULT_TOLERANCE;
+  // Layer 2: config value (lower precedence than env, higher than default).
+  const configured = maintainabilityConfig?.tolerance;
+  if (
+    typeof configured === 'number' &&
+    Number.isFinite(configured) &&
+    configured >= 0
+  ) {
+    tolerance = configured;
+    overrides.push(
+      `tolerance=${configured} (quality.maintainability.tolerance)`,
+    );
+  }
+  // Layer 1: env override (highest precedence).
   const raw = env?.CRAP_TOLERANCE;
   if (raw !== undefined && raw !== '') {
     const parsed = Number(raw);
@@ -55,7 +81,7 @@ export function resolveMaintainabilityEnvOverrides(env) {
       overrides.push(`tolerance=${parsed} (CRAP_TOLERANCE)`);
     } else {
       Logger.warn(
-        `[Maintainability] ⚠ ignoring malformed CRAP_TOLERANCE=${raw}; keeping default ${TOLERANCE}`,
+        `[Maintainability] ⚠ ignoring malformed CRAP_TOLERANCE=${raw}; keeping ${tolerance}`,
       );
     }
   }
@@ -375,8 +401,10 @@ async function main() {
 
   const scores = await calculateAll(scopedFiles);
 
+  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
   const { tolerance, overrides } = resolveMaintainabilityEnvOverrides(
     process.env,
+    maintainabilityConfig,
   );
   if (overrides.length > 0) {
     Logger.info(

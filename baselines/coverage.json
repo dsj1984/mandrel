@@ -25,8 +25,8 @@
     "functions": 75
   },
   ".agents/scripts/auto-fix-step.js": {
-    "lines": 91.28,
-    "branches": 87.88,
+    "lines": 91.35,
+    "branches": 88.24,
     "functions": 71.43
   },
   ".agents/scripts/baseline-refresh-guardrail.js": {
@@ -40,8 +40,8 @@
     "functions": 75
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 62.07,
-    "branches": 81.48,
+    "lines": 63.93,
+    "branches": 82.76,
     "functions": 57.14
   },
   ".agents/scripts/delete-epic-branches.js": {
@@ -70,7 +70,7 @@
     "functions": 81.25
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 84.01,
+    "lines": 84.42,
     "branches": 55.56,
     "functions": 75
   },
@@ -181,7 +181,7 @@
   },
   ".agents/scripts/lib/bootstrap/hitl-confirm.js": {
     "lines": 100,
-    "branches": 63.16,
+    "branches": 88.89,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/merge-methods.js": {
@@ -191,7 +191,7 @@
   },
   ".agents/scripts/lib/bootstrap/workflow-templates.js": {
     "lines": 98.74,
-    "branches": 95.24,
+    "branches": 95,
     "functions": 100
   },
   ".agents/scripts/lib/branch-name-guard.js": {
@@ -720,8 +720,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 95.65,
-    "branches": 76.19,
+    "lines": 98.55,
+    "branches": 81.82,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -1040,9 +1040,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 90.16,
+    "lines": 90.94,
     "branches": 100,
-    "functions": 72.73
+    "functions": 75
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1060,9 +1060,9 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/comments.js": {
-    "lines": 76.19,
-    "branches": 85.71,
-    "functions": 50
+    "lines": 88.1,
+    "branches": 87.5,
+    "functions": 75
   },
   ".agents/scripts/providers/github/error-classifier.js": {
     "lines": 100,

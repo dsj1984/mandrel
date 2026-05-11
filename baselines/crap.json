@@ -199,13 +199,13 @@
       "crap": 2.0625,
       "file": ".agents/scripts/auto-fix-step.js",
       "method": "setLabel",
-      "startLine": 318
+      "startLine": 321
     },
     {
       "crap": 1.421875,
       "file": ".agents/scripts/auto-fix-step.js",
       "method": "main",
-      "startLine": 339
+      "startLine": 342
     },
     {
       "crap": 13.041259765625,
@@ -382,88 +382,88 @@
       "startLine": 619
     },
     {
-      "crap": 5,
+      "crap": 8,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveMaintainabilityEnvOverrides",
-      "startLine": 47
+      "startLine": 60
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "compareScores",
-      "startLine": 72
+      "startLine": 98
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "coerceStoryId",
-      "startLine": 119
+      "startLine": 145
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 131
+      "startLine": 157
     },
     {
       "crap": 16.324074074074073,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 151
+      "startLine": 177
     },
     {
       "crap": 5,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 164
+      "startLine": 190
     },
     {
       "crap": 5,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 186
+      "startLine": 212
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 196
+      "startLine": 222
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 217
+      "startLine": 243
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "writeJsonReport",
-      "startLine": 238
+      "startLine": 264
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 246
+      "startLine": 272
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 275
+      "startLine": 301
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 303
+      "startLine": 329
     },
     {
-      "crap": 36.853747776174,
+      "crap": 37.79740486951451,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 322
+      "startLine": 348
     },
     {
       "crap": 2,
@@ -763,25 +763,25 @@
       "crap": 2,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "defaultGhSpawn",
-      "startLine": 111
+      "startLine": 120
     },
     {
       "crap": 5.000925925925926,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "checkEpicFastForward",
-      "startLine": 130
+      "startLine": 139
     },
     {
       "crap": 9.252007406217661,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "runEpicDeliverFinalize",
-      "startLine": 183
+      "startLine": 192
     },
     {
       "crap": 30,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "main",
-      "startLine": 321
+      "startLine": 330
     },
     {
       "crap": 4.006503073718437,
@@ -1645,7 +1645,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 434
+      "startLine": 440
     },
     {
       "crap": 3,

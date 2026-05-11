@@ -54,7 +54,8 @@
         "maintainability": { "path": "baselines/maintainability.json" }
       },
       "maintainability": {
-        "targetDirs": [".agents/scripts", "tests"]
+        "targetDirs": [".agents/scripts", "tests"],
+        "tolerance": 0.5
       },
       "crap": {
         "enabled": true,
