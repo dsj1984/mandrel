@@ -135,11 +135,13 @@ export async function runEpicDeliverCleanup({
     };
   }
 
+  const baseBranch = config?.baseBranch ?? 'main';
   const result = reapEpicBranches({
     state,
     cwd: repoCwd,
     gitSpawn: gitSpawnFn,
     rmSyncFn,
+    baseBranch,
     logger,
   });
 
@@ -149,6 +151,9 @@ export async function runEpicDeliverCleanup({
     branches,
     reaped: result.reaped,
     failures: result.failures,
+    switched: result.switched,
+    pruned: result.pruned,
+    wtBranch: result.wtBranch,
     ok: result.ok,
     stateFound: true,
   };
@@ -168,6 +173,17 @@ export function renderSummaryLines(out) {
     lines.push(
       `  ${r.branch} → wt=${r.method} branch=${r.branchDeleted ? 'deleted' : 'kept'}${tail}`,
     );
+  }
+  if (out.switched?.switched) {
+    lines.push(
+      `  switched main checkout ${out.switched.from} → ${out.switched.to}`,
+    );
+  }
+  if (out.pruned?.pruned?.length > 0) {
+    lines.push(`  pruned tracking refs: ${out.pruned.pruned.join(', ')}`);
+  }
+  if (out.wtBranch?.deleted) {
+    lines.push('  deleted stale wt-branch ref');
   }
   return lines;
 }

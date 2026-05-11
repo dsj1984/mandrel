@@ -422,9 +422,9 @@ chainer, the separate finalize CLI) were removed in 5.40.0 — see the
 ## Phase 7 — Watch-and-iterate until CI is green
 
 The PR is now open. The required-checks gate on `main` is CI-only
-(`Validate and Test (ubuntu-latest, node 22)`) — there is no bot
-approver, no auto-triage comment, and no auto-fix push. The host LLM
-owns the green-bar loop until the operator merges.
+(`Validate and Test`) — there is no bot approver, no auto-triage
+comment, and no auto-fix push. The host LLM owns the green-bar loop
+until the operator merges.
 
 Poll the PR's check-run state and, on every failure, pull the failing
 log, diagnose locally, push a fix to `epic/<epicId>`, and loop again.
