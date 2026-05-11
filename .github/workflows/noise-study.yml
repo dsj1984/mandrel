@@ -1,0 +1,105 @@
+name: Noise study
+
+# One-shot empirical noise capture for the maintainability + CRAP gates.
+# Triggered manually via `gh workflow run noise-study.yml -f runs=30 -f ref=<sha>`.
+# The job runs in parallel on windows-latest and ubuntu-latest under Node 22,
+# uploads the per-runner markdown report and CSV as artifacts, and prints the
+# recommended-threshold block to the job summary so a reviewer can paste it
+# into `.agents/default-agentrc.json` via a baseline-refresh: commit.
+#
+# Story #1397 — see docs/noise-study-<date>.md for the combined report once
+# the CI artifacts are downloaded and merged into a single docs/ commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: 'Number of repeated runs per runner (default 30, max 100)'
+        required: false
+        default: '30'
+      ref:
+        description: 'Git ref to study (branch, tag, or SHA). Defaults to the dispatched ref.'
+        required: false
+        default: ''
+
+concurrency:
+  group: noise-study-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  capture:
+    name: Capture (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    timeout-minutes: 90
+    steps:
+      - name: Checkout (dispatched ref)
+        if: inputs.ref == ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (input ref)
+        if: inputs.ref != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Resolve report stem
+        id: stem
+        shell: bash
+        run: |
+          # Use the dispatched date so both runners write to the same stem,
+          # making downstream "merge into one docs/ report" trivial.
+          DATE="$(date -u +%Y-%m-%d)"
+          OS_TAG="${{ matrix.os }}"
+          OS_TAG="${OS_TAG%-latest}"
+          echo "stem=docs/noise-study-${DATE}-${OS_TAG}" >> "$GITHUB_OUTPUT"
+          echo "date=${DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Run noise study
+        shell: bash
+        env:
+          AGENT_LOG_LEVEL: info
+        run: |
+          mkdir -p docs
+          node .agents/scripts/noise-study.js \
+            --runs "${{ inputs.runs }}" \
+            --out "${{ steps.stem.outputs.stem }}.md"
+
+      - name: Append job summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "${{ steps.stem.outputs.stem }}.md" ]]; then
+            echo "## Noise study — ${{ matrix.os }} — ${{ steps.stem.outputs.date }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            cat "${{ steps.stem.outputs.stem }}.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Noise-study report not generated (job failed before write)." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: noise-study-${{ matrix.os }}-${{ steps.stem.outputs.date }}
+          path: |
+            docs/noise-study-*.md
+            docs/noise-study-*.csv
+          if-no-files-found: warn

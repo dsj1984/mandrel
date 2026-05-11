@@ -45,6 +45,10 @@
           ]
         },
         "tolerance": { "type": "number", "minimum": 0 },
+        "c1Exemption": {
+          "type": "string",
+          "enum": ["blanket", "confidenceBand"]
+        },
         "requireCoverage": { "type": "boolean" },
         "friction": {
           "type": "object",
@@ -56,16 +60,6 @@
             { "$ref": "#/$defs/safeString" },
             { "type": "string", "minLength": 1 }
           ]
-        },
-        "defaultScope": {
-          "type": "string",
-          "enum": ["diff", "full"],
-          "description": "Story #1394: default scope for check-crap.js when no --changed-since / --full-scope flag is supplied. `diff` (framework default) scopes the scan + baseline by `diffRef`; `full` retains the legacy whole-repo scan."
-        },
-        "diffRef": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Story #1394: git ref the diff is scoped against when `defaultScope === 'diff'`. Defaults to 'main' when unset."
         }
       },
       "allOf": [
@@ -236,16 +230,7 @@
       "properties": {
         "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
         "tolerance": { "type": "number", "minimum": 0 },
-        "defaultScope": {
-          "type": "string",
-          "enum": ["diff", "full"],
-          "description": "Story #1394: default scope for check-maintainability.js when no --changed-since / --full-scope flag is supplied. `diff` (framework default) scopes the scan + baseline by `diffRef`; `full` retains the legacy whole-repo scan."
-        },
-        "diffRef": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Story #1394: git ref the diff is scoped against when `defaultScope === 'diff'`. Defaults to 'main' when unset."
-        }
+        "halsteadTolerance": { "type": ["number", "null"], "minimum": 0 }
       },
       "additionalProperties": false
     },
