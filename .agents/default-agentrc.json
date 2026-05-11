@@ -96,7 +96,13 @@
         "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
         "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
         "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
-      ]
+      ],
+      "taskSizing": {
+        "maxAcceptance": 6,
+        "maxChanges": 8,
+        "softFileCount": 3,
+        "softAcceptanceCount": 4
+      }
     }
   },
   "orchestration": {
