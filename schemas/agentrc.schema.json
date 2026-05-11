@@ -172,7 +172,18 @@
         "riskHeuristics": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
-        }
+        },
+        "taskSizing": { "$ref": "#/$defs/taskSizing" }
+      },
+      "additionalProperties": false
+    },
+    "taskSizing": {
+      "type": "object",
+      "properties": {
+        "maxAcceptance": { "type": "integer", "minimum": 1, "default": 6 },
+        "maxChanges": { "type": "integer", "minimum": 1, "default": 8 },
+        "softFileCount": { "type": "integer", "minimum": 1, "default": 3 },
+        "softAcceptanceCount": { "type": "integer", "minimum": 1, "default": 4 }
       },
       "additionalProperties": false
     },

@@ -63,6 +63,22 @@ For tasks, \`body\` is a STRUCTURED OBJECT, not a string. Tasks are consumed by 
 - **acceptance**: Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a \`data-testid\` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a \`verify\` command instead.
 - **verify**: Each entry MUST name a testing tier in parentheses, drawn from \`unit\` / \`contract\` / \`e2e\` / \`validate\`. Example: \`npm run test -- src/x.test.ts (unit)\`, \`npm run validate (validate)\`. Tasks with zero verify entries SHOULD fail validation; if a task is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry \`manual:<reason>\` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
 
+#### TASK SIZING HEURISTICS (soft — bias output, validator enforces hard ceilings):
+
+- **Tasks typically touch ≤3 files and have ≤4 acceptance items.** A Task that names more files or stacks more acceptance criteria than this is usually doing the work of two Tasks — split it.
+- **Stories typically decompose into ≤5 Tasks; otherwise split into a sibling Story.** A Story stretching past five Tasks is a sign the Story scope is two stories — promote a coherent subset into a sibling Story under the same Feature instead of letting one Story balloon.
+- These are soft heuristics: the validator's hard ceilings (default \`maxAcceptance: 6\`, \`maxChanges: 8\` from \`agentSettings.planning.taskSizing\`) are the genuine block. Keep Tasks well under the soft thresholds and the hard layer never fires.
+
+#### sizingProfile DECLARATION (mandatory on wide Tasks):
+
+Tasks that touch more files than \`agentSettings.planning.taskSizing.softFileCount\` (default \`3\`) MUST declare \`body.sizingProfile\`. Allowed values (closed enum):
+
+- \`"mechanical-sweep"\` — a single repeated rename or transform across many sites with one logical change (e.g. "rename \`settings\` → \`agentSettings\` across 50 consumer sites"). The Task body's \`changes\` may have a single bullet describing the sweep.
+- \`"atomic-rewrite"\` — one cohesive feature edit that legitimately spans several files (e.g. extracting a helper module and updating its three callers in one logical step).
+- \`"scaffolding"\` — initial-creation work that lays down many files at once (e.g. spinning up a new package skeleton with config, README, and entry-point stubs).
+
+Omit \`sizingProfile\` for narrow Tasks (≤ \`softFileCount\` files). Declaring an unknown value or omitting it on a wide Task is rejected by the validator with a \`missing-sizing-profile\` finding and triggers a re-prompt.
+
 #### UI / TESTID INVARIANCE (per CLAUDE.md safety rule):
 
 - Tasks that touch UI (\`*.tsx\`, \`*.astro\`, \`*.svelte\`, \`*.vue\`, components folders) MUST end \`changes\` with one of:
