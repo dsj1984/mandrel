@@ -36,17 +36,18 @@ test('manifest-renderer: renders simple manifest', () => {
   );
   assert.ok(output.includes('Wave 1'), 'Missing wave row data');
 
-  // Verify Story Execution Plan Header and Table Structure
+  // Verify per-wave nested H2/H3 layout (Story #1194 Task #1212): the
+  // legacy `## Execution Plan` table was replaced with one `## Wave N`
+  // section per wave nesting Stories (H3) and Tasks (checkbox lists).
   assert.ok(
-    output.includes('## Execution Plan'),
-    'Missing story execution plan section',
+    !output.includes('## Execution Plan'),
+    'Legacy Execution Plan heading should be gone',
   );
   assert.ok(
-    output.includes('| | Story | Title | Tasks |'),
-    'Missing story execution table header',
+    !output.includes('## Story Details'),
+    'Legacy Story Details heading should be gone',
   );
-  assert.ok(
-    output.includes('| ⬜ | #10 | story-10 |'),
-    'Missing story row data',
-  );
+  assert.ok(output.match(/^## .* Wave 1/m), 'Missing per-wave H2 heading');
+  assert.ok(output.includes('### '), 'Missing per-Story H3 heading');
+  assert.ok(output.includes('#10'), 'Missing story id reference');
 });

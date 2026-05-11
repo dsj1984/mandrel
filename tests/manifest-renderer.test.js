@@ -179,14 +179,16 @@ test('renderManifestMarkdown', async (t) => {
     assert.match(output, /⏳ Blocked/);
   });
 
-  await t.test('renders execution plan with story checkboxes', () => {
+  await t.test('renders nested per-wave H2 with story checkbox tasks', () => {
     const tasks = [makeTask(1, 'agent::ready')];
     const story = makeStory(10, tasks, 0);
     const manifest = makeBaseManifest({ storyManifest: [story] });
     const output = renderManifestMarkdown(manifest);
-    assert.match(output, /Execution Plan/);
-    assert.match(output, /#10/);
-    assert.match(output, /⬜/); // incomplete story
+    // Legacy "## Execution Plan" was retired in Story #1194 Task #1212.
+    assert.doesNotMatch(output, /## Execution Plan/);
+    assert.match(output, /^## .* Wave 0/m); // per-wave H2
+    assert.match(output, /^### .* #10/m); // per-Story H3 with id
+    assert.match(output, /- \[ \] #1 — task-1/); // checkbox task line
   });
 
   await t.test('renders completed story with checkmark', () => {

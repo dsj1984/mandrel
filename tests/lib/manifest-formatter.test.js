@@ -2,12 +2,13 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   computeProgress,
+  computeStoryProgress,
   formatManifestMarkdown,
   formatStoryManifestMarkdown,
   printStoryDispatchTable,
   renderManifestMarkdown,
+  renderNestedWaveSections,
   renderProgressBar,
-  renderStoryTable,
   renderWaveSections,
   slugifyHeading,
   waveHeadingText,
@@ -61,17 +62,25 @@ function epicManifest(overrides = {}) {
   };
 }
 
-test('formatter: renders epic header, progress, wave table, details', () => {
+test('formatter: renders epic header, progress, wave TOC, and nested H2/H3 layout', () => {
   const md = formatManifestMarkdown(epicManifest());
   assert.ok(md.includes('# 📋 Dispatch Manifest — Epic #42'));
   assert.ok(md.includes('> **Demo Epic**'));
+  // TOC table
   assert.ok(md.includes('## Wave Summary'));
-  assert.ok(md.includes('Wave 0'));
-  assert.ok(md.includes('Wave 1'));
-  assert.ok(md.includes('## Story Details'));
-  assert.ok(md.includes('Story #101: alpha'));
-  assert.ok(md.includes('[x] **#201**'));
-  assert.ok(md.includes('[ ] **#203** — t-b1 _(blocked by: #201)_'));
+  assert.ok(md.includes('| Wave | Status | Progress | Stories | Tasks |'));
+  // Per-wave H2 sections (replace legacy Execution Plan / Story Details)
+  assert.ok(md.includes('## 🚀 Ready Wave 0'));
+  assert.ok(md.includes('## ⏳ Blocked Wave 1'));
+  // Per-Story H3 carries symbol, #id, branch in backticks, 10-cell bar
+  assert.ok(md.includes('### 🔄 #101 — '));
+  assert.ok(md.includes('`story-101`'));
+  // Tasks render as plain checkbox lines
+  assert.ok(md.includes('- [x] #201 — t-a1'));
+  assert.ok(md.includes('- [ ] #203 — t-b1'));
+  // Legacy headings are gone
+  assert.ok(!md.includes('## Execution Plan'));
+  assert.ok(!md.includes('## Story Details'));
 });
 
 test('formatter: feature containers row when features present', () => {
@@ -303,32 +312,45 @@ test('renderWaveSections: marks a wave done when every task completed', () => {
   assert.ok(md.includes('✅ Done'));
 });
 
-test('renderStoryTable: groups stories by wave and flags parallel waves', () => {
+test('renderNestedWaveSections: emits one ## Wave H2 per wave with H3 stories and checkbox tasks', () => {
   const manifest = epicManifest();
   manifest.storyManifest.push({
     storyId: 103,
     storySlug: 'gamma',
+    storyTitle: 'Gamma Story',
     type: 'story',
     earliestWave: 1,
     branchName: 'story-103',
     tasks: [{ taskId: 205, taskSlug: 't-c1', status: 'agent::ready' }],
   });
-  const md = renderStoryTable(manifest.storyManifest);
-  assert.ok(md.includes('## Execution Plan'));
-  assert.ok(md.includes('### Wave 0'));
-  assert.ok(md.includes('### Wave 1 — ✅ 2 stories can run in parallel'));
-  assert.ok(md.includes('| ⬜ | #102 | beta |'));
+  const md = renderNestedWaveSections(manifest.storyManifest);
+  // One H2 per wave; legacy headings gone
+  assert.ok(!md.includes('## Execution Plan'));
+  assert.ok(!md.includes('## Story Details'));
+  const w0 = md.match(/^## 🚀 Ready Wave 0$/gm) || [];
+  const w1 = md.match(/^## ⏳ Blocked Wave 1$/gm) || [];
+  assert.equal(w0.length, 1, 'exactly one Wave 0 H2');
+  assert.equal(w1.length, 1, 'exactly one Wave 1 H2');
+  // Single-line wave summary with parallel hint when stories > 1
+  assert.ok(md.includes('✅ 2 stories can run in parallel'));
+  // Per-Story H3 carries symbol, #id, branch in backticks, 10-cell bar
+  assert.ok(md.includes('### 🔄 #101 — Alpha Story · `story-101` ·'));
+  assert.ok(md.match(/### 🔄 #101.*[█░]{10}/));
+  // Tasks rendered as plain checkbox lines (no HTML, no bold)
+  assert.ok(md.includes('- [x] #201 — t-a1'));
+  assert.ok(md.includes('- [ ] #205 — t-c1'));
 });
 
-test('renderStoryTable: appends a Feature Containers section when present', () => {
+test('renderNestedWaveSections: appends a Feature Containers section when present', () => {
   const stories = [
     {
       storyId: 101,
       storySlug: 'alpha',
+      storyTitle: 'Alpha Story',
       type: 'story',
       earliestWave: 0,
       branchName: 'story-101',
-      tasks: [{ taskId: 200, status: 'agent::done' }],
+      tasks: [{ taskId: 200, taskSlug: 't1', status: 'agent::done' }],
     },
     {
       storyId: 300,
@@ -339,14 +361,49 @@ test('renderStoryTable: appends a Feature Containers section when present', () =
       tasks: [{ taskId: 400, status: 'agent::ready' }],
     },
   ];
-  const md = renderStoryTable(stories);
+  const md = renderNestedWaveSections(stories);
   assert.ok(md.includes('## Feature Containers'));
   assert.ok(md.includes('| #300 | container | 1 |'));
-  // story with all tasks done renders ✅ checkbox
-  assert.ok(md.includes('| ✅ | #101 | alpha |'));
+  // story with all tasks done renders ✅ symbol on the H3
+  assert.ok(md.includes('### ✅ #101 — Alpha Story'));
 });
 
-test('renderStoryTable: returns empty string for empty input', () => {
-  assert.equal(renderStoryTable([]), '');
-  assert.equal(renderStoryTable(null), '');
+test('renderNestedWaveSections: returns empty string for empty input', () => {
+  assert.equal(renderNestedWaveSections([]), '');
+  assert.equal(renderNestedWaveSections(null), '');
+});
+
+test('renderNestedWaveSections: H2 anchors match the TOC link slugs', () => {
+  const md =
+    renderWaveSections(epicManifest().storyManifest) +
+    '\n' +
+    renderNestedWaveSections(epicManifest().storyManifest);
+  // For each TOC link `[Wave N](#slug)`, an H2 with the slug-equivalent
+  // text must exist in the same document.
+  const linkRe = /\[(Wave \d+|Ungrouped)\]\(#([^)]+)\)/g;
+  const matches = [...md.matchAll(linkRe)];
+  assert.ok(matches.length > 0, 'expected at least one TOC link');
+  for (const [, , anchor] of matches) {
+    const headingRe = /^## (.+)$/gm;
+    const slugs = [...md.matchAll(headingRe)].map((m) => slugifyHeading(m[1]));
+    assert.ok(
+      slugs.includes(anchor),
+      `TOC anchor #${anchor} has no matching H2 (slugs: ${slugs.join(', ')})`,
+    );
+  }
+});
+
+test('computeStoryProgress: derives pct, done, total from story.tasks[]', () => {
+  assert.deepEqual(
+    computeStoryProgress({
+      tasks: [{ status: 'agent::done' }, { status: 'agent::ready' }],
+    }),
+    { pct: 50, done: 1, total: 2 },
+  );
+  assert.deepEqual(computeStoryProgress({ tasks: [] }), {
+    pct: 0,
+    done: 0,
+    total: 0,
+  });
+  assert.deepEqual(computeStoryProgress({}), { pct: 0, done: 0, total: 0 });
 });

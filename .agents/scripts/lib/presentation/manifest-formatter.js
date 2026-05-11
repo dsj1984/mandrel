@@ -211,48 +211,134 @@ export function renderWaveSections(waveEligible) {
   return lines.join('\n');
 }
 
+// Legacy `renderStoryTable` (`## Execution Plan` table + per-wave H3 rows)
+// was removed in Story #1194 Task #1212; the same surface is now produced
+// inline by `renderNestedWaveSections` below.
+
 /**
- * Render the "## Execution Plan" wave-grouped Story table plus the
- * "## Feature Containers" informational table.
+ * Compute per-Story aggregates for the nested wave layout: a 0..100 progress
+ * percent and the done/total task counts. Pure — derived from `story.tasks[]`.
+ *
+ * @param {{ tasks?: Array<{ status?: string }> }} story
+ * @returns {{ pct: number, done: number, total: number }}
+ */
+export function computeStoryProgress(story) {
+  const tasks = story?.tasks ?? [];
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  return { pct, done, total };
+}
+
+/**
+ * Derive the per-wave status label used by both the TOC row and the H2
+ * heading. Mirrors the logic in `renderWaveSections` so callers (and Task
+ * #1212's nested layout) share one source of truth.
+ *
+ * @param {number} waveIdx                — current wave index (or -1)
+ * @param {Map<number, { tasks: number, done: number }>} waveStats
+ * @param {number[]} sortedWaves          — every wave index in ascending order
+ * @returns {string} `'✅ Done' | '🚀 Ready' | '⏳ Blocked'`
+ */
+function deriveWaveStatusLabel(waveIdx, waveStats, sortedWaves) {
+  const stat = waveStats.get(waveIdx);
+  const isDone = stat && stat.tasks > 0 && stat.done === stat.tasks;
+  if (isDone) return '✅ Done';
+  const isReady =
+    waveIdx === 0 ||
+    sortedWaves
+      .filter((sw) => sw < waveIdx)
+      .every((sw) => {
+        const swStat = waveStats.get(sw);
+        return swStat.done === swStat.tasks;
+      });
+  return isReady ? '🚀 Ready' : '⏳ Blocked';
+}
+
+/**
+ * Render one `## Wave N — <Status>` section per wave with nested per-Story
+ * H3 headings and inline checkbox Task lists. Replaces the legacy split
+ * between `## Execution Plan` and `## Story Details` (Story #1194 Task
+ * #1212): the TOC links from `renderWaveSections` jump straight into these
+ * H2 anchors.
  *
  * @param {object[]} storyManifest
  * @returns {string} Markdown block, or empty string when nothing to render.
  */
-export function renderStoryTable(storyManifest) {
+export function renderNestedWaveSections(storyManifest) {
   if (!storyManifest || storyManifest.length === 0) return '';
 
   const waveStories = storyManifest.filter((s) => s.type !== 'feature');
   const featureItems = storyManifest.filter((s) => s.type === 'feature');
 
   const waveGroups = new Map();
+  const waveStats = new Map();
   for (const story of waveStories) {
     const w = story.earliestWave ?? -1;
-    if (!waveGroups.has(w)) waveGroups.set(w, []);
+    if (!waveGroups.has(w)) {
+      waveGroups.set(w, []);
+      waveStats.set(w, { stories: 0, tasks: 0, done: 0 });
+    }
     waveGroups.get(w).push(story);
+    const stat = waveStats.get(w);
+    stat.stories++;
+    stat.tasks += story.tasks.length;
+    stat.done += story.tasks.filter(
+      (t) => t.status === AGENT_LABELS.DONE,
+    ).length;
   }
 
   const sortedWaves = [...waveGroups.keys()].sort((a, b) => a - b);
-  const lines = ['## Execution Plan', ''];
+  const lines = [];
 
   for (const waveIdx of sortedWaves) {
     const stories = waveGroups.get(waveIdx);
+    const stat = waveStats.get(waveIdx);
     const waveLabel = waveIdx === -1 ? 'Ungrouped' : `Wave ${waveIdx}`;
+    const statusLabel = deriveWaveStatusLabel(waveIdx, waveStats, sortedWaves);
+
+    // The H2 text and slug must match `renderWaveSections` exactly so the
+    // TOC links land on the right anchor.
+    lines.push(`## ${waveHeadingText(waveLabel, statusLabel)}`);
+    lines.push('');
+
+    // Single-line wave summary: progress + parallel hint.
+    const wavePct =
+      stat.tasks > 0 ? Math.round((stat.done / stat.tasks) * 100) : 0;
     const parallelHint =
       stories.length > 1
-        ? ` — ✅ ${stories.length} stories can run in parallel`
+        ? ` · ✅ ${stories.length} stories can run in parallel`
         : '';
-
-    lines.push(`### ${waveLabel}${parallelHint}`);
+    lines.push(
+      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks (${wavePct}%)${parallelHint}`,
+    );
     lines.push('');
-    lines.push('| | Story | Title | Tasks |');
-    lines.push('| :--- | :--- | :--- | :--- |');
 
-    for (const s of stories) {
+    for (const story of stories) {
+      const sp = computeStoryProgress(story);
+      const bar = renderProgressBar(sp.pct, { width: 10 });
+      const symbol = deriveStorySymbol(story);
+      const titleCandidate = story.storyTitle || story.storySlug || '';
+      // Estimate placeholder is filled in by the wave-dispatch-and-estimator
+      // story; leaving the literal `~?` keeps the column visible so the
+      // estimator drop-in doesn't have to alter the layout.
       lines.push(
-        `| ${deriveStorySymbol(s)} | #${s.storyId} | ${s.storySlug} | ${s.tasks.length} |`,
+        `### ${symbol} #${story.storyId} — ${titleCandidate} · \`${story.branchName}\` · ${bar} ${sp.pct}% · ~?`,
       );
+      lines.push('');
+
+      if (story.tasks.length === 0) {
+        lines.push('_(no tasks)_');
+      } else {
+        for (const task of story.tasks) {
+          const isDone = task.status === AGENT_LABELS.DONE;
+          const checkbox = isDone ? '[x]' : '[ ]';
+          const taskTitle = task.taskSlug || task.title || '';
+          lines.push(`- ${checkbox} #${task.taskId} — ${taskTitle}`);
+        }
+      }
+      lines.push('');
     }
-    lines.push('');
   }
 
   if (featureItems.length > 0) {
@@ -277,46 +363,6 @@ export function renderStoryTable(storyManifest) {
 // ---------------------------------------------------------------------------
 // Dispatch manifest (Epic-level) Markdown
 // ---------------------------------------------------------------------------
-
-function renderStoryDetailsSection(storyManifest) {
-  const lines = ['## Story Details', ''];
-  for (const story of storyManifest) {
-    const typeLabel =
-      (story.type || 'story').charAt(0).toUpperCase() +
-      (story.type || 'story').slice(1);
-    const storyLabel =
-      story.storyId === '__ungrouped__'
-        ? 'Ungrouped Tasks'
-        : `${typeLabel} #${story.storyId}: ${story.storySlug}`;
-    const isFeature = story.type === 'feature';
-
-    lines.push(`### ${storyLabel}`);
-    lines.push('');
-    lines.push(`- **Branch:** \`${story.branchName}\``);
-    if (isFeature) {
-      lines.push('- **Type:** Feature (container — not directly executable)');
-    } else {
-      lines.push(
-        `- **Wave:** ${story.earliestWave === -1 ? 'N/A' : story.earliestWave}`,
-      );
-    }
-    lines.push('');
-    lines.push('**Tasks (execution order):**');
-    lines.push('');
-
-    for (const task of story.tasks) {
-      const isDone = task.status === AGENT_LABELS.DONE;
-      const checkbox = isDone ? '[x]' : '[ ]';
-      const deps =
-        task.dependencies && task.dependencies.length > 0
-          ? ` _(blocked by: ${task.dependencies.map((d) => `#${d}`).join(', ')})_`
-          : '';
-      lines.push(`- ${checkbox} **#${task.taskId}** — ${task.taskSlug}${deps}`);
-    }
-    lines.push('');
-  }
-  return lines.join('\n');
-}
 
 let _lastManifestRef = null;
 let _lastManifestHash = null;
@@ -414,15 +460,13 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push('---');
   lines.push('');
 
-  // --- Story Dispatch Table grouped by wave + Feature Containers + Details ---
+  // --- Per-wave H2 sections nesting Stories (H3) and Tasks (checkbox lists)
+  // (Story #1194 Task #1212): one anchor per Wave; the Wave Summary TOC
+  // jumps into these headings. Replaces the legacy `## Execution Plan` +
+  // `## Story Details` split.
   if (storyManifest && storyManifest.length > 0) {
-    const tableBlock = renderStoryTable(storyManifest);
-    if (tableBlock) lines.push(tableBlock);
-
-    lines.push('---');
-    lines.push('');
-
-    lines.push(renderStoryDetailsSection(storyManifest));
+    const nestedBlock = renderNestedWaveSections(storyManifest);
+    if (nestedBlock) lines.push(nestedBlock);
   }
 
   // --- Agent Telemetry ---
