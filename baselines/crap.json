@@ -733,79 +733,79 @@
       "crap": 2.0521066558111136,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "validateResults",
-      "startLine": 110
+      "startLine": 118
     },
     {
       "crap": 5.5830903790087465,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseInputArg",
-      "startLine": 152
+      "startLine": 160
     },
     {
       "crap": 124.1112647462277,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "normalizeReturns",
-      "startLine": 189
+      "startLine": 197
     },
     {
       "crap": 4,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "aggregateWaveStatus",
-      "startLine": 240
+      "startLine": 248
     },
     {
       "crap": 7.854629152150125,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "verifyWaveResults",
-      "startLine": 273
+      "startLine": 281
     },
     {
       "crap": 5.700539437235749,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "loadManifestTitleMap",
-      "startLine": 323
+      "startLine": 331
     },
     {
       "crap": 5,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "classifyWaveOutcome",
-      "startLine": 349
+      "startLine": 357
     },
     {
       "crap": 5.072886297376093,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "toRollupRow",
-      "startLine": 376
+      "startLine": 384
     },
     {
-      "crap": 21.64830456353274,
+      "crap": 29.125364431486883,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runEpicExecuteRecordWave",
-      "startLine": 407
+      "startLine": 415
     },
     {
       "crap": 36.013433747201304,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveRecordInput",
-      "startLine": 588
+      "startLine": 695
     },
     {
       "crap": 1.800655976676385,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseArgv",
-      "startLine": 611
+      "startLine": 718
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runRecordWaveCli",
-      "startLine": 642
+      "startLine": 749
     },
     {
       "crap": 17.18359375,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
-      "startLine": 680
+      "startLine": 787
     },
     {
       "crap": 4,
@@ -2140,7 +2140,7 @@
       "startLine": 86
     },
     {
-      "crap": 4.074074074074074,
+      "crap": 4.034372797153503,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "tryStealStale",
       "startLine": 99
@@ -2149,49 +2149,49 @@
       "crap": 1,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "sleep",
-      "startLine": 124
+      "startLine": 131
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "incPending",
-      "startLine": 137
+      "startLine": 144
     },
     {
       "crap": 2.032,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "decPending",
-      "startLine": 141
+      "startLine": 148
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "pendingAcquires",
-      "startLine": 159
+      "startLine": 166
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "pollForLock",
-      "startLine": 171
+      "startLine": 178
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "acquireEpicMergeLock",
-      "startLine": 209
+      "startLine": 216
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "<anon method-2>",
-      "startLine": 221
+      "startLine": 228
     },
     {
       "crap": 3.140625,
       "file": ".agents/scripts/lib/epic-merge-lock.js",
       "method": "releaseEpicMergeLock",
-      "startLine": 238
+      "startLine": 245
     },
     {
       "crap": 8,
@@ -3058,7 +3058,7 @@
       "startLine": 44
     },
     {
-      "crap": 11.255555068949535,
+      "crap": 11.249855168309738,
       "file": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
       "method": "runIterateWavesPhase",
       "startLine": 25
@@ -3124,46 +3124,58 @@
       "startLine": 690
     },
     {
-      "crap": 12.495227603995245,
+      "crap": 12.12090517675665,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "emitEpicProgress",
       "startLine": 825
     },
     {
-      "crap": 7,
+      "crap": 7.105266691282602,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "emitEpicStarted",
       "startLine": 884
     },
     {
-      "crap": 5,
+      "crap": 5.053707495552348,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "emitEpicBlocked",
+      "startLine": 925
+    },
+    {
+      "crap": 5.048828125,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "emitEpicUnblocked",
-      "startLine": 922
+      "startLine": 963
+    },
+    {
+      "crap": 8.087791495198903,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "method": "emitEpicComplete",
+      "startLine": 1006
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
-      "startLine": 962
+      "startLine": 1050
     },
     {
       "crap": 7.467679550324179,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
-      "startLine": 986
+      "startLine": 1074
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
-      "startLine": 1020
+      "startLine": 1108
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 1036
+      "startLine": 1124
     },
     {
       "crap": 16.078678343482082,
@@ -4600,6 +4612,90 @@
       "startLine": 124
     },
     {
+      "crap": 15,
+      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
+      "method": "isCrapEnvelope",
+      "startLine": 49
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
+      "method": "parseCrapEnvelope",
+      "startLine": 76
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
+      "method": "compareViolationsDesc",
+      "startLine": 109
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
+      "method": "topRegressions",
+      "startLine": 128
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
+      "method": "parseCrapReport",
+      "startLine": 145
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/triage/parse-test-output.js",
+      "method": "normalizeLines",
+      "startLine": 62
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/triage/parse-test-output.js",
+      "method": "findLastFailureMarker",
+      "startLine": 86
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/triage/parse-test-output.js",
+      "method": "parseTestOutput",
+      "startLine": 114
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/triage/parse-test-output.js",
+      "method": "sortPayloadsByOs",
+      "startLine": 145
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/triage/parse-test-output.js",
+      "method": "<anon method-1>",
+      "startLine": 149
+    },
+    {
+      "crap": 2.0625,
+      "file": ".agents/scripts/lib/triage/render-comment.js",
+      "method": "truncateLine",
+      "startLine": 30
+    },
+    {
+      "crap": 2.0094814814814814,
+      "file": ".agents/scripts/lib/triage/render-comment.js",
+      "method": "renderTestOutputSection",
+      "startLine": 41
+    },
+    {
+      "crap": 3.007774538386783,
+      "file": ".agents/scripts/lib/triage/render-comment.js",
+      "method": "renderCrapSection",
+      "startLine": 66
+    },
+    {
+      "crap": 7.073142857142857,
+      "file": ".agents/scripts/lib/triage/render-comment.js",
+      "method": "renderTriageComment",
+      "startLine": 99
+    },
+    {
       "crap": 6.04548595344797,
       "file": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
@@ -5758,7 +5854,7 @@
       "startLine": 65
     },
     {
-      "crap": 18.821347773698136,
+      "crap": 19.22476409554476,
       "file": ".agents/scripts/story-init.js",
       "method": "runStoryInit",
       "startLine": 78
@@ -5888,6 +5984,54 @@
       "file": ".agents/scripts/task-commit.js",
       "method": "main",
       "startLine": 229
+    },
+    {
+      "crap": 1.833706492977814,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "defaultGhShim",
+      "startLine": 58
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "collectTestOutputs",
+      "startLine": 88
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "collectCrapRegressions",
+      "startLine": 120
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "findExistingTriageComment",
+      "startLine": 145
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "postNewComment",
+      "startLine": 179
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "patchExistingComment",
+      "startLine": 201
+    },
+    {
+      "crap": 11.046545454545454,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "runTriage",
+      "startLine": 228
+    },
+    {
+      "crap": 1.5787037037037037,
+      "file": ".agents/scripts/triage-ci-failure.js",
+      "method": "main",
+      "startLine": 292
     },
     {
       "crap": 3,
