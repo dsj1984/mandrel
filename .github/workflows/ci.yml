@@ -14,21 +14,16 @@ concurrency:
 
 jobs:
   validate:
-    name: Validate and Test (${{ matrix.os }}, node ${{ matrix.node-version }})
-    runs-on: ${{ matrix.os }}
+    name: Validate and Test
+    # Single ubuntu-latest / node 22 leg. The matrix shape was retired in
+    # PR #1348 once the only remaining axis was a degenerate one — Windows
+    # was removed earlier (operator runs Windows locally; pre-push hook is
+    # the real Windows gate), and there is no plan to revive a second
+    # Node version on this branch. See #1267 for the per-OS baseline plan
+    # if matrix-shaped CI is ever reinstated.
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        # Windows runner removed (2026-05-11): operator runs Windows
-        # locally as their dev environment, so the pre-push hook is the
-        # real Windows gate. The CI Windows leg was producing repeated
-        # c8/timing coverage flap with no corresponding source defects,
-        # forcing per-PR baseline ratchets. See #1267 for the per-OS
-        # baseline plan if Windows-leg CI is reinstated later.
-        os: [ubuntu-latest]
-        node-version: [22]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -38,7 +33,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22
           cache: 'npm'
 
       - name: Install Dependencies
@@ -72,7 +67,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: test-results-${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: test-results
           path: test-output.txt
 
       # Persist the istanbul/c8 coverage map so the CRAP gate (next step) and
@@ -83,7 +78,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-final-${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: coverage-final
           path: coverage/coverage-final.json
           if-no-files-found: warn
 
@@ -108,7 +103,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: crap-report-${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: crap-report
           path: temp/crap-report.json
 
   publish:
