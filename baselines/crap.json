@@ -4477,37 +4477,37 @@
       "crap": 9.029518950437318,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "readBaselineRows",
-      "startLine": 85
+      "startLine": 84
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "filterToStoryDiff",
-      "startLine": 131
+      "startLine": 130
     },
     {
       "crap": 8.116074926364968,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "amendBaselinesIntoHead",
-      "startLine": 165
+      "startLine": 164
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "priorRefusalSignalExists",
-      "startLine": 216
+      "startLine": 215
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "buildRefusalSignal",
-      "startLine": 240
+      "startLine": 239
     },
     {
       "crap": 23.358106005426503,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "runAutoRefresh",
-      "startLine": 285
+      "startLine": 284
     },
     {
       "crap": 6,
@@ -6262,82 +6262,88 @@
       "startLine": 80
     },
     {
-      "crap": 1260,
+      "crap": 6,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "matchesAny",
+      "startLine": 155
+    },
+    {
+      "crap": 210,
       "file": ".agents/scripts/providers/github.js",
       "method": "classifyGithubError",
-      "startLine": 122
+      "startLine": 160
     },
     {
       "crap": 4.012021036814425,
       "file": ".agents/scripts/providers/github.js",
       "method": "normalizeLabels",
-      "startLine": 223
+      "startLine": 229
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToTicket",
-      "startLine": 235
+      "startLine": 241
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpic",
-      "startLine": 250
+      "startLine": 256
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "subIssueNodeToTicket",
-      "startLine": 264
+      "startLine": 270
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToListItem",
-      "startLine": 280
+      "startLine": 286
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpicListItem",
-      "startLine": 294
+      "startLine": 300
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 338
+      "startLine": 344
     },
     {
       "crap": 7,
       "file": ".agents/scripts/providers/github.js",
       "method": "isNotFoundError",
-      "startLine": 357
+      "startLine": 363
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "isLabelAlreadyExistsError",
-      "startLine": 382
+      "startLine": 388
     },
     {
       "crap": 5.0407083248524325,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 421
+      "startLine": 427
     },
     {
       "crap": 5.002194787379972,
       "file": ".agents/scripts/providers/github.js",
       "method": "createInlineTicketCache",
-      "startLine": 467
+      "startLine": 473
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github.js",
       "method": "primeIfAbsent",
-      "startLine": 471
+      "startLine": 477
     },
     {
       "crap": 1,
