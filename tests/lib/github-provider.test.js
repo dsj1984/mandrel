@@ -117,15 +117,13 @@ test('GitHubProvider: getTickets filters by labels', async () => {
 });
 
 test('GitHubProvider: postComment accepts a bare string body', async () => {
-  // postComment still delegates to the bespoke `./github/comments.js` until
-  // Task #1372 lands the gh-exec swap. Mock fetch to keep the legacy path
-  // exercised.
-  global.fetch = async () => ({
-    ok: true,
-    json: async () => ({ id: 'comment-1' }),
+  const gh = makeFakeGh({
+    'POST /issues/1/comments': {
+      status: 201,
+      json: { id: 'comment-1' },
+    },
   });
-
-  const provider = new GitHubProvider({ owner: 'owner', repo: 'repo' });
+  const provider = new GitHubProvider({ owner: 'owner', repo: 'repo' }, { gh });
   const result = await provider.postComment(1, 'Hello');
   assert.equal(result.commentId, 'comment-1');
 });

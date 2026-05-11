@@ -1,5 +1,6 @@
 /**
- * GitHub Provider — issue surface rebuilt on gh-exec (Story #1357, Epic #1179).
+ * GitHub Provider — issue + comment surfaces rebuilt on gh-exec
+ * (Story #1357, Epic #1179).
  *
  * Wave 1 of the v6 MCP+gh CLI rebase. This file is being migrated layer-by-
  * layer off the bespoke `providers/github/*` submodule tree onto the `gh` CLI
@@ -8,17 +9,21 @@
  * on disk during this wave — Wave 3 (Story #1363) deletes it. What we change
  * here is which methods on `GitHubProvider` call into that old tree:
  *
- *   - Issue surface (Task #1368, this commit): `getTicket`, `getEpic`,
+ *   - Issue surface (Task #1368, prior commit): `getTicket`, `getEpic`,
  *     `getEpics`, `getTickets`, `getSubTickets`, `getTicketDependencies`,
  *     `createTicket`, `updateTicket`, `addSubIssue`, `removeSubIssue`,
- *     `reconcileSubIssueLinks`, `listIssues`, `listIssuesByLabel` — now call
+ *     `reconcileSubIssueLinks`, `listIssues`, `listIssuesByLabel` — call
  *     `gh.api({ method, endpoint, body })` and parse stdout. Sub-issue link
  *     mutations stay on GraphQL via `gh api graphql` with a POST body
  *     carrying `{ query, variables }`.
  *
- *   - Comment surface (Task #1372, next commit): `getRecentComments`,
- *     `getTicketComments`, `postComment`, `deleteComment` — still delegate
- *     to `./github/comments.js`.
+ *   - Comment surface (Task #1372, this commit): `getRecentComments`,
+ *     `getTicketComments`, `postComment`, `deleteComment` — also on
+ *     `gh.api`. `postComment`'s visible type-badge (`🔄 **Progress**`,
+ *     etc.) is preserved verbatim from the old `./github/comments.js`; the
+ *     `<!-- ap:structured-comment ... -->` marker is still prepended by
+ *     `upsertStructuredComment` in `lib/orchestration/ticketing.js` before
+ *     the body reaches this method.
  *
  *   - Everything else (`createPullRequest`, `getBranchProtection`,
  *     `setBranchProtection`, `getMergeMethods`, `setMergeMethods`,
@@ -47,7 +52,6 @@ import { concurrentMap } from '../lib/util/concurrent-map.js';
 import { resolveToken } from './github/auth.js';
 import * as branches from './github/branches.js';
 import { createTicketCacheManager } from './github/cache-manager.js';
-import * as comments from './github/comments.js';
 import { classifyGithubError } from './github/error-classifier.js';
 import {
   ADD_SUB_ISSUE_MUTATION,
@@ -78,6 +82,21 @@ const SUB_ISSUE_RETRY_MAX_ATTEMPTS = 6;
 const SUB_ISSUE_RETRY_BASE_DELAY_MS = 1000;
 const SUB_ISSUE_RETRY_MAX_DELAY_MS = 30000;
 const SUB_ISSUE_RETRY_JITTER_MS = 500;
+
+// ---------------------------------------------------------------------------
+// Structured-comment badge — preserved verbatim from the old
+// `./github/comments.js`. `upsertStructuredComment` in
+// `lib/orchestration/ticketing.js` prepends the `<!-- ap:structured-comment
+// ... -->` marker before the body reaches `postComment`; this badge is the
+// visible header consumers (Slack notifier, dashboard) grep for. Keeping the
+// emoji + bold marker stable is what makes the round-trip with structured-
+// comment detection work across the rewrite.
+// ---------------------------------------------------------------------------
+const TYPE_BADGES = {
+  progress: '🔄 **Progress**',
+  friction: '⚠️ **Friction**',
+  notification: '📢 **Notification**',
+};
 
 /**
  * Parse a `gh api ...` stdout payload into JSON. `gh-exec.exec` returns
@@ -749,25 +768,81 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   // =========================================================================
-  // COMMENT SURFACE — still on the bespoke submodule (delete in Task #1372).
+  // COMMENT SURFACE — rewritten on gh-exec (Task #1372)
   // =========================================================================
 
+  /**
+   * Recent comments across all issues in the repo (sorted newest first).
+   * Used by reconcilers that look for state changes (e.g. structured-comment
+   * sweeps) without paginating each ticket individually.
+   *
+   * @field-manifest /repos/{owner}/{repo}/issues/comments?sort=created:
+   *                 id, body, created_at, user, issue_url
+   */
   async getRecentComments(limit = 100) {
-    return comments.getRecentComments(this._ctx, limit);
+    const result = await this._gh.api({
+      method: 'GET',
+      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments?sort=created&direction=desc&per_page=${limit}`,
+    });
+    return parseApiJson(result) ?? [];
   }
 
+  /**
+   * All comments on a single ticket. Used by `findStructuredComment` in
+   * `lib/orchestration/ticketing.js`, which greps each comment body for the
+   * `<!-- ap:structured-comment type="..." -->` marker — so the per-comment
+   * `body` field must round-trip verbatim.
+   *
+   * @field-manifest /repos/{owner}/{repo}/issues/{n}/comments:
+   *                 id, body, created_at, user
+   */
   async getTicketComments(ticketId) {
-    return comments.getTicketComments(this._ctx, ticketId);
+    return paginateRest(
+      this._gh,
+      `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
+    );
   }
 
+  /**
+   * Delete a comment by id. Called by `upsertStructuredComment` before
+   * posting the replacement, so the in-place semantics hold even though the
+   * underlying GitHub API has no native upsert.
+   */
   async deleteComment(commentId) {
-    return comments.deleteComment(this._ctx, commentId);
+    await this._gh.api({
+      method: 'DELETE',
+      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
+    });
   }
 
+  /**
+   * Post a comment on an issue. When `payload.type` matches a known
+   * structured-comment kind, prepend the visible type-badge so operators see
+   * the same header the old client produced. The
+   * `<!-- ap:structured-comment ... -->` marker is added by the caller
+   * (`upsertStructuredComment` in `lib/orchestration/ticketing.js`) — this
+   * method does not double-emit it.
+   *
+   * Accepts either `{ body, type }` (canonical) or a bare string (legacy
+   * shape exercised by `tests/lib/github-provider.test.js` and a handful of
+   * direct callers under `notify.js`).
+   *
+   * @field-manifest POST /repos/{owner}/{repo}/issues/{n}/comments:
+   *                 id (returned for the caller's `commentId`)
+   */
   async postComment(ticketId, payload) {
     const normalized =
-      typeof payload === 'string' ? { body: payload } : payload;
-    return comments.postComment(this._ctx, ticketId, normalized);
+      typeof payload === 'string' ? { body: payload } : (payload ?? {});
+    const badge = TYPE_BADGES[normalized.type] ?? '';
+    const body = badge ? `${badge}\n\n${normalized.body}` : normalized.body;
+
+    const result = await this._gh.api({
+      method: 'POST',
+      endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
+      body: { body },
+    });
+    const comment = parseApiJson(result);
+    return { commentId: comment.id };
   }
 
   // =========================================================================
