@@ -16,6 +16,8 @@ system stability.
 
 ## Step 1: Inventory & Stale Check
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 1. Run `npm outdated` (or equivalent for the package manager) to see which
    packages are behind.
 2. Identify "stale" dependencies (packages with no updates for >1 year).
