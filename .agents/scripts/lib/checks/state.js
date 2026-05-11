@@ -418,6 +418,12 @@ export function assembleState({ scope, cwd = process.cwd(), probes } = {}) {
   );
   const state = Object.freeze({
     scope,
+    // Story #1289: surface the resolved cwd on the state object so checks
+    // that scan the filesystem (e.g. notifier-stub-required) target the
+    // worktree they were assembled for instead of falling back to
+    // process.cwd(). Existing checks that already read `state.cwd` were
+    // doing so defensively; this just stops the fallback path.
+    cwd,
     git: Object.freeze(gitProjection),
     fs: Object.freeze(fsProjection),
     env: Object.freeze(probeEnv(keys, envProbe)),
