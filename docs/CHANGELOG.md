@@ -4,6 +4,205 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed (Epic #1178 — Decomposition + manifest sharpening)
+
+Four breaking changes ship as a coordinated cut. Hard cut — no aliases, no
+back-compat shims. Consumer `.agentrc.json` files must be updated in
+lockstep; the schema and validator reject the legacy shapes.
+
+1. **Concurrency caps flatten to `orchestration.concurrency.*`.** The three
+   independent "concurrency" sites (`runners.decomposer.concurrencyCap`,
+   `runners.epicRunner.concurrencyCap` / `runners.deliverRunner.concurrencyCap`
+   after Epic #1142, and `runners.concurrency.{waveGate, commitAssertion,
+   progressReporter}`) collapse into one flat namespace. The schema drops
+   `runners.decomposer`, `runners.concurrency`, and the `concurrencyCap`
+   property on `runners.deliverRunner`; consumer reads now go through
+   `resolveConcurrency(orchestration)` against the flat block exclusively.
+
+   ```jsonc
+   // before — three separate sites called "concurrency"
+   {
+     "orchestration": {
+       "runners": {
+         "decomposer": { "concurrencyCap": 3 },
+         "deliverRunner": {
+           "enabled": true,
+           "concurrencyCap": 3,
+           "progressReportIntervalSec": 120
+         },
+         "concurrency": {
+           "waveGate": 0,
+           "commitAssertion": 4,
+           "progressReporter": 8
+         }
+       }
+     }
+   }
+   ```
+
+   ```jsonc
+   // after — one flat block under orchestration
+   {
+     "orchestration": {
+       "runners": {
+         "deliverRunner": {
+           "enabled": true,
+           "progressReportIntervalSec": 120
+         }
+       },
+       "concurrency": {
+         "decomposer": 3,
+         "deliverRunner": 3,
+         "waveGate": 0,
+         "commitAssertion": 4,
+         "progressReporter": 8
+       }
+     }
+   }
+   ```
+
+2. **New `sizingProfile` field on dispatch-manifest Task bodies.** Tasks that
+   touch more files than `agentSettings.planning.taskSizing.softFileCount`
+   (default 3) must declare a `sizingProfile` so the validator can tell a
+   justified wide Task (`mechanical-sweep`, `atomic-rewrite`, `scaffolding`)
+   from an over-stuffed one. Narrow Tasks omit the field freely.
+
+   ```jsonc
+   // before — width passed silently; an unjustified 8-file Task validated
+   {
+     "kind": "task",
+     "title": "rewrite-six-docs-and-add-ripgrep-test",
+     "changes": [/* 7 file entries */],
+     "acceptance": [/* 4 items */]
+   }
+   ```
+
+   ```jsonc
+   // after — width must be justified or the validator rejects the Task
+   {
+     "kind": "task",
+     "title": "rename-settings-to-agent-settings-across-consumers",
+     "sizingProfile": "mechanical-sweep",
+     "changes": [
+       { "path": "consumers/**/*.{ts,js}", "summary": "rename settings → agentSettings" }
+     ],
+     "acceptance": [
+       "ripgrep \"\\bsettings\\b\" returns zero matches under consumers/"
+     ]
+   }
+   ```
+
+3. **New `agentSettings.planning.taskSizing` config block.** The validator's
+   hard ceilings and soft signals are now project-tunable. Defaults match
+   the Epic's design (6 acceptance items, 8 changes entries, 3 files as the
+   `sizingProfile` threshold). Hard ceiling violations (`maxAcceptance`,
+   `maxChanges`) and missing `sizingProfile` on wide Tasks emit structured
+   `oversized-task` / `missing-sizing-profile` findings that the
+   re-decomposition loop in `epic-plan-decompose` consumes (bounded retry,
+   default 2 attempts). Soft heuristic violations (`softFileCount`,
+   `softAcceptanceCount`) report as planning warnings only — they never
+   trigger re-prompt.
+
+   ```jsonc
+   // before — limits hard-coded inside ticket-validator.js, no override
+   {
+     "agentSettings": {
+       "planning": {
+         "riskHeuristics": [/* … */]
+       }
+     }
+   }
+   ```
+
+   ```jsonc
+   // after — limits live in config, sensible defaults preserved
+   {
+     "agentSettings": {
+       "planning": {
+         "riskHeuristics": [/* … */],
+         "taskSizing": {
+           "maxAcceptance": 6,
+           "maxChanges": 8,
+           "softFileCount": 3,
+           "softAcceptanceCount": 4
+         }
+       }
+     }
+   }
+   ```
+
+4. **Dispatch manifest collapses to a single nested Wave → Story → Task
+   layout.** The legacy three-section split (`## Wave Summary` aggregates +
+   `## Execution Plan` per-wave story tables + `## Story Details` prose) is
+   gone. The new layout flows: Sprint summary → dashboard TOC table with
+   anchor links to each wave H2 → inline legend blockquote → per-wave H2
+   sections that nest Stories (with branch + per-Story progress bar +
+   estimate placeholder) and Tasks (native `- [ ]` markdown checkboxes in
+   execution order with `*(after #N)*` dependency callouts). A per-wave
+   "Decomposition notes" subsection surfaces inferred file-contention edges
+   when the analyzer's static file-path scan adds edges beyond what the LLM
+   declared in `focusAreas`. Operating Procedures and the symbol legend
+   collapse into a single bottom `<details>` block — the only HTML in the
+   document. Pure markdown elsewhere preserves GitHub's native sub-issue /
+   task-list rollup.
+
+   ```markdown
+   <!-- before — three disjointed sections describing the same Stories -->
+   ## Wave Summary
+
+   | Wave | Stories | Tasks |
+   | :--- | :--- | :--- |
+   | 0 | 3 | 8 |
+
+   ## Execution Plan
+
+   ### Wave 0
+   | Story | Branch | Status |
+   | :--- | :--- | :--- |
+   | #1152 | story-1152 | Ready |
+
+   ## Story Details
+
+   ### Story #1152 — epic-plan-ideation-mode
+   Tasks: #1160, #1162 (depends on #1160).
+   ```
+
+   ```markdown
+   <!-- after — single nested flow, anchor TOC, native checkboxes -->
+   ## Wave Summary
+
+   | Wave | Status | Progress | Stories | Tasks |
+   | :--- | :--- | :--- | :--- | :--- |
+   | [Wave 0](#-ready-wave-0) | 🚀 Ready | ░░░░░░░░ 0% | 0/3 | 0/8 |
+
+   > **Legend:** ⬜ not started · 🔄 in progress · 🚧 blocked · ✅ done
+
+   ## 🚀 Ready Wave 0
+
+   > **Decomposition notes:** inferred file-contention edge added between
+   > #1153 and #1164 (both modify `.agents/workflows/epic-deliver.md`)
+
+   > 3 stories · 0/8 tasks (0%) · ✅ 3 stories can run in parallel
+
+   ### ⬜ #1152 — epic-plan-ideation-mode · `story-1152` · ░░░░░░░░░░ 0% · ~?
+
+   - [ ] #1160 — wire-idea-refinement-skill-into-epic-plan
+   - [ ] #1162 — render-epic-body-from-one-pager *(after #1160)*
+
+   <details>
+   <summary>🤖 Agent Operating Procedures &amp; symbol reference</summary>
+   …
+   </details>
+   ```
+
+   The end-to-end fixture in
+   `tests/lib/presentation/manifest-formatter-end-to-end.test.js` is the
+   canonical regression: it renders a synthetic Epic exercising every
+   Acceptance-Criteria item in the PRD's Manifest-rendering section
+   (anchor-link round-trip, decomposition-notes subsection, dispatch-round
+   columns, single-`<details>`-block invariant, native checkbox rendering,
+   per-Story progress bar + estimate placeholder).
+
 ### Removed
 
 - **Bot approver, auto-triage, auto-fix, and baseline-refresh-guardrail
