@@ -1,6 +1,9 @@
 ---
 description: Run a DevOps infrastructure audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: config/IaC pattern-scan against a known rubric — Haiku A/B matched sonnet findings. -->
 
 # DevOps Infrastructure Audit
 

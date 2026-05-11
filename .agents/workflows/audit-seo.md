@@ -1,6 +1,9 @@
 ---
 description: Run an SEO and Generative Engine Optimization audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: structured HTML/JSON-LD/schema scan against a checklist — Haiku A/B matched sonnet. -->
 
 # SEO & Generative Engine Optimization Audit
 

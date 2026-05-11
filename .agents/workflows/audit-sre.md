@@ -1,6 +1,9 @@
 ---
 description: Run a production release candidate SRE audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: release-readiness checklist scan over runbooks/SLOs — Haiku A/B matched sonnet. -->
 
 # Production Release Candidate Audit
 

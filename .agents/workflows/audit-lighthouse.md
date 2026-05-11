@@ -1,6 +1,9 @@
 ---
 description: Run a Lighthouse audit (Performance / Accessibility / Best Practices / SEO) and produce a structured findings report
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: parses structured Lighthouse JSON against fixed thresholds — Haiku A/B matched sonnet. -->
 
 # Lighthouse Audit & Analysis
 

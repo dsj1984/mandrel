@@ -1,6 +1,9 @@
 ---
 description: Run a clean code and maintainability audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: mechanical pattern-scan over naming, duplication, and shape — Haiku A/B matched sonnet output. -->
 
 # Clean Code & Maintainability Audit
 
