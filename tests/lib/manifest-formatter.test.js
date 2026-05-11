@@ -6,8 +6,10 @@ import {
   formatManifestMarkdown,
   formatStoryManifestMarkdown,
   printStoryDispatchTable,
+  renderInlineLegend,
   renderManifestMarkdown,
   renderNestedWaveSections,
+  renderProceduresAndLegendDetails,
   renderProgressBar,
   renderWaveSections,
   slugifyHeading,
@@ -565,4 +567,79 @@ test('computeStoryProgress: derives pct, done, total from story.tasks[]', () => 
     total: 0,
   });
   assert.deepEqual(computeStoryProgress({}), { pct: 0, done: 0, total: 0 });
+});
+
+// ---------------------------------------------------------------------------
+// Inline legend + bottom <details> block (Story #1194 Task #1214)
+// ---------------------------------------------------------------------------
+
+test('renderInlineLegend: renders a single blockquote covering every emitted symbol', () => {
+  const md = renderInlineLegend();
+  // Every line in the legend must be a blockquote line.
+  for (const line of md.split('\n')) {
+    assert.ok(line.startsWith('> '), `legend line not blockquote: "${line}"`);
+  }
+  // Decoder mentions every symbol family the manifest emits.
+  assert.match(md, /⬜.*pending/);
+  assert.match(md, /🔄.*in-flight/);
+  assert.match(md, /✅.*done/);
+  assert.match(md, /🚧.*blocked/i);
+  assert.match(md, /🚀 Ready/);
+  assert.match(md, /⏳ Blocked/);
+  assert.match(md, /█.*░/);
+  assert.match(md, /\*\(after #N\)\*/);
+});
+
+test('renderProceduresAndLegendDetails: emits exactly one <details>/</details> pair', () => {
+  const md = renderProceduresAndLegendDetails(42);
+  assert.equal(
+    (md.match(/<details>/g) || []).length,
+    1,
+    'expected exactly one <details> opener',
+  );
+  assert.equal(
+    (md.match(/<\/details>/g) || []).length,
+    1,
+    'expected exactly one </details> closer',
+  );
+  // Operating Procedures + symbol legend live inside.
+  assert.match(md, /Operating Procedures/);
+  assert.match(md, /Symbol legend/);
+  // Epic id substituted into the deliver/close examples.
+  assert.match(md, /\/epic-deliver 42/);
+});
+
+test('formatManifestMarkdown: bottom <details> block is the only HTML; inline legend sits between TOC and first H2', () => {
+  const md = formatManifestMarkdown(epicManifest());
+  // Exactly one <details> tag pair in the entire rendered document.
+  assert.equal(
+    (md.match(/<details>/g) || []).length,
+    1,
+    'expected exactly one <details> tag',
+  );
+  assert.equal(
+    (md.match(/<\/details>/g) || []).length,
+    1,
+    'expected exactly one </details> tag',
+  );
+  // Strip the details block, then assert the rest contains no HTML tags.
+  const detailsRe = /<details>[\s\S]*?<\/details>/;
+  const outsideDetails = md.replace(detailsRe, '');
+  // Match any HTML tag outside the details block.
+  const stray = outsideDetails.match(/<[a-zA-Z/][^>]*>/g) || [];
+  assert.deepEqual(
+    stray,
+    [],
+    `unexpected HTML tags outside <details> block: ${JSON.stringify(stray)}`,
+  );
+  // Inline legend sits between the Wave Summary table and the first wave H2.
+  const tocPos = md.indexOf('| Wave | Status | Progress | Stories | Tasks |');
+  const legendPos = md.indexOf('**Legend:**');
+  const firstH2Pos = md.search(/^## 🚀 Ready Wave 0$/m);
+  assert.ok(tocPos >= 0, 'TOC table missing');
+  assert.ok(legendPos > tocPos, 'inline legend should follow the TOC table');
+  assert.ok(firstH2Pos > legendPos, 'first wave H2 should follow the legend');
+  // No top-level "## 🤖 Agent Operating Procedures" anymore — that moved
+  // into the bottom <details> block.
+  assert.ok(!md.includes('## 🤖 Agent Operating Procedures'));
 });

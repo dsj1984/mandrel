@@ -216,6 +216,69 @@ export function renderWaveSections(waveEligible) {
 // inline by `renderNestedWaveSections` below.
 
 /**
+ * One-line decoder rendered as a single blockquote. Sits directly under the
+ * Wave Summary TOC table (Story #1194 Task #1214) so steady-state readers can
+ * decipher symbols without scrolling to the bottom <details> block.
+ *
+ * Pure: no inputs, no I/O. The legend mirrors the symbols emitted by
+ * `deriveStorySymbol`, `deriveWaveStatusLabel`, `renderProgressBar`, and the
+ * `*(after #N)*` callout from Task #1213.
+ *
+ * @returns {string}
+ */
+export function renderInlineLegend() {
+  return [
+    '> **Legend:** Status `⬜ pending · 🔄 in-flight · ✅ done · 🚧 blocked` ·',
+    '> Wave `🚀 Ready · ⏳ Blocked · ✅ Done` · Progress `█ done / ░ remaining` ·',
+    '> `*(after #N)*` marks an in-Story dependency on Task #N.',
+  ].join('\n');
+}
+
+/**
+ * Render the bottom collapsed `<details>` block carrying the operating
+ * procedures and the full symbol legend (Story #1194 Task #1214). This is
+ * the only HTML the manifest emits by AC — every other section is plain
+ * Markdown.
+ *
+ * @param {number|string} epicId  the Epic id used to substitute `/epic-deliver` examples.
+ * @returns {string}
+ */
+export function renderProceduresAndLegendDetails(epicId) {
+  const lines = [];
+  lines.push(
+    '<details><summary>🤖 Agent Operating Procedures &amp; symbol reference</summary>',
+  );
+  lines.push('');
+  lines.push('### Operating Procedures');
+  lines.push('');
+  lines.push(
+    `1. **Deliver**: Run \`/epic-deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
+  );
+  lines.push(
+    '2. **Resume (granular, optional)**: Re-running `/epic-deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
+  );
+  lines.push(
+    `3. **Close**: \`/epic-deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
+  );
+  lines.push('');
+  lines.push('### Symbol legend');
+  lines.push('');
+  lines.push('| Symbol | Meaning |');
+  lines.push('| :--- | :--- |');
+  lines.push('| ⬜ | Pending — no Tasks started |');
+  lines.push('| 🔄 | In-flight — at least one Task done or executing |');
+  lines.push('| ✅ | Done — every Task complete |');
+  lines.push('| 🚧 | Blocked — at least one Task is `agent::blocked` |');
+  lines.push('| 🚀 Ready | Wave is unblocked and ready to dispatch |');
+  lines.push('| ⏳ Blocked | Wave is gated on a prior wave still completing |');
+  lines.push('| `█` / `░` | Progress bar: filled / remaining cells |');
+  lines.push('| `*(after #N)*` | Task callout: depends on in-Story Task #N |');
+  lines.push('');
+  lines.push('</details>');
+  return lines.join('\n');
+}
+
+/**
  * Topologically sort a Story's Tasks by their `dependencies` (in-Story
  * `depends_on` ids). Stable: ties resolve in the original declaration order
  * so a Story with no edges renders Tasks exactly as authored. Cross-Story
@@ -512,18 +575,9 @@ function _formatManifestMarkdownUncached(manifest) {
   lines.push(`_Generated ${generatedAt}_`);
   lines.push('');
 
-  lines.push('## 🤖 Agent Operating Procedures');
-  lines.push('');
-  lines.push(
-    `> 1. **Deliver**: Run \`/epic-deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
-  );
-  lines.push(
-    '> 2. **Resume (granular, optional)**: Re-running `/epic-deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
-  );
-  lines.push(
-    `> 3. **Close**: \`/epic-deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
-  );
-  lines.push('');
+  // The Operating Procedures + full symbol legend now live inside the
+  // bottom `<details>` block (Story #1194 Task #1214) so steady-state
+  // readers see the Sprint Progress hero immediately.
 
   // --- Hero Progress Bar ---
   const pct = progress.taskPct;
@@ -552,7 +606,11 @@ function _formatManifestMarkdownUncached(manifest) {
   const waveBlock = renderWaveSections(waveEligible);
   if (waveBlock) lines.push(waveBlock);
 
-  lines.push('---');
+  // --- Inline legend (Story #1194 Task #1214) ---
+  // Sits directly under the Wave Summary table and above the first per-wave
+  // H2 so steady-state readers can decode the symbols at a glance. The full
+  // legend (with explanations) lives in the bottom <details> block.
+  lines.push(renderInlineLegend());
   lines.push('');
 
   // --- Per-wave H2 sections nesting Stories (H3) and Tasks (checkbox lists)
@@ -563,6 +621,12 @@ function _formatManifestMarkdownUncached(manifest) {
     const nestedBlock = renderNestedWaveSections(storyManifest);
     if (nestedBlock) lines.push(nestedBlock);
   }
+
+  // --- Bottom <details> block (Story #1194 Task #1214) ---
+  // Operating procedures + full symbol legend, collapsed by default. This
+  // is the only HTML in the manifest by AC.
+  lines.push(renderProceduresAndLegendDetails(epicId));
+  lines.push('');
 
   // --- Agent Telemetry ---
   /* node:coverage ignore next */
