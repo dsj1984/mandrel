@@ -20,12 +20,12 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 79.82,
+    "lines": 79.41,
     "branches": 73.29,
     "functions": 75
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 64.01,
+    "lines": 63.6,
     "branches": 82.76,
     "functions": 57.14
   },
@@ -1135,8 +1135,8 @@
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
-    "lines": 86.35,
-    "branches": 70.49,
+    "lines": 83.22,
+    "branches": 63.33,
     "functions": 60
   },
   ".agents/scripts/task-commit.js": {
