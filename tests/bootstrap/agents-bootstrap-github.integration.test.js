@@ -19,7 +19,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import {
+  compareSemver,
   ensureCiWorkflow,
+  MIN_GH_VERSION,
+  parseGhVersion,
+  preflightGh,
   runBootstrap,
 } from '../../.agents/scripts/agents-bootstrap-github.js';
 import {
@@ -27,6 +31,11 @@ import {
   renderCiWorkflow,
 } from '../../.agents/scripts/lib/bootstrap/ci-workflow-template.js';
 import { TARGET_MERGE_METHODS } from '../../.agents/scripts/lib/bootstrap/merge-methods.js';
+import {
+  GhAuthError,
+  GhNotInstalledError,
+  GhVersionError,
+} from '../../.agents/scripts/lib/errors/index.js';
 
 const PR_GATE = {
   checks: [
@@ -271,6 +280,138 @@ describe('agents-bootstrap-github — CI workflow template (Story #1401)', () =>
     );
     // And the rendered template is returned so the caller can offer a diff.
     assert.ok(result.rendered.includes('jobs:'));
+  });
+});
+
+describe('agents-bootstrap-github — gh preflight (Story #1362 / Task #1378)', () => {
+  // The runner seam returns the canonical
+  //   { status, stdout, stderr, error? }
+  // shape that `defaultGhRunner` emits, so the preflight reads from a stub
+  // without spawning a real `gh`. Each test composes a per-call script so
+  // version vs. auth responses can diverge cleanly.
+  function makeRunner(responses) {
+    const seen = [];
+    const runner = (args) => {
+      seen.push(args);
+      const handler = responses[seen.length - 1];
+      if (!handler) {
+        throw new Error(
+          `unexpected gh call #${seen.length}: ${JSON.stringify(args)}`,
+        );
+      }
+      return handler(args);
+    };
+    runner.seen = seen;
+    return runner;
+  }
+
+  it('parseGhVersion extracts MAJOR.MINOR.PATCH from real gh output', () => {
+    const sample =
+      'gh version 2.55.0 (2024-08-21)\nhttps://github.com/cli/cli/releases/tag/v2.55.0\n';
+    assert.equal(parseGhVersion(sample), '2.55.0');
+    assert.equal(parseGhVersion('garbage'), null);
+    assert.equal(parseGhVersion(''), null);
+  });
+
+  it('compareSemver orders versions numerically (not lexically)', () => {
+    assert.ok(compareSemver('2.10.0', '2.9.9') > 0);
+    assert.ok(compareSemver('2.40.0', '2.40.0') === 0);
+    assert.ok(compareSemver('2.39.5', MIN_GH_VERSION) < 0);
+    assert.ok(compareSemver('2.40.0', MIN_GH_VERSION) === 0);
+    assert.ok(compareSemver('3.0.0', MIN_GH_VERSION) > 0);
+  });
+
+  it('throws GhNotInstalledError when gh is missing (ENOENT)', async () => {
+    const enoent = Object.assign(new Error('spawn gh ENOENT'), {
+      code: 'ENOENT',
+    });
+    const runner = makeRunner([
+      () => ({ status: null, stdout: '', stderr: '', error: enoent }),
+    ]);
+    await assert.rejects(
+      () => preflightGh({ runner }),
+      (err) =>
+        err instanceof GhNotInstalledError && /not found/i.test(err.message),
+    );
+    // The auth step must NOT be reached when the version step already
+    // discovered gh is missing.
+    assert.equal(runner.seen.length, 1);
+  });
+
+  it('throws GhAuthError when gh is installed but unauthenticated', async () => {
+    const runner = makeRunner([
+      () => ({
+        status: 0,
+        stdout: 'gh version 2.55.0 (2024-08-21)\n',
+        stderr: '',
+      }),
+      () => ({
+        status: 1,
+        stdout: '',
+        stderr:
+          'You are not logged into any GitHub hosts. Run gh auth login.\n',
+      }),
+    ]);
+    await assert.rejects(
+      () => preflightGh({ runner }),
+      (err) => err instanceof GhAuthError && /gh auth login/i.test(err.message),
+    );
+    assert.equal(runner.seen.length, 2);
+    assert.deepEqual(runner.seen[1], ['auth', 'status']);
+  });
+
+  it('throws GhVersionError when gh is older than the minimum', async () => {
+    const runner = makeRunner([
+      () => ({
+        status: 0,
+        stdout: 'gh version 2.10.0 (2022-01-01)\n',
+        stderr: '',
+      }),
+    ]);
+    await assert.rejects(
+      () => preflightGh({ runner }),
+      (err) =>
+        err instanceof GhVersionError &&
+        err.found === '2.10.0' &&
+        err.required === MIN_GH_VERSION &&
+        /older than required/i.test(err.message),
+    );
+    // Auth step must be skipped when the version is unacceptable — no
+    // point asking a half-broken CLI to introspect its auth.
+    assert.equal(runner.seen.length, 1);
+  });
+
+  it('returns { version } when gh is installed, ≥ minimum, and authenticated', async () => {
+    const runner = makeRunner([
+      () => ({
+        status: 0,
+        stdout: 'gh version 2.55.0 (2024-08-21)\n',
+        stderr: '',
+      }),
+      () => ({
+        status: 0,
+        stdout:
+          'github.com\n  ✓ Logged in to github.com as someone (oauth_token)\n',
+        stderr: '',
+      }),
+    ]);
+    const result = await preflightGh({ runner });
+    assert.deepEqual(result, { version: '2.55.0' });
+    assert.equal(runner.seen.length, 2);
+  });
+
+  it('treats `gh --version` non-zero exit as GhNotInstalledError', async () => {
+    const runner = makeRunner([
+      () => ({
+        status: 127,
+        stdout: '',
+        stderr: 'gh: command not found\n',
+      }),
+    ]);
+    await assert.rejects(
+      () => preflightGh({ runner }),
+      (err) => err instanceof GhNotInstalledError,
+    );
   });
 });
 
