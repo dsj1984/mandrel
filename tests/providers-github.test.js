@@ -1340,18 +1340,23 @@ describe('GitHubProvider — error handling', () => {
     });
   });
 
-  it('supports graphql queries', async () => {
-    const fetchMock = createRouteMock({
-      'POST /graphql': {
+  it('supports graphql queries (routed through gh api graphql)', async () => {
+    const gh = makeGh({
+      'POST graphql': {
         status: 200,
         json: { data: { viewer: { login: 'tester' } } },
       },
     });
-    global.fetch = fetchMock;
-    const provider = createTestProvider();
+    const provider = createTestProvider({ gh });
     const result = await provider.graphql('query { viewer { login } }');
     assert.strictEqual(result.viewer.login, 'tester');
-    assert.strictEqual(fetchMock.calls[0].url.endsWith('/graphql'), true);
+    // Verify argv routes through `gh api -X POST graphql`.
+    const call = gh.__exec.calls[0];
+    assert.strictEqual(call.args[0], 'api');
+    assert.strictEqual(call.args[2], 'POST');
+    assert.strictEqual(call.args[3], 'graphql');
+    const body = JSON.parse(call.input);
+    assert.match(body.query, /viewer/);
   });
 
   it('updates body/description in updateTicket', async () => {
