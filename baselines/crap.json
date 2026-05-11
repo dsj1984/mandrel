@@ -2698,6 +2698,126 @@
       "startLine": 20
     },
     {
+      "crap": 22.1378207464645,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "classify",
+      "startLine": 153
+    },
+    {
+      "crap": 4.001194343198717,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "exec",
+      "startLine": 250
+    },
+    {
+      "crap": 1.0001537445335278,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "createGh",
+      "startLine": 364
+    },
+    {
+      "crap": 8.032768,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "api",
+      "startLine": 381
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "jsonFlag",
+      "startLine": 411
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "idStr",
+      "startLine": 420
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-7>",
+      "startLine": 425
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-8>",
+      "startLine": 427
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-9>",
+      "startLine": 429
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-10>",
+      "startLine": 434
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-11>",
+      "startLine": 439
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-12>",
+      "startLine": 441
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-13>",
+      "startLine": 442
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-14>",
+      "startLine": 444
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-15>",
+      "startLine": 446
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-16>",
+      "startLine": 451
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-17>",
+      "startLine": 453
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-18>",
+      "startLine": 455
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-19>",
+      "startLine": 460
+    },
+    {
+      "crap": 3.1851851851851856,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-20>",
+      "startLine": 466
+    },
+    {
       "crap": 6,
       "file": ".agents/scripts/lib/git-branch-cleanup.js",
       "method": "deleteBranchLocal",
