@@ -598,8 +598,10 @@ async function main() {
   );
 }
 
-// Windows-aware main-guard: only run when invoked directly so the pure
-// helpers stay importable from tests.
+// cli-opt-out: bespoke Windows-aware main-guard with fileURLToPath path
+// normalization predates runAsCli; matches the same pattern used by
+// check-crap.js / check-maintainability.js so the noise-study script can
+// stay importable from its aggregation-math test fixtures.
 const isDirect = (() => {
   try {
     const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';

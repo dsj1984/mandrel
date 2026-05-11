@@ -56,6 +56,13 @@ const MAINTAINABILITY_CRAP_SCHEMA = {
     newMethodCeiling: { type: 'integer', minimum: 1 },
     coveragePath: { ...SAFE_STRING, minLength: 1 },
     tolerance: { type: 'number', minimum: 0 },
+    // c=1 method exemption strategy. "blanket" (default) preserves the
+    // current Windows-V8-noise carve-out for trivial methods; "confidenceBand"
+    // replaces it with a per-method statistical band sourced from the
+    // noise-study artifact. Epic #1386 lands the schema in advance; the
+    // gate scripts default to "blanket" until a noise study justifies
+    // flipping the project setting.
+    c1Exemption: { type: 'string', enum: ['blanket', 'confidenceBand'] },
     requireCoverage: { type: 'boolean' },
     friction: {
       type: 'object',
@@ -101,6 +108,11 @@ const MAINTAINABILITY_QUALITY_SCHEMA = {
     // escomplex updates) where typical noise is +/- 0.3; tighten it on
     // stable codebases that want hyper-strict tracking.
     tolerance: { type: 'number', minimum: 0 },
+    // Optional separate tolerance for the Halstead-volume term of MI; when
+    // null (the default), the unified `tolerance` above governs the whole
+    // MI score. Epic #1386 noise-study-driven re-tune may flip this to a
+    // small positive number once cross-platform variance is measured.
+    halsteadTolerance: { type: ['number', 'null'], minimum: 0 },
   },
   additionalProperties: false,
 };
