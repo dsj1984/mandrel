@@ -133,18 +133,34 @@ For **each child Task** in the order returned by `story-init.js`:
      --story <storyId> --task <taskId> --state executing --phase implementing
    ```
 
+   **Resume-skip.** If a prior `/story-execute` run already closed this Task
+   (commit landed on the Story branch + Task ticket flipped to `agent::done`
+   by Step 3 below), the script returns `{ ok: true, skip: true, reason:
+   'task-already-complete-and-reachable', ... }` without mutating anything.
+   When `skip: true`, **do not** read `task-execute.md` for this Task — go
+   straight to the next iteration. This is what makes mid-Story re-entry
+   safe: each Task's close is durable to ticket state, so a kill between
+   Tasks N and N+1 resumes at N+1 instead of bouncing off `task-commit.js`'s
+   empty-diff guard.
+
 2. Read [`helpers/task-execute.md`](helpers/task-execute.md) — it covers the
    `## Instructions` read, scope discipline, and the single
    `task-commit.js` invocation (stage, assert-branch, conventional-commit,
    post-commit verify).
 
 3. After the commit lands, capture the SHA from `task-commit.js` stdout and
-   record the Task `done`:
+   record the Task `done`. The same call **also** flips the Task ticket to
+   `agent::done` and closes the GitHub issue (cascade suppressed — the
+   Story stays `agent::executing` until story-close fires after the merge):
 
    ```bash
    node .agents/scripts/story-task-progress.js \
      --story <storyId> --task <taskId> --state done --commit-sha <sha>
    ```
+
+   The `--commit-sha` is required for the close path: the resume guard in
+   Step 1 reads it back from the snapshot to decide whether the Task's
+   work is actually on the branch or whether the label is lying.
 
 4. If blocked, mark the Task `blocked`, transition the Story to
    `agent::blocked`, post a `friction` comment, and exit non-zero:

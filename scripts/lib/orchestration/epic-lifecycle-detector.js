@@ -1,10 +1,13 @@
 /**
  * Epic-completion detection + bookend lifecycle trigger. Posts the summary
- * comment on the Epic and fires the operator webhook when every Task under
- * the Epic has landed as `agent::done`.
+ * comment on the Epic when every Task under the Epic has landed as
+ * `agent::done`. The operator webhook is intentionally NOT fired here —
+ * `epic-complete` now has a single emit point in `epic-deliver-finalize.js`,
+ * gated on `gh pr create` succeeding so the operator gets a clickable PR
+ * with the ping. This helper kept its comment-post because that's just
+ * a marker on the Epic ticket; the webhook is the actionable surface.
  */
 
-import { notify } from '../../notify.js';
 import { Logger } from '../Logger.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -40,7 +43,7 @@ export async function detectEpicCompletion({
   );
 
   if (dryRun) {
-    Logger.info('[DRY-RUN] Would post epic-complete comment and fire webhook.');
+    Logger.info('[DRY-RUN] Would post epic-complete comment.');
     return;
   }
 
@@ -73,15 +76,7 @@ export async function detectEpicCompletion({
     Logger.warn(`Failed to post epic-complete comment: ${err.message}`);
   }
 
-  try {
-    await notify(epicId, {
-      severity: 'medium',
-      message: `Epic #${epicId} complete. All tasks done. Bookend Lifecycle starting.`,
-      event: 'epic-complete',
-      level: 'epic',
-      epicId,
-    });
-  } catch (err) {
-    Logger.warn(`Webhook notification failed (non-fatal): ${err.message}`);
-  }
+  // The `epic-complete` webhook used to fire here. It now fires from
+  // `epic-deliver-finalize.js` after `gh pr create` succeeds — see the
+  // module docstring above.
 }

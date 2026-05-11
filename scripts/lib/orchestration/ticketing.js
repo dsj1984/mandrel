@@ -120,15 +120,21 @@ export function assertValidStructuredCommentType(type) {
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} newState - Must be one of STATE_LABELS.
- * @param {{ notify?: Function }} [opts] - Optional notify function (the
- *   exported `notify(ticketId, payload, opts)` from `notify.js`, or any
- *   stub matching its shape). When provided, a state-transition
+ * @param {{ notify?: Function, cascade?: boolean }} [opts] - Optional notify
+ *   function (the exported `notify(ticketId, payload, opts)` from `notify.js`,
+ *   or any stub matching its shape). When provided, a state-transition
  *   notification fires after a successful transition. Story/Epic →
  *   `agent::done` events are dispatched as `medium`; all other transitions
  *   are `low` and filtered out at the default `medium` channel thresholds.
  *   The dispatched payload carries the typed envelope fields
  *   (`event: 'state-transition'`, `level: 'task'|'story'|'wave'|'epic'`,
  *   `epicId`) for routable webhook subscribers.
+ *
+ *   `cascade` (default `true`) controls whether a `done` transition fans the
+ *   `cascadeCompletion` upward to parents. Per-Task closes invoked mid-Story
+ *   from `story-task-progress.js` pass `cascade: false` so the Story/Epic
+ *   only flips to `agent::done` at story-close (after the merge lands), not
+ *   when the last Task commit lands on the still-unmerged Story branch.
  */
 export async function transitionTicketState(
   provider,
@@ -177,8 +183,12 @@ export async function transitionTicketState(
   // This ensures parents (Stories, Features) close as soon as their last
   // child is marked done. Per-parent failures are aggregated by
   // `cascadeCompletion`; surface any to the operator so a partial close
-  // doesn't look like a clean one.
-  if (isDone) {
+  // doesn't look like a clean one. Callers that close a child while the
+  // parent's "done" precondition is something other than "all children
+  // done" (notably `story-task-progress.js`, which closes Tasks at
+  // commit-time but defers the Story flip to story-close after the
+  // branch is merged) opt out by passing `cascade: false`.
+  if (isDone && opts.cascade !== false) {
     const cascade = await cascadeCompletion(provider, ticketId, {
       notify: opts.notify,
     });

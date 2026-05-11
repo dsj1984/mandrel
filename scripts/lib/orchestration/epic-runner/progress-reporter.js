@@ -994,20 +994,34 @@ export async function emitEpicUnblocked({
 }
 
 /**
- * Fire a curated `epic-complete` webhook event at the `finalize` boundary
- * of /epic-deliver — the last wave aggregated to `complete` and the host
- * loop is about to enter close-validation + PR-open. Bookends the
- * `epic-started` fire at kickoff. Failures are swallowed.
+ * Fire a curated `epic-complete` webhook event at the `pr-ready` boundary
+ * of /epic-deliver — the merge PR has been opened against `main` and the
+ * operator can click through. Bookends the `epic-started` fire at kickoff.
+ * Failures are swallowed.
  *
- * The legacy dispatcher path (`epic-lifecycle-detector.detectEpicCompletion`)
- * has its own inline `epic-complete` notify; this helper is the symmetric
- * emit point for the host-LLM /epic-deliver path.
+ * Earlier the fire lived at the post-final-wave / pre-finalize boundary in
+ * `epic-execute-record-wave.js`, but that preceded `gh pr create` by minutes
+ * — operators got an "Epic complete" ping with nothing to action. The
+ * single emit point is now `epic-deliver-finalize.js`, immediately after
+ * the PR URL is captured. The legacy dispatcher path's own inline
+ * `epic-complete` webhook (`epic-lifecycle-detector.js`) is also gated to
+ * the comment surface only for the same reason.
+ *
+ * @param {{
+ *   notify: Function,
+ *   epicId: number|string,
+ *   totalStories?: number,
+ *   totalWaves?: number,
+ *   prUrl?: string|null,
+ *   logger?: { warn?: Function },
+ * }} args
  */
 export async function emitEpicComplete({
   notify,
   epicId,
   totalStories,
   totalWaves,
+  prUrl,
   logger,
 }) {
   if (typeof notify !== 'function') return null;
@@ -1019,7 +1033,8 @@ export async function emitEpicComplete({
   const storyPart = Number.isFinite(Number(totalStories))
     ? ` · ${totalStories} stor${Number(totalStories) === 1 ? 'y' : 'ies'}`
     : '';
-  const message = `Epic #${epicIdNum} complete${wavePart}${storyPart}.`;
+  const prPart = prUrl ? ` · PR: ${prUrl}` : '';
+  const message = `Epic #${epicIdNum} complete${wavePart}${storyPart}${prPart}.`;
   try {
     await notify(
       epicIdNum,
@@ -1029,6 +1044,7 @@ export async function emitEpicComplete({
         event: 'epic-complete',
         level: 'epic',
         epicId: epicIdNum,
+        prUrl: prUrl ?? null,
       },
       { skipComment: true },
     );

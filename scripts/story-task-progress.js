@@ -35,6 +35,20 @@
  * Story ticket — `/story-execute` relays it as a chat message after each
  * transition so operators see the same task-progress table the parent
  * `/epic-deliver` aggregator reads.
+ *
+ * Resume-skip envelope: when `--state executing` is requested for a Task
+ * that is already `agent::done` AND whose recorded commit is reachable from
+ * `HEAD`, the script returns `{ ok: true, skip: true, reason, taskState:
+ * 'done', phase, payload: null, renderedBody: null }` without mutating the
+ * cache or the GitHub comment. `/story-execute`'s loop reads `skip` and
+ * advances to the next Task — the workflow form of "pick up where the
+ * prior run left off" after a kill mid-Story. See `story-execute.md`
+ * Step 1 for the consumer side.
+ *
+ * Per-Task close (state=done): the script also flips the Task ticket to
+ * `agent::done` and closes the GitHub issue immediately — `cascade: false`
+ * so the Story doesn't auto-close while the branch is still unmerged,
+ * `notify: null` to avoid duplicating the consolidated story-close fan.
  */
 
 import fs from 'node:fs';
@@ -43,13 +57,18 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
-import { gitSync } from './lib/git-utils.js';
+import { gitSpawn, gitSync } from './lib/git-utils.js';
+import { Logger } from './lib/Logger.js';
 import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
-import { findStructuredComment } from './lib/orchestration/ticketing.js';
+import {
+  findStructuredComment,
+  STATE_LABELS,
+  transitionTicketState,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { notify } from './notify.js';
 
@@ -204,6 +223,32 @@ export async function hydrateFromComment({ provider, storyId }) {
 }
 
 /**
+ * Return true when `commitSha` is an ancestor of (or equals) `HEAD` in the
+ * git checkout at `cwd` — i.e. the commit has already landed on the current
+ * branch. Used to gate the resume-skip path: we only skip a Task that is
+ * `agent::done` AND whose recorded commit is actually present on the Story
+ * branch's tip, not merely labeled done.
+ *
+ * Returns `false` for any git error (missing object, malformed sha, repo
+ * detached, etc.) — the caller treats that as "not reachable, do the work".
+ *
+ * @param {string} cwd
+ * @param {string} commitSha
+ * @returns {boolean}
+ */
+export function isCommitReachableFromHead(cwd, commitSha) {
+  if (typeof commitSha !== 'string' || commitSha.length === 0) return false;
+  const result = gitSpawn(
+    cwd,
+    'merge-base',
+    '--is-ancestor',
+    commitSha,
+    'HEAD',
+  );
+  return result.status === 0;
+}
+
+/**
  * End-to-end: read cache (or hydrate), apply transition, write cache,
  * upsert the GitHub comment.
  *
@@ -287,6 +332,35 @@ export async function runStoryTaskProgress(args) {
   }
   const branch = snapshot.branch ?? `story-${storyId}`;
 
+  // 1b. Resume-skip path: if `/story-execute` is re-entering the loop on a
+  // Task that already landed (commit on the Story branch HEAD) AND already
+  // closed (`agent::done`) by a prior run's commit-time close, short-circuit
+  // before mutating anything. The workflow caller reads `skip: true` and
+  // moves to the next Task instead of re-running task-execute on top of an
+  // empty diff (which would bounce off `task-commit.js`'s empty-diff guard
+  // anyway, but loudly and with lost time).
+  if (state === 'executing') {
+    const cached = (snapshot.tasks ?? []).find((t) => Number(t.id) === taskId);
+    if (
+      cached?.state === 'done' &&
+      cached.commitSha &&
+      isCommitReachableFromHead(cwd, cached.commitSha)
+    ) {
+      Logger.info(
+        `[story-task-progress] Skipping #${taskId} — already done at ${cached.commitSha.slice(0, 8)} (reachable from HEAD).`,
+      );
+      return {
+        ok: true,
+        skip: true,
+        reason: 'task-already-complete-and-reachable',
+        taskState: 'done',
+        phase: snapshot.phase ?? phase,
+        payload: null,
+        renderedBody: null,
+      };
+    }
+  }
+
   // 2. Apply the transition in memory.
   const next = applyTransition(snapshot, {
     taskId,
@@ -294,6 +368,27 @@ export async function runStoryTaskProgress(args) {
     commitSha,
     blockerCommentId,
   });
+
+  // 2b. Per-Task close: when the Task transitions to `done` with a recorded
+  // commit, flip the GitHub Task ticket to `agent::done` and close the
+  // issue immediately rather than waiting for `story-close.js` to batch
+  // the children. Suppressed inputs:
+  //   - `notify: null` — `state-transition` events for Task-level closes
+  //     are the same noise the batched closer also drops (see the comment
+  //     in `post-merge-pipeline.js` :: `ticketClosurePhase`).
+  //   - `cascade: false` — without this, closing the *last* Task would
+  //     auto-cascade the Story → done while the branch is still unmerged.
+  //     The Story flip is owned by story-close, post-merge.
+  // The transition runs BEFORE the cache write so a network failure leaves
+  // the cache untouched and a re-invocation re-attempts the close cleanly.
+  // `batchTransitionTickets` in `ticketClosurePhase` skips already-done
+  // Tasks naturally, so the post-merge path remains idempotent.
+  if (state === 'done' && commitSha) {
+    await transitionTicketState(provider, taskId, STATE_LABELS.DONE, {
+      notify: null,
+      cascade: false,
+    });
+  }
 
   // 3. Persist the cache.
   writeCache(cachePath, { ...next, storyId, branch });

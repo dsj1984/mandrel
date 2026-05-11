@@ -34,8 +34,10 @@ import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { emitEpicComplete } from './lib/orchestration/epic-runner/progress-reporter.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { notify as defaultNotify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
 
@@ -198,6 +200,7 @@ export async function runEpicDeliverFinalize({
   gitSpawnFn = gitSpawn,
   ghSpawnFn = defaultGhSpawn,
   upsertCommentFn = upsertStructuredComment,
+  notifyFn = defaultNotify,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -320,6 +323,23 @@ export async function runEpicDeliverFinalize({
       `[epic-deliver-finalize] hand-off comment post failed: ${err?.message ?? err}`,
     );
   }
+
+  // 5. Fire the curated `epic-complete` webhook now — *after* the PR exists.
+  // This is the single emit point for the host-LLM /epic-deliver path (the
+  // older fire site in `epic-execute-record-wave.js` was removed because it
+  // ran before `gh pr create`). Failures inside `emitEpicComplete` are
+  // swallowed by the helper itself so they never block the finalize result.
+  await emitEpicComplete({
+    notify: (ticketId, payload, opts = {}) =>
+      notifyFn(ticketId, payload, {
+        orchestration: config.orchestration,
+        provider,
+        ...opts,
+      }),
+    epicId,
+    prUrl,
+    logger,
+  });
 
   logger.info?.(
     `[epic-deliver-finalize] complete — pr=${prUrl ?? '(none)'} handoff=${postedHandoff}`,
