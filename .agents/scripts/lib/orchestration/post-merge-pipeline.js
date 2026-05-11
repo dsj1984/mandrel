@@ -73,6 +73,7 @@ async function emitReapFailureFriction({
   reapResult,
   epicBranch,
   logger,
+  config,
 }) {
   if (!epicId || !storyId) return;
   const reason = String(reapResult?.reason ?? 'unknown');
@@ -93,6 +94,7 @@ async function emitReapFailureFriction({
         worktreePath: wtPath,
         reason,
       },
+      config,
     });
   } catch (err) {
     logger?.warn?.(
@@ -111,6 +113,7 @@ export async function worktreeReapPhase(ctx) {
     progress,
     logger,
     worktreeManagerFactory,
+    config,
   } = ctx;
   const wtConfig = orchestration?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
@@ -155,6 +158,7 @@ export async function worktreeReapPhase(ctx) {
       reapResult,
       epicBranch,
       logger,
+      config,
     });
     log(
       'WORKTREE',
@@ -197,6 +201,7 @@ export async function worktreeReapPhase(ctx) {
       },
       epicBranch,
       logger,
+      config,
     });
   }
   return state;
