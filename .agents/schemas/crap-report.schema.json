@@ -24,7 +24,9 @@
         "newViolations",
         "drifted",
         "removed",
-        "skippedNoCoverage"
+        "skippedNoCoverage",
+        "scope",
+        "diffRef"
       ],
       "additionalProperties": false,
       "properties": {
@@ -33,7 +35,16 @@
         "newViolations": { "type": "integer", "minimum": 0 },
         "drifted": { "type": "integer", "minimum": 0 },
         "removed": { "type": "integer", "minimum": 0 },
-        "skippedNoCoverage": { "type": "integer", "minimum": 0 }
+        "skippedNoCoverage": { "type": "integer", "minimum": 0 },
+        "scope": {
+          "type": "string",
+          "enum": ["diff", "full"],
+          "description": "Story #1394: which scope produced this envelope. `diff` (default) = filter scan + baseline against the resolved git ref; `full` = full-repo scan via the `--full-scope` opt-out."
+        },
+        "diffRef": {
+          "type": ["string", "null"],
+          "description": "Story #1394: the git ref the diff was scoped against (e.g. `main`, `epic/1386`), or null when `scope === 'full'`."
+        }
       }
     },
     "violations": {

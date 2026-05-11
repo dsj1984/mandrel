@@ -27,6 +27,12 @@ export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
   requireCoverage: true,
   friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
   refreshTag: 'baseline-refresh:',
+  // Story #1394 (Epic #1386): `defaultScope` flips the CRAP gate to diff-
+  // scoped by default, parity with the MI gate. `diffRef` defaults to
+  // `'main'` so the scoped diff resolves against the repo's primary
+  // integration branch unless the project overrides it.
+  defaultScope: 'diff',
+  diffRef: 'main',
 });
 
 /** Recognized keys for `quality.crap` (post-Story-6). Used by the resolver
@@ -55,6 +61,8 @@ export function resolveMaintainabilityCrap(userCrap) {
       requireCoverage: defaults.requireCoverage,
       friction: { ...defaults.friction },
       refreshTag: defaults.refreshTag,
+      defaultScope: defaults.defaultScope,
+      diffRef: defaults.diffRef,
     };
   }
 
@@ -73,6 +81,14 @@ export function resolveMaintainabilityCrap(userCrap) {
     requireCoverage: userCrap.requireCoverage ?? defaults.requireCoverage,
     friction: { ...defaults.friction, ...(userCrap.friction ?? {}) },
     refreshTag: userCrap.refreshTag ?? defaults.refreshTag,
+    defaultScope:
+      userCrap.defaultScope === 'full' || userCrap.defaultScope === 'diff'
+        ? userCrap.defaultScope
+        : defaults.defaultScope,
+    diffRef:
+      typeof userCrap.diffRef === 'string' && userCrap.diffRef.length > 0
+        ? userCrap.diffRef
+        : defaults.diffRef,
   };
 }
 
