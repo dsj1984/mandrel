@@ -137,9 +137,14 @@ describe('Workflows — each file must contain ## Constraint', () => {
       assert.fail('Missing .agents/workflows/ directory');
     });
   } else {
+    // Exclude the authoring guide (`README.md`) — it documents workflow
+    // conventions for human authors, not a slash-command workflow itself,
+    // so the `## Constraint` heading requirement does not apply.
     const workflows = fs
       .readdirSync(workflowsDir)
-      .filter((filename) => filename.endsWith('.md'));
+      .filter(
+        (filename) => filename.endsWith('.md') && filename !== 'README.md',
+      );
 
     assert.ok(
       workflows.length > 0,
