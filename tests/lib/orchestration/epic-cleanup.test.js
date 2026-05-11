@@ -359,6 +359,11 @@ describe('getCheckedOutBranch', () => {
     const gitSpawn = () => ({ status: 1, stdout: '', stderr: '' });
     assert.equal(getCheckedOutBranch({ cwd: '/repo', gitSpawn }), null);
   });
+
+  it('returns null when symbolic-ref prints whitespace', () => {
+    const gitSpawn = () => ({ status: 0, stdout: '   \n', stderr: '' });
+    assert.equal(getCheckedOutBranch({ cwd: '/repo', gitSpawn }), null);
+  });
 });
 
 describe('switchCheckoutOffBranch', () => {
@@ -396,6 +401,41 @@ describe('switchCheckoutOffBranch', () => {
     });
     assert.equal(out.switched, false);
   });
+
+  it('returns early when fromBranch or toBranch is missing', () => {
+    const gitSpawn = () => {
+      throw new Error('gitSpawn should not be called');
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: '',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+    });
+    assert.equal(out.switched, false);
+    assert.equal(out.from, null);
+    assert.equal(out.to, null);
+  });
+
+  it('surfaces stderr when the checkout call fails', () => {
+    const warnings = [];
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'symbolic-ref') {
+        return { status: 0, stdout: 'epic/9', stderr: '' };
+      }
+      return { status: 1, stdout: '', stderr: 'working tree dirty' };
+    };
+    const out = switchCheckoutOffBranch({
+      fromBranch: 'epic/9',
+      toBranch: 'main',
+      cwd: '/repo',
+      gitSpawn,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    assert.equal(out.switched, false);
+    assert.equal(out.stderr, 'working tree dirty');
+    assert.ok(warnings.some((w) => /could not switch/.test(w)));
+  });
 });
 
 describe('pruneRemoteTrackingRefs', () => {
@@ -419,6 +459,16 @@ describe('pruneRemoteTrackingRefs', () => {
     const out = pruneRemoteTrackingRefs({ cwd: '/repo', gitSpawn });
     assert.deepEqual(out.pruned, []);
     assert.equal(out.stderr, 'no such remote');
+  });
+
+  it('returns an empty list when prune output has no [pruned] lines', () => {
+    const gitSpawn = () => ({
+      status: 0,
+      stdout: 'Pruning origin\nURL: https://example/repo.git\n',
+      stderr: '',
+    });
+    const out = pruneRemoteTrackingRefs({ cwd: '/repo', gitSpawn });
+    assert.deepEqual(out.pruned, []);
   });
 });
 
@@ -463,5 +513,24 @@ describe('deleteWtBranchIfPresent', () => {
     const out = deleteWtBranchIfPresent({ cwd: '/repo', gitSpawn });
     assert.equal(out.deleted, false);
     assert.equal(out.present, false);
+  });
+
+  it('surfaces stderr when the branch -D call fails', () => {
+    const warnings = [];
+    const gitSpawn = (_cwd, ...args) => {
+      if (args[0] === 'rev-parse') {
+        return { status: 0, stdout: 'abc123', stderr: '' };
+      }
+      return { status: 1, stdout: '', stderr: 'unmerged commits' };
+    };
+    const out = deleteWtBranchIfPresent({
+      cwd: '/repo',
+      gitSpawn,
+      logger: { warn: (m) => warnings.push(m) },
+    });
+    assert.equal(out.deleted, false);
+    assert.equal(out.present, true);
+    assert.equal(out.stderr, 'unmerged commits');
+    assert.ok(warnings.some((w) => /could not delete wt-branch/.test(w)));
   });
 });

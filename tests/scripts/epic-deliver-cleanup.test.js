@@ -146,4 +146,34 @@ describe('renderSummaryLines', () => {
     });
     assert.match(header, /\(dry-run\)/);
   });
+
+  it('renders the post-reap summary lines when present', () => {
+    const lines = renderSummaryLines({
+      dryRun: false,
+      reaped: [],
+      failures: [],
+      switched: { switched: true, from: 'epic/200', to: 'main' },
+      pruned: { pruned: ['origin/epic/200', 'origin/story-1'] },
+      wtBranch: { deleted: true, present: true },
+    });
+    assert.equal(lines.length, 4);
+    assert.match(lines[1], /switched main checkout epic\/200 → main/);
+    assert.match(
+      lines[2],
+      /pruned tracking refs: origin\/epic\/200, origin\/story-1/,
+    );
+    assert.match(lines[3], /deleted stale wt-branch ref/);
+  });
+
+  it('omits post-reap lines when their fields are absent / negative', () => {
+    const lines = renderSummaryLines({
+      dryRun: false,
+      reaped: [],
+      failures: [],
+      switched: { switched: false, from: 'main', to: null },
+      pruned: { pruned: [] },
+      wtBranch: { deleted: false, present: false },
+    });
+    assert.equal(lines.length, 1);
+  });
 });
