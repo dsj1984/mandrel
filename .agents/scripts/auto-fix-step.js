@@ -267,9 +267,12 @@ export function runFixStep(deps) {
   }
 
   // 5. Commit as the bot identity. The author env vars are scoped to the
-  //    git invocation only; we do not mutate process.env.
+  //    git invocation only; we do not mutate process.env. Spread the
+  //    INJECTED `env` (not `process.env`) so DI test stubs flow through —
+  //    deps.env is the sole env source for every other config read in
+  //    this function, and the commit step must honour the same contract.
   const commitEnv = {
-    ...process.env,
+    ...env,
     GIT_AUTHOR_NAME: botName,
     GIT_AUTHOR_EMAIL: botEmail,
     GIT_COMMITTER_NAME: botName,

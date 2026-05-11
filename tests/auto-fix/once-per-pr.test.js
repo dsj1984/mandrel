@@ -466,6 +466,41 @@ test('runFixStep — full run when label absent: npm ci → biome → add → di
   assert.ok(labelPost, 'final label POST must be issued');
 });
 
+test('runFixStep — commit env spreads INJECTED env (DI contract regression)', () => {
+  // Regression for the bug observed during Epic #1235 review:
+  // `commitEnv` previously spread `process.env` directly, bypassing the
+  // DI `env` argument. The function's design contract uses `env` as the
+  // sole env source for every other config read — the commit step must
+  // honour the same contract so test-injected overrides flow through.
+  const exec = buildFakeExec({
+    'gh api /repos/owner/repo/issues/42/labels --jq .[].name': { stdout: '' },
+    'git diff --cached --name-only': { stdout: 'lib/foo.js\n' },
+  });
+  const result = runFixStep({
+    env: {
+      PR_NUMBER: '42',
+      HEAD_BRANCH: 'feature/foo',
+      OWNER: 'owner',
+      REPO: 'repo',
+      GH_TOKEN: 't0k3n',
+      INJECTED_MARKER: 'flow-through-via-DI',
+    },
+    exec,
+  });
+  assert.strictEqual(result.skipped, false);
+  const commitCall = exec.calls.find(
+    (c) => c.cmd === 'git' && c.args[0] === 'commit',
+  );
+  assert.ok(commitCall);
+  assert.strictEqual(
+    commitCall.env.INJECTED_MARKER,
+    'flow-through-via-DI',
+    'injected env property must propagate into the commit env',
+  );
+  // Bot identity overrides still take precedence.
+  assert.match(commitCall.env.GIT_AUTHOR_NAME, /agent-protocols-reviewer/);
+});
+
 test('runFixStep — empty stage after biome is a labeled no-op (still sets label)', () => {
   const exec = buildFakeExec({
     'gh api /repos/owner/repo/issues/42/labels --jq .[].name': { stdout: '' },
