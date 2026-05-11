@@ -357,6 +357,7 @@ export function runCli({
   return { exitCode: computeExitCode(merged, miExit, crapExit), merged };
 }
 
+// cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; mirrors check-maintainability.js / check-crap.js so the diagnostic surface stays consistent across the gate suite.
 // Only run main when invoked directly — keep the module importable from tests.
 const isDirect = (() => {
   try {
