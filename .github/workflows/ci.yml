@@ -21,7 +21,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Windows runner removed (2026-05-11): operator runs Windows
+        # locally as their dev environment, so the pre-push hook is the
+        # real Windows gate. The CI Windows leg was producing repeated
+        # c8/timing coverage flap with no corresponding source defects,
+        # forcing per-PR baseline ratchets. See #1267 for the per-OS
+        # baseline plan if Windows-leg CI is reinstated later.
+        os: [ubuntu-latest]
         node-version: [22]
     steps:
       - name: Checkout Code
@@ -42,10 +48,6 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Secret Scanning (TruffleHog)
-        # trufflesecurity/trufflehog is a Docker container action and only
-        # runs on Linux runners. Skip on Windows — the Linux leg is the
-        # source of truth for the secret-scan gate.
-        if: runner.os == 'Linux'
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --debug --only-verified
@@ -62,9 +64,6 @@ jobs:
         # Capture stderr too — Node's test runner and the coverage-threshold
         # gate both emit failures on stderr, and a stdout-only redirect
         # hides them in the uploaded artifact (see Epic #441 Story 4.1).
-        # Force bash so `set -o pipefail` and `tee` work the same on Windows
-        # runners (default shell there is pwsh).
-        shell: bash
         run: |
           set -o pipefail
           npm run test:coverage 2>&1 | tee test-output.txt
@@ -95,8 +94,6 @@ jobs:
         # PR. Self-skips when `agentSettings.quality.crap.enabled` is
         # false. The `--json` artifact is uploaded for downstream agent
         # workflows.
-        # Force bash so `mkdir -p` and `[[ ... ]]` keep working on Windows.
-        shell: bash
         run: |
           mkdir -p temp
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
