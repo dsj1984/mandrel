@@ -193,29 +193,9 @@ const SIGNALS_LIMITS_SCHEMA = {
  * `agentSettings.planning` — grouped home for planning/decomposition tuning
  * knobs. Epic #1142 Story #1157 lifted the prior flat heuristics array
  * under here as `planning.riskHeuristics` so the planning surface has a
- * stable parent. See `docs/CHANGELOG.md` 5.40.0 for the renamed-from
- * key history.
+ * stable parent. Epic #1178 added `planning.taskSizing` for the three-layer
+ * Task sizing model. See `docs/CHANGELOG.md` 5.40.0.
  */
-/**
- * `agentSettings.planning.taskSizing` — three-layer Task sizing model knobs
- * (Epic #1178). Hard ceilings (`maxAcceptance`, `maxChanges`) cap the
- * acceptance/changes width any decomposed Task may declare; soft thresholds
- * (`softFileCount`, `softAcceptanceCount`) gate the prompt-side heuristic
- * warnings and the `sizingProfile`-required boundary the validator enforces
- * on wide Tasks. All keys optional; defaults are applied by the validator
- * and the decomposer prompt.
- */
-const TASK_SIZING_SCHEMA = {
-  type: 'object',
-  properties: {
-    maxAcceptance: { type: 'integer', minimum: 1, default: 6 },
-    maxChanges: { type: 'integer', minimum: 1, default: 8 },
-    softFileCount: { type: 'integer', minimum: 1, default: 3 },
-    softAcceptanceCount: { type: 'integer', minimum: 1, default: 4 },
-  },
-  additionalProperties: false,
-};
-
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
@@ -223,7 +203,16 @@ const PLANNING_SCHEMA = {
       type: 'array',
       items: { type: 'string', minLength: 1 },
     },
-    taskSizing: TASK_SIZING_SCHEMA,
+    taskSizing: {
+      type: 'object',
+      properties: {
+        maxAcceptance: { type: 'integer', minimum: 1, default: 6 },
+        maxChanges: { type: 'integer', minimum: 1, default: 8 },
+        softFileCount: { type: 'integer', minimum: 1, default: 3 },
+        softAcceptanceCount: { type: 'integer', minimum: 1, default: 4 },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 };
