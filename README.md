@@ -47,6 +47,24 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
 For the full architecture (mermaid flow, module map, state machine, tech
 stack), see [`docs/architecture.md`](docs/architecture.md).
 
+## Prerequisites
+
+Agent Protocols requires two hard dependencies on the host before bootstrap:
+
+- **Node.js** (>= 20) — the orchestration scripts run on Node and use modern
+  ESM + `--experimental-test-module-mocks`. Install from
+  [nodejs.org](https://nodejs.org/) or via your platform package manager.
+- **GitHub CLI `gh`** (>= 2.40) — every ticketing call (Issues, Labels,
+  Projects V2 setup, PR creation) shells out to `gh`. Install with
+  `brew install gh` (macOS), `winget install --id GitHub.cli` (Windows),
+  or follow [cli.github.com](https://cli.github.com/) for other platforms,
+  then run `gh auth login` once so the orchestration scripts pick up your
+  token from the OS keychain.
+
+`GITHUB_TOKEN` is **not** required for the headline install path — it is
+only needed as a fallback for Projects V2 GraphQL when `gh auth login`
+did not grant the `project` scope (see Get Started below).
+
 ## Get Started
 
 Five commands take you from zero to a planned, delivered Epic:
@@ -60,8 +78,10 @@ cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.git
 /epic-deliver <id>  # wave loop → validation → review → retro → open PR to main
 ```
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) in `.env` at the project root so the
-orchestration scripts can authenticate.
+Authenticate with `gh auth login` (preferred) — the orchestration scripts
+read the token from `gh`'s OS-keychain store. As an opt-in fallback for
+Projects V2 GraphQL paths whose scope `gh auth login` did not grant, set
+`GITHUB_TOKEN` (or `GH_TOKEN`) in `.env` at the project root.
 
 The full configuration reference is in
 [`docs/configuration.md`](docs/configuration.md); the static JSON Schema at
