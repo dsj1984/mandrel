@@ -179,6 +179,39 @@ must include a self-contained prompt that:
    include its **terminal** `renderedBody` in the JSON return so you
    can fold it into the wave-level Notable section.
 
+#### Dispatch-model resolution
+
+Before emitting the parallel `Agent` calls, read **this workflow's own**
+frontmatter `dispatchModel` field (this file's `---` block at the top —
+`recommendedModel: opus`, `dispatchModel: <unset|haiku|sonnet|opus>`).
+For each per-Story `Agent` call you compose, resolve the `model:`
+argument by the following precedence — **highest wins**:
+
+1. **Per-call body literal `model:`.** If a specific Story's dispatch
+   needs a different model than the rest of the wave (rare, but
+   permitted), the literal value written into that particular `Agent`
+   call's body wins.
+2. **Workflow `dispatchModel`.** When this file's frontmatter declares
+   `dispatchModel: <hint>`, pass `model: '<hint>'` as an argument on
+   every `Agent` call you emit in Phase 2a that does not have its own
+   per-call override.
+3. **Inherit from parent.** When neither of the above is set, **emit no
+   `model:` argument**. The `Agent` tool then resolves the model from
+   the `general-purpose` sub-agent definition's frontmatter, falling
+   back to your own (the dispatcher's) parent model. This is the path
+   every existing dispatch has taken to date and remains byte-equivalent
+   when `dispatchModel` is unset.
+
+In other words: the unset case is **exactly today's behaviour** — no
+`model:` argument, full inheritance. The `dispatchModel` knob only
+takes effect when the workflow author explicitly declares it.
+
+> **Authoring distinction.** `dispatchModel` controls the *children*
+> this workflow spawns; it does **not** flip the model this workflow
+> itself runs on (workflows execute in the parent agent's loop). See
+> [`.agents/workflows/README.md`](README.md) for the
+> sub-agent-definition vs. workflow-frontmatter distinction.
+
 Children inherit the parent's worktree context; they do **not** require
 `--dangerously-skip-permissions` (no subprocess is spawned).
 
