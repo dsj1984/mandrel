@@ -62,6 +62,7 @@ test('buildCrapReport — empty envelope validates against crap-report.schema.js
     kernelVersion: KERNEL_VERSION,
     escomplexVersion: '7.3.2',
     newMethodCeiling: 30,
+    scopeInfo: { scope: 'diff', diffRef: 'main' },
   });
   const ok = validate(envelope);
   assert.ok(
@@ -70,6 +71,48 @@ test('buildCrapReport — empty envelope validates against crap-report.schema.js
   );
   assert.strictEqual(envelope.violations.length, 0);
   assert.strictEqual(envelope.summary.total, 0);
+  // Story #1394: envelope summary now carries scope + diffRef.
+  assert.strictEqual(envelope.summary.scope, 'diff');
+  assert.strictEqual(envelope.summary.diffRef, 'main');
+});
+
+test('buildCrapReport — full-scope nulls diffRef (Story #1394)', () => {
+  const validate = loadValidator();
+  const envelope = buildCrapReport({
+    compareResult: compareCrap({
+      currentRows: [],
+      baselineRows: [],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    }),
+    scanSummary: {},
+    kernelVersion: KERNEL_VERSION,
+    escomplexVersion: '7.3.2',
+    newMethodCeiling: 30,
+    scopeInfo: { scope: 'full', diffRef: 'main' },
+  });
+  assert.ok(validate(envelope), JSON.stringify(validate.errors));
+  assert.strictEqual(envelope.summary.scope, 'full');
+  assert.strictEqual(envelope.summary.diffRef, null);
+});
+
+test('buildCrapReport — defaults to scope=diff diffRef=null when scopeInfo omitted (Story #1394)', () => {
+  const validate = loadValidator();
+  const envelope = buildCrapReport({
+    compareResult: compareCrap({
+      currentRows: [],
+      baselineRows: [],
+      newMethodCeiling: 30,
+      tolerance: 0.001,
+    }),
+    scanSummary: {},
+    kernelVersion: KERNEL_VERSION,
+    escomplexVersion: '7.3.2',
+    newMethodCeiling: 30,
+  });
+  assert.ok(validate(envelope), JSON.stringify(validate.errors));
+  assert.strictEqual(envelope.summary.scope, 'diff');
+  assert.strictEqual(envelope.summary.diffRef, null);
 });
 
 test('buildCrapReport — regression envelope validates and carries fixGuidance', () => {

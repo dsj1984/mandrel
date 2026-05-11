@@ -46,4 +46,20 @@ When your implementation is complete and verified:
    once `task-commit.js` confirms the commit landed. The Story-level
    close is automatic via `story-close.js` after the last Task closes.
 
+## 6. Definition of Done
+
+### Code Quality
+
+Every Task that touches production source must satisfy the numeric
+guardrails in
+[`helpers/code-quality-guardrails.md`](../workflows/helpers/code-quality-guardrails.md):
+cyclomatic complexity ceilings (flag > 8, must-fix > 12), the same-commit
+sibling-test convention, the per-file Maintainability-Index drop ceiling
+(refactor when > 1.5pt), and the rename = baseline-refresh rule. Verify
+at-keyboard with `npm run quality:preview` (the same diff-scoped MI + CRAP
+preview the `.husky/pre-commit` hook runs) **before** invoking
+`task-commit.js`. The thresholds are tunable via
+`agentSettings.quality.codingGuardrails` in `.agentrc.json` — never fork
+the helper to change a number.
+
 ---

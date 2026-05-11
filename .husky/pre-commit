@@ -1,2 +1,8 @@
 node scripts/check-version-sync.js
 npx lint-staged
+# Story #1395 / Epic #1386: catch MI/CRAP drift at git-commit time so the
+# agent refactors before the diff is closed. quality:preview wraps both gates
+# with --changed-since HEAD --staged --json and exits non-zero on any
+# threshold violation, blocking the commit and rendering the per-file delta
+# table to stderr (via the gates inherited stdio).
+node .agents/scripts/quality-preview.js --changed-since HEAD --staged

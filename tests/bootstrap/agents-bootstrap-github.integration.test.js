@@ -14,8 +14,18 @@
  */
 
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { runBootstrap } from '../../.agents/scripts/agents-bootstrap-github.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it } from 'node:test';
+import {
+  ensureCiWorkflow,
+  runBootstrap,
+} from '../../.agents/scripts/agents-bootstrap-github.js';
+import {
+  CI_WORKFLOW_RELATIVE_PATH,
+  renderCiWorkflow,
+} from '../../.agents/scripts/lib/bootstrap/ci-workflow-template.js';
 import { TARGET_MERGE_METHODS } from '../../.agents/scripts/lib/bootstrap/merge-methods.js';
 
 const PR_GATE = {
@@ -169,6 +179,102 @@ describe('agents-bootstrap-github — end-to-end integration', () => {
     assert.equal(provider.calls.setMergeMethods.length, 0);
   });
 
+  it('(d) drifted with --assume-yes → every step applies', async () => {
+    /* placeholder */
+  });
+});
+
+describe('agents-bootstrap-github — CI workflow template (Story #1401)', () => {
+  let tmpRoot;
+
+  beforeEach(() => {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bootstrap-ci-'));
+  });
+  afterEach(() => {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('renders the workflow without redundant --changed-since args on per-PR jobs', () => {
+    const yaml = renderCiWorkflow();
+    // The PR-path Maintainability and CRAP invocations must NOT carry an
+    // explicit --changed-since (the gate CLIs default to it now). They MAY
+    // pass --epic-ref instead.
+    const lines = yaml.split('\n');
+    const prMaintLines = lines.filter((l) =>
+      l.includes('npm run maintainability:check'),
+    );
+    const prCrapLines = lines.filter((l) => l.includes('npm run crap:check'));
+    assert.ok(prMaintLines.length > 0, 'maintainability:check must appear');
+    assert.ok(prCrapLines.length > 0, 'crap:check must appear');
+    // Only the push-to-main legs should pass --full-scope; nothing should
+    // pass --changed-since explicitly.
+    for (const line of [...prMaintLines, ...prCrapLines]) {
+      assert.ok(
+        !line.includes('--changed-since'),
+        `redundant --changed-since on: ${line.trim()}`,
+      );
+    }
+    // --full-scope only on the push-to-main legs (count only real invocation
+    // lines, not the comment lines that explain the design).
+    const fullScopeInvocations = lines.filter(
+      (l) =>
+        l.includes('--full-scope') &&
+        (l.includes('npm run maintainability:check') ||
+          l.includes('npm run crap:check')),
+    );
+    assert.equal(
+      fullScopeInvocations.length,
+      2,
+      'expected exactly two --full-scope invocations (MI + CRAP push-to-main)',
+    );
+  });
+
+  it('threads --epic-ref through both gates when EPIC_REF is set', () => {
+    const yaml = renderCiWorkflow();
+    assert.ok(yaml.includes('EPIC_REF:'));
+    assert.ok(yaml.includes('--epic-ref "${EPIC_REF}"'));
+    // Both gates must accept --epic-ref — count occurrences.
+    const epicRefMatches = yaml.match(/--epic-ref "\$\{EPIC_REF\}"/g) ?? [];
+    assert.equal(
+      epicRefMatches.length,
+      2,
+      'expected --epic-ref on both maintainability and crap PR legs',
+    );
+  });
+
+  it('writes the workflow to .github/workflows/ci.yml and is idempotent', () => {
+    const projectRoot = tmpRoot;
+    const target = path.join(projectRoot, CI_WORKFLOW_RELATIVE_PATH);
+
+    // First run: file absent → created.
+    const first = ensureCiWorkflow({ projectRoot });
+    assert.equal(first.action, 'created');
+    assert.equal(first.path, target);
+    assert.ok(fs.existsSync(target));
+
+    // Second run: byte-identical → unchanged.
+    const second = ensureCiWorkflow({ projectRoot });
+    assert.equal(second.action, 'unchanged');
+  });
+
+  it('preserves an operator-edited workflow as custom-workflow-skip', () => {
+    const projectRoot = tmpRoot;
+    const target = path.join(projectRoot, CI_WORKFLOW_RELATIVE_PATH);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, '# operator-authored workflow\n', 'utf8');
+    const result = ensureCiWorkflow({ projectRoot });
+    assert.equal(result.action, 'custom-workflow-skip');
+    // The hand-edited workflow is left exactly as the operator wrote it.
+    assert.equal(
+      fs.readFileSync(target, 'utf8'),
+      '# operator-authored workflow\n',
+    );
+    // And the rendered template is returned so the caller can offer a diff.
+    assert.ok(result.rendered.includes('jobs:'));
+  });
+});
+
+describe('agents-bootstrap-github — drifted-yes scenario (legacy)', () => {
   it('(d) drifted with --assume-yes → every step applies', async () => {
     const provider = makeMockProvider({
       protection: {

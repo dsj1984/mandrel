@@ -44,7 +44,9 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { signalsFile, storyArtifactPath } from './lib/config/temp-paths.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { computeBaselineRefreshRate } from './lib/observability/baseline-refresh-rate.js';
 import {
   computeEpicPerfReport,
   computeStoryPerfSummary,
@@ -140,7 +142,66 @@ function renderStoryBody(payload) {
   return lines.join('\n');
 }
 
-function renderEpicBody(payload) {
+/**
+ * Render the optional Quality-gate friction summary block (Story #1400 /
+ * Task #1429). Aggregates `baseline-refresh-regression` friction records
+ * from the Stories' signals.ndjson streams over the trailing window,
+ * counts them, and lists the top offenders by file/method.
+ *
+ * Output contract:
+ *   - `friction == null` → empty string (caller injected nothing).
+ *   - `friction.totalRecords === 0` → `**Quality gate friction:** none`
+ *   - otherwise → count line + bulleted top-offenders list
+ *
+ * The block reads the existing `signals.ndjson` stream — no new file
+ * format. Aggregation is provided by `aggregateBaselineFrictionFromSignals`
+ * which the unit test can stub via `runEpicMode({ aggregateFrictionFn })`.
+ */
+function renderQualityGateFrictionBlock(friction) {
+  if (!friction) return '';
+  const total = friction.totalRecords ?? 0;
+  if (total === 0) {
+    return ['', '**Quality gate friction:** none', ''].join('\n');
+  }
+  const offenders = (friction.topOffenders ?? [])
+    .map((o) => {
+      const where = o.method ? `${o.file} → ${o.method}` : o.file;
+      return `- \`${where}\` — ${o.occurrences} occurrence(s)`;
+    })
+    .join('\n');
+  return [
+    '',
+    `**Quality gate friction:** ${total} \`baseline-refresh-regression\` record(s) across ${friction.storiesAffected ?? 0} Story/Stories`,
+    offenders.length > 0 ? `\nTop offenders:\n${offenders}` : '',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Render the per-Epic baseline-refresh-rate row (Story #1400 / Task #1427).
+ * Returns an empty string when `refresh` is null so the caller can
+ * concatenate unconditionally.
+ */
+function renderBaselineRefreshRateRow(refresh) {
+  if (!refresh) return '';
+  const row = (refresh.perEpic ?? [])[0];
+  if (!row) {
+    return [
+      '',
+      `**Baseline refresh discipline (trailing ${refresh.windowDays}d):** no Story merges in window`,
+      '',
+    ].join('\n');
+  }
+  const pct = (row.cleanMergeRate * 100).toFixed(1);
+  const target = row.cleanMergeRate >= 0.9 ? '✅' : '⚠️';
+  return [
+    '',
+    `**Baseline refresh discipline (trailing ${refresh.windowDays}d):** ${target} ${pct}% clean-merge rate (${row.storyMerges - row.baselineRefreshes}/${row.storyMerges} Stories landed without follow-up refresh; ${row.baselineRefreshes} \`baseline-refresh:\` commit(s))`,
+    '',
+  ].join('\n');
+}
+
+function renderEpicBody(payload, extras = {}) {
   const counts = payload.signalCounts ?? {};
   const countLine = Object.entries(counts)
     .map(([k, v]) => `${k}=${v}`)
@@ -168,6 +229,8 @@ function renderEpicBody(payload) {
     friction.length > 0
       ? `**Most-friction Stories:**\n${friction}`
       : '**Most-friction Stories:** none recorded',
+    renderBaselineRefreshRateRow(extras.baselineRefreshRate),
+    renderQualityGateFrictionBlock(extras.qualityGateFriction),
     '',
     '```json',
     JSON.stringify(payload, null, 2),
@@ -310,23 +373,173 @@ async function collectStorySummaries(provider, epicId, logger) {
 }
 
 /**
+ * Default git-log gatherer for the baseline-refresh-rate reporter
+ * (Story #1400 / Task #1427). Reads commits on `epic/<id>` over the
+ * trailing window and shapes them into the record format the pure
+ * reporter expects. Returns `[]` on any spawn failure so the retro
+ * comment keeps composing — the reporter then prints "no Story merges
+ * in window" and the operator can investigate offline.
+ *
+ * Injectable via `runEpicMode({ gatherEpicCommitsFn })` so the unit test
+ * can pin behavior without a temp git repo.
+ */
+function gatherEpicCommitsFromGit({ epicId, windowDays, cwd, logger }) {
+  const ref = `epic/${epicId}`;
+  const since = `${windowDays} days ago`;
+  // Subject (%s) carries the Story-merge `(resolves #N)` and the
+  // `baseline-refresh:` prefix; ISO commit date (%cI) drives the window
+  // filter inside the reporter. Tab separator avoids subjects that
+  // contain pipes.
+  const res = gitSpawn(
+    cwd,
+    'log',
+    ref,
+    `--since=${since}`,
+    '--pretty=format:%H%x09%cI%x09%s',
+  );
+  if (res.status !== 0) {
+    logger.warn?.(
+      `[analyze-execution] git log ${ref} failed (non-fatal): ${res.stderr || res.stdout}`,
+    );
+    return [];
+  }
+  const lines = (res.stdout || '').split('\n').filter(Boolean);
+  return lines.map((line) => {
+    const [sha, isoDate, ...rest] = line.split('\t');
+    return {
+      sha,
+      isoDate,
+      subject: rest.join('\t'),
+      epicId,
+    };
+  });
+}
+
+/**
+ * Default friction aggregator for the Quality-gate friction block
+ * (Story #1400 / Task #1429). Walks each child Story's signals.ndjson
+ * stream and returns counts of `baseline-refresh-regression` records
+ * plus the top offenders by file (and method, when present in the
+ * `regressedFiles` / `crapOverCap` payloads).
+ *
+ * Aggregation runs against the existing `signals.ndjson` stream — no new
+ * file format. Two upstream record shapes are walked:
+ *   - check-maintainability emits a flat `regressedFiles[]` of `{ file, current, baseline, drop }`.
+ *   - auto-refresh-runner emits `miOverCap[]` / `crapOverCap[]` rows
+ *     carrying `path`/`file` and (for crap) `method`.
+ *
+ * Injectable via `runEpicMode({ aggregateFrictionFn })` so the unit test
+ * can pin behavior without seeding NDJSON files.
+ */
+async function aggregateBaselineFrictionFromSignals({
+  epicId,
+  storyIds,
+  config,
+  windowDays,
+  now,
+}) {
+  const cutoffMs = now().getTime() - windowDays * 24 * 60 * 60 * 1000;
+  const offenders = new Map(); // key → { file, method, occurrences }
+  const storiesAffected = new Set();
+  let totalRecords = 0;
+
+  for (const sid of storyIds) {
+    let touched = false;
+    await forEachLine(
+      epicId,
+      sid,
+      (record) => {
+        if (
+          !record ||
+          typeof record !== 'object' ||
+          record.kind !== 'friction' ||
+          record.category !== 'baseline-refresh-regression'
+        ) {
+          return;
+        }
+        const ts = Date.parse(record.timestamp);
+        if (Number.isFinite(ts) && ts < cutoffMs) return;
+
+        totalRecords += 1;
+        touched = true;
+
+        const flatFiles = Array.isArray(record.regressedFiles)
+          ? record.regressedFiles.map((r) => ({ file: r.file }))
+          : [];
+        const miFiles = Array.isArray(record.miOverCap)
+          ? record.miOverCap.map((r) => ({ file: r.path ?? r.file }))
+          : [];
+        const crapMethods = Array.isArray(record.crapOverCap)
+          ? record.crapOverCap.map((r) => ({
+              file: r.file,
+              method: r.method,
+            }))
+          : [];
+
+        for (const off of [...flatFiles, ...miFiles, ...crapMethods]) {
+          if (!off || typeof off.file !== 'string' || off.file.length === 0) {
+            continue;
+          }
+          const key = off.method ? `${off.file}::${off.method}` : off.file;
+          const prev = offenders.get(key);
+          if (prev) {
+            prev.occurrences += 1;
+          } else {
+            offenders.set(key, {
+              file: off.file,
+              method: off.method ?? null,
+              occurrences: 1,
+            });
+          }
+        }
+      },
+      config,
+    );
+    if (touched) storiesAffected.add(sid);
+  }
+
+  const topOffenders = [...offenders.values()]
+    .sort((a, b) => b.occurrences - a.occurrences)
+    .slice(0, 10);
+
+  return {
+    totalRecords,
+    storiesAffected: storiesAffected.size,
+    topOffenders,
+    windowDays,
+  };
+}
+
+/**
  * Epic mode: collect every Story's perf summary, roll them up, upsert
  * the epic-perf-report comment.
  *
  * @param {{
  *   epicId: number,
  *   provider: object,
+ *   config?: object,
+ *   cwd?: string,
+ *   windowDays?: number,
  *   logger?: object,
  *   now?: () => Date,
  *   collectSummariesFn?: typeof collectStorySummaries,
+ *   gatherEpicCommitsFn?: typeof gatherEpicCommitsFromGit,
+ *   aggregateFrictionFn?: typeof aggregateBaselineFrictionFromSignals,
  * }} ctx
- * @returns {Promise<{ commentId: number, payload: object }>}
+ * @returns {Promise<{ commentId: number, payload: object, baselineRefreshRate: object | null, qualityGateFriction: object | null }>}
  */
 export async function runEpicMode(ctx) {
   const { epicId, provider } = ctx;
   const logger = ctx.logger ?? Logger;
   const now = ctx.now ?? (() => new Date());
+  const windowDays =
+    Number.isFinite(ctx.windowDays) && ctx.windowDays > 0
+      ? Math.floor(ctx.windowDays)
+      : 28;
   const collectFn = ctx.collectSummariesFn ?? collectStorySummaries;
+  const gatherCommitsFn = ctx.gatherEpicCommitsFn ?? gatherEpicCommitsFromGit;
+  const aggregateFrictionFn =
+    ctx.aggregateFrictionFn ?? aggregateBaselineFrictionFromSignals;
 
   logger.info?.(`[analyze-execution] epic-mode epic=#${epicId}`);
 
@@ -336,7 +549,59 @@ export async function runEpicMode(ctx) {
     generatedAt: now().toISOString(),
   });
 
-  const body = renderEpicBody(payload);
+  // Story #1400 / Task #1427 — baseline-refresh-rate row. Pure reporter
+  // operates on a fixture of git-log records gathered by the injected
+  // `gatherEpicCommitsFn`. A spawn failure surfaces as `[]` and degrades
+  // to the "no Story merges in window" line in the rendered body.
+  let baselineRefreshRate = null;
+  try {
+    const commits = await gatherCommitsFn({
+      epicId,
+      windowDays,
+      cwd: ctx.cwd ?? process.cwd(),
+      logger,
+    });
+    baselineRefreshRate = computeBaselineRefreshRate(commits, {
+      windowDays,
+      now,
+    });
+  } catch (err) {
+    logger.warn?.(
+      `[analyze-execution] baseline-refresh-rate gather failed (non-fatal): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+
+  // Story #1400 / Task #1429 — Quality gate friction block. Aggregates
+  // `baseline-refresh-regression` records from the existing
+  // signals.ndjson stream (no new file format).
+  let qualityGateFriction = null;
+  if (ctx.config) {
+    try {
+      const storyIds = (summaries ?? [])
+        .map((s) => s?.storyId)
+        .filter((n) => Number.isInteger(n) && n > 0);
+      qualityGateFriction = await aggregateFrictionFn({
+        epicId,
+        storyIds,
+        config: ctx.config,
+        windowDays,
+        now,
+      });
+    } catch (err) {
+      logger.warn?.(
+        `[analyze-execution] quality-gate-friction aggregate failed (non-fatal): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
+  const body = renderEpicBody(payload, {
+    baselineRefreshRate,
+    qualityGateFriction,
+  });
   const result = await upsertStructuredComment(
     provider,
     epicId,
@@ -346,7 +611,12 @@ export async function runEpicMode(ctx) {
   logger.info?.(
     `[analyze-execution] epic-perf-report upserted on Epic #${epicId} (commentId=${result.commentId}, stories=${summaries.length})`,
   );
-  return { commentId: result.commentId, payload };
+  return {
+    commentId: result.commentId,
+    payload,
+    baselineRefreshRate,
+    qualityGateFriction,
+  };
 }
 
 function parseCli(argv) {
@@ -356,16 +626,23 @@ function parseCli(argv) {
       story: { type: 'string' },
       epic: { type: 'string' },
       'phase-timings': { type: 'string' },
+      'window-days': { type: 'string' },
       cwd: { type: 'string' },
     },
     strict: false,
   });
   const story = values.story != null ? Number.parseInt(values.story, 10) : null;
   const epic = values.epic != null ? Number.parseInt(values.epic, 10) : null;
+  const windowDays =
+    values['window-days'] != null
+      ? Number.parseInt(values['window-days'], 10)
+      : null;
   return {
     storyId: Number.isInteger(story) && story > 0 ? story : null,
     epicId: Number.isInteger(epic) && epic > 0 ? epic : null,
     phaseTimingsPath: values['phase-timings'] ?? null,
+    windowDays:
+      Number.isInteger(windowDays) && windowDays > 0 ? windowDays : null,
     cwd: values.cwd ?? null,
   };
 }
@@ -409,6 +686,9 @@ async function main(argv = process.argv.slice(2)) {
   const result = await runEpicMode({
     epicId: args.epicId,
     provider,
+    config,
+    cwd,
+    windowDays: args.windowDays ?? undefined,
   });
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }

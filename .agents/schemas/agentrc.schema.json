@@ -45,6 +45,10 @@
           ]
         },
         "tolerance": { "type": "number", "minimum": 0 },
+        "c1Exemption": {
+          "type": "string",
+          "enum": ["blanket", "confidenceBand"]
+        },
         "requireCoverage": { "type": "boolean" },
         "friction": {
           "type": "object",
@@ -225,7 +229,8 @@
       "type": "object",
       "properties": {
         "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
-        "tolerance": { "type": "number", "minimum": 0 }
+        "tolerance": { "type": "number", "minimum": 0 },
+        "halsteadTolerance": { "type": ["number", "null"], "minimum": 0 }
       },
       "additionalProperties": false
     },
@@ -286,6 +291,28 @@
       },
       "additionalProperties": false
     },
+    "codingGuardrails": {
+      "type": "object",
+      "description": "Story #1399 (Epic #1386) — numeric coding-time thresholds the helper at .agents/workflows/helpers/code-quality-guardrails.md cites. Tunable via .agentrc.json so projects do not fork the helper.",
+      "properties": {
+        "cyclomaticFlag": { "type": "integer", "minimum": 1 },
+        "cyclomaticMustFix": { "type": "integer", "minimum": 1 },
+        "miDropRefactor": { "type": "number", "minimum": 0 },
+        "requireSiblingTest": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "autoRefresh": {
+      "type": "object",
+      "description": "Bounded baseline auto-refresh at story-close (Story #1398). When enabled, story-close regenerates baseline rows scoped to the Story diff and amends them into the close commit if every row's delta is at or below miDropCap (per-file MI drop) and crapJumpCap (per-method CRAP jump). Over-cap rows surface a baseline-refresh-regression friction signal instead.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "miDropCap": { "type": "number", "minimum": 0 },
+        "crapJumpCap": { "type": "number", "minimum": 0 },
+        "scope": { "type": "string", "enum": ["diff", "full"] }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -301,7 +328,9 @@
         "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
         "crap": { "$ref": "#/$defs/maintainabilityCrap" },
         "prGate": { "$ref": "#/$defs/prGate" },
-        "mergeMethods": { "$ref": "#/$defs/mergeMethods" }
+        "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
+        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" }
       },
       "additionalProperties": false
     },

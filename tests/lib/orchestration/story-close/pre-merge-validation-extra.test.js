@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
+import { buildDefaultGates } from '../../../../.agents/scripts/lib/close-validation.js';
 import {
   emitMaintainabilityProjection,
   runPreMergeGates,
@@ -138,6 +139,110 @@ describe('runPreMergeGates — failure throw shape', () => {
           }),
         }),
       /typecheck" \(exit 1\)\. tsc/,
+    );
+  });
+});
+
+describe('runPreMergeGates — Story #1396 --epic-ref threading', () => {
+  it('passes --epic-ref epic/<id> exactly once to each baseline gate when an Epic context exists', () => {
+    const gates = buildDefaultGates({
+      agentSettings: {},
+      epicBranch: 'epic/1386',
+    });
+    const mi = gates.find((g) => g.name === 'check-maintainability');
+    const crap = gates.find((g) => g.name === 'check-crap');
+
+    const miEpicRefHits = mi.args.filter((a) => a === '--epic-ref').length;
+    const crapEpicRefHits = crap.args.filter((a) => a === '--epic-ref').length;
+    assert.equal(
+      miEpicRefHits,
+      1,
+      'check-maintainability gets exactly one --epic-ref',
+    );
+    assert.equal(crapEpicRefHits, 1, 'check-crap gets exactly one --epic-ref');
+
+    // The argument that immediately follows --epic-ref must be the canonical
+    // epic branch name. Story #1396 freezes the format at `epic/<id>`.
+    const miIdx = mi.args.indexOf('--epic-ref');
+    const crapIdx = crap.args.indexOf('--epic-ref');
+    assert.equal(mi.args[miIdx + 1], 'epic/1386');
+    assert.equal(crap.args[crapIdx + 1], 'epic/1386');
+  });
+
+  it('omits --epic-ref entirely for a loose Story (no Epic context)', () => {
+    // No epicBranch supplied → snapshot scheme is inactive and the gate
+    // falls back to the working-tree fs read. Bug guard: ensure the close-
+    // validation chain does not silently inject a stale ref.
+    const gates = buildDefaultGates({ agentSettings: {} });
+    const mi = gates.find((g) => g.name === 'check-maintainability');
+    const crap = gates.find((g) => g.name === 'check-crap');
+    assert.equal(mi.args.includes('--epic-ref'), false);
+    assert.equal(crap.args.includes('--epic-ref'), false);
+  });
+
+  it('omits --epic-ref when epicBranch is the empty string', () => {
+    // Boundary case: a caller resolving an empty string from agentSettings
+    // must not propagate `--epic-ref ''` into the gate args (gate CLI would
+    // either reject or silently use the wrong ref).
+    const gates = buildDefaultGates({
+      agentSettings: {},
+      epicBranch: '',
+    });
+    const mi = gates.find((g) => g.name === 'check-maintainability');
+    const crap = gates.find((g) => g.name === 'check-crap');
+    assert.equal(mi.args.includes('--epic-ref'), false);
+    assert.equal(crap.args.includes('--epic-ref'), false);
+  });
+});
+
+describe('runPreMergeGates — Story #1394 diff-scoped default', () => {
+  it('forwards the default gate list (no explicit --changed-since) so the new diff-scoped default applies to both gates', async () => {
+    // The Tech Spec for Epic #1386 flips check-{maintainability,crap}.js to
+    // default to diff-scoped (`--changed-since main`). Close-validation must
+    // therefore NOT inject a redundant `--changed-since` argument — the
+    // gate CLI's own resolver applies the layered default. This guard fails
+    // if a future refactor smuggles an opinionated ref back into the gate
+    // args without first updating the precedence story (Tech Spec §4).
+    const gates = buildDefaultGates({
+      agentSettings: {},
+      epicBranch: 'epic/1386',
+    });
+    const mi = gates.find((g) => g.name === 'check-maintainability');
+    const crap = gates.find((g) => g.name === 'check-crap');
+    assert.ok(mi, 'check-maintainability gate must be present');
+    assert.ok(crap, 'check-crap gate must be present');
+    assert.equal(
+      mi.args.includes('--changed-since'),
+      false,
+      'check-maintainability must rely on the new diff-scoped default — explicit --changed-since defeats the precedence chain documented in Story #1394',
+    );
+    assert.equal(
+      crap.args.includes('--changed-since'),
+      false,
+      'check-crap must rely on the new diff-scoped default — explicit --changed-since defeats the precedence chain documented in Story #1394',
+    );
+    assert.equal(
+      mi.args.includes('--full-scope'),
+      false,
+      'close-validation must not opt out via --full-scope; the diff-scoped default is the documented Story-close behavior',
+    );
+    assert.equal(
+      crap.args.includes('--full-scope'),
+      false,
+      'close-validation must not opt out via --full-scope; the diff-scoped default is the documented Story-close behavior',
+    );
+    // Story #1120: --epic-ref still flows through to read the baseline at
+    // the Epic-branch HEAD. Co-asserted here because dropping it silently
+    // would also be a regression even though it's not the focus of #1394.
+    assert.deepEqual(
+      mi.args.slice(-2),
+      ['--epic-ref', 'epic/1386'],
+      'check-maintainability must still receive --epic-ref',
+    );
+    assert.deepEqual(
+      crap.args.slice(-2),
+      ['--epic-ref', 'epic/1386'],
+      'check-crap must still receive --epic-ref',
     );
   });
 });

@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   buildCommitSubject,
   parseArgv,
+  partitionStagedForSiblingTest,
+  resolveSiblingTestFlag,
   runTaskCommit,
 } from '../../.agents/scripts/task-commit.js';
 
@@ -189,4 +191,249 @@ test('parseArgv: --paths multiple flag instances all collected', () => {
   assert.equal(parsed.storyId, 7);
   assert.equal(parsed.taskId, 99);
   assert.deepEqual(parsed.paths, ['a.js', 'b.js']);
+});
+
+// ---------------------------------------------------------------------------
+// Story #1399 (Epic #1386) — --require-sibling-test guard. The flag refuses to
+// commit a newly-added `src/**/*.<ext>` file unless a sibling
+// `<basename>.test.<ext>` is staged in the same commit.
+// ---------------------------------------------------------------------------
+
+test('partitionStagedForSiblingTest: detects new src file with no sibling test', () => {
+  const stdout = ['A\tsrc/widgets/foo.js'].join('\n');
+  const { missing, present } = partitionStagedForSiblingTest(stdout);
+  assert.deepEqual(missing, ['src/widgets/foo.js']);
+  assert.deepEqual(present, []);
+});
+
+test('partitionStagedForSiblingTest: pairs new src file with same-commit sibling test', () => {
+  const stdout = ['A\tsrc/widgets/foo.js', 'A\ttests/widgets/foo.test.js'].join(
+    '\n',
+  );
+  const { missing, present } = partitionStagedForSiblingTest(stdout);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(present, ['src/widgets/foo.js']);
+});
+
+test('partitionStagedForSiblingTest: ignores modified src files (rule is for new modules only)', () => {
+  const stdout = ['M\tsrc/widgets/foo.js'].join('\n');
+  const { missing } = partitionStagedForSiblingTest(stdout);
+  assert.deepEqual(missing, []);
+});
+
+test('partitionStagedForSiblingTest: ignores files outside src/ (e.g. .agents/scripts/, tests/)', () => {
+  const stdout = [
+    'A\t.agents/scripts/new-tool.js',
+    'A\ttests/lib/standalone.test.js',
+  ].join('\n');
+  const { missing, present } = partitionStagedForSiblingTest(stdout);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(present, []);
+});
+
+test('partitionStagedForSiblingTest: handles rename rows (uses target path)', () => {
+  // git diff --cached --name-status emits `R<score>\told\tnew` for renames.
+  const stdout = [
+    'R100\tsrc/old/name.js\tsrc/new/name.js',
+    'A\ttests/new/name.test.js',
+  ].join('\n');
+  // Renames are not `A` adds, so they don't trigger the rule even when the
+  // target lives under src/. The conservative behaviour matches the helper's
+  // "rename = baseline-refresh" rule rather than treating renames as new
+  // modules.
+  const { missing, present } = partitionStagedForSiblingTest(stdout);
+  assert.deepEqual(missing, []);
+  assert.deepEqual(present, []);
+});
+
+test('runTaskCommit: --require-sibling-test allows when sibling test is staged', () => {
+  const stagedDiffStdout = [
+    'A\tsrc/widgets/foo.js',
+    'A\ttests/widgets/foo.test.js',
+  ].join('\n');
+  const fakeSpawn = (_cwd, ...gitArgs) => {
+    if (gitArgs[0] === 'diff' && gitArgs[1] === '--cached') {
+      return { status: 0, stdout: stagedDiffStdout, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const fakeSync = () => 'shashasha';
+  const fakeAssert = () => ({ ok: true });
+
+  const result = runTaskCommit({
+    storyId: 1,
+    taskId: 2,
+    type: 'feat',
+    title: 'Add Foo',
+    cwd: '/fake',
+    requireSiblingTest: true,
+    gitSpawnImpl: fakeSpawn,
+    gitSyncImpl: fakeSync,
+    assertBranchImpl: fakeAssert,
+  });
+  assert.equal(result.subject, 'feat: add foo (resolves #2)');
+});
+
+test('runTaskCommit: --require-sibling-test rejects when sibling test is missing', () => {
+  const stagedDiffStdout = ['A\tsrc/widgets/foo.js'].join('\n');
+  const fakeSpawn = (_cwd, ...gitArgs) => {
+    if (gitArgs[0] === 'diff' && gitArgs[1] === '--cached') {
+      return { status: 0, stdout: stagedDiffStdout, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const fakeSync = () => 'shashasha';
+  const fakeAssert = () => ({ ok: true });
+
+  assert.throws(
+    () =>
+      runTaskCommit({
+        storyId: 1,
+        taskId: 2,
+        type: 'feat',
+        title: 'Add Foo',
+        cwd: '/fake',
+        requireSiblingTest: true,
+        gitSpawnImpl: fakeSpawn,
+        gitSyncImpl: fakeSync,
+        assertBranchImpl: fakeAssert,
+      }),
+    /requireSiblingTest:.*src\/widgets\/foo\.js/s,
+  );
+});
+
+test('runTaskCommit: requireSiblingTest=false (CLI override) skips the diff scan even when config is on', () => {
+  const stagedDiffStdout = ['A\tsrc/widgets/foo.js'].join('\n');
+  let consultedDiff = false;
+  const fakeSpawn = (_cwd, ...gitArgs) => {
+    if (gitArgs[0] === 'diff' && gitArgs[1] === '--cached') {
+      consultedDiff = true;
+      return { status: 0, stdout: stagedDiffStdout, stderr: '' };
+    }
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  const fakeSync = () => 'shashasha';
+  const fakeAssert = () => ({ ok: true });
+
+  runTaskCommit({
+    storyId: 1,
+    taskId: 2,
+    type: 'feat',
+    title: 'Add Foo',
+    cwd: '/fake',
+    requireSiblingTest: false,
+    gitSpawnImpl: fakeSpawn,
+    gitSyncImpl: fakeSync,
+    assertBranchImpl: fakeAssert,
+    // Synthetic config — the explicit `false` CLI flag must beat this.
+    resolveConfigImpl: () => ({
+      agentSettings: {
+        quality: { codingGuardrails: { requireSiblingTest: true } },
+      },
+    }),
+  });
+  assert.equal(
+    consultedDiff,
+    false,
+    'sibling-test diff scan must not run when CLI flag explicitly disables it',
+  );
+});
+
+test('resolveSiblingTestFlag: explicit boolean wins over config', () => {
+  assert.equal(
+    resolveSiblingTestFlag({
+      cliFlag: false,
+      resolveConfigImpl: () => ({
+        agentSettings: {
+          quality: { codingGuardrails: { requireSiblingTest: true } },
+        },
+      }),
+    }),
+    false,
+  );
+  assert.equal(
+    resolveSiblingTestFlag({
+      cliFlag: true,
+      resolveConfigImpl: () => ({
+        agentSettings: {
+          quality: { codingGuardrails: { requireSiblingTest: false } },
+        },
+      }),
+    }),
+    true,
+  );
+});
+
+test('resolveSiblingTestFlag: falls back to config when CLI is undefined', () => {
+  assert.equal(
+    resolveSiblingTestFlag({
+      resolveConfigImpl: () => ({
+        agentSettings: {
+          quality: { codingGuardrails: { requireSiblingTest: true } },
+        },
+      }),
+    }),
+    true,
+  );
+  assert.equal(
+    resolveSiblingTestFlag({
+      resolveConfigImpl: () => ({
+        agentSettings: {
+          quality: { codingGuardrails: { requireSiblingTest: false } },
+        },
+      }),
+    }),
+    false,
+  );
+});
+
+test('resolveSiblingTestFlag: returns false when config resolution throws', () => {
+  assert.equal(
+    resolveSiblingTestFlag({
+      resolveConfigImpl: () => {
+        throw new Error('no .agentrc.json');
+      },
+    }),
+    false,
+  );
+});
+
+test('parseArgv: --require-sibling-test / --no-require-sibling-test flags surface as boolean', () => {
+  const on = parseArgv([
+    '--story',
+    '1',
+    '--task',
+    '2',
+    '--type',
+    'feat',
+    '--title',
+    't',
+    '--require-sibling-test',
+  ]);
+  assert.equal(on.requireSiblingTest, true);
+
+  const off = parseArgv([
+    '--story',
+    '1',
+    '--task',
+    '2',
+    '--type',
+    'feat',
+    '--title',
+    't',
+    '--no-require-sibling-test',
+  ]);
+  assert.equal(off.requireSiblingTest, false);
+
+  const unset = parseArgv([
+    '--story',
+    '1',
+    '--task',
+    '2',
+    '--type',
+    'feat',
+    '--title',
+    't',
+  ]);
+  assert.equal(unset.requireSiblingTest, undefined);
 });

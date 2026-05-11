@@ -4,6 +4,7 @@ import { beforeEach, describe, it } from 'node:test';
 import { Volume } from 'memfs';
 import {
   BASELINES_DEFAULTS,
+  CODING_GUARDRAILS_DEFAULTS,
   COMMANDS_DEFAULTS,
   getCommands,
   getLimits,
@@ -13,6 +14,7 @@ import {
   MAINTAINABILITY_CRAP_DEFAULTS,
   PR_GATE_DEFAULTS,
   PROJECT_ROOT,
+  resolveCodingGuardrails,
   resolveConfig,
   resolveListValue,
   resolveMaintainabilityCrap,
@@ -275,6 +277,11 @@ describe('config-resolver library tests', () => {
         requireCoverage: true,
         friction: { markerKey: 'crap-baseline-regression' },
         refreshTag: 'baseline-refresh:',
+        // Story #1394 (Epic #1386): diff-scoped default + ref live in the
+        // crap config block so the precedence chain in
+        // `resolveCrapChangedSince` reads them like any other config field.
+        defaultScope: 'diff',
+        diffRef: 'main',
       });
     });
 
@@ -530,6 +537,39 @@ describe('config-resolver library tests', () => {
       assert.deepEqual(out.prGate.checks, []);
       assert.equal(out.baselines.lint.path, BASELINES_DEFAULTS.lint.path);
     });
+
+    // Story #1398 (Epic #1386): bounded auto-refresh defaults.
+    it('resolveQuality: surfaces autoRefresh defaults when block is absent', () => {
+      const out = resolveQuality(undefined);
+      assert.equal(out.autoRefresh.enabled, true);
+      assert.equal(out.autoRefresh.miDropCap, 1.5);
+      assert.equal(out.autoRefresh.crapJumpCap, 5);
+      assert.equal(out.autoRefresh.scope, 'diff');
+    });
+
+    it('resolveQuality: honours autoRefresh user overrides', () => {
+      const out = resolveQuality({
+        autoRefresh: {
+          enabled: false,
+          miDropCap: 0.25,
+          crapJumpCap: 1,
+          scope: 'full',
+        },
+      });
+      assert.equal(out.autoRefresh.enabled, false);
+      assert.equal(out.autoRefresh.miDropCap, 0.25);
+      assert.equal(out.autoRefresh.crapJumpCap, 1);
+      assert.equal(out.autoRefresh.scope, 'full');
+    });
+
+    it('resolveQuality: falls back to defaults on negative caps / unknown scope (resolver-side guard)', () => {
+      const out = resolveQuality({
+        autoRefresh: { miDropCap: -1, crapJumpCap: -2, scope: 'sideways' },
+      });
+      assert.equal(out.autoRefresh.miDropCap, 1.5);
+      assert.equal(out.autoRefresh.crapJumpCap, 5);
+      assert.equal(out.autoRefresh.scope, 'diff');
+    });
   });
 
   describe('getQuality (Epic #730 Story 6)', () => {
@@ -573,6 +613,61 @@ describe('config-resolver library tests', () => {
     it('returns defaults for null/undefined input', () => {
       assert.deepEqual(getQuality(null).prGate.checks, []);
       assert.deepEqual(getQuality(undefined).prGate.checks, []);
+    });
+  });
+
+  // Story #1399 (Epic #1386) — `quality.codingGuardrails` carries the numeric
+  // coding-time thresholds the `code-quality-guardrails.md` helper cites.
+  describe('resolveCodingGuardrails / quality.codingGuardrails (Story #1399)', () => {
+    it('returns framework defaults when the block is absent', () => {
+      const out = resolveCodingGuardrails(undefined);
+      assert.equal(out.cyclomaticFlag, 8);
+      assert.equal(out.cyclomaticMustFix, 12);
+      assert.equal(out.miDropRefactor, 1.5);
+      assert.equal(out.requireSiblingTest, false);
+      // Mutating the result must not mutate the frozen defaults.
+      out.cyclomaticFlag = 99;
+      assert.equal(CODING_GUARDRAILS_DEFAULTS.cyclomaticFlag, 8);
+    });
+
+    it('honours partial overrides (sibling keys keep defaults)', () => {
+      const out = resolveCodingGuardrails({
+        cyclomaticFlag: 6,
+        requireSiblingTest: true,
+      });
+      assert.equal(out.cyclomaticFlag, 6);
+      assert.equal(out.cyclomaticMustFix, 12);
+      assert.equal(out.miDropRefactor, 1.5);
+      assert.equal(out.requireSiblingTest, true);
+    });
+
+    it('returns defaults for null / non-object input', () => {
+      assert.deepEqual(resolveCodingGuardrails(null), {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+      assert.deepEqual(resolveCodingGuardrails('nope'), {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+    });
+
+    it('resolveQuality + getQuality expose codingGuardrails on the merged tree', () => {
+      const resolved = resolveQuality(undefined);
+      assert.deepEqual(resolved.codingGuardrails, {
+        ...CODING_GUARDRAILS_DEFAULTS,
+      });
+      const fromConfig = getQuality({
+        agentSettings: {
+          ...REQ,
+          quality: {
+            codingGuardrails: { cyclomaticMustFix: 10, miDropRefactor: 2 },
+          },
+        },
+      });
+      assert.equal(fromConfig.codingGuardrails.cyclomaticMustFix, 10);
+      assert.equal(fromConfig.codingGuardrails.miDropRefactor, 2);
+      // Defaults for sibling keys preserved.
+      assert.equal(fromConfig.codingGuardrails.cyclomaticFlag, 8);
+      assert.equal(fromConfig.codingGuardrails.requireSiblingTest, false);
     });
   });
 

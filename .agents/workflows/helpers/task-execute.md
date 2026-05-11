@@ -23,7 +23,18 @@ its sequential loop.
    are not the only writer on this branch's history. Out-of-scope cleanups
    belong in a follow-on ticket.
 
-3. **Stage, guard, commit, and verify in one CLI call.** Hand the work to
+3. **Run the diff-scoped quality preview before staging.** Invoke
+   [`npm run quality:preview`](../../../package.json) (which wraps
+   `check-maintainability.js` + `check-crap.js` with `--changed-since HEAD`
+   and merges their envelopes) while the change is still warm in working
+   memory. The same engines run at close-validation time, so a clean
+   preview means the merge gate will not bounce. Respond to the output per
+   [`code-quality-guardrails.md`](code-quality-guardrails.md) — flagged
+   findings (cyclomatic > 8, MI drop > 1.5pt) get a one-line review note;
+   must-fix findings (cyclomatic > 12) get refactored before
+   `task-commit.js` runs.
+
+4. **Stage, guard, commit, and verify in one CLI call.** Hand the work to
    `task-commit.js`, which asserts the branch (`story-<storyId>`), stages the
    listed paths (or falls back to `git add -u`), runs the conventional-commit
    formatter, and re-asserts the branch after the hooks return:
