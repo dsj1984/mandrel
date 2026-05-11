@@ -152,8 +152,12 @@ export function logBlockers(scope, blockers, logger = DEFAULT_LOGGER) {
     '  --------------------------  --------  ----------------------------------------',
   );
   for (const b of blockers) {
-    const id = String(b.id).padEnd(26).slice(0, 26);
-    const sev = String(b.severity).padEnd(8).slice(0, 8);
+    // Pad short IDs to align the column; never TRUNCATE — the operator
+    // needs the full id to find the check module on disk and to grep the
+    // codebase for the failure mode. Long ids just push the severity
+    // column right, which is fine for terminal output.
+    const id = String(b.id).padEnd(26);
+    const sev = String(b.severity).padEnd(8);
     error(`  ${id}  ${sev}  ${b.summary ?? ''}`);
     if (b.detail) {
       for (const line of String(b.detail).split('\n')) {

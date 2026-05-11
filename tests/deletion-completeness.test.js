@@ -93,7 +93,14 @@ const FORBIDDEN_TERMS = [
   },
   {
     title: '/epic-close slash command (replaced by /epic-deliver in 5.40.0)',
+    // The /epic-close slash-command form is forbidden, but the file path
+    // form (.agents/scripts/epic-close.js and the matching test file)
+    // legitimately mentions `/epic-close.js` after a directory separator.
+    // Story #1289 resurrected the script as a preflight-guarded
+    // front-door; the slash-command prohibition still holds, but file
+    // path references must not trip this check.
     pattern: '/epic-close',
+    excludeMatchSubstrings: ['/epic-close.js', '/epic-close-preflight.test.js'],
   },
   {
     title: 'BookendChainer (autonomous-merge chainer; deleted in 5.40.0)',
