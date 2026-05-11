@@ -30,6 +30,7 @@
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
+import { regenerateMainFromTree as defaultRegenerateMainFromTree } from './lib/baseline-snapshot.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { gitSpawn } from './lib/git-utils.js';
@@ -170,6 +171,109 @@ export function checkEpicFastForward({
 }
 
 /**
+ * Story #1396: post-merge baseline reconciliation. Regenerate the tracked
+ * `baselines/{maintainability,crap}.json` against the Epic branch's merged
+ * working tree and, when at least one baseline file's bytes drift,
+ * stage + commit them as `baseline-refresh: epic-<id>` directly on the
+ * Epic branch.
+ *
+ * Idempotency contract:
+ *   - When the merge produced no baseline impact, `regenerateMainFromTree`
+ *     returns `didChange: false` and this helper returns `committed: false`.
+ *   - On a partial /epic-deliver re-run, the previous refresh commit is
+ *     already in the Epic-branch tree, so the re-scoring lands the same
+ *     bytes — `didChange: false` again, no duplicate commit.
+ *
+ * Failure modes are non-fatal: a thrown regeneration step is caught,
+ * surfaced via `logger.warn`, and the helper returns
+ * `{ committed: false, reason: 'error' }`. The finalize pipeline must keep
+ * going (push + PR open) even when reconciliation cannot run — drift is
+ * caught by the pre-merge gates regardless.
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd: string,
+ *   logger?: object,
+ *   regenerateMainFromTree?: typeof defaultRegenerateMainFromTree,
+ *   gitSpawnFn?: typeof gitSpawn,
+ * }} args
+ * @returns {Promise<{ committed: boolean, sha?: string, didChange?: boolean, reason?: 'no-change'|'error'|'commit-failed', detail?: string }>}
+ */
+export async function reconcileBaselinesOnEpicBranch({
+  epicId,
+  cwd,
+  logger = Logger,
+  regenerateMainFromTree = defaultRegenerateMainFromTree,
+  gitSpawnFn = gitSpawn,
+} = {}) {
+  let regen;
+  try {
+    regen = await regenerateMainFromTree({ cwd, logger });
+  } catch (err) {
+    logger.warn?.(
+      `[epic-deliver-finalize] baseline reconciliation skipped (regenerate threw): ${err?.message ?? err}`,
+    );
+    return { committed: false, reason: 'error', detail: String(err) };
+  }
+  if (!regen.didChange) {
+    logger.info?.(
+      `[epic-deliver-finalize] baseline reconciliation: no drift on epic-${epicId}, skipping refresh commit.`,
+    );
+    return { committed: false, didChange: false, reason: 'no-change' };
+  }
+
+  // Stage only the baseline files that were updated. Avoid `git add -A` so
+  // an unrelated dirty file in the working tree never lands in the refresh
+  // commit by accident.
+  const updatedPaths = regen.files
+    .filter((f) => f.didChange && typeof f.path === 'string')
+    .map((f) => f.path);
+  for (const p of updatedPaths) {
+    const addRes = gitSpawnFn(cwd, 'add', '--', p);
+    if (addRes.status !== 0) {
+      logger.warn?.(
+        `[epic-deliver-finalize] git add failed for ${p}: ${addRes.stderr}`,
+      );
+      return {
+        committed: false,
+        reason: 'commit-failed',
+        detail: addRes.stderr,
+      };
+    }
+  }
+
+  // commit; pass --no-verify only if we explicitly need to bypass push hooks —
+  // we do NOT here, the existing close validation has already cleared lint+test.
+  const commitRes = gitSpawnFn(
+    cwd,
+    'commit',
+    '-m',
+    `baseline-refresh: epic-${epicId}`,
+  );
+  if (commitRes.status !== 0) {
+    // No-op commit (nothing staged) gives non-zero with stderr "nothing to
+    // commit" — treat as no-change for idempotency on a partial re-run where
+    // git considered the diff already applied.
+    const stderr = commitRes.stderr || commitRes.stdout || '';
+    if (/nothing to commit|no changes added/i.test(stderr)) {
+      return { committed: false, didChange: false, reason: 'no-change' };
+    }
+    logger.warn?.(
+      `[epic-deliver-finalize] baseline-refresh commit failed: ${stderr}`,
+    );
+    return { committed: false, reason: 'commit-failed', detail: stderr };
+  }
+
+  // Resolve the new HEAD sha for the return envelope.
+  const head = gitSpawnFn(cwd, 'rev-parse', 'HEAD');
+  const sha = head.status === 0 ? head.stdout.trim() : undefined;
+  logger.info?.(
+    `[epic-deliver-finalize] baseline-refresh: epic-${epicId} committed (${sha ? sha.slice(0, 7) : '?'}).`,
+  );
+  return { committed: true, didChange: true, sha };
+}
+
+/**
  * End-to-end finalize. DI-friendly.
  *
  * @param {{
@@ -201,6 +305,7 @@ export async function runEpicDeliverFinalize({
   ghSpawnFn = defaultGhSpawn,
   upsertCommentFn = upsertStructuredComment,
   notifyFn = defaultNotify,
+  reconcileBaselinesFn = reconcileBaselinesOnEpicBranch,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -247,6 +352,18 @@ export async function runEpicDeliverFinalize({
   logger.info?.(
     `[epic-deliver-finalize] FF ok — ${epicBranch} is ${ff.ahead} commit(s) ahead of ${baseRef}.`,
   );
+
+  // 1b. Story #1396: post-merge baseline reconciliation. Regenerate the
+  // tracked main baselines from the Epic-branch tree and commit any drift as
+  // `baseline-refresh: epic-<id>` so the refresh ships atomically with the
+  // Epic merge. Non-fatal — the helper swallows its own errors and we log
+  // its envelope for observability.
+  const reconcile = await reconcileBaselinesFn({
+    epicId,
+    cwd: repoCwd,
+    logger,
+    gitSpawnFn,
+  });
 
   // 2. Push epic branch.
   logger.info?.(`[epic-deliver-finalize] Pushing ${epicBranch} to origin...`);
@@ -393,6 +510,7 @@ export async function runEpicDeliverFinalize({
     prNumber,
     postedHandoff,
     autoMergeEnabled,
+    reconcile,
   };
 }
 
