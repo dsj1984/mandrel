@@ -626,22 +626,27 @@ Severity vocabulary (assigned by callers; `eventSeverity()` in
 | `medium` | Operator-visible milestones: Story state transitions, `wave-run-progress`, `epic-run-progress`, story merged, epic complete. | `[medium]`           |
 | `high`   | Operator must act (HITL gates, epic blockers, autonomous-chain failures). Message body should also lead with `🚨 Action Required:`. | `[Action Required]`  |
 
-Three independent filter knobs in `orchestration.notifications`
-(all mandatory):
+Two independent event-allowlist knobs in `orchestration.notifications`
+(both mandatory):
 
-- `commentMinLevel` — severity gate for GitHub comment posting (default `medium`).
-- `terminalMinLevel` — severity gate for `notify()`'s own stdout chatter (default `medium`).
-- `webhookEvents` — event-name allowlist for `NOTIFICATION_WEBHOOK_URL` deliveries.
-  Default: `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]`.
+- `commentEvents` — event-name allowlist for GitHub-ticket comment
+  posting. Default:
+  `["state-transition", "story-merged", "operator-message"]`.
+- `webhookEvents` — event-name allowlist for `NOTIFICATION_WEBHOOK_URL`
+  deliveries. Default:
+  `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]`.
 
-Each channel filters independently; there is no fallback chain. Severity
-controls the comment + terminal channels but is **not** a routing factor
-for the webhook — the webhook is curated for the epic narrative
-(% progress + blockers) via the explicit allowlist. To suppress the
-webhook entirely set `webhookEvents: []`; to widen it, extend the array
-(the schema enum pins the closed `epic-*` vocabulary, so adding custom
-event names requires loosening the enum in
-`.agents/scripts/lib/config-schema.js`).
+Each channel filters independently; there is no fallback chain.
+Severity is carried as envelope metadata (and still drives `@mention`
+behavior on the comment channel — high always @mentions, medium
+@mentions when `mentionOperator: true`) but is no longer a routing
+factor for either channel. `transitionTicketState` suppresses the
+`notify()` dispatch entirely for low-severity transitions (task-level,
+non-terminal story / epic flips) so the comment channel sees only the
+medium-severity story-level events operators expect on the ticket
+timeline. To suppress either channel entirely, set its array to `[]`.
+The schema enums pin closed vocabularies — adding custom event names
+requires loosening the enum in `.agents/scripts/lib/config-schema.js`.
 
 Webhook URL resolution:
 

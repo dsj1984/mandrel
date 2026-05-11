@@ -210,6 +210,13 @@ export async function transitionTicketState(
       toState: newState,
     };
     const severity = eventSeverity(event);
+    // Suppress the dispatch entirely for low-severity transitions (task-
+    // level, or non-terminal story / epic flips). Pre-migration the
+    // comment channel filtered these out via `commentMinLevel: medium`;
+    // post-migration the channel is event-allowlist gated and would
+    // surface every transition equally, so the noise filter moves to
+    // the emit point.
+    if (severity === 'low') return;
     const message = renderTransitionMessage(event);
     // Post to the epic so operators get a single timeline feed; fall back
     // to the transitioned ticket itself when no epic reference is present.

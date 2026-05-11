@@ -79,6 +79,13 @@
           { "name": "test", "cmd": ["npm", "test"] }
         ],
         "enforceBranchProtection": true
+      },
+      "mergeMethods": {
+        "allow_squash_merge": true,
+        "allow_rebase_merge": false,
+        "allow_merge_commit": false,
+        "allow_auto_merge": true,
+        "delete_branch_on_merge": true
       }
     },
     "planning": {
@@ -102,8 +109,7 @@
     },
     "notifications": {
       "mentionOperator": false,
-      "commentMinLevel": "medium",
-      "terminalMinLevel": "medium",
+      "commentEvents": ["state-transition", "story-merged", "operator-message"],
       "webhookEvents": [
         "epic-started",
         "epic-progress",
