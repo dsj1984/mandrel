@@ -127,6 +127,7 @@ node -e "
     const quality = qb.applyQualityBootstrap({ projectRoot: root });
     const baselines = bm.migrateBaselinesLayout({
       baselinesDir: require('node:path').join(root, 'baselines'),
+      repoRoot: root,
     });
     console.log(JSON.stringify({ quality, baselines }, null, 2));
   });
@@ -153,14 +154,20 @@ The four `quality-bootstrap` outcomes:
    `agentSettings.quality.autoRefresh` defaults in `.agentrc.json`.
    Only missing keys are written — operator overrides survive.
 
-The `baselines-layout-migration` step relocates legacy per-Epic
-snapshots into the `baselines/epic/<id>/` subdirectory contract that
-Story #1396 of Epic #1386 introduced:
+The `baselines-layout-migration` step relocates per-Epic snapshots
+into the `temp/epic/<id>/baselines/` namespace (Story #1467: ephemeral
+scratch state, not committed, reaped on `/epic-deliver` merge with the
+rest of the per-Epic temp tree):
 
 - Loose `baselines/epic-<id>-{maintainability,crap}.json` files →
-  moved under `baselines/epic/<id>/`.
+  moved under `temp/epic/<id>/baselines/`.
 - Legacy `baselines/snapshots/<id>/{maintainability,crap}.json` trees →
-  re-keyed under `baselines/epic/<id>/`.
+  re-keyed under `temp/epic/<id>/baselines/`.
+- Committed `baselines/epic/<id>/{maintainability,crap}.json` snapshots
+  (the shape Story #1396 introduced) → moved out to
+  `temp/epic/<id>/baselines/` and the now-empty committed tree is staged
+  for removal via `git rm -r --quiet --ignore-unmatch baselines/epic/<id>`
+  so the next commit prunes the tracked tree.
 - The main-tracked `baselines/{maintainability,crap}.json` files at
   the root are **not** touched — they remain the `main`-baseline
   contract for the framework.
