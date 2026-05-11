@@ -5,6 +5,199 @@ import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 
 /**
+ * Three-layer Task sizing model — defaults applied when the caller does not
+ * pass an explicit `taskSizing` opts block. Mirrors
+ * `agentSettings.planning.taskSizing` defaults from `default-agentrc.json`
+ * and the JSON schema `$defs.taskSizing`. Keep in lockstep with
+ * `.agents/schemas/agentrc.schema.json` and
+ * `.agents/scripts/lib/config-settings-schema.js`.
+ */
+export const DEFAULT_TASK_SIZING = Object.freeze({
+  maxAcceptance: 6,
+  maxChanges: 8,
+  softFileCount: 3,
+  softAcceptanceCount: 4,
+});
+
+export const SIZING_PROFILE_VALUES = Object.freeze([
+  'mechanical-sweep',
+  'atomic-rewrite',
+  'scaffolding',
+]);
+
+/**
+ * Heuristic Story-width soft cap. The Tech Spec's prompt biasing line —
+ * "Stories typically ≤5 Tasks, otherwise split" — is advisory only and is
+ * not surfaced as a configurable knob (no `softStoryTaskCount` in
+ * `agentSettings.planning.taskSizing`). The validator emits a `soft-story-
+ * width` finding when a Story carries more child Tasks than this constant
+ * so operators see the same heuristic the decomposer prompt enforces.
+ */
+const SOFT_STORY_TASK_COUNT = 5;
+
+/**
+ * Extract the path-shaped head from a single `changes` bullet. The
+ * conventional shape is `"<path>: <verb> <object>"`; we slice on the first
+ * colon and return the head when it looks path-shaped, or `null` when the
+ * bullet does not name a path.
+ */
+function extractChangeBulletPath(bullet) {
+  if (typeof bullet !== 'string') return null;
+  const colonIdx = bullet.indexOf(':');
+  if (colonIdx <= 0) return null;
+  const head = bullet.slice(0, colonIdx).trim();
+  // Mirror the path-shape heuristic in `task-body-validator.js`:
+  // anything containing a slash or a dot run is treated as a path-like
+  // token. Bullets without a path-shaped head do not count toward
+  // fileCount — wide-Task gating is keyed on real file references.
+  if (!/[\\/.]/.test(head)) return null;
+  return head;
+}
+
+/**
+ * Distinct fileCount for a Task — number of unique path-shaped heads found
+ * across `task.body.changes` bullets. Matches the Tech Spec's example: a
+ * 50-site mechanical rename with `changes.length === 1` (one bullet:
+ * "rename ... across consumer sites") produces `fileCount === 1` because
+ * only one path-shaped head is extracted; a Task with five distinct
+ * `path/to/file.js: ...` bullets produces `fileCount === 5`.
+ */
+function computeTaskFileCount(task) {
+  const body = task.body;
+  if (!body || typeof body !== 'object') return 0;
+  const changes = Array.isArray(body.changes) ? body.changes : [];
+  const paths = new Set();
+  for (const bullet of changes) {
+    const path = extractChangeBulletPath(bullet);
+    if (path) paths.add(path);
+  }
+  return paths.size;
+}
+
+/**
+ * Compute structured sizing findings for a single Task.
+ *
+ * Hard findings (blocking, drive the re-decomposition loop):
+ *   - `oversized-task` — `acceptance.length > maxAcceptance` or
+ *     `changes.length > maxChanges`.
+ *   - `missing-sizing-profile` — `fileCount > softFileCount` and the Task
+ *     lacks a `sizingProfile` in the closed enum.
+ *
+ * Soft findings (advisory, surfaced for operator visibility but never
+ * trigger a re-prompt):
+ *   - `soft-task-width` — width over the soft thresholds but under the
+ *     hard ceilings.
+ *
+ * @param {object} task - Validated Task ticket.
+ * @param {{ maxAcceptance: number, maxChanges: number, softFileCount: number, softAcceptanceCount: number }} sizing
+ * @returns {{ hard: object[], soft: object[] }}
+ */
+function computeTaskSizingFindings(task, sizing) {
+  const hard = [];
+  const soft = [];
+  const body = task.body && typeof task.body === 'object' ? task.body : null;
+  const acceptance = Array.isArray(body?.acceptance) ? body.acceptance : [];
+  const changes = Array.isArray(body?.changes) ? body.changes : [];
+
+  if (acceptance.length > sizing.maxAcceptance) {
+    hard.push({
+      kind: 'oversized-task',
+      severity: 'hard',
+      ticketSlug: task.slug,
+      field: 'acceptance',
+      observed: acceptance.length,
+      ceiling: sizing.maxAcceptance,
+    });
+  } else if (acceptance.length > sizing.softAcceptanceCount) {
+    soft.push({
+      kind: 'soft-task-width',
+      severity: 'soft',
+      ticketSlug: task.slug,
+      field: 'acceptance',
+      observed: acceptance.length,
+      soft: sizing.softAcceptanceCount,
+    });
+  }
+
+  if (changes.length > sizing.maxChanges) {
+    hard.push({
+      kind: 'oversized-task',
+      severity: 'hard',
+      ticketSlug: task.slug,
+      field: 'changes',
+      observed: changes.length,
+      ceiling: sizing.maxChanges,
+    });
+  }
+
+  const fileCount = computeTaskFileCount(task);
+  if (fileCount > sizing.softFileCount) {
+    const profile = body?.sizingProfile;
+    if (!profile || !SIZING_PROFILE_VALUES.includes(profile)) {
+      hard.push({
+        kind: 'missing-sizing-profile',
+        severity: 'hard',
+        ticketSlug: task.slug,
+        fileCount,
+        softFileCount: sizing.softFileCount,
+      });
+    } else {
+      soft.push({
+        kind: 'soft-task-width',
+        severity: 'soft',
+        ticketSlug: task.slug,
+        field: 'fileCount',
+        observed: fileCount,
+        soft: sizing.softFileCount,
+      });
+    }
+  }
+
+  return { hard, soft };
+}
+
+/**
+ * Compute soft story-width findings — a Story carrying more child Tasks
+ * than `SOFT_STORY_TASK_COUNT` trips a `soft-story-width` finding so the
+ * decomposer's prompt heuristic ("Stories typically ≤5 Tasks") has a
+ * post-decomposition visibility surface.
+ */
+function computeStorySizingFindings(stories, taskCountByStory) {
+  const soft = [];
+  for (const story of stories) {
+    const taskCount = taskCountByStory.get(story.slug) ?? 0;
+    if (taskCount > SOFT_STORY_TASK_COUNT) {
+      soft.push({
+        kind: 'soft-story-width',
+        severity: 'soft',
+        storySlug: story.slug,
+        taskCount,
+        soft: SOFT_STORY_TASK_COUNT,
+      });
+    }
+  }
+  return soft;
+}
+
+/**
+ * Render a structured hard finding as a human-readable error message for
+ * the `errors[]` channel. The re-decomposition loop reads the structured
+ * `findings[]` array; the `errors[]` channel is the AC-visible "blocked"
+ * signal. Keeping the renderer here means the message format moves with
+ * the schema instead of accreting in callers.
+ */
+function renderHardFindingError(finding) {
+  if (finding.kind === 'oversized-task') {
+    return `Task "${finding.ticketSlug}" exceeds the ${finding.field} ceiling: observed ${finding.observed}, max ${finding.ceiling}.`;
+  }
+  if (finding.kind === 'missing-sizing-profile') {
+    const allowed = SIZING_PROFILE_VALUES.join(' | ');
+    return `Task "${finding.ticketSlug}" touches ${finding.fileCount} files (> softFileCount ${finding.softFileCount}) and must declare body.sizingProfile (one of: ${allowed}).`;
+  }
+  return `Task "${finding.ticketSlug}" tripped hard finding ${finding.kind}.`;
+}
+
+/**
  * Regex matching code-asset paths the freshness gate cares about. The three
  * roots — `.agents/scripts`, `lib`, and `tests` — cover the executable surface
  * the decomposer's tasks legitimately reference. Anchoring on the leading dot
@@ -130,12 +323,24 @@ export function validateAcFreshness({
 /**
  * Validates the generated ticket hierarchy and handles lifting cross-story dependencies.
  *
+ * The returned tickets array carries two extra non-array properties:
+ *   - `findings` — structured sizing findings (hard + soft) keyed by the
+ *     three-layer sizing model. The bounded re-decomposition loop in
+ *     `epic-plan-decompose` reads `findings.filter(f => f.severity === 'hard')`
+ *     to decide whether to re-prompt.
+ *   - `errors`   — human-readable strings, one per hard finding. Non-empty
+ *     `errors[]` is the AC-visible "block normalization" signal; the legacy
+ *     hierarchy/cycle/freshness checks continue to throw, so callers that
+ *     only inspect the array shape are unaffected when no sizing
+ *     violations occur.
+ *
  * @param {object[]}                   tickets             - Array of ticket objects parsed from LLM output.
  * @param {object}                     [opts]
  * @param {string}                     [opts.baseBranchRef] - When set, runs `validateAcFreshness` against this ref.
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
  * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
- * @returns {object[]} Validated tickets with normalized dependencies.
+ * @param {object}                     [opts.taskSizing]    - Override the three-layer sizing thresholds. Defaults to `DEFAULT_TASK_SIZING`.
+ * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing findings.
  */
 export function validateAndNormalizeTickets(tickets, opts = {}) {
   const ticketBySlug = new Map();
@@ -329,6 +534,41 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       cwd: opts.cwd,
     });
   }
+
+  // ── Three-layer sizing model (Epic #1178 Story #1191) ─────────────────
+  // Compute hard + soft sizing findings. Hard findings populate `errors[]`
+  // so callers that pre-check `result.errors.length === 0` halt before
+  // dispatch; soft findings populate `findings[]` only and never block.
+  // The full structured findings array (hard + soft) is also attached so
+  // the bounded re-decomposition loop can consume kind-tagged records
+  // directly without re-parsing error strings.
+  const sizing = { ...DEFAULT_TASK_SIZING, ...(opts.taskSizing ?? {}) };
+  const findings = [];
+  for (const task of tasks) {
+    const { hard, soft } = computeTaskSizingFindings(task, sizing);
+    findings.push(...hard, ...soft);
+  }
+  findings.push(...computeStorySizingFindings(stories, taskCountByStory));
+  const errors = findings
+    .filter((f) => f.severity === 'hard')
+    .map(renderHardFindingError);
+
+  // Arrays are objects — attach `findings` / `errors` as enumerable
+  // properties so callers using the legacy `const validated = validate(...)`
+  // shape continue to work, and new callers can inspect
+  // `validated.findings` / `validated.errors` directly.
+  Object.defineProperty(tickets, 'findings', {
+    value: findings,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(tickets, 'errors', {
+    value: errors,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
 
   return tickets;
 }
