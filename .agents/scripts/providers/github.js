@@ -150,9 +150,12 @@ async function paginateRest(ghFacade, endpoint) {
  * orchestration mutators (`updateTicket` / `postComment` / `addSubIssue` /
  * `removeSubIssue`) to call `invalidate` explicitly.
  *
- * Shape preserved verbatim so the maxage tests can still swap in their own
- * factory (`provider._cache = createTicketCacheManager({ now: clock.now })`)
- * from the old file, which Wave 3 (Story #1363) deletes.
+ * Surface is intentionally narrower than the old `createTicketCacheManager`:
+ * only methods the provider itself reaches for live here (`has` / `peek` /
+ * `peekFresh` / `set` / `primeIfAbsent` / `primeMany` / `invalidate`). The
+ * `getOrLoad` / `clear` helpers stayed behind in `./github/cache-manager.js`
+ * for the test suites that exercise that factory directly — Wave 3 deletes
+ * the file.
  *
  * @param {{ now?: () => number }} [opts]
  * @returns {{
@@ -162,9 +165,7 @@ async function paginateRest(ghFacade, endpoint) {
  *   set(ticketId: number, ticket: object): void,
  *   primeIfAbsent(ticket: object): void,
  *   primeMany(tickets: Array<object>): void,
- *   getOrLoad(ticketId: number, loader: () => Promise<object>): Promise<object>,
  *   invalidate(ticketId: number): void,
- *   clear(): void,
  * }}
  */
 function createInlineTicketCache({ now = Date.now } = {}) {
@@ -207,20 +208,8 @@ function createInlineTicketCache({ now = Date.now } = {}) {
       for (const t of tickets ?? []) primeIfAbsent(t);
     },
 
-    async getOrLoad(ticketId, loader) {
-      const entry = store.get(ticketId);
-      if (entry) return entry.ticket;
-      const ticket = await loader();
-      store.set(ticketId, { ticket, insertedAt: now() });
-      return ticket;
-    },
-
     invalidate(ticketId) {
       store.delete(ticketId);
-    },
-
-    clear() {
-      store.clear();
     },
   };
 }
