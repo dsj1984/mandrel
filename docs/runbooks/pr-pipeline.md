@@ -16,11 +16,11 @@
 | Surface | State |
 |---|---|
 | Repo merge methods | `allow_squash_merge: true`, `allow_rebase_merge: false`, `allow_merge_commit: false`, `allow_auto_merge: true`, `delete_branch_on_merge: true` |
-| Ruleset `14286998` rules | `deletion`, `non_fast_forward`, `required_linear_history`, `required_status_checks` (both OS contexts, strict policy) |
+| Ruleset `14286998` rules | `deletion`, `non_fast_forward`, `required_linear_history`, `required_status_checks` (Ubuntu CI leg only, strict policy) |
 | Ruleset bypass | `bypass_actors: []`, `current_user_can_bypass: never` |
 | Approval rule | **Not active** (Path A) — fine to ship PRs now; CI is the gate |
 
-What this means today: every new PR you open can be merged with `gh pr merge --auto --squash --delete-branch` and it will land itself the moment both CI legs (`Validate and Test (ubuntu-latest, node 22)` and `Validate and Test (windows-latest, node 22)`) report success. No reviewer needed. No admin bypass.
+What this means today: every new PR you open can be merged with `gh pr merge --auto --squash --delete-branch` and it will land itself the moment the Ubuntu CI leg (`Validate and Test (ubuntu-latest, node 22)`) reports success. No reviewer needed. No admin bypass. The Windows leg was removed on 2026-05-11 — the operator runs Windows locally and the pre-push hook is the real Windows gate; see `.github/workflows/ci.yml` for the matrix history.
 
 ### ⏳ Pending (your work — see § Your remaining work)
 
@@ -119,7 +119,7 @@ You can ping Claude before step 5 too if you want — there's no harm in having 
 ## Smoke-test once Path B is live
 
 1. Open a trivial PR (e.g. one-line README touch).
-2. Wait for `CI / CD` to complete green on both OS legs.
+2. Wait for `CI / CD` to complete green on the Ubuntu leg.
 3. Within ~60s, the `bot-approve` workflow should appear under the **Actions** tab with `conclusion: success` and the PR should show an **Approved** review from `agent-protocols-reviewer[bot]`.
 4. The PR's green Merge button should then unblock — auto-merge fires if you marked the PR `--auto`.
 
