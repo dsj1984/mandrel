@@ -262,18 +262,18 @@ export async function handleBaselineGateFailure({
 export { DEFAULT_GATE_REGISTRY };
 
 /**
- * Project the regression rows for the failed gate. Today only
- * `check-maintainability` has a projection helper (`projectMaintainabilityRegressions`);
- * `check-crap` falls through with an empty rows list, which makes
- * `handleBaselineGateFailure` re-throw — the existing crap hint chain still
- * surfaces.
+ * Maintainability projector — extracts the same regression rows
+ * `runPreMergeGates` would have surfaced for `check-maintainability` by
+ * re-running the per-file MI ceiling projection against `origin/<epicBranch>`.
  *
- * Exported so tests can pin the dispatch table without spawning `git`.
+ * Behaviour is preserved byte-for-byte from the pre-refactor early-return
+ * branch of `projectRegressionsForGate`: missing baseline path → `[]`, and
+ * the underlying `projectMaintainabilityRegressions` decides what counts as
+ * a regression row.
  *
- * @returns {Array<{ path: string }>}
+ * @returns {Array<{ path?: string, file?: string }>}
  */
-export function projectRegressionsForGate({
-  gateName,
+function projectMaintainabilityForGate({
   cwd,
   epicBranch,
   storyBranch,
@@ -281,7 +281,6 @@ export function projectRegressionsForGate({
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
-  if (gateName !== 'check-maintainability') return [];
   const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
   if (!baselinePath) return [];
   const projection = projectMaintainability({
@@ -292,6 +291,53 @@ export function projectRegressionsForGate({
   });
   return projection?.regressions ?? [];
 }
+
+/**
+ * Dispatch table mapping gate names to their projector implementations. Each
+ * projector takes the same `{ cwd, epicBranch, storyBranch, agentSettings,
+ * ...injected }` bag `projectRegressionsForGate` receives and returns an array
+ * of regression rows downstream attribution + refresh-commit logic consumes.
+ *
+ * Adding a new baseline gate is an append here; the orchestration in
+ * `projectRegressionsForGate` does not change.
+ */
+const PROJECTORS = {
+  'check-maintainability': projectMaintainabilityForGate,
+};
+
+/**
+ * Project the regression rows for the failed gate via the `PROJECTORS`
+ * dispatch table. Unknown gates (typecheck, lint, test, format, or any
+ * gate without a registered projector) return `[]` so
+ * `handleBaselineGateFailure` re-throws — the gate's own hint chain
+ * still surfaces.
+ *
+ * Exported so tests can pin the dispatch table without spawning `git`.
+ *
+ * @returns {Array<{ path?: string, file?: string }>}
+ */
+export function projectRegressionsForGate({
+  gateName,
+  cwd,
+  epicBranch,
+  storyBranch,
+  agentSettings,
+  projectMaintainability = defaultProjectMaintainabilityRegressions,
+  getBaselines = defaultGetBaselines,
+}) {
+  const project = PROJECTORS[gateName];
+  if (!project) return [];
+  return project({
+    cwd,
+    epicBranch,
+    storyBranch,
+    agentSettings,
+    projectMaintainability,
+    getBaselines,
+  });
+}
+
+export { PROJECTORS };
 
 /**
  * Wrap `runPreMergeGates` with the Story #1124 baseline-attribution flow.
