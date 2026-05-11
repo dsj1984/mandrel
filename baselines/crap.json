@@ -694,7 +694,7 @@
       "startLine": 141
     },
     {
-      "crap": 9.174012285589608,
+      "crap": 11.151761954301136,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "runEpicDeliverFinalize",
       "startLine": 194
@@ -703,13 +703,13 @@
       "crap": 1,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "<anon method-1>",
-      "startLine": 333
+      "startLine": 374
     },
     {
       "crap": 30,
       "file": ".agents/scripts/epic-deliver-finalize.js",
       "method": "main",
-      "startLine": 350
+      "startLine": 399
     },
     {
       "crap": 7,
@@ -3850,7 +3850,7 @@
       "startLine": 252
     },
     {
-      "crap": 1,
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "notificationPhase",
       "startLine": 311
@@ -3859,31 +3859,31 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "dashboardRefreshPhase",
-      "startLine": 338
+      "startLine": 373
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "tempCleanupPhase",
-      "startLine": 360
+      "startLine": 395
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "perfSummaryPhase",
-      "startLine": 436
+      "startLine": 471
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "runPostMergePipeline",
-      "startLine": 521
+      "startLine": 556
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
-      "method": "<anon method-4>",
-      "startLine": 533
+      "method": "<anon method-6>",
+      "startLine": 568
     },
     {
       "crap": 1.0013717421124828,
