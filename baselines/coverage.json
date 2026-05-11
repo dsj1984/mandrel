@@ -54,6 +54,11 @@
     "branches": 50,
     "functions": 66.67
   },
+  ".agents/scripts/epic-close.js": {
+    "lines": 90.76,
+    "branches": 80,
+    "functions": 20
+  },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.28,
     "branches": 88.06,
@@ -206,7 +211,7 @@
   },
   ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
     "lines": 99.04,
-    "branches": 70,
+    "branches": 77.27,
     "functions": 100
   },
   ".agents/scripts/lib/checks/core-bare-clean.js": {
@@ -225,13 +230,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/checks/index.js": {
-    "lines": 95.51,
-    "branches": 72,
+    "lines": 96.25,
+    "branches": 75.47,
     "functions": 100
   },
   ".agents/scripts/lib/checks/notifier-stub-required.js": {
-    "lines": 97.74,
-    "branches": 81.08,
+    "lines": 99.03,
+    "branches": 87.23,
     "functions": 100
   },
   ".agents/scripts/lib/checks/push-hook-parity.js": {
@@ -245,13 +250,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/checks/state.js": {
-    "lines": 93.27,
-    "branches": 85.48,
-    "functions": 93.55
+    "lines": 92.51,
+    "branches": 87.37,
+    "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
-    "lines": 96.7,
-    "branches": 81.25,
+    "lines": 97.8,
+    "branches": 88.24,
     "functions": 100
   },
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
@@ -884,6 +889,11 @@
     "branches": 76.47,
     "functions": 100
   },
+  ".agents/scripts/lib/preflight-runner.js": {
+    "lines": 91.33,
+    "branches": 58.82,
+    "functions": 50
+  },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 96.44,
     "branches": 84.27,
@@ -1195,8 +1205,8 @@
     "functions": 33.33
   },
   ".agents/scripts/story-close.js": {
-    "lines": 79.08,
-    "branches": 46.67,
+    "lines": 76.08,
+    "branches": 42.86,
     "functions": 66.67
   },
   ".agents/scripts/story-execute-prepare.js": {
@@ -1218,6 +1228,11 @@
     "lines": 91.63,
     "branches": 69.7,
     "functions": 75
+  },
+  ".agents/scripts/test-wrapper.js": {
+    "lines": 87.16,
+    "branches": 100,
+    "functions": 20
   },
   ".agents/scripts/validate-docs-freshness.js": {
     "lines": 76.59,
