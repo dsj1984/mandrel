@@ -119,7 +119,7 @@ function makeGh(routes) {
 // Helpers — mock fetch
 // ---------------------------------------------------------------------------
 
-function createRouteMock(routes) {
+function _createRouteMock(routes) {
   const calls = [];
 
   const mockFn = async (url, opts = {}) => {

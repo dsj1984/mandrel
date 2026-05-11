@@ -293,8 +293,8 @@ describe('reapEpicBranches', () => {
     assert.equal(out.switched.from, 'epic/77');
     assert.equal(out.switched.to, 'develop');
     // The checkout call must precede the epic/77 branch -D call.
-    const idxCheckout = calls.findIndex((c) => c === 'checkout develop');
-    const idxDelEpic = calls.findIndex((c) => c === 'branch -D epic/77');
+    const idxCheckout = calls.indexOf('checkout develop');
+    const idxDelEpic = calls.indexOf('branch -D epic/77');
     assert.ok(idxCheckout >= 0 && idxDelEpic > idxCheckout);
   });
 
