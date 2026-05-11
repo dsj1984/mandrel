@@ -19,6 +19,16 @@
     "branches": 93.94,
     "functions": 71.43
   },
+  ".agents/scripts/auto-fix-bail.js": {
+    "lines": 93.53,
+    "branches": 90.7,
+    "functions": 75
+  },
+  ".agents/scripts/auto-fix-step.js": {
+    "lines": 91.28,
+    "branches": 87.88,
+    "functions": 71.43
+  },
   ".agents/scripts/baseline-refresh-guardrail.js": {
     "lines": 78.15,
     "branches": 82.02,
@@ -152,6 +162,11 @@
   ".agents/scripts/lib/audit-suite/workflow-loader.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/auto-fix/detect-failure-class.js": {
+    "lines": 100,
+    "branches": 91.18,
     "functions": 100
   },
   ".agents/scripts/lib/baseline-loader.js": {
