@@ -3,6 +3,16 @@ import { detectCycle } from '../Graph.js';
 import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
+import {
+  computeSizingFindings,
+  DEFAULT_TASK_SIZING,
+  renderHardFindingError,
+  SIZING_PROFILE_VALUES,
+} from './ticket-validator-sizing.js';
+
+// Re-exported for callers that want the constants without reaching into the
+// sizing helper module directly.
+export { DEFAULT_TASK_SIZING, SIZING_PROFILE_VALUES };
 
 /**
  * Regex matching code-asset paths the freshness gate cares about. The three
@@ -130,12 +140,24 @@ export function validateAcFreshness({
 /**
  * Validates the generated ticket hierarchy and handles lifting cross-story dependencies.
  *
+ * The returned tickets array carries two extra non-array properties:
+ *   - `findings` — structured sizing findings (hard + soft) keyed by the
+ *     three-layer sizing model. The bounded re-decomposition loop in
+ *     `epic-plan-decompose` reads `findings.filter(f => f.severity === 'hard')`
+ *     to decide whether to re-prompt.
+ *   - `errors`   — human-readable strings, one per hard finding. Non-empty
+ *     `errors[]` is the AC-visible "block normalization" signal; the legacy
+ *     hierarchy/cycle/freshness checks continue to throw, so callers that
+ *     only inspect the array shape are unaffected when no sizing
+ *     violations occur.
+ *
  * @param {object[]}                   tickets             - Array of ticket objects parsed from LLM output.
  * @param {object}                     [opts]
  * @param {string}                     [opts.baseBranchRef] - When set, runs `validateAcFreshness` against this ref.
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
  * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
- * @returns {object[]} Validated tickets with normalized dependencies.
+ * @param {object}                     [opts.taskSizing]    - Override the three-layer sizing thresholds. Defaults to `DEFAULT_TASK_SIZING`.
+ * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing findings.
  */
 export function validateAndNormalizeTickets(tickets, opts = {}) {
   const ticketBySlug = new Map();
@@ -329,6 +351,37 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       cwd: opts.cwd,
     });
   }
+
+  // ── Three-layer sizing model (Epic #1178 Story #1191) ─────────────────
+  // The findings array (hard + soft) drives the bounded re-decomposition
+  // loop; the rendered hard subset feeds the AC-visible `errors[]` signal.
+  // See `ticket-validator-sizing.js` for the per-finding logic.
+  const findings = computeSizingFindings({
+    tasks,
+    stories,
+    taskCountByStory,
+    sizing: opts.taskSizing,
+  });
+  const errors = findings
+    .filter((f) => f.severity === 'hard')
+    .map(renderHardFindingError);
+
+  // Arrays are objects — attach `findings` / `errors` as enumerable
+  // properties so callers using the legacy `const validated = validate(...)`
+  // shape continue to work, and new callers can inspect
+  // `validated.findings` / `validated.errors` directly.
+  Object.defineProperty(tickets, 'findings', {
+    value: findings,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(tickets, 'errors', {
+    value: errors,
+    enumerable: false,
+    configurable: true,
+    writable: true,
+  });
 
   return tickets;
 }

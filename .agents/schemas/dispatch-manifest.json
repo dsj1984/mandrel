@@ -138,6 +138,11 @@
                 "dependsOn": {
                   "type": "array",
                   "items": { "type": "integer" }
+                },
+                "sizingProfile": {
+                  "type": "string",
+                  "enum": ["mechanical-sweep", "atomic-rewrite", "scaffolding"],
+                  "description": "Required when the Task touches more files than agentSettings.planning.taskSizing.softFileCount; omit otherwise. The validator (not the schema) enforces the wide-Task requirement."
                 }
               },
               "additionalProperties": false

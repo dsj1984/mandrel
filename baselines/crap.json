@@ -1423,7 +1423,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/config-settings-schema.js",
       "method": "getSettingsValidator",
-      "startLine": 440
+      "startLine": 450
     },
     {
       "crap": 3,
@@ -3965,33 +3965,81 @@
     },
     {
       "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "extractChangeBulletPath",
+      "startLine": 42
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "computeTaskFileCount",
+      "startLine": 57
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "makeOversized",
+      "startLine": 69
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "makeSoftWidth",
+      "startLine": 80
+    },
+    {
+      "crap": 11.627339838416022,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "computeTaskSizingFindings",
+      "startLine": 96
+    },
+    {
+      "crap": 2.5,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "computeStorySizingFindings",
+      "startLine": 149
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "computeSizingFindings",
+      "startLine": 175
+    },
+    {
+      "crap": 3.009,
+      "file": ".agents/scripts/lib/orchestration/ticket-validator-sizing.js",
+      "method": "renderHardFindingError",
+      "startLine": 193
+    },
+    {
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "collectPathsFromText",
-      "startLine": 21
+      "startLine": 31
     },
     {
       "crap": 7.338624338624339,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "collectTaskPathReferences",
-      "startLine": 36
+      "startLine": 46
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "defaultGitRunner",
-      "startLine": 66
+      "startLine": 76
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAcFreshness",
-      "startLine": 93
+      "startLine": 103
     },
     {
-      "crap": 30.026217569412836,
+      "crap": 30.016841118943347,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js",
       "method": "validateAndNormalizeTickets",
-      "startLine": 140
+      "startLine": 162
     },
     {
       "crap": 5,
@@ -4114,64 +4162,100 @@
       "startLine": 60
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "slugifyHeading",
+      "startLine": 105
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "waveHeadingText",
+      "startLine": 129
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderProgressBar",
-      "startLine": 95
+      "startLine": 141
     },
     {
       "crap": 10,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "renderWaveSections",
-      "startLine": 109
+      "startLine": 155
     },
     {
-      "crap": 7,
+      "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderStoryTable",
-      "startLine": 168
+      "method": "renderInlineLegend",
+      "startLine": 229
     },
     {
-      "crap": 9,
+      "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderStoryDetailsSection",
-      "startLine": 228
+      "method": "renderProceduresAndLegendDetails",
+      "startLine": 246
+    },
+    {
+      "crap": 13.061588921282798,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "topoSortTasks",
+      "startLine": 293
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "computeStoryProgress",
+      "startLine": 357
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "deriveWaveStatusLabel",
+      "startLine": 375
+    },
+    {
+      "crap": 16.00014814814815,
+      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
+      "method": "renderNestedWaveSections",
+      "startLine": 400
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 272
+      "startLine": 529
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 282
+      "startLine": 539
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 288
+      "startLine": 545
     },
     {
-      "crap": 13.60559798888493,
+      "crap": 13.657950387700984,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 308
+      "startLine": 565
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 424
+      "startLine": 680
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 489
+      "startLine": 745
     },
     {
       "crap": 1,
