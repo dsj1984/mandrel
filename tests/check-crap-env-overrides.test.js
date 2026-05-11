@@ -4,11 +4,11 @@ import { resolveCrapEnvOverrides } from '../.agents/scripts/check-crap.js';
 import { resolveMaintainabilityEnvOverrides } from '../.agents/scripts/check-maintainability.js';
 
 /**
- * Tests for the env-var override helpers that back the
- * `baseline-refresh-guardrail` CI job. The guardrail re-runs the gates with
- * base-branch values forced via env vars; these tests pin down the
- * precedence, fallbacks, and malformed-value behavior so a typo in CI never
- * silently relaxes the gate.
+ * Tests for the env-var override helpers. Originally added for the
+ * (since-removed) baseline-refresh CI guardrail; retained because the
+ * env-var overrides themselves still ship for local re-runs and pin down
+ * the precedence, fallbacks, and malformed-value behavior so a typo
+ * never silently relaxes the gate.
  */
 
 const CONFIG = Object.freeze({

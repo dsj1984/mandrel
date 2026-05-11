@@ -1,11 +1,12 @@
 ---
 description: >-
-  Drive an Epic from `agent::ready` to an open pull request against `main`. The
-  six-phase flow runs the wave loop, close-validation, code-review, retro, and
-  finalize end-to-end; ends by opening a PR — the operator merges through the
-  GitHub UI. There is no in-script merge to `main`. The runtime engine is
-  `epic-deliver-runner`; `epic-deliver-prepare` builds the wave plan;
-  `epic-deliver-finalize` opens the PR.
+  Drive an Epic from `agent::ready` to a green, mergeable pull request against
+  `main`. The seven-phase flow runs the wave loop, close-validation,
+  code-review, retro, finalize, and a watch-and-iterate loop that drives the
+  open PR's CI to green via `gh pr checks --watch` + local fixes. There is no
+  in-script merge to `main` — the operator merges through the GitHub UI. The
+  runtime engine is `epic-deliver-runner`; `epic-deliver-prepare` builds the
+  wave plan; `epic-deliver-finalize` opens the PR.
 ---
 
 # /epic-deliver #[Epic ID]
@@ -26,6 +27,7 @@ merge through the GitHub UI:
                                  a `code-review` structured comment)
   → Phase 5 — retro             (helpers/epic-retro.md, fired locally)
   → Phase 6 — finalize          (epic-deliver-finalize.js → open PR to main)
+  → Phase 7 — watch-and-iterate (poll `gh pr checks`; fix locally until green)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
@@ -363,6 +365,107 @@ chainer, the separate finalize CLI) were removed in 5.40.0 — see the
 
 ---
 
+## Phase 7 — Watch-and-iterate until CI is green
+
+The PR is now open. The required-checks gate on `main` is CI-only
+(`Validate and Test (ubuntu-latest, node 22)`) — there is no bot
+approver, no auto-triage comment, and no auto-fix push. The host LLM
+owns the green-bar loop until the operator merges.
+
+Poll the PR's check-run state and, on every failure, pull the failing
+log, diagnose locally, push a fix to `epic/<epicId>`, and loop again.
+
+```bash
+# Poll loop — exits 0 when every required check is success/neutral/skipped.
+gh pr checks <prNumber> --watch
+```
+
+`gh pr checks --watch` blocks until the check-runs settle. Treat its exit
+code as the loop verdict:
+
+- **Exit 0** (all required checks green) → relay the PR URL to the
+  operator and stop. Their merge through the GitHub UI fires the standard
+  `agent::done` transition; branch cleanup runs out-of-band via
+  `/delete-epic-branches`.
+- **Non-zero exit** (any required check failed) → drop into the
+  remediation loop below.
+
+### 7.1 Remediation loop
+
+For each failed required check:
+
+1. **Fetch the failing job's log directly** — do not wait for a triage
+   comment, none will appear.
+
+   ```bash
+   gh run view <runId> --log-failed
+   # or scope to a specific job:
+   gh run view <runId> --job <jobId> --log
+   ```
+
+2. **Classify the failure** by reading the log:
+   - `lint` / `format` → run `npm run lint` and `npm run format:check`
+     locally, fix with `npx biome check --apply` /
+     `npx biome format --write` (exclude `tests/**` only when the failure
+     is in production code), commit, push.
+   - `maintainability` / `crap` baseline drift → re-run the appropriate
+     ratcheted script locally, refresh the baseline file with a
+     `chore(baselines): refresh <name> for Epic #<epicId>` commit if and
+     only if the drift is justified by the diff (treat unjustified drift
+     as a real regression that must be fixed in source, not papered over
+     in the baseline).
+   - `test` failure → reproduce locally with `npm test`, fix the source
+     or the test, commit, push.
+   - `coverage` threshold failure → add tests (preferred) or refresh the
+     coverage baseline only when the diff demonstrably can't be covered
+     (rare).
+   - Anything else → read the log carefully, fix at the source.
+
+3. **Push the fix to `epic/<epicId>`** (the PR's head branch):
+
+   ```bash
+   git push origin epic/<epicId>
+   ```
+
+4. **Re-arm the watch loop**:
+
+   ```bash
+   gh pr checks <prNumber> --watch
+   ```
+
+Repeat until the watch loop exits 0. There is no per-PR attempt cap —
+the loop is human-in-the-loop by design; the operator can cancel at any
+time.
+
+### 7.2 When to halt
+
+- **Three consecutive watch-loop iterations on the same failure class**
+  without convergence → post a friction structured comment on the Epic
+  ticket naming the failing check, the loop count, and the last fix
+  attempt; flip the Epic to `agent::blocked`; park. The operator
+  diagnoses the loop and flips back to `agent::executing` to resume.
+- **A failure class outside the four canonical buckets** (lint / test /
+  coverage / maintainability) on first encounter → still attempt a
+  source-level fix, but log a friction comment if the diagnosis takes
+  more than one round of investigation. Unknown CI behaviour is worth
+  the operator's attention.
+
+### 7.3 What you must not do
+
+- **Never** `gh pr merge` from inside this skill. The operator is the
+  merge gate.
+- **Never** force-push to `main`. The Epic branch is the only legal
+  push target.
+- **Never** re-run a check by pushing an empty commit to dodge the
+  diagnosis — fix the real failure, or halt and ask.
+- **Never** refresh a baseline file solely to make a red check go
+  green; the baseline-refresh anti-gaming guardrail was removed
+  alongside the bot pipeline, so the operator is now the only thing
+  standing between an honest refresh and a gamed one. Self-police
+  accordingly.
+
+---
+
 ## Operator-merges-PR exit condition
 
 `/epic-deliver` ends at the moment the PR is open, the required-checks
@@ -407,8 +510,8 @@ the merged checkpoint state.
 ## Constraints
 
 - **Never** merge `epic/<epicId>` into `main` from inside this
-  workflow. Phase 6 opens the PR and stops; the operator merges
-  through the GitHub UI.
+  workflow. Phase 6 opens the PR and Phase 7 drives it to green; the
+  operator merges through the GitHub UI.
 - **Never** dispatch more than one wave at a time. Concurrency lives
   **inside** a single wave's fan-out (Phase 2a).
 - **Never** dispatch more than `concurrencyCap` Stories in flight per
@@ -432,3 +535,8 @@ the merged checkpoint state.
 - **Always** persist the code-review output as a `code-review`
   structured comment on the Epic — `epic-code-review.js` already does
   this via `upsertStructuredComment`; do not bypass it.
+- **Always** drive Phase 7 to a green CI verdict before returning
+  control to the operator. There is no longer a bot approver, an
+  auto-triage comment, or an auto-fix push; the host LLM owns the
+  iteration loop until the PR is mergeable or the operator parks the
+  Epic at `agent::blocked`.

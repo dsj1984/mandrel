@@ -118,352 +118,160 @@
       "startLine": 167
     },
     {
-      "crap": 1.823974609375,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "defaultGhShim",
-      "startLine": 95
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "renderBailBody",
-      "startLine": 123
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "findExistingBailComment",
-      "startLine": 151
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "postNewBailComment",
-      "startLine": 184
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "patchExistingBailComment",
-      "startLine": 206
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "setAttemptedLabel",
-      "startLine": 234
-    },
-    {
-      "crap": 9,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "runBail",
-      "startLine": 261
-    },
-    {
-      "crap": 1.5787037037037037,
-      "file": ".agents/scripts/auto-fix-bail.js",
-      "method": "main",
-      "startLine": 302
-    },
-    {
-      "crap": 1.8573749999999998,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "defaultExecShim",
-      "startLine": 78
-    },
-    {
-      "crap": 2.2560000000000002,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "runOrThrow",
-      "startLine": 109
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "assertNoTestFilesStaged",
-      "startLine": 130
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "buildAuthenticatedRemoteUrl",
-      "startLine": 160
-    },
-    {
-      "crap": 9,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "runFixStep",
-      "startLine": 183
-    },
-    {
-      "crap": 2.0625,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "setLabel",
-      "startLine": 321
-    },
-    {
-      "crap": 1.421875,
-      "file": ".agents/scripts/auto-fix-step.js",
-      "method": "main",
-      "startLine": 342
-    },
-    {
-      "crap": 13.041259765625,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "parseArgv",
-      "startLine": 53
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "parseBaseBranchConfig",
-      "startLine": 100
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "classifyChangedFiles",
-      "startLine": 132
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "parseCommitLog",
-      "startLine": 157
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "findRefreshCommits",
-      "startLine": 181
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "evaluateGuardrail",
-      "startLine": 207
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "readBaseBranchConfigRaw",
-      "startLine": 268
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "listChangedFiles",
-      "startLine": 283
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "listCommitsSinceBase",
-      "startLine": 302
-    },
-    {
-      "crap": 7.028356481481482,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "applyBaselineRefreshLabel",
-      "startLine": 322
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "runGh",
-      "startLine": 371
-    },
-    {
-      "crap": 1.8573749999999998,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "runCheckCrapWithBaseConfig",
-      "startLine": 385
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "spawnSyncWrapper",
-      "startLine": 406
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "emitVerdictMessages",
-      "startLine": 418
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "applyLabelIfNeeded",
-      "startLine": 434
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "performCrapRecheck",
-      "startLine": 450
-    },
-    {
-      "crap": 30,
-      "file": ".agents/scripts/baseline-refresh-guardrail.js",
-      "method": "main",
-      "startLine": 479
-    },
-    {
       "crap": 15,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapEnvOverrides",
-      "startLine": 67
+      "startLine": 69
     },
     {
       "crap": 31.89665965864438,
       "file": ".agents/scripts/check-crap.js",
       "method": "parseArgv",
-      "startLine": 121
+      "startLine": 123
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "filterRowsByFileScope",
-      "startLine": 187
+      "startLine": 189
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "checkCrapRegression",
-      "startLine": 242
+      "startLine": 244
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 253
+      "startLine": 255
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 368
+      "startLine": 370
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 431
+      "startLine": 433
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "writeJsonReport",
-      "startLine": 475
+      "startLine": 477
     },
     {
       "crap": 30,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 483
+      "startLine": 485
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 526
+      "startLine": 528
     },
     {
       "crap": 9.029518950437318,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 590
+      "startLine": 592
     },
     {
       "crap": 27.9140567779541,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 619
+      "startLine": 621
     },
     {
       "crap": 8,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveMaintainabilityEnvOverrides",
-      "startLine": 60
+      "startLine": 61
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "compareScores",
-      "startLine": 98
+      "startLine": 99
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "coerceStoryId",
-      "startLine": 145
+      "startLine": 146
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 157
+      "startLine": 158
     },
     {
       "crap": 16.324074074074073,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 177
+      "startLine": 178
     },
     {
       "crap": 5,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 190
+      "startLine": 191
     },
     {
       "crap": 5,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 212
+      "startLine": 213
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 222
+      "startLine": 223
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 243
+      "startLine": 244
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "writeJsonReport",
-      "startLine": 264
+      "startLine": 265
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 272
+      "startLine": 273
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 301
+      "startLine": 302
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 329
+      "startLine": 330
     },
     {
       "crap": 37.79740486951451,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 348
+      "startLine": 349
     },
     {
       "crap": 2,
@@ -1384,30 +1192,6 @@
       "startLine": 44
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
-      "method": "classifyLine",
-      "startLine": 116
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
-      "method": "classifyBuffer",
-      "startLine": 139
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
-      "method": "detectFailureClass",
-      "startLine": 176
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
-      "method": "emptyCounts",
-      "startLine": 203
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/baseline-loader.js",
       "method": "cacheKeyFor",
@@ -1426,22 +1210,22 @@
       "startLine": 75
     },
     {
-      "crap": 6.0052485785099865,
+      "crap": 6.004855105446821,
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
       "method": "diffProtection",
-      "startLine": 48
+      "startLine": 46
     },
     {
       "crap": 3.0262390670553936,
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
       "method": "isBehaviorShifting",
-      "startLine": 87
+      "startLine": 86
     },
     {
       "crap": 10.011192979203795,
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
       "method": "applyBranchProtection",
-      "startLine": 109
+      "startLine": 108
     },
     {
       "crap": 4,
@@ -1466,18 +1250,6 @@
       "file": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "method": "applyMergeMethods",
       "startLine": 60
-    },
-    {
-      "crap": 2.0625,
-      "file": ".agents/scripts/lib/bootstrap/workflow-templates.js",
-      "method": "tryReadFile",
-      "startLine": 81
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/bootstrap/workflow-templates.js",
-      "method": "copyWorkflowTemplates",
-      "startLine": 99
     },
     {
       "crap": 8,
@@ -4780,90 +4552,6 @@
       "startLine": 124
     },
     {
-      "crap": 15,
-      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
-      "method": "isCrapEnvelope",
-      "startLine": 49
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
-      "method": "parseCrapEnvelope",
-      "startLine": 76
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
-      "method": "compareViolationsDesc",
-      "startLine": 109
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
-      "method": "topRegressions",
-      "startLine": 128
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/triage/parse-crap-report.js",
-      "method": "parseCrapReport",
-      "startLine": 145
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/triage/parse-test-output.js",
-      "method": "normalizeLines",
-      "startLine": 62
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/triage/parse-test-output.js",
-      "method": "findLastFailureMarker",
-      "startLine": 86
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/triage/parse-test-output.js",
-      "method": "parseTestOutput",
-      "startLine": 114
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/triage/parse-test-output.js",
-      "method": "sortPayloadsByOs",
-      "startLine": 145
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/triage/parse-test-output.js",
-      "method": "<anon method-1>",
-      "startLine": 149
-    },
-    {
-      "crap": 2.0625,
-      "file": ".agents/scripts/lib/triage/render-comment.js",
-      "method": "truncateLine",
-      "startLine": 30
-    },
-    {
-      "crap": 2.0094814814814814,
-      "file": ".agents/scripts/lib/triage/render-comment.js",
-      "method": "renderTestOutputSection",
-      "startLine": 41
-    },
-    {
-      "crap": 3.007774538386783,
-      "file": ".agents/scripts/lib/triage/render-comment.js",
-      "method": "renderCrapSection",
-      "startLine": 66
-    },
-    {
-      "crap": 7.073142857142857,
-      "file": ".agents/scripts/lib/triage/render-comment.js",
-      "method": "renderTriageComment",
-      "startLine": 99
-    },
-    {
       "crap": 6.04548595344797,
       "file": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
@@ -6158,54 +5846,6 @@
       "file": ".agents/scripts/task-commit.js",
       "method": "main",
       "startLine": 229
-    },
-    {
-      "crap": 1.833706492977814,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "defaultGhShim",
-      "startLine": 58
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "collectTestOutputs",
-      "startLine": 88
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "collectCrapRegressions",
-      "startLine": 120
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "findExistingTriageComment",
-      "startLine": 145
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "postNewComment",
-      "startLine": 179
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "patchExistingComment",
-      "startLine": 201
-    },
-    {
-      "crap": 11.046545454545454,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "runTriage",
-      "startLine": 228
-    },
-    {
-      "crap": 1.5787037037037037,
-      "file": ".agents/scripts/triage-ci-failure.js",
-      "method": "main",
-      "startLine": 292
     },
     {
       "crap": 3,

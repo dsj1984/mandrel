@@ -432,8 +432,10 @@ the lint ratchet, and the CRAP/MI gates.
 
 These files are the contract. They are read by every gate (Story close, push
 hook, CI) and are regenerated only via tagged `baseline-refresh:` commits with
-a non-empty body — see the `baseline-refresh-guardrail` job and the CRAP
-section of [`docs/quality-gates.md`](quality-gates.md) for the policy.
+a non-empty body. The convention is now operator-enforced (the bot-pipeline
+guardrail that mechanically rejected unlabeled baseline edits was removed in
+5.42); see the CRAP section of [`docs/quality-gates.md`](quality-gates.md)
+for the policy.
 
 Paths are configured in `agentSettings.quality.baselines.<gate>.path`. The
 default values match the canonical layout above; override only when a project

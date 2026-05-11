@@ -143,9 +143,10 @@ The canonical baseline file lives at `baselines/lint.json` (override via
 node .agents/scripts/lint-baseline.js --refresh
 ```
 
-Refresh commits must use a `baseline-refresh:` subject + non-empty body so
-the `baseline-refresh-guardrail` CI job accepts them — same rule as the
-CRAP and maintainability ratchets.
+Refresh commits should use a `baseline-refresh:` subject + non-empty body so
+the operator can spot baseline edits in review — same convention as the CRAP
+and maintainability ratchets. The CI guardrail that mechanically enforced
+this was removed in 5.42; the operator is now the gate.
 
 ---
 
@@ -291,18 +292,18 @@ strategy without re-running the gate to check.
 
 ### Refreshing the baseline (when the drift is justified)
 
-`npm run crap:update` regenerates `baselines/crap.json`. The
-`baseline-refresh-guardrail` CI job will reject your PR unless at least
-one commit on the branch has:
+`npm run crap:update` regenerates `baselines/crap.json`. The refresh
+should land in a commit whose:
 
-1. A subject starting with the configured `refreshTag` (default
+1. Subject starts with the configured `refreshTag` (default
    `baseline-refresh:`).
-2. A non-empty body explaining why the refresh is justified.
+2. Body is non-empty and explains why the refresh is justified.
 
-Both conditions are required. The tag alone without justification is not
-enough. Baseline-only PRs additionally receive the
-`review::baseline-refresh` label automatically — that's intentional, so a
-human reviewer sees every refresh on top of green CI.
+The CI guardrail that mechanically rejected unlabeled baseline edits was
+removed in 5.42 alongside the bot-approver pipeline. The convention is
+preserved so the operator can grep refresh commits in PR diff, but
+self-policing is the operator's job during `/epic-deliver`'s Phase 7
+watch loop — an unjustified baseline ratchet is no longer caught by CI.
 
 ---
 
