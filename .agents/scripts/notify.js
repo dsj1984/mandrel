@@ -160,7 +160,7 @@ export async function notify(ticketId, payload, opts = {}) {
       `[Notify] Invalid severity "${severity}". Expected: low | medium | high.`,
     );
   }
-  const operator = orchestration.github.operatorHandle || '@operator';
+  const operator = orchestration.github?.operatorHandle || '@operator';
   const channels = resolveChannelLevels(orchestration.notifications);
   const webhookEvents = resolveWebhookEvents(orchestration.notifications);
   const log = (line) => {
