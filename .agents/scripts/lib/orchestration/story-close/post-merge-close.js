@@ -22,7 +22,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
 import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
 import {
@@ -40,6 +40,7 @@ import {
  *   epicBranch: string,
  *   cwd: string,
  *   projectRoot: string,
+ *   config?: object,
  *   provider: object,
  *   notify: Function,
  *   tasks: object[],
@@ -54,6 +55,10 @@ import {
  *   writeFileFn?: typeof writeFile,
  *   mkdirFn?: typeof mkdir,
  * }} opts
+ *   `config`: resolved config bag (`{ agentSettings, orchestration }` or the
+ *   bare `agentSettings`) used by downstream temp-paths helpers + signal
+ *   writers so per-story artifacts honor the configured `tempRoot` instead
+ *   of leaking under the framework `projectRoot` / `process.cwd()`.
  * @returns {Promise<object>} the final close result object.
  */
 export async function runPostMergeClose({
@@ -65,6 +70,7 @@ export async function runPostMergeClose({
   epicBranch,
   cwd,
   projectRoot,
+  config,
   provider,
   notify,
   tasks,
@@ -89,14 +95,16 @@ export async function runPostMergeClose({
   const timingSummary = phaseTimer.finish();
   let phaseTimingsPath = null;
   try {
-    const dir = path.join(
-      projectRoot,
-      'temp',
-      `epic-${epicId}`,
-      `story-${storyId}`,
-    );
+    const eid = Number(epicId);
+    const sid = Number(storyId);
+    const dir = storyTempDir(eid, sid, config);
     await mkdirFn(dir, { recursive: true });
-    phaseTimingsPath = path.join(dir, 'phase-timings.json');
+    phaseTimingsPath = storyArtifactPath(
+      eid,
+      sid,
+      'phase-timings.json',
+      config,
+    );
     await writeFileFn(phaseTimingsPath, JSON.stringify(timingSummary, null, 2));
   } catch (err) {
     phaseTimingsPath = null;
@@ -119,6 +127,7 @@ export async function runPostMergeClose({
     epicBranch,
     repoRoot: cwd,
     projectRoot,
+    config,
     provider,
     notify,
     tasks,

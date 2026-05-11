@@ -270,7 +270,7 @@ function writeJsonReport(jsonPath, envelope) {
   fs.writeFileSync(abs, `${JSON.stringify(envelope, null, 2)}\n`);
 }
 
-async function emitRegressionFriction(storyId, epicId, regressedFiles) {
+async function emitRegressionFriction(storyId, epicId, regressedFiles, config) {
   if (!storyId || !epicId || regressedFiles.length === 0) return;
   try {
     await appendSignal({
@@ -291,6 +291,7 @@ async function emitRegressionFriction(storyId, epicId, regressedFiles) {
           drop: r.drop,
         })),
       },
+      config,
     });
   } catch (err) {
     Logger.warn(
@@ -434,7 +435,9 @@ async function main() {
     const storyId = parseStoryIdArg();
     const epicId = parseEpicIdArg();
     if (storyId && epicId) {
-      await emitRegressionFriction(storyId, epicId, stats.regressedFiles);
+      await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
+        agentSettings,
+      });
     }
     process.exit(1);
   }

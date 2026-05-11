@@ -54,6 +54,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     logger,
     concurrency: ctx.concurrency?.progressReporter,
     cwd: ctx.cwd,
+    config,
   });
   const columnSync = new ColumnSync({ ctx });
 

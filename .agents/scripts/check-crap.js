@@ -529,6 +529,9 @@ async function emitFriction(storyId, epicId, result, orchestration) {
   if (!storyId || !epicId) return;
   const offenders = result.violations;
   if (offenders.length === 0) return;
+  // `orchestration` here is the full resolved config bag (`{ agentSettings,
+  // ...rest }`) — the parameter name predates the bag-style threading and
+  // is retained for surface stability.
   const category =
     orchestration?.agentSettings?.maintainability?.crap?.friction?.markerKey ??
     'crap-baseline-regression';
@@ -556,6 +559,7 @@ async function emitFriction(storyId, epicId, result, orchestration) {
           kind: v.kind,
         })),
       },
+      config: orchestration,
     });
   } catch (err) {
     Logger.warn(`[CRAP] friction signal append failed: ${err?.message ?? err}`);

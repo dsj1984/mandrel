@@ -34,6 +34,7 @@ import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { notify } from '../../notify.js';
+import { storyArtifactPath } from '../config/temp-paths.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
 import { appendSignal } from '../observability/signals-writer.js';
@@ -73,6 +74,7 @@ async function emitReapFailureFriction({
   reapResult,
   epicBranch,
   logger,
+  config,
 }) {
   if (!epicId || !storyId) return;
   const reason = String(reapResult?.reason ?? 'unknown');
@@ -93,6 +95,7 @@ async function emitReapFailureFriction({
         worktreePath: wtPath,
         reason,
       },
+      config,
     });
   } catch (err) {
     logger?.warn?.(
@@ -111,6 +114,7 @@ export async function worktreeReapPhase(ctx) {
     progress,
     logger,
     worktreeManagerFactory,
+    config,
   } = ctx;
   const wtConfig = orchestration?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
@@ -155,6 +159,7 @@ export async function worktreeReapPhase(ctx) {
       reapResult,
       epicBranch,
       logger,
+      config,
     });
     log(
       'WORKTREE',
@@ -197,6 +202,7 @@ export async function worktreeReapPhase(ctx) {
       },
       epicBranch,
       logger,
+      config,
     });
   }
   return state;
@@ -352,7 +358,7 @@ export async function dashboardRefreshPhase(ctx) {
 }
 
 export async function tempCleanupPhase(ctx) {
-  const { storyId, epicId, projectRoot, progress, unlinkFn } = ctx;
+  const { storyId, epicId, projectRoot, progress, unlinkFn, config } = ctx;
   const log = reapPhaseLogger(progress);
   const unlink = unlinkFn ?? (await import('node:fs/promises')).unlink;
 
@@ -363,24 +369,23 @@ export async function tempCleanupPhase(ctx) {
   // leave residue.
   const targets = [];
   if (epicId) {
-    const perStoryBase = path.join(
-      projectRoot,
-      'temp',
-      `epic-${epicId}`,
-      `story-${storyId}`,
-      'manifest',
-    );
+    const eid = Number(epicId);
+    const sid = Number(storyId);
     targets.push(
       {
-        path: `${perStoryBase}.md`,
+        path: storyArtifactPath(eid, sid, 'manifest.md', config),
         label: `temp/epic-${epicId}/story-${storyId}/manifest.md`,
       },
       {
-        path: `${perStoryBase}.json`,
+        path: storyArtifactPath(eid, sid, 'manifest.json', config),
         label: `temp/epic-${epicId}/story-${storyId}/manifest.json`,
       },
     );
   }
+  // Legacy flat layout is rooted at the framework's projectRoot — this is
+  // a half-migrated-cohort sweep, not a configured-tempRoot target. Once
+  // the legacy paths can no longer exist on any live install, this block
+  // can be deleted entirely.
   const legacyBase = path.join(
     projectRoot,
     'temp',

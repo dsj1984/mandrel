@@ -450,6 +450,67 @@ describe('worktreeReapPhase', () => {
     assert.equal(signals.length, 1);
     assert.equal(signals[0].category, 'reap-failure');
   });
+
+  it('routes reap-failure friction through the ctx.config tempRoot (regression: leakage to process.cwd())', async () => {
+    // Configure an *absolute* tempRoot pointing at a sibling of the
+    // process.cwd() (workRoot). If the pipeline ever falls back to
+    // resolving the relative 'temp' string against process.cwd() again,
+    // the signal would land under `workRoot/temp/...` and the assertion
+    // on the configured location would find an empty file — failing this
+    // test red. This locks the contract that emitReapFailureFriction
+    // forwards `config` to appendSignal.
+    const configuredTempRoot = mkdtempSync(
+      path.join(tmpdir(), 'post-merge-tempRoot-'),
+    );
+    try {
+      const { factory } = makeWmFactory({
+        reap: {
+          removed: false,
+          reason: 'EBUSY: resource busy',
+          path: '/wt/story-1',
+        },
+      });
+      await worktreeReapPhase({
+        orchestration: { worktreeIsolation: { enabled: true } },
+        storyId: 1,
+        epicId: 9,
+        epicBranch: 'epic/9',
+        repoRoot: '/repo',
+        logger: makeLogger(),
+        progress: () => {},
+        worktreeManagerFactory: factory,
+        config: {
+          agentSettings: { paths: { tempRoot: configuredTempRoot } },
+        },
+      });
+
+      const configuredPath = path.join(
+        configuredTempRoot,
+        'epic-9',
+        'story-1',
+        'signals.ndjson',
+      );
+      assert.ok(
+        existsSync(configuredPath),
+        `friction signal should land under ctx.config.agentSettings.paths.tempRoot (${configuredPath})`,
+      );
+
+      const leakedPath = path.join(
+        workRoot,
+        'temp',
+        'epic-9',
+        'story-1',
+        'signals.ndjson',
+      );
+      assert.equal(
+        existsSync(leakedPath),
+        false,
+        `friction signal must NOT fall back to process.cwd()/temp (${leakedPath}) — that path is the regression tripwire`,
+      );
+    } finally {
+      rmSync(configuredTempRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('ticketClosurePhase (smoke)', () => {

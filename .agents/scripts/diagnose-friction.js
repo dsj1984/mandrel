@@ -240,6 +240,7 @@ export async function main(args = process.argv.slice(2)) {
           epicId: resolvedEpicId,
           storyId: resolvedStoryId,
           signal,
+          config: { agentSettings },
         });
         if (ok) {
           Logger.error(

@@ -9,6 +9,23 @@ import { runStoryClose } from '../.agents/scripts/story-close.js';
 import { runStoryInit } from '../.agents/scripts/story-init.js';
 import { MockProvider } from './fixtures/mock-provider.js';
 
+// `<repo>/temp/epic-50/` is the canonical sandbox-leakage tripwire — these
+// tests drive runStoryClose with (epicId=50, storyId=100) and the
+// post-merge pipeline previously ignored the sandbox tempRoot and wrote
+// under the framework PROJECT_ROOT. With the config-honoring fix in
+// place every write lands under `path.join(sandbox, 'temp')` instead;
+// this assertion locks that contract so a future regression flips the
+// test red instead of silently leaking again.
+const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+function assertNoSandboxLeak(epicId) {
+  const epicDir = path.join(REPO_ROOT, 'temp', `epic-${epicId}`);
+  assert.equal(
+    fs.existsSync(epicDir),
+    false,
+    `regression: <repo>/temp/epic-${epicId}/ exists — sandbox tempRoot is being ignored again`,
+  );
+}
+
 const gitHistory = [];
 let currentBranch = 'main';
 
@@ -350,7 +367,14 @@ test('story-close: successful merge and closure', async () => {
     JSON.stringify({
       agentSettings: {
         baseBranch: 'main',
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          // Absolute sandbox tempRoot so every per-Story artifact (signals,
+          // phase-timings, manifest cleanup targets) lands inside this
+          // disposable directory rather than leaking to the framework repo.
+          tempRoot: path.join(sandboxCwd, 'temp'),
+        },
       },
       orchestration: {
         provider: 'github',
@@ -386,6 +410,7 @@ test('story-close: successful merge and closure', async () => {
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    assertNoSandboxLeak(50);
   }
 });
 
@@ -411,7 +436,11 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
     JSON.stringify({
       agentSettings: {
         baseBranch: 'main',
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: path.join(explicitMainRepo, 'temp'),
+        },
       },
       orchestration: {
         provider: 'github',
@@ -450,6 +479,7 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(explicitMainRepo, { recursive: true, force: true });
+    assertNoSandboxLeak(50);
   }
 });
 
@@ -473,7 +503,11 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
     JSON.stringify({
       agentSettings: {
         baseBranch: 'main',
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: path.join(tmp, 'temp'),
+        },
       },
       orchestration: {
         provider: 'github',
@@ -506,6 +540,7 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(tmp, { recursive: true, force: true });
+    assertNoSandboxLeak(50);
   }
 });
 
@@ -530,7 +565,11 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
     JSON.stringify({
       agentSettings: {
         baseBranch: 'main',
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+        paths: {
+          agentRoot: '.agents',
+          docsRoot: 'docs',
+          tempRoot: path.join(tmp, 'temp'),
+        },
       },
       orchestration: {
         provider: 'github',
@@ -563,5 +602,6 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
   } finally {
     WorktreeManager.prototype.ensure = originalEnsure;
     fs.rmSync(tmp, { recursive: true, force: true });
+    assertNoSandboxLeak(50);
   }
 });

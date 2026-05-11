@@ -268,10 +268,10 @@
       "startLine": 330
     },
     {
-      "crap": 37.79740486951451,
+      "crap": 38.72,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 349
+      "startLine": 350
     },
     {
       "crap": 2,
@@ -5974,7 +5974,7 @@
       "startLine": 239
     },
     {
-      "crap": 17.460358418311294,
+      "crap": 20.03,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
       "startLine": 274
