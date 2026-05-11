@@ -246,6 +246,54 @@ When husky is available:
 Leave an existing `.husky/pre-commit` untouched unless the operator explicitly
 asks for changes.
 
+## Step 7.5 — Stabilized quality gates (Epic #1386)
+
+After the husky scaffolding from Step 7 is in place, install the four
+artefacts that catch CRAP / Maintainability drift at the keyboard rather
+than at close-validation time. The single source of truth for what each
+artefact does and where its thresholds live is
+[`helpers/code-quality-guardrails.md`](helpers/code-quality-guardrails.md).
+
+The four installs are encapsulated in
+[`.agents/scripts/lib/bootstrap/quality-bootstrap.js`](../scripts/lib/bootstrap/quality-bootstrap.js)
+so this workflow and [`/agents-update`](agents-update.md) drive them
+through the same idempotent helper. Invoke the four steps from the
+project root:
+
+```bash
+node -e "
+  import('./.agents/scripts/lib/bootstrap/quality-bootstrap.js').then(m => {
+    const r = m.applyQualityBootstrap({ projectRoot: process.cwd() });
+    console.log(JSON.stringify(r, null, 2));
+  });
+"
+```
+
+Each step is idempotent and surfaces its outcome under its own key:
+
+1. **`helper`** — copies
+   [`helpers/code-quality-guardrails.md`](helpers/code-quality-guardrails.md)
+   into the project's `.agents/workflows/helpers/` (no-op when `.agents/`
+   is consumed as a submodule — the helper already lives there).
+2. **`hook`** — installs `.husky/pre-commit` carrying the diff-scoped
+   `quality:preview` invocation. When a custom (non-framework) hook
+   already exists, the helper returns `custom-hook-skip` and emits a
+   notice with the recommended snippet to merge in by hand. **Never**
+   overwrite a custom hook silently; print the notice and move on.
+3. **`scripts`** — adds `quality:preview` (default
+   `node .agents/scripts/quality-preview.js --changed-since HEAD`) and
+   `quality:watch` (`node .agents/scripts/quality-watch.js`) to
+   `package.json` when missing. Existing values are preserved.
+4. **`config`** — seeds `agentSettings.quality.codingGuardrails`
+   (cyclomatic flag/must-fix, MI-drop refactor ceiling, sibling-test
+   toggle) and `agentSettings.quality.autoRefresh` (delta caps for the
+   bounded auto-refresh that runs at story-close) in `.agentrc.json`.
+   Only missing keys are written; project overrides survive.
+
+Re-running the helper on an already-bootstrapped project produces zero
+mutations. The workflow report (Step 10) names the per-step outcomes
+returned by `applyQualityBootstrap`.
+
 ## Step 8 — Ensure `.mcp.json` is gitignored
 
 MCP servers are loaded by Claude Code from a project-scoped `.mcp.json` at
@@ -304,6 +352,12 @@ Emit a compact summary showing what was touched on this run:
   .claude/commands/                          <N> file(s) synced from workflows
   parity check                               OK | <asymmetry details>
   windows git perf check                     OK | <N> warning(s) | skipped (non-windows)
+  quality helper                             present-via-submodule | copied | already-present
+  .husky/pre-commit                          created | already-present | custom-hook-skip
+  package.json        quality:preview        added | already present
+  package.json        quality:watch          added | already present
+  .agentrc.json       quality.codingGuardrails  added | already present
+  .agentrc.json       quality.autoRefresh    added | already present
 ```
 
 If every row shows `already present` and parity is OK, print a single
