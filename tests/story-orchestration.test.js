@@ -16,8 +16,41 @@ import { MockProvider } from './fixtures/mock-provider.js';
 // place every write lands under `path.join(sandbox, 'temp')` instead;
 // this assertion locks that contract so a future regression flips the
 // test red instead of silently leaking again.
+//
+// Test-owned fixture only. `epicId === 50` is deliberately reserved for
+// this fixture and is not used by any real Epic in this repository; any
+// `<repo>/temp/epic-50/` directory present at the moment a test starts
+// or ends is by construction a leak from a previous failed run. Tests
+// for real epics (e.g. `temp/epic-1143/`, `temp/epic-1185/`) live in
+// the canonical artefact tree and must NOT be touched by this tripwire.
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+const SANDBOX_TRIPWIRE_EPIC_IDS = new Set([50]);
+
+/**
+ * Remove the tripwire directory for `epicId` if it exists. Refuses to
+ * touch any epicId not in the SANDBOX_TRIPWIRE_EPIC_IDS allowlist so a
+ * mis-passed real epic id (e.g. 1143, 1185) cannot delete real work
+ * artefacts. Called at the start of each test that uses the tripwire
+ * so leaks from prior failed runs do not poison the next assertion.
+ */
+function clearSandboxTripwire(epicId) {
+  if (!SANDBOX_TRIPWIRE_EPIC_IDS.has(epicId)) {
+    throw new Error(
+      `clearSandboxTripwire refuses epicId=${epicId} — only test-owned fixture IDs may be auto-cleaned (allowlist: ${[...SANDBOX_TRIPWIRE_EPIC_IDS].join(', ')})`,
+    );
+  }
+  const epicDir = path.join(REPO_ROOT, 'temp', `epic-${epicId}`);
+  if (fs.existsSync(epicDir)) {
+    fs.rmSync(epicDir, { recursive: true, force: true });
+  }
+}
+
 function assertNoSandboxLeak(epicId) {
+  if (!SANDBOX_TRIPWIRE_EPIC_IDS.has(epicId)) {
+    throw new Error(
+      `assertNoSandboxLeak refuses epicId=${epicId} — only test-owned fixture IDs are tripwires (allowlist: ${[...SANDBOX_TRIPWIRE_EPIC_IDS].join(', ')})`,
+    );
+  }
   const epicDir = path.join(REPO_ROOT, 'temp', `epic-${epicId}`);
   assert.equal(
     fs.existsSync(epicDir),
@@ -334,6 +367,7 @@ test('story-init: refuses to switch branches when working tree is dirty', async 
 });
 
 test('story-close: successful merge and closure', async () => {
+  clearSandboxTripwire(50);
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -415,6 +449,7 @@ test('story-close: successful merge and closure', async () => {
 });
 
 test('story-close: reaps worktree using resolved --cwd repo root', async () => {
+  clearSandboxTripwire(50);
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -484,6 +519,7 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
 });
 
 test('story-close: resolves config from runtime --cwd (can disable reap)', async () => {
+  clearSandboxTripwire(50);
   const provider = new MockProvider({
     tickets: {
       100: {
@@ -545,6 +581,7 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
 });
 
 test('story-init: resolves config from runtime --cwd for worktree mode', async () => {
+  clearSandboxTripwire(50);
   const provider = new MockProvider({
     tickets: {
       100: {
