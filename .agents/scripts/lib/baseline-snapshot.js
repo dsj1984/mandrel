@@ -1,4 +1,6 @@
+import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 import {
@@ -197,6 +199,189 @@ export function forkMainToEpic({
   }
 
   return { epicId, results };
+}
+
+/**
+ * Author a single planning commit on `epic/<id>` that adds the per-Epic
+ * baseline snapshots, without disturbing the live working tree or HEAD.
+ *
+ * Implementation strategy: build a fresh, isolated git index seeded from the
+ * Epic branch's tree (`read-tree`), `update-index --add` the snapshot blobs
+ * (sourced via `hash-object -w`), `write-tree` against that index, and
+ * `commit-tree` the result with the Epic branch as parent. The commit is
+ * then attached via `update-ref refs/heads/epic/<id>`. The live worktree
+ * `.git/index` is never touched — we route every git invocation through a
+ * temporary `GIT_INDEX_FILE`.
+ *
+ * Idempotent: when the resulting tree equals the parent's tree (because the
+ * blobs were already on the Epic branch), no commit is made and the helper
+ * returns `{ committed: false, reason: 'no-change' }`.
+ *
+ * Pre-conditions:
+ *   - `epic/<id>` ref exists (caller has invoked `ensureEpicBranchRef`).
+ *   - The destination snapshot files exist on disk (call `forkMainToEpic`
+ *     immediately before this helper).
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd?: string,
+ *   epicBranch?: string,
+ *   message?: string,
+ *   files?: Array<{ destination: string }>,    // accepts forkMainToEpic results
+ *   gitSpawn?: typeof defaultGitSpawn,
+ *   logger?: { info?: (m: string) => void, warn?: (m: string) => void },
+ * }} opts
+ * @returns {{ committed: boolean, sha?: string, reason?: 'no-change'|'no-files'|'epic-missing', detail?: string }}
+ */
+export function commitSnapshotsToEpicBranch({
+  epicId,
+  cwd = process.cwd(),
+  epicBranch = `epic/${epicId}`,
+  message = `chore(baseline-snapshot): seed per-epic snapshots for epic-${epicId}`,
+  files = [],
+  spawnSync = defaultSpawnSync,
+  fsImpl = fs,
+  logger = console,
+} = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      '[baseline-snapshot] commitSnapshotsToEpicBranch: epicId must be a positive integer',
+    );
+  }
+
+  // Filter to files that actually exist on disk and are under cwd. The helper
+  // is purely additive — it never deletes — so files: [] short-circuits.
+  const targets = files
+    .filter((f) => f && typeof f.destination === 'string')
+    .filter((f) => fsImpl.existsSync(f.destination))
+    .map((f) => ({
+      abs: f.destination,
+      rel: path.relative(cwd, f.destination).split(path.sep).join('/'),
+    }));
+  if (targets.length === 0) {
+    return { committed: false, reason: 'no-files' };
+  }
+
+  function runGit(args, extraEnv = {}) {
+    const result = spawnSync('git', args, {
+      cwd,
+      encoding: 'utf-8',
+      stdio: 'pipe',
+      shell: false,
+      env: { ...process.env, ...extraEnv },
+    });
+    return {
+      status: result.status ?? 1,
+      stdout: (result.stdout ?? '').trim(),
+      stderr: (result.stderr ?? '').trim(),
+    };
+  }
+
+  // Verify the epic branch ref exists before doing any plumbing work.
+  const verify = runGit(['rev-parse', '--verify', epicBranch]);
+  if (verify.status !== 0) {
+    return {
+      committed: false,
+      reason: 'epic-missing',
+      detail: `epic branch ref ${epicBranch} does not exist`,
+    };
+  }
+  const parentSha = verify.stdout;
+
+  // Allocate an isolated index file so the live `.git/index` never moves.
+  const tmpIndex = path.join(
+    os.tmpdir(),
+    `baseline-snapshot-${epicId}-${process.pid}-${Date.now()}.index`,
+  );
+  const env = { GIT_INDEX_FILE: tmpIndex };
+
+  try {
+    // Seed the index from the Epic branch tree.
+    const readTree = runGit(['read-tree', epicBranch], env);
+    if (readTree.status !== 0) {
+      return {
+        committed: false,
+        reason: 'epic-missing',
+        detail: `read-tree failed: ${readTree.stderr || readTree.stdout}`,
+      };
+    }
+
+    // Hash each blob (writing it to the object DB) and stage it in the
+    // temp index.
+    for (const t of targets) {
+      const hashRes = runGit(['hash-object', '-w', '--', t.abs]);
+      if (hashRes.status !== 0) {
+        throw new Error(
+          `[baseline-snapshot] hash-object failed for ${t.rel}: ${hashRes.stderr}`,
+        );
+      }
+      const blobSha = hashRes.stdout;
+      const updateIdx = runGit(
+        ['update-index', '--add', '--cacheinfo', `100644,${blobSha},${t.rel}`],
+        env,
+      );
+      if (updateIdx.status !== 0) {
+        throw new Error(
+          `[baseline-snapshot] update-index failed for ${t.rel}: ${updateIdx.stderr}`,
+        );
+      }
+    }
+
+    // Write the staged tree.
+    const writeTree = runGit(['write-tree'], env);
+    if (writeTree.status !== 0) {
+      throw new Error(
+        `[baseline-snapshot] write-tree failed: ${writeTree.stderr}`,
+      );
+    }
+    const newTreeSha = writeTree.stdout;
+
+    // Compare against the parent tree — skip the commit when nothing moved.
+    const parentTreeRes = runGit(['rev-parse', `${parentSha}^{tree}`]);
+    if (parentTreeRes.status === 0 && parentTreeRes.stdout === newTreeSha) {
+      return { committed: false, reason: 'no-change' };
+    }
+
+    // Author the commit and attach it to the Epic branch ref.
+    const commitRes = runGit([
+      'commit-tree',
+      newTreeSha,
+      '-p',
+      parentSha,
+      '-m',
+      message,
+    ]);
+    if (commitRes.status !== 0) {
+      throw new Error(
+        `[baseline-snapshot] commit-tree failed: ${commitRes.stderr}`,
+      );
+    }
+    const newCommitSha = commitRes.stdout;
+
+    const updateRef = runGit([
+      'update-ref',
+      `refs/heads/${epicBranch}`,
+      newCommitSha,
+      parentSha,
+    ]);
+    if (updateRef.status !== 0) {
+      throw new Error(
+        `[baseline-snapshot] update-ref failed: ${updateRef.stderr}`,
+      );
+    }
+
+    logger.info?.(
+      `[baseline-snapshot] committed ${targets.length} snapshot file(s) to ${epicBranch} (${newCommitSha.slice(0, 7)}).`,
+    );
+    return { committed: true, sha: newCommitSha };
+  } finally {
+    // Best-effort cleanup of the temp index file.
+    try {
+      if (fsImpl.existsSync(tmpIndex)) fsImpl.unlinkSync(tmpIndex);
+    } catch {
+      // ignore — temp file in OS tmpdir, not our problem long-term
+    }
+  }
 }
 
 /**
