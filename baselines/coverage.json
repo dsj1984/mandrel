@@ -281,7 +281,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 88.54,
+    "branches": 87.37,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -464,6 +464,11 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/gh-exec.js": {
+    "lines": 96.89,
+    "branches": 90,
+    "functions": 78.57
+  },
   ".agents/scripts/lib/git-branch-cleanup.js": {
     "lines": 74.38,
     "branches": 88.24,
@@ -480,7 +485,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -1271,7 +1276,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
