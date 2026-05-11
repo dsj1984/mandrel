@@ -187,6 +187,62 @@ export function resolvePrGate(userBlock) {
 }
 
 /**
+ * Framework defaults for `agentSettings.quality.codingGuardrails` — Story
+ * #1399 (Epic #1386). The numeric coding-time rules the helper at
+ * `.agents/workflows/helpers/code-quality-guardrails.md` cites. `cyclomaticFlag`
+ * is the review-annotation ceiling; `cyclomaticMustFix` is the refactor-before-
+ * merge ceiling; `miDropRefactor` is the per-file MI-drop ceiling above which a
+ * regression requires a same-Story refactor; `requireSiblingTest` defaults to
+ * `false` so legacy repos opt in to the structural sibling-test enforcement
+ * deliberately (the rule is still review-time prose when off).
+ */
+export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
+  cyclomaticFlag: 8,
+  cyclomaticMustFix: 12,
+  miDropRefactor: 1.5,
+  requireSiblingTest: false,
+});
+
+const CODING_GUARDRAILS_KEYS = new Set(Object.keys(CODING_GUARDRAILS_DEFAULTS));
+
+/**
+ * Merge a user-supplied `quality.codingGuardrails` block with framework
+ * defaults. Scalar keys replace; unknown keys emit a `Logger.warn` but do not
+ * fail resolution (mirrors the `crap`-block AC19 convention from Story 6).
+ *
+ * @param {object|undefined} userBlock
+ * @returns {{
+ *   cyclomaticFlag: number,
+ *   cyclomaticMustFix: number,
+ *   miDropRefactor: number,
+ *   requireSiblingTest: boolean,
+ * }}
+ */
+export function resolveCodingGuardrails(userBlock) {
+  const defaults = CODING_GUARDRAILS_DEFAULTS;
+  if (userBlock == null || typeof userBlock !== 'object') {
+    return { ...defaults };
+  }
+  for (const key of Object.keys(userBlock)) {
+    if (!CODING_GUARDRAILS_KEYS.has(key)) {
+      Logger.warn(
+        `[config] Unknown key 'quality.codingGuardrails.${key}' — ignoring.`,
+      );
+    }
+  }
+  return {
+    cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
+    cyclomaticMustFix:
+      userBlock.cyclomaticMustFix ?? defaults.cyclomaticMustFix,
+    miDropRefactor: userBlock.miDropRefactor ?? defaults.miDropRefactor,
+    requireSiblingTest:
+      typeof userBlock.requireSiblingTest === 'boolean'
+        ? userBlock.requireSiblingTest
+        : defaults.requireSiblingTest,
+  };
+}
+
+/**
  * Merge the entire `agentSettings.quality` block with framework defaults
  * (Epic #730 Story 6). Composes the per-sub-block resolvers so consumers can
  * read every grouped field — `targetDirs`, `crap.*`, `prGate.checks`,
@@ -197,7 +253,8 @@ export function resolvePrGate(userBlock) {
  *   maintainability: { targetDirs: string[] },
  *   crap: object,
  *   prGate: { checks: string[] },
- *   baselines: { lint: object, crap: object, maintainability: object }
+ *   baselines: { lint: object, crap: object, maintainability: object },
+ *   codingGuardrails: ReturnType<typeof resolveCodingGuardrails>,
  * }}
  */
 export function resolveQuality(userQuality) {
@@ -208,6 +265,7 @@ export function resolveQuality(userQuality) {
     crap: resolveMaintainabilityCrap(block.crap),
     prGate: resolvePrGate(block.prGate),
     baselines: resolveBaselines(block.baselines),
+    codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
   };
 }
 
