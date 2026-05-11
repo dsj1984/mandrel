@@ -1194,10 +1194,15 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/providers/github/http-client.js": {
-    "lines": 91.3,
-    "branches": 82.35,
+  ".agents/scripts/providers/github/graphql.js": {
+    "lines": 100,
+    "branches": 100,
     "functions": 100
+  },
+  ".agents/scripts/providers/github/http-client.js": {
+    "lines": 76.33,
+    "branches": 46.67,
+    "functions": 75
   },
   ".agents/scripts/providers/github/http.js": {
     "lines": 100,
@@ -1209,10 +1214,10 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/providers/github/projects-v2-graphql.js": {
-    "lines": 75.09,
-    "branches": 77.17,
-    "functions": 91.67
+  ".agents/scripts/providers/github/projects.js": {
+    "lines": 72.31,
+    "branches": 82.8,
+    "functions": 69.23
   },
   ".agents/scripts/providers/github/repo.js": {
     "lines": 73.33,
