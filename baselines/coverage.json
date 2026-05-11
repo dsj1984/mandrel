@@ -5,7 +5,7 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.31,
+    "lines": 93.27,
     "branches": 61.64,
     "functions": 100
   },
@@ -221,12 +221,12 @@
   },
   ".agents/scripts/lib/checks/delete-epic-branches-naming.js": {
     "lines": 100,
-    "branches": 75,
+    "branches": 87.5,
     "functions": 100
   },
   ".agents/scripts/lib/checks/epic-merge-lock-stale.js": {
     "lines": 100,
-    "branches": 64.29,
+    "branches": 71.43,
     "functions": 100
   },
   ".agents/scripts/lib/checks/index.js": {
@@ -236,7 +236,7 @@
   },
   ".agents/scripts/lib/checks/notifier-stub-required.js": {
     "lines": 99.03,
-    "branches": 87.23,
+    "branches": 89.58,
     "functions": 100
   },
   ".agents/scripts/lib/checks/push-hook-parity.js": {
@@ -246,7 +246,7 @@
   },
   ".agents/scripts/lib/checks/stale-origin-epic.js": {
     "lines": 100,
-    "branches": 80,
+    "branches": 90,
     "functions": 100
   },
   ".agents/scripts/lib/checks/state.js": {
@@ -256,12 +256,12 @@
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
     "lines": 97.8,
-    "branches": 88.24,
+    "branches": 91.89,
     "functions": 100
   },
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
     "lines": 96.7,
-    "branches": 72.73,
+    "branches": 79.49,
     "functions": 100
   },
   ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
@@ -450,7 +450,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -511,12 +511,12 @@
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
     "lines": 98.63,
-    "branches": 81.2,
+    "branches": 81.03,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 97.24,
-    "branches": 74.36,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -765,8 +765,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/retro-runner.js": {
-    "lines": 96.92,
-    "branches": 67.86,
+    "lines": 96.58,
+    "branches": 70,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close-recovery.js": {
@@ -1216,7 +1216,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {

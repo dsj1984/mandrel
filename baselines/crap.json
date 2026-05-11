@@ -58,7 +58,7 @@
       "startLine": 352
     },
     {
-      "crap": 3.3333333333333335,
+      "crap": 3.121477162293489,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 373
@@ -3955,31 +3955,61 @@
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "sumFriction",
-      "startLine": 42
+      "startLine": 44
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "collectDescendants",
-      "startLine": 56
+      "startLine": 58
     },
     {
       "crap": 5.004286694101509,
       "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "gatherRetroSignals",
-      "startLine": 88
+      "startLine": 90
     },
     {
       "crap": 9.00104284286499,
       "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "composeRetroBody",
-      "startLine": 197
+      "startLine": 199
     },
     {
-      "crap": 5.010869716448229,
+      "crap": 6.009482627825823,
       "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "runRetro",
-      "startLine": 347
+      "startLine": 361
+    },
+    {
+      "crap": 2.053989849908217,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "collectRetroFindings",
+      "startLine": 446
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "appendChecksSection",
+      "startLine": 486
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "escapeCell",
+      "startLine": 496
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "renderFindingRow",
+      "startLine": 500
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "method": "renderFindingsSection",
+      "startLine": 508
     },
     {
       "crap": 1,

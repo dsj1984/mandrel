@@ -29,6 +29,8 @@
  *     archive; the webhook must not see the retro body.
  */
 
+import { runChecks } from '../checks/index.js';
+import { assembleState } from '../checks/state.js';
 import { CONTEXT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { isCleanManifest } from './retro-heuristics.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
@@ -326,6 +328,14 @@ export function composeRetroBody(input) {
 /**
  * Public: compose and post the retro structured comment on the Epic.
  *
+ * Story #1290 (Epic #1143) — at /epic-deliver Phase 5, the runner invokes
+ * the self-healing checks registry with `scope: 'retro'` and
+ * `autoFix: false`. The retro is **read-only by construction**: the
+ * registry runner enforces the invariant by throwing if any caller flips
+ * `autoFix: true` under `scope: 'retro'`. Findings are appended to the
+ * retro body via `appendChecksSection`, which suppresses the section when
+ * findings are empty so the compact "🟢 Clean sprint" shape is preserved.
+ *
  * @param {{
  *   epicId: number,
  *   provider: object,
@@ -335,12 +345,16 @@ export function composeRetroBody(input) {
  *   gatherFn?: typeof gatherRetroSignals,
  *   composeFn?: typeof composeRetroBody,
  *   upsertFn?: typeof upsertStructuredComment,
+ *   runChecksFn?: typeof runChecks,
+ *   assembleStateFn?: typeof assembleState,
+ *   cwd?: string,
  * }} opts
  * @returns {Promise<{
  *   posted: boolean,
  *   compact: boolean,
  *   scorecard: object,
  *   body: string,
+ *   findings: object[],
  *   commentId?: number,
  * }>}
  */
@@ -354,6 +368,9 @@ export async function runRetro(opts = {}) {
     gatherFn = gatherRetroSignals,
     composeFn = composeRetroBody,
     upsertFn = upsertStructuredComment,
+    runChecksFn = runChecks,
+    assembleStateFn = assembleState,
+    cwd,
   } = opts;
 
   if (!Number.isInteger(epicId) || epicId <= 0) {
@@ -397,18 +414,106 @@ export async function runRetro(opts = {}) {
     forceFull,
   });
 
+  const findings = await collectRetroFindings({
+    runChecksFn,
+    assembleStateFn,
+    cwd,
+    logger,
+  });
+  const bodyWithChecks = appendChecksSection(body, findings);
+
   logger?.info?.(
-    `[retro-runner] Posting ${compact ? 'compact' : 'full'} retro on Epic #${epicId}...`,
+    `[retro-runner] Posting ${compact ? 'compact' : 'full'} retro on Epic #${epicId}${findings.length > 0 ? ` (${findings.length} finding(s))` : ''}...`,
   );
-  const result = await upsertFn(provider, epicId, 'retro', body);
+  const result = await upsertFn(provider, epicId, 'retro', bodyWithChecks);
 
   return {
     posted: true,
     compact,
     scorecard,
-    body,
+    body: bodyWithChecks,
+    findings,
     commentId: result?.commentId,
   };
+}
+
+/**
+ * Story #1290: invoke the self-healing checks registry with scope:'retro'
+ * (read-only by construction — `runChecks` throws on autoFix:true under
+ * this scope). Failures degrade gracefully to an empty findings list so
+ * the retro never blocks on a probe error.
+ */
+async function collectRetroFindings({
+  runChecksFn,
+  assembleStateFn,
+  cwd,
+  logger,
+}) {
+  try {
+    const state = await assembleStateFn({ scope: 'retro', cwd });
+    const result = await runChecksFn({
+      scope: 'retro',
+      autoFix: false,
+      state,
+    });
+    return Array.isArray(result?.findings) ? result.findings : [];
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] runChecks(scope:'retro') failed (continuing with empty findings): ${err?.message ?? err}`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Pure: append a "Self-Healing Checks" section to the retro body, listing
+ * each finding's id, severity, summary, and fixCommand. When `findings` is
+ * empty, the body is returned unchanged — this preserves the compact
+ * "🟢 Clean sprint" shape under a clean manifest.
+ *
+ * The section is inserted **before** the `<!-- retro-complete: ... -->`
+ * terminating marker so the marker stays at the end of the body (the
+ * deliver pipeline searches for it as the EOF sentinel).
+ *
+ * Output format mirrors `/diagnose`'s renderTable for fixCommand display:
+ * the same literal shell command appears verbatim in a fenced code block
+ * so operators can copy-paste it.
+ *
+ * @param {string} body
+ * @param {Array<import('../checks/index.js').Finding>} findings
+ * @returns {string}
+ */
+export function appendChecksSection(body, findings) {
+  if (!Array.isArray(findings) || findings.length === 0) return body;
+  const section = renderFindingsSection(findings);
+  const markerRe = /(<!--\s*retro-complete:[^>]*-->\s*)$/;
+  if (markerRe.test(body)) {
+    return body.replace(markerRe, `${section}\n$1`);
+  }
+  return `${body}\n${section}`;
+}
+
+function escapeCell(value) {
+  return String(value ?? '').replace(/\|/g, '\\|');
+}
+
+function renderFindingRow(f) {
+  const id = escapeCell(f?.id);
+  const severity = escapeCell(f?.severity);
+  const summary = escapeCell(f?.summary);
+  const fixCommand = escapeCell(f?.fixCommand);
+  return `| ${id} | ${severity} | ${summary} | \`${fixCommand}\` |`;
+}
+
+function renderFindingsSection(findings) {
+  return [
+    '### Self-Healing Checks',
+    '',
+    '| ID | Severity | Summary | Fix Command |',
+    '| --- | --- | --- | --- |',
+    ...findings.map(renderFindingRow),
+    '',
+  ].join('\n');
 }
 
 // Re-export for downstream test convenience — keeps the module's public
