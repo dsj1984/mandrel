@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  addItemToProject,
+  ensureProjectFields,
   ensureProjectViews,
   ensureStatusField,
   isInsufficientScopes,
   isScopesMissingEnvelope,
-  resolveExistingProject,
-} from '../../../.agents/scripts/providers/github/projects.js';
+  resolveOrCreateProject,
+} from '../../../.agents/scripts/providers/github/projects-v2-graphql.js';
 
 const SCOPES_ERR = new Error(
   'INSUFFICIENT_SCOPES: token missing project scope',
@@ -17,11 +19,48 @@ const NOT_GRANTED_ERR = new Error(
   'your token has not been granted the required scopes',
 );
 
+/**
+ * Build a ctx + fake `fetch` that drives the shim. Each call to `fetch` invokes
+ * `runGraphqlScript` with the parsed `{ query, variables }` body and the
+ * 0-indexed call number; the return value becomes the GraphQL `data` payload.
+ * Returning `null` or throwing simulates an error response.
+ */
 function buildCtx({ runGraphqlScript } = {}) {
-  // Provide a runGraphql replacement via patched ctx.http surface.
-  // The projects module calls runGraphql(ctx, query, vars). The runGraphql
-  // helper in graphql.js delegates to ctx.http.graphql. So we stub that.
   const calls = [];
+  const fetchImpl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const i = calls.length;
+    calls.push({ query: body.query, variables: body.variables });
+    try {
+      const result =
+        typeof runGraphqlScript === 'function'
+          ? runGraphqlScript(body.query, body.variables, i)
+          : (runGraphqlScript?.[i] ?? {});
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { data: result };
+        },
+        async text() {
+          return '';
+        },
+      };
+    } catch (err) {
+      // GraphQL surface treats a thrown scoped error as a 200 with errors[].
+      const message = err?.message ?? String(err);
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return { errors: [{ message }] };
+        },
+        async text() {
+          return message;
+        },
+      };
+    }
+  };
   const ctx = {
     owner: 'acme',
     repo: 'svc',
@@ -29,15 +68,8 @@ function buildCtx({ runGraphqlScript } = {}) {
     projectNumber: 5,
     projectName: 'Test',
     state: {},
-    http: {
-      graphql: async (query, variables) => {
-        calls.push({ query, variables });
-        if (typeof runGraphqlScript === 'function') {
-          return runGraphqlScript(query, variables, calls.length - 1);
-        }
-        return runGraphqlScript?.[calls.length - 1] ?? {};
-      },
-    },
+    token: 'fake-token',
+    fetchImpl,
   };
   return { ctx, calls };
 }
@@ -87,19 +119,12 @@ describe('isScopesMissingEnvelope', () => {
   });
 });
 
-describe('resolveExistingProject', () => {
-  it('returns null when projectNumber is unset', async () => {
-    const { ctx } = buildCtx();
-    ctx.projectNumber = null;
-    const result = await resolveExistingProject(ctx);
-    assert.equal(result, null);
-  });
-
+describe('resolveOrCreateProject', () => {
   it('returns project envelope on user-scope hit', async () => {
     const { ctx } = buildCtx({
       runGraphqlScript: () => ({ user: { projectV2: { id: 'pv2_123' } } }),
     });
-    const result = await resolveExistingProject(ctx);
+    const result = await resolveOrCreateProject(ctx);
     assert.deepEqual(result, {
       projectId: 'pv2_123',
       projectNumber: 5,
@@ -115,22 +140,36 @@ describe('resolveExistingProject', () => {
           ? { user: null }
           : { organization: { projectV2: { id: 'pv2_org' } } },
     });
-    const result = await resolveExistingProject(ctx);
+    const result = await resolveOrCreateProject(ctx);
     assert.equal(result.projectId, 'pv2_org');
     assert.equal(calls.length, 2);
   });
 
-  it('returns null when both user and org lookups fail (errors swallowed by fetchProjectV2)', async () => {
+  it('returns { scopesMissing: true } when creating a new project without scope', async () => {
+    // projectNumber unset → falls into the createProject branch where the
+    // owner-lookup throws a scopes error and the soft-degrade envelope is
+    // returned. The projectNumber-set branch relies on the soft `fetchProjectV2`
+    // path swallowing scope errors and surfacing "Project not found" instead
+    // (preserved verbatim from the pre-shim behaviour).
     const { ctx } = buildCtx({
       runGraphqlScript: () => {
         throw SCOPES_ERR;
       },
     });
-    // fetchProjectV2 (the soft variant used by resolveExistingProject) catches
-    // and warns on errors — including scopes errors — so resolveExistingProject
-    // never sees the throw and just returns null.
-    const result = await resolveExistingProject(ctx);
-    assert.equal(result, null);
+    ctx.projectNumber = null;
+    const result = await resolveOrCreateProject(ctx);
+    assert.deepEqual(result, { scopesMissing: true });
+  });
+
+  it('throws when projectNumber is set but project is not found', async () => {
+    const { ctx } = buildCtx({
+      runGraphqlScript: () => ({ user: null }),
+    });
+    // Both user and org lookups return null projectV2 → throws.
+    await assert.rejects(
+      () => resolveOrCreateProject(ctx),
+      /Project #5 not found/,
+    );
   });
 });
 
@@ -144,7 +183,7 @@ describe('ensureStatusField', () => {
     );
   });
 
-  it('returns scopes-missing when fetchProjectV2Strict throws scopes error', async () => {
+  it('returns scopes-missing when lookup throws scopes error', async () => {
     const { ctx } = buildCtx({
       runGraphqlScript: () => {
         throw SCOPES_ERR;
@@ -301,12 +340,100 @@ describe('ensureProjectViews', () => {
 
   it('throws when fetched project is null (project not found)', async () => {
     const { ctx } = buildCtx({
-      runGraphqlScript: (_q, _v, i) => (i === 0 ? { user: null } : {}),
+      runGraphqlScript: () => ({ user: null }),
     });
-    // Two calls: user lookup returns null, org lookup returns {} → null project
+    // Two calls: user lookup returns null, org lookup returns no projectV2 →
+    // null project.
     await assert.rejects(
       () => ensureProjectViews(ctx, [{ name: 'A' }]),
       /Project #5 not found/,
     );
+  });
+});
+
+describe('ensureProjectFields', () => {
+  it('returns empty when projectNumber is unset', async () => {
+    const { ctx } = buildCtx();
+    ctx.projectNumber = null;
+    const result = await ensureProjectFields(ctx, [
+      { name: 'Priority', type: 'single_select', options: ['P0', 'P1'] },
+    ]);
+    assert.deepEqual(result, { created: [], skipped: [] });
+  });
+
+  it('throws when fetched project is null (project not found)', async () => {
+    const { ctx } = buildCtx({ runGraphqlScript: () => ({ user: null }) });
+    await assert.rejects(
+      () => ensureProjectFields(ctx, []),
+      /Project #5 not found/,
+    );
+  });
+
+  it('skips existing fields and iteration-typed fields; creates new single_select fields', async () => {
+    let created = 0;
+    const { ctx } = buildCtx({
+      runGraphqlScript: (_q, _v, i) => {
+        if (i === 0) {
+          return {
+            user: {
+              projectV2: {
+                id: 'pv2',
+                fields: { nodes: [{ name: 'Priority' }] },
+              },
+            },
+          };
+        }
+        created += 1;
+        return {};
+      },
+    });
+    const result = await ensureProjectFields(ctx, [
+      { name: 'Priority', type: 'single_select', options: ['P0', 'P1'] },
+      { name: 'Sprint', type: 'iteration' },
+      { name: 'Risk', type: 'single_select', options: ['Low', 'High'] },
+    ]);
+    assert.deepEqual(result.created, ['Risk']);
+    assert.deepEqual(result.skipped, ['Priority', 'Sprint']);
+    assert.equal(created, 1);
+  });
+});
+
+describe('addItemToProject', () => {
+  it('no-ops when projectNumber unset and no projectId cached', async () => {
+    const { ctx, calls } = buildCtx();
+    ctx.projectNumber = null;
+    await addItemToProject(ctx, 'node-123');
+    assert.equal(calls.length, 0);
+  });
+
+  it('looks up the project, caches the id, and posts addProjectV2ItemById', async () => {
+    const { ctx, calls } = buildCtx({
+      runGraphqlScript: (_q, _v, i) =>
+        i === 0
+          ? { user: { projectV2: { id: 'pv2_cached' } } }
+          : { addProjectV2ItemById: { item: { id: 'item-1' } } },
+    });
+    await addItemToProject(ctx, 'node-abc');
+    assert.equal(ctx.state.projectId, 'pv2_cached');
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[1].variables, {
+      projectId: 'pv2_cached',
+      contentId: 'node-abc',
+    });
+  });
+
+  it('reuses a cached projectId without re-looking up', async () => {
+    const { ctx, calls } = buildCtx({
+      runGraphqlScript: () => ({
+        addProjectV2ItemById: { item: { id: 'item-2' } },
+      }),
+    });
+    ctx.state.projectId = 'pv2_pinned';
+    await addItemToProject(ctx, 'node-xyz');
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].variables, {
+      projectId: 'pv2_pinned',
+      contentId: 'node-xyz',
+    });
   });
 });

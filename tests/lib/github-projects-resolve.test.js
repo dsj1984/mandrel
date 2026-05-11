@@ -2,22 +2,20 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 /**
- * Unit tests for the resolve/create-project helper split inside
- * `providers/github/projects.js`. Story #816 broke `resolveOrCreateProject`
- * into three async helpers (resolveExistingProject, lookupOwnerNodeId,
- * createProjectForOwner) plus the orchestrator and a soft-degrade detector
- * (`isScopesMissingEnvelope`). The async helpers are exercised end-to-end
- * via the agents-bootstrap smoke; this file pins the pure detector that
- * gates every soft-degrade branch.
+ * Unit tests for the Projects V2 GraphQL shim
+ * (`providers/github/projects-v2-graphql.js`). After Story #1358 collapsed
+ * the projects.js / graphql.js / graphql-builder.js trio into a single shim,
+ * the previously-public `resolveExistingProject` / `lookupOwnerNodeId` /
+ * `createProjectForOwner` helpers became inline branches of
+ * `resolveOrCreateProject`. This file now pins the public surface (the
+ * exported `resolveOrCreateProject` plus the pure `isScopesMissingEnvelope`
+ * detector that gates every soft-degrade branch).
  */
 
 import {
-  createProjectForOwner,
   isScopesMissingEnvelope,
-  lookupOwnerNodeId,
-  resolveExistingProject,
   resolveOrCreateProject,
-} from '../../.agents/scripts/providers/github/projects.js';
+} from '../../.agents/scripts/providers/github/projects-v2-graphql.js';
 
 describe('isScopesMissingEnvelope', () => {
   it('detects { scopesMissing: true }', () => {
@@ -42,20 +40,9 @@ describe('isScopesMissingEnvelope', () => {
   });
 });
 
-describe('resolveOrCreateProject helper exports — public surface', () => {
-  it('exports each split helper as an AsyncFunction', () => {
-    for (const fn of [
-      resolveExistingProject,
-      lookupOwnerNodeId,
-      createProjectForOwner,
-      resolveOrCreateProject,
-    ]) {
-      assert.equal(typeof fn, 'function');
-      assert.equal(
-        fn.constructor.name,
-        'AsyncFunction',
-        `${fn.name} should be async`,
-      );
-    }
+describe('resolveOrCreateProject — public surface', () => {
+  it('is an exported AsyncFunction', () => {
+    assert.equal(typeof resolveOrCreateProject, 'function');
+    assert.equal(resolveOrCreateProject.constructor.name, 'AsyncFunction');
   });
 });
