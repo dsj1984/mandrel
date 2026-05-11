@@ -255,11 +255,14 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
   assert.equal(out.ffOk, true);
   assert.equal(out.pushed, true);
   assert.equal(out.prUrl, 'https://github.com/me/repo/pull/55');
+  assert.equal(out.prNumber, 55);
   assert.equal(out.postedHandoff, true);
+  assert.equal(out.autoMergeEnabled, true);
   assert.equal(ticketCalls[0], 1142);
 
-  // gh should have been invoked exactly once with --base main --head epic/1142
-  assert.equal(ghCalls.length, 1);
+  // gh should have been invoked twice: once to create the PR, then again
+  // to enable native auto-merge with --auto --squash --delete-branch.
+  assert.equal(ghCalls.length, 2);
   const ghArgs = ghCalls[0];
   assert.equal(ghArgs[0], 'pr');
   assert.equal(ghArgs[1], 'create');
@@ -267,6 +270,17 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
   assert.equal(ghArgs[baseIdx + 1], 'main');
   const headIdx = ghArgs.indexOf('--head');
   assert.equal(ghArgs[headIdx + 1], 'epic/1142');
+
+  // The second call enables native auto-merge on the PR just opened.
+  const autoMergeArgs = ghCalls[1];
+  assert.deepEqual(autoMergeArgs, [
+    'pr',
+    'merge',
+    '55',
+    '--auto',
+    '--squash',
+    '--delete-branch',
+  ]);
 
   // The hand-off comment must carry the PR URL.
   assert.equal(upsertCalls.length, 1);
@@ -297,6 +311,68 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
     epicCompleteCalls[0].payload.message,
     /pull\/55/,
     'epic-complete message should embed the PR URL',
+  );
+});
+
+test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finalize still succeeds)', async () => {
+  // `gh pr merge --auto` may fail for benign reasons — repo without
+  // auto-merge enabled, token missing scope, etc. The finalize result
+  // must still report success and post the hand-off so the operator can
+  // merge through the GitHub UI; only autoMergeEnabled flips to false.
+  const provider = {
+    async getTicket(id) {
+      return { id, title: 'X' };
+    },
+  };
+  const { fn: gitSpawnFn } = makeGitSpawnFn([
+    { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
+    { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },
+    {
+      matcher: (args) => args[0] === 'rev-list',
+      response: { status: 0, stdout: '3' },
+    },
+    { matcher: (args) => args[0] === 'push', response: { status: 0 } },
+  ]);
+  let ghCallIdx = 0;
+  const out = await runEpicDeliverFinalize({
+    epicId: 1142,
+    cwd: '.',
+    injectedProvider: provider,
+    injectedConfig: {
+      agentSettings: { baseBranch: 'main' },
+      orchestration: {},
+    },
+    loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    gitSpawnFn,
+    ghSpawnFn: () => {
+      ghCallIdx += 1;
+      if (ghCallIdx === 1) {
+        // pr create succeeds
+        return {
+          status: 0,
+          stdout: 'https://github.com/me/repo/pull/55\n',
+          stderr: '',
+        };
+      }
+      // pr merge --auto fails
+      return {
+        status: 1,
+        stdout: '',
+        stderr: 'Pull request is not in a mergeable state.',
+      };
+    },
+    upsertCommentFn: async () => ({ commentId: 99 }),
+    notifyFn: () => Promise.resolve(),
+  });
+
+  assert.equal(out.ffOk, true);
+  assert.equal(out.pushed, true);
+  assert.equal(out.prUrl, 'https://github.com/me/repo/pull/55');
+  assert.equal(out.postedHandoff, true);
+  assert.equal(
+    out.autoMergeEnabled,
+    false,
+    'auto-merge enablement failure should surface as autoMergeEnabled:false but not block finalize',
   );
 });
 

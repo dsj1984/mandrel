@@ -571,7 +571,7 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
   });
 
   it('notificationPhase passes ticket count from state to the message', async () => {
-    let captured;
+    const captured = [];
     await notificationPhase(
       {
         epicId: 9,
@@ -581,14 +581,87 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
         orchestration: {},
         progress: () => {},
         notifyFn: async (epicId, payload, opts) => {
-          captured = { epicId, payload, opts };
+          captured.push({ epicId, payload, opts });
         },
       },
       { ticketClosure: { closedTickets: [1, 2, 3] } },
     );
-    assert.equal(captured.epicId, 9);
-    assert.match(captured.payload.message, /Story #100/);
-    assert.match(captured.payload.message, /3 ticket\(s\) closed/);
+    // First fire is the story-merged comment + webhook; no provider was
+    // passed so the rolled-up epic-progress fire is suppressed.
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].epicId, 9);
+    assert.match(captured[0].payload.message, /Story #100/);
+    assert.match(captured[0].payload.message, /3 ticket\(s\) closed/);
+    assert.equal(captured[0].payload.event, 'story-merged');
+  });
+
+  it('notificationPhase fires a rolled-up epic-progress webhook when provider is available', async () => {
+    const captured = [];
+    const provider = {
+      async getSubTickets() {
+        return [
+          { id: 100, state: 'closed', labels: ['type::story'] },
+          { id: 101, state: 'closed', labels: ['type::story'] },
+          { id: 102, state: 'open', labels: ['type::story'] },
+          // Non-story descendants must NOT count toward the rollup.
+          { id: 200, state: 'closed', labels: ['type::task'] },
+          { id: 201, state: 'open', labels: ['type::task'] },
+        ];
+      },
+    };
+    await notificationPhase(
+      {
+        epicId: 9,
+        storyId: 100,
+        story: { title: 'My Story' },
+        epicBranch: 'epic/9',
+        orchestration: {},
+        progress: () => {},
+        provider,
+        notifyFn: async (epicId, payload, opts) => {
+          captured.push({ epicId, payload, opts });
+        },
+      },
+      { ticketClosure: { closedTickets: [1, 2, 3] } },
+    );
+    // Two fires now: the per-story `story-merged` comment + the rolled-up
+    // epic-progress webhook (suppressed comment).
+    assert.equal(captured.length, 2);
+    assert.equal(captured[0].payload.event, 'story-merged');
+    assert.equal(captured[1].payload.event, 'epic-progress');
+    assert.equal(captured[1].opts?.skipComment, true);
+    assert.match(captured[1].payload.message, /2\/3 stories done/);
+    assert.match(captured[1].payload.message, /67%/);
+    assert.match(captured[1].payload.message, /Story #100 merged/);
+  });
+
+  it('notificationPhase swallows provider errors during the rolled-up fire (story-merged still fires)', async () => {
+    const captured = [];
+    const provider = {
+      async getSubTickets() {
+        throw new Error('GitHub 503');
+      },
+    };
+    await notificationPhase(
+      {
+        epicId: 9,
+        storyId: 100,
+        story: { title: 'My Story' },
+        epicBranch: 'epic/9',
+        orchestration: {},
+        progress: () => {},
+        provider,
+        notifyFn: async (epicId, payload, opts) => {
+          captured.push({ epicId, payload, opts });
+        },
+        logger: { warn: () => {} },
+      },
+      { ticketClosure: { closedTickets: [] } },
+    );
+    // Only the story-merged fire — the rolled-up epic-progress was
+    // swallowed when the provider threw.
+    assert.equal(captured.length, 1);
+    assert.equal(captured[0].payload.event, 'story-merged');
   });
 });
 

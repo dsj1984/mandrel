@@ -354,13 +354,25 @@ The CLI:
 3. Sets the PR's required-checks expectation from
    `agentSettings.quality.prGate.checks` so the GitHub branch
    protection gate matches the Epic-level validation that just ran.
-4. Posts a hand-off structured comment naming the PR URL and the
+4. **Enables GitHub native auto-merge** on the PR via
+   `gh pr merge <prNumber> --auto --squash --delete-branch`. When all
+   required checks pass, GitHub fires the squash-merge itself and
+   deletes the remote `epic/<epicId>` branch. The framework's
+   Phase 7.5 predicate becomes an informational post-merge audit
+   rather than the gating decision — operators who want extra gating
+   should keep the predicate (Phase 7.5 will surface any disqualifiers
+   that landed during the run), but the *merge itself* is now driven
+   by CI-green status, not by the predicate. Auto-merge enablement
+   failures (missing repo feature, insufficient token scope) are
+   non-fatal: the operator retains the manual merge path through the
+   GitHub UI.
+5. Posts a hand-off structured comment naming the PR URL and the
    operator's remaining action. The Epic stays at `agent::executing`
    until the operator's PR merge fires the standard transition to
    `agent::done`.
-5. **Exits cleanly without merging.** The operator merges through the
-   GitHub UI once the required checks are green and the review is
-   accepted.
+6. **Exits cleanly.** If auto-merge enablement succeeded, the PR
+   squash-merges as soon as required checks are green; otherwise the
+   operator merges through the GitHub UI.
 
 `/epic-deliver` does not run any autonomous chainer, does not invoke a
 separate close command, and does not delete branches. Branch cleanup is
