@@ -1120,7 +1120,7 @@
       "startLine": 114
     },
     {
-      "crap": 15,
+      "crap": 15.460713385883453,
       "file": ".agents/scripts/lib/CacheLayer.js",
       "method": "createTtlCache",
       "startLine": 24
@@ -2696,6 +2696,126 @@
       "file": ".agents/scripts/lib/fs-utils.js",
       "method": "ensureDirSync",
       "startLine": 20
+    },
+    {
+      "crap": 22.1378207464645,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "classify",
+      "startLine": 153
+    },
+    {
+      "crap": 4.0005038635369585,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "exec",
+      "startLine": 250
+    },
+    {
+      "crap": 1.0001537445335278,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "createGh",
+      "startLine": 364
+    },
+    {
+      "crap": 8.032768,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "api",
+      "startLine": 381
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "jsonFlag",
+      "startLine": 411
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "idStr",
+      "startLine": 420
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-7>",
+      "startLine": 425
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-8>",
+      "startLine": 427
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-9>",
+      "startLine": 429
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-10>",
+      "startLine": 434
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-11>",
+      "startLine": 439
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-12>",
+      "startLine": 441
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-13>",
+      "startLine": 442
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-14>",
+      "startLine": 444
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-15>",
+      "startLine": 446
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-16>",
+      "startLine": 451
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-17>",
+      "startLine": 453
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-18>",
+      "startLine": 455
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-19>",
+      "startLine": 460
+    },
+    {
+      "crap": 3.1851851851851856,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-20>",
+      "startLine": 466
     },
     {
       "crap": 6,
@@ -4327,37 +4447,37 @@
       "crap": 9.029518950437318,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "readBaselineRows",
-      "startLine": 85
+      "startLine": 84
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "filterToStoryDiff",
-      "startLine": 131
+      "startLine": 130
     },
     {
       "crap": 8.116074926364968,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "amendBaselinesIntoHead",
-      "startLine": 165
+      "startLine": 164
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "priorRefusalSignalExists",
-      "startLine": 216
+      "startLine": 215
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "buildRefusalSignal",
-      "startLine": 240
+      "startLine": 239
     },
     {
       "crap": 23.358106005426503,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "runAutoRefresh",
-      "startLine": 285
+      "startLine": 284
     },
     {
       "crap": 6,
@@ -6100,7 +6220,13 @@
       "startLine": 93
     },
     {
-      "crap": 5,
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "__setExecSyncForTests",
+      "startLine": 75
+    },
+    {
+      "crap": 27.728729248046875,
       "file": ".agents/scripts/providers/github.js",
       "method": "resolveToken",
       "startLine": 80
@@ -6108,8 +6234,80 @@
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
+      "method": "<anon method-4>",
+      "startLine": 280
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon method-1>",
-      "startLine": 227
+      "startLine": 12
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-2>",
+      "startLine": 24
+    },
+    {
+      "crap": 5.390625,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "resolveToken",
+      "startLine": 31
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-3>",
+      "startLine": 52
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-4>",
+      "startLine": 54
+    },
+    {
+      "crap": 3.0059176460918877,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "gql",
+      "startLine": 57
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "lookupProject",
+      "startLine": 81
+    },
+    {
+      "crap": 7.946286327824611,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "resolveOrCreateProject",
+      "startLine": 100
+    },
+    {
+      "crap": 7.142857142857143,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureStatusField",
+      "startLine": 142
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureProjectViews",
+      "startLine": 192
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureProjectFields",
+      "startLine": 233
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "addItemToProject",
+      "startLine": 259
     },
     {
       "crap": 5,

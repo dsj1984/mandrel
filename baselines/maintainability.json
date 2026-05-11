@@ -244,7 +244,7 @@
   ".agents/scripts/noise-study.js": 88.128,
   ".agents/scripts/notify.js": 89.774,
   ".agents/scripts/post-structured-comment.js": 95.152,
-  ".agents/scripts/providers/github.js": 91.412,
+  ".agents/scripts/providers/github.js": 92.023,
   ".agents/scripts/providers/github/projects-v2-graphql.js": 95.347,
   ".agents/scripts/quality-preview.js": 91.369,
   ".agents/scripts/quality-watch.js": 0,

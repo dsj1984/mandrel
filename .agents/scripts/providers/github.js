@@ -119,6 +119,44 @@ function resolveToken() {
 // GitHub's secondary rate limit is delivered as HTTP 403 with a known
 // message; if we bucketed it as 'permission' it would never be retried.
 // ---------------------------------------------------------------------------
+const FEATURE_DISABLED_MESSAGES = [
+  'feature not available',
+  'feature is not enabled',
+  "field 'subissues'",
+  'field "subissues"',
+  'subissues is not available',
+  'sub-issues',
+  "doesn't exist on type",
+  'does not exist on type',
+  'unknown field',
+];
+
+const TRANSIENT_CODES = new Set([
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'ABORT_ERR',
+]);
+
+const TRANSIENT_MESSAGES = [
+  'rate limit',
+  'secondary rate limit',
+  'abuse detection',
+  'fetch failed',
+  'network',
+  'timeout',
+  'timed out',
+  'aborted',
+];
+
+const PERMISSION_MESSAGES = ['unauthorized', 'forbidden', 'permission'];
+
+function matchesAny(haystack, needles) {
+  for (const n of needles) if (haystack.includes(n)) return true;
+  return false;
+}
+
 function classifyGithubError(err) {
   if (!err) return 'permanent';
 
@@ -127,49 +165,17 @@ function classifyGithubError(err) {
   const status = typeof err.status === 'number' ? err.status : undefined;
   const code = typeof err.code === 'string' ? err.code : undefined;
 
-  if (
-    lower.includes('feature not available') ||
-    lower.includes('feature is not enabled') ||
-    lower.includes("field 'subissues'") ||
-    lower.includes('field "subissues"') ||
-    lower.includes('subissues is not available') ||
-    lower.includes('sub-issues') ||
-    lower.includes("doesn't exist on type") ||
-    lower.includes('does not exist on type') ||
-    lower.includes('unknown field')
-  ) {
-    return 'feature-disabled';
-  }
+  if (matchesAny(lower, FEATURE_DISABLED_MESSAGES)) return 'feature-disabled';
 
   if (status === 429 || (typeof status === 'number' && status >= 500)) {
     return 'transient';
   }
-  if (
-    code === 'ECONNRESET' ||
-    code === 'ETIMEDOUT' ||
-    code === 'ENOTFOUND' ||
-    code === 'EAI_AGAIN' ||
-    code === 'ABORT_ERR' ||
-    lower.includes('rate limit') ||
-    lower.includes('secondary rate limit') ||
-    lower.includes('abuse detection') ||
-    lower.includes('fetch failed') ||
-    lower.includes('network') ||
-    lower.includes('timeout') ||
-    lower.includes('timed out') ||
-    lower.includes('aborted')
-  ) {
+  if (TRANSIENT_CODES.has(code) || matchesAny(lower, TRANSIENT_MESSAGES)) {
     return 'transient';
   }
 
   if (status === 401 || status === 403) return 'permission';
-  if (
-    lower.includes('unauthorized') ||
-    lower.includes('forbidden') ||
-    lower.includes('permission')
-  ) {
-    return 'permission';
-  }
+  if (matchesAny(lower, PERMISSION_MESSAGES)) return 'permission';
 
   return 'permanent';
 }
