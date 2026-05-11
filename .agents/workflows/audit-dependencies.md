@@ -1,6 +1,9 @@
 ---
 description: Audit and upgrade project dependencies
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: structured manifest + CVE lookup work — minimal reasoning, A/B parity with sonnet. -->
 
 # Dependency Update Audit
 

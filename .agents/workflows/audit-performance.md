@@ -1,6 +1,9 @@
 ---
 description: Run a performance and bottleneck audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: hotpath/big-O pattern-spotting against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Performance & Bottleneck Audit
 

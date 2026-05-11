@@ -1,6 +1,9 @@
 ---
 description: Run a testing and quality assurance audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: coverage/test-shape audit against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Testing & Quality Assurance Audit
 

@@ -1,6 +1,9 @@
 ---
 description: Run a privacy and PII data audit
+dispatchModel: haiku
 ---
+
+<!-- dispatchModel rationale: regex/keyword PII scan against a fixed taxonomy — Haiku A/B matched sonnet. -->
 
 # Privacy and PII Data Audit
 
