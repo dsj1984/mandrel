@@ -1165,9 +1165,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 91.29,
-    "branches": 79.29,
-    "functions": 78.43
+    "lines": 91.37,
+    "branches": 78.34,
+    "functions": 81.36
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1181,7 +1181,7 @@
   },
   ".agents/scripts/providers/github/cache-manager.js": {
     "lines": 100,
-    "branches": 96.97,
+    "branches": 96.67,
     "functions": 100
   },
   ".agents/scripts/providers/github/error-classifier.js": {
