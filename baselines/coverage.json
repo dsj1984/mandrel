@@ -310,8 +310,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/epic-merge-lock.js": {
-    "lines": 97.14,
-    "branches": 75,
+    "lines": 97.22,
+    "branches": 78,
     "functions": 100
   },
   ".agents/scripts/lib/epic-plan-ideation.js": {
@@ -345,7 +345,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -515,7 +515,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js": {
-    "lines": 88.24,
+    "lines": 88.32,
     "branches": 56.25,
     "functions": 66.67
   },
@@ -685,8 +685,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 95.65,
-    "branches": 76.19,
+    "lines": 98.55,
+    "branches": 81.82,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -864,6 +864,21 @@
     "branches": 80,
     "functions": 100
   },
+  ".agents/scripts/lib/triage/parse-crap-report.js": {
+    "lines": 100,
+    "branches": 83.33,
+    "functions": 100
+  },
+  ".agents/scripts/lib/triage/parse-test-output.js": {
+    "lines": 100,
+    "branches": 95.45,
+    "functions": 100
+  },
+  ".agents/scripts/lib/triage/render-comment.js": {
+    "lines": 93.23,
+    "branches": 44.44,
+    "functions": 100
+  },
   ".agents/scripts/lib/util/concurrent-map.js": {
     "lines": 93.22,
     "branches": 88.89,
@@ -980,7 +995,7 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 90.63,
+    "lines": 90.97,
     "branches": 83.33,
     "functions": 87.5
   },
@@ -990,9 +1005,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 91.43,
+    "lines": 92.24,
     "branches": 100,
-    "functions": 76.19
+    "functions": 78.57
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1010,9 +1025,9 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/comments.js": {
-    "lines": 76.19,
-    "branches": 87.5,
-    "functions": 50
+    "lines": 88.1,
+    "branches": 88.89,
+    "functions": 75
   },
   ".agents/scripts/providers/github/error-classifier.js": {
     "lines": 100,
@@ -1086,7 +1101,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 88.25,
-    "branches": 76.71,
+    "branches": 76.39,
     "functions": 81.82
   },
   ".agents/scripts/story-task-progress.js": {
@@ -1097,6 +1112,11 @@
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
     "branches": 69.7,
+    "functions": 75
+  },
+  ".agents/scripts/triage-ci-failure.js": {
+    "lines": 91.64,
+    "branches": 80.77,
     "functions": 75
   },
   ".agents/scripts/validate-docs-freshness.js": {

@@ -33,6 +33,7 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { runAsCli } from './lib/cli-utils.js';
 import { parseCrapReport } from './lib/triage/parse-crap-report.js';
 import { parseTestOutput } from './lib/triage/parse-test-output.js';
 import {
@@ -282,30 +283,17 @@ export function runTriage(deps) {
 
 /**
  * Production wrapper. Reads `process.env`, wires the real gh shim, and
- * exits non-zero on any thrown error.
+ * writes a single-line JSON envelope to stdout. Async only because
+ * `runAsCli` awaits the returned promise — there is no actual I/O work
+ * to await here (gh shim is sync), but keeping the signature consistent
+ * with the other scripts under `.agents/scripts/` simplifies the
+ * cli-bootstrap audit.
  */
 export async function main() {
-  try {
-    const result = runTriage({ env: process.env, gh: defaultGhShim() });
-    process.stdout.write(
-      `${JSON.stringify({ ok: true, action: result.action, commentId: result.commentId })}\n`,
-    );
-    process.exit(0);
-  } catch (err) {
-    process.stderr.write(`triage-ci-failure: ${err.message}\n`);
-    process.exit(1);
-  }
+  const result = runTriage({ env: process.env, gh: defaultGhShim() });
+  process.stdout.write(
+    `${JSON.stringify({ ok: true, action: result.action, commentId: result.commentId })}\n`,
+  );
 }
 
-// Only auto-run when invoked directly (not when imported by tests).
-const isDirect = (() => {
-  try {
-    const argvUrl = new URL(`file://${process.argv[1]}`).href;
-    return import.meta.url === argvUrl;
-  } catch {
-    return false;
-  }
-})();
-if (isDirect) {
-  main();
-}
+runAsCli(import.meta.url, main, { source: 'triage-ci-failure', exitCode: 1 });
