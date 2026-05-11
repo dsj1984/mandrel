@@ -796,55 +796,170 @@ describe('GitHubProvider — setBranchProtection()', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ensureLabels
+// ensureLabels — Task #1373
+//
+// Story #1359 (Task #1373) rewrote `ensureLabels` to iterate per def and
+// shell to `gh label create`, swallowing the "already exists" stderr as
+// the idempotent skip path. We assert both the argv shape per create and
+// the swallow-on-exists path. The mock allows a custom `error` field so a
+// route can simulate the CLI's exit-non-zero-with-stderr behaviour for
+// the duplicate-name case.
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — ensureLabels()', () => {
-  let originalFetch;
+  // Local exec that exposes per-call control via a routes Map. Unlike
+  // makeGh's createGhExec we want to differentiate per labelDef so this
+  // suite carries a tiny purpose-built mock.
+  function makeLabelGh(perCallResponses) {
+    const calls = [];
+    let i = 0;
+    const exec = async ({ args }) => {
+      calls.push({ args });
+      const response = perCallResponses[i++] ?? { ok: true };
+      if (response.error) {
+        const err = new Error(response.error.message ?? 'gh-exec failure');
+        err.stderr = response.error.stderr ?? '';
+        throw err;
+      }
+      return { stdout: '', stderr: '', code: 0 };
+    };
+    exec.calls = calls;
+    const gh = createGh(exec);
+    gh.__exec = exec;
+    return gh;
+  }
 
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('creates missing labels and skips existing', async () => {
-    const mockFetch = createRouteMock({
-      'GET /labels': {
-        status: 200,
-        json: [
-          { name: 'type::epic', color: '7057FF' },
-          { name: 'bug', color: 'D93F0B' },
-        ],
+  it('creates missing labels and skips ones that already exist', async () => {
+    const gh = makeLabelGh([
+      { ok: true }, // type::epic — pretend GitHub side has no rule yet
+      {
+        error: {
+          message: 'gh-exec: gh exited with code 422',
+          stderr: '! Label "type::task" already exists',
+        },
       },
-      'POST /labels': { status: 201, json: { name: 'type::task' } },
-    });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+    ]);
+    const provider = createTestProvider({ gh });
     const result = await provider.ensureLabels([
       { name: 'type::epic', color: '#7057FF', description: 'Epic' },
       { name: 'type::task', color: '#7057FF', description: 'Task' },
     ]);
 
-    assert.deepEqual(result.created, ['type::task']);
-    assert.deepEqual(result.skipped, ['type::epic']);
+    assert.deepEqual(result.created, ['type::epic']);
+    assert.deepEqual(result.skipped, ['type::task']);
+
+    // Both calls fired `gh label create <name> --color <hex> --description <text>`.
+    assert.equal(gh.__exec.calls.length, 2);
+    assert.deepEqual(gh.__exec.calls[0].args, [
+      'label',
+      'create',
+      'type::epic',
+      '--color',
+      '7057FF',
+      '--description',
+      'Epic',
+    ]);
+    assert.equal(gh.__exec.calls[1].args[2], 'type::task');
   });
 
-  it('strips # from color code when sending to API', async () => {
-    const mockFetch = createRouteMock({
-      'GET /labels': { status: 200, json: [] },
-      'POST /labels': { status: 201, json: { name: 'new-label' } },
-    });
-    globalThis.fetch = mockFetch;
-
-    const provider = createTestProvider();
+  it('strips # from color code when shelling to gh label create', async () => {
+    const gh = makeLabelGh([{ ok: true }]);
+    const provider = createTestProvider({ gh });
     await provider.ensureLabels([
       { name: 'new-label', color: '#FF0000', description: '' },
     ]);
+    const args = gh.__exec.calls[0].args;
+    assert.equal(args[args.indexOf('--color') + 1], 'FF0000'); // No # prefix
+  });
 
-    const sentBody = JSON.parse(mockFetch.calls[1].opts.body);
-    assert.equal(sentBody.color, 'FF0000'); // No # prefix
+  it('propagates non-already-exists errors so transport faults stay loud', async () => {
+    const gh = makeLabelGh([
+      {
+        error: {
+          message: 'gh-exec: gh exited with code 401',
+          stderr: 'requires authentication',
+        },
+      },
+    ]);
+    const provider = createTestProvider({ gh });
+    await assert.rejects(
+      provider.ensureLabels([
+        { name: 'bug', color: '#D93F0B', description: '' },
+      ]),
+      /code 401/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getMergeMethods / setMergeMethods — Task #1373
+// ---------------------------------------------------------------------------
+describe('GitHubProvider — getMergeMethods()', () => {
+  it('returns the merge-method allowlist + auto-merge / delete-branch flags', async () => {
+    const gh = makeGh({
+      'GET /repos/test-owner/test-repo': {
+        status: 200,
+        json: {
+          allow_squash_merge: true,
+          allow_rebase_merge: false,
+          allow_merge_commit: false,
+          allow_auto_merge: true,
+          delete_branch_on_merge: true,
+          // Other repo knobs the bootstrap doesn't care about — must be
+          // filtered out.
+          name: 'test-repo',
+          private: false,
+        },
+      },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.getMergeMethods();
+    assert.deepEqual(result, {
+      allow_squash_merge: true,
+      allow_rebase_merge: false,
+      allow_merge_commit: false,
+      allow_auto_merge: true,
+      delete_branch_on_merge: true,
+    });
+  });
+
+  it('returns only fields the API surfaces (sparse response)', async () => {
+    const gh = makeGh({
+      'GET /repos/test-owner/test-repo': {
+        status: 200,
+        json: { allow_squash_merge: true },
+      },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.getMergeMethods();
+    assert.deepEqual(result, { allow_squash_merge: true });
+  });
+});
+
+describe('GitHubProvider — setMergeMethods()', () => {
+  it('PATCHes only the supplied merge-method fields', async () => {
+    const gh = makeGh({
+      'PATCH /repos/test-owner/test-repo': { status: 200, json: {} },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.setMergeMethods({
+      allow_squash_merge: true,
+      allow_merge_commit: false,
+      // Field the API understands but bootstrap doesn't care about — should
+      // be dropped so we don't accidentally write it.
+      private: true,
+    });
+
+    assert.deepEqual(result.patched, [
+      'allow_squash_merge',
+      'allow_merge_commit',
+    ]);
+    const patchCall = gh.__exec.calls.find((c) => c.args[2] === 'PATCH');
+    assert.ok(patchCall, 'expected PATCH call to fire');
+    const body = JSON.parse(patchCall.input);
+    assert.deepEqual(body, {
+      allow_squash_merge: true,
+      allow_merge_commit: false,
+    });
   });
 });
 

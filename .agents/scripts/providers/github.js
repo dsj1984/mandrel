@@ -26,7 +26,7 @@
  *     `upsertStructuredComment` in `lib/orchestration/ticketing.js` before
  *     the body reaches this method.
  *
- *   - Branch-protection + PR surface (Task #1371, Story #1359, this commit):
+ *   - Branch-protection + PR surface (Task #1371, Story #1359):
  *     `getBranchProtection`, `setBranchProtection` on `gh.api` against
  *     `/repos/{owner}/{repo}/branches/{branch}/protection`;
  *     `createPullRequest` on `gh.pr.create` followed by `gh.pr.view` to
@@ -35,11 +35,19 @@
  *     keep the same `{ created, added, existing }` envelope they already
  *     read.
  *
- *   - Everything else (`getMergeMethods`, `setMergeMethods`, `ensureLabels`,
- *     `resolveOrCreateProject`, `ensureStatusField`, `ensureProjectViews`,
- *     `ensureProjectFields`, `graphql`) still calls the old `./github/*`
- *     submodules. The remaining Tasks in this Story / subsequent Stories
- *     rewrite those.
+ *   - Labels + merge-methods surface (Task #1373, Story #1359, this commit):
+ *     `ensureLabels` iterates `labelDefs` and shells `gh label create`
+ *     per def, swallowing the "already exists" signal as the idempotent
+ *     skip path. `getMergeMethods` / `setMergeMethods` route through
+ *     `gh.api` against `/repos/{owner}/{repo}`, returning the same
+ *     `{created, skipped}` / sparse `{patched}` envelopes
+ *     `agents-bootstrap-github.js` and `lib/bootstrap/merge-methods.js`
+ *     already consume.
+ *
+ *   - Everything else (`resolveOrCreateProject`, `ensureStatusField`,
+ *     `ensureProjectViews`, `ensureProjectFields`, `graphql`) still calls
+ *     the old `./github/*` submodules. Subsequent Stories in this Epic
+ *     rewrite those (Projects V2 surface is its own scope).
  *
  * Field manifests. `gh api /repos/.../issues/N` returns the full REST Issue
  * JSON shape, so the existing `ticket-mapper.js` pure helpers still apply
@@ -66,9 +74,7 @@ import {
   SUB_ISSUES_QUERY,
 } from './github/graphql-builder.js';
 import { GithubHttpClient } from './github/http.js';
-import * as labels from './github/labels.js';
 import * as projects from './github/projects-v2-graphql.js';
-import * as repo from './github/repo.js';
 import {
   issueToEpic,
   issueToEpicListItem,
@@ -144,6 +150,42 @@ function isNotFoundError(err) {
     err?.code === 404
   );
 }
+
+/**
+ * Detect the "label already exists" signal across the surfaces `gh label
+ * create` can emit it on. The CLI prints
+ *
+ *   `! Label "<name>" already exists`
+ *
+ * to stderr and exits non-zero; the underlying API surfaces a 422 with
+ * `errors[].code === 'already_exists'`. The test mock throws
+ * `Error('... code 422')`. Match all three.
+ */
+function isLabelAlreadyExistsError(err) {
+  if (!err) return false;
+  const message = err?.message ?? '';
+  const stderr = err?.stderr ?? '';
+  if (/already exists/i.test(stderr) || /already exists/i.test(message)) {
+    return true;
+  }
+  if (/already_exists/i.test(stderr)) return true;
+  return false;
+}
+
+/**
+ * Fields the merge-method bootstrap reads/writes. Held in a constant so
+ * `getMergeMethods` and `setMergeMethods` cannot drift on which keys they
+ * mirror. Anything the upstream API exposes outside this list is
+ * deliberately ignored — operators may have tuned other repo flags and
+ * we do not want to surface them through this narrow interface.
+ */
+const MERGE_METHOD_FIELDS = [
+  'allow_squash_merge',
+  'allow_rebase_merge',
+  'allow_merge_commit',
+  'allow_auto_merge',
+  'delete_branch_on_merge',
+];
 
 /**
  * Paginate a REST list endpoint by appending `page=N&per_page=100` until a
@@ -1165,24 +1207,95 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   // =========================================================================
-  // LABEL + REPO SURFACE
+  // LABEL + MERGE-METHOD SURFACE — rewritten on gh-exec (Task #1373)
   //
-  // Still delegated to the old `./github/*` submodules until subsequent
-  // Tasks in Epic #1179 rewrite them. The submodules read from `this._ctx`,
-  // which exposes `this._http` (the bespoke transport). Issue/comment
-  // method calls below this line do NOT touch `_http`.
+  // `ensureLabels` shells to `gh label create` per labelDef and swallows
+  // "already exists" as the idempotent skip path — this is cheaper than
+  // a pre-list because `gh label create` is a single round-trip, GitHub
+  // already enforces uniqueness on `name`, and the duplicate signal is
+  // surfaced verbatim by the CLI on stderr. `getMergeMethods` /
+  // `setMergeMethods` route through `gh.api` against `/repos/{owner}/{repo}`,
+  // returning the same `{...mergeFields}` / `{patched}` envelopes the
+  // bootstrap (`lib/bootstrap/merge-methods.js`,
+  // `agents-bootstrap-github.js`) already consumes.
   // =========================================================================
 
-  async getMergeMethods() {
-    return repo.getMergeMethods(this._ctx);
-  }
-
-  async setMergeMethods(settings) {
-    return repo.setMergeMethods(this._ctx, settings);
-  }
-
+  /**
+   * Idempotent label creation. For each labelDef, attempt `gh label create
+   * <name> --color <hex> --description <text>`. The CLI prints
+   * "label already exists" (or the API surfaces a 422
+   * "already_exists" error) when the name is taken; we swallow that and
+   * count it as `skipped`. Any other error propagates so transport faults
+   * stay loud.
+   *
+   * Returns `{ created: string[], skipped: string[] }` — the same shape
+   * `agents-bootstrap-github.js` already reads.
+   */
   async ensureLabels(labelDefs) {
-    return labels.ensureLabels(this._ctx, labelDefs);
+    const created = [];
+    const skipped = [];
+    for (const def of labelDefs) {
+      const color = (def.color ?? '').replace(/^#/, '');
+      try {
+        await this._gh.label.create(def.name, [
+          '--color',
+          color,
+          '--description',
+          def.description ?? '',
+        ]);
+        created.push(def.name);
+      } catch (err) {
+        if (isLabelAlreadyExistsError(err)) {
+          skipped.push(def.name);
+          continue;
+        }
+        throw err;
+      }
+    }
+    return { created, skipped };
+  }
+
+  /**
+   * Read the repo's current merge-method-related settings. Returns only
+   * the fields the bootstrap cares about so the diff layer can compare
+   * apples to apples regardless of what other knobs the repo exposes.
+   *
+   * @field-manifest GET /repos/{owner}/{repo}: allow_squash_merge,
+   *                 allow_rebase_merge, allow_merge_commit,
+   *                 allow_auto_merge, delete_branch_on_merge
+   */
+  async getMergeMethods() {
+    const result = await this._gh.api({
+      method: 'GET',
+      endpoint: `/repos/${this.owner}/${this.repo}`,
+    });
+    const raw = parseApiJson(result) ?? {};
+    const out = {};
+    for (const field of MERGE_METHOD_FIELDS) {
+      if (Object.hasOwn(raw, field)) out[field] = raw[field];
+    }
+    return out;
+  }
+
+  /**
+   * PATCH the repo with the supplied merge-method settings. Sparse body —
+   * only the supplied fields are sent / touched.
+   *
+   * @field-manifest PATCH /repos/{owner}/{repo}: allow_squash_merge,
+   *                 allow_rebase_merge, allow_merge_commit,
+   *                 allow_auto_merge, delete_branch_on_merge
+   */
+  async setMergeMethods(settings) {
+    const body = {};
+    for (const field of MERGE_METHOD_FIELDS) {
+      if (Object.hasOwn(settings, field)) body[field] = settings[field];
+    }
+    await this._gh.api({
+      method: 'PATCH',
+      endpoint: `/repos/${this.owner}/${this.repo}`,
+      body,
+    });
+    return { patched: Object.keys(body) };
   }
 
   static isInsufficientScopes(err) {
