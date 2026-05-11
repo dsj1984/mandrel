@@ -108,3 +108,48 @@ export function summarizeWorkflow(content) {
   const candidate = fm.description?.trim() || firstProseParagraph(content);
   return clampSummary(candidate);
 }
+
+/**
+ * Allowed values for the `recommendedModel` and `dispatchModel` model-hint
+ * frontmatter fields (Epic #1185 — Dispatch performance pass). Both fields
+ * are optional; arbitrary strings are rejected.
+ */
+export const ALLOWED_MODEL_HINTS = Object.freeze(['haiku', 'sonnet', 'opus']);
+
+const MODEL_HINT_FIELDS = Object.freeze(['recommendedModel', 'dispatchModel']);
+
+/**
+ * Pure: lint a parsed-frontmatter map (or raw workflow content) for
+ * model-hint correctness. Returns `{ ok, errors }`:
+ *
+ *   - `ok: true, errors: []` — no model-hint frontmatter is present, OR
+ *     every declared model-hint field carries an allowed enum value.
+ *     This is the pass-through case that preserves today's behaviour.
+ *   - `ok: false, errors: [...]` — at least one model-hint field carries
+ *     a value outside the allowed enum. Each error has shape
+ *     `{ field, value, message }` so callers can surface a clear
+ *     enum-violation report.
+ *
+ * The function accepts either a string (raw workflow content) or a
+ * pre-parsed frontmatter map. Strings are parsed via `extractFrontmatter`
+ * so callers don't have to thread the parser themselves.
+ *
+ * @param {string | Record<string, string>} input
+ * @returns {{ ok: boolean, errors: Array<{ field: string, value: string, message: string }> }}
+ */
+export function validateFrontmatter(input) {
+  const fm = typeof input === 'string' ? extractFrontmatter(input) : input;
+  const errors = [];
+  for (const field of MODEL_HINT_FIELDS) {
+    if (!(field in fm)) continue;
+    const value = fm[field];
+    if (!ALLOWED_MODEL_HINTS.includes(value)) {
+      errors.push({
+        field,
+        value,
+        message: `Invalid ${field}: "${value}". Expected one of ${ALLOWED_MODEL_HINTS.join(', ')}.`,
+      });
+    }
+  }
+  return { ok: errors.length === 0, errors };
+}
