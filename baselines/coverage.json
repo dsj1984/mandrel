@@ -204,9 +204,29 @@
     "branches": 70,
     "functions": 100
   },
+  ".agents/scripts/lib/checks/core-bare-clean.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/delete-epic-branches-naming.js": {
+    "lines": 100,
+    "branches": 75,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/epic-merge-lock-stale.js": {
+    "lines": 100,
+    "branches": 64.29,
+    "functions": 100
+  },
   ".agents/scripts/lib/checks/index.js": {
     "lines": 95.51,
     "branches": 72,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/notifier-stub-required.js": {
+    "lines": 97.74,
+    "branches": 81.08,
     "functions": 100
   },
   ".agents/scripts/lib/checks/push-hook-parity.js": {
@@ -214,10 +234,30 @@
     "branches": 86.36,
     "functions": 100
   },
+  ".agents/scripts/lib/checks/stale-origin-epic.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
   ".agents/scripts/lib/checks/state.js": {
-    "lines": 91.02,
-    "branches": 89.71,
-    "functions": 91.67
+    "lines": 87.29,
+    "branches": 84.76,
+    "functions": 87.1
+  },
+  ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
+    "lines": 96.7,
+    "branches": 81.25,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
+    "lines": 96.7,
+    "branches": 72.73,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
   },
   ".agents/scripts/lib/checks/worktree-bootstrap-env.js": {
     "lines": 100,
