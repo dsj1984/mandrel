@@ -9,6 +9,29 @@ import { runStoryClose } from '../.agents/scripts/story-close.js';
 import { runStoryInit } from '../.agents/scripts/story-init.js';
 import { MockProvider } from './fixtures/mock-provider.js';
 
+// story-close writes `phase-timings.json` against the framework's hardcoded
+// PROJECT_ROOT (see post-merge-close.js), so even when a test passes a
+// sandbox `cwd`/`tempRoot` the file lands under the real repo's
+// `temp/epic-<eid>/story-<sid>/`. Tests that drive runStoryClose with
+// (epicId=50, storyId=100) call this helper in their `finally` to scrub the
+// leaked artifact so successive runs don't accumulate dead state.
+const REPO_ROOT = path.resolve(import.meta.dirname, '..');
+function purgeLeakedRepoTemp(epicId, storyId) {
+  const storyDir = path.join(
+    REPO_ROOT,
+    'temp',
+    `epic-${epicId}`,
+    `story-${storyId}`,
+  );
+  fs.rmSync(storyDir, { recursive: true, force: true });
+  const epicDir = path.join(REPO_ROOT, 'temp', `epic-${epicId}`);
+  try {
+    if (fs.readdirSync(epicDir).length === 0) fs.rmdirSync(epicDir);
+  } catch {
+    // dir already gone or non-empty (concurrent test wrote into it) — fine
+  }
+}
+
 const gitHistory = [];
 let currentBranch = 'main';
 
@@ -367,6 +390,12 @@ test('story-close: successful merge and closure', async () => {
       path: this.pathFor(100),
     };
   };
+  // post-merge-pipeline's appendSignal call doesn't thread the resolved
+  // config through, so `signalsFile()` falls back to `'temp'` and writes
+  // relative to process.cwd(). chdir into the sandbox so any leaked
+  // friction signals land under the disposable directory.
+  const prevCwd = process.cwd();
+  process.chdir(sandboxCwd);
   try {
     const { success, result } = await runStoryClose({
       storyId: 100,
@@ -384,8 +413,10 @@ test('story-close: successful merge and closure', async () => {
     assert.ok(story.labels.includes('agent::done'), 'Story should be done');
     assert.ok(task.labels.includes('agent::done'), 'Task should be done');
   } finally {
+    process.chdir(prevCwd);
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(sandboxCwd, { recursive: true, force: true });
+    purgeLeakedRepoTemp(50, 100);
   }
 });
 
@@ -434,6 +465,11 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
       path: this.pathFor(100),
     };
   };
+  // chdir into the sandbox so the post-merge-pipeline reap-failure
+  // friction signal (which appendSignal writes to `temp/...` relative to
+  // process.cwd()) lands under the disposable dir and gets cleaned up.
+  const prevCwd = process.cwd();
+  process.chdir(explicitMainRepo);
   try {
     const { success } = await runStoryClose({
       storyId: 100,
@@ -448,8 +484,10 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
       'WorktreeManager must be rooted at the runtime --cwd path',
     );
   } finally {
+    process.chdir(prevCwd);
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(explicitMainRepo, { recursive: true, force: true });
+    purgeLeakedRepoTemp(50, 100);
   }
 });
 
@@ -490,6 +528,8 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
     return { removed: true, path: this.pathFor(100) };
   };
 
+  const prevCwd = process.cwd();
+  process.chdir(tmp);
   try {
     const { success } = await runStoryClose({
       storyId: 100,
@@ -504,8 +544,10 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
       'With worktreeIsolation.enabled=false in runtime cwd config, reap must be skipped',
     );
   } finally {
+    process.chdir(prevCwd);
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(tmp, { recursive: true, force: true });
+    purgeLeakedRepoTemp(50, 100);
   }
 });
 
@@ -547,6 +589,8 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
     return { path: this.pathFor(100), created: true };
   };
 
+  const prevCwd = process.cwd();
+  process.chdir(tmp);
   try {
     const { success } = await runStoryInit({
       storyId: 100,
@@ -561,7 +605,9 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
       'With worktreeIsolation.enabled=false in runtime cwd config, init must not ensure worktree',
     );
   } finally {
+    process.chdir(prevCwd);
     WorktreeManager.prototype.ensure = originalEnsure;
     fs.rmSync(tmp, { recursive: true, force: true });
+    purgeLeakedRepoTemp(50, 100);
   }
 });
