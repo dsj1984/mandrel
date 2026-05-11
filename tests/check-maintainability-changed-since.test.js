@@ -6,7 +6,9 @@ import { fileURLToPath } from 'node:url';
 import {
   coerceStoryId,
   parseChangedSinceArg,
+  parseFullScopeArg,
   parseStoryIdArg,
+  resolveChangedSinceRef,
 } from '../.agents/scripts/check-maintainability.js';
 
 /**
@@ -93,6 +95,88 @@ describe('parseStoryIdArg', () => {
       parseStoryIdArg(['--story', '11'], { FRICTION_STORY_ID: '99' }),
       11,
     );
+  });
+});
+
+describe('parseFullScopeArg (Story #1394)', () => {
+  it('returns true when --full-scope is present', () => {
+    assert.equal(parseFullScopeArg(['--full-scope']), true);
+    assert.equal(parseFullScopeArg(['--json', 'x', '--full-scope']), true);
+  });
+
+  it('returns false when --full-scope is absent', () => {
+    assert.equal(parseFullScopeArg([]), false);
+    assert.equal(parseFullScopeArg(['--changed-since', 'main']), false);
+  });
+});
+
+describe('resolveChangedSinceRef precedence (Story #1394, AC15 parity)', () => {
+  it('framework default → diff-scope against main', () => {
+    const r = resolveChangedSinceRef({ argv: [], env: {} });
+    assert.equal(r.ref, 'main');
+    assert.equal(r.scope, 'diff');
+    assert.equal(r.source, 'default');
+  });
+
+  it('config.diffRef overrides framework default', () => {
+    const r = resolveChangedSinceRef({
+      argv: [],
+      env: {},
+      maintainabilityConfig: { defaultScope: 'diff', diffRef: 'develop' },
+    });
+    assert.equal(r.ref, 'develop');
+    assert.equal(r.scope, 'diff');
+    assert.equal(r.source, 'config.diffRef');
+  });
+
+  it('config.defaultScope=full produces a full-scope verdict', () => {
+    const r = resolveChangedSinceRef({
+      argv: [],
+      env: {},
+      maintainabilityConfig: { defaultScope: 'full' },
+    });
+    assert.equal(r.ref, null);
+    assert.equal(r.scope, 'full');
+  });
+
+  it('env MAINTAINABILITY_CHANGED_SINCE wins over config', () => {
+    const r = resolveChangedSinceRef({
+      argv: [],
+      env: { MAINTAINABILITY_CHANGED_SINCE: 'origin/release' },
+      maintainabilityConfig: { defaultScope: 'diff', diffRef: 'develop' },
+    });
+    assert.equal(r.ref, 'origin/release');
+    assert.equal(r.source, 'MAINTAINABILITY_CHANGED_SINCE');
+  });
+
+  it('CLI --changed-since wins over env + config', () => {
+    const r = resolveChangedSinceRef({
+      argv: ['--changed-since', 'feature/x'],
+      env: { MAINTAINABILITY_CHANGED_SINCE: 'origin/release' },
+      maintainabilityConfig: { defaultScope: 'diff', diffRef: 'develop' },
+    });
+    assert.equal(r.ref, 'feature/x');
+    assert.equal(r.source, '--changed-since');
+  });
+
+  it('CLI --full-scope wins over every layer below', () => {
+    const r = resolveChangedSinceRef({
+      argv: ['--full-scope', '--changed-since', 'feature/x'],
+      env: { MAINTAINABILITY_CHANGED_SINCE: 'origin/release' },
+      maintainabilityConfig: { defaultScope: 'diff', diffRef: 'develop' },
+    });
+    assert.equal(r.ref, null);
+    assert.equal(r.scope, 'full');
+    assert.equal(r.source, '--full-scope');
+  });
+
+  it('CRAP_CHANGED_SINCE serves as a fallback env name for parity', () => {
+    const r = resolveChangedSinceRef({
+      argv: [],
+      env: { CRAP_CHANGED_SINCE: 'origin/main' },
+    });
+    assert.equal(r.ref, 'origin/main');
+    assert.equal(r.source, 'CRAP_CHANGED_SINCE');
   });
 });
 

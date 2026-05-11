@@ -53,7 +53,18 @@ jobs:
           npm run format:check
 
       - name: Maintainability Check
-        run: npm run maintainability:check
+        # Story #1394 (Epic #1386): the gate CLIs now default --changed-since
+        # to a diff-scoped scan against `main`. On PRs we point at the actual
+        # base ref (which may not be `main` for backport / release-train PRs);
+        # on push-to-main we opt out via --full-scope so a regression in an
+        # untouched file still surfaces and a self-comparison doesn't degrade
+        # to "no files in diff".
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            npm run maintainability:check -- --changed-since origin/${{ github.base_ref }}
+          else
+            npm run maintainability:check -- --full-scope
+          fi
 
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
@@ -89,6 +100,12 @@ jobs:
         # PR. Self-skips when `agentSettings.quality.crap.enabled` is
         # false. The `--json` artifact is uploaded for downstream agent
         # workflows.
+        #
+        # Story #1394 (Epic #1386): the gate CLI now defaults --changed-since
+        # to `main`. The PR branch keeps an explicit `origin/<base_ref>` so
+        # backport / release-train PRs stay correct; the push-to-main branch
+        # passes --full-scope so the new diff-scoped default doesn't degrade
+        # to a self-diff (= empty file set) on push-to-main commits.
         run: |
           mkdir -p temp
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -96,7 +113,7 @@ jobs:
               --changed-since origin/${{ github.base_ref }} \
               --json temp/crap-report.json
           else
-            npm run crap:check -- --json temp/crap-report.json
+            npm run crap:check -- --full-scope --json temp/crap-report.json
           fi
 
       - name: Upload CRAP Report

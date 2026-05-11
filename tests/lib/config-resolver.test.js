@@ -275,6 +275,11 @@ describe('config-resolver library tests', () => {
         requireCoverage: true,
         friction: { markerKey: 'crap-baseline-regression' },
         refreshTag: 'baseline-refresh:',
+        // Story #1394 (Epic #1386): diff-scoped default + ref live in the
+        // crap config block so the precedence chain in
+        // `resolveCrapChangedSince` reads them like any other config field.
+        defaultScope: 'diff',
+        diffRef: 'main',
       });
     });
 

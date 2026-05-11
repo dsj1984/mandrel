@@ -127,6 +127,7 @@ export function parseArgv(argv = process.argv.slice(2)) {
     baselinePath: undefined,
     coveragePath: undefined,
     changedSinceRef: null,
+    fullScope: false,
     epicRef: null,
     jsonPath: undefined,
   };
@@ -153,6 +154,11 @@ export function parseArgv(argv = process.argv.slice(2)) {
       } else {
         out.changedSinceRef = 'main';
       }
+    } else if (argv[i] === '--full-scope') {
+      // Story #1394: explicit opt-out from the diff-scoped default. Wins over
+      // every layer below — recorded as a boolean so `resolveCrapChangedSince`
+      // can short-circuit before consulting env / config / framework defaults.
+      out.fullScope = true;
     } else if (argv[i] === '--epic-ref' && argv[i + 1]) {
       // Story #1120: read the baseline at this git ref (e.g. `epic/1114`)
       // via baseline-loader instead of via the working-tree fs read.
@@ -172,6 +178,70 @@ export function parseArgv(argv = process.argv.slice(2)) {
     if (Number.isInteger(envVal) && envVal > 0) out.epicId = envVal;
   }
   return out;
+}
+
+/**
+ * Pure: resolve the effective `--changed-since` ref for the CRAP gate by
+ * layering precedence:
+ *   1. CLI `--full-scope` flag (parsed in {@link parseArgv}) → null + scope=full.
+ *   2. CLI `--changed-since <ref>` (or bare flag, defaulting to 'main').
+ *   3. Env `CRAP_CHANGED_SINCE` (or `MAINTAINABILITY_CHANGED_SINCE` for parity).
+ *   4. `agentSettings.quality.crap.diffRef` from the resolved config.
+ *   5. Framework default 'main' when `defaultScope === 'diff'`.
+ *
+ * Mirrors `resolveChangedSinceRef` in `check-maintainability.js` (Story #1394
+ * AC15 parity). The two gates must share a precedence chain so a project
+ * that flips one back to `--full-scope` doesn't have to remember which env
+ * names apply to which gate.
+ *
+ * Exported for testing.
+ *
+ * @param {{
+ *   parsedArgs: { changedSinceRef: string | null, fullScope?: boolean },
+ *   env?: NodeJS.ProcessEnv,
+ *   crapConfig?: { defaultScope?: string, diffRef?: string },
+ * }} opts
+ * @returns {{ ref: string | null, scope: 'diff' | 'full', source: string }}
+ */
+export function resolveCrapChangedSince({
+  parsedArgs,
+  env = process.env,
+  crapConfig,
+}) {
+  // Layer 1: --full-scope opt-out wins.
+  if (parsedArgs?.fullScope) {
+    return { ref: null, scope: 'full', source: '--full-scope' };
+  }
+  // Layer 2: explicit --changed-since flag.
+  if (typeof parsedArgs?.changedSinceRef === 'string') {
+    return {
+      ref: parsedArgs.changedSinceRef,
+      scope: 'diff',
+      source: '--changed-since',
+    };
+  }
+  // Layer 3: env var override (CRAP-first, MI-fallback for parity).
+  const fromEnv = env?.CRAP_CHANGED_SINCE ?? env?.MAINTAINABILITY_CHANGED_SINCE;
+  if (typeof fromEnv === 'string' && fromEnv.length > 0) {
+    return {
+      ref: fromEnv,
+      scope: 'diff',
+      source: env?.CRAP_CHANGED_SINCE
+        ? 'CRAP_CHANGED_SINCE'
+        : 'MAINTAINABILITY_CHANGED_SINCE',
+    };
+  }
+  // Layer 4: project config.
+  const configuredScope = crapConfig?.defaultScope;
+  const configuredRef = crapConfig?.diffRef;
+  if (configuredScope === 'full') {
+    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
+  }
+  if (typeof configuredRef === 'string' && configuredRef.length > 0) {
+    return { ref: configuredRef, scope: 'diff', source: 'config.diffRef' };
+  }
+  // Layer 5: framework default — diff-scope against 'main'.
+  return { ref: 'main', scope: 'diff', source: 'default' };
 }
 
 /**
@@ -436,6 +506,7 @@ export function buildCrapReport({
   kernelVersion,
   escomplexVersion,
   newMethodCeiling,
+  scopeInfo,
 }) {
   const skippedNoCoverage =
     (scanSummary?.skippedFilesNoCoverage ?? 0) +
@@ -459,6 +530,12 @@ export function buildCrapReport({
       fixGuidance,
     };
   });
+  // Story #1394: tag the envelope with the scope used to produce it so
+  // downstream tooling (`quality-preview`, the auto-refresh evaluator) can
+  // detect whether the diff was scoped or full-repo before merging this
+  // envelope with the peer MI envelope.
+  const scope = scopeInfo?.scope === 'full' ? 'full' : 'diff';
+  const diffRef = scope === 'full' ? null : (scopeInfo?.diffRef ?? null);
   return {
     kernelVersion,
     escomplexVersion,
@@ -469,6 +546,8 @@ export function buildCrapReport({
       drifted: compareResult.drifted,
       removed: compareResult.removed,
       skippedNoCoverage,
+      scope,
+      diffRef,
     },
     violations,
   };
@@ -632,20 +711,30 @@ async function main() {
     return 0;
   }
 
-  // Resolve --changed-since BEFORE the baseline / kernel-mismatch checks.
-  // A bad ref must always surface (AC14); silent degradation to bootstrap
-  // exit 0 when the ref is misspelled would defeat the entire purpose of
-  // the flag.
+  // Story #1394: diff-scoped scan is the default. The resolver layers CLI
+  // flags > env > config > framework default and returns the effective ref
+  // (or null for `--full-scope`). Resolve BEFORE the baseline / kernel-
+  // mismatch checks — a bad ref must always surface (AC14); silent
+  // degradation to bootstrap exit 0 when the ref is misspelled would defeat
+  // the entire purpose of the flag.
+  const resolvedScope = resolveCrapChangedSince({
+    parsedArgs: args,
+    env: process.env,
+    crapConfig: crap,
+  });
+  Logger.info(
+    `[CRAP] scope=${resolvedScope.scope}${resolvedScope.ref ? ` ref=${resolvedScope.ref}` : ''} (source=${resolvedScope.source})`,
+  );
   let scopeSet = null;
-  if (args.changedSinceRef) {
+  if (resolvedScope.ref) {
     try {
       const changed = getChangedFiles({
-        ref: args.changedSinceRef,
+        ref: resolvedScope.ref,
         cwd: process.cwd(),
       });
       scopeSet = new Set(changed);
       Logger.info(
-        `[CRAP] --changed-since ${args.changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
+        `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
       );
     } catch (err) {
       Logger.error(
@@ -723,6 +812,10 @@ async function main() {
       kernelVersion: KERNEL_VERSION,
       escomplexVersion: runningEscomplex,
       newMethodCeiling,
+      scopeInfo: {
+        scope: resolvedScope.scope,
+        diffRef: resolvedScope.ref,
+      },
     });
     try {
       writeJsonReport(args.jsonPath, envelope);
