@@ -26,6 +26,7 @@ import {
   buildPrCreateArgs,
   buildPrTitle,
   checkEpicFastForward,
+  GH_SPAWN_USES_SHELL,
   runEpicDeliverFinalize,
 } from '../../.agents/scripts/epic-deliver-finalize.js';
 
@@ -79,6 +80,38 @@ test('buildPrCreateArgs: includes base, head, title, body in expected order', ()
     '--body',
     'B',
   ]);
+});
+
+test('buildPrCreateArgs: preserves whitespace inside title and body as a single argv entry', () => {
+  // Regression for the bug observed during Epic #1235 delivery: titles
+  // like `Epic #1235: Hands-off PR pipeline` survive the args builder
+  // intact (one argv entry per --title / --body). The real-world
+  // breakage happened later in spawnSync when shell:true joined argv
+  // with spaces and cmd.exe re-tokenized — see GH_SPAWN_USES_SHELL.
+  const args = buildPrCreateArgs({
+    epicId: 1235,
+    title: 'Epic #1235: Hands-off PR pipeline + bot approver',
+    body: 'Closes #1235\n\nLine with spaces.',
+    baseBranch: 'main',
+    epicBranch: 'epic/1235',
+  });
+  const titleIdx = args.indexOf('--title');
+  const bodyIdx = args.indexOf('--body');
+  assert.equal(
+    args[titleIdx + 1],
+    'Epic #1235: Hands-off PR pipeline + bot approver',
+  );
+  assert.equal(args[bodyIdx + 1], 'Closes #1235\n\nLine with spaces.');
+});
+
+test('GH_SPAWN_USES_SHELL is false (Windows argv-shred regression)', () => {
+  // The Epic #1235 finalize step failed because the default ghSpawn was
+  // configured with shell:true on Windows — Node concatenates argv with
+  // spaces, cmd.exe re-tokenizes the result, and `gh pr create` rejects
+  // the shredded title with "unknown arguments [...]". The contract: the
+  // default ghSpawn MUST NOT use shell mode so spawnSync quotes argv on
+  // Windows itself. This guard locks the contract.
+  assert.equal(GH_SPAWN_USES_SHELL, false);
 });
 
 test('buildPrBody: contains Closes #<epicId> trailer', () => {
