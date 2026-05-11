@@ -22,7 +22,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
-import path from 'node:path';
+import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
 import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
 import {
@@ -95,14 +95,16 @@ export async function runPostMergeClose({
   const timingSummary = phaseTimer.finish();
   let phaseTimingsPath = null;
   try {
-    const dir = path.join(
-      projectRoot,
-      'temp',
-      `epic-${epicId}`,
-      `story-${storyId}`,
-    );
+    const eid = Number(epicId);
+    const sid = Number(storyId);
+    const dir = storyTempDir(eid, sid, config);
     await mkdirFn(dir, { recursive: true });
-    phaseTimingsPath = path.join(dir, 'phase-timings.json');
+    phaseTimingsPath = storyArtifactPath(
+      eid,
+      sid,
+      'phase-timings.json',
+      config,
+    );
     await writeFileFn(phaseTimingsPath, JSON.stringify(timingSummary, null, 2));
   } catch (err) {
     phaseTimingsPath = null;
