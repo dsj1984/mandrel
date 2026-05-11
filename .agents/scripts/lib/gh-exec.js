@@ -343,4 +343,141 @@ export function exec({
   });
 }
 
+/* ---------------------------------------------------------------------- */
+/* Typed convenience wrappers (Task #1370)                                 */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * Build a typed `gh` facade bound to a specific `exec` implementation. The
+ * factory exists so tests can inject a fake `exec` (which itself wraps a fake
+ * `spawn`) and assert the argv shape each wrapper produces. Production code
+ * just imports the pre-bound `gh` singleton.
+ *
+ * The wrappers are deliberately thin: each one builds the argv array,
+ * delegates to `exec`, and returns the parsed result. The only logic worth
+ * naming lives in `gh.api`, which translates the structured
+ * `{ method, endpoint, body, fields, paginate }` shape into the right
+ * `-X / -f / --paginate / --input -` flag combination.
+ *
+ * @param {Function} execImpl — exec implementation. Defaults to module exec.
+ */
+export function createGh(execImpl = exec) {
+  /**
+   * `gh api` wrapper.
+   *
+   * @param {object} opts
+   * @param {string} [opts.method='GET']  HTTP method (passed as -X <method>).
+   * @param {string} opts.endpoint        e.g. '/repos/{owner}/{repo}/issues'.
+   * @param {object} [opts.body]          JSON body — written to stdin via --input -.
+   * @param {string[]} [opts.fields]      For graphql-style --jq field projection;
+   *                                       passed as repeated --jq is not what callers
+   *                                       want, so we currently surface it as
+   *                                       `--jq .${fields.join(',.')}` only when
+   *                                       set. Most callers will leave it unset
+   *                                       and pass `endpoint` directly.
+   * @param {boolean} [opts.paginate]     Add --paginate for list endpoints.
+   * @param {object}  [opts.execOpts]     Forwarded to exec (timeoutMs, etc.).
+   */
+  function api({
+    method = 'GET',
+    endpoint,
+    body,
+    fields,
+    paginate = false,
+    execOpts = {},
+  } = {}) {
+    if (typeof endpoint !== 'string' || endpoint.length === 0) {
+      return Promise.reject(
+        new GhExecError('gh.api: `endpoint` is required', { args: [] }),
+      );
+    }
+    const args = ['api', '-X', method, endpoint];
+    if (paginate) args.push('--paginate');
+    if (Array.isArray(fields) && fields.length > 0) {
+      args.push('--jq', fields.map((f) => `.${f}`).join(','));
+    }
+    let input;
+    if (body !== undefined && body !== null) {
+      args.push('--input', '-');
+      input = JSON.stringify(body);
+    }
+    return execImpl({ args, input, ...execOpts });
+  }
+
+  /**
+   * Build a `--json a,b,c` flag pair from a fields array. Returns `[]` when
+   * fields is unset so callers can spread without branching.
+   */
+  function jsonFlag(fields) {
+    if (!Array.isArray(fields) || fields.length === 0) return [];
+    return ['--json', fields.join(',')];
+  }
+
+  /**
+   * Coerce numeric ids to strings — gh accepts both but tests assert on
+   * stringly args.
+   */
+  function idStr(id) {
+    return typeof id === 'number' ? String(id) : id;
+  }
+
+  const issue = {
+    view: (id, fields) =>
+      execImpl({ args: ['issue', 'view', idStr(id), ...jsonFlag(fields)] }),
+    edit: (id, flags = []) =>
+      execImpl({ args: ['issue', 'edit', idStr(id), ...flags] }),
+    comment: (id, bodyText) =>
+      execImpl({
+        args: ['issue', 'comment', idStr(id), '--body-file', '-'],
+        input: bodyText,
+      }),
+    list: (flags = [], fields) =>
+      execImpl({ args: ['issue', 'list', ...flags, ...jsonFlag(fields)] }),
+  };
+
+  const pr = {
+    view: (id, fields) =>
+      execImpl({ args: ['pr', 'view', idStr(id), ...jsonFlag(fields)] }),
+    create: (flags = []) => execImpl({ args: ['pr', 'create', ...flags] }),
+    edit: (id, flags = []) =>
+      execImpl({ args: ['pr', 'edit', idStr(id), ...flags] }),
+    merge: (id, flags = []) =>
+      execImpl({ args: ['pr', 'merge', idStr(id), ...flags] }),
+    list: (flags = [], fields) =>
+      execImpl({ args: ['pr', 'list', ...flags, ...jsonFlag(fields)] }),
+  };
+
+  const label = {
+    create: (name, flags = []) =>
+      execImpl({ args: ['label', 'create', name, ...flags] }),
+    edit: (name, flags = []) =>
+      execImpl({ args: ['label', 'edit', name, ...flags] }),
+    list: (flags = [], fields) =>
+      execImpl({ args: ['label', 'list', ...flags, ...jsonFlag(fields)] }),
+  };
+
+  const repo = {
+    view: (target, fields) => {
+      const args = ['repo', 'view'];
+      if (target) args.push(target);
+      args.push(...jsonFlag(fields));
+      return execImpl({ args });
+    },
+    edit: (target, flags = []) => {
+      const args = ['repo', 'edit'];
+      if (target) args.push(target);
+      args.push(...flags);
+      return execImpl({ args });
+    },
+  };
+
+  return { api, issue, pr, label, repo };
+}
+
+/**
+ * Module-level singleton bound to the real `exec`. Production callers
+ * import this; tests reach for `createGh(fakeExec)` instead.
+ */
+export const gh = createGh();
+
 export default exec;
