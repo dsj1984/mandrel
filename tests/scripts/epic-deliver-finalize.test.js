@@ -201,9 +201,10 @@ test('runEpicDeliverFinalize: halts on FF=main-ahead before pushing', async () =
   assert.equal(ghCalls.length, 0, 'gh should not be called when FF fails');
 });
 
-test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off', async () => {
+test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-complete fire', async () => {
   const ticketCalls = [];
   const upsertCalls = [];
+  const notifyCalls = [];
   const provider = {
     async getTicket(id) {
       ticketCalls.push(id);
@@ -245,6 +246,10 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off', async 
       upsertCalls.push({ ticketId, type, body });
       return { commentId: 99 };
     },
+    notifyFn: (ticketId, payload, opts) => {
+      notifyCalls.push({ ticketId, payload, opts });
+      return Promise.resolve();
+    },
   });
 
   assert.equal(out.ffOk, true);
@@ -271,6 +276,71 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off', async 
   // Push must have been called against epic/1142.
   const pushCall = gitCalls.find((c) => c[0] === 'push');
   assert.deepEqual(pushCall, ['push', 'origin', 'epic/1142']);
+
+  // The single `epic-complete` webhook fires here, AFTER `gh pr create`
+  // succeeded and the PR URL is in hand. The payload carries the URL so
+  // operators can click straight from the notification.
+  const epicCompleteCalls = notifyCalls.filter(
+    (c) => c.payload?.event === 'epic-complete',
+  );
+  assert.equal(
+    epicCompleteCalls.length,
+    1,
+    'expected exactly one epic-complete fire',
+  );
+  assert.equal(epicCompleteCalls[0].ticketId, 1142);
+  assert.equal(
+    epicCompleteCalls[0].payload.prUrl,
+    'https://github.com/me/repo/pull/55',
+  );
+  assert.match(
+    epicCompleteCalls[0].payload.message,
+    /pull\/55/,
+    'epic-complete message should embed the PR URL',
+  );
+});
+
+test('runEpicDeliverFinalize: epic-complete is NOT fired when FF blocks before PR open', async () => {
+  // The whole point of moving the fire to the post-PR-create boundary is
+  // that operators stop getting "Epic complete" notifications with no PR
+  // to click. If finalize halts at the FF check, no PR exists yet, so
+  // no fire.
+  const provider = {
+    async getTicket() {
+      return { id: 7, title: 'X' };
+    },
+  };
+  const { fn: gitSpawnFn } = makeGitSpawnFn([
+    { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
+    { matcher: (args) => args[0] === 'merge-base', response: { status: 1 } },
+  ]);
+  const notifyCalls = [];
+  const out = await runEpicDeliverFinalize({
+    epicId: 7,
+    cwd: '.',
+    injectedProvider: provider,
+    injectedConfig: {
+      agentSettings: { baseBranch: 'main' },
+      orchestration: {},
+    },
+    loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    gitSpawnFn,
+    ghSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
+    upsertCommentFn: async () => ({ commentId: 1 }),
+    notifyFn: (ticketId, payload, opts) => {
+      notifyCalls.push({ ticketId, payload, opts });
+      return Promise.resolve();
+    },
+  });
+  assert.equal(out.ffOk, false);
+  const epicCompleteCalls = notifyCalls.filter(
+    (c) => c.payload?.event === 'epic-complete',
+  );
+  assert.equal(
+    epicCompleteCalls.length,
+    0,
+    'epic-complete must not fire when the PR was never opened',
+  );
 });
 
 test('runEpicDeliverFinalize: gh failure halts before hand-off', async () => {

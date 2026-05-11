@@ -486,7 +486,12 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
     );
   });
 
-  it('fires epic-complete on the finalize boundary', async () => {
+  it('does NOT fire epic-complete at the finalize boundary (moved to PR-create)', async () => {
+    // The `epic-complete` webhook used to fire here, before `gh pr create`
+    // had a chance to run — operators got an "Epic complete" ping with no
+    // PR to click. The fire moved to `epic-deliver-finalize.js`, post-PR.
+    // Recording the final wave should now emit `epic-progress` (and
+    // potentially `epic-unblocked` on resume) but NOT `epic-complete`.
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 603, { totalWaves: 1 });
     const { events, fn } = captureNotify();
@@ -499,11 +504,15 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
       injectedNotify: fn,
     });
     const eventNames = events.map((e) => e.event);
-    assert.ok(eventNames.includes('epic-complete'));
-    assert.equal(
-      eventNames.indexOf('epic-complete') > eventNames.indexOf('epic-progress'),
-      true,
-      'epic-complete must come after the final epic-progress',
+    assert.ok(
+      !eventNames.includes('epic-complete'),
+      `epic-complete must not fire here; got events: ${eventNames.join(',')}`,
+    );
+    // Sanity: the `epic-progress` fire still happens — only `epic-complete`
+    // moved.
+    assert.ok(
+      eventNames.includes('epic-progress'),
+      'epic-progress must still fire on the finalize boundary',
     );
   });
 });

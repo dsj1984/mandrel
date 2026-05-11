@@ -3,13 +3,21 @@ import path from 'node:path';
 import test, { mock } from 'node:test';
 import { pathToFileURL } from 'node:url';
 
+// Even though `epic-lifecycle-detector.js` no longer imports `notify` (the
+// `epic-complete` fire moved to `epic-deliver-finalize.js`, post-PR-create),
+// we keep the module mock in place: it lets us observe regressions where
+// the webhook leaks back into this code path. The `seen` array stays empty
+// in the steady state — any push to it is a bug.
 const notifyModuleUrl = pathToFileURL(
   path.resolve(import.meta.dirname, '../../../.agents/scripts/notify.js'),
 ).href;
 
+const notifyCalls = [];
 mock.module(notifyModuleUrl, {
   namedExports: {
-    notify: async () => {},
+    notify: async (...args) => {
+      notifyCalls.push(args);
+    },
   },
 });
 
@@ -89,4 +97,26 @@ test('detectEpicCompletion: dry-run skips posting', async () => {
     dryRun: true,
   });
   assert.equal(calls.length, 0);
+});
+
+test('detectEpicCompletion: never fires the epic-complete webhook (moved to PR-create)', async () => {
+  // Regression guard for the duplicate-fire bug: the detector posts an
+  // operator-visible comment on the Epic ticket but the webhook is owned
+  // by `epic-deliver-finalize.js` after `gh pr create` succeeds. If the
+  // detector imports `notify` again, this test catches it.
+  notifyCalls.length = 0;
+  const provider = { postComment: async () => {} };
+  await detectEpicCompletion({
+    epicId: 99,
+    tasks: [{ id: 1, title: 't', status: 'agent::done' }],
+    manifest: makeManifest(),
+    provider,
+    settings: {},
+    dryRun: false,
+  });
+  assert.equal(
+    notifyCalls.length,
+    0,
+    `notify must not be called from the legacy detector; got ${notifyCalls.length} calls`,
+  );
 });

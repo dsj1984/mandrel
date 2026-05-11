@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Tasks close at commit-time; Story stays `agent::executing` until merge.**
+  `story-task-progress.js --state done --commit-sha <sha>` now flips the
+  Task ticket to `agent::done` and closes the GitHub issue immediately
+  rather than waiting for `story-close.js` to batch all child Tasks
+  post-merge. Cascade is suppressed (`cascade: false` on
+  `transitionTicketState`, a new opt that defaults to `true` for
+  backward-compat) so closing the last Task of a Story does not
+  auto-close the Story before its branch is merged into the Epic. The
+  post-merge `ticketClosurePhase` batched closer is unchanged and stays
+  idempotent against the commit-time closes via
+  `batchTransitionTickets`'s already-`agent::done` short-circuit.
+
+- **Mid-Story `/story-execute` resume skips already-closed Tasks.**
+  `story-task-progress.js --state executing` now short-circuits with
+  `{ ok: true, skip: true, reason: 'task-already-complete-and-reachable' }`
+  when the Task is already `agent::done` AND its recorded `commitSha`
+  is reachable from the current Story branch's `HEAD`. The workflow loop
+  reads `skip` and advances to the next Task instead of bouncing off
+  `task-commit.js`'s empty-diff guard. A Task labeled done whose commit
+  is missing from `HEAD` (reset, force-push, branch loss) is NOT skipped
+  — it re-runs.
+
+- **`epic-complete` webhook deferred to PR-ready.** The fire moved out of
+  `epic-execute-record-wave.js` (post-final-wave / pre-finalize) into
+  `epic-deliver-finalize.js`, called immediately after `gh pr create`
+  succeeds. Operators no longer get an "Epic complete" ping minutes
+  before the PR exists; the new payload also carries `prUrl` and embeds
+  it in the message so the notification is clickable. The legacy
+  dispatcher path's own duplicate webhook fire
+  (`epic-lifecycle-detector.js`) is removed for the same reason; the
+  operator-visible comment on the Epic ticket is preserved.
+
+- **Maintainability tolerance default raised 0.001 → 0.5; configurable.**
+  The MI gate was using a near-zero noise floor, so the routine ±0.05–0.3
+  drift introduced by Node-version churn / `escomplex` / `typhonjs-escomplex`
+  internals triggered a "regression" on every PR. The pre-push hook would
+  then auto-ratchet `baselines/maintainability.json`, the
+  `baseline-refresh-guardrail` would see an unlabeled baseline edit and
+  fail the PR, and the dev had to manually carve a separate
+  `baseline-refresh:`-tagged commit. The new default is 0.5 — well below
+  "actually less maintainable" but above typical noise. Projects can
+  override via `agentSettings.quality.maintainability.tolerance` in
+  `.agentrc.json`; CI can still force a value via the existing
+  `CRAP_TOLERANCE` env var (the guardrail's base-branch-config replay path
+  is unchanged). This project sets `tolerance: 0.5` explicitly so the
+  intent is auditable in `.agentrc.json`. Resolver precedence:
+  `CRAP_TOLERANCE` env → `quality.maintainability.tolerance` config →
+  default.
+
 ### Removed
 
 - **Windows CI leg removed.** The `windows-latest` runner in

@@ -235,6 +235,65 @@ test('ticketing.js', async (t) => {
   );
 
   await t.test(
+    'transitionTicketState skips upward cascade when cascade:false is passed',
+    async () => {
+      // The mid-Story per-Task close path (`story-task-progress.js`) closes
+      // a Task with `cascade: false` so the Story doesn't auto-close before
+      // the Story branch is merged. Without this opt, closing the *last*
+      // child of a Story would cascade Story → done while the branch is
+      // still unmerged. We assert no parent gets transitioned by issuing
+      // the close on the leaf child #3 (whose only parent is #2) and then
+      // checking #2's labels are untouched.
+      const leafOnlyMock = new MockProvider();
+      leafOnlyMock.tickets[3] = {
+        ...leafOnlyMock.tickets[3],
+        labels: ['agent::executing'],
+        body: 'Story #3 body',
+      };
+      // Before: #2 is `agent::executing`. Close #3 with cascade:false.
+      await transitionTicketState(leafOnlyMock, 3, 'agent::done', {
+        cascade: false,
+      });
+      // #3 itself should be done.
+      assert.ok(leafOnlyMock.tickets[3].labels.includes('agent::done'));
+      // #2 must remain `agent::executing` — the cascade was suppressed.
+      assert.ok(
+        leafOnlyMock.tickets[2].labels.includes('agent::executing'),
+        `expected #2 to stay agent::executing; got ${leafOnlyMock.tickets[2].labels.join(',')}`,
+      );
+      assert.ok(
+        !leafOnlyMock.tickets[2].labels.includes('agent::done'),
+        '#2 must not have been cascade-closed',
+      );
+    },
+  );
+
+  await t.test(
+    'transitionTicketState still cascades by default (cascade defaults to true)',
+    async () => {
+      // Mirror of the above: omitting `cascade` keeps the legacy fan-up
+      // behavior so existing callers (story-close batched closer, etc.) are
+      // unaffected.
+      const cascadingMock = new MockProvider();
+      cascadingMock.tickets[2] = {
+        ...cascadingMock.tickets[2],
+        labels: ['agent::executing'],
+      };
+      cascadingMock.tickets[3] = {
+        ...cascadingMock.tickets[3],
+        labels: ['agent::executing'],
+      };
+      await transitionTicketState(cascadingMock, 3, 'agent::done');
+      assert.ok(cascadingMock.tickets[3].labels.includes('agent::done'));
+      // Cascade should have moved #2 to done as its only child #3 is done.
+      assert.ok(
+        cascadingMock.tickets[2].labels.includes('agent::done'),
+        `expected #2 to be cascade-closed; got ${cascadingMock.tickets[2].labels.join(',')}`,
+      );
+    },
+  );
+
+  await t.test(
     'transitionTicketState surfaces a rejected notify dispatch via console.warn instead of swallowing it',
     async () => {
       // Reset state so this test runs independently of the prior cases.

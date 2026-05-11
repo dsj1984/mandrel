@@ -66,7 +66,6 @@ import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
 import {
   emitEpicBlocked,
-  emitEpicComplete,
   emitEpicProgress,
   emitEpicStarted,
   emitEpicUnblocked,
@@ -629,15 +628,11 @@ export async function runEpicExecuteRecordWave({
       openBlockers: [],
       logger: Logger,
     });
-    if (nextAction === 'finalize') {
-      await emitEpicComplete({
-        notify: notifyFn,
-        epicId,
-        totalStories: totalStoriesEstimate,
-        totalWaves,
-        logger: Logger,
-      });
-    }
+    // The `epic-complete` webhook used to fire here, at the post-final-wave
+    // / pre-finalize boundary. That preceded `gh pr create` by minutes — the
+    // operator got an "Epic complete" ping with no PR to click. The fire
+    // moved to `epic-deliver-finalize.js`, which emits it after the PR URL
+    // is captured. See that script for the new emit point.
   } else {
     const reason = status === 'blocked' ? 'story_blocked' : 'story_failed';
     const failingStoryId =
