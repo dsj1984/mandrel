@@ -1,89 +1,307 @@
 /**
- * GitHub Provider — issue + comment + branch/PR surfaces rebuilt on gh-exec
- * (Stories #1357, #1359, Epic #1179).
+ * GitHub Provider — every surface routes through gh-exec
+ * (Epic #1179, Wave 3 / Story #1363 — final cutover).
  *
- * The v6 MCP+gh CLI rebase migrates this file layer-by-layer off the
- * bespoke `providers/github/*` submodule tree onto the `gh` CLI via the
- * shim in `lib/gh-exec.js`. The submodule tree (`./github/auth.js`,
- * `./github/labels.js`, etc.) is intentionally still on disk during the
- * migration — Wave 3 (Story #1363) deletes the leaves that no longer have
- * a caller. What we change here is which methods on `GitHubProvider` call
- * into that old tree:
+ * Wave 0 landed `lib/gh-exec.js`. Waves 1–2 migrated the issue, comment,
+ * branch-protection, PR, label, merge-method, repo, and branches surfaces
+ * onto `gh.api` / `gh.pr.*` / `gh.label.*` / `gh.repo.*`, and collapsed the
+ * Projects V2 helpers into a single self-contained shim at
+ * `./github/projects-v2-graphql.js`. **This file is now the only resolution
+ * path.** The legacy submodule tree (`./github/auth.js`, `./github/http.js`,
+ * `./github/issues.js`, etc.) is deleted; the only remaining file under
+ * `./github/` is the projects-v2-graphql shim.
  *
- *   - Issue surface (Task #1368, Story #1357): `getTicket`, `getEpic`,
- *     `getEpics`, `getTickets`, `getSubTickets`, `getTicketDependencies`,
- *     `createTicket`, `updateTicket`, `addSubIssue`, `removeSubIssue`,
- *     `reconcileSubIssueLinks`, `listIssues`, `listIssuesByLabel` — call
- *     `gh.api({ method, endpoint, body })` and parse stdout. Sub-issue link
- *     mutations stay on GraphQL via `gh api graphql` with a POST body
- *     carrying `{ query, variables }`.
+ * What used to live in submodules now lives here as the helpers immediately
+ * below:
  *
- *   - Comment surface (Task #1372, Story #1357): `getRecentComments`,
- *     `getTicketComments`, `postComment`, `deleteComment` — also on
- *     `gh.api`. `postComment`'s visible type-badge (`🔄 **Progress**`,
- *     etc.) is preserved verbatim from the old `./github/comments.js`; the
- *     `<!-- ap:structured-comment ... -->` marker is still prepended by
- *     `upsertStructuredComment` in `lib/orchestration/ticketing.js` before
- *     the body reaches this method.
+ *   - `resolveToken` / `__setExecSyncForTests` — token resolution
+ *     (env → `gh auth token` fallback). Memoizes to `GITHUB_TOKEN` exactly
+ *     once. Used by callers that historically reached for `provider.token`
+ *     (currently a single test); the rest of the provider routes through
+ *     gh-exec, which owns its own auth.
  *
- *   - Branch-protection + PR surface (Task #1371, Story #1359):
- *     `getBranchProtection`, `setBranchProtection` on `gh.api` against
- *     `/repos/{owner}/{repo}/branches/{branch}/protection`;
- *     `createPullRequest` on `gh.pr.create` followed by `gh.pr.view` to
- *     harvest `{number, url, id}`. Bootstrap consumers
- *     (`lib/bootstrap/branch-protection.js`, `agents-bootstrap-github.js`)
- *     keep the same `{ created, added, existing }` envelope they already
- *     read.
+ *   - `classifyGithubError` — normalises transport errors into
+ *     `feature-disabled` / `permission` / `transient` / `permanent` so the
+ *     sub-issues fallback and the retry loop have a deterministic switch.
  *
- *   - Labels + merge-methods surface (Task #1373, Story #1359, this commit):
- *     `ensureLabels` iterates `labelDefs` and shells `gh label create`
- *     per def, swallowing the "already exists" signal as the idempotent
- *     skip path. `getMergeMethods` / `setMergeMethods` route through
- *     `gh.api` against `/repos/{owner}/{repo}`, returning the same
- *     `{created, skipped}` / sparse `{patched}` envelopes
- *     `agents-bootstrap-github.js` and `lib/bootstrap/merge-methods.js`
- *     already consume.
+ *   - `ADD_SUB_ISSUE_MUTATION` / `REMOVE_SUB_ISSUE_MUTATION` /
+ *     `SUB_ISSUES_QUERY` — the three GraphQL shapes the sub-issues feature
+ *     reads/writes. `_ghGraphql` shells these out via `gh api graphql`.
  *
- *   - Everything else (`resolveOrCreateProject`, `ensureStatusField`,
- *     `ensureProjectViews`, `ensureProjectFields`, `graphql`) still calls
- *     the old `./github/*` submodules. Subsequent Stories in this Epic
- *     rewrite those (Projects V2 surface is its own scope).
+ *   - `issueToTicket` / `issueToEpic` / `issueToListItem` /
+ *     `issueToEpicListItem` / `subIssueNodeToTicket` — pure mappers that
+ *     translate REST/GraphQL payloads into the normalized ticket shape the
+ *     orchestration layer consumes. Pure functions, no I/O.
  *
- * Field manifests. `gh api /repos/.../issues/N` returns the full REST Issue
- * JSON shape, so the existing `ticket-mapper.js` pure helpers still apply
- * unchanged. We capture which fields each consumer expects as inline
- * constants next to the method that uses them, per the Tech Spec field-
- * manifest convention.
+ *   - `createInlineTicketCache` — per-instance ticket cache (one bare
+ *     `Map<id, { ticket, insertedAt }>`) shared by dispatcher, reconciler,
+ *     and cascade. The old TTL wrapper is gone because `peekFresh` already
+ *     bounds entries by a caller-supplied `maxAgeMs`.
+ *
+ * `graphql(query, variables, opts)` now routes through `_ghGraphql` (i.e.
+ * `gh api graphql`) so callers like `delete-epic.js` and `epic-runner/
+ * column-sync.js` keep their public surface unchanged after the
+ * `GithubHttpClient` deletion.
+ *
+ * The only remaining import from `./github/` is the projects-v2-graphql shim
+ * — Projects V2 is its own scope and lives there.
  *
  * @see docs/v5-implementation-plan.md (legacy reference — superseded by
  *      Epic #1179 Tech Spec #1350).
  */
 
+import { execSync as defaultExecSync } from 'node:child_process';
 import { parseBlockedBy, parseBlocks } from '../lib/dependency-parser.js';
 import { gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
+import { parseLinkedIssues } from '../lib/issue-link-parser.js';
 import { Logger } from '../lib/Logger.js';
 import { TYPE_LABELS } from '../lib/label-constants.js';
 import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../lib/util/concurrent-map.js';
-import { resolveToken } from './github/auth.js';
-import { classifyGithubError } from './github/error-classifier.js';
-import {
-  ADD_SUB_ISSUE_MUTATION,
-  REMOVE_SUB_ISSUE_MUTATION,
-  SUB_ISSUES_QUERY,
-} from './github/graphql-builder.js';
-import { GithubHttpClient } from './github/http.js';
 import * as projects from './github/projects-v2-graphql.js';
-import {
-  issueToEpic,
-  issueToEpicListItem,
-  issueToListItem,
-  issueToTicket,
-  subIssueNodeToTicket,
-} from './github/ticket-mapper.js';
 
-export { __setExecSyncForTests } from './github/auth.js';
+// ---------------------------------------------------------------------------
+// Token resolution (inlined from the retired `./github/auth.js`)
+//
+// Hierarchy: GITHUB_TOKEN / GH_TOKEN env → `gh auth token` CLI fallback
+// → throws with an instructive error. `execSync` is indirected through a
+// holder so the (now-deleted) token-memoize test could swap it — the holder
+// + setter stay for back-compat with any external caller that reaches for
+// the test seam. Production always uses the real impl.
+// ---------------------------------------------------------------------------
+const execSyncHolder = { impl: defaultExecSync };
+
+export function __setExecSyncForTests(fn) {
+  execSyncHolder.impl = fn ?? defaultExecSync;
+}
+
+/* node:coverage ignore next */
+function resolveToken() {
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  if (token) return token;
+
+  try {
+    const ghToken = execSyncHolder
+      .impl('gh auth token', {
+        encoding: 'utf8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      })
+      .trim();
+    if (ghToken) {
+      if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = ghToken;
+      return ghToken;
+    }
+  } catch {
+    // gh CLI not installed or not authenticated.
+  }
+
+  throw new Error(
+    [
+      '[GitHubProvider] Authentication Failed: No GitHub token found.',
+      '',
+      'To resolve this, choose one of the following:',
+      '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
+      '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
+      '',
+      'See .agents/scripts/lib/orchestration/README.md#authentication for details.',
+    ].join('\n'),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Error classifier (inlined from the retired `./github/error-classifier.js`)
+//
+// Buckets `gh-exec`-thrown errors into 4 categories so the sub-issues
+// fallback and the addSubIssue retry loop have a deterministic switch.
+// Rate-limit detection wins over the 401/403 → permission rule because
+// GitHub's secondary rate limit is delivered as HTTP 403 with a known
+// message; if we bucketed it as 'permission' it would never be retried.
+// ---------------------------------------------------------------------------
+function classifyGithubError(err) {
+  if (!err) return 'permanent';
+
+  const message = typeof err.message === 'string' ? err.message : String(err);
+  const lower = message.toLowerCase();
+  const status = typeof err.status === 'number' ? err.status : undefined;
+  const code = typeof err.code === 'string' ? err.code : undefined;
+
+  if (
+    lower.includes('feature not available') ||
+    lower.includes('feature is not enabled') ||
+    lower.includes("field 'subissues'") ||
+    lower.includes('field "subissues"') ||
+    lower.includes('subissues is not available') ||
+    lower.includes('sub-issues') ||
+    lower.includes("doesn't exist on type") ||
+    lower.includes('does not exist on type') ||
+    lower.includes('unknown field')
+  ) {
+    return 'feature-disabled';
+  }
+
+  if (status === 429 || (typeof status === 'number' && status >= 500)) {
+    return 'transient';
+  }
+  if (
+    code === 'ECONNRESET' ||
+    code === 'ETIMEDOUT' ||
+    code === 'ENOTFOUND' ||
+    code === 'EAI_AGAIN' ||
+    code === 'ABORT_ERR' ||
+    lower.includes('rate limit') ||
+    lower.includes('secondary rate limit') ||
+    lower.includes('abuse detection') ||
+    lower.includes('fetch failed') ||
+    lower.includes('network') ||
+    lower.includes('timeout') ||
+    lower.includes('timed out') ||
+    lower.includes('aborted')
+  ) {
+    return 'transient';
+  }
+
+  if (status === 401 || status === 403) return 'permission';
+  if (
+    lower.includes('unauthorized') ||
+    lower.includes('forbidden') ||
+    lower.includes('permission')
+  ) {
+    return 'permission';
+  }
+
+  return 'permanent';
+}
+
+// ---------------------------------------------------------------------------
+// Sub-issues GraphQL shapes (inlined from the retired `./github/graphql-builder.js`)
+// ---------------------------------------------------------------------------
+const SUB_ISSUES_QUERY = `query($id: ID!, $cursor: String) {
+  node(id: $id) {
+    ... on Issue {
+      subIssues(first: 100, after: $cursor) {
+        pageInfo { hasNextPage endCursor }
+        nodes {
+          number
+          databaseId
+          id
+          title
+          body
+          state
+          labels(first: 30) { nodes { name } }
+          assignees(first: 20) { nodes { login } }
+        }
+      }
+    }
+  }
+}`;
+
+const ADD_SUB_ISSUE_MUTATION = `
+  mutation($parentId: ID!, $subIssueId: ID!, $replaceParent: Boolean) {
+    addSubIssue(input: { issueId: $parentId, subIssueId: $subIssueId, replaceParent: $replaceParent }) {
+      issue { number }
+      subIssue { number }
+    }
+  }`;
+
+const REMOVE_SUB_ISSUE_MUTATION = `
+  mutation($parentId: ID!, $subIssueId: ID!) {
+    removeSubIssue(input: { issueId: $parentId, subIssueId: $subIssueId }) {
+      issue { number }
+      subIssue { number }
+    }
+  }`;
+
+// ---------------------------------------------------------------------------
+// Ticket mappers (inlined from the retired `./github/ticket-mapper.js`)
+//
+// Pure functions that translate raw GitHub API payloads (REST Issue,
+// GraphQL sub-issue node) into the normalized ticket shape consumed
+// throughout the orchestration layer. No I/O, no state.
+// ---------------------------------------------------------------------------
+function normalizeLabels(issue) {
+  const raw = issue?.labels;
+  if (!raw) return [];
+  if (Array.isArray(raw?.nodes)) {
+    return raw.nodes.map((l) => l.name);
+  }
+  if (Array.isArray(raw)) {
+    return raw.map((l) => (typeof l === 'string' ? l : l.name));
+  }
+  return [];
+}
+
+function issueToTicket(issue) {
+  const labels = normalizeLabels(issue);
+  return {
+    id: issue.number,
+    internalId: issue.id,
+    nodeId: issue.node_id,
+    title: issue.title,
+    body: issue.body ?? '',
+    labels,
+    labelSet: new Set(labels),
+    assignees: (issue.assignees ?? []).map((a) => a.login),
+    state: issue.state,
+  };
+}
+
+function issueToEpic(issue) {
+  const labels = normalizeLabels(issue);
+  return {
+    id: issue.number,
+    internalId: issue.id,
+    nodeId: issue.node_id,
+    title: issue.title,
+    body: issue.body ?? '',
+    labels,
+    labelSet: new Set(labels),
+    linkedIssues: parseLinkedIssues(issue.body),
+  };
+}
+
+function subIssueNodeToTicket(node) {
+  const labels = normalizeLabels(node);
+  return {
+    id: node.number,
+    internalId: node.databaseId,
+    nodeId: node.id,
+    title: node.title,
+    body: node.body ?? '',
+    labels,
+    labelSet: new Set(labels),
+    assignees: (node.assignees?.nodes ?? []).map((a) => a.login),
+    state:
+      typeof node.state === 'string' ? node.state.toLowerCase() : node.state,
+  };
+}
+
+function issueToListItem(issue) {
+  const labels = normalizeLabels(issue);
+  return {
+    id: issue.number,
+    internalId: issue.id,
+    nodeId: issue.node_id,
+    title: issue.title,
+    body: issue.body ?? '',
+    labels,
+    labelSet: new Set(labels),
+    state: issue.state,
+  };
+}
+
+function issueToEpicListItem(issue) {
+  const labels = normalizeLabels(issue);
+  return {
+    id: issue.number,
+    title: issue.title,
+    labels,
+    labelSet: new Set(labels),
+    state: issue.state,
+    state_reason: issue.state_reason,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Concurrency + retry budgets — preserved from the old `./github/issues.js`
@@ -295,7 +513,9 @@ function createInlineTicketCache({ now = Date.now } = {}) {
 export class GitHubProvider extends ITicketingProvider {
   /**
    * @param {{ owner: string, repo: string, projectNumber?: number|null, projectOwner?: string, projectName?: string|null, operatorHandle?: string }} config
-   * @param {{ token?: string, http?: GithubHttpClient, fetchImpl?: typeof fetch, gh?: object }} [opts]
+   * @param {{ token?: string, gh?: object }} [opts]
+   *   `token` — optional explicit token (used by `provider.token` getter and
+   *   tests). Production resolves via `resolveToken()` lazily on first read.
    *   `gh` — optional gh-exec facade override (test seam). Production callers
    *   leave this unset; the module-level `defaultGh` singleton from
    *   `lib/gh-exec.js` shells out to the real `gh` CLI. Tests inject
@@ -310,34 +530,31 @@ export class GitHubProvider extends ITicketingProvider {
     this.projectName = config.projectName ?? null;
     this.operatorHandle = config.operatorHandle ?? null;
 
-    // Old transport — retained for the still-bespoke methods (branches,
-    // projects, labels, repo, raw `graphql`). The issue/comment paths no
-    // longer touch this; Wave 3 deletes the field altogether.
-    this._http =
-      opts.http ??
-      new GithubHttpClient({
-        tokenProvider: () => opts.token ?? resolveToken(),
-        fetchImpl: opts.fetchImpl,
-      });
+    // Token is resolved lazily on first read of `this.token`. We honour an
+    // explicit `opts.token` (test seam) over the env/CLI lookup. After
+    // Wave 3 the only consumer of `provider.token` is the construction
+    // smoke test in `tests/providers-github.test.js`; every transport call
+    // routes through `gh-exec`, which owns its own auth via the `gh` CLI.
+    this._explicitToken = opts.token ?? null;
+    /** @type {string|null} memoized resolved token */
+    this._memoizedToken = opts.token ?? null;
 
-    // New transport — gh-exec facade. Issue + comment methods route through
-    // this. Defaults to the module-level singleton bound to the real
+    // Transport — gh-exec facade. Every surface method routes through this.
+    // Defaults to the module-level singleton bound to the real
     // `child_process.spawn`; tests override via `opts.gh`.
     this._gh = opts.gh ?? defaultGh;
 
     // Per-instance ticket cache shared by dispatcher / reconciler / cascade.
-    // Inlined from the (retired) `./github/cache-manager.js` factory — see
-    // `createInlineTicketCache` above. Mutations (`updateTicket` /
+    // See `createInlineTicketCache` above. Mutations (`updateTicket` /
     // `postComment` / `addSubIssue` / `removeSubIssue`) invalidate; list
     // endpoints (`getTickets`, `getSubTickets`) deliberately do NOT populate
     // it (only individual `getTicket` reads and `primeIfAbsent` writes do).
     this._cache = createInlineTicketCache();
 
-    // ctx is the shared object every still-bespoke submodule reads from.
+    // ctx is the shared object the projects-v2-graphql shim reads from.
     // `projectNumber` gets a live getter/setter so `resolveOrCreateProject`
-    // can mutate it on demand; `http` / `cache` are live getters so tests
-    // that reassign `provider._http` / `provider._cache` see the new
-    // instance. Issue/comment methods do NOT read from `ctx` anymore.
+    // can mutate it on demand; `cache` is a live getter so tests that
+    // reassign `provider._cache` see the new instance.
     const provider = this;
     this._ctx = {
       owner: this.owner,
@@ -351,17 +568,11 @@ export class GitHubProvider extends ITicketingProvider {
       set projectNumber(v) {
         provider.projectNumber = v;
       },
-      get http() {
-        return provider._http;
-      },
       get cache() {
         return provider._cache;
       },
       state: { projectId: null },
       hooks: {
-        // Branches submodule still calls `getTicket` via this hook when
-        // creating a PR. Route it through the new gh-exec path so the
-        // cache stays coherent.
         getTicket: (id, o) => provider.getTicket(id, o),
         addItemToProject: (nodeId) =>
           projects.addItemToProject(this._ctx, nodeId),
@@ -370,16 +581,19 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   get token() {
-    return this._http.token;
+    if (this._memoizedToken) return this._memoizedToken;
+    this._memoizedToken = resolveToken();
+    return this._memoizedToken;
   }
 
   // -------------------------------------------------------------------------
-  // Raw GraphQL — still on the bespoke client for now. Sub-issue mutations
-  // below shell out via `gh api graphql` so this method is only used by the
-  // Projects V2 surface (subsequent story scope).
+  // Raw GraphQL — routes through `gh api graphql` (same `_ghGraphql` shim
+  // the sub-issue mutations use). Callers (`delete-epic.js`,
+  // `epic-runner/column-sync.js`) pass `query, variables, opts` exactly as
+  // they did against the old bespoke client.
   // -------------------------------------------------------------------------
   async graphql(query, variables = {}, opts = {}) {
-    return this._http.graphql(query, variables, opts);
+    return this._ghGraphql(query, variables, opts);
   }
 
   // =========================================================================
