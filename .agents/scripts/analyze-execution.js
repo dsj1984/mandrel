@@ -143,6 +143,41 @@ function renderStoryBody(payload) {
 }
 
 /**
+ * Render the optional Quality-gate friction summary block (Story #1400 /
+ * Task #1429). Aggregates `baseline-refresh-regression` friction records
+ * from the Stories' signals.ndjson streams over the trailing window,
+ * counts them, and lists the top offenders by file/method.
+ *
+ * Output contract:
+ *   - `friction == null` → empty string (caller injected nothing).
+ *   - `friction.totalRecords === 0` → `**Quality gate friction:** none`
+ *   - otherwise → count line + bulleted top-offenders list
+ *
+ * The block reads the existing `signals.ndjson` stream — no new file
+ * format. Aggregation is provided by `aggregateBaselineFrictionFromSignals`
+ * which the unit test can stub via `runEpicMode({ aggregateFrictionFn })`.
+ */
+function renderQualityGateFrictionBlock(friction) {
+  if (!friction) return '';
+  const total = friction.totalRecords ?? 0;
+  if (total === 0) {
+    return ['', '**Quality gate friction:** none', ''].join('\n');
+  }
+  const offenders = (friction.topOffenders ?? [])
+    .map((o) => {
+      const where = o.method ? `${o.file} → ${o.method}` : o.file;
+      return `- \`${where}\` — ${o.occurrences} occurrence(s)`;
+    })
+    .join('\n');
+  return [
+    '',
+    `**Quality gate friction:** ${total} \`baseline-refresh-regression\` record(s) across ${friction.storiesAffected ?? 0} Story/Stories`,
+    offenders.length > 0 ? `\nTop offenders:\n${offenders}` : '',
+    '',
+  ].join('\n');
+}
+
+/**
  * Render the per-Epic baseline-refresh-rate row (Story #1400 / Task #1427).
  * Returns an empty string when `refresh` is null so the caller can
  * concatenate unconditionally.
@@ -195,6 +230,7 @@ function renderEpicBody(payload, extras = {}) {
       ? `**Most-friction Stories:**\n${friction}`
       : '**Most-friction Stories:** none recorded',
     renderBaselineRefreshRateRow(extras.baselineRefreshRate),
+    renderQualityGateFrictionBlock(extras.qualityGateFriction),
     '',
     '```json',
     JSON.stringify(payload, null, 2),
@@ -380,6 +416,101 @@ function gatherEpicCommitsFromGit({ epicId, windowDays, cwd, logger }) {
 }
 
 /**
+ * Default friction aggregator for the Quality-gate friction block
+ * (Story #1400 / Task #1429). Walks each child Story's signals.ndjson
+ * stream and returns counts of `baseline-refresh-regression` records
+ * plus the top offenders by file (and method, when present in the
+ * `regressedFiles` / `crapOverCap` payloads).
+ *
+ * Aggregation runs against the existing `signals.ndjson` stream — no new
+ * file format. Two upstream record shapes are walked:
+ *   - check-maintainability emits a flat `regressedFiles[]` of `{ file, current, baseline, drop }`.
+ *   - auto-refresh-runner emits `miOverCap[]` / `crapOverCap[]` rows
+ *     carrying `path`/`file` and (for crap) `method`.
+ *
+ * Injectable via `runEpicMode({ aggregateFrictionFn })` so the unit test
+ * can pin behavior without seeding NDJSON files.
+ */
+async function aggregateBaselineFrictionFromSignals({
+  epicId,
+  storyIds,
+  config,
+  windowDays,
+  now,
+}) {
+  const cutoffMs = now().getTime() - windowDays * 24 * 60 * 60 * 1000;
+  const offenders = new Map(); // key → { file, method, occurrences }
+  const storiesAffected = new Set();
+  let totalRecords = 0;
+
+  for (const sid of storyIds) {
+    let touched = false;
+    await forEachLine(
+      epicId,
+      sid,
+      (record) => {
+        if (
+          !record ||
+          typeof record !== 'object' ||
+          record.kind !== 'friction' ||
+          record.category !== 'baseline-refresh-regression'
+        ) {
+          return;
+        }
+        const ts = Date.parse(record.timestamp);
+        if (Number.isFinite(ts) && ts < cutoffMs) return;
+
+        totalRecords += 1;
+        touched = true;
+
+        const flatFiles = Array.isArray(record.regressedFiles)
+          ? record.regressedFiles.map((r) => ({ file: r.file }))
+          : [];
+        const miFiles = Array.isArray(record.miOverCap)
+          ? record.miOverCap.map((r) => ({ file: r.path ?? r.file }))
+          : [];
+        const crapMethods = Array.isArray(record.crapOverCap)
+          ? record.crapOverCap.map((r) => ({
+              file: r.file,
+              method: r.method,
+            }))
+          : [];
+
+        for (const off of [...flatFiles, ...miFiles, ...crapMethods]) {
+          if (!off || typeof off.file !== 'string' || off.file.length === 0) {
+            continue;
+          }
+          const key = off.method ? `${off.file}::${off.method}` : off.file;
+          const prev = offenders.get(key);
+          if (prev) {
+            prev.occurrences += 1;
+          } else {
+            offenders.set(key, {
+              file: off.file,
+              method: off.method ?? null,
+              occurrences: 1,
+            });
+          }
+        }
+      },
+      config,
+    );
+    if (touched) storiesAffected.add(sid);
+  }
+
+  const topOffenders = [...offenders.values()]
+    .sort((a, b) => b.occurrences - a.occurrences)
+    .slice(0, 10);
+
+  return {
+    totalRecords,
+    storiesAffected: storiesAffected.size,
+    topOffenders,
+    windowDays,
+  };
+}
+
+/**
  * Epic mode: collect every Story's perf summary, roll them up, upsert
  * the epic-perf-report comment.
  *
@@ -393,8 +524,9 @@ function gatherEpicCommitsFromGit({ epicId, windowDays, cwd, logger }) {
  *   now?: () => Date,
  *   collectSummariesFn?: typeof collectStorySummaries,
  *   gatherEpicCommitsFn?: typeof gatherEpicCommitsFromGit,
+ *   aggregateFrictionFn?: typeof aggregateBaselineFrictionFromSignals,
  * }} ctx
- * @returns {Promise<{ commentId: number, payload: object, baselineRefreshRate: object | null }>}
+ * @returns {Promise<{ commentId: number, payload: object, baselineRefreshRate: object | null, qualityGateFriction: object | null }>}
  */
 export async function runEpicMode(ctx) {
   const { epicId, provider } = ctx;
@@ -406,6 +538,8 @@ export async function runEpicMode(ctx) {
       : 28;
   const collectFn = ctx.collectSummariesFn ?? collectStorySummaries;
   const gatherCommitsFn = ctx.gatherEpicCommitsFn ?? gatherEpicCommitsFromGit;
+  const aggregateFrictionFn =
+    ctx.aggregateFrictionFn ?? aggregateBaselineFrictionFromSignals;
 
   logger.info?.(`[analyze-execution] epic-mode epic=#${epicId}`);
 
@@ -439,8 +573,34 @@ export async function runEpicMode(ctx) {
     );
   }
 
+  // Story #1400 / Task #1429 — Quality gate friction block. Aggregates
+  // `baseline-refresh-regression` records from the existing
+  // signals.ndjson stream (no new file format).
+  let qualityGateFriction = null;
+  if (ctx.config) {
+    try {
+      const storyIds = (summaries ?? [])
+        .map((s) => s?.storyId)
+        .filter((n) => Number.isInteger(n) && n > 0);
+      qualityGateFriction = await aggregateFrictionFn({
+        epicId,
+        storyIds,
+        config: ctx.config,
+        windowDays,
+        now,
+      });
+    } catch (err) {
+      logger.warn?.(
+        `[analyze-execution] quality-gate-friction aggregate failed (non-fatal): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
+
   const body = renderEpicBody(payload, {
     baselineRefreshRate,
+    qualityGateFriction,
   });
   const result = await upsertStructuredComment(
     provider,
@@ -455,6 +615,7 @@ export async function runEpicMode(ctx) {
     commentId: result.commentId,
     payload,
     baselineRefreshRate,
+    qualityGateFriction,
   };
 }
 

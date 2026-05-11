@@ -280,6 +280,235 @@ describe('runEpicMode', () => {
   });
 });
 
+describe('runEpicMode — Quality gate friction block (Story #1400 / Task #1429)', () => {
+  // The Quality-gate friction block aggregates `baseline-refresh-regression`
+  // friction records from each child Story's signals.ndjson stream.
+  // Tests pin three verdicts: none, one, and many friction records.
+
+  function storySummaryBody(storyId, epicId) {
+    const payload = {
+      kind: 'story-perf-summary',
+      storyId,
+      epicId,
+      closedAt: '2026-05-07T00:00:00.000Z',
+      frictionByCategory: {},
+      phaseTimingsMs: {},
+      topSlowPhasesVsBaseline: [],
+      reworkScore: { filesEditedBeyondThreshold: 0 },
+      retryDensity: { retries: 0, uniqueCommands: 0 },
+    };
+    return [
+      '<!-- ap:structured-comment type="story-perf-summary" -->',
+      '',
+      '```json',
+      JSON.stringify(payload, null, 2),
+      '```',
+    ].join('\n');
+  }
+
+  function makeProvider({ epicId, storyIds }) {
+    const subTickets = {
+      [epicId]: storyIds.map((id) => ({
+        id,
+        number: id,
+        labels: ['type::story'],
+      })),
+    };
+    const comments = {};
+    for (const sid of storyIds) {
+      comments[sid] = [{ id: sid * 10, body: storySummaryBody(sid, epicId) }];
+    }
+    return createFakeProvider({ subTickets, comments });
+  }
+
+  it('prints "Quality gate friction: none" when no friction signals exist', async () => {
+    const provider = makeProvider({ epicId: 700, storyIds: [701] });
+    // No NDJSON seeded → totalRecords === 0
+    const result = await runEpicMode({
+      epicId: 700,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {} },
+      now: () => new Date('2026-05-07T12:00:00.000Z'),
+      // Stub the git-log gather so we don't shell out.
+      gatherEpicCommitsFn: () => [],
+    });
+    const epicComments = provider._commentStore.get(700) ?? [];
+    assert.equal(epicComments.length, 1);
+    assert.match(epicComments[0].body, /\*\*Quality gate friction:\*\* none/);
+    assert.equal(result.qualityGateFriction.totalRecords, 0);
+  });
+
+  it('prints a count and top offenders for a single friction record', async () => {
+    await seedSignals(800, 801, [
+      {
+        kind: 'friction',
+        category: 'baseline-refresh-regression',
+        timestamp: '2026-05-07T11:00:00.000Z',
+        regressedFiles: [
+          { file: 'lib/foo.js', current: 60, baseline: 75, drop: 15 },
+        ],
+      },
+    ]);
+    const provider = makeProvider({ epicId: 800, storyIds: [801] });
+    const result = await runEpicMode({
+      epicId: 800,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {} },
+      now: () => new Date('2026-05-07T12:00:00.000Z'),
+      gatherEpicCommitsFn: () => [],
+    });
+    const body = (provider._commentStore.get(800) ?? [])[0].body;
+    assert.match(
+      body,
+      /\*\*Quality gate friction:\*\* 1 `baseline-refresh-regression` record\(s\) across 1 Story\/Stories/,
+    );
+    assert.match(body, /Top offenders:/);
+    assert.match(body, /`lib\/foo\.js` — 1 occurrence\(s\)/);
+    assert.equal(result.qualityGateFriction.totalRecords, 1);
+    assert.equal(result.qualityGateFriction.storiesAffected, 1);
+    assert.equal(result.qualityGateFriction.topOffenders[0].file, 'lib/foo.js');
+  });
+
+  it('aggregates many records across mixed verdicts and shapes', async () => {
+    // Story 901 — two records, mixed shapes (regressedFiles + miOverCap).
+    await seedSignals(900, 901, [
+      {
+        kind: 'friction',
+        category: 'baseline-refresh-regression',
+        timestamp: '2026-05-07T10:00:00.000Z',
+        regressedFiles: [
+          { file: 'lib/a.js', current: 50, baseline: 70, drop: 20 },
+          { file: 'lib/b.js', current: 55, baseline: 70, drop: 15 },
+        ],
+      },
+      {
+        kind: 'friction',
+        category: 'baseline-refresh-regression',
+        timestamp: '2026-05-07T11:00:00.000Z',
+        miOverCap: [{ path: 'lib/a.js', mi: 50, baseline: 70 }],
+        crapOverCap: [{ file: 'lib/c.js', method: 'doSomething', crap: 35 }],
+      },
+    ]);
+    // Story 902 — one record, irrelevant friction (different category) is skipped.
+    await seedSignals(900, 902, [
+      {
+        kind: 'friction',
+        category: 'baseline-refresh-regression',
+        timestamp: '2026-05-07T11:30:00.000Z',
+        regressedFiles: [{ file: 'lib/a.js' }], // 3rd hit on lib/a.js
+      },
+      {
+        kind: 'friction',
+        category: 'tool-limitation', // ignored
+        timestamp: '2026-05-07T11:45:00.000Z',
+      },
+      // Out-of-window (default 28d) — 60 days before NOW.
+      {
+        kind: 'friction',
+        category: 'baseline-refresh-regression',
+        timestamp: '2026-03-08T00:00:00.000Z',
+        regressedFiles: [{ file: 'lib/old.js' }],
+      },
+    ]);
+
+    const provider = makeProvider({ epicId: 900, storyIds: [901, 902] });
+    const result = await runEpicMode({
+      epicId: 900,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {} },
+      now: () => new Date('2026-05-07T12:00:00.000Z'),
+      gatherEpicCommitsFn: () => [],
+    });
+
+    assert.equal(result.qualityGateFriction.totalRecords, 3);
+    assert.equal(result.qualityGateFriction.storiesAffected, 2);
+
+    // lib/a.js appears 3 times (2 in story 901 + 1 in story 902) → top offender
+    const top = result.qualityGateFriction.topOffenders;
+    assert.equal(top[0].file, 'lib/a.js');
+    assert.equal(top[0].occurrences, 3);
+
+    // lib/c.js → doSomething method aggregated separately
+    const crapRow = top.find(
+      (o) => o.file === 'lib/c.js' && o.method === 'doSomething',
+    );
+    assert.ok(crapRow, 'crapOverCap method offender should be aggregated');
+    assert.equal(crapRow.occurrences, 1);
+
+    // out-of-window record dropped
+    assert.equal(
+      top.find((o) => o.file === 'lib/old.js'),
+      undefined,
+    );
+
+    const body = (provider._commentStore.get(900) ?? [])[0].body;
+    assert.match(
+      body,
+      /\*\*Quality gate friction:\*\* 3 `baseline-refresh-regression` record\(s\) across 2 Story\/Stories/,
+    );
+    assert.match(body, /`lib\/a\.js` — 3 occurrence\(s\)/);
+    assert.match(body, /`lib\/c\.js → doSomething` — 1 occurrence\(s\)/);
+  });
+});
+
+describe('runEpicMode — baseline-refresh-rate row (Story #1400 / Task #1427)', () => {
+  it('prints the clean-merge rate row when commits are gathered', async () => {
+    const provider = createFakeProvider({ subTickets: { 555: [] } });
+    const NOW = new Date('2026-05-11T12:00:00.000Z');
+    const isoDaysAgo = (n) =>
+      new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000).toISOString();
+    const result = await runEpicMode({
+      epicId: 555,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {} },
+      now: () => NOW,
+      gatherEpicCommitsFn: ({ epicId }) => [
+        {
+          sha: 'a1',
+          isoDate: isoDaysAgo(2),
+          subject: 'feat: a (resolves #1)',
+          epicId,
+        },
+        {
+          sha: 'a2',
+          isoDate: isoDaysAgo(3),
+          subject: 'feat: b (resolves #2)',
+          epicId,
+        },
+        {
+          sha: 'a3',
+          isoDate: isoDaysAgo(3),
+          subject: 'baseline-refresh: drift',
+          epicId,
+        },
+      ],
+    });
+    assert.equal(result.baselineRefreshRate.kind, 'baseline-refresh-rate');
+    assert.equal(result.baselineRefreshRate.perEpic[0].cleanMergeRate, 0.5);
+    const body = (provider._commentStore.get(555) ?? [])[0].body;
+    assert.match(body, /Baseline refresh discipline \(trailing 28d\):/);
+    assert.match(body, /50\.0% clean-merge rate/);
+  });
+
+  it('prints "no Story merges in window" when the window is empty', async () => {
+    const provider = createFakeProvider({ subTickets: { 556: [] } });
+    await runEpicMode({
+      epicId: 556,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {} },
+      now: () => new Date('2026-05-11T12:00:00.000Z'),
+      gatherEpicCommitsFn: () => [],
+    });
+    const body = (provider._commentStore.get(556) ?? [])[0].body;
+    assert.match(body, /no Story merges in window/);
+  });
+});
+
 describe('extractStoryPerfSummaryFromComment', () => {
   it('returns null on bodies without the marker', () => {
     assert.equal(extractStoryPerfSummaryFromComment('hello world'), null);
