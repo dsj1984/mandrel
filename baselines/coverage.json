@@ -75,8 +75,8 @@
     "functions": 75
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 85.25,
-    "branches": 54.55,
+    "lines": 86.49,
+    "branches": 59.18,
     "functions": 77.78
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -140,6 +140,11 @@
     "functions": 100
   },
   ".agents/scripts/lib/audit-suite/findings.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/audit-suite/frontmatter-lint.js": {
     "lines": 100,
     "branches": 100,
     "functions": 100
@@ -261,7 +266,7 @@
   },
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
     "lines": 96.7,
-    "branches": 79.49,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
@@ -745,8 +750,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 96.85,
-    "branches": 72.94,
+    "lines": 97.04,
+    "branches": 73.96,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -1223,6 +1228,11 @@
     "lines": 86.35,
     "branches": 70.49,
     "functions": 60
+  },
+  ".agents/scripts/sync-claude-commands.js": {
+    "lines": 93.41,
+    "branches": 44.44,
+    "functions": 100
   },
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
