@@ -140,13 +140,13 @@ test('resolveMaintainabilityEnvOverrides — CRAP_TOLERANCE overrides default', 
   assert.ok(result.overrides.some((o) => o.includes('CRAP_TOLERANCE')));
 });
 
-test('resolveMaintainabilityEnvOverrides — no env: returns default', () => {
+test('resolveMaintainabilityEnvOverrides — no env: returns default (0.5, raised from 0.001 to absorb noise)', () => {
   const result = resolveMaintainabilityEnvOverrides({});
-  assert.strictEqual(result.tolerance, 0.001);
+  assert.strictEqual(result.tolerance, 0.5);
   assert.deepStrictEqual(result.overrides, []);
 });
 
-test('resolveMaintainabilityEnvOverrides — malformed value warns and keeps default', () => {
+test('resolveMaintainabilityEnvOverrides — malformed value warns and keeps prior layer', () => {
   const warnings = [];
   const origWarn = console.warn;
   console.warn = (msg) => warnings.push(String(msg));
@@ -154,10 +154,60 @@ test('resolveMaintainabilityEnvOverrides — malformed value warns and keeps def
     const result = resolveMaintainabilityEnvOverrides({
       CRAP_TOLERANCE: 'banana',
     });
-    assert.strictEqual(result.tolerance, 0.001);
+    assert.strictEqual(result.tolerance, 0.5);
     assert.strictEqual(result.overrides.length, 0);
     assert.ok(warnings[0].includes('CRAP_TOLERANCE'));
   } finally {
     console.warn = origWarn;
   }
+});
+
+test('resolveMaintainabilityEnvOverrides — config tolerance overrides default', () => {
+  const result = resolveMaintainabilityEnvOverrides({}, { tolerance: 0.75 });
+  assert.strictEqual(result.tolerance, 0.75);
+  assert.ok(
+    result.overrides.some((o) =>
+      o.includes('quality.maintainability.tolerance'),
+    ),
+    'override list should name the config source',
+  );
+});
+
+test('resolveMaintainabilityEnvOverrides — env beats config (CI override takes precedence)', () => {
+  const result = resolveMaintainabilityEnvOverrides(
+    { CRAP_TOLERANCE: '0.1' },
+    { tolerance: 0.75 },
+  );
+  assert.strictEqual(result.tolerance, 0.1);
+  // Both overrides observed; env wins last so it's the effective value.
+  assert.ok(result.overrides.some((o) => o.includes('CRAP_TOLERANCE')));
+  assert.ok(
+    result.overrides.some((o) =>
+      o.includes('quality.maintainability.tolerance'),
+    ),
+  );
+});
+
+test('resolveMaintainabilityEnvOverrides — malformed env falls back to config, not default', () => {
+  const warnings = [];
+  const origWarn = console.warn;
+  console.warn = (msg) => warnings.push(String(msg));
+  try {
+    const result = resolveMaintainabilityEnvOverrides(
+      { CRAP_TOLERANCE: 'banana' },
+      { tolerance: 0.75 },
+    );
+    // env malformed → fall through to config (0.75), NOT default (0.5).
+    assert.strictEqual(result.tolerance, 0.75);
+    assert.ok(warnings[0].includes('CRAP_TOLERANCE'));
+  } finally {
+    console.warn = origWarn;
+  }
+});
+
+test('resolveMaintainabilityEnvOverrides — negative config value is ignored (defensive)', () => {
+  const result = resolveMaintainabilityEnvOverrides({}, { tolerance: -1 });
+  // Negative tolerance is nonsensical; the resolver guards on >= 0 so the
+  // bad value falls through to the default.
+  assert.strictEqual(result.tolerance, 0.5);
 });

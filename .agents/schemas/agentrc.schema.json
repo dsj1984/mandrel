@@ -213,7 +213,8 @@
     "maintainabilityQuality": {
       "type": "object",
       "properties": {
-        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" }
+        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
+        "tolerance": { "type": "number", "minimum": 0 }
       },
       "additionalProperties": false
     },

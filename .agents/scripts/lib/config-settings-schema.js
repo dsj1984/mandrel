@@ -95,6 +95,12 @@ const MAINTAINABILITY_QUALITY_SCHEMA = {
   type: 'object',
   properties: {
     targetDirs: LIST_OR_EXTENDER_OF_STRINGS,
+    // MI delta below which a per-file score change is treated as noise.
+    // Default applied in `check-maintainability.js` is 0.5. Raise this on
+    // projects with volatile dependency graphs (Node-version churn,
+    // escomplex updates) where typical noise is +/- 0.3; tighten it on
+    // stable codebases that want hyper-strict tracking.
+    tolerance: { type: 'number', minimum: 0 },
   },
   additionalProperties: false,
 };

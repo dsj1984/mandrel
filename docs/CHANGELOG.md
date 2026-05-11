@@ -24,8 +24,8 @@ rolls up here.
   `Validate and Test (windows-latest, node 22)`) are required status
   checks under ruleset `14286998`; `bypass_actors: []` removes the
   admin one-click escape. The checked-in `.github/ruleset.json`
-  artifact captures the desired state. Operators apply via
-  `docs/runbooks/story-1-config-flip.md`.
+  artifact captures the desired state. Operator setup is documented
+  in `docs/runbooks/pr-pipeline.md`.
 - **Squash-only + auto-merge.** Repo settings flip to
   `allow_squash_merge=true`, `allow_rebase_merge=false`,
   `allow_merge_commit=false`, `allow_auto_merge=true`,
@@ -46,8 +46,8 @@ rolls up here.
   and POSTs an approving review as the `agent-protocols-reviewer`
   GitHub App identity. The self-approval guard no-ops on commits
   whose author matches the bot or whose subject starts with
-  `[auto-fix]`. The GitHub App is operator-provisioned per
-  `docs/runbooks/bot-approver-setup.md`.
+  `[auto-fix]`. GitHub App provisioning is documented in
+  `docs/runbooks/pr-pipeline.md`.
 - **Auto-fix loop.** `.github/workflows/auto-fix.yml` reacts to the
   same CI-failure trigger as the triage workflow. Failure-class
   detection (pure function under `.agents/scripts/lib/auto-fix/`)

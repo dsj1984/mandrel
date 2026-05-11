@@ -60,7 +60,8 @@
         "maintainability": { "path": "baselines/maintainability.json" }
       },
       "maintainability": {
-        "targetDirs": ["src", "tests"]
+        "targetDirs": ["src", "tests"],
+        "tolerance": 0.5
       },
       "crap": {
         "enabled": true,
