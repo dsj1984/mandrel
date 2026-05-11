@@ -17,6 +17,8 @@ insecure storage, or unnecessary collection of sensitive data.
 
 ## Step 1: Scanning for PII Patterns
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 Scan the codebase for patterns related to sensitive data. Pay attention to:
 
 - **Log Statements:** Search for `console.log`, `logger.info`, etc., that might

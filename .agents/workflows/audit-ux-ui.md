@@ -16,6 +16,8 @@ and cohesive.
 
 ## Step 1: Visual Consistency Check
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 Scan frontend components for:
 
 - **Hardcoded Values:** Identify "magic" hex codes, font sizes, or spacing

@@ -20,6 +20,8 @@ indexes and AI-powered answer engines — without making any immediate changes.
 
 ## Step 1: Context Gathering (Read-Only Scan)
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 Before generating the report, silently scan the codebase. Pay special attention
 to:
 

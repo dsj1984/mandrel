@@ -16,6 +16,8 @@ load.
 
 ## Step 1: Bottleneck Discovery
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 Investigate the following areas:
 
 - **Database/API Efficiency:** Look for N+1 query patterns, missing indexes, or

@@ -17,6 +17,8 @@ velocity.
 
 ## Step 1: Quality Scan
 
+> Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.
+
 Analyze the repository with a focus on:
 
 - **Logic Complexity:** Identify functions with high cyclomatic complexity or
