@@ -62,7 +62,7 @@
   ".agents/scripts/lib/checks/index.js": 93.996,
   ".agents/scripts/lib/checks/notifier-stub-required.js": 81.409,
   ".agents/scripts/lib/checks/stale-origin-epic.js": 87.068,
-  ".agents/scripts/lib/checks/state.js": 88.385,
+  ".agents/scripts/lib/checks/state.js": 88.589,
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": 81.633,
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": 92.576,
   ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": 76.464,

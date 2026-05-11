@@ -45,42 +45,34 @@ import path from 'node:path';
  *
  * @type {Record<string, readonly string[]>}
  */
+// Shared key set: story-close and epic-close probe the same surface
+// (integration branch + worktree set). Story #1289 introduced the
+// `epic-close` and `npm-test` aliases.
+const STORY_CLOSE_KEYS = Object.freeze([
+  'git.headRef',
+  'git.epicBranches',
+  'git.epicBranchSync',
+  'git.localBranches',
+  'git.coreBare',
+  'fs.worktrees',
+  'fs.epicMergeLocks',
+  'env.GITHUB_TOKEN',
+]);
+
+const EPIC_DELIVER_KEYS = Object.freeze([
+  'git.headRef',
+  'git.epicBranches',
+  'git.coreBare',
+  'fs.worktrees',
+  'fs.dotEnv',
+  'fs.dotMcp',
+  'env.GITHUB_TOKEN',
+]);
+
 const SCOPE_KEYS = Object.freeze({
-  'story-close': Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.epicBranchSync',
-    'git.localBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.epicMergeLocks',
-    'env.GITHUB_TOKEN',
-  ]),
-  'epic-close': Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.epicBranchSync',
-    'git.localBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.epicMergeLocks',
-    'env.GITHUB_TOKEN',
-  ]),
-  'epic-deliver': Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.dotEnv',
-    'fs.dotMcp',
-    'env.GITHUB_TOKEN',
-  ]),
-  // The npm-test wrapper preflight intentionally probes a narrow surface:
-  // the bootstrap files (.env / .mcp.json) the test runner depends on, plus
-  // the core.bare / headRef sanity checks. It does NOT probe epic-branch
-  // sync — running the suite from a feature branch is normal, and the
-  // wrapper's job is "is the workspace usable", not "is the integration
-  // branch up to date".
+  'story-close': STORY_CLOSE_KEYS,
+  'epic-close': STORY_CLOSE_KEYS,
+  'epic-deliver': EPIC_DELIVER_KEYS,
   'npm-test': Object.freeze([
     'git.headRef',
     'git.coreBare',
@@ -89,15 +81,7 @@ const SCOPE_KEYS = Object.freeze({
     'fs.dotMcp',
   ]),
   retro: Object.freeze(['git.headRef', 'git.epicBranches', 'fs.worktrees']),
-  diagnose: Object.freeze([
-    'git.headRef',
-    'git.epicBranches',
-    'git.coreBare',
-    'fs.worktrees',
-    'fs.dotEnv',
-    'fs.dotMcp',
-    'env.GITHUB_TOKEN',
-  ]),
+  diagnose: EPIC_DELIVER_KEYS,
 });
 
 /**
@@ -416,13 +400,10 @@ export function assembleState({ scope, cwd = process.cwd(), probes } = {}) {
     lockProbe,
     pidLivenessProbe,
   );
+  // Story #1289: `cwd` is surfaced so fs-scanning checks target the
+  // worktree they were assembled for.
   const state = Object.freeze({
     scope,
-    // Story #1289: surface the resolved cwd on the state object so checks
-    // that scan the filesystem (e.g. notifier-stub-required) target the
-    // worktree they were assembled for instead of falling back to
-    // process.cwd(). Existing checks that already read `state.cwd` were
-    // doing so defensively; this just stops the fallback path.
     cwd,
     git: Object.freeze(gitProjection),
     fs: Object.freeze(fsProjection),
