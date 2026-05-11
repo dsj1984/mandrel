@@ -37,12 +37,6 @@ const GITHUB_SCHEMA = {
  * explicit allowlist of event names rather than a severity threshold — the
  * webhook narrative is "epic % progress + blockers", not the firehose of
  * per-story transitions that the GitHub-comment channel still receives.
- *
- * The enum below is the closed set of values valid for
- * `notifications.webhookEvents`. Severity remains routable to the comment
- * and terminal channels via `commentMinLevel` / `terminalMinLevel` and is
- * still carried as envelope metadata for Slack consumers that color-code
- * by it, but it is no longer a routing decision for the webhook channel.
  */
 export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'epic-started',
@@ -52,25 +46,40 @@ export const WEBHOOK_EVENT_NAMES = Object.freeze([
   'epic-complete',
 ]);
 
+/**
+ * Curated GitHub-comment event vocabulary. The comment channel is gated by
+ * an explicit allowlist of event names — same model as `webhookEvents`.
+ *
+ * The closed enum:
+ *   - `state-transition` — ticket label flips. `transitionTicketState`
+ *     suppresses the dispatch entirely for task-level transitions
+ *     (severity `low`); only story- and epic-level transitions reach the
+ *     channel, so this event in the allowlist surfaces the "story →
+ *     `agent::done`" comments operators expect on the ticket timeline.
+ *   - `story-merged` — story PR landed on its parent Epic branch.
+ *   - `operator-message` — ad-hoc operator pings via `notify.js` CLI or
+ *     skill shell-outs (`/epic-plan`, etc.).
+ *
+ * Severity is carried as envelope metadata for downstream consumers but is
+ * no longer a routing factor for any channel.
+ */
+export const COMMENT_EVENT_NAMES = Object.freeze([
+  'state-transition',
+  'story-merged',
+  'operator-message',
+]);
+
 const NOTIFICATIONS_SCHEMA = {
   type: 'object',
   properties: {
     mentionOperator: { type: 'boolean' },
-    // Severity gates for the GitHub-comment and terminal channels. Each
-    // channel filters independently — there is no fallback chain.
-    //
-    // Severity assignment by event hierarchy:
-    //   - Task transitions, `story-run-progress` upserts → `low`
-    //   - Story state transitions, `wave-run-progress`,
-    //     `epic-run-progress`, epic milestones                  → `medium`
-    //   - Epic blockers, halts, action-required gates       → `high`
-    commentMinLevel: {
-      type: 'string',
-      enum: ['low', 'medium', 'high'],
-    },
-    terminalMinLevel: {
-      type: 'string',
-      enum: ['low', 'medium', 'high'],
+    // Comment channel allowlist. Same routing model as `webhookEvents` —
+    // only events whose `event` field appears in this list reach the
+    // GitHub ticket. Each channel filters independently.
+    commentEvents: {
+      type: 'array',
+      items: { type: 'string', enum: [...COMMENT_EVENT_NAMES] },
+      uniqueItems: true,
     },
     // Webhook channel allowlist. Only events whose `event` field appears in
     // this list reach the Slack webhook; severity is *not* a routing factor
@@ -83,7 +92,7 @@ const NOTIFICATIONS_SCHEMA = {
       uniqueItems: true,
     },
   },
-  required: ['commentMinLevel', 'terminalMinLevel', 'webhookEvents'],
+  required: ['commentEvents', 'webhookEvents'],
   additionalProperties: false,
 };
 

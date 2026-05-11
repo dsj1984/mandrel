@@ -199,6 +199,17 @@
       },
       "additionalProperties": false
     },
+    "mergeMethods": {
+      "type": "object",
+      "properties": {
+        "allow_squash_merge": { "type": "boolean" },
+        "allow_rebase_merge": { "type": "boolean" },
+        "allow_merge_commit": { "type": "boolean" },
+        "allow_auto_merge": { "type": "boolean" },
+        "delete_branch_on_merge": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "maintainabilityQuality": {
       "type": "object",
       "properties": {
@@ -277,7 +288,8 @@
         },
         "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
         "crap": { "$ref": "#/$defs/maintainabilityCrap" },
-        "prGate": { "$ref": "#/$defs/prGate" }
+        "prGate": { "$ref": "#/$defs/prGate" },
+        "mergeMethods": { "$ref": "#/$defs/mergeMethods" }
       },
       "additionalProperties": false
     },
@@ -386,13 +398,13 @@
       "type": "object",
       "properties": {
         "mentionOperator": { "type": "boolean" },
-        "commentMinLevel": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
-        },
-        "terminalMinLevel": {
-          "type": "string",
-          "enum": ["low", "medium", "high"]
+        "commentEvents": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["state-transition", "story-merged", "operator-message"]
+          },
+          "uniqueItems": true
         },
         "webhookEvents": {
           "type": "array",
@@ -409,7 +421,7 @@
           "uniqueItems": true
         }
       },
-      "required": ["commentMinLevel", "terminalMinLevel", "webhookEvents"],
+      "required": ["commentEvents", "webhookEvents"],
       "additionalProperties": false
     },
     "worktreeIsolation": {

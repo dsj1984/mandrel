@@ -64,7 +64,14 @@ import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
-import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
+import {
+  emitEpicBlocked,
+  emitEpicComplete,
+  emitEpicProgress,
+  emitEpicStarted,
+  emitEpicUnblocked,
+  upsertEpicRunProgress,
+} from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   parseStoryAgentReturn,
   reconcileStoryFromGitHub,
@@ -76,6 +83,7 @@ import {
   postStructuredComment,
 } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { notify } from './notify.js';
 
 const HELP = `Usage: node .agents/scripts/epic-execute-record-wave.js \\
   --epic <epicId> --wave <waveIndex> [--concurrency-cap <N>] \\
@@ -413,6 +421,7 @@ export async function runEpicExecuteRecordWave({
   cwd,
   injectedProvider,
   injectedConfig,
+  injectedNotify,
   now = () => new Date(),
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
@@ -555,6 +564,104 @@ export async function runEpicExecuteRecordWave({
     currentWave: wave,
     totalWaves,
   });
+
+  // 8. Fire the curated webhook events for this wave boundary. Mirrors the
+  //    wave-loop emits in `lib/orchestration/epic-runner/phases/iterate-waves.js`
+  //    for the host-LLM driven /epic-deliver path (which does not pass
+  //    through `runEpic`). Each helper is fire-and-forget — webhook
+  //    misconfig or a transient Slack outage must not block the wave loop.
+  const notifyFn =
+    injectedNotify ??
+    ((ticketId, payload, opts = {}) =>
+      notify(ticketId, payload, {
+        orchestration: config.orchestration,
+        provider,
+        ...opts,
+      }));
+  const totalStoriesEstimate = titleById.size;
+  const doneStoriesSoFar = nextWaves.reduce(
+    (acc, w) =>
+      acc +
+      (Array.isArray(w.stories)
+        ? w.stories.filter((s) => s?.state === 'done').length
+        : 0),
+    0,
+  );
+  const priorWaveRecord = priorWaves.find(
+    (w) => Number(w?.index) === Number(wave),
+  );
+  const isKickoff = priorWaves.length === 0 && wave === 0;
+  if (isKickoff) {
+    await emitEpicStarted({
+      notify: notifyFn,
+      epicId,
+      totalWaves,
+      totalStories: totalStoriesEstimate,
+      logger: Logger,
+    });
+  }
+  if (status === 'complete') {
+    const resumedFromHalt =
+      priorWaveRecord &&
+      (priorWaveRecord.status === 'blocked' ||
+        priorWaveRecord.status === 'failed');
+    if (resumedFromHalt) {
+      await emitEpicUnblocked({
+        notify: notifyFn,
+        epicId,
+        resolvedBlocker: {
+          reason:
+            priorWaveRecord.status === 'blocked'
+              ? 'story_blocked'
+              : 'story_failed',
+        },
+        logger: Logger,
+      });
+    }
+    await emitEpicProgress({
+      notify: notifyFn,
+      epicId,
+      done: doneStoriesSoFar,
+      total: totalStoriesEstimate,
+      currentWave: nextCurrentWave,
+      totalWaves,
+      phase: 'iterate-waves',
+      openBlockers: [],
+      logger: Logger,
+    });
+    if (nextAction === 'finalize') {
+      await emitEpicComplete({
+        notify: notifyFn,
+        epicId,
+        totalStories: totalStoriesEstimate,
+        totalWaves,
+        logger: Logger,
+      });
+    }
+  } else {
+    const reason = status === 'blocked' ? 'story_blocked' : 'story_failed';
+    const failingStoryId =
+      blockedStoryIds[0] ??
+      verified.find((r) => r.status === 'failed')?.storyId;
+    await emitEpicBlocked({
+      notify: notifyFn,
+      epicId,
+      reason,
+      storyId: failingStoryId,
+      logger: Logger,
+    });
+    await emitEpicProgress({
+      notify: notifyFn,
+      epicId,
+      done: doneStoriesSoFar,
+      total: totalStoriesEstimate,
+      currentWave: nextCurrentWave,
+      totalWaves,
+      phase: 'iterate-waves',
+      openBlockers: [{ reason, storyId: failingStoryId }],
+      logger: Logger,
+    });
+  }
 
   const envelope = {
     epicId,

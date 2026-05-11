@@ -343,8 +343,11 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
         },
         notifications: {
           mentionOperator: false,
-          commentMinLevel: 'medium',
-          terminalMinLevel: 'medium',
+          commentEvents: [
+            'state-transition',
+            'story-merged',
+            'operator-message',
+          ],
           webhookEvents: [
             'epic-started',
             'epic-progress',

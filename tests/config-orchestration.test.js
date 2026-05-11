@@ -64,8 +64,11 @@ describe('validateOrchestrationConfig — valid configs', () => {
         },
         notifications: {
           mentionOperator: true,
-          commentMinLevel: 'medium',
-          terminalMinLevel: 'medium',
+          commentEvents: [
+            'state-transition',
+            'story-merged',
+            'operator-message',
+          ],
           webhookEvents: [
             'epic-started',
             'epic-progress',

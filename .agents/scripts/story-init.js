@@ -324,9 +324,10 @@ export async function runStoryInit({
     }
 
     // Replace the N per-Task `agent::executing` comments (suppressed above
-    // via `notifyWebhookOnly`) with one Story-level summary. Routed through
-    // the standard `notifyFn` so `commentMinLevel` still gates delivery —
-    // at the default `medium` threshold this is a no-op.
+    // via `notifyWebhookOnly`) with one Story-level summary. The dispatch
+    // carries no `event` field, so under the curated `commentEvents` /
+    // `webhookEvents` allowlists it is a no-op by default — preserving
+    // the silent-init behavior previously enforced via severity gating.
     try {
       await postBatchedTransitionSummary({
         notify: notifyFn,

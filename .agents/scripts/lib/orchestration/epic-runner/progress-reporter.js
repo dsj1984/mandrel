@@ -914,6 +914,47 @@ export async function emitEpicStarted({
 }
 
 /**
+ * Fire a curated `epic-blocked` webhook event when a wave aggregates to
+ * `blocked` or `failed` outside the `BlockerHandler.halt` code path (the
+ * /epic-deliver host-LLM loop has no handler instance — it calls this
+ * helper directly from `epic-execute-record-wave.js`). The payload shape
+ * matches the inline emit in `BlockerHandler.halt` so downstream consumers
+ * see one canonical envelope regardless of which entry point fired.
+ * Failures are swallowed.
+ */
+export async function emitEpicBlocked({
+  notify,
+  epicId,
+  reason,
+  storyId,
+  logger,
+}) {
+  if (typeof notify !== 'function') return null;
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
+  const storyPart = storyId ? ` (story #${storyId})` : '';
+  const message = `🚨 Action Required: Epic #${epicIdNum}${storyPart} blocked: ${reason}`;
+  try {
+    await notify(
+      epicIdNum,
+      {
+        severity: 'high',
+        message,
+        event: 'epic-blocked',
+        level: 'epic',
+        epicId: epicIdNum,
+      },
+      { skipComment: true },
+    );
+  } catch (err) {
+    logger?.warn?.(
+      `[emitEpicBlocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+  return null;
+}
+
+/**
  * Fire a curated `epic-unblocked` webhook event after the operator flips
  * the Epic label back to `agent::executing`. Paired with `epic-blocked` so
  * downstream consumers can track open-blocker lifecycle. Failures are
@@ -947,6 +988,53 @@ export async function emitEpicUnblocked({
   } catch (err) {
     logger?.warn?.(
       `[emitEpicUnblocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+  return null;
+}
+
+/**
+ * Fire a curated `epic-complete` webhook event at the `finalize` boundary
+ * of /epic-deliver — the last wave aggregated to `complete` and the host
+ * loop is about to enter close-validation + PR-open. Bookends the
+ * `epic-started` fire at kickoff. Failures are swallowed.
+ *
+ * The legacy dispatcher path (`epic-lifecycle-detector.detectEpicCompletion`)
+ * has its own inline `epic-complete` notify; this helper is the symmetric
+ * emit point for the host-LLM /epic-deliver path.
+ */
+export async function emitEpicComplete({
+  notify,
+  epicId,
+  totalStories,
+  totalWaves,
+  logger,
+}) {
+  if (typeof notify !== 'function') return null;
+  const epicIdNum = Number(epicId);
+  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
+  const wavePart = Number.isFinite(Number(totalWaves))
+    ? ` · ${totalWaves} wave${Number(totalWaves) === 1 ? '' : 's'}`
+    : '';
+  const storyPart = Number.isFinite(Number(totalStories))
+    ? ` · ${totalStories} stor${Number(totalStories) === 1 ? 'y' : 'ies'}`
+    : '';
+  const message = `Epic #${epicIdNum} complete${wavePart}${storyPart}.`;
+  try {
+    await notify(
+      epicIdNum,
+      {
+        severity: 'medium',
+        message,
+        event: 'epic-complete',
+        level: 'epic',
+        epicId: epicIdNum,
+      },
+      { skipComment: true },
+    );
+  } catch (err) {
+    logger?.warn?.(
+      `[emitEpicComplete] notify dispatch failed (swallowed): ${err?.message ?? err}`,
     );
   }
   return null;

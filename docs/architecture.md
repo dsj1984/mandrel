@@ -893,18 +893,23 @@ reaped together with the worktree on `WorktreeManager.reap`. See
 | `approval-required` | ACTION   | Webhook            |
 | `blocked`           | ACTION   | Webhook            |
 
-`agentSettings.notifications` carries three independent per-channel gates,
-but they use **two different gating models**: `commentMinLevel` and
-`terminalMinLevel` filter by severity (`low`/`medium`/`high`), while
-`webhookEvents` filters by event-name allowlist. There is no fallback
-chain; raising or lowering one channel never affects the others. The
-default webhook allowlist is the curated `epic-*` vocabulary —
-`epic-started`, `epic-progress`, `epic-blocked`, `epic-unblocked`,
-`epic-complete` — so Slack consumers see the epic narrative
-(% progress + blockers) without the per-story firehose. Per-Task
-`agent::executing` transitions during Story init batch into a single
-Story-level summary comment regardless of any filter. Webhook subscribers
-receive a typed envelope
+`agentSettings.notifications` carries two independent per-channel gates,
+both using the same event-name-allowlist model: `commentEvents` filters
+GitHub-ticket comment posting; `webhookEvents` filters
+`NOTIFICATION_WEBHOOK_URL` deliveries. There is no fallback chain;
+raising or lowering one channel never affects the other. The default
+comment allowlist is `state-transition`, `story-merged`,
+`operator-message`; the default webhook allowlist is the curated
+`epic-*` vocabulary — `epic-started`, `epic-progress`, `epic-blocked`,
+`epic-unblocked`, `epic-complete` — so Slack consumers see the epic
+narrative (% progress + blockers) without the per-story firehose.
+`transitionTicketState` suppresses the `notify()` dispatch entirely
+for low-severity transitions (task-level, non-terminal story / epic
+flips) so the comment channel sees only the medium-severity
+story-level events operators expect. Severity is carried as envelope
+metadata and still drives `@mention` behavior on the comment channel
+but is no longer a routing factor for either channel. Webhook
+subscribers receive a typed envelope
 (`{ text, severity, ticketId, event?, level?, epicId?, phase? }`) so
 allowlisted events stay routable by event name and hierarchy level.
 

@@ -48,7 +48,12 @@ describe('postBatchedTransitionSummary', () => {
     assert.equal(out.posted, false);
   });
 
-  it('integrates with notify(): exactly ONE provider.postComment when commentMinLevel=low', async () => {
+  it('integrates with notify(): summary is a no-op without an event under curated allowlists', async () => {
+    // The summary helper dispatches an event-less notify() call. Under the
+    // post-#1276 event-allowlist model both channels gate on event-name
+    // membership, so an event-less dispatch is a deliberate no-op — even
+    // when the operator's allowlists are permissive. This preserves the
+    // silent-init behavior the previous severity-`low` filtering produced.
     const { notify } = await import('../../../.agents/scripts/notify.js');
 
     const provider = {
@@ -60,20 +65,13 @@ describe('postBatchedTransitionSummary', () => {
     const orchestration = {
       github: { owner: 'acme', repo: 'widgets', operatorHandle: '@op' },
       notifications: {
-        commentMinLevel: 'low',
-        terminalMinLevel: 'medium',
-        // Empty allowlist: webhook channel suppressed regardless of event
-        // name. The summary dispatch carries no `event` field either way,
-        // so it would be dropped even with a permissive allowlist — but
-        // the explicit empty list makes the test's webhook-quiet
-        // assertion unambiguous.
+        // Permissive allowlists — proves the no-op is the design, not the
+        // operator's filtering.
+        commentEvents: ['state-transition', 'story-merged', 'operator-message'],
         webhookEvents: [],
       },
     };
-    // Stub fetch defensively per the documented webhook-leak pattern. Even
-    // though the empty allowlist suppresses the webhook, leaving fetch
-    // unstubbed would attempt a real network call if the filter ever
-    // regresses.
+    // Stub fetch defensively per the documented webhook-leak pattern.
     const fetchCalls = [];
     const fetchImpl = async (url, options) => {
       fetchCalls.push({ url, options });
@@ -96,13 +94,15 @@ describe('postBatchedTransitionSummary', () => {
         transitioned: [802, 801],
       });
 
-      assert.equal(provider.comments.length, 1, 'exactly one comment posted');
-      assert.equal(provider.comments[0].ticketId, 701);
-      assert.match(provider.comments[0].data.body, /#802, #801/);
+      assert.equal(
+        provider.comments.length,
+        0,
+        'event-less summary is dropped by the comment-event allowlist',
+      );
       assert.equal(
         fetchCalls.length,
         0,
-        'webhook suppressed by empty webhookEvents allowlist',
+        'event-less summary is dropped by the webhook-event allowlist',
       );
     } finally {
       global.fetch = originalFetch;

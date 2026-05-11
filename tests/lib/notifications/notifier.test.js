@@ -2,9 +2,7 @@ import assert from 'node:assert/strict';
 import { after, afterEach, before, describe, it } from 'node:test';
 
 import {
-  DEFAULT_MIN_LEVEL,
   eventSeverity,
-  meetsMinLevel,
   renderTransitionMessage,
   resolveWebhookUrl,
   SEVERITY_RANK,
@@ -24,38 +22,10 @@ after(() => {
   }
 });
 
-describe('SEVERITY_RANK + DEFAULT_MIN_LEVEL', () => {
+describe('SEVERITY_RANK', () => {
   it('orders low < medium < high', () => {
     assert.ok(SEVERITY_RANK.low < SEVERITY_RANK.medium);
     assert.ok(SEVERITY_RANK.medium < SEVERITY_RANK.high);
-  });
-
-  it('defaults to medium', () => {
-    assert.equal(DEFAULT_MIN_LEVEL, 'medium');
-  });
-});
-
-describe('meetsMinLevel', () => {
-  it('passes when severity >= minLevel', () => {
-    assert.equal(meetsMinLevel('medium', 'medium'), true);
-    assert.equal(meetsMinLevel('high', 'medium'), true);
-    assert.equal(meetsMinLevel('low', 'low'), true);
-  });
-
-  it('fails when severity < minLevel', () => {
-    assert.equal(meetsMinLevel('low', 'medium'), false);
-    assert.equal(meetsMinLevel('medium', 'high'), false);
-  });
-
-  it('falls back to DEFAULT_MIN_LEVEL when minLevel is unset', () => {
-    // Default is `medium` — so `low` is filtered out, `medium`/`high` pass.
-    assert.equal(meetsMinLevel('low', undefined), false);
-    assert.equal(meetsMinLevel('medium', undefined), true);
-    assert.equal(meetsMinLevel('high', undefined), true);
-  });
-
-  it('treats unknown severity as low (filtered at default)', () => {
-    assert.equal(meetsMinLevel('weird', 'medium'), false);
   });
 });
 

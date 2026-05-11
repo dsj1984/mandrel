@@ -1,0 +1,58 @@
+{
+  "id": 14286998,
+  "name": "Protect Main",
+  "target": "branch",
+  "source_type": "Repository",
+  "source": "dsj1984/agent-protocols",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": ["~DEFAULT_BRANCH"]
+    }
+  },
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" },
+    { "type": "required_linear_history" },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "Validate and Test (ubuntu-latest, node 22)",
+            "integration_id": 15368
+          },
+          {
+            "context": "Validate and Test (windows-latest, node 22)",
+            "integration_id": 15368
+          }
+        ]
+      }
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 1,
+        "dismiss_stale_reviews_on_push": false,
+        "require_code_owner_review": false,
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": false
+      }
+    }
+  ],
+  "node_id": "RRS_lACqUmVwb3NpdG9yec5CtEkIzgDaAJY",
+  "created_at": "2026-03-24T12:35:44.947-04:00",
+  "bypass_actors": [],
+  "current_user_can_bypass": "never",
+  "_links": {
+    "self": {
+      "href": "https://api.github.com/repos/dsj1984/agent-protocols/rulesets/14286998"
+    },
+    "html": {
+      "href": "https://github.com/dsj1984/agent-protocols/rules/14286998"
+    }
+  }
+}

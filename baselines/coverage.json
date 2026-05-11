@@ -19,6 +19,16 @@
     "branches": 93.94,
     "functions": 71.43
   },
+  ".agents/scripts/auto-fix-bail.js": {
+    "lines": 93.53,
+    "branches": 90.7,
+    "functions": 75
+  },
+  ".agents/scripts/auto-fix-step.js": {
+    "lines": 91.28,
+    "branches": 87.88,
+    "functions": 71.43
+  },
   ".agents/scripts/baseline-refresh-guardrail.js": {
     "lines": 78.15,
     "branches": 82.02,
@@ -75,8 +85,8 @@
     "functions": 50
   },
   ".agents/scripts/epic-execute-record-wave.js": {
-    "lines": 75.61,
-    "branches": 64.96,
+    "lines": 78.86,
+    "branches": 69.78,
     "functions": 71.43
   },
   ".agents/scripts/epic-planner.js": {
@@ -154,9 +164,34 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/auto-fix/detect-failure-class.js": {
+    "lines": 100,
+    "branches": 91.18,
+    "functions": 100
+  },
   ".agents/scripts/lib/baseline-loader.js": {
     "lines": 100,
     "branches": 70,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/branch-protection.js": {
+    "lines": 96.34,
+    "branches": 85.96,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/hitl-confirm.js": {
+    "lines": 100,
+    "branches": 63.16,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/merge-methods.js": {
+    "lines": 100,
+    "branches": 93.1,
+    "functions": 100
+  },
+  ".agents/scripts/lib/bootstrap/workflow-templates.js": {
+    "lines": 98.74,
+    "branches": 95.24,
     "functions": 100
   },
   ".agents/scripts/lib/branch-name-guard.js": {
@@ -310,8 +345,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/epic-merge-lock.js": {
-    "lines": 97.14,
-    "branches": 75,
+    "lines": 97.22,
+    "branches": 78,
     "functions": 100
   },
   ".agents/scripts/lib/epic-plan-ideation.js": {
@@ -365,9 +400,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/ITicketingProvider.js": {
-    "lines": 96.19,
+    "lines": 95.99,
     "branches": 100,
-    "functions": 71.43
+    "functions": 69.57
   },
   ".agents/scripts/lib/label-constants.js": {
     "lines": 100,
@@ -396,7 +431,7 @@
   },
   ".agents/scripts/lib/notifications/notifier.js": {
     "lines": 100,
-    "branches": 90.48,
+    "branches": 89.47,
     "functions": 100
   },
   ".agents/scripts/lib/observability/active-story-env.js": {
@@ -481,7 +516,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/blocker-handler.js": {
     "lines": 88.07,
-    "branches": 82.22,
+    "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/checkpointer.js": {
@@ -515,7 +550,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js": {
-    "lines": 88.24,
+    "lines": 88.32,
     "branches": 56.25,
     "functions": 66.67
   },
@@ -525,9 +560,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.6,
-    "branches": 71.43,
-    "functions": 96.67
+    "lines": 91.1,
+    "branches": 70.89,
+    "functions": 96.88
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
     "lines": 94.88,
@@ -576,7 +611,7 @@
   },
   ".agents/scripts/lib/orchestration/error-journal.js": {
     "lines": 95.68,
-    "branches": 85.37,
+    "branches": 84.62,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/label-transitions.js": {
@@ -631,7 +666,7 @@
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
     "lines": 96.82,
-    "branches": 73.26,
+    "branches": 72.94,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -745,8 +780,8 @@
     "functions": 80
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 96.01,
-    "branches": 85,
+    "lines": 96.06,
+    "branches": 84.47,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
@@ -862,6 +897,21 @@
   ".agents/scripts/lib/templates/task-body-renderer.js": {
     "lines": 100,
     "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/triage/parse-crap-report.js": {
+    "lines": 100,
+    "branches": 83.33,
+    "functions": 100
+  },
+  ".agents/scripts/lib/triage/parse-test-output.js": {
+    "lines": 100,
+    "branches": 95.45,
+    "functions": 100
+  },
+  ".agents/scripts/lib/triage/render-comment.js": {
+    "lines": 93.23,
+    "branches": 44.44,
     "functions": 100
   },
   ".agents/scripts/lib/util/concurrent-map.js": {
@@ -980,9 +1030,9 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 90.63,
-    "branches": 83.33,
-    "functions": 87.5
+    "lines": 88.09,
+    "branches": 80.33,
+    "functions": 83.33
   },
   ".agents/scripts/post-structured-comment.js": {
     "lines": 64.57,
@@ -990,9 +1040,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 91.43,
+    "lines": 90.16,
     "branches": 100,
-    "functions": 76.19
+    "functions": 72.73
   },
   ".agents/scripts/providers/github/auth.js": {
     "lines": 75,
@@ -1000,8 +1050,8 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/branches.js": {
-    "lines": 95.24,
-    "branches": 68.18,
+    "lines": 90.42,
+    "branches": 66.67,
     "functions": 100
   },
   ".agents/scripts/providers/github/cache-manager.js": {
@@ -1011,7 +1061,7 @@
   },
   ".agents/scripts/providers/github/comments.js": {
     "lines": 76.19,
-    "branches": 87.5,
+    "branches": 85.71,
     "functions": 50
   },
   ".agents/scripts/providers/github/error-classifier.js": {
@@ -1031,7 +1081,7 @@
   },
   ".agents/scripts/providers/github/http-client.js": {
     "lines": 91.3,
-    "branches": 85.71,
+    "branches": 85.45,
     "functions": 100
   },
   ".agents/scripts/providers/github/http.js": {
@@ -1053,6 +1103,11 @@
     "lines": 72.31,
     "branches": 82.8,
     "functions": 69.23
+  },
+  ".agents/scripts/providers/github/repo.js": {
+    "lines": 73.33,
+    "branches": 100,
+    "functions": 0
   },
   ".agents/scripts/providers/github/ticket-mapper.js": {
     "lines": 99.17,
@@ -1085,9 +1140,9 @@
     "functions": 62.5
   },
   ".agents/scripts/story-init.js": {
-    "lines": 88.25,
-    "branches": 76.71,
-    "functions": 81.82
+    "lines": 86.78,
+    "branches": 75,
+    "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
     "lines": 82.67,
@@ -1097,6 +1152,11 @@
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
     "branches": 69.7,
+    "functions": 75
+  },
+  ".agents/scripts/triage-ci-failure.js": {
+    "lines": 91.64,
+    "branches": 80.77,
     "functions": 75
   },
   ".agents/scripts/validate-docs-freshness.js": {

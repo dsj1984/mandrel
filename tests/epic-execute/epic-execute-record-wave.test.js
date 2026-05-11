@@ -394,3 +394,116 @@ describe('runEpicExecuteRecordWave', () => {
     );
   });
 });
+
+describe('runEpicExecuteRecordWave — curated webhook emits', () => {
+  // The /epic-deliver host-LLM loop drives wave-boundary webhook events
+  // through this CLI (it does not pass through `runEpic`). Each emit goes
+  // through the injected notify; tests capture the event sequence to
+  // pin the kickoff / complete / blocked / unblocked / finalize routing.
+  function captureNotify() {
+    const events = [];
+    const fn = async (ticketId, payload) => {
+      events.push({
+        ticketId,
+        event: payload.event,
+        severity: payload.severity,
+      });
+    };
+    return { events, fn };
+  }
+
+  it('fires epic-started + epic-progress on the first record (wave 0 kickoff)', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 600);
+    const { events, fn } = captureNotify();
+    await runEpicExecuteRecordWave({
+      epicId: 600,
+      wave: 0,
+      results: [{ storyId: 1, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+      injectedNotify: fn,
+    });
+    assert.deepEqual(
+      events.map((e) => e.event),
+      ['epic-started', 'epic-progress'],
+    );
+    assert.equal(events[0].ticketId, 600);
+    assert.equal(events[1].severity, 'medium');
+  });
+
+  it('fires epic-blocked + epic-progress(openBlockers) on a blocked wave', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 601);
+    const { events, fn } = captureNotify();
+    await runEpicExecuteRecordWave({
+      epicId: 601,
+      wave: 0,
+      results: [
+        { storyId: 1, status: 'done' },
+        { storyId: 9, status: 'blocked' },
+      ],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+      injectedNotify: fn,
+    });
+    const eventNames = events.map((e) => e.event);
+    assert.ok(eventNames.includes('epic-started'));
+    assert.ok(eventNames.includes('epic-blocked'));
+    const blockedFire = events.find((e) => e.event === 'epic-blocked');
+    assert.equal(blockedFire.severity, 'high');
+  });
+
+  it('fires epic-unblocked when a previously-blocked wave is re-recorded as complete', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 602);
+    // First call: wave 0 lands blocked.
+    await runEpicExecuteRecordWave({
+      epicId: 602,
+      wave: 0,
+      results: [{ storyId: 9, status: 'blocked' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+      injectedNotify: async () => {},
+    });
+    // Second call (operator unblocked, host re-dispatched): wave 0 lands complete.
+    const { events, fn } = captureNotify();
+    await runEpicExecuteRecordWave({
+      epicId: 602,
+      wave: 0,
+      results: [{ storyId: 9, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+      injectedNotify: fn,
+    });
+    const eventNames = events.map((e) => e.event);
+    assert.ok(eventNames.includes('epic-unblocked'));
+    assert.equal(
+      eventNames.indexOf('epic-unblocked') <
+        eventNames.indexOf('epic-progress'),
+      true,
+      'epic-unblocked must precede the follow-up epic-progress',
+    );
+  });
+
+  it('fires epic-complete on the finalize boundary', async () => {
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 603, { totalWaves: 1 });
+    const { events, fn } = captureNotify();
+    await runEpicExecuteRecordWave({
+      epicId: 603,
+      wave: 0,
+      results: [{ storyId: 1, status: 'done' }],
+      injectedProvider: provider,
+      injectedConfig: TEST_CONFIG,
+      injectedNotify: fn,
+    });
+    const eventNames = events.map((e) => e.event);
+    assert.ok(eventNames.includes('epic-complete'));
+    assert.equal(
+      eventNames.indexOf('epic-complete') > eventNames.indexOf('epic-progress'),
+      true,
+      'epic-complete must come after the final epic-progress',
+    );
+  });
+});

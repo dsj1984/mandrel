@@ -172,15 +172,23 @@ step.
 
 ## Step 5 — Merge
 
-Merge the PR using a squash commit to keep the base branch history clean:
+Queue the PR for auto-merge as a squash commit. With `--auto` GitHub holds
+the merge until every required status check on the ruleset reports success,
+then squash-merges and deletes the head branch — the operator never clicks
+Merge on a green PR.
 
 ```powershell
-gh pr merge [PR_NUMBER] --squash --subject "[PR_TITLE] (#[PR_NUMBER])" --delete-branch
+gh pr merge [PR_NUMBER] --auto --squash --delete-branch
 ```
 
 > **Merge strategy guidance** (override with operator instruction):
 >
-> - `--squash` — default; produces a single, clean commit on `[BASE_BRANCH]`.
+> - `gh pr merge --auto --squash --delete-branch` — default; CI gate is the
+>   merge button. Requires `allow_auto_merge=true` on the repo (Story #1239
+>   turns this on).
+> - `--squash` (no `--auto`) — synchronous merge; use only when bypassing
+>   auto-merge is intentional (e.g. CI is broken and a hotfix is going in
+>   under admin override).
 > - `--merge` — preserves the full commit history from `[HEAD_BRANCH]` (use for
 >   Epic branches with meaningful commit granularity).
 > - `--rebase` — linear history; ideal for small, atomic PRs.

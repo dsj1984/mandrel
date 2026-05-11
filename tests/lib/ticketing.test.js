@@ -125,7 +125,12 @@ test('ticketing.js', async (t) => {
     'transitionTicketState invokes notify with severity and message',
     async () => {
       // Seed ticket #2 with type label and Epic reference so the call posts
-      // to the epic and captures `fromState` correctly.
+      // to the epic and captures `fromState` correctly. Use a Story →
+      // `agent::done` transition because `transitionTicketState` suppresses
+      // the dispatch entirely for low-severity transitions (task-level, or
+      // non-terminal story / epic flips) under the curated event-allowlist
+      // model — the noise filter moved from the channel boundary to the
+      // emit point.
       mock.tickets[2] = {
         ...mock.tickets[2],
         labels: ['agent::executing', 'type::story'],
@@ -140,20 +145,53 @@ test('ticketing.js', async (t) => {
         return Promise.resolve();
       };
 
-      await transitionTicketState(mock, 2, 'agent::ready', {
+      await transitionTicketState(mock, 2, 'agent::done', {
         notify: fakeNotify,
       });
       // Allow the fire-and-forget promise to settle.
       await Promise.resolve();
 
       assert.equal(calls.length, 1);
-      // Story → intermediate state is `low` per eventSeverity.
-      assert.equal(calls[0].payload.severity, 'low');
+      // Story → done rates `medium` per eventSeverity.
+      assert.equal(calls[0].payload.severity, 'medium');
       // Posts to the parent epic id parsed from the body.
       assert.equal(calls[0].ticketId, 1);
       assert.match(calls[0].payload.message, /story #2/);
       assert.match(calls[0].payload.message, /agent::executing/);
-      assert.match(calls[0].payload.message, /agent::ready/);
+      assert.match(calls[0].payload.message, /agent::done/);
+    },
+  );
+
+  await t.test(
+    'transitionTicketState suppresses notify for low-severity transitions',
+    async () => {
+      // Task transitions and intermediate Story/Epic flips compute as `low`
+      // severity and must not reach the notify channel — preserves the
+      // silent-init behavior previously enforced by `commentMinLevel:
+      // medium` filtering.
+      mock.tickets[2] = {
+        ...mock.tickets[2],
+        labels: ['agent::executing', 'type::story'],
+        body: 'Feature body\n\nEpic: #1',
+        title: 'Wire Notifier',
+      };
+
+      const calls = [];
+      const fakeNotify = (ticketId, payload) => {
+        calls.push({ ticketId, payload });
+        return Promise.resolve();
+      };
+
+      await transitionTicketState(mock, 2, 'agent::ready', {
+        notify: fakeNotify,
+      });
+      await Promise.resolve();
+
+      assert.equal(
+        calls.length,
+        0,
+        'low-severity transition must be suppressed at the emit point',
+      );
     },
   );
 
@@ -200,7 +238,14 @@ test('ticketing.js', async (t) => {
     'transitionTicketState surfaces a rejected notify dispatch via console.warn instead of swallowing it',
     async () => {
       // Reset state so this test runs independently of the prior cases.
+      // Use a story → done transition so the dispatch is not suppressed at
+      // the low-severity emit gate.
       const isolated = new MockProvider();
+      isolated.tickets[2] = {
+        ...isolated.tickets[2],
+        labels: ['agent::executing', 'type::story'],
+        body: 'Feature body\n\nEpic: #1',
+      };
       // Notify rejects asynchronously — the rejection is what the prior
       // .catch(() => {}) silently dropped.
       const failingNotify = () => Promise.reject(new Error('webhook 503'));
@@ -210,7 +255,7 @@ test('ticketing.js', async (t) => {
       console.warn = (msg) => warnings.push(String(msg));
 
       try {
-        await transitionTicketState(isolated, 2, 'agent::ready', {
+        await transitionTicketState(isolated, 2, 'agent::done', {
           notify: failingNotify,
         });
         // The fire-and-forget chain queues the .catch on the microtask queue;
@@ -233,6 +278,16 @@ test('ticketing.js', async (t) => {
   await t.test(
     'cascadeCompletion forwards notify to recursive transitions',
     async () => {
+      // Tag the cascade chain so the → `agent::done` transitions rate
+      // `medium` severity and reach the notify channel. Under the curated
+      // allowlist model `transitionTicketState` suppresses low-severity
+      // (untyped or task) dispatches at the emit point, so the cascade
+      // would otherwise silently drop every fire. Both intermediate
+      // tickets are tagged `type::story` rather than `type::epic` because
+      // `cascadeCompletion` deliberately *skips* auto-close on Epics
+      // (their close path is `/epic-deliver`, not the cascade).
+      mock.tickets[1].labels = ['agent::executing', 'type::story'];
+      mock.tickets[2].labels = ['agent::executing', 'type::story'];
       mock.tickets[3].labels = ['agent::done'];
       const calls = [];
       const fakeNotify = (ticketId, payload) => {

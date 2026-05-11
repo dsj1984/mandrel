@@ -108,11 +108,20 @@ export function buildHandoffBody({ epicId, prUrl }) {
   ].join('\n');
 }
 
+// Exported `false` constant: spawn(gh, ...) MUST NOT run through a shell.
+// shell:true on Windows joins argv with spaces and hands the line to cmd.exe,
+// which re-tokenizes — so a `gh pr create --title "Epic #N: Long title"`
+// call has the title shredded into separate argv entries and `gh` rejects
+// with "unknown arguments". The fix is to pass argv directly to spawnSync
+// (which quotes args correctly on Windows) by keeping shell:false. Exported
+// so the regression test can assert the contract.
+export const GH_SPAWN_USES_SHELL = false;
+
 function defaultGhSpawn(args, cwd) {
   const result = spawnSync('gh', args, {
     cwd,
     encoding: 'utf-8',
-    shell: process.platform === 'win32',
+    shell: GH_SPAWN_USES_SHELL,
   });
   return {
     status: result.status ?? 1,
