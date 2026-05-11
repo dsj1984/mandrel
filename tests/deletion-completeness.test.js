@@ -6,8 +6,11 @@
  * the `epicClose.runRetro` config knob, three `risk::*` /
  * `execution::*` labels, four config keys — `epicClose`,
  * `orchestration.hitl`, `epicRunner`, `closeRetry`, `riskGates` —
- * and three filenames: `bookend-chainer`, `epic-finalize`,
- * `epic-close`). Plus a heuristic against accessor consumers that
+ * and two filenames: `bookend-chainer`, `epic-finalize`). The
+ * `epic-close` filename was also deleted in 5.40.0 but has since been
+ * resurrected under Epic #1143 / Story #1289 as a preflight-guarded
+ * front-door, so it is no longer in the forbidden set. Plus a
+ * heuristic against accessor consumers that
  * still read `.settings` from `resolveConfig()`'s return wrapper
  * (renamed to `agentSettings` in 5.40.0).
  *
@@ -73,10 +76,6 @@ const ALLOWLIST = [
  *    forms only.
  *  - `agent::review` must not match `agent::review-spec`. The pattern
  *    uses a negative-lookahead-equivalent trailing exclusion.
- *  - `epic-close` filename must not match `epic-close-tail` (the new
- *    in-process module is `epic-deliver-close-tail.js`, not
- *    `epic-close-tail.js`, but defensive coding still rules the
- *    longer name out).
  *  - `\.settings\b` is the resolver-key heuristic. It matches
  *    `cfg.settings`, `config.settings`, `result.settings` etc. but
  *    not `agentSettings` (no preceding dot+word boundary alone).
@@ -161,15 +160,14 @@ const FORBIDDEN_TERMS = [
       'epic-finalize filename (renamed to epic-deliver-finalize in 5.40.0)',
     pattern: 'epic-finalize',
   },
-  {
-    title: 'epic-close filename (deleted in 5.40.0)',
-    // POSIX-grep has no negative lookahead. We match `epic-close`,
-    // then post-filter out any line whose context resolves to the
-    // longer compound name `epic-deliver-close-tail` (the in-process
-    // close-tail module that legitimately survived the deletion).
-    pattern: 'epic-close',
-    excludeMatchSubstrings: ['epic-deliver-close-tail', 'epic-close-tail'],
-  },
+  // NOTE: `epic-close` filename was deleted in 5.40.0 but is intentionally
+  // resurrected under Epic #1143 / Story #1289 as a preflight-guarded
+  // front-door wrapper around the self-healing checks registry. The new
+  // file (.agents/scripts/epic-close.js) exists for a fundamentally
+  // different reason than the old one — it does not implement the old
+  // close flow — so the forbidden-term entry is removed rather than
+  // allowlisted. The /epic-close slash-command form remains forbidden
+  // above; that prohibition still holds.
   {
     title:
       '.settings reads against resolveConfig() return (renamed to agentSettings in 5.40.0)',

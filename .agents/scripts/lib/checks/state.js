@@ -56,6 +56,16 @@ const SCOPE_KEYS = Object.freeze({
     'fs.epicMergeLocks',
     'env.GITHUB_TOKEN',
   ]),
+  'epic-close': Object.freeze([
+    'git.headRef',
+    'git.epicBranches',
+    'git.epicBranchSync',
+    'git.localBranches',
+    'git.coreBare',
+    'fs.worktrees',
+    'fs.epicMergeLocks',
+    'env.GITHUB_TOKEN',
+  ]),
   'epic-deliver': Object.freeze([
     'git.headRef',
     'git.epicBranches',
@@ -64,6 +74,19 @@ const SCOPE_KEYS = Object.freeze({
     'fs.dotEnv',
     'fs.dotMcp',
     'env.GITHUB_TOKEN',
+  ]),
+  // The npm-test wrapper preflight intentionally probes a narrow surface:
+  // the bootstrap files (.env / .mcp.json) the test runner depends on, plus
+  // the core.bare / headRef sanity checks. It does NOT probe epic-branch
+  // sync — running the suite from a feature branch is normal, and the
+  // wrapper's job is "is the workspace usable", not "is the integration
+  // branch up to date".
+  'npm-test': Object.freeze([
+    'git.headRef',
+    'git.coreBare',
+    'fs.worktrees',
+    'fs.dotEnv',
+    'fs.dotMcp',
   ]),
   retro: Object.freeze(['git.headRef', 'git.epicBranches', 'fs.worktrees']),
   diagnose: Object.freeze([
