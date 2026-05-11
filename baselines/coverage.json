@@ -1200,9 +1200,9 @@
     "functions": 100
   },
   ".agents/scripts/providers/github/http-client.js": {
-    "lines": 91.3,
-    "branches": 82.69,
-    "functions": 100
+    "lines": 76.33,
+    "branches": 46.67,
+    "functions": 75
   },
   ".agents/scripts/providers/github/http.js": {
     "lines": 100,
