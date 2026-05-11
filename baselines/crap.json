@@ -6223,13 +6223,25 @@
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 107
+      "startLine": 106
     },
     {
       "crap": 5.0407083248524325,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 126
+      "startLine": 125
+    },
+    {
+      "crap": 5.002194787379972,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "createInlineTicketCache",
+      "startLine": 171
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "primeIfAbsent",
+      "startLine": 175
     },
     {
       "crap": 1,

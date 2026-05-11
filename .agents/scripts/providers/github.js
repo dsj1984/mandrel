@@ -51,7 +51,6 @@ import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../lib/util/concurrent-map.js';
 import { resolveToken } from './github/auth.js';
 import * as branches from './github/branches.js';
-import { createTicketCacheManager } from './github/cache-manager.js';
 import { classifyGithubError } from './github/error-classifier.js';
 import {
   ADD_SUB_ISSUE_MUTATION,
@@ -141,6 +140,80 @@ async function paginateRest(ghFacade, endpoint) {
   return items;
 }
 
+/**
+ * Per-instance ticket cache, inlined from the (now retired)
+ * `./github/cache-manager.js` factory. One bare `Map<id, { ticket, insertedAt }>`
+ * scoped to the lifetime of a single `GitHubProvider`, shared by dispatcher,
+ * reconciler, and cascade. We deliberately drop the outer TTL wrapper here
+ * because `peekFresh` already bounds entries by a caller-supplied `maxAgeMs`,
+ * and every other reader (`getTicket` without `maxAgeMs`) trusts the
+ * orchestration mutators (`updateTicket` / `postComment` / `addSubIssue` /
+ * `removeSubIssue`) to call `invalidate` explicitly.
+ *
+ * Surface is intentionally narrower than the old `createTicketCacheManager`:
+ * only methods the provider itself reaches for live here (`has` / `peek` /
+ * `peekFresh` / `set` / `primeIfAbsent` / `primeMany` / `invalidate`). The
+ * `getOrLoad` / `clear` helpers stayed behind in `./github/cache-manager.js`
+ * for the test suites that exercise that factory directly — Wave 3 deletes
+ * the file.
+ *
+ * @param {{ now?: () => number }} [opts]
+ * @returns {{
+ *   has(ticketId: number): boolean,
+ *   peek(ticketId: number): object|undefined,
+ *   peekFresh(ticketId: number, maxAgeMs: number): object|undefined,
+ *   set(ticketId: number, ticket: object): void,
+ *   primeIfAbsent(ticket: object): void,
+ *   primeMany(tickets: Array<object>): void,
+ *   invalidate(ticketId: number): void,
+ * }}
+ */
+function createInlineTicketCache({ now = Date.now } = {}) {
+  /** @type {Map<number, { ticket: object, insertedAt: number }>} */
+  const store = new Map();
+
+  function primeIfAbsent(ticket) {
+    if (!ticket || typeof ticket.id !== 'number') return;
+    if (store.has(ticket.id)) return;
+    if (!ticket.labelSet && Array.isArray(ticket.labels)) {
+      ticket.labelSet = new Set(ticket.labels);
+    }
+    store.set(ticket.id, { ticket, insertedAt: now() });
+  }
+
+  return {
+    has(ticketId) {
+      return store.has(ticketId);
+    },
+
+    peek(ticketId) {
+      return store.get(ticketId)?.ticket;
+    },
+
+    peekFresh(ticketId, maxAgeMs) {
+      const entry = store.get(ticketId);
+      if (!entry) return undefined;
+      if (!Number.isFinite(maxAgeMs) || maxAgeMs < 0) return undefined;
+      if (now() - entry.insertedAt >= maxAgeMs) return undefined;
+      return entry.ticket;
+    },
+
+    set(ticketId, ticket) {
+      store.set(ticketId, { ticket, insertedAt: now() });
+    },
+
+    primeIfAbsent,
+
+    primeMany(tickets) {
+      for (const t of tickets ?? []) primeIfAbsent(t);
+    },
+
+    invalidate(ticketId) {
+      store.delete(ticketId);
+    },
+  };
+}
+
 export class GitHubProvider extends ITicketingProvider {
   /**
    * @param {{ owner: string, repo: string, projectNumber?: number|null, projectOwner?: string, projectName?: string|null, operatorHandle?: string }} config
@@ -175,9 +248,12 @@ export class GitHubProvider extends ITicketingProvider {
     this._gh = opts.gh ?? defaultGh;
 
     // Per-instance ticket cache shared by dispatcher / reconciler / cascade.
-    // Mutations (`updateTicket` / `postComment`) invalidate; list endpoints
-    // (`getTickets`, `getSubTickets`) deliberately do NOT populate it.
-    this._cache = createTicketCacheManager();
+    // Inlined from the (retired) `./github/cache-manager.js` factory — see
+    // `createInlineTicketCache` above. Mutations (`updateTicket` /
+    // `postComment` / `addSubIssue` / `removeSubIssue`) invalidate; list
+    // endpoints (`getTickets`, `getSubTickets`) deliberately do NOT populate
+    // it (only individual `getTicket` reads and `primeIfAbsent` writes do).
+    this._cache = createInlineTicketCache();
 
     // ctx is the shared object every still-bespoke submodule reads from.
     // `projectNumber` gets a live getter/setter so `resolveOrCreateProject`
@@ -557,7 +633,7 @@ export class GitHubProvider extends ITicketingProvider {
     let lastErr;
     for (let attempt = 0; attempt < SUB_ISSUE_RETRY_MAX_ATTEMPTS; attempt++) {
       try {
-        return await this._ghGraphql(
+        const result = await this._ghGraphql(
           ADD_SUB_ISSUE_MUTATION,
           {
             parentId: parentTicket.nodeId,
@@ -566,6 +642,12 @@ export class GitHubProvider extends ITicketingProvider {
           },
           { headers: { 'GraphQL-Features': 'sub_issues' } },
         );
+        // Sub-issue link mutates the parent's sub-issue list (which
+        // `getSubTickets` derives partly via the GraphQL `subIssues` field on
+        // the parent node). Invalidate so the next `getTicket(parentNumber)`
+        // re-fetches a coherent view.
+        this.invalidateTicket(parentNumber);
+        return result;
       } catch (err) {
         lastErr = err;
         const category = classifyGithubError(err);
@@ -589,11 +671,16 @@ export class GitHubProvider extends ITicketingProvider {
   async removeSubIssue(parentNumber, subIssueNumber) {
     const parentTicket = await this.getTicket(parentNumber);
     const childTicket = await this.getTicket(subIssueNumber);
-    return this._ghGraphql(
+    const result = await this._ghGraphql(
       REMOVE_SUB_ISSUE_MUTATION,
       { parentId: parentTicket.nodeId, subIssueId: childTicket.nodeId },
       { headers: { 'GraphQL-Features': 'sub_issues' } },
     );
+    // Sub-issue unlink mutates the parent's sub-issue list. Invalidate both
+    // ends so subsequent reads see the post-mutation shape.
+    this.invalidateTicket(parentNumber);
+    this.invalidateTicket(subIssueNumber);
+    return result;
   }
 
   /**
@@ -842,6 +929,9 @@ export class GitHubProvider extends ITicketingProvider {
       body: { body },
     });
     const comment = parseApiJson(result);
+    // Posting a comment mutates the ticket's comment thread. Invalidate so
+    // the next `getTicketComments` / `getTicket` reflects the new comment.
+    this.invalidateTicket(ticketId);
     return { commentId: comment.id };
   }
 
