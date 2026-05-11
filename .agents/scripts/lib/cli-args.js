@@ -21,6 +21,26 @@ export function parseTicketId(value) {
 }
 
 /**
+ * Coerce a value returned by `node:util`'s `parseArgs` for a boolean flag into
+ * a real boolean. Under `strict: false`, `--flag=true` / `--flag=false` arrive
+ * here as the literal strings `'true'` / `'false'`, while bare `--flag` lands
+ * as `true`. Absence yields `undefined`, which collapses to `false`.
+ *
+ * @param {boolean|string|null|undefined} value
+ * @returns {boolean}
+ */
+function coerceBooleanFlag(value) {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const lowered = value.trim().toLowerCase();
+    if (lowered === 'false' || lowered === '0' || lowered === '') return false;
+    return true;
+  }
+  return Boolean(value);
+}
+
+/**
  * Standardized CLI argument parser for sprint scripts.
  * Supports options like --epic, --story, --dry-run, --skip-dashboard.
  * @param {string[]} args Array of arguments (defaults to process.argv)
@@ -34,6 +54,7 @@ export function parseSprintArgs(args = process.argv) {
       story: { type: 'string', short: 's' },
       'dry-run': { type: 'boolean', default: false },
       'skip-dashboard': { type: 'boolean', default: false },
+      'skip-validation': { type: 'boolean', default: false },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -51,6 +72,7 @@ export function parseSprintArgs(args = process.argv) {
     ticketId: null,
     dryRun: values['dry-run'] ?? false,
     skipDashboard: values['skip-dashboard'] ?? false,
+    skipValidation: coerceBooleanFlag(values['skip-validation']),
     executor: values.executor ?? null,
     // Resolve worktree cwd from flag or env. Empty string/whitespace → null.
     cwd:
