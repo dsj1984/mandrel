@@ -43,32 +43,58 @@ function createGhExec(routes) {
   const calls = [];
   const exec = async ({ args, input }) => {
     calls.push({ args, input });
-    const method = args[2] ?? 'GET';
-    const endpoint = args[3] ?? '';
+
+    // The `gh.api` facade builds argv as `['api', '-X', <METHOD>, <ENDPOINT>, ...]`.
+    // The `gh.pr.*` / `gh.label.*` / `gh.repo.*` facades build
+    // `[<noun>, <verb>, <target?>, ...flags]`. Disambiguate so a single mock
+    // can carry both kinds of route (api routes are keyed
+    // "<METHOD> <ENDPOINT>"; nounful routes are keyed
+    // "<noun> <verb>"). Routes that look nounful (no leading HTTP verb) are
+    // matched on `args[0] args[1]` and may optionally read the trailing
+    // stdout payload from `response.stdout`.
+    const noun = args[0];
+    const isApi = noun === 'api';
+    const method = isApi ? (args[2] ?? 'GET') : null;
+    const endpoint = isApi ? (args[3] ?? '') : '';
     const bodyStr = input ?? '';
 
     let matched = null;
     for (const [pattern, response] of Object.entries(routes)) {
       const parts = pattern.split(' ');
-      const routeMethod = parts.length > 1 ? parts[0] : 'GET';
-      const routePath = parts.length > 1 ? parts[1] : parts[0];
-      const routeBody = parts.length > 2 ? parts.slice(2).join(' ') : null;
-      if (
-        method === routeMethod &&
-        endpoint.includes(routePath) &&
-        (!routeBody || bodyStr.includes(routeBody))
-      ) {
+      const head = parts[0];
+      const second = parts[1] ?? '';
+      const rest = parts.length > 2 ? parts.slice(2).join(' ') : null;
+
+      // HTTP-method route (api path).
+      const isHttpRoute = /^(GET|POST|PUT|PATCH|DELETE)$/.test(head);
+      if (isHttpRoute) {
+        if (!isApi) continue;
+        if (
+          method === head &&
+          endpoint.includes(second) &&
+          (!rest || bodyStr.includes(rest))
+        ) {
+          matched = response;
+          break;
+        }
+        continue;
+      }
+
+      // Nounful route — `pr create`, `pr view`, `label list`, etc.
+      if (noun === head && args[1] === second) {
         matched = response;
         break;
       }
     }
     const final = matched ?? { status: 200, json: {} };
     if (final.status >= 200 && final.status < 300) {
-      return {
-        stdout: JSON.stringify(final.json ?? {}),
-        stderr: '',
-        code: 0,
-      };
+      // Nounful routes may override the canonical JSON-on-stdout shape with
+      // a raw `stdout` string (e.g. `gh pr create` emits the URL plain).
+      const stdout =
+        typeof final.stdout === 'string'
+          ? final.stdout
+          : JSON.stringify(final.json ?? {});
+      return { stdout, stderr: '', code: 0 };
     }
     // Non-2xx — gh exec rejects via classify(); for tests we throw a
     // shape-compatible Error so assertions on `/failed/` still match.
@@ -540,20 +566,10 @@ describe('GitHubProvider — postComment()', () => {
 // createPullRequest
 // ---------------------------------------------------------------------------
 describe('GitHubProvider — createPullRequest()', () => {
-  let originalFetch;
-
-  beforeEach(() => {
-    originalFetch = globalThis.fetch;
-  });
-  afterEach(() => {
-    globalThis.fetch = originalFetch;
-  });
-
-  it('creates PR with Closes reference', async () => {
-    // After Story #1357 the issue read (`hooks.getTicket`) routes through
-    // gh-exec while the actual `POST /pulls` body still goes through the
-    // legacy http client (branches submodule rewrite is a later Story in
-    // Epic #1179). Mock both transports.
+  it('creates PR with Closes reference via gh pr create', async () => {
+    // Story #1359 (Task #1371) rewrites this on `gh.pr.create` + a follow-
+    // up `gh.pr.view` to harvest the {number, url, id} envelope. The
+    // issue read (`getTicket`) is the same gh.api path Story #1357 landed.
     const gh = makeGh({
       'GET /issues/42': {
         status: 200,
@@ -566,32 +582,216 @@ describe('GitHubProvider — createPullRequest()', () => {
           state: 'open',
         },
       },
-    });
-    const mockFetch = createRouteMock({
-      'POST /pulls': {
-        status: 201,
+      'pr create': {
+        status: 200,
+        // `gh pr create` emits the html_url on stdout (plain text, not JSON).
+        stdout: 'https://github.com/test-owner/test-repo/pull/15\n',
+      },
+      'pr view': {
+        status: 200,
         json: {
           number: 15,
           url: 'https://api.github.com/repos/test-owner/test-repo/pulls/15',
-          html_url: 'https://github.com/test-owner/test-repo/pull/15',
+          id: 'PR_node_15',
         },
       },
     });
-    globalThis.fetch = mockFetch;
 
     const provider = createTestProvider({ gh });
     const result = await provider.createPullRequest('feature/fix-42', 42);
 
     assert.equal(result.number, 15);
     assert.ok(result.htmlUrl.includes('/pull/15'));
+    assert.equal(result.nodeId, 'PR_node_15');
 
-    // The PR-create call is the only fetch call now; the issue read is on gh.
-    const prCreate = mockFetch.calls.find(
-      (c) => (c.opts?.method ?? 'GET') === 'POST',
+    const prCreate = gh.__exec.calls.find(
+      (c) => c.args[0] === 'pr' && c.args[1] === 'create',
     );
-    assert.ok(prCreate, 'expected POST /pulls to fire on the legacy client');
-    const prBody = JSON.parse(prCreate.opts.body);
-    assert.ok(prBody.body.includes('Closes #42'));
+    assert.ok(prCreate, 'expected `gh pr create` to fire');
+    // The argv carries --title/--body/--base/--head explicitly so the
+    // `Closes #N` body reaches the API without shell interpolation.
+    assert.deepEqual(prCreate.args, [
+      'pr',
+      'create',
+      '--title',
+      'Fix the thing',
+      '--body',
+      'Closes #42',
+      '--base',
+      'main',
+      '--head',
+      'feature/fix-42',
+    ]);
+
+    // `gh pr view` is invoked against the URL the create call returned,
+    // with --json number,url,id.
+    const prView = gh.__exec.calls.find(
+      (c) => c.args[0] === 'pr' && c.args[1] === 'view',
+    );
+    assert.ok(prView, 'expected follow-up `gh pr view` to fire');
+    assert.equal(
+      prView.args[2],
+      'https://github.com/test-owner/test-repo/pull/15',
+    );
+    assert.ok(prView.args.includes('--json'));
+    assert.ok(prView.args.includes('number,url,id'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getBranchProtection / setBranchProtection — Task #1371
+// ---------------------------------------------------------------------------
+describe('GitHubProvider — getBranchProtection()', () => {
+  it('returns {enabled:true, raw} when the branch is protected', async () => {
+    const raw = {
+      required_status_checks: { strict: true, contexts: ['lint'] },
+      enforce_admins: { enabled: true },
+      required_pull_request_reviews: { required_approving_review_count: 0 },
+      restrictions: null,
+    };
+    const gh = makeGh({
+      'GET /branches/main/protection': { status: 200, json: raw },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.getBranchProtection('main');
+    assert.deepEqual(result, { enabled: true, raw });
+  });
+
+  it('returns {enabled:false} on a 404 from gh-exec', async () => {
+    const gh = makeGh({
+      'GET /branches/main/protection': {
+        status: 404,
+        json: { message: 'Not Found' },
+      },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.getBranchProtection('main');
+    assert.deepEqual(result, { enabled: false });
+  });
+
+  it('URL-encodes branch names with slashes', async () => {
+    const gh = makeGh({
+      'GET /branches/release%2F2025-q4/protection': {
+        status: 200,
+        json: { ok: true },
+      },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.getBranchProtection('release/2025-q4');
+    assert.equal(result.enabled, true);
+
+    const endpoint = gh.__exec.calls[0].args[3];
+    assert.ok(endpoint.includes('release%2F2025-q4'));
+  });
+
+  it('propagates non-404 errors', async () => {
+    const gh = makeGh({
+      'GET /branches/main/protection': {
+        status: 500,
+        json: { message: 'server error' },
+      },
+    });
+    const provider = createTestProvider({ gh });
+    await assert.rejects(provider.getBranchProtection('main'), /code 500/);
+  });
+});
+
+describe('GitHubProvider — setBranchProtection()', () => {
+  it('creates a fresh rule when no protection exists', async () => {
+    let putBody = null;
+    const gh = makeGh({
+      'GET /branches/main/protection': {
+        status: 404,
+        json: { message: 'Not Found' },
+      },
+      'PUT /branches/main/protection': { status: 200, json: {} },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.setBranchProtection('main', {
+      contexts: ['lint', 'test'],
+      enforceAdmins: true,
+      requiredApprovingReviewCount: 0,
+    });
+
+    assert.equal(result.created, true);
+    assert.deepEqual(result.added, ['lint', 'test']);
+    assert.deepEqual(result.existing, []);
+
+    const putCall = gh.__exec.calls.find((c) => c.args[2] === 'PUT');
+    assert.ok(putCall, 'expected PUT call to fire');
+    putBody = JSON.parse(putCall.input);
+    assert.deepEqual(putBody.required_status_checks, {
+      strict: true,
+      contexts: ['lint', 'test'],
+    });
+    assert.equal(putBody.enforce_admins, true);
+    assert.equal(
+      putBody.required_pull_request_reviews.required_approving_review_count,
+      0,
+    );
+    assert.equal(putBody.restrictions, null);
+  });
+
+  it('additively merges contexts when a rule already exists', async () => {
+    const existing = {
+      required_status_checks: { strict: true, contexts: ['lint'] },
+      enforce_admins: { enabled: true },
+      required_pull_request_reviews: { required_approving_review_count: 0 },
+      restrictions: null,
+    };
+    const gh = makeGh({
+      'GET /branches/main/protection': { status: 200, json: existing },
+      'PUT /branches/main/protection': { status: 200, json: {} },
+    });
+    const provider = createTestProvider({ gh });
+    const result = await provider.setBranchProtection('main', {
+      contexts: ['lint', 'test'],
+    });
+
+    assert.equal(result.created, false);
+    assert.deepEqual(result.added, ['test']);
+    assert.deepEqual(result.existing, ['lint']);
+
+    const putCall = gh.__exec.calls.find((c) => c.args[2] === 'PUT');
+    const body = JSON.parse(putCall.input);
+    assert.deepEqual(body.required_status_checks.contexts, ['lint', 'test']);
+    // No override → preserves the existing enforce_admins value (true).
+    assert.equal(body.enforce_admins, true);
+  });
+
+  it('preserves operator review flags when overriding approval count', async () => {
+    const existing = {
+      required_status_checks: { strict: true, contexts: ['lint'] },
+      enforce_admins: { enabled: false },
+      required_pull_request_reviews: {
+        required_approving_review_count: 2,
+        dismiss_stale_reviews: true,
+      },
+      restrictions: null,
+    };
+    const gh = makeGh({
+      'GET /branches/main/protection': { status: 200, json: existing },
+      'PUT /branches/main/protection': { status: 200, json: {} },
+    });
+    const provider = createTestProvider({ gh });
+    await provider.setBranchProtection('main', {
+      contexts: ['lint'],
+      enforceAdmins: true,
+      requiredApprovingReviewCount: 0,
+    });
+
+    const putCall = gh.__exec.calls.find((c) => c.args[2] === 'PUT');
+    const body = JSON.parse(putCall.input);
+    assert.equal(body.enforce_admins, true);
+    assert.equal(
+      body.required_pull_request_reviews.required_approving_review_count,
+      0,
+    );
+    // dismiss_stale_reviews survives the override.
+    assert.equal(
+      body.required_pull_request_reviews.dismiss_stale_reviews,
+      true,
+    );
   });
 });
 
