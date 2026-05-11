@@ -32,6 +32,10 @@ import {
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
 import { emitMaintainabilityProjection } from './lib/orchestration/story-close/pre-merge-validation.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
+import {
+  PREFLIGHT_REFUSED_EXIT_CODE,
+  runPreflight,
+} from './lib/preflight-runner.js';
 import { fetchChildTasks } from './lib/story-lifecycle.js';
 import { createPhaseTimer } from './lib/util/phase-timer.js';
 import {
@@ -72,6 +76,77 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
   return result;
 }
 
+/**
+ * Run the story-close preflight gate. Exported so tests can drive it
+ * with an inline registry / probe spies without re-entering the full
+ * close orchestrator. Returns `{ ok: true }` on a clean preflight and
+ * `{ ok: false, findings, fixed }` when at least one blocker survives —
+ * the caller is responsible for translating `ok: false` into exit-code 2
+ * (or, in test harnesses, returning a `{ status: 'blocked' }` envelope).
+ *
+ * Story #1289: this is the only writer for the `scope: 'story-close'`
+ * preflight surface. Adding new checks happens by dropping a file into
+ * `.agents/scripts/lib/checks/` — no edit here.
+ *
+ * @param {object} opts
+ * @param {string|number} opts.storyId
+ * @param {string} [opts.cwd=process.cwd()]
+ * @param {object} [opts.probes]   Test-only probe injection.
+ * @param {object} [opts.registry] Test-only inline registry.
+ * @param {string} [opts.dir]      Test-only fixture dir.
+ * @param {object} [opts.logger]   Spy logger.
+ * @returns {Promise<{ ok: boolean, findings: Array, fixed: Array }>}
+ */
+export async function runStoryClosePreflight({
+  storyId,
+  cwd = process.cwd(),
+  probes,
+  registry,
+  dir,
+  logger,
+} = {}) {
+  Logger.info(
+    `[story-close] Running preflight checks (scope=story-close) for Story #${storyId ?? '?'}...`,
+  );
+  const preflight = await runPreflight({
+    scope: 'story-close',
+    autoFix: true,
+    cwd,
+    probes,
+    registry,
+    dir,
+    logger,
+  });
+  return {
+    ok: !preflight.blocked,
+    findings: preflight.findings,
+    fixed: preflight.fixed,
+  };
+}
+
+/**
+ * Emit the canonical close-result envelope for the "preflight refused"
+ * exit. Shape mirrors `emitBaselineBlockedResult` so the wave aggregator's
+ * label-derivation fallback sees a consistent envelope.
+ */
+function emitPreflightBlockedResult({ storyId, preflight }) {
+  const result = {
+    success: false,
+    status: 'blocked',
+    phase: 'preflight',
+    reason: 'preflight-refused',
+    findings: preflight.findings,
+  };
+  Logger.info(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  progress(
+    'BLOCKED',
+    `Story #${storyId} blocked: preflight refused — ${preflight.findings.length} blocker finding(s).`,
+  );
+  return result;
+}
+
 /** Orchestrate the Story closure. Exported for testing. */
 export async function runStoryClose({
   storyId: storyIdParam,
@@ -89,6 +164,7 @@ export async function runStoryClose({
     cwd,
     worktreePath,
     skipDashboard,
+    skipValidation: skipValidationResolved,
     resumeFlag,
     restartFlag,
     noEvidenceFlag,
@@ -102,6 +178,7 @@ export async function runStoryClose({
     storyIdParam,
     epicIdParam,
     skipDashboardParam,
+    skipValidationParam,
     cwdParam,
     resumeParam,
     restartParam,
@@ -112,6 +189,27 @@ export async function runStoryClose({
     notify(ticketId, payload, { orchestration, provider, ...opts });
 
   progress('INIT', `Closing Story #${storyId}...`);
+
+  // Preflight guard (Story #1289): assemble state, run the registry,
+  // auto-correct what can be, and refuse the close on any surviving
+  // blocker finding. Runs BEFORE `withEpicMergeLock` so we don't
+  // acquire the per-Epic lock just to release it on a refused preflight.
+  // Exit code 2 is reserved project-wide for "preflight refused".
+  const preflightOutcome = await runStoryClosePreflight({ storyId, cwd });
+  if (!preflightOutcome.ok) {
+    const blockedResult = emitPreflightBlockedResult({
+      storyId,
+      preflight: preflightOutcome,
+    });
+    // The CLI entry's runAsCli wrapper translates this `success: false,
+    // reason: 'preflight-refused'` envelope into exit-code 2 via
+    // `onError` below. In-process callers receive the envelope directly.
+    return {
+      success: false,
+      result: blockedResult,
+      exitCode: PREFLIGHT_REFUSED_EXIT_CODE,
+    };
+  }
 
   // Hold the per-Epic merge lock across the entire close flow — pre-merge
   // gates, dispatchRecovery, merge, and post-merge pipeline. The narrower
@@ -130,7 +228,7 @@ export async function runStoryClose({
         cwd,
         worktreePath,
         skipDashboard,
-        skipValidationParam,
+        skipValidationParam: skipValidationResolved,
         resumeFlag,
         restartFlag,
         noEvidenceFlag,
@@ -292,13 +390,29 @@ async function runStoryCloseLocked({
   return { success: true, result };
 }
 
-runAsCli(import.meta.url, runStoryClose, {
-  source: 'story-close',
-  onError: (err) => {
-    // exitCode=2 means dispatchRecovery printed prior-state body to stderr
-    // and the operator must pass --resume / --restart; skip stack trace.
-    if (err?.exitCode === 2) process.exit(2);
-    Logger.error(`[phase=fatal] [story-close] ${err.stack || err.message}`);
-    process.exit(1);
+runAsCli(
+  import.meta.url,
+  async () => {
+    const envelope = await runStoryClose();
+    // Story #1289: preflight refusal returns `{ exitCode: 2, success: false }`
+    // synchronously rather than throwing — translate that to a process exit so
+    // the CLI surface honours the project-wide "preflight refused" reservation.
+    if (envelope?.exitCode === PREFLIGHT_REFUSED_EXIT_CODE) {
+      process.exit(PREFLIGHT_REFUSED_EXIT_CODE);
+    }
+    return envelope;
   },
-});
+  {
+    source: 'story-close',
+    onError: (err) => {
+      // exitCode=2 also covers two prior reservations: dispatchRecovery's
+      // prior-state refusal (printed to stderr; operator passes --resume /
+      // --restart) and now Story #1289's preflight refusal (printed by
+      // preflight-runner; operator runs the listed fix commands). Both paths
+      // suppress the stack trace and exit cleanly.
+      if (err?.exitCode === 2) process.exit(2);
+      Logger.error(`[phase=fatal] [story-close] ${err.stack || err.message}`);
+      process.exit(1);
+    },
+  },
+);

@@ -27,6 +27,7 @@
  */
 
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
+import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
 import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
@@ -262,18 +263,18 @@ export async function handleBaselineGateFailure({
 export { DEFAULT_GATE_REGISTRY };
 
 /**
- * Project the regression rows for the failed gate. Today only
- * `check-maintainability` has a projection helper (`projectMaintainabilityRegressions`);
- * `check-crap` falls through with an empty rows list, which makes
- * `handleBaselineGateFailure` re-throw — the existing crap hint chain still
- * surfaces.
+ * Maintainability projector — extracts the same regression rows
+ * `runPreMergeGates` would have surfaced for `check-maintainability` by
+ * re-running the per-file MI ceiling projection against `origin/<epicBranch>`.
  *
- * Exported so tests can pin the dispatch table without spawning `git`.
+ * Behaviour is preserved byte-for-byte from the pre-refactor early-return
+ * branch of `projectRegressionsForGate`: missing baseline path → `[]`, and
+ * the underlying `projectMaintainabilityRegressions` decides what counts as
+ * a regression row.
  *
- * @returns {Array<{ path: string }>}
+ * @returns {Array<{ path?: string, file?: string }>}
  */
-export function projectRegressionsForGate({
-  gateName,
+function projectMaintainabilityForGate({
   cwd,
   epicBranch,
   storyBranch,
@@ -281,7 +282,6 @@ export function projectRegressionsForGate({
   projectMaintainability = defaultProjectMaintainabilityRegressions,
   getBaselines = defaultGetBaselines,
 }) {
-  if (gateName !== 'check-maintainability') return [];
   const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
   if (!baselinePath) return [];
   const projection = projectMaintainability({
@@ -292,6 +292,270 @@ export function projectRegressionsForGate({
   });
   return projection?.regressions ?? [];
 }
+
+/**
+ * Default CRAP regression tolerance — mirrors `check-crap.js`. Score noise
+ * floor is ~0.01 from coverage rounding shifts across Node/V8 builds; a
+ * 0.05 tolerance clears that without admitting real regressions (those
+ * cross whole-integer thresholds and clear 0.05 trivially).
+ */
+const DEFAULT_CRAP_TOLERANCE = 0.05;
+
+/**
+ * Pure helper — given two CRAP baseline envelopes (`{ rows: [...] }`), produce
+ * the regression rows for methods whose `crap` score increased beyond
+ * `tolerance` between `baselineRows` and `headRows`. When `touchedFiles` is
+ * supplied (as a Set or array of repo-relative POSIX paths), rows are filtered
+ * to functions inside files the Story changed — sibling drift outside the
+ * Story's diff is excluded by construction, matching the maintainability
+ * projector's "touched-only" contract.
+ *
+ * Row shape mirrors the maintainability projector — `{ file, method,
+ * startLine, crap, baseline, drop, projected }` — so downstream attribution
+ * + refresh-commit logic (`classifyBaselineDrift`,
+ * `renderBaselineFrictionBody`) can read either projector's output with the
+ * same field accessors. `projected` is an alias for `crap` retained for
+ * shape compatibility with maintainability rows.
+ *
+ * Exported so unit tests can pin the diff math against a fixture pair of
+ * baseline envelopes without spawning `git`.
+ *
+ * @param {{
+ *   baselineRows: Array<{file: string, method: string, startLine: number, crap: number}>,
+ *   headRows:     Array<{file: string, method: string, startLine: number, crap: number}>,
+ *   touchedFiles?: Set<string> | Array<string> | null,
+ *   tolerance?:   number,
+ * }} params
+ * @returns {Array<{
+ *   file: string, method: string, startLine: number,
+ *   crap: number, projected: number, baseline: number, drop: number,
+ *   path: string,
+ * }>}
+ */
+export function diffCrapBaselines({
+  baselineRows,
+  headRows,
+  touchedFiles = null,
+  tolerance = DEFAULT_CRAP_TOLERANCE,
+} = {}) {
+  if (!Array.isArray(baselineRows) || !Array.isArray(headRows)) return [];
+  const scope =
+    touchedFiles == null
+      ? null
+      : touchedFiles instanceof Set
+        ? touchedFiles
+        : new Set(touchedFiles);
+
+  // Index baseline by (file, method) — startLine drift is matched on the
+  // closest unused candidate, identical to `compareCrap`'s drift fallback.
+  const byMethod = new Map();
+  for (const b of baselineRows) {
+    if (!b || typeof b.file !== 'string' || typeof b.method !== 'string') {
+      continue;
+    }
+    const key = `${b.file}::${b.method}`;
+    if (!byMethod.has(key)) byMethod.set(key, []);
+    byMethod.get(key).push(b);
+  }
+  const seen = new Set();
+
+  const regressions = [];
+  for (const row of headRows) {
+    if (
+      !row ||
+      typeof row.file !== 'string' ||
+      typeof row.method !== 'string'
+    ) {
+      continue;
+    }
+    if (scope && !scope.has(row.file)) continue;
+    const candidates = byMethod.get(`${row.file}::${row.method}`);
+    if (!Array.isArray(candidates) || candidates.length === 0) continue;
+    // Pick the closest un-seen candidate by startLine distance.
+    let pick = null;
+    let bestDist = Number.POSITIVE_INFINITY;
+    for (const c of candidates) {
+      const k = `${c.file}::${c.method}@${c.startLine}`;
+      if (seen.has(k)) continue;
+      const d = Math.abs((c.startLine ?? 0) - (row.startLine ?? 0));
+      if (d < bestDist) {
+        bestDist = d;
+        pick = c;
+      }
+    }
+    if (!pick) continue;
+    seen.add(`${pick.file}::${pick.method}@${pick.startLine}`);
+    const headCrap = typeof row.crap === 'number' ? row.crap : 0;
+    const baseCrap = typeof pick.crap === 'number' ? pick.crap : 0;
+    if (headCrap <= baseCrap + tolerance) continue;
+    regressions.push({
+      file: row.file,
+      path: row.file,
+      method: row.method,
+      startLine: row.startLine,
+      crap: headCrap,
+      projected: headCrap,
+      baseline: baseCrap,
+      drop: headCrap - baseCrap,
+    });
+  }
+  return regressions;
+}
+
+/**
+ * Project CRAP regressions for the failed `check-crap` gate against a pair
+ * of refs. Reads `baselines/crap.json` at `baselineRef` and `headRef` via
+ * `baseline-loader.readBaselineAtRef`, then runs `diffCrapBaselines` to
+ * pick out the rows where the Story's HEAD crap score exceeds the epic
+ * branch's baseline. Rows are filtered to `touchedFiles` (story diff) so
+ * sibling drift outside the Story's footprint never bleeds through.
+ *
+ * This is the gate-agnostic, ref-pair interface declared on the Tech Spec
+ * (`projectCrapRegressions(touchedFiles, baselineRef, headRef)`); the
+ * dispatch table entry in `PROJECTORS` wraps this with the
+ * `{ cwd, epicBranch, storyBranch }` plumbing `projectRegressionsForGate`
+ * passes in.
+ *
+ * Read failures are swallowed and return `[]` — a missing baseline at one
+ * of the refs is indistinguishable from "no regressions surfaceable" at
+ * the projector layer, and the caller (`handleBaselineGateFailure`)
+ * already treats an empty rows list as `{ action: 'rethrow' }` so the
+ * original gate error surfaces unchanged.
+ *
+ * @param {{
+ *   touchedFiles: Set<string> | Array<string> | null,
+ *   baselineRef: string,
+ *   headRef: string,
+ *   cwd?: string,
+ *   baselinePath?: string,
+ *   tolerance?: number,
+ *   readBaselineAtRef?: typeof defaultReadBaselineAtRef,
+ *   getBaselines?: typeof defaultGetBaselines,
+ *   agentSettings?: object,
+ * }} params
+ * @returns {Array<{ file: string, path: string, method: string, startLine: number, crap: number, projected: number, baseline: number, drop: number }>}
+ */
+export function projectCrapRegressions({
+  touchedFiles,
+  baselineRef,
+  headRef,
+  cwd,
+  baselinePath,
+  tolerance = DEFAULT_CRAP_TOLERANCE,
+  readBaselineAtRef = defaultReadBaselineAtRef,
+  getBaselines = defaultGetBaselines,
+  agentSettings,
+} = {}) {
+  if (!baselineRef || !headRef) return [];
+  const resolvedPath =
+    baselinePath ?? getBaselines({ agentSettings })?.crap?.path;
+  if (!resolvedPath) return [];
+
+  let baselineEnv;
+  let headEnv;
+  try {
+    baselineEnv = readBaselineAtRef(baselineRef, resolvedPath, { cwd });
+  } catch {
+    return [];
+  }
+  try {
+    headEnv = readBaselineAtRef(headRef, resolvedPath, { cwd });
+  } catch {
+    return [];
+  }
+  const baselineRows = Array.isArray(baselineEnv?.rows) ? baselineEnv.rows : [];
+  const headRows = Array.isArray(headEnv?.rows) ? headEnv.rows : [];
+  return diffCrapBaselines({
+    baselineRows,
+    headRows,
+    touchedFiles,
+    tolerance,
+  });
+}
+
+/**
+ * Dispatch-table wrapper for `check-crap`. Translates the
+ * `{ cwd, epicBranch, storyBranch }` bag the dispatcher hands every
+ * projector into the ref-pair signature `projectCrapRegressions` expects,
+ * sourcing `touchedFiles` from the Story's diff vs `origin/<epicBranch>`
+ * — the same diff `computeStoryDiffPaths` produces for the maintainability
+ * path.
+ *
+ * @returns {Array<{ path: string, file: string, method: string, startLine: number, crap: number, projected: number, baseline: number, drop: number }>}
+ */
+function projectCrapForGate({
+  cwd,
+  epicBranch,
+  storyBranch,
+  agentSettings,
+  getBaselines = defaultGetBaselines,
+  // Injected seams — production callers omit these.
+  readBaselineAtRef = defaultReadBaselineAtRef,
+  computeTouched = computeStoryDiffPaths,
+  projectCrap = projectCrapRegressions,
+} = {}) {
+  if (!cwd || !epicBranch || !storyBranch) return [];
+  const touchedFiles = new Set(
+    computeTouched({ cwd, epicBranch, storyBranch }),
+  );
+  return projectCrap({
+    touchedFiles,
+    baselineRef: `origin/${epicBranch}`,
+    headRef: storyBranch,
+    cwd,
+    agentSettings,
+    readBaselineAtRef,
+    getBaselines,
+  });
+}
+
+/**
+ * Dispatch table mapping gate names to their projector implementations. Each
+ * projector takes the same `{ cwd, epicBranch, storyBranch, agentSettings,
+ * ...injected }` bag `projectRegressionsForGate` receives and returns an array
+ * of regression rows downstream attribution + refresh-commit logic consumes.
+ *
+ * Adding a new baseline gate is an append here; the orchestration in
+ * `projectRegressionsForGate` does not change.
+ */
+const PROJECTORS = {
+  'check-maintainability': projectMaintainabilityForGate,
+  'check-crap': projectCrapForGate,
+};
+
+/**
+ * Project the regression rows for the failed gate via the `PROJECTORS`
+ * dispatch table. Unknown gates (typecheck, lint, test, format, or any
+ * gate without a registered projector) return `[]` so
+ * `handleBaselineGateFailure` re-throws — the gate's own hint chain
+ * still surfaces.
+ *
+ * Exported so tests can pin the dispatch table without spawning `git`.
+ *
+ * @returns {Array<{ path?: string, file?: string }>}
+ */
+export function projectRegressionsForGate({
+  gateName,
+  cwd,
+  epicBranch,
+  storyBranch,
+  agentSettings,
+  projectMaintainability = defaultProjectMaintainabilityRegressions,
+  getBaselines = defaultGetBaselines,
+}) {
+  const project = PROJECTORS[gateName];
+  if (!project) return [];
+  return project({
+    cwd,
+    epicBranch,
+    storyBranch,
+    agentSettings,
+    projectMaintainability,
+    getBaselines,
+  });
+}
+
+export { PROJECTORS };
 
 /**
  * Wrap `runPreMergeGates` with the Story #1124 baseline-attribution flow.

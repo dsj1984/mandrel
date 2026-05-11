@@ -5,7 +5,7 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.31,
+    "lines": 93.27,
     "branches": 61.64,
     "functions": 100
   },
@@ -40,14 +40,24 @@
     "functions": 80
   },
   ".agents/scripts/diagnose-friction.js": {
-    "lines": 82.73,
+    "lines": 82.8,
     "branches": 72,
     "functions": 100
+  },
+  ".agents/scripts/diagnose.js": {
+    "lines": 87.31,
+    "branches": 83.33,
+    "functions": 66.67
   },
   ".agents/scripts/dispatcher.js": {
     "lines": 56.5,
     "branches": 50,
     "functions": 66.67
+  },
+  ".agents/scripts/epic-close.js": {
+    "lines": 90.76,
+    "branches": 80,
+    "functions": 20
   },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.28,
@@ -60,9 +70,9 @@
     "functions": 60
   },
   ".agents/scripts/epic-deliver-cleanup.js": {
-    "lines": 84.49,
-    "branches": 76.47,
-    "functions": 66.67
+    "lines": 89.34,
+    "branches": 83.33,
+    "functions": 75
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 85.25,
@@ -199,9 +209,79 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.37,
+  ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
+    "lines": 99.04,
+    "branches": 77.27,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/core-bare-clean.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/delete-epic-branches-naming.js": {
+    "lines": 100,
+    "branches": 87.5,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/epic-merge-lock-stale.js": {
+    "lines": 100,
+    "branches": 71.43,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/index.js": {
+    "lines": 96.25,
+    "branches": 75.47,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/notifier-stub-required.js": {
+    "lines": 99.03,
+    "branches": 89.58,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/push-hook-parity.js": {
+    "lines": 100,
+    "branches": 86.36,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/stale-origin-epic.js": {
+    "lines": 100,
     "branches": 90,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/state.js": {
+    "lines": 92.51,
+    "branches": 87.37,
+    "functions": 81.82
+  },
+  ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
+    "lines": 97.8,
+    "branches": 91.89,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
+    "lines": 96.7,
+    "branches": 79.49,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/worktree-bootstrap-env.js": {
+    "lines": 100,
+    "branches": 87.5,
+    "functions": 100
+  },
+  ".agents/scripts/lib/checks/worktree-residue-biome.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/cli-args.js": {
+    "lines": 98.13,
+    "branches": 88.99,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -370,7 +450,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -431,12 +511,12 @@
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
     "lines": 98.63,
-    "branches": 81.2,
+    "branches": 81.03,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 97.24,
-    "branches": 74.36,
+    "branches": 75,
     "functions": 100
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -540,7 +620,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
-    "lines": 88.89,
+    "lines": 89.01,
     "branches": 57.14,
     "functions": 66.67
   },
@@ -560,7 +640,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.23,
+    "lines": 91.27,
     "branches": 70.45,
     "functions": 96.88
   },
@@ -665,7 +745,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 96.82,
+    "lines": 96.85,
     "branches": 72.94,
     "functions": 100
   },
@@ -685,8 +765,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/retro-runner.js": {
-    "lines": 96.92,
-    "branches": 67.86,
+    "lines": 96.58,
+    "branches": 70,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close-recovery.js": {
@@ -695,9 +775,9 @@
     "functions": 64.71
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
-    "lines": 87.25,
-    "branches": 63.46,
-    "functions": 80
+    "lines": 84.97,
+    "branches": 59.55,
+    "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
     "lines": 100,
@@ -720,8 +800,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 98.55,
-    "branches": 81.82,
+    "lines": 98.59,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -808,6 +888,11 @@
     "lines": 98.45,
     "branches": 76.47,
     "functions": 100
+  },
+  ".agents/scripts/lib/preflight-runner.js": {
+    "lines": 91.33,
+    "branches": 58.82,
+    "functions": 50
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 96.44,
@@ -1020,8 +1105,8 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 89.17,
-    "branches": 81.36,
+    "lines": 89.44,
+    "branches": 81.67,
     "functions": 83.33
   },
   ".agents/scripts/post-structured-comment.js": {
@@ -1120,8 +1205,8 @@
     "functions": 33.33
   },
   ".agents/scripts/story-close.js": {
-    "lines": 78.88,
-    "branches": 46.67,
+    "lines": 76.08,
+    "branches": 42.86,
     "functions": 66.67
   },
   ".agents/scripts/story-execute-prepare.js": {
@@ -1131,18 +1216,23 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
-    "lines": 83.22,
-    "branches": 63.33,
+    "lines": 86.35,
+    "branches": 70.49,
     "functions": 60
   },
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
     "branches": 69.7,
     "functions": 75
+  },
+  ".agents/scripts/test-wrapper.js": {
+    "lines": 87.16,
+    "branches": 100,
+    "functions": 20
   },
   ".agents/scripts/validate-docs-freshness.js": {
     "lines": 76.59,
