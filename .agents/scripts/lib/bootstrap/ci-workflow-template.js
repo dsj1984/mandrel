@@ -110,10 +110,13 @@ jobs:
       contents: read
     env:
       # Story #1120: when the PR head ref names an Epic story branch
-      # (story-N or story/epic-<id>/<n>), the gate CLIs read baselines from
-      # baselines/epic/<id>/ via --epic-ref. Empty when the head ref is not
-      # an Epic story branch — both gates fall through to the main-tracked
-      # baseline, so the env-var expansion is always safe.
+      # (story-N or story/epic-<id>/<n>), the gate CLIs read the canonical
+      # main baseline at the Epic branch HEAD via --epic-ref (git show).
+      # Empty when the head ref is not an Epic story branch — both gates
+      # fall through to the working-tree baseline, so the env-var
+      # expansion is always safe. Per-epic ratchet snapshots themselves
+      # live under temp/epic/<id>/baselines/ (Story #1467) — ephemeral
+      # scratch state, never read by this CI gate.
       EPIC_REF: \${{ github.head_ref && contains(github.head_ref, 'story') && format('epic/{0}', github.event.pull_request.base.ref) || '' }}
       BASE_REF: ${baseRef}
     steps:

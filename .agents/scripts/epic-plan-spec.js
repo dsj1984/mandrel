@@ -165,10 +165,11 @@ async function setEpicLabel(provider, epicId, targetLabel) {
 }
 
 /**
- * Story #1396: fork the tracked main baselines into `baselines/epic/<id>/`
- * and commit the snapshots onto the Epic branch as part of Phase 1
- * persistence. Encapsulated here (rather than inlined into `runSpecPhase`)
- * so unit tests can pin the wiring without spawning the full spec phase.
+ * Story #1396 (re-targeted by Story #1467): fork the tracked main baselines
+ * into `temp/epic/<id>/baselines/` and commit the snapshots onto the Epic
+ * branch as part of Phase 1 persistence. Encapsulated here (rather than
+ * inlined into `runSpecPhase`) so unit tests can pin the wiring without
+ * spawning the full spec phase.
  *
  * Failure modes are non-fatal: a missing source baseline downgrades to a
  * `--full-scope` warning (the gate already handles that path), an
@@ -268,9 +269,10 @@ export async function runSpecPhase(
   const prdId = afterPlan.linkedIssues?.prd ?? null;
   const techSpecId = afterPlan.linkedIssues?.techSpec ?? null;
 
-  // Story #1396: fork the tracked main baselines into baselines/epic/<id>/
-  // and seed the snapshot commit on the Epic branch. Non-fatal — the spec
-  // phase succeeds even when the source baselines are missing.
+  // Story #1396 (re-targeted by Story #1467): fork the tracked main
+  // baselines into temp/epic/<id>/baselines/ and seed the snapshot commit
+  // on the Epic branch. Non-fatal — the spec phase succeeds even when the
+  // source baselines are missing.
   try {
     const snapshot = snapshotFork({ epicId });
     if (snapshot.commit.committed) {

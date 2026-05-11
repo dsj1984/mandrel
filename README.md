@@ -109,12 +109,13 @@ The user-visible surfaces:
   baseline-refresh and the empirical noise study).
 - **Per-Epic baseline snapshots.** `/epic-plan` Phase 1 forks
   `baselines/{maintainability,crap}.json` into the
-  `baselines/epic/<id>/` subdirectory and commits them to the Epic
-  branch. `story-close.js` and CI then read from that snapshot via
-  `--epic-ref epic/<id>`, so Stories under an Epic are immune to
-  unrelated drift on `main`. `/epic-deliver`'s merge step refreshes
-  `main`'s baselines from the merged tree as a single
-  `baseline-refresh: epic-<id>` commit.
+  `temp/epic/<id>/baselines/` namespace (Story #1467: ephemeral scratch
+  state, reaped on `/epic-deliver` merge with the rest of the per-epic
+  temp tree). `story-close.js` and CI read the canonical baseline at
+  the Epic branch HEAD via `--epic-ref epic/<id>` (git show), so
+  Stories under an Epic are immune to unrelated drift on `main`.
+  `/epic-deliver`'s merge step refreshes `main`'s baselines from the
+  merged tree as a single `baseline-refresh: epic-<id>` commit.
 - **Bounded auto-refresh at story-close.** After green tests,
   `story-close.js` regenerates baseline rows for files in the Story diff
   and amends them into the close commit — but refuses (and emits a
@@ -173,9 +174,12 @@ idempotent. On a project that lacks any of the new artefacts it will:
    `agentSettings.quality.autoRefresh` defaults in `.agentrc.json` —
    again only filling missing keys, never clobbering operator
    overrides.
-5. Migrate any pre-existing `baselines/` layout into the
-   `baselines/epic/` subdirectory contract used by the per-Epic
-   snapshot lifecycle.
+5. Migrate any pre-existing `baselines/` layout (loose
+   `epic-<id>-*.json`, prototype `snapshots/`, or committed
+   `baselines/epic/<id>/`) into the `temp/epic/<id>/baselines/`
+   namespace used by the per-Epic snapshot lifecycle (Story #1467).
+   Committed `baselines/epic/<id>/` leftovers are pruned via
+   `git rm -r --quiet --ignore-unmatch` in the same operation.
 
 A project that re-runs `/agents-update` immediately after a successful
 upgrade sees `no-change` on every step.
