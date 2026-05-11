@@ -31,7 +31,7 @@ import {
  * working tree + injected I/O):
  *
  *   - forkMainToEpic({ epicId, cwd }) — copies the tracked main baselines
- *     under `baselines/epic/<id>/`. Idempotent: re-running with the same
+ *     under `temp/epic/<id>/baselines/`. Idempotent: re-running with the same
  *     source content produces the same destination bytes (no fs churn). When
  *     the source baseline is missing, emits a warn through the injected
  *     logger and returns `{ written: false, reason: 'source-missing' }` for
@@ -44,6 +44,14 @@ import {
  *     is true iff any baseline file's content differs from what's already on
  *     disk. Callers in /epic-deliver use `didChange === false` to skip the
  *     `baseline-refresh: epic-<id>` commit.
+ *
+ * Lifecycle note (Story #1467): per-epic ratchet snapshots are ephemeral
+ * scratch state under the `temp/epic/<id>/baselines/` namespace, NOT committed
+ * artifacts. They inherit the existing per-epic temp-tree cleanup contract —
+ * `/epic-deliver` reaps the parent `temp/epic/<id>/` directory on merge, so
+ * no manual prune is required. Earlier versions of this module wrote under
+ * `baselines/epic/<id>/`, which committed them to git and accumulated obsolete
+ * snapshots forever.
  *
  * Why "pure-ish" and not pure: both helpers read+write the filesystem and
  * (for regenerateMainFromTree) walk source trees + parse coverage. The seam
@@ -58,7 +66,7 @@ const EPIC_BASELINES = ['maintainability', 'crap'];
  * Resolve the per-Epic snapshot path for a baseline kind.
  *
  * @param {{ epicId: number, kind: 'maintainability'|'crap', cwd?: string }} opts
- * @returns {string} absolute path under `<cwd>/baselines/epic/<id>/<kind>.json`
+ * @returns {string} absolute path under `<cwd>/temp/epic/<id>/baselines/<kind>.json`
  */
 export function epicSnapshotPathFor({ epicId, kind, cwd = process.cwd() }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
@@ -71,16 +79,24 @@ export function epicSnapshotPathFor({ epicId, kind, cwd = process.cwd() }) {
       `[baseline-snapshot] kind must be one of ${EPIC_BASELINES.join(', ')}`,
     );
   }
-  return path.resolve(cwd, 'baselines', 'epic', String(epicId), `${kind}.json`);
+  return path.resolve(
+    cwd,
+    'temp',
+    'epic',
+    String(epicId),
+    'baselines',
+    `${kind}.json`,
+  );
 }
 
 /**
- * Fork the tracked main baselines into `baselines/epic/<id>/`. Idempotent.
+ * Fork the tracked main baselines into `temp/epic/<id>/baselines/`. Idempotent.
  *
  * Source paths are resolved through the agent-settings config so a repo that
  * relocates its baselines (`agentSettings.quality.baselines.{maintainability,crap}.path`)
- * is honoured. Destination layout is fixed at `baselines/epic/<id>/<kind>.json`
- * so the close-validation gate's `--epic-ref` resolution stays predictable.
+ * is honoured. Destination layout is fixed at `temp/epic/<id>/baselines/<kind>.json`
+ * so the close-validation gate's `--epic-ref` resolution stays predictable, and
+ * the per-epic temp-tree cleanup reaps them on Story merge with no extra wiring.
  *
  * Failure modes:
  *   - Source baseline missing → returned per-file `{ written: false,
