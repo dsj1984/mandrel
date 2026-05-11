@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  addItemToProject,
+  ensureProjectFields,
   ensureProjectViews,
   ensureStatusField,
   isInsufficientScopes,
@@ -346,5 +348,92 @@ describe('ensureProjectViews', () => {
       () => ensureProjectViews(ctx, [{ name: 'A' }]),
       /Project #5 not found/,
     );
+  });
+});
+
+describe('ensureProjectFields', () => {
+  it('returns empty when projectNumber is unset', async () => {
+    const { ctx } = buildCtx();
+    ctx.projectNumber = null;
+    const result = await ensureProjectFields(ctx, [
+      { name: 'Priority', type: 'single_select', options: ['P0', 'P1'] },
+    ]);
+    assert.deepEqual(result, { created: [], skipped: [] });
+  });
+
+  it('throws when fetched project is null (project not found)', async () => {
+    const { ctx } = buildCtx({ runGraphqlScript: () => ({ user: null }) });
+    await assert.rejects(
+      () => ensureProjectFields(ctx, []),
+      /Project #5 not found/,
+    );
+  });
+
+  it('skips existing fields and iteration-typed fields; creates new single_select fields', async () => {
+    let created = 0;
+    const { ctx } = buildCtx({
+      runGraphqlScript: (_q, _v, i) => {
+        if (i === 0) {
+          return {
+            user: {
+              projectV2: {
+                id: 'pv2',
+                fields: { nodes: [{ name: 'Priority' }] },
+              },
+            },
+          };
+        }
+        created += 1;
+        return {};
+      },
+    });
+    const result = await ensureProjectFields(ctx, [
+      { name: 'Priority', type: 'single_select', options: ['P0', 'P1'] },
+      { name: 'Sprint', type: 'iteration' },
+      { name: 'Risk', type: 'single_select', options: ['Low', 'High'] },
+    ]);
+    assert.deepEqual(result.created, ['Risk']);
+    assert.deepEqual(result.skipped, ['Priority', 'Sprint']);
+    assert.equal(created, 1);
+  });
+});
+
+describe('addItemToProject', () => {
+  it('no-ops when projectNumber unset and no projectId cached', async () => {
+    const { ctx, calls } = buildCtx();
+    ctx.projectNumber = null;
+    await addItemToProject(ctx, 'node-123');
+    assert.equal(calls.length, 0);
+  });
+
+  it('looks up the project, caches the id, and posts addProjectV2ItemById', async () => {
+    const { ctx, calls } = buildCtx({
+      runGraphqlScript: (_q, _v, i) =>
+        i === 0
+          ? { user: { projectV2: { id: 'pv2_cached' } } }
+          : { addProjectV2ItemById: { item: { id: 'item-1' } } },
+    });
+    await addItemToProject(ctx, 'node-abc');
+    assert.equal(ctx.state.projectId, 'pv2_cached');
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[1].variables, {
+      projectId: 'pv2_cached',
+      contentId: 'node-abc',
+    });
+  });
+
+  it('reuses a cached projectId without re-looking up', async () => {
+    const { ctx, calls } = buildCtx({
+      runGraphqlScript: () => ({
+        addProjectV2ItemById: { item: { id: 'item-2' } },
+      }),
+    });
+    ctx.state.projectId = 'pv2_pinned';
+    await addItemToProject(ctx, 'node-xyz');
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0].variables, {
+      projectId: 'pv2_pinned',
+      contentId: 'node-xyz',
+    });
   });
 });
