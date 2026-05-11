@@ -414,25 +414,12 @@ export async function runRetro(opts = {}) {
     forceFull,
   });
 
-  // Story #1290 (Epic #1143): invoke the self-healing checks registry with
-  // scope:'retro' (read-only by construction — the runner throws on
-  // autoFix:true under this scope). Findings are appended to the retro body
-  // via appendChecksSection, which suppresses the section when findings are
-  // empty so the compact "🟢 Clean sprint" shape is preserved.
-  let findings = [];
-  try {
-    const state = await assembleStateFn({ scope: 'retro', cwd });
-    const result = await runChecksFn({
-      scope: 'retro',
-      autoFix: false,
-      state,
-    });
-    findings = Array.isArray(result?.findings) ? result.findings : [];
-  } catch (err) {
-    logger?.warn?.(
-      `[retro-runner] runChecks(scope:'retro') failed (continuing with empty findings): ${err?.message ?? err}`,
-    );
-  }
+  const findings = await collectRetroFindings({
+    runChecksFn,
+    assembleStateFn,
+    cwd,
+    logger,
+  });
   const bodyWithChecks = appendChecksSection(body, findings);
 
   logger?.info?.(
@@ -448,6 +435,34 @@ export async function runRetro(opts = {}) {
     findings,
     commentId: result?.commentId,
   };
+}
+
+/**
+ * Story #1290: invoke the self-healing checks registry with scope:'retro'
+ * (read-only by construction — `runChecks` throws on autoFix:true under
+ * this scope). Failures degrade gracefully to an empty findings list so
+ * the retro never blocks on a probe error.
+ */
+async function collectRetroFindings({
+  runChecksFn,
+  assembleStateFn,
+  cwd,
+  logger,
+}) {
+  try {
+    const state = await assembleStateFn({ scope: 'retro', cwd });
+    const result = await runChecksFn({
+      scope: 'retro',
+      autoFix: false,
+      state,
+    });
+    return Array.isArray(result?.findings) ? result.findings : [];
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] runChecks(scope:'retro') failed (continuing with empty findings): ${err?.message ?? err}`,
+    );
+    return [];
+  }
 }
 
 /**
@@ -470,28 +485,35 @@ export async function runRetro(opts = {}) {
  */
 export function appendChecksSection(body, findings) {
   if (!Array.isArray(findings) || findings.length === 0) return body;
-  const lines = [
-    '### Self-Healing Checks',
-    '',
-    '| ID | Severity | Summary | Fix Command |',
-    '| --- | --- | --- | --- |',
-    ...findings.map((f) => {
-      const id = String(f?.id ?? '').replace(/\|/g, '\\|');
-      const severity = String(f?.severity ?? '').replace(/\|/g, '\\|');
-      const summary = String(f?.summary ?? '').replace(/\|/g, '\\|');
-      const fixCommand = String(f?.fixCommand ?? '').replace(/\|/g, '\\|');
-      return `| ${id} | ${severity} | ${summary} | \`${fixCommand}\` |`;
-    }),
-    '',
-  ];
-  const section = lines.join('\n');
-  // Insert section before the retro-complete marker (always last line).
+  const section = renderFindingsSection(findings);
   const markerRe = /(<!--\s*retro-complete:[^>]*-->\s*)$/;
   if (markerRe.test(body)) {
     return body.replace(markerRe, `${section}\n$1`);
   }
-  // Fallback if marker is missing (defensive): append.
   return `${body}\n${section}`;
+}
+
+function escapeCell(value) {
+  return String(value ?? '').replace(/\|/g, '\\|');
+}
+
+function renderFindingRow(f) {
+  const id = escapeCell(f?.id);
+  const severity = escapeCell(f?.severity);
+  const summary = escapeCell(f?.summary);
+  const fixCommand = escapeCell(f?.fixCommand);
+  return `| ${id} | ${severity} | ${summary} | \`${fixCommand}\` |`;
+}
+
+function renderFindingsSection(findings) {
+  return [
+    '### Self-Healing Checks',
+    '',
+    '| ID | Severity | Summary | Fix Command |',
+    '| --- | --- | --- | --- |',
+    ...findings.map(renderFindingRow),
+    '',
+  ].join('\n');
 }
 
 // Re-export for downstream test convenience — keeps the module's public
