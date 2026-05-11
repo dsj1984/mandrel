@@ -118,6 +118,96 @@
       "startLine": 167
     },
     {
+      "crap": 1.823974609375,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "defaultGhShim",
+      "startLine": 95
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "renderBailBody",
+      "startLine": 123
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "findExistingBailComment",
+      "startLine": 151
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "postNewBailComment",
+      "startLine": 184
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "patchExistingBailComment",
+      "startLine": 206
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "setAttemptedLabel",
+      "startLine": 234
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "runBail",
+      "startLine": 261
+    },
+    {
+      "crap": 1.5787037037037037,
+      "file": ".agents/scripts/auto-fix-bail.js",
+      "method": "main",
+      "startLine": 302
+    },
+    {
+      "crap": 1.8573749999999998,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "defaultExecShim",
+      "startLine": 78
+    },
+    {
+      "crap": 2.2560000000000002,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "runOrThrow",
+      "startLine": 109
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "assertNoTestFilesStaged",
+      "startLine": 130
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "buildAuthenticatedRemoteUrl",
+      "startLine": 160
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "runFixStep",
+      "startLine": 183
+    },
+    {
+      "crap": 2.0625,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "setLabel",
+      "startLine": 318
+    },
+    {
+      "crap": 1.421875,
+      "file": ".agents/scripts/auto-fix-step.js",
+      "method": "main",
+      "startLine": 339
+    },
+    {
       "crap": 13.041259765625,
       "file": ".agents/scripts/baseline-refresh-guardrail.js",
       "method": "parseArgv",
@@ -1286,6 +1376,30 @@
       "file": ".agents/scripts/lib/audit-suite/workflow-loader.js",
       "method": "defaultWriteArtifact",
       "startLine": 44
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
+      "method": "classifyLine",
+      "startLine": 116
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
+      "method": "classifyBuffer",
+      "startLine": 139
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
+      "method": "detectFailureClass",
+      "startLine": 176
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/auto-fix/detect-failure-class.js",
+      "method": "emptyCounts",
+      "startLine": 203
     },
     {
       "crap": 1,

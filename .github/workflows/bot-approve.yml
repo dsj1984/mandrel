@@ -43,7 +43,7 @@ jobs:
           app-id: ${{ secrets.BOT_APPROVER_APP_ID }}
           private-key: ${{ secrets.BOT_APPROVER_PRIVATE_KEY }}
 
-      - name: No-op if bot authored latest commit
+      - name: No-op if bot authored latest commit OR commit is an auto-fix
         id: self-check
         if: steps.pr.outputs.skip != 'true'
         env:
@@ -52,18 +52,35 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
         run: |
-          author=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/commits" \
-            --jq '.[-1].author.login // ""')
+          # Two-arm defensive guard against the s4-auto-fix → s3-bot-approve
+          # loop closing on itself. The primary arm matches the bot user.login
+          # exactly (GitHub appends `[bot]` to App identities); the second
+          # arm matches the `[auto-fix]` subject prefix that auto-fix-step.js
+          # always writes. Either match short-circuits approval.
+          response=$(gh api "repos/${OWNER}/${REPO}/pulls/${PR_NUMBER}/commits" \
+            --jq '.[-1] | { author: (.author.login // ""), subject: (.commit.message // "" | split("\n")[0]) }')
+          author=$(echo "$response" | jq -r '.author')
+          subject=$(echo "$response" | jq -r '.subject')
           echo "Latest commit author: ${author}"
+          echo "Latest commit subject: ${subject}"
+          # Arm 1: author login matches the bot.
           case "$author" in
             agent-protocols-reviewer*|*"[bot]")
               echo "Latest commit is bot-authored; skipping approval."
               echo "skip=true" >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "skip=false" >> "$GITHUB_OUTPUT"
+              exit 0
               ;;
           esac
+          # Arm 2: commit subject starts with `[auto-fix]` (belt-and-suspenders
+          # in case a future change alters who/how auto-fix commits land).
+          case "$subject" in
+            \[auto-fix\]*)
+              echo "Latest commit is an auto-fix commit; skipping approval."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          echo "skip=false" >> "$GITHUB_OUTPUT"
 
       - name: Post approving review
         if: steps.pr.outputs.skip != 'true' && steps.self-check.outputs.skip != 'true'
