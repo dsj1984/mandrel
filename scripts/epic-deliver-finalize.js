@@ -294,10 +294,16 @@ export async function runEpicDeliverFinalize({
   );
   const ghResult = ghSpawnFn(ghArgs, repoCwd);
   let prUrl = null;
+  let prNumber = null;
   if (ghResult.status === 0) {
     const stdout = (ghResult.stdout ?? '').trim();
-    const match = stdout.match(/https:\/\/github\.com\/[^\s]+\/pull\/\d+/);
-    prUrl = match ? match[0] : stdout || null;
+    const match = stdout.match(/https:\/\/github\.com\/[^\s]+\/pull\/(\d+)/);
+    if (match) {
+      prUrl = match[0];
+      prNumber = Number(match[1]);
+    } else {
+      prUrl = stdout || null;
+    }
   } else {
     logger.error?.(
       `[epic-deliver-finalize] gh pr create exit ${ghResult.status}: ${ghResult.stderr}`,
@@ -310,6 +316,41 @@ export async function runEpicDeliverFinalize({
       postedHandoff: false,
       blocker: { reason: 'pr-create-failed', detail: ghResult.stderr },
     };
+  }
+
+  // 3a. Enable GitHub native auto-merge so the PR squash-merges itself
+  // when all required checks pass. Independent of the framework's
+  // Phase 7.5 predicate — that predicate now fires only as a post-merge
+  // audit / informational signal. Enabling at PR-open time is a no-op
+  // when checks are already green (GitHub merges immediately) and an
+  // explicit operator-pacing signal when checks have not yet run. We
+  // do NOT block finalize on auto-merge enablement failures — a missing
+  // auto-merge feature on the repo or a token without
+  // `pull_request:write` is non-fatal, and the operator retains the
+  // manual merge path through the GitHub UI.
+  let autoMergeEnabled = false;
+  if (prNumber) {
+    const autoMergeResult = ghSpawnFn(
+      [
+        'pr',
+        'merge',
+        String(prNumber),
+        '--auto',
+        '--squash',
+        '--delete-branch',
+      ],
+      repoCwd,
+    );
+    if (autoMergeResult.status === 0) {
+      autoMergeEnabled = true;
+      logger.info?.(
+        `[epic-deliver-finalize] auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
+      );
+    } else {
+      logger.warn?.(
+        `[epic-deliver-finalize] gh pr merge --auto exit ${autoMergeResult.status}: ${autoMergeResult.stderr} — operator can merge manually.`,
+      );
+    }
   }
 
   // 4. Post hand-off comment.
@@ -342,9 +383,17 @@ export async function runEpicDeliverFinalize({
   });
 
   logger.info?.(
-    `[epic-deliver-finalize] complete — pr=${prUrl ?? '(none)'} handoff=${postedHandoff}`,
+    `[epic-deliver-finalize] complete — pr=${prUrl ?? '(none)'} handoff=${postedHandoff} autoMerge=${autoMergeEnabled}`,
   );
-  return { epicId, ffOk: true, pushed: true, prUrl, postedHandoff };
+  return {
+    epicId,
+    ffOk: true,
+    pushed: true,
+    prUrl,
+    prNumber,
+    postedHandoff,
+    autoMergeEnabled,
+  };
 }
 
 async function main() {
