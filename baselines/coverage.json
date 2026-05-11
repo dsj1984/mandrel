@@ -40,8 +40,8 @@
     "functions": 75
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 62.07,
-    "branches": 81.48,
+    "lines": 63.93,
+    "branches": 82.76,
     "functions": 57.14
   },
   ".agents/scripts/delete-epic-branches.js": {
@@ -70,9 +70,9 @@
     "functions": 81.25
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 85.25,
-    "branches": 54.55,
-    "functions": 77.78
+    "lines": 84.42,
+    "branches": 55.56,
+    "functions": 75
   },
   ".agents/scripts/epic-deliver-prepare.js": {
     "lines": 80.85,
@@ -85,8 +85,8 @@
     "functions": 50
   },
   ".agents/scripts/epic-execute-record-wave.js": {
-    "lines": 78.72,
-    "branches": 69.57,
+    "lines": 78.86,
+    "branches": 69.78,
     "functions": 71.43
   },
   ".agents/scripts/epic-planner.js": {
@@ -505,8 +505,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js": {
-    "lines": 97.56,
-    "branches": 93.33,
+    "lines": 95.4,
+    "branches": 88.24,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner.js": {
@@ -560,8 +560,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.23,
-    "branches": 70.45,
+    "lines": 91.1,
+    "branches": 70.89,
     "functions": 96.88
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
@@ -780,8 +780,8 @@
     "functions": 80
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 96.13,
-    "branches": 84.76,
+    "lines": 96.06,
+    "branches": 84.47,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
@@ -1030,8 +1030,8 @@
     "functions": 54.55
   },
   ".agents/scripts/notify.js": {
-    "lines": 89.17,
-    "branches": 81.36,
+    "lines": 88.09,
+    "branches": 80.33,
     "functions": 83.33
   },
   ".agents/scripts/post-structured-comment.js": {
@@ -1145,9 +1145,9 @@
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
-    "lines": 86.35,
-    "branches": 70.49,
-    "functions": 60
+    "lines": 82.67,
+    "branches": 65.31,
+    "functions": 55.56
   },
   ".agents/scripts/task-commit.js": {
     "lines": 91.63,
