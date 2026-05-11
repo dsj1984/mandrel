@@ -50,6 +50,7 @@ const SCOPE_KEYS = Object.freeze({
     'git.headRef',
     'git.epicBranches',
     'git.epicBranchSync',
+    'git.localBranches',
     'git.coreBare',
     'fs.worktrees',
     'fs.epicMergeLocks',
@@ -208,6 +209,22 @@ function probeGit(keys, cwd, git) {
         'refs/heads/epic/',
       );
       out.epicBranches =
+        result.ok && result.stdout
+          ? result.stdout
+              .split('\n')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : [];
+    } else if (field === 'localBranches') {
+      // All local branches (refs/heads/), short name form. Used by checks
+      // that grep over the branch list for legacy naming patterns.
+      const result = git(
+        cwd,
+        'for-each-ref',
+        '--format=%(refname:short)',
+        'refs/heads/',
+      );
+      out.localBranches =
         result.ok && result.stdout
           ? result.stdout
               .split('\n')

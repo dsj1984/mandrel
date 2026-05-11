@@ -58,8 +58,14 @@ describe('assembleState', () => {
         if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
           return { ok: true, stdout: 'story-1284' };
         }
-        if (args[0] === 'for-each-ref') {
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
           return { ok: true, stdout: 'epic/1143\nepic/1178' };
+        }
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          return {
+            ok: true,
+            stdout: 'main\nepic/1143\nepic/1178\nstory/epic-1143/1',
+          };
         }
         if (args[0] === 'config') return { ok: true, stdout: 'false' };
         if (args[0] === 'rev-parse' && args[1] === '--verify') {
@@ -79,6 +85,12 @@ describe('assembleState', () => {
     assert.equal(state.scope, 'story-close');
     assert.equal(state.git.headRef, 'story-1284');
     assert.deepEqual(state.git.epicBranches, ['epic/1143', 'epic/1178']);
+    assert.deepEqual(state.git.localBranches, [
+      'main',
+      'epic/1143',
+      'epic/1178',
+      'story/epic-1143/1',
+    ]);
     assert.equal(state.git.coreBare, 'false');
     // epicBranchSync probes local + origin for each branch.
     assert.equal(typeof state.git.epicBranchSync, 'object');
@@ -90,10 +102,11 @@ describe('assembleState', () => {
     // story-close scope does not include fs.dotEnv / fs.dotMcp
     assert.equal(state.fs.dotEnv, undefined);
     assert.equal(state.fs.dotMcp, undefined);
-    // git probe was called for: headRef (1), epicBranches (1), coreBare (1),
-    // epicBranchSync local+origin for 2 branches (4), and the
-    // git-common-dir lookup driven by fs.epicMergeLocks (1) = 8 total.
-    assert.equal(calls.git.length, 8);
+    // git probe was called for: headRef (1), epicBranches (1),
+    // localBranches (1), coreBare (1), epicBranchSync local+origin for 2
+    // branches (4), and the git-common-dir lookup driven by
+    // fs.epicMergeLocks (1) = 9 total.
+    assert.equal(calls.git.length, 9);
     // fs probe was called for .worktrees only (1). epicMergeLocks routes to
     // the dedicated lock probe, not the existence-only fs probe.
     assert.equal(calls.fs.length, 1);
