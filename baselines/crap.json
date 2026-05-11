@@ -1447,31 +1447,61 @@
       "crap": 5,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "epicSnapshotPathFor",
-      "startLine": 63
+      "startLine": 71
     },
     {
       "crap": 9.2949476558944,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "forkMainToEpic",
-      "startLine": 112
+      "startLine": 128
     },
     {
       "crap": 235.5299333333333,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "commitSnapshotsToEpicBranch",
-      "startLine": 236
+      "startLine": 252
     },
     {
       "crap": 17.004779460310658,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "regenerateMainFromTree",
-      "startLine": 424
+      "startLine": 440
     },
     {
-      "crap": 15.04198250728863,
+      "crap": 2,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "moveOneSnapshot",
+      "startLine": 53
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "dropEmptyDir",
+      "startLine": 67
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "migrateEpicDir",
+      "startLine": 79
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "migrateLooseShape",
+      "startLine": 107
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "pruneCommittedEpic",
+      "startLine": 127
+    },
+    {
+      "crap": 4,
       "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
       "method": "migrateBaselinesLayout",
-      "startLine": 37
+      "startLine": 154
     },
     {
       "crap": 6.004855105446821,
@@ -4447,37 +4477,37 @@
       "crap": 9.029518950437318,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "readBaselineRows",
-      "startLine": 84
+      "startLine": 85
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "filterToStoryDiff",
-      "startLine": 130
+      "startLine": 131
     },
     {
       "crap": 8.116074926364968,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "amendBaselinesIntoHead",
-      "startLine": 164
+      "startLine": 165
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "priorRefusalSignalExists",
-      "startLine": 215
+      "startLine": 216
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "buildRefusalSignal",
-      "startLine": 239
+      "startLine": 240
     },
     {
       "crap": 23.358106005426503,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "runAutoRefresh",
-      "startLine": 284
+      "startLine": 285
     },
     {
       "crap": 6,
@@ -6232,10 +6262,82 @@
       "startLine": 80
     },
     {
+      "crap": 1260,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "classifyGithubError",
+      "startLine": 122
+    },
+    {
+      "crap": 4.012021036814425,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "normalizeLabels",
+      "startLine": 223
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
-      "method": "<anon method-4>",
+      "method": "issueToTicket",
+      "startLine": 235
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "issueToEpic",
+      "startLine": 250
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "subIssueNodeToTicket",
+      "startLine": 264
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "issueToListItem",
       "startLine": 280
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "issueToEpicListItem",
+      "startLine": 294
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "parseApiJson",
+      "startLine": 338
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isNotFoundError",
+      "startLine": 357
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isLabelAlreadyExistsError",
+      "startLine": 382
+    },
+    {
+      "crap": 5.0407083248524325,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "paginateRest",
+      "startLine": 421
+    },
+    {
+      "crap": 5.002194787379972,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "createInlineTicketCache",
+      "startLine": 467
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "primeIfAbsent",
+      "startLine": 471
     },
     {
       "crap": 1,
@@ -6250,7 +6352,7 @@
       "startLine": 24
     },
     {
-      "crap": 5.390625,
+      "crap": 15.546875,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveToken",
       "startLine": 31
