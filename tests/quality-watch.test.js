@@ -112,13 +112,13 @@ test('createDebouncer — only fires the trailing call after the debounce window
 });
 
 test('createDebouncer — flush triggers the pending call deterministically', () => {
-  let scheduledFn = null;
+  let _scheduledFn = null;
   const setT = (fn) => {
-    scheduledFn = fn;
+    _scheduledFn = fn;
     return 1;
   };
   const clearT = () => {
-    scheduledFn = null;
+    _scheduledFn = null;
   };
   let calls = 0;
   const d = createDebouncer(50, { setTimeout: setT, clearTimeout: clearT });

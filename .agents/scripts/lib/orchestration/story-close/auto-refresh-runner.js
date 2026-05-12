@@ -47,7 +47,6 @@
  *   the regen helper this runner adapts to the Story-diff scope)
  */
 
-import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 

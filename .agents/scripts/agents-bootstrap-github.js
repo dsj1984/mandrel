@@ -15,6 +15,7 @@
  * @see docs/v5-implementation-plan.md Sprint 1C
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { applyBranchProtection } from './lib/bootstrap/branch-protection.js';
@@ -25,6 +26,11 @@ import {
 import { confirm as defaultHitlConfirm } from './lib/bootstrap/hitl-confirm.js';
 import { applyMergeMethods } from './lib/bootstrap/merge-methods.js';
 import { runAsCli } from './lib/cli-utils.js';
+import {
+  GhAuthError,
+  GhNotInstalledError,
+  GhVersionError,
+} from './lib/errors/index.js';
 import { Logger } from './lib/Logger.js';
 import {
   LABEL_TAXONOMY,
@@ -34,8 +40,151 @@ import {
 } from './lib/label-taxonomy.js';
 import { createProvider } from './lib/provider-factory.js';
 
+/**
+ * Minimum `gh` version the bootstrap supports. Set conservatively per
+ * Tech Spec #1350 ("Risks & Mitigations → `gh` version skew"): older
+ * releases miss flags the eventual `gh-exec` shim relies on. Bumping this
+ * is a deliberate, operator-visible change — keep it tracked here.
+ */
+export const MIN_GH_VERSION = '2.40.0';
+
+const GH_INSTALL_HINT =
+  'Install gh: https://cli.github.com/ — then re-run this command.';
+const GH_AUTH_HINT =
+  'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
+
 const PROJECTS_DOC_POINTER =
   'See docs/project-board.md for the manual Projects V2 setup checklist.';
+
+/**
+ * Default runner: synchronously execs `gh <args>` and returns
+ * `{ status, stdout, stderr, error }`. Extracted so the preflight tests
+ * can inject a stub without spawning a real child process. Forerunner of
+ * the `lib/gh-exec.js` shim described in Tech Spec #1350; once that
+ * lands, this helper deletes and the preflight calls `gh.exec(...)`.
+ *
+ * @param {string[]} args
+ * @returns {{ status: number|null, stdout: string, stderr: string,
+ *             error?: NodeJS.ErrnoException }}
+ */
+function defaultGhRunner(args) {
+  const result = spawnSync('gh', args, { encoding: 'utf8' });
+  return {
+    status: result.status,
+    stdout: typeof result.stdout === 'string' ? result.stdout : '',
+    stderr: typeof result.stderr === 'string' ? result.stderr : '',
+    error: result.error,
+  };
+}
+
+/**
+ * Parse the first `MAJOR.MINOR.PATCH` triple out of `gh --version` stdout.
+ * Returns `null` when the shape is unrecognized so callers can decide
+ * whether to surface an error or proceed.
+ *
+ * @param {string} stdout
+ * @returns {string|null}
+ */
+export function parseGhVersion(stdout) {
+  const match = /(\d+)\.(\d+)\.(\d+)/.exec(stdout || '');
+  return match ? `${match[1]}.${match[2]}.${match[3]}` : null;
+}
+
+/**
+ * Numeric comparison of two `MAJOR.MINOR.PATCH` strings.
+ * Returns negative if `a < b`, positive if `a > b`, zero if equal.
+ * Missing segments are treated as `0`. Non-numeric segments compare as 0.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @returns {number}
+ */
+export function compareSemver(a, b) {
+  const pa = String(a)
+    .split('.')
+    .map((n) => Number.parseInt(n, 10) || 0);
+  const pb = String(b)
+    .split('.')
+    .map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < 3; i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
+ * Preflight the `gh` CLI before any provider call. Three failure modes,
+ * each surfaced as a typed error so callers (CLI `main`, future
+ * orchestrators, tests) can `instanceof`-match without parsing strings:
+ *
+ *   - {@link GhNotInstalledError} — `gh` not on PATH (ENOENT) or the
+ *     `--version` invocation reported a non-zero exit suggesting the
+ *     binary is missing/broken.
+ *   - {@link GhVersionError} — `gh` is present but older than
+ *     {@link MIN_GH_VERSION}; carries `{ found, required }` for the
+ *     CLI to render an upgrade hint.
+ *   - {@link GhAuthError} — `gh auth status` exited non-zero, meaning
+ *     no host is logged in.
+ *
+ * On success returns `{ version }` so the caller can log the resolved
+ * version. The `runner` seam defaults to a real `spawnSync('gh', …)`;
+ * tests inject a stub returning the canonical
+ * `{ status, stdout, stderr, error }` shape.
+ *
+ * @param {{ runner?: (args: string[]) => {
+ *   status: number|null, stdout: string, stderr: string,
+ *   error?: NodeJS.ErrnoException
+ * } }} [opts]
+ * @returns {Promise<{ version: string }>}
+ */
+export async function preflightGh(opts = {}) {
+  const runner = opts.runner ?? defaultGhRunner;
+
+  const versionResult = runner(['--version']);
+  if (versionResult.error?.code === 'ENOENT') {
+    throw new GhNotInstalledError(
+      `gh CLI not found on PATH. ${GH_INSTALL_HINT}`,
+    );
+  }
+  if (versionResult.status !== 0) {
+    // Non-ENOENT failure of `gh --version` is treated as "not installed
+    // correctly" — same remediation, same exit semantics.
+    const stderrSnippet = (versionResult.stderr || '').trim().slice(0, 200);
+    throw new GhNotInstalledError(
+      `gh --version failed (exit ${versionResult.status}): ${stderrSnippet}. ${GH_INSTALL_HINT}`,
+    );
+  }
+
+  const version = parseGhVersion(versionResult.stdout);
+  if (!version) {
+    throw new GhNotInstalledError(
+      `Could not parse gh version from output: ${(versionResult.stdout || '').slice(0, 200)}. ${GH_INSTALL_HINT}`,
+    );
+  }
+  if (compareSemver(version, MIN_GH_VERSION) < 0) {
+    throw new GhVersionError(
+      `gh ${version} is older than required ${MIN_GH_VERSION}. Upgrade with your package manager (e.g. \`brew upgrade gh\`, \`winget upgrade GitHub.cli\`, or see https://cli.github.com/) and re-run this command.`,
+      { found: version, required: MIN_GH_VERSION },
+    );
+  }
+
+  const authResult = runner(['auth', 'status']);
+  if (authResult.error?.code === 'ENOENT') {
+    // Defensive — `gh --version` already passed, so ENOENT here would be a
+    // PATH race. Treat the same as not-installed.
+    throw new GhNotInstalledError(
+      `gh CLI disappeared between version and auth check. ${GH_INSTALL_HINT}`,
+    );
+  }
+  if (authResult.status !== 0) {
+    throw new GhAuthError(
+      `gh auth status failed: not logged in. ${GH_AUTH_HINT}`,
+    );
+  }
+
+  return { version };
+}
 
 async function verifyApiAccess(provider) {
   try {
@@ -388,6 +537,26 @@ function printSummary(result) {
 }
 
 async function main() {
+  // Preflight `gh` before touching config or the provider — surfaces the
+  // most common new-adopter failure (missing/stale `gh`) as the first
+  // diagnostic instead of an ENOENT later in the provider stack.
+  // Tech Spec #1350 → "Bootstrap surface": gh auth status must exit 0
+  // before bootstrap proceeds.
+  try {
+    const { version } = await preflightGh();
+    Logger.info(`[bootstrap] gh CLI ${version} ready (auth verified).`);
+  } catch (err) {
+    if (
+      err instanceof GhNotInstalledError ||
+      err instanceof GhAuthError ||
+      err instanceof GhVersionError
+    ) {
+      Logger.error(`[bootstrap] ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
+
   // Dynamic import to avoid circular dependency issues at module level.
   const { resolveConfig, validateOrchestrationConfig } = await import(
     './lib/config-resolver.js'

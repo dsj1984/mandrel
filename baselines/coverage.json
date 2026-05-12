@@ -190,13 +190,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/baseline-snapshot.js": {
-    "lines": 71.21,
-    "branches": 68.29,
-    "functions": 75
+    "lines": 96.64,
+    "branches": 75,
+    "functions": 100
   },
   ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": {
-    "lines": 96.23,
-    "branches": 77.27,
+    "lines": 100,
+    "branches": 87.1,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/branch-protection.js": {
@@ -230,9 +230,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/CacheLayer.js": {
-    "lines": 100,
-    "branches": 89.66,
-    "functions": 100
+    "lines": 90.7,
+    "branches": 100,
+    "functions": 66.67
   },
   ".agents/scripts/lib/changed-files.js": {
     "lines": 100,
@@ -281,7 +281,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 88.54,
+    "branches": 87.37,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -463,6 +463,11 @@
     "lines": 100,
     "branches": 100,
     "functions": 100
+  },
+  ".agents/scripts/lib/gh-exec.js": {
+    "lines": 97.1,
+    "branches": 93.41,
+    "functions": 78.57
   },
   ".agents/scripts/lib/git-branch-cleanup.js": {
     "lines": 74.38,
@@ -810,7 +815,7 @@
     "functions": 64.71
   },
   ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js": {
-    "lines": 95,
+    "lines": 94.99,
     "branches": 56.67,
     "functions": 100
   },
@@ -1160,79 +1165,14 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 90.94,
-    "branches": 100,
-    "functions": 75
+    "lines": 83.78,
+    "branches": 67.86,
+    "functions": 82.35
   },
-  ".agents/scripts/providers/github/auth.js": {
-    "lines": 75,
-    "branches": 87.5,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/branches.js": {
-    "lines": 90.42,
-    "branches": 66.67,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/cache-manager.js": {
-    "lines": 100,
-    "branches": 96.97,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/comments.js": {
-    "lines": 88.1,
-    "branches": 87.5,
-    "functions": 75
-  },
-  ".agents/scripts/providers/github/error-classifier.js": {
-    "lines": 100,
-    "branches": 97.92,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/graphql-builder.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/graphql.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/http-client.js": {
-    "lines": 91.3,
-    "branches": 85.45,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/http.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": null
-  },
-  ".agents/scripts/providers/github/issues.js": {
-    "lines": 90.57,
-    "branches": 77.66,
-    "functions": 90.91
-  },
-  ".agents/scripts/providers/github/labels.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 100
-  },
-  ".agents/scripts/providers/github/projects.js": {
-    "lines": 72.31,
-    "branches": 82.8,
-    "functions": 69.23
-  },
-  ".agents/scripts/providers/github/repo.js": {
-    "lines": 73.33,
-    "branches": 100,
-    "functions": 0
-  },
-  ".agents/scripts/providers/github/ticket-mapper.js": {
-    "lines": 99.17,
-    "branches": 88.89,
-    "functions": 100
+  ".agents/scripts/providers/github/projects-v2-graphql.js": {
+    "lines": 85.13,
+    "branches": 82.18,
+    "functions": 91.67
   },
   ".agents/scripts/quality-preview.js": {
     "lines": 96.81,

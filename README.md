@@ -47,6 +47,24 @@ live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is i
 For the full architecture (mermaid flow, module map, state machine, tech
 stack), see [`docs/architecture.md`](docs/architecture.md).
 
+## Prerequisites
+
+Agent Protocols requires two hard dependencies on the host before bootstrap:
+
+- **Node.js** (>= 20) — the orchestration scripts run on Node and use modern
+  ESM + `--experimental-test-module-mocks`. Install from
+  [nodejs.org](https://nodejs.org/) or via your platform package manager.
+- **GitHub CLI `gh`** (>= 2.40) — every ticketing call (Issues, Labels,
+  Projects V2 setup, PR creation) shells out to `gh`. Install with
+  `brew install gh` (macOS), `winget install --id GitHub.cli` (Windows),
+  or follow [cli.github.com](https://cli.github.com/) for other platforms,
+  then run `gh auth login` once so the orchestration scripts pick up your
+  token from the OS keychain.
+
+`GITHUB_TOKEN` is **not** required for the headline install path — it is
+only needed as a fallback for Projects V2 GraphQL when `gh auth login`
+did not grant the `project` scope (see Get Started below).
+
 ## Get Started
 
 Five commands take you from zero to a planned, delivered Epic:
@@ -60,8 +78,10 @@ cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.git
 /epic-deliver <id>  # wave loop → validation → review → retro → open PR to main
 ```
 
-Set `GITHUB_TOKEN` (or `GH_TOKEN`) in `.env` at the project root so the
-orchestration scripts can authenticate.
+Authenticate with `gh auth login` (preferred) — the orchestration scripts
+read the token from `gh`'s OS-keychain store. As an opt-in fallback for
+Projects V2 GraphQL paths whose scope `gh auth login` did not grant, set
+`GITHUB_TOKEN` (or `GH_TOKEN`) in `.env` at the project root.
 
 The full configuration reference is in
 [`docs/configuration.md`](docs/configuration.md); the static JSON Schema at
@@ -89,12 +109,13 @@ The user-visible surfaces:
   baseline-refresh and the empirical noise study).
 - **Per-Epic baseline snapshots.** `/epic-plan` Phase 1 forks
   `baselines/{maintainability,crap}.json` into the
-  `baselines/epic/<id>/` subdirectory and commits them to the Epic
-  branch. `story-close.js` and CI then read from that snapshot via
-  `--epic-ref epic/<id>`, so Stories under an Epic are immune to
-  unrelated drift on `main`. `/epic-deliver`'s merge step refreshes
-  `main`'s baselines from the merged tree as a single
-  `baseline-refresh: epic-<id>` commit.
+  `temp/epic/<id>/baselines/` namespace (Story #1467: ephemeral scratch
+  state, reaped on `/epic-deliver` merge with the rest of the per-epic
+  temp tree). `story-close.js` and CI read the canonical baseline at
+  the Epic branch HEAD via `--epic-ref epic/<id>` (git show), so
+  Stories under an Epic are immune to unrelated drift on `main`.
+  `/epic-deliver`'s merge step refreshes `main`'s baselines from the
+  merged tree as a single `baseline-refresh: epic-<id>` commit.
 - **Bounded auto-refresh at story-close.** After green tests,
   `story-close.js` regenerates baseline rows for files in the Story diff
   and amends them into the close commit — but refuses (and emits a
@@ -153,9 +174,12 @@ idempotent. On a project that lacks any of the new artefacts it will:
    `agentSettings.quality.autoRefresh` defaults in `.agentrc.json` —
    again only filling missing keys, never clobbering operator
    overrides.
-5. Migrate any pre-existing `baselines/` layout into the
-   `baselines/epic/` subdirectory contract used by the per-Epic
-   snapshot lifecycle.
+5. Migrate any pre-existing `baselines/` layout (loose
+   `epic-<id>-*.json`, prototype `snapshots/`, or committed
+   `baselines/epic/<id>/`) into the `temp/epic/<id>/baselines/`
+   namespace used by the per-Epic snapshot lifecycle (Story #1467).
+   Committed `baselines/epic/<id>/` leftovers are pruned via
+   `git rm -r --quiet --ignore-unmatch` in the same operation.
 
 A project that re-runs `/agents-update` immediately after a successful
 upgrade sees `no-change` on every step.

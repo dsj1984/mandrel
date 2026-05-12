@@ -1120,7 +1120,7 @@
       "startLine": 114
     },
     {
-      "crap": 15,
+      "crap": 15.460713385883453,
       "file": ".agents/scripts/lib/CacheLayer.js",
       "method": "createTtlCache",
       "startLine": 24
@@ -1447,31 +1447,67 @@
       "crap": 5,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "epicSnapshotPathFor",
-      "startLine": 63
+      "startLine": 71
     },
     {
       "crap": 9.2949476558944,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "forkMainToEpic",
-      "startLine": 112
+      "startLine": 128
     },
     {
-      "crap": 235.5299333333333,
+      "crap": 15.000533333333333,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "commitSnapshotsToEpicBranch",
-      "startLine": 236
+      "startLine": 252
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "runGit",
+      "startLine": 281
     },
     {
       "crap": 17.004779460310658,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "regenerateMainFromTree",
-      "startLine": 424
+      "startLine": 440
     },
     {
-      "crap": 15.04198250728863,
+      "crap": 2,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "moveOneSnapshot",
+      "startLine": 53
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "dropEmptyDir",
+      "startLine": 67
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "migrateEpicDir",
+      "startLine": 79
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "migrateLooseShape",
+      "startLine": 107
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
+      "method": "pruneCommittedEpic",
+      "startLine": 127
+    },
+    {
+      "crap": 4,
       "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
       "method": "migrateBaselinesLayout",
-      "startLine": 37
+      "startLine": 154
     },
     {
       "crap": 6.004855105446821,
@@ -2696,6 +2732,126 @@
       "file": ".agents/scripts/lib/fs-utils.js",
       "method": "ensureDirSync",
       "startLine": 20
+    },
+    {
+      "crap": 22.1378207464645,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "classify",
+      "startLine": 153
+    },
+    {
+      "crap": 4.0005038635369585,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "exec",
+      "startLine": 250
+    },
+    {
+      "crap": 1.0001537445335278,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "createGh",
+      "startLine": 364
+    },
+    {
+      "crap": 8.032768,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "api",
+      "startLine": 381
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "jsonFlag",
+      "startLine": 411
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "idStr",
+      "startLine": 420
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-7>",
+      "startLine": 425
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-8>",
+      "startLine": 427
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-9>",
+      "startLine": 429
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-10>",
+      "startLine": 434
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-11>",
+      "startLine": 439
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-12>",
+      "startLine": 441
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-13>",
+      "startLine": 442
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-14>",
+      "startLine": 444
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-15>",
+      "startLine": 446
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-16>",
+      "startLine": 451
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-17>",
+      "startLine": 453
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-18>",
+      "startLine": 455
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-19>",
+      "startLine": 460
+    },
+    {
+      "crap": 3.1851851851851856,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-20>",
+      "startLine": 466
     },
     {
       "crap": 6,
@@ -4327,37 +4483,37 @@
       "crap": 9.029518950437318,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "readBaselineRows",
-      "startLine": 85
+      "startLine": 84
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "filterToStoryDiff",
-      "startLine": 131
+      "startLine": 130
     },
     {
       "crap": 8.116074926364968,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "amendBaselinesIntoHead",
-      "startLine": 165
+      "startLine": 164
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "priorRefusalSignalExists",
-      "startLine": 216
+      "startLine": 215
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "buildRefusalSignal",
-      "startLine": 240
+      "startLine": 239
     },
     {
       "crap": 23.358106005426503,
       "file": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
       "method": "runAutoRefresh",
-      "startLine": 285
+      "startLine": 284
     },
     {
       "crap": 6,
@@ -6100,358 +6256,172 @@
       "startLine": 93
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/auth.js",
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/providers/github.js",
       "method": "__setExecSyncForTests",
-      "startLine": 17
+      "startLine": 75
     },
     {
-      "crap": 6.6000000000000005,
-      "file": ".agents/scripts/providers/github/auth.js",
+      "crap": 27.728729248046875,
+      "file": ".agents/scripts/providers/github.js",
       "method": "resolveToken",
-      "startLine": 22
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/branches.js",
-      "method": "getBranchProtection",
-      "startLine": 15
-    },
-    {
-      "crap": 10.188167642315893,
-      "file": ".agents/scripts/providers/github/branches.js",
-      "method": "setBranchProtection",
-      "startLine": 55
-    },
-    {
-      "crap": 2.032,
-      "file": ".agents/scripts/providers/github/branches.js",
-      "method": "createPullRequest",
-      "startLine": 138
+      "startLine": 80
     },
     {
       "crap": 6,
-      "file": ".agents/scripts/providers/github/cache-manager.js",
-      "method": "createTicketCacheManager",
-      "startLine": 32
+      "file": ".agents/scripts/providers/github.js",
+      "method": "matchesAny",
+      "startLine": 155
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/cache-manager.js",
-      "method": "unwrap",
-      "startLine": 41
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/providers/github/cache-manager.js",
-      "method": "primeIfAbsent",
-      "startLine": 45
-    },
-    {
-      "crap": 4.314814814814815,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "getRecentComments",
-      "startLine": 11
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "getTicketComments",
-      "startLine": 18
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "deleteComment",
-      "startLine": 25
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/comments.js",
-      "method": "postComment",
-      "startLine": 32
-    },
-    {
-      "crap": 35,
-      "file": ".agents/scripts/providers/github/error-classifier.js",
+      "crap": 210,
+      "file": ".agents/scripts/providers/github.js",
       "method": "classifyGithubError",
-      "startLine": 18
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/graphql-builder.js",
-      "method": "buildProjectV2LookupQuery",
-      "startLine": 69
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/graphql.js",
-      "method": "runGraphql",
-      "startLine": 10
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "listIssues",
-      "startLine": 51
-    },
-    {
-      "crap": 4.6796875,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "listIssuesByLabel",
-      "startLine": 55
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getEpics",
-      "startLine": 65
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getEpic",
-      "startLine": 78
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTickets",
-      "startLine": 86
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getNativeSubIssues",
-      "startLine": 118
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getChecklistChildren",
       "startLine": 160
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getReferencedChildren",
-      "startLine": 173
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getSubTickets",
-      "startLine": 186
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-6>",
-      "startLine": 208
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTicket",
-      "startLine": 228
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "primeTicketCache",
-      "startLine": 246
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "invalidateTicket",
-      "startLine": 250
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "getTicketDependencies",
-      "startLine": 255
-    },
-    {
-      "crap": 3.0443832291496102,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "createTicket",
-      "startLine": 264
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "addSubIssue",
-      "startLine": 319
-    },
-    {
-      "crap": 3.182569496619083,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "reconcileSubIssueLinks",
-      "startLine": 369
-    },
-    {
-      "crap": 2.3645,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-9>",
-      "startLine": 397
-    },
-    {
-      "crap": 4.125,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "<anon method-10>",
-      "startLine": 424
-    },
-    {
-      "crap": 1.729,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "removeSubIssue",
-      "startLine": 469
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "applyLabelMutations",
-      "startLine": 488
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/providers/github/issues.js",
-      "method": "updateTicket",
-      "startLine": 513
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github/labels.js",
-      "method": "ensureLabels",
-      "startLine": 9
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "isInsufficientScopes",
-      "startLine": 28
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "fetchProjectV2",
-      "startLine": 42
-    },
-    {
-      "crap": 7,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "fetchProjectV2Strict",
-      "startLine": 78
-    },
-    {
-      "crap": 8.208333333333336,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "fetchProjectMetadata",
-      "startLine": 112
-    },
-    {
-      "crap": 4.6796875,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "addItemToProject",
-      "startLine": 123
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "isScopesMissingEnvelope",
-      "startLine": 139
-    },
-    {
-      "crap": 3.0494606146957053,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "resolveExistingProject",
-      "startLine": 153
-    },
-    {
-      "crap": 5.146108329540283,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "lookupOwnerNodeId",
-      "startLine": 176
-    },
-    {
-      "crap": 10.8276671675432,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "createProjectForOwner",
-      "startLine": 195
-    },
-    {
-      "crap": 26.743519909842227,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "resolveOrCreateProject",
-      "startLine": 223
-    },
-    {
-      "crap": 8.28596132709139,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "ensureStatusField",
-      "startLine": 251
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "ensureProjectViews",
-      "startLine": 343
-    },
-    {
-      "crap": 35.40589298923317,
-      "file": ".agents/scripts/providers/github/projects.js",
-      "method": "ensureProjectFields",
-      "startLine": 410
-    },
-    {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "getMergeMethods",
-      "startLine": 27
-    },
-    {
-      "crap": 4.809327846364883,
-      "file": ".agents/scripts/providers/github/repo.js",
-      "method": "setMergeMethods",
-      "startLine": 52
-    },
-    {
       "crap": 4.012021036814425,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "normalizeLabels",
-      "startLine": 20
+      "startLine": 229
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "issueToTicket",
-      "startLine": 35
+      "startLine": 241
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpic",
-      "startLine": 53
+      "startLine": 256
     },
     {
       "crap": 2,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "subIssueNodeToTicket",
-      "startLine": 73
+      "startLine": 270
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "issueToListItem",
-      "startLine": 93
+      "startLine": 286
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/providers/github/ticket-mapper.js",
+      "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpicListItem",
-      "startLine": 111
+      "startLine": 300
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "parseApiJson",
+      "startLine": 344
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isNotFoundError",
+      "startLine": 363
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isLabelAlreadyExistsError",
+      "startLine": 388
+    },
+    {
+      "crap": 5.0407083248524325,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "paginateRest",
+      "startLine": 427
+    },
+    {
+      "crap": 5.002194787379972,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "createInlineTicketCache",
+      "startLine": 473
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "primeIfAbsent",
+      "startLine": 477
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-1>",
+      "startLine": 12
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-2>",
+      "startLine": 24
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "resolveToken",
+      "startLine": 31
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-3>",
+      "startLine": 52
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "<anon method-4>",
+      "startLine": 54
+    },
+    {
+      "crap": 3.0059176460918877,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "gql",
+      "startLine": 57
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "lookupProject",
+      "startLine": 81
+    },
+    {
+      "crap": 7.946286327824611,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "resolveOrCreateProject",
+      "startLine": 100
+    },
+    {
+      "crap": 7.142857142857143,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureStatusField",
+      "startLine": 142
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureProjectViews",
+      "startLine": 192
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "ensureProjectFields",
+      "startLine": 233
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "addItemToProject",
+      "startLine": 259
     },
     {
       "crap": 5,
