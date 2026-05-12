@@ -1,0 +1,11 @@
+{
+  "epic": {
+    "id": 9999,
+    "title": "Sample Epic for skill smoke tests"
+  },
+  "prd": "## PRD\n\nSample PRD body for decomposer smoke run.",
+  "techSpec": "## Tech Spec\n\nSample Tech Spec body for decomposer smoke run.",
+  "systemPrompts": {
+    "decompose": "Author the ticket hierarchy using the standard template."
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "epicId": 9999,
+  "storyId": 9001,
+  "branch": "story-9001",
+  "phase": "closing",
+  "events": [
+    {
+      "kind": "rebase-conflict",
+      "ts": "2026-05-11T00:02:00Z",
+      "files": ["package.json"],
+      "resolution": "manual"
+    },
+    {
+      "kind": "test-failure",
+      "ts": "2026-05-11T00:03:00Z",
+      "suite": "tests/example.test.js",
+      "message": "expected 1 to equal 2"
+    }
+  ],
+  "outcome": "blocked"
+}

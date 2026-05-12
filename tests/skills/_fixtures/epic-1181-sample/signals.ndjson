@@ -1,0 +1,5 @@
+{"kind":"phase-start","ts":"2026-05-11T00:00:00Z","epic":9999,"story":9001,"phase":"init"}
+{"kind":"phase-end","ts":"2026-05-11T00:00:05Z","epic":9999,"story":9001,"phase":"init","durationMs":5000}
+{"kind":"phase-start","ts":"2026-05-11T00:00:05Z","epic":9999,"story":9001,"phase":"implementing"}
+{"kind":"friction","ts":"2026-05-11T00:00:30Z","epic":9999,"story":9001,"category":"test-flap","detail":"Sample friction event for smoke fixture"}
+{"kind":"phase-end","ts":"2026-05-11T00:01:00Z","epic":9999,"story":9001,"phase":"implementing","durationMs":55000}
