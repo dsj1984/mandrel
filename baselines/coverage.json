@@ -839,6 +839,11 @@
     "branches": 70,
     "functions": 100
   },
+  ".agents/scripts/lib/orchestration/spec-renderer.js": {
+    "lines": 93.38,
+    "branches": 69.79,
+    "functions": 100
+  },
   ".agents/scripts/lib/orchestration/story-close-recovery.js": {
     "lines": 84.6,
     "branches": 93.33,
