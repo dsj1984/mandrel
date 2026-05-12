@@ -128,6 +128,7 @@ counter-example in the
 | Every `.agentrc.json` key, default, and override  | [`docs/configuration.md`](../docs/configuration.md)                              |
 | Quality-gate runbooks (CRAP, MI, lint, friction)  | [`docs/quality-gates.md`](../docs/quality-gates.md)                              |
 | Slash-command workflow definitions                | [`workflows/`](workflows/)                                                      |
+| Render the signals span-tree (`/signals`)         | [`workflows/signals.md`](workflows/signals.md)                                  |
 | Persona behavior packs                            | [`personas/`](personas/)                                                        |
 | Domain-agnostic baseline rules                    | [`rules/`](rules/)                                                              |
 | Skill library (core process + stack guardrails)   | [`skills/core/`](skills/core/) · [`skills/stack/`](skills/stack/)                |

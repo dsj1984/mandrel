@@ -974,14 +974,24 @@
     "branches": 100,
     "functions": 25
   },
+  ".agents/scripts/lib/signals/index.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
   ".agents/scripts/lib/signals/read.js": {
     "lines": 96.71,
-    "branches": 89.29,
+    "branches": 89.66,
     "functions": 100
   },
   ".agents/scripts/lib/signals/schema.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/signals/span-tree.js": {
+    "lines": 99.31,
+    "branches": 81.18,
     "functions": 100
   },
   ".agents/scripts/lib/story-init/blocker-validator.js": {
@@ -1208,6 +1218,11 @@
     "lines": 82.14,
     "branches": 84.21,
     "functions": 33.33
+  },
+  ".agents/scripts/signals-view.js": {
+    "lines": 88.81,
+    "branches": 68.92,
+    "functions": 77.78
   },
   ".agents/scripts/story-close.js": {
     "lines": 69.5,
