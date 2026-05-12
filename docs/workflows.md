@@ -53,7 +53,6 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | `/git-push`               | Commit all outstanding changes and push to the remote.                        |
 | `/git-merge-pr`           | Analyze, validate, resolve conflicts, and merge a given pull request.         |
 | `/delete-epic-branches`   | Hard reset — delete all branches associated with an Epic and its children.    |
-| `/delete-epic-tickets`    | Hard reset — delete all child issues of an Epic (not the Epic itself).        |
 
 ## Setup & meta
 
