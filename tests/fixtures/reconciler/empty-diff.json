@@ -1,0 +1,79 @@
+{
+  "case": "empty-diff",
+  "description": "Spec, state, and ghState are in perfect agreement → diff yields an empty Plan. The idempotency property is asserted by the test suite (two consecutive diffs are byte-identical).",
+  "spec": {
+    "epic": {
+      "id": 9005,
+      "title": "Stable Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story",
+            "wave": 0,
+            "dependsOn": [],
+            "labels": ["type::story"],
+            "tasks": [
+              {
+                "slug": "task-one-a",
+                "title": "Task one A",
+                "labels": ["type::task"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9005,
+    "mapping": {
+      "epic": { "issueNumber": 9005, "entity": "epic", "parentSlug": null },
+      "feat-alpha": {
+        "issueNumber": 400,
+        "entity": "feature",
+        "parentSlug": "epic"
+      },
+      "story-one": {
+        "issueNumber": 401,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "task-one-a": {
+        "issueNumber": 402,
+        "entity": "task",
+        "parentSlug": "story-one"
+      }
+    }
+  },
+  "ghState": {
+    "9005": {
+      "title": "Stable Epic",
+      "labels": ["type::epic"],
+      "state": "open"
+    },
+    "400": {
+      "title": "Alpha Feature",
+      "labels": ["type::feature"],
+      "state": "open"
+    },
+    "401": {
+      "title": "First Story",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "402": {
+      "title": "Task one A",
+      "labels": ["type::task"],
+      "state": "open"
+    }
+  }
+}

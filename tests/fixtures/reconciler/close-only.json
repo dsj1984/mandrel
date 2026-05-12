@@ -1,0 +1,89 @@
+{
+  "case": "close-only",
+  "description": "Mapping carries a dropped-from-spec slug → exactly one Close op (the orphaned Task); everything else in the spec already matches ghState.",
+  "spec": {
+    "epic": {
+      "id": 9003,
+      "title": "Trimming Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story",
+            "wave": 0,
+            "labels": ["type::story"],
+            "tasks": [
+              {
+                "slug": "task-one-a",
+                "title": "Task one A",
+                "labels": ["type::task"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9003,
+    "mapping": {
+      "epic": { "issueNumber": 9003, "entity": "epic", "parentSlug": null },
+      "feat-alpha": {
+        "issueNumber": 200,
+        "entity": "feature",
+        "parentSlug": "epic"
+      },
+      "story-one": {
+        "issueNumber": 201,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "task-one-a": {
+        "issueNumber": 202,
+        "entity": "task",
+        "parentSlug": "story-one"
+      },
+      "task-one-b": {
+        "issueNumber": 203,
+        "entity": "task",
+        "parentSlug": "story-one",
+        "title": "Dropped Task"
+      }
+    }
+  },
+  "ghState": {
+    "9003": {
+      "title": "Trimming Epic",
+      "labels": ["type::epic"],
+      "state": "open"
+    },
+    "200": {
+      "title": "Alpha Feature",
+      "labels": ["type::feature"],
+      "state": "open"
+    },
+    "201": {
+      "title": "First Story",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "202": {
+      "title": "Task one A",
+      "labels": ["type::task"],
+      "state": "open"
+    },
+    "203": {
+      "title": "Dropped Task",
+      "labels": ["type::task"],
+      "state": "open"
+    }
+  }
+}
