@@ -175,6 +175,51 @@ rest of the per-Epic temp tree):
 A second run produces `no-change` on every install path, which is the
 guarantee `agents-update`'s idempotence contract requires.
 
+## Step 3.6 — Refresh the harness permission allowlist (`/fewer-permission-prompts`)
+
+A framework bump frequently introduces new helper scripts and `node
+.agents/scripts/<name>.js` invocations the consumer's
+`.claude/settings.json` allowlist has never seen. Left alone, the next
+`/story-execute` or `/epic-deliver` run trips a fresh wave of
+permission prompts that operators answer by hand — and those hand-tuned
+allowlists drift across projects.
+
+Run the harness skill that scans recent transcripts and emits an
+additive allowlist patch for `.claude/settings.json`:
+
+```text
+/fewer-permission-prompts
+```
+
+The skill is supplied by the Claude Code harness (it is not a workflow
+in this repo); invoke it as a slash command from the same Claude Code
+session that just bumped the submodule. It:
+
+1. Reads recent transcripts under `.claude/projects/.../`.
+2. Buckets repeated read-only Bash + MCP tool calls by frequency.
+3. Proposes a prioritized additive allowlist patch (project
+   `.claude/settings.json`) — never removes existing entries.
+
+Treat the skill's output as a **PR-reviewable artifact**, not an
+auto-applied change:
+
+- Read every proposed entry. Reject anything that grants write
+  permissions, network egress, or shells out to a destructive
+  command (`rm`, `git push --force`, `gh release delete`, ...).
+- Accept only narrowly-scoped read-only entries
+  (`Bash(node .agents/scripts/<name>.js *)`, `Bash(gh issue view *)`,
+  `mcp__github__get_*`, etc.).
+- Apply the accepted subset by editing `.claude/settings.json` and
+  stage it alongside the submodule bump in Step 5.
+
+The maintenance cadence is **once per `/agents-update` invocation** —
+the same operator who just moved the framework pointer is the one with
+the freshest transcript context to review the proposed allowlist
+diff. Skipping the step is fine when the bump introduces no new
+scripts (the skill will report "no new high-frequency calls"), but the
+step itself is non-optional: silence-by-omission is what produces the
+hand-tuned drift this maintenance is meant to eliminate.
+
 ## Step 4 — Review the CHANGELOG and update consumer-side memories
 
 Framework upgrades change behaviour the consumer project's own
@@ -225,13 +270,14 @@ response."
 ## Step 5 — Commit the bump
 
 The script never auto-commits. After reviewing the shortlog, any
-`.agentrc.json` reconciliation diff from Step 3, and the consumer
+`.agentrc.json` reconciliation diff from Step 3, the
+`.claude/settings.json` allowlist patch from Step 3.6, and the consumer
 instruction / memory updates from Step 4, stage and commit the
 pointer move (plus the reconciliation and consumer edits, if any)
 from the consumer repo root:
 
 ```bash
-git add .agents .agentrc.json AGENTS.md  # plus any memory / runbook files touched in Step 4
+git add .agents .agentrc.json .claude/settings.json AGENTS.md  # plus any memory / runbook files touched in Step 4
 git commit -m "chore: bump .agents to <NEW_SHORT_SHA>
 
 OLD..NEW: a1b2c3d4e5f6..9f8e7d6c5b4a
@@ -243,8 +289,9 @@ OLD..NEW: a1b2c3d4e5f6..9f8e7d6c5b4a
 
 Include the SHA range and, optionally, the shortlog so reviewers can see
 what moved without re-running the updater. Omit `.agentrc.json` from the
-`git add` if Step 3 reported `No changes required`; omit the consumer-
-instruction paths if Step 4 was a no-op.
+`git add` if Step 3 reported `No changes required`; omit
+`.claude/settings.json` if Step 3.6 produced no accepted entries; omit
+the consumer-instruction paths if Step 4 was a no-op.
 
 ## Troubleshooting
 

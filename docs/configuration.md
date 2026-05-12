@@ -563,6 +563,70 @@ environment-variables UI for web sessions, or as a repo secret via
 
 ---
 
+## Permission allowlist maintenance (`/fewer-permission-prompts`)
+
+The harness-supplied `/fewer-permission-prompts` skill scans recent
+Claude Code transcripts, buckets repeated read-only `Bash(...)` and
+`mcp__*` tool calls by frequency, and proposes an additive allowlist
+patch for the project's `.claude/settings.json`. Running it on a
+schedule is the only way to keep the allowlist tracking the framework's
+actual surface area — without it, every new `.agents/scripts/<name>.js`
+helper introduced by a framework bump triggers a fresh wave of
+permission prompts that operators answer by hand, and those hand-tuned
+allowlists drift project-to-project.
+
+### Cadence
+
+Run `/fewer-permission-prompts` **once per `/agents-update`
+invocation**, immediately after the submodule pointer moves and before
+the bump commit lands. The cadence is codified in
+[`/agents-update` Step 3.6](../.agents/workflows/agents-update.md). The
+operator who just bumped `.agents/` has the freshest transcript context
+in the active session, which is exactly what the skill scans, so this
+is the cheapest time to surface new high-frequency calls.
+
+A bump that introduces no new scripts produces a "no new high-frequency
+calls" report from the skill — that is a valid outcome, not a reason to
+skip the step on the next bump. Silence-by-omission is the failure
+mode this cadence is meant to eliminate.
+
+### Review discipline
+
+Treat the skill's output as a **PR-reviewable artifact**, not an
+auto-applied change. The skill never edits `.claude/settings.json`
+directly; it emits a proposed additive patch the operator approves
+entry-by-entry.
+
+**Accept** narrowly-scoped read-only entries:
+
+- `Bash(node .agents/scripts/<name>.js *)` for helper scripts the
+  framework just introduced.
+- `Bash(gh issue view *)`, `Bash(gh pr view *)`, and other read-only
+  `gh` invocations that already appear in agent workflows.
+- `mcp__github__get_*`, `mcp__github__list_*`, `mcp__github__search_*`
+  and similarly read-only MCP tool entries.
+
+**Reject** anything that grants:
+
+- Write permissions on the filesystem outside the worktree
+  (`Bash(rm -rf *)`, `Bash(git push --force *)`,
+  `mcp__github__delete_*`, `mcp__github__merge_pull_request`, etc.).
+- Network egress to non-framework endpoints.
+- Destructive shells (`Bash(gh release delete *)`,
+  `mcp__github__push_files` against `main`).
+
+When in doubt, leave the entry off the patch — a missed allowlist
+addition costs one permission prompt on the next run; a wrongly-added
+destructive permission costs trust. The rejected entries surface again
+on the next cadence run if they remain high-frequency, so the cost of
+deferral is bounded.
+
+Stage the accepted `.claude/settings.json` diff alongside the
+`/agents-update` bump commit so the reviewer sees the framework pointer
+move and the allowlist response in the same diff.
+
+---
+
 ## Cross-references
 
 - JSON Schema mirror —

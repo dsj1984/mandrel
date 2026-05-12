@@ -7,6 +7,7 @@ import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
   resolveConfig as defaultResolveConfig,
+  PROJECT_ROOT,
 } from './config-resolver.js';
 import { loadCoverage } from './coverage-utils.js';
 import {
@@ -16,6 +17,7 @@ import {
   saveCrapBaseline,
   scanAndScore,
 } from './crap-utils.js';
+import { ensureEpicBranchRef as defaultEnsureEpicBranchRef } from './git-branch-lifecycle.js';
 import {
   calculateAll,
   saveBaseline as saveMaintainabilityBaseline,
@@ -592,4 +594,67 @@ export async function regenerateMainFromTree({
   }
 
   return { didChange, files };
+}
+
+/**
+ * Story #1396 (re-targeted by Story #1467; relocated by Story #1585):
+ * fork the tracked main baselines into `temp/epic/<id>/baselines/` and
+ * commit the snapshots onto the Epic branch. Originally lived in
+ * `epic-plan-spec.js`; relocated to the lower-level module so callers
+ * (notably `lib/story-init/branch-initializer.js`) do not need to import
+ * the heavy CLI script.
+ *
+ * `epic-plan-spec.js` re-exports this symbol to preserve the historic
+ * import path and the existing test suite.
+ *
+ * Failure modes are non-fatal: a missing source baseline downgrades to a
+ * `--full-scope` warning, an unresolvable Epic branch is logged and
+ * skipped, and the helper never throws into the caller. Idempotent: the
+ * downstream `commitSnapshotsToEpicBranch` returns `no-change` when the
+ * staged tree matches the Epic branch tip, so subsequent invocations on
+ * the same Epic produce no new commit.
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd?: string,
+ *   baseBranch?: string,
+ *   logger?: object,
+ *   forkFn?: typeof forkMainToEpic,
+ *   commitFn?: typeof commitSnapshotsToEpicBranch,
+ *   ensureEpicBranchRefFn?: typeof defaultEnsureEpicBranchRef,
+ * }} opts
+ * @returns {{ fork: object, commit: object }}
+ */
+export function forkAndCommitEpicSnapshot({
+  epicId,
+  cwd = PROJECT_ROOT,
+  baseBranch = 'main',
+  logger = console,
+  forkFn = forkMainToEpic,
+  commitFn = commitSnapshotsToEpicBranch,
+  ensureEpicBranchRefFn = defaultEnsureEpicBranchRef,
+} = {}) {
+  const epicBranch = `epic/${epicId}`;
+  try {
+    ensureEpicBranchRefFn(epicBranch, baseBranch, cwd, {
+      progress: () => {},
+    });
+  } catch (err) {
+    logger.warn?.(
+      `[baseline-snapshot] snapshot-fork: failed to ensure ${epicBranch}: ${err?.message ?? err}. Skipping fork.`,
+    );
+    return {
+      fork: { epicId, results: [] },
+      commit: { committed: false, reason: 'epic-missing' },
+    };
+  }
+  const fork = forkFn({ epicId, cwd, logger });
+  const commit = commitFn({
+    epicId,
+    cwd,
+    epicBranch,
+    files: fork.results.filter((r) => r.written || r.reason === 'idempotent'),
+    logger,
+  });
+  return { fork, commit };
 }
