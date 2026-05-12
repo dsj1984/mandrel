@@ -21,6 +21,7 @@
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { runDecomposePhase } from './epic-plan-decompose.js';
+import { detectExistingSpec, runEditFlow } from './epic-plan-edit-flow.js';
 import { runSpecPhase } from './epic-plan-spec.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
@@ -39,9 +40,21 @@ import {
 } from './lib/orchestration/plan-runner/plan-router.js';
 import { createProvider } from './lib/provider-factory.js';
 
+// Story #1499 / Task #1527: detect + edit-in-place flow live in their own
+// module (epic-plan-edit-flow.js) so this wrapper stays a thin router.
+// Re-exported for test ergonomics — `tests/scripts/epic-plan.edit-flow.test.js`
+// imports them through this surface.
+export { detectExistingSpec, runEditFlow };
+
 /**
  * Orchestrate the full local plan. Intentionally side-effect-free on its
  * arguments — all I/O happens through `provider` and the two phase runners.
+ *
+ * Story #1499 / Task #1527: before invoking the spec phase, check whether
+ * `.agents/epics/<id>.yaml` already exists. When it does, route through
+ * the edit-in-place flow (`runEditFlow`) instead of the author-then-
+ * reconcile path. `--force` bypasses the route check so operators can
+ * regenerate from scratch on top of an existing spec.
  *
  * @param {{
  *   epicId: number,
@@ -52,6 +65,8 @@ import { createProvider } from './lib/provider-factory.js';
  *   force?: boolean,
  *   runSpec?: typeof runSpecPhase,
  *   runDecompose?: typeof runDecomposePhase,
+ *   runEdit?: typeof runEditFlow,
+ *   detectSpec?: typeof detectExistingSpec,
  * }} opts
  */
 /* exported for tests — Story-level reuse runner reserved for future test coverage */
@@ -62,9 +77,33 @@ export async function runSprintPlan({
   config,
   artifacts,
   force = false,
+  apply = false,
   runSpec = runSpecPhase,
   runDecompose = runDecomposePhase,
+  runEdit = runEditFlow,
+  detectSpec = detectExistingSpec,
 }) {
+  // Phase 2.5 edit-in-place detection (Story #1499 / Task #1527).
+  // `--force` is the operator escape hatch: it re-runs the author path
+  // even when a spec is present, matching the behaviour the spec phase
+  // already documents for PRD/Tech Spec regeneration.
+  const specProbe = detectSpec(epicId);
+  if (specProbe.exists && !force) {
+    const editResult = await runEdit({
+      epicId,
+      provider,
+      specFilePath: specProbe.path,
+      apply,
+    });
+    return {
+      epicId,
+      mode: 'edit',
+      spec: null,
+      decompose: null,
+      edit: editResult,
+    };
+  }
+
   const specResult = await runSpec(
     epicId,
     provider,
@@ -86,6 +125,7 @@ export async function runSprintPlan({
 
   return {
     epicId,
+    mode: 'author',
     spec: specResult,
     decompose: decomposeResult,
   };
@@ -121,6 +161,7 @@ async function main() {
       techspec: { type: 'string' },
       tickets: { type: 'string' },
       force: { type: 'boolean', default: false },
+      apply: { type: 'boolean', default: false },
       'describe-resume-point': { type: 'boolean', default: false },
     },
   });
@@ -154,25 +195,39 @@ async function main() {
     return;
   }
 
-  if (!values.prd || !values.techspec || !values.tickets) {
+  // Story #1499 / Task #1527: when a spec already exists and the
+  // operator did not pass --force, we route through the edit-in-place
+  // flow. PRD/Tech Spec/tickets inputs are unused on that path because
+  // the spec on disk is the authoritative source — re-emitting fresh
+  // tickets would double-write. Probe up front so the CLI does not
+  // require inputs operators do not have on hand for a re-plan.
+  const specProbe = detectExistingSpec(epicId);
+  const willEdit = specProbe.exists && !values.force;
+
+  if (!willEdit && (!values.prd || !values.techspec || !values.tickets)) {
     Logger.fatal(
       'Missing required inputs. Need --prd, --techspec, and --tickets files.',
     );
   }
 
-  const [prdContent, techSpecContent, ticketsRaw] = await Promise.all([
-    readFile(values.prd, 'utf8'),
-    readFile(values.techspec, 'utf8'),
-    readFile(values.tickets, 'utf8'),
-  ]);
-
-  let tickets;
-  try {
-    tickets = JSON.parse(ticketsRaw);
-  } catch (err) {
-    Logger.fatal(
-      `Failed to parse tickets file "${values.tickets}" as JSON: ${err.message}`,
-    );
+  let prdContent = '';
+  let techSpecContent = '';
+  let tickets = [];
+  if (!willEdit) {
+    const [prdRaw, techSpecRaw, ticketsRaw] = await Promise.all([
+      readFile(values.prd, 'utf8'),
+      readFile(values.techspec, 'utf8'),
+      readFile(values.tickets, 'utf8'),
+    ]);
+    prdContent = prdRaw;
+    techSpecContent = techSpecRaw;
+    try {
+      tickets = JSON.parse(ticketsRaw);
+    } catch (err) {
+      Logger.fatal(
+        `Failed to parse tickets file "${values.tickets}" as JSON: ${err.message}`,
+      );
+    }
   }
 
   const result = await runSprintPlan({
@@ -182,6 +237,7 @@ async function main() {
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,
+    apply: values.apply,
   });
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
