@@ -598,6 +598,39 @@ export function buildJsonEnvelope({ dryRun, baseBranch, plan, result }) {
   };
 }
 
+/**
+ * Pure: derive the process exit code from the plan + result state.
+ *
+ * @param {{ candidates: Array }} plan
+ * @param {{ ok: boolean } | null} result
+ * @returns {0 | 1 | 2}
+ */
+export function computeExitCode(plan, result) {
+  if (plan.candidates.length === 0) return 2;
+  if (result && !result.ok) return 1;
+  return 0;
+}
+
+/* node:coverage ignore next */
+function emitResult({ json, dryRun, baseBranch, plan, result }) {
+  if (json) {
+    emitJson(buildJsonEnvelope({ dryRun, baseBranch, plan, result }), false);
+    return;
+  }
+  if (result) emitExecutionHuman(result);
+  else emitDryRunHuman(plan);
+}
+
+/* node:coverage ignore next */
+function maybeExecute(opts, plan, cwd) {
+  if (opts.dryRun || plan.candidates.length === 0) return null;
+  return executeCleanup({
+    candidates: plan.candidates,
+    cwd,
+    remote: opts.remote,
+  });
+}
+
 /* node:coverage ignore next */
 async function main() {
   const opts = parseCleanupArgs(process.argv.slice(2));
@@ -607,30 +640,16 @@ async function main() {
     include: opts.include,
     exclude: opts.exclude,
   });
-
   const plan = planCleanup({ cwd, baseBranch, filter });
-  const result =
-    !opts.dryRun && plan.candidates.length > 0
-      ? executeCleanup({
-          candidates: plan.candidates,
-          cwd,
-          remote: opts.remote,
-        })
-      : null;
-
-  if (opts.json) {
-    emitJson(
-      buildJsonEnvelope({ dryRun: opts.dryRun, baseBranch, plan, result }),
-      result ? !result.ok : false,
-    );
-  } else if (result) {
-    emitExecutionHuman(result);
-  } else {
-    emitDryRunHuman(plan);
-  }
-
-  if (plan.candidates.length === 0) process.exit(2);
-  if (result && !result.ok) process.exit(1);
+  const result = maybeExecute(opts, plan, cwd);
+  emitResult({
+    json: opts.json,
+    dryRun: opts.dryRun,
+    baseBranch,
+    plan,
+    result,
+  });
+  process.exit(computeExitCode(plan, result));
 }
 
 runAsCli(import.meta.url, main, { source: 'git-cleanup-branches' });

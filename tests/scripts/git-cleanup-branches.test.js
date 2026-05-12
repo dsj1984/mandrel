@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   buildGlobFilter,
   buildJsonEnvelope,
+  computeExitCode,
   computeProtectedSet,
   executeCleanup,
   parseCleanupArgs,
@@ -364,6 +365,33 @@ describe('git-cleanup-branches.executeCleanup', () => {
     assert.equal(result.failures.length, 2);
     const scopes = result.failures.map((f) => f.scope).sort();
     assert.deepEqual(scopes, ['local', 'remote']);
+  });
+});
+
+describe('git-cleanup-branches.computeExitCode', () => {
+  it('returns 2 when no candidates matched', () => {
+    assert.equal(computeExitCode({ candidates: [] }, null), 2);
+  });
+
+  it('returns 1 when execute produced failures', () => {
+    assert.equal(
+      computeExitCode({ candidates: [{ branch: 'fix/a' }] }, { ok: false }),
+      1,
+    );
+  });
+
+  it('returns 0 when execute succeeded', () => {
+    assert.equal(
+      computeExitCode({ candidates: [{ branch: 'fix/a' }] }, { ok: true }),
+      0,
+    );
+  });
+
+  it('returns 0 on a dry-run with candidates (no result)', () => {
+    assert.equal(
+      computeExitCode({ candidates: [{ branch: 'fix/a' }] }, null),
+      0,
+    );
   });
 });
 
