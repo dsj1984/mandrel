@@ -253,21 +253,47 @@ function storyIdOf(s) {
 }
 
 /**
- * Walk `spec.features[].stories[]` and bucket entries by `wave`. Returns
- * `Story[][]` indexed by wave number; missing waves are emitted as empty
- * arrays so wave N is always `plan[N]`.
+ * Walk `spec.features[].stories[]` and bucket entries by their `wave`
+ * value, mapping slugs → GH issue numbers via the sibling state file.
+ * Returns `Story[][]` indexed by wave number; missing waves between 0 and
+ * the highest declared wave are emitted as empty arrays so wave N is
+ * always reachable as `plan[N]`.
  *
- * Task #1533 scope: read wave numbers from `spec.stories[].wave` and emit
- * a plan-shaped grouping where each entry carries the Story's slug as
- * `id`. The slug → GH issue-number resolution (via `state.mapping`) is
- * the explicit subject of Task #1535 and lands as a refactor that
- * promotes this helper to a named export.
+ * Each emitted entry is shaped to match the checkpoint plan's
+ * `{ id, title }` contract that the rest of `tick()` already consumes:
  *
- * @param {object} spec
- * @param {{mapping?: Record<string, {issueNumber?: number}>}|null} [_state]
- * @returns {Array<Array<{id: string, title?: string, slug?: string}>>}
+ *   - `id` is the GH issue number resolved from `state.mapping[slug].issueNumber`
+ *     so the same provider.getTicket(id) path used by the spec-less plan
+ *     keeps working unchanged.
+ *   - `title` is carried through from `story.title` so the wave-start
+ *     signal can include the Story's human-readable name without an
+ *     extra provider round-trip.
+ *   - `slug` is preserved on the entry so observability + future
+ *     re-resolution paths can re-key against the spec.
+ *
+ * When a Story slug has no resolved `issueNumber` in `state.mapping`
+ * (a fresh spec entry the reconciler has not materialised yet), the entry
+ * is skipped — un-materialised Stories cannot be dispatched anyway, and
+ * including them with a `null` id would surface as a `story-fetch`
+ * failure inside `tick()`. The reconciler will close the loop on the
+ * next apply; until then, an empty wave is a faithful reflection of
+ * GitHub state.
+ *
+ * Pure function — does not read disk, does not call GH. Callers are
+ * expected to compose it with `loadSpec` + `loadState` from
+ * `lib/spec/loader.js`.
+ *
+ * @param {object} spec Parsed epic-spec (see lib/spec/loader.js).
+ * @param {{mapping?: Record<string, {issueNumber?: number}>}|null} [state]
+ *   Parsed epic-state. May be omitted; if missing, no entries can be
+ *   resolved and `groupByWave` returns `[]`.
+ * @returns {Array<Array<{id: number, title?: string, slug: string}>>}
  */
-function groupByWave(spec, _state) {
+export function groupByWave(spec, state = null) {
+  const mapping =
+    state && typeof state.mapping === 'object' && state.mapping !== null
+      ? state.mapping
+      : {};
   const byWave = new Map();
   let maxWave = -1;
   const features = Array.isArray(spec?.features) ? spec.features : [];
@@ -278,7 +304,14 @@ function groupByWave(spec, _state) {
       const wave = Number.isInteger(story.wave) ? story.wave : null;
       if (wave === null || wave < 0) continue;
       const slug = typeof story.slug === 'string' ? story.slug : null;
-      const entry = { id: slug, title: story.title, slug };
+      if (!slug) continue;
+      const mapped = mapping[slug];
+      const issueNumber =
+        mapped && typeof mapped.issueNumber === 'number'
+          ? mapped.issueNumber
+          : null;
+      if (issueNumber === null) continue;
+      const entry = { id: issueNumber, title: story.title, slug };
       if (!byWave.has(wave)) byWave.set(wave, []);
       byWave.get(wave).push(entry);
       if (wave > maxWave) maxWave = wave;
