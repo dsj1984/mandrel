@@ -429,7 +429,7 @@ export async function runSpecPhase(
   provider,
   { prdContent, techSpecContent },
   settings = {},
-  { force = false, snapshotFork = forkAndCommitEpicSnapshot } = {},
+  { force = false } = {},
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
@@ -459,26 +459,11 @@ export async function runSpecPhase(
   const prdId = afterPlan.linkedIssues?.prd ?? null;
   const techSpecId = afterPlan.linkedIssues?.techSpec ?? null;
 
-  // Story #1396 (re-targeted by Story #1467): fork the tracked main
-  // baselines into temp/epic-<id>/baselines/ and seed the snapshot commit
-  // on the Epic branch. Non-fatal — the spec phase succeeds even when the
-  // source baselines are missing.
-  try {
-    const snapshot = snapshotFork({ epicId });
-    if (snapshot.commit.committed) {
-      Logger.info(
-        `[epic-plan-spec] 🧊 Forked main baselines → epic/${epicId} (commit ${snapshot.commit.sha?.slice(0, 7)}).`,
-      );
-    } else {
-      Logger.info(
-        `[epic-plan-spec] 🧊 Snapshot fork skipped: ${snapshot.commit.reason ?? 'no-files'}.`,
-      );
-    }
-  } catch (err) {
-    Logger.warn(
-      `[epic-plan-spec] snapshot fork failed (non-fatal): ${err?.message ?? err}`,
-    );
-  }
+  // Story #1585 (Epic #1471): the baseline-snapshot fork was previously
+  // performed here at plan-time. It now runs at first-story-init time
+  // inside `lib/story-init/branch-initializer.js#bootstrapWorktree` so
+  // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
+  // `forkMainToEpic` remain exported for that caller.
 
   const checkpoint = await checkpointer.updateSpec({
     prdId,
