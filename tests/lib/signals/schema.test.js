@@ -34,6 +34,10 @@ describe('signals/schema — EVENT_KINDS enumeration', () => {
       'dispatched',
       'wave-start',
       'wave-end',
+      // Story #1430 — wave-runner lifecycle signals emitted by `lib/wave-runner/tick.js`.
+      'wave-tick',
+      'wave-complete',
+      'epic-complete',
       'state-transition',
       'hotspot',
       'rework',
