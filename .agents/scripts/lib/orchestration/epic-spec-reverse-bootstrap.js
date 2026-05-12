@@ -329,11 +329,26 @@ export function buildBootstrapInputs(epic, tickets) {
 
 /**
  * Convert the renderer's spec output back into a state-file shape that
- * carries the slug → issue-number map derived during bootstrap. The
- * vanilla `buildState` projection leaves `issueNumber: null` for every
- * slug (it has no live-state knowledge); we walk the projected mapping
- * and stitch in the bootstrap-resolved issue numbers so a subsequent
- * `--dry-run` reports an empty diff.
+ * carries the slug → issue-number map derived during bootstrap, plus
+ * the structural metadata (`entity`, `parentSlug`, `dependsOn`, `wave`)
+ * the reconciler-diff engine consults when deciding "no change".
+ *
+ * The vanilla `buildState` projection in `lib/spec/state.js` is content-
+ * hash-only — it carries `{ issueNumber, contentHash, lastObservedAgentState }`,
+ * which is enough for the upstream "did this entry change?" check but
+ * leaves the diff engine without the parent / dependsOn / wave columns
+ * it compares against `flattenSpec(spec)`. Without those columns a
+ * follow-up `--dry-run` would synthesise a `relink` op for every node
+ * (every parent edge looks new).
+ *
+ * The bootstrap therefore stitches the structural columns onto each
+ * mapping entry alongside the issue number. The resulting state file
+ * has the property the AC requires: a subsequent `diff({spec, state,
+ * ghState})` against the same Epic yields an empty Plan.
+ *
+ * The synthetic `epic` slug (`epicSlug()` in the diff engine) is also
+ * added — the diff engine walks `flattenSpec` which includes the epic
+ * row, and would otherwise produce a phantom `create` for the Epic itself.
  *
  * @param {object} spec
  * @param {Map<number, string>} issueToSlug
@@ -347,18 +362,70 @@ export function buildBootstrapState(spec, issueToSlug, opts = {}) {
     slugToIssue.set(slug, issueId);
   }
   const state = buildState(spec, undefined, { now: opts.now });
-  const stitched = { ...state.mapping };
-  for (const slug of Object.keys(stitched)) {
+
+  // Index spec entities so we can stamp the structural columns the diff
+  // engine reads. Order matches `flattenSpec` so the synthetic `epic`
+  // row appears first; downstream readers don't depend on insertion
+  // order but the writer canonicalises keys anyway.
+  const structuralByslug = new Map();
+  const epicSlugLiteral = 'epic';
+  structuralByslug.set(epicSlugLiteral, {
+    entity: 'epic',
+    parentSlug: null,
+  });
+  for (const feature of spec.features ?? []) {
+    structuralByslug.set(feature.slug, {
+      entity: 'feature',
+      parentSlug: epicSlugLiteral,
+    });
+    for (const story of feature.stories ?? []) {
+      structuralByslug.set(story.slug, {
+        entity: 'story',
+        parentSlug: feature.slug,
+        wave: typeof story.wave === 'number' ? story.wave : 0,
+        dependsOn: Array.isArray(story.dependsOn) ? [...story.dependsOn] : [],
+      });
+      for (const task of story.tasks ?? []) {
+        structuralByslug.set(task.slug, {
+          entity: 'task',
+          parentSlug: story.slug,
+        });
+      }
+    }
+  }
+
+  const stitched = {};
+  // The synthetic epic row is keyed by the literal `epic`, mapped to the
+  // Epic's GH issue number (taken from spec.epic.id). `buildState` does
+  // not emit this row (its iterator starts at `features[]`), so we
+  // construct it here from spec.epic.
+  if (spec?.epic && typeof spec.epic.id === 'number') {
+    stitched[epicSlugLiteral] = {
+      ...(state.mapping[epicSlugLiteral] ?? {}),
+      issueNumber: spec.epic.id,
+      entity: 'epic',
+      parentSlug: null,
+      contentHash: state.mapping[epicSlugLiteral]?.contentHash,
+      lastObservedAgentState: opts.lastObservedAgentState
+        ? (opts.lastObservedAgentState(epicSlugLiteral) ?? null)
+        : null,
+    };
+  }
+
+  for (const slug of Object.keys(state.mapping)) {
     const issueNumber = slugToIssue.get(slug) ?? null;
     const lastObservedAgentState = opts.lastObservedAgentState
       ? (opts.lastObservedAgentState(slug) ?? null)
       : null;
+    const structural = structuralByslug.get(slug) ?? {};
     stitched[slug] = {
-      ...stitched[slug],
+      ...state.mapping[slug],
+      ...structural,
       issueNumber,
       lastObservedAgentState,
     };
   }
+
   return { ...state, mapping: stitched };
 }
 
