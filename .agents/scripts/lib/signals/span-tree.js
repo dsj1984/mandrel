@@ -131,6 +131,129 @@ function emptyStoryNode(id) {
   };
 }
 
+function storyKeyOf(sid) {
+  return sid == null ? '__none__' : String(sid);
+}
+
+function getOrCreateStory(state, sid) {
+  const key = storyKeyOf(sid);
+  let node = state.stories.get(key);
+  if (!node) {
+    node = emptyStoryNode(sid);
+    state.stories.set(key, node);
+    state.tasksByStory.set(key, new Map());
+  }
+  return { key, node };
+}
+
+function getOrCreateTask(state, storyKey, tid) {
+  const taskMap = state.tasksByStory.get(storyKey);
+  const tkey = String(tid);
+  let node = taskMap.get(tkey);
+  if (!node) {
+    node = emptyTaskNode(tid);
+    taskMap.set(tkey, node);
+  }
+  return node;
+}
+
+function updateStoryLifecycle(storyNode, kind, ts) {
+  if (!isStoryLifecycle(kind)) return;
+  if (isStoryStart(kind)) {
+    if (storyNode.startedAt == null || cmpTs(ts, storyNode.startedAt) < 0) {
+      storyNode.startedAt = ts;
+    }
+  } else if (isStoryEnd(kind)) {
+    if (storyNode.endedAt == null || cmpTs(ts, storyNode.endedAt) > 0) {
+      storyNode.endedAt = ts;
+    }
+  }
+}
+
+function widenTaskWindow(taskNode, ts) {
+  if (ts == null) return;
+  if (taskNode.startedAt == null || cmpTs(ts, taskNode.startedAt) < 0) {
+    taskNode.startedAt = ts;
+  }
+  if (taskNode.endedAt == null || cmpTs(ts, taskNode.endedAt) > 0) {
+    taskNode.endedAt = ts;
+  }
+}
+
+function bootstrapStoryWindow(storyNode, ts) {
+  if (ts == null) return;
+  if (storyNode.startedAt == null) storyNode.startedAt = ts;
+  if (storyNode.endedAt == null) storyNode.endedAt = ts;
+}
+
+/**
+ * Reducer step — fold a single event into the running state. Extracted
+ * from `buildSpanTree` so the outer function's CRAP score stays under
+ * the new-method ceiling.
+ *
+ * @param {object} state — mutable accumulator (stories, tasksByStory, epic)
+ * @param {unknown} evt
+ * @returns {void}
+ */
+function ingestEvent(state, evt) {
+  if (evt == null || typeof evt !== 'object') return;
+
+  const eEpic = epicOf(evt);
+  if (state.epic == null && eEpic != null) state.epic = eEpic;
+
+  const ts = tsOf(evt);
+  const sid = storyOf(evt);
+  const tid = taskOf(evt);
+  const kind = typeof evt.kind === 'string' ? evt.kind : null;
+
+  const { key: storyKey, node: storyNode } = getOrCreateStory(state, sid);
+  updateStoryLifecycle(storyNode, kind, ts);
+
+  if (tid != null) {
+    const taskNode = getOrCreateTask(state, storyKey, tid);
+    widenTaskWindow(taskNode, ts);
+    taskNode.events.push(evt);
+  } else {
+    storyNode.events.push(evt);
+  }
+
+  bootstrapStoryWindow(storyNode, ts);
+}
+
+/**
+ * Default comparator for sorting Story / Task nodes by id ascending,
+ * with `null` ids sorting last and a string fallback for slug-shaped
+ * Task ids (the framework allows non-numeric task identifiers).
+ *
+ * @param {object} a
+ * @param {object} b
+ * @returns {number}
+ */
+function compareNodeIds(a, b) {
+  if (a.id === b.id) return 0;
+  if (a.id == null) return 1;
+  if (b.id == null) return -1;
+  if (typeof a.id === 'number' && typeof b.id === 'number') {
+    return a.id - b.id;
+  }
+  return String(a.id).localeCompare(String(b.id));
+}
+
+function finalizeTask(task) {
+  task.events.sort((ea, eb) => cmpTs(tsOf(ea), tsOf(eb)));
+  task.durationMs = diffMs(task.startedAt, task.endedAt);
+}
+
+function finalizeStory(state, story) {
+  const taskMap = state.tasksByStory.get(storyKeyOf(story.id));
+  const taskEntries = [...taskMap.values()];
+  taskEntries.sort(compareNodeIds);
+  for (const task of taskEntries) finalizeTask(task);
+  story.events.sort((ea, eb) => cmpTs(tsOf(ea), tsOf(eb)));
+  story.durationMs = diffMs(story.startedAt, story.endedAt);
+  story.tasks = taskEntries;
+}
+
 /**
  * Build the span tree from an async iterable of signal events.
  *
@@ -148,150 +271,21 @@ export async function buildSpanTree(iter) {
     );
   }
 
-  let epic = null;
-  // Map<storyId, storyNode>; entries with id===null are stored under the
-  // sentinel key '__none__' so we can still capture epic-only events.
-  const stories = new Map();
-  // Map<storyKey, Map<taskKey, taskNode>>; mirrors the structure above.
-  const tasksByStory = new Map();
-
-  function storyNodeFor(sid) {
-    const key = sid == null ? '__none__' : String(sid);
-    let node = stories.get(key);
-    if (!node) {
-      node = emptyStoryNode(sid);
-      stories.set(key, node);
-      tasksByStory.set(key, new Map());
-    }
-    return { key, node };
-  }
-
-  function taskNodeFor(storyKey, tid) {
-    if (tid == null) return null;
-    const taskMap = tasksByStory.get(storyKey);
-    const tkey = String(tid);
-    let node = taskMap.get(tkey);
-    if (!node) {
-      node = emptyTaskNode(tid);
-      taskMap.set(tkey, node);
-    }
-    return node;
-  }
+  // Accumulator state. `stories` keys are `storyKeyOf(sid)` strings;
+  // `tasksByStory` mirrors that and holds per-task sub-maps.
+  const state = {
+    epic: null,
+    stories: new Map(),
+    tasksByStory: new Map(),
+  };
 
   for await (const evt of iter) {
-    if (evt == null || typeof evt !== 'object') continue;
-
-    const eEpic = epicOf(evt);
-    if (epic == null && eEpic != null) {
-      epic = eEpic;
-    }
-
-    const ts = tsOf(evt);
-    const sid = storyOf(evt);
-    const tid = taskOf(evt);
-    const kind = typeof evt.kind === 'string' ? evt.kind : null;
-
-    const { key: storyKey, node: storyNode } = storyNodeFor(sid);
-
-    if (isStoryLifecycle(kind)) {
-      if (isStoryStart(kind)) {
-        if (storyNode.startedAt == null || cmpTs(ts, storyNode.startedAt) < 0) {
-          storyNode.startedAt = ts;
-        }
-      }
-      if (isStoryEnd(kind)) {
-        if (storyNode.endedAt == null || cmpTs(ts, storyNode.endedAt) > 0) {
-          storyNode.endedAt = ts;
-        }
-      }
-    }
-
-    if (tid != null) {
-      const taskNode = taskNodeFor(storyKey, tid);
-      // Track Task-level first/last seen timestamps. Any event under the
-      // (story, task) pair is treated as evidence of the Task's span;
-      // we keep min as startedAt and max as endedAt.
-      if (ts != null) {
-        if (taskNode.startedAt == null || cmpTs(ts, taskNode.startedAt) < 0) {
-          taskNode.startedAt = ts;
-        }
-        if (taskNode.endedAt == null || cmpTs(ts, taskNode.endedAt) > 0) {
-          taskNode.endedAt = ts;
-        }
-      }
-      taskNode.events.push(evt);
-    } else {
-      // Story-level events (no taskId) — but only push them onto the
-      // story's `events` array when they aren't pure lifecycle markers
-      // that have already been captured as startedAt/endedAt. We still
-      // push lifecycle events so consumers can inspect them; the
-      // duplication is intentional.
-      storyNode.events.push(evt);
-    }
-
-    // Refresh the Story-level start/end fallback (in case lifecycle
-    // events are missing) — track min/max ts across everything.
-    if (ts != null) {
-      if (
-        storyNode.startedAt == null ||
-        (!isStoryStart(kind) && cmpTs(ts, storyNode.startedAt) < 0)
-      ) {
-        // Only widen when the new ts is genuinely earlier and we haven't
-        // already pinned via an explicit start marker.
-        if (storyNode.startedAt == null) storyNode.startedAt = ts;
-      }
-      if (storyNode.endedAt == null) {
-        // Bootstrap end-time with the latest observed event when no end
-        // marker has fired yet.
-        storyNode.endedAt = ts;
-      } else if (
-        !isStoryEnd(kind) &&
-        cmpTs(ts, storyNode.endedAt) > 0 &&
-        storyNode.endedAt !== null
-      ) {
-        // Widen `endedAt` to the latest event ts only when we have no
-        // explicit end marker. Once `wave-end` fires we pin to it
-        // exclusively above; this branch is a no-op then because the
-        // pinned value is already the maximum.
-        // (See the explicit pinning in the lifecycle branch.)
-      }
-    }
+    ingestEvent(state, evt);
   }
 
-  // Materialise: sort stories by id ascending (null sorts last), and
-  // within each story sort tasks by id ascending. Compute durations.
-  const storyEntries = [...stories.values()];
-  storyEntries.sort((a, b) => {
-    if (a.id === b.id) return 0;
-    if (a.id == null) return 1;
-    if (b.id == null) return -1;
-    return a.id - b.id;
-  });
+  const storyEntries = [...state.stories.values()];
+  storyEntries.sort(compareNodeIds);
+  for (const story of storyEntries) finalizeStory(state, story);
 
-  for (const story of storyEntries) {
-    const taskMap = tasksByStory.get(
-      story.id == null ? '__none__' : String(story.id),
-    );
-    const taskEntries = [...taskMap.values()];
-    taskEntries.sort((a, b) => {
-      if (a.id === b.id) return 0;
-      if (a.id == null) return 1;
-      if (b.id == null) return -1;
-      // Tasks may be numeric or string slugs — fall back to string compare
-      // when the types disagree.
-      if (typeof a.id === 'number' && typeof b.id === 'number') {
-        return a.id - b.id;
-      }
-      return String(a.id).localeCompare(String(b.id));
-    });
-    for (const task of taskEntries) {
-      task.events.sort((ea, eb) => cmpTs(tsOf(ea), tsOf(eb)));
-      task.durationMs = diffMs(task.startedAt, task.endedAt);
-    }
-    story.events.sort((ea, eb) => cmpTs(tsOf(ea), tsOf(eb)));
-    story.durationMs = diffMs(story.startedAt, story.endedAt);
-    story.tasks = taskEntries;
-  }
-
-  return { epic, stories: storyEntries };
+  return { epic: state.epic, stories: storyEntries };
 }
