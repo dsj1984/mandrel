@@ -181,21 +181,24 @@ planned.
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/planner-context.json
    ```
 
-2. **Author the PRD**: Read `temp/epic-[Epic_ID]/planner-context.json`.
-   Using the `systemPrompts.prd` guidance combined with the Epic
-   title/body, write the PRD markdown to `temp/epic-[Epic_ID]/prd.md`.
-   Keep it to the four-section structure (Context & Goals, User
-   Stories, Acceptance Criteria, Out of Scope) and start the document
-   with `## Overview` (no `<h1>`).
+2. **Dispatch the `epic-plan-spec-author` Skill**: Invoke the `Skill` tool
+   with `skill: epic-plan-spec-author` and `args: "[Epic_ID]"`. The Skill
+   reads `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD and
+   Tech Spec markdown against the embedded system prompts, and writes
+   them to `temp/epic-[Epic_ID]/prd.md` and `temp/epic-[Epic_ID]/techspec.md`.
+   The Skill is the authoritative authoring step — do **not** inline the
+   PRD / Tech Spec drafting in the workflow body. The Skill front-matter
+   declares `allowed_tools: [Read, Write, Bash]`; it never calls GitHub.
 
-3. **Author the Tech Spec**: Using `systemPrompts.techSpec`, the PRD you just
-   wrote, and `docsContext`, write the Tech Spec to
-   `temp/epic-[Epic_ID]/techspec.md`. Start with `## Technical Overview`
-   (no `<h1>`).
+   The Skill body lives at
+   [`.agents/skills/core/epic-plan-spec-author/SKILL.md`](../skills/core/epic-plan-spec-author/SKILL.md)
+   and carries the authoritative PRD + Tech Spec system prompts. The
+   `systemPrompts` field on the `--emit-context` envelope is a backstop
+   for legacy callers; the Skill body wins when the two surfaces diverge.
 
-4. **Persist to GitHub**: Use `epic-plan-spec.js` (not the low-level
-   `epic-planner.js` — only the wrapper flips the Epic to `agent::review-spec`
-   and writes the `epic-plan-state` checkpoint).
+3. **Persist to GitHub**: Run the spec-phase CLI's persist half. It flips
+   the Epic to `agent::review-spec` and writes the `epic-plan-state`
+   checkpoint.
 
    ```bash
    # Normal planning
@@ -209,14 +212,14 @@ planned.
      --techspec temp/epic-[Epic_ID]/techspec.md --force
    ```
 
-5. **Verification**:
+4. **Verification**:
    - Verify that the PRD and Technical Specification have been posted as linked
      issues under the Epic.
    - **STOP**: Ask the USER to review the generated PRD and Tech Spec on GitHub.
      Do NOT proceed to decomposition until the user confirms the plan is
      accurate.
 
-6. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 1
+5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 1
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
@@ -229,21 +232,29 @@ planned.
    node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/decomposer-context.json
    ```
 
-2. **Author the Ticket Array**: Read
-   `temp/epic-[Epic_ID]/decomposer-context.json` — it contains the PRD
-   body, Tech Spec body, risk heuristics, the decomposer system
-   prompt, and a `maxTickets` cap (configurable via
-   `agentSettings.limits.maxTickets` in `.agentrc.json`; the framework
-   default lives in `.agents/scripts/lib/config/limits.js`). The
-   decompose script also logs the resolved cap to stderr so a
-   misconfigured key doesn't silently fall through. Produce a JSON
-   array of Feature/Story/Task objects conforming to the schema in the
-   system prompt and write it to
-   `temp/epic-[Epic_ID]/tickets.json`.
+2. **Dispatch the `epic-plan-decompose-author` Skill**: Invoke the `Skill`
+   tool with `skill: epic-plan-decompose-author` and
+   `args: "[Epic_ID]"`. The Skill reads
+   `temp/epic-[Epic_ID]/decomposer-context.json` (PRD body, Tech Spec
+   body, risk heuristics, `maxTickets` cap, `contextMode`), applies its
+   embedded decomposer system prompt + ticket schema, and writes the
+   ticket array to `temp/epic-[Epic_ID]/tickets.json`. Do **not** inline
+   the JSON authoring in the workflow body.
 
-3. **Persist to GitHub**: Use `epic-plan-decompose.js` (not the low-level
-   `ticket-decomposer.js` — only the wrapper flips the Epic to `agent::ready`
-   and writes the `epic-plan-state` checkpoint).
+   The `maxTickets` cap (`agentSettings.limits.maxTickets` in
+   `.agentrc.json`; framework default in
+   `.agents/scripts/lib/config/limits.js`) is the hard ceiling. The
+   `epic-plan-decompose.js` script also logs the resolved cap to stderr
+   so a misconfigured key surfaces immediately. The Skill body
+   ([`.agents/skills/core/epic-plan-decompose-author/SKILL.md`](../skills/core/epic-plan-decompose-author/SKILL.md))
+   is the authoritative source of the decomposer prompt; the
+   `systemPrompt` field on the emit envelope is a backstop for legacy
+   callers.
+
+3. **Persist to GitHub**: Run the decompose CLI's persist half. It
+   validates the ticket array (`validateAndNormalizeTickets`), creates
+   the Feature/Story/Task issues, flips the Epic to `agent::ready`, and
+   writes the `epic-plan-state` checkpoint.
 
    ```bash
    # Normal decomposition
@@ -380,9 +391,10 @@ chooses to gate on them.
   Tasks, a Task whose `parent_slug` does not point at a Story, or cross-Story
   Task dependencies (which must be lifted to Story-level dependencies).
 - If decomposition persisted the tickets but the Epic is not on `agent::ready`,
-  you invoked the low-level `ticket-decomposer.js` directly — only
-  `epic-plan-decompose.js` flips the lifecycle label. Apply `agent::ready`
-  by hand and re-run via the wrapper next time.
+  you likely imported `decomposeEpic` from `epic-plan-decompose.js` and
+  called it directly — only the CLI surface (`node epic-plan-decompose.js
+  --tickets ...`) flips the lifecycle label. Apply `agent::ready` by hand
+  and re-run via the CLI next time.
 - **Secondary rate limit on large Epics**: For backlogs over ~60 tickets,
   GitHub's secondary rate limit (HTTP 403, body contains "secondary rate
   limit") can trip mid-decomposition after ~80 issue creations. The

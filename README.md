@@ -42,6 +42,83 @@ After step 3 you can run any slash command — `/epic-plan`,
 
 ---
 
+## When to use a Skill vs a Script
+
+The framework ships two surfaces for automation under `.agents/`:
+
+- **Scripts** under [`scripts/`](scripts/) — Node modules invoked via
+  `node .agents/scripts/<name>.js`, typically wired into a slash command
+  in [`workflows/`](workflows/).
+- **Skills** under [`skills/core/`](skills/core/) and
+  [`skills/stack/`](skills/stack/) — declarative `SKILL.md` packages with
+  YAML front-matter (`name`, `description`, `allowed_tools`) that the host
+  LLM dispatches directly from a slash command.
+
+The decision between the two is **not** a matter of taste. Apply this
+rule:
+
+> **Deterministic + parseable output → keep it a script.** Examples:
+> GitHub I/O, label transitions, JSON validators, NDJSON readers,
+> diff-vs-baseline gates, template renderers.
+>
+> **Prompt + judgment → make it a Skill.** Examples: composing a PRD
+> from an Epic body, classifying friction signals from a failed shell
+> command, decomposing a Tech Spec into a ticket hierarchy.
+
+The rule is two-sided on purpose. "Has an LLM step adjacent" is *not*
+the signal — many deterministic scripts emit a JSON envelope that a host
+LLM consumes downstream, and that does not turn the script into a Skill.
+The signal is whether the *output of this unit* is the product of
+judgment (Skill) or of a parseable transform (script).
+
+### Worked example 1 — split: `epic-plan-decompose.js`
+
+[`scripts/epic-plan-decompose.js`](scripts/epic-plan-decompose.js) is a
+**split**: the deterministic halves stay as a script, the judgment middle
+moves to a Skill.
+
+- **`--emit-context`** (script half) — fetches the PRD and Tech Spec
+  bodies, scrapes project docs, emits a JSON envelope. Parseable in,
+  parseable out. Stays a script.
+- **Authoring middle** (Skill half) — given the envelope, author the
+  ticket hierarchy JSON. Pure prompt + judgment. Migrates to a Skill
+  under `.agents/skills/core/` so it ships with declarative
+  `allowed_tools` and a smoke test rather than bespoke prompt-template
+  plumbing inside a Node module.
+- **Persist half** (script half) — given the author-provided tickets
+  JSON, validate against the schema, create GitHub issues, flip the Epic
+  label. Deterministic GitHub I/O + schema validation. Stays a script.
+
+The split is exactly the v5.6 "host LLM authors directly" pattern made
+explicit: the prompt+judgment step gets a `description`, an
+`allowed_tools` declaration, and a smoke test; the GitHub I/O around it
+keeps its imperative implementation. See the
+[2026-05-11 prompt-shaped script ledger](../docs/audits/2026-05-11-prompt-shaped-scripts.md)
+for the full list of scripts following this split pattern.
+
+### Worked example 2 — pure script: `retrofit-task-bodies.js`
+
+[`scripts/retrofit-task-bodies.js`](scripts/retrofit-task-bodies.js)
+**stays a script** even though it has an LLM step adjacent to it.
+
+- It walks every Task descendant of an Epic, skips ones already on the
+  current structured-body schema, and emits a JSON envelope per
+  non-conforming Task.
+- The host LLM authors a "bodies file" from the envelope (the judgment
+  step, conceptually adjacent — but **not part of this unit**).
+- A second invocation applies the authored bodies, updating each Task's
+  issue body via the GitHub provider.
+
+The script's own input/output is deterministic and parseable: it does
+not compose prompts, it does not classify, it does not author prose. The
+adjacent LLM authoring step could one day be migrated to a Skill in a
+separate Epic, but doing so would not change this script's verdict —
+the renderer half stays imperative. This is the named deterministic
+counter-example in the
+[2026-05-11 prompt-shaped script ledger](../docs/audits/2026-05-11-prompt-shaped-scripts.md#deterministic-counter-example--retrofit-task-bodiesjs).
+
+---
+
 ## Where to look
 
 | You want…                                         | Open                                                                            |
@@ -51,9 +128,11 @@ After step 3 you can run any slash command — `/epic-plan`,
 | Every `.agentrc.json` key, default, and override  | [`docs/configuration.md`](../docs/configuration.md)                              |
 | Quality-gate runbooks (CRAP, MI, lint, friction)  | [`docs/quality-gates.md`](../docs/quality-gates.md)                              |
 | Slash-command workflow definitions                | [`workflows/`](workflows/)                                                      |
+| Render the signals span-tree (`/signals`)         | [`workflows/signals.md`](workflows/signals.md)                                  |
 | Persona behavior packs                            | [`personas/`](personas/)                                                        |
 | Domain-agnostic baseline rules                    | [`rules/`](rules/)                                                              |
 | Skill library (core process + stack guardrails)   | [`skills/core/`](skills/core/) · [`skills/stack/`](skills/stack/)                |
+| Decision rule: should this be a Skill or a Script? | [§ When to use a Skill vs a Script](#when-to-use-a-skill-vs-a-script)            |
 | JSON Schemas (config, dispatch manifest, etc.)    | [`schemas/`](schemas/)                                                          |
 | Orchestration SDK internals                       | [`scripts/lib/orchestration/README.md`](scripts/lib/orchestration/README.md)    |
 | Bootstrap labels + project fields reference       | [`workflows/agents-bootstrap-github.md`](workflows/agents-bootstrap-github.md)  |

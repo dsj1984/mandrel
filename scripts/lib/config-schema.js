@@ -226,7 +226,7 @@ const CONCURRENCY_SCHEMA = {
 
 /**
  * `orchestration.runners.decomposer` — bounded-concurrency knob for the
- * staged Feature/Story/Task creation pass in `ticket-decomposer.js`.
+ * staged Feature/Story/Task creation pass in `epic-plan-decompose.js`.
  * `concurrencyCap` controls the maximum number of in-flight `provider.createTicket`
  * calls per type-pass. Default `3` matches the `DEFAULT_DECOMPOSER.concurrencyCap`
  * applied by `getRunners`.
