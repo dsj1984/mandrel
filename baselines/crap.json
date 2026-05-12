@@ -76,13 +76,13 @@
       "startLine": 531
     },
     {
-      "crap": 10,
+      "crap": 110,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "parseCli",
       "startLine": 622
     },
     {
-      "crap": 3.131456790123457,
+      "crap": 12,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 650
@@ -145,175 +145,181 @@
       "crap": 15,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapEnvOverrides",
-      "startLine": 69
+      "startLine": 71
     },
     {
-      "crap": 31.81733283344451,
+      "crap": 6.6000000000000005,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "readGateExtra",
+      "startLine": 125
+    },
+    {
+      "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "parseArgv",
-      "startLine": 123
+      "startLine": 136
     },
     {
-      "crap": 9,
+      "crap": 1,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "<anon method-1>",
+      "startLine": 139
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "<anon method-2>",
+      "startLine": 140
+    },
+    {
+      "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapChangedSince",
-      "startLine": 206
+      "startLine": 162
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "filterRowsByFileScope",
-      "startLine": 259
+      "startLine": 193
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "checkCrapRegression",
-      "startLine": 314
+      "startLine": 248
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 325
+      "startLine": 259
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 440
+      "startLine": 374
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 503
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "writeJsonReport",
-      "startLine": 556
+      "startLine": 437
     },
     {
       "crap": 30,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 564
+      "startLine": 490
     },
     {
-      "crap": 20,
+      "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 607
+      "startLine": 533
     },
     {
-      "crap": 9.029518950437318,
+      "crap": 9.021751535698701,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 675
+      "startLine": 576
     },
     {
       "crap": 29.552648912718528,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 704
+      "startLine": 608
     },
     {
       "crap": 8,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveMaintainabilityEnvOverrides",
-      "startLine": 61
+      "startLine": 63
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "compareScores",
-      "startLine": 99
+      "startLine": 101
     },
     {
-      "crap": 3,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "coerceStoryId",
-      "startLine": 146
-    },
-    {
-      "crap": 4,
+      "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 158
+      "startLine": 162
     },
     {
-      "crap": 16.324074074074073,
+      "crap": 1.5787037037037037,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 178
+      "startLine": 176
     },
     {
-      "crap": 5,
+      "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 191
+      "startLine": 183
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseFullScopeArg",
-      "startLine": 211
+      "startLine": 196
     },
     {
-      "crap": 9,
+      "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveChangedSinceRef",
-      "startLine": 237
+      "startLine": 207
     },
     {
-      "crap": 5,
+      "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 290
+      "startLine": 232
     },
     {
-      "crap": 20,
+      "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 300
+      "startLine": 236
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 329
+      "startLine": 262
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
-      "method": "writeJsonReport",
-      "startLine": 354
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 362
+      "startLine": 287
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 392
+      "startLine": 309
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 420
+      "startLine": 323
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "<anon method-3>",
+      "startLine": 334
     },
     {
       "crap": 40.06455688705506,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 439
+      "startLine": 344
     },
     {
       "crap": 2,
@@ -502,7 +508,7 @@
       "startLine": 172
     },
     {
-      "crap": 59.95800628749897,
+      "crap": 94.5657053916331,
       "file": ".agents/scripts/dispatcher.js",
       "method": "generateAndSaveManifest",
       "startLine": 58
@@ -1076,6 +1082,36 @@
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "resolveBaseBranch",
       "startLine": 561
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "buildJsonEnvelope",
+      "startLine": 586
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "computeExitCode",
+      "startLine": 608
+    },
+    {
+      "crap": 9.029296875,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "emitResult",
+      "startLine": 615
+    },
+    {
+      "crap": 9.029296875,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "maybeExecute",
+      "startLine": 625
+    },
+    {
+      "crap": 1.8502697186178745,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "main",
+      "startLine": 635
     },
     {
       "crap": 12,
@@ -1996,7 +2032,7 @@
       "startLine": 27
     },
     {
-      "crap": 2,
+      "crap": 3,
       "file": ".agents/scripts/lib/cli-utils.js",
       "method": "runAsCli",
       "startLine": 46
@@ -2860,13 +2896,67 @@
       "startLine": 20
     },
     {
+      "crap": 4.25,
+      "file": ".agents/scripts/lib/gates/baseline-store.js",
+      "method": "absPath",
+      "startLine": 30
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gates/baseline-store.js",
+      "method": "defaultReadFromTree",
+      "startLine": 40
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/gates/baseline-store.js",
+      "method": "loadBaseline",
+      "startLine": 57
+    },
+    {
+      "crap": 1.000512,
+      "file": ".agents/scripts/lib/gates/baseline-store.js",
+      "method": "writeBaseline",
+      "startLine": 82
+    },
+    {
+      "crap": 3.0146549969468754,
+      "file": ".agents/scripts/lib/gates/friction.js",
+      "method": "emitFrictionSignal",
+      "startLine": 10
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/gates/gate-cli.js",
+      "method": "coercePositiveInt",
+      "startLine": 8
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/gates/gate-cli.js",
+      "method": "readFlag",
+      "startLine": 16
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/gates/gate-cli.js",
+      "method": "parseGateArgs",
+      "startLine": 27
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/gates/gate-cli.js",
+      "method": "resolveScopedRef",
+      "startLine": 59
+    },
+    {
       "crap": 22.1378207464645,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "classify",
       "startLine": 153
     },
     {
-      "crap": 4.0005038635369585,
+      "crap": 4.001194343198717,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
       "startLine": 250
@@ -4390,7 +4480,7 @@
       "startLine": 211
     },
     {
-      "crap": 2.045040797080651,
+      "crap": 2.0691910287424657,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "ticketClosurePhase",
       "startLine": 252
@@ -4774,7 +4864,7 @@
       "startLine": 34
     },
     {
-      "crap": 13,
+      "crap": 13.009615384615385,
       "file": ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js",
       "method": "reconcileCleanupState",
       "startLine": 64
@@ -5176,13 +5266,13 @@
       "startLine": 127
     },
     {
-      "crap": 3.017578125,
+      "crap": 3,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logBlockers",
       "startLine": 144
     },
     {
-      "crap": 4.518950437317785,
+      "crap": 2,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logNonBlockers",
       "startLine": 183
@@ -6532,70 +6622,82 @@
       "startLine": 205
     },
     {
-      "crap": 6,
+      "crap": 18,
       "file": ".agents/scripts/lint-baseline.js",
-      "method": "parseLintOutput",
-      "startLine": 19
+      "method": "parseLintShared",
+      "startLine": 26
     },
     {
-      "crap": 14.571428571428573,
+      "crap": 1,
       "file": ".agents/scripts/lint-baseline.js",
-      "method": "parseLintOutputDetailed",
+      "method": "parseLintOutput",
       "startLine": 64
     },
     {
-      "crap": 2.002314814814815,
+      "crap": 1,
+      "file": ".agents/scripts/lint-baseline.js",
+      "method": "parseLintOutputDetailed",
+      "startLine": 72
+    },
+    {
+      "crap": 3.034332275390625,
+      "file": ".agents/scripts/lint-baseline.js",
+      "method": "runLintShared",
+      "startLine": 79
+    },
+    {
+      "crap": 1,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintCommand",
-      "startLine": 100
+      "startLine": 112
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintCommandDetailed",
-      "startLine": 142
+      "startLine": 127
     },
     {
-      "crap": 10.962623999999998,
+      "crap": 5.500616421467905,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "captureBaseline",
-      "startLine": 175
+      "startLine": 142
     },
     {
       "crap": 6.0033809166040575,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "diffPerFile",
-      "startLine": 214
+      "startLine": 179
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "formatDiffTable",
-      "startLine": 245
+      "startLine": 210
     },
     {
-      "crap": 28.29606198196385,
+      "crap": 28.370096021947873,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "diffBaseline",
-      "startLine": 283
+      "startLine": 248
     },
     {
-      "crap": 53.421595982142854,
+      "crap": 53.466032733418636,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "checkBaseline",
-      "startLine": 327
+      "startLine": 294
     },
     {
       "crap": 6.0099860277800605,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintBaselineCli",
-      "startLine": 406
+      "startLine": 374
     },
     {
       "crap": 17.008592592592592,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "main",
-      "startLine": 453
+      "startLine": 421
     },
     {
       "crap": 7.095703125,
@@ -7132,13 +7234,13 @@
       "startLine": 101
     },
     {
-      "crap": 2,
+      "crap": 1,
       "file": ".agents/scripts/story-close.js",
       "method": "emitPreflightBlockedResult",
       "startLine": 133
     },
     {
-      "crap": 2.010580507209385,
+      "crap": 2.143470136674918,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryClose",
       "startLine": 152
@@ -7150,7 +7252,7 @@
       "startLine": 189
     },
     {
-      "crap": 45.56632440570543,
+      "crap": 306,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryCloseLocked",
       "startLine": 247
@@ -7312,13 +7414,13 @@
       "startLine": 209
     },
     {
-      "crap": 3,
+      "crap": 9.761833208114199,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "isCommitReachableFromHead",
       "startLine": 239
     },
     {
-      "crap": 17.460358418311294,
+      "crap": 20.034589183204325,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
       "startLine": 274

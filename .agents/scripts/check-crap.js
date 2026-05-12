@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';
+import { runAsCli } from './lib/cli-utils.js';
 import {
   getBaselines,
   getQuality,
@@ -16,8 +16,10 @@ import {
   resolveTsTranspilerVersion,
   scanAndScore,
 } from './lib/crap-utils.js';
+import { loadBaseline, writeBaseline } from './lib/gates/baseline-store.js';
+import { emitFrictionSignal } from './lib/gates/friction.js';
+import { parseGateArgs, resolveScopedRef } from './lib/gates/gate-cli.js';
 import { Logger } from './lib/Logger.js';
-import { appendSignal } from './lib/observability/signals-writer.js';
 /**
  * CLI: verify CRAP scores against the committed baseline.
  *
@@ -120,128 +122,60 @@ export function resolveCrapEnvOverrides(crapConfig, env) {
   return { newMethodCeiling, tolerance, refreshTag, overrides };
 }
 
-export function parseArgv(argv = process.argv.slice(2)) {
-  const out = {
-    storyId: null,
-    epicId: null,
-    baselinePath: undefined,
-    coveragePath: undefined,
-    changedSinceRef: null,
-    fullScope: false,
-    epicRef: null,
-    jsonPath: undefined,
-  };
+function readGateExtra(argv, flag) {
   for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--story' && argv[i + 1]) {
-      const parsed = Number(argv[i + 1]);
-      if (Number.isInteger(parsed) && parsed > 0) out.storyId = parsed;
-      i += 1;
-    } else if (argv[i] === '--epic' && argv[i + 1]) {
-      const parsed = Number(argv[i + 1]);
-      if (Number.isInteger(parsed) && parsed > 0) out.epicId = parsed;
-      i += 1;
-    } else if (argv[i] === '--baseline' && argv[i + 1]) {
-      out.baselinePath = argv[i + 1];
-      i += 1;
-    } else if (argv[i] === '--coverage' && argv[i + 1]) {
-      out.coveragePath = argv[i + 1];
-      i += 1;
-    } else if (argv[i] === '--changed-since') {
+    if (argv[i] === flag) {
       const next = argv[i + 1];
-      if (next && !next.startsWith('--')) {
-        out.changedSinceRef = next;
-        i += 1;
-      } else {
-        out.changedSinceRef = 'main';
-      }
-    } else if (argv[i] === '--full-scope') {
-      // Story #1394: explicit opt-out from the diff-scoped default. Wins over
-      // every layer below — recorded as a boolean so `resolveCrapChangedSince`
-      // can short-circuit before consulting env / config / framework defaults.
-      out.fullScope = true;
-    } else if (argv[i] === '--epic-ref' && argv[i + 1]) {
-      // Story #1120: read the baseline at this git ref (e.g. `epic/1114`)
-      // via baseline-loader instead of via the working-tree fs read.
-      out.epicRef = argv[i + 1];
-      i += 1;
-    } else if (argv[i] === '--json' && argv[i + 1]) {
-      out.jsonPath = argv[i + 1];
-      i += 1;
+      if (next && !next.startsWith('--')) return next;
+      return undefined;
     }
   }
-  if (out.storyId === null) {
-    const envVal = Number(process.env.FRICTION_STORY_ID);
-    if (Number.isInteger(envVal) && envVal > 0) out.storyId = envVal;
-  }
-  if (out.epicId === null) {
-    const envVal = Number(process.env.FRICTION_EPIC_ID);
-    if (Number.isInteger(envVal) && envVal > 0) out.epicId = envVal;
-  }
-  return out;
+  return undefined;
+}
+
+export function parseArgv(argv = process.argv.slice(2)) {
+  const parsed = parseGateArgs(argv, {
+    extras: {
+      baselinePath: (a) => readGateExtra(a, '--baseline'),
+      coveragePath: (a) => readGateExtra(a, '--coverage'),
+    },
+  });
+  return {
+    storyId: parsed.storyId,
+    epicId: parsed.epicId,
+    baselinePath: parsed.extras.baselinePath,
+    coveragePath: parsed.extras.coveragePath,
+    changedSinceRef: parsed.changedSinceRef,
+    fullScope: parsed.fullScope,
+    epicRef: parsed.epicRef,
+    jsonPath: parsed.jsonPath ?? undefined,
+  };
 }
 
 /**
- * Pure: resolve the effective `--changed-since` ref for the CRAP gate by
- * layering precedence:
- *   1. CLI `--full-scope` flag (parsed in {@link parseArgv}) → null + scope=full.
- *   2. CLI `--changed-since <ref>` (or bare flag, defaulting to 'main').
- *   3. Env `CRAP_CHANGED_SINCE` (or `MAINTAINABILITY_CHANGED_SINCE` for parity).
- *   4. `agentSettings.quality.crap.diffRef` from the resolved config.
- *   5. Framework default 'main' when `defaultScope === 'diff'`.
- *
- * Mirrors `resolveChangedSinceRef` in `check-maintainability.js` (Story #1394
- * AC15 parity). The two gates must share a precedence chain so a project
- * that flips one back to `--full-scope` doesn't have to remember which env
- * names apply to which gate.
+ * Resolve the CRAP `--changed-since` ref. Thin gate-specific wrapper over
+ * `resolveScopedRef`: pins the CRAP-first env precedence and reuses the
+ * CLI `--changed-since` / `--full-scope` precedence shared with MI.
  *
  * Exported for testing.
- *
- * @param {{
- *   parsedArgs: { changedSinceRef: string | null, fullScope?: boolean },
- *   env?: NodeJS.ProcessEnv,
- *   crapConfig?: { defaultScope?: string, diffRef?: string },
- * }} opts
- * @returns {{ ref: string | null, scope: 'diff' | 'full', source: string }}
  */
 export function resolveCrapChangedSince({
   parsedArgs,
   env = process.env,
   crapConfig,
 }) {
-  // Layer 1: --full-scope opt-out wins.
-  if (parsedArgs?.fullScope) {
-    return { ref: null, scope: 'full', source: '--full-scope' };
-  }
-  // Layer 2: explicit --changed-since flag.
+  const argv = [];
+  if (parsedArgs?.fullScope) argv.push('--full-scope');
   if (typeof parsedArgs?.changedSinceRef === 'string') {
-    return {
-      ref: parsedArgs.changedSinceRef,
-      scope: 'diff',
-      source: '--changed-since',
-    };
+    argv.push('--changed-since', parsedArgs.changedSinceRef);
   }
-  // Layer 3: env var override (CRAP-first, MI-fallback for parity).
-  const fromEnv = env?.CRAP_CHANGED_SINCE ?? env?.MAINTAINABILITY_CHANGED_SINCE;
-  if (typeof fromEnv === 'string' && fromEnv.length > 0) {
-    return {
-      ref: fromEnv,
-      scope: 'diff',
-      source: env?.CRAP_CHANGED_SINCE
-        ? 'CRAP_CHANGED_SINCE'
-        : 'MAINTAINABILITY_CHANGED_SINCE',
-    };
-  }
-  // Layer 4: project config.
-  const configuredScope = crapConfig?.defaultScope;
-  const configuredRef = crapConfig?.diffRef;
-  if (configuredScope === 'full') {
-    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
-  }
-  if (typeof configuredRef === 'string' && configuredRef.length > 0) {
-    return { ref: configuredRef, scope: 'diff', source: 'config.diffRef' };
-  }
-  // Layer 5: framework default — diff-scope against 'main'.
-  return { ref: 'main', scope: 'diff', source: 'default' };
+  return resolveScopedRef({
+    argv,
+    env,
+    config: crapConfig,
+    primaryEnv: 'CRAP_CHANGED_SINCE',
+    secondaryEnv: 'MAINTAINABILITY_CHANGED_SINCE',
+  });
 }
 
 /**
@@ -553,14 +487,6 @@ export function buildCrapReport({
   };
 }
 
-function writeJsonReport(jsonPath, envelope) {
-  const abs = path.isAbsolute(jsonPath)
-    ? jsonPath
-    : path.resolve(process.cwd(), jsonPath);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, `${JSON.stringify(envelope, null, 2)}\n`);
-}
-
 function printSummary(result, scanSummary) {
   Logger.info('\n--- CRAP Report ---');
   Logger.info(`Total methods scanned: ${result.total}`);
@@ -605,44 +531,36 @@ function printSummary(result, scanSummary) {
 }
 
 async function emitFriction(storyId, epicId, result, orchestration) {
-  if (!storyId || !epicId) return;
   const offenders = result.violations;
   if (offenders.length === 0) return;
-  // `orchestration` here is the full resolved config bag (`{ agentSettings,
-  // ...rest }`) — the parameter name predates the bag-style threading and
-  // is retained for surface stability.
+  // `orchestration` here is the full resolved config bag — the legacy
+  // parameter name predates bag-style threading and stays for surface stability.
   const category =
     orchestration?.agentSettings?.maintainability?.crap?.friction?.markerKey ??
     'crap-baseline-regression';
-  try {
-    await appendSignal({
-      epicId,
-      storyId,
-      signal: {
-        kind: 'friction',
-        timestamp: new Date().toISOString(),
-        epicId,
-        storyId,
-        category,
-        source: { tool: 'check-crap.js' },
-        details: `${offenders.length} CRAP violation(s) detected`,
-        violations: offenders.map((v) => ({
-          file: v.file,
-          method: v.method,
-          startLine: v.startLine,
-          crap: v.crap,
-          baseline: v.kind === 'new' ? null : v.baseline,
-          ceiling: v.kind === 'new' ? v.ceiling : null,
-          cyclomatic: v.cyclomatic,
-          coverage: v.coverage,
-          kind: v.kind,
-        })),
-      },
-      config: orchestration,
-    });
-  } catch (err) {
-    Logger.warn(`[CRAP] friction signal append failed: ${err?.message ?? err}`);
-  }
+  await emitFrictionSignal({
+    storyId,
+    epicId,
+    category,
+    tool: 'check-crap.js',
+    details: `${offenders.length} CRAP violation(s) detected`,
+    payload: {
+      violations: offenders.map((v) => ({
+        file: v.file,
+        method: v.method,
+        startLine: v.startLine,
+        crap: v.crap,
+        baseline: v.kind === 'new' ? null : v.baseline,
+        ceiling: v.kind === 'new' ? v.ceiling : null,
+        cyclomatic: v.cyclomatic,
+        coverage: v.coverage,
+        kind: v.kind,
+      })),
+    },
+    config: orchestration,
+    logger: Logger,
+    logLabel: 'CRAP',
+  });
 }
 
 /**
@@ -650,27 +568,10 @@ async function emitFriction(storyId, epicId, result, orchestration) {
  * (legacy fs read via `getCrapBaseline`) or, when `epicRef` is supplied,
  * from `git show <epicRef>:<baselinePath>` via `readBaselineAtRef`.
  *
- * Story #1120: the close-validation chain threads `epic/<id>` into the
- * gate so the comparison runs against the Epic-branch HEAD's committed
- * baseline, not against whatever `baselines/crap.json` happens to be on
- * the main checkout's working tree.
- *
- * The baseline-loader hands back the raw parsed envelope; this helper
- * applies the same `kernelVersion` / `escomplexVersion` / `rows` shape
- * checks that `getCrapBaseline` does, plus the `tsTranspilerVersion`
- * back-fill, so downstream comparators see a consistent envelope
- * regardless of which read path produced it.
- *
- * Exported for testing.
- *
- * @param {{
- *   baselinePath: string,
- *   epicRef: string | null,
- *   readAtRef?: typeof readBaselineAtRef,
- *   readFromTree?: typeof getCrapBaseline,
- *   logger?: { warn: (m: string) => void },
- * }} opts
- * @returns {ReturnType<typeof getCrapBaseline>}
+ * Story #1120 threads `epic/<id>` into close-validation so the comparison
+ * runs against the Epic-branch HEAD's committed baseline. This helper
+ * delegates the read to baseline-store and applies the CRAP shape-check
+ * + `tsTranspilerVersion` back-fill on top.
  */
 export function loadCrapBaseline({
   baselinePath,
@@ -679,16 +580,19 @@ export function loadCrapBaseline({
   readFromTree = getCrapBaseline,
   logger = console,
 }) {
-  if (!epicRef) return readFromTree({ baselinePath });
-  let parsed;
-  try {
-    parsed = readAtRef(epicRef, baselinePath);
-  } catch (err) {
-    logger.warn(
-      `[CRAP] ⚠ failed to read baseline at ref "${epicRef}": ${err?.message ?? err}. Falling back to working-tree read.`,
-    );
-    return readFromTree({ baselinePath });
-  }
+  const parsed = loadBaseline({
+    baselinePath,
+    epicRef,
+    readAtRef,
+    readFromTree,
+    logger,
+    label: 'CRAP',
+  });
+  // No-epicRef path delegates to readFromTree (defaults to getCrapBaseline)
+  // which already applies the shape-check + tsTranspilerVersion back-fill,
+  // so a tree read returns either a valid envelope or null. Epic-ref path
+  // bypasses that helper — shape-check + back-fill happens here.
+  if (!epicRef) return parsed;
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
@@ -818,7 +722,7 @@ async function main() {
       },
     });
     try {
-      writeJsonReport(args.jsonPath, envelope);
+      writeBaseline({ baselinePath: args.jsonPath, data: envelope });
       Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
     } catch (err) {
       Logger.warn(
@@ -844,27 +748,8 @@ async function main() {
   return 0;
 }
 
-// cli-opt-out: Windows-aware main-guard and main().then(code => process.exit(code)) result-code path; runAsCli does not propagate main's return value.
-// Only run main when invoked directly — keep the module importable from tests.
-const isDirect = (() => {
-  try {
-    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';
-    const self = new URL(import.meta.url).pathname;
-    // Normalize: on Windows URL pathname has a leading slash before the drive.
-    const normalizedSelf = /^\/[A-Za-z]:/.test(self) ? self.slice(1) : self;
-    return path.resolve(normalizedSelf) === invoked;
-  } catch {
-    return false;
-  }
-})();
-
-if (isDirect) {
-  main()
-    .then((code) => process.exit(code ?? 0))
-    .catch((err) => {
-      Logger.error(
-        `[CRAP] ❌ Fatal error: ${err?.stack ?? err?.message ?? err}`,
-      );
-      process.exit(1);
-    });
-}
+runAsCli(import.meta.url, main, {
+  source: 'CRAP',
+  propagateExitCode: true,
+  errorPrefix: '[CRAP] ❌ Fatal error',
+});

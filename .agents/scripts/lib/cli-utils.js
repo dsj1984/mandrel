@@ -45,13 +45,24 @@ export function isDirectInvocation(importMetaUrl) {
  */
 export function runAsCli(importMetaUrl, main, options = {}) {
   if (!isDirectInvocation(importMetaUrl)) return;
-  const { source = 'CLI', exitCode = 1, onError } = options;
-  main().catch((err) => {
+  const {
+    source = 'CLI',
+    exitCode = 1,
+    onError,
+    propagateExitCode = false,
+    errorPrefix,
+  } = options;
+  const promise = main();
+  if (propagateExitCode) {
+    promise.then((code) => process.exit(code ?? 0));
+  }
+  promise.catch((err) => {
     if (typeof onError === 'function') {
       onError(err);
       return;
     }
-    console.error(`[${source}] Fatal error: ${err.stack || err.message}`);
+    const prefix = errorPrefix ?? `[${source}] Fatal error`;
+    console.error(`${prefix}: ${err?.stack ?? err?.message ?? err}`);
     process.exit(exitCode);
   });
 }
