@@ -233,6 +233,7 @@ export async function runStoryInit({
       logger: stageLogger,
       input: {
         storyId,
+        epicId,
         epicBranch,
         storyBranch,
         baseBranch: agentSettings.baseBranch ?? 'main',

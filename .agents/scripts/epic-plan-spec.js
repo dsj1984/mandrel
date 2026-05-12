@@ -30,9 +30,17 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  commitSnapshotsToEpicBranch,
+  forkAndCommitEpicSnapshot,
   forkMainToEpic,
 } from './lib/baseline-snapshot.js';
+
+// Re-exported so the historic import path
+// (`epic-plan-spec.js#forkAndCommitEpicSnapshot`) and existing tests keep
+// working after Story #1585 relocated the wrapper into the lower-level
+// `lib/baseline-snapshot.js` module. `forkMainToEpic` is also re-exported
+// for the same reason.
+export { forkAndCommitEpicSnapshot, forkMainToEpic };
+
 import { runAsCli } from './lib/cli-utils.js';
 import {
   getLimits,
@@ -40,7 +48,6 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { ensureEpicBranchRef } from './lib/git-branch-lifecycle.js';
 import * as gitUtils from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
@@ -352,66 +359,6 @@ async function setEpicLabel(provider, epicId, targetLabel) {
       remove: planningLabels.filter((l) => l !== targetLabel),
     },
   });
-}
-
-/**
- * Story #1396 (re-targeted by Story #1467): fork the tracked main baselines
- * into `temp/epic-<id>/baselines/` and commit the snapshots onto the Epic
- * branch as part of Phase 1 persistence. Encapsulated here (rather than
- * inlined into `runSpecPhase`) so unit tests can pin the wiring without
- * spawning the full spec phase.
- *
- * Failure modes are non-fatal: a missing source baseline downgrades to a
- * `--full-scope` warning (the gate already handles that path), an
- * unresolvable Epic branch is logged and skipped, and the helper never
- * throws into the spec phase. The Epic's planning state must remain
- * advanceable even on a fresh-repo / partial-config bake.
- *
- * @param {{
- *   epicId: number,
- *   cwd?: string,
- *   baseBranch?: string,
- *   logger?: object,
- *   forkFn?: typeof forkMainToEpic,
- *   commitFn?: typeof commitSnapshotsToEpicBranch,
- *   ensureEpicBranchRefFn?: typeof ensureEpicBranchRef,
- * }} opts
- * @returns {{ fork: object, commit: object }}
- */
-export function forkAndCommitEpicSnapshot({
-  epicId,
-  cwd = PROJECT_ROOT,
-  baseBranch = 'main',
-  logger = Logger,
-  forkFn = forkMainToEpic,
-  commitFn = commitSnapshotsToEpicBranch,
-  ensureEpicBranchRefFn = ensureEpicBranchRef,
-} = {}) {
-  const epicBranch = `epic/${epicId}`;
-  // Idempotent: ensures the ref exists locally + pushes when needed. The
-  // helper logs its own progress; we silence by passing a no-op progress.
-  try {
-    ensureEpicBranchRefFn(epicBranch, baseBranch, cwd, {
-      progress: () => {},
-    });
-  } catch (err) {
-    logger.warn?.(
-      `[epic-plan-spec] snapshot-fork: failed to ensure ${epicBranch}: ${err?.message ?? err}. Skipping fork.`,
-    );
-    return {
-      fork: { epicId, results: [] },
-      commit: { committed: false, reason: 'epic-missing' },
-    };
-  }
-  const fork = forkFn({ epicId, cwd, logger });
-  const commit = commitFn({
-    epicId,
-    cwd,
-    epicBranch,
-    files: fork.results.filter((r) => r.written || r.reason === 'idempotent'),
-    logger,
-  });
-  return { fork, commit };
 }
 
 /**
