@@ -1,0 +1,78 @@
+{
+  "case": "update-only",
+  "description": "Every spec slug is mapped. One title drift on the Story, one label drift on the Feature → two Update ops, no Creates/Closes/Relinks.",
+  "spec": {
+    "epic": {
+      "id": 9002,
+      "title": "Mature Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature", "area::core"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "Renamed Story",
+            "wave": 0,
+            "labels": ["type::story"],
+            "tasks": [
+              {
+                "slug": "task-one-a",
+                "title": "Task one A",
+                "labels": ["type::task"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9002,
+    "mapping": {
+      "epic": { "issueNumber": 9002, "entity": "epic", "parentSlug": null },
+      "feat-alpha": {
+        "issueNumber": 100,
+        "entity": "feature",
+        "parentSlug": "epic"
+      },
+      "story-one": {
+        "issueNumber": 101,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "task-one-a": {
+        "issueNumber": 102,
+        "entity": "task",
+        "parentSlug": "story-one"
+      }
+    }
+  },
+  "ghState": {
+    "9002": {
+      "title": "Mature Epic",
+      "labels": ["type::epic"],
+      "state": "open"
+    },
+    "100": {
+      "title": "Alpha Feature",
+      "labels": ["type::feature"],
+      "state": "open"
+    },
+    "101": {
+      "title": "Original Story Title",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "102": {
+      "title": "Task one A",
+      "labels": ["type::task"],
+      "state": "open"
+    }
+  }
+}

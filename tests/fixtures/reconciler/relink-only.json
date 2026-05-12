@@ -1,0 +1,98 @@
+{
+  "case": "relink-only",
+  "description": "All structural fields match; the Story's dependsOn edge set changed and a Task moved between Stories → two Relink ops, no Creates/Updates/Closes.",
+  "spec": {
+    "epic": {
+      "id": 9004,
+      "title": "Reshuffling Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story",
+            "wave": 0,
+            "labels": ["type::story"],
+            "dependsOn": ["story-two"],
+            "tasks": [
+              {
+                "slug": "task-shared",
+                "title": "Shared Task",
+                "labels": ["type::task"]
+              }
+            ]
+          },
+          {
+            "slug": "story-two",
+            "title": "Second Story",
+            "wave": 0,
+            "labels": ["type::story"],
+            "tasks": []
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9004,
+    "mapping": {
+      "epic": { "issueNumber": 9004, "entity": "epic", "parentSlug": null },
+      "feat-alpha": {
+        "issueNumber": 300,
+        "entity": "feature",
+        "parentSlug": "epic"
+      },
+      "story-one": {
+        "issueNumber": 301,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "story-two": {
+        "issueNumber": 302,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "task-shared": {
+        "issueNumber": 303,
+        "entity": "task",
+        "parentSlug": "story-two"
+      }
+    }
+  },
+  "ghState": {
+    "9004": {
+      "title": "Reshuffling Epic",
+      "labels": ["type::epic"],
+      "state": "open"
+    },
+    "300": {
+      "title": "Alpha Feature",
+      "labels": ["type::feature"],
+      "state": "open"
+    },
+    "301": {
+      "title": "First Story",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "302": {
+      "title": "Second Story",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "303": {
+      "title": "Shared Task",
+      "labels": ["type::task"],
+      "state": "open"
+    }
+  }
+}

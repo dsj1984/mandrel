@@ -163,7 +163,7 @@ describe('signals/read — envelope discipline', () => {
       '',
       '',
     ];
-    await fs.writeFile(target, lines.join('\n') + '\n', 'utf8');
+    await fs.writeFile(target, `${lines.join('\n')}\n`, 'utf8');
     const evts = await collect(read({ epic: 1181, story: 1438, config: cfg }));
     assert.deepEqual(
       evts.map((e) => e.id),
@@ -174,7 +174,7 @@ describe('signals/read — envelope discipline', () => {
 
 describe('signals/read — warn-once policy', () => {
   it('emits at most one warn for many malformed lines', async () => {
-    const target = path.join(
+    const _target = path.join(
       storyDir(1181, 1438),
       // path-only check; we'll write through writeSignalsFile
     );
@@ -268,7 +268,7 @@ describe('signals/read — streaming, not slurping', () => {
         }),
       );
     }
-    writeFileSync(target, buf.join('\n') + '\n', 'utf8');
+    writeFileSync(target, `${buf.join('\n')}\n`, 'utf8');
     const stat = await fs.stat(target);
     assert.ok(
       stat.size > 4 * 1024 * 1024,

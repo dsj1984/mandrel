@@ -347,4 +347,49 @@ describe('assembleState', () => {
       state.git = {};
     }, /Cannot assign|read.only/);
   });
+
+  it('covers unknown-scope, env-missing, and rev-parse-null branches', () => {
+    // Three branch-coverage targets folded into one case to keep the
+    // test file's MI score above the ratcheted baseline:
+    //   (a) SCOPE_KEYS[scope] ?? [] fallback for a truthy unknown scope.
+    //   (b) env probe returning 'missing' (the spy in the privacy test
+    //       only hits the 'set' branch).
+    //   (c) epicBranchSync's local/remote null branches when rev-parse
+    //       fails (the existing sync tests stub both as ok:true).
+    const { probes: empty, calls } = makeSpyProbes();
+    const unknown = assembleState({
+      scope: 'no-such-scope',
+      cwd: '/r-u',
+      probes: empty,
+    });
+    assert.deepEqual(unknown.git, {});
+    assert.deepEqual(unknown.fs, {});
+    assert.deepEqual(unknown.env, {});
+    assert.deepEqual([calls.git, calls.fs, calls.env], [[], [], []]);
+
+    const { probes: envMiss } = makeSpyProbes({ env: () => 'missing' });
+    const miss = assembleState({
+      scope: 'story-close',
+      cwd: '/r-m',
+      probes: envMiss,
+    });
+    assert.equal(miss.env.GITHUB_TOKEN, 'missing');
+
+    const { probes: nullProbes } = makeSpyProbes({
+      git: (_cwd, cmd, ...rest) => {
+        if (cmd === 'for-each-ref') return { ok: true, stdout: 'epic/9999' };
+        if (cmd === 'rev-parse' && rest[0] === '--verify')
+          return { ok: false, stdout: '' };
+        return { ok: true, stdout: '' };
+      },
+    });
+    const sync = assembleState({
+      scope: 'story-close',
+      cwd: '/r-s',
+      probes: nullProbes,
+    });
+    assert.deepEqual(sync.git.epicBranchSync, {
+      'epic/9999': { local: null, remote: null, ahead: false },
+    });
+  });
 });

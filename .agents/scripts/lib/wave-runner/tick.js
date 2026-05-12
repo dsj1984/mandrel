@@ -30,15 +30,30 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   currentWave:    number
  *   totalWaves:     number
  *
- * @param {{
- *   epic: number | { id: number },
- *   collaborators?: {
- *     provider?: object,
- *     checkpointer?: { read: () => Promise<object|null> },
- *     signalEmit?: (signal: object) => Promise<unknown>,
- *   },
- *   ctx?: { provider?: object, config?: object },
- * }} args
+ * When `spec` is omitted, the planner falls back to the checkpoint's
+ * `state.plan` (the GH-derived dependency-DAG grouping originally seeded
+ * by /epic-plan) — behaviour is byte-identical to the pre-spec path.
+ * When `spec` is supplied, wave grouping is driven by `spec.stories[].wave`
+ * (the declarative SSOT from `.agents/epics/<epic-id>.yaml`) and slugs are
+ * resolved to GH issue numbers via the sibling `<epic-id>.state.json`
+ * mapping; the checkpoint is still consulted for `currentWave`,
+ * `totalWaves`, and `waves[]` history but its `plan[]` is overridden.
+ *
+ * @typedef {object} WaveTickArgs
+ * @property {number | { id: number }} epic
+ * @property {object} [spec] Parsed epic-spec (see lib/spec/loader.js). When
+ *   provided, wave grouping comes from `spec.stories[].wave`.
+ * @property {object} [state] Parsed epic-state (see lib/spec/loader.js).
+ *   When `spec` is provided, this must be supplied so slugs can resolve to
+ *   issue numbers via `state.mapping[slug].issueNumber`.
+ * @property {{
+ *   provider?: object,
+ *   checkpointer?: { read: () => Promise<object|null> },
+ *   signalEmit?: (signal: object) => Promise<unknown>,
+ * }} [collaborators]
+ * @property {{ provider?: object, config?: object }} [ctx]
+ *
+ * @param {WaveTickArgs} args
  */
 export async function tick(args = {}) {
   const epicId = resolveEpicId(args.epic);
@@ -49,6 +64,8 @@ export async function tick(args = {}) {
   } = args.collaborators ?? {};
   const ctx = args.ctx ?? {};
   const provider = collabProvider ?? ctx.provider;
+  const spec = args.spec ?? null;
+  const specState = args.state ?? null;
   if (!provider) {
     throw new WaveRunnerError('invalid-input', 'provider is required');
   }
@@ -69,9 +86,8 @@ export async function tick(args = {}) {
     );
   }
 
-  const totalWaves = positiveIntOrZero(state.totalWaves);
   const currentWave = positiveIntOrZero(state.currentWave);
-  const plan = Array.isArray(state.plan) ? state.plan : [];
+  const { plan, totalWaves } = resolvePlan(state, spec, specState);
   const history = Array.isArray(state.waves) ? state.waves : [];
 
   if (totalWaves === 0 || currentWave >= totalWaves) {
@@ -228,6 +244,101 @@ function positiveIntOrZero(v) {
 function storyIdOf(s) {
   if (typeof s === 'number') return s;
   return s.id ?? s.storyId ?? s.number;
+}
+
+/**
+ * Walk `spec.features[].stories[]` and bucket entries by their `wave`
+ * value, mapping slugs → GH issue numbers via the sibling state file.
+ * Returns `Story[][]` indexed by wave number; missing waves between 0 and
+ * the highest declared wave are emitted as empty arrays so wave N is
+ * always reachable as `plan[N]`.
+ *
+ * Each emitted entry is shaped to match the checkpoint plan's
+ * `{ id, title }` contract that the rest of `tick()` already consumes:
+ *
+ *   - `id` is the GH issue number resolved from `state.mapping[slug].issueNumber`
+ *     so the same provider.getTicket(id) path used by the spec-less plan
+ *     keeps working unchanged.
+ *   - `title` is carried through from `story.title` so the wave-start
+ *     signal can include the Story's human-readable name without an
+ *     extra provider round-trip.
+ *   - `slug` is preserved on the entry so observability + future
+ *     re-resolution paths can re-key against the spec.
+ *
+ * When a Story slug has no resolved `issueNumber` in `state.mapping`
+ * (a fresh spec entry the reconciler has not materialised yet), the entry
+ * is skipped — un-materialised Stories cannot be dispatched anyway, and
+ * including them with a `null` id would surface as a `story-fetch`
+ * failure inside `tick()`. The reconciler will close the loop on the
+ * next apply; until then, an empty wave is a faithful reflection of
+ * GitHub state.
+ *
+ * Pure function — does not read disk, does not call GH. Callers are
+ * expected to compose it with `loadSpec` + `loadState` from
+ * `lib/spec/loader.js`.
+ *
+ * @param {object} spec Parsed epic-spec (see lib/spec/loader.js).
+ * @param {{mapping?: Record<string, {issueNumber?: number}>}|null} [state]
+ *   Parsed epic-state. May be omitted; if missing, no entries can be
+ *   resolved and `groupByWave` returns `[]`.
+ * @returns {Array<Array<{id: number, title?: string, slug: string}>>}
+ */
+export function groupByWave(spec, state = null) {
+  const mapping =
+    state && typeof state.mapping === 'object' && state.mapping !== null
+      ? state.mapping
+      : {};
+  const byWave = new Map();
+  let maxWave = -1;
+  const features = Array.isArray(spec?.features) ? spec.features : [];
+  for (const feature of features) {
+    const stories = Array.isArray(feature?.stories) ? feature.stories : [];
+    for (const story of stories) {
+      if (!story || typeof story !== 'object') continue;
+      const wave = Number.isInteger(story.wave) ? story.wave : null;
+      if (wave === null || wave < 0) continue;
+      const slug = typeof story.slug === 'string' ? story.slug : null;
+      if (!slug) continue;
+      const mapped = mapping[slug];
+      const issueNumber =
+        mapped && typeof mapped.issueNumber === 'number'
+          ? mapped.issueNumber
+          : null;
+      if (issueNumber === null) continue;
+      const entry = { id: issueNumber, title: story.title, slug };
+      if (!byWave.has(wave)) byWave.set(wave, []);
+      byWave.get(wave).push(entry);
+      if (wave > maxWave) maxWave = wave;
+    }
+  }
+  if (maxWave < 0) return [];
+  const out = [];
+  for (let i = 0; i <= maxWave; i += 1) {
+    out.push(byWave.get(i) ?? []);
+  }
+  return out;
+}
+
+/**
+ * Resolve which plan + totalWaves drive this tick. When `spec` is
+ * supplied, the spec-derived grouping wins (and totalWaves comes from
+ * the spec since the checkpoint may lag); otherwise the checkpoint's
+ * plan is used unchanged. Extracted so `tick()`'s cyclomatic complexity
+ * stays inside its baseline budget — the route choice is now a single
+ * call, not three ternaries inline.
+ *
+ * @param {object} state Checkpoint state (already validated as object).
+ * @param {object|null} spec Parsed epic-spec or `null` when omitted.
+ * @param {object|null} specState Parsed epic-state for slug mapping.
+ * @returns {{plan: Array<Array<object>>, totalWaves: number}}
+ */
+function resolvePlan(state, spec, specState) {
+  if (spec) {
+    const specPlan = groupByWave(spec, specState);
+    return { plan: specPlan, totalWaves: specPlan.length };
+  }
+  const plan = Array.isArray(state.plan) ? state.plan : [];
+  return { plan, totalWaves: positiveIntOrZero(state.totalWaves) };
 }
 
 function isUndispatched(labels) {

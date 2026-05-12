@@ -47,9 +47,10 @@
     "memfs": "^4.57.1"
   },
   "dependencies": {
+    "js-yaml": "^4.1.1",
     "picomatch": "^4.0.4",
     "string-argv": "^0.3.2",
-    "typescript": "^5.9.3",
+    "typescript": ">=5.0.0",
     "typhonjs-escomplex": "^0.1.0"
   },
   "peerDependencies": {

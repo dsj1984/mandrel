@@ -698,4 +698,4 @@ failures never block execution.
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `/delete-epic-branches <epicId>`                 | Hard reset — delete all Epic-scoped branches                                                                                                                                 |
-| `/delete-epic-tickets <epicId>`                  | Hard reset — delete all Epic-scoped issues                                                                                                                                   |
+| `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |

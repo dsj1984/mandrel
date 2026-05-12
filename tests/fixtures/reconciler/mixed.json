@@ -1,0 +1,98 @@
+{
+  "case": "mixed",
+  "description": "All four operation kinds in one plan: a new Story (Create), a Feature with drifted title (Update), an orphan Task in mapping (Close), and a Story whose dependsOn edge set changed (Relink).",
+  "spec": {
+    "epic": {
+      "id": 9006,
+      "title": "Mixed Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Renamed",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story",
+            "wave": 0,
+            "dependsOn": ["story-two"],
+            "labels": ["type::story"],
+            "tasks": [
+              {
+                "slug": "task-one-a",
+                "title": "Task one A",
+                "labels": ["type::task"]
+              }
+            ]
+          },
+          {
+            "slug": "story-two",
+            "title": "Brand New Story",
+            "wave": 0,
+            "dependsOn": [],
+            "labels": ["type::story"],
+            "tasks": []
+          }
+        ]
+      }
+    ]
+  },
+  "state": {
+    "epicId": 9006,
+    "mapping": {
+      "epic": { "issueNumber": 9006, "entity": "epic", "parentSlug": null },
+      "feat-alpha": {
+        "issueNumber": 500,
+        "entity": "feature",
+        "parentSlug": "epic"
+      },
+      "story-one": {
+        "issueNumber": 501,
+        "entity": "story",
+        "parentSlug": "feat-alpha",
+        "dependsOn": [],
+        "wave": 0
+      },
+      "task-one-a": {
+        "issueNumber": 502,
+        "entity": "task",
+        "parentSlug": "story-one"
+      },
+      "task-dropped": {
+        "issueNumber": 503,
+        "entity": "task",
+        "parentSlug": "story-one",
+        "title": "Dropped Task"
+      }
+    }
+  },
+  "ghState": {
+    "9006": {
+      "title": "Mixed Epic",
+      "labels": ["type::epic"],
+      "state": "open"
+    },
+    "500": {
+      "title": "Alpha Old Title",
+      "labels": ["type::feature"],
+      "state": "open"
+    },
+    "501": {
+      "title": "First Story",
+      "labels": ["type::story"],
+      "state": "open"
+    },
+    "502": {
+      "title": "Task one A",
+      "labels": ["type::task"],
+      "state": "open"
+    },
+    "503": {
+      "title": "Dropped Task",
+      "labels": ["type::task"],
+      "state": "open"
+    }
+  }
+}

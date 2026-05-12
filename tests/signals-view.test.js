@@ -45,7 +45,7 @@ function captureStdout() {
   // and reassemble lines from the chunks.
   const chunks = [];
   const orig = process.stdout.write.bind(process.stdout);
-  process.stdout.write = (chunk, ...rest) => {
+  process.stdout.write = (chunk, ..._rest) => {
     chunks.push(typeof chunk === 'string' ? chunk : String(chunk));
     return true;
   };
@@ -69,7 +69,7 @@ async function writeSignalsFile(rootDir, epic, story, events) {
   const target = path.join(dir, 'signals.ndjson');
   await fs.writeFile(
     target,
-    events.map((e) => JSON.stringify(e)).join('\n') + '\n',
+    `${events.map((e) => JSON.stringify(e)).join('\n')}\n`,
     'utf8',
   );
   return target;
