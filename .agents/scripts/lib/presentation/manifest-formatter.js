@@ -693,17 +693,19 @@ export function buildManifestFromSpec(spec, opts = {}) {
     for (const story of stories) {
       if (!story || typeof story !== 'object') continue;
       const storyTasks = Array.isArray(story.tasks) ? story.tasks : [];
-      const tasks = storyTasks.map((t) => {
+      const tasks = [];
+      for (const t of storyTasks) {
+        if (!t || typeof t !== 'object') continue;
         const status = resolveStatus(t.slug);
         if (status === AGENT_LABELS.DONE) doneTasks++;
         totalTasks++;
-        return {
+        tasks.push({
           taskId: resolveId(t.slug),
           taskSlug: t.slug ?? '',
           status,
           dependencies: [], // Tasks have no dependsOn surface in the spec.
-        };
-      });
+        });
+      }
 
       const wave = Number.isInteger(story.wave) ? story.wave : -1;
       if (wave >= 0) waveSet.add(wave);

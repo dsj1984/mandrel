@@ -240,3 +240,115 @@ test('fromSpec on an empty spec emits the header-only manifest cleanly', () => {
   // No Wave Summary table when there are zero waves.
   assert.doesNotMatch(md, /## Wave Summary/);
 });
+
+test('buildManifestFromSpec tolerates absent / malformed state without throwing', () => {
+  const spec = {
+    epic: { id: 2, title: 'No-state Epic' },
+    features: [
+      {
+        slug: 'f',
+        title: 'F',
+        stories: [
+          {
+            slug: 's',
+            title: 'S',
+            wave: 0,
+            tasks: [{ slug: 't', title: 'T' }],
+          },
+        ],
+      },
+    ],
+  };
+  // No opts at all.
+  const m1 = buildManifestFromSpec(spec);
+  assert.equal(m1.storyManifest[0].storyId, 'slug:s');
+  assert.equal(m1.storyManifest[0].tasks[0].status, 'agent::ready');
+  // Empty mapping.
+  const m2 = buildManifestFromSpec(spec, { state: { mapping: {} } });
+  assert.equal(m2.storyManifest[0].storyId, 'slug:s');
+  // Non-object state.mapping.
+  const m3 = buildManifestFromSpec(spec, { state: { mapping: null } });
+  assert.equal(m3.storyManifest[0].storyId, 'slug:s');
+  // Non-object state entirely.
+  const m4 = buildManifestFromSpec(spec, { state: 'garbage' });
+  assert.equal(m4.storyManifest[0].storyId, 'slug:s');
+});
+
+test('buildManifestFromSpec passes executor / dryRun / agentTelemetry through to the manifest envelope', () => {
+  const spec = { epic: { id: 3, title: 'X' }, features: [] };
+  const telemetry = { totalFriction: 0, recentFriction: [] };
+  const m = buildManifestFromSpec(spec, {
+    generatedAt: GENERATED_AT,
+    executor: 'custom-exec',
+    dryRun: true,
+    agentTelemetry: telemetry,
+  });
+  assert.equal(m.executor, 'custom-exec');
+  assert.equal(m.dryRun, true);
+  assert.equal(m.agentTelemetry, telemetry);
+  // Default branches (omit each option): executor → 'spec', dryRun → false,
+  // agentTelemetry → null.
+  const d = buildManifestFromSpec(spec);
+  assert.equal(d.executor, 'spec');
+  assert.equal(d.dryRun, false);
+  assert.equal(d.agentTelemetry, null);
+});
+
+test('buildManifestFromSpec skips malformed Story entries + Tasks without crashing', () => {
+  const spec = {
+    epic: { id: 4, title: 'Malformed' },
+    features: [
+      {
+        slug: 'f',
+        title: 'F',
+        stories: [
+          null, // skipped
+          'not-an-object', // skipped (typeof !== 'object')
+          {
+            slug: 'good',
+            title: 'Good',
+            wave: 'bad-wave', // non-integer → earliestWave = -1, not counted into totalWaves
+            tasks: [
+              { slug: 'a', title: 'A' },
+              null, // Array.isArray check passes; map still emits an entry — see below
+            ],
+          },
+          {
+            slug: 'no-tasks',
+            title: 'No Tasks',
+            wave: 0,
+            // tasks omitted → falls back to [] via Array.isArray guard
+          },
+        ],
+      },
+      {
+        // Missing stories array → handled by Array.isArray guard.
+        slug: 'no-stories',
+        title: 'No Stories',
+      },
+    ],
+  };
+  // The `null` task entry would crash on `t.slug`; verify we don't include
+  // a tasks: [null, …] shape by filtering the iteration.
+  const m = buildManifestFromSpec(spec);
+  // The Story with wave='bad-wave' is still emitted (earliestWave = -1)
+  // but it doesn't contribute to totalWaves.
+  const goodStory = m.storyManifest.find((s) => s.storySlug === 'good');
+  assert.ok(goodStory, 'good story must survive');
+  assert.equal(goodStory.earliestWave, -1);
+  // totalWaves counts only valid (>= 0) wave numbers — only the no-tasks
+  // Story declared wave: 0.
+  assert.equal(m.summary.totalWaves, 1);
+});
+
+test('fromSpec without explicit generatedAt populates a fresh ISO timestamp', () => {
+  const spec = { epic: { id: 5, title: 'Auto-stamp' }, features: [] };
+  __resetManifestFormatterCache();
+  const before = Date.now();
+  const md = fromSpec(spec);
+  const after = Date.now();
+  const stamp = md.match(/_Generated ([^ ]+) /)?.[1];
+  assert.ok(stamp, 'rendered manifest must carry a Generated timestamp');
+  const parsed = Date.parse(stamp);
+  assert.ok(parsed >= before && parsed <= after, 'timestamp must be fresh');
+});
