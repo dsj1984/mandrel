@@ -1,0 +1,8 @@
+{
+  "epic": {
+    "id": 1,
+    "title": "Carries unknown top-level key — negative fixture",
+    "owner": "should-be-rejected"
+  },
+  "features": []
+}

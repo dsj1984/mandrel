@@ -1,0 +1,9 @@
+{
+  "features": [
+    {
+      "slug": "orphan",
+      "title": "Feature without an Epic parent — negative fixture",
+      "stories": []
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "../../../.agents/schemas/epic-spec.schema.json",
+  "epic": {
+    "id": 1182,
+    "title": "v6 Epic D — Declarative epic.yaml + reconciler",
+    "body": "Structural SSOT migration. See PRD #1482 / Tech Spec #1483.",
+    "labels": ["type::epic"]
+  },
+  "features": [
+    {
+      "slug": "spec-and-schema",
+      "title": "Spec format + JSON Schema",
+      "labels": ["type::feature"],
+      "stories": [
+        {
+          "slug": "schema-author",
+          "title": "Author epic-spec.schema.json",
+          "body": "Define the canonical structural schema.",
+          "wave": 0,
+          "dependsOn": [],
+          "labels": ["type::story", "persona::architect"],
+          "tasks": [
+            {
+              "slug": "schema-skeleton",
+              "title": "Schema skeleton + property docs",
+              "labels": ["type::task"]
+            },
+            {
+              "slug": "schema-tests",
+              "title": "Schema fixture tests",
+              "labels": ["type::task"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "slug": "reconciler-core",
+      "title": "Reconciler diff + apply",
+      "stories": [
+        {
+          "slug": "diff-engine",
+          "title": "Diff engine + drift discriminator",
+          "wave": 1,
+          "dependsOn": ["schema-author"],
+          "tasks": [
+            {
+              "slug": "diff-pure",
+              "title": "Pure-function diff"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "gates": {
+    "baseline": "ratchet-baseline-2026-05-12",
+    "config": "gate-config-v6"
+  }
+}
