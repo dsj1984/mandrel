@@ -18,15 +18,21 @@ import {
 } from '../orchestration/parked-follow-ons.js';
 import { upsertStructuredComment } from '../orchestration/ticketing.js';
 import {
+  buildManifestFromSpec,
   formatManifestMarkdown,
   formatStoryManifestMarkdown,
+  fromManifest,
+  fromSpec,
   printStoryDispatchTable,
   renderManifestMarkdown,
 } from './manifest-formatter.js';
 import { persistManifest } from './manifest-persistence.js';
 
 export {
+  buildManifestFromSpec,
   formatManifestMarkdown,
+  fromManifest,
+  fromSpec,
   persistManifest,
   printStoryDispatchTable,
   renderManifestMarkdown,

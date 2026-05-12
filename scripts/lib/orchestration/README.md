@@ -93,7 +93,7 @@ entry point. They never own business logic.
 | `epic-deliver runner`                      | Epic closure: doc freshness gate, version bump, tag release             |
 | `epic-code-review.js`                | Automated code review execution                                         |
 | `update-ticket-state.js`             | CLI wrapper — label-based state machine with cascade                    |
-| `delete-epic.js`                     | Recursive issue deletion/clearing via GraphQL                           |
+| `epic-reconcile.js`                  | Structural epic-spec reconciler — issue close/clear (use `--explicit-delete`) |
 | `notify.js`                          | Operator notification (mentions + webhooks)                             |
 | `lint-baseline.js`                   | Lint baseline ratchet — prevents new warnings                           |
 | `check-maintainability.js`           | Maintainability score computation and baseline check                    |

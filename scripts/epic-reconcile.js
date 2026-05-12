@@ -1,0 +1,571 @@
+#!/usr/bin/env node
+/* node:coverage ignore file */
+
+/**
+ * epic-reconcile.js — CLI surface for the structural epic-spec reconciler.
+ *
+ * Story #1496 (Epic #1182 / Tech Spec #1483). Thin wrapper that
+ * composes the existing reconciler modules into the operator-facing
+ * surface specified in the Tech Spec:
+ *
+ *   node .agents/scripts/epic-reconcile.js <epicId>
+ *     [--dry-run] (default)
+ *     [--apply]
+ *     [--explicit-delete]
+ *     [--yes]
+ *
+ * Control flow (Tech Spec §"Reconciler control flow"):
+ *
+ *   1. Load `.agents/epics/<id>.yaml` via `lib/spec/loader.js`. Validation
+ *      failure exits 1 with the failing JSON Pointer.
+ *   2. Load `.agents/epics/<id>.state.json` (absent → empty mapping).
+ *   3. Fetch the live GH state via the configured `ITicketingProvider`.
+ *   4. Compute the plan via `epic-spec-reconciler-diff.js#diff`.
+ *   5. Render the plan via `epic-spec-reconciler-format.js#formatPlan`.
+ *   6. On `--dry-run` (default) — print and exit 0.
+ *      On `--apply`:
+ *        - When the plan carries close ops without `--explicit-delete`,
+ *          exit 2.
+ *        - When the plan is non-empty, in a TTY, prompt unless `--yes`.
+ *          Non-TTY without `--yes` aborts (exit 1).
+ *        - Invoke `apply()` with the appropriate gate flags.
+ *
+ * Exit codes (Story #1496 / Task #1521):
+ *   - 0  No diff or successful apply.
+ *   - 1  Validation error (`SpecValidationError`, `SpecParseError`,
+ *        `SpecNotFoundError`), or a non-TTY `--apply` without `--yes`,
+ *        or an apply-phase provider failure.
+ *   - 2  Close operation requires `--explicit-delete` but the flag was
+ *        absent.
+ *
+ * The CLI is intentionally thin: every behaviour that matters for
+ * downstream automation is rooted in the underlying modules. This file
+ * adds three things on top: argument parsing, the confirmation gate,
+ * and the exit-code contract.
+ */
+
+import readline from 'node:readline';
+import { parseArgs } from 'node:util';
+
+import { runAsCli } from './lib/cli-utils.js';
+import { resolveConfig } from './lib/config-resolver.js';
+import { Logger } from './lib/Logger.js';
+import {
+  ApplyGateViolation,
+  apply,
+} from './lib/orchestration/epic-spec-reconciler-apply.js';
+import { diff } from './lib/orchestration/epic-spec-reconciler-diff.js';
+import { formatPlan } from './lib/orchestration/epic-spec-reconciler-format.js';
+import { isEmptyPlan } from './lib/orchestration/epic-spec-reconciler-ops.js';
+import {
+  EPIC_NOT_QUIESCENT_CODE,
+  EpicNotQuiescentError,
+  runReverseBootstrap,
+} from './lib/orchestration/epic-spec-reverse-bootstrap.js';
+import { createProvider } from './lib/provider-factory.js';
+import {
+  loadSpec,
+  loadState,
+  SpecNotFoundError,
+  SpecParseError,
+  SpecValidationError,
+} from './lib/spec/index.js';
+
+/**
+ * Exit-code contract (see header). Exported for tests so they can assert
+ * the constants without re-deriving the integers from prose.
+ *
+ * `EXPLICIT_DELETE_REQUIRED` and `EPIC_NOT_QUIESCENT` deliberately share
+ * exit code 2: both signal an operator-fixable structural refusal that
+ * must not be auto-retried by automation. The accompanying stderr line
+ * names which condition fired (`--explicit-delete` vs. `quiescent`) so
+ * humans + log-scraping CI can disambiguate without re-running.
+ */
+export const EXIT_CODES = Object.freeze({
+  OK: 0,
+  VALIDATION_ERROR: 1,
+  EXPLICIT_DELETE_REQUIRED: 2,
+  EPIC_NOT_QUIESCENT: 2,
+});
+
+/**
+ * Re-export the quiescence-refusal structured token so downstream
+ * automation (log scrapers, CI gates) can import the same constant the
+ * CLI emits instead of duplicating the literal.
+ */
+export { EPIC_NOT_QUIESCENT_CODE };
+
+/**
+ * Default writer for log/output streams. Tests inject sinks so they can
+ * inspect what the CLI printed without intercepting process.stdout.
+ */
+function defaultStdout(line) {
+  process.stdout.write(`${line}\n`);
+}
+
+function defaultStderr(line) {
+  process.stderr.write(`${line}\n`);
+}
+
+/**
+ * Parse the CLI argv into a typed bag. Exported for tests.
+ *
+ * @param {string[]} argv  argv slice (excluding `node` and the script path).
+ * @returns {{
+ *   epicId: number|null,
+ *   dryRun: boolean,
+ *   apply: boolean,
+ *   explicitDelete: boolean,
+ *   yes: boolean,
+ *   raw: object
+ * }}
+ */
+export function parseCli(argv) {
+  const { values, positionals } = parseArgs({
+    args: argv,
+    allowPositionals: true,
+    options: {
+      'dry-run': { type: 'boolean', default: false },
+      apply: { type: 'boolean', default: false },
+      'explicit-delete': { type: 'boolean', default: false },
+      yes: { type: 'boolean', default: false },
+      'reverse-bootstrap': { type: 'boolean', default: false },
+    },
+    strict: false,
+  });
+
+  // Default behaviour: when neither --apply nor --dry-run is set, the
+  // CLI runs in dry-run mode (Tech Spec: "dry-run default"). When both
+  // are passed, --dry-run wins — safer to no-op than to apply by accident.
+  const explicitApply = values.apply === true;
+  const explicitDryRun = values['dry-run'] === true;
+  const reverseBootstrap = values['reverse-bootstrap'] === true;
+  // On the reverse-bootstrap path, the dry-run / apply distinction has a
+  // different meaning: the CLI defaults to *write* (operator explicitly
+  // asked for a bootstrap), with `--dry-run` flipping it to a read-only
+  // projection that prints the rendered spec but writes nothing. We
+  // preserve the forward-path default (`dryRun=true`) when the flag is
+  // absent so the existing CLI contract is unchanged.
+  const dryRun = reverseBootstrap
+    ? explicitDryRun
+    : explicitDryRun || !explicitApply;
+
+  const epicArg = positionals[0];
+  const epicId =
+    epicArg != null && /^\d+$/.test(String(epicArg))
+      ? Number.parseInt(String(epicArg), 10)
+      : null;
+
+  return {
+    epicId,
+    dryRun,
+    apply: explicitApply && !explicitDryRun,
+    explicitDelete: values['explicit-delete'] === true,
+    yes: values.yes === true,
+    reverseBootstrap,
+    raw: values,
+  };
+}
+
+/**
+ * Project the GH state observation into the shape the diff engine
+ * expects: `{ [issueNumber]: { title, body?, labels?, state } }`.
+ *
+ * Pulls every ticket under the Epic via `getTickets` (matches the
+ * decomposer's "fetch all children" call shape) plus the Epic itself.
+ * The provider's returned issues come back with `id, title, body?,
+ * labels[], state`; the diff engine ignores fields it doesn't use.
+ *
+ * @param {object} provider
+ * @param {number} epicId
+ * @returns {Promise<Record<number, {title:string,body?:string,labels?:string[],state?:string}>>}
+ */
+export async function fetchGhState(provider, epicId) {
+  const ghState = {};
+  // Epic itself (best-effort — older providers may stub getEpic; treat
+  // a thrown call as "epic not observable" and continue with children).
+  try {
+    if (typeof provider.getEpic === 'function') {
+      const epic = await provider.getEpic(epicId);
+      if (epic && typeof epic.id === 'number') {
+        ghState[epic.id] = {
+          title: epic.title,
+          body: epic.body ?? '',
+          labels: epic.labels ?? [],
+          state: epic.state ?? 'open',
+        };
+      }
+    }
+  } catch (_err) {
+    /* swallow — epic body observation is non-fatal for diff */
+  }
+
+  if (typeof provider.getTickets === 'function') {
+    const tickets = await provider.getTickets(epicId);
+    for (const t of tickets ?? []) {
+      if (typeof t.id !== 'number') continue;
+      ghState[t.id] = {
+        title: t.title,
+        body: t.body ?? '',
+        labels: t.labels ?? [],
+        state: t.state ?? 'open',
+      };
+    }
+  }
+  return ghState;
+}
+
+/**
+ * Prompt the operator for confirmation on the supplied plan. Resolves
+ * `true` when the user answers `y`/`yes` (case-insensitive), `false`
+ * otherwise. Uses `readline` against `process.stdin`/`process.stdout` so
+ * stubs (test) and the real TTY both work.
+ *
+ * @param {object} [opts]
+ * @param {NodeJS.ReadableStream} [opts.input]
+ * @param {NodeJS.WritableStream} [opts.output]
+ * @returns {Promise<boolean>}
+ */
+export function confirmInteractive(opts = {}) {
+  const input = opts.input ?? process.stdin;
+  const output = opts.output ?? process.stdout;
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input, output });
+    rl.question('Apply this plan? [y/N] ', (answer) => {
+      rl.close();
+      const trimmed = String(answer ?? '')
+        .trim()
+        .toLowerCase();
+      resolve(trimmed === 'y' || trimmed === 'yes');
+    });
+  });
+}
+
+/**
+ * Identify whether the plan carries any close ops. The exit-code
+ * contract gates close ops behind `--explicit-delete`; this predicate
+ * is the canonical "needs --explicit-delete" check. Exported so the
+ * contract tests can pin the predicate without re-deriving it.
+ *
+ * @param {object} plan
+ * @returns {boolean}
+ */
+export function planHasCloses(plan) {
+  return Array.isArray(plan?.closes) && plan.closes.length > 0;
+}
+
+/**
+ * Render the operator-facing message printed on the exit-2 path. Names
+ * every close-op slug so the operator can audit precisely what would be
+ * removed before re-running with `--explicit-delete`. Exported so the
+ * contract tests assert the rendering without re-implementing it.
+ *
+ * @param {object} plan
+ * @returns {string}
+ */
+export function renderExplicitDeleteMessage(plan) {
+  const closes = Array.isArray(plan?.closes) ? plan.closes : [];
+  const slugList = closes
+    .map((op) => `#${op.issueNumber ?? '?'} (${op.slug})`)
+    .join(', ');
+  return (
+    `Plan carries ${closes.length} close operation(s): ${slugList}. ` +
+    `Re-run with --explicit-delete to apply.`
+  );
+}
+
+/**
+ * Format the spec-validation failure for stderr — names the failing
+ * JSON Pointer and the underlying schema message so operators can fix
+ * the spec without re-running with --verbose.
+ *
+ * @param {SpecValidationError|SpecParseError|SpecNotFoundError} err
+ * @returns {string}
+ */
+function formatSpecError(err) {
+  if (err instanceof SpecValidationError) {
+    // Render every issue on its own line so scripts that grep stderr for
+    // a JSON Pointer find each failure individually. The first issue is
+    // duplicated into the headline so existing log scrapers reading line 1
+    // keep working.
+    const issues = Array.isArray(err.issues) ? err.issues : [];
+    if (issues.length === 0) {
+      return `Spec validation failed: ${err.message}`;
+    }
+    const head = issues[0];
+    const lines = [
+      `Spec validation failed at ${head.path}: ${head.message}`,
+      ...issues.slice(1).map((iss) => `  · ${iss.path}: ${iss.message}`),
+    ];
+    return lines.join('\n');
+  }
+  if (err instanceof SpecParseError) {
+    return `Spec YAML parse error in ${err.filePath}: ${err.cause?.message ?? err.message}`;
+  }
+  if (err instanceof SpecNotFoundError) {
+    return `Spec file missing for epic ${err.epicId}: ${err.filePath}`;
+  }
+  return `Spec error: ${err.message ?? err}`;
+}
+
+/**
+ * Run the reverse-bootstrap path. Fetches the live Epic via the provider,
+ * runs the quiescence guard, projects into the structural spec + state
+ * shape, and (unless `--dry-run`) writes both artefacts.
+ *
+ * The function is split out from `runReconcile` so the bootstrap path
+ * does not touch any of the spec-loader / diff / apply collaborators —
+ * those make no sense before the spec exists. Tests inject every
+ * collaborator via the `deps` bag, matching the contract-test idiom the
+ * forward path uses.
+ *
+ * @param {{ epicId: number, dryRun: boolean }} args
+ * @param {{
+ *   provider?: object,
+ *   runReverseBootstrap?: typeof runReverseBootstrap,
+ *   stdout?: (line: string) => void,
+ *   stderr?: (line: string) => void,
+ *   epicsDir?: string,
+ *   schemaPath?: string,
+ *   now?: string,
+ *   config?: object,
+ * }} [deps]
+ * @returns {Promise<{exitCode:number, bootstrap?:object}>}
+ */
+export async function runBootstrap(args, deps = {}) {
+  const stdout = deps.stdout ?? defaultStdout;
+  const stderr = deps.stderr ?? defaultStderr;
+  const runFn = deps.runReverseBootstrap ?? runReverseBootstrap;
+
+  if (!Number.isInteger(args.epicId) || args.epicId <= 0) {
+    stderr('[epic-reconcile] Error: epic id is required and must be positive');
+    stderr('Usage: epic-reconcile.js <epicId> --reverse-bootstrap [--dry-run]');
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  let provider = deps.provider;
+  if (!provider) {
+    const config = deps.config ?? resolveConfig({});
+    provider = createProvider(config.orchestration);
+  }
+
+  let result;
+  try {
+    result = await runFn({
+      epicId: args.epicId,
+      provider,
+      dryRun: args.dryRun === true,
+      epicsDir: deps.epicsDir,
+      schemaPath: deps.schemaPath,
+      now: deps.now,
+    });
+  } catch (err) {
+    if (err instanceof EpicNotQuiescentError) {
+      // Human-readable prose for operators.
+      stderr(`[epic-reconcile] ${err.message}`);
+      // Structured single-line token for log scrapers + CI gates. Task
+      // #1532 AC: "exits 2 with a structured message" — this is the
+      // structured part. Format pinned by the bootstrap module so the
+      // CLI does not re-derive the token.
+      stderr(`[epic-reconcile] ${err.toStructuredLine()}`);
+      return {
+        exitCode: EXIT_CODES.EPIC_NOT_QUIESCENT,
+        error: {
+          code: err.code,
+          epicId: err.epicId,
+          executingStories: err.executingStories,
+        },
+      };
+    }
+    stderr(`[epic-reconcile] Reverse-bootstrap failed: ${err.message ?? err}`);
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  if (result.dryRun) {
+    stdout(
+      `[epic-reconcile] Reverse-bootstrap (dry-run) for Epic #${args.epicId}.`,
+    );
+    stdout(`[epic-reconcile]   spec would be written to:  ${result.specPath}`);
+    stdout(`[epic-reconcile]   state would be written to: ${result.statePath}`);
+  } else {
+    stdout(`[epic-reconcile] Reverse-bootstrap wrote Epic #${args.epicId}:`);
+    stdout(`[epic-reconcile]   spec:  ${result.specPath}`);
+    stdout(`[epic-reconcile]   state: ${result.statePath}`);
+  }
+  return { exitCode: EXIT_CODES.OK, bootstrap: result };
+}
+
+/**
+ * Run one reconcile cycle for a given Epic. Pure dependency-injection
+ * surface — every external collaborator (provider, loaders, formatter,
+ * apply, confirm prompt, log sinks) is overridable so the contract tests
+ * can drive the CLI without hitting the network, the file system, or a
+ * real TTY.
+ *
+ * @param {{
+ *   epicId: number,
+ *   dryRun: boolean,
+ *   apply: boolean,
+ *   explicitDelete: boolean,
+ *   yes: boolean,
+ * }} args
+ * @param {{
+ *   provider?: object,
+ *   loadSpec?: typeof loadSpec,
+ *   loadState?: typeof loadState,
+ *   diff?: typeof diff,
+ *   apply?: typeof apply,
+ *   formatPlan?: typeof formatPlan,
+ *   fetchGhState?: typeof fetchGhState,
+ *   confirm?: typeof confirmInteractive,
+ *   isTty?: () => boolean,
+ *   stdout?: (line: string) => void,
+ *   stderr?: (line: string) => void,
+ *   loaderOpts?: object,
+ * }} [deps]
+ * @returns {Promise<{exitCode: number, plan?: object, applyResult?: object}>}
+ */
+export async function runReconcile(args, deps = {}) {
+  const stdout = deps.stdout ?? defaultStdout;
+  const stderr = deps.stderr ?? defaultStderr;
+  const loadSpecFn = deps.loadSpec ?? loadSpec;
+  const loadStateFn = deps.loadState ?? loadState;
+  const diffFn = deps.diff ?? diff;
+  const applyFn = deps.apply ?? apply;
+  const formatFn = deps.formatPlan ?? formatPlan;
+  const fetchGhStateFn = deps.fetchGhState ?? fetchGhState;
+  const confirmFn = deps.confirm ?? confirmInteractive;
+  const isTtyFn = deps.isTty ?? (() => Boolean(process.stdin.isTTY));
+  const loaderOpts = deps.loaderOpts ?? {};
+
+  if (!Number.isInteger(args.epicId) || args.epicId <= 0) {
+    stderr('[epic-reconcile] Error: epic id is required and must be positive');
+    stderr(
+      'Usage: epic-reconcile.js <epicId> [--dry-run] [--apply] [--explicit-delete] [--yes]',
+    );
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  // 1. Load + validate the spec.
+  let spec;
+  try {
+    spec = loadSpecFn(args.epicId, loaderOpts);
+  } catch (err) {
+    stderr(`[epic-reconcile] ${formatSpecError(err)}`);
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  // 2. Load the state (absent file → empty mapping).
+  let state;
+  try {
+    state = loadStateFn(args.epicId, loaderOpts);
+  } catch (_err) {
+    state = { epicId: args.epicId, mapping: {} };
+  }
+  if (!state || typeof state !== 'object') {
+    state = { epicId: args.epicId, mapping: {} };
+  }
+
+  // 3. Resolve provider, fetch GH state.
+  let provider = deps.provider;
+  if (!provider) {
+    const config = deps.config ?? resolveConfig({});
+    provider = createProvider(config.orchestration);
+  }
+  const ghState = await fetchGhStateFn(provider, args.epicId);
+
+  // 4. Compute the plan.
+  const plan = diffFn({ spec, state, ghState });
+
+  // 5. Render.
+  stdout(formatFn(plan));
+
+  // 6a. Dry-run path — print and exit 0 regardless of plan size.
+  if (args.dryRun) {
+    return { exitCode: EXIT_CODES.OK, plan };
+  }
+
+  // 6b. Empty plan: nothing to apply. Exit 0 without prompting.
+  if (isEmptyPlan(plan)) {
+    return { exitCode: EXIT_CODES.OK, plan };
+  }
+
+  // 6c. Explicit-delete pre-flight: any close op requires the flag. We
+  // gate at the CLI surface (before apply) so the exit code is stable
+  // regardless of whether apply's discriminator would also reject — the
+  // task contract pins exit 2 to "would close without --explicit-delete",
+  // not "apply engine rejected".
+  if (planHasCloses(plan) && !args.explicitDelete) {
+    stderr(`[epic-reconcile] ${renderExplicitDeleteMessage(plan)}`);
+    return { exitCode: EXIT_CODES.EXPLICIT_DELETE_REQUIRED, plan };
+  }
+
+  // 6d. Confirmation gate.
+  if (!args.yes) {
+    if (!isTtyFn()) {
+      stderr(
+        '[epic-reconcile] --apply requires either --yes or an interactive TTY.',
+      );
+      return { exitCode: EXIT_CODES.VALIDATION_ERROR, plan };
+    }
+    const confirmed = await confirmFn();
+    if (!confirmed) {
+      stdout('[epic-reconcile] Aborted by operator.');
+      return { exitCode: EXIT_CODES.OK, plan };
+    }
+  }
+
+  // 6e. Apply.
+  let applyResult;
+  try {
+    applyResult = await applyFn(plan, provider, {
+      epicId: args.epicId,
+      spec,
+      priorState: state,
+      explicitDelete: args.explicitDelete,
+    });
+  } catch (err) {
+    if (
+      err instanceof ApplyGateViolation &&
+      err.reason === 'explicit-delete-required'
+    ) {
+      stderr(`[epic-reconcile] ${err.message}`);
+      return { exitCode: EXIT_CODES.EXPLICIT_DELETE_REQUIRED, plan };
+    }
+    stderr(`[epic-reconcile] Apply failed: ${err.message ?? err}`);
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR, plan };
+  }
+
+  if (applyResult?.failure) {
+    stderr(
+      `[epic-reconcile] Apply completed with partial failure: ${applyResult.failure.message ?? applyResult.failure}`,
+    );
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR, plan, applyResult };
+  }
+
+  stdout('[epic-reconcile] Apply complete.');
+  return { exitCode: EXIT_CODES.OK, plan, applyResult };
+}
+
+/**
+ * CLI entry point. Parses argv, delegates to either `runBootstrap`
+ * (when `--reverse-bootstrap` is set) or `runReconcile` (default), and
+ * exits with the contract-defined integer.
+ */
+async function main(argv = process.argv.slice(2)) {
+  const args = parseCli(argv);
+  if (args.reverseBootstrap) {
+    const { exitCode } = await runBootstrap(args);
+    process.exit(exitCode);
+  }
+  const { exitCode } = await runReconcile(args);
+  process.exit(exitCode);
+}
+
+runAsCli(import.meta.url, main, {
+  source: 'epic-reconcile',
+  onError: (err) => {
+    Logger.error('[epic-reconcile] Fatal error:', err?.message ?? err);
+    process.exit(EXIT_CODES.VALIDATION_ERROR);
+  },
+});

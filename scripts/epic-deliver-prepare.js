@@ -102,6 +102,13 @@ export async function runEpicDeliverPrepare({
     })),
   }));
 
+  // Persist the plan onto the checkpoint so `wave-tick.js` (which reads
+  // state.plan as `Array<Array<{ id|storyId, title?, worktree? }>>`) can
+  // resolve the next wave's stories. Without this write the tick reports
+  // every wave as `wave-complete: empty` and the delivery stalls.
+  const tickPlan = plan.map((wave) => wave.stories);
+  await checkpointer.write({ ...checkpointState, plan: tickPlan });
+
   return {
     epicId,
     totalWaves,

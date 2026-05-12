@@ -39,7 +39,7 @@
  *     bounds entries by a caller-supplied `maxAgeMs`.
  *
  * `graphql(query, variables, opts)` now routes through `_ghGraphql` (i.e.
- * `gh api graphql`) so callers like `delete-epic.js` and `epic-runner/
+ * `gh api graphql`) so callers like `epic-reconcile.js` and `epic-runner/
  * column-sync.js` keep their public surface unchanged after the
  * `GithubHttpClient` deletion.
  *
@@ -602,7 +602,7 @@ export class GitHubProvider extends ITicketingProvider {
 
   // -------------------------------------------------------------------------
   // Raw GraphQL — routes through `gh api graphql` (same `_ghGraphql` shim
-  // the sub-issue mutations use). Callers (`delete-epic.js`,
+  // the sub-issue mutations use). Callers (`epic-reconcile.js`,
   // `epic-runner/column-sync.js`) pass `query, variables, opts` exactly as
   // they did against the old bespoke client.
   // -------------------------------------------------------------------------
