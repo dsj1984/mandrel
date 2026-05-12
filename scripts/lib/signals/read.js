@@ -47,6 +47,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 
 import {
+  epicArtifactPath,
   epicTempDir,
   signalsFile,
   storyTempDir,
@@ -167,18 +168,29 @@ async function listEpicStorySignalsFiles(epic, config) {
     return [];
   }
   const storyIds = [];
+  let hasEpicLevelSignals = false;
   for (const ent of entries) {
-    if (!ent.isDirectory()) continue;
-    const m = /^story-(\d+)$/.exec(ent.name);
-    if (!m) continue;
-    const sid = Number.parseInt(m[1], 10);
-    if (!isPositiveInt(sid)) continue;
-    storyIds.push(sid);
+    if (ent.isDirectory()) {
+      const m = /^story-(\d+)$/.exec(ent.name);
+      if (!m) continue;
+      const sid = Number.parseInt(m[1], 10);
+      if (!isPositiveInt(sid)) continue;
+      storyIds.push(sid);
+    } else if (ent.isFile() && ent.name === 'signals.ndjson') {
+      // Story #1430 — wave-runner lifecycle signals land here.
+      hasEpicLevelSignals = true;
+    }
   }
   storyIds.sort((a, b) => a - b);
-  return storyIds.map((sid) =>
-    path.join(storyTempDir(epic, sid, config), 'signals.ndjson'),
-  );
+  // Yield epic-level signals first (wave-start precedes per-Story friction),
+  // then walk the per-Story streams in ascending ID order.
+  const targets = hasEpicLevelSignals
+    ? [epicArtifactPath(epic, 'signals.ndjson', config)]
+    : [];
+  for (const sid of storyIds) {
+    targets.push(path.join(storyTempDir(epic, sid, config), 'signals.ndjson'));
+  }
+  return targets;
 }
 
 /**
