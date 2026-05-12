@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
+// Story #1437 Task #1446: the `epic-planner.js` engine was retired; its
+// `buildAuthoringContext` / `planEpic` / system-prompt exports were
+// migrated into `epic-plan-spec.js`. The test suite name is kept as a
+// historical breadcrumb so a reader looking for the original module can
+// still find this file. The exercised behaviour is unchanged.
 import {
   buildAuthoringContext,
   PRD_SYSTEM_PROMPT,
   planEpic,
   TECH_SPEC_SYSTEM_PROMPT,
-} from '../.agents/scripts/epic-planner.js';
+} from '../.agents/scripts/epic-plan-spec.js';
 
 describe('epic-planner orchestration (v5.6+)', () => {
   let mockProvider;

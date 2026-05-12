@@ -892,36 +892,6 @@
       "startLine": 782
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "buildAuthoringContext",
-      "startLine": 72
-    },
-    {
-      "crap": 11,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "planEpic",
-      "startLine": 112
-    },
-    {
-      "crap": 1.823974609375,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "parseEpicPlannerArgs",
-      "startLine": 198
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "runEpicPlannerCli",
-      "startLine": 233
-    },
-    {
-      "crap": 26.25674296544686,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "main",
-      "startLine": 307
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "splitOnDashDash",
