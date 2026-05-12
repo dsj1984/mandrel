@@ -91,6 +91,34 @@ The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during
 `/epic-deliver` Phase 5 before the PR is opened.
 
+## Convergence via /goal
+
+Long-running orchestrator workflows that iterate across many turns rely on
+the `/goal` directive to pin a single convergence target for the entire
+run. Without it, Claude can drift between sub-goals or stall waiting for
+operator re-prompting between phases.
+
+The pattern is one line, issued before any other phase runs:
+
+```text
+/goal "<scope> <id> acceptance criteria all green"
+```
+
+The two canonical wirings are:
+
+- **`/epic-deliver`** — Phase 0 issues `/goal "epic <epicId> acceptance
+  criteria all green"` before Phase 1 (prepare). The goal stays set
+  across the wave loop, close-validation, code-review, retro, finalize,
+  watch-and-iterate, and auto-merge gate.
+- **`/story-execute`** — Step -1 issues `/goal "story <storyId>
+  acceptance criteria all green"` before Step 0 (`story-init.js`). The
+  goal stays set across init, the implementation loop, and close.
+
+When authoring a new orchestrator workflow that spans multiple phases or
+turns, add an equivalent early step. Phrase the goal in terms of the
+ticket-level acceptance criteria so the convergence target is the same
+contract the closing gates verify.
+
 ## Adding a new workflow
 
 1. Author `.agents/workflows/<name>.md` with a YAML frontmatter block (`name`,
