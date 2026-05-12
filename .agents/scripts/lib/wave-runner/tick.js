@@ -87,13 +87,7 @@ export async function tick(args = {}) {
   }
 
   const currentWave = positiveIntOrZero(state.currentWave);
-  const specPlan = spec ? groupByWave(spec, specState) : null;
-  const plan = specPlan ?? (Array.isArray(state.plan) ? state.plan : []);
-  // When spec drives planning, totalWaves comes from the spec — the
-  // checkpoint's totalWaves may lag spec edits between reconciliations.
-  const totalWaves = specPlan
-    ? specPlan.length
-    : positiveIntOrZero(state.totalWaves);
+  const { plan, totalWaves } = resolvePlan(state, spec, specState);
   const history = Array.isArray(state.waves) ? state.waves : [];
 
   if (totalWaves === 0 || currentWave >= totalWaves) {
@@ -323,6 +317,28 @@ export function groupByWave(spec, state = null) {
     out.push(byWave.get(i) ?? []);
   }
   return out;
+}
+
+/**
+ * Resolve which plan + totalWaves drive this tick. When `spec` is
+ * supplied, the spec-derived grouping wins (and totalWaves comes from
+ * the spec since the checkpoint may lag); otherwise the checkpoint's
+ * plan is used unchanged. Extracted so `tick()`'s cyclomatic complexity
+ * stays inside its baseline budget — the route choice is now a single
+ * call, not three ternaries inline.
+ *
+ * @param {object} state Checkpoint state (already validated as object).
+ * @param {object|null} spec Parsed epic-spec or `null` when omitted.
+ * @param {object|null} specState Parsed epic-state for slug mapping.
+ * @returns {{plan: Array<Array<object>>, totalWaves: number}}
+ */
+function resolvePlan(state, spec, specState) {
+  if (spec) {
+    const specPlan = groupByWave(spec, specState);
+    return { plan: specPlan, totalWaves: specPlan.length };
+  }
+  const plan = Array.isArray(state.plan) ? state.plan : [];
+  return { plan, totalWaves: positiveIntOrZero(state.totalWaves) };
 }
 
 function isUndispatched(labels) {
