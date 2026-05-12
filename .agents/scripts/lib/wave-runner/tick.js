@@ -30,15 +30,30 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   currentWave:    number
  *   totalWaves:     number
  *
- * @param {{
- *   epic: number | { id: number },
- *   collaborators?: {
- *     provider?: object,
- *     checkpointer?: { read: () => Promise<object|null> },
- *     signalEmit?: (signal: object) => Promise<unknown>,
- *   },
- *   ctx?: { provider?: object, config?: object },
- * }} args
+ * When `spec` is omitted, the planner falls back to the checkpoint's
+ * `state.plan` (the GH-derived dependency-DAG grouping originally seeded
+ * by /epic-plan) — behaviour is byte-identical to the pre-spec path.
+ * When `spec` is supplied, wave grouping is driven by `spec.stories[].wave`
+ * (the declarative SSOT from `.agents/epics/<epic-id>.yaml`) and slugs are
+ * resolved to GH issue numbers via the sibling `<epic-id>.state.json`
+ * mapping; the checkpoint is still consulted for `currentWave`,
+ * `totalWaves`, and `waves[]` history but its `plan[]` is overridden.
+ *
+ * @typedef {object} WaveTickArgs
+ * @property {number | { id: number }} epic
+ * @property {object} [spec] Parsed epic-spec (see lib/spec/loader.js). When
+ *   provided, wave grouping comes from `spec.stories[].wave`.
+ * @property {object} [state] Parsed epic-state (see lib/spec/loader.js).
+ *   When `spec` is provided, this must be supplied so slugs can resolve to
+ *   issue numbers via `state.mapping[slug].issueNumber`.
+ * @property {{
+ *   provider?: object,
+ *   checkpointer?: { read: () => Promise<object|null> },
+ *   signalEmit?: (signal: object) => Promise<unknown>,
+ * }} [collaborators]
+ * @property {{ provider?: object, config?: object }} [ctx]
+ *
+ * @param {WaveTickArgs} args
  */
 export async function tick(args = {}) {
   const epicId = resolveEpicId(args.epic);
@@ -49,6 +64,8 @@ export async function tick(args = {}) {
   } = args.collaborators ?? {};
   const ctx = args.ctx ?? {};
   const provider = collabProvider ?? ctx.provider;
+  const spec = args.spec ?? null;
+  const specState = args.state ?? null;
   if (!provider) {
     throw new WaveRunnerError('invalid-input', 'provider is required');
   }
@@ -69,9 +86,14 @@ export async function tick(args = {}) {
     );
   }
 
-  const totalWaves = positiveIntOrZero(state.totalWaves);
   const currentWave = positiveIntOrZero(state.currentWave);
-  const plan = Array.isArray(state.plan) ? state.plan : [];
+  const specPlan = spec ? groupByWave(spec, specState) : null;
+  const plan = specPlan ?? (Array.isArray(state.plan) ? state.plan : []);
+  // When spec drives planning, totalWaves comes from the spec — the
+  // checkpoint's totalWaves may lag spec edits between reconciliations.
+  const totalWaves = specPlan
+    ? specPlan.length
+    : positiveIntOrZero(state.totalWaves);
   const history = Array.isArray(state.waves) ? state.waves : [];
 
   if (totalWaves === 0 || currentWave >= totalWaves) {
@@ -228,6 +250,46 @@ function positiveIntOrZero(v) {
 function storyIdOf(s) {
   if (typeof s === 'number') return s;
   return s.id ?? s.storyId ?? s.number;
+}
+
+/**
+ * Walk `spec.features[].stories[]` and bucket entries by `wave`. Returns
+ * `Story[][]` indexed by wave number; missing waves are emitted as empty
+ * arrays so wave N is always `plan[N]`.
+ *
+ * Task #1533 scope: read wave numbers from `spec.stories[].wave` and emit
+ * a plan-shaped grouping where each entry carries the Story's slug as
+ * `id`. The slug → GH issue-number resolution (via `state.mapping`) is
+ * the explicit subject of Task #1535 and lands as a refactor that
+ * promotes this helper to a named export.
+ *
+ * @param {object} spec
+ * @param {{mapping?: Record<string, {issueNumber?: number}>}|null} [_state]
+ * @returns {Array<Array<{id: string, title?: string, slug?: string}>>}
+ */
+function groupByWave(spec, _state) {
+  const byWave = new Map();
+  let maxWave = -1;
+  const features = Array.isArray(spec?.features) ? spec.features : [];
+  for (const feature of features) {
+    const stories = Array.isArray(feature?.stories) ? feature.stories : [];
+    for (const story of stories) {
+      if (!story || typeof story !== 'object') continue;
+      const wave = Number.isInteger(story.wave) ? story.wave : null;
+      if (wave === null || wave < 0) continue;
+      const slug = typeof story.slug === 'string' ? story.slug : null;
+      const entry = { id: slug, title: story.title, slug };
+      if (!byWave.has(wave)) byWave.set(wave, []);
+      byWave.get(wave).push(entry);
+      if (wave > maxWave) maxWave = wave;
+    }
+  }
+  if (maxWave < 0) return [];
+  const out = [];
+  for (let i = 0; i <= maxWave; i += 1) {
+    out.push(byWave.get(i) ?? []);
+  }
+  return out;
 }
 
 function isUndispatched(labels) {
