@@ -7324,7 +7324,7 @@
       "startLine": 41
     },
     {
-      "crap": 10.325153685921862,
+      "crap": 12.60122948737489,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65

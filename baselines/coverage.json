@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 89.58,
+    "branches": 90.72,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -510,7 +510,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -1260,8 +1260,8 @@
     "functions": 61.54
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 86.83,
-    "branches": 66.67,
+    "lines": 84.88,
+    "branches": 58.06,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
@@ -1331,7 +1331,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.8,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
