@@ -38,12 +38,47 @@ import { parseSprintArgs } from './lib/cli-args.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import {
+  fromSpec,
   persistManifest,
   postManifestEpicComment,
   postParkedFollowOnsComment,
   printStoryDispatchTable,
 } from './lib/presentation/manifest-renderer.js';
 import { createProvider } from './lib/provider-factory.js';
+import { loadSpec, loadState } from './lib/spec/index.js';
+
+/**
+ * Best-effort: load the structural spec + state for `epicId` and render
+ * the dispatch manifest Markdown via `fromSpec`. Returns `null` when the
+ * spec is absent or any loader step throws (parse/validation/io errors
+ * downgrade to fallback so the pre-spec dispatcher path keeps working
+ * untouched). Story #1501 — preserves `fromManifest` behaviour for
+ * non-spec callers.
+ *
+ * @param {object} manifest — the dispatch manifest already built by `resolveAndDispatch`.
+ * @returns {string|null} pre-rendered Markdown, or null on any failure.
+ */
+export function tryRenderFromSpec(manifest) {
+  const epicId = manifest?.epicId;
+  if (!epicId || manifest.type === 'story-execution') return null;
+  try {
+    const spec = loadSpec(epicId);
+    const state = loadState(epicId);
+    return fromSpec(spec, {
+      state,
+      generatedAt: manifest.generatedAt,
+      executor: manifest.executor,
+      dryRun: manifest.dryRun,
+      agentTelemetry: manifest.agentTelemetry,
+    });
+  } catch (err) {
+    /* node:coverage ignore next */
+    Logger.debug?.(
+      `[Dispatcher] spec-aware render unavailable for Epic #${epicId} (${err?.name ?? 'Error'}: ${err?.message ?? 'unknown'}); falling back to fromManifest`,
+    );
+    return null;
+  }
+}
 /**
  * High-level orchestrator that resolves the execution strategy, generates the manifest,
  * persists the files to temp, and outputs summaries.
@@ -69,8 +104,16 @@ export async function generateAndSaveManifest(
     provider: opts.provider,
   });
 
-  // Write manifest files using the new presentation abstraction
-  persistManifest(manifest);
+  // Write manifest files using the new presentation abstraction. Prefer
+  // the spec-aware Markdown render (Story #1501) when a spec file exists
+  // for this Epic; fall back to fromManifest (the legacy path) otherwise.
+  const specMarkdown = tryRenderFromSpec(manifest);
+  if (specMarkdown !== null) {
+    Logger.info(
+      `[Dispatcher] 📐 Rendering Markdown via fromSpec (spec found for Epic #${manifest.epicId})`,
+    );
+  }
+  persistManifest(manifest, specMarkdown ? { markdown: specMarkdown } : {});
 
   // Persist the Epic-level dispatch manifest as a structured comment on
   // the Epic so the wave-completeness gate can parse it back at close time.
