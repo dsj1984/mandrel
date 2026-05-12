@@ -340,7 +340,7 @@
       "startLine": 60
     },
     {
-      "crap": 2,
+      "crap": 1,
       "file": ".agents/scripts/delete-epic-branches.js",
       "method": "deleteLocalBranch",
       "startLine": 78
@@ -902,6 +902,96 @@
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
       "startLine": 782
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-plan-edit-flow.js",
+      "method": "detectExistingSpec",
+      "startLine": 49
+    },
+    {
+      "crap": 8.558518216975372,
+      "file": ".agents/scripts/epic-plan-edit-flow.js",
+      "method": "runEditFlow",
+      "startLine": 91
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/epic-plan-edit-flow.js",
+      "method": "makeEditResult",
+      "startLine": 202
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "defaultStdout",
+      "startLine": 102
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "defaultStderr",
+      "startLine": 106
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "parseCli",
+      "startLine": 123
+    },
+    {
+      "crap": 6.915937309179727,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "fetchGhState",
+      "startLine": 183
+    },
+    {
+      "crap": 1.800655976676385,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "confirmInteractive",
+      "startLine": 229
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "planHasCloses",
+      "startLine": 253
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "renderExplicitDeleteMessage",
+      "startLine": 266
+    },
+    {
+      "crap": 7.179647999999999,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "formatSpecError",
+      "startLine": 285
+    },
+    {
+      "crap": 6.0773387935953815,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "runBootstrap",
+      "startLine": 335
+    },
+    {
+      "crap": 17.53869271224643,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "runReconcile",
+      "startLine": 428
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "main",
+      "startLine": 555
+    },
+    {
+      "crap": 1.125,
+      "file": ".agents/scripts/epic-reconcile.js",
+      "method": "<anon method-6>",
+      "startLine": 567
     },
     {
       "crap": 2,
@@ -4276,6 +4366,186 @@
       "startLine": 176
     },
     {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "assertGates",
+      "startLine": 194
+    },
+    {
+      "crap": 1.0026241338308253,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "buildDryRunResult",
+      "startLine": 229
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "resolveParentId",
+      "startLine": 268
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "renderDependsOnFooter",
+      "startLine": 290
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyCreate",
+      "startLine": 313
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyUpdate",
+      "startLine": 356
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyClose",
+      "startLine": 392
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyRelink",
+      "startLine": 416
+    },
+    {
+      "crap": 14.000128873181557,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "apply",
+      "startLine": 470
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-9>",
+      "startLine": 506
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-10>",
+      "startLine": 513
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-11>",
+      "startLine": 523
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-12>",
+      "startLine": 535
+    },
+    {
+      "crap": 15,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "projectStateForWrite",
+      "startLine": 601
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "collectStructuralEdges",
+      "startLine": 670
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "topoSortCreates",
+      "startLine": 703
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "labelsEqual",
+      "startLine": 101
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "normaliseBody",
+      "startLine": 117
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "ghObservation",
+      "startLine": 129
+    },
+    {
+      "crap": 12.378265625,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "fieldChanges",
+      "startLine": 143
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "parentEqual",
+      "startLine": 192
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "sortBySlug",
+      "startLine": 205
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "flattenSpec",
+      "startLine": 227
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "epicSlug",
+      "startLine": 289
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "dependsOnEqual",
+      "startLine": 303
+    },
+    {
+      "crap": 14,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "diff",
+      "startLine": 314
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
+      "method": "mayClose",
+      "startLine": 86
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
+      "method": "mayUpdate",
+      "startLine": 158
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
+      "method": "assertNoAgentLabels",
+      "startLine": 261
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
+      "method": "assertPlanLabelAllowList",
+      "startLine": 330
+    },
+    {
       "crap": 3.3333333333333335,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
       "method": "issueSuffix",
@@ -4340,6 +4610,60 @@
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
       "method": "formatPlan",
       "startLine": 216
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "assertEpicQuiescent",
+      "startLine": 132
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "kebabSlug",
+      "startLine": 154
+    },
+    {
+      "crap": 4.291587694999271,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "deriveSlug",
+      "startLine": 179
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "classifyTicket",
+      "startLine": 208
+    },
+    {
+      "crap": 16.00385367331463,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "buildBootstrapInputs",
+      "startLine": 248
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "buildBootstrapState",
+      "startLine": 358
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "makeAgentStateResolver",
+      "startLine": 442
+    },
+    {
+      "crap": 9.583984375,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "fetchLiveEpic",
+      "startLine": 470
+    },
+    {
+      "crap": 4.002526997413776,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js",
+      "method": "runReverseBootstrap",
+      "startLine": 509
     },
     {
       "crap": 5.034293552812072,
@@ -4720,7 +5044,7 @@
       "startLine": 508
     },
     {
-      "crap": 3.0540946656649135,
+      "crap": 3,
       "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
       "method": "getValidator",
       "startLine": 78
@@ -5986,7 +6310,7 @@
       "startLine": 81
     },
     {
-      "crap": 1.421875,
+      "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "_resetValidatorCacheForTests",
       "startLine": 97
@@ -6034,7 +6358,7 @@
       "startLine": 292
     },
     {
-      "crap": 4.058261265361857,
+      "crap": 4,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "sortKeysDeep",
       "startLine": 314
@@ -6050,6 +6374,12 @@
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "writeState",
       "startLine": 353
+    },
+    {
+      "crap": 5.390625,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "writeSpec",
+      "startLine": 383
     },
     {
       "crap": 4,
