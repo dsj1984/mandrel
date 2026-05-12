@@ -12,6 +12,7 @@ const JUSTIFICATION_WINDOW = 3;
 
 const ALLOWLIST = new Set([
   'git-push.md',
+  'git-pr-all.md',
   path.join('helpers', '_merge-conflict-template.md'),
 ]);
 
