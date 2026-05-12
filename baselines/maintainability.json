@@ -410,7 +410,7 @@
   "tests/lib/checks/runner-integration.test.js": 112.755,
   "tests/lib/checks/runner.test.js": 112.9,
   "tests/lib/checks/stale-origin-epic.test.js": 110.039,
-  "tests/lib/checks/state.test.js": 99.072,
+  "tests/lib/checks/state.test.js": 97.88,
   "tests/lib/checks/story-init-not-backgrounded.test.js": 109.379,
   "tests/lib/checks/subagent-agent-tool-required.test.js": 110.788,
   "tests/lib/checks/windows-coverage-noise-floor.test.js": 110.661,
