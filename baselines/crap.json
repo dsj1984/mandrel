@@ -1702,36 +1702,6 @@
       "startLine": 75
     },
     {
-      "crap": 5,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "epicSnapshotPathFor",
-      "startLine": 71
-    },
-    {
-      "crap": 9.2949476558944,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "forkMainToEpic",
-      "startLine": 127
-    },
-    {
-      "crap": 15.000533333333333,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "commitSnapshotsToEpicBranch",
-      "startLine": 251
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "runGit",
-      "startLine": 280
-    },
-    {
-      "crap": 17.004779460310658,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "regenerateMainFromTree",
-      "startLine": 439
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
       "method": "moveOneSnapshot",
@@ -6430,66 +6400,6 @@
       "startLine": 21
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "defaultProgress",
-      "startLine": 35
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "ensureRepoCoreLongpathsOnWindows",
-      "startLine": 60
-    },
-    {
-      "crap": 4.466090122894856,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "assertWorkingTreeClean",
-      "startLine": 92
-    },
-    {
-      "crap": 3.1669295745980053,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "bootstrapBranch",
-      "startLine": 106
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "planStoryBranchSeed",
-      "startLine": 148
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "ensureStoryBranchSeed",
-      "startLine": 154
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "verifyWorkspaceSafe",
-      "startLine": 171
-    },
-    {
-      "crap": 12,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "reportEnsureWarnings",
-      "startLine": 197
-    },
-    {
-      "crap": 11.500117546699625,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "bootstrapWorktree",
-      "startLine": 213
-    },
-    {
-      "crap": 2.2156598079561043,
-      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
-      "method": "initializeBranch",
-      "startLine": 288
-    },
-    {
       "crap": 10.629221665908057,
       "file": ".agents/scripts/lib/story-init/context-resolver.js",
       "method": "resolveContext",
@@ -7952,42 +7862,6 @@
       "file": ".agents/scripts/story-init.js",
       "method": "<anon method-4>",
       "startLine": 116
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/story-init.js",
-      "method": "<anon method-5>",
-      "startLine": 242
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/story-init.js",
-      "method": "buildStoryInitResult",
-      "startLine": 394
-    },
-    {
-      "crap": 3.072,
-      "file": ".agents/scripts/story-init.js",
-      "method": "mapDependenciesInstalled",
-      "startLine": 447
-    },
-    {
-      "crap": 1.0046296296296295,
-      "file": ".agents/scripts/story-init.js",
-      "method": "postStoryInitComment",
-      "startLine": 458
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/story-init.js",
-      "method": "renderStoryInitCommentBody",
-      "startLine": 484
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/story-init.js",
-      "method": "emitStoryInitResult",
-      "startLine": 520
     },
     {
       "crap": 4.916,
