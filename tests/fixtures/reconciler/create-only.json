@@ -1,0 +1,35 @@
+{
+  "case": "create-only",
+  "description": "Fresh epic, empty mapping → diff yields a Create per spec entity (epic + 1 feature + 1 story + 1 task).",
+  "spec": {
+    "epic": {
+      "id": 9001,
+      "title": "Greenfield Epic",
+      "labels": ["type::epic"]
+    },
+    "features": [
+      {
+        "slug": "feat-alpha",
+        "title": "Alpha Feature",
+        "labels": ["type::feature"],
+        "stories": [
+          {
+            "slug": "story-one",
+            "title": "First Story",
+            "wave": 0,
+            "labels": ["type::story", "persona::engineer"],
+            "tasks": [
+              {
+                "slug": "task-one-a",
+                "title": "Task one A",
+                "labels": ["type::task"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "state": { "epicId": 9001, "mapping": {} },
+  "ghState": {}
+}

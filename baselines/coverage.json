@@ -744,6 +744,21 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js": {
+    "lines": 97.77,
+    "branches": 66.25,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js": {
+    "lines": 97.39,
+    "branches": 78.05,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js": {
+    "lines": 89.75,
+    "branches": 71.88,
+    "functions": 72.73
+  },
   ".agents/scripts/lib/orchestration/error-journal.js": {
     "lines": 95.68,
     "branches": 84.62,
