@@ -57,6 +57,11 @@ import {
 import { diff } from './lib/orchestration/epic-spec-reconciler-diff.js';
 import { formatPlan } from './lib/orchestration/epic-spec-reconciler-format.js';
 import { isEmptyPlan } from './lib/orchestration/epic-spec-reconciler-ops.js';
+import {
+  EPIC_NOT_QUIESCENT_CODE,
+  EpicNotQuiescentError,
+  runReverseBootstrap,
+} from './lib/orchestration/epic-spec-reverse-bootstrap.js';
 import { createProvider } from './lib/provider-factory.js';
 import {
   loadSpec,
@@ -69,12 +74,26 @@ import {
 /**
  * Exit-code contract (see header). Exported for tests so they can assert
  * the constants without re-deriving the integers from prose.
+ *
+ * `EXPLICIT_DELETE_REQUIRED` and `EPIC_NOT_QUIESCENT` deliberately share
+ * exit code 2: both signal an operator-fixable structural refusal that
+ * must not be auto-retried by automation. The accompanying stderr line
+ * names which condition fired (`--explicit-delete` vs. `quiescent`) so
+ * humans + log-scraping CI can disambiguate without re-running.
  */
 export const EXIT_CODES = Object.freeze({
   OK: 0,
   VALIDATION_ERROR: 1,
   EXPLICIT_DELETE_REQUIRED: 2,
+  EPIC_NOT_QUIESCENT: 2,
 });
+
+/**
+ * Re-export the quiescence-refusal structured token so downstream
+ * automation (log scrapers, CI gates) can import the same constant the
+ * CLI emits instead of duplicating the literal.
+ */
+export { EPIC_NOT_QUIESCENT_CODE };
 
 /**
  * Default writer for log/output streams. Tests inject sinks so they can
@@ -110,6 +129,7 @@ export function parseCli(argv) {
       apply: { type: 'boolean', default: false },
       'explicit-delete': { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
+      'reverse-bootstrap': { type: 'boolean', default: false },
     },
     strict: false,
   });
@@ -119,7 +139,16 @@ export function parseCli(argv) {
   // are passed, --dry-run wins — safer to no-op than to apply by accident.
   const explicitApply = values.apply === true;
   const explicitDryRun = values['dry-run'] === true;
-  const dryRun = explicitDryRun || !explicitApply;
+  const reverseBootstrap = values['reverse-bootstrap'] === true;
+  // On the reverse-bootstrap path, the dry-run / apply distinction has a
+  // different meaning: the CLI defaults to *write* (operator explicitly
+  // asked for a bootstrap), with `--dry-run` flipping it to a read-only
+  // projection that prints the rendered spec but writes nothing. We
+  // preserve the forward-path default (`dryRun=true`) when the flag is
+  // absent so the existing CLI contract is unchanged.
+  const dryRun = reverseBootstrap
+    ? explicitDryRun
+    : explicitDryRun || !explicitApply;
 
   const epicArg = positionals[0];
   const epicId =
@@ -133,6 +162,7 @@ export function parseCli(argv) {
     apply: explicitApply && !explicitDryRun,
     explicitDelete: values['explicit-delete'] === true,
     yes: values.yes === true,
+    reverseBootstrap,
     raw: values,
   };
 }
@@ -276,6 +306,93 @@ function formatSpecError(err) {
     return `Spec file missing for epic ${err.epicId}: ${err.filePath}`;
   }
   return `Spec error: ${err.message ?? err}`;
+}
+
+/**
+ * Run the reverse-bootstrap path. Fetches the live Epic via the provider,
+ * runs the quiescence guard, projects into the structural spec + state
+ * shape, and (unless `--dry-run`) writes both artefacts.
+ *
+ * The function is split out from `runReconcile` so the bootstrap path
+ * does not touch any of the spec-loader / diff / apply collaborators —
+ * those make no sense before the spec exists. Tests inject every
+ * collaborator via the `deps` bag, matching the contract-test idiom the
+ * forward path uses.
+ *
+ * @param {{ epicId: number, dryRun: boolean }} args
+ * @param {{
+ *   provider?: object,
+ *   runReverseBootstrap?: typeof runReverseBootstrap,
+ *   stdout?: (line: string) => void,
+ *   stderr?: (line: string) => void,
+ *   epicsDir?: string,
+ *   schemaPath?: string,
+ *   now?: string,
+ *   config?: object,
+ * }} [deps]
+ * @returns {Promise<{exitCode:number, bootstrap?:object}>}
+ */
+export async function runBootstrap(args, deps = {}) {
+  const stdout = deps.stdout ?? defaultStdout;
+  const stderr = deps.stderr ?? defaultStderr;
+  const runFn = deps.runReverseBootstrap ?? runReverseBootstrap;
+
+  if (!Number.isInteger(args.epicId) || args.epicId <= 0) {
+    stderr('[epic-reconcile] Error: epic id is required and must be positive');
+    stderr('Usage: epic-reconcile.js <epicId> --reverse-bootstrap [--dry-run]');
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  let provider = deps.provider;
+  if (!provider) {
+    const config = deps.config ?? resolveConfig({});
+    provider = createProvider(config.orchestration);
+  }
+
+  let result;
+  try {
+    result = await runFn({
+      epicId: args.epicId,
+      provider,
+      dryRun: args.dryRun === true,
+      epicsDir: deps.epicsDir,
+      schemaPath: deps.schemaPath,
+      now: deps.now,
+    });
+  } catch (err) {
+    if (err instanceof EpicNotQuiescentError) {
+      // Human-readable prose for operators.
+      stderr(`[epic-reconcile] ${err.message}`);
+      // Structured single-line token for log scrapers + CI gates. Task
+      // #1532 AC: "exits 2 with a structured message" — this is the
+      // structured part. Format pinned by the bootstrap module so the
+      // CLI does not re-derive the token.
+      stderr(`[epic-reconcile] ${err.toStructuredLine()}`);
+      return {
+        exitCode: EXIT_CODES.EPIC_NOT_QUIESCENT,
+        error: {
+          code: err.code,
+          epicId: err.epicId,
+          executingStories: err.executingStories,
+        },
+      };
+    }
+    stderr(`[epic-reconcile] Reverse-bootstrap failed: ${err.message ?? err}`);
+    return { exitCode: EXIT_CODES.VALIDATION_ERROR };
+  }
+
+  if (result.dryRun) {
+    stdout(
+      `[epic-reconcile] Reverse-bootstrap (dry-run) for Epic #${args.epicId}.`,
+    );
+    stdout(`[epic-reconcile]   spec would be written to:  ${result.specPath}`);
+    stdout(`[epic-reconcile]   state would be written to: ${result.statePath}`);
+  } else {
+    stdout(`[epic-reconcile] Reverse-bootstrap wrote Epic #${args.epicId}:`);
+    stdout(`[epic-reconcile]   spec:  ${result.specPath}`);
+    stdout(`[epic-reconcile]   state: ${result.statePath}`);
+  }
+  return { exitCode: EXIT_CODES.OK, bootstrap: result };
 }
 
 /**
@@ -431,11 +548,16 @@ export async function runReconcile(args, deps = {}) {
 }
 
 /**
- * CLI entry point. Parses argv, delegates to `runReconcile`, exits with
- * the contract-defined integer.
+ * CLI entry point. Parses argv, delegates to either `runBootstrap`
+ * (when `--reverse-bootstrap` is set) or `runReconcile` (default), and
+ * exits with the contract-defined integer.
  */
 async function main(argv = process.argv.slice(2)) {
   const args = parseCli(argv);
+  if (args.reverseBootstrap) {
+    const { exitCode } = await runBootstrap(args);
+    process.exit(exitCode);
+  }
   const { exitCode } = await runReconcile(args);
   process.exit(exitCode);
 }
