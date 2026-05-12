@@ -593,6 +593,180 @@ function _formatManifestMarkdownUncached(manifest) {
 export const renderManifestMarkdown = formatManifestMarkdown;
 
 // ---------------------------------------------------------------------------
+// Dual entry points: fromManifest / fromSpec (Epic #1182 Story #1501)
+//
+// `fromManifest` is the canonical-by-name alias for `formatManifestMarkdown` —
+// the legacy entry point that consumes a fully-resolved dispatch manifest
+// (GH issue numbers, agent::* statuses, summary totals) and emits Markdown.
+// It is preserved unchanged for non-spec callers (the dispatcher's
+// pre-Story #1501 path, every existing test, the manifest-renderer facade).
+//
+// `fromSpec` is the new entry point that takes a structural spec (the
+// `.agents/epics/<epic-id>.yaml` shape returned by `lib/spec/loader.js#loadSpec`)
+// plus a state mapping (the sibling `<epic-id>.state.json` shape returned
+// by `loadState`) and projects a manifest-shaped object, then funnels it
+// back through `formatManifestMarkdown`. Funnelling — rather than
+// open-coding the Markdown emit a second time — is the round-trip
+// byte-identity guarantee: any drift in the renderer affects both
+// entry points equally.
+//
+// Per Tech Spec #1483, agent::* status labels do not live in the spec.
+// `fromSpec` reads `state.mapping[slug].lastObservedAgentState` when
+// present and falls back to `agent::ready` for un-mapped Stories/Tasks.
+// Slug→issue-number resolution falls back to a deterministic
+// `slug:<slug>` sentinel so the renderer never trips on a missing id
+// (the rendered output annotates these so the operator can spot un-
+// materialised entries at a glance).
+// ---------------------------------------------------------------------------
+
+/**
+ * Canonical alias for `formatManifestMarkdown`. Existing callers should
+ * migrate to this name; the underlying function is unchanged.
+ */
+export const fromManifest = formatManifestMarkdown;
+
+/**
+ * Build a manifest-shaped object from a spec entry. Mirrors the contract
+ * produced by `lib/orchestration/manifest-builder.js#buildManifest` so
+ * `formatManifestMarkdown` (the renderer that backs `fromManifest`)
+ * accepts it without modification.
+ *
+ * Slug→issue-number resolution prefers `state.mapping[slug].issueNumber`
+ * when present and falls back to a deterministic `slug:<slug>` sentinel
+ * so the renderer never sees a null id. Status labels prefer
+ * `state.mapping[slug].lastObservedAgentState` and fall back to
+ * `agent::ready` per Tech Spec #1483.
+ *
+ * Pure — does not touch fs or the network. Caller supplies `state` from
+ * `lib/spec/loader.js#loadState`.
+ *
+ * @param {object} spec — parsed epic-spec (see `lib/spec/loader.js`).
+ * @param {{
+ *   state?: { mapping?: Record<string, { issueNumber?: number|null, lastObservedAgentState?: string|null }> },
+ *   generatedAt?: string,
+ *   executor?: string,
+ *   dryRun?: boolean,
+ *   agentTelemetry?: object|null,
+ * }} [opts]
+ * @returns {object} manifest object matching the shape `formatManifestMarkdown` consumes.
+ */
+export function buildManifestFromSpec(spec, opts = {}) {
+  const state = opts.state ?? null;
+  const mapping =
+    state && typeof state.mapping === 'object' && state.mapping !== null
+      ? state.mapping
+      : {};
+
+  const resolveId = (slug) => {
+    const entry = mapping[slug];
+    const id =
+      entry && typeof entry.issueNumber === 'number' ? entry.issueNumber : null;
+    return id ?? `slug:${slug}`;
+  };
+  const resolveStatus = (slug) => {
+    const entry = mapping[slug];
+    return entry && typeof entry.lastObservedAgentState === 'string'
+      ? entry.lastObservedAgentState
+      : 'agent::ready';
+  };
+
+  const epicId =
+    spec?.epic && typeof spec.epic.id === 'number' ? spec.epic.id : null;
+  const epicTitle =
+    spec?.epic && typeof spec.epic.title === 'string' ? spec.epic.title : '';
+
+  const features = Array.isArray(spec?.features) ? spec.features : [];
+
+  // Project each spec Story into a storyManifest entry. Tasks within a
+  // Story carry their slug-derived id + the spec-author title as the
+  // task slug so the rendered `- [ ] #id — slug` line is stable across
+  // re-incarnations (no GH issue number drift bleeds through into the
+  // diff). Per-Story `earliestWave` mirrors `story.wave` directly —
+  // spec waves are authoritative; the dependency analyzer is bypassed.
+  const storyManifest = [];
+  let totalTasks = 0;
+  let doneTasks = 0;
+  const waveSet = new Set();
+
+  for (const feature of features) {
+    const stories = Array.isArray(feature?.stories) ? feature.stories : [];
+    for (const story of stories) {
+      if (!story || typeof story !== 'object') continue;
+      const storyTasks = Array.isArray(story.tasks) ? story.tasks : [];
+      const tasks = storyTasks.map((t) => {
+        const status = resolveStatus(t.slug);
+        if (status === AGENT_LABELS.DONE) doneTasks++;
+        totalTasks++;
+        return {
+          taskId: resolveId(t.slug),
+          taskSlug: t.slug ?? '',
+          status,
+          dependencies: [], // Tasks have no dependsOn surface in the spec.
+        };
+      });
+
+      const wave = Number.isInteger(story.wave) ? story.wave : -1;
+      if (wave >= 0) waveSet.add(wave);
+
+      storyManifest.push({
+        storyId: resolveId(story.slug),
+        storyTitle: story.title ?? '',
+        storySlug: story.slug ?? '',
+        type: 'story',
+        branchName:
+          typeof resolveId(story.slug) === 'number'
+            ? `story-${resolveId(story.slug)}`
+            : `story-${story.slug}`,
+        earliestWave: wave,
+        tasks,
+      });
+    }
+  }
+
+  const progressPercent =
+    totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;
+
+  return {
+    schemaVersion: '1.0.0',
+    generatedAt: opts.generatedAt ?? new Date().toISOString(),
+    epicId,
+    epicTitle,
+    executor: opts.executor ?? 'spec',
+    dryRun: opts.dryRun ?? false,
+    summary: {
+      totalTasks,
+      doneTasks,
+      progressPercent,
+      totalWaves: waveSet.size,
+      dispatched: 0,
+    },
+    waves: [],
+    storyManifest,
+    dispatched: [],
+    agentTelemetry: opts.agentTelemetry ?? null,
+  };
+}
+
+/**
+ * Render a Markdown dispatch manifest from a structural spec. Funnels
+ * through `formatManifestMarkdown` so the output is byte-identical to
+ * `fromManifest` when given an equivalent manifest fixture (the round-
+ * trip parity AC for Story #1501).
+ *
+ * @param {object} spec — parsed epic-spec.
+ * @param {Parameters<typeof buildManifestFromSpec>[1]} [opts]
+ * @returns {string}
+ */
+export function fromSpec(spec, opts = {}) {
+  const manifest = buildManifestFromSpec(spec, opts);
+  // Bust the cache so callers that toggle between fromSpec / fromManifest
+  // in the same process don't get a stale render from a content-hash
+  // collision on a different manifest instance.
+  __resetManifestFormatterCache();
+  return formatManifestMarkdown(manifest);
+}
+
+// ---------------------------------------------------------------------------
 // Story-execution manifest Markdown
 // ---------------------------------------------------------------------------
 
