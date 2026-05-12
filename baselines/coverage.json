@@ -5,9 +5,9 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.82,
-    "branches": 64.71,
-    "functions": 100
+    "lines": 84.05,
+    "branches": 67.5,
+    "functions": 85.71
   },
   ".agents/scripts/assert-branch.js": {
     "lines": 65.85,
@@ -50,9 +50,9 @@
     "functions": 66.67
   },
   ".agents/scripts/dispatcher.js": {
-    "lines": 56.5,
-    "branches": 50,
-    "functions": 66.67
+    "lines": 48.59,
+    "branches": 66.67,
+    "functions": 33.33
   },
   ".agents/scripts/epic-close.js": {
     "lines": 90.76,
@@ -105,9 +105,9 @@
     "functions": 80
   },
   ".agents/scripts/git-cleanup-branches.js": {
-    "lines": 74.16,
-    "branches": 88.89,
-    "functions": 85.19
+    "lines": 81.98,
+    "branches": 90,
+    "functions": 87.1
   },
   ".agents/scripts/git-pr-quality-gate.js": {
     "lines": 73.53,
@@ -241,7 +241,7 @@
   },
   ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
     "lines": 99.04,
-    "branches": 77.27,
+    "branches": 76.19,
     "functions": 100
   },
   ".agents/scripts/lib/checks/core-bare-clean.js": {
@@ -281,7 +281,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 88.54,
+    "branches": 87.23,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -376,7 +376,7 @@
   },
   ".agents/scripts/lib/config/runtime.js": {
     "lines": 100,
-    "branches": 97.14,
+    "branches": 97.3,
     "functions": 100
   },
   ".agents/scripts/lib/config/shared.js": {
@@ -446,7 +446,7 @@
   },
   ".agents/scripts/lib/epic-merge-lock.js": {
     "lines": 97.22,
-    "branches": 78,
+    "branches": 77.08,
     "functions": 100
   },
   ".agents/scripts/lib/epic-plan-ideation.js": {
@@ -480,13 +480,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/gh-exec.js": {
-    "lines": 97.1,
-    "branches": 93.41,
+    "lines": 96.89,
+    "branches": 91.11,
     "functions": 78.57
   },
   ".agents/scripts/lib/git-branch-cleanup.js": {
     "lines": 74.38,
-    "branches": 88.24,
+    "branches": 82.76,
     "functions": 75
   },
   ".agents/scripts/lib/git-branch-lifecycle.js": {
@@ -571,7 +571,7 @@
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
     "lines": 91.9,
-    "branches": 75,
+    "branches": 74.36,
     "functions": 83.33
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
@@ -616,7 +616,7 @@
   },
   ".agents/scripts/lib/orchestration/dispatch-engine.js": {
     "lines": 82.74,
-    "branches": 76.92,
+    "branches": 72.73,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-pipeline.js": {
@@ -800,8 +800,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 97.04,
-    "branches": 73.96,
+    "lines": 96.7,
+    "branches": 67.78,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -825,9 +825,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close-recovery.js": {
-    "lines": 84.6,
-    "branches": 93.33,
-    "functions": 64.71
+    "lines": 83.76,
+    "branches": 92.65,
+    "functions": 41.18
   },
   ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js": {
     "lines": 94.99,
@@ -855,8 +855,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js": {
-    "lines": 100,
-    "branches": 75,
+    "lines": 98.61,
+    "branches": 60.71,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
@@ -926,7 +926,7 @@
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
     "lines": 96.13,
-    "branches": 84.76,
+    "branches": 84.31,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
@@ -950,9 +950,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/preflight-runner.js": {
-    "lines": 91.33,
-    "branches": 58.82,
-    "functions": 50
+    "lines": 96.43,
+    "branches": 72.73,
+    "functions": 87.5
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 96.44,
@@ -1056,7 +1056,7 @@
   },
   ".agents/scripts/lib/story-lifecycle.js": {
     "lines": 98.76,
-    "branches": 85.19,
+    "branches": 84.91,
     "functions": 100
   },
   ".agents/scripts/lib/task-utils.js": {
@@ -1081,12 +1081,12 @@
   },
   ".agents/scripts/lib/util/phase-timer-state.js": {
     "lines": 100,
-    "branches": 90.91,
+    "branches": 90,
     "functions": 100
   },
   ".agents/scripts/lib/util/phase-timer.js": {
     "lines": 100,
-    "branches": 97.06,
+    "branches": 96.97,
     "functions": 100
   },
   ".agents/scripts/lib/util/poll-loop.js": {
@@ -1130,8 +1130,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.89,
-    "branches": 85.71,
+    "lines": 91.7,
+    "branches": 82.14,
     "functions": 70
   },
   ".agents/scripts/lib/worktree/bootstrapper.js": {
@@ -1141,7 +1141,7 @@
   },
   ".agents/scripts/lib/worktree/inspector.js": {
     "lines": 100,
-    "branches": 97.78,
+    "branches": 97.73,
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle-manager.js": {
@@ -1211,7 +1211,7 @@
   },
   ".agents/scripts/notify.js": {
     "lines": 89.44,
-    "branches": 81.67,
+    "branches": 80,
     "functions": 83.33
   },
   ".agents/scripts/post-structured-comment.js": {
@@ -1220,9 +1220,9 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 83.78,
-    "branches": 67.86,
-    "functions": 82.35
+    "lines": 83.14,
+    "branches": 66.84,
+    "functions": 79.41
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
     "lines": 85.13,
@@ -1260,9 +1260,9 @@
     "functions": 77.78
   },
   ".agents/scripts/story-close.js": {
-    "lines": 69.5,
-    "branches": 42.86,
-    "functions": 66.67
+    "lines": 47.49,
+    "branches": 53.85,
+    "functions": 55.56
   },
   ".agents/scripts/story-execute-prepare.js": {
     "lines": 84.74,
@@ -1275,9 +1275,9 @@
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
-    "lines": 86.35,
-    "branches": 70.49,
-    "functions": 60
+    "lines": 80.98,
+    "branches": 63.79,
+    "functions": 50
   },
   ".agents/scripts/sync-claude-commands.js": {
     "lines": 93.41,
