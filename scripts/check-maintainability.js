@@ -1,19 +1,21 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';
+import { runAsCli } from './lib/cli-utils.js';
 import {
   getBaselines,
   getQuality,
   resolveConfig,
 } from './lib/config-resolver.js';
+import { loadBaseline, writeBaseline } from './lib/gates/baseline-store.js';
+import { emitFrictionSignal } from './lib/gates/friction.js';
+import { parseGateArgs, resolveScopedRef } from './lib/gates/gate-cli.js';
 import { Logger } from './lib/Logger.js';
 import {
   calculateAll,
   getBaseline,
   scanDirectory,
 } from './lib/maintainability-utils.js';
-import { appendSignal } from './lib/observability/signals-writer.js';
 
 /**
  * CI script to verify that maintainability scores haven't regressed.
@@ -136,21 +138,23 @@ function compareScores(scores, baseline, tolerance) {
 
 /**
  * Pure: coerce a raw argv/env value to a positive integer Story ID, or null
- * when it cannot be interpreted as one. Exported so the argv-walking loop and
- * the env fallback can share a single coercion rule and so tests can pin the
- * "what counts as a Story ID" contract without invoking the CLI.
+ * when it cannot be interpreted as one. Re-exported here as the historical
+ * public name; the canonical implementation lives in lib/gates/gate-cli.js.
  *
  * @param {unknown} value
  * @returns {number | null}
  */
-export function coerceStoryId(value) {
-  const n = Number(value);
-  return Number.isInteger(n) && n > 0 ? n : null;
-}
+export { coercePositiveInt as coerceStoryId } from './lib/gates/gate-cli.js';
+
+// Local alias so the in-module helpers below can share the canonical coercion
+// without re-walking the import indirection on every call.
+import { coercePositiveInt } from './lib/gates/gate-cli.js';
 
 /**
- * Resolve the Story ID for friction signals. CLI arg wins; otherwise
- * `FRICTION_STORY_ID` env. Returns null when neither yields a positive int.
+ * Resolve the Story ID for friction signals. CLI `--story <id>` wins;
+ * otherwise `FRICTION_STORY_ID` env. Returns null when neither yields a
+ * positive int. Thin wrapper around `parseGateArgs` so the env fallback
+ * stays in one place.
  *
  * @param {string[]} [argv]
  * @param {NodeJS.ProcessEnv} [env]
@@ -159,18 +163,12 @@ export function parseStoryIdArg(
   argv = process.argv.slice(2),
   env = process.env,
 ) {
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--story') {
-      const fromArgv = coerceStoryId(argv[i + 1]);
-      if (fromArgv !== null) return fromArgv;
-    }
-  }
-  return coerceStoryId(env.FRICTION_STORY_ID);
+  return parseGateArgs(argv, { env }).storyId;
 }
 
 /**
- * Resolve the Epic ID for friction signals. CLI arg wins; otherwise
- * `FRICTION_EPIC_ID` env. Returns null when neither yields a positive int.
+ * Resolve the Epic ID for friction signals. CLI `--epic <id>` wins;
+ * otherwise `FRICTION_EPIC_ID` env.
  *
  * @param {string[]} [argv]
  * @param {NodeJS.ProcessEnv} [env]
@@ -179,24 +177,11 @@ export function parseEpicIdArg(
   argv = process.argv.slice(2),
   env = process.env,
 ) {
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--epic') {
-      const fromArgv = coerceStoryId(argv[i + 1]);
-      if (fromArgv !== null) return fromArgv;
-    }
-  }
-  return coerceStoryId(env.FRICTION_EPIC_ID);
+  return parseGateArgs(argv, { env }).epicId;
 }
 
 export function parseChangedSinceArg(argv = process.argv.slice(2)) {
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--changed-since') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) return next;
-      return 'main';
-    }
-  }
-  return null;
+  return parseGateArgs(argv).changedSinceRef;
 }
 
 /**
@@ -209,71 +194,28 @@ export function parseChangedSinceArg(argv = process.argv.slice(2)) {
  * @returns {boolean}
  */
 export function parseFullScopeArg(argv = process.argv.slice(2)) {
-  return argv.includes('--full-scope');
+  return parseGateArgs(argv).fullScope;
 }
 
 /**
- * Pure: resolve the effective `--changed-since` ref by layering precedence:
- *   1. CLI `--full-scope` → returns null (full-scope wins; documented opt-out).
- *   2. CLI `--changed-since <ref>` (or bare flag, defaults to 'main').
- *   3. Env `MAINTAINABILITY_CHANGED_SINCE` (or `CRAP_CHANGED_SINCE` for parity).
- *   4. `agentSettings.quality.maintainability.diffRef` from the resolved config.
- *   5. Framework default 'main' when `defaultScope === 'diff'`.
- *
- * Returns the ref string when diff-scoping should run, or `null` for a full-
- * repo scan. The Tech Spec (Epic #1386) flips the framework default from "off"
- * to diff-scoped on `main`, with `--full-scope` as the explicit opt-out so
- * operators that need a full-repo scan retain a one-flag escape hatch.
+ * Resolve the MI `--changed-since` ref. Thin wrapper over
+ * `resolveScopedRef` that pins the MI-first env precedence and reuses
+ * the precedence chain shared with CRAP (Story #1394 AC15 parity).
  *
  * Exported for testing.
- *
- * @param {{
- *   argv?: string[],
- *   env?: NodeJS.ProcessEnv,
- *   maintainabilityConfig?: { defaultScope?: string, diffRef?: string },
- * }} [opts]
- * @returns {{ ref: string | null, scope: 'diff' | 'full', source: string }}
  */
 export function resolveChangedSinceRef({
   argv = process.argv.slice(2),
   env = process.env,
   maintainabilityConfig,
 } = {}) {
-  // Layer 1: --full-scope opt-out wins over everything.
-  if (parseFullScopeArg(argv)) {
-    return { ref: null, scope: 'full', source: '--full-scope' };
-  }
-  // Layer 2: explicit --changed-since flag.
-  const fromArgv = parseChangedSinceArg(argv);
-  if (fromArgv) {
-    return { ref: fromArgv, scope: 'diff', source: '--changed-since' };
-  }
-  // Layer 3: env var override.
-  const fromEnv = env?.MAINTAINABILITY_CHANGED_SINCE ?? env?.CRAP_CHANGED_SINCE;
-  if (typeof fromEnv === 'string' && fromEnv.length > 0) {
-    return {
-      ref: fromEnv,
-      scope: 'diff',
-      source: env?.MAINTAINABILITY_CHANGED_SINCE
-        ? 'MAINTAINABILITY_CHANGED_SINCE'
-        : 'CRAP_CHANGED_SINCE',
-    };
-  }
-  // Layer 4: project config.
-  const configuredScope = maintainabilityConfig?.defaultScope;
-  const configuredRef = maintainabilityConfig?.diffRef;
-  if (configuredScope === 'full') {
-    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
-  }
-  if (typeof configuredRef === 'string' && configuredRef.length > 0) {
-    return {
-      ref: configuredRef,
-      scope: 'diff',
-      source: 'config.diffRef',
-    };
-  }
-  // Layer 5: framework default — diff-scope against 'main'.
-  return { ref: 'main', scope: 'diff', source: 'default' };
+  return resolveScopedRef({
+    argv,
+    env,
+    config: maintainabilityConfig,
+    primaryEnv: 'MAINTAINABILITY_CHANGED_SINCE',
+    secondaryEnv: 'CRAP_CHANGED_SINCE',
+  });
 }
 
 /**
@@ -288,20 +230,11 @@ export function resolveChangedSinceRef({
  * Exported for testing.
  */
 export function parseEpicRefArg(argv = process.argv.slice(2)) {
-  for (let i = 0; i < argv.length; i += 1) {
-    if (argv[i] === '--epic-ref') {
-      const next = argv[i + 1];
-      if (next && !next.startsWith('--')) return next;
-    }
-  }
-  return null;
+  return parseGateArgs(argv).epicRef;
 }
 
 function parseJsonPathArg(argv = process.argv.slice(2)) {
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--json' && argv[i + 1]) return argv[i + 1];
-  }
-  return null;
+  return parseGateArgs(argv).jsonPath;
 }
 
 /**
@@ -351,42 +284,26 @@ export function buildMaintainabilityReport(scores, stats, scopeInfo) {
   };
 }
 
-function writeJsonReport(jsonPath, envelope) {
-  const abs = path.isAbsolute(jsonPath)
-    ? jsonPath
-    : path.resolve(process.cwd(), jsonPath);
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, `${JSON.stringify(envelope, null, 2)}\n`);
-}
-
 async function emitRegressionFriction(storyId, epicId, regressedFiles, config) {
-  if (!storyId || !epicId || regressedFiles.length === 0) return;
-  try {
-    await appendSignal({
-      epicId,
-      storyId,
-      signal: {
-        kind: 'friction',
-        timestamp: new Date().toISOString(),
-        epicId,
-        storyId,
-        category: 'baseline-refresh-regression',
-        source: { tool: 'check-maintainability.js' },
-        details: `${regressedFiles.length} file(s) below maintainability baseline`,
-        regressedFiles: regressedFiles.map((r) => ({
-          file: r.file,
-          current: r.current,
-          baseline: r.baseline,
-          drop: r.drop,
-        })),
-      },
-      config,
-    });
-  } catch (err) {
-    Logger.warn(
-      `[Maintainability] friction signal append failed: ${err?.message ?? err}`,
-    );
-  }
+  if (regressedFiles.length === 0) return;
+  await emitFrictionSignal({
+    storyId,
+    epicId,
+    category: 'baseline-refresh-regression',
+    tool: 'check-maintainability.js',
+    details: `${regressedFiles.length} file(s) below maintainability baseline`,
+    payload: {
+      regressedFiles: regressedFiles.map((r) => ({
+        file: r.file,
+        current: r.current,
+        baseline: r.baseline,
+        drop: r.drop,
+      })),
+    },
+    config,
+    logger: Logger,
+    logLabel: 'Maintainability',
+  });
 }
 
 function printSummaryReport(scores, stats) {
@@ -402,21 +319,7 @@ function printSummaryReport(scores, stats) {
   Logger.info('------------------------------\n');
 }
 
-/**
- * Pure helper: resolve the baseline using either the working-tree fs read
- * (legacy) or `readBaselineAtRef(epicRef, path)` (Story #1120, when
- * `epicRef` is supplied). Exported so tests can pin the precedence
- * without spawning the CLI.
- *
- * @param {{
- *   baselinePath: string,
- *   epicRef: string | null,
- *   readBaseline?: typeof getBaseline,
- *   readAtRef?: typeof readBaselineAtRef,
- *   logger?: { warn: (m: string) => void },
- * }} opts
- * @returns {Record<string, number>}
- */
+/** Thin wrapper: delegate to baseline-store with MI-specific defaults. */
 export function loadMaintainabilityBaseline({
   baselinePath,
   epicRef,
@@ -424,16 +327,18 @@ export function loadMaintainabilityBaseline({
   readAtRef = readBaselineAtRef,
   logger = console,
 }) {
-  if (!epicRef) return readBaseline(baselinePath);
-  try {
-    const parsed = readAtRef(epicRef, baselinePath);
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch (err) {
-    logger.warn(
-      `[Maintainability] ⚠ failed to read baseline at ref "${epicRef}": ${err?.message ?? err}. Falling back to working-tree read.`,
-    );
-    return readBaseline(baselinePath);
-  }
+  const parsed = loadBaseline({
+    baselinePath,
+    epicRef,
+    readAtRef,
+    readFromTree: ({ baselinePath: p }) => readBaseline(p),
+    logger,
+    label: 'Maintainability',
+  });
+  // Epic-ref read may return a non-object — coerce to {} so downstream
+  // `Object.entries` / `Object.keys` never throws.
+  if (epicRef && (parsed === null || typeof parsed !== 'object')) return {};
+  return parsed;
 }
 
 async function main() {
@@ -516,13 +421,13 @@ async function main() {
   const jsonPath = parseJsonPathArg();
   if (jsonPath) {
     try {
-      writeJsonReport(
-        jsonPath,
-        buildMaintainabilityReport(scores, stats, {
+      writeBaseline({
+        baselinePath: jsonPath,
+        data: buildMaintainabilityReport(scores, stats, {
           scope: resolvedScope.scope,
           diffRef: resolvedScope.ref,
         }),
-      );
+      });
       Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
     } catch (err) {
       Logger.warn(
@@ -548,23 +453,7 @@ async function main() {
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
 }
 
-// cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; the bespoke logic predates runAsCli and stays for parity with check-crap.js.
-// Only run main when invoked directly — keep the module importable from tests.
-const isDirect = (() => {
-  try {
-    const invoked = process.argv[1] ? path.resolve(process.argv[1]) : '';
-    const self = new URL(import.meta.url).pathname;
-    // Normalize: on Windows URL pathname has a leading slash before the drive.
-    const normalizedSelf = /^\/[A-Za-z]:/.test(self) ? self.slice(1) : self;
-    return path.resolve(normalizedSelf) === invoked;
-  } catch {
-    return false;
-  }
-})();
-
-if (isDirect) {
-  main().catch((err) => {
-    Logger.error(`[Maintainability] ❌ Fatal error: ${err.message}`);
-    process.exit(1);
-  });
-}
+runAsCli(import.meta.url, main, {
+  source: 'Maintainability',
+  errorPrefix: '[Maintainability] ❌ Fatal error',
+});
