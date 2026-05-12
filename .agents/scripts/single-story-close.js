@@ -138,10 +138,18 @@ export async function runSingleStoryClose({
       gates: buildDefaultGates({ agentSettings, epicBranch: baseBranch }),
       log: (m) => Logger.info(m),
       storyId,
-      // useEvidence requires both storyId AND epicId; pass 0 to satisfy
-      // the predicate so the per-Story evidence cache is reused across
-      // re-runs of close on the same SHA.
-      epicId: 0,
+      // Standalone Stories have no parent Epic, so there's no per-Epic
+      // path to scope a `validation-evidence.json` under. Pass `null`
+      // (not `0`) so the `evidenceActive` predicate in
+      // `runCloseValidation` short-circuits cleanly. `0` is rejected
+      // downstream by `validation-evidence.evidencePath` (which
+      // requires a positive integer epicId) and aborts the whole gate
+      // chain — see `feedback_single_story_close_skip_validation`.
+      // The trade-off is that re-runs of close on the same SHA don't
+      // hit the evidence cache for standalone Stories; that's
+      // acceptable until/unless the standalone path warrants its own
+      // evidence keyspace.
+      epicId: null,
     });
     if (!validation.ok) {
       const [first] = validation.failed;
