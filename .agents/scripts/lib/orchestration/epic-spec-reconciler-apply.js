@@ -600,19 +600,94 @@ export async function apply(plan, provider, opts = {}) {
  */
 function projectStateForWrite({ spec, priorState, slugToIssue, now }) {
   const base = buildState(spec, priorState ?? {}, now ? { now } : {});
-  // Overlay the post-apply slug → issue mapping. `buildState` carries
-  // forward prior issueNumbers; the apply slugToIssue is the more recent
-  // source of truth, so it wins.
+  // `buildState` projects feature/story/task slugs — `iterSpecEntries`
+  // intentionally walks features down, so the epic slug is not yielded.
+  // The reconciler's contract (Tech Spec §"state.json") expects the
+  // epic to appear in the mapping too: layer it on explicitly here so
+  // a follow-up diff sees the epic mapped and emits no create for it.
+  if (
+    spec &&
+    spec.epic &&
+    typeof spec.epic.id === 'number' &&
+    !base.mapping.epic
+  ) {
+    const priorEpic =
+      priorState?.mapping && priorState.mapping.epic
+        ? priorState.mapping.epic
+        : {};
+    base.mapping.epic = {
+      issueNumber:
+        typeof slugToIssue.epic === 'number'
+          ? slugToIssue.epic
+          : typeof priorEpic.issueNumber === 'number'
+            ? priorEpic.issueNumber
+            : spec.epic.id,
+      contentHash:
+        typeof priorEpic.contentHash === 'string' ? priorEpic.contentHash : '',
+      lastObservedAgentState:
+        typeof priorEpic.lastObservedAgentState === 'string'
+          ? priorEpic.lastObservedAgentState
+          : null,
+      entity: 'epic',
+      parentSlug: null,
+    };
+  }
+  // Layer structural edge metadata (entity, parentSlug, dependsOn) onto
+  // each mapping entry. The diff engine reads these fields to decide
+  // whether a Relink op should fire; without them every follow-up diff
+  // would re-emit a relink for the parent edge that already exists in
+  // GH. The AC's idempotency invariant requires this layering — the
+  // pure mapping projection (`spec/state.js`) intentionally does not
+  // carry edge data so the hashing path can stay isolated.
+  const edgeLookup = collectStructuralEdges(spec);
   for (const slug of Object.keys(base.mapping)) {
+    const entry = base.mapping[slug];
     const issueNumber = slugToIssue[slug];
     if (typeof issueNumber === 'number') {
-      base.mapping[slug].issueNumber = issueNumber;
+      entry.issueNumber = issueNumber;
+    }
+    const edges = edgeLookup[slug];
+    if (edges) {
+      entry.entity = edges.entity;
+      entry.parentSlug = edges.parentSlug;
+      if (edges.dependsOn) entry.dependsOn = edges.dependsOn;
     }
   }
   // Closed slugs (dropped from spec) are absent from `base.mapping`
   // because `buildState` walks the spec. That matches the AC: closed
   // entries do not appear in state.
   return base;
+}
+
+/**
+ * Walk the spec once and emit `{ slug → { entity, parentSlug, dependsOn? } }`
+ * so `projectStateForWrite` can layer the edges back onto the state
+ * mapping. Pure / allocation-bounded; runs O(spec size).
+ *
+ * @param {object} spec
+ * @returns {Record<string, {entity: string, parentSlug: string|null, dependsOn?: string[]}>}
+ */
+function collectStructuralEdges(spec) {
+  const out = {};
+  if (!spec || typeof spec !== 'object') return out;
+  const epicSlug = 'epic';
+  for (const feature of spec.features ?? []) {
+    if (!feature?.slug) continue;
+    out[feature.slug] = { entity: 'feature', parentSlug: epicSlug };
+    for (const story of feature.stories ?? []) {
+      if (!story?.slug) continue;
+      out[story.slug] = {
+        entity: 'story',
+        parentSlug: feature.slug,
+        dependsOn: [...(story.dependsOn ?? [])].sort(),
+      };
+      for (const task of story.tasks ?? []) {
+        if (!task?.slug) continue;
+        out[task.slug] = { entity: 'task', parentSlug: story.slug };
+      }
+    }
+  }
+  return out;
 }
 
 /**
