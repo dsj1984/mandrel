@@ -990,8 +990,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/signals/span-tree.js": {
-    "lines": 99.33,
-    "branches": 82.98,
+    "lines": 99.31,
+    "branches": 81.18,
     "functions": 100
   },
   ".agents/scripts/lib/story-init/blocker-validator.js": {

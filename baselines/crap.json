@@ -5458,6 +5458,138 @@
       "startLine": 207
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "tsOf",
+      "startLine": 53
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "epicOf",
+      "startLine": 58
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "storyOf",
+      "startLine": 62
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "taskOf",
+      "startLine": 66
+    },
+    {
+      "crap": 6.0703125,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "cmpTs",
+      "startLine": 79
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "diffMs",
+      "startLine": 88
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryLifecycle",
+      "startLine": 96
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryStart",
+      "startLine": 105
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryEnd",
+      "startLine": 109
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "emptyTaskNode",
+      "startLine": 113
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "emptyStoryNode",
+      "startLine": 123
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "storyKeyOf",
+      "startLine": 134
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "getOrCreateStory",
+      "startLine": 138
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "getOrCreateTask",
+      "startLine": 149
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "updateStoryLifecycle",
+      "startLine": 160
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "widenTaskWindow",
+      "startLine": 173
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "bootstrapStoryWindow",
+      "startLine": 183
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "ingestEvent",
+      "startLine": 198
+    },
+    {
+      "crap": 6.049382716049383,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "compareNodeIds",
+      "startLine": 232
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "finalizeTask",
+      "startLine": 242
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "finalizeStory",
+      "startLine": 247
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "buildSpanTree",
+      "startLine": 267
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/story-init/blocker-validator.js",
       "method": "validateBlockers",
@@ -6686,6 +6818,54 @@
       "file": ".agents/scripts/select-audits.js",
       "method": "main",
       "startLine": 148
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "println",
+      "startLine": 54
+    },
+    {
+      "crap": 20.210238222149332,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "parseArgs",
+      "startLine": 67
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "formatDuration",
+      "startLine": 126
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "describeEvent",
+      "startLine": 136
+    },
+    {
+      "crap": 8.034114465085977,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "renderTree",
+      "startLine": 154
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "buildConfig",
+      "startLine": 192
+    },
+    {
+      "crap": 10.341542845511906,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "main",
+      "startLine": 206
+    },
+    {
+      "crap": 2.5,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "<anon method-3>",
+      "startLine": 266
     },
     {
       "crap": 1,
