@@ -18,6 +18,7 @@
  * sub-CLI. This wrapper primarily owns the in-chat confirmation gate.
  */
 
+import { existsSync as defaultExistsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { runDecomposePhase } from './epic-plan-decompose.js';
@@ -38,10 +39,89 @@ import {
   PLAN_PHASE_NAMES,
 } from './lib/orchestration/plan-runner/plan-router.js';
 import { createProvider } from './lib/provider-factory.js';
+import { specPath } from './lib/spec/loader.js';
+
+/**
+ * Story #1499 / Task #1527 — Phase 2.5 edit-in-place entry-point detection.
+ *
+ * Resolve the on-disk spec file for `epicId` and report whether it
+ * already exists. When present, the host LLM (this wrapper) routes the
+ * plan invocation through the edit-in-place flow (`runEditFlow`) instead
+ * of the author-then-reconcile (`runSpec` → `runDecompose`) chain.
+ *
+ * The check is intentionally a stat — neither YAML parse nor schema
+ * validation runs here, so a malformed spec does not poison the
+ * detection path. The downstream edit flow (Task #1530) calls `loadSpec`
+ * to validate before doing any further work.
+ *
+ * Exported so tests can pin the routing predicate without re-deriving
+ * the path convention from prose.
+ *
+ * @param {number|string} epicId
+ * @param {{ existsSync?: typeof defaultExistsSync, specPathFn?: typeof specPath, epicsDir?: string }} [opts]
+ * @returns {{ exists: boolean, path: string }}
+ */
+export function detectExistingSpec(epicId, opts = {}) {
+  const existsFn = opts.existsSync ?? defaultExistsSync;
+  const specPathFn = opts.specPathFn ?? specPath;
+  const filePath = specPathFn(
+    epicId,
+    opts.epicsDir ? { epicsDir: opts.epicsDir } : {},
+  );
+  return { exists: existsFn(filePath), path: filePath };
+}
+
+/**
+ * Edit-in-place flow stub for Phase 2.5 (Story #1499).
+ *
+ * This is the routing target taken when `detectExistingSpec` reports the
+ * spec already exists. Task #1527 only wires the route; Task #1530 fills
+ * in the dry-run + HITL confirmation behaviour (delegating to the
+ * existing `epic-reconcile.js` CLI). Until then, the flow returns a
+ * surface-shape stable envelope so the wrapping skill (and tests) can
+ * pin the route taken without depending on the apply behaviour.
+ *
+ * Exported so the test suite can override the apply path or inject a
+ * stub reconciler runner once Task #1530 lands.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   specFilePath: string,
+ *   force?: boolean,
+ *   runReconcile?: function,
+ *   confirm?: () => Promise<boolean>,
+ *   isTty?: () => boolean,
+ *   stdout?: (line: string) => void,
+ * }} args
+ * @returns {Promise<{ epicId: number, mode: 'edit', specPath: string, applied: boolean, plan?: object, reason?: string }>}
+ */
+export async function runEditFlow({
+  epicId,
+  specFilePath,
+  // Apply gate + collaborators are reserved for Task #1530.
+}) {
+  Logger.info(
+    `[epic-plan] Existing spec detected for Epic #${epicId} at ${specFilePath}. Routing through edit-in-place flow (Task #1530 stub).`,
+  );
+  return {
+    epicId,
+    mode: 'edit',
+    specPath: specFilePath,
+    applied: false,
+    reason: 'edit-flow-stub-task-1530',
+  };
+}
 
 /**
  * Orchestrate the full local plan. Intentionally side-effect-free on its
  * arguments — all I/O happens through `provider` and the two phase runners.
+ *
+ * Story #1499 / Task #1527: before invoking the spec phase, check whether
+ * `.agents/epics/<id>.yaml` already exists. When it does, route through
+ * the edit-in-place flow (`runEditFlow`) instead of the author-then-
+ * reconcile path. `--force` bypasses the route check so operators can
+ * regenerate from scratch on top of an existing spec.
  *
  * @param {{
  *   epicId: number,
@@ -52,6 +132,8 @@ import { createProvider } from './lib/provider-factory.js';
  *   force?: boolean,
  *   runSpec?: typeof runSpecPhase,
  *   runDecompose?: typeof runDecomposePhase,
+ *   runEdit?: typeof runEditFlow,
+ *   detectSpec?: typeof detectExistingSpec,
  * }} opts
  */
 /* exported for tests — Story-level reuse runner reserved for future test coverage */
@@ -64,7 +146,29 @@ export async function runSprintPlan({
   force = false,
   runSpec = runSpecPhase,
   runDecompose = runDecomposePhase,
+  runEdit = runEditFlow,
+  detectSpec = detectExistingSpec,
 }) {
+  // Phase 2.5 edit-in-place detection (Story #1499 / Task #1527).
+  // `--force` is the operator escape hatch: it re-runs the author path
+  // even when a spec is present, matching the behaviour the spec phase
+  // already documents for PRD/Tech Spec regeneration.
+  const specProbe = detectSpec(epicId);
+  if (specProbe.exists && !force) {
+    const editResult = await runEdit({
+      epicId,
+      provider,
+      specFilePath: specProbe.path,
+    });
+    return {
+      epicId,
+      mode: 'edit',
+      spec: null,
+      decompose: null,
+      edit: editResult,
+    };
+  }
+
   const specResult = await runSpec(
     epicId,
     provider,
@@ -86,6 +190,7 @@ export async function runSprintPlan({
 
   return {
     epicId,
+    mode: 'author',
     spec: specResult,
     decompose: decomposeResult,
   };
@@ -154,25 +259,39 @@ async function main() {
     return;
   }
 
-  if (!values.prd || !values.techspec || !values.tickets) {
+  // Story #1499 / Task #1527: when a spec already exists and the
+  // operator did not pass --force, we route through the edit-in-place
+  // flow. PRD/Tech Spec/tickets inputs are unused on that path because
+  // the spec on disk is the authoritative source — re-emitting fresh
+  // tickets would double-write. Probe up front so the CLI does not
+  // require inputs operators do not have on hand for a re-plan.
+  const specProbe = detectExistingSpec(epicId);
+  const willEdit = specProbe.exists && !values.force;
+
+  if (!willEdit && (!values.prd || !values.techspec || !values.tickets)) {
     Logger.fatal(
       'Missing required inputs. Need --prd, --techspec, and --tickets files.',
     );
   }
 
-  const [prdContent, techSpecContent, ticketsRaw] = await Promise.all([
-    readFile(values.prd, 'utf8'),
-    readFile(values.techspec, 'utf8'),
-    readFile(values.tickets, 'utf8'),
-  ]);
-
-  let tickets;
-  try {
-    tickets = JSON.parse(ticketsRaw);
-  } catch (err) {
-    Logger.fatal(
-      `Failed to parse tickets file "${values.tickets}" as JSON: ${err.message}`,
-    );
+  let prdContent = '';
+  let techSpecContent = '';
+  let tickets = [];
+  if (!willEdit) {
+    const [prdRaw, techSpecRaw, ticketsRaw] = await Promise.all([
+      readFile(values.prd, 'utf8'),
+      readFile(values.techspec, 'utf8'),
+      readFile(values.tickets, 'utf8'),
+    ]);
+    prdContent = prdRaw;
+    techSpecContent = techSpecRaw;
+    try {
+      tickets = JSON.parse(ticketsRaw);
+    } catch (err) {
+      Logger.fatal(
+        `Failed to parse tickets file "${values.tickets}" as JSON: ${err.message}`,
+      );
+    }
   }
 
   const result = await runSprintPlan({
