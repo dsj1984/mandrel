@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgsStringToArgv } from 'string-argv';
@@ -11,78 +10,41 @@ import {
   resolveConfig,
 } from './lib/config-resolver.js';
 import { isDegraded, softFailOrThrow } from './lib/degraded-mode.js';
+import {
+  BaselineNotFoundError,
+  loadBaseline,
+  writeBaseline,
+} from './lib/gates/baseline-store.js';
 import { Logger } from './lib/Logger.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
-export function parseLintOutput(jsonStr, _cmdConfig) {
-  // Parse the JSON array. Find start and end to avoid extraneous shell output
+// Shared core: extract the JSON-array tail from shell output, then tally
+// errors/warnings. `detailed=true` also returns per-file counts + rule
+// histogram (used by `diff` + `captureBaseline` to attribute regressions).
+function parseLintShared(jsonStr, detailed) {
+  const empty = detailed
+    ? { errorCount: 0, warningCount: 0, byFile: {} }
+    : { errorCount: 0, warningCount: 0 };
   const startIndex = jsonStr.indexOf('[');
   const endIndex = jsonStr.lastIndexOf(']');
   if (startIndex === -1 || endIndex === -1) {
-    if (jsonStr === '') return { errorCount: 0, warningCount: 0 };
+    if (jsonStr === '') return empty;
     throw new Error(
-      'Could not find JSON array in output. Output: ' +
-        jsonStr.substring(0, 100),
+      `Could not find JSON array in output. Output: ${jsonStr.substring(0, 100)}`,
     );
   }
-  const cleanJson = jsonStr.substring(startIndex, endIndex + 1);
-  const output = JSON.parse(cleanJson);
+  const output = JSON.parse(jsonStr.substring(startIndex, endIndex + 1));
   let totalErrors = 0;
   let totalWarnings = 0;
-  for (const file of output) {
-    totalErrors += file.errorCount || 0;
-    totalWarnings += file.warningCount || 0;
-  }
-  return { errorCount: totalErrors, warningCount: totalWarnings };
-}
-
-/**
- * Same JSON parser as `parseLintOutput`, but additionally retains per-file
- * counts and a per-file rule histogram. Used by the `diff` subcommand and by
- * `captureBaseline` so subsequent diffs can attribute deltas to specific
- * rules. Output shape:
- *
- *   {
- *     errorCount: number,
- *     warningCount: number,
- *     byFile: {
- *       [filePath]: {
- *         errorCount: number,
- *         warningCount: number,
- *         rules: { [ruleId]: count }
- *       }
- *     }
- *   }
- *
- * Empty input yields `{ errorCount: 0, warningCount: 0, byFile: {} }`. The
- * function expects the ESLint-style JSON shape (array of objects with
- * `filePath`, `errorCount`, `warningCount`, and `messages[]` carrying
- * `ruleId`); messages without a `ruleId` are bucketed under `<unknown>`.
- */
-export function parseLintOutputDetailed(jsonStr, _cmdConfig) {
-  const startIndex = jsonStr.indexOf('[');
-  const endIndex = jsonStr.lastIndexOf(']');
-  if (startIndex === -1 || endIndex === -1) {
-    if (jsonStr === '') {
-      return { errorCount: 0, warningCount: 0, byFile: {} };
-    }
-    throw new Error(
-      'Could not find JSON array in output. Output: ' +
-        jsonStr.substring(0, 100),
-    );
-  }
-  const cleanJson = jsonStr.substring(startIndex, endIndex + 1);
-  const output = JSON.parse(cleanJson);
-  let totalErrors = 0;
-  let totalWarnings = 0;
-  const byFile = {};
+  const byFile = detailed ? {} : null;
   for (const file of output) {
     const errorCount = file.errorCount || 0;
     const warningCount = file.warningCount || 0;
     totalErrors += errorCount;
     totalWarnings += warningCount;
+    if (!detailed) continue;
     if (errorCount === 0 && warningCount === 0) continue;
     const filePath = file.filePath || file.file || '<unknown>';
     const rules = {};
@@ -94,7 +56,57 @@ export function parseLintOutputDetailed(jsonStr, _cmdConfig) {
     }
     byFile[filePath] = { errorCount, warningCount, rules };
   }
-  return { errorCount: totalErrors, warningCount: totalWarnings, byFile };
+  return detailed
+    ? { errorCount: totalErrors, warningCount: totalWarnings, byFile }
+    : { errorCount: totalErrors, warningCount: totalWarnings };
+}
+
+export function parseLintOutput(jsonStr, _cmdConfig) {
+  return parseLintShared(jsonStr, false);
+}
+
+/**
+ * Detailed twin of `parseLintOutput`: returns `byFile` with per-file
+ * counts and a rule histogram keyed by ruleId (or `<unknown>`).
+ */
+export function parseLintOutputDetailed(jsonStr, _cmdConfig) {
+  return parseLintShared(jsonStr, true);
+}
+
+// Soft-fail contract (Tech Spec #819): a JSON-parse failure emits the
+// degraded envelope (or hard-fails under `--gate-mode`) so callers see
+// the explicit signal rather than a silent zero-error fallback.
+function runLintShared(
+  cmdConfig,
+  executionTimeoutMs,
+  executionMaxBuffer,
+  gateModeOpts,
+  detailed,
+) {
+  const parsedArgs = parseArgsStringToArgv(cmdConfig);
+  if (parsedArgs.length === 0) {
+    Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
+    return detailed
+      ? { errorCount: 0, warningCount: 0, byFile: {} }
+      : { errorCount: 0, warningCount: 0 };
+  }
+  const cmd = parsedArgs.shift();
+  const result = spawnSync(cmd, parsedArgs, {
+    cwd: PROJECT_ROOT,
+    encoding: 'utf-8',
+    timeout: executionTimeoutMs,
+    maxBuffer: executionMaxBuffer,
+    shell: false,
+  });
+  try {
+    return parseLintShared(result.stdout.trim(), detailed);
+  } catch (err) {
+    return softFailOrThrow(
+      'LINT_OUTPUT_PARSE_FAILED',
+      `lint-baseline: failed to parse JSON from \`${cmdConfig}\`: ${err.message}`,
+      gateModeOpts,
+    );
+  }
 }
 
 export function runLintCommand(
@@ -103,73 +115,28 @@ export function runLintCommand(
   executionMaxBuffer,
   gateModeOpts,
 ) {
-  const parsedArgs = parseArgsStringToArgv(cmdConfig);
-  if (parsedArgs.length === 0) {
-    Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
-    return { errorCount: 0, warningCount: 0 };
-  }
-  const cmd = parsedArgs.shift();
-  const cmdArgs = parsedArgs;
-  const result = spawnSync(cmd, cmdArgs, {
-    cwd: PROJECT_ROOT,
-    encoding: 'utf-8',
-    timeout: executionTimeoutMs,
-    maxBuffer: executionMaxBuffer,
-    shell: false,
-  });
-
-  try {
-    const jsonStr = result.stdout.trim();
-    return parseLintOutput(jsonStr, cmdConfig);
-  } catch (err) {
-    // Soft-fail contract (Tech Spec #819): the previous behaviour was a
-    // silent zero-error fallback, which masked tooling regressions. Now we
-    // emit a degraded envelope (or hard-fail in gate-mode) so callers see
-    // the explicit signal and can decide whether to abort the gate.
-    return softFailOrThrow(
-      'LINT_OUTPUT_PARSE_FAILED',
-      `lint-baseline: failed to parse JSON from \`${cmdConfig}\`: ${err.message}`,
-      gateModeOpts,
-    );
-  }
+  return runLintShared(
+    cmdConfig,
+    executionTimeoutMs,
+    executionMaxBuffer,
+    gateModeOpts,
+    false,
+  );
 }
 
-/**
- * Detailed-parsing twin of `runLintCommand`. Returns `byFile` alongside the
- * totals so the diff subcommand can attribute regressions to specific files
- * and rules. Same degraded-mode contract as the basic runner.
- */
 function runLintCommandDetailed(
   cmdConfig,
   executionTimeoutMs,
   executionMaxBuffer,
   gateModeOpts,
 ) {
-  const parsedArgs = parseArgsStringToArgv(cmdConfig);
-  if (parsedArgs.length === 0) {
-    Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
-    return { errorCount: 0, warningCount: 0, byFile: {} };
-  }
-  const cmd = parsedArgs.shift();
-  const cmdArgs = parsedArgs;
-  const result = spawnSync(cmd, cmdArgs, {
-    cwd: PROJECT_ROOT,
-    encoding: 'utf-8',
-    timeout: executionTimeoutMs,
-    maxBuffer: executionMaxBuffer,
-    shell: false,
-  });
-
-  try {
-    const jsonStr = result.stdout.trim();
-    return parseLintOutputDetailed(jsonStr, cmdConfig);
-  } catch (err) {
-    return softFailOrThrow(
-      'LINT_OUTPUT_PARSE_FAILED',
-      `lint-baseline: failed to parse JSON from \`${cmdConfig}\`: ${err.message}`,
-      gateModeOpts,
-    );
-  }
+  return runLintShared(
+    cmdConfig,
+    executionTimeoutMs,
+    executionMaxBuffer,
+    gateModeOpts,
+    true,
+  );
 }
 
 export function captureBaseline(
@@ -188,9 +155,7 @@ export function captureBaseline(
     gateModeOpts,
   );
   if (isDegraded(detailed)) return detailed;
-  const dir = path.dirname(baselinePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(baselinePath, JSON.stringify(detailed, null, 2), 'utf8');
+  writeBaseline({ baselinePath, data: detailed });
   Logger.info(
     `✅ Baseline captured: ${detailed.errorCount} errors, ${detailed.warningCount} warnings.`,
   );
@@ -299,16 +264,18 @@ export function diffBaseline(
 
   let baseline = { errorCount: 0, warningCount: 0, byFile: {} };
   let baselineHasByFile = false;
-  if (fs.existsSync(baselinePath)) {
-    baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
+  try {
+    baseline = loadBaseline({ baselinePath });
     baselineHasByFile =
       baseline &&
       typeof baseline.byFile === 'object' &&
       baseline.byFile !== null;
-  } else {
+  } catch (err) {
+    if (!(err instanceof BaselineNotFoundError)) throw err;
     Logger.warn(
       `⚠️ No baseline found at ${baselinePathRel}. Treating baseline as empty.`,
     );
+    baseline = { errorCount: 0, warningCount: 0, byFile: {} };
   }
 
   Logger.info(
@@ -342,9 +309,10 @@ export function checkBaseline(
   if (isDegraded(current)) return current;
 
   let baseline = { errorCount: 0, warningCount: 0 };
-  if (fs.existsSync(baselinePath)) {
-    baseline = JSON.parse(fs.readFileSync(baselinePath, 'utf8'));
-  } else {
+  try {
+    baseline = loadBaseline({ baselinePath });
+  } catch (err) {
+    if (!(err instanceof BaselineNotFoundError)) throw err;
     Logger.warn(
       `⚠️ No baseline found at ${baselinePathRel}. Assuming 0 baseline.`,
     );
@@ -371,7 +339,7 @@ export function checkBaseline(
     current.errorCount < baseline.errorCount ||
     current.warningCount < baseline.warningCount
   ) {
-    fs.writeFileSync(baselinePath, JSON.stringify(current, null, 2), 'utf8');
+    writeBaseline({ baselinePath, data: current });
     Logger.info(
       `🎉 Lint health improved! Ratcheted baseline down to current levels.`,
     );
