@@ -1702,6 +1702,48 @@
       "startLine": 75
     },
     {
+      "crap": 5,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "epicSnapshotPathFor",
+      "startLine": 73
+    },
+    {
+      "crap": 9.2949476558944,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "forkMainToEpic",
+      "startLine": 129
+    },
+    {
+      "crap": 15.000533333333333,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "commitSnapshotsToEpicBranch",
+      "startLine": 253
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "runGit",
+      "startLine": 282
+    },
+    {
+      "crap": 17.004779460310658,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "regenerateMainFromTree",
+      "startLine": 441
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "forkAndCommitEpicSnapshot",
+      "startLine": 628
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baseline-snapshot.js",
+      "method": "<anon method-5>",
+      "startLine": 640
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
       "method": "moveOneSnapshot",
@@ -6400,6 +6442,66 @@
       "startLine": 21
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "defaultProgress",
+      "startLine": 36
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "ensureRepoCoreLongpathsOnWindows",
+      "startLine": 61
+    },
+    {
+      "crap": 4.466090122894856,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "assertWorkingTreeClean",
+      "startLine": 93
+    },
+    {
+      "crap": 3.1669295745980053,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "bootstrapBranch",
+      "startLine": 107
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "planStoryBranchSeed",
+      "startLine": 149
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "ensureStoryBranchSeed",
+      "startLine": 155
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "verifyWorkspaceSafe",
+      "startLine": 172
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "reportEnsureWarnings",
+      "startLine": 198
+    },
+    {
+      "crap": 40.758731935552845,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "bootstrapWorktree",
+      "startLine": 214
+    },
+    {
+      "crap": 2.2246900975699027,
+      "file": ".agents/scripts/lib/story-init/branch-initializer.js",
+      "method": "initializeBranch",
+      "startLine": 323
+    },
+    {
       "crap": 10.629221665908057,
       "file": ".agents/scripts/lib/story-init/context-resolver.js",
       "method": "resolveContext",
@@ -7846,7 +7948,7 @@
       "startLine": 65
     },
     {
-      "crap": 19.658263254508153,
+      "crap": 19.633106356697947,
       "file": ".agents/scripts/story-init.js",
       "method": "runStoryInit",
       "startLine": 78
@@ -7862,6 +7964,42 @@
       "file": ".agents/scripts/story-init.js",
       "method": "<anon method-4>",
       "startLine": 116
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/story-init.js",
+      "method": "<anon method-5>",
+      "startLine": 243
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/story-init.js",
+      "method": "buildStoryInitResult",
+      "startLine": 395
+    },
+    {
+      "crap": 3.072,
+      "file": ".agents/scripts/story-init.js",
+      "method": "mapDependenciesInstalled",
+      "startLine": 448
+    },
+    {
+      "crap": 1.0046296296296295,
+      "file": ".agents/scripts/story-init.js",
+      "method": "postStoryInitComment",
+      "startLine": 459
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/story-init.js",
+      "method": "renderStoryInitCommentBody",
+      "startLine": 485
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/story-init.js",
+      "method": "emitStoryInitResult",
+      "startLine": 521
     },
     {
       "crap": 4.916,
