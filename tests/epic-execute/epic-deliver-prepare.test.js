@@ -110,6 +110,23 @@ describe('runEpicDeliverPrepare', () => {
       epicComments[0].body,
       new RegExp(`"version":\\s*${CHECKPOINT_SCHEMA_VERSION}`),
     );
+
+    // The plan must be persisted on the checkpoint in the shape wave-tick
+    // expects (`Array<Array<{ storyId, title?, worktree? }>>`). Without
+    // this write the tick reports every wave as `wave-complete: empty`.
+    const fenced = epicComments[0].body.match(/```json\n([\s\S]+?)\n```/);
+    assert.ok(fenced, 'checkpoint body has a fenced JSON block');
+    const persisted = JSON.parse(fenced[1]);
+    assert.ok(Array.isArray(persisted.plan), 'persisted plan is an array');
+    assert.equal(persisted.plan.length, 2);
+    assert.deepEqual(
+      persisted.plan[0].map((s) => s.storyId),
+      [201],
+    );
+    assert.deepEqual(
+      persisted.plan[1].map((s) => s.storyId),
+      [202],
+    );
   });
 
   it('builds the plan for a single-story Epic', async () => {
