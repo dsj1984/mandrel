@@ -6,6 +6,7 @@ import {
   executeCleanup,
   parseCleanupArgs,
   planCleanup,
+  probeMergedPr,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
@@ -362,6 +363,73 @@ describe('git-cleanup-branches.executeCleanup', () => {
     assert.equal(result.failures.length, 2);
     const scopes = result.failures.map((f) => f.scope).sort();
     assert.deepEqual(scopes, ['local', 'remote']);
+  });
+});
+
+describe('git-cleanup-branches.probeMergedPr', () => {
+  it('returns the PR row when gh returns a non-empty merged array', () => {
+    const out = probeMergedPr('fix/a', '/repo', () =>
+      JSON.stringify([{ number: 42, mergedAt: '2026-05-01T00:00:00Z' }]),
+    );
+    assert.deepEqual(out, { number: 42, mergedAt: '2026-05-01T00:00:00Z' });
+  });
+
+  it('returns null when gh returns an empty array', () => {
+    const out = probeMergedPr('fix/a', '/repo', () => '[]');
+    assert.equal(out, null);
+  });
+
+  it('returns null when gh returns an empty / whitespace string', () => {
+    assert.equal(
+      probeMergedPr('fix/a', '/repo', () => ''),
+      null,
+    );
+    assert.equal(
+      probeMergedPr('fix/a', '/repo', () => '   '),
+      null,
+    );
+  });
+
+  it('returns null on malformed JSON (does not throw)', () => {
+    assert.equal(
+      probeMergedPr('fix/a', '/repo', () => '{not json'),
+      null,
+    );
+  });
+
+  it('coerces a missing mergedAt to null', () => {
+    const out = probeMergedPr('fix/a', '/repo', () =>
+      JSON.stringify([{ number: 7 }]),
+    );
+    assert.deepEqual(out, { number: 7, mergedAt: null });
+  });
+
+  it('coerces a non-numeric number field to 0', () => {
+    const out = probeMergedPr('fix/a', '/repo', () =>
+      JSON.stringify([{ number: 'abc', mergedAt: null }]),
+    );
+    assert.equal(out.number, 0);
+  });
+
+  it('passes the correct gh argv (head=branch, state=merged, json fields)', () => {
+    let captured;
+    probeMergedPr('feat/x', '/cwd', (args, { cwd }) => {
+      captured = { args, cwd };
+      return '[]';
+    });
+    assert.equal(captured.cwd, '/cwd');
+    assert.deepEqual(captured.args, [
+      'pr',
+      'list',
+      '--head',
+      'feat/x',
+      '--state',
+      'merged',
+      '--json',
+      'number,mergedAt',
+      '--limit',
+      '1',
+    ]);
   });
 });
 

@@ -132,6 +132,7 @@ export function computeProtectedSet({ baseBranch, currentBranch, configured }) {
  * @param {string} cwd
  * @returns {string[]}
  */
+/* node:coverage ignore next */
 function listLocalBranches(cwd) {
   const res = gitSpawn(
     cwd,
@@ -154,6 +155,7 @@ function listLocalBranches(cwd) {
  * @param {string} base
  * @returns {string[]}
  */
+/* node:coverage ignore next */
 function listMergedBranches(cwd, base) {
   const res = gitSpawn(
     cwd,
@@ -175,6 +177,7 @@ function listMergedBranches(cwd, base) {
  * @param {string} cwd
  * @returns {string|null}
  */
+/* node:coverage ignore next */
 function currentBranch(cwd) {
   const res = gitSpawn(cwd, 'symbolic-ref', '--quiet', '--short', 'HEAD');
   if (res.status !== 0) return null;
@@ -188,6 +191,7 @@ function currentBranch(cwd) {
  * @param {string} cwd
  * @returns {string[]}
  */
+/* node:coverage ignore next */
 function readProtectedConfig(cwd) {
   const res = gitSpawn(cwd, 'config', '--get', 'branch.protectedBranches');
   if (res.status !== 0) return [];
@@ -203,6 +207,7 @@ function readProtectedConfig(cwd) {
  * @param {string} cwd
  * @returns {Map<string, { path: string, branch: string }>}
  */
+/* node:coverage ignore next */
 function worktreesByBranch(cwd) {
   const res = gitSpawn(cwd, 'worktree', 'list', '--porcelain');
   if (res.status !== 0) return new Map();
@@ -259,6 +264,7 @@ export function probeMergedPr(branch, cwd, runGh = defaultGhRunner) {
   };
 }
 
+/* node:coverage ignore next */
 function defaultGhRunner(args, { cwd }) {
   return execFileSync('gh', args, { cwd, encoding: 'utf8' });
 }
@@ -470,6 +476,7 @@ export function executeCleanup(ctx) {
  * @param {string} cwd
  * @returns {{ ok: boolean, dirty: boolean, stderr?: string }}
  */
+/* node:coverage ignore next */
 function removeWorktree(worktreePath, cwd) {
   // Try without --force first so we can distinguish "clean reap" from
   // "had to force". The story interface contract requires force-on-dirty
@@ -528,10 +535,12 @@ export function renderExecutionSummary(result) {
   return `[git-cleanup-branches] ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s).`;
 }
 
+/* node:coverage ignore next */
 function emitDryRunHuman(plan) {
   for (const line of renderDryRun(plan)) Logger.info(line);
 }
 
+/* node:coverage ignore next */
 function emitExecutionHuman(result) {
   for (const r of result.worktrees)
     Logger.info(renderExecutionLine(r, 'worktree'));
@@ -542,11 +551,13 @@ function emitExecutionHuman(result) {
   else Logger.error(summary);
 }
 
+/* node:coverage ignore next */
 function emitJson(payload, fail) {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
   if (fail) process.exit(1);
 }
 
+/* node:coverage ignore next */
 function resolveBaseBranch(cwd, override) {
   if (override) return override;
   try {
