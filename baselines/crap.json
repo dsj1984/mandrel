@@ -922,6 +922,162 @@
       "startLine": 229
     },
     {
+      "crap": 6,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "parseCleanupArgs",
+      "startLine": 67
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "buildGlobFilter",
+      "startLine": 106
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-1>",
+      "startLine": 107
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-2>",
+      "startLine": 108
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "computeProtectedSet",
+      "startLine": 119
+    },
+    {
+      "crap": 5.146108329540283,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "listLocalBranches",
+      "startLine": 136
+    },
+    {
+      "crap": 5.20262390670554,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "listMergedBranches",
+      "startLine": 159
+    },
+    {
+      "crap": 7.608000000000001,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "currentBranch",
+      "startLine": 181
+    },
+    {
+      "crap": 4.6796875,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "readProtectedConfig",
+      "startLine": 195
+    },
+    {
+      "crap": 16.021036814425244,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "worktreesByBranch",
+      "startLine": 211
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "probeMergedPr",
+      "startLine": 235
+    },
+    {
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "defaultGhRunner",
+      "startLine": 268
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "planCleanup",
+      "startLine": 301
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-7>",
+      "startLine": 310
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-8>",
+      "startLine": 311
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "executeCleanup",
+      "startLine": 380
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-9>",
+      "startLine": 386
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "<anon method-10>",
+      "startLine": 387
+    },
+    {
+      "crap": 17.478737997256516,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "removeWorktree",
+      "startLine": 480
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "renderDryRun",
+      "startLine": 500
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "renderExecutionLine",
+      "startLine": 517
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "renderExecutionSummary",
+      "startLine": 531
+    },
+    {
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "emitDryRunHuman",
+      "startLine": 539
+    },
+    {
+      "crap": 4.809327846364883,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "emitExecutionHuman",
+      "startLine": 544
+    },
+    {
+      "crap": 3.6875,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "emitJson",
+      "startLine": 555
+    },
+    {
+      "crap": 9.320987654320987,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "resolveBaseBranch",
+      "startLine": 561
+    },
+    {
       "crap": 12,
       "file": ".agents/scripts/git-pr-quality-gate.js",
       "method": "resolveChecks",
@@ -3307,31 +3463,37 @@
       "crap": 1,
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "tracesFile",
-      "startLine": 49
+      "startLine": 54
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "appendOne",
-      "startLine": 62
+      "startLine": 67
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "appendSignal",
-      "startLine": 99
+      "startLine": 104
+    },
+    {
+      "crap": 5.252148148148148,
+      "file": ".agents/scripts/lib/observability/signals-writer.js",
+      "method": "appendEpicSignal",
+      "startLine": 129
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "appendTrace",
-      "startLine": 122
+      "startLine": 152
     },
     {
       "crap": 7.036814425244177,
       "file": ".agents/scripts/lib/observability/signals-writer.js",
       "method": "forEachLine",
-      "startLine": 152
+      "startLine": 182
     },
     {
       "crap": 3,
@@ -5293,139 +5455,157 @@
       "crap": 1,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "__resetMalformedLatchForTests",
-      "startLine": 71
+      "startLine": 72
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "__getMalformedLatchForTests",
-      "startLine": 83
+      "startLine": 84
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "isPositiveInt",
-      "startLine": 87
+      "startLine": 88
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "warnOnceMalformed",
-      "startLine": 91
+      "startLine": 92
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "streamFile",
-      "startLine": 110
+      "startLine": 111
     },
     {
-      "crap": 4,
+      "crap": 7.036814425244177,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "listEpicStorySignalsFiles",
-      "startLine": 161
+      "startLine": 162
     },
     {
       "crap": 12.865514650638616,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "read",
-      "startLine": 200
+      "startLine": 212
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "isObject",
-      "startLine": 115
+      "startLine": 119
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "isTimestamp",
-      "startLine": 127
+      "startLine": 131
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "isPositiveInt",
-      "startLine": 138
+      "startLine": 142
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "hasCommonEnvelope",
-      "startLine": 152
+      "startLine": 156
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "isValidSignal",
-      "startLine": 172
+      "startLine": 176
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "<anon method-1>",
-      "startLine": 191
+      "startLine": 195
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
       "method": "<anon method-2>",
-      "startLine": 197
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-3>",
-      "startLine": 198
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-4>",
-      "startLine": 199
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-5>",
-      "startLine": 200
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-6>",
       "startLine": 201
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-7>",
+      "method": "<anon method-3>",
+      "startLine": 202
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-4>",
       "startLine": 203
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-8>",
+      "method": "<anon method-5>",
       "startLine": 204
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-9>",
+      "method": "<anon method-6>",
       "startLine": 205
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
-      "method": "<anon method-10>",
+      "method": "<anon method-7>",
       "startLine": 206
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-8>",
+      "startLine": 208
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-9>",
+      "startLine": 210
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-10>",
+      "startLine": 212
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
       "method": "<anon method-11>",
-      "startLine": 207
+      "startLine": 213
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-12>",
+      "startLine": 214
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-13>",
+      "startLine": 215
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-14>",
+      "startLine": 216
     },
     {
       "crap": 1,
@@ -5924,6 +6104,54 @@
       "file": ".agents/scripts/lib/validation-evidence.js",
       "method": "forceClear",
       "startLine": 307
+    },
+    {
+      "crap": 16.004075947357986,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "tick",
+      "startLine": 43
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "tickResult",
+      "startLine": 203
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "resolveEpicId",
+      "startLine": 213
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "positiveIntOrZero",
+      "startLine": 224
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "storyIdOf",
+      "startLine": 228
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "isUndispatched",
+      "startLine": 233
+    },
+    {
+      "crap": 5.31930879038317,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "readGateFailures",
+      "startLine": 241
+    },
+    {
+      "crap": 1.1714677640603566,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "defaultSignalEmit",
+      "startLine": 257
     },
     {
       "crap": 13,

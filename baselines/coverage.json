@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 87.78,
-    "branches": 63.89,
+    "branches": 65.75,
     "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -103,6 +103,11 @@
     "lines": 97.87,
     "branches": 85.71,
     "functions": 80
+  },
+  ".agents/scripts/git-cleanup-branches.js": {
+    "lines": 74.16,
+    "branches": 88.89,
+    "functions": 85.19
   },
   ".agents/scripts/git-pr-quality-gate.js": {
     "lines": 73.53,
@@ -276,7 +281,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 87.37,
+    "branches": 88.54,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -550,9 +555,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
-    "lines": 97.24,
+    "lines": 91.9,
     "branches": 75,
-    "functions": 100
+    "functions": 83.33
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
     "lines": 89.14,
@@ -975,8 +980,8 @@
     "functions": null
   },
   ".agents/scripts/lib/signals/read.js": {
-    "lines": 96.71,
-    "branches": 89.66,
+    "lines": 95.69,
+    "branches": 88.71,
     "functions": 100
   },
   ".agents/scripts/lib/signals/schema.js": {
@@ -1079,6 +1084,16 @@
     "branches": 93.75,
     "functions": 100
   },
+  ".agents/scripts/lib/wave-runner/tick.js": {
+    "lines": 93.96,
+    "branches": 78.87,
+    "functions": 100
+  },
+  ".agents/scripts/lib/wave-runner/wave-runner-error.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/workers/crap-worker.js": {
     "lines": 100,
     "branches": 97.22,
@@ -1166,7 +1181,7 @@
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
-    "branches": 69.05,
+    "branches": 66.67,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
