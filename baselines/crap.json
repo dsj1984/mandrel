@@ -76,13 +76,13 @@
       "startLine": 531
     },
     {
-      "crap": 110,
+      "crap": 10,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "parseCli",
       "startLine": 622
     },
     {
-      "crap": 12,
+      "crap": 3.131456790123457,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 650
@@ -247,79 +247,79 @@
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 162
+      "startLine": 158
     },
     {
       "crap": 1.5787037037037037,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 176
+      "startLine": 172
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 183
+      "startLine": 179
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseFullScopeArg",
-      "startLine": 196
+      "startLine": 192
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveChangedSinceRef",
-      "startLine": 207
+      "startLine": 203
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 232
+      "startLine": 228
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 236
+      "startLine": 232
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 262
+      "startLine": 258
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 287
+      "startLine": 283
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 309
+      "startLine": 305
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 323
+      "startLine": 319
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "<anon method-3>",
-      "startLine": 334
+      "startLine": 330
     },
     {
       "crap": 40.06455688705506,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 344
+      "startLine": 340
     },
     {
       "crap": 2,
@@ -514,7 +514,7 @@
       "startLine": 71
     },
     {
-      "crap": 135.462,
+      "crap": 75.21254400000001,
       "file": ".agents/scripts/dispatcher.js",
       "method": "generateAndSaveManifest",
       "startLine": 107
@@ -1900,7 +1900,7 @@
       "startLine": 137
     },
     {
-      "crap": 3.616172051089406,
+      "crap": 12,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "defaultLockProbe",
       "startLine": 153
@@ -2962,7 +2962,7 @@
       "startLine": 153
     },
     {
-      "crap": 4.001194343198717,
+      "crap": 4.0005038635369585,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
       "startLine": 250
@@ -4276,66 +4276,6 @@
       "startLine": 176
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "labelsEqual",
-      "startLine": 100
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "normaliseBody",
-      "startLine": 116
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "ghObservation",
-      "startLine": 128
-    },
-    {
-      "crap": 12.378265625,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "fieldChanges",
-      "startLine": 142
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "parentEqual",
-      "startLine": 191
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "sortBySlug",
-      "startLine": 204
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "flattenSpec",
-      "startLine": 226
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "epicSlug",
-      "startLine": 288
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "dependsOnEqual",
-      "startLine": 302
-    },
-    {
-      "crap": 14,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "method": "diff",
-      "startLine": 313
-    },
-    {
       "crap": 3.3333333333333335,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
       "method": "issueSuffix",
@@ -4612,7 +4552,7 @@
       "startLine": 211
     },
     {
-      "crap": 2.0691910287424657,
+      "crap": 2.045040797080651,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "ticketClosurePhase",
       "startLine": 252
@@ -5050,7 +4990,7 @@
       "startLine": 34
     },
     {
-      "crap": 13.009615384615385,
+      "crap": 13,
       "file": ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js",
       "method": "reconcileCleanupState",
       "startLine": 64
@@ -5452,13 +5392,13 @@
       "startLine": 127
     },
     {
-      "crap": 3,
+      "crap": 3.017578125,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logBlockers",
       "startLine": 144
     },
     {
-      "crap": 2,
+      "crap": 4.518950437317785,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logNonBlockers",
       "startLine": 183
@@ -7570,13 +7510,13 @@
       "startLine": 101
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/story-close.js",
       "method": "emitPreflightBlockedResult",
       "startLine": 133
     },
     {
-      "crap": 2.143470136674918,
+      "crap": 2.010580507209385,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryClose",
       "startLine": 152
@@ -7588,7 +7528,7 @@
       "startLine": 189
     },
     {
-      "crap": 306,
+      "crap": 45.56632440570543,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryCloseLocked",
       "startLine": 247
@@ -7750,13 +7690,13 @@
       "startLine": 209
     },
     {
-      "crap": 9.761833208114199,
+      "crap": 3,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "isCommitReachableFromHead",
       "startLine": 239
     },
     {
-      "crap": 20.034589183204325,
+      "crap": 17.460358418311294,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
       "startLine": 274
