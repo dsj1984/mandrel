@@ -40,6 +40,7 @@
  * @module signals-view
  */
 
+import { runAsCli } from './lib/cli-utils.js';
 import * as signals from './lib/signals/index.js';
 
 /**
@@ -254,18 +255,23 @@ export async function main(argv, deps = {}) {
   return 0;
 }
 
-// Direct-CLI guard. Skipped under `node --test` (where this module is
-// imported, not executed) and under unit tests that import `main`
-// directly.
-const isDirectInvocation =
-  import.meta.url === `file://${process.argv[1]}` ||
-  import.meta.url === `file:///${process.argv[1]?.replace(/\\/g, '/')}`;
-if (isDirectInvocation) {
-  main(process.argv.slice(2)).then(
-    (code) => process.exit(code),
-    (err) => {
+// Direct-CLI guard: when this module is executed (not imported by a
+// test), drive `main(process.argv.slice(2))` through the framework's
+// `runAsCli` helper. The helper enforces the canonical main-guard
+// shape (the enforcement test in `tests/enforcement/cli-wrapper.test.js`
+// fails any top-level script that bypasses it) and centralises the
+// fatal-error path.
+runAsCli(
+  import.meta.url,
+  async () => {
+    const code = await main(process.argv.slice(2));
+    if (code !== 0) process.exit(code);
+  },
+  {
+    source: 'signals-view',
+    onError(err) {
       println(`signals-view: unexpected error: ${err?.message ?? err}`);
       process.exit(1);
     },
-  );
-}
+  },
+);
