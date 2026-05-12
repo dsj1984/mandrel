@@ -11,7 +11,6 @@
   ".agents/scripts/context-hydrator.js": 96.183,
   ".agents/scripts/coverage-capture.js": 89.526,
   ".agents/scripts/delete-epic-branches.js": 107.781,
-  ".agents/scripts/delete-epic.js": 100.31,
   ".agents/scripts/detect-merges.js": 108.546,
   ".agents/scripts/diagnose-friction.js": 79.236,
   ".agents/scripts/diagnose.js": 99.831,
