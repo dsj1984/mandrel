@@ -6364,7 +6364,7 @@
       "startLine": 24
     },
     {
-      "crap": 5.390625,
+      "crap": 30,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveToken",
       "startLine": 31
