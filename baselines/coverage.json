@@ -99,11 +99,6 @@
     "branches": 69.57,
     "functions": 71.43
   },
-  ".agents/scripts/epic-planner.js": {
-    "lines": 89.91,
-    "branches": 82.5,
-    "functions": 80
-  },
   ".agents/scripts/evidence-gate.js": {
     "lines": 97.87,
     "branches": 85.71,
@@ -1168,6 +1163,11 @@
     "lines": 61.83,
     "branches": 78.69,
     "functions": 54.55
+  },
+  ".agents/scripts/loc-delta.js": {
+    "lines": 86.83,
+    "branches": 69.05,
+    "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
     "lines": 75.48,
