@@ -1,0 +1,83 @@
+{
+  "story": {
+    "kind": "story-perf-summary",
+    "storyId": 1041,
+    "epicId": 1030,
+    "closedAt": "2026-05-09T10:30:00.000Z",
+    "frictionByCategory": {
+      "Tool Limitation": 2,
+      "Execution Error": 1,
+      "Unknown": 1
+    },
+    "phaseTimingsMs": {
+      "install": 4000,
+      "test": 9000
+    },
+    "topSlowPhasesVsBaseline": [
+      {
+        "phase": "install",
+        "elapsedMs": 4000,
+        "baselineP95Ms": 1000,
+        "ratio": 4
+      },
+      {
+        "phase": "test",
+        "elapsedMs": 9000,
+        "baselineP95Ms": 3000,
+        "ratio": 3
+      },
+      {
+        "phase": "lint",
+        "elapsedMs": 1500,
+        "baselineP95Ms": 1000,
+        "ratio": 1.5
+      }
+    ],
+    "reworkScore": {
+      "filesEditedBeyondThreshold": 2,
+      "topPath": "src/aggregator.js",
+      "topPathEdits": 8
+    },
+    "retryDensity": {
+      "retries": 4,
+      "uniqueCommands": 2
+    }
+  },
+  "epic": {
+    "kind": "epic-perf-report",
+    "epicId": 1030,
+    "generatedAt": "2026-05-09T10:31:00.000Z",
+    "signalCounts": {
+      "friction": 4,
+      "hotspot": 3,
+      "rework": 3,
+      "churn": 0,
+      "idle": 0,
+      "retry": 4
+    },
+    "waveParallelism": [],
+    "topHotspots": [
+      {
+        "phase": "install",
+        "occurrences": 1,
+        "avgRatio": 4
+      },
+      {
+        "phase": "test",
+        "occurrences": 1,
+        "avgRatio": 3
+      },
+      {
+        "phase": "lint",
+        "occurrences": 1,
+        "avgRatio": 1.5
+      }
+    ],
+    "mostFrictionStories": [
+      {
+        "storyId": 1041,
+        "frictionCount": 4
+      }
+    ]
+  }
+}
