@@ -80,6 +80,7 @@
  *     issue with an empty body.
  */
 
+import { assertPlanLabelAllowList } from './epic-spec-reconciler-discriminator.js';
 import {
   closeOp,
   createOp,
@@ -400,5 +401,14 @@ export function diff({ spec, state, ghState } = {}) {
   plan.updates = sortBySlug(plan.updates);
   plan.closes = sortBySlug(plan.closes);
   plan.relinks = sortBySlug(plan.relinks);
+
+  // Diff-time safety net (Story #1493 / Task #1515). The diff engine
+  // never *intends* to emit an agent::* payload, but defence-in-depth
+  // catches both a future spec-loader bug that would smuggle an agent::*
+  // through a structural field and an apply-pipeline regression that
+  // would otherwise silently corrupt wave-runner state. Throws
+  // `LabelAllowListViolation` synchronously.
+  assertPlanLabelAllowList(plan);
+
   return plan;
 }

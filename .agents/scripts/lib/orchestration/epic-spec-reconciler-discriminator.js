@@ -10,9 +10,9 @@
  * drops a Story whose branch is already merged — or when a structural
  * diff would touch an `agent::*` label — the reconciler must refuse.
  *
- * This module starts with `mayClose` (Task #1512) and `mayUpdate` (Task
- * #1513); sibling tasks add `STRUCTURAL_LABELS` plus the diff-time
- * assertion (Task #1515), and the regression coverage (Task #1517).
+ * The module exports `mayClose` (Task #1512), `mayUpdate` (Task #1513),
+ * `STRUCTURAL_LABELS` plus the diff-time assertion (Task #1515), and is
+ * exercised by the regression suite in Task #1517.
  *
  * All predicates here are I/O-free and accept plain data objects only.
  * Same inputs → same answer, every time. They do not call GitHub, the
@@ -166,4 +166,170 @@ export function mayUpdate(_story, field) {
     return { allowed: false, reason: `non-structural-field:${field}` };
   }
   return { allowed: true };
+}
+
+/**
+ * STRUCTURAL_LABELS — the structural side of the project label namespace
+ * (complement of AGENT_LABELS).
+ *
+ * The Tech Spec wording — "STRUCTURAL_LABELS is the complement of
+ * AGENT_LABELS within the project's label namespace" — does not pin a
+ * static enumeration: the structural label set is open (type::*,
+ * persona::*, context::*, status::*, and bespoke per-Epic tags), while
+ * the agent set is closed and small. We therefore expose the membership
+ * filter rather than a static enumeration; consumers pass their full
+ * label list and the helper returns the complement.
+ *
+ * Helpers:
+ *
+ *   - `isStructuralLabel(label)` — true iff the label is NOT in AGENT_LABELS.
+ *   - `partitionLabels(labels)`  — split a label array into
+ *                                  `{ structural, agent }` buckets.
+ *   - `AGENT_LABEL_VALUES`       — the deny-list (frozen array).
+ *
+ * Tests assert `isStructuralLabel(agent::*)` is false for every entry of
+ * AGENT_LABELS and `partitionLabels(['type::story', 'agent::executing'])`
+ * splits cleanly, which is the closest finite assertion of the
+ * complement contract.
+ *
+ * @type {{
+ *   isStructuralLabel: (label: string) => boolean,
+ *   partitionLabels: (labels: string[]) => { structural: string[], agent: string[] },
+ *   AGENT_LABEL_VALUES: readonly string[],
+ * }}
+ */
+export const STRUCTURAL_LABELS = Object.freeze({
+  AGENT_LABEL_VALUES,
+  isStructuralLabel(label) {
+    return typeof label === 'string' && !AGENT_LABEL_VALUES.includes(label);
+  },
+  partitionLabels(labels) {
+    const structural = [];
+    const agent = [];
+    for (const label of labels ?? []) {
+      if (typeof label !== 'string') continue;
+      if (AGENT_LABEL_VALUES.includes(label)) {
+        agent.push(label);
+      } else {
+        structural.push(label);
+      }
+    }
+    return { structural, agent };
+  },
+});
+
+/**
+ * Error class thrown synchronously by the diff-time assertion when a
+ * plan operation targets an `agent::*` label. Named so callers can
+ * `instanceof`-check and so the apply pipeline distinguishes it from
+ * generic `TypeError`s emitted by the operation factories.
+ *
+ * The class carries structured metadata (`slug`, `field`,
+ * `offendingLabels`) so the dispatch manifest / wave-runner logs can
+ * route the failure back to the offending Story without re-parsing the
+ * message string.
+ */
+export class LabelAllowListViolation extends Error {
+  /**
+   * @param {string} message
+   * @param {{slug?: string, field?: string, offendingLabels?: string[]}} [meta]
+   */
+  constructor(message, meta = {}) {
+    super(message);
+    this.name = 'LabelAllowListViolation';
+    if (meta.slug !== undefined) this.slug = meta.slug;
+    if (meta.field !== undefined) this.field = meta.field;
+    if (meta.offendingLabels !== undefined) {
+      this.offendingLabels = [...meta.offendingLabels];
+    }
+  }
+}
+
+/**
+ * Diff-time assertion. Throws `LabelAllowListViolation` synchronously
+ * when an operation targets an `agent::*` label. The assertion is the
+ * safety net for the apply pipeline: plans fail loudly at construction
+ * time, not silently mis-apply at runtime.
+ *
+ * Accepts the change-key list either via `op.changes` (UpdateOp) or via
+ * a `labels` array (CreateOp). Other op kinds (Close, Relink) carry no
+ * label payload and are no-ops.
+ *
+ * @param {{kind?: string, slug?: string, changes?: Record<string, unknown>, labels?: string[]}} op
+ * @returns {void}
+ */
+export function assertNoAgentLabels(op) {
+  if (!op || typeof op !== 'object') return;
+
+  // UpdateOp — every key in `changes` must be either a structural field
+  // or a structural label name. The diff engine currently emits
+  // `title|body|labels|wave`, but the assertion also catches an apply-
+  // pipeline bug that would route an `agent::*` rename through here.
+  if (op.changes && typeof op.changes === 'object') {
+    const offending = Object.keys(op.changes).filter((key) =>
+      AGENT_LABEL_VALUES.includes(key),
+    );
+    if (offending.length > 0) {
+      throw new LabelAllowListViolation(
+        `update plan for slug=${op.slug ?? '?'} targets agent label(s): ${offending.join(', ')}`,
+        { slug: op.slug, field: offending[0], offendingLabels: offending },
+      );
+    }
+    // The `labels` change set itself must not write an agent::* into
+    // labels.after — an update that adds an agent label is just as bad
+    // as one keyed by the agent label name.
+    const labelChange = /** @type {{after?: unknown}} */ (op.changes.labels);
+    if (
+      labelChange &&
+      typeof labelChange === 'object' &&
+      Array.isArray(labelChange.after)
+    ) {
+      const after = /** @type {string[]} */ (labelChange.after);
+      const agentInAfter = after.filter((label) =>
+        AGENT_LABEL_VALUES.includes(label),
+      );
+      if (agentInAfter.length > 0) {
+        throw new LabelAllowListViolation(
+          `update plan for slug=${op.slug ?? '?'} writes agent label(s) into labels.after: ${agentInAfter.join(', ')}`,
+          {
+            slug: op.slug,
+            field: 'labels',
+            offendingLabels: agentInAfter,
+          },
+        );
+      }
+    }
+  }
+
+  // CreateOp — labels array must not contain any agent::* value.
+  if (Array.isArray(op.labels)) {
+    const offending = op.labels.filter((label) =>
+      AGENT_LABEL_VALUES.includes(label),
+    );
+    if (offending.length > 0) {
+      throw new LabelAllowListViolation(
+        `create plan for slug=${op.slug ?? '?'} carries agent label(s): ${offending.join(', ')}`,
+        {
+          slug: op.slug,
+          field: 'labels',
+          offendingLabels: offending,
+        },
+      );
+    }
+  }
+}
+
+/**
+ * Assert the same invariant over an entire plan. Convenience wrapper for
+ * the diff engine — iterates every bucket and throws on the first
+ * violation. Pure; raises synchronously.
+ *
+ * @param {{creates?: object[], updates?: object[], closes?: object[], relinks?: object[]}} plan
+ * @returns {void}
+ */
+export function assertPlanLabelAllowList(plan) {
+  if (!plan || typeof plan !== 'object') return;
+  for (const op of plan.creates ?? []) assertNoAgentLabels(op);
+  for (const op of plan.updates ?? []) assertNoAgentLabels(op);
+  // closes/relinks do not carry label payloads — nothing to assert.
 }
