@@ -4270,6 +4270,132 @@
       "startLine": 176
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "labelsEqual",
+      "startLine": 100
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "normaliseBody",
+      "startLine": 116
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "ghObservation",
+      "startLine": 128
+    },
+    {
+      "crap": 12.378265625,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "fieldChanges",
+      "startLine": 142
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "parentEqual",
+      "startLine": 191
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "sortBySlug",
+      "startLine": 204
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "flattenSpec",
+      "startLine": 226
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "epicSlug",
+      "startLine": 288
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "dependsOnEqual",
+      "startLine": 302
+    },
+    {
+      "crap": 14,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
+      "method": "diff",
+      "startLine": 313
+    },
+    {
+      "crap": 3.3333333333333335,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "issueSuffix",
+      "startLine": 46
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatCreate",
+      "startLine": 61
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatChange",
+      "startLine": 80
+    },
+    {
+      "crap": 9.21362962962963,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "stringifyValue",
+      "startLine": 92
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatUpdate",
+      "startLine": 116
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatClose",
+      "startLine": 132
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatRelink",
+      "startLine": 145
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "sortBySlug",
+      "startLine": 170
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "renderSection",
+      "startLine": 182
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "renderHeader",
+      "startLine": 195
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js",
+      "method": "formatPlan",
+      "startLine": 216
+    },
+    {
       "crap": 5.034293552812072,
       "file": ".agents/scripts/lib/orchestration/error-journal.js",
       "method": "serializeError",
