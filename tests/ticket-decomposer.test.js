@@ -1,13 +1,17 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
+// Story #1437 Task #1447: the `ticket-decomposer.js` engine was inlined
+// into `epic-plan-decompose.js`. The test suite name is kept as a
+// historical breadcrumb for greppability; the exercised behaviour is
+// unchanged.
 import {
   buildDecomposerSystemPrompt,
   buildDecompositionContext,
   decomposeEpic,
   orderTicketsForCreation,
   resolveDependencies,
-} from '../.agents/scripts/ticket-decomposer.js';
+} from '../.agents/scripts/epic-plan-decompose.js';
+import { renderDecomposerSystemPrompt } from '../.agents/scripts/lib/templates/decomposer-prompts.js';
 
 const baseTickets = () => [
   {

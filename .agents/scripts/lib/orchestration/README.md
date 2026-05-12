@@ -85,8 +85,7 @@ entry point. They never own business logic.
 | ------------------------------------ | ----------------------------------------------------------------------- |
 | `agents-bootstrap-github.js`         | Idempotent setup of GitHub labels and project fields                    |
 | `epic-plan-spec.js`                  | Phase 1 — PRD + Tech Spec context emit + persist (dispatches `epic-plan-spec-author` Skill) |
-| `epic-plan-decompose.js`             | Phase 2 — ticket-array context emit + persist (dispatches `epic-plan-decompose-author` Skill) |
-| `ticket-decomposer.js`               | Recursive 4-tier hierarchy decomposition                                |
+| `epic-plan-decompose.js`             | Phase 2 — ticket-array context emit + persist (dispatches `epic-plan-decompose-author` Skill); inlined the retired `ticket-decomposer.js` engine |
 | `dispatcher.js`                      | CLI wrapper — DAG scheduler; outputs dispatch manifest                  |
 | `context-hydrator.js`                | CLI wrapper — assembles self-contained agent prompts                    |
 | `story-init.js`                      | Initializes Story execution: branches, deps, state transitions          |
