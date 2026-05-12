@@ -577,6 +577,14 @@ export class GitHubProvider extends ITicketingProvider {
       get cache() {
         return provider._cache;
       },
+      get token() {
+        // Honour the constructor's explicit `opts.token` so the
+        // projects-v2-graphql shim does not fall through to resolveToken()
+        // (which shells to `gh auth token` and throws in CI environments
+        // without a real token). Returns null when no explicit token was
+        // supplied — the shim then resolves lazily as before.
+        return provider._memoizedToken;
+      },
       state: { projectId: null },
       hooks: {
         getTicket: (id, o) => provider.getTicket(id, o),
