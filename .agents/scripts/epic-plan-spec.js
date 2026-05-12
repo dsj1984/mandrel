@@ -4,21 +4,22 @@
 /**
  * epic-plan-spec.js — Phase 1 (spec) entry point for the split planning flow.
  *
- * Wraps `epic-planner.js` behind two idempotent modes and a single-purpose
- * label lifecycle:
+ * Two idempotent modes and a single-purpose label lifecycle:
  *
  *   1. --emit-context   Prints the planner authoring context (Epic body,
  *                       scraped project docs, recommended system prompts) as
- *                       JSON. Host LLM consumes this to author the PRD and
- *                       Tech Spec markdown.
+ *                       JSON. The authoring middle is the
+ *                       `epic-plan-spec-author` Skill (see
+ *                       `.agents/skills/core/epic-plan-spec-author/SKILL.md`),
+ *                       which consumes this envelope and writes the PRD and
+ *                       Tech Spec markdown files.
  *
  *   2. (default)        Given author-provided PRD and Tech Spec files,
  *                       persists the two artifact issues, flips the Epic to
  *                       `agent::review-spec`, and upserts the `epic-plan-state`
  *                       structured comment.
  *
- * --force regenerates existing PRD/Tech Spec (same semantics as
- * `epic-planner.js --force`).
+ * --force regenerates existing PRD/Tech Spec.
  *
  * Exit codes:
  *   0 — phase complete, Epic is now `agent::review-spec`.
