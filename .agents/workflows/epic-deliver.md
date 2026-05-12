@@ -73,6 +73,24 @@ Every other runtime modifier is sourced from the Epic's labels or from
 
 ---
 
+## Phase 0 — Set the convergence goal
+
+Before any other phase runs, issue:
+
+```text
+/goal "epic <epicId> acceptance criteria all green"
+```
+
+This pins the run's convergence target so Claude keeps iterating across
+turns without operator re-prompting. The goal stays set for the entire
+nine-phase flow — the wave loop, close-validation, code-review, retro,
+finalize, watch-and-iterate, and auto-merge gate all converge against
+this single contract. See
+[`docs/workflows.md`](../../docs/workflows.md#convergence-via-goal) for
+the pattern.
+
+---
+
 ## Phase 1 — Prepare the Epic run
 
 ```bash
