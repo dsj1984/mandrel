@@ -28,6 +28,13 @@ The argument is always a **Story ID** (`type::story`). Epic IDs go through
 [`/epic-deliver`](epic-execute.md); Tasks are not directly executable —
 they are implemented by their parent Story's loop.
 
+**Standalone Stories** (no `Epic: #N` in body) use
+[`/single-story-execute`](single-story-execute.md) instead — that workflow
+branches from `main`, opens its PR directly to `main`, and skips the
+Epic-scoped machinery (cascade, dispatch manifest, dashboard regen).
+`/story-execute` requires a parent Epic and will refuse to initialize a
+Story that lacks the `Epic: #N` reference.
+
 > **Worktree isolation.** When `orchestration.worktreeIsolation.enabled` is
 > `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
 > its absolute path as `workCwd`. You **must** `cd` into that path before
