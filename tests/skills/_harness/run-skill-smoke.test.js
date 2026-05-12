@@ -91,7 +91,7 @@ describe('runSkillSmoke', () => {
 
   it('returns pass=false with a clear error when the skill does not exist', async () => {
     const result = await runSkillSmoke({
-      skillName: 'this-skill-does-not-exist-' + Date.now(),
+      skillName: `this-skill-does-not-exist-${Date.now()}`,
     });
     assert.equal(result.pass, false);
     assert.equal(result.skill, null);

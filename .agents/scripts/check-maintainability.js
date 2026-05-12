@@ -146,10 +146,6 @@ function compareScores(scores, baseline, tolerance) {
  */
 export { coercePositiveInt as coerceStoryId } from './lib/gates/gate-cli.js';
 
-// Local alias so the in-module helpers below can share the canonical coercion
-// without re-walking the import indirection on every call.
-import { coercePositiveInt } from './lib/gates/gate-cli.js';
-
 /**
  * Resolve the Story ID for friction signals. CLI `--story <id>` wins;
  * otherwise `FRICTION_STORY_ID` env. Returns null when neither yields a

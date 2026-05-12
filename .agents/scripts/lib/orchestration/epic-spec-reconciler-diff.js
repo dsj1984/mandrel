@@ -285,7 +285,7 @@ function flattenSpec(spec) {
  * @param {{id: number}} epic
  * @returns {string}
  */
-function epicSlug(epic) {
+function epicSlug(_epic) {
   // Single epic per spec — schema requires it — so a constant slug is
   // unambiguous and matches the way mapping is keyed in writeState
   // (where the epic entry is stored under `epic`).
