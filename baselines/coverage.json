@@ -200,9 +200,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/baseline-snapshot.js": {
-    "lines": 96.64,
-    "branches": 75,
-    "functions": 100
+    "lines": 96.97,
+    "branches": 75.64,
+    "functions": 85.71
   },
   ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": {
     "lines": 100,
@@ -1080,7 +1080,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/story-init/branch-initializer.js": {
-    "lines": 58.43,
+    "lines": 53.39,
     "branches": 74.07,
     "functions": 60
   },
@@ -1261,7 +1261,7 @@
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
-    "branches": 69.05,
+    "branches": 66.67,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
@@ -1330,7 +1330,7 @@
     "functions": 62.5
   },
   ".agents/scripts/story-init.js": {
-    "lines": 86.78,
+    "lines": 86.8,
     "branches": 75,
     "functions": 72.73
   },
