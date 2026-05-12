@@ -29,6 +29,23 @@ const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(REPO_ROOT, '.agents', 'scripts', 'loc-delta.js');
 
+// CI runners check out only the PR head, so `main` is absent locally
+// but `origin/main` is available after the standard fetch. Resolve to
+// whichever ref the runtime exposes so the test passes on developer
+// machines (where both exist) and on CI (where only the remote ref
+// does). Returns `null` when no usable base ref is found — callers
+// then skip the assertion rather than fail spuriously.
+function resolveBaseRef() {
+  for (const ref of ['main', 'origin/main']) {
+    const probe = spawnSync('git', ['rev-parse', '--verify', ref], {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    });
+    if (probe.status === 0) return ref;
+  }
+  return null;
+}
+
 describe('loc-delta — computeDeltaForPath', () => {
   it('returns an additive shape for HEAD...HEAD (always zero)', () => {
     const result = computeDeltaForPath({
@@ -41,13 +58,18 @@ describe('loc-delta — computeDeltaForPath', () => {
     assert.equal(result.delta, 0);
   });
 
-  it('returns a numeric delta when the scope has actual changes vs main', () => {
+  it('returns a numeric delta when the scope has actual changes vs main', (t) => {
     // `.agents/skills/` exists on HEAD but was empty on `main` before
     // the Epic, so the path is guaranteed to have additions. We only
     // assert the shape so the test does not couple to specific counts
     // (which would drift every commit).
+    const base = resolveBaseRef();
+    if (!base) {
+      t.skip('no main / origin/main ref available — skipping diff test');
+      return;
+    }
     const result = computeDeltaForPath({
-      base: 'main',
+      base,
       head: 'HEAD',
       path: '.agents/skills/',
     });
@@ -75,11 +97,16 @@ describe('loc-delta — computeLocDelta', () => {
     assert.equal(report.pass, false);
   });
 
-  it('excludes tests/skills/ from the count', () => {
+  it('excludes tests/skills/ from the count', (t) => {
     // The current epic/1181 branch contains tests/skills files. Verify
     // they are excluded from the .agents/scripts/ scope (which does not
     // contain them anyway) and that the total exists.
-    const report = computeLocDelta({ base: 'main', head: 'HEAD' });
+    const base = resolveBaseRef();
+    if (!base) {
+      t.skip('no main / origin/main ref available — skipping diff test');
+      return;
+    }
+    const report = computeLocDelta({ base, head: 'HEAD' });
     assert.equal(report.excludes.includes('tests/skills/'), true);
     assert.equal(typeof report.total.delta, 'number');
   });
