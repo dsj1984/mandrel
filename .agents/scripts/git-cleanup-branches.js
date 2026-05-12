@@ -568,6 +568,36 @@ function resolveBaseBranch(cwd, override) {
   }
 }
 
+const EMPTY_RESULT = Object.freeze({
+  worktrees: [],
+  local: [],
+  remote: [],
+  failures: [],
+  ok: true,
+});
+
+/**
+ * Pure: build the JSON envelope emitted in `--json` mode. The shape is
+ * identical across the empty / dry-run / execute branches; only the
+ * field values differ. Extracted so the CLI orchestrator stays linear.
+ *
+ * @param {{ dryRun: boolean, baseBranch: string, plan: { candidates: Array, skipped: Array }, result?: { worktrees: Array, local: Array, remote: Array, failures: Array, ok: boolean } }} args
+ */
+export function buildJsonEnvelope({ dryRun, baseBranch, plan, result }) {
+  const r = result ?? EMPTY_RESULT;
+  return {
+    dryRun,
+    baseBranch,
+    candidates: plan.candidates,
+    skipped: plan.skipped,
+    worktrees: r.worktrees,
+    local: r.local,
+    remote: r.remote,
+    failures: r.failures,
+    ok: r.ok,
+  };
+}
+
 /* node:coverage ignore next */
 async function main() {
   const opts = parseCleanupArgs(process.argv.slice(2));
@@ -578,81 +608,29 @@ async function main() {
     exclude: opts.exclude,
   });
 
-  let plan;
-  try {
-    plan = planCleanup({ cwd, baseBranch, filter });
-  } catch (err) {
-    Logger.error(
-      `[git-cleanup-branches] Failed to enumerate candidates: ${err?.message ?? err}`,
-    );
-    process.exit(1);
-  }
-
-  if (plan.candidates.length === 0) {
-    if (opts.json) {
-      emitJson(
-        {
-          dryRun: opts.dryRun,
-          baseBranch,
-          candidates: [],
-          skipped: plan.skipped,
-          local: [],
-          remote: [],
-          worktrees: [],
-          failures: [],
-          ok: true,
-        },
-        false,
-      );
-    } else {
-      emitDryRunHuman(plan);
-    }
-    process.exit(2);
-  }
-
-  if (opts.dryRun) {
-    if (opts.json) {
-      emitJson(
-        {
-          dryRun: true,
-          baseBranch,
+  const plan = planCleanup({ cwd, baseBranch, filter });
+  const result =
+    !opts.dryRun && plan.candidates.length > 0
+      ? executeCleanup({
           candidates: plan.candidates,
-          skipped: plan.skipped,
-          local: [],
-          remote: [],
-          worktrees: [],
-          failures: [],
-          ok: true,
-        },
-        false,
-      );
-      return;
-    }
-    emitDryRunHuman(plan);
-    return;
-  }
-
-  const result = executeCleanup({
-    candidates: plan.candidates,
-    cwd,
-    remote: opts.remote,
-  });
+          cwd,
+          remote: opts.remote,
+        })
+      : null;
 
   if (opts.json) {
     emitJson(
-      {
-        dryRun: false,
-        baseBranch,
-        candidates: plan.candidates,
-        skipped: plan.skipped,
-        ...result,
-      },
-      !result.ok,
+      buildJsonEnvelope({ dryRun: opts.dryRun, baseBranch, plan, result }),
+      result ? !result.ok : false,
     );
-    return;
+  } else if (result) {
+    emitExecutionHuman(result);
+  } else {
+    emitDryRunHuman(plan);
   }
-  emitExecutionHuman(result);
-  if (!result.ok) process.exit(1);
+
+  if (plan.candidates.length === 0) process.exit(2);
+  if (result && !result.ok) process.exit(1);
 }
 
 runAsCli(import.meta.url, main, { source: 'git-cleanup-branches' });

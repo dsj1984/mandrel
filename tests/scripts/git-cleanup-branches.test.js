@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   buildGlobFilter,
+  buildJsonEnvelope,
   computeProtectedSet,
   executeCleanup,
   parseCleanupArgs,
@@ -363,6 +364,69 @@ describe('git-cleanup-branches.executeCleanup', () => {
     assert.equal(result.failures.length, 2);
     const scopes = result.failures.map((f) => f.scope).sort();
     assert.deepEqual(scopes, ['local', 'remote']);
+  });
+});
+
+describe('git-cleanup-branches.buildJsonEnvelope', () => {
+  const plan = {
+    candidates: [{ branch: 'fix/a', prNumber: 1, hasWorktree: false }],
+    skipped: [{ branch: 'main', reason: 'protected' }],
+  };
+
+  it('returns the dry-run shape when no result is provided', () => {
+    const env = buildJsonEnvelope({
+      dryRun: true,
+      baseBranch: 'main',
+      plan,
+    });
+    assert.equal(env.dryRun, true);
+    assert.equal(env.baseBranch, 'main');
+    assert.deepEqual(env.candidates, plan.candidates);
+    assert.deepEqual(env.skipped, plan.skipped);
+    assert.deepEqual(env.local, []);
+    assert.deepEqual(env.remote, []);
+    assert.deepEqual(env.worktrees, []);
+    assert.deepEqual(env.failures, []);
+    assert.equal(env.ok, true);
+  });
+
+  it('passes through executeCleanup result fields when provided', () => {
+    const result = {
+      worktrees: [{ path: '/wt/a', ok: true, dirty: false }],
+      local: [{ branch: 'fix/a', ok: true }],
+      remote: [{ branch: 'fix/a', ok: true, alreadyGone: true }],
+      failures: [],
+      ok: true,
+    };
+    const env = buildJsonEnvelope({
+      dryRun: false,
+      baseBranch: 'develop',
+      plan,
+      result,
+    });
+    assert.equal(env.dryRun, false);
+    assert.equal(env.baseBranch, 'develop');
+    assert.deepEqual(env.worktrees, result.worktrees);
+    assert.deepEqual(env.local, result.local);
+    assert.deepEqual(env.remote, result.remote);
+    assert.equal(env.ok, true);
+  });
+
+  it('reports ok=false when the result has failures', () => {
+    const env = buildJsonEnvelope({
+      dryRun: false,
+      baseBranch: 'main',
+      plan,
+      result: {
+        worktrees: [],
+        local: [],
+        remote: [],
+        failures: [{ branch: 'fix/a', scope: 'local' }],
+        ok: false,
+      },
+    });
+    assert.equal(env.ok, false);
+    assert.equal(env.failures.length, 1);
   });
 });
 
