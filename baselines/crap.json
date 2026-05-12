@@ -4648,6 +4648,60 @@
       "startLine": 508
     },
     {
+      "crap": 3.0540946656649135,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "getValidator",
+      "startLine": 78
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "_resetRendererValidatorCacheForTests",
+      "startLine": 95
+    },
+    {
+      "crap": 1.0130266639527783,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "normaliseAjvErrors",
+      "startLine": 119
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "sanitizeLabels",
+      "startLine": 137
+    },
+    {
+      "crap": 14,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "renderBody",
+      "startLine": 174
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "assignNonEmpty",
+      "startLine": 200
+    },
+    {
+      "crap": 13.420476444298657,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "indexTickets",
+      "startLine": 216
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "layerStories",
+      "startLine": 255
+    },
+    {
+      "crap": 29.474722575175225,
+      "file": ".agents/scripts/lib/orchestration/spec-renderer.js",
+      "method": "renderSpec",
+      "startLine": 288
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close-recovery.js",
       "method": "storyWorktreePath",
