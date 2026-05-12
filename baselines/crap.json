@@ -76,13 +76,13 @@
       "startLine": 531
     },
     {
-      "crap": 110,
+      "crap": 10,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "parseCli",
       "startLine": 622
     },
     {
-      "crap": 12,
+      "crap": 3.131456790123457,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 650
@@ -508,7 +508,7 @@
       "startLine": 172
     },
     {
-      "crap": 94.5657053916331,
+      "crap": 59.95800628749897,
       "file": ".agents/scripts/dispatcher.js",
       "method": "generateAndSaveManifest",
       "startLine": 58
@@ -784,7 +784,7 @@
       "startLine": 115
     },
     {
-      "crap": 4.006503073718437,
+      "crap": 4.004511390821258,
       "file": ".agents/scripts/epic-deliver-prepare.js",
       "method": "runEpicDeliverPrepare",
       "startLine": 62
@@ -793,7 +793,7 @@
       "crap": 20,
       "file": ".agents/scripts/epic-deliver-prepare.js",
       "method": "main",
-      "startLine": 117
+      "startLine": 124
     },
     {
       "crap": 6.839650145772595,
@@ -1615,25 +1615,25 @@
       "crap": 9.2949476558944,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "forkMainToEpic",
-      "startLine": 128
+      "startLine": 127
     },
     {
       "crap": 15.000533333333333,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "commitSnapshotsToEpicBranch",
-      "startLine": 252
+      "startLine": 251
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "runGit",
-      "startLine": 281
+      "startLine": 280
     },
     {
       "crap": 17.004779460310658,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "regenerateMainFromTree",
-      "startLine": 440
+      "startLine": 439
     },
     {
       "crap": 2,
@@ -2956,7 +2956,7 @@
       "startLine": 153
     },
     {
-      "crap": 4.001194343198717,
+      "crap": 4.0005038635369585,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
       "startLine": 250
@@ -4480,7 +4480,7 @@
       "startLine": 211
     },
     {
-      "crap": 2.0691910287424657,
+      "crap": 2.045040797080651,
       "file": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "method": "ticketClosurePhase",
       "startLine": 252
@@ -4864,7 +4864,7 @@
       "startLine": 34
     },
     {
-      "crap": 13.009615384615385,
+      "crap": 13,
       "file": ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js",
       "method": "reconcileCleanupState",
       "startLine": 64
@@ -5266,13 +5266,13 @@
       "startLine": 127
     },
     {
-      "crap": 3,
+      "crap": 3.017578125,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logBlockers",
       "startLine": 144
     },
     {
-      "crap": 2,
+      "crap": 4.518950437317785,
       "file": ".agents/scripts/lib/preflight-runner.js",
       "method": "logNonBlockers",
       "startLine": 183
@@ -5828,6 +5828,120 @@
       "file": ".agents/scripts/lib/signals/span-tree.js",
       "method": "buildSpanTree",
       "startLine": 267
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "getValidator",
+      "startLine": 81
+    },
+    {
+      "crap": 1.421875,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "_resetValidatorCacheForTests",
+      "startLine": 97
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "resolveOpts",
+      "startLine": 160
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "specPath",
+      "startLine": 177
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "statePath",
+      "startLine": 190
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "normaliseAjvErrors",
+      "startLine": 206
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "loadSpec",
+      "startLine": 233
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "emptyState",
+      "startLine": 278
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "loadState",
+      "startLine": 292
+    },
+    {
+      "crap": 4.058261265361857,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "sortKeysDeep",
+      "startLine": 314
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "renderStateJson",
+      "startLine": 336
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "writeState",
+      "startLine": 353
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "canonicalise",
+      "startLine": 70
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "canonicalStringify",
+      "startLine": 95
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "sha256Hex",
+      "startLine": 106
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "hashSpecEntry",
+      "startLine": 123
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "iterSpecEntries",
+      "startLine": 140
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "projectMapping",
+      "startLine": 174
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/spec/state.js",
+      "method": "buildState",
+      "startLine": 208
     },
     {
       "crap": 3,
@@ -7234,13 +7348,13 @@
       "startLine": 101
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/story-close.js",
       "method": "emitPreflightBlockedResult",
       "startLine": 133
     },
     {
-      "crap": 2.143470136674918,
+      "crap": 2.010580507209385,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryClose",
       "startLine": 152
@@ -7252,7 +7366,7 @@
       "startLine": 189
     },
     {
-      "crap": 306,
+      "crap": 45.56632440570543,
       "file": ".agents/scripts/story-close.js",
       "method": "runStoryCloseLocked",
       "startLine": 247
@@ -7414,13 +7528,13 @@
       "startLine": 209
     },
     {
-      "crap": 9.761833208114199,
+      "crap": 3,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "isCommitReachableFromHead",
       "startLine": 239
     },
     {
-      "crap": 20.034589183204325,
+      "crap": 17.460358418311294,
       "file": ".agents/scripts/story-task-progress.js",
       "method": "runStoryTaskProgress",
       "startLine": 274

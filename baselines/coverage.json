@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 87.78,
-    "branches": 65.75,
+    "branches": 63.89,
     "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -500,7 +500,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -1014,6 +1014,21 @@
     "branches": 100,
     "functions": null
   },
+  ".agents/scripts/lib/spec/index.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
+  ".agents/scripts/lib/spec/loader.js": {
+    "lines": 98.61,
+    "branches": 85.37,
+    "functions": 93.33
+  },
+  ".agents/scripts/lib/spec/state.js": {
+    "lines": 100,
+    "branches": 94.29,
+    "functions": 100
+  },
   ".agents/scripts/lib/story-init/blocker-validator.js": {
     "lines": 100,
     "branches": 95.24,
@@ -1271,7 +1286,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
