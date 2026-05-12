@@ -29,7 +29,7 @@ export default {
   detect(state) {
     const locks = state?.fs?.epicMergeLocks ?? {};
     for (const [epicId, info] of Object.entries(locks)) {
-      if (!info || !info.exists) continue;
+      if (!info?.exists) continue;
       if (info.holderAlive) continue;
       // Lock exists and the holder PID is not alive — orphan.
       return {

@@ -20,21 +20,79 @@ custom fields.
 
 ## Steps
 
-1. **Verify Configuration**: Read `.agentrc.json` and confirm the
+1. **Authenticate `gh`**:
+
+   ```bash
+   gh auth login
+   ```
+
+   Choose **GitHub.com → HTTPS → Login with a web browser**. The token is
+   stored in your OS keychain (macOS Keychain, Windows Credential Manager,
+   libsecret on Linux) — not in any project-local `.env` file. The default
+   scopes (`repo` + `read:org`) cover everything the bootstrap touches
+   except Projects V2 (see the optional section below).
+
+   Verify the login landed:
+
+   ```bash
+   gh auth status
+   ```
+
+   The bootstrap script in step 3 will refuse to run if `gh` is missing,
+   older than v2.40, or unauthenticated — so this step is the only
+   credential setup most adopters will need.
+
+2. **Verify Configuration**: Read `.agentrc.json` and confirm the
    `orchestration` block is present and valid.
 
-2. **Run Bootstrap Script**:
+3. **Run Bootstrap Script**:
 
    ```bash
    node .agents/scripts/agents-bootstrap-github.js
    ```
 
-3. **Review Output**: The script prints a summary of created vs. skipped
+   The script preflights `gh --version` + `gh auth status` before any
+   GitHub call. On failure it exits non-zero with the install / `gh auth
+   login` / upgrade instructions inline — no need to grep through later
+   error noise.
+
+4. **Review Output**: The script prints a summary of created vs. skipped
    resources. Verify the counts match expectations.
 
-4. **Verify in GitHub UI** (optional): Navigate to the repository's Labels page
+5. **Verify in GitHub UI** (optional): Navigate to the repository's Labels page
    and Project board to confirm resources were created with correct colors and
    field options.
+
+### Optional: Projects V2 GraphQL still needs a token
+
+`gh auth login` covers the REST surface the bootstrap relies on. The
+Projects V2 GraphQL operations (`resolveOrCreateProject`,
+`ensureStatusField`, `ensureProjectViews`, `ensureProjectFields`) need a
+token with the `project` scope, which `gh auth login` does not grant by
+default. Two options, in order of preference:
+
+1. **Re-auth `gh` with the `project` scope** (recommended — keeps the
+   token in your OS keychain):
+
+   ```bash
+   gh auth refresh -s project,read:project
+   ```
+
+   The bootstrap reads the token via `gh auth token` automatically; no
+   environment variable is needed.
+
+2. **Export `GITHUB_TOKEN`** with the `project` scope as a fallback. The
+   GraphQL shim reads this if `gh auth token` returns nothing. Treat it
+   as a Projects-V2-only escape hatch, not the headline auth path:
+
+   ```bash
+   export GITHUB_TOKEN=<PAT with `project` scope>
+   ```
+
+If neither token resolves with the `project` scope, the bootstrap logs a
+warning and skips Projects V2 setup — the rest of the run still
+succeeds, so adopters who do not use Projects V2 can ignore this section
+entirely.
 
 ## What Gets Created
 
@@ -134,7 +192,17 @@ the behavior-shifting steps route through the gate.
 
 - **"No orchestration block"**: Add the `orchestration` object to your
   `.agentrc.json`. Copy from `.agents/default-agentrc.json`.
-- **"API access verification failed"**: Check your `GITHUB_TOKEN` has `repo` and
-  `project` scopes, or run `gh auth login`.
+- **"gh CLI not found on PATH"** / **"gh ... is older than required
+  2.40.0"**: Install or upgrade the `gh` CLI from
+  <https://cli.github.com/> (or `brew upgrade gh` /
+  `winget upgrade GitHub.cli`) and re-run.
+- **"gh auth status failed: not logged in"**: Run `gh auth login` as in
+  step 1 above.
+- **"API access verification failed"** after `gh auth login` succeeded:
+  Your auth scope likely lacks `repo`. Re-run
+  `gh auth refresh -s repo,read:org` and try again.
+- **Projects V2 scopes missing**: Re-auth with
+  `gh auth refresh -s project,read:project` (or set `GITHUB_TOKEN`
+  per the optional section above).
 - **Rate limiting**: The script makes one API call per missing label. For large
   taxonomies, you may hit GitHub's rate limit. Re-run — it's idempotent.

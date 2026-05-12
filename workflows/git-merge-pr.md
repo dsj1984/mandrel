@@ -25,11 +25,11 @@ conflicts, and completes the merge into the target base branch.
 2. **Sequential Loop**: Steps 1 through 7 must be performed **sequentially** for
    each PR in the `PR_LIST`. Complete the full merge and cleanup for one PR
    before starting the next.
-3. For the current `[PR_NUMBER]`, fetch metadata from GitHub:
-
-   ```powershell
-   gh pr view [PR_NUMBER] --json number,title,headRefName,baseRefName,state,mergeable,mergeStateStatus
-   ```
+3. For the current `[PR_NUMBER]`, fetch metadata from GitHub by calling
+   `mcp__github__pull_request_read` (method `get`) with the repo's
+   `owner` / `repo` and `pullNumber: [PR_NUMBER]`. From the response, read
+   `number`, `title`, `headRefName`, `baseRefName`, `state`, `mergeable`,
+   and `mergeStateStatus`.
 
 4. From the output, resolve:
    - `[PR_TITLE]` — the PR title.
@@ -49,6 +49,11 @@ Fetch the full diff and review the scope of changes:
 ```powershell
 gh pr diff [PR_NUMBER]
 ```
+
+> **Why `gh pr diff` and not MCP?** `mcp__github__pull_request_read`'s
+> `get_diff` method returns a structured response rather than the raw
+> unified diff this step renders to the operator. `gh pr diff` stays
+> until MCP exposes a raw-diff equivalent.
 
 Summarize the following to the operator before proceeding:
 
@@ -152,11 +157,11 @@ Exit code 0 means every check passed. On failure:
 
 ## Step 4 — Final Mergeability Check
 
-Re-query GitHub to confirm the PR is now clean and ready to merge:
-
-```powershell
-gh pr view [PR_NUMBER] --json mergeable,mergeStateStatus,reviewDecision,statusCheckRollup
-```
+Re-query GitHub to confirm the PR is now clean and ready to merge by
+calling `mcp__github__pull_request_read` (method `get`) with the repo's
+`owner` / `repo` and `pullNumber: [PR_NUMBER]`. Read `mergeable`,
+`mergeStateStatus`, `reviewDecision`, and `statusCheckRollup` from the
+response (the same fields the prior `gh pr view --json` shape exposed).
 
 Verify:
 
@@ -172,26 +177,34 @@ step.
 
 ## Step 5 — Merge
 
-Queue the PR for auto-merge as a squash commit. With `--auto` GitHub holds
-the merge until every required status check on the ruleset reports success,
-then squash-merges and deletes the head branch — the operator never clicks
-Merge on a green PR.
+Merge the PR as a squash commit and delete the head branch. Call
+`mcp__github__merge_pull_request` with the repo's `owner` / `repo`,
+`pullNumber: [PR_NUMBER]`, `merge_method: "squash"`, and
+`delete_branch: true`.
 
-```powershell
-gh pr merge [PR_NUMBER] --auto --squash --delete-branch
-```
-
+> **MCP coverage gap — auto-merge queueing.** `mcp__github__merge_pull_request`
+> performs an **immediate** merge; it does not enable GitHub's native
+> auto-merge queue. When the workflow needs to queue the merge behind
+> required-check completion (the default `--auto` posture), fall back to
+> the shell form `gh pr merge [PR_NUMBER] --auto --squash --delete-branch`.
+> Use the MCP call when CI is already green and the merge can fire
+> synchronously (the common case after a clean Step 4 verdict).
+>
 > **Merge strategy guidance** (override with operator instruction):
 >
-> - `gh pr merge --auto --squash --delete-branch` — default; CI gate is the
->   merge button. Requires `allow_auto_merge=true` on the repo (Story #1239
->   turns this on).
-> - `--squash` (no `--auto`) — synchronous merge; use only when bypassing
->   auto-merge is intentional (e.g. CI is broken and a hotfix is going in
->   under admin override).
+> - `mcp__github__merge_pull_request` with `merge_method: "squash"` — the
+>   default for an already-green PR; clean history, single squash commit.
+> - `gh pr merge [PR_NUMBER] --auto --squash --delete-branch` — auto-merge
+>   queueing fallback when required checks are still pending. Requires
+>   `allow_auto_merge=true` on the repo (Story #1239 turns this on).
+> - `gh pr merge [PR_NUMBER] --squash` (no `--auto`) — synchronous merge;
+>   use only when bypassing auto-merge is intentional (e.g. CI is broken
+>   and a hotfix is going in under admin override).
 > - `--merge` — preserves the full commit history from `[HEAD_BRANCH]` (use for
->   Epic branches with meaningful commit granularity).
-> - `--rebase` — linear history; ideal for small, atomic PRs.
+>   Epic branches with meaningful commit granularity); pass `merge_method:
+>   "merge"` to the MCP call or `--merge` to `gh pr merge`.
+> - `--rebase` — linear history; ideal for small, atomic PRs; pass
+>   `merge_method: "rebase"` to the MCP call or `--rebase` to `gh pr merge`.
 
 After the merge command returns, perform a conflict marker scan to confirm no
 stray markers entered the base branch. Delegate to `detect-merges.js` — it
@@ -273,19 +286,10 @@ git branch -D [HEAD_BRANCH] 2>$null
 
 Explicitly close the GitHub PR object. Because this workflow squash-merges
 directly into the base branch (bypassing GitHub's native merge flow), GitHub
-**will not** auto-close the PR — it must be closed explicitly:
+**will not** auto-close the PR — it must be closed explicitly.
 
-```javascript
-// Use the update_pull_request MCP tool:
-mcp_github -
-  mcp -
-  server_update_pull_request({
-    owner,
-    repo,
-    pullNumber: PR_NUMBER,
-    state: 'closed',
-  });
-```
+Call `mcp__github__update_pull_request` with the repo's `owner` / `repo`,
+`pullNumber: [PR_NUMBER]`, and `state: "closed"`.
 
 > **Note:** This is a hard requirement — leaving the PR open after merging
 > pollutes the repository's open PR list and causes confusion for reviewers.
@@ -301,16 +305,19 @@ npm test
 
 ## Step 7 — Summary Report
 
-Post a structured summary comment to the PR (now closed) for traceability:
+Post a structured summary comment to the PR (now closed) for traceability.
+Call `mcp__github__add_issue_comment` with the repo's `owner` / `repo`,
+`issue_number: [PR_NUMBER]` (PR comments use the issues comments endpoint),
+and `body` set to:
 
-```powershell
-gh pr comment [PR_NUMBER] --body "✅ **Merged by agent** via \`/git-merge-pr\`
+```markdown
+✅ **Merged by agent** via `/git-merge-pr`
 
-- **Branch**: \`[HEAD_BRANCH]\` → \`[BASE_BRANCH]\`
+- **Branch**: `[HEAD_BRANCH]` → `[BASE_BRANCH]`
 - **Conflicts resolved**: [YES/NO — list files if YES]
 - **Lint fixes applied**: [YES/NO]
 - **Test fixes applied**: [YES/NO]
-- **Merge strategy**: squash"
+- **Merge strategy**: squash
 ```
 
 ---
@@ -325,16 +332,19 @@ gh pr comment [PR_NUMBER] --body "✅ **Merged by agent** via \`/git-merge-pr\`
   required status checks). If these are blocking, surface them to the operator
   rather than attempting to force-merge.
 - **Always** explicitly delete the remote head branch in Step 6 with
-  `git push origin --delete [HEAD_BRANCH]`. Do **not** rely solely on
-  `gh pr merge --delete-branch` — that flag is silently skipped when a PR
-  auto-closes without a normal merge commit (e.g., duplicate rebase scenarios).
+  `git push origin --delete [HEAD_BRANCH]`. Do **not** rely solely on the
+  Step 5 merge call's `delete_branch` flag (whether passed via
+  `mcp__github__merge_pull_request` or `gh pr merge --delete-branch`) — that
+  flag is silently skipped when a PR auto-closes without a normal merge
+  commit (e.g., duplicate rebase scenarios).
 - **Always** treat a "remote ref not found" error from the delete command as a
   non-fatal, idempotent success — the branch is already gone.
 - **Always** use `--force-with-lease` (never bare `--force`) when pushing
   rebased branches to avoid overwriting concurrent pushes.
 - **Always** explicitly close the GitHub PR via
-  `update_pull_request(state: closed)` in Step 6 after branch cleanup. Because
-  this workflow pushes directly to the base branch, GitHub will **never**
-  auto-close the PR — it must be closed manually every time.
+  `mcp__github__update_pull_request` with `state: "closed"` in Step 6 after
+  branch cleanup. Because this workflow pushes directly to the base branch,
+  GitHub will **never** auto-close the PR — it must be closed manually
+  every time.
 - **Always** post a Step 7 summary comment for auditability, even if no fixes
   were required.

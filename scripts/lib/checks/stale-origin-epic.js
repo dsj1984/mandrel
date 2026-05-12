@@ -29,7 +29,7 @@ export default {
     const sync = state?.git?.epicBranchSync ?? {};
     const entries = Object.entries(sync);
     for (const [branch, info] of entries) {
-      if (!info || !info.local || !info.remote) continue;
+      if (!info?.local || !info.remote) continue;
       if (!info.ahead) continue;
       return {
         id: 'stale-origin-epic',
