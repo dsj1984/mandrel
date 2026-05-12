@@ -94,6 +94,108 @@ entirely**:
 
 ---
 
+## ADR 20260512-coupling-stance: Two-surface coupling stance
+
+**Status:** Accepted
+**Date:** 2026-05-12
+**Supersedes:**
+
+- Implicit assumption that the entire framework — dispatcher, workflow,
+  hooks, skills, and slash commands — must remain runtime-neutral.
+
+### Context
+
+The framework spans two distinct surfaces with different portability
+profiles:
+
+1. The **dispatcher / `.agents/scripts/` library** is a runtime-neutral
+   orchestration core. It runs as plain Node.js, holds the ticket /
+   branch / worktree contracts, and is the integration boundary that
+   any execution adapter implements against. Keeping this surface
+   runtime-neutral preserves the option to add additional execution
+   adapters later (Codex, Antigravity, subprocess, MCP) without
+   rewriting the orchestration core.
+2. The **workflow / `.claude/` / hook / skill surface** consists of the
+   slash commands, agent definitions, hook scripts, and skill markdown
+   files that operators interact with day to day. This surface is
+   tightly coupled to Claude Code as the reference runtime — it relies
+   on Claude Code's slash-command execution model, hook lifecycle,
+   skill loading, and sub-agent dispatch primitives. Treating it as
+   runtime-neutral has produced adapter-layer stubs for runtimes that
+   were never implemented (`// antigravity:`, `// 'claude-code':`,
+   `// codex:`, `// subprocess:`, `// mcp:` slots in
+   `.agents/scripts/lib/adapter-factory.js`) and has discouraged
+   adoption of Claude Code built-ins (`/goal`, `/simplify`,
+   `/security-review`, `/loop`, `/fewer-permission-prompts`,
+   `/insights`) that would shrink the framework's homegrown surface
+   area.
+
+The framework is — in practice and by design — a **Claude Code-first
+opinionated workflow framework with a runtime-pluggable dispatcher**.
+This ADR makes that coupling stance explicit so subsequent phases of
+the v6 cut and downstream Epics reference a single source of truth
+instead of re-litigating the question per change.
+
+### Decision
+
+The framework adopts a **two-surface coupling stance**:
+
+- The **dispatcher surface** (`.agents/scripts/`) stays runtime-neutral.
+  Adapters are added on demand, not pre-declared. The reference adapter
+  is `manual`. Additional adapters are accepted on their own merits as
+  separate epics.
+- The **workflow surface** (`.claude/` slash commands, agent
+  definitions, hooks, skills, and the workflow documents under
+  `.agents/workflows/`) is **Claude Code-first**. Portability of this
+  surface to other runtimes is an explicit non-goal. Claude Code
+  built-ins are preferred over homegrown re-implementations when their
+  contracts match or can be wrapped to match the framework's artifact
+  expectations.
+
+Where overlap exists between a Claude Code built-in and a homegrown
+wrapper, the default reconciliation is the **hybrid pattern**: the
+homegrown wrapper remains the public entry point and owns the
+artifact contract (structured `audit-*-results.md` files, audit
+orchestrator integration, exit codes, evidence-gate hooks); the
+built-in supplies the analysis or fix loop as a delegated sub-step.
+The wrapper validates the built-in's output against the original
+findings before closing.
+
+The ADR is written with name-neutral phrasing — "the framework" rather
+than a brand name — so the in-flight v6 rebrand epic can supply the
+brand name without rewriting this ADR text.
+
+### Consequences
+
+- **Adapter-layer stubs come down.** The pre-declared adapter slots in
+  `.agents/scripts/lib/adapter-factory.js` for unimplemented runtimes
+  are removed. The `IExecutionAdapter` header documentation is
+  rewritten to state the two-surface stance and link back to this ADR.
+  Adding a future adapter is in scope for that adapter's own epic, not
+  a precondition the dispatcher must continually carry.
+- **Built-in adoption is in-bounds.** Adopting Claude Code built-ins
+  (`/goal`, `/simplify`, `/security-review`, `/loop`,
+  `/fewer-permission-prompts`, `/insights`, etc.) inside the workflow
+  surface does not violate the framework's coupling contract. Such
+  adoption is encouraged where the built-in's contract matches the
+  framework's artifact expectations or can be wrapped via the hybrid
+  pattern.
+- **The overlap matrix is mandatory.** Each overlapping responsibility
+  between a Claude Code built-in and a homegrown surface element must
+  be recorded in `docs/decisions.md` with: wrapper name, built-in
+  name, exact sub-step delegation point, post-return validation, and
+  rationale. Unrecorded overlaps are treated as drift and addressed in
+  the next maintenance pass. The catalog of Claude Code commands
+  itself is a maintained artifact (`docs/claude-code-catalog.md`) with
+  a refresh cadence pinned to Claude Code minor version bumps.
+- **Portability of the workflow surface is a non-goal.** Proposals to
+  abstract the slash-command, hook, or skill surface away from Claude
+  Code primitives are rejected by default. If a future runtime
+  warrants a parallel workflow surface, that is a separate epic with
+  its own ADR superseding this one.
+
+---
+
 ## ADR 20260510-sdl-collapse: 5.40.0 — collapse to /epic-plan + /epic-deliver, fold retro into deliver tail
 
 **Status:** Accepted
