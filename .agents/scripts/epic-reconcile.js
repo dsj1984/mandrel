@@ -214,13 +214,34 @@ export function confirmInteractive(opts = {}) {
 /**
  * Identify whether the plan carries any close ops. The exit-code
  * contract gates close ops behind `--explicit-delete`; this predicate
- * is the canonical "needs --explicit-delete" check.
+ * is the canonical "needs --explicit-delete" check. Exported so the
+ * contract tests can pin the predicate without re-deriving it.
  *
  * @param {object} plan
  * @returns {boolean}
  */
-function planHasCloses(plan) {
+export function planHasCloses(plan) {
   return Array.isArray(plan?.closes) && plan.closes.length > 0;
+}
+
+/**
+ * Render the operator-facing message printed on the exit-2 path. Names
+ * every close-op slug so the operator can audit precisely what would be
+ * removed before re-running with `--explicit-delete`. Exported so the
+ * contract tests assert the rendering without re-implementing it.
+ *
+ * @param {object} plan
+ * @returns {string}
+ */
+export function renderExplicitDeleteMessage(plan) {
+  const closes = Array.isArray(plan?.closes) ? plan.closes : [];
+  const slugList = closes
+    .map((op) => `#${op.issueNumber ?? '?'} (${op.slug})`)
+    .join(', ');
+  return (
+    `Plan carries ${closes.length} close operation(s): ${slugList}. ` +
+    `Re-run with --explicit-delete to apply.`
+  );
 }
 
 /**
@@ -233,11 +254,20 @@ function planHasCloses(plan) {
  */
 function formatSpecError(err) {
   if (err instanceof SpecValidationError) {
-    const head = err.issues?.[0];
-    if (head) {
-      return `Spec validation failed at ${head.path}: ${head.message}`;
+    // Render every issue on its own line so scripts that grep stderr for
+    // a JSON Pointer find each failure individually. The first issue is
+    // duplicated into the headline so existing log scrapers reading line 1
+    // keep working.
+    const issues = Array.isArray(err.issues) ? err.issues : [];
+    if (issues.length === 0) {
+      return `Spec validation failed: ${err.message}`;
     }
-    return `Spec validation failed: ${err.message}`;
+    const head = issues[0];
+    const lines = [
+      `Spec validation failed at ${head.path}: ${head.message}`,
+      ...issues.slice(1).map((iss) => `  · ${iss.path}: ${iss.message}`),
+    ];
+    return lines.join('\n');
   }
   if (err instanceof SpecParseError) {
     return `Spec YAML parse error in ${err.filePath}: ${err.cause?.message ?? err.message}`;
@@ -343,11 +373,13 @@ export async function runReconcile(args, deps = {}) {
     return { exitCode: EXIT_CODES.OK, plan };
   }
 
-  // 6c. Explicit-delete pre-flight: any close op requires the flag.
+  // 6c. Explicit-delete pre-flight: any close op requires the flag. We
+  // gate at the CLI surface (before apply) so the exit code is stable
+  // regardless of whether apply's discriminator would also reject — the
+  // task contract pins exit 2 to "would close without --explicit-delete",
+  // not "apply engine rejected".
   if (planHasCloses(plan) && !args.explicitDelete) {
-    stderr(
-      '[epic-reconcile] Plan carries close operations; re-run with --explicit-delete to apply.',
-    );
+    stderr(`[epic-reconcile] ${renderExplicitDeleteMessage(plan)}`);
     return { exitCode: EXIT_CODES.EXPLICIT_DELETE_REQUIRED, plan };
   }
 
