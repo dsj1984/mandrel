@@ -23,3 +23,13 @@ export {
   statePath,
   writeState,
 } from './loader.js';
+
+export {
+  buildState,
+  canonicalise,
+  canonicalStringify,
+  hashSpecEntry,
+  iterSpecEntries,
+  projectMapping,
+  sha256Hex,
+} from './state.js';
