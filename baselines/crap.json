@@ -6310,52 +6310,64 @@
       "startLine": 307
     },
     {
-      "crap": 16.004075947357986,
+      "crap": 15.003515625,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "tick",
-      "startLine": 43
+      "startLine": 58
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "tickResult",
-      "startLine": 203
+      "startLine": 219
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "resolveEpicId",
-      "startLine": 213
+      "startLine": 229
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "positiveIntOrZero",
-      "startLine": 224
+      "startLine": 240
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "storyIdOf",
-      "startLine": 228
+      "startLine": 244
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "groupByWave",
+      "startLine": 286
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "resolvePlan",
+      "startLine": 335
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "isUndispatched",
-      "startLine": 233
+      "startLine": 344
     },
     {
       "crap": 5.31930879038317,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "readGateFailures",
-      "startLine": 241
+      "startLine": 352
     },
     {
       "crap": 1.1714677640603566,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "defaultSignalEmit",
-      "startLine": 257
+      "startLine": 368
     },
     {
       "crap": 13,
