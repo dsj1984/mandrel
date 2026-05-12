@@ -1444,66 +1444,6 @@
       "startLine": 75
     },
     {
-      "crap": 5,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "epicSnapshotPathFor",
-      "startLine": 71
-    },
-    {
-      "crap": 9.2949476558944,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "forkMainToEpic",
-      "startLine": 128
-    },
-    {
-      "crap": 235.5299333333333,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "commitSnapshotsToEpicBranch",
-      "startLine": 252
-    },
-    {
-      "crap": 17.004779460310658,
-      "file": ".agents/scripts/lib/baseline-snapshot.js",
-      "method": "regenerateMainFromTree",
-      "startLine": 440
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "moveOneSnapshot",
-      "startLine": 53
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "dropEmptyDir",
-      "startLine": 67
-    },
-    {
-      "crap": 7,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "migrateEpicDir",
-      "startLine": 79
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "migrateLooseShape",
-      "startLine": 107
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "pruneCommittedEpic",
-      "startLine": 127
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
-      "method": "migrateBaselinesLayout",
-      "startLine": 154
-    },
-    {
       "crap": 6.004855105446821,
       "file": ".agents/scripts/lib/bootstrap/branch-protection.js",
       "method": "diffProtection",
