@@ -114,8 +114,14 @@ export function atomicWrite(finalPath, content) {
  * the error string and the `.tmp` residue is removed — the final path is
  * left untouched.
  *
+ * When `opts.markdown` is provided (a pre-rendered Markdown string), it is
+ * used in place of `formatManifestMarkdown(manifest)`. This is the
+ * injection seam the dispatcher uses to route through `fromSpec` when a
+ * spec file is present alongside the Epic (Story #1501) without
+ * coupling persistence to the spec loader.
+ *
  * @param {object} manifest
- * @param {{ projectRoot?: string, agentSettings?: object }} [opts]
+ * @param {{ projectRoot?: string, agentSettings?: object, markdown?: string }} [opts]
  * @returns {{ persisted: boolean, path: string|null, error: string|null }}
  */
 export function persistManifest(manifest, opts = {}) {
@@ -188,11 +194,13 @@ export function persistManifest(manifest, opts = {}) {
   try {
     const jsonContent = JSON.stringify(manifest, null, 2);
     const mdContent =
-      manifest.type === 'story-execution'
-        ? formatStoryManifestMarkdown(manifest, {
-            agentSettings: opts.agentSettings ?? resolved.agentSettings,
-          })
-        : formatManifestMarkdown(manifest);
+      typeof opts.markdown === 'string'
+        ? opts.markdown
+        : manifest.type === 'story-execution'
+          ? formatStoryManifestMarkdown(manifest, {
+              agentSettings: opts.agentSettings ?? resolved.agentSettings,
+            })
+          : formatManifestMarkdown(manifest);
 
     // Ensure both parent directories exist (`temp/epic-<id>/` and
     // optionally the per-Story sub-tree). `recursive: true` is a no-op
