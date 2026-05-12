@@ -23,6 +23,10 @@ import { readFile } from 'node:fs/promises';
 import { parseArgs } from 'node:util';
 import { runDecomposePhase } from './epic-plan-decompose.js';
 import { runSpecPhase } from './epic-plan-spec.js';
+import {
+  confirmInteractive as defaultConfirmInteractive,
+  runReconcile,
+} from './epic-reconcile.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   resolveConfig,
@@ -72,44 +76,190 @@ export function detectExistingSpec(epicId, opts = {}) {
 }
 
 /**
- * Edit-in-place flow stub for Phase 2.5 (Story #1499).
+ * Edit-in-place flow for Phase 2.5 (Story #1499 / Task #1530).
  *
- * This is the routing target taken when `detectExistingSpec` reports the
- * spec already exists. Task #1527 only wires the route; Task #1530 fills
- * in the dry-run + HITL confirmation behaviour (delegating to the
- * existing `epic-reconcile.js` CLI). Until then, the flow returns a
- * surface-shape stable envelope so the wrapping skill (and tests) can
- * pin the route taken without depending on the apply behaviour.
+ * Reached when `detectExistingSpec` reports the spec is already on disk
+ * for `epicId`. Wraps `epic-reconcile.js`'s `runReconcile` to:
  *
- * Exported so the test suite can override the apply path or inject a
- * stub reconciler runner once Task #1530 lands.
+ *   1. Compute the structural plan (dry-run) and render it to stdout.
+ *   2. Short-circuit with a no-changes message when the plan is empty —
+ *      no operator prompt, no apply.
+ *   3. Otherwise, gate the apply phase behind explicit operator
+ *      confirmation (`y`/`yes`). When the operator declines, exit
+ *      cleanly with `applied: false` and `reason: 'declined'`.
+ *   4. On confirmation, invoke `runReconcile` a second time with
+ *      `apply: true, yes: true` so the operator-confirmed apply runs
+ *      end-to-end without prompting the embedded reconciler's own gate.
+ *
+ * The function is dependency-injection-heavy so tests can drive every
+ * branch (dry-run-only, empty-diff, confirmed-apply, declined-apply)
+ * without spawning a child process or hitting a real TTY.
  *
  * @param {{
  *   epicId: number,
  *   provider: object,
  *   specFilePath: string,
- *   force?: boolean,
- *   runReconcile?: function,
- *   confirm?: () => Promise<boolean>,
+ *   apply?: boolean,
+ *   reconcileFn?: typeof runReconcile,
+ *   confirm?: typeof defaultConfirmInteractive,
  *   isTty?: () => boolean,
  *   stdout?: (line: string) => void,
+ *   stderr?: (line: string) => void,
+ *   loaderOpts?: object,
  * }} args
- * @returns {Promise<{ epicId: number, mode: 'edit', specPath: string, applied: boolean, plan?: object, reason?: string }>}
+ * @returns {Promise<{
+ *   epicId: number,
+ *   mode: 'edit',
+ *   specPath: string,
+ *   applied: boolean,
+ *   plan: object|null,
+ *   exitCode: number,
+ *   reason?: string,
+ *   applyResult?: object,
+ * }>}
  */
 export async function runEditFlow({
   epicId,
+  provider,
   specFilePath,
-  // Apply gate + collaborators are reserved for Task #1530.
+  apply = false,
+  reconcileFn = runReconcile,
+  confirm = defaultConfirmInteractive,
+  isTty = () => Boolean(process.stdin.isTTY),
+  stdout = (line) => process.stdout.write(`${line}\n`),
+  stderr = (line) => process.stderr.write(`${line}\n`),
+  loaderOpts,
 }) {
   Logger.info(
-    `[epic-plan] Existing spec detected for Epic #${epicId} at ${specFilePath}. Routing through edit-in-place flow (Task #1530 stub).`,
+    `[epic-plan] Existing spec detected for Epic #${epicId} at ${specFilePath}. Routing through edit-in-place flow.`,
   );
+
+  // Step 1: dry-run to compute + render the plan. We always do this,
+  // regardless of `apply`, so the operator sees the diff before being
+  // prompted to confirm anything.
+  const dryRunResult = await reconcileFn(
+    {
+      epicId,
+      dryRun: true,
+      apply: false,
+      explicitDelete: false,
+      yes: false,
+    },
+    {
+      provider,
+      stdout,
+      stderr,
+      loaderOpts,
+    },
+  );
+
+  if (dryRunResult.exitCode !== 0) {
+    return {
+      epicId,
+      mode: 'edit',
+      specPath: specFilePath,
+      applied: false,
+      plan: dryRunResult.plan ?? null,
+      exitCode: dryRunResult.exitCode,
+      reason: 'dry-run-failed',
+    };
+  }
+
+  // Step 2: empty-plan short-circuit. The reconciler reports this via
+  // its `plan` envelope; we re-check rather than re-deriving the
+  // predicate so the two surfaces stay aligned.
+  const { isEmptyPlan } = await import(
+    './lib/orchestration/epic-spec-reconciler-ops.js'
+  );
+  if (dryRunResult.plan && isEmptyPlan(dryRunResult.plan)) {
+    stdout(
+      `[epic-plan] No structural changes detected for Epic #${epicId}. Spec is in sync with live state.`,
+    );
+    return {
+      epicId,
+      mode: 'edit',
+      specPath: specFilePath,
+      applied: false,
+      plan: dryRunResult.plan,
+      exitCode: 0,
+      reason: 'empty-diff',
+    };
+  }
+
+  // Step 3: apply path. The default is dry-run-only — the operator must
+  // pass `--apply` (CLI) or `apply: true` (programmatic) to opt in.
+  if (!apply) {
+    return {
+      epicId,
+      mode: 'edit',
+      specPath: specFilePath,
+      applied: false,
+      plan: dryRunResult.plan,
+      exitCode: 0,
+      reason: 'dry-run-only',
+    };
+  }
+
+  if (!isTty()) {
+    stderr(
+      '[epic-plan] --apply requires an interactive TTY for the operator confirmation gate.',
+    );
+    return {
+      epicId,
+      mode: 'edit',
+      specPath: specFilePath,
+      applied: false,
+      plan: dryRunResult.plan,
+      exitCode: 1,
+      reason: 'no-tty',
+    };
+  }
+
+  stdout(
+    `[epic-plan] Reviewed plan for Epic #${epicId}. Apply these structural changes?`,
+  );
+  const confirmed = await confirm();
+  if (!confirmed) {
+    stdout('[epic-plan] Edit-in-place declined by operator.');
+    return {
+      epicId,
+      mode: 'edit',
+      specPath: specFilePath,
+      applied: false,
+      plan: dryRunResult.plan,
+      exitCode: 0,
+      reason: 'declined',
+    };
+  }
+
+  // Step 4: confirmed apply. `yes: true` so we do not double-prompt
+  // through the embedded reconciler's gate — the operator already
+  // consented one layer up.
+  const applyResult = await reconcileFn(
+    {
+      epicId,
+      dryRun: false,
+      apply: true,
+      explicitDelete: false,
+      yes: true,
+    },
+    {
+      provider,
+      stdout,
+      stderr,
+      loaderOpts,
+    },
+  );
+
   return {
     epicId,
     mode: 'edit',
     specPath: specFilePath,
-    applied: false,
-    reason: 'edit-flow-stub-task-1530',
+    applied: applyResult.exitCode === 0,
+    plan: applyResult.plan ?? dryRunResult.plan,
+    exitCode: applyResult.exitCode,
+    applyResult: applyResult.applyResult,
+    reason: applyResult.exitCode === 0 ? 'applied' : 'apply-failed',
   };
 }
 
@@ -144,6 +294,7 @@ export async function runSprintPlan({
   config,
   artifacts,
   force = false,
+  apply = false,
   runSpec = runSpecPhase,
   runDecompose = runDecomposePhase,
   runEdit = runEditFlow,
@@ -159,6 +310,7 @@ export async function runSprintPlan({
       epicId,
       provider,
       specFilePath: specProbe.path,
+      apply,
     });
     return {
       epicId,
@@ -226,6 +378,7 @@ async function main() {
       techspec: { type: 'string' },
       tickets: { type: 'string' },
       force: { type: 'boolean', default: false },
+      apply: { type: 'boolean', default: false },
       'describe-resume-point': { type: 'boolean', default: false },
     },
   });
@@ -301,6 +454,7 @@ async function main() {
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,
+    apply: values.apply,
   });
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
