@@ -17,39 +17,26 @@ recommendedModel: opus
 ## Overview
 
 `/epic-deliver` is the **single SDL execution command** in the 5.40 surface.
-It replaces the v5.39.x execute + close pair — the implicit in-script
-merge to `main` from the legacy close path is reintroduced as a
-**conditional** auto-merge that only fires when every signal certifies a
-clean run, with the operator-merges-button path as the explicit fallback:
+It opens a PR against `main` and auto-merges when every signal certifies a
+clean run; otherwise it falls back to the operator-merges-button path.
 
 ```text
 /epic-deliver <epicId>
   → Phase 1 — prepare              (epic-deliver-prepare.js)
-  → Phase 2 — wave loop            (Agent fan-out × concurrencyCap → /story-execute)
+  → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
-  → Phase 4 — code-review          (helpers/epic-code-review.md, persisted as
-                                    a `code-review` structured comment)
-  → Phase 5 — retro                (helpers/epic-retro.md, fired locally)
+  → Phase 4 — code-review          (helpers/epic-code-review.md)
+  → Phase 5 — retro                (helpers/epic-retro.md)
   → Phase 6 — finalize             (epic-deliver-finalize.js → open PR to main)
   → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
-  → Phase 7.5 — auto-merge gate    (epic-deliver-automerge.js — predicate +
-                                    `gh pr merge --squash --delete-branch`,
-                                    OR fall back to operator-merges-button)
-  → Phase 8 — cleanup              (epic-deliver-cleanup.js — local worktree +
-                                    branch reap, only after PR merged)
+  → Phase 7.5 — auto-merge gate    (epic-deliver-automerge.js)
+  → Phase 8 — cleanup              (epic-deliver-cleanup.js — only after merge)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
-[`/story-execute`](story-execute.md); Tasks are not directly executable
-(they are implemented inside their parent Story's loop).
-
-> **Engine.** Coordinator at
-> [`lib/orchestration/epic-deliver-runner.js`](../scripts/lib/orchestration/epic-deliver-runner.js).
-> Story dispatch is in-session via the Agent tool; **no subprocess is
-> spawned**. Tech spec **#1147** covers the SDL collapse; **#902** covers
-> dispatch and collation; **#323** covers the `epic-run-state` schema.
-> Waves are an internal scheduling construct — `epic-run-progress` carries
-> the operator-facing per-wave rollup.
+[`/story-execute`](story-execute.md); Tasks are not directly executable.
+Story dispatch is in-session via the Agent tool — no subprocess is
+spawned.
 
 ---
 
@@ -59,44 +46,30 @@ The argument is always an Epic ID (`type::epic`). Story IDs go to
 /epic-deliver <epicId> [--skip-code-review] [--skip-retro] [--full-retro]
 ```
 
-- `epicId` — the GitHub Issue number of the Epic. Must carry `type::epic`.
-  If the ticket is not an Epic, **STOP** and tell the operator to use
-  `/story-execute <id>` (for `type::story`) or open the parent Epic.
-- `--skip-code-review` — log the override and skip Phase 4. Use only when
-  the operator has performed the review out-of-band.
-- `--skip-retro` — log the override and skip Phase 5. Use sparingly; the
-  retro is how the organisation learns from each Epic.
+- `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
+  to use `/story-execute <id>` or open the parent Epic.
+- `--skip-code-review` — skip Phase 4 (log the override).
+- `--skip-retro` — skip Phase 5 (use sparingly).
 - `--full-retro` — force the six-section retro regardless of manifest
-  cleanliness (otherwise the helper picks the compact path for clean
-  manifests). `--skip-retro` wins over `--full-retro`.
+  cleanliness. `--skip-retro` wins over `--full-retro`.
 
-There are no other flags — every runtime modifier is sourced from the
-Epic ticket's labels or from `orchestration.runners.deliverRunner` in
-`.agentrc.json`.
+Every other runtime modifier is sourced from the Epic's labels or from
+`orchestration.runners.deliverRunner` in `.agentrc.json`.
 
 ---
 
 ## Contract
 
-- **Idempotent by checkpoint.** Re-running `/epic-deliver <epicId>`
-  resumes from the `epic-run-state` structured comment if present;
-  otherwise it initializes a fresh run. Restarts are safe.
-- **Single pause point.** Only `agent::blocked` halts execution. All other
-  Epic labels are informational during the run.
-- **No clarifying questions.** If the skill cannot make progress without
-  input, it transitions the Epic to `agent::blocked`, posts a friction
-  comment, and parks until the operator flips it back to
-  `agent::executing`.
-- **Two-level dispatch.** The host LLM running this skill fans out
-  per-Story Agent calls directly. There is no nested wave sub-agent;
-  `subagent_type` is always `general-purpose`. This sidesteps the harness
-  limitation that default sub-agents do not carry the `Agent` tool.
-- **Operator-merges-PR exit.** Phase 6 opens a pull request from
-  `epic/<epicId>` to `main` and **stops**. The workflow never merges to
-  `main` itself. The PR's existence is the operator's signal to inspect
-  the required-checks summary and merge through the GitHub UI. This is
-  the explicit human gate that replaces the v5.39.x implicit in-script
-  merge inside the prior close workflow.
+- **Idempotent by checkpoint.** Re-runs resume from `epic-run-state`.
+- **Single pause point.** Only `agent::blocked` halts execution. No
+  clarifying questions — if stuck, flip to `agent::blocked`, post a
+  friction comment, park.
+- **Two-level dispatch.** Host LLM fans out per-Story Agent calls
+  directly with `subagent_type: general-purpose`. Sub-agents do not
+  carry the `Agent` tool, so this stays flat.
+- **Operator-merges-PR exit.** Phase 6 opens the PR; the workflow
+  never merges to `main` itself. Phase 7.5 may fire auto-merge when
+  every signal is clean.
 
 ---
 
@@ -106,124 +79,97 @@ Epic ticket's labels or from `orchestration.runners.deliverRunner` in
 node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
 ```
 
-The CLI validates `type::epic`, enumerates `type::story` descendants,
-parses `blocked by #N` edges plus any explicit `dependencies` field
-(foreign IDs dropped), runs `Graph.computeWaves()`, and upserts the
-`epic-run-state` structured comment via `Checkpointer.initialize`. The
-runtime wave layout matches `/epic-plan`'s `dispatch-manifest` by
-construction (shared DAG-builder rules).
-
-Treat the printed JSON as `state` for the wave loop:
-`{ epicId, totalWaves, concurrencyCap, plan, checkpointInitializedAt }`.
-`plan` is an ordered array — `plan[N]` carries the Stories assigned to
-wave `N` as `[{ storyId, title, worktree? }, ...]`. After the CLI
-returns, flip the Epic to `agent::executing` (idempotent).
+Validates `type::epic`, enumerates `type::story` descendants, parses
+`blocked by #N` plus explicit `dependencies`, runs `Graph.computeWaves()`,
+and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
+`state`: `{ epicId, totalWaves, concurrencyCap, plan, checkpointInitializedAt }`.
+`plan[N]` is the Stories assigned to wave `N`. Flip the Epic to
+`agent::executing` (idempotent) after the CLI returns.
 
 ---
 
 ## Phase 2 — Wave loop
 
-For each wave `N` from `0` to `totalWaves - 1`:
+The wave-loop state machine lives in
+[`lib/wave-runner/tick.js`](../scripts/lib/wave-runner/tick.js) — one
+stateless `tick({ epic })` call returns one `WaveTickResult` describing
+the next action. The slash command's job is to call `tick()` via its CLI
+shim, dispatch from `nextAction.stories` via the Agent tool, persist the
+outcome, and loop until terminal.
 
-### 2a. Fan out per-Story Agent calls
+### 2a. Tick — plan the next action
 
-> **You vs. your children — read this first.** *You* (the LLM running
-> this skill) are the wave dispatcher. *You* never invoke
-> `/story-execute` yourself. Your job is to **dispatch** one `Agent`
-> tool call per Story in `plan[N]`. The *children* you spawn — distinct
-> sub-agents, one per Agent call — are the ones that run
-> `/story-execute`. **Even when `plan[N].length === 1`** you still emit
-> exactly one `Agent` call (not a direct `/story-execute` invocation) —
-> this preserves the parent-child boundary, keeps the per-child
-> non-interactive contract enforceable, and keeps the return-parser on
-> a uniform code path.
+```bash
+node .agents/scripts/wave-tick.js --epic <epicId>
+```
 
-Emit **one assistant turn** containing **N parallel `Agent` tool calls**,
-one per Story in `plan[N]`, where `N === min(plan[N].length,
-concurrencyCap)`. Use `subagent_type: general-purpose` for every call.
+Stdout is one `WaveTickResult` envelope:
 
-When `plan[N].length > concurrencyCap`, dispatch the first
-`concurrencyCap` Stories in the initial assistant turn (each as a
-background `Agent` call with `run_in_background: true`). As **each**
-child returns its task notification, dispatch the **next** undispatched
-Story from `plan[N]` immediately — keep the in-flight count at
-`concurrencyCap` until every Story has been dispatched, then drain the
-remaining returns. **Never** exceed `concurrencyCap` in flight, and
-**never** wait for a whole batch to return before refilling.
+```json
+{
+  "nextAction":
+      { "kind": "dispatch",      "stories": [{ "id": <n>, "title": "…", "worktree"?: "…" }, ...] }
+    | { "kind": "observe",       "waitingOn": [<storyId>, ...] }
+    | { "kind": "wave-complete", "index": <n> }
+    | { "kind": "epic-complete" },
+  "blockedStories": [{ "storyId": <n>, "reason": "…", "detail"?: "…" }, ...],
+  "gateFailures":   [{ "storyId": <n>, "gate": "…", "detail"?: "…" }, ...],
+  "currentWave":    <n>,
+  "totalWaves":     <n>
+}
+```
 
-#### Per-child prompt contract
+The CLI emits `wave-tick` (every call) plus `wave-start` /
+`wave-complete` / `epic-complete` at transitions to the per-Epic
+`signals.ndjson`; `/signals` renders them in the span-tree view.
 
-In the rest of this section, "**the child**" means the child sub-agent
-that *this* Agent tool call is spawning — not you. Each Agent tool call
-must include a self-contained prompt that:
+### 2b. Dispatch — fan out per-Story Agent calls
 
-1. Names the Story id and the Epic id.
-2. Instructs **the child** to invoke `/story-execute <storyId>`.
-3. States the **return contract** the child owes you (its parent):
+*You* (the LLM running this skill) are the wave dispatcher; you never
+invoke `/story-execute` yourself. Emit **one `Agent` tool call per
+Story** in `nextAction.stories` (even when `length === 1` — the
+parent-child boundary keeps the return-parser uniform). The *children*
+run `/story-execute`. Use `subagent_type: general-purpose`.
 
-   ```json
-   {
-     "storyId": <number>,
-     "status": "done" | "blocked" | "failed",
-     "phase": "init|implementing|closing|blocked|done",
-     "tasksDone": <number>,
-     "tasksTotal": <number>,
-     "branchDeleted": <boolean>,
-     "blockerCommentId": <string|null>,
-     "detail": <string|undefined>,
-     "renderedBody": <string|undefined>
-   }
-   ```
+Emit **one assistant turn** with **N parallel `Agent` calls** where
+`N === min(nextAction.stories.length, concurrencyCap)`. When the wave
+exceeds `concurrencyCap`, dispatch the first `concurrencyCap` Stories
+as background calls (`run_in_background: true`) and refill from
+`nextAction.stories` immediately as each child returns — never exceed
+the cap, never wait for a whole batch before refilling.
 
-4. Reminds **the child** of the **non-interactive contract** (no
-   clarifying questions, transition to `agent::blocked` and exit if
-   truly stuck).
-5. Asks **the child** to suppress per-Task chat relay and instead
-   include its **terminal** `renderedBody` in the JSON return so you
-   can fold it into the wave-level Notable section.
+Each Agent call's prompt must (1) name the Story + Epic ids, (2)
+instruct the child to invoke `/story-execute <storyId>`, (3) state the
+**return contract** below, (4) remind the child of the
+**non-interactive contract** (no clarifying questions; transition to
+`agent::blocked` and exit if stuck), and (5) ask the child to suppress
+per-Task chat relay and include its **terminal** `renderedBody` in the
+JSON return.
 
-#### Dispatch-model resolution
+```json
+{
+  "storyId": <number>,
+  "status": "done" | "blocked" | "failed",
+  "phase": "init|implementing|closing|blocked|done",
+  "tasksDone": <number>, "tasksTotal": <number>,
+  "branchDeleted": <boolean>,
+  "blockerCommentId": <string|null>,
+  "detail": <string|undefined>,
+  "renderedBody": <string|undefined>
+}
+```
 
-Before emitting the parallel `Agent` calls, read **this workflow's own**
-frontmatter `dispatchModel` field (this file's `---` block at the top —
-`recommendedModel: opus`, `dispatchModel: <unset|haiku|sonnet|opus>`).
-For each per-Story `Agent` call you compose, resolve the `model:`
-argument by the following precedence — **highest wins**:
-
-1. **Per-call body literal `model:`.** If a specific Story's dispatch
-   needs a different model than the rest of the wave (rare, but
-   permitted), the literal value written into that particular `Agent`
-   call's body wins.
-2. **Workflow `dispatchModel`.** When this file's frontmatter declares
-   `dispatchModel: <hint>`, pass `model: '<hint>'` as an argument on
-   every `Agent` call you emit in Phase 2a that does not have its own
-   per-call override.
-3. **Inherit from parent.** When neither of the above is set, **emit no
-   `model:` argument**. The `Agent` tool then resolves the model from
-   the `general-purpose` sub-agent definition's frontmatter, falling
-   back to your own (the dispatcher's) parent model. This is the path
-   every existing dispatch has taken to date and remains byte-equivalent
-   when `dispatchModel` is unset.
-
-In other words: the unset case is **exactly today's behaviour** — no
-`model:` argument, full inheritance. The `dispatchModel` knob only
-takes effect when the workflow author explicitly declares it.
-
-> **Authoring distinction.** `dispatchModel` controls the *children*
-> this workflow spawns; it does **not** flip the model this workflow
-> itself runs on (workflows execute in the parent agent's loop). See
-> [`.agents/workflows/README.md`](README.md) for the
-> sub-agent-definition vs. workflow-frontmatter distinction.
-
-Children inherit the parent's worktree context; they do **not** require
+**Dispatch-model resolution.** For `model:`, precedence (highest
+wins): per-call literal → workflow `dispatchModel` frontmatter →
+inherit (emit no argument). The unset case is today's behaviour — full
+inheritance via the `general-purpose` sub-agent definition. Children
+inherit the parent's worktree context; no
 `--dangerously-skip-permissions` (no subprocess is spawned).
 
-### 2b. Record the wave outcome
+### 2c. Record the wave outcome
 
-Once every dispatched Story for wave `N` has returned, hand the
-per-Story results to `epic-execute-record-wave.js`. **Prefer mode B**
-when the host LLM cannot fully verify that every child's return text is
-a parseable envelope.
+Once every dispatched Story has returned, persist via
+`epic-execute-record-wave.js`:
 
 ```bash
 # Mode A — host LLM already parsed each child return.
@@ -238,53 +184,31 @@ node .agents/scripts/epic-execute-record-wave.js \
 # `<inline-json>` shape: [{ "storyId": <n>, "returnText": "<raw text>" }]
 ```
 
-The CLI parses / reconciles the per-Story returns, verifies every
-`done` claim against the live ticket label, aggregates the wave's
-terminal status, appends `{ index: N, status, concurrencyCap, stories,
-completedAt }` to `state.waves[]`, re-renders `epic-run-progress`, and
-prints:
+**Prefer mode B** when the host LLM can't fully verify every child's
+return is a parseable envelope. The CLI reconciles parse failures from
+GitHub, aggregates terminal status, appends to `state.waves[]`,
+re-renders `epic-run-progress`, and prints
+`{ status, nextAction, renderedBody, ... }`. Print `renderedBody`
+verbatim, then optionally append a short **Notable** section (0–5
+bullets on newly blocked / failed / slow Stories, friction,
+elapsed-time surprises).
 
-```json
-{
-  "epicId": <number>,
-  "wave": <number>,
-  "recorded": true,
-  "status": "complete" | "blocked" | "failed",
-  "stories": [ { "id": <n>, "status": "done|blocked|failed" }, ... ],
-  "blockedStoryIds": [ ... ],
-  "nextAction": "dispatch-next" | "halt-blocked" | "halt-failed" | "finalize",
-  "remainingWaves": <number>,
-  "renderedBody": "<markdown>"
-}
-```
+### 2d. Loop on `nextAction`
 
-### 2c. Relay the wave rollup to chat
+After `2c`, re-run `wave-tick.js`. Branch on the new envelope:
 
-After `epic-execute-record-wave.js` returns, print the envelope's
-`renderedBody` verbatim, then optionally append a short **Notable**
-section (0–5 host-LLM-authored bullets covering newly blocked / failed
-Stories, slow Stories, friction comments, elapsed-time surprises).
-Skip the section entirely if there is nothing notable.
-
-### 2d. Branch on `nextAction`
-
-- `dispatch-next` → continue with wave `N+1`.
-- `halt-blocked` → park (operator flips `agent::executing` to resume).
-- `halt-failed` → post a friction comment, flip Epic to
-  `agent::blocked`, park.
-- `finalize` → proceed to Phase 3.
-
-When all waves return `complete`, the iteration phase is done.
+- `dispatch` → repeat 2b/2c for the same wave (refill) or the next wave.
+- `observe` → poll the Epic (children may still be in flight, or some
+  are `agent::blocked`). If `blockedStories` is non-empty, post a
+  friction comment, flip Epic to `agent::blocked`, park.
+- `wave-complete` → loop to the next wave.
+- `epic-complete` → proceed to Phase 3.
 
 ---
 
 ## Phase 3 — Close-validation
 
-Run lint + test + project-extended ratchets against `epic/<epicId>`
-before opening the PR. This is the same chain v5.39.x ran inside
-the v5.39.x close-validation chain, lifted into the `/epic-deliver` tail so the
-operator's required-checks dashboard reflects a clean tree at PR-open
-time.
+Run lint + test + ratchets against `epic/<epicId>` before opening the PR:
 
 ```bash
 node .agents/scripts/evidence-gate.js \
@@ -293,82 +217,40 @@ node .agents/scripts/evidence-gate.js \
   --epic-id <epicId> --scope-id <epicId> --gate test -- npm test
 ```
 
-The evidence wrapper short-circuits on identical re-runs against an
-already-validated tree (keyed by `git rev-parse HEAD`).
-
-If either gate fails: **STOP**, fix the regression on a hotfix branch,
-merge back into the Epic branch, and restart this phase.
+If either gate fails: STOP, fix on a hotfix branch, merge back to the
+Epic branch, restart this phase.
 
 ### 3.1 Refresh ratcheted baselines
 
-Inspect the scripts referenced from `.husky/pre-push` (or the project's
-equivalent push hook) — type-checks (`tsc --noEmit`, `astro check`,
-`vue-tsc`), lint baselines, complexity / maintainability baselines,
-design-token audits, dependency audits, bundle-size budgets. Run each
-ratcheted script against the Epic branch. If any drifts, refresh the
-baseline file on the Epic branch and commit:
-
-```bash
-git commit -m "chore(baselines): refresh <name> for Epic #<epicId>"
-```
-
-so the PR's pre-push hook passes on first push at Phase 6.
+Inspect the scripts in `.husky/pre-push` (typecheck, lint, maintainability,
+design tokens, dependency audits, bundle-size budgets). Run each against
+the Epic branch; if any drifts, refresh and commit
+`chore(baselines): refresh <name> for Epic #<epicId>`.
 
 ---
 
 ## Phase 4 — Code review
 
-Skip when `--skip-code-review` was passed. Otherwise auto-invoke the
-[`helpers/epic-code-review.md`](helpers/epic-code-review.md) module
-inline for `<epicId>` (read-only audit mode — no remediation). The
-helper persists its findings as a `code-review` structured comment on
-the Epic via `upsertStructuredComment`; that comment is the durable
-audit trail subsequent retros and incident reviews read back from.
+Skip when `--skip-code-review`. Otherwise auto-invoke
+[`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline
+(read-only audit). The helper persists findings as a `code-review`
+structured comment on the Epic.
 
-Inspect the resulting findings:
-
-- **Any 🔴 Critical Blocker** — STOP. Relay the blockers to the
-  operator and do not proceed to Phase 5. The operator decides whether
-  to fix on the Epic branch and re-run `/epic-deliver`, or to override
-  explicitly with `--skip-code-review`.
-- **Only 🟠/🟡/🟢 findings** — log them as "non-blocking review
-  findings" and continue.
+- **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
+- **Only 🟠/🟡/🟢** — log as non-blocking and continue.
 
 ---
 
 ## Phase 5 — Retro
 
-Skip when `--skip-retro` was passed. Otherwise:
+Skip when `--skip-retro`. Otherwise post the `epic-perf-report` via
+`node .agents/scripts/analyze-execution.js --epic <epicId>` (failure →
+warn and continue; the retro helper falls back). Then auto-invoke
+[`helpers/epic-retro.md`](helpers/epic-retro.md) inline; propagate
+`--full-retro` to bypass the compact-path heuristic.
 
-### 5.1 — Post the epic-perf-report
-
-```bash
-node .agents/scripts/analyze-execution.js --epic <epicId>
-```
-
-The `<!-- structured:epic-perf-report -->` comment must exist on the
-Epic before `helpers/epic-retro.md` runs — the retro helper fetches it
-by marker and surfaces its top hotspots in the "What Could Be Improved"
-section. If the analyzer fails, log the failure as a warning and
-continue: the retro helper falls back to its baseline behaviour when
-the comment is absent.
-
-### 5.2 — Auto-invoke the retro helper
-
-Detect existing retros via `provider.getComments(<epicId>)` filtered
-for `type === "retro"` metadata, or fall back to grepping bodies for
-the `<!-- retro-complete: ... -->` marker. If no retro is present,
-auto-invoke [`helpers/epic-retro.md`](helpers/epic-retro.md) inline.
-
-Propagate `--full-retro` into the helper invocation when set so the
-compact-path heuristic is bypassed and the full six-section retro is
-composed regardless of dispatch-manifest cleanliness.
-
-> **Why retro fires here, before the PR opens:** the retro stays in
-> the operator's local session with full env access (env vars,
-> credentials, MCP servers). Wiring it after PR-open would push it
-> outside the operator's session and deny it that env access — the
-> 5.40.0 PRD calls this out explicitly.
+Retro fires here (before the PR opens) so it stays in the operator's
+local session with full env access (env vars, credentials, MCP).
 
 ---
 
@@ -378,302 +260,146 @@ composed regardless of dispatch-manifest cleanliness.
 node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
 ```
 
-The CLI:
-
-1. Pushes `epic/<epicId>` to `origin` (with the validation evidence and
-   the retro comment already in place).
-2. Opens a pull request from `epic/<epicId>` to `main` titled
-   `Epic #<epicId>: <epic title>`. The PR body links the
-   `epic-run-progress`, `code-review`, and retro structured comments
-   on the Epic ticket; the operator reads them in-place rather than
-   duplicating into the PR description.
-3. Sets the PR's required-checks expectation from
-   `agentSettings.quality.prGate.checks` so the GitHub branch
-   protection gate matches the Epic-level validation that just ran.
-4. **Enables GitHub native auto-merge** on the PR via
-   `gh pr merge <prNumber> --auto --squash --delete-branch`. When all
-   required checks pass, GitHub fires the squash-merge itself and
-   deletes the remote `epic/<epicId>` branch. The framework's
-   Phase 7.5 predicate becomes an informational post-merge audit
-   rather than the gating decision — operators who want extra gating
-   should keep the predicate (Phase 7.5 will surface any disqualifiers
-   that landed during the run), but the *merge itself* is now driven
-   by CI-green status, not by the predicate. Auto-merge enablement
-   failures (missing repo feature, insufficient token scope) are
-   non-fatal: the operator retains the manual merge path through the
-   GitHub UI.
-5. Posts a hand-off structured comment naming the PR URL and the
-   operator's remaining action. The Epic stays at `agent::executing`
-   until the operator's PR merge fires the standard transition to
-   `agent::done`.
-6. **Exits cleanly.** If auto-merge enablement succeeded, the PR
-   squash-merges as soon as required checks are green; otherwise the
-   operator merges through the GitHub UI.
-
-`/epic-deliver` does not run any autonomous chainer, does not invoke a
-separate close command, and does not delete branches. Branch cleanup is
-handled out-of-band by `/delete-epic-branches` after the PR has merged.
-The v5.39.x close-path artefacts (autonomous merge to `main`, the
-chainer, the separate finalize CLI) were removed in 5.40.0 — see the
-`docs/CHANGELOG.md` 5.40.0 entry for the full deletion list.
+Pushes `epic/<epicId>`, opens a PR to `main` (title
+`Epic #<epicId>: <title>`, body links run-progress / code-review /
+retro comments), sets required-checks from
+`agentSettings.quality.prGate.checks`, enables GitHub native auto-merge
+(`gh pr merge --auto --squash --delete-branch`), and posts a hand-off
+comment with the PR URL. Auto-merge enablement failures are non-fatal
+(operator can merge through the UI). Branch cleanup is out-of-band
+(`/delete-epic-branches`).
 
 ---
 
 ## Phase 7 — Watch-and-iterate until CI is green
 
-The PR is now open. The required-checks gate on `main` is CI-only
-(`Validate and Test`) — there is no bot approver, no auto-triage
-comment, and no auto-fix push. The host LLM owns the green-bar loop
-until the operator merges.
-
-Poll the PR's check-run state and, on every failure, pull the failing
-log, diagnose locally, push a fix to `epic/<epicId>`, and loop again.
+The host LLM owns the green-bar loop until the operator merges. Poll
+checks; on failure, pull the log, fix locally, push, loop:
 
 ```bash
-# Poll loop — exits 0 when every required check is success/neutral/skipped.
 gh pr checks <prNumber> --watch
 ```
 
-`gh pr checks --watch` blocks until the check-runs settle. Treat its exit
-code as the loop verdict:
+Exit 0 → proceed to Phase 7.5. Non-zero → remediate (below) and re-arm.
 
-- **Exit 0** (all required checks green) → proceed to Phase 7.5 (auto-merge
-  gate). Do not stop at PR-URL relay anymore; the gate decides whether to
-  fire the merge or hand the button to the operator.
-- **Non-zero exit** (any required check failed) → drop into the
-  remediation loop below.
+### 7.1 Remediation
 
-### 7.1 Remediation loop
+For each failed required check: fetch the log
+(`gh run view <runId> --log-failed`), classify and fix:
 
-For each failed required check:
+- **lint / format** → `npm run lint` + `npx biome check --apply` (or
+  `format --write`); commit, push.
+- **maintainability / crap baseline drift** → re-run the ratcheted
+  script. Refresh the baseline only when drift is justified by the
+  diff; otherwise fix at source.
+- **test failure** → reproduce with `npm test`, fix source or test.
+- **coverage threshold** → add tests (preferred); refresh baseline only
+  when the diff demonstrably can't be covered.
+- **anything else** → read the log, fix at source.
 
-1. **Fetch the failing job's log directly** — do not wait for a triage
-   comment, none will appear.
-
-   ```bash
-   gh run view <runId> --log-failed
-   # or scope to a specific job:
-   gh run view <runId> --job <jobId> --log
-   ```
-
-2. **Classify the failure** by reading the log:
-   - `lint` / `format` → run `npm run lint` and `npm run format:check`
-     locally, fix with `npx biome check --apply` /
-     `npx biome format --write` (exclude `tests/**` only when the failure
-     is in production code), commit, push.
-   - `maintainability` / `crap` baseline drift → re-run the appropriate
-     ratcheted script locally, refresh the baseline file with a
-     `chore(baselines): refresh <name> for Epic #<epicId>` commit if and
-     only if the drift is justified by the diff (treat unjustified drift
-     as a real regression that must be fixed in source, not papered over
-     in the baseline).
-   - `test` failure → reproduce locally with `npm test`, fix the source
-     or the test, commit, push.
-   - `coverage` threshold failure → add tests (preferred) or refresh the
-     coverage baseline only when the diff demonstrably can't be covered
-     (rare).
-   - Anything else → read the log carefully, fix at the source.
-
-3. **Push the fix to `epic/<epicId>`** (the PR's head branch):
-
-   ```bash
-   git push origin epic/<epicId>
-   ```
-
-4. **Re-arm the watch loop**:
-
-   ```bash
-   gh pr checks <prNumber> --watch
-   ```
-
-Repeat until the watch loop exits 0. There is no per-PR attempt cap —
-the loop is human-in-the-loop by design; the operator can cancel at any
-time.
+Push to `epic/<epicId>` and re-run `gh pr checks --watch`.
 
 ### 7.2 When to halt
 
-- **Three consecutive watch-loop iterations on the same failure class**
-  without convergence → post a friction structured comment on the Epic
-  ticket naming the failing check, the loop count, and the last fix
-  attempt; flip the Epic to `agent::blocked`; park. The operator
-  diagnoses the loop and flips back to `agent::executing` to resume.
-- **A failure class outside the four canonical buckets** (lint / test /
-  coverage / maintainability) on first encounter → still attempt a
-  source-level fix, but log a friction comment if the diagnosis takes
-  more than one round of investigation. Unknown CI behaviour is worth
-  the operator's attention.
+Three consecutive iterations on the same failure class without
+convergence → friction comment, flip to `agent::blocked`, park. Unknown
+failure class on first encounter → attempt source-level fix; log
+friction if diagnosis takes more than one round.
 
-### 7.3 What you must not do
+### 7.3 Hard prohibitions
 
-- **Never** `gh pr merge` from inside Phase 7. Phase 7.5 is the only legal
-  merge site, and only when the auto-merge predicate certifies a clean
-  run.
-- **Never** force-push to `main`. The Epic branch is the only legal
-  push target.
-- **Never** re-run a check by pushing an empty commit to dodge the
-  diagnosis — fix the real failure, or halt and ask.
-- **Never** refresh a baseline file solely to make a red check go
-  green; the baseline-refresh anti-gaming guardrail was removed
-  alongside the bot pipeline, so the operator is now the only thing
-  standing between an honest refresh and a gamed one. Self-police
-  accordingly.
+**Never** `gh pr merge` from Phase 7 (Phase 7.5 is the only merge
+site). **Never** force-push to `main`. **Never** push empty commits or
+refresh baselines to dodge a red check.
 
 ---
 
 ## Phase 7.5 — Auto-merge gate
 
-After Phase 7's watch loop exits 0, evaluate the auto-merge predicate.
-This is the gate that decides whether the operator's "click merge" button
-is doing real work or just rubber-stamping a clean run. When every signal
-is clean, the workflow fires `gh pr merge --squash --delete-branch`
-itself; otherwise it relays the disqualifying reasons and hands the
-button to the operator.
+After Phase 7 exits 0, evaluate the auto-merge predicate:
 
 ```bash
 node .agents/scripts/epic-deliver-automerge.js --epic <epicId> --pr <prNumber>
 ```
 
-The CLI:
+`clean: true` only when **all** of:
 
-1. Reads the `epic-run-state` checkpoint, the `code-review` structured
-   comment, and the `retro` / `retro-partial` structured comment via
-   `lib/orchestration/automerge-predicate.js`.
-2. Returns `clean: true` only when **all** of the following hold:
-   - `state.manualInterventions[]` is empty;
-   - every wave's `status === "complete"`;
-   - no story envelope carries a `blockerCommentId` or a non-`done` status;
-   - the code-review comment reports `0` 🔴 Critical Blockers **and** `0`
-     🟠 High Risk findings;
-   - the retro is the compact "🟢 Clean sprint" body.
-3. When `clean: true`, fires `gh pr merge <prNumber> --squash --delete-branch`.
-4. When `clean: false`, prints the disqualifying reasons and exits without
-   merging — the workflow falls back to the operator-merges-button path.
+- `state.manualInterventions[]` is empty;
+- every wave's `status === "complete"`;
+- no story envelope carries a `blockerCommentId` or non-`done` status;
+- code-review reports `0` 🔴 + `0` 🟠 findings;
+- the retro is the compact "🟢 Clean sprint" body.
 
-Branch on `merged`:
-
-- **`merged: true`** → proceed to Phase 8 (cleanup).
-- **`merged: false`** → relay the verdict to the operator with the PR URL
-  and the reasons list, **STOP**. The operator inspects the surface area
-  and either clicks merge themselves or amends the Epic branch and
-  re-runs `/epic-deliver`.
+When clean, fires `gh pr merge --squash --delete-branch`. Otherwise
+prints disqualifying reasons and exits without merging — operator
+merges manually.
 
 ### Recording manual interventions
 
-The auto-merge predicate's manual-intervention signal exists because *the
-host LLM* is the only thing that knows when it stepped outside the happy
-path. Any time you do one of the following during a delivery, **append a
-record to the checkpoint** with:
+Whenever you step outside the happy path during a delivery, record it
+(each entry disqualifies auto-merge):
 
 ```bash
 node .agents/scripts/epic-deliver-note-intervention.js \
   --epic <epicId> --reason "<one-line description>"
 ```
 
-Triggers — non-exhaustive but covers the patterns observed to date:
+Triggers: `AskUserQuestion` mid-run; `git restore`/`reset` against the
+tree; child-reported `--no-ff` recovery, stash dance, or out-of-band
+merge surgery; child closes via `--skipValidation`; force-pushing or
+empty-committing to dodge CI diagnosis.
 
-- you call `AskUserQuestion` to the operator mid-run;
-- you `git restore` or `git reset` against the working tree to discard
-  drift;
-- a Story child reports manual `--no-ff` recovery, a stash dance, or any
-  out-of-band merge surgery in its return contract;
-- a Story child closes via `--skipValidation` (currently universal due
-  to `feedback_close_validation_main_drift` — see "Open caveats" below
-  for the version-1 carve-out);
-- you discard CI failures by force-pushing or empty-committing to dodge
-  diagnosis.
-
-Each entry disqualifies the Epic from auto-merge. The cost of forgetting
-to log an intervention is that the predicate certifies the run as clean
-when it wasn't — be conservative.
-
-### Open caveats
-
-- **`--skipValidation` is excluded from v1 predicate.** While
-  `feedback_close_validation_main_drift` remains unresolved, every story
-  closes via the programmatic skip path. Counting that as a manual
-  intervention would prevent auto-merge from ever firing. Once the
-  underlying gate is fixed, tighten the predicate so `skipValidation`
-  becomes a disqualifier and remove this carve-out.
+> **`--skipValidation` carve-out.** While
+> `feedback_close_validation_main_drift` is unresolved, every story
+> closes via the programmatic skip path; treating that as an
+> intervention would prevent auto-merge from ever firing. Tighten the
+> predicate once the underlying gate is fixed.
 
 ---
 
 ## Phase 8 — Local branch cleanup
 
-Once Phase 7.5 has merged the PR (auto or via the operator-merges-button
-fallback), reap the Epic's local branches + worktrees:
+After Phase 7.5 has merged the PR (auto or manual), reap local refs:
 
 ```bash
 node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>
 ```
 
-The CLI reads the `epic-run-state` checkpoint, enumerates `epic/<id>`
-plus every `story-<storyId>`, removes any still-registered worktree
-(with the Windows-lock fallback recipe from
-`feedback_sprint_story_close_reap`), prunes the worktree registry, and
-drops the local refs. Remote branches are out of scope —
-`gh pr merge --delete-branch` already deleted `origin/epic/<id>` and
-the story branches were deleted at story-close time.
-
-Fall back to `/delete-epic-branches` for the "scrap and reset" flow that
-also walks the remote refs (`task/epic-<id>/*`, `feature/epic-<id>/*`).
-Phase 8 is narrower by design — post-merge, the only refs that remain
-are local, and the cleanup script is purpose-built for that pattern.
-
-### When the PR did not auto-merge
+Enumerates `epic/<id>` + every `story-<storyId>`, removes worktrees,
+prunes the registry, drops local refs. Remote branches are out of
+scope (`gh pr merge --delete-branch` handled them). Fall back to
+`/delete-epic-branches` for the wider "scrap and reset" flow that
+walks remote `task/*` and `feature/*` refs.
 
 If Phase 7.5 fell back to the operator-merges-button path, **do not**
-run Phase 8 yourself. The operator merges via the GitHub UI when they
-are ready; they can invoke `/epic-deliver-cleanup <id>` (or
-`/delete-epic-branches <id>`) after the merge to reclaim the local refs.
+run Phase 8 yourself — the operator invokes `/epic-deliver-cleanup`
+(or `/delete-epic-branches`) after they merge.
 
 ---
 
 ## Idempotence and resume
 
-Re-runs pick up at the next undispatched wave (in-flight Stories
-finish via `/story-execute`'s own checkpointing). A completed wave
-loop with a clean evidence record skips Phase 3 in milliseconds.
-A blocked Epic re-enters the blocker handler's wait loop. The PR
-created in Phase 6 is updated in place on subsequent runs (no
-duplicate PRs are opened against the same Epic branch).
-
-The authoritative live view is the `epic-run-progress` structured
-comment on the Epic ticket, upserted in place after every wave from
-the merged checkpoint state.
+Re-runs pick up at the next undispatched wave (in-flight Stories finish
+via `/story-execute`'s own checkpointing). The PR from Phase 6 is
+updated in place on subsequent runs. The authoritative live view is
+the `epic-run-progress` structured comment.
 
 ---
 
 ## Constraints
 
-- **Never** merge `epic/<epicId>` into `main` from anywhere other than
-  Phase 7.5's auto-merge CLI. Phase 6 opens the PR, Phase 7 drives it
-  to green, Phase 7.5 evaluates the predicate; everything else hands
-  the button to the operator.
-- **Never** dispatch more than one wave at a time. Concurrency lives
-  **inside** a single wave's fan-out (Phase 2a).
-- **Never** dispatch more than `concurrencyCap` Stories in flight per
-  wave. `concurrencyCap` is sourced from
-  `orchestration.runners.deliverRunner.concurrencyCap` and surfaced in
-  the `epic-deliver-prepare.js` JSON.
-- **Never** flip Story-level labels from inside this skill. Story-state
-  ownership belongs to `/story-execute`.
-- **Never** invoke `/story-execute` yourself. Your sole dispatch
-  primitive is the `Agent` tool — children run `/story-execute`, you
-  do not. This holds even for single-Story waves.
-- **Never** spawn a subprocess to dispatch a Story or a wave.
-  In-session Agent-tool fan-out is the only supported dispatch path.
+- **Never** merge `epic/<epicId>` to `main` outside Phase 7.5.
+- **Never** dispatch more than one wave at a time; concurrency lives
+  inside a single wave's fan-out, capped at `concurrencyCap`.
+- **Never** flip Story-level labels from this skill; **never** invoke
+  `/story-execute` yourself (children run it via Agent fan-out, even
+  for single-Story waves); **never** spawn a subprocess for dispatch.
 - **Always** checkpoint via `epic-deliver-prepare.js` /
-  `epic-execute-record-wave.js`; never write run state anywhere else.
-- **Always** post a friction structured comment on the Epic before
-  returning a non-`complete` outcome.
-- **Always** auto-invoke the code-review helper (Phase 4) and the
-  retro helper (Phase 5) when they have not already produced their
-  artefacts. Do not halt and ask the operator to run them separately.
-- **Always** persist the code-review output as a `code-review`
-  structured comment on the Epic — `epic-code-review.js` already does
-  this via `upsertStructuredComment`; do not bypass it.
-- **Always** drive Phase 7 to a green CI verdict before returning
-  control to the operator. There is no longer a bot approver, an
-  auto-triage comment, or an auto-fix push; the host LLM owns the
-  iteration loop until the PR is mergeable or the operator parks the
-  Epic at `agent::blocked`.
+  `epic-execute-record-wave.js`; never write run state elsewhere.
+- **Always** post a friction structured comment before a non-`complete`
+  outcome.
+- **Always** auto-invoke the code-review and retro helpers (Phases 4–5)
+  when their artefacts aren't already present.
+- **Always** drive Phase 7 to green CI before returning control — the
+  host LLM owns the loop until the PR is mergeable or the Epic is
+  parked at `agent::blocked`.
