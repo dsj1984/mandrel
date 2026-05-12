@@ -55,16 +55,30 @@ import { loadSpec, loadState } from './lib/spec/index.js';
  * untouched). Story #1501 — preserves `fromManifest` behaviour for
  * non-spec callers.
  *
+ * The loaders are injectable so tests can drive the spec-present /
+ * spec-absent branches without writing to the real `.agents/epics/`
+ * directory.
+ *
  * @param {object} manifest — the dispatch manifest already built by `resolveAndDispatch`.
+ * @param {{
+ *   loadSpec?: typeof loadSpec,
+ *   loadState?: typeof loadState,
+ *   fromSpec?: typeof fromSpec,
+ *   loaderOpts?: object,
+ * }} [deps]
  * @returns {string|null} pre-rendered Markdown, or null on any failure.
  */
-export function tryRenderFromSpec(manifest) {
+export function tryRenderFromSpec(manifest, deps = {}) {
   const epicId = manifest?.epicId;
   if (!epicId || manifest.type === 'story-execution') return null;
+  const loadSpecFn = deps.loadSpec ?? loadSpec;
+  const loadStateFn = deps.loadState ?? loadState;
+  const fromSpecFn = deps.fromSpec ?? fromSpec;
+  const loaderOpts = deps.loaderOpts ?? {};
   try {
-    const spec = loadSpec(epicId);
-    const state = loadState(epicId);
-    return fromSpec(spec, {
+    const spec = loadSpecFn(epicId, loaderOpts);
+    const state = loadStateFn(epicId, loaderOpts);
+    return fromSpecFn(spec, {
       state,
       generatedAt: manifest.generatedAt,
       executor: manifest.executor,
