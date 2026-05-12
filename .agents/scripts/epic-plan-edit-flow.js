@@ -1,3 +1,7 @@
+// cli-opt-out: library module — surfaces (`detectExistingSpec`, `runEditFlow`)
+// are consumed by `epic-plan.js` (the actual CLI) and the test suite. This file
+// has no main() because it has no CLI surface of its own.
+
 /**
  * epic-plan-edit-flow.js — Phase 2.5 edit-in-place flow for `/epic-plan`.
  *
