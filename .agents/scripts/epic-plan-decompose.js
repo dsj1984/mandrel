@@ -5,20 +5,26 @@
  * epic-plan-decompose.js — Phase 2 (decompose) entry point for the split
  * planning flow.
  *
- * Wraps `ticket-decomposer.js` behind the idempotent plan-phase lifecycle:
+ * Wraps the deterministic ticket-decomposer engine behind the idempotent
+ * plan-phase lifecycle:
  *
  *   1. --emit-context   Prints the decomposer authoring context (PRD body,
  *                       Tech Spec body, risk heuristics, system prompt, ticket
- *                       cap) as JSON. Host LLM consumes this to author the
- *                       ticket hierarchy JSON.
+ *                       cap) as JSON. The authoring middle is the
+ *                       `epic-plan-decompose-author` Skill
+ *                       (`.agents/skills/core/epic-plan-decompose-author/SKILL.md`)
+ *                       — it consumes this envelope and writes the ticket
+ *                       array JSON. The Skill carries the authoritative
+ *                       system prompt; the `systemPrompt` field on the
+ *                       envelope is retained as a backstop for tools that
+ *                       still consume the legacy contract.
  *
  *   2. (default)        Given an author-provided tickets JSON file, persists
  *                       the Feature/Story/Task hierarchy, flips the Epic to
  *                       `agent::ready`, and updates the `epic-plan-state`
  *                       structured comment.
  *
- * --force re-decomposes (closes existing child Features/Stories/Tasks, same
- * semantics as `ticket-decomposer.js --force`).
+ * --force re-decomposes (closes existing child Features/Stories/Tasks).
  *
  * Exit codes:
  *   0 — phase complete, Epic is now `agent::ready`.
