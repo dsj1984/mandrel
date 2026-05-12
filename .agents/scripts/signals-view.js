@@ -6,9 +6,14 @@
  *
  * Reads signals via `lib/signals/read`, materialises a span-tree via
  * `lib/signals/buildSpanTree`, and prints a readable Epic → Story → Task →
- * events tree to stdout. Uses **only `console.log`** — no Ink, no
- * blessed, no terminal-control escape sequences — so it works on
- * Windows + bash hosts (see `parallel-tooling.md`).
+ * events tree to stdout. The output is **plain text via
+ * `process.stdout.write`** — no Ink, no blessed, no terminal-control
+ * escape sequences — so it works on Windows + bash hosts (see
+ * `parallel-tooling.md`). The Task ticket's "console.log only" rule
+ * specified the absence of TUI libraries; we route through
+ * `process.stdout.write` to comply with the framework-wide
+ * `tests/enforcement/no-console.test.js` allowlist (machine-parsable
+ * stdout uses `process.stdout.write`, not the console).
  *
  * Usage:
  *   node .agents/scripts/signals-view.js <epic-id> [--story <id>]
@@ -36,6 +41,18 @@
  */
 
 import * as signals from './lib/signals/index.js';
+
+/**
+ * Single sink for every line the viewer emits. Centralised so the
+ * enforcement test (`tests/enforcement/no-console.test.js`) sees one
+ * audit point and the unit tests patch one seam, not eleven.
+ *
+ * @param {string} line
+ * @returns {void}
+ */
+function println(line) {
+  process.stdout.write(`${line}\n`);
+}
 
 const USAGE =
   'Usage: node .agents/scripts/signals-view.js <epic-id> [--story <id>] [--temp-root <path>]';
@@ -125,8 +142,9 @@ function describeEvent(evt) {
 
 /**
  * Render the span-tree to stdout. Pure formatter — every output line
- * goes through `console.log` (Logger is intentionally not used; the
- * viewer's contract is "dumb terminal compatible").
+ * goes through the local `println` helper (which delegates to
+ * `process.stdout.write`). Logger is intentionally not used: the
+ * viewer's contract is "dumb terminal compatible, parseable output".
  *
  * @param {{ epic: number | null, stories: Array<object> }} tree
  * @param {{ storyFilter?: number | null }} [opts]
@@ -134,37 +152,37 @@ function describeEvent(evt) {
  */
 export function renderTree(tree, opts = {}) {
   const filter = opts.storyFilter ?? null;
-  console.log(`Epic #${tree.epic ?? '?'}`);
+  println(`Epic #${tree.epic ?? '?'}`);
   const stories =
     filter == null ? tree.stories : tree.stories.filter((s) => s.id === filter);
 
   if (stories.length === 0) {
-    console.log('  (no story spans)');
+    println('  (no story spans)');
     return;
   }
 
   for (const story of stories) {
     const label = story.id == null ? '(no story id)' : `#${story.id}`;
-    console.log(
+    println(
       `  Story ${label}  ${formatDuration(story.durationMs)}  ` +
         `[${story.startedAt ?? '?'} → ${story.endedAt ?? '?'}]`,
     );
     for (const task of story.tasks) {
       const tlabel = task.id == null ? '(no task id)' : `#${task.id}`;
-      console.log(
+      println(
         `    Task ${tlabel}  ${formatDuration(task.durationMs)}  ` +
           `(${task.events.length} event${task.events.length === 1 ? '' : 's'})`,
       );
       for (const evt of task.events) {
-        console.log(`      ${describeEvent(evt)}`);
+        println(`      ${describeEvent(evt)}`);
       }
     }
     if (story.events.length > 0) {
-      console.log(
+      println(
         `    (${story.events.length} story-level event${story.events.length === 1 ? '' : 's'})`,
       );
       for (const evt of story.events) {
-        console.log(`      ${describeEvent(evt)}`);
+        println(`      ${describeEvent(evt)}`);
       }
     }
   }
@@ -187,7 +205,7 @@ function buildConfig(tempRoot) {
 export async function main(argv, deps = {}) {
   const parsed = parseArgs(argv);
   if (!parsed.ok) {
-    console.log(parsed.error);
+    println(parsed.error);
     return 1;
   }
   const { epic, story, tempRoot } = parsed;
@@ -204,7 +222,7 @@ export async function main(argv, deps = {}) {
   try {
     tree = await buildSpanTree(iter);
   } catch (err) {
-    console.log(
+    println(
       `signals: failed to read signals for Epic #${epic}: ${
         err instanceof Error ? err.message : String(err)
       }`,
@@ -214,7 +232,7 @@ export async function main(argv, deps = {}) {
 
   if (tree.stories.length === 0) {
     const scope = story != null ? ` (Story #${story})` : '';
-    console.log(`No signals found for Epic #${epic}${scope}.`);
+    println(`No signals found for Epic #${epic}${scope}.`);
     return 0;
   }
 
@@ -222,7 +240,7 @@ export async function main(argv, deps = {}) {
   // `story` is omitted. If the requested Story filter doesn't match any
   // observed Story id, treat that as the missing-file case too.
   if (story != null && !tree.stories.some((s) => s.id === story)) {
-    console.log(`No signals found for Epic #${epic} (Story #${story}).`);
+    println(`No signals found for Epic #${epic} (Story #${story}).`);
     return 0;
   }
 
@@ -246,7 +264,7 @@ if (isDirectInvocation) {
   main(process.argv.slice(2)).then(
     (code) => process.exit(code),
     (err) => {
-      console.log(`signals-view: unexpected error: ${err?.message ?? err}`);
+      println(`signals-view: unexpected error: ${err?.message ?? err}`);
       process.exit(1);
     },
   );

@@ -39,19 +39,26 @@ afterEach(() => {
 });
 
 function captureStdout() {
-  const buf = [];
-  const orig = console.log;
-  console.log = (...args) => {
-    buf.push(
-      args.map((a) => (typeof a === 'string' ? a : String(a))).join(' '),
-    );
+  // The viewer writes through `process.stdout.write` (the framework's
+  // sanctioned alternative to `console.log`; see
+  // `tests/enforcement/no-console.test.js`). We patch the write method
+  // and reassemble lines from the chunks.
+  const chunks = [];
+  const orig = process.stdout.write.bind(process.stdout);
+  process.stdout.write = (chunk, ...rest) => {
+    chunks.push(typeof chunk === 'string' ? chunk : String(chunk));
+    return true;
   };
   return {
     output() {
-      return buf.join('\n');
+      // Strip the trailing newline before splitting so the line count
+      // matches the number of println() calls.
+      const joined = chunks.join('');
+      const trimmed = joined.endsWith('\n') ? joined.slice(0, -1) : joined;
+      return trimmed;
     },
     restore() {
-      console.log = orig;
+      process.stdout.write = orig;
     },
   };
 }
