@@ -1078,12 +1078,6 @@
       "startLine": 561
     },
     {
-      "crap": 54.290854467738654,
-      "file": ".agents/scripts/git-cleanup-branches.js",
-      "method": "main",
-      "startLine": 572
-    },
-    {
       "crap": 12,
       "file": ".agents/scripts/git-pr-quality-gate.js",
       "method": "resolveChecks",
