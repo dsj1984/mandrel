@@ -20,14 +20,14 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 81.15,
-    "branches": 77.97,
-    "functions": 76.92
+    "lines": 81.85,
+    "branches": 80.92,
+    "functions": 86.67
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 69.3,
-    "branches": 87.36,
-    "functions": 62.5
+    "lines": 67.97,
+    "branches": 82.5,
+    "functions": 66.67
   },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 65.46,
@@ -316,7 +316,7 @@
   },
   ".agents/scripts/lib/cli-utils.js": {
     "lines": 100,
-    "branches": 92.31,
+    "branches": 84.21,
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
@@ -462,6 +462,21 @@
   ".agents/scripts/lib/fs-utils.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/gates/baseline-store.js": {
+    "lines": 96.23,
+    "branches": 77.27,
+    "functions": 100
+  },
+  ".agents/scripts/lib/gates/friction.js": {
+    "lines": 90.7,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/gates/gate-cli.js": {
+    "lines": 100,
+    "branches": 94.87,
     "functions": 100
   },
   ".agents/scripts/lib/gh-exec.js": {
@@ -994,6 +1009,11 @@
     "branches": 81.18,
     "functions": 100
   },
+  ".agents/scripts/lib/signals/write.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
   ".agents/scripts/lib/story-init/blocker-validator.js": {
     "lines": 100,
     "branches": 95.24,
@@ -1141,7 +1161,7 @@
   },
   ".agents/scripts/lib/worktree/lifecycle/force-drain.js": {
     "lines": 87.68,
-    "branches": 85.25,
+    "branches": 83.33,
     "functions": 60
   },
   ".agents/scripts/lib/worktree/lifecycle/gc.js": {
@@ -1175,9 +1195,9 @@
     "functions": 100
   },
   ".agents/scripts/lint-baseline.js": {
-    "lines": 61.83,
-    "branches": 78.69,
-    "functions": 54.55
+    "lines": 63.62,
+    "branches": 83.33,
+    "functions": 61.54
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
