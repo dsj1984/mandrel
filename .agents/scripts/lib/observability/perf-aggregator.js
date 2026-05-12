@@ -1,11 +1,19 @@
 /**
- * Performance signal aggregator (Epic #1030 / Story #1123).
+ * Performance signal aggregator (Epic #1030 / Story #1123; rewrite under
+ * Epic #1181 / Story #1438 / Task #1460).
  *
  * Pure functions that turn the per-Story `signals.ndjson` stream into the
  * structured payloads posted by `analyze-execution.js`:
  *
  *   - `computeStoryPerfSummary(events, opts)` → `<!-- structured:story-perf-summary -->`
  *   - `computeEpicPerfReport(perStorySummaries, opts)` → `<!-- structured:epic-perf-report -->`
+ *
+ * Plus streaming counterparts that consume the canonical
+ * `lib/signals/read` iterator directly, so the aggregator owns its own
+ * NDJSON ingestion through the shared reader (Task #1460 AC):
+ *
+ *   - `computeStoryPerfSummaryFromStore({ storyId, epicId, config? })`
+ *   - `computeEpicPerfReportFromStore({ epicId, perStorySummaries, config? })`
  *
  * Schemas:
  *   - `.agents/schemas/story-perf-summary.schema.json`
@@ -20,19 +28,30 @@
  *     deciding whether to log. The aggregator never throws on bad data.
  *   - Numeric fields are floored to non-negative integers so the schemas
  *     (`integer`, `minimum: 0`) hold by construction.
+ *
+ * NDJSON ingestion discipline (Epic #1181):
+ *   - Field-name literals for event `kind` come from
+ *     `lib/signals/schema.js` so writer ↔ reader names stay in lockstep.
+ *   - All file I/O for `signals.ndjson` goes through `lib/signals/read.js`
+ *     (no direct `readFileSync` / `createReadStream` on signals.ndjson in
+ *     this module). A grep gate in `tests/lib/checks/` enforces this on
+ *     CI.
  */
 
-const FRICTION_KIND = 'friction';
-const HOTSPOT_KIND = 'hotspot';
-const REWORK_KIND = 'rework';
-const RETRY_KIND = 'retry';
+import { read as readSignals } from '../signals/read.js';
+import { EVENT_KINDS } from '../signals/schema.js';
+
+const FRICTION_KIND = EVENT_KINDS.FRICTION;
+const HOTSPOT_KIND = EVENT_KINDS.HOTSPOT;
+const REWORK_KIND = EVENT_KINDS.REWORK;
+const RETRY_KIND = EVENT_KINDS.RETRY;
 const SIGNAL_COUNT_KINDS = Object.freeze([
-  'friction',
-  'hotspot',
-  'rework',
-  'churn',
-  'idle',
-  'retry',
+  EVENT_KINDS.FRICTION,
+  EVENT_KINDS.HOTSPOT,
+  EVENT_KINDS.REWORK,
+  EVENT_KINDS.CHURN,
+  EVENT_KINDS.IDLE,
+  EVENT_KINDS.RETRY,
 ]);
 
 function isObject(v) {
@@ -377,4 +396,86 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
     topHotspots,
     mostFrictionStories,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Streaming entry-points (Epic #1181 / Story #1438 / Task #1460)
+// ---------------------------------------------------------------------------
+
+/**
+ * Streaming variant of `computeStoryPerfSummary` that ingests events
+ * directly from `lib/signals/read.js` rather than expecting the caller
+ * to materialise the iterable upstream. The aggregation logic is
+ * identical — we collect the events through the shared reader and then
+ * delegate to `computeStoryPerfSummary`.
+ *
+ * Use this when the caller is the analyzer and already has the
+ * `{ epicId, storyId, config }` triple; use the pure
+ * `computeStoryPerfSummary(events, opts)` when the caller already
+ * holds an in-memory event array (tests, mock injections).
+ *
+ * @param {{
+ *   storyId: number,
+ *   epicId: number,
+ *   closedAt?: string,
+ *   phaseTiming?: object|null,
+ *   config?: object,
+ * }} opts
+ * @returns {Promise<object>} StoryPerfSummary payload.
+ */
+export async function computeStoryPerfSummaryFromStore(opts) {
+  if (!opts || typeof opts !== 'object') {
+    throw new TypeError('computeStoryPerfSummaryFromStore: opts is required');
+  }
+  const { storyId, epicId, config } = opts;
+  const events = [];
+  for await (const evt of readSignals({
+    epic: Number(epicId),
+    story: Number(storyId),
+    config,
+  })) {
+    events.push(evt);
+  }
+  return computeStoryPerfSummary(events, {
+    storyId,
+    epicId,
+    closedAt: opts.closedAt,
+    phaseTiming: opts.phaseTiming,
+  });
+}
+
+/**
+ * Streaming variant of `computeEpicPerfReport` that ingests the
+ * raw-event roll-up directly from `lib/signals/read.js` (across every
+ * Story under the Epic). Per-Story summaries are still passed in by
+ * the caller — those are the canonical per-Story payloads upserted
+ * onto each Story ticket and not derivable from the raw stream alone
+ * (they fold in phase-timer data).
+ *
+ * @param {{
+ *   epicId: number,
+ *   perStorySummaries?: Iterable<object>,
+ *   generatedAt?: string,
+ *   waveParallelism?: Array<object>,
+ *   topHotspots?: Array<object>,
+ *   config?: object,
+ * }} opts
+ * @returns {Promise<object>} EpicPerfReport payload.
+ */
+export async function computeEpicPerfReportFromStore(opts) {
+  if (!opts || typeof opts !== 'object') {
+    throw new TypeError('computeEpicPerfReportFromStore: opts is required');
+  }
+  const { epicId, perStorySummaries, config } = opts;
+  const events = [];
+  for await (const evt of readSignals({ epic: Number(epicId), config })) {
+    events.push(evt);
+  }
+  return computeEpicPerfReport(perStorySummaries ?? [], {
+    epicId,
+    generatedAt: opts.generatedAt,
+    events,
+    waveParallelism: opts.waveParallelism,
+    topHotspots: opts.topHotspots,
+  });
 }

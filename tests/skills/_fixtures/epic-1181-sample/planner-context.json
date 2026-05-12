@@ -1,0 +1,20 @@
+{
+  "epic": {
+    "id": 9999,
+    "title": "Sample Epic for skill smoke tests",
+    "body": "Sample Epic body. See sibling epic.md for the human-readable copy.",
+    "bodySummary": null
+  },
+  "docsContext": {
+    "items": [
+      {
+        "path": "docs/sample.md",
+        "summary": "Sample doc capturing how the codebase currently handles smoke fixtures."
+      }
+    ]
+  },
+  "systemPrompts": {
+    "prd": "Write the PRD using the standard template.",
+    "techSpec": "Write the Tech Spec using the standard template."
+  }
+}

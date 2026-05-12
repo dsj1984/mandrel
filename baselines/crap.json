@@ -892,36 +892,6 @@
       "startLine": 782
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "buildAuthoringContext",
-      "startLine": 72
-    },
-    {
-      "crap": 11,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "planEpic",
-      "startLine": 112
-    },
-    {
-      "crap": 1.823974609375,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "parseEpicPlannerArgs",
-      "startLine": 198
-    },
-    {
-      "crap": 8,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "runEpicPlannerCli",
-      "startLine": 233
-    },
-    {
-      "crap": 26.25674296544686,
-      "file": ".agents/scripts/epic-planner.js",
-      "method": "main",
-      "startLine": 307
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/evidence-gate.js",
       "method": "splitOnDashDash",
@@ -3265,61 +3235,73 @@
       "crap": 3,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "isObject",
-      "startLine": 38
+      "startLine": 57
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "nonNegativeInt",
-      "startLine": 42
+      "startLine": 61
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "nonNegativeNumber",
-      "startLine": 48
+      "startLine": 67
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "frictionByCategory",
-      "startLine": 61
+      "startLine": 80
     },
     {
       "crap": 11.009944933015534,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "topSlowPhasesVsBaseline",
-      "startLine": 85
+      "startLine": 104
     },
     {
       "crap": 9,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "reworkScore",
-      "startLine": 118
+      "startLine": 137
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "retryDensity",
-      "startLine": 154
+      "startLine": 173
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "phaseTimingsMs",
-      "startLine": 176
+      "startLine": 195
     },
     {
       "crap": 10.013486404018948,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeStoryPerfSummary",
-      "startLine": 196
+      "startLine": 215
     },
     {
       "crap": 18.001179790623578,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeEpicPerfReport",
-      "startLine": 251
+      "startLine": 270
+    },
+    {
+      "crap": 3.009,
+      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
+      "method": "computeStoryPerfSummaryFromStore",
+      "startLine": 426
+    },
+    {
+      "crap": 3.0146549969468754,
+      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
+      "method": "computeEpicPerfReportFromStore",
+      "startLine": 465
     },
     {
       "crap": 1,
@@ -5308,6 +5290,276 @@
       "startLine": 42
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "__resetMalformedLatchForTests",
+      "startLine": 71
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "__getMalformedLatchForTests",
+      "startLine": 83
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "isPositiveInt",
+      "startLine": 87
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "warnOnceMalformed",
+      "startLine": 91
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "streamFile",
+      "startLine": 110
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "listEpicStorySignalsFiles",
+      "startLine": 161
+    },
+    {
+      "crap": 12.865514650638616,
+      "file": ".agents/scripts/lib/signals/read.js",
+      "method": "read",
+      "startLine": 200
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "isObject",
+      "startLine": 115
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "isTimestamp",
+      "startLine": 127
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "isPositiveInt",
+      "startLine": 138
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "hasCommonEnvelope",
+      "startLine": 152
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "isValidSignal",
+      "startLine": 172
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-1>",
+      "startLine": 191
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-2>",
+      "startLine": 197
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-3>",
+      "startLine": 198
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-4>",
+      "startLine": 199
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-5>",
+      "startLine": 200
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-6>",
+      "startLine": 201
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-7>",
+      "startLine": 203
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-8>",
+      "startLine": 204
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-9>",
+      "startLine": 205
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-10>",
+      "startLine": 206
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/schema.js",
+      "method": "<anon method-11>",
+      "startLine": 207
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "tsOf",
+      "startLine": 53
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "epicOf",
+      "startLine": 58
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "storyOf",
+      "startLine": 62
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "taskOf",
+      "startLine": 66
+    },
+    {
+      "crap": 6.0703125,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "cmpTs",
+      "startLine": 79
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "diffMs",
+      "startLine": 88
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryLifecycle",
+      "startLine": 96
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryStart",
+      "startLine": 105
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "isStoryEnd",
+      "startLine": 109
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "emptyTaskNode",
+      "startLine": 113
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "emptyStoryNode",
+      "startLine": 123
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "storyKeyOf",
+      "startLine": 134
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "getOrCreateStory",
+      "startLine": 138
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "getOrCreateTask",
+      "startLine": 149
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "updateStoryLifecycle",
+      "startLine": 160
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "widenTaskWindow",
+      "startLine": 173
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "bootstrapStoryWindow",
+      "startLine": 183
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "ingestEvent",
+      "startLine": 198
+    },
+    {
+      "crap": 6.049382716049383,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "compareNodeIds",
+      "startLine": 232
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "finalizeTask",
+      "startLine": 242
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "finalizeStory",
+      "startLine": 247
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/signals/span-tree.js",
+      "method": "buildSpanTree",
+      "startLine": 267
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/story-init/blocker-validator.js",
       "method": "validateBlockers",
@@ -6118,6 +6370,54 @@
       "startLine": 453
     },
     {
+      "crap": 7.095703125,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "parseArgs",
+      "startLine": 41
+    },
+    {
+      "crap": 10.325153685921862,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "computeDeltaForPath",
+      "startLine": 65
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "computeLocDelta",
+      "startLine": 97
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "<anon method-3>",
+      "startLine": 109
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "renderHuman",
+      "startLine": 126
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "help",
+      "startLine": 153
+    },
+    {
+      "crap": 4.432,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "main",
+      "startLine": 165
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/loc-delta.js",
+      "method": "<anon method-4>",
+      "startLine": 192
+    },
+    {
       "crap": 11,
       "file": ".agents/scripts/noise-study.js",
       "method": "parseArgv",
@@ -6536,6 +6836,54 @@
       "file": ".agents/scripts/select-audits.js",
       "method": "main",
       "startLine": 148
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "println",
+      "startLine": 54
+    },
+    {
+      "crap": 20.210238222149332,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "parseArgs",
+      "startLine": 67
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "formatDuration",
+      "startLine": 126
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "describeEvent",
+      "startLine": 136
+    },
+    {
+      "crap": 8.034114465085977,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "renderTree",
+      "startLine": 154
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "buildConfig",
+      "startLine": 192
+    },
+    {
+      "crap": 10.341542845511906,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "main",
+      "startLine": 206
+    },
+    {
+      "crap": 2.5,
+      "file": ".agents/scripts/signals-view.js",
+      "method": "<anon method-3>",
+      "startLine": 266
     },
     {
       "crap": 1,

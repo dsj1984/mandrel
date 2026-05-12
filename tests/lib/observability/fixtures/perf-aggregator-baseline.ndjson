@@ -1,0 +1,15 @@
+{"kind":"friction","ts":"2026-05-09T10:00:00.000Z","epic":1030,"story":1041,"task":1056,"category":"Tool Limitation","source":{"tool":"check-maintainability.js"},"details":{"category":"Tool Limitation","message":"baseline drift"}}
+{"kind":"friction","ts":"2026-05-09T10:00:05.000Z","epic":1030,"story":1041,"task":1057,"category":"Execution Error","source":{"tool":"check-crap.js"},"details":{"category":"Execution Error","message":"crap over cap"}}
+{"kind":"friction","ts":"2026-05-09T10:00:10.000Z","epic":1030,"story":1041,"task":1057,"category":"Tool Limitation","source":{"tool":"diagnose-friction.js"},"details":{"category":"Tool Limitation","message":"npm flake"}}
+{"kind":"friction","ts":"2026-05-09T10:00:15.000Z","epic":1030,"story":1041,"task":1058,"source":{"tool":"check-maintainability.js"},"details":{"message":"no-category friction"}}
+{"kind":"hotspot","ts":"2026-05-09T10:01:00.000Z","epic":1030,"story":1041,"phase":"test","source":{"tool":"baseline-detector"},"details":{"phase":"test","elapsedMs":9000,"baselineP95Ms":3000,"ratio":3.0}}
+{"kind":"hotspot","ts":"2026-05-09T10:01:05.000Z","epic":1030,"story":1041,"phase":"lint","source":{"tool":"baseline-detector"},"details":{"phase":"lint","elapsedMs":1500,"baselineP95Ms":1000,"ratio":1.5}}
+{"kind":"hotspot","ts":"2026-05-09T10:01:10.000Z","epic":1030,"story":1041,"phase":"install","source":{"tool":"baseline-detector"},"details":{"phase":"install","elapsedMs":4000,"baselineP95Ms":1000,"ratio":4.0}}
+{"kind":"rework","ts":"2026-05-09T10:02:00.000Z","epic":1030,"story":1041,"source":{"tool":"rework-detector"},"details":{"path":"src/aggregator.js","edits":8}}
+{"kind":"rework","ts":"2026-05-09T10:02:05.000Z","epic":1030,"story":1041,"source":{"tool":"rework-detector"},"details":{"path":"src/aggregator.js","edits":6}}
+{"kind":"rework","ts":"2026-05-09T10:02:10.000Z","epic":1030,"story":1041,"source":{"tool":"rework-detector"},"details":{"path":"src/reader.js","edits":5}}
+{"kind":"retry","ts":"2026-05-09T10:03:00.000Z","epic":1030,"story":1041,"source":{"tool":"retry-detector"},"details":{"command":"npm test"}}
+{"kind":"retry","ts":"2026-05-09T10:03:05.000Z","epic":1030,"story":1041,"source":{"tool":"retry-detector"},"details":{"command":"npm test"}}
+{"kind":"retry","ts":"2026-05-09T10:03:10.000Z","epic":1030,"story":1041,"source":{"tool":"retry-detector"},"details":{"command":"npm run lint"}}
+{"kind":"retry","ts":"2026-05-09T10:03:15.000Z","epic":1030,"story":1041,"source":{"tool":"retry-detector"},"details":{}}
+{"kind":"trace","ts":"2026-05-09T10:04:00.000Z","epic":1030,"story":1041,"source":{"tool":"Bash"},"details":{"command":"git status","durationMs":42}}

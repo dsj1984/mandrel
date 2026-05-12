@@ -99,11 +99,6 @@
     "branches": 69.57,
     "functions": 71.43
   },
-  ".agents/scripts/epic-planner.js": {
-    "lines": 89.91,
-    "branches": 82.5,
-    "functions": 80
-  },
   ".agents/scripts/evidence-gate.js": {
     "lines": 97.87,
     "branches": 85.71,
@@ -485,7 +480,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -550,8 +545,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
-    "lines": 98.68,
-    "branches": 81.67,
+    "lines": 98.13,
+    "branches": 81.1,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
@@ -974,6 +969,26 @@
     "branches": 100,
     "functions": 25
   },
+  ".agents/scripts/lib/signals/index.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
+  ".agents/scripts/lib/signals/read.js": {
+    "lines": 96.71,
+    "branches": 89.66,
+    "functions": 100
+  },
+  ".agents/scripts/lib/signals/schema.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/signals/span-tree.js": {
+    "lines": 99.31,
+    "branches": 81.18,
+    "functions": 100
+  },
   ".agents/scripts/lib/story-init/blocker-validator.js": {
     "lines": 100,
     "branches": 95.24,
@@ -1149,6 +1164,11 @@
     "branches": 78.69,
     "functions": 54.55
   },
+  ".agents/scripts/loc-delta.js": {
+    "lines": 86.83,
+    "branches": 69.05,
+    "functions": 77.78
+  },
   ".agents/scripts/noise-study.js": {
     "lines": 75.48,
     "branches": 88.68,
@@ -1199,6 +1219,11 @@
     "branches": 84.21,
     "functions": 33.33
   },
+  ".agents/scripts/signals-view.js": {
+    "lines": 88.81,
+    "branches": 68.92,
+    "functions": 77.78
+  },
   ".agents/scripts/story-close.js": {
     "lines": 69.5,
     "branches": 42.86,
@@ -1211,7 +1236,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.78,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
