@@ -1,14 +1,22 @@
 ---
 description: >-
-  Delete all local and remote branches associated with an Epic and its children
-  (Tasks, Stories, Features).
+  Delete all local and remote Git branches (and any associated worktrees)
+  for an Epic and its child Stories/Tasks/Features. Worktree-only scope —
+  this workflow never touches GitHub issues, labels, or ticket state.
 ---
 
 # Delete Epic Branches Workflow
 
 This workflow provides a manual cleanup mechanism specifically for **Git
-branches** when an Epic needs to be reset. It deletes both local and origin
-branches for the Epic and its full hierarchy.
+branches and worktrees** when an Epic needs to be reset. It deletes both
+local and `origin/` branches for the Epic and its full hierarchy.
+
+> **Worktree-only scope.** This workflow does **not** close, label, or
+> otherwise mutate GitHub tickets. It also does not invoke any
+> `ITicketingProvider`. Issue lifecycle (closure, cascade, agent::done
+> labels) is owned by `story-close.js` / `epic-deliver-finalize.js`. If you
+> need to also reset the ticket state, use [`/delete-epic-tickets`](delete-epic-tickets.md)
+> as a separate, explicit step.
 
 The enumeration + deletion logic lives in
 [`delete-epic-branches.js`](../scripts/delete-epic-branches.js) — this
