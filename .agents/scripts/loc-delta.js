@@ -27,6 +27,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { runAsCli } from './lib/cli-utils.js';
+
 const SCOPE_PATHS = [
   '.agents/scripts/',
   '.agents/skills/',
@@ -181,22 +183,23 @@ async function main() {
   return report.pass ? 0 : 1;
 }
 
-// Direct-invocation guard so the module is unit-testable without spawning.
-const isDirect = (() => {
-  try {
-    const entry = process.argv[1];
-    if (!entry) return false;
-    // Compare normalized paths so Windows backslashes don't break the test.
-    return (
-      entry.endsWith('loc-delta.js') ||
-      entry.endsWith('loc-delta') ||
-      entry.includes('loc-delta.js')
-    );
-  } catch {
-    return false;
-  }
-})();
-
-if (isDirect && import.meta.url.endsWith('loc-delta.js')) {
-  main().then((code) => process.exit(code));
-}
+// Direct-CLI guard: drives `main()` through the framework's `runAsCli`
+// helper so the canonical main-guard shape (enforced by
+// `tests/enforcement/cli-wrapper.test.js`) stays intact. When imported
+// by a test, runAsCli is a no-op and the named exports remain reachable.
+runAsCli(
+  import.meta.url,
+  async () => {
+    const code = await main();
+    if (code !== 0) process.exit(code);
+  },
+  {
+    source: 'loc-delta',
+    onError(err) {
+      process.stderr.write(
+        `loc-delta: unexpected error: ${err?.message ?? err}\n`,
+      );
+      process.exit(1);
+    },
+  },
+);
