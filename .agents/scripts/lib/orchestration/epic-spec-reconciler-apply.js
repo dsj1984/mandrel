@@ -53,6 +53,25 @@
  * @property {ApplyResultEntry[]} updated
  * @property {ApplyResultEntry[]} closed
  * @property {ApplyResultEntry[]} relinked
+ * @property {Record<string, number>} slugToIssue
+ *   Post-apply slug → issue mapping. On full success, this is the
+ *   complete map; on partial failure, it reflects creates that landed
+ *   before the failure.
+ * @property {object} [state]            The state object the apply
+ *                                       pipeline persisted via the
+ *                                       `writeState` hook. Omitted when
+ *                                       `opts.spec` was not supplied.
+ * @property {string} [statePath]        Absolute path the default
+ *                                       writer returned; omitted when a
+ *                                       custom `writeState` hook ran or
+ *                                       when no spec was supplied.
+ * @property {Error}  [failure]          Present only when apply exited
+ *                                       via partial-failure: the
+ *                                       provider error that aborted
+ *                                       further dispatch. The state file
+ *                                       was still written to reflect the
+ *                                       successful ops so the operator
+ *                                       can resume cleanly.
  *
  * @typedef {object} ApplyOptions
  * @property {boolean} [dryRun]              Skip provider calls; echo plan.
@@ -80,8 +99,40 @@
  *                                           the discriminator's default.
  * @property {boolean} [explicitDelete]      Operator opt-in: passes
  *                                           through to `mayClose`.
+ * @property {object}  [spec]                Parsed spec used to derive
+ *                                           the post-apply state-file
+ *                                           mapping (Task #1518). When
+ *                                           omitted, apply does not
+ *                                           touch state.json — useful
+ *                                           for tests that only want to
+ *                                           drive the provider surface.
+ * @property {object}  [priorState]          Prior state loaded from
+ *                                           `<epicId>.state.json` (carries
+ *                                           pre-existing slug → issue
+ *                                           mappings and observed agent
+ *                                           states for slugs unchanged
+ *                                           by this apply).
+ * @property {string}  [stateNow]            Override for the
+ *                                           `lastReconciledAt` timestamp.
+ *                                           Tests pass a fixed string so
+ *                                           the rendered state is
+ *                                           byte-stable.
+ * @property {(epicId: number, state: object) => string} [writeState]
+ *                                           Optional state writer
+ *                                           injection point. Defaults to
+ *                                           `lib/spec/loader.js#writeState`.
+ *                                           Tests pass an in-memory
+ *                                           spy so apply does not touch
+ *                                           the real on-disk file.
+ * @property {{epicsDir?: string}} [writeStateOpts]
+ *                                           Forwarded to the default
+ *                                           `writeState` adapter so tests
+ *                                           can redirect the on-disk
+ *                                           output to a tmp dir.
  */
 
+import { writeState as defaultWriteState } from '../spec/loader.js';
+import { buildState } from '../spec/state.js';
 import { concurrentMap } from '../util/concurrent-map.js';
 import {
   assertPlanLabelAllowList,
@@ -439,51 +490,129 @@ export async function apply(plan, provider, opts = {}) {
   // Pre-flight gates. Throws synchronously before any provider call.
   assertGates(plan, opts);
 
-  // Phase 1: creates. Run in parallel — the diff engine emits creates
-  // sorted by slug, but child creates may depend on parent creates
-  // landing first. We resolve that by seeding `slugToIssue` with any
-  // parent already mapped (e.g. epic, pre-existing features) and by
-  // running creates in dependency order via a topological pass.
-  const orderedCreates = topoSortCreates(plan.creates, slugToIssue);
   const created = [];
-  for (const batch of orderedCreates) {
-    const batchResults = await concurrentMap(
-      batch,
-      (op) => applyCreate(op, provider, opts, slugToIssue),
-      { concurrency },
+  const updated = [];
+  const closed = [];
+  const relinked = [];
+  let failure = null;
+
+  // Phase 1: creates. Topo-batched so parent issues materialise before
+  // their children.
+  try {
+    const orderedCreates = topoSortCreates(plan.creates, slugToIssue);
+    for (const batch of orderedCreates) {
+      const batchResults = await concurrentMap(
+        batch,
+        (op) => applyCreate(op, provider, opts, slugToIssue),
+        { concurrency },
+      );
+      created.push(...batchResults);
+    }
+    // Phase 2: updates. Independent — run in parallel.
+    updated.push(
+      ...(await concurrentMap(plan.updates, (op) => applyUpdate(op, provider), {
+        concurrency,
+      })),
     );
-    created.push(...batchResults);
+    // Phase 3: closes. Independent — run in parallel. Note we remove the
+    // slug from `slugToIssue` so the projected state mapping drops it
+    // (matches the AC: closes disappear from state).
+    closed.push(
+      ...(await concurrentMap(
+        plan.closes,
+        async (op) => {
+          const entry = await applyClose(op, provider);
+          delete slugToIssue[op.slug];
+          return entry;
+        },
+        { concurrency },
+      )),
+    );
+    // Phase 4: relinks. Independent — run in parallel.
+    relinked.push(
+      ...(await concurrentMap(
+        plan.relinks,
+        (op) => applyRelink(op, provider, slugToIssue),
+        { concurrency },
+      )),
+    );
+  } catch (err) {
+    failure = err;
   }
 
-  // Phase 2: updates. Independent — run in parallel.
-  const updated = await concurrentMap(
-    plan.updates,
-    (op) => applyUpdate(op, provider),
-    { concurrency },
-  );
-
-  // Phase 3: closes. Independent — run in parallel.
-  const closed = await concurrentMap(
-    plan.closes,
-    (op) => applyClose(op, provider),
-    { concurrency },
-  );
-
-  // Phase 4: relinks. Independent — run in parallel.
-  const relinked = await concurrentMap(
-    plan.relinks,
-    (op) => applyRelink(op, provider, slugToIssue),
-    { concurrency },
-  );
-
-  return {
+  const result = {
     dryRun: false,
     created,
     updated,
     closed,
     relinked,
-    slugToIssue,
+    slugToIssue: { ...slugToIssue },
   };
+
+  // State writer integration (Task #1518). When the caller provided a
+  // spec, project the resulting state and persist it. On partial failure
+  // the state reflects only completed operations — the `slugToIssue` map
+  // above already encodes that (failed creates never landed; closed
+  // slugs were removed; failed closes leave the slug present).
+  if (opts.spec && typeof opts.spec === 'object') {
+    const writeStateFn = opts.writeState ?? defaultWriteState;
+    const epicId =
+      typeof opts.epicId === 'number'
+        ? opts.epicId
+        : typeof opts.spec?.epic?.id === 'number'
+          ? opts.spec.epic.id
+          : undefined;
+    const state = projectStateForWrite({
+      spec: opts.spec,
+      priorState: opts.priorState,
+      slugToIssue,
+      now: opts.stateNow,
+    });
+    const writeArgs = [epicId, state];
+    if (opts.writeStateOpts) writeArgs.push(opts.writeStateOpts);
+    const writePath = writeStateFn(...writeArgs);
+    result.state = state;
+    if (typeof writePath === 'string') {
+      result.statePath = writePath;
+    }
+  }
+
+  if (failure) {
+    result.failure = failure;
+  }
+  return result;
+}
+
+/**
+ * Project a state object from `(spec, priorState, slugToIssue)` for the
+ * state writer. Layers the post-apply slug → issue map onto the
+ * canonical `buildState` output so newly-created issues get their fresh
+ * numbers, dropped slugs disappear, and pre-existing observed agent
+ * state is preserved for slugs unchanged by this apply.
+ *
+ * Idempotency contract (AC: "successful apply followed by an immediate
+ * second apply is a no-op"). The diff engine's empty plan, the projected
+ * mapping, and the byte-identical state writer compose to produce the
+ * same on-disk state across re-runs.
+ *
+ * @param {{spec: object, priorState?: object, slugToIssue: Record<string, number>, now?: string}} input
+ * @returns {{epicId: number, lastReconciledAt: string, mapping: object}}
+ */
+function projectStateForWrite({ spec, priorState, slugToIssue, now }) {
+  const base = buildState(spec, priorState ?? {}, now ? { now } : {});
+  // Overlay the post-apply slug → issue mapping. `buildState` carries
+  // forward prior issueNumbers; the apply slugToIssue is the more recent
+  // source of truth, so it wins.
+  for (const slug of Object.keys(base.mapping)) {
+    const issueNumber = slugToIssue[slug];
+    if (typeof issueNumber === 'number') {
+      base.mapping[slug].issueNumber = issueNumber;
+    }
+  }
+  // Closed slugs (dropped from spec) are absent from `base.mapping`
+  // because `buildState` walks the spec. That matches the AC: closed
+  // entries do not appear in state.
+  return base;
 }
 
 /**
