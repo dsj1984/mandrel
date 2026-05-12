@@ -36,10 +36,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 
-import { signalsFile, storyTempDir } from '../config/temp-paths.js';
+import {
+  epicArtifactPath,
+  signalsFile,
+  storyTempDir,
+} from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 
 const TRACES_BASENAME = 'traces.ndjson';
+const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
 
 /**
  * Async traces-file path (kept private — consumers thread through
@@ -104,6 +109,31 @@ export async function appendSignal(args) {
   } catch (err) {
     Logger.warn(
       `signals-writer: invalid epicId/storyId for appendSignal: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return false;
+  }
+  return appendOne(target, signal);
+}
+
+/**
+ * Append one signal record to the per-Epic stream at
+ * `temp/epic-<eid>/signals.ndjson` — used for wave-lifecycle signals
+ * (`wave-start`, `wave-tick`, `wave-complete`, `epic-complete`) that are
+ * not scoped to an individual Story.
+ *
+ * @param {{ epicId: number, signal: unknown, config?: object }} args
+ * @returns {Promise<boolean>}
+ */
+export async function appendEpicSignal(args) {
+  const { epicId, signal, config } = args ?? {};
+  let target;
+  try {
+    target = epicArtifactPath(epicId, EPIC_SIGNALS_BASENAME, config);
+  } catch (err) {
+    Logger.warn(
+      `signals-writer: invalid epicId for appendEpicSignal: ${
         err instanceof Error ? err.message : String(err)
       }`,
     );

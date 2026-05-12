@@ -70,6 +70,10 @@ export const EVENT_KINDS = Object.freeze({
   DISPATCHED: 'dispatched',
   WAVE_START: 'wave-start',
   WAVE_END: 'wave-end',
+  // Story #1430 — wave-runner lifecycle signals emitted by `lib/wave-runner/tick.js`.
+  WAVE_TICK: 'wave-tick',
+  WAVE_COMPLETE: 'wave-complete',
+  EPIC_COMPLETE: 'epic-complete',
   STATE_TRANSITION: 'state-transition',
   HOTSPOT: 'hotspot',
   REWORK: 'rework',
@@ -198,6 +202,11 @@ export const GUARDS = Object.freeze({
   [EVENT_KINDS.DISPATCHED]: (evt) => isValidSignal(evt, EVENT_KINDS.DISPATCHED),
   [EVENT_KINDS.WAVE_START]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_START),
   [EVENT_KINDS.WAVE_END]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_END),
+  [EVENT_KINDS.WAVE_TICK]: (evt) => isValidSignal(evt, EVENT_KINDS.WAVE_TICK),
+  [EVENT_KINDS.WAVE_COMPLETE]: (evt) =>
+    isValidSignal(evt, EVENT_KINDS.WAVE_COMPLETE),
+  [EVENT_KINDS.EPIC_COMPLETE]: (evt) =>
+    isValidSignal(evt, EVENT_KINDS.EPIC_COMPLETE),
   [EVENT_KINDS.STATE_TRANSITION]: (evt) =>
     isValidSignal(evt, EVENT_KINDS.STATE_TRANSITION),
   [EVENT_KINDS.HOTSPOT]: (evt) => isValidSignal(evt, EVENT_KINDS.HOTSPOT),
