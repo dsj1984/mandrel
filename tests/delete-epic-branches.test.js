@@ -288,3 +288,157 @@ describe('delete-epic-branches — worktree-only scope (regression)', () => {
     );
   });
 });
+
+describe('delete-epic-branches — transitive dependency graph (regression)', () => {
+  // Recursively walk the static `import` graph of delete-epic-branches.js and
+  // assert that every reachable file is free of `ITicketingProvider`. If a
+  // future refactor pulls a helper that itself imports a ticketing provider,
+  // this test fails even though the top-level source is still clean.
+  function collectTransitiveSources(entryUrl) {
+    const visited = new Set();
+    const seenSources = new Map();
+
+    function walk(fileUrl) {
+      if (visited.has(fileUrl)) return;
+      visited.add(fileUrl);
+      let src;
+      try {
+        src = readFileSync(fileURLToPath(fileUrl), 'utf8');
+      } catch {
+        // Bare module specifiers / node: built-ins resolve outside the repo —
+        // skip them (they cannot leak a ticketing provider into our scope).
+        return;
+      }
+      seenSources.set(fileUrl, src);
+      const importRe = /^\s*import\s+(?:[^'"`]*?from\s+)?['"`]([^'"`]+)['"`]/gm;
+      let match;
+      // biome-ignore lint/suspicious/noAssignInExpressions: standard regex loop
+      while ((match = importRe.exec(src)) !== null) {
+        const spec = match[1];
+        if (!spec.startsWith('.') && !spec.startsWith('/')) continue; // bare/native
+        try {
+          const child = new URL(spec, fileUrl);
+          walk(child);
+        } catch {
+          // Unresolvable — treat as opaque; the top-level text scan above
+          // already covers the source we *can* read.
+        }
+      }
+    }
+
+    walk(entryUrl);
+    return seenSources;
+  }
+
+  const entry = new URL(
+    '../.agents/scripts/delete-epic-branches.js',
+    import.meta.url,
+  );
+  const transitiveSources = collectTransitiveSources(entry);
+
+  it('reachable import graph is non-empty and includes delete-epic-branches.js', () => {
+    assert.ok(
+      transitiveSources.size > 1,
+      'collectTransitiveSources should have walked at least one helper',
+    );
+    const entryHref = entry.href;
+    assert.ok(
+      [...transitiveSources.keys()].some((u) => u.href === entryHref),
+      'entry module must appear in the visited set',
+    );
+  });
+
+  it('no file in the import graph references ITicketingProvider', () => {
+    const offenders = [];
+    for (const [url, src] of transitiveSources.entries()) {
+      if (src.includes('ITicketingProvider')) {
+        offenders.push(url.href);
+      }
+    }
+    assert.deepEqual(
+      offenders,
+      [],
+      `transitive import graph must not depend on ITicketingProvider; offenders=${JSON.stringify(offenders)}`,
+    );
+  });
+
+  it('no file in the import graph imports a ticketing/issue/label module', () => {
+    const offenders = [];
+    for (const [url, src] of transitiveSources.entries()) {
+      const importLines = src.split('\n').filter((l) => /^\s*import\b/.test(l));
+      for (const line of importLines) {
+        if (
+          /ticket|provider-|issue-mutator|label-mutator|gh-mutate/i.test(line)
+        ) {
+          offenders.push({ file: url.href, line: line.trim() });
+        }
+      }
+    }
+    assert.deepEqual(
+      offenders,
+      [],
+      `transitive graph must not import ticketing/mutation modules; offenders=${JSON.stringify(offenders)}`,
+    );
+  });
+});
+
+describe('delete-epic-branches — fixture regression: only branch/worktree ops', () => {
+  // Drive the CLI's exported entry points end-to-end against a fixture set
+  // of "matched branches" and assert the only git verbs invoked are
+  // `branch -D` (local) and `push origin --delete` (remote). If a future
+  // refactor sneaks in a `gh issue close` or similar via the wrapper layer,
+  // this regression fires because the verb-whitelist breaks.
+  after(() => {
+    __setGitRunners(execFileSync, spawnSync);
+  });
+
+  it('only invokes branch / push operations when executing the plan', () => {
+    const invocations = [];
+    __setGitRunners(
+      () => '',
+      (_cmd, args) => {
+        invocations.push(args.slice());
+        // Pretend each deletion succeeds with empty output.
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    );
+
+    const plan = {
+      epicId: 1182,
+      local: ['epic/1182', 'story/epic-1182/1503'],
+      remote: ['epic/1182', 'task/epic-1182/1542'],
+    };
+    const result = executeDeletion({ plan });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.local.length, 2);
+    assert.equal(result.remote.length, 2);
+
+    // Every captured git invocation must be a worktree-scope verb only:
+    //   - `branch -D <name>`           (local deletion)
+    //   - `push origin --delete <ref>` (remote deletion)
+    // Anything else (e.g. `issue`, `api`, `pr`, `label`) is a scope leak.
+    for (const args of invocations) {
+      const isLocalDelete = args[0] === 'branch' && args[1] === '-D';
+      const isRemoteDelete =
+        args[0] === 'push' && args[1] === 'origin' && args[2] === '--delete';
+      assert.ok(
+        isLocalDelete || isRemoteDelete,
+        `worktree-only scope violated by git args=${JSON.stringify(args)}`,
+      );
+    }
+
+    // And the verbs we expect MUST have actually been called (i.e. the
+    // fixture wasn't degenerate / no-op).
+    assert.equal(
+      invocations.filter((a) => a[0] === 'branch' && a[1] === '-D').length,
+      2,
+    );
+    assert.equal(
+      invocations.filter(
+        (a) => a[0] === 'push' && a[1] === 'origin' && a[2] === '--delete',
+      ).length,
+      2,
+    );
+  });
+});
