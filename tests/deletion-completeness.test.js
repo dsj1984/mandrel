@@ -56,6 +56,13 @@ const ALLOWLIST = [
   // method/file paths from the v5.39.x source layout. Refreshed in
   // step with future code-renames; not human-edited.
   'baselines/',
+  // Per-Epic baseline snapshots forked from `baselines/` at plan time
+  // (see lib/baseline-snapshot.js — `temp/epic-<id>/baselines/*.json`).
+  // The whole `temp/` namespace is per-Epic scratch state — manifests,
+  // baselines, signals, perf reports — all inheriting historical
+  // paths from upstream sources. None of it is human-edited; the same
+  // allowlist rationale as `baselines/` applies.
+  'temp/',
   // This test file itself enumerates every forbidden term as plain
   // strings.
   'tests/deletion-completeness.test.js',

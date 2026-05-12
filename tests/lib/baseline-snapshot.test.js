@@ -65,7 +65,7 @@ const QUALITY_RESOLVED = {
 };
 
 describe('epicSnapshotPathFor', () => {
-  it('renders <cwd>/temp/epic/<id>/baselines/<kind>.json absolute path', () => {
+  it('renders <cwd>/temp/epic-<id>/baselines/<kind>.json absolute path', () => {
     const p = epicSnapshotPathFor({
       epicId: 1386,
       kind: 'maintainability',
@@ -73,7 +73,7 @@ describe('epicSnapshotPathFor', () => {
     });
     assert.match(
       p,
-      /temp[\\/]epic[\\/]1386[\\/]baselines[\\/]maintainability\.json$/,
+      /temp[\\/]epic-1386[\\/]baselines[\\/]maintainability\.json$/,
     );
   });
 
@@ -94,7 +94,7 @@ describe('epicSnapshotPathFor', () => {
 });
 
 describe('forkMainToEpic', () => {
-  it('writes both baselines under temp/epic/<id>/baselines/ on first run', () => {
+  it('writes both baselines under temp/epic-<id>/baselines/ on first run', () => {
     const miSrc = `${JSON.stringify({ '.agents/scripts/foo.js': 90 }, null, 2)}\n`;
     const crapSrc = `${JSON.stringify({ rows: [], $schema: 'x' }, null, 2)}\n`;
     const miPath = abs('baselines/maintainability.json');

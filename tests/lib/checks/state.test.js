@@ -347,4 +347,70 @@ describe('assembleState', () => {
       state.git = {};
     }, /Cannot assign|read.only/);
   });
+
+  it('returns empty projections for an unknown scope (SCOPE_KEYS ?? [] branch)', () => {
+    // The SCOPE_KEYS[scope] ?? [] fallback in assembleState only fires for
+    // a truthy scope that isn't in the registry — distinct from the
+    // undefined-scope path. Covers the previously-unprobed branch at the
+    // dispatcher.
+    const { probes, calls } = makeSpyProbes();
+    const state = assembleState({
+      scope: 'this-scope-does-not-exist',
+      cwd: '/r-unknown-scope',
+      probes,
+    });
+    assert.equal(state.scope, 'this-scope-does-not-exist');
+    assert.deepEqual(state.git, {});
+    assert.deepEqual(state.fs, {});
+    assert.deepEqual(state.env, {});
+    assert.deepEqual(calls.git, []);
+    assert.deepEqual(calls.fs, []);
+    assert.deepEqual(calls.env, []);
+  });
+
+  it('reports env.GITHUB_TOKEN as missing when the variable is unset', () => {
+    // Exercises the false branch of `process.env[name] ? 'set' : 'missing'`
+    // in defaultEnvProbe — the spy probe in the existing privacy test only
+    // hits the truthy branch.
+    const { probes } = makeSpyProbes({
+      env: (name) => (name === 'GITHUB_TOKEN' ? 'missing' : 'missing'),
+    });
+    const state = assembleState({
+      scope: 'story-close',
+      cwd: '/r-missing-token',
+      probes,
+    });
+    assert.equal(state.env.GITHUB_TOKEN, 'missing');
+  });
+
+  it('epicBranchSync returns null local SHA when rev-parse for the local ref fails', () => {
+    // Covers the `local.ok ? local.stdout : null` false branch at the
+    // local-SHA assignment — the existing sync tests only stub both probes
+    // returning ok:true.
+    const { probes } = makeSpyProbes({
+      git: (_cwd, ...args) => {
+        if (args[0] === 'for-each-ref') {
+          return { ok: true, stdout: 'epic/9999' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
+          return { ok: true, stdout: 'main' };
+        }
+        if (args[0] === 'rev-parse' && args[1] === '--verify') {
+          // Both local AND remote rev-parse return ok:false so the local-SHA
+          // null branch + the remote-SHA null branch both fire.
+          return { ok: false, stdout: '' };
+        }
+        if (args[0] === 'config') return { ok: true, stdout: 'false' };
+        return { ok: true, stdout: '' };
+      },
+    });
+    const state = assembleState({
+      scope: 'story-close',
+      cwd: '/r-sync-nulls',
+      probes,
+    });
+    assert.deepEqual(state.git.epicBranchSync, {
+      'epic/9999': { local: null, remote: null, ahead: false },
+    });
+  });
 });
