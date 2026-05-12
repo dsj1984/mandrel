@@ -1,0 +1,10 @@
+{
+  "epic": { "id": 1, "title": "Bad slug pattern — negative fixture" },
+  "features": [
+    {
+      "slug": "Bad Slug With Spaces",
+      "title": "Slug violates pattern",
+      "stories": []
+    }
+  ]
+}
