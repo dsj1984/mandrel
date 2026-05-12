@@ -32,7 +32,10 @@
  *   1 — fatal error (see stderr).
  */
 
+import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { drainPendingCleanupAtBoot } from './epic-plan-spec.js';
 import { runAsCli } from './lib/cli-utils.js';
@@ -52,12 +55,19 @@ import {
   PlanCheckpointer,
 } from './lib/orchestration/plan-runner/plan-checkpointer.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { renderSpec } from './lib/orchestration/spec-renderer.js';
 import { validateTaskBodies } from './lib/orchestration/task-body-validator.js';
 import { validateAndNormalizeTickets } from './lib/orchestration/ticket-validator.js';
 import { cleanupPhaseTempFiles } from './lib/plan-phase-cleanup.js';
 import { createProvider } from './lib/provider-factory.js';
+import { writeSpec } from './lib/spec/index.js';
 import { renderDecomposerSystemPrompt } from './lib/templates/decomposer-prompts.js';
 import { concurrentMap } from './lib/util/concurrent-map.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// scripts/ → .agents/ → repo root → epic-reconcile.js
+const RECONCILE_CLI = path.join(__dirname, 'epic-reconcile.js');
 
 // ─── Decomposer engine ───────────────────────────────────────────────────────
 //
@@ -609,20 +619,55 @@ async function setEpicLabel(provider, epicId, targetLabel) {
 /**
  * Execute the decompose phase end to end.
  *
+ * Story #1498 / Task #1525 — rewires the persist half off the direct
+ * `provider.createTicket` path (the legacy `decomposeEpic` helper) and
+ * onto the structural reconciler. Flow:
+ *
+ *   1. `renderSpec(tickets, { epic })` projects the flat decomposer
+ *      array into the spec schema (Story #1495).
+ *   2. `writeSpec(epicId, spec)` persists the YAML under
+ *      `.agents/epics/<epicId>.yaml` (Story #1491).
+ *   3. `spawnSync('node', [epic-reconcile.js, epicId, --apply, --yes])`
+ *      runs the structural reconciler in apply mode (Story #1496). The
+ *      reconciler writes `state.json` and creates / updates / closes the
+ *      GH issues to match the spec.
+ *   4. Phase 2 still flips the Epic to `agent::ready` **after** the
+ *      reconciler's apply path succeeds (preserving the prior label
+ *      contract operators rely on).
+ *   5. The pre-existing temp-file cleanup contract from
+ *      `lib/plan-phase-cleanup.js` runs unchanged.
+ *
+ * `decomposeEpic` is retained as an exported helper so the existing
+ * unit-test suite (`tests/ticket-decomposer.test.js`) keeps working;
+ * it is no longer invoked from this entry point.
+ *
  * @param {number} epicId
  * @param {import('./lib/ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean, resume?: boolean }} [opts]
- * @returns {Promise<{ epicId: number, ticketCount: number, checkpoint: object }>}
+ * @param {{ force?: boolean, resume?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string }} [opts]
+ * @returns {Promise<{ epicId: number, ticketCount: number, checkpoint: object, reconcile: { status: number, stdout: string, stderr: string } }>}
  */
 export async function runDecomposePhase(
   epicId,
   provider,
   { tickets },
   config = {},
-  { force = false, resume = false } = {},
+  {
+    force = false,
+    resume = false,
+    spawnSync = defaultSpawnSync,
+    reconcileCli = RECONCILE_CLI,
+    writeSpecFn = writeSpec,
+    renderSpecFn = renderSpec,
+    cwd = PROJECT_ROOT,
+  } = {},
 ) {
+  if (force && resume) {
+    throw new Error(
+      '[epic-plan-decompose] --force and --resume are mutually exclusive.',
+    );
+  }
   const epic = await provider.getEpic(epicId);
   if (!epic) {
     throw new Error(`[epic-plan-decompose] Epic #${epicId} not found.`);
@@ -635,6 +680,18 @@ export async function runDecomposePhase(
   if (!epic.linkedIssues?.prd || !epic.linkedIssues?.techSpec) {
     throw new Error(
       `[epic-plan-decompose] Epic #${epicId} is missing a linked PRD or Tech Spec. Run /epic-plan-spec first.`,
+    );
+  }
+  if (!Array.isArray(tickets)) {
+    throw new Error(
+      `[epic-plan-decompose] tickets must be an array (got ${typeof tickets}).`,
+    );
+  }
+
+  const maxTickets = getLimits(config).maxTickets;
+  if (tickets.length >= maxTickets) {
+    Logger.warn(
+      `[epic-plan-decompose] ⚠️  Received ${tickets.length} tickets (at or above the ${maxTickets}-ticket cap). Verify every Story still has child Tasks or split the Epic into smaller scopes.`,
     );
   }
 
@@ -654,13 +711,69 @@ export async function runDecomposePhase(
   });
   await checkpointer.setPhase(PLAN_PHASES.DECOMPOSING);
 
-  await decomposeEpic(epicId, provider, { tickets }, config, { force, resume });
+  // 1. Validate + normalise the ticket array using the same gates the
+  //    legacy `decomposeEpic` path enforced; the renderer's own schema
+  //    validation catches structural drift, but `validateTaskBodies` /
+  //    `validateAndNormalizeTickets` apply the project-specific freshness
+  //    + cross-link checks that the schema cannot express.
+  Logger.info(
+    `[epic-plan-decompose] Running cross-validation on ${tickets.length} tickets...`,
+  );
+  const baseBranchRef = config?.baseBranch ?? 'main';
+  const validated = validateAndNormalizeTickets(tickets, { baseBranchRef });
+  validateTaskBodies(validated);
+
+  // 2. Render the decomposer array into the structural spec shape.
+  Logger.info(
+    `[epic-plan-decompose] Rendering spec for Epic #${epicId} (${validated.length} tickets)...`,
+  );
+  const spec = renderSpecFn(validated, {
+    epic: { id: epicId, title: epic.title },
+  });
+
+  // 3. Persist the spec YAML.
+  const specFilePath = writeSpecFn(epicId, spec, { epicsDir: undefined });
+  Logger.info(`[epic-plan-decompose] Wrote spec → ${specFilePath}`);
+
+  // 4. Invoke the structural reconciler in apply mode. We surface stdout /
+  //    stderr to the parent stream so operators see the formatted plan
+  //    inline with the planning log. `--yes` short-circuits the
+  //    interactive confirmation gate (Phase 2 is a non-interactive
+  //    pipeline by design).
+  Logger.info(
+    `[epic-plan-decompose] Spawning epic-reconcile.js --apply --yes for Epic #${epicId}...`,
+  );
+  const reconcileResult = spawnSync(
+    process.execPath,
+    [reconcileCli, String(epicId), '--apply', '--yes'],
+    {
+      cwd,
+      stdio: 'pipe',
+      encoding: 'utf-8',
+      env: { ...process.env, EPIC_RECONCILE_INVOKER: 'epic-plan-decompose' },
+    },
+  );
+  const reconcile = {
+    status: reconcileResult.status ?? 1,
+    stdout: reconcileResult.stdout ?? '',
+    stderr: reconcileResult.stderr ?? '',
+  };
+  if (reconcile.stdout) process.stdout.write(reconcile.stdout);
+  if (reconcile.stderr) process.stderr.write(reconcile.stderr);
+  if (reconcile.status !== 0) {
+    throw new Error(
+      `[epic-plan-decompose] epic-reconcile.js exited with status ${reconcile.status}. See stderr above.`,
+    );
+  }
 
   const checkpoint = await checkpointer.updateDecompose({
     ticketCount: tickets.length,
     completedAt: new Date().toISOString(),
   });
 
+  // 5. Phase 2 still flips the Epic to agent::ready — the reconciler
+  //    handles structural state only, the planning lifecycle label is
+  //    owned by this entry point.
   Logger.info(
     `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
@@ -670,7 +783,7 @@ export async function runDecomposePhase(
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
 
   Logger.info(
-    `[epic-plan-decompose] ✅ Decompose phase complete for Epic #${epicId}. ${tickets.length} ticket(s) persisted.`,
+    `[epic-plan-decompose] ✅ Decompose phase complete for Epic #${epicId}. ${tickets.length} ticket(s) persisted via reconciler.`,
   );
   if (cleanup.deleted.length > 0) {
     Logger.info(
@@ -678,7 +791,14 @@ export async function runDecomposePhase(
     );
   }
 
-  return { epicId, ticketCount: tickets.length, checkpoint, cleanup };
+  return {
+    epicId,
+    ticketCount: tickets.length,
+    checkpoint,
+    cleanup,
+    reconcile,
+    specPath: specFilePath,
+  };
 }
 
 /**

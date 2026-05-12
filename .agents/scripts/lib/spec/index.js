@@ -21,6 +21,7 @@ export {
   SpecValidationError,
   specPath,
   statePath,
+  writeSpec,
   writeState,
 } from './loader.js';
 

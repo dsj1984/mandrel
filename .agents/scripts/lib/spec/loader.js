@@ -359,3 +359,52 @@ export function writeState(epicId, state, opts = {}) {
   fs.writeFileSync(filePath, renderStateJson(state), 'utf8');
   return filePath;
 }
+
+/**
+ * Write the spec YAML file for `epicId`. Creates the parent directory
+ * lazily and emits a top-level `$schema` reference so editors with
+ * YAML-schema autocomplete (e.g. the Red Hat YAML extension) resolve
+ * the schema from the file itself.
+ *
+ * Story #1498 / Task #1525 introduced this writer so the rewritten
+ * `/epic-plan` halves can persist the spec from the decomposer's
+ * ticket-array projection (`renderSpec`) without reaching into raw
+ * `js-yaml` calls scattered across the planning scripts.
+ *
+ * The function validates the spec via the same Ajv2020 compiler the
+ * loader caches — a malformed spec is rejected synchronously instead of
+ * being persisted and tripping `loadSpec` on the next reconciler run.
+ *
+ * @param {number|string} epicId
+ * @param {object} spec       spec object matching `epic-spec.schema.json`.
+ * @param {{epicsDir?: string, schemaPath?: string, fs?: typeof defaultFsAdapter}} [opts]
+ * @returns {string}          the absolute path written.
+ */
+export function writeSpec(epicId, spec, opts = {}) {
+  const { epicsDir, schemaPath, fs } = resolveOpts(opts);
+  if (!spec || typeof spec !== 'object') {
+    throw new TypeError('[writeSpec] spec must be an object');
+  }
+  const validate = getValidator(schemaPath, fs);
+  const ok = validate(spec);
+  if (!ok) {
+    throw new SpecValidationError(
+      String(epicId),
+      normaliseAjvErrors(validate.errors ?? []),
+    );
+  }
+  if (!fs.existsSync(epicsDir)) {
+    fs.mkdirSync(epicsDir, { recursive: true });
+  }
+  const filePath = specPath(epicId, opts);
+  // Lazy require: `js-yaml` is already a runtime dep of the loader, but
+  // keeping the import top-level would force every consumer of `loader.js`
+  // to pay the parse cost even when they only need state helpers.
+  const yamlDump = yaml.dump(spec, {
+    noRefs: true,
+    sortKeys: false,
+    lineWidth: 120,
+  });
+  fs.writeFileSync(filePath, yamlDump, 'utf8');
+  return filePath;
+}
