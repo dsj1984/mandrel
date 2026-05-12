@@ -92,9 +92,7 @@ moves to a Skill.
 The split is exactly the v5.6 "host LLM authors directly" pattern made
 explicit: the prompt+judgment step gets a `description`, an
 `allowed_tools` declaration, and a smoke test; the GitHub I/O around it
-keeps its imperative implementation. See the
-[2026-05-11 prompt-shaped script ledger](../docs/audits/2026-05-11-prompt-shaped-scripts.md)
-for the full list of scripts following this split pattern.
+keeps its imperative implementation.
 
 ### Worked example 2 — pure script: `retrofit-task-bodies.js`
 
@@ -113,9 +111,7 @@ The script's own input/output is deterministic and parseable: it does
 not compose prompts, it does not classify, it does not author prose. The
 adjacent LLM authoring step could one day be migrated to a Skill in a
 separate Epic, but doing so would not change this script's verdict —
-the renderer half stays imperative. This is the named deterministic
-counter-example in the
-[2026-05-11 prompt-shaped script ledger](../docs/audits/2026-05-11-prompt-shaped-scripts.md#deterministic-counter-example--retrofit-task-bodiesjs).
+the renderer half stays imperative.
 
 ---
 
