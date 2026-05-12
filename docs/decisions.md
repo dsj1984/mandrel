@@ -2475,3 +2475,43 @@ project's configured base branch is honoured.
     structurally impossible Task. The bullet citing the deleted
     aggregator script is gone; a follow-on note in the Story body
     records the `not_planned` closure of Task #1109 under Epic #1072.
+
+---
+
+## ADR 20260512-loop-adoption: Adopt built-in `/loop`; no homegrown surface to reconcile
+
+**Status:** Accepted
+**Date:** 2026-05-12
+**Epic:** #1471 (v6.0.0 Epic G — Claude Code-first adoption)
+**Story:** #1557 (Rebase homegrown loop on built-in `/loop` or document divergence)
+**Supporting evidence:** [`temp/epic-1471/loop-contract-comparison.md`](../temp/epic-1471/loop-contract-comparison.md) — full discovery audit and contract surface table.
+
+### Context
+
+The v6 Epic G phasing (Tech Spec #1545, Phase 2, Story 5) flagged the homegrown `loop` skill as a candidate for one of four reconciliation outcomes against the Claude Code built-in `/loop`: **rebase**, **thin-to-reference**, **delete**, or **document-divergence**. The Tech Spec explicitly noted the homegrown skill's location was "TBD by Story 5 investigation" — the audit was the first deliverable.
+
+### Decision
+
+**Adopt the built-in `/loop` as the sole loop surface.** No homegrown skill is rebased, thinned, or deleted because none exists.
+
+The discovery audit (full table in the supporting comparison file) confirmed:
+
+- `.claude/commands/`, `.claude/skills/`, `.agents/skills/core/`, and `.agents/skills/stack/` contain no `loop` skill or slash command.
+- The host skill manifest exposes a single `loop:` entry — the Claude Code built-in (*"Run a prompt or slash command on a recurring interval; e.g. `/loop 5m /foo`. Omit the interval to let the model self-pace."*).
+- The historic deletions of `scripts/run-agent-loop.js`, `tests/run-agent-loop.test.js`, and `tests/e2e/run-agent-loop-e2e.test.js` (commits `0d6ef1b8`, `e6a11089`) were the legacy pre-v5 wave runner — a different concept, not a Claude Code skill, and already removed.
+- Internal library helpers (`lib/util/poll-loop.js`, `lib/orchestration/epic-runner/phases/iterate-waves.js`) are programmatic loops inside the dispatcher, not operator-facing skills, and are out of scope for the loop-skill comparison.
+
+The Story-level verdict therefore collapses the four candidate outcomes into one: **`document-divergence`** — where the "divergence" being recorded is the absence of any homegrown competitor, which is the desirable end state.
+
+### Consequences
+
+- **No code or workflow files change for this Story.** The verdict is documentation-only.
+- **The `loop` row in `docs/claude-code-catalog.md`** (landing in Story 8 of this Epic) carries the classification **`adopt`** with this ADR as the citation.
+- **Future contributors reaching for "the homegrown loop"** are pointed at this ADR plus the comparison file, which together demonstrate the audit was performed and re-implementation would be a regression against the two-surface coupling stance (ADR 20260512-coupling-stance above).
+- **Cron-style durability** (jobs surviving session restart) is **not** in `/loop`'s contract. The host's separate `schedule:` skill covers that need; if the framework needs it, a follow-on Epic should evaluate `schedule:` adoption explicitly rather than reintroducing a homegrown loop runner.
+- **Failure semantics inheritance.** Looping a flaky command (e.g. `/loop 5m /audit-flaky-thing`) does not abort on a single bad tick — the looped command remains responsible for its own retry/backoff. This is the same model the framework's existing internal cadence helpers use, so no behavioural surprise is introduced by adopting `/loop` for operator-facing recurrence.
+
+### Alternatives considered
+
+- **Build a homegrown `/loop` skill anyway** to own a "structured loop" artifact contract. Rejected — the framework's recurring tasks (cadence polls, dashboard regen, PR babysitting) already own their own artifacts via the underlying scripts; a wrapper would add no contract value and would directly violate the Epic's "shrink the framework's homegrown surface area" goal.
+- **Defer to a future hybrid wrapper pattern** (built-in delegated to from a homegrown entry point, as `/security-review` is delegated from `audit-security`). Rejected for `/loop` specifically — the hybrid pattern's value is when the wrapper owns a structured artifact (`audit-*-results.md`). `/loop` produces no artifact; it just re-prompts. There is nothing for a wrapper to validate or fold in, so the hybrid pattern collapses to a pass-through.
