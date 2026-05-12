@@ -58,6 +58,7 @@ import { diff } from './lib/orchestration/epic-spec-reconciler-diff.js';
 import { formatPlan } from './lib/orchestration/epic-spec-reconciler-format.js';
 import { isEmptyPlan } from './lib/orchestration/epic-spec-reconciler-ops.js';
 import {
+  EPIC_NOT_QUIESCENT_CODE,
   EpicNotQuiescentError,
   runReverseBootstrap,
 } from './lib/orchestration/epic-spec-reverse-bootstrap.js';
@@ -86,6 +87,13 @@ export const EXIT_CODES = Object.freeze({
   EXPLICIT_DELETE_REQUIRED: 2,
   EPIC_NOT_QUIESCENT: 2,
 });
+
+/**
+ * Re-export the quiescence-refusal structured token so downstream
+ * automation (log scrapers, CI gates) can import the same constant the
+ * CLI emits instead of duplicating the literal.
+ */
+export { EPIC_NOT_QUIESCENT_CODE };
 
 /**
  * Default writer for log/output streams. Tests inject sinks so they can
@@ -353,11 +361,21 @@ export async function runBootstrap(args, deps = {}) {
     });
   } catch (err) {
     if (err instanceof EpicNotQuiescentError) {
+      // Human-readable prose for operators.
       stderr(`[epic-reconcile] ${err.message}`);
-      stderr(
-        '[epic-reconcile] reverse-bootstrap refused: quiescent epic required.',
-      );
-      return { exitCode: EXIT_CODES.EPIC_NOT_QUIESCENT };
+      // Structured single-line token for log scrapers + CI gates. Task
+      // #1532 AC: "exits 2 with a structured message" — this is the
+      // structured part. Format pinned by the bootstrap module so the
+      // CLI does not re-derive the token.
+      stderr(`[epic-reconcile] ${err.toStructuredLine()}`);
+      return {
+        exitCode: EXIT_CODES.EPIC_NOT_QUIESCENT,
+        error: {
+          code: err.code,
+          epicId: err.epicId,
+          executingStories: err.executingStories,
+        },
+      };
     }
     stderr(`[epic-reconcile] Reverse-bootstrap failed: ${err.message ?? err}`);
     return { exitCode: EXIT_CODES.VALIDATION_ERROR };

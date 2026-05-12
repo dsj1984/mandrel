@@ -68,8 +68,25 @@ import { renderSpec } from './spec-renderer.js';
 import { parseParentId } from './story-grouper.js';
 
 /**
+ * Stable structured-error code for the quiescence-refusal path. Log
+ * scrapers and CI dashboards key on this token rather than the prose
+ * message so the prose can evolve without breaking automation.
+ *
+ * Story #1497 / Task #1532: the quiescence guard MUST exit 2 with a
+ * structured (machine-readable) message; this constant is the token
+ * the CLI prints on the structured stderr line.
+ */
+export const EPIC_NOT_QUIESCENT_CODE = 'EPIC_NOT_QUIESCENT';
+
+/**
  * Raised by `assertEpicQuiescent` when at least one child Story carries
- * `agent::executing`. The CLI maps this to exit code 2.
+ * `agent::executing`. The CLI maps this to exit code 2 and prints a
+ * structured `code=EPIC_NOT_QUIESCENT epic=#<id> stories=#<a>,#<b>` line
+ * alongside the human-readable prose so both audiences are served.
+ *
+ * The `executingStories` array is preserved on the instance so callers
+ * (tests, the CLI's structured renderer) can emit machine-readable
+ * diagnostics without re-parsing the message string.
  */
 export class EpicNotQuiescentError extends Error {
   /**
@@ -83,8 +100,21 @@ export class EpicNotQuiescentError extends Error {
         'Bootstrap refused — wait for the wave to close before reverse-bootstrapping.',
     );
     this.name = 'EpicNotQuiescentError';
+    this.code = EPIC_NOT_QUIESCENT_CODE;
     this.epicId = epicId;
     this.executingStories = executingStories;
+  }
+
+  /**
+   * Render the structured (machine-readable) stderr line. The shape is
+   * `code=<TOKEN> epic=<id> stories=#<a>,#<b>` so log scrapers can match
+   * a single regex without parsing prose.
+   *
+   * @returns {string}
+   */
+  toStructuredLine() {
+    const ids = this.executingStories.map((s) => `#${s.id}`).join(',');
+    return `code=${this.code} epic=#${this.epicId} stories=${ids}`;
   }
 }
 
