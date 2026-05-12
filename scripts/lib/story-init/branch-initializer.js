@@ -16,6 +16,7 @@
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
+import { forkAndCommitEpicSnapshot as defaultForkAndCommitEpicSnapshot } from '../baseline-snapshot.js';
 import { resolveWorkingPath } from '../config-resolver.js';
 import {
   branchExistsLocally,
@@ -212,6 +213,7 @@ function reportEnsureWarnings(ensured, progress) {
 
 export async function bootstrapWorktree({
   epicBranch,
+  epicId,
   storyBranch,
   storyId,
   baseBranch,
@@ -221,6 +223,7 @@ export async function bootstrapWorktree({
   fs = nodeFs,
   path = nodePath,
   onPhase,
+  forkAndCommitEpicSnapshot = defaultForkAndCommitEpicSnapshot,
 }) {
   progress('GIT', 'Fetching remote refs (main checkout)...');
   const fetchResult = await gitFetchWithRetry(mainCwd, 'origin');
@@ -232,6 +235,37 @@ export async function bootstrapWorktree({
   }
 
   ensureEpicBranchRef(epicBranch, baseBranch, mainCwd, { progress });
+
+  // Story #1585 (Epic #1471): defer the baseline-snapshot fork from
+  // /epic-plan to first-story-init so plan-time stays git-state-free and
+  // the snapshot reflects the current main rather than stale main at plan
+  // time. Idempotent: `commitSnapshotsToEpicBranch` short-circuits when
+  // the per-epic baseline files already match (no changed files → no new
+  // commit), so subsequent story-inits for the same Epic are a no-op.
+  // Non-fatal: missing source baselines downgrade through the helper's
+  // existing warning path so story-init continues even on a fresh repo.
+  if (epicId !== undefined && epicId !== null) {
+    try {
+      const snapshot = forkAndCommitEpicSnapshot({ epicId, cwd: mainCwd });
+      if (snapshot?.commit?.committed) {
+        progress(
+          'GIT',
+          `🧊 Forked main baselines → ${epicBranch} (commit ${snapshot.commit.sha?.slice(0, 7)}).`,
+        );
+      } else {
+        progress(
+          'GIT',
+          `🧊 Snapshot fork skipped: ${snapshot?.commit?.reason ?? 'no-files'}.`,
+        );
+      }
+    } catch (err) {
+      progress(
+        'GIT',
+        `⚠️ snapshot fork failed (non-fatal): ${err?.message ?? err}`,
+      );
+    }
+  }
+
   ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress });
 
   const wm = new WorktreeManager({
@@ -273,6 +307,7 @@ export async function bootstrapWorktree({
  * @param {object} [deps.fs]
  * @param {object} deps.input
  * @param {number} deps.input.storyId
+ * @param {number} [deps.input.epicId]
  * @param {string} deps.input.epicBranch
  * @param {string} deps.input.storyBranch
  * @param {string} deps.input.baseBranch
@@ -288,6 +323,7 @@ export async function bootstrapWorktree({
 export async function initializeBranch({ logger, fs = nodeFs, input }) {
   const {
     storyId,
+    epicId,
     epicBranch,
     storyBranch,
     baseBranch,
@@ -301,6 +337,7 @@ export async function initializeBranch({ logger, fs = nodeFs, input }) {
   if (worktreeEnabled) {
     const wtResult = await bootstrapWorktree({
       epicBranch,
+      epicId,
       storyBranch,
       storyId,
       baseBranch,
