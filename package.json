@@ -25,16 +25,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dsj1984/mandrel.git"
+    "url": "git+https://github.com/dsj1984/agent-protocols.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/dsj1984/mandrel/issues"
+    "url": "https://github.com/dsj1984/agent-protocols/issues"
   },
-  "homepage": "https://github.com/dsj1984/mandrel#readme",
+  "homepage": "https://github.com/dsj1984/agent-protocols#readme",
   "engines": {
     "node": ">=22.22.1 <25"
   },
