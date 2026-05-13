@@ -84,8 +84,10 @@ Not invoked directly by operators, but referenced from other workflows:
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure
   for `.agentrc.json`, invoked by `/agents-update` after the submodule pointer
   moves (formerly shipped as `/agents-sync-config`).
-- `worktree-lifecycle.md` — per-story `git worktree` isolation model, including
-  node_modules strategies, Windows notes, and escape hatches.
+- `helpers/worktree-lifecycle.md` — per-story `git worktree` isolation model,
+  including node_modules strategies, Windows notes, and escape hatches. Lives
+  under `helpers/` because it is operator and reviewer reference documentation,
+  not an executable workflow; path-included from `story-execute.md`.
 
 The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during

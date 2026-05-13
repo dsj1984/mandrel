@@ -307,7 +307,7 @@ assembles a self-contained prompt:
 4. **Story branch context.** Automatic checkouts to the Story branch. Under
    worktree isolation, each Story runs in its own `.worktrees/story-<id>/` so
    branch swaps, staging, and reflog activity are isolated per-story. See
-   [`workflows/worktree-lifecycle.md`](workflows/worktree-lifecycle.md).
+   [`workflows/helpers/worktree-lifecycle.md`](workflows/helpers/worktree-lifecycle.md).
 5. Task-specific instructions and subtask checklist.
 
 ### State sync

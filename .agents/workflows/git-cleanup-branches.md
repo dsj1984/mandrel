@@ -24,7 +24,7 @@ candidate iff:
 
 When a candidate has an attached worktree, the worktree is removed
 (force if dirty) **before** `git branch -D`, mirroring the pattern in
-[`worktree-lifecycle.md`](worktree-lifecycle.md).
+[`worktree-lifecycle.md`](helpers/worktree-lifecycle.md).
 
 > **When to run**: After a session that landed several PRs, to clear
 > the stale branches the squash-merge workflow leaves behind.

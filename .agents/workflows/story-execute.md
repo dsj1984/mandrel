@@ -39,7 +39,7 @@ Story that lacks the `Epic: #N` reference.
 > `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
 > its absolute path as `workCwd`. You **must** `cd` into that path before
 > Step 1. The main checkout's HEAD is never moved. See
-> [`worktree-lifecycle.md`](worktree-lifecycle.md) for node_modules
+> [`worktree-lifecycle.md`](helpers/worktree-lifecycle.md) for node_modules
 > strategies, Windows notes, and escape hatches.
 
 ---
