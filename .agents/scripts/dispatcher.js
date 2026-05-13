@@ -14,7 +14,7 @@
  * The script auto-detects whether the ticket is an Epic or Story
  * and routes to the appropriate execution mode.
  *
- * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
+ * Successor to the retired mandrel MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
  *
  * @see .agents/schemas/dispatch-manifest.json
  */

@@ -303,7 +303,7 @@ the consumer-instruction paths if Step 4 was a no-op.
   ```ini
   [submodule ".agents"]
     path = .agents
-    url = https://github.com/dsj1984/agent-protocols.git
+    url = https://github.com/dsj1984/mandrel.git
     branch = main
   ```
 

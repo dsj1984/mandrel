@@ -3,7 +3,7 @@
   "name": "Protect Main",
   "target": "branch",
   "source_type": "Repository",
-  "source": "dsj1984/agent-protocols",
+  "source": "dsj1984/mandrel",
   "enforcement": "active",
   "conditions": {
     "ref_name": {
@@ -41,10 +41,10 @@
   "current_user_can_bypass": "never",
   "_links": {
     "self": {
-      "href": "https://api.github.com/repos/dsj1984/agent-protocols/rulesets/14286998"
+      "href": "https://api.github.com/repos/dsj1984/mandrel/rulesets/14286998"
     },
     "html": {
-      "href": "https://github.com/dsj1984/agent-protocols/rules/14286998"
+      "href": "https://github.com/dsj1984/mandrel/rules/14286998"
     }
   }
 }

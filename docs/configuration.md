@@ -1,6 +1,6 @@
 # Configuration Reference
 
-`.agentrc.json` is the single configuration contract for the Agent Protocols
+`.agentrc.json` is the single configuration contract for the Mandrel
 framework. It is parsed at the start of every script via
 [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js), validated
 against AJV schemas at runtime, and consumed through grouped accessors
@@ -398,7 +398,7 @@ number of keys.
 | `agentSettings.quality.crap.targetDirs`   | `[".agents/scripts"]`                 | `["src"]`                           | Same reason as MI above.                                                                                                                                                                  |
 | `agentSettings.release.docs`              | `["README.md", "docs/CHANGELOG.md"]`  | `["README.md"]`                     | Root keeps a separate CHANGELOG; template starts minimal and lets consumers extend.                                                                                                       |
 | `agentSettings.release.versionFile`       | `".agents/VERSION"`                   | `null`                              | Root tracks the framework's own version file; consumer template defers version-file ownership to the consumer.                                                                            |
-| `orchestration.github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/agent-protocols` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced during `/agents-bootstrap-github` (or by hand). |
+| `orchestration.github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced during `/agents-bootstrap-github` (or by hand). |
 | `orchestration.worktreeIsolation.nodeModulesStrategy` | `per-worktree`             | `pnpm-store`                        | Root is npm-only; template defaults to the strategy that scales best for pnpm consumers.                                                                                                  |
 
 The two files share every other key. When a consumer runs `/agents-update`,

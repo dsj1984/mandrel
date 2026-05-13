@@ -971,7 +971,7 @@ update.
 
 ### Problem
 
-The framework shipped a stdio MCP server (`agent-protocols`) exposing
+The framework shipped a stdio MCP server (`mandrel`) exposing
 seven tools that **duplicated** capabilities already implemented in the
 SDK. The SDK was the runtime path; the MCP was a parallel surface that
 existing scripts did not exercise. Two surfaces meant: two places to
@@ -996,12 +996,12 @@ collapse to one surface in three sequenced steps:
    CLI emits the same JSON envelope the parallel tool produced and exits
    non-zero on the same failure modes. No behavioural change.
 2. **Migrate every caller in committed code.** Grep workflow markdown,
-   skills, helpers, scripts; every `mcp__agent-protocols__*` token gets
+   skills, helpers, scripts; every `mcp__mandrel__*` token gets
    rewritten to `node .agents/scripts/<name>.js …`. Add a pre-commit
    assertion (here: `check-markdown.js`) so reintroductions break the
    build.
 3. **Delete the parallel surface in one shot.** Delete the server, its
-   tool registry, the dedicated tests, the `agent-protocols` block in
+   tool registry, the dedicated tests, the `mandrel` block in
    `.mcp.json` / `default-mcp.json`, the dedicated docs (`MCP.md`,
    `mcp-setup.md`). Do not leave deprecated wrappers or `mcp__X`
    aliases.
@@ -1079,7 +1079,7 @@ contract is:
 
 - Default mode: emit `{ ok: false, degraded: true, reason, detail }` on
   stdout and exit non-zero. Caller decides whether to absorb.
-- `--gate-mode` (or `AGENT_PROTOCOLS_GATE_MODE=1`): fail closed without
+- `--gate-mode` (or `MANDREL_GATE_MODE=1`): fail closed without
   the permissive envelope. Use in CI / pre-push / authoritative gates.
 
 Pattern: never let a degraded execution path mimic a clean one. The

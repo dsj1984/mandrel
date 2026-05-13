@@ -305,5 +305,5 @@ running `/story-execute` against an already-closed Story is safe.
   transition. The wave aggregator depends on this comment, not labels.
 - **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking
   from inside a worktree.
-- **MCP fallback**: if `agent-protocols` MCP tools fail, fall back to
+- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
   `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`.

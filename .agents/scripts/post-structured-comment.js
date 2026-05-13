@@ -4,7 +4,7 @@
 /**
  * post-structured-comment.js — CLI wrapper for structured comment upsert.
  *
- * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
+ * Successor to the retired mandrel MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
  *
  * Delegates to `upsertStructuredComment` from `lib/orchestration/ticketing.js`
  * and emits the `{ success, ticketId, type }` JSON envelope on stdout.

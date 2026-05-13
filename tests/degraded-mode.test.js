@@ -39,20 +39,14 @@ test('isGateMode() honours --gate-mode argv flag', () => {
   assert.equal(isGateMode({ argv: [], env: {} }), false);
 });
 
-test('isGateMode() honours AGENT_PROTOCOLS_GATE_MODE=1 env var', () => {
-  assert.equal(
-    isGateMode({ argv: [], env: { AGENT_PROTOCOLS_GATE_MODE: '1' } }),
-    true,
-  );
+test('isGateMode() honours MANDREL_GATE_MODE=1 env var', () => {
+  assert.equal(isGateMode({ argv: [], env: { MANDREL_GATE_MODE: '1' } }), true);
   // Strict equality: only "1" enables gate-mode.
   assert.equal(
-    isGateMode({ argv: [], env: { AGENT_PROTOCOLS_GATE_MODE: 'true' } }),
+    isGateMode({ argv: [], env: { MANDREL_GATE_MODE: 'true' } }),
     false,
   );
-  assert.equal(
-    isGateMode({ argv: [], env: { AGENT_PROTOCOLS_GATE_MODE: '' } }),
-    false,
-  );
+  assert.equal(isGateMode({ argv: [], env: { MANDREL_GATE_MODE: '' } }), false);
 });
 
 test('softFailOrThrow() returns the degraded envelope outside gate-mode', () => {
@@ -81,12 +75,12 @@ test('softFailOrThrow() throws under --gate-mode', () => {
   );
 });
 
-test('softFailOrThrow() throws under AGENT_PROTOCOLS_GATE_MODE=1', () => {
+test('softFailOrThrow() throws under MANDREL_GATE_MODE=1', () => {
   assert.throws(
     () =>
       softFailOrThrow('GIT_DIFF_FAILED', 'no remote', {
         argv: [],
-        env: { AGENT_PROTOCOLS_GATE_MODE: '1' },
+        env: { MANDREL_GATE_MODE: '1' },
       }),
     /hard-fail: GIT_DIFF_FAILED/,
   );

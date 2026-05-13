@@ -1,4 +1,4 @@
-# Agent Protocols — Activation
+# Mandrel — Activation
 
 This is the framework submodule (`.agents/`) consumed by host repos via
 `git submodule add`. It ships a system prompt, a baseline rule pack, a

@@ -96,7 +96,7 @@ test('instructions.md has no retired task branch syntax outside legacy callouts'
   );
 });
 
-test('instructions.md has no retired agent-protocols MCP tool names', () => {
+test('instructions.md has no retired mandrel MCP tool names', () => {
   const content = fs.readFileSync(INSTRUCTIONS_PATH, 'utf8');
   const { retiredMcpOffenses } = scanInstructions(content);
   assert.deepStrictEqual(
