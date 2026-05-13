@@ -62,3 +62,18 @@ test-covered — same stance as the rest of `lib/`. The `/mandrel` workflow itse
 leans on the Claude Code `/` menu as the surfacing channel; that's the
 declared workflow-layer coupling from the Epic G #1471 ADR. Portability of the
 slash-command surface is a non-goal.
+
+## Constraints
+
+- **Never** write to disk. The catalog is generated at invocation time; no
+  rendered artifact is stored. Drift between an on-disk cache and the live
+  workflow set would defeat the purpose.
+- **Never** mutate GitHub state. `/mandrel` is read-only — no labels, no
+  comments, no issue updates. Same operator-affordance contract as `/signals`
+  and `/diagnose`.
+- **Never** include the `helpers/` subdirectory. Helpers are path-included
+  modules, not runnable workflows; surfacing them in the catalog would
+  mislead operators into typing them as slash commands.
+- **Always** keep the catalog generator pure (no provider factory, no
+  `gh` shell-out). The unit test under `tests/lib/mandrel-catalog.test.js`
+  is the load-bearing regression guard.
