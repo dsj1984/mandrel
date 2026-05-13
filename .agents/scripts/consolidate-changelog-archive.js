@@ -29,6 +29,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { Logger } from './lib/Logger.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, '..', '..');
@@ -178,7 +180,7 @@ function main() {
 
   const liveText = readIfExists(liveChangelogPath);
   if (!liveText) {
-    console.error(
+    Logger.error(
       `[consolidate-changelog-archive] FATAL: ${liveChangelogPath} not found.`,
     );
     process.exit(2);
@@ -197,20 +199,20 @@ function main() {
     !archiveV4Text &&
     consolidatedExists
   ) {
-    console.log(
+    Logger.info(
       '[consolidate-changelog-archive] Already consolidated — no-op.',
     );
     return;
   }
 
   if (!archive5xText) {
-    console.error(
+    Logger.error(
       `[consolidate-changelog-archive] FATAL: ${archive5xPath} missing (already deleted?).`,
     );
     process.exit(2);
   }
   if (!archiveV4Text) {
-    console.error(
+    Logger.error(
       `[consolidate-changelog-archive] FATAL: ${archiveV4Path} missing (already deleted?).`,
     );
     process.exit(2);
@@ -225,15 +227,15 @@ function main() {
   const newLive = rebuildLiveChangelog(head);
 
   if (dryRun) {
-    console.log('[consolidate-changelog-archive] --dry-run');
-    console.log(
+    Logger.info('[consolidate-changelog-archive] --dry-run');
+    Logger.info(
       `  would write    ${consolidatedPath}  (${consolidated.length} bytes)`,
     );
-    console.log(
+    Logger.info(
       `  would rewrite  ${liveChangelogPath}  (${newLive.length} bytes)`,
     );
-    console.log(`  would delete   ${archive5xPath}`);
-    console.log(`  would delete   ${archiveV4Path}`);
+    Logger.info(`  would delete   ${archive5xPath}`);
+    Logger.info(`  would delete   ${archiveV4Path}`);
     return;
   }
 
@@ -242,15 +244,15 @@ function main() {
   fs.rmSync(archive5xPath, { force: true });
   fs.rmSync(archiveV4Path, { force: true });
 
-  console.log('[consolidate-changelog-archive] consolidated:');
-  console.log(
+  Logger.info('[consolidate-changelog-archive] consolidated:');
+  Logger.info(
     `  wrote     ${path.relative(repoRoot, consolidatedPath)}  (${consolidated.length} bytes)`,
   );
-  console.log(
+  Logger.info(
     `  rewrote   ${path.relative(repoRoot, liveChangelogPath)}  (${newLive.length} bytes)`,
   );
-  console.log(`  deleted   ${path.relative(repoRoot, archive5xPath)}`);
-  console.log(`  deleted   ${path.relative(repoRoot, archiveV4Path)}`);
+  Logger.info(`  deleted   ${path.relative(repoRoot, archive5xPath)}`);
+  Logger.info(`  deleted   ${path.relative(repoRoot, archiveV4Path)}`);
 }
 
 main();
