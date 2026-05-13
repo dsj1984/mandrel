@@ -109,7 +109,12 @@ function scanFile(file, src) {
     basename === 'story-init.js' ||
     basename === 'story-init-not-backgrounded.js' ||
     basename === 'story-init-not-backgrounded.test.js' ||
-    basename === 'parallel-tooling.md'
+    basename === 'parallel-tooling.md' ||
+    // Meta-note describing the collision pattern — references both
+    // `story-init.js` and the `run_in_background` token in adjacent prose
+    // (see Story #1606 memory sweep). Excluded for the same reason as
+    // `parallel-tooling.md` above.
+    basename === 'feedback_parallel_tooling_scanner_collision.md'
   ) {
     return offences;
   }
