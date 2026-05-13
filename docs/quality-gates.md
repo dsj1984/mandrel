@@ -169,6 +169,35 @@ snapshot whatever the current numbers are without regard to the floor.
 **Do not pass `--floor=off` in normal close-validation or push flows.**
 The audit suite scans for accidental uses of the flag.
 
+### No silent excludes (`.c8rc.cjs` policy)
+
+The floor gate is only as strict as its scope, so the `exclude` list in
+[`.c8rc.cjs`](../.c8rc.cjs) carries three hard requirements that are
+enforced by review (and partially by the audit suite):
+
+1. **One-line rationale per entry.** Every file in `exclude[]` MUST have
+   a bulleted justification in the `.c8rc.cjs` header comment naming
+   *why* it is excluded — typically "thin CLI shell, meaningful logic
+   lives in `lib/<X>` and is unit-tested there." A bare path with no
+   rationale is a review-block.
+2. **`/* node:coverage ignore file */` pragma at source.** Every
+   excluded file MUST carry the Node coverage pragma at the top of its
+   own source. This is the second line of defence: when `c8 report` and
+   the baseline checker disagree about scope (different cwd, different
+   glob expansion, partial install), the pragma keeps the file out of
+   the gate's numerator from the inside.
+3. **Excluded file's callees clear the floor.** A CLI shell is only a
+   legitimate exclude if the `lib/` module it wraps actually clears the
+   floor (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20). Excluding a shell
+   that delegates to under-tested helpers re-introduces the very
+   risk the floor gate exists to surface; the audit suite spot-checks
+   the callee map at exclude-list churn time.
+
+Story #1602 audit pass (2026-05-13) removed two stale exclude entries
+(`epic-runner.js`, `ticket-decomposer.js`) whose source files had already
+been deleted in earlier refactors. Every remaining entry was re-verified
+against requirements 1 and 2 above.
+
 ### Discontinuity with v5 baselines
 
 The v6 floor gate landed alongside a fresh baseline reset
