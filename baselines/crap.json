@@ -2344,7 +2344,7 @@
       "startLine": 59
     },
     {
-      "crap": 8,
+      "crap": 9,
       "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
       "method": "scanFile",
       "startLine": 100
