@@ -255,4 +255,7 @@ function main() {
   Logger.info(`  deleted   ${path.relative(repoRoot, archiveV4Path)}`);
 }
 
+// cli-opt-out: one-shot consolidator (Story #1605, Epic #1184). Bare main()
+// invocation is intentional — the script is removed at Epic #1184 close and
+// never imported as a module, so the runAsCli wrapper would be dead weight.
 main();

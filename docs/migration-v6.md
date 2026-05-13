@@ -172,7 +172,8 @@ full pre-v6 history).
 `agentrc.schema.json` already had `additionalProperties: false` at the
 top level. v6 audits every nested object in the schema for the same
 setting, and removes legacy fields the changelog had been trailing
-(e.g. `runners.epicRunner.healthRefresh`-style residue).
+(specifically, any residual runner-config keys deleted in the 5.40.0
+flatten — see `archive/CHANGELOG-pre-v6.md` for the keymap).
 
 What this means in practice:
 
