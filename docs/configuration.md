@@ -1,6 +1,6 @@
 # Configuration Reference
 
-`.agentrc.json` is the single configuration contract for the Agent Protocols
+`.agentrc.json` is the single configuration contract for the Mandrel
 framework. It is parsed at the start of every script via
 [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js), validated
 against AJV schemas at runtime, and consumed through grouped accessors
@@ -171,8 +171,7 @@ subject + non-empty body so the refresh-guardrail accepts it.
 
 #### `agentSettings.quality.prGate`
 
-Promoted from schema-only to default config in 5.40.0 (Epic #1142). The
-`checks` array drives both the close-validation chain inside
+The `checks` array drives both the close-validation chain inside
 `/epic-deliver` Phase 3 and the required-status-checks expectation that
 `/epic-deliver` Phase 6 sets on the PR. `enforceBranchProtection` is the
 load-bearing knob that controls whether `/agents-bootstrap-github`
@@ -232,7 +231,7 @@ Added in Epic #817 Story 9.
 | `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
 | `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
 | `release.autoVersionBump` | No | `false` | Enables automatic semver bumping at release tagging.                                    |
-| `planning.riskHeuristics` | No | `[]`  | Free-form rubric for `risk::high` decisions (informational). Renamed in 5.40.0 (Epic #1142); the prior name lives in `docs/CHANGELOG.md` 5.40.0 entry. |
+| `planning.riskHeuristics` | No | `[]`  | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). |
 | `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
 
 ---
@@ -246,10 +245,10 @@ Added in Epic #817 Story 9.
 | `executor`        | No       | (none)  | Executor adapter id (advanced; rarely set).                        |
 | `notifications`   | No       | `{}`    | Notifier behaviour. See sub-block.                                 |
 | `worktreeIsolation` | No     | (see sub-block) | Worktree-per-Story isolation tuning.                            |
-| `deliverRunner`   | No       | (see sub-block) | `/epic-deliver` fan-out tuning. Renamed in 5.40.0; the prior name is documented in the CHANGELOG 5.40.0 entry. |
+| `deliverRunner`   | No       | (see sub-block) | `/epic-deliver` fan-out tuning. |
 | `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
 | `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
-| `storyMergeRetry` | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes. Renamed in 5.40.0; the prior name is documented in the CHANGELOG 5.40.0 entry. |
+| `storyMergeRetry` | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes. |
 
 ### `orchestration.github`
 
@@ -330,14 +329,11 @@ checkout's HEAD.
 
 ### `orchestration.runners`
 
-Epic #773 (Story 7) grouped every runner-flavoured sub-block under
-`orchestration.runners.*`. Pre-#773 flat keys (the legacy
-`orchestration.epic-runner`-style flat layout) are no longer accepted —
-the schema rejects them with `additionalProperties: false`. Epic #1142
-Story #1157 renamed two of the grouped sub-blocks; the rename details
-and the legacy → new key mapping live in `docs/CHANGELOG.md` under the
-5.40.0 entry. The legacy names are rejected by AJV; the merged
-`default-agentrc.json` ships with the new names.
+Every runner-flavoured sub-block lives under `orchestration.runners.*`.
+The schema rejects unknown keys with `additionalProperties: false` at
+both the runners root and each runner sub-block, so legacy flat keys
+and prior names are not accepted. The merged `default-agentrc.json`
+ships with the current key names.
 
 #### `orchestration.runners.deliverRunner`
 
@@ -398,7 +394,7 @@ number of keys.
 | `agentSettings.quality.crap.targetDirs`   | `[".agents/scripts"]`                 | `["src"]`                           | Same reason as MI above.                                                                                                                                                                  |
 | `agentSettings.release.docs`              | `["README.md", "docs/CHANGELOG.md"]`  | `["README.md"]`                     | Root keeps a separate CHANGELOG; template starts minimal and lets consumers extend.                                                                                                       |
 | `agentSettings.release.versionFile`       | `".agents/VERSION"`                   | `null`                              | Root tracks the framework's own version file; consumer template defers version-file ownership to the consumer.                                                                            |
-| `orchestration.github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/agent-protocols` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced during `/agents-bootstrap-github` (or by hand). |
+| `orchestration.github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced during `/agents-bootstrap-github` (or by hand). |
 | `orchestration.worktreeIsolation.nodeModulesStrategy` | `per-worktree`             | `pnpm-store`                        | Root is npm-only; template defaults to the strategy that scales best for pnpm consumers.                                                                                                  |
 
 The two files share every other key. When a consumer runs `/agents-update`,

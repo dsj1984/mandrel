@@ -159,13 +159,20 @@ export function validateAcFreshness({
  * @param {object}                     [opts.taskSizing]    - Override the three-layer sizing thresholds. Defaults to `DEFAULT_TASK_SIZING`.
  * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing findings.
  */
-export function validateAndNormalizeTickets(tickets, opts = {}) {
+/**
+ * Internal helpers extracted from `validateAndNormalizeTickets` so each
+ * stage can be unit-tested in isolation and the orchestration method stays
+ * at a low cyclomatic complexity. Exported via the `_internal` bundle at
+ * the bottom of the module for tests; production callers should keep
+ * using `validateAndNormalizeTickets`.
+ */
+
+function indexTicketsBySlug(tickets) {
   const ticketBySlug = new Map();
   const features = [];
   const stories = [];
   const tasks = [];
   const slugAdjacency = new Map();
-
   for (const t of tickets) {
     if (t.slug) {
       if (ticketBySlug.has(t.slug)) {
@@ -180,7 +187,10 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     else if (t.type === 'story') stories.push(t);
     else if (t.type === 'task') tasks.push(t);
   }
+  return { ticketBySlug, features, stories, tasks, slugAdjacency };
+}
 
+function assertEachTypePresent({ features, stories, tasks }) {
   if (features.length === 0)
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Feature.',
@@ -193,8 +203,9 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     throw new Error(
       'Cross-Validation Failed: Backlog must contain at least one Task.',
     );
+}
 
-  // Validate hierarchy
+function assertHierarchy({ stories, tasks, ticketBySlug }) {
   for (const story of stories) {
     if (!story.parent_slug)
       throw new Error(
@@ -206,7 +217,6 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
         `Cross-Validation Failed: Story "${story.title}" parent must be a Feature.`,
       );
   }
-
   for (const task of tasks) {
     if (!task.parent_slug)
       throw new Error(
@@ -219,10 +229,9 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       );
     }
   }
+}
 
-  // Every Story must have at least one child Task. A story with zero tasks is
-  // a truncated/malformed LLM output that cannot be dispatched or executed,
-  // and historically leaked through to GitHub as an empty container issue.
+function countTasksByStory(tasks) {
   const taskCountByStory = new Map();
   for (const task of tasks) {
     taskCountByStory.set(
@@ -230,22 +239,21 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       (taskCountByStory.get(task.parent_slug) ?? 0) + 1,
     );
   }
+  return taskCountByStory;
+}
+
+function assertEveryStoryHasTasks({ stories, taskCountByStory }) {
   const emptyStories = stories.filter(
     (s) => (taskCountByStory.get(s.slug) ?? 0) === 0,
   );
-  if (emptyStories.length > 0) {
-    const list = emptyStories.map((s) => `"${s.title}" (${s.slug})`).join(', ');
-    throw new Error(
-      `Cross-Validation Failed: ${emptyStories.length} Story/Stories have no child Tasks: ${list}. Every Story must decompose into at least one Task.`,
-    );
-  }
+  if (emptyStories.length === 0) return;
+  const list = emptyStories.map((s) => `"${s.title}" (${s.slug})`).join(', ');
+  throw new Error(
+    `Cross-Validation Failed: ${emptyStories.length} Story/Stories have no child Tasks: ${list}. Every Story must decompose into at least one Task.`,
+  );
+}
 
-  // ── Unknown-slug dependency check ──────────────────────────────────────
-  // Any `depends_on` that references a slug not present in `ticketBySlug` is
-  // a malformed LLM output — the ticket would be created on GitHub with a
-  // silently-dropped dependency, breaking the DAG. Fail here so the operator
-  // (or the LLM's self-correction loop) sees the typo before anything hits
-  // the provider. Covers all ticket types, not just tasks.
+function assertNoUnknownDeps({ tickets, ticketBySlug }) {
   const unknownDeps = [];
   for (const t of tickets) {
     for (const depSlug of t.depends_on ?? []) {
@@ -254,23 +262,35 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
       }
     }
   }
-  if (unknownDeps.length > 0) {
-    const list = unknownDeps
-      .map((u) => `"${u.title}" (${u.slug}) → "${u.dep}"`)
-      .join(', ');
-    throw new Error(
-      `Cross-Validation Failed: ${unknownDeps.length} depends_on reference(s) use unknown slugs: ${list}. Every slug in depends_on must match a slug present in the backlog.`,
-    );
-  }
+  if (unknownDeps.length === 0) return;
+  const list = unknownDeps
+    .map((u) => `"${u.title}" (${u.slug}) → "${u.dep}"`)
+    .join(', ');
+  throw new Error(
+    `Cross-Validation Failed: ${unknownDeps.length} depends_on reference(s) use unknown slugs: ${list}. Every slug in depends_on must match a slug present in the backlog.`,
+  );
+}
 
-  // ── Cross-story task dependency validation ─────────────────────────────
-  // Tasks must only depend on other tasks within the same story.
-  // If a cross-story task dep is found, auto-lift it to a story-level dep.
+function liftDepToStory({ task, depTicket, ticketBySlug, slugAdjacency }) {
+  const depStory = depTicket.parent_slug;
+  const taskStory = task.parent_slug;
+  const myStory = ticketBySlug.get(taskStory);
+  if (!myStory) return null;
+  if (!myStory.depends_on) myStory.depends_on = [];
+  if (myStory.depends_on.includes(depStory)) return null;
+  myStory.depends_on.push(depStory);
+  const deps = slugAdjacency.get(taskStory) ?? [];
+  if (!deps.includes(depStory)) {
+    deps.push(depStory);
+    slugAdjacency.set(taskStory, deps);
+  }
+  return { fromStory: taskStory, toStory: depStory };
+}
+
+function processCrossStoryTaskDeps({ tasks, ticketBySlug, slugAdjacency }) {
   const crossStoryLifted = [];
   for (const task of tasks) {
     if (!task.depends_on || task.depends_on.length === 0) continue;
-    const taskStory = task.parent_slug;
-
     const keptDeps = [];
     for (const depSlug of task.depends_on) {
       const depTicket = ticketBySlug.get(depSlug);
@@ -279,97 +299,52 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
         // no-op so cycle detection below sees only known slugs.
         continue;
       }
-
-      // Only check task→task cross-story deps
       if (depTicket.type !== 'task') {
         keptDeps.push(depSlug);
         continue;
       }
-
-      const depStory = depTicket.parent_slug;
-      if (depStory !== taskStory) {
-        // Cross-story task dep found — lift to story-level
-        const myStory = ticketBySlug.get(taskStory);
-        if (myStory) {
-          if (!myStory.depends_on) myStory.depends_on = [];
-          if (!myStory.depends_on.includes(depStory)) {
-            myStory.depends_on.push(depStory);
-            // Update slugAdjacency
-            const deps = slugAdjacency.get(taskStory) ?? [];
-            if (!deps.includes(depStory)) {
-              deps.push(depStory);
-              slugAdjacency.set(taskStory, deps);
-            }
-
-            crossStoryLifted.push({
-              task: task.slug,
-              dep: depSlug,
-              fromStory: taskStory,
-              toStory: depStory,
-            });
-          }
-        }
-        // Remove the cross-story task dep (don't keep it)
-      } else {
+      if (depTicket.parent_slug === task.parent_slug) {
         keptDeps.push(depSlug);
+        continue;
+      }
+      const lift = liftDepToStory({
+        task,
+        depTicket,
+        ticketBySlug,
+        slugAdjacency,
+      });
+      if (lift) {
+        crossStoryLifted.push({ task: task.slug, dep: depSlug, ...lift });
       }
     }
     task.depends_on = keptDeps;
     slugAdjacency.set(task.slug, keptDeps);
   }
+  return crossStoryLifted;
+}
 
-  if (crossStoryLifted.length > 0) {
+function logLiftedDeps(crossStoryLifted) {
+  if (crossStoryLifted.length === 0) return;
+  Logger.warn(
+    `[Decomposer] ⚠️  Lifted ${crossStoryLifted.length} cross-story task dep(s) to story-level:`,
+  );
+  for (const lift of crossStoryLifted) {
     Logger.warn(
-      `[Decomposer] ⚠️  Lifted ${crossStoryLifted.length} cross-story task dep(s) to story-level:`,
+      `  Task "${lift.task}" → dep "${lift.dep}" lifted to Story "${lift.fromStory}" → Story "${lift.toStory}"`,
     );
-    for (const lift of crossStoryLifted) {
-      Logger.warn(
-        `  Task "${lift.task}" → dep "${lift.dep}" lifted to Story "${lift.fromStory}" → Story "${lift.toStory}"`,
-      );
-    }
   }
+}
 
-  // Acyclic dependency check
+function assertAcyclic(slugAdjacency) {
   const cycle = detectCycle(slugAdjacency);
   if (cycle) {
     throw new Error(
       `Cross-Validation Failed: Circular dependency detected: ${cycle.join(' → ')}.`,
     );
   }
+}
 
-  // ── Freshness gate ────────────────────────────────────────────────────
-  // Refuse to decompose when any Task body or AC names a code-asset path
-  // missing from the Epic's base branch tree. Skipped when the caller
-  // omits `baseBranchRef` so legacy unit tests (which never plumb a git
-  // ref) keep their existing semantics. Production call-sites
-  // (epic-plan-decompose) always pass it.
-  if (opts.baseBranchRef) {
-    validateAcFreshness({
-      tickets,
-      baseBranchRef: opts.baseBranchRef,
-      gitRunner: opts.gitRunner,
-      cwd: opts.cwd,
-    });
-  }
-
-  // ── Three-layer sizing model (Epic #1178 Story #1191) ─────────────────
-  // The findings array (hard + soft) drives the bounded re-decomposition
-  // loop; the rendered hard subset feeds the AC-visible `errors[]` signal.
-  // See `ticket-validator-sizing.js` for the per-finding logic.
-  const findings = computeSizingFindings({
-    tasks,
-    stories,
-    taskCountByStory,
-    sizing: opts.taskSizing,
-  });
-  const errors = findings
-    .filter((f) => f.severity === 'hard')
-    .map(renderHardFindingError);
-
-  // Arrays are objects — attach `findings` / `errors` as enumerable
-  // properties so callers using the legacy `const validated = validate(...)`
-  // shape continue to work, and new callers can inspect
-  // `validated.findings` / `validated.errors` directly.
+function attachFindingsAndErrors(tickets, findings, errors) {
   Object.defineProperty(tickets, 'findings', {
     value: findings,
     enumerable: false,
@@ -382,6 +357,65 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     configurable: true,
     writable: true,
   });
+}
 
+export function validateAndNormalizeTickets(tickets, opts = {}) {
+  const { ticketBySlug, features, stories, tasks, slugAdjacency } =
+    indexTicketsBySlug(tickets);
+
+  assertEachTypePresent({ features, stories, tasks });
+  assertHierarchy({ stories, tasks, ticketBySlug });
+
+  const taskCountByStory = countTasksByStory(tasks);
+  assertEveryStoryHasTasks({ stories, taskCountByStory });
+  assertNoUnknownDeps({ tickets, ticketBySlug });
+
+  const crossStoryLifted = processCrossStoryTaskDeps({
+    tasks,
+    ticketBySlug,
+    slugAdjacency,
+  });
+  logLiftedDeps(crossStoryLifted);
+
+  assertAcyclic(slugAdjacency);
+
+  // Refuse to decompose when any Task body or AC names a code-asset path
+  // missing from the Epic's base branch tree. Skipped when the caller
+  // omits `baseBranchRef` so legacy unit tests keep their existing
+  // semantics; production call-sites always pass it.
+  if (opts.baseBranchRef) {
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: opts.baseBranchRef,
+      gitRunner: opts.gitRunner,
+      cwd: opts.cwd,
+    });
+  }
+
+  const findings = computeSizingFindings({
+    tasks,
+    stories,
+    taskCountByStory,
+    sizing: opts.taskSizing,
+  });
+  const errors = findings
+    .filter((f) => f.severity === 'hard')
+    .map(renderHardFindingError);
+
+  attachFindingsAndErrors(tickets, findings, errors);
   return tickets;
 }
+
+// Internal helpers exposed for unit tests; not part of the public surface.
+export const _internal = {
+  indexTicketsBySlug,
+  assertEachTypePresent,
+  assertHierarchy,
+  countTasksByStory,
+  assertEveryStoryHasTasks,
+  assertNoUnknownDeps,
+  liftDepToStory,
+  processCrossStoryTaskDeps,
+  assertAcyclic,
+  attachFindingsAndErrors,
+};

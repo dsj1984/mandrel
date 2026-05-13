@@ -1,5 +1,5 @@
 ---
-description: Run an architecture and clean code audit
+description: Audit architectural boundaries, module coupling, and layering violations; emit a structured findings report keyed to High/Medium/Low severity.
 ---
 
 # Architecture & Clean Code Audit

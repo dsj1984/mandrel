@@ -105,75 +105,75 @@ export function removePendingCleanup(worktreeRoot, storyId) {
   writeManifest(worktreeRoot, entries);
 }
 
-async function retryStage1ForEntry(entry, { git, repoRoot, fsRm, logger }) {
-  const { path: wtPath, branch, push } = entry;
-
+async function removeStuckWorktreePath(wtPath, { git, repoRoot, fsRm }) {
+  if (!fs.existsSync(wtPath)) return { ok: true };
+  let rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
+  if (rm.status !== 0) {
+    rm = git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
+  }
   if (fs.existsSync(wtPath)) {
-    let rm = git.gitSpawn(repoRoot, 'worktree', 'remove', wtPath);
-    if (rm.status !== 0) {
-      rm = git.gitSpawn(repoRoot, 'worktree', 'remove', '--force', wtPath);
-    }
-    if (fs.existsSync(wtPath)) {
-      try {
-        await fsRm(wtPath, { recursive: true, force: true });
-      } catch (err) {
-        return { success: false, error: err };
-      }
+    try {
+      await fsRm(wtPath, { recursive: true, force: true });
+    } catch (err) {
+      return { ok: false, error: err };
     }
   }
-
   if (fs.existsSync(wtPath)) {
     return {
-      success: false,
+      ok: false,
       error: new Error(
         `path still exists after worktree remove + fs.rm: ${wtPath}`,
       ),
     };
   }
+  return { ok: true };
+}
 
-  git.gitSpawn(repoRoot, 'worktree', 'prune');
-  let localBranchDeleted = null;
-  let remoteBranchDeleted = null;
-  if (branch) {
-    const localDel = git.gitSpawn(repoRoot, 'branch', '-D', branch);
-    if (localDel.status !== 0) {
-      const stderr = (localDel.stderr || localDel.stdout || '').trim();
-      if (!/not found|no such|not match/i.test(stderr)) {
-        localBranchDeleted = false;
-        logger.warn(
-          `worktree-sweep: branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-        );
-      } else {
-        localBranchDeleted = true;
-      }
-    } else {
-      localBranchDeleted = true;
-    }
-    if (push) {
-      const remoteDel = git.gitSpawn(
-        repoRoot,
-        'push',
-        '--no-verify',
-        'origin',
-        '--delete',
-        branch,
-      );
-      if (remoteDel.status !== 0) {
-        const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
-        if (!/remote ref does not exist|not found/i.test(stderr)) {
-          remoteBranchDeleted = false;
-          logger.warn(
-            `worktree-sweep: push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-          );
-        } else {
-          remoteBranchDeleted = true;
-        }
-      } else {
-        remoteBranchDeleted = true;
-      }
-    }
+function sweepBranchLocal(branch, { git, repoRoot, logger }) {
+  const localDel = git.gitSpawn(repoRoot, 'branch', '-D', branch);
+  if (localDel.status === 0) return true;
+  const stderr = (localDel.stderr || localDel.stdout || '').trim();
+  if (/not found|no such|not match/i.test(stderr)) return true;
+  logger.warn(
+    `worktree-sweep: branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+  );
+  return false;
+}
+
+function sweepBranchRemote(branch, { git, repoRoot, logger }) {
+  const remoteDel = git.gitSpawn(
+    repoRoot,
+    'push',
+    '--no-verify',
+    'origin',
+    '--delete',
+    branch,
+  );
+  if (remoteDel.status === 0) return true;
+  const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
+  if (/remote ref does not exist|not found/i.test(stderr)) return true;
+  logger.warn(
+    `worktree-sweep: push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+  );
+  return false;
+}
+
+function sweepBranchCleanup(entry, ctx) {
+  const { branch, push } = entry;
+  if (!branch) return { localBranchDeleted: null, remoteBranchDeleted: null };
+  const localBranchDeleted = sweepBranchLocal(branch, ctx);
+  const remoteBranchDeleted = push ? sweepBranchRemote(branch, ctx) : null;
+  return { localBranchDeleted, remoteBranchDeleted };
+}
+
+async function retryStage1ForEntry(entry, ctx) {
+  const removal = await removeStuckWorktreePath(entry.path, ctx);
+  if (!removal.ok) {
+    return { success: false, error: removal.error };
   }
-  return { success: true, localBranchDeleted, remoteBranchDeleted };
+  ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
+  const cleanup = sweepBranchCleanup(entry, ctx);
+  return { success: true, ...cleanup };
 }
 
 /**

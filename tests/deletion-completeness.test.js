@@ -66,6 +66,21 @@ const ALLOWLIST = [
   // This test file itself enumerates every forbidden term as plain
   // strings.
   'tests/deletion-completeness.test.js',
+  // Memory entries mirror user-level point-in-time observations
+  // (feedback notes captured before the 5.40.0 deletion). They are
+  // historical narrative — substance preservation is mandated by
+  // Story #1606 (MEMORY.md sweep) — so legacy command names like
+  // `/epic-execute` / `/epic-close` legitimately survive here.
+  '.agents/memory/',
+  // The v5→v6 consumer migration tool is, by definition, the canonical
+  // home for every legacy key name — the keymap *has* to literally
+  // spell out each deleted/renamed config path so it can rewrite it.
+  // The CLI, the keymap data module, and their tests are all in scope.
+  '.agents/scripts/migrate-to-v6.js',
+  '.agents/scripts/lib/migrate-to-v6-core.js',
+  '.agents/scripts/lib/v5-to-v6-keymap.js',
+  'tests/lib/v5-to-v6-keymap.test.js',
+  'tests/scripts/migrate-to-v6.test.js',
 ];
 
 /**

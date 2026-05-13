@@ -1,4 +1,15 @@
-# Agent Protocols 🤖
+# Mandrel 🤖
+
+[![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
+
+<!--
+Badge URLs target the post-rename `mandrel` repository (Story #1610 performs
+the maintainer-driven GitHub rename). Until the rename lands, GitHub's
+automatic redirect from `dsj1984/agent-protocols` resolves these URLs to the
+live workflow. Once the rename completes, the badges render natively without
+a follow-up edit. The `noise-study.yml` workflow is `workflow_dispatch` only
+and intentionally has no badge (it would render `no status`).
+-->
 
 A structured framework of instructions, personas, skills, and SDLC workflows
 that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
@@ -6,8 +17,9 @@ that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
 Labels, and Projects V2.
 
 **Current version:** see [`.agents/VERSION`](.agents/VERSION). Release notes
-live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is in
-[`docs/archive/CHANGELOG-v4.md`](docs/archive/CHANGELOG-v4.md).
+live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); pre-v6.0.0 history
+(v1.x – v5.41.x) is consolidated in
+[`docs/archive/CHANGELOG-pre-v6.md`](docs/archive/CHANGELOG-pre-v6.md).
 
 ## Highlights
 
@@ -49,7 +61,7 @@ stack), see [`docs/architecture.md`](docs/architecture.md).
 
 ## Prerequisites
 
-Agent Protocols requires two hard dependencies on the host before bootstrap:
+Mandrel requires two hard dependencies on the host before bootstrap:
 
 - **Node.js** (>= 20) — the orchestration scripts run on Node and use modern
   ESM + `--experimental-test-module-mocks`. Install from
@@ -70,7 +82,7 @@ did not grant the `project` scope (see Get Started below).
 Five commands take you from zero to a planned, delivered Epic:
 
 ```powershell
-git submodule add -b dist https://github.com/dsj1984/agent-protocols.git .agents
+git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
 node .agents/scripts/agents-bootstrap-github.js --install-workflows
 cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.github
 # in your agentic IDE:
@@ -189,7 +201,7 @@ upgrade sees `no-change` on every step.
 ## Repository Structure
 
 ```text
-agent-protocols/
+mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── VERSION
 │   ├── instructions.md       # Primary system prompt

@@ -43,7 +43,11 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Secret Scanning (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
+        # Pinned to a released tag rather than the moving `@main` head — a
+        # third-party action's default branch is a supply-chain risk vector
+        # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
+        # `npm run audit-security` flags any reversion to `@main` / `@master`.
+        uses: trufflesecurity/trufflehog@v3.95.3
         with:
           extra_args: --debug --only-verified
 
@@ -81,10 +85,25 @@ jobs:
           name: test-results
           path: test-output.txt
 
-      # Persist the istanbul/c8 coverage map so the CRAP gate (next step) and
+      - name: Coverage Baseline + Floor Check
+        # Story #1602 (Epic #1184): the absolute-floor gate is enabled by
+        # default inside check-coverage-baseline.js (coverage 90/85/90).
+        # On PRs we keep the diff-scoped ratchet (--changed-since base_ref);
+        # on push-to-main we run --full-scope so an in-scope file below
+        # floor cannot ride along with an unrelated PR. The Maintainability
+        # and CRAP floor checks above already cover their gates because
+        # those checkers also enable the floor block by default.
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            npm run coverage:check -- --changed-since origin/${{ github.base_ref }}
+          else
+            npm run coverage:check -- --full-scope
+          fi
+
+      # Persist the istanbul/c8 coverage map so the CRAP gate (below) and
       # downstream agent workflows can re-read per-method coverage without
       # re-running the test suite. `if: always()` so a coverage-threshold
-      # failure in the previous step still uploads the artifact for triage.
+      # failure in a previous step still uploads the artifact for triage.
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@v4
         if: always()

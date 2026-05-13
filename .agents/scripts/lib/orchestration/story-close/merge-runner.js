@@ -211,6 +211,34 @@ export async function pushEpicAndHandleConflicts({
  *
  * @returns {{ rebased: boolean, reason?: string }}
  */
+function resolveStoryWorktreePath({ orchestration, storyId, repoRoot }) {
+  const wtConfig = orchestration?.worktreeIsolation;
+  if (!wtConfig?.enabled) return { reason: 'isolation-disabled' };
+  const wtPath = resolveWorkingPath({
+    worktreeEnabled: true,
+    repoRoot,
+    storyId,
+    worktreeRoot: wtConfig.root,
+  });
+  if (!fs.existsSync(wtPath)) return { reason: 'worktree-missing' };
+  return { wtPath };
+}
+
+function runFetchOrigin({ wtPath, epicBranch, log, gitSpawn }) {
+  const fetch = gitSpawn(wtPath, 'fetch', 'origin', epicBranch);
+  if (fetch.status === 0) return true;
+  log('GIT', `⚠️ fetch origin ${epicBranch} failed; skipping pre-merge rebase`);
+  return false;
+}
+
+function runRebaseAndAbortOnConflict({ wtPath, epicBranch, log, gitSpawn }) {
+  const rebase = gitSpawn(wtPath, 'rebase', `origin/${epicBranch}`);
+  if (rebase.status === 0) return true;
+  gitSpawn(wtPath, 'rebase', '--abort');
+  log('GIT', '⚠️ rebase conflicted; aborted — merge triage will handle overlap');
+  return false;
+}
+
 export function rebaseStoryOnEpic({
   orchestration,
   storyId,
@@ -220,36 +248,15 @@ export function rebaseStoryOnEpic({
   log = () => {},
   gitSpawn = defaultGitSpawn,
 }) {
-  const wtConfig = orchestration?.worktreeIsolation;
-  if (!wtConfig?.enabled) {
-    return { rebased: false, reason: 'isolation-disabled' };
-  }
-  const wtPath = resolveWorkingPath({
-    worktreeEnabled: true,
-    repoRoot,
-    storyId,
-    worktreeRoot: wtConfig.root,
-  });
-  if (!fs.existsSync(wtPath)) {
-    return { rebased: false, reason: 'worktree-missing' };
-  }
+  const wt = resolveStoryWorktreePath({ orchestration, storyId, repoRoot });
+  if (!wt.wtPath) return { rebased: false, reason: wt.reason };
+  const { wtPath } = wt;
 
   log('GIT', `Rebasing ${storyBranch} onto origin/${epicBranch}...`);
-  const fetch = gitSpawn(wtPath, 'fetch', 'origin', epicBranch);
-  if (fetch.status !== 0) {
-    log(
-      'GIT',
-      `⚠️ fetch origin ${epicBranch} failed; skipping pre-merge rebase`,
-    );
+  if (!runFetchOrigin({ wtPath, epicBranch, log, gitSpawn })) {
     return { rebased: false, reason: 'fetch-failed' };
   }
-  const rebase = gitSpawn(wtPath, 'rebase', `origin/${epicBranch}`);
-  if (rebase.status !== 0) {
-    gitSpawn(wtPath, 'rebase', '--abort');
-    log(
-      'GIT',
-      '⚠️ rebase conflicted; aborted — merge triage will handle overlap',
-    );
+  if (!runRebaseAndAbortOnConflict({ wtPath, epicBranch, log, gitSpawn })) {
     return { rebased: false, reason: 'rebase-conflict' };
   }
   log('GIT', `✅ Rebased ${storyBranch} onto origin/${epicBranch}`);
@@ -279,6 +286,46 @@ export function rebaseStoryOnEpic({
  *   gitSpawn?: typeof defaultGitSpawn,
  * }} opts
  */
+function buildMergeMessage(storyTitle, storyId) {
+  return `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
+}
+
+function buildVerboseMergeLogger(logger) {
+  return (_level, _ctx, msg, meta) => {
+    const tail = meta ? ` ${JSON.stringify(meta)}` : '';
+    logger.error(`[merge] ${msg}${tail}`);
+  };
+}
+
+function throwOnMajorConflict({ result, epicBranch }) {
+  if (result.merged || !result.major) return;
+  throw new Error(
+    `Major merge conflict on story close: ` +
+      `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
+      `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
+      `Merge has been aborted. Resolve manually on ${epicBranch}, then ` +
+      `re-run this script.`,
+  );
+}
+
+function logMergeOutcome({ result, log }) {
+  if (!result.autoResolved) {
+    log('GIT', '✅ Merge successful');
+    return;
+  }
+  log(
+    'GIT',
+    `✅ Merge completed with auto-resolved minor conflicts ` +
+      `(${result.conflicts.files} file(s) resolved to theirs)`,
+  );
+  for (const f of result.autoResolvedFiles ?? []) {
+    log(
+      'GIT',
+      `  ↳ auto-resolved ${f.file} (${f.discardedLines} base line(s) discarded; trailer in merge commit)`,
+    );
+  }
+}
+
 export async function runFinalizeMerge({
   epicBranch,
   storyBranch,
@@ -307,39 +354,15 @@ export async function runFinalizeMerge({
   gitSpawn(cwd, 'pull', '--rebase', 'origin', epicBranch);
 
   log('GIT', `Merging ${storyBranch} into ${epicBranch} (--no-ff)...`);
-  const mergeMsg = `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
-  const vlog = (_level, _ctx, msg, meta) => {
-    const tail = meta ? ` ${JSON.stringify(meta)}` : '';
-    logger.error(`[merge] ${msg}${tail}`);
-  };
-  const result = mergeFeatureBranch(cwd, storyBranch, vlog, {
-    message: mergeMsg,
-  });
+  const result = mergeFeatureBranch(
+    cwd,
+    storyBranch,
+    buildVerboseMergeLogger(logger),
+    { message: buildMergeMessage(storyTitle, storyId) },
+  );
 
-  if (!result.merged && result.major) {
-    throw new Error(
-      `Major merge conflict on story close: ` +
-        `${result.conflicts.files} file(s), ${result.conflicts.lines} marker(s). ` +
-        `Conflicting files: ${result.conflicts.fileList.join(', ')}. ` +
-        `Merge has been aborted. Resolve manually on ${epicBranch}, then ` +
-        `re-run this script.`,
-    );
-  }
-  if (result.autoResolved) {
-    log(
-      'GIT',
-      `✅ Merge completed with auto-resolved minor conflicts ` +
-        `(${result.conflicts.files} file(s) resolved to theirs)`,
-    );
-    for (const f of result.autoResolvedFiles ?? []) {
-      log(
-        'GIT',
-        `  ↳ auto-resolved ${f.file} (${f.discardedLines} base line(s) discarded; trailer in merge commit)`,
-      );
-    }
-  } else {
-    log('GIT', '✅ Merge successful');
-  }
+  throwOnMajorConflict({ result, epicBranch });
+  logMergeOutcome({ result, log });
 
   log('GIT', `Pushing ${epicBranch}...`);
   const pushOutcome = await pushEpicAndHandleConflicts({
@@ -363,6 +386,20 @@ export async function runFinalizeMerge({
  * conventional-commit subject from `buildResumeMergeCommitMsg`. No-op when
  * `.git/MERGE_HEAD` is absent (merge already committed by the operator).
  */
+function isMergePending(cwd) {
+  return fs.existsSync(path.join(cwd, '.git', 'MERGE_HEAD'));
+}
+
+function commitPendingMerge({ cwd, storyTitle, storyId, gitSpawn }) {
+  return gitSpawn(
+    cwd,
+    'commit',
+    '--no-verify',
+    '-m',
+    buildResumeMergeCommitMsg(storyTitle, storyId),
+  );
+}
+
 export function finalizeMergeIfPending({
   cwd,
   epicBranch,
@@ -372,8 +409,7 @@ export function finalizeMergeIfPending({
   log = () => {},
   gitSpawn = defaultGitSpawn,
 }) {
-  const mergeHeadPath = path.join(cwd, '.git', 'MERGE_HEAD');
-  if (!fs.existsSync(mergeHeadPath)) {
+  if (!isMergePending(cwd)) {
     log(
       'GIT',
       '⚠️ No MERGE_HEAD found — merge already committed; proceeding to push',
@@ -381,13 +417,7 @@ export function finalizeMergeIfPending({
     return;
   }
   log('GIT', 'Finalizing in-progress merge (git commit --no-verify)');
-  const commit = gitSpawn(
-    cwd,
-    'commit',
-    '--no-verify',
-    '-m',
-    buildResumeMergeCommitMsg(storyTitle, storyId),
-  );
+  const commit = commitPendingMerge({ cwd, storyTitle, storyId, gitSpawn });
   if (commit.status !== 0) {
     throw new Error(
       `Failed to finalize merge commit: ${commit.stderr || commit.stdout || 'unknown'}. ` +

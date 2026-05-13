@@ -80,10 +80,7 @@ export function parseSeverityCounts(body) {
  *   },
  * }}
  */
-export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
-  const reasons = [];
-
-  // 1. State signals — interventions, wave statuses, story blockers.
+function evaluateStateSignals(state, reasons) {
   const interventionCount = Array.isArray(state?.manualInterventions)
     ? state.manualInterventions.length
     : 0;
@@ -99,7 +96,6 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
         .join('; ')}${interventionCount > 3 ? '; …' : ''}`,
     );
   }
-
   const waves = Array.isArray(state?.waves) ? state.waves : [];
   const waveStatuses = waves.map((w) => w.status ?? 'unknown');
   const nonCompleteWaves = waveStatuses.filter((s) => s !== 'complete');
@@ -108,8 +104,17 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
       `${nonCompleteWaves.length} wave(s) not complete (statuses: ${nonCompleteWaves.join(', ')})`,
     );
   }
+  const storyBlockers = countStoryBlockers(waves);
+  if (storyBlockers > 0) {
+    reasons.push(
+      `${storyBlockers} story-level blocker(s) recorded in run-state`,
+    );
+  }
+  return { interventionCount, waveStatuses, storyBlockers };
+}
 
-  let storyBlockers = 0;
+function countStoryBlockers(waves) {
+  let blockers = 0;
   for (const w of waves) {
     if (!Array.isArray(w.stories)) continue;
     for (const s of w.stories) {
@@ -118,44 +123,39 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
         typeof s.blockerCommentId === 'string' &&
         s.blockerCommentId.length > 0
       ) {
-        storyBlockers += 1;
+        blockers += 1;
       }
       if (s?.status && s.status !== 'done') {
-        storyBlockers += 1;
+        blockers += 1;
       }
     }
   }
-  if (storyBlockers > 0) {
-    reasons.push(
-      `${storyBlockers} story-level blocker(s) recorded in run-state`,
-    );
-  }
+  return blockers;
+}
 
-  // 2. Code-review signals.
+function evaluateCodeReviewSignals(codeReview, reasons) {
   const codeReviewFound = !!codeReview && typeof codeReview.body === 'string';
   const severity = codeReviewFound
     ? parseSeverityCounts(codeReview.body)
     : { critical: null, high: null, medium: null, suggestion: null };
   if (!codeReviewFound) {
     reasons.push('code-review structured comment not found on Epic');
-  } else {
-    if (severity.critical === null || severity.high === null) {
-      reasons.push('code-review severity bullets could not be parsed');
-    } else {
-      if (severity.critical > 0) {
-        reasons.push(
-          `code-review has ${severity.critical} 🔴 Critical Blocker(s)`,
-        );
-      }
-      if (severity.high > 0) {
-        reasons.push(
-          `code-review has ${severity.high} 🟠 High Risk finding(s)`,
-        );
-      }
-    }
+    return { codeReviewFound, severity };
   }
+  if (severity.critical === null || severity.high === null) {
+    reasons.push('code-review severity bullets could not be parsed');
+    return { codeReviewFound, severity };
+  }
+  if (severity.critical > 0) {
+    reasons.push(`code-review has ${severity.critical} 🔴 Critical Blocker(s)`);
+  }
+  if (severity.high > 0) {
+    reasons.push(`code-review has ${severity.high} 🟠 High Risk finding(s)`);
+  }
+  return { codeReviewFound, severity };
+}
 
-  // 3. Retro signals.
+function evaluateRetroSignals(retro, reasons) {
   const retroFound = !!retro && typeof retro.body === 'string';
   const retroCompact = retroFound
     ? retro.body.includes(CLEAN_SPRINT_MARKER)
@@ -167,18 +167,26 @@ export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
       'retro is not compact (full retro indicates friction / parked / hotfixes)',
     );
   }
+  return { retroFound, retroCompact };
+}
+
+export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
+  const reasons = [];
+  const stateSig = evaluateStateSignals(state, reasons);
+  const reviewSig = evaluateCodeReviewSignals(codeReview, reasons);
+  const retroSig = evaluateRetroSignals(retro, reasons);
 
   return {
     clean: reasons.length === 0,
     reasons,
     signals: {
-      manualInterventions: interventionCount,
-      waveStatuses,
-      storyBlockers,
-      severity,
-      retroCompact,
-      codeReviewFound,
-      retroFound,
+      manualInterventions: stateSig.interventionCount,
+      waveStatuses: stateSig.waveStatuses,
+      storyBlockers: stateSig.storyBlockers,
+      severity: reviewSig.severity,
+      retroCompact: retroSig.retroCompact,
+      codeReviewFound: reviewSig.codeReviewFound,
+      retroFound: retroSig.retroFound,
       stateFound: !!state,
     },
   };

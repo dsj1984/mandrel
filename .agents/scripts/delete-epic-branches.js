@@ -227,23 +227,54 @@ function emitExecutionHuman(epicId, result) {
   process.exit(1);
 }
 
+/**
+ * Pure stage: convert parsed args into the next step's intent. Returns a
+ * tagged plan with one of three shapes — `{ kind: 'usage' }`,
+ * `{ kind: 'dry-run', plan }`, or `{ kind: 'execute', plan }`. The CLI
+ * `main` wrapper handles each shape with a flat dispatch, keeping its
+ * cyclomatic complexity (and CRAP) below the 20 ceiling.
+ */
+export function planMainAction({ epicId, dryRun }) {
+  if (epicId === null) return { kind: 'usage' };
+  const plan = planDeletion({ epicId });
+  if (dryRun) return { kind: 'dry-run', plan };
+  return { kind: 'execute', plan };
+}
+
+/* node:coverage ignore next 4 */
+function runDryRun(plan, { json, emit }) {
+  if (json) emit.json({ ...plan, dryRun: true }, false);
+  else emit.human(plan);
+}
+
+/* node:coverage ignore next 5 */
+function runExecute(epicId, plan, { json, emit }) {
+  const result = executeDeletion({ plan });
+  if (json) emit.json(result, !result.ok);
+  else emit.human(epicId, result);
+}
+
 /* node:coverage ignore next */
 async function main() {
   const { epicId, dryRun, json } = parseDeleteArgs(process.argv.slice(2));
-  if (epicId === null) {
+  const action = planMainAction({ epicId, dryRun });
+  if (action.kind === 'usage') {
     Logger.fatal(
       'Usage: node delete-epic-branches.js --epic <id> [--dry-run] [--json]',
     );
-  }
-  const plan = planDeletion({ epicId });
-  if (dryRun) {
-    if (json) emitJson({ ...plan, dryRun: true }, false);
-    else emitDryRunHuman(plan);
     return;
   }
-  const result = executeDeletion({ plan });
-  if (json) emitJson(result, !result.ok);
-  else emitExecutionHuman(epicId, result);
+  if (action.kind === 'dry-run') {
+    runDryRun(action.plan, {
+      json,
+      emit: { json: emitJson, human: emitDryRunHuman },
+    });
+    return;
+  }
+  runExecute(epicId, action.plan, {
+    json,
+    emit: { json: emitJson, human: emitExecutionHuman },
+  });
 }
 
 runAsCli(import.meta.url, main, { source: 'delete-epic-branches' });

@@ -48,19 +48,20 @@ export function assertBranch(expected, { cwd = PROJECT_ROOT } = {}) {
   return { ok: true, actual, expected };
 }
 
+const FLAG_SPEC = {
+  expected: { type: 'string' },
+  cwd: { type: 'string' },
+};
+
 function parseArgs(argv) {
-  let expected = null;
-  let cwd = null;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--expected' && i + 1 < argv.length) {
-      expected = argv[i + 1];
-      i++;
-    } else if (argv[i] === '--cwd' && i + 1 < argv.length) {
-      cwd = argv[i + 1];
-      i++;
+  const out = { expected: null, cwd: null };
+  for (const [name, def] of Object.entries(FLAG_SPEC)) {
+    const idx = argv.indexOf(`--${name}`);
+    if (idx >= 0 && idx + 1 < argv.length && def.type === 'string') {
+      out[name] = argv[idx + 1];
     }
   }
-  return { expected, cwd };
+  return out;
 }
 
 // cli-opt-out: synchronous CLI with bespoke main-guard; runAsCli's async-main pattern doesn't fit.

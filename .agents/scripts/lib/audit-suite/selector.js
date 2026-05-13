@@ -62,7 +62,7 @@ export function matchesAnyFilePattern(patterns, files) {
  *   Test-only seam to shrink the git-spawn timeout below the configured default
  *   (which is 30_000 ms) so timeout tests don't stall the suite.
  * @param {{ argv?: string[], env?: NodeJS.ProcessEnv }} [params.gateModeOpts]
- *   Test-only seam to drive the `--gate-mode` / `AGENT_PROTOCOLS_GATE_MODE=1`
+ *   Test-only seam to drive the `--gate-mode` / `MANDREL_GATE_MODE=1`
  *   detection; production callers leave unset and `isGateMode` reads
  *   `process.argv` / `process.env`.
  *

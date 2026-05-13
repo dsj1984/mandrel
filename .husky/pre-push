@@ -18,3 +18,12 @@ npm run maintainability:check -- --changed-since origin/main
 npm audit --audit-level=high
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check -- --changed-since origin/main
+# Story #1602 (Epic #1184): absolute floor gate. Runs full-scope after the
+# per-file ratchet calls above so a file that is still in-scope but below
+# the v6 floor (coverage 90/85/90, MI>=70, CRAP<=20) trips the gate even
+# when the diff does not touch it. The three checkers self-skip the floor
+# block when `--floor=off` is passed (used by the `*:update` baseline-snap
+# scripts).
+npm run coverage:check -- --full-scope
+npm run maintainability:check -- --full-scope
+npm run crap:check -- --full-scope

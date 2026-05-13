@@ -11,11 +11,18 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 
 ## SDL critical path
 
-The SDL critical path is two commands in v5.40+. `/epic-plan` builds the
-backlog (with an optional ideation entry from a raw idea); `/epic-deliver`
-drives the merged wave-loop + close-tail and opens a pull request to `main`.
-The operator merges the PR through the GitHub UI — the workflow never merges
-to `main` itself.
+The v6 SDL critical path is two commands. `/epic-plan` builds the
+backlog declaratively — it emits an `epic.yaml` artifact and reconciles
+it against GitHub via `epic-reconcile.js` (v6 Epic D) without creating
+the Epic branch at plan time. `/epic-deliver` drives the merged
+wave-loop + close-tail and opens a pull request to `main`. The operator
+merges the PR through the GitHub UI — the workflow never merges to
+`main` itself.
+
+The framework leans on Claude Code built-ins (`/goal`,
+`/fewer-permission-prompts`, `/insights`, `/loop`) where they replace or
+augment homegrown machinery — see ADR 20260512-coupling-stance and ADR
+20260512-loop-adoption in [`decisions.md`](decisions.md).
 
 | Command                           | Purpose                                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -84,8 +91,10 @@ Not invoked directly by operators, but referenced from other workflows:
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure
   for `.agentrc.json`, invoked by `/agents-update` after the submodule pointer
   moves (formerly shipped as `/agents-sync-config`).
-- `worktree-lifecycle.md` — per-story `git worktree` isolation model, including
-  node_modules strategies, Windows notes, and escape hatches.
+- `helpers/worktree-lifecycle.md` — per-story `git worktree` isolation model,
+  including node_modules strategies, Windows notes, and escape hatches. Lives
+  under `helpers/` because it is operator and reviewer reference documentation,
+  not an executable workflow; path-included from `story-execute.md`.
 
 The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during

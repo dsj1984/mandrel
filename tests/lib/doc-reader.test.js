@@ -12,7 +12,7 @@ describe('doc-reader.scrapeProjectDocs', () => {
   let tmpDocsDir;
 
   beforeEach(() => {
-    tmpDocsDir = path.join(os.tmpdir(), `agent-protocols-docs-${Date.now()}`);
+    tmpDocsDir = path.join(os.tmpdir(), `mandrel-docs-${Date.now()}`);
     fs.mkdirSync(tmpDocsDir, { recursive: true });
   });
 
@@ -68,7 +68,7 @@ describe('doc-reader.buildDocsContext', () => {
   let tmpDocsDir;
 
   beforeEach(() => {
-    tmpDocsDir = path.join(os.tmpdir(), `agent-protocols-docs-${Date.now()}`);
+    tmpDocsDir = path.join(os.tmpdir(), `mandrel-docs-${Date.now()}`);
     fs.mkdirSync(tmpDocsDir, { recursive: true });
   });
 

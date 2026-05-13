@@ -159,7 +159,7 @@ For the architectural map, config keys, node_modules strategies, and the
 Windows path-length notes see
 [`docs/architecture.md`](architecture.md#worktree-isolation),
 [`docs/configuration.md`](configuration.md#orchestrationworktreeisolation),
-and [`.agents/workflows/worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md).
+and [`.agents/workflows/helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md).
 
 ---
 
@@ -359,11 +359,11 @@ surfaced via `Logger.fatal()` at the CLI boundary.
 ### Why it matters
 
 1.  **Library code stays pure.** `lib/orchestration/**` and
-    `lib/worktree/**` are imported by the MCP server, the epic runner,
-    and multiple CLI scripts. If any of them called `process.exit()`,
-    they would kill the MCP server process on a recoverable error. The
-    only way library code ends a process is by throwing and letting the
-    top-level `runAsCli` handler convert that to an exit.
+    `lib/worktree/**` are imported by the epic runner and multiple CLI
+    scripts. If any of them called `process.exit()`, they would kill a
+    long-running parent process on a recoverable error. The only way
+    library code ends a process is by throwing and letting the top-level
+    `runAsCli` handler convert that to an exit.
 2.  **`runAsCli` gives uniform error output.** Every CLI that wraps its
     `main()` in `runAsCli(import.meta.url, main, { source: '<name>' })`
     prints `[<name>] Fatal error: <stack>` before exiting 1. Scripts
@@ -971,7 +971,7 @@ update.
 
 ### Problem
 
-The framework shipped a stdio MCP server (`agent-protocols`) exposing
+The framework shipped a stdio MCP server (`mandrel`) exposing
 seven tools that **duplicated** capabilities already implemented in the
 SDK. The SDK was the runtime path; the MCP was a parallel surface that
 existing scripts did not exercise. Two surfaces meant: two places to
@@ -996,12 +996,12 @@ collapse to one surface in three sequenced steps:
    CLI emits the same JSON envelope the parallel tool produced and exits
    non-zero on the same failure modes. No behavioural change.
 2. **Migrate every caller in committed code.** Grep workflow markdown,
-   skills, helpers, scripts; every `mcp__agent-protocols__*` token gets
+   skills, helpers, scripts; every `mcp__mandrel__*` token gets
    rewritten to `node .agents/scripts/<name>.js …`. Add a pre-commit
    assertion (here: `check-markdown.js`) so reintroductions break the
    build.
 3. **Delete the parallel surface in one shot.** Delete the server, its
-   tool registry, the dedicated tests, the `agent-protocols` block in
+   tool registry, the dedicated tests, the `mandrel` block in
    `.mcp.json` / `default-mcp.json`, the dedicated docs (`MCP.md`,
    `mcp-setup.md`). Do not leave deprecated wrappers or `mcp__X`
    aliases.
@@ -1079,7 +1079,7 @@ contract is:
 
 - Default mode: emit `{ ok: false, degraded: true, reason, detail }` on
   stdout and exit non-zero. Caller decides whether to absorb.
-- `--gate-mode` (or `AGENT_PROTOCOLS_GATE_MODE=1`): fail closed without
+- `--gate-mode` (or `MANDREL_GATE_MODE=1`): fail closed without
   the permissive envelope. Use in CI / pre-push / authoritative gates.
 
 Pattern: never let a degraded execution path mimic a clean one. The

@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://agent-protocols/.agents/schemas/crap-baseline.schema.json",
+  "$id": "https://mandrel/.agents/schemas/crap-baseline.schema.json",
   "title": "CrapBaseline",
   "description": "Committed baseline envelope for the CRAP (c^2 * (1 - cov)^3 + c) gate. Rows are deterministically ordered by (file, startLine, method). Kernel and escomplex versions pin the scoring environment so consumers detect silent drift.",
   "type": "object",

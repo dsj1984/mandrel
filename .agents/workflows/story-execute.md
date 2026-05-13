@@ -39,7 +39,7 @@ Story that lacks the `Epic: #N` reference.
 > `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
 > its absolute path as `workCwd`. You **must** `cd` into that path before
 > Step 1. The main checkout's HEAD is never moved. See
-> [`worktree-lifecycle.md`](worktree-lifecycle.md) for node_modules
+> [`worktree-lifecycle.md`](helpers/worktree-lifecycle.md) for node_modules
 > strategies, Windows notes, and escape hatches.
 
 ---
@@ -305,5 +305,5 @@ running `/story-execute` against an already-closed Story is safe.
   transition. The wave aggregator depends on this comment, not labels.
 - **Always** pass `--cwd <main-repo>` to `story-close.js` when invoking
   from inside a worktree.
-- **MCP fallback**: if `agent-protocols` MCP tools fail, fall back to
+- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
   `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`.

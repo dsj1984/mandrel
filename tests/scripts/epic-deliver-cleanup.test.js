@@ -2,10 +2,58 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  classifyCleanupInvocation,
   parseCleanupArgs,
+  renderCleanupOutput,
   renderSummaryLines,
   runEpicDeliverCleanup,
 } from '../../.agents/scripts/epic-deliver-cleanup.js';
+
+describe('renderCleanupOutput', () => {
+  const minimalEnvelope = { ok: true, reaped: [], failures: [] };
+  it('returns JSON string when json=true', () => {
+    const r = renderCleanupOutput(minimalEnvelope, true);
+    assert.equal(r.length, 1);
+    assert.match(r[0], /"ok":\s*true/);
+  });
+  it('returns human-rendered lines when json=false', () => {
+    const r = renderCleanupOutput(minimalEnvelope, false);
+    assert.ok(Array.isArray(r));
+    assert.ok(r.length >= 1);
+  });
+});
+
+describe('classifyCleanupInvocation', () => {
+  it('returns help when --help is set', () => {
+    assert.deepEqual(classifyCleanupInvocation({ help: true }), {
+      kind: 'help',
+    });
+  });
+  it('returns usage-error when --epic is missing', () => {
+    const r = classifyCleanupInvocation({
+      help: false,
+      epicId: null,
+      dryRun: false,
+      json: false,
+    });
+    assert.equal(r.kind, 'usage-error');
+    assert.ok(r.messages.some((m) => /required/.test(m)));
+  });
+  it('returns run intent when --epic is provided', () => {
+    const r = classifyCleanupInvocation({
+      help: false,
+      epicId: 1178,
+      dryRun: true,
+      json: true,
+    });
+    assert.deepEqual(r, {
+      kind: 'run',
+      epicId: 1178,
+      dryRun: true,
+      json: true,
+    });
+  });
+});
 
 describe('parseCleanupArgs', () => {
   it('parses --epic / --dry-run / --json', () => {

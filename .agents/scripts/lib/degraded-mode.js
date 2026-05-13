@@ -9,7 +9,7 @@
  *   { ok: false, degraded: true, reason: <code>, detail: <human> }
  *
  * with a non-zero CLI exit so the operator/agent has explicit visibility, OR
- * a hard-fail closed when `--gate-mode` / `AGENT_PROTOCOLS_GATE_MODE=1` is set
+ * a hard-fail closed when `--gate-mode` / `MANDREL_GATE_MODE=1` is set
  * (CI invocations).
  */
 
@@ -40,11 +40,11 @@ export function isDegraded(value) {
 /**
  * Decide whether the caller is running in gate-mode (hard-fail closed) based
  * on argv and env. CI invocations set `--gate-mode` or
- * `AGENT_PROTOCOLS_GATE_MODE=1`; local invocations leave both unset.
+ * `MANDREL_GATE_MODE=1`; local invocations leave both unset.
  */
 export function isGateMode({ argv = process.argv, env = process.env } = {}) {
   if (Array.isArray(argv) && argv.includes('--gate-mode')) return true;
-  if (env && env.AGENT_PROTOCOLS_GATE_MODE === '1') return true;
+  if (env && env.MANDREL_GATE_MODE === '1') return true;
   return false;
 }
 

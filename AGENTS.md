@@ -10,9 +10,14 @@
 
 ## Project Overview
 
-**Agent Protocols** is a framework of instructions, personas, skills, and SDLC
-workflows that govern AI coding assistants. It is distributed as a Git submodule
-(via the `dist` branch) into consumer projects' `.agents/` directories.
+**Mandrel** is a Claude Code-first opinionated workflow framework with a
+runtime-pluggable dispatcher: a framework of instructions, personas,
+skills, and SDLC workflows that govern AI coding assistants. The
+`.claude/` / hook / skill surface leans in on Claude Code as the
+reference runtime; the dispatcher under `.agents/scripts/` stays
+runtime-neutral behind the `IExecutionAdapter` boundary. The framework
+is distributed as a Git submodule (via the `dist` branch) into consumer
+projects' `.agents/` directories.
 
 - **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
 - **License:** ISC
@@ -22,18 +27,18 @@ workflows that govern AI coding assistants. It is distributed as a Git submodule
 ## Repository Layout
 
 ```text
-agent-protocols/
+mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── instructions.md       # ★ Primary system prompt — load this first
 │   ├── personas/             # 12 role-specific behavior constraints
 │   ├── rules/                # 8 domain-agnostic coding/ops rules
 │   ├── skills/               # Two-tier skill library (core/ + stack/)
-│   ├── workflows/            # 37 SDLC & audit slash-command workflows
-│   ├── scripts/              # Deterministic JS tooling (playbook gen, etc.)
+│   ├── workflows/            # SDLC & audit slash-command workflows
+│   ├── scripts/              # Deterministic JS tooling (orchestration engine)
 │   ├── schemas/              # JSON Schemas for structured output validation
-│   ├── templates/            # Sprint planning markdown templates
+│   ├── templates/            # Epic / planning prompt templates
 │   ├── default-agentrc.json  # Default config — consumers copy to project root
-│   ├── SDLC.md               # Guide for the /plan-sprint pipeline
+│   ├── SDLC.md               # End-to-end SDLC narrative (/epic-plan + /epic-deliver)
 │   └── README.md             # Detailed consumer user guide
 ├── .agentrc.json             # Root config for this repo (dogfooding)
 ├── docs/                     # Implementation plans and changelog
@@ -114,6 +119,6 @@ npm test              # Run framework tests (node --test)
 | ---------------------------------------------------- | ----------------------------------- |
 | [`.agents/instructions.md`](.agents/instructions.md) | **System prompt** — all agent rules |
 | [`.agents/README.md`](.agents/README.md)             | Consumer user guide                 |
-| [`.agents/SDLC.md`](.agents/SDLC.md)                 | Sprint planning pipeline guide      |
+| [`.agents/SDLC.md`](.agents/SDLC.md)                 | End-to-end SDLC narrative           |
 | [`.agentrc.json`](.agentrc.json)                     | Runtime configuration               |
 | [`docs/CHANGELOG.md`](docs/CHANGELOG.md)             | Release history                     |

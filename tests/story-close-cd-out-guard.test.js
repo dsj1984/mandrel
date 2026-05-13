@@ -4,7 +4,64 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { checkCdOutGuard } from '../.agents/scripts/story-close.js';
+import {
+  checkCdOutGuard,
+  describeAutoRefreshOutcome,
+} from '../.agents/scripts/story-close.js';
+
+test('describeAutoRefreshOutcome pure helper', async (t) => {
+  await t.test('amended → progress envelope with SHA', () => {
+    const e = describeAutoRefreshOutcome({ status: 'amended', sha: 'abc1234' });
+    assert.strictEqual(e.channel, 'progress');
+    assert.strictEqual(e.label, 'AUTO-REFRESH');
+    assert.match(e.message, /abc1234/);
+  });
+  await t.test(
+    'refused with dedup → progress envelope marks already present',
+    () => {
+      const e = describeAutoRefreshOutcome({
+        status: 'refused',
+        refusalReasons: ['a', 'b'],
+        dedup: true,
+      });
+      assert.strictEqual(e.channel, 'progress');
+      assert.match(e.message, /2 cap breach/);
+      assert.match(e.message, /already present/);
+    },
+  );
+  await t.test('refused with signalAppended', () => {
+    const e = describeAutoRefreshOutcome({
+      status: 'refused',
+      refusalReasons: ['a'],
+      dedup: false,
+      signalAppended: true,
+    });
+    assert.match(e.message, /appended/);
+  });
+  await t.test('refused without signal', () => {
+    const e = describeAutoRefreshOutcome({
+      status: 'refused',
+      refusalReasons: [],
+      dedup: false,
+      signalAppended: false,
+    });
+    assert.match(e.message, /not written/);
+  });
+  await t.test('failed → warn channel with reason + detail', () => {
+    const e = describeAutoRefreshOutcome({
+      status: 'failed',
+      reason: 'oops',
+      detail: 'why',
+    });
+    assert.strictEqual(e.channel, 'warn');
+    assert.match(e.message, /oops/);
+    assert.match(e.message, /why/);
+  });
+  await t.test('unknown status → null', () => {
+    assert.strictEqual(describeAutoRefreshOutcome({ status: 'noop' }), null);
+    assert.strictEqual(describeAutoRefreshOutcome(null), null);
+  });
+});
 
 test('checkCdOutGuard pure helper', async (t) => {
   await t.test('returns ok when --cwd was not set (single-tree mode)', () => {

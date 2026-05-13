@@ -1,14 +1,28 @@
 # Architecture Decision Records (ADR)
 
+> **v6 ADR cluster.** The post-Epic-A/C/D/G/F reality is fixed by four
+> load-bearing ADRs that subsequent decisions cite:
+>
+> - [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) — Claude Code-first, runtime-pluggable dispatcher (Epic G).
+> - [`20260512-destructive-replan-retired`](#adr-20260512-destructive-replan-retired-epic-1182--retire-delete-epicjs-re-plan--edit-spec--reconcile) — declarative `epic.yaml` + reconciler (Epic D).
+> - [`20260512-loop-adoption`](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile) — adopt built-in `/loop`; no homegrown surface to reconcile (Epic G).
+> - The v6 absolute quality floors and floor-vs-ratchet policy live in
+>   [`quality-gates.md`](quality-gates.md) (Epic F Story #1602) — they
+>   are tooling commitments rather than architectural ADRs.
+>
+> Older ADRs remain authoritative on the architectural question they
+> answered at the time; cross-cuts that v6 supersedes are flagged in
+> the entries themselves.
+
 ## ADR 20260512-destructive-replan-retired: Epic #1182 — retire `delete-epic.js`; re-plan = edit-spec + reconcile
 
 **Status:** Accepted
 **Date:** 2026-05-12
-**Epic:** [#1182](https://github.com/dsj1984/agent-protocols/issues/1182) —
+**Epic:** [#1182](https://github.com/dsj1984/mandrel/issues/1182) —
 v6 Epic D, "Declarative `epic.yaml` + reconciler"
-**PRD:** [#1482](https://github.com/dsj1984/agent-protocols/issues/1482)
-**Tech Spec:** [#1483](https://github.com/dsj1984/agent-protocols/issues/1483)
-**Closing Story:** [#1502](https://github.com/dsj1984/agent-protocols/issues/1502)
+**PRD:** [#1482](https://github.com/dsj1984/mandrel/issues/1482)
+**Tech Spec:** [#1483](https://github.com/dsj1984/mandrel/issues/1483)
+**Closing Story:** [#1502](https://github.com/dsj1984/mandrel/issues/1502)
 — "Remove `delete-epic.js` + `delete-epic-tickets` workflow"
 
 ### Context
@@ -1005,7 +1019,7 @@ changes" — the latter is a coarser but more robust drift signal.
 
 The maintainability and CRAP gates only scored `.js` and `.mjs`. TS-first
 consumer repos (e.g. athlete-portal) hit a degenerate state on
-`agent-protocols` 5.28.1: 21 candidate files scanned, 0 rows written,
+`mandrel` 5.28.1: 21 candidate files scanned, 0 rows written,
 because every `.js`/`.mjs` candidate was build-time scaffolding (eslint
 configs, `astro.config.mjs`) not exercised by tests. The actual product
 surface — TypeScript — was invisible to both gates, so neither
@@ -1251,7 +1265,7 @@ Concretely:
 
 ---
 
-## ADR 20260424-702a: Retire agent-protocols MCP
+## ADR 20260424-702a: Retire mandrel MCP
 
 **Status:** Accepted
 **Date:** 2026-04-24
@@ -1263,7 +1277,7 @@ applies now that the MCP server is gone.
 
 ### Context
 
-Version 5.0 introduced the `agent-protocols` MCP server
+Version 5.0 introduced the `mandrel` MCP server
 (`.agents/scripts/mcp-orchestration.js`) as a JSON-RPC 2.0 facade over the
 orchestration SDK. The stated goal was letting an MCP-capable host (Claude
 Desktop, Cursor) call `dispatch_wave`, `hydrate_context`,
@@ -1295,12 +1309,12 @@ By early 2026-04 two costs had compounded against that value:
 
 ### Decision
 
-Retire the `agent-protocols` MCP server and its companion artefacts:
+Retire the `mandrel` MCP server and its companion artefacts:
 
 - Delete `.agents/scripts/mcp-orchestration.js` and everything under
   `.agents/scripts/lib/mcp/` and `.agents/scripts/mcp/`.
 - Delete the dedicated MCP docs (`.agents/MCP.md`, `docs/mcp-setup.md`).
-- Drop the `agent-protocols` block from `.agents/default-mcp.json` and stop
+- Drop the `mandrel` block from `.agents/default-mcp.json` and stop
   shipping a template that advertises the server.
 - Collapse webhook resolution to env-only: `NOTIFICATION_WEBHOOK_URL` is
   read from the process environment (loaded from `.env` locally, or set in
@@ -1318,13 +1332,13 @@ doesn't carry a framework-shipped entry anymore.
 
 | Retired MCP tool                               | Successor                                                                                                                                    |
 | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp__agent-protocols__dispatch_wave`          | `node .agents/scripts/dispatcher.js --epic <id>` (same SDK, same dispatch-manifest output).                                                  |
-| `mcp__agent-protocols__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; `context-hydrator.js` remains the raw-prompt wrapper. |
-| `mcp__agent-protocols__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --task <id> --state <state>` (auto-cascades on `agent::done`).                                  |
-| `mcp__agent-protocols__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `story-close.js`.                                              |
-| `mcp__agent-protocols__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; direct `provider.postComment` in lib code. |
-| `mcp__agent-protocols__select_audits`          | `node .agents/scripts/select-audits.js --ticket <id> --gate <gate>`.                                                                         |
-| `mcp__agent-protocols__run_audit_suite`        | `node .agents/scripts/run-audit-suite.js --audits <comma-list>`.                                                                             |
+| `mcp__mandrel__dispatch_wave`          | `node .agents/scripts/dispatcher.js --epic <id>` (same SDK, same dispatch-manifest output).                                                  |
+| `mcp__mandrel__hydrate_context`        | `node .agents/scripts/hydrate-context.js --ticket <id> --epic <id>` for the JSON envelope; `context-hydrator.js` remains the raw-prompt wrapper. |
+| `mcp__mandrel__transition_ticket_state`| `node .agents/scripts/update-ticket-state.js --task <id> --state <state>` (auto-cascades on `agent::done`).                                  |
+| `mcp__mandrel__cascade_completion`     | Inlined into `update-ticket-state.js`; also runs at Story close inside `story-close.js`.                                              |
+| `mcp__mandrel__post_structured_comment`| `node .agents/scripts/post-structured-comment.js --ticket <id> --marker <marker> --body-file <path>`; direct `provider.postComment` in lib code. |
+| `mcp__mandrel__select_audits`          | `node .agents/scripts/select-audits.js --ticket <id> --gate <gate>`.                                                                         |
+| `mcp__mandrel__run_audit_suite`        | `node .agents/scripts/run-audit-suite.js --audits <comma-list>`.                                                                             |
 
 The SDK modules under `.agents/scripts/lib/orchestration/` (the things
 these tools delegated into) are unchanged — the retirement is a surface
@@ -1352,7 +1366,7 @@ removal, not a logic change.
   reads `.mcp.json`.
 - **Negative (fork-aware):** Consumer repos that pulled
   `.agents/default-mcp.json` into their own `.mcp.json` must remove the
-  `agent-protocols` entry during their next submodule bump; leaving it
+  `mandrel` entry during their next submodule bump; leaving it
   in place resolves to a now-missing script path.
 
 ### Alternatives considered
@@ -1838,7 +1852,7 @@ submodule paths are internal implementation detail.
 
 *   **Status:** Accepted (Epic #441 Story #449, v5.15.3).
 *   **Context:** The MCP tool
-    `mcp__agent-protocols__post_structured_comment` originally
+    `mcp__mandrel__post_structured_comment` originally
     accepted only `progress | friction | notification` as `type`
     values. As a result, `epic-code-review.js`,
     `.claude/skills/epic-retro.md`, the wave-observer, and the
@@ -2281,7 +2295,7 @@ submodule paths are internal implementation detail.
     inputs failed. The audit found this fail-open behaviour produced
     silent green runs that read identically to genuine clean runs.
 *   **Decision:** Each soft-failing gate either fails closed under
-    `--gate-mode` (or `AGENT_PROTOCOLS_GATE_MODE=1`) — non-zero exit, no
+    `--gate-mode` (or `MANDREL_GATE_MODE=1`) — non-zero exit, no
     permissive output — or returns a structured `{ ok: false, degraded:
     true, reason, detail }` envelope on stdout with a non-zero exit code.
     The caller decides how to interpret. The mute fail-open path is gone.
@@ -2515,3 +2529,51 @@ The Story-level verdict therefore collapses the four candidate outcomes into one
 
 - **Build a homegrown `/loop` skill anyway** to own a "structured loop" artifact contract. Rejected — the framework's recurring tasks (cadence polls, dashboard regen, PR babysitting) already own their own artifacts via the underlying scripts; a wrapper would add no contract value and would directly violate the Epic's "shrink the framework's homegrown surface area" goal.
 - **Defer to a future hybrid wrapper pattern** (built-in delegated to from a homegrown entry point, as `/security-review` is delegated from `audit-security`). Rejected for `/loop` specifically — the hybrid pattern's value is when the wrapper owns a structured artifact (`audit-*-results.md`). `/loop` produces no artifact; it just re-prompts. There is nothing for a wrapper to validate or fold in, so the hybrid pattern collapses to a pass-through.
+
+---
+
+## ADR 20260513-command-naming-discipline: Domain-vocabulary command names; single Mandrel-prefixed discoverability entry
+
+**Status:** Accepted
+**Date:** 2026-05-13
+**Epic:** #1184 (v6.0.0 Epic F — Cut-over + Mandrel rebrand)
+**Story:** #1601 (Scripts + commands surface audit; `/mandrel` discoverability)
+**Supporting evidence:** [`docs/audits/v6-scripts-commands.md`](audits/v6-scripts-commands.md) — full reference-count audit of the script + command surface as of 2026-05-12.
+
+### Context
+
+The v6 rebrand from Mandrel to Mandrel surfaces a one-way decision about command naming: do every Mandrel-owned slash command name a brand prefix (`/mandrel-epic-deliver`, `/mandrel-audit-clean-code`, etc.), or does the brand stay out of the per-command surface and live in a single discoverability entry?
+
+Brand-prefixing every command is reverse-coupling: it makes the consumer's `/` menu cluttered with `mandrel-` repetition, hides the descriptive verb (`epic-deliver` says what it does; `mandrel-epic-deliver` says what it does *and* who owns it, which the operator already knows because they installed the framework), and reverses the same logic that keeps `.agents/` and `.agentrc.json` filenames unchanged through the rebrand (those names describe the artifact, not the brand).
+
+### Decision
+
+Adopt a two-part naming-discipline rule for the slash-command surface:
+
+1. **Per-command names describe what the command does** in the harness's domain vocabulary. The framework's domain has a small, stable noun-verb taxonomy: `epic-*`, `story-*`, `audit-*`, `worktree-*`, `git-*`, `agents-*` (the last reserved for operations scoped to the `.agents/` directory itself). A new command picks the noun that describes its surface and a verb that describes its action. No brand prefix.
+2. **One Mandrel-prefixed discoverability entry, `/mandrel`,** prints the auto-generated catalog of Mandrel-owned commands. The brand prefix exists exactly once in the runnable surface — at the entry point a consumer types to learn the surface. Day-to-day commands stay descriptive.
+
+The seven-row recategorization matrix from the Epic body (#1184) codifies the specific decisions that flow from the rule. Each row is reproduced below with its rationale so future contributors can resolve the same ambiguities without reopening them:
+
+| Item | Decision | Rationale |
+| --- | --- | --- |
+| `agents-bootstrap-*` → `mandrel-bootstrap-*` | **Keep `agents-bootstrap-*`** | The name describes what it bootstraps — the `.agents/` directory, which v6 explicitly preserves as a stable filename. Brand-prefixing where the artifact name is already more self-describing is reverse-coupling. |
+| `agents-update` → `mandrel-update` | **Keep `agents-update`** | Updates the `.agents/` submodule pointer; that is what the name says. Same rationale as the bootstrap row. |
+| `delete-epic-*` workflows → scripts-only | **Keep as workflows** | Destructive operations benefit from slash-command discoverability and the workflow-level confirmation step. The scripts are thin, but the operator's entry point and confirmation home is the workflow file. |
+| `epic-plan` / `epic-deliver` → `mandrel-plan` / `mandrel-deliver` | **Keep as `epic-*`** | "Epic" is the domain concept the framework operates on. `mandrel-plan` is strictly less informative ("plan what?"). The noun the workflow acts on is the right primary axis for the name. |
+| `story-execute` → helper | **Keep as command** | Operator-facing for individual story re-runs and debugging. The documented argument is a Story ID; the workflow is intended to be human-invocable, not just a fan-out target. |
+| `worktree-lifecycle` → helper | **Move to `.agents/workflows/helpers/`** | The file self-describes as "operator and reviewer reference" — it is documentation, not an executable workflow. It is already path-included from `story-execute.md`. It should not appear in the `/` menu as runnable. After the move, `sync-claude-commands.js` automatically drops `.claude/commands/worktree-lifecycle.md` because the sync filter excludes the `helpers/` subdirectory. |
+| `drain-pending-cleanup` → helper | **Keep as command** | Operator-facing escalation tool for Windows EBUSY. Automatic callers exist, but the manual path is load-bearing — an operator hitting a wedged worktree types `/drain-pending-cleanup` directly. |
+
+### Consequences
+
+- **`/mandrel` becomes the canonical discoverability entry.** A new workflow at `.agents/workflows/mandrel.md` (landed by the companion Task #1619) prints the catalog auto-generated from the on-disk workflow set. The catalog is never stored on disk — generation happens at invocation time, so adding or renaming a workflow is reflected without a sync step.
+- **`worktree-lifecycle` is removed from the runnable `/` menu.** The file moves to `.agents/workflows/helpers/worktree-lifecycle.md`; `story-execute.md`'s path-include is updated to the new location; the next `npm run sync:commands` drops the orphan slash-command file.
+- **Future commands inherit the rule.** When introducing a new workflow, the contributor picks the descriptive noun-verb pair and skips the brand prefix unless ambiguity is real. The one place ambiguity is real is the entry point itself, and that slot is now claimed by `/mandrel`.
+- **Adopters reading `docs/decisions.md`** can resolve "why isn't this `mandrel-*`?" without reopening the matrix. The seven rows are the load-bearing precedents.
+
+### Alternatives considered
+
+- **Brand-prefix every command** (the maximalist position). Rejected — clutters the `/` menu, makes every consumer-facing example longer, reverses the same naming logic that keeps `.agents/` and `.agentrc.json` stable through the rebrand, and offers no information value because the consumer already knows which framework they installed.
+- **No brand prefix anywhere, including a discoverability entry.** Rejected — adopters need *some* affordance to tell Mandrel-owned commands apart from Claude Code built-ins. Without a single entry point, the only path is reading the docs site, which is a worse first-run experience than typing `/mandrel`.
+- **Per-command opt-in: prefix only the "Mandrel-distinctive" commands.** Rejected — every framework command is "Mandrel-distinctive" by virtue of being owned by the framework. Drawing the line by judgment regenerates the same ambiguity the rule is designed to eliminate.

@@ -1,7 +1,7 @@
 # Data Dictionary
 
 This document defines the core data structures and schemas used across the
-Agent Protocols orchestration engine.
+Mandrel orchestration engine.
 
 ---
 
@@ -202,7 +202,7 @@ any prior comment of the same type.
 | `friction`          | `signals-writer.appendSignal` (NDJSON, on disk)     | Per-Story friction observation appended to `signals.ndjson` (no GitHub round-trip post Story #1042). |
 | `notification`      | `notify.js`                                         | Operator-facing severity-tiered notification.                            |
 
-The `mcp__agent-protocols__post_structured_comment` tool is **gone**; the
+The `mcp__mandrel__post_structured_comment` tool is **gone**; the
 direct CLI is the only path. Earlier dispatcher snapshots referencing the MCP
 tool are obsolete.
 

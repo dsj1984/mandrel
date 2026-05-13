@@ -1,6 +1,6 @@
 ---
 description: >-
-  Bootstrap the local harness-side plumbing for an agent-protocols project:
+  Bootstrap the local harness-side plumbing for an mandrel project:
   wire the `.claude/commands/` sync pipeline, ensure `package.json` scripts,
   create/merge `.claude/settings.json` hooks, ignore derived artefacts, and
   validate parity between workflows and slash commands. Idempotent — re-running
@@ -12,7 +12,7 @@ description: >-
 ## Overview
 
 `/agents-bootstrap-project` wires the **local** (per-clone, per-machine) harness
-around the `agent-protocols` framework. It is the sibling of
+around the `mandrel` framework. It is the sibling of
 [`/agents-bootstrap-github`](agents-bootstrap-github.md), which wires the
 **remote** (GitHub-side) taxonomy.
 

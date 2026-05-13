@@ -128,25 +128,16 @@ export async function reconcileHierarchy(
     );
   }
 
-  async function maybeClose(id, typeName) {
+  function shouldClose(id) {
     const ticket = ticketMap.get(id);
-    if (!ticket || ticket.state === 'closed') return;
+    if (!ticket || ticket.state === 'closed') return null;
     const children = childrenOf.get(id) ?? [];
-    if (children.length === 0) return;
-    if (!children.every((cid) => isDone(cid))) return;
+    if (children.length === 0) return null;
+    if (!children.every((cid) => isDone(cid))) return null;
+    return ticket;
+  }
 
-    Logger.info(
-      `All children of ${typeName} #${id} "${ticket.title}" are done. Closing...`,
-    );
-
-    if (dryRun) {
-      Logger.info(
-        `[DRY-RUN] Would close ${typeName} #${id} and set agent::done.`,
-      );
-      ticket.state = 'closed';
-      return;
-    }
-
+  async function applyClose(id, typeName, ticket) {
     try {
       await provider.updateTicket(id, {
         labels: {
@@ -161,6 +152,22 @@ export async function reconcileHierarchy(
     } catch (err) {
       Logger.warn(`Failed to close ${typeName} #${id}: ${err.message}`);
     }
+  }
+
+  async function maybeClose(id, typeName) {
+    const ticket = shouldClose(id);
+    if (!ticket) return;
+    Logger.info(
+      `All children of ${typeName} #${id} "${ticket.title}" are done. Closing...`,
+    );
+    if (dryRun) {
+      Logger.info(
+        `[DRY-RUN] Would close ${typeName} #${id} and set agent::done.`,
+      );
+      ticket.state = 'closed';
+      return;
+    }
+    await applyClose(id, typeName, ticket);
   }
 
   const storyIds = allTickets

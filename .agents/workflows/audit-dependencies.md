@@ -1,5 +1,5 @@
 ---
-description: Audit and upgrade project dependencies
+description: Audit `package.json` for unused, outdated, and major-version-stale dependencies; surface Node-engine drift and propose upgrade batches.
 dispatchModel: haiku
 ---
 

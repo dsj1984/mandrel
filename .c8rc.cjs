@@ -28,18 +28,6 @@
  *     parses argv and delegates. End-to-end hydration depends on a
  *     real provider tree and a Story prompt context that only an
  *     integration test can reasonably build.
- *   - ticket-decomposer.js — drives `/epic-plan` decomposition. As of
- *     v5.6 the host LLM authors the tickets directly; this CLI's two
- *     modes (`--emit-context` and the default validate-then-create)
- *     are integration-shaped (real PRD/Tech-Spec bodies, real Epic id,
- *     real provider). Validation logic is exercised by the planner
- *     tests under `tests/`; the CLI shell itself is not on a
- *     unit-test path.
- *   - epic-runner.js — top-level CLI shell with zero exports. All
- *     orchestration logic lives in `lib/orchestration/epic-runner/*`
- *     (factory, phases, progress-reporter, wave-scheduler, etc.) and
- *     is unit-tested there. The shell itself just argv-parses and
- *     hands off to `factory.create(...)`.
  *   - retrofit-task-bodies.js — top-level CLI shell with zero exports.
  *     The retrofit logic is unit-tested under `lib/retrofit/`; the
  *     shell glue (argv → provider → batch loop) is integration-shaped
@@ -68,8 +56,6 @@ module.exports = {
     '.agents/scripts/epic-plan-healthcheck.js',
     '.agents/scripts/epic-plan-spec.js',
     '.agents/scripts/epic-plan.js',
-    '.agents/scripts/epic-runner.js',
     '.agents/scripts/retrofit-task-bodies.js',
-    '.agents/scripts/ticket-decomposer.js',
   ],
 };
