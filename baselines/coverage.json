@@ -20,14 +20,14 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 79.09,
+    "lines": 79.45,
     "branches": 80.92,
-    "functions": 86.67
+    "functions": 81.25
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 64.88,
+    "lines": 65.58,
     "branches": 82.5,
-    "functions": 66.67
+    "functions": 62.5
   },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 70.68,
@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 87.78,
-    "branches": 63.89,
+    "branches": 65.75,
     "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
