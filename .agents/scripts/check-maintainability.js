@@ -378,33 +378,11 @@ async function main() {
   Logger.info(
     `[Maintainability] scope=${resolvedScope.scope}${changedSinceRef ? ` ref=${changedSinceRef}` : ''} (source=${resolvedScope.source})`,
   );
-  let scopedFiles = files;
-  let scopedBaseline = baseline;
-  if (changedSinceRef) {
-    let changedList;
-    try {
-      changedList = getChangedFiles({
-        ref: changedSinceRef,
-        cwd: process.cwd(),
-      });
-    } catch (err) {
-      Logger.error(
-        `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-      );
-      process.exit(1);
-    }
-    const scopeSet = new Set(changedList);
-    Logger.info(
-      `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
-    );
-    scopedFiles = files.filter((abs) => {
-      const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
-      return scopeSet.has(rel);
-    });
-    scopedBaseline = Object.fromEntries(
-      Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
-    );
-  }
+  const { scopedFiles, scopedBaseline } = applyDiffScope({
+    files,
+    baseline,
+    changedSinceRef,
+  });
 
   const scores = await calculateAll(scopedFiles);
 
@@ -420,23 +398,7 @@ async function main() {
   const stats = compareScores(scores, scopedBaseline, tolerance);
   printSummaryReport(scores, stats);
 
-  const jsonPath = parseJsonPathArg();
-  if (jsonPath) {
-    try {
-      writeBaseline({
-        baselinePath: jsonPath,
-        data: buildMaintainabilityReport(scores, stats, {
-          scope: resolvedScope.scope,
-          diffRef: resolvedScope.ref,
-        }),
-      });
-      Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
-    } catch (err) {
-      Logger.warn(
-        `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
-      );
-    }
-  }
+  maybeWriteMaintainabilityReport({ scores, stats, resolvedScope });
 
   if (stats.regressions > 0) {
     Logger.error(
@@ -455,6 +417,64 @@ async function main() {
   enforceMaintainabilityFloor(scores, process.argv.slice(2));
 
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
+}
+
+/**
+ * Apply diff-scope to the file list + baseline. When `changedSinceRef` is
+ * unset, returns the inputs unchanged (full-scope). Extracted from `main`
+ * to keep the orchestrator's CRAP under the v6 ceiling.
+ *
+ * @returns {{ scopedFiles: string[], scopedBaseline: Record<string, number> }}
+ */
+function applyDiffScope({ files, baseline, changedSinceRef }) {
+  if (!changedSinceRef) return { scopedFiles: files, scopedBaseline: baseline };
+  let changedList;
+  try {
+    changedList = getChangedFiles({
+      ref: changedSinceRef,
+      cwd: process.cwd(),
+    });
+  } catch (err) {
+    Logger.error(
+      `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
+    );
+    process.exit(1);
+  }
+  const scopeSet = new Set(changedList);
+  Logger.info(
+    `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
+  );
+  const scopedFiles = files.filter((abs) => {
+    const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
+    return scopeSet.has(rel);
+  });
+  const scopedBaseline = Object.fromEntries(
+    Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
+  );
+  return { scopedFiles, scopedBaseline };
+}
+
+/**
+ * Optionally serialize the run's structured JSON report. Extracted from
+ * `main` to keep the orchestrator's CRAP under the v6 ceiling.
+ */
+function maybeWriteMaintainabilityReport({ scores, stats, resolvedScope }) {
+  const jsonPath = parseJsonPathArg();
+  if (!jsonPath) return;
+  try {
+    writeBaseline({
+      baselinePath: jsonPath,
+      data: buildMaintainabilityReport(scores, stats, {
+        scope: resolvedScope.scope,
+        diffRef: resolvedScope.ref,
+      }),
+    });
+    Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
+  } catch (err) {
+    Logger.warn(
+      `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
+    );
+  }
 }
 
 /**

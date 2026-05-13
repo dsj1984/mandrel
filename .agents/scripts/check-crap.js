@@ -635,24 +635,9 @@ async function main() {
   Logger.info(
     `[CRAP] scope=${resolvedScope.scope}${resolvedScope.ref ? ` ref=${resolvedScope.ref}` : ''} (source=${resolvedScope.source})`,
   );
-  let scopeSet = null;
-  if (resolvedScope.ref) {
-    try {
-      const changed = getChangedFiles({
-        ref: resolvedScope.ref,
-        cwd: process.cwd(),
-      });
-      scopeSet = new Set(changed);
-      Logger.info(
-        `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
-      );
-    } catch (err) {
-      Logger.error(
-        `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-      );
-      return 1;
-    }
-  }
+  const scopeOutcome = resolveScopeSet(resolvedScope);
+  if (scopeOutcome.exitCode !== undefined) return scopeOutcome.exitCode;
+  const scopeSet = scopeOutcome.scopeSet;
 
   const baselinePath =
     args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
@@ -715,27 +700,14 @@ async function main() {
 
   printSummary(result, scan);
 
-  if (args.jsonPath) {
-    const envelope = buildCrapReport({
-      compareResult: result,
-      scanSummary: scan,
-      kernelVersion: KERNEL_VERSION,
-      escomplexVersion: runningEscomplex,
-      newMethodCeiling,
-      scopeInfo: {
-        scope: resolvedScope.scope,
-        diffRef: resolvedScope.ref,
-      },
-    });
-    try {
-      writeBaseline({ baselinePath: args.jsonPath, data: envelope });
-      Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
-    } catch (err) {
-      Logger.warn(
-        `[CRAP] failed to write --json report: ${err?.message ?? err}`,
-      );
-    }
-  }
+  maybeWriteJsonReport({
+    args,
+    result,
+    scan,
+    runningEscomplex,
+    newMethodCeiling,
+    resolvedScope,
+  });
 
   if (result.regressions > 0 || result.newViolations > 0) {
     Logger.error(
@@ -755,6 +727,66 @@ async function main() {
 
   Logger.info('[CRAP] ✅ check passed.');
   return 0;
+}
+
+/**
+ * Resolve the changed-since scope into a Set of files (or null for full
+ * scope). Extracted from `main` to keep the orchestrator method's CRAP
+ * under the v6 ceiling.
+ *
+ * @returns {{ scopeSet: Set<string> | null, exitCode?: number }}
+ */
+function resolveScopeSet(resolvedScope) {
+  if (!resolvedScope.ref) return { scopeSet: null };
+  try {
+    const changed = getChangedFiles({
+      ref: resolvedScope.ref,
+      cwd: process.cwd(),
+    });
+    const scopeSet = new Set(changed);
+    Logger.info(
+      `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
+    );
+    return { scopeSet };
+  } catch (err) {
+    Logger.error(
+      `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
+    );
+    return { scopeSet: null, exitCode: 1 };
+  }
+}
+
+/**
+ * Optionally serialize the run's structured JSON report to `args.jsonPath`.
+ * Extracted from `main` to keep the orchestrator method's CRAP under the
+ * v6 ceiling.
+ */
+function maybeWriteJsonReport({
+  args,
+  result,
+  scan,
+  runningEscomplex,
+  newMethodCeiling,
+  resolvedScope,
+}) {
+  if (!args.jsonPath) return;
+  const envelope = buildCrapReport({
+    compareResult: result,
+    scanSummary: scan,
+    kernelVersion: KERNEL_VERSION,
+    escomplexVersion: runningEscomplex,
+    newMethodCeiling,
+    scopeInfo: {
+      scope: resolvedScope.scope,
+      diffRef: resolvedScope.ref,
+    },
+  });
+  try {
+    writeBaseline({ baselinePath: args.jsonPath, data: envelope });
+    Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
+  } catch (err) {
+    Logger.warn(`[CRAP] failed to write --json report: ${err?.message ?? err}`);
+  }
 }
 
 /**
