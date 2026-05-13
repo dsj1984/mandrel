@@ -226,10 +226,16 @@
       "startLine": 582
     },
     {
-      "crap": 53.125,
+      "crap": 34.13801303866498,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
       "startLine": 614
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "enforceCrapFloor",
+      "startLine": 769
     },
     {
       "crap": 8,
@@ -316,10 +322,16 @@
       "startLine": 336
     },
     {
-      "crap": 67.69350950748596,
+      "crap": 41.014083472347636,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
       "startLine": 346
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "enforceMaintainabilityFloor",
+      "startLine": 467
     },
     {
       "crap": 2,
