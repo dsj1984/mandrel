@@ -177,162 +177,201 @@ function cloneDefaults() {
  * @param {'coverage'|'maintainability'|'crap'} scope
  * @returns {{violations: Array<object>, passed: Array<object>}}
  */
-export function applyFloorPolicy(records, floors, scope) {
-  const violations = [];
-  const passed = [];
+const SCOPE_HANDLERS = {
+  coverage: applyCoverageFloor,
+  maintainability: applyMaintainabilityFloor,
+  crap: applyCrapCeiling,
+};
 
+export function applyFloorPolicy(records, floors, scope) {
+  const guard = guardInputs(records, floors, scope);
+  if (guard) return guard;
+  const handler = SCOPE_HANDLERS[scope];
+  return handler(records, floors);
+}
+
+function guardInputs(records, floors, scope) {
   if (!Array.isArray(records)) {
-    violations.push({
+    return wrapSingle({
       scope,
       reason: 'invalid-records',
       message: `applyFloorPolicy: records must be an array, got ${typeof records}`,
     });
-    return { violations, passed };
   }
-
   if (!floors || typeof floors !== 'object') {
-    violations.push({
+    return wrapSingle({
       scope,
       reason: 'invalid-floors',
       message: 'applyFloorPolicy: floors config missing or not an object',
     });
-    return { violations, passed };
   }
-
-  switch (scope) {
-    case 'coverage':
-      for (const rec of records) {
-        const file = rec?.file ?? '<unknown>';
-        let recordFailed = false;
-        for (const axis of KNOWN_COVERAGE_AXES) {
-          const observed = rec?.[axis];
-          const floor = floors.coverage?.[axis];
-          if (!Number.isFinite(observed)) {
-            violations.push({
-              scope,
-              axis,
-              file,
-              reason: 'invalid-record',
-              message: `coverage record for ${file} is missing numeric ${axis}`,
-            });
-            recordFailed = true;
-            continue;
-          }
-          if (!Number.isFinite(floor)) {
-            violations.push({
-              scope,
-              axis,
-              file,
-              reason: 'invalid-floors',
-              message: `floors.coverage.${axis} is not a finite number`,
-            });
-            recordFailed = true;
-            continue;
-          }
-          if (observed < floor) {
-            violations.push({
-              scope,
-              axis,
-              file,
-              observed,
-              floor,
-              reason: 'below-floor',
-            });
-            recordFailed = true;
-          }
-        }
-        if (!recordFailed) {
-          passed.push({ scope, file });
-        }
-      }
-      break;
-
-    case 'maintainability': {
-      const floor = floors.maintainability;
-      if (!Number.isFinite(floor)) {
-        violations.push({
-          scope,
-          reason: 'invalid-floors',
-          message: 'floors.maintainability is not a finite number',
-        });
-        return { violations, passed };
-      }
-      for (const rec of records) {
-        const file = rec?.file ?? '<unknown>';
-        const observed = rec?.mi;
-        if (!Number.isFinite(observed)) {
-          violations.push({
-            scope,
-            file,
-            reason: 'invalid-record',
-            message: `maintainability record for ${file} is missing numeric mi`,
-          });
-          continue;
-        }
-        if (observed < floor) {
-          violations.push({
-            scope,
-            file,
-            observed,
-            floor,
-            reason: 'below-floor',
-          });
-        } else {
-          passed.push({ scope, file, observed });
-        }
-      }
-      break;
-    }
-
-    case 'crap': {
-      const floor = floors.crap;
-      if (!Number.isFinite(floor)) {
-        violations.push({
-          scope,
-          reason: 'invalid-floors',
-          message: 'floors.crap is not a finite number',
-        });
-        return { violations, passed };
-      }
-      for (const rec of records) {
-        const file = rec?.file ?? '<unknown>';
-        const method = rec?.method;
-        const observed = rec?.score;
-        if (!Number.isFinite(observed)) {
-          violations.push({
-            scope,
-            file,
-            method,
-            reason: 'invalid-record',
-            message: `crap record for ${file}${method ? `:${method}` : ''} is missing numeric score`,
-          });
-          continue;
-        }
-        if (observed > floor) {
-          violations.push({
-            scope,
-            file,
-            method,
-            observed,
-            floor,
-            reason: 'above-ceiling',
-          });
-        } else {
-          passed.push({ scope, file, method, observed });
-        }
-      }
-      break;
-    }
-
-    default:
-      violations.push({
-        scope,
-        reason: 'invalid-scope',
-        message: `applyFloorPolicy: unknown scope "${scope}"; expected one of ${[...KNOWN_AXES].join(', ')}`,
-      });
+  if (!SCOPE_HANDLERS[scope]) {
+    return wrapSingle({
+      scope,
+      reason: 'invalid-scope',
+      message: `applyFloorPolicy: unknown scope "${scope}"; expected one of ${[...KNOWN_AXES].join(', ')}`,
+    });
   }
+  return null;
+}
 
+function wrapSingle(violation) {
+  return { violations: [violation], passed: [] };
+}
+
+function applyCoverageFloor(records, floors) {
+  const violations = [];
+  const passed = [];
+  for (const rec of records) {
+    const file = rec?.file ?? '<unknown>';
+    const recViolations = checkCoverageRecord(rec, floors.coverage, file);
+    if (recViolations.length === 0) passed.push({ scope: 'coverage', file });
+    else violations.push(...recViolations);
+  }
   return { violations, passed };
+}
+
+function checkCoverageRecord(rec, coverageFloors, file) {
+  const out = [];
+  for (const axis of KNOWN_COVERAGE_AXES) {
+    const observed = rec?.[axis];
+    const floor = coverageFloors?.[axis];
+    if (!Number.isFinite(observed)) {
+      out.push({
+        scope: 'coverage',
+        axis,
+        file,
+        reason: 'invalid-record',
+        message: `coverage record for ${file} is missing numeric ${axis}`,
+      });
+      continue;
+    }
+    if (!Number.isFinite(floor)) {
+      out.push({
+        scope: 'coverage',
+        axis,
+        file,
+        reason: 'invalid-floors',
+        message: `floors.coverage.${axis} is not a finite number`,
+      });
+      continue;
+    }
+    if (observed < floor) {
+      out.push({
+        scope: 'coverage',
+        axis,
+        file,
+        observed,
+        floor,
+        reason: 'below-floor',
+      });
+    }
+  }
+  return out;
+}
+
+function applyMaintainabilityFloor(records, floors) {
+  const floor = floors.maintainability;
+  if (!Number.isFinite(floor)) {
+    return wrapSingle({
+      scope: 'maintainability',
+      reason: 'invalid-floors',
+      message: 'floors.maintainability is not a finite number',
+    });
+  }
+  const violations = [];
+  const passed = [];
+  for (const rec of records) {
+    const file = rec?.file ?? '<unknown>';
+    const observed = rec?.mi;
+    if (!Number.isFinite(observed)) {
+      violations.push({
+        scope: 'maintainability',
+        file,
+        reason: 'invalid-record',
+        message: `maintainability record for ${file} is missing numeric mi`,
+      });
+      continue;
+    }
+    if (observed < floor) {
+      violations.push({
+        scope: 'maintainability',
+        file,
+        observed,
+        floor,
+        reason: 'below-floor',
+      });
+    } else {
+      passed.push({ scope: 'maintainability', file, observed });
+    }
+  }
+  return { violations, passed };
+}
+
+function applyCrapCeiling(records, floors) {
+  const floor = floors.crap;
+  if (!Number.isFinite(floor)) {
+    return wrapSingle({
+      scope: 'crap',
+      reason: 'invalid-floors',
+      message: 'floors.crap is not a finite number',
+    });
+  }
+  const violations = [];
+  const passed = [];
+  for (const rec of records) {
+    const file = rec?.file ?? '<unknown>';
+    const method = rec?.method;
+    const observed = rec?.score;
+    if (!Number.isFinite(observed)) {
+      violations.push({
+        scope: 'crap',
+        file,
+        method,
+        reason: 'invalid-record',
+        message: `crap record for ${file}${method ? `:${method}` : ''} is missing numeric score`,
+      });
+      continue;
+    }
+    if (observed > floor) {
+      violations.push({
+        scope: 'crap',
+        file,
+        method,
+        observed,
+        floor,
+        reason: 'above-ceiling',
+      });
+    } else {
+      passed.push({ scope: 'crap', file, method, observed });
+    }
+  }
+  return { violations, passed };
+}
+
+/**
+ * Pure: parse the `--floor` flag from argv. The flag is opt-out — present
+ * absent means the floor gate runs. `--floor=off` / `--floor=false` / `--no-floor`
+ * disable it (escape hatch for baseline-update runs and curated bypasses).
+ *
+ * @param {string[]} [argv]
+ * @returns {boolean} true when the floor gate should run, false to skip
+ */
+export function parseFloorFlag(argv = process.argv.slice(2)) {
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === '--no-floor') return false;
+    if (a === '--floor=off' || a === '--floor=false') return false;
+    if (a === '--floor=on' || a === '--floor=true') return true;
+    if (a === '--floor') {
+      const next = argv[i + 1];
+      if (next === 'off' || next === 'false') return false;
+      if (next === 'on' || next === 'true') return true;
+      // Bare `--floor` means "explicitly on" (no-op vs default but harmless).
+      return true;
+    }
+  }
+  return true;
 }
 
 /**

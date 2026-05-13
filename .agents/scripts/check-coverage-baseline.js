@@ -29,6 +29,12 @@ import {
   scoreCoverageFinal,
 } from './lib/coverage-baseline.js';
 import { Logger } from './lib/Logger.js';
+import {
+  applyFloorPolicy,
+  formatViolation,
+  loadFloorConfig,
+  parseFloorFlag,
+} from './lib/quality-floors.js';
 
 const require = createRequire(import.meta.url);
 
@@ -102,6 +108,34 @@ function main() {
       '[Coverage] ❌ Per-file gate failed. Either improve coverage on the offending file(s) or — if the change is intentional — run `npm run coverage:update` to ratchet the baseline.',
     );
     process.exit(1);
+  }
+
+  // Story #1602 — absolute floor gate. Runs after the ratchet check so a
+  // file that's below floor but matched the (stale) baseline still trips
+  // the gate. Opt-out via `--floor=off` for baseline-update runs.
+  if (parseFloorFlag(process.argv.slice(2))) {
+    const floors = loadFloorConfig();
+    const records = Object.entries(current).map(([file, s]) => ({
+      file,
+      lines: s.lines,
+      branches: s.branches,
+      functions: s.functions,
+    }));
+    const { violations } = applyFloorPolicy(records, floors, 'coverage');
+    if (violations.length > 0) {
+      Logger.error(
+        `[Coverage] ❌ Absolute floor violated (${violations.length} finding(s); floors: lines=${floors.coverage.lines}%, branches=${floors.coverage.branches}%, functions=${floors.coverage.functions}%):`,
+      );
+      for (const v of violations) {
+        Logger.error(`                ${formatViolation(v)}`);
+      }
+      Logger.error(
+        '[Coverage] Add tests on the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `coverage:update`.',
+      );
+      process.exit(1);
+    }
+  } else {
+    Logger.info('[Coverage] ⚠️  floor gate skipped (--floor=off)');
   }
 
   Logger.info('[Coverage] ✅ Per-file coverage check passed.');

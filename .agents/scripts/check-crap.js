@@ -20,6 +20,12 @@ import { loadBaseline, writeBaseline } from './lib/gates/baseline-store.js';
 import { emitFrictionSignal } from './lib/gates/friction.js';
 import { parseGateArgs, resolveScopedRef } from './lib/gates/gate-cli.js';
 import { Logger } from './lib/Logger.js';
+import {
+  applyFloorPolicy,
+  formatViolation,
+  loadFloorConfig,
+  parseFloorFlag,
+} from './lib/quality-floors.js';
 /**
  * CLI: verify CRAP scores against the committed baseline.
  *
@@ -742,6 +748,34 @@ async function main() {
       });
     }
     return 1;
+  }
+
+  // Story #1602 — absolute CRAP ceiling (≤20 per method by default).
+  // Runs after the ratchet/new-method check so a method that's matched
+  // the baseline but exceeds the ceiling still trips the gate. Opt-out:
+  // `--floor=off` for baseline-update runs.
+  if (parseFloorFlag(process.argv.slice(2))) {
+    const floors = loadFloorConfig();
+    const records = (scan.rows ?? []).map((r) => ({
+      file: r.file,
+      method: r.method,
+      score: r.crap,
+    }));
+    const { violations } = applyFloorPolicy(records, floors, 'crap');
+    if (violations.length > 0) {
+      Logger.error(
+        `[CRAP] ❌ Absolute CRAP ceiling violated (${violations.length} method(s); ceiling=${floors.crap}):`,
+      );
+      for (const v of violations) {
+        Logger.error(`                ${formatViolation(v)}`);
+      }
+      Logger.error(
+        '[CRAP] Reduce complexity or add coverage on the flagged methods; the ceiling is non-negotiable. Use `--floor=off` only when running `crap:update`.',
+      );
+      return 1;
+    }
+  } else {
+    Logger.info('[CRAP] ⚠️  floor gate skipped (--floor=off)');
   }
 
   Logger.info('[CRAP] ✅ check passed.');

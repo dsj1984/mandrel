@@ -16,6 +16,12 @@ import {
   getBaseline,
   scanDirectory,
 } from './lib/maintainability-utils.js';
+import {
+  applyFloorPolicy,
+  formatViolation,
+  loadFloorConfig,
+  parseFloorFlag,
+} from './lib/quality-floors.js';
 
 /**
  * CI script to verify that maintainability scores haven't regressed.
@@ -444,6 +450,29 @@ async function main() {
       });
     }
     process.exit(1);
+  }
+
+  // Story #1602 — absolute MI floor (≥70 by default). Runs after the
+  // ratchet check so a file that hasn't regressed but is still under
+  // floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
+  if (parseFloorFlag(process.argv.slice(2))) {
+    const floors = loadFloorConfig();
+    const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
+    const { violations } = applyFloorPolicy(records, floors, 'maintainability');
+    if (violations.length > 0) {
+      Logger.error(
+        `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
+      );
+      for (const v of violations) {
+        Logger.error(`                ${formatViolation(v)}`);
+      }
+      Logger.error(
+        '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
+      );
+      process.exit(1);
+    }
+  } else {
+    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
   }
 
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
