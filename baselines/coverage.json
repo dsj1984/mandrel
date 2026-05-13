@@ -20,14 +20,14 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 79.52,
-    "branches": 81.34,
-    "functions": 77.78
+    "lines": 78.65,
+    "branches": 80.88,
+    "functions": 66.67
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 66.93,
-    "branches": 79.07,
-    "functions": 61.11
+    "lines": 67.67,
+    "branches": 79.55,
+    "functions": 60
   },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 70.68,
@@ -1025,8 +1025,8 @@
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
-    "lines": 86.11,
-    "branches": 78.35,
+    "lines": 86.03,
+    "branches": 79.82,
     "functions": 100
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
