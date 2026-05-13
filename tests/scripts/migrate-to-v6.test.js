@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkWorkingTree,
   formatSummary,
-  parseCliArgs,
+  parseArgv,
   runMigration,
 } from '../../.agents/scripts/migrate-to-v6.js';
 
@@ -403,19 +403,19 @@ describe('migrate-to-v6 — (d) makes zero network calls', () => {
 /* ------------------------------------------------------------------------- */
 
 describe('migrate-to-v6 — CLI surface', () => {
-  it('parseCliArgs honours --cwd, --dry-run, --yes, --help', () => {
-    const parsed = parseCliArgs(['--cwd', '/tmp/x', '--dry-run', '--yes']);
+  it('parseArgv honours --cwd, --dry-run, --yes, --help', () => {
+    const parsed = parseArgv(['--cwd', '/tmp/x', '--dry-run', '--yes']);
     assert.equal(parsed.cwd, '/tmp/x');
     assert.equal(parsed.dryRun, true);
     assert.equal(parsed.yes, true);
     assert.equal(parsed.help, false);
 
-    const parsed2 = parseCliArgs(['-h']);
+    const parsed2 = parseArgv(['-h']);
     assert.equal(parsed2.help, true);
   });
 
-  it('parseCliArgs defaults cwd to process.cwd() when omitted', () => {
-    const parsed = parseCliArgs([]);
+  it('parseArgv defaults cwd to process.cwd() when omitted', () => {
+    const parsed = parseArgv([]);
     assert.equal(parsed.cwd, process.cwd());
     assert.equal(parsed.dryRun, false);
     assert.equal(parsed.yes, false);

@@ -37,7 +37,8 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve as resolvePath } from 'node:path';
-import { parseArgs } from 'node:util';
+import { defineFlags } from './lib/cli-args.js';
+import { runAsCli } from './lib/cli-utils.js';
 import { planMigration } from './lib/migrate-to-v6-core.js';
 
 const AGENTRC_FILENAME = '.agentrc.json';
@@ -223,30 +224,31 @@ export function runMigration({ cwd, dryRun = false, yes = false }) {
 }
 
 /**
- * Parse CLI arguments. Exported for test reuse.
+ * Parse CLI arguments via the canonical `defineFlags` helper from
+ * `lib/cli-args.js`. Exported for test reuse under the project-standard
+ * name `parseArgv` (the `parseCliArgs` walker pattern is forbidden by
+ * `tests/enforcement/parse-cli-args.test.js`).
  *
  * @param {string[]} argv
  */
-export function parseCliArgs(argv) {
-  const { values } = parseArgs({
-    args: argv,
-    options: {
-      cwd: { type: 'string' },
-      'dry-run': { type: 'boolean', default: false },
-      yes: { type: 'boolean', default: false, short: 'y' },
-      help: { type: 'boolean', default: false, short: 'h' },
+export function parseArgv(argv) {
+  const { values } = defineFlags(
+    {
+      cwd: { type: 'string', alias: 'cwd' },
+      'dry-run': { type: 'boolean', alias: 'dryRun' },
+      yes: { type: 'boolean', alias: 'yes', short: 'y' },
+      help: { type: 'boolean', alias: 'help', short: 'h' },
     },
-    strict: false,
-    allowPositionals: true,
-  });
+    argv,
+  );
   return {
     cwd:
       typeof values.cwd === 'string' && values.cwd.length > 0
         ? values.cwd
         : process.cwd(),
-    dryRun: Boolean(values['dry-run']),
-    yes: Boolean(values.yes),
-    help: Boolean(values.help),
+    dryRun: values.dryRun === true,
+    yes: values.yes === true,
+    help: values.help === true,
   };
 }
 
@@ -273,47 +275,32 @@ Re-run after the first pass to confirm idempotency: the second run should
 report zero changes.`;
 
 async function main() {
-  const args = parseCliArgs(process.argv.slice(2));
+  const args = parseArgv(process.argv.slice(2));
   if (args.help) {
     process.stdout.write(`${HELP_TEXT}\n`);
     return 0;
   }
-  try {
-    const result = runMigration({
-      cwd: args.cwd,
-      dryRun: args.dryRun,
-      yes: args.yes,
-    });
-    if (!result.ok) {
-      process.stderr.write(`migrate-to-v6: ${result.reason}\n`);
-      return 2;
-    }
-    process.stdout.write(`${formatSummary(result.plan)}\n`);
-    if (args.dryRun) {
-      process.stdout.write(
-        '\n(dry-run: no files written. Re-run without --dry-run to apply.)\n',
-      );
-    } else if (result.written.length > 0) {
-      process.stdout.write(`\nWrote: ${result.written.join(', ')}\n`);
-    }
-    return 0;
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`migrate-to-v6: ${detail}\n`);
-    return 1;
+  const result = runMigration({
+    cwd: args.cwd,
+    dryRun: args.dryRun,
+    yes: args.yes,
+  });
+  if (!result.ok) {
+    process.stderr.write(`migrate-to-v6: ${result.reason}\n`);
+    return 2;
   }
+  process.stdout.write(`${formatSummary(result.plan)}\n`);
+  if (args.dryRun) {
+    process.stdout.write(
+      '\n(dry-run: no files written. Re-run without --dry-run to apply.)\n',
+    );
+  } else if (result.written.length > 0) {
+    process.stdout.write(`\nWrote: ${result.written.join(', ')}\n`);
+  }
+  return 0;
 }
 
-// Entrypoint guard: when imported by tests, `main()` is not invoked.
-const invokedDirectly =
-  import.meta.url === `file://${process.argv[1]}` ||
-  import.meta.url.endsWith(process.argv[1] ?? '');
-if (invokedDirectly) {
-  main().then(
-    (code) => process.exit(code),
-    (err) => {
-      process.stderr.write(`migrate-to-v6: ${err?.stack ?? err}\n`);
-      process.exit(1);
-    },
-  );
-}
+runAsCli(import.meta.url, main, {
+  source: 'migrate-to-v6',
+  propagateExitCode: true,
+});
