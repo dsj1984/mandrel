@@ -1,50 +1,13 @@
-# Decisions Archive — Pre-Epic-#900 ADRs (001 / 002 / 003)
+# Decisions Archive — Pre-Epic-#900 ADRs
 
-These three ADRs predate the Epic-#900 sprint→epic terminology rework and the
-four-skill execution split. They are preserved verbatim for historical
-context. The active decision log is in [`../decisions.md`](../decisions.md).
+This file preserves the surviving pre-Epic-#900 ADRs for historical context.
+The active decision log is in [`../decisions.md`](../decisions.md).
 
----
-
-## ADR 001: Autonomous Protocol Refinement Loop
-
-**Status:** Reverted (Moved to manual process)  
-**Date:** 2026-04-09  
-**Epic:** #74
-
-### Context
-Frequent friction during agent execution (e.g., tool misuse, prompt ambiguity) requires manual protocol updates. This creates a bottleneck and prevents the system from scaling its efficiency.
-
-### Decision
-We will implement an autonomous, closed-loop system that:
-1.  Ingests friction logs from completed tasks.
-2.  Uses an LLM-based agent to identify patterns and propose protocol updates.
-3.  Automatically creates PRs for these updates.
-4.  Tracks the performance impact post-merge.
-
-### Consequences
-*   **Positive:** Reduced manual maintenance, faster protocol maturation, data-driven improvement.
-*   **Negative:** Increased GitHub API usage, potential for low-quality automated PRs if prompts are weak.
-*   **Mitigation:** Human-in-the-loop (HITL) requirement for merging refinement PRs.
-
----
-
-## ADR 002: Real-time Sprint Health Monitoring
-
-**Status:** Accepted  
-**Date:** 2026-04-09  
-**Epic:** #74
-
-### Context
-Operators lack visibility into "stalled" sprints or widespread tool failures during parallel task execution.
-
-### Decision
-Implement a single-issue "Sprint Health" dashboard in GitHub that is updated via `health-monitor.js` after every major task state transition.
-
-### Consequences
-*   **Positive:** Immediate visibility into systemic failures.
-*   **Negative:** High edit frequency on a single issue might trigger GitHub rate limits.
-*   **Mitigation:** Debounced updates and batching metrics.
+> **v6.0.0 prune (Story #1605, Epic #1184).** ADR 001 (Autonomous Protocol
+> Refinement Loop — reverted to manual process) and ADR 002 (Real-time Sprint
+> Health Monitoring — superseded by the epic-centric workflow rework, ADR
+> 20260501-900a in `../decisions.md`) were removed in the v6 cut. ADR 003
+> (Worktree-per-Story Isolation) is retained — it remains in force in v6.
 
 ---
 
@@ -116,4 +79,3 @@ Supporting decisions:
         stories) and AC7 (main-checkout reflog quiet) on every run.
 
 ---
-

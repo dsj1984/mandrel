@@ -34,6 +34,7 @@ const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_ROOT = resolve(SCRIPT_DIR, '..');
 
 const CHANGELOG_HEADING_RE = /^##\s*\[(\d+\.\d+\.\d+)\]/m;
+const CHANGELOG_UNRELEASED_RE = /^##\s*\[Unreleased\]/m;
 
 export function readPackageVersion(root = DEFAULT_ROOT) {
   const raw = readFileSync(resolve(root, 'package.json'), 'utf8');
@@ -52,12 +53,20 @@ export function readVersionFile(root = DEFAULT_ROOT) {
 export function readChangelogVersion(root = DEFAULT_ROOT) {
   const raw = readFileSync(resolve(root, 'docs/CHANGELOG.md'), 'utf8');
   const match = raw.match(CHANGELOG_HEADING_RE);
-  if (!match) {
-    throw new Error(
-      'docs/CHANGELOG.md has no "## [X.Y.Z]" heading — cannot determine latest version',
-    );
+  if (match) {
+    return match[1];
   }
-  return match[1];
+  // No `## [X.Y.Z]` heading yet (e.g. the v6 pre-cut window after Story
+  // #1605 consolidated the 5.x history out of the live file but before
+  // the v6.0.0 release entry has been written). An `## [Unreleased]`
+  // anchor is treated as a wildcard that matches whatever version the
+  // other two sources agree on.
+  if (CHANGELOG_UNRELEASED_RE.test(raw)) {
+    return null;
+  }
+  throw new Error(
+    'docs/CHANGELOG.md has no "## [X.Y.Z]" heading or "## [Unreleased]" anchor — cannot determine latest version',
+  );
 }
 
 export function checkVersionSync(root = DEFAULT_ROOT) {
@@ -67,13 +76,21 @@ export function checkVersionSync(root = DEFAULT_ROOT) {
     'docs/CHANGELOG.md': readChangelogVersion(root),
   };
 
-  const versions = new Set(Object.values(sources));
+  // The CHANGELOG may legitimately return `null` while sitting on a bare
+  // `## [Unreleased]` anchor (the v6 pre-cut window). When that happens,
+  // the changelog source is a wildcard — drop it from the equality check.
+  const concreteSources = Object.fromEntries(
+    Object.entries(sources).filter(([, version]) => version != null),
+  );
+
+  const versions = new Set(Object.values(concreteSources));
   if (versions.size === 1) {
     return { ok: true, version: [...versions][0], sources };
   }
 
   const lines = Object.entries(sources).map(
-    ([file, version]) => `  ${file.padEnd(22)} → ${version}`,
+    ([file, version]) =>
+      `  ${file.padEnd(22)} → ${version ?? '[Unreleased] (wildcard)'}`,
   );
   return {
     ok: false,
