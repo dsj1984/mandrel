@@ -9,22 +9,21 @@ import { runStoryClose } from '../.agents/scripts/story-close.js';
 import { runStoryInit } from '../.agents/scripts/story-init.js';
 import { MockProvider } from './fixtures/mock-provider.js';
 
-// `<repo>/temp/epic-50/` is the canonical sandbox-leakage tripwire — these
-// tests drive runStoryClose with (epicId=50, storyId=100) and the
+// `<repo>/temp/epic-999050/` is the canonical sandbox-leakage tripwire — these
+// tests drive runStoryClose with (epicId=999050, storyId=100) and the
 // post-merge pipeline previously ignored the sandbox tempRoot and wrote
 // under the framework PROJECT_ROOT. With the config-honoring fix in
 // place every write lands under `path.join(sandbox, 'temp')` instead;
 // this assertion locks that contract so a future regression flips the
 // test red instead of silently leaking again.
 //
-// Test-owned fixture only. `epicId === 50` is deliberately reserved for
-// this fixture and is not used by any real Epic in this repository; any
-// `<repo>/temp/epic-50/` directory present at the moment a test starts
-// or ends is by construction a leak from a previous failed run. Tests
-// for real epics (e.g. `temp/epic-1143/`, `temp/epic-1185/`) live in
+// Test-owned fixture only. `epicId === 999050` is in the reserved test Epic
+// temp ID band (999000–999999); any `<repo>/temp/epic-999050/` directory
+// present at the moment a test starts or ends is by construction a leak.
+// Tests for real epics (e.g. `temp/epic-1143/`, `temp/epic-1185/`) live in
 // the canonical artefact tree and must NOT be touched by this tripwire.
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
-const SANDBOX_TRIPWIRE_EPIC_IDS = new Set([50]);
+const SANDBOX_TRIPWIRE_EPIC_IDS = new Set([999_050]);
 
 /**
  * Remove the tripwire directory for `epicId` if it exists. Refuses to
@@ -154,10 +153,10 @@ test('story-init: successful initialization', async () => {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50\nPRD: #51',
+        body: 'Epic: #999050\nPRD: #51',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
       101: {
         id: 101,
         title: 'Task 1',
@@ -212,10 +211,10 @@ test('story-init: fails on open blockers', async () => {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50\nblocked by #99',
+        body: 'Epic: #999050\nblocked by #99',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
       99: {
         id: 99,
         title: 'Prereq',
@@ -244,10 +243,10 @@ test('story-init: fails closed when blocker verification errors', async () => {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50\nblocked by #99',
+        body: 'Epic: #999050\nblocked by #99',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
     },
   });
   provider.getTicket = async (id) => {
@@ -284,19 +283,19 @@ test('story-init: fails closed when blocker verification errors', async () => {
 });
 
 test('story-init: epic exists locally only → pushes to remote (no crash)', async () => {
-  // Reproduces the #329 crash: epic/50 exists locally from a prior partial
-  // run but not remotely. Old logic ran `checkout -b epic/50` and failed.
-  knownLocalBranches.add('epic/50');
+  // Reproduces the #329 crash: epic/999050 exists locally from a prior partial
+  // run but not remotely. Old logic ran `checkout -b epic/999050` and failed.
+  knownLocalBranches.add('epic/999050');
 
   const provider = new MockProvider({
     tickets: {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
     },
     subTickets: { 100: [] },
   });
@@ -313,15 +312,15 @@ test('story-init: epic exists locally only → pushes to remote (no crash)', asy
     (h) =>
       h.args[0] === 'checkout' &&
       (h.args[1] === '-b' || h.args[1] === '-B') &&
-      h.args[2] === 'epic/50',
+      h.args[2] === 'epic/999050',
   );
   assert.strictEqual(
     checkoutCreateCalls.length,
     0,
-    'Must not attempt `checkout -b epic/50` when branch already exists locally',
+    'Must not attempt `checkout -b epic/999050` when branch already exists locally',
   );
   const pushCalls = gitHistory.filter(
-    (h) => h.args[0] === 'push' && h.args.includes('epic/50'),
+    (h) => h.args[0] === 'push' && h.args.includes('epic/999050'),
   );
   assert.ok(pushCalls.length > 0, 'Should publish the local-only epic branch');
 });
@@ -332,10 +331,10 @@ test('story-init: refuses to switch branches when working tree is dirty', async 
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
     },
     subTickets: { 100: [] },
   });
@@ -367,13 +366,13 @@ test('story-init: refuses to switch branches when working tree is dirty', async 
 });
 
 test('story-close: successful merge and closure', async () => {
-  clearSandboxTripwire(50);
+  clearSandboxTripwire(999050);
   const provider = new MockProvider({
     tickets: {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story', 'agent::executing'],
       },
       101: {
@@ -444,18 +443,18 @@ test('story-close: successful merge and closure', async () => {
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(sandboxCwd, { recursive: true, force: true });
-    assertNoSandboxLeak(50);
+    assertNoSandboxLeak(999050);
   }
 });
 
 test('story-close: reaps worktree using resolved --cwd repo root', async () => {
-  clearSandboxTripwire(50);
+  clearSandboxTripwire(999050);
   const provider = new MockProvider({
     tickets: {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story', 'agent::executing'],
       },
     },
@@ -514,18 +513,18 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(explicitMainRepo, { recursive: true, force: true });
-    assertNoSandboxLeak(50);
+    assertNoSandboxLeak(999050);
   }
 });
 
 test('story-close: resolves config from runtime --cwd (can disable reap)', async () => {
-  clearSandboxTripwire(50);
+  clearSandboxTripwire(999050);
   const provider = new MockProvider({
     tickets: {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story', 'agent::executing'],
       },
     },
@@ -576,21 +575,21 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
   } finally {
     WorktreeManager.prototype.reap = originalReap;
     fs.rmSync(tmp, { recursive: true, force: true });
-    assertNoSandboxLeak(50);
+    assertNoSandboxLeak(999050);
   }
 });
 
 test('story-init: resolves config from runtime --cwd for worktree mode', async () => {
-  clearSandboxTripwire(50);
+  clearSandboxTripwire(999050);
   const provider = new MockProvider({
     tickets: {
       100: {
         id: 100,
         title: 'Story 100',
-        body: 'Epic: #50',
+        body: 'Epic: #999050',
         labels: ['type::story'],
       },
-      50: { id: 50, title: 'Epic 50', labels: ['type::epic'] },
+      999050: { id: 999050, title: 'Epic 999050', labels: ['type::epic'] },
     },
     subTickets: {
       100: [],
@@ -639,6 +638,6 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
   } finally {
     WorktreeManager.prototype.ensure = originalEnsure;
     fs.rmSync(tmp, { recursive: true, force: true });
-    assertNoSandboxLeak(50);
+    assertNoSandboxLeak(999050);
   }
 });

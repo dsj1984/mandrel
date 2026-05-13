@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "pretest": "node .agents/scripts/test-wrapper.js",
-    "test": "node --experimental-test-module-mocks --test --test-concurrency=8 \"tests/**/*.test.js\"",
+    "test": "node .agents/scripts/run-tests.js",
     "typecheck": "node -e \"process.exit(0)\"",
     "test:coverage": "node .agents/scripts/run-coverage.js",
     "coverage:check": "node .agents/scripts/check-coverage-baseline.js",
@@ -25,16 +25,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/dsj1984/agent-protocols.git"
+    "url": "git+https://github.com/dsj1984/mandrel.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/dsj1984/agent-protocols/issues"
+    "url": "https://github.com/dsj1984/mandrel/issues"
   },
-  "homepage": "https://github.com/dsj1984/agent-protocols#readme",
+  "homepage": "https://github.com/dsj1984/mandrel#readme",
   "engines": {
     "node": ">=22.22.1 <25"
   },

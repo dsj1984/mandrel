@@ -39,10 +39,10 @@ test('extractManifestJson returns null when JSON block is malformed', () => {
 test('writeRenderedManifest produces md + json under temp/', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ap-render-'));
   try {
-    const body = '## Dispatch Manifest — Epic #7\n\nbody\n';
+    const body = '## Dispatch Manifest — Epic #999007\n\nbody\n';
     const parsed = { stories: [{ storyId: 5, wave: 0, title: 'x' }] };
     const { mdPath, jsonPath } = writeRenderedManifest({
-      epicId: 7,
+      epicId: 999_007,
       body,
       parsed,
       projectRoot: tmp,
@@ -53,11 +53,11 @@ test('writeRenderedManifest produces md + json under temp/', () => {
     // Per-Epic layout (Epic #1030 Story #1040): the renderer now writes
     // under `temp/epic-<eid>/manifest.{md,json}`.
     assert.ok(
-      mdPath.replaceAll('\\', '/').endsWith('temp/epic-7/manifest.md'),
+      mdPath.replaceAll('\\', '/').endsWith('temp/epic-999007/manifest.md'),
       `unexpected md path: ${mdPath}`,
     );
     assert.ok(
-      jsonPath.replaceAll('\\', '/').endsWith('temp/epic-7/manifest.json'),
+      jsonPath.replaceAll('\\', '/').endsWith('temp/epic-999007/manifest.json'),
       `unexpected json path: ${jsonPath}`,
     );
   } finally {
@@ -77,7 +77,10 @@ test('renderManifestFromComment exits 1 when no manifest comment exists', async 
   };
   try {
     await assert.rejects(
-      renderManifestFromComment({ epicId: 7, injectedProvider: provider }),
+      renderManifestFromComment({
+        epicId: 999_007,
+        injectedProvider: provider,
+      }),
       /__exit:1/,
     );
     assert.strictEqual(exitCode, 1);
@@ -101,12 +104,12 @@ test('writeRenderedManifest leaves no partial artefact when rename throws mid-wr
     throw new Error('simulated rename failure');
   };
   try {
-    const body = '## Dispatch Manifest — Epic #9\n\nbody\n';
+    const body = '## Dispatch Manifest — Epic #999009\n\nbody\n';
     const parsed = { stories: [{ storyId: 5, wave: 0, title: 'x' }] };
     assert.throws(
       () =>
         writeRenderedManifest({
-          epicId: 9,
+          epicId: 999_009,
           body,
           parsed,
           projectRoot: tmp,
@@ -118,7 +121,7 @@ test('writeRenderedManifest leaves no partial artefact when rename throws mid-wr
       1,
       'rename should have been attempted exactly once before bailing',
     );
-    const epicDir = path.join(tmp, 'temp', 'epic-9');
+    const epicDir = path.join(tmp, 'temp', 'epic-999009');
     // Final paths must not exist (no partial truncation).
     assert.strictEqual(
       fs.existsSync(path.join(epicDir, 'manifest.md')),
@@ -164,7 +167,10 @@ test('renderManifestFromComment exits 1 when body has no JSON block', async () =
   };
   try {
     await assert.rejects(
-      renderManifestFromComment({ epicId: 7, injectedProvider: provider }),
+      renderManifestFromComment({
+        epicId: 999_007,
+        injectedProvider: provider,
+      }),
       /__exit:1/,
     );
     assert.strictEqual(exitCode, 1);

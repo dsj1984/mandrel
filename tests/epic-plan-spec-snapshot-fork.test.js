@@ -75,12 +75,12 @@ describe('forkAndCommitEpicSnapshot — Story #1396 spec-phase wiring', () => {
 
   it('on --force re-fork: re-invocation produces a fresh fork call (no caching at the seam)', () => {
     const fork = mock.fn(() => ({
-      epicId: 7,
+      epicId: 999_007,
       results: [
         {
           kind: 'maintainability',
           source: '/repo/baselines/maintainability.json',
-          destination: '/repo/baselines/epic/7/maintainability.json',
+          destination: '/repo/baselines/epic/999007/maintainability.json',
           written: true,
           reason: 'fresh',
         },
@@ -90,7 +90,7 @@ describe('forkAndCommitEpicSnapshot — Story #1396 spec-phase wiring', () => {
     const ensureRef = mock.fn(() => {});
 
     forkAndCommitEpicSnapshot({
-      epicId: 7,
+      epicId: 999_007,
       cwd: '/repo',
       logger: silentLogger(),
       forkFn: fork,
@@ -98,7 +98,7 @@ describe('forkAndCommitEpicSnapshot — Story #1396 spec-phase wiring', () => {
       ensureEpicBranchRefFn: ensureRef,
     });
     forkAndCommitEpicSnapshot({
-      epicId: 7,
+      epicId: 999_007,
       cwd: '/repo',
       logger: silentLogger(),
       forkFn: fork,

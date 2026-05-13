@@ -3,12 +3,9 @@
 [![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
 
 <!--
-Badge URLs target the post-rename `mandrel` repository (Story #1610 performs
-the maintainer-driven GitHub rename). Until the rename lands, GitHub's
-automatic redirect from `dsj1984/agent-protocols` resolves these URLs to the
-live workflow. Once the rename completes, the badges render natively without
-a follow-up edit. The `noise-study.yml` workflow is `workflow_dispatch` only
-and intentionally has no badge (it would render `no status`).
+CI badge targets `dsj1984/mandrel` on GitHub. The `noise-study.yml`
+workflow is `workflow_dispatch` only and intentionally has no badge
+(it would render `no status`).
 -->
 
 A structured framework of instructions, personas, skills, and SDLC workflows
@@ -63,8 +60,8 @@ stack), see [`docs/architecture.md`](docs/architecture.md).
 
 Mandrel requires two hard dependencies on the host before bootstrap:
 
-- **Node.js** (>= 20) — the orchestration scripts run on Node and use modern
-  ESM + `--experimental-test-module-mocks`. Install from
+- **Node.js** (>= 22.22.1, < 25) — the orchestration scripts run on Node and
+  use modern ESM + `--experimental-test-module-mocks`. Install from
   [nodejs.org](https://nodejs.org/) or via your platform package manager.
 - **GitHub CLI `gh`** (>= 2.40) — every ticketing call (Issues, Labels,
   Projects V2 setup, PR creation) shells out to `gh`. Install with

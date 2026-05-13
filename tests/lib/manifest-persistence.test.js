@@ -15,7 +15,7 @@ function makeTmpRoot() {
 test('persistence: writes dispatch-manifest json + md under per-Epic dir', () => {
   const root = makeTmpRoot();
   const manifest = {
-    epicId: 77,
+    epicId: 999077,
     epicTitle: 'Epic Seventy-Seven',
     dryRun: false,
     generatedAt: '2026-04-20T00:00:00.000Z',
@@ -38,18 +38,18 @@ test('persistence: writes dispatch-manifest json + md under per-Epic dir', () =>
     ],
   };
   const result = persistManifest(manifest, { projectRoot: root });
-  const mdPath = path.join(root, 'temp', 'epic-77', 'manifest.md');
-  const jsonPath = path.join(root, 'temp', 'epic-77', 'manifest.json');
+  const mdPath = path.join(root, 'temp', 'epic-999077', 'manifest.md');
+  const jsonPath = path.join(root, 'temp', 'epic-999077', 'manifest.json');
   assert.deepEqual(result, {
     persisted: true,
     path: jsonPath,
     error: null,
   });
-  assert.ok(fs.existsSync(mdPath), 'epic-77/manifest.md missing');
-  assert.ok(fs.existsSync(jsonPath), 'epic-77/manifest.json missing');
+  assert.ok(fs.existsSync(mdPath), 'epic-999077/manifest.md missing');
+  assert.ok(fs.existsSync(jsonPath), 'epic-999077/manifest.json missing');
   const md = fs.readFileSync(mdPath, 'utf8');
-  assert.ok(md.includes('Dispatch Manifest — Epic #77'));
-  const epicDirEntries = fs.readdirSync(path.join(root, 'temp', 'epic-77'));
+  assert.ok(md.includes('Dispatch Manifest — Epic #999077'));
+  const epicDirEntries = fs.readdirSync(path.join(root, 'temp', 'epic-999077'));
   assert.ok(
     !epicDirEntries.some((f) => f.endsWith('.tmp')),
     'no .tmp residue should remain after successful write',
@@ -65,8 +65,8 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
       {
         storyId: 42,
         storyTitle: 'Forty-Two',
-        epicId: 99,
-        epicBranch: 'epic/99',
+        epicId: 999099,
+        epicBranch: 'epic/999099',
         branchName: 'story-42',
         tasks: [{ taskId: 100, title: 'Do it', status: 'agent::ready' }],
       },
@@ -82,16 +82,25 @@ test('persistence: writes story-manifest json + md under per-Story dir', () => {
       },
     },
   });
-  const mdPath = path.join(root, 'temp', 'epic-99', 'story-42', 'manifest.md');
+  const mdPath = path.join(
+    root,
+    'temp',
+    'epic-999099',
+    'story-42',
+    'manifest.md',
+  );
   const jsonPath = path.join(
     root,
     'temp',
-    'epic-99',
+    'epic-999099',
     'story-42',
     'manifest.json',
   );
-  assert.ok(fs.existsSync(mdPath), 'epic-99/story-42/manifest.md missing');
-  assert.ok(fs.existsSync(jsonPath), 'epic-99/story-42/manifest.json missing');
+  assert.ok(fs.existsSync(mdPath), 'epic-999099/story-42/manifest.md missing');
+  assert.ok(
+    fs.existsSync(jsonPath),
+    'epic-999099/story-42/manifest.json missing',
+  );
   const md = fs.readFileSync(mdPath, 'utf8');
   assert.ok(md.includes('Story #42'));
   assert.ok(md.includes('.agents/scripts/story-init.js'));
@@ -129,7 +138,7 @@ test('persistence: creates per-Epic temp dir if missing', () => {
   assert.ok(!fs.existsSync(path.join(root, 'temp')));
   persistManifest(
     {
-      epicId: 1,
+      epicId: 999_001,
       epicTitle: 'e',
       dryRun: false,
       generatedAt: 'now',
@@ -144,7 +153,7 @@ test('persistence: creates per-Epic temp dir if missing', () => {
     },
     { projectRoot: root },
   );
-  assert.ok(fs.existsSync(path.join(root, 'temp', 'epic-1')));
+  assert.ok(fs.existsSync(path.join(root, 'temp', 'epic-999001')));
 });
 
 test('persistence: no-op for manifest with neither story-execution type nor epicId', () => {
@@ -163,7 +172,7 @@ test('persistence: returns { persisted:false, error } on fs failure instead of t
   assert.doesNotThrow(() => {
     result = persistManifest(
       {
-        epicId: 1,
+        epicId: 999_001,
         epicTitle: 'e',
         dryRun: false,
         generatedAt: 'now',
@@ -197,9 +206,9 @@ function seedOrphans(root, epicId) {
 
 test('sweep: deleteLegacyFlatManifest removes both orphans + logs once', () => {
   const root = makeTmpRoot();
-  const { md, json } = seedOrphans(root, 77);
+  const { md, json } = seedOrphans(root, 999077);
   const messages = [];
-  const result = deleteLegacyFlatManifest(77, {
+  const result = deleteLegacyFlatManifest(999077, {
     projectRoot: root,
     logger: { info: (m) => messages.push(m) },
   });
@@ -207,14 +216,14 @@ test('sweep: deleteLegacyFlatManifest removes both orphans + logs once', () => {
   assert.ok(!fs.existsSync(md));
   assert.ok(!fs.existsSync(json));
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /Epic #77/);
+  assert.match(messages[0], /Epic #999077/);
 });
 
 test('sweep: deleteLegacyFlatManifest is a no-op when orphans are absent', () => {
   const root = makeTmpRoot();
-  fs.mkdirSync(path.join(root, 'temp', 'epic-77'), { recursive: true });
+  fs.mkdirSync(path.join(root, 'temp', 'epic-999077'), { recursive: true });
   const messages = [];
-  const result = deleteLegacyFlatManifest(77, {
+  const result = deleteLegacyFlatManifest(999077, {
     projectRoot: root,
     logger: { info: (m) => messages.push(m) },
   });
@@ -222,22 +231,29 @@ test('sweep: deleteLegacyFlatManifest is a no-op when orphans are absent', () =>
   assert.equal(messages.length, 0);
 });
 
+test('sweep: deleteLegacyFlatManifest defaults to the framework project root safely', () => {
+  const result = deleteLegacyFlatManifest(999_078, {
+    logger: { info: () => assert.fail('no orphan should be swept') },
+  });
+  assert.deepEqual(result.removed, []);
+});
+
 test('sweep: deleteLegacyFlatManifest is idempotent across calls', () => {
   const root = makeTmpRoot();
-  seedOrphans(root, 77);
-  const first = deleteLegacyFlatManifest(77, { projectRoot: root });
-  const second = deleteLegacyFlatManifest(77, { projectRoot: root });
+  seedOrphans(root, 999077);
+  const first = deleteLegacyFlatManifest(999077, { projectRoot: root });
+  const second = deleteLegacyFlatManifest(999077, { projectRoot: root });
   assert.equal(first.removed.length, 2);
   assert.deepEqual(second.removed, []);
 });
 
 test('sweep: persistManifest invokes the sweep on Epic dispatch render', () => {
   const root = makeTmpRoot();
-  const { epicDir, md, json } = seedOrphans(root, 77);
+  const { epicDir, md, json } = seedOrphans(root, 999077);
   persistManifest(
     {
-      epicId: 77,
-      epicTitle: 'Epic 77',
+      epicId: 999077,
+      epicTitle: 'Epic 999077',
       dryRun: false,
       generatedAt: 'now',
       summary: {
@@ -260,8 +276,8 @@ test('sweep: persistManifest invokes the sweep on Epic dispatch render', () => {
 test('persistence: on writeFileSync failure, no .tmp residue remains and final path untouched', () => {
   const root = makeTmpRoot();
   const manifest = {
-    epicId: 99,
-    epicTitle: 'Epic 99',
+    epicId: 999099,
+    epicTitle: 'Epic 999099',
     dryRun: false,
     generatedAt: 'now',
     summary: {
@@ -293,7 +309,7 @@ test('persistence: on writeFileSync failure, no .tmp residue remains and final p
   assert.equal(result.persisted, false);
   assert.match(result.error, /EACCES/);
 
-  const epicDir = path.join(root, 'temp', 'epic-99');
+  const epicDir = path.join(root, 'temp', 'epic-999099');
   const entries = fs.existsSync(epicDir) ? fs.readdirSync(epicDir) : [];
   assert.ok(
     !entries.some((f) => f.endsWith('.tmp')),
@@ -302,6 +318,6 @@ test('persistence: on writeFileSync failure, no .tmp residue remains and final p
   const finalJson = path.join(epicDir, 'manifest.json');
   assert.ok(
     !fs.existsSync(finalJson),
-    'final epic-99/manifest.json should not exist after failed write',
+    'final epic-999099/manifest.json should not exist after failed write',
   );
 });
