@@ -39,6 +39,14 @@ export const DENY_LIST = Object.freeze([
   'tests/scripts/rebrand-to-mandrel.test.js',
   // 4. Lockfiles — regenerated from package.json on next install.
   'package-lock.json',
+  // 5. The v5 → v6 consumer migrator. By design it references both the
+  //    legacy (`agent-protocols`) and new (`mandrel`) names as data —
+  //    rewriting the legacy literal would collapse the migration into a
+  //    no-op. Test fixtures simulate v5 consumers and must keep the old
+  //    name too.
+  '.agents/scripts/migrate-to-v6.js',
+  '.agents/scripts/lib/migrate-to-v6-core.js',
+  'tests/scripts/migrate-to-v6.test.js',
 ]);
 
 /**

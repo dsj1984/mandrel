@@ -32,6 +32,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { runAsCli } from './lib/cli-utils.js';
 import { isDenied } from './lib/rebrand-deny.js';
 
 /**
@@ -196,20 +197,12 @@ export function parseArgs(argv) {
   return { root, dryRun };
 }
 
-const invokedAsScript =
-  import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}` ||
-  process.argv[1]?.endsWith('rebrand-to-mandrel.js');
-
-if (invokedAsScript) {
-  try {
+runAsCli(
+  import.meta.url,
+  async () => {
     const opts = parseArgs(process.argv.slice(2));
     const result = run(opts);
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
-    process.exit(0);
-  } catch (err) {
-    process.stderr.write(
-      `${JSON.stringify({ ok: false, error: String(err?.message || err) })}\n`,
-    );
-    process.exit(1);
-  }
-}
+  },
+  { source: 'rebrand-to-mandrel' },
+);

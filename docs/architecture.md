@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the internal architecture of Agent Protocols — a
+This document describes the internal architecture of Mandrel — a
 framework of instructions, personas, skills, and SDLC workflows that govern AI
 coding assistants. It is the authoritative reference for how the system is
 structured, how components interact, and where to find each subsystem.
@@ -15,7 +15,7 @@ structured, how components interact, and where to find each subsystem.
 
 ## High-Level Overview
 
-Agent Protocols follows an **Epic-Centric GitHub Orchestration** model where
+Mandrel follows an **Epic-Centric GitHub Orchestration** model where
 GitHub Issues, Labels, and Projects V2 serve as the Single Source of Truth
 (SSOT). The framework decomposes product initiatives (Epics) into executable
 agent tasks, dispatches them across parallel waves, and integrates the results —
@@ -68,7 +68,7 @@ The repository has a clear separation between the **distributed product**
 (`.agents/`) and **development tooling** (root-level files).
 
 ```text
-agent-protocols/
+mandrel/
 ├── .agents/                  ← Distributed bundle (the "product")
 │   ├── instructions.md       ← Primary system prompt (all agent rules)
 │   ├── VERSION               ← Semantic version
@@ -1008,7 +1008,7 @@ The framework implements an economic guardrail system for LLM cost management:
 
 ## Distribution Model
 
-Agent Protocols is distributed as a **Git submodule** via the `dist` branch:
+Mandrel is distributed as a **Git submodule** via the `dist` branch:
 
 ```text
 Consumer Project/
@@ -1039,7 +1039,7 @@ agent reads this to decide how to write code, which commands to run, and which
 conventions to follow.
 
 > **Template note:** Downstream projects should maintain their own
-> `## Tech Stack` section in their own `docs/architecture.md`. Agent Protocols
+> `## Tech Stack` section in their own `docs/architecture.md`. Mandrel
 > does not ship a standalone template — this section doubles as the working
 > example.
 

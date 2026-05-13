@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://agent-protocols/.agents/schemas/crap-report.schema.json",
+  "$id": "https://mandrel/.agents/schemas/crap-report.schema.json",
   "title": "CrapReport",
   "description": "Structured `--json` output envelope emitted by check-crap.js. Mirrors the shape consumed by agent workflows — a kernel/escomplex version pair, aggregate counters, and per-offender violations with deterministic single-axis fixGuidance.",
   "type": "object",

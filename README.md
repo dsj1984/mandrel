@@ -1,4 +1,4 @@
-# Agent Protocols 🤖
+# Mandrel 🤖
 
 A structured framework of instructions, personas, skills, and SDLC workflows
 that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
@@ -49,7 +49,7 @@ stack), see [`docs/architecture.md`](docs/architecture.md).
 
 ## Prerequisites
 
-Agent Protocols requires two hard dependencies on the host before bootstrap:
+Mandrel requires two hard dependencies on the host before bootstrap:
 
 - **Node.js** (>= 20) — the orchestration scripts run on Node and use modern
   ESM + `--experimental-test-module-mocks`. Install from
@@ -70,7 +70,7 @@ did not grant the `project` scope (see Get Started below).
 Five commands take you from zero to a planned, delivered Epic:
 
 ```powershell
-git submodule add -b dist https://github.com/dsj1984/agent-protocols.git .agents
+git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
 node .agents/scripts/agents-bootstrap-github.js --install-workflows
 cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.github
 # in your agentic IDE:
@@ -189,7 +189,7 @@ upgrade sees `no-change` on every step.
 ## Repository Structure
 
 ```text
-agent-protocols/
+mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── VERSION
 │   ├── instructions.md       # Primary system prompt

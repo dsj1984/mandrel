@@ -10,7 +10,7 @@
 
 ## Project Overview
 
-**Agent Protocols** is a framework of instructions, personas, skills, and SDLC
+**Mandrel** is a framework of instructions, personas, skills, and SDLC
 workflows that govern AI coding assistants. It is distributed as a Git submodule
 (via the `dist` branch) into consumer projects' `.agents/` directories.
 
@@ -22,7 +22,7 @@ workflows that govern AI coding assistants. It is distributed as a Git submodule
 ## Repository Layout
 
 ```text
-agent-protocols/
+mandrel/
 ├── .agents/                  # Distributed bundle (the "product")
 │   ├── instructions.md       # ★ Primary system prompt — load this first
 │   ├── personas/             # 12 role-specific behavior constraints

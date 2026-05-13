@@ -8,7 +8,7 @@
 
 ## Executive Summary
 
-The agent-protocols orchestration scripts ship with a **medium** maintainability
+The mandrel orchestration scripts ship with a **medium** maintainability
 posture overall. `baselines/lint.json` reports `errorCount=0, warningCount=0`
 (clean), and the maintainability index for the bulk of the tree sits in the
 80–100 band. The pain is concentrated in:

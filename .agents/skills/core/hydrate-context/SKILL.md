@@ -5,7 +5,7 @@ description: >-
   can drop in front of an implementation request. Reads the ticket body,
   parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and
   composes a `{ prompt }` JSON envelope. Successor to the retired
-  agent-protocols MCP `context.hydrate` tool.
+  mandrel MCP `context.hydrate` tool.
 allowed_tools:
   - Read
   - Bash

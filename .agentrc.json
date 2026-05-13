@@ -82,7 +82,7 @@
     "provider": "github",
     "github": {
       "owner": "dsj1984",
-      "repo": "agent-protocols",
+      "repo": "mandrel",
       "projectNumber": 1,
       "projectOwner": "dsj1984",
       "operatorHandle": "@dsj1984"

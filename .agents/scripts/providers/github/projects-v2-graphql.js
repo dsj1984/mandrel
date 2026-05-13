@@ -112,7 +112,7 @@ async function lookupProject(ctx, fragment, strict = false) {
 
 export async function resolveOrCreateProject(ctx, opts = {}) {
   const owner = opts.owner ?? ctx.projectOwner;
-  const name = opts.name ?? ctx.projectName ?? `${ctx.repo} — Agent Protocols`;
+  const name = opts.name ?? ctx.projectName ?? `${ctx.repo} — Mandrel`;
   if (ctx.projectNumber) {
     try {
       const p = await lookupProject(ctx, 'id');

@@ -13,10 +13,15 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const REPO_ROOT =
-  'C:/Users/dsj19/Projects/agent-protocols/.worktrees/story-1641';
+// Resolve the repo root at runtime so the test is portable across
+// worktrees / clone directory names. (Previously hard-coded to a
+// developer-machine absolute path; that referenced the on-disk folder
+// name and was incidentally caught by the Mandrel rebrand sweep.)
+const REPO_ROOT = path
+  .resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..')
+  .replace(/\\/g, '/');
 const gitMergeUrl = pathToFileURL(
   path.resolve(REPO_ROOT, '.agents/scripts/lib/git-merge-orchestrator.js'),
 ).href;

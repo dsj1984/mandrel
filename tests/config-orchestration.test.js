@@ -58,7 +58,7 @@ describe('validateOrchestrationConfig — valid configs', () => {
         provider: 'github',
         github: {
           owner: 'dsj1984',
-          repo: 'agent-protocols',
+          repo: 'mandrel',
           projectNumber: 1,
           operatorHandle: '@dsj1984',
         },

@@ -180,7 +180,7 @@ safe.
 - **Always** pass `--cwd <main-repo>` to `single-story-close.js` when
   invoking from inside a worktree (worktree-local branch deletion fails
   when run from inside the worktree).
-- **MCP fallback**: if `agent-protocols` MCP tools fail, fall back to
+- **MCP fallback**: if `mandrel` MCP tools fail, fall back to
   `node .agents/scripts/update-ticket-state.js --task <id> --state <state>`
   for label transitions.
 

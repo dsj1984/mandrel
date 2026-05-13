@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-Overall risk posture is **Low**. `agent-protocols` is an orchestration
+Overall risk posture is **Low**. `mandrel` is an orchestration
 CLI / GitHub-integration toolkit — it has **no HTTP server, no database,
 no user-facing UI, no auth surface**. The OWASP Top 10 categories that
 dominate web-app threat models (Broken Access Control, Cryptographic
@@ -215,7 +215,7 @@ expands the deployed surface beyond a local CLI:
    `.agents/rules/security-baseline.md` explicitly: this is a
    local-CLI / CI-only tool, not a hosted service. The baseline
    currently reads as a web-app baseline, which is correct for downstream
-   consumers but undersells the actual `agent-protocols` shape.
+   consumers but undersells the actual `mandrel` shape.
 
 ## Out of Scope (and Why)
 
@@ -230,4 +230,4 @@ expands the deployed surface beyond a local CLI:
 
 These categories are explicitly documented in the rules baseline for
 downstream consumers (`.agents/rules/security-baseline.md`); they don't
-apply to `agent-protocols` itself.
+apply to `mandrel` itself.
