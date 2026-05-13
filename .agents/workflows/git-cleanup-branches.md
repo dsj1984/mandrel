@@ -92,7 +92,11 @@ node .agents/scripts/git-cleanup-branches.js --execute --remote
 The script removes any attached worktree first, then deletes the
 local branch (`git branch -D`), then optionally the remote ref
 (`git push origin --delete`). Remote refs that are already gone are
-treated as idempotent success.
+treated as idempotent success. After the remote-delete pass, a single
+`git remote prune <remote>` runs to drop any stale
+`refs/remotes/<remote>/*` tracking refs that `push --delete` left
+behind (it does not prune local tracking when the remote ref was
+already gone).
 
 Add `--json` for a structured result suitable for programmatic
 consumption:
@@ -114,7 +118,8 @@ consumption:
   "skipped": [{ "branch": "feat/wip", "reason": "not-merged" }],
   "worktrees": [{ "path": "C:/repo/.worktrees/fix-foo", "ok": true, "dirty": false }],
   "local":  [{ "branch": "fix/foo", "ok": true, "alreadyGone": false }],
-  "remote": [{ "branch": "fix/foo", "ok": true, "alreadyGone": false }],
+  "remote": [{ "branch": "fix/foo", "ok": true, "alreadyGone": true }],
+  "prune": { "attempted": true, "ok": true, "remote": "origin", "pruned": ["fix/foo"] },
   "failures": [],
   "ok": true
 }
