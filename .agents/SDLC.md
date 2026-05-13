@@ -593,11 +593,13 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
   `baseline-refresh:`-tagged commit convention for baseline edits is still
   the project standard, but the CI guardrail that enforced it was removed
   in 5.42 — the operator is the gate now during `/epic-deliver` Phase 7.
-- **Auto-fixing.** If High or Critical findings are detected, the system halts
-  for human review. A human can reply to the ticket with `/approve` or
-  `/approve-audit-fixes` (processed by `handle-approval.js`).
-- **Implementation.** Approved fixes automatically transition the ticket to
-  `agent::executing`, dispatching an agent to implement and verify the fixes.
+- **Human review on High/Critical.** If High or Critical findings are detected,
+  the workflow halts for human review at the corresponding `/epic-deliver`
+  phase. Approval is given by the operator advancing the phase (the
+  auto-approve webhook listener was never wired into CI and was removed in v6).
+- **Implementation.** Once the operator approves the fixes, the ticket
+  transitions to `agent::executing` and `/epic-deliver` dispatches an agent to
+  implement and verify them.
 
 ---
 

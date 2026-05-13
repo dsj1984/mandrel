@@ -101,7 +101,6 @@ entry point. They never own business logic.
 | `diagnose-friction.js`               | Analyzes friction logs for patterns                                     |
 | `detect-merges.js`                   | Detects and reports merge conflicts                                     |
 | `audit-orchestrator.js`              | Automated, gate-based static analysis and audit runner                  |
-| `handle-approval.js`                 | CI webhook listener for `/approve` commands on audit findings           |
 
 ---
 
