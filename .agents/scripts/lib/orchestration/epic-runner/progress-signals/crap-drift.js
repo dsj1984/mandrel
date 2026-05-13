@@ -12,6 +12,26 @@ const DEFAULT_CEILING = 30;
 const BASELINE_FILENAME = 'wave-crap-snapshot.json';
 
 /**
+ * Normalise a repo-relative path for coverage-key lookup. Pure; exported
+ * for unit tests so the underlying branches don't have to be exercised
+ * through the closure-bound `findCoverageEntry`.
+ */
+export function normaliseCoveragePath(relPath) {
+  return String(relPath)
+    .replace(/\\/g, '/')
+    .replace(/^\.\/+/, '');
+}
+
+/**
+ * True when a coverage map key matches a (normalised) relative path,
+ * either by full equality or by suffix-with-slash. Pure.
+ */
+export function coverageKeyMatches(key, suffix) {
+  const norm = String(key).replace(/\\/g, '/');
+  return norm === suffix || norm.endsWith(`/${suffix}`);
+}
+
+/**
  * Detects per-method CRAP drift versus a wave-start baseline.
  *
  * Mirrors the `maintainability-drift.js` contract but at per-method
@@ -73,15 +93,16 @@ export function createCrapDriftDetector(opts = {}) {
     return `${method}@${startLine}`;
   }
 
+  // Hoisted helpers — exported via `_internal` for unit coverage on each
+  // branch. Keeping them outside the closure keeps the orchestration
+  // method's complexity low.
+  // (see normaliseCoveragePath / coverageKeyMatches at module top.)
   function findCoverageEntry(coverageMap, relPath) {
     if (!coverageMap || typeof coverageMap !== 'object') return null;
-    const suffix = String(relPath)
-      .replace(/\\/g, '/')
-      .replace(/^\.\/+/, '');
+    const suffix = normaliseCoveragePath(relPath);
     if (!suffix) return null;
     for (const key of Object.keys(coverageMap)) {
-      const norm = String(key).replace(/\\/g, '/');
-      if (norm === suffix || norm.endsWith(`/${suffix}`)) {
+      if (coverageKeyMatches(key, suffix)) {
         return coverageMap[key] ?? null;
       }
     }

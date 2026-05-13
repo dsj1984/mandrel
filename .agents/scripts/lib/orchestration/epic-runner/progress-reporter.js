@@ -86,20 +86,20 @@ export function parseStoryRunProgressComment(comment) {
   };
 }
 
-function phaseToState(phase) {
-  switch (phase) {
-    case 'done':
-      return 'done';
-    case 'blocked':
-      return 'blocked';
-    case 'implementing':
-    case 'closing':
-      return 'in-flight';
-    case 'init':
-      return 'queued';
-    default:
-      return 'unknown';
-  }
+// Phase → high-level state classification. Lookup table flattens the
+// previous switch so cyclomatic complexity stays at 1 (one branch in the
+// `??` fallback) rather than 6 — keeps the CRAP score floor-bound under
+// coverage variance.
+const PHASE_TO_STATE = {
+  done: 'done',
+  blocked: 'blocked',
+  implementing: 'in-flight',
+  closing: 'in-flight',
+  init: 'queued',
+};
+
+export function phaseToState(phase) {
+  return PHASE_TO_STATE[phase] ?? 'unknown';
 }
 
 // Fixed ordering for the rendered phase-timings table. Matches the enum
