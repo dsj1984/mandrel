@@ -331,25 +331,25 @@
       "crap": 3.4163252920649367,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "narrowToChangedScope",
-      "startLine": 377
+      "startLine": 379
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "maybeWriteJsonReport",
-      "startLine": 417
+      "startLine": 419
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "handleRegressions",
-      "startLine": 436
+      "startLine": 438
     },
     {
       "crap": 3.926971435546875,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 454
+      "startLine": 456
     },
     {
       "crap": 1,
@@ -454,7 +454,7 @@
       "startLine": 251
     },
     {
-      "crap": 10.58179012345679,
+      "crap": 10.774538386783284,
       "file": ".agents/scripts/delete-epic-branches.js",
       "method": "main",
       "startLine": 258
@@ -751,31 +751,31 @@
       "crap": 7.155836556075718,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "maybeRecordLintEvidence",
-      "startLine": 476
+      "startLine": 477
     },
     {
       "crap": 3,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "runLintPhase",
-      "startLine": 511
+      "startLine": 512
     },
     {
       "crap": 7,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "runEpicCodeReview",
-      "startLine": 576
+      "startLine": 577
     },
     {
       "crap": 1,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "<anon method-2>",
-      "startLine": 587
+      "startLine": 588
     },
     {
       "crap": 2,
       "file": ".agents/scripts/epic-code-review.js",
       "method": "main",
-      "startLine": 667
+      "startLine": 668
     },
     {
       "crap": 7,
@@ -7474,7 +7474,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65
