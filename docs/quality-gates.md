@@ -118,6 +118,100 @@ artifact.
 
 ---
 
+## Absolute quality floors (v6 / Epic #1184)
+
+The per-file ratchet only protects against **regressions** — if a file
+has been sitting at 60 % coverage or MI = 58 since the v5 baseline, the
+ratchet is perfectly happy to keep it there forever. Epic #1184 layers
+an absolute-threshold gate on top of the ratchet that fails the build
+when any in-scope file is below floor, regardless of whether the diff
+touched it:
+
+| Metric | Floor | Scope |
+| --- | --- | --- |
+| Coverage — lines | ≥ 90 % | per file |
+| Coverage — branches | ≥ 85 % | per file |
+| Coverage — functions | ≥ 90 % | per file |
+| Maintainability Index | ≥ 70 | per file |
+| CRAP | ≤ 20 | per method |
+
+The floors are declared in [`.agentrc.json`](../.agentrc.json) under
+`agentSettings.quality.qualityFloors.*` (defaults baked into the helper
+match the table above) and resolved at runtime by the shared
+helper [`lib/quality-floors.js`](../.agents/scripts/lib/quality-floors.js)
+(`loadFloorConfig()` + `applyFloorPolicy(records, floors, scope)`). All
+three checkers — `check-coverage-baseline.js`, `check-maintainability.js`,
+`check-crap.js` — invoke the same helper **after** their ratchet decision
+so a file that's below floor but matched the (stale) baseline still
+trips the gate.
+
+### When the floor gate fires
+
+- **Pre-push** (`.husky/pre-push`): the per-file ratchet runs against
+  `origin/main` first (diff-scoped, fast). The three full-scope floor
+  calls (`npm run coverage:check -- --full-scope`,
+  `maintainability:check -- --full-scope`,
+  `crap:check -- --full-scope`) run after the ratchet so an in-scope
+  file drifting below floor in an untouched part of the tree still
+  blocks the push.
+- **CI** (`.github/workflows/ci.yml`): the floor block is enabled by
+  default inside each checker, so the existing **Maintainability Check**
+  and **CRAP Check** steps already enforce floors. Epic #1184 added an
+  explicit **Coverage Baseline + Floor Check** step (diff-scoped on
+  PRs, `--full-scope` on push-to-main) to complete the three-axis
+  coverage of the v6 contract.
+
+### Opt-out
+
+The floor block accepts a single opt-out: `--floor=off`. This is used
+exclusively by the `*:update` baseline-snap scripts, which deliberately
+snapshot whatever the current numbers are without regard to the floor.
+**Do not pass `--floor=off` in normal close-validation or push flows.**
+The audit suite scans for accidental uses of the flag.
+
+### No silent excludes (`.c8rc.cjs` policy)
+
+The floor gate is only as strict as its scope, so the `exclude` list in
+[`.c8rc.cjs`](../.c8rc.cjs) carries three hard requirements that are
+enforced by review (and partially by the audit suite):
+
+1. **One-line rationale per entry.** Every file in `exclude[]` MUST have
+   a bulleted justification in the `.c8rc.cjs` header comment naming
+   *why* it is excluded — typically "thin CLI shell, meaningful logic
+   lives in `lib/<X>` and is unit-tested there." A bare path with no
+   rationale is a review-block.
+2. **`/* node:coverage ignore file */` pragma at source.** Every
+   excluded file MUST carry the Node coverage pragma at the top of its
+   own source. This is the second line of defence: when `c8 report` and
+   the baseline checker disagree about scope (different cwd, different
+   glob expansion, partial install), the pragma keeps the file out of
+   the gate's numerator from the inside.
+3. **Excluded file's callees clear the floor.** A CLI shell is only a
+   legitimate exclude if the `lib/` module it wraps actually clears the
+   floor (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20). Excluding a shell
+   that delegates to under-tested helpers re-introduces the very
+   risk the floor gate exists to surface; the audit suite spot-checks
+   the callee map at exclude-list churn time.
+
+Story #1602 audit pass (2026-05-13) removed two stale exclude entries
+(`epic-runner.js`, `ticket-decomposer.js`) whose source files had already
+been deleted in earlier refactors. Every remaining entry was re-verified
+against requirements 1 and 2 above.
+
+### Discontinuity with v5 baselines
+
+The v6 floor gate landed alongside a fresh baseline reset
+(Tasks #1623, #1625, #1626, #1629). Any direct numeric comparison
+against pre-v6 baseline snapshots is meaningless because the v5 scope
+included files that v6 excludes (CLI shells, generated artifacts) and
+because the absolute-floor gate is new — historical files that were
+"green" on the ratchet may now show as below floor and require either
+real test additions or an intentional `.c8rc.cjs` exclude. The Story
+#1602 close-out lists every file that flipped category in the v5 → v6
+reset.
+
+---
+
 ## Anti-thrashing protocol
 
 Agents MUST halt, summarize blockers, and re-plan if they hit consecutive

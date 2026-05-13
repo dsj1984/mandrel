@@ -20,14 +20,14 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 85.77,
-    "branches": 83.22,
-    "functions": 78.26
+    "lines": 78.65,
+    "branches": 80.88,
+    "functions": 66.67
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 69.31,
-    "branches": 78.26,
-    "functions": 65
+    "lines": 67.67,
+    "branches": 79.55,
+    "functions": 60
   },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 86.43,
@@ -75,9 +75,9 @@
     "functions": 83.33
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 88.37,
-    "branches": 67.09,
-    "functions": 81.82
+    "lines": 87.78,
+    "branches": 65.75,
+    "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
     "lines": 81.12,
@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 89.58,
+    "branches": 90.72,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -1029,6 +1029,11 @@
     "branches": 71.79,
     "functions": 83.33
   },
+  ".agents/scripts/lib/quality-floors.js": {
+    "lines": 86.03,
+    "branches": 79.82,
+    "functions": 100
+  },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
     "lines": 100,
     "branches": 87.5,
@@ -1266,7 +1271,7 @@
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
-    "branches": 69.05,
+    "branches": 66.67,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {

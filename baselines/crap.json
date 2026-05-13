@@ -145,229 +145,265 @@
       "crap": 15,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapEnvOverrides",
-      "startLine": 71
+      "startLine": 77
     },
     {
       "crap": 6.6000000000000005,
       "file": ".agents/scripts/check-crap.js",
       "method": "readGateExtra",
-      "startLine": 125
+      "startLine": 131
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "parseArgv",
-      "startLine": 136
+      "startLine": 142
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "<anon method-1>",
-      "startLine": 139
+      "startLine": 145
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "<anon method-2>",
-      "startLine": 140
+      "startLine": 146
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapChangedSince",
-      "startLine": 162
+      "startLine": 168
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "filterRowsByFileScope",
-      "startLine": 193
+      "startLine": 199
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "checkCrapRegression",
-      "startLine": 248
+      "startLine": 254
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 259
+      "startLine": 265
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 374
+      "startLine": 380
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 437
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "printSummaryHeader",
-      "startLine": 490
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "printViolation",
-      "startLine": 505
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "printRemovedRows",
-      "startLine": 527
+      "startLine": 443
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 539
+      "startLine": 496
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printSummaryHeader",
+      "startLine": 504
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printViolationLine",
+      "startLine": 519
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printRemovedRows",
+      "startLine": 537
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 545
+      "startLine": 549
     },
     {
       "crap": 9.021751535698701,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 588
+      "startLine": 592
+    },
+    {
+      "crap": 13.972419095174008,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "main",
+      "startLine": 624
+    },
+    {
+      "crap": 2.0932944606413995,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "loadBaselineWithRefLog",
+      "startLine": 715
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "handleGateFailure",
+      "startLine": 734
+    },
+    {
+      "crap": 3.0416666666666665,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "checkBaselineCompat",
+      "startLine": 759
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveScopeSet",
-      "startLine": 625
+      "startLine": 785
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "maybeWriteJsonReport",
-      "startLine": 649
+      "startLine": 810
     },
     {
-      "crap": 3.182569496619083,
+      "crap": 12,
       "file": ".agents/scripts/check-crap.js",
-      "method": "applyCompatDecision",
-      "startLine": 682
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "hasComparisonFailures",
-      "startLine": 699
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "handleCompareResult",
-      "startLine": 708
-    },
-    {
-      "crap": 9.805612433285221,
-      "file": ".agents/scripts/check-crap.js",
-      "method": "main",
-      "startLine": 731
+      "method": "enforceCrapFloor",
+      "startLine": 847
     },
     {
       "crap": 8,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveMaintainabilityEnvOverrides",
-      "startLine": 63
+      "startLine": 69
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "compareScores",
-      "startLine": 101
+      "startLine": 107
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 158
+      "startLine": 164
     },
     {
       "crap": 1.5787037037037037,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 172
+      "startLine": 178
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 179
+      "startLine": 185
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseFullScopeArg",
-      "startLine": 192
+      "startLine": 198
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveChangedSinceRef",
-      "startLine": 203
+      "startLine": 209
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 228
+      "startLine": 234
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 232
+      "startLine": 238
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 258
+      "startLine": 264
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 283
+      "startLine": 289
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 305
+      "startLine": 311
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 319
+      "startLine": 325
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "<anon method-3>",
-      "startLine": 330
+      "startLine": 336
     },
     {
-      "crap": 6.374109505393854,
+      "crap": 5.081948889904995,
       "file": ".agents/scripts/check-maintainability.js",
-      "method": "loadBaselineForMain",
-      "startLine": 345
+      "method": "main",
+      "startLine": 346
+    },
+    {
+      "crap": 7.4559999999999995,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "loadAndValidateBaseline",
+      "startLine": 408
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "handleRegression",
+      "startLine": 429
+    },
+    {
+      "crap": 2.3511659807956105,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "applyDiffScope",
+      "startLine": 450
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "maybeWriteMaintainabilityReport",
+      "startLine": 482
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "enforceMaintainabilityFloor",
+      "startLine": 508
     },
     {
       "crap": 1,
@@ -6716,6 +6752,120 @@
       "file": ".agents/scripts/lib/push-epic-retry.js",
       "method": "pushEpicWithRetry",
       "startLine": 96
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "loadFloorConfig",
+      "startLine": 50
+    },
+    {
+      "crap": 4.25,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "resolveAgentrcPath",
+      "startLine": 66
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "readAgentrcOrNull",
+      "startLine": 75
+    },
+    {
+      "crap": 2.3511659807956105,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "parseAgentrcJson",
+      "startLine": 83
+    },
+    {
+      "crap": 6.985422740524781,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "assertBlockShape",
+      "startLine": 93
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "assertKnownAxes",
+      "startLine": 101
+    },
+    {
+      "crap": 11.359581247155212,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCoverageBlock",
+      "startLine": 111
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyMaintainabilityBlock",
+      "startLine": 138
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCrapBlock",
+      "startLine": 148
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "cloneDefaults",
+      "startLine": 158
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyFloorPolicy",
+      "startLine": 198
+    },
+    {
+      "crap": 5.390625,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "guardInputs",
+      "startLine": 205
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "wrapSingle",
+      "startLine": 230
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCoverageFloor",
+      "startLine": 234
+    },
+    {
+      "crap": 4.212567429654468,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "checkCoverageRecord",
+      "startLine": 246
+    },
+    {
+      "crap": 4.068228930171954,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyMaintainabilityFloor",
+      "startLine": 285
+    },
+    {
+      "crap": 6.318359375,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCrapCeiling",
+      "startLine": 323
+    },
+    {
+      "crap": 12.94921875,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "parseFloorFlag",
+      "startLine": 372
+    },
+    {
+      "crap": 10,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "formatViolation",
+      "startLine": 396
     },
     {
       "crap": 1,
