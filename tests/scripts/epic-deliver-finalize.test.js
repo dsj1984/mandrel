@@ -26,9 +26,36 @@ import {
   buildPrCreateArgs,
   buildPrTitle,
   checkEpicFastForward,
+  classifyFinalizeInvocation,
   GH_SPAWN_USES_SHELL,
   runEpicDeliverFinalize,
 } from '../../.agents/scripts/epic-deliver-finalize.js';
+
+test('classifyFinalizeInvocation: --help returns help intent', () => {
+  assert.deepEqual(classifyFinalizeInvocation({ help: true }), {
+    kind: 'help',
+  });
+});
+
+test('classifyFinalizeInvocation: missing --epic returns usage-error', () => {
+  const r = classifyFinalizeInvocation({});
+  assert.equal(r.kind, 'usage-error');
+  assert.ok(r.messages.some((m) => /required/.test(m)));
+});
+
+test('classifyFinalizeInvocation: non-positive --epic returns usage-error', () => {
+  const a = classifyFinalizeInvocation({ epic: '0' });
+  const b = classifyFinalizeInvocation({ epic: 'abc' });
+  assert.equal(a.kind, 'usage-error');
+  assert.equal(b.kind, 'usage-error');
+});
+
+test('classifyFinalizeInvocation: valid --epic returns run intent', () => {
+  assert.deepEqual(classifyFinalizeInvocation({ epic: '1178' }), {
+    kind: 'run',
+    epicId: 1178,
+  });
+});
 
 function makeGitSpawnFn(routes) {
   // routes is an ordered list of { matcher: (args) => bool, response }.

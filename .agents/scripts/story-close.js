@@ -244,6 +244,123 @@ export async function runStoryClose({
   );
 }
 
+function shouldSkipValidation({
+  skipValidationParam,
+  resumeFromConflict,
+  resumeFromMerge,
+  resumeFromPostMerge,
+}) {
+  return (
+    !!skipValidationParam ||
+    resumeFromConflict ||
+    resumeFromMerge ||
+    resumeFromPostMerge
+  );
+}
+
+async function runPreMergeValidation({
+  cwd,
+  worktreePath,
+  epicBranch,
+  storyBranch,
+  agentSettings,
+  storyId,
+  epicId,
+  noEvidenceFlag,
+  phaseTimer,
+  provider,
+}) {
+  // Self-heal format drift carried in from upstream waves before the
+  // check-only gate fails the close. Lint-staged misses files outside
+  // its glob (notably JSON), so a JSON edit in wave N can fail every
+  // wave N+1 close until an operator runs `biome format --write` and
+  // commits the result.
+  runFormatAutofix({ cwd, storyId, agentSettings, logger: Logger });
+  // Story #1120: gates spawn in the worktree, not main. Story #1124:
+  // baseline-gate failures route through the attribution classifier.
+  const gateOutcome = await runPreMergeGatesWithAttribution({
+    cwd,
+    worktreePath,
+    epicBranch,
+    storyBranch,
+    agentSettings,
+    storyId,
+    epicId,
+    useEvidence: !noEvidenceFlag,
+    phaseTimer,
+    provider,
+  });
+  if (gateOutcome?.status === 'blocked') return gateOutcome;
+  emitMaintainabilityProjection({
+    cwd,
+    epicBranch,
+    storyBranch,
+    agentSettings,
+    logger: Logger,
+  });
+  return gateOutcome;
+}
+
+/**
+ * Pure: render the AUTO-REFRESH status into a `{channel, message}` log
+ * envelope, or `null` for statuses we don't surface. Extracted so the
+ * branching lives behind a tested boundary and `reportAutoRefreshOutcome`
+ * stays at CC ≤ 2.
+ */
+export function describeAutoRefreshOutcome(refreshResult) {
+  if (refreshResult?.status === 'amended') {
+    return {
+      channel: 'progress',
+      label: 'AUTO-REFRESH',
+      message: `Amended bounded baseline drift into HEAD (${refreshResult.sha}).`,
+    };
+  }
+  if (refreshResult?.status === 'refused') {
+    const sig = refreshResult.dedup
+      ? 'already present'
+      : refreshResult.signalAppended
+        ? 'appended'
+        : 'not written';
+    return {
+      channel: 'progress',
+      label: 'AUTO-REFRESH',
+      message: `Refused — ${refreshResult.refusalReasons.length} cap breach(es); friction signal ${sig}.`,
+    };
+  }
+  if (refreshResult?.status === 'failed') {
+    return {
+      channel: 'warn',
+      message: `[auto-refresh] ${refreshResult.reason}: ${refreshResult.detail ?? ''}`,
+    };
+  }
+  return null;
+}
+
+function reportAutoRefreshOutcome(refreshResult) {
+  const envelope = describeAutoRefreshOutcome(refreshResult);
+  if (!envelope) return;
+  if (envelope.channel === 'warn') Logger.warn(envelope.message);
+  else progress(envelope.label, envelope.message);
+}
+
+/**
+ * Story #1398 (Epic #1386) — bounded baseline auto-refresh. Pre-merge
+ * gates have passed; regenerate baseline rows scoped to the Story diff
+ * and amend them into HEAD if every row's delta is at or below the
+ * configured caps. Failure modes are advisory: a regen / amend / signal-
+ * write failure is logged but does not block the close.
+ */
+async function runAutoRefreshSafely(args) {
+  try {
+    const refreshResult = await runAutoRefresh(args);
+    reportAutoRefreshOutcome(refreshResult);
+  } catch (err) {
+    Logger.warn(
+      `[auto-refresh] runner threw: ${err?.stack || err?.message || err}`,
+    );
+  }
+}
+
 async function runStoryCloseLocked({
   storyId,
   epicId,
@@ -292,25 +409,14 @@ async function runStoryCloseLocked({
   // than on the Epic at pre-push time. Skipped on resume-from-* paths
   // because the gates already ran on the original close; re-running them
   // against a possibly-reaped worktree is wasted work and may itself fail.
-  const skipValidation =
-    !!skipValidationParam ||
-    resumeFromConflict ||
-    resumeFromMerge ||
-    resumeFromPostMerge;
+  const skipValidation = shouldSkipValidation({
+    skipValidationParam,
+    resumeFromConflict,
+    resumeFromMerge,
+    resumeFromPostMerge,
+  });
   if (!skipValidation) {
-    // Self-heal format drift carried in from upstream waves before the
-    // check-only gate fails the close. Lint-staged misses files outside
-    // its glob (notably JSON), so a JSON edit in wave N can fail every
-    // wave N+1 close until an operator runs `biome format --write` and
-    // commits the result. The autofix step does that automatically on
-    // a clean tree; on a dirty tree it bails out and lets the gate
-    // surface the drift with the canonical hint.
-    runFormatAutofix({ cwd, storyId, agentSettings, logger: Logger });
-    // Story #1120: gates spawn in the worktree, not main. Story #1124:
-    // baseline-gate failures route through the attribution classifier —
-    // attributable drift auto-refreshes + retries; non-attributable posts
-    // friction + returns blocked. See baseline-attribution-wiring.js.
-    const gateOutcome = await runPreMergeGatesWithAttribution({
+    const gateOutcome = await runPreMergeValidation({
       cwd,
       worktreePath,
       epicBranch,
@@ -318,60 +424,21 @@ async function runStoryCloseLocked({
       agentSettings,
       storyId,
       epicId,
-      useEvidence: !noEvidenceFlag,
+      noEvidenceFlag,
       phaseTimer,
       provider,
     });
     if (gateOutcome?.status === 'blocked') {
       return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
     }
-    emitMaintainabilityProjection({
-      cwd,
+    await runAutoRefreshSafely({
+      storyId,
+      epicId,
+      cwd: worktreePath || cwd,
       epicBranch,
       storyBranch,
       agentSettings,
-      logger: Logger,
     });
-
-    // Story #1398 (Epic #1386) — bounded baseline auto-refresh. Pre-merge
-    // gates have passed; regenerate baseline rows scoped to the Story diff
-    // and amend them into HEAD if every row's delta is at or below the
-    // configured caps. Over-cap rows surface a `baseline-refresh-regression`
-    // friction signal and the close commit is left untouched (the merge
-    // proceeds with the original Story tree). Failure modes are advisory:
-    // a regen / amend / signal-write failure is logged but does not block
-    // the close — the Story is already green per the pre-merge gates, and
-    // refusing the merge over a refresh-side failure would punish the
-    // operator for an observability glitch.
-    try {
-      const refreshResult = await runAutoRefresh({
-        storyId,
-        epicId,
-        cwd: worktreePath || cwd,
-        epicBranch,
-        storyBranch,
-        agentSettings,
-      });
-      if (refreshResult.status === 'amended') {
-        progress(
-          'AUTO-REFRESH',
-          `Amended bounded baseline drift into HEAD (${refreshResult.sha}).`,
-        );
-      } else if (refreshResult.status === 'refused') {
-        progress(
-          'AUTO-REFRESH',
-          `Refused — ${refreshResult.refusalReasons.length} cap breach(es); friction signal ${refreshResult.dedup ? 'already present' : refreshResult.signalAppended ? 'appended' : 'not written'}.`,
-        );
-      } else if (refreshResult.status === 'failed') {
-        Logger.warn(
-          `[auto-refresh] ${refreshResult.reason}: ${refreshResult.detail ?? ''}`,
-        );
-      }
-    } catch (err) {
-      Logger.warn(
-        `[auto-refresh] runner threw: ${err?.stack || err?.message || err}`,
-      );
-    }
   }
 
   // Everything past validation is the `close` phase; runPostMergeClose

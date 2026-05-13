@@ -427,6 +427,129 @@ export function buildReviewReport({
   ].join('\n');
 }
 
+function lintOffSummary() {
+  return {
+    errors: 0,
+    warnings: 0,
+    parsed: false,
+    skipped: true,
+    mode: 'off',
+  };
+}
+
+function evidenceSkippedSummary() {
+  return {
+    errors: 0,
+    warnings: 0,
+    parsed: false,
+    skipped: true,
+    mode: 'changed-only',
+    evidenceSkipped: true,
+  };
+}
+
+function tryEvidenceSkip({
+  args,
+  headSha,
+  evidenceCfg,
+  shouldSkipFn,
+  progress,
+}) {
+  if (!(args.useEvidence && args.storyId && args.epicId && headSha))
+    return null;
+  const verdict = shouldSkipFn(
+    {
+      storyId: args.storyId,
+      gateName: 'epic-code-review/lint',
+      currentSha: headSha,
+      configHash: evidenceCfg,
+    },
+    { cwd: PROJECT_ROOT, epicId: args.epicId },
+  );
+  if (!verdict.skip) return null;
+  progress(
+    'LINT',
+    `⏭ Scoped lint skipped (evidence match: SHA=${headSha.slice(0, 7)}, recorded ${verdict.record?.timestamp ?? 'n/a'}).`,
+  );
+  return evidenceSkippedSummary();
+}
+
+function maybeRecordLintEvidence({
+  args,
+  headSha,
+  evidenceCfg,
+  lintSummary,
+  recordPassFn,
+  progress,
+}) {
+  const eligible =
+    args.useEvidence &&
+    args.storyId &&
+    args.epicId &&
+    headSha &&
+    lintSummary.errors === 0 &&
+    !lintSummary.skipped;
+  if (!eligible) return;
+  try {
+    recordPassFn(
+      {
+        storyId: args.storyId,
+        gateName: 'epic-code-review/lint',
+        sha: headSha,
+        configHash: evidenceCfg,
+        exitCode: 0,
+      },
+      { cwd: PROJECT_ROOT, epicId: args.epicId },
+    );
+  } catch (err) {
+    progress(
+      'LINT',
+      `⚠ Failed to record lint evidence: ${err?.message ?? err}`,
+    );
+  }
+}
+
+async function runLintPhase({
+  scopeLint,
+  changedFiles,
+  args,
+  gitSpawnFn,
+  shouldSkipFn,
+  recordPassFn,
+  runScopedLintFn,
+  progress,
+}) {
+  if (scopeLint === 'off') {
+    progress('LINT', 'Lint scoped off (--scope-lint=off); skipping.');
+    return lintOffSummary();
+  }
+  const evidenceCfg = buildLintEvidenceConfig(changedFiles, PROJECT_ROOT);
+  const headSha = resolveCurrentSha(PROJECT_ROOT, gitSpawnFn);
+  const skipSummary = tryEvidenceSkip({
+    args,
+    headSha,
+    evidenceCfg,
+    shouldSkipFn,
+    progress,
+  });
+  if (skipSummary) return skipSummary;
+
+  progress(
+    'LINT',
+    'Linting changed files only (biome + markdownlint, scoped to diff)...',
+  );
+  const lintSummary = runScopedLintFn(changedFiles, PROJECT_ROOT);
+  maybeRecordLintEvidence({
+    args,
+    headSha,
+    evidenceCfg,
+    lintSummary,
+    recordPassFn,
+    progress,
+  });
+  return lintSummary;
+}
+
 /**
  * Runner-shaped entry-point: takes the parsed review-args plus optional
  * dependency-injection hooks, runs the review, and returns the structured
@@ -507,85 +630,16 @@ export async function runEpicCodeReview(args, deps = {}) {
   progress('REVIEW', `Analyzing ${changedFiles.length} changed files...`);
   const results = analyzeChangedFilesFn(changedFiles);
 
-  let lintSummary;
-  if (scopeLint === 'off') {
-    progress('LINT', 'Lint scoped off (--scope-lint=off); skipping.');
-    lintSummary = {
-      errors: 0,
-      warnings: 0,
-      parsed: false,
-      skipped: true,
-      mode: 'off',
-    };
-  } else {
-    // Evidence-aware skip: when invoked with --story <id>, consult the
-    // Story's validation-evidence file. If the same scoped-lint command-
-    // config has already passed at the current HEAD, skip the runner and
-    // fabricate a clean summary so downstream report tiers stay accurate.
-    const evidenceCfg = buildLintEvidenceConfig(changedFiles, PROJECT_ROOT);
-    const headSha = resolveCurrentSha(PROJECT_ROOT, gitSpawnFn);
-    let evidenceSkip = null;
-    if (args.useEvidence && args.storyId && args.epicId && headSha) {
-      const verdict = shouldSkipFn(
-        {
-          storyId: args.storyId,
-          gateName: 'epic-code-review/lint',
-          currentSha: headSha,
-          configHash: evidenceCfg,
-        },
-        { cwd: PROJECT_ROOT, epicId: args.epicId },
-      );
-      if (verdict.skip) evidenceSkip = verdict;
-    }
-
-    if (evidenceSkip) {
-      progress(
-        'LINT',
-        `⏭ Scoped lint skipped (evidence match: SHA=${headSha.slice(0, 7)}, recorded ${evidenceSkip.record?.timestamp ?? 'n/a'}).`,
-      );
-      lintSummary = {
-        errors: 0,
-        warnings: 0,
-        parsed: false,
-        skipped: true,
-        mode: 'changed-only',
-        evidenceSkipped: true,
-      };
-    } else {
-      progress(
-        'LINT',
-        'Linting changed files only (biome + markdownlint, scoped to diff)...',
-      );
-      lintSummary = runScopedLintFn(changedFiles, PROJECT_ROOT);
-
-      if (
-        args.useEvidence &&
-        args.storyId &&
-        args.epicId &&
-        headSha &&
-        lintSummary.errors === 0 &&
-        !lintSummary.skipped
-      ) {
-        try {
-          recordPassFn(
-            {
-              storyId: args.storyId,
-              gateName: 'epic-code-review/lint',
-              sha: headSha,
-              configHash: evidenceCfg,
-              exitCode: 0,
-            },
-            { cwd: PROJECT_ROOT, epicId: args.epicId },
-          );
-        } catch (err) {
-          progress(
-            'LINT',
-            `⚠ Failed to record lint evidence: ${err?.message ?? err}`,
-          );
-        }
-      }
-    }
-  }
+  const lintSummary = await runLintPhase({
+    scopeLint,
+    changedFiles,
+    args,
+    gitSpawnFn,
+    shouldSkipFn,
+    recordPassFn,
+    runScopedLintFn,
+    progress,
+  });
 
   progress('REPORT', 'Generating findings report...');
   const severity = buildSeverity(results, lintSummary);

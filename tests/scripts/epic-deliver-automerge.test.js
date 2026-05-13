@@ -3,9 +3,45 @@ import { describe, it } from 'node:test';
 
 import {
   buildGhMergeArgs,
+  classifyAutomergeInvocation,
   parseAutomergeArgs,
   runEpicDeliverAutomerge,
 } from '../../.agents/scripts/epic-deliver-automerge.js';
+
+describe('classifyAutomergeInvocation', () => {
+  it('returns help when --help is set', () => {
+    assert.deepEqual(classifyAutomergeInvocation({ help: true }), {
+      kind: 'help',
+    });
+  });
+  it('returns usage-error when --epic or --pr is missing', () => {
+    const r = classifyAutomergeInvocation({
+      help: false,
+      epicId: null,
+      prNumber: 7,
+      strategy: 'squash',
+      dryRun: false,
+    });
+    assert.equal(r.kind, 'usage-error');
+    assert.ok(r.messages.some((m) => /required/.test(m)));
+  });
+  it('returns run intent when all required args present', () => {
+    const r = classifyAutomergeInvocation({
+      help: false,
+      epicId: 1,
+      prNumber: 2,
+      strategy: 'squash',
+      dryRun: true,
+    });
+    assert.deepEqual(r, {
+      kind: 'run',
+      epicId: 1,
+      prNumber: 2,
+      strategy: 'squash',
+      dryRun: true,
+    });
+  });
+});
 
 const cleanVerdict = {
   clean: true,

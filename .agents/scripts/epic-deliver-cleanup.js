@@ -188,25 +188,57 @@ export function renderSummaryLines(out) {
   return lines;
 }
 
+/**
+ * Pure: classify parsed CLI args into a runnable intent. Extracting this
+ * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
+ * lets unit tests cover every branch directly.
+ */
+export function classifyCleanupInvocation(args) {
+  if (args?.help) return { kind: 'help' };
+  if (args?.epicId === null) {
+    return {
+      kind: 'usage-error',
+      messages: [
+        '[epic-deliver-cleanup] ERROR: --epic <epicId> is required.',
+        HELP,
+      ],
+    };
+  }
+  return {
+    kind: 'run',
+    epicId: args.epicId,
+    dryRun: args.dryRun,
+    json: args.json,
+  };
+}
+
+/**
+ * Pure: select between JSON and human output. Extracted so `main` keeps
+ * CC ≤ 4 and CRAP ≤ 20 even when every branch sits behind the CLI's
+ * coverage-ignore wall.
+ */
+export function renderCleanupOutput(out, json) {
+  if (json) return [JSON.stringify(out, null, 2)];
+  return renderSummaryLines(out);
+}
+
 async function main() {
-  const args = parseCleanupArgs(process.argv.slice(2));
-  if (args.help) {
+  const intent = classifyCleanupInvocation(
+    parseCleanupArgs(process.argv.slice(2)),
+  );
+  if (intent.kind === 'help') {
     Logger.info(HELP);
     return;
   }
-  if (args.epicId === null) {
-    Logger.error('[epic-deliver-cleanup] ERROR: --epic <epicId> is required.');
-    Logger.error(HELP);
+  if (intent.kind === 'usage-error') {
+    for (const m of intent.messages) Logger.error(m);
     process.exit(2);
   }
   const out = await runEpicDeliverCleanup({
-    epicId: args.epicId,
-    dryRun: args.dryRun,
+    epicId: intent.epicId,
+    dryRun: intent.dryRun,
   });
-  const rendered = args.json
-    ? [JSON.stringify(out, null, 2)]
-    : renderSummaryLines(out);
-  for (const line of rendered) Logger.info(line);
+  for (const line of renderCleanupOutput(out, intent.json)) Logger.info(line);
   if (!out.ok) process.exit(1);
 }
 

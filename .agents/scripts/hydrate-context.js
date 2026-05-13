@@ -111,28 +111,47 @@ export function parseArgv(argv) {
   return values;
 }
 
-export async function main(argv = process.argv.slice(2)) {
-  const values = parseArgv(argv);
+/**
+ * Pure: classify parsed CLI values into a runnable intent. Pulling this
+ * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
+ * lets the unit tests exercise every branch directly.
+ *
+ * Shapes:
+ *   - { kind: 'help' }
+ *   - { kind: 'usage-error', message }
+ *   - { kind: 'run', ticketId, epicId | undefined }
+ */
+export function classifyCliInvocation(values) {
+  if (values?.help) return { kind: 'help' };
+  const ticketId = Number.parseInt(values?.ticket ?? '', 10);
+  if (!Number.isFinite(ticketId) || ticketId <= 0) {
+    return {
+      kind: 'usage-error',
+      message: `[hydrate-context] --ticket <id> is required.\n${HELP}`,
+    };
+  }
+  const epicId = values?.epic ? Number.parseInt(values.epic, 10) : undefined;
+  return { kind: 'run', ticketId, epicId };
+}
 
-  if (values.help) {
+export async function main(argv = process.argv.slice(2)) {
+  const intent = classifyCliInvocation(parseArgv(argv));
+  if (intent.kind === 'help') {
     process.stdout.write(HELP);
     return;
   }
-
-  const ticketId = Number.parseInt(values.ticket ?? '', 10);
-  if (!Number.isFinite(ticketId) || ticketId <= 0) {
-    process.stderr.write(
-      `[hydrate-context] --ticket <id> is required.\n${HELP}`,
-    );
+  if (intent.kind === 'usage-error') {
+    process.stderr.write(intent.message);
     process.exit(2);
   }
 
-  const epicId = values.epic ? Number.parseInt(values.epic, 10) : undefined;
-
   const { orchestration } = resolveConfig();
   const provider = createProvider(orchestration);
-
-  const envelope = await runHydrateContext({ ticketId, epicId, provider });
+  const envelope = await runHydrateContext({
+    ticketId: intent.ticketId,
+    epicId: intent.epicId,
+    provider,
+  });
   process.stdout.write(`${JSON.stringify(envelope)}\n`);
 }
 
