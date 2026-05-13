@@ -2149,43 +2149,43 @@
       "crap": 2,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "assignFlagValue",
-      "startLine": 181
+      "startLine": 182
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "readValuedFlag",
-      "startLine": 189
+      "startLine": 190
     },
     {
       "crap": 8.040303206997084,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "parseTokens",
-      "startLine": 205
+      "startLine": 206
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "isAbsentValue",
-      "startLine": 241
+      "startLine": 242
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "applyEnvFallbacks",
-      "startLine": 247
+      "startLine": 248
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "applyDefaults",
-      "startLine": 260
+      "startLine": 261
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "defineFlags",
-      "startLine": 271
+      "startLine": 272
     },
     {
       "crap": 2,
@@ -3175,163 +3175,163 @@
       "crap": 3,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-7>",
-      "startLine": 195
+      "startLine": 196
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-8>",
-      "startLine": 199
+      "startLine": 200
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-9>",
-      "startLine": 206
+      "startLine": 207
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-10>",
-      "startLine": 210
+      "startLine": 211
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-11>",
-      "startLine": 213
+      "startLine": 214
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-12>",
-      "startLine": 217
+      "startLine": 218
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "classifySpawnError",
-      "startLine": 221
+      "startLine": 222
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "classify",
-      "startLine": 231
+      "startLine": 232
     },
     {
       "crap": 4.0005038635369585,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "exec",
-      "startLine": 271
+      "startLine": 273
     },
     {
       "crap": 1.0001537445335278,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "createGh",
-      "startLine": 385
+      "startLine": 387
     },
     {
       "crap": 8.032768,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "api",
-      "startLine": 402
+      "startLine": 404
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "jsonFlag",
-      "startLine": 432
+      "startLine": 434
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "idStr",
-      "startLine": 441
+      "startLine": 443
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-19>",
-      "startLine": 446
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-20>",
       "startLine": 448
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-21>",
+      "method": "<anon method-20>",
       "startLine": 450
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-21>",
+      "startLine": 452
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-22>",
-      "startLine": 455
+      "startLine": 457
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-23>",
-      "startLine": 460
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-24>",
       "startLine": 462
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-25>",
-      "startLine": 463
+      "method": "<anon method-24>",
+      "startLine": 464
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-26>",
+      "method": "<anon method-25>",
       "startLine": 465
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-27>",
+      "method": "<anon method-26>",
       "startLine": 467
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-28>",
-      "startLine": 472
+      "method": "<anon method-27>",
+      "startLine": 469
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-29>",
+      "method": "<anon method-28>",
       "startLine": 474
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/gh-exec.js",
-      "method": "<anon method-30>",
+      "method": "<anon method-29>",
       "startLine": 476
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/gh-exec.js",
+      "method": "<anon method-30>",
+      "startLine": 478
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-31>",
-      "startLine": 481
+      "startLine": 483
     },
     {
       "crap": 3.1851851851851856,
       "file": ".agents/scripts/lib/gh-exec.js",
       "method": "<anon method-32>",
-      "startLine": 487
+      "startLine": 489
     },
     {
       "crap": 6,
@@ -7375,91 +7375,91 @@
       "crap": 8,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "runGitWorktreeRemoveLoop",
-      "startLine": 266
+      "startLine": 273
     },
     {
-      "crap": 7.009142857142857,
+      "crap": 7.0066083379692845,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryForceRemoveFallback",
-      "startLine": 291
+      "startLine": 298
     },
     {
       "crap": 1.034114465085977,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryStage15WindowsFsRm",
-      "startLine": 327
+      "startLine": 338
     },
     {
       "crap": 3.274658203125,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "recordPendingCleanupSafe",
-      "startLine": 365
+      "startLine": 376
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "handleFsRmFailure",
-      "startLine": 382
+      "startLine": 393
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "removeWorktreeWithRecovery",
-      "startLine": 432
+      "startLine": 443
     },
     {
       "crap": 6.036,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteLocal",
-      "startLine": 496
+      "startLine": 507
     },
     {
       "crap": 6.141711619769646,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteRemote",
-      "startLine": 507
+      "startLine": 518
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "deleteBranchAfterReap",
-      "startLine": 527
+      "startLine": 538
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "checkReapPreconditions",
-      "startLine": 534
+      "startLine": 545
     },
     {
-      "crap": 7.638306533686139,
+      "crap": 8.45304232804233,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "ensureSafeOrForceDiscard",
-      "startLine": 550
+      "startLine": 568
     },
     {
       "crap": 3.372,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "escapeWorktreeCwd",
-      "startLine": 585
+      "startLine": 611
     },
     {
       "crap": 3.2099125364431487,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "postRemoveBeltSweep",
-      "startLine": 596
+      "startLine": 622
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "buildReapSuccess",
-      "startLine": 611
+      "startLine": 637
     },
     {
-      "crap": 4.22795447588836,
+      "crap": 4.149292899839627,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 623
+      "startLine": 649
     },
     {
       "crap": 1,
@@ -7642,7 +7642,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65
