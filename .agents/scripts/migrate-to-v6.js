@@ -103,51 +103,62 @@ export function checkWorkingTree(cwd) {
   return { isRepo: true, dirty: stdout.trim().length > 0, rawStdout: stdout };
 }
 
+/** @param {{ action: 'rename' | 'remove'; from: string; to: string | null; removedIn?: string }} change */
+function formatAgentrcChange(change) {
+  if (change.action === 'rename') {
+    return `  rename  ${change.from}  →  ${change.to}`;
+  }
+  const since = change.removedIn ? ` (removed in ${change.removedIn})` : '';
+  return `  remove  ${change.from}${since}`;
+}
+
+/** @param {ReturnType<typeof planMigration>['agentrc']} agentrc */
+function agentrcSection(agentrc) {
+  if (agentrc === null || agentrc.changes.length === 0) return [];
+  return ['', '.agentrc.json:', ...agentrc.changes.map(formatAgentrcChange)];
+}
+
+/** @param {ReturnType<typeof planMigration>['gitmodules']} gitmodules */
+function gitmodulesSection(gitmodules) {
+  if (gitmodules === null || !gitmodules.changed) return [];
+  return ['', '.gitmodules: rewrote agent-protocols → mandrel URL'];
+}
+
+/** @param {ReturnType<typeof planMigration>['packageJson']} packageJson */
+function packageJsonSection(packageJson) {
+  if (packageJson === null || packageJson.changes.length === 0) return [];
+  const rows = packageJson.changes.map(
+    (c) => `  ${c.section}: ${c.from} → ${c.to} (range preserved: ${c.range})`,
+  );
+  return ['', 'package.json:', ...rows];
+}
+
 /**
  * Render a plain-text summary of the migration plan for stdout. Kept
  * separate from `runMigration` so tests can assert against the
- * structured envelope while operators get readable output.
+ * structured envelope while operators get readable output. Composes the
+ * three per-file section helpers above — each returns an empty array
+ * when its slice is a no-op, so `formatSummary` itself stays a simple
+ * fan-out + join.
  *
  * @param {ReturnType<typeof planMigration>} plan
  * @returns {string}
  */
 export function formatSummary(plan) {
-  const lines = [];
-  lines.push('--- migrate-to-v6 summary ---');
   if (plan.summary.alreadyV6) {
-    lines.push('No legacy v5 keys found. Already on v6 — nothing to do.');
-    return lines.join('\n');
+    return [
+      '--- migrate-to-v6 summary ---',
+      'No legacy v5 keys found. Already on v6 — nothing to do.',
+    ].join('\n');
   }
-  if (plan.agentrc !== null && plan.agentrc.changes.length > 0) {
-    lines.push('');
-    lines.push('.agentrc.json:');
-    for (const c of plan.agentrc.changes) {
-      if (c.action === 'rename') {
-        lines.push(`  rename  ${c.from}  →  ${c.to}`);
-      } else {
-        const since = c.removedIn ? ` (removed in ${c.removedIn})` : '';
-        lines.push(`  remove  ${c.from}${since}`);
-      }
-    }
-  }
-  if (plan.gitmodules !== null && plan.gitmodules.changed) {
-    lines.push('');
-    lines.push('.gitmodules: rewrote agent-protocols → mandrel URL');
-  }
-  if (plan.packageJson !== null && plan.packageJson.changes.length > 0) {
-    lines.push('');
-    lines.push('package.json:');
-    for (const c of plan.packageJson.changes) {
-      lines.push(
-        `  ${c.section}: ${c.from} → ${c.to} (range preserved: ${c.range})`,
-      );
-    }
-  }
-  lines.push('');
-  lines.push(
+  return [
+    '--- migrate-to-v6 summary ---',
+    ...agentrcSection(plan.agentrc),
+    ...gitmodulesSection(plan.gitmodules),
+    ...packageJsonSection(plan.packageJson),
+    '',
     `Total changes: ${plan.summary.totalChanges}. Re-run to confirm no further changes (idempotency check).`,
-  );
-  return lines.join('\n');
+  ].join('\n');
 }
 
 /**

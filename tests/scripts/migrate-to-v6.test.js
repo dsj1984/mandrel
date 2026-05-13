@@ -437,6 +437,69 @@ describe('migrate-to-v6 — CLI surface', () => {
     assert.match(text, /Already on v6/u);
   });
 
+  it('formatSummary renders every section when all three slices have changes', () => {
+    const text = formatSummary({
+      agentrc: {
+        next: {},
+        changes: [
+          { action: 'rename', from: 'a.b', to: 'a.c', note: 'n1' },
+          {
+            action: 'remove',
+            from: 'x.y',
+            to: null,
+            removedIn: '5.40.0',
+            note: 'n2',
+          },
+          { action: 'remove', from: 'orphan', to: null, note: 'no removedIn' },
+        ],
+      },
+      gitmodules: { next: '', changed: true },
+      packageJson: {
+        next: {},
+        changed: true,
+        changes: [
+          {
+            section: 'dependencies',
+            from: 'agent-protocols',
+            to: 'mandrel',
+            range: '^5.0.0',
+          },
+        ],
+      },
+      summary: {
+        agentrcChanges: 3,
+        gitmodulesChanged: true,
+        packageJsonChanges: 1,
+        totalChanges: 5,
+        alreadyV6: false,
+      },
+    });
+    assert.match(text, /rename {2}a\.b/u);
+    assert.match(text, /remove {2}x\.y \(removed in 5\.40\.0\)/u);
+    assert.match(text, /remove {2}orphan$/mu);
+    assert.match(text, /\.gitmodules: rewrote/u);
+    assert.match(text, /dependencies: agent-protocols → mandrel/u);
+    assert.match(text, /Total changes: 5/u);
+  });
+
+  it('formatSummary omits empty sections without rendering their headers', () => {
+    const text = formatSummary({
+      agentrc: { next: {}, changes: [] },
+      gitmodules: { next: '', changed: false },
+      packageJson: { next: {}, changed: false, changes: [] },
+      summary: {
+        agentrcChanges: 0,
+        gitmodulesChanged: false,
+        packageJsonChanges: 0,
+        totalChanges: 0,
+        alreadyV6: false,
+      },
+    });
+    assert.doesNotMatch(text, /\.agentrc\.json:/u);
+    assert.doesNotMatch(text, /\.gitmodules:/u);
+    assert.doesNotMatch(text, /package\.json:/u);
+  });
+
   it('--dry-run produces a plan but writes nothing', () => {
     const dir = track(
       makeFixtureDir({
