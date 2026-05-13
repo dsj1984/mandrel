@@ -44,6 +44,9 @@
  *   - No authentication required; both checks hit public surfaces.
  */
 
+// cli-opt-out: thin async main wrapper with explicit exit-code mapping;
+// runAsCli's JSON envelope convention doesn't fit this script's two-line
+// human-readable / single-JSON-blob output modes. See `--json` flag.
 import { spawnSync } from 'node:child_process';
 import { argv, exit, stderr, stdout } from 'node:process';
 
