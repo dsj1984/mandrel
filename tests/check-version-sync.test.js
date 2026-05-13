@@ -97,6 +97,36 @@ test('checkVersionSync', async (t) => {
     }
   });
 
+  await t.test(
+    'treats a bare ## [Unreleased] anchor as a wildcard (v6 pre-cut window)',
+    () => {
+      // After Story #1605 (Epic #1184) consolidates the 5.x history out of
+      // docs/CHANGELOG.md but before the v6.0.0 cut, the live changelog
+      // carries only a `## [Unreleased]` anchor. package.json + VERSION
+      // still read 5.41.0 in that window; the gate must not trip.
+      const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
+      mkdirSync(join(root, '.agents'), { recursive: true });
+      mkdirSync(join(root, 'docs'), { recursive: true });
+      writeFileSync(
+        join(root, 'package.json'),
+        JSON.stringify({ version: '5.41.0' }),
+      );
+      writeFileSync(join(root, '.agents/VERSION'), '5.41.0\n');
+      writeFileSync(
+        join(root, 'docs/CHANGELOG.md'),
+        '# Changelog\n\n## [Unreleased]\n\nv6 work in flight.\n',
+      );
+      try {
+        const result = checkVersionSync(root);
+        assert.strictEqual(result.ok, true);
+        assert.strictEqual(result.version, '5.41.0');
+        assert.strictEqual(result.sources['docs/CHANGELOG.md'], null);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    },
+  );
+
   await t.test('throws when CHANGELOG has no version heading', () => {
     const root = mkdtempSync(join(tmpdir(), 'version-sync-'));
     mkdirSync(join(root, '.agents'), { recursive: true });

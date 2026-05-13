@@ -6,8 +6,9 @@ that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
 Labels, and Projects V2.
 
 **Current version:** see [`.agents/VERSION`](.agents/VERSION). Release notes
-live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); v1.0.0 – v4.7.2 history is in
-[`docs/archive/CHANGELOG-v4.md`](docs/archive/CHANGELOG-v4.md).
+live in [`docs/CHANGELOG.md`](docs/CHANGELOG.md); pre-v6.0.0 history
+(v1.x – v5.41.x) is consolidated in
+[`docs/archive/CHANGELOG-pre-v6.md`](docs/archive/CHANGELOG-pre-v6.md).
 
 ## Highlights
 
