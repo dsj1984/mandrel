@@ -496,12 +496,12 @@ export function buildCrapReport({
 function printSummary(result, scanSummary) {
   printSummaryHeader(result, scanSummary);
   for (const v of result.violations) {
-    printViolationLine(v);
+    printViolation(v);
   }
   printRemovedRows(result);
 }
 
-function printSummaryHeader(result, scanSummary) {
+export function printSummaryHeader(result, scanSummary) {
   Logger.info('\n--- CRAP Report ---');
   Logger.info(`Total methods scanned: ${result.total}`);
   Logger.info(`Regressions:           ${result.regressions}`);
@@ -516,7 +516,7 @@ function printSummaryHeader(result, scanSummary) {
   Logger.info('-------------------\n');
 }
 
-function printViolationLine(v) {
+export function printViolation(v) {
   if (v.kind === 'new') {
     Logger.error(
       `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
@@ -534,28 +534,6 @@ function printViolationLine(v) {
   );
 }
 
-function printRemovedRows(result) {
-  if (result.removed <= 0) return;
-  Logger.info(
-    `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
-  );
-  for (const r of result.removedRows) {
-    Logger.info(
-      `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
-    );
-  }
-  const driftedSuffix =
-    v.kind === 'drifted-regression'
-      ? `, baseline line ${v.baselineStartLine}`
-      : '';
-  Logger.error(
-    `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${driftedSuffix})`,
-  );
-  Logger.error(
-    `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
-  );
-}
-
 export function printRemovedRows(result) {
   if (result.removed <= 0) return;
   Logger.info(
@@ -566,12 +544,6 @@ export function printRemovedRows(result) {
       `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
     );
   }
-}
-
-function printSummary(result, scanSummary) {
-  printSummaryHeader(result, scanSummary);
-  for (const v of result.violations) printViolation(v);
-  printRemovedRows(result);
 }
 
 async function emitFriction(storyId, epicId, result, orchestration) {
@@ -654,58 +626,6 @@ export function loadCrapBaseline({
  * files (when `--changed-since` is in effect) or `null` for full-scope. On a
  * bad ref returns `{ error: 1 }` so the caller exits with the right code.
  */
-function resolveScopeSet(resolvedScope) {
-  if (!resolvedScope.ref) return { scopeSet: null };
-  try {
-    const changed = getChangedFiles({
-      ref: resolvedScope.ref,
-      cwd: process.cwd(),
-    });
-    const scopeSet = new Set(changed);
-    Logger.info(
-      `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
-    );
-    return { scopeSet };
-  } catch (err) {
-    Logger.error(
-      `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-    );
-    return { error: 1 };
-  }
-}
-
-/**
- * Side-effecting helper: write the `--json` envelope when the caller asked
- * for one. Failures warn but do not fail the gate — the report is advisory.
- */
-function maybeWriteJsonReport(
-  args,
-  result,
-  scan,
-  runningEscomplex,
-  newMethodCeiling,
-  resolvedScope,
-) {
-  if (!args.jsonPath) return;
-  const envelope = buildCrapReport({
-    compareResult: result,
-    scanSummary: scan,
-    kernelVersion: KERNEL_VERSION,
-    escomplexVersion: runningEscomplex,
-    newMethodCeiling,
-    scopeInfo: {
-      scope: resolvedScope.scope,
-      diffRef: resolvedScope.ref,
-    },
-  });
-  try {
-    writeBaseline({ baselinePath: args.jsonPath, data: envelope });
-    Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
-  } catch (err) {
-    Logger.warn(`[CRAP] failed to write --json report: ${err?.message ?? err}`);
-  }
-}
-
 /**
  * Apply the `evaluateBaselineCompatibility` decision: returns the exit code
  * to short-circuit on, or `null` when the check is clean. Emits warnings for
@@ -825,15 +745,6 @@ async function main() {
   });
 
   printSummary(result, scan);
-  maybeWriteJsonReport(
-    args,
-    result,
-    scan,
-    runningEscomplex,
-    newMethodCeiling,
-    resolvedScope,
-  );
-
   maybeWriteJsonReport({
     args,
     result,

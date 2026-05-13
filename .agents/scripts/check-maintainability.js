@@ -343,42 +343,29 @@ export function loadMaintainabilityBaseline({
   return parsed;
 }
 
-/**
- * Resolve baseline + path + (optional) epic ref. Logs the ref-mode banner
- * when an epic ref is in play. Returns `null` when the baseline is empty
- * — caller should treat that as the friendly "no baseline" exit-0.
- */
-function loadBaselineForMain({ agentSettings }) {
+async function main() {
+  Logger.info('[Maintainability] Verifying code quality against baseline...');
+
+  const { agentSettings } = resolveConfig();
   const baselinePath = getBaselines({ agentSettings }).maintainability.path;
   const epicRef = parseEpicRefArg();
   const baseline = loadAndValidateBaseline({ baselinePath, epicRef });
 
-function enumerateTargetFiles(agentSettings) {
   const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
   const files = [];
   targetDirs.forEach((dir) => {
     scanDirectory(dir, files);
   });
-  return files;
-}
 
-/**
- * Apply `--changed-since` narrowing to (files, baseline). Returns the
- * scoped pair plus the resolved scope descriptor for logging.
- *
- * Exits non-zero on unresolvable ref — that is a CLI-level failure, not a
- * data condition we can recover from in the caller.
- */
-function narrowToChangedScope({ files, baseline, maintainabilityConfig }) {
+  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
   const resolvedScope = resolveChangedSinceRef({
     argv: process.argv.slice(2),
     env: process.env,
     maintainabilityConfig,
   });
+  const changedSinceRef = resolvedScope.ref;
   Logger.info(
-    `[Maintainability] scope=${resolvedScope.scope}${
-      resolvedScope.ref ? ` ref=${resolvedScope.ref}` : ''
-    } (source=${resolvedScope.source})`,
+    `[Maintainability] scope=${resolvedScope.scope}${changedSinceRef ? ` ref=${changedSinceRef}` : ''} (source=${resolvedScope.source})`,
   );
   const { scopedFiles, scopedBaseline } = applyDiffScope({
     files,

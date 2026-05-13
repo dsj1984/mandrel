@@ -214,19 +214,19 @@
       "startLine": 496
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummaryHeader",
       "startLine": 504
     },
     {
-      "crap": 12,
+      "crap": 3,
       "file": ".agents/scripts/check-crap.js",
-      "method": "printViolationLine",
+      "method": "printViolation",
       "startLine": 519
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "printRemovedRows",
       "startLine": 537
@@ -244,46 +244,64 @@
       "startLine": 592
     },
     {
-      "crap": 13.972419095174008,
+      "crap": 12,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "applyCompatDecision",
+      "startLine": 634
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "hasComparisonFailures",
+      "startLine": 651
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "handleCompareResult",
+      "startLine": 660
+    },
+    {
+      "crap": 14.078567066965192,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 624
+      "startLine": 683
     },
     {
       "crap": 2.0932944606413995,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadBaselineWithRefLog",
-      "startLine": 715
+      "startLine": 773
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "handleGateFailure",
-      "startLine": 734
+      "startLine": 792
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/check-crap.js",
       "method": "checkBaselineCompat",
-      "startLine": 759
+      "startLine": 817
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveScopeSet",
-      "startLine": 785
+      "startLine": 843
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "maybeWriteJsonReport",
-      "startLine": 810
+      "startLine": 868
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "enforceCrapFloor",
-      "startLine": 847
+      "startLine": 905
     },
     {
       "crap": 8,
@@ -404,36 +422,6 @@
       "file": ".agents/scripts/check-maintainability.js",
       "method": "enforceMaintainabilityFloor",
       "startLine": 508
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "enumerateTargetFiles",
-      "startLine": 363
-    },
-    {
-      "crap": 3.4163252920649367,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "narrowToChangedScope",
-      "startLine": 379
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "maybeWriteJsonReport",
-      "startLine": 419
-    },
-    {
-      "crap": 20,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "handleRegressions",
-      "startLine": 438
-    },
-    {
-      "crap": 3.926971435546875,
-      "file": ".agents/scripts/check-maintainability.js",
-      "method": "main",
-      "startLine": 456
     },
     {
       "crap": 1,
@@ -6100,25 +6088,25 @@
       "startLine": 140
     },
     {
-      "crap": 3,
+      "crap": 3.0052083333333335,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "resolveStoryWorktreePath",
       "startLine": 214
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runFetchOrigin",
       "startLine": 227
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runRebaseAndAbortOnConflict",
       "startLine": 234
     },
     {
-      "crap": 4,
+      "crap": 5.7503082107339525,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "rebaseStoryOnEpic",
       "startLine": 242
@@ -6130,25 +6118,25 @@
       "startLine": 289
     },
     {
-      "crap": 1,
+      "crap": 1.037037037037037,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "buildVerboseMergeLogger",
       "startLine": 293
     },
     {
-      "crap": 3,
+      "crap": 12,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "throwOnMajorConflict",
       "startLine": 300
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "logMergeOutcome",
       "startLine": 311
     },
     {
-      "crap": 2,
+      "crap": 2.0054869684499312,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runFinalizeMerge",
       "startLine": 329
@@ -6166,28 +6154,22 @@
       "startLine": 389
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "commitPendingMerge",
       "startLine": 393
     },
     {
-      "crap": 5,
+      "crap": 6.036925352753755,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "finalizeMergeIfPending",
       "startLine": 403
     },
     {
-      "crap": 1,
+      "crap": 1.9032962962962963,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runResumeMerge",
       "startLine": 435
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
-      "method": "<anon method-3>",
-      "startLine": 461
     },
     {
       "crap": 4,

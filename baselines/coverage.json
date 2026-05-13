@@ -20,9 +20,9 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 78.65,
-    "branches": 80.88,
-    "functions": 66.67
+    "lines": 80.62,
+    "branches": 82.07,
+    "functions": 70.37
   },
   ".agents/scripts/check-maintainability.js": {
     "lines": 67.67,
@@ -75,9 +75,9 @@
     "functions": 83.33
   },
   ".agents/scripts/epic-deliver-finalize.js": {
-    "lines": 87.78,
-    "branches": 65.75,
-    "functions": 80
+    "lines": 88.37,
+    "branches": 67.09,
+    "functions": 81.82
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
     "lines": 81.12,
@@ -320,8 +320,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.13,
-    "branches": 89.38,
+    "lines": 98.21,
+    "branches": 89.66,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -330,9 +330,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 86.28,
-    "branches": 80.77,
-    "functions": 77.78
+    "lines": 89.54,
+    "branches": 82.91,
+    "functions": 77.27
   },
   ".agents/scripts/lib/config-resolver.js": {
     "lines": 100,
@@ -490,14 +490,14 @@
     "functions": 100
   },
   ".agents/scripts/lib/gh-exec.js": {
-    "lines": 97.1,
-    "branches": 93.41,
-    "functions": 78.57
+    "lines": 97.57,
+    "branches": 92.86,
+    "functions": 80
   },
   ".agents/scripts/lib/git-branch-cleanup.js": {
-    "lines": 74.38,
-    "branches": 88.57,
-    "functions": 75
+    "lines": 100,
+    "branches": 88.71,
+    "functions": 100
   },
   ".agents/scripts/lib/git-branch-lifecycle.js": {
     "lines": 100,
@@ -505,12 +505,12 @@
     "functions": 100
   },
   ".agents/scripts/lib/git-merge-orchestrator.js": {
-    "lines": 55.93,
-    "branches": 66.67,
+    "lines": 58.19,
+    "branches": 69.23,
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 94.99,
+    "lines": 95.26,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -557,6 +557,11 @@
   ".agents/scripts/lib/maintainability-utils.js": {
     "lines": 92.33,
     "branches": 81.25,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mandrel-catalog.js": {
+    "lines": 100,
+    "branches": 90,
     "functions": 100
   },
   ".agents/scripts/lib/migrate-to-v6-core.js": {
@@ -925,9 +930,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 70.83
+    "lines": 76.94,
+    "branches": 87.88,
+    "functions": 50
   },
   ".agents/scripts/lib/orchestration/story-close/post-merge-close.js": {
     "lines": 100,
@@ -1025,8 +1030,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/push-epic-retry.js": {
-    "lines": 91.46,
-    "branches": 71.79,
+    "lines": 91.96,
+    "branches": 72.97,
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
@@ -1090,9 +1095,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/story-init/branch-initializer.js": {
-    "lines": 53.39,
-    "branches": 74.07,
-    "functions": 60
+    "lines": 61.04,
+    "branches": 78.38,
+    "functions": 61.54
   },
   ".agents/scripts/lib/story-init/context-resolver.js": {
     "lines": 86.67,
@@ -1245,13 +1250,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js": {
-    "lines": 88.26,
-    "branches": 78.57,
+    "lines": 98.48,
+    "branches": 78.46,
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle/reap.js": {
-    "lines": 85.46,
-    "branches": 74.44,
+    "lines": 89.8,
+    "branches": 74.25,
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle/registry-sync.js": {
@@ -1265,9 +1270,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree/node-modules-strategy.js": {
-    "lines": 82.06,
+    "lines": 82.31,
     "branches": 87.27,
-    "functions": 100
+    "functions": 87.5
   },
   ".agents/scripts/lint-baseline.js": {
     "lines": 70.54,
@@ -1276,13 +1281,13 @@
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
-    "branches": 66.67,
+    "branches": 69.05,
     "functions": 77.78
   },
   ".agents/scripts/migrate-to-v6.js": {
-    "lines": 81.05,
-    "branches": 82.5,
-    "functions": 85.71
+    "lines": 90.22,
+    "branches": 94,
+    "functions": 90.91
   },
   ".agents/scripts/noise-study.js": {
     "lines": 75.48,
@@ -1351,7 +1356,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.8,
-    "branches": 74.65,
+    "branches": 75,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
