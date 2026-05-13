@@ -227,7 +227,7 @@
   ".agents/scripts/lib/signals/span-tree.js": 102.815,
   ".agents/scripts/lib/signals/write.js": 171,
   ".agents/scripts/lib/spec/index.js": 171,
-  ".agents/scripts/lib/spec/loader.js": 97.922,
+  ".agents/scripts/lib/spec/loader.js": 98.764,
   ".agents/scripts/lib/spec/state.js": 104.935,
   ".agents/scripts/lib/story-init/blocker-validator.js": 112.285,
   ".agents/scripts/lib/story-init/branch-initializer.js": 97.783,
