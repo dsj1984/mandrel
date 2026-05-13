@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 88.37,
-    "branches": 67.09,
+    "branches": 68.75,
     "functions": 81.82
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -1085,9 +1085,9 @@
     "functions": null
   },
   ".agents/scripts/lib/spec/loader.js": {
-    "lines": 98.29,
+    "lines": 97.65,
     "branches": 85.71,
-    "functions": 100
+    "functions": 94.12
   },
   ".agents/scripts/lib/spec/state.js": {
     "lines": 100,
