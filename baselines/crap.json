@@ -259,25 +259,25 @@
       "crap": 3.182569496619083,
       "file": ".agents/scripts/check-crap.js",
       "method": "applyCompatDecision",
-      "startLine": 677
+      "startLine": 682
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "hasComparisonFailures",
-      "startLine": 694
+      "startLine": 699
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-crap.js",
       "method": "handleCompareResult",
-      "startLine": 703
+      "startLine": 708
     },
     {
-      "crap": 10.018778220785592,
+      "crap": 9.805612433285221,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 720
+      "startLine": 731
     },
     {
       "crap": 8,
@@ -967,61 +967,61 @@
       "crap": 5,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "validateEpicWave",
-      "startLine": 609
+      "startLine": 608
     },
     {
       "crap": 5,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "validateResultsReturnsXor",
-      "startLine": 623
+      "startLine": 622
     },
     {
       "crap": 3,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveConcurrencyCap",
-      "startLine": 637
+      "startLine": 636
     },
     {
-      "crap": 7.465494791666666,
+      "crap": 5.286333333333333,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveResolvedResults",
-      "startLine": 659
+      "startLine": 662
     },
     {
       "crap": 6.001185328478228,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runEpicExecuteRecordWave",
-      "startLine": 684
+      "startLine": 693
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "selectInputFlag",
-      "startLine": 852
+      "startLine": 861
     },
     {
       "crap": 4.916,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveRecordInput",
-      "startLine": 866
+      "startLine": 875
     },
     {
       "crap": 1.800655976676385,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseArgv",
-      "startLine": 882
+      "startLine": 891
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runRecordWaveCli",
-      "startLine": 913
+      "startLine": 922
     },
     {
       "crap": 17.18359375,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
-      "startLine": 951
+      "startLine": 960
     },
     {
       "crap": 2,
@@ -7423,37 +7423,37 @@
       "crap": 5.666845481049563,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "diffBaseline",
-      "startLine": 278
+      "startLine": 282
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "hasDegraded",
-      "startLine": 315
+      "startLine": 319
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "hasImproved",
-      "startLine": 323
+      "startLine": 327
     },
     {
       "crap": 18.95686145404664,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "checkBaseline",
-      "startLine": 330
+      "startLine": 334
     },
     {
       "crap": 6.0099860277800605,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintBaselineCli",
-      "startLine": 398
+      "startLine": 402
     },
     {
       "crap": 17.008592592592592,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "main",
-      "startLine": 445
+      "startLine": 449
     },
     {
       "crap": 7.095703125,
@@ -7462,7 +7462,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65

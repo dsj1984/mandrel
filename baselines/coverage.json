@@ -20,7 +20,7 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 86.81,
+    "lines": 85.77,
     "branches": 83.22,
     "functions": 78.26
   },
@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 87.78,
-    "branches": 65.75,
+    "branches": 63.89,
     "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -95,7 +95,7 @@
     "functions": 50
   },
   ".agents/scripts/epic-execute-record-wave.js": {
-    "lines": 87.09,
+    "lines": 87.21,
     "branches": 79.78,
     "functions": 84.62
   },
@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 90.72,
+    "branches": 89.58,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -1255,13 +1255,13 @@
     "functions": 100
   },
   ".agents/scripts/lint-baseline.js": {
-    "lines": 70.28,
+    "lines": 70.54,
     "branches": 85,
     "functions": 68.75
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 84.88,
-    "branches": 58.06,
+    "lines": 86.83,
+    "branches": 64.29,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
