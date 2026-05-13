@@ -20,14 +20,14 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 79.45,
-    "branches": 80.92,
-    "functions": 81.25
+    "lines": 79.52,
+    "branches": 81.34,
+    "functions": 77.78
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 65.58,
-    "branches": 82.5,
-    "functions": 62.5
+    "lines": 66.93,
+    "branches": 79.07,
+    "functions": 61.11
   },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 70.68,
