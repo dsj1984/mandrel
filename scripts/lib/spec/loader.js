@@ -4,8 +4,14 @@
  * Owns the two files that bracket the structural SSOT migration (Epic
  * #1182 / Tech Spec #1483):
  *
- *   - `.agents/epics/<epic-id>.yaml`         — declarative spec (editable)
- *   - `.agents/epics/<epic-id>.state.json`   — slug→issue mapping (observed)
+ *   - `temp/epic-<epic-id>/<epic-id>.yaml`        — declarative spec (regenerated)
+ *   - `temp/epic-<epic-id>/<epic-id>.state.json`  — slug→issue mapping (observed)
+ *
+ * Both files live under the per-Epic ephemeral tree `temp/epic-<id>/`
+ * (already gitignored) so /epic-plan reruns don't churn a tracked path
+ * and so concurrent Epics never collide on a single shared directory.
+ * Tests inject `opts.epicsDir` to point at a sandbox; the default for
+ * production callers is derived from `lib/config/temp-paths.js#epicTempDir`.
  *
  * The module is intentionally a thin, dependency-light I/O layer:
  *
@@ -49,16 +55,25 @@ import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import yaml from 'js-yaml';
 
+import { epicTempDir } from '../config/temp-paths.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // scripts/lib/spec/ → scripts/lib/ → scripts/ → .agents/
 const PROJECT_AGENTS_DIR = path.resolve(__dirname, '..', '..', '..');
-const DEFAULT_EPICS_DIR = path.join(PROJECT_AGENTS_DIR, 'epics');
 const DEFAULT_SCHEMA_PATH = path.join(
   PROJECT_AGENTS_DIR,
   'schemas',
   'epic-spec.schema.json',
 );
+
+// Resolve the default per-Epic spec directory under `temp/epic-<id>/`.
+// Caller-injected `opts.epicsDir` still wins for tests and any external
+// tooling that wants to point at a sandbox. Production callers omit the
+// option and route through this helper.
+function defaultEpicsDir(epicId) {
+  return epicTempDir(epicId);
+}
 
 const defaultFsAdapter = Object.freeze({
   existsSync: defaultExistsSync,
@@ -157,9 +172,9 @@ export class SpecParseError extends Error {
   }
 }
 
-function resolveOpts(opts = {}) {
+function resolveOpts(epicId, opts = {}) {
   return {
-    epicsDir: opts.epicsDir ?? DEFAULT_EPICS_DIR,
+    epicsDir: opts.epicsDir ?? defaultEpicsDir(epicId),
     schemaPath: opts.schemaPath ?? DEFAULT_SCHEMA_PATH,
     fs: opts.fs ?? defaultFsAdapter,
   };
@@ -175,7 +190,7 @@ function resolveOpts(opts = {}) {
  * @returns {string}
  */
 export function specPath(epicId, opts = {}) {
-  const { epicsDir } = resolveOpts(opts);
+  const { epicsDir } = resolveOpts(epicId, opts);
   return path.join(epicsDir, `${String(epicId)}.yaml`);
 }
 
@@ -188,7 +203,7 @@ export function specPath(epicId, opts = {}) {
  * @returns {string}
  */
 export function statePath(epicId, opts = {}) {
-  const { epicsDir } = resolveOpts(opts);
+  const { epicsDir } = resolveOpts(epicId, opts);
   return path.join(epicsDir, `${String(epicId)}.state.json`);
 }
 
@@ -231,7 +246,7 @@ function normaliseAjvErrors(ajvErrors) {
  * @returns {object}
  */
 export function loadSpec(epicId, opts = {}) {
-  const { schemaPath, fs } = resolveOpts(opts);
+  const { schemaPath, fs } = resolveOpts(epicId, opts);
   const filePath = specPath(epicId, opts);
 
   if (!fs.existsSync(filePath)) {
@@ -290,7 +305,7 @@ function emptyState(epicId) {
  * @returns {{epicId: number, mapping: object, lastReconciledAt?: string}}
  */
 export function loadState(epicId, opts = {}) {
-  const { fs } = resolveOpts(opts);
+  const { fs } = resolveOpts(epicId, opts);
   const filePath = statePath(epicId, opts);
 
   if (!fs.existsSync(filePath)) {
@@ -351,7 +366,7 @@ export function renderStateJson(state) {
  * @returns {string}
  */
 export function writeState(epicId, state, opts = {}) {
-  const { epicsDir, fs } = resolveOpts(opts);
+  const { epicsDir, fs } = resolveOpts(epicId, opts);
   if (!fs.existsSync(epicsDir)) {
     fs.mkdirSync(epicsDir, { recursive: true });
   }
@@ -381,7 +396,7 @@ export function writeState(epicId, state, opts = {}) {
  * @returns {string}          the absolute path written.
  */
 export function writeSpec(epicId, spec, opts = {}) {
-  const { epicsDir, schemaPath, fs } = resolveOpts(opts);
+  const { epicsDir, schemaPath, fs } = resolveOpts(epicId, opts);
   if (!spec || typeof spec !== 'object') {
     throw new TypeError('[writeSpec] spec must be an object');
   }
