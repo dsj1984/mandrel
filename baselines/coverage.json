@@ -115,9 +115,9 @@
     "functions": 80
   },
   ".agents/scripts/git-cleanup-branches.js": {
-    "lines": 81.98,
-    "branches": 90,
-    "functions": 87.1
+    "lines": 83.31,
+    "branches": 90.57,
+    "functions": 88.24
   },
   ".agents/scripts/git-pr-quality-gate.js": {
     "lines": 73.53,
@@ -295,8 +295,8 @@
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
-    "lines": 97.86,
-    "branches": 92.11,
+    "lines": 97.92,
+    "branches": 92.31,
     "functions": 100
   },
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
@@ -505,12 +505,12 @@
     "functions": 100
   },
   ".agents/scripts/lib/git-merge-orchestrator.js": {
-    "lines": 55.93,
+    "lines": 56.5,
     "branches": 66.67,
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 94.99,
+    "lines": 95.26,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -1030,13 +1030,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/push-epic-retry.js": {
-    "lines": 91.46,
+    "lines": 91.96,
     "branches": 71.79,
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
-    "lines": 86.03,
-    "branches": 79.82,
+    "lines": 86.17,
+    "branches": 79.09,
     "functions": 100
   },
   ".agents/scripts/lib/rebrand-deny.js": {
@@ -1286,7 +1286,7 @@
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 86.83,
-    "branches": 69.05,
+    "branches": 64.29,
     "functions": 77.78
   },
   ".agents/scripts/migrate-to-v6.js": {
@@ -1366,7 +1366,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.8,
-    "branches": 74.65,
+    "branches": 75,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {

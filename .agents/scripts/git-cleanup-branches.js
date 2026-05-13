@@ -12,6 +12,10 @@
  *   1. Detach any attached worktree via `git worktree remove --force`.
  *   2. Delete the local branch via `git branch -D` (shared lib).
  *   3. Optionally delete the `origin/` remote ref (only when --remote).
+ *   4. Optionally prune stale `refs/remotes/origin/*` tracking refs.
+ *      `git push --delete` reports success for refs already gone on the
+ *      remote, but does not drop the local tracking ref — so a single
+ *      `git remote prune <remote>` runs after the remote-delete pass.
  *
  * Dry-run is the default. `--execute` is required to mutate anything;
  * `--remote` is required on top of `--execute` to touch `origin/`.
@@ -365,7 +369,11 @@ export function planCleanup(ctx) {
 
 /**
  * Pure-ish: execute the reap plan. Always removes attached worktrees
- * first, then the local branch, then (optionally) the remote ref.
+ * first, then the local branch, then (optionally) the remote ref. When
+ * `remote=true` and at least one remote delete was attempted, a single
+ * `git remote prune <remote>` runs after the loop to drop stale
+ * `refs/remotes/<remote>/*` tracking refs that `push --delete` leaves
+ * behind when the remote ref was already gone.
  *
  * @param {{
  *   candidates: ReturnType<typeof planCleanup>['candidates'],
@@ -374,6 +382,8 @@ export function planCleanup(ctx) {
  *   removeWorktreeFn?: (worktreePath: string, cwd: string) => { ok: boolean, dirty: boolean, stderr?: string },
  *   deleteLocalFn?: (branch: string, cwd: string) => ReturnType<typeof deleteBranchLocal>,
  *   deleteRemoteFn?: (branch: string, cwd: string) => ReturnType<typeof deleteBranchRemote>,
+ *   pruneRemoteFn?: (cwd: string, remote: string) => { ok: boolean, pruned: string[], stderr?: string },
+ *   remoteName?: string,
  *   logger?: { info: (m: string) => void, warn: (m: string) => void, error: (m: string) => void },
  * }} ctx
  */
@@ -385,6 +395,8 @@ export function executeCleanup(ctx) {
     removeWorktreeFn = removeWorktree,
     deleteLocalFn = (b, c) => deleteBranchLocal(b, { cwd: c, force: true }),
     deleteRemoteFn = (b, c) => deleteBranchRemote(b, { cwd: c }),
+    pruneRemoteFn = pruneRemoteTracking,
+    remoteName = 'origin',
     logger = Logger,
   } = ctx;
 
@@ -458,13 +470,73 @@ export function executeCleanup(ctx) {
     }
   }
 
+  let prune = null;
+  if (remote && remoteResults.length > 0) {
+    const pruneRes = pruneRemoteFn(cwd, remoteName);
+    prune = {
+      attempted: true,
+      ok: pruneRes.ok,
+      remote: remoteName,
+      pruned: pruneRes.pruned ?? [],
+      stderr: pruneRes.stderr,
+    };
+    if (!pruneRes.ok) {
+      failures.push({
+        branch: null,
+        scope: 'prune',
+        stderr: pruneRes.stderr,
+      });
+    }
+  }
+
   return {
     worktrees,
     local,
     remote: remoteResults,
+    prune,
     failures,
     ok: failures.length === 0,
   };
+}
+
+/**
+ * Run `git remote prune <remote>` and parse the pruned refs from stdout.
+ * Idempotent: returns `ok=true` with an empty `pruned[]` when nothing was
+ * stale.
+ *
+ * @param {string} cwd
+ * @param {string} remoteName
+ * @returns {{ ok: boolean, pruned: string[], stderr?: string }}
+ */
+/* node:coverage ignore next */
+function pruneRemoteTracking(cwd, remoteName) {
+  const res = gitSpawn(cwd, 'remote', 'prune', remoteName);
+  if (res.status !== 0) {
+    return { ok: false, pruned: [], stderr: res.stderr };
+  }
+  return { ok: true, pruned: parsePrunedRefs(res.stdout, remoteName) };
+}
+
+/**
+ * Pure: extract the short ref names from `git remote prune` stdout. Each
+ * pruned line looks like ` * [pruned] origin/foo` — we strip the
+ * `<remoteName>/` prefix so the array matches the candidate branch names.
+ *
+ * @param {string} stdout
+ * @param {string} remoteName
+ * @returns {string[]}
+ */
+export function parsePrunedRefs(stdout, remoteName) {
+  const prefix = `${remoteName}/`;
+  const out = [];
+  for (const raw of (stdout ?? '').split('\n')) {
+    const line = raw.trim();
+    const m = line.match(/^\*\s+\[pruned\]\s+(.+)$/);
+    if (!m) continue;
+    const ref = m[1].trim();
+    out.push(ref.startsWith(prefix) ? ref.slice(prefix.length) : ref);
+  }
+  return out;
 }
 
 /**
@@ -527,12 +599,36 @@ export function renderExecutionLine(entry, scope) {
   return `[git-cleanup-branches] ${icon} ${label} ${tag}${note}`;
 }
 
+/**
+ * Pure: render the optional prune line. Returns `null` when no prune was
+ * attempted, otherwise an emoji-prefixed status line. Empty-prune is
+ * still rendered as a success ("no stale refs") so the operator can see
+ * the step happened.
+ *
+ * @param {{ attempted: boolean, ok: boolean, remote: string, pruned: string[], stderr?: string } | null} prune
+ * @returns {string | null}
+ */
+export function renderPruneLine(prune) {
+  if (!prune?.attempted) return null;
+  if (!prune.ok) {
+    return `[git-cleanup-branches] ❌ prune    ${prune.remote} (${prune.stderr ?? 'failed'})`;
+  }
+  if (prune.pruned.length === 0) {
+    return `[git-cleanup-branches] ✅ prune    ${prune.remote} (no stale refs)`;
+  }
+  const list = prune.pruned.map((n) => `${prune.remote}/${n}`).join(', ');
+  return `[git-cleanup-branches] ✅ prune    ${prune.remote} (dropped ${prune.pruned.length} stale ref(s): ${list})`;
+}
+
 /** Pure: render the trailing summary line. */
 export function renderExecutionSummary(result) {
   if (!result.ok) {
     return `[git-cleanup-branches] ❌ ${result.failures.length} failure(s) during cleanup.`;
   }
-  return `[git-cleanup-branches] ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s).`;
+  const prunedCount = result.prune?.pruned?.length ?? 0;
+  const pruneNote =
+    prunedCount > 0 ? ` + ${prunedCount} stale tracking ref(s)` : '';
+  return `[git-cleanup-branches] ✅ Reaped ${result.local.length} local + ${result.remote.length} remote + ${result.worktrees.length} worktree(s)${pruneNote}.`;
 }
 
 /* node:coverage ignore next */
@@ -546,6 +642,8 @@ function emitExecutionHuman(result) {
     Logger.info(renderExecutionLine(r, 'worktree'));
   for (const r of result.local) Logger.info(renderExecutionLine(r, 'local'));
   for (const r of result.remote) Logger.info(renderExecutionLine(r, 'remote'));
+  const pruneLine = renderPruneLine(result.prune);
+  if (pruneLine) Logger.info(pruneLine);
   const summary = renderExecutionSummary(result);
   if (result.ok) Logger.info(summary);
   else Logger.error(summary);
@@ -572,6 +670,7 @@ const EMPTY_RESULT = Object.freeze({
   worktrees: [],
   local: [],
   remote: [],
+  prune: null,
   failures: [],
   ok: true,
 });
@@ -593,6 +692,7 @@ export function buildJsonEnvelope({ dryRun, baseBranch, plan, result }) {
     worktrees: r.worktrees,
     local: r.local,
     remote: r.remote,
+    prune: r.prune ?? null,
     failures: r.failures,
     ok: r.ok,
   };
