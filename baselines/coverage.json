@@ -559,6 +559,11 @@
     "branches": 81.25,
     "functions": 100
   },
+  ".agents/scripts/lib/mandrel-catalog.js": {
+    "lines": 100,
+    "branches": 90,
+    "functions": 100
+  },
   ".agents/scripts/lib/notifications/notifier.js": {
     "lines": 100,
     "branches": 89.47,
@@ -1260,8 +1265,8 @@
     "functions": 61.54
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 84.88,
-    "branches": 58.06,
+    "lines": 86.83,
+    "branches": 69.05,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {

@@ -3508,6 +3508,30 @@
       "startLine": 238
     },
     {
+      "crap": 11,
+      "file": ".agents/scripts/lib/mandrel-catalog.js",
+      "method": "extractDescription",
+      "startLine": 42
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/mandrel-catalog.js",
+      "method": "isVagueDescription",
+      "startLine": 98
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/mandrel-catalog.js",
+      "method": "buildCatalog",
+      "startLine": 112
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/mandrel-catalog.js",
+      "method": "renderCatalog",
+      "startLine": 148
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "eventSeverity",
@@ -7324,7 +7348,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65
