@@ -255,6 +255,180 @@ test('drainPendingCleanup: never-clearing lock promotes to persistent after MAX_
   }
 });
 
+test('drainPendingCleanup: falls back to git worktree remove --force when plain remove fails', async () => {
+  const { tmp, wtRoot } = tmpWorktreeRoot();
+  try {
+    const wtPath = path.join(wtRoot, 'story-30');
+    fs.mkdirSync(wtPath, { recursive: true });
+    recordPendingCleanup(wtRoot, {
+      storyId: 30,
+      branch: 'story-30',
+      path: wtPath,
+      push: false,
+    });
+    let firstRemoveSeen = false;
+    const calls = [];
+    const git = {
+      gitSpawn: (_cwd, ...args) => {
+        calls.push(args);
+        if (
+          args[0] === 'worktree' &&
+          args[1] === 'remove' &&
+          !args.includes('--force')
+        ) {
+          if (!firstRemoveSeen) {
+            firstRemoveSeen = true;
+            // Simulate: command "fails" but the fsRm picks up the leftover.
+            return {
+              status: 1,
+              stdout: '',
+              stderr: 'cannot remove worktree (locked)',
+            };
+          }
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+    const res = await drainPendingCleanup({
+      repoRoot: tmp,
+      worktreeRoot: wtRoot,
+      git,
+      fsRm: fsPromisesRm,
+      logger: quietLogger().logger,
+    });
+    assert.deepEqual(res.drained, [30]);
+    assert.ok(
+      calls.some((a) => a[0] === 'worktree' && a.includes('--force')),
+      'expected fallback to git worktree remove --force',
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('drainPendingCleanup: records error when path persists after worktree-remove + fs.rm', async () => {
+  const { tmp, wtRoot } = tmpWorktreeRoot();
+  try {
+    const wtPath = path.join(wtRoot, 'story-31');
+    fs.mkdirSync(wtPath, { recursive: true });
+    recordPendingCleanup(wtRoot, {
+      storyId: 31,
+      branch: 'story-31',
+      path: wtPath,
+      push: false,
+    });
+    const git = {
+      // Both `remove` and `remove --force` return non-zero so we attempt fs.rm.
+      gitSpawn: (_cwd, ...args) => {
+        if (args[0] === 'worktree' && args[1] === 'remove') {
+          return { status: 1, stdout: '', stderr: 'locked' };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+    // fsRm "succeeds" but the directory is still on disk → triggers the
+    // path-still-exists branch.
+    const fakeFsRm = async () => {
+      /* no-op: directory stays on disk */
+    };
+    const res = await drainPendingCleanup({
+      repoRoot: tmp,
+      worktreeRoot: wtRoot,
+      git,
+      fsRm: fakeFsRm,
+      logger: quietLogger().logger,
+    });
+    assert.deepEqual(res.drained, []);
+    assert.equal(res.stillPending.length + res.persistent.length, 1);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('drainPendingCleanup: logs and records false when branch -D returns a non-not-found error', async () => {
+  const { tmp, wtRoot } = tmpWorktreeRoot();
+  try {
+    const wtPath = path.join(wtRoot, 'story-42');
+    fs.mkdirSync(wtPath, { recursive: true });
+    recordPendingCleanup(wtRoot, {
+      storyId: 42,
+      branch: 'story-42',
+      path: wtPath,
+      push: false,
+    });
+    const { logger, sink } = quietLogger();
+    const git = {
+      gitSpawn: (_cwd, ...args) => {
+        if (args[0] === 'branch' && args[1] === '-D') {
+          return {
+            status: 128,
+            stdout: '',
+            stderr: 'fatal: weird branch boom',
+          };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+    const res = await drainPendingCleanup({
+      repoRoot: tmp,
+      worktreeRoot: wtRoot,
+      git,
+      fsRm: fsPromisesRm,
+      logger,
+    });
+    assert.deepEqual(res.drained, [42]);
+    assert.equal(res.drainedDetails[0].localBranchDeleted, false);
+    assert.ok(
+      sink.warn.some((m) => m.includes('branch -D story-42 failed')),
+      'expected sweep warn for non-idempotent branch delete failure',
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('drainPendingCleanup: logs and records false when push --delete returns a non-not-found error', async () => {
+  const { tmp, wtRoot } = tmpWorktreeRoot();
+  try {
+    const wtPath = path.join(wtRoot, 'story-43');
+    fs.mkdirSync(wtPath, { recursive: true });
+    recordPendingCleanup(wtRoot, {
+      storyId: 43,
+      branch: 'story-43',
+      path: wtPath,
+      push: true,
+    });
+    const { logger, sink } = quietLogger();
+    const git = {
+      gitSpawn: (_cwd, ...args) => {
+        if (args[0] === 'push' && args.includes('--delete')) {
+          return {
+            status: 128,
+            stdout: '',
+            stderr: 'fatal: remote rejected delete',
+          };
+        }
+        return { status: 0, stdout: '', stderr: '' };
+      },
+    };
+    const res = await drainPendingCleanup({
+      repoRoot: tmp,
+      worktreeRoot: wtRoot,
+      git,
+      fsRm: fsPromisesRm,
+      logger,
+    });
+    assert.deepEqual(res.drained, [43]);
+    assert.equal(res.drainedDetails[0].remoteBranchDeleted, false);
+    assert.ok(
+      sink.warn.some((m) => m.includes('push --delete story-43 failed')),
+      'expected sweep warn for remote delete failure',
+    );
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test('drainPendingCleanup: increments attempts and keeps entry when below max', async () => {
   const { tmp, wtRoot } = tmpWorktreeRoot();
   try {

@@ -224,209 +224,262 @@ async function fsRmWithRetry(
   return { success: false, attempts: maxRetries, error: lastErr };
 }
 
-export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
-  const { storyId = null, branch = null, push = false } = opts;
-  const maxAttempts = ctx.platform === 'win32' ? 6 : 2;
-  const retryDelaysMs = [0, 150, 350, 700, 1200, 2000];
-  const forceRemoveBackoffMs = opts.forceRemoveBackoffMs ?? 3000;
-  let lastReason = 'worktree-remove-failed';
+function classifyRemoveStderr(stderr) {
+  return {
+    isSubmoduleGuard:
+      /working trees containing submodules cannot be moved or removed/i.test(
+        stderr,
+      ),
+    isLockLike: WINDOWS_LOCK_RE.test(stderr),
+    isCwdLike: WINDOWS_CWD_RE.test(stderr),
+  };
+}
 
+function finalizeGitWorktreeRemove(ctx) {
+  ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
+  invalidateWorktreeCache(ctx);
+}
+
+function handleRemoveFailure(
+  ctx,
+  wtPath,
+  stderr,
+  classification,
+  attempt,
+  maxAttempts,
+) {
+  const retryDelaysMs = [0, 150, 350, 700, 1200, 2000];
+  const { isSubmoduleGuard, isLockLike, isCwdLike } = classification;
+  if (isSubmoduleGuard && attempt < maxAttempts) {
+    ctx.logger.warn(
+      `worktree.reap remove blocked by submodule guard; retrying (${attempt}/${maxAttempts})`,
+    );
+    dropAllSubmoduleGitlinksFromIndex(ctx, wtPath);
+    purgePerWorktreeSubmoduleDir(ctx, wtPath);
+    return 'continue';
+  }
+  if ((isLockLike || isCwdLike) && attempt < maxAttempts) {
+    const delay = retryDelaysMs[attempt] ?? 300;
+    const reasonClass = isCwdLike ? 'cwd-like' : 'lock-like';
+    ctx.logger.warn(
+      `worktree.reap remove hit ${reasonClass} error; retrying in ${delay}ms (${attempt}/${maxAttempts})`,
+    );
+    sleepSync(delay);
+    return 'continue';
+  }
+  return 'break';
+}
+
+async function runGitWorktreeRemoveLoop(ctx, wtPath) {
+  const maxAttempts = ctx.platform === 'win32' ? 6 : 2;
+  let lastReason = 'worktree-remove-failed';
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const res = ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'remove', wtPath);
     if (res.status === 0) {
-      // Always prune after a successful `remove`. On Windows, `git worktree
-      // remove` regularly exits 0 while leaving `.git/worktrees/story-<id>/`
-      // admin metadata on disk (a residual file held by AV / the Windows
-      // Search indexer / a Node module handle). Without the prune, a
-      // subsequent `git worktree list` still reports the worktree and the
-      // close script lands in `still-registered-after-reap`; `git branch -D`
-      // then refuses because the branch is "still checked out" in the ghost
-      // registration.
-      ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
-      invalidateWorktreeCache(ctx);
+      finalizeGitWorktreeRemove(ctx);
       return { removed: true };
     }
-
     const stderr = (res.stderr || res.stdout || '').trim();
     lastReason = stderr || 'worktree-remove-failed';
-    const isSubmoduleGuard =
-      /working trees containing submodules cannot be moved or removed/i.test(
-        stderr,
-      );
-    const isLockLike = WINDOWS_LOCK_RE.test(stderr);
-    const isCwdLike = WINDOWS_CWD_RE.test(stderr);
-    const isRecoverable = isLockLike || isCwdLike;
-
-    if (isSubmoduleGuard && attempt < maxAttempts) {
-      ctx.logger.warn(
-        `worktree.reap remove blocked by submodule guard; retrying (${attempt}/${maxAttempts})`,
-      );
-      dropAllSubmoduleGitlinksFromIndex(ctx, wtPath);
-      purgePerWorktreeSubmoduleDir(ctx, wtPath);
-      continue;
-    }
-    if (isRecoverable && attempt < maxAttempts) {
-      const delay = retryDelaysMs[attempt] ?? 300;
-      const reasonClass = isCwdLike ? 'cwd-like' : 'lock-like';
-      ctx.logger.warn(
-        `worktree.reap remove hit ${reasonClass} error; retrying in ${delay}ms (${attempt}/${maxAttempts})`,
-      );
-      sleepSync(delay);
-      continue;
-    }
-    break;
-  }
-
-  if (
-    ctx.platform === 'win32' &&
-    opts.forceRemoveFallback !== false &&
-    (WINDOWS_LOCK_RE.test(lastReason) || WINDOWS_CWD_RE.test(lastReason))
-  ) {
-    ctx.logger.warn(
-      `worktree.reap remove exhausted Windows lock retry; retrying with --force in ${forceRemoveBackoffMs}ms path=${wtPath}`,
-    );
-    sleepSync(forceRemoveBackoffMs);
-    const forced = ctx.git.gitSpawn(
-      ctx.repoRoot,
-      'worktree',
-      'remove',
-      '--force',
+    const classification = classifyRemoveStderr(stderr);
+    const action = handleRemoveFailure(
+      ctx,
       wtPath,
+      stderr,
+      classification,
+      attempt,
+      maxAttempts,
     );
-    if (forced.status === 0) {
-      ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
-      invalidateWorktreeCache(ctx);
-      ctx.logger.warn(
-        `worktree.reap recovered via force-remove-retry path=${wtPath} lockReason=${lastReason}`,
-      );
-      return {
+    if (action === 'break') break;
+  }
+  return { removed: false, lastReason, maxAttempts };
+}
+
+function tryForceRemoveFallback(
+  ctx,
+  wtPath,
+  lastReason,
+  forceRemoveBackoffMs,
+  maxAttempts,
+) {
+  if (!(WINDOWS_LOCK_RE.test(lastReason) || WINDOWS_CWD_RE.test(lastReason))) {
+    return { handled: false, lastReason };
+  }
+  ctx.logger.warn(
+    `worktree.reap remove exhausted Windows lock retry; retrying with --force in ${forceRemoveBackoffMs}ms path=${wtPath}`,
+  );
+  sleepSync(forceRemoveBackoffMs);
+  const forced = ctx.git.gitSpawn(
+    ctx.repoRoot,
+    'worktree',
+    'remove',
+    '--force',
+    wtPath,
+  );
+  if (forced.status === 0) {
+    finalizeGitWorktreeRemove(ctx);
+    ctx.logger.warn(
+      `worktree.reap recovered via force-remove-retry path=${wtPath} lockReason=${lastReason}`,
+    );
+    return {
+      handled: true,
+      result: {
         removed: true,
         success: true,
         method: 'force-remove-retry',
         attempts: maxAttempts + 1,
-      };
-    }
-    const forceReason = (forced.stderr || forced.stdout || '').trim();
-    if (forceReason) lastReason = forceReason;
+      },
+    };
   }
+  const forceReason = (forced.stderr || forced.stdout || '').trim();
+  return { handled: false, lastReason: forceReason || lastReason };
+}
 
+async function tryStage15WindowsFsRm({
+  ctx,
+  wtPath,
+  fsRm,
+  forceRemoveBackoffMs,
+  branch,
+  push,
+  lastReason,
+  priorAttempts,
+}) {
+  sleepSync(forceRemoveBackoffMs);
+  try {
+    await fsRm(wtPath, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 500,
+    });
+  } catch (err) {
+    ctx.logger.warn(
+      `worktree.reap stage-1.5 fs-rm-extended failed: ${err?.message ?? err} (handing off to sweep)`,
+    );
+    return null;
+  }
+  finalizeGitWorktreeRemove(ctx);
+  const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
+  ctx.logger.warn(
+    `worktree.reap recovered via stage-1.5 fs-rm-extended path=${wtPath} lockReason=${lastReason}`,
+  );
+  return {
+    removed: true,
+    success: true,
+    method: 'fs-rm-extended',
+    attempts: priorAttempts + 1,
+    ...branchCleanup,
+  };
+}
+
+function recordPendingCleanupSafe(ctx, { storyId, branch, wtPath, push }) {
+  if (storyId == null || !ctx.worktreeRoot) return null;
+  try {
+    return recordPendingCleanup(ctx.worktreeRoot, {
+      storyId,
+      branch,
+      path: wtPath,
+      push,
+    });
+  } catch (err) {
+    ctx.logger.warn(
+      `worktree.reap pending-cleanup manifest write failed: ${err.message}`,
+    );
+    return null;
+  }
+}
+
+async function handleFsRmFailure({
+  ctx,
+  wtPath,
+  rmResult,
+  branch,
+  push,
+  storyId,
+  lastReason,
+  forceRemoveBackoffMs,
+  fsRm,
+}) {
+  // Stage 1.5 — coverage-leak quiesce + extended fs.rm budget (Windows only).
+  if (ctx.platform === 'win32') {
+    const stage15 = await tryStage15WindowsFsRm({
+      ctx,
+      wtPath,
+      fsRm,
+      forceRemoveBackoffMs,
+      branch,
+      push,
+      lastReason,
+      priorAttempts: rmResult.attempts,
+    });
+    if (stage15) return stage15;
+  }
+  finalizeGitWorktreeRemove(ctx);
+  const errMsg =
+    rmResult.error?.message || String(rmResult.error) || 'fs-rm-failed';
+  const manifestEntry = recordPendingCleanupSafe(ctx, {
+    storyId,
+    branch,
+    wtPath,
+    push,
+  });
+  const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
+  ctx.logger.error(
+    `OPERATOR ACTION REQUIRED: worktree reap exhausted Stage 1 (fs-rm-retry) after ${rmResult.attempts} ` +
+      `attempts path=${wtPath} — deferred to plan-time worktree-sweep. Reason: ${errMsg}`,
+  );
+  return {
+    removed: false,
+    method: 'deferred-to-sweep',
+    reason: errMsg,
+    lockReason: lastReason,
+    attempts: rmResult.attempts,
+    pendingCleanup: manifestEntry ?? { storyId, branch, path: wtPath, push },
+    ...branchCleanup,
+  };
+}
+
+export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
+  const { storyId = null, branch = null, push = false } = opts;
+  const forceRemoveBackoffMs = opts.forceRemoveBackoffMs ?? 3000;
+  const removeLoop = await runGitWorktreeRemoveLoop(ctx, wtPath);
+  if (removeLoop.removed) return { removed: true };
+  let { lastReason } = removeLoop;
+  if (ctx.platform === 'win32' && opts.forceRemoveFallback !== false) {
+    const fallback = tryForceRemoveFallback(
+      ctx,
+      wtPath,
+      lastReason,
+      forceRemoveBackoffMs,
+      removeLoop.maxAttempts,
+    );
+    if (fallback.handled) return fallback.result;
+    lastReason = fallback.lastReason;
+  }
   // Stage 1 recovery is unconditional. Every path into this block has
   // already cleared `reap()`'s `isSafeToRemove` gate — merged or
-  // force-discarded — so we are committed to removal. The previous gating
-  // on `WINDOWS_LOCK_RE || WINDOWS_CWD_RE` dropped us into a do-nothing tail
-  // whenever `git worktree remove` failed with a stderr that didn't match
-  // either regex (localized error strings, generic I/O failures, stale
-  // registrations the operator's environment produced), leaving the worktree
-  // half-reaped and the close script stuck on `still-registered-after-reap`.
+  // force-discarded — so we are committed to removal.
   const fsRm = ctx.fsRm ?? fsPromisesRm;
   const rmResult = await fsRmWithRetry(fsRm, wtPath, {
     maxRetries: 5,
     retryDelay: 200,
   });
-
   if (!rmResult.success) {
-    // Stage 1.5 — coverage-leak quiesce + extended fs.rm budget.
-    //
-    // On Windows the close-validation chain runs the project's c8 coverage
-    // capture. c8 keeps file descriptors open against the worktree it
-    // measured, and even after the test runner exits there is a brief
-    // window where Windows still reports `directory not empty` /
-    // `EBUSY` on `fs.rm`. The Stage 1 retry budget (5 × 200ms = 1s) is
-    // long enough for the test runner to exit but too short for Windows
-    // to release the AV / Search-indexer holds on `node_modules/.cache`
-    // and `coverage/`.
-    //
-    // Sleep one beat longer than the Windows lock recovery window
-    // (`forceRemoveBackoffMs`, default 3s), then retry `fs.rm` with a
-    // higher built-in retry budget (Node's own `maxRetries` × `retryDelay`
-    // applies *inside* one call). This lifts the wall-clock budget to
-    // ~10s on the failure path without touching the happy-path latency.
-    if (ctx.platform === 'win32') {
-      sleepSync(forceRemoveBackoffMs);
-      try {
-        await fsRm(wtPath, {
-          recursive: true,
-          force: true,
-          maxRetries: 10,
-          retryDelay: 500,
-        });
-        ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
-        invalidateWorktreeCache(ctx);
-        const branchCleanup = await deleteBranchAfterReap(ctx, {
-          branch,
-          push,
-        });
-        ctx.logger.warn(
-          `worktree.reap recovered via stage-1.5 fs-rm-extended path=${wtPath} lockReason=${lastReason}`,
-        );
-        return {
-          removed: true,
-          success: true,
-          method: 'fs-rm-extended',
-          attempts: rmResult.attempts + 1,
-          ...branchCleanup,
-        };
-      } catch (err) {
-        // Fall through to Stage 2; preserve the original rmResult error
-        // for the operator-facing message so they see the lock-class
-        // signal rather than the post-quiesce one.
-        ctx.logger.warn(
-          `worktree.reap stage-1.5 fs-rm-extended failed: ${err?.message ?? err} (handing off to sweep)`,
-        );
-      }
-    }
-
-    ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
-    invalidateWorktreeCache(ctx);
-    const errMsg =
-      rmResult.error?.message || String(rmResult.error) || 'fs-rm-failed';
-    // Stage 2 hand-off: append the entry to `.worktrees/.pending-cleanup.json`
-    // so the plan-time worktree-sweep can drain it on the next run.
-    let manifestEntry = null;
-    if (storyId != null && ctx.worktreeRoot) {
-      try {
-        manifestEntry = recordPendingCleanup(ctx.worktreeRoot, {
-          storyId,
-          branch,
-          path: wtPath,
-          push,
-        });
-      } catch (err) {
-        ctx.logger.warn(
-          `worktree.reap pending-cleanup manifest write failed: ${err.message}`,
-        );
-      }
-    }
-    // Best-effort branch cleanup even when the directory is stuck — the
-    // local ref + the remote ref are independent of the on-disk worktree
-    // and stranding them forced operators to run manual `git branch -D` /
-    // `push --delete` sequences (memory: feedback_sprint_story_close_reap).
-    const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
-    ctx.logger.error(
-      `OPERATOR ACTION REQUIRED: worktree reap exhausted Stage 1 (fs-rm-retry) after ${rmResult.attempts} ` +
-        `attempts path=${wtPath} — deferred to plan-time worktree-sweep. Reason: ${errMsg}`,
-    );
-    return {
-      removed: false,
-      method: 'deferred-to-sweep',
-      reason: errMsg,
-      lockReason: lastReason,
-      attempts: rmResult.attempts,
-      pendingCleanup: manifestEntry ?? {
-        storyId,
-        branch,
-        path: wtPath,
-        push,
-      },
-      ...branchCleanup,
-    };
+    return handleFsRmFailure({
+      ctx,
+      wtPath,
+      rmResult,
+      branch,
+      push,
+      storyId,
+      lastReason,
+      forceRemoveBackoffMs,
+      fsRm,
+    });
   }
-
-  ctx.git.gitSpawn(ctx.repoRoot, 'worktree', 'prune');
-  invalidateWorktreeCache(ctx);
-
+  finalizeGitWorktreeRemove(ctx);
   const branchCleanup = await deleteBranchAfterReap(ctx, { branch, push });
-
   ctx.logger.warn(
     `worktree.reap recovered via fs-rm-retry path=${wtPath} attempts=${rmResult.attempts} lockReason=${lastReason}`,
   );
@@ -451,121 +504,164 @@ export async function removeWorktreeWithRecovery(ctx, wtPath, opts = {}) {
  * outcome (refs-not-found from a prior partial reap) — semantically the
  * caller can treat the story branch as cleared in either case.
  */
+function reapDeleteLocal(ctx, branch) {
+  const localDel = ctx.git.gitSpawn(ctx.repoRoot, 'branch', '-D', branch);
+  if (localDel.status === 0) return true;
+  const stderr = (localDel.stderr || localDel.stdout || '').trim();
+  if (/not found|not match|no such/i.test(stderr)) return true;
+  ctx.logger.warn(
+    `worktree.reap branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+  );
+  return false;
+}
+
+function reapDeleteRemote(ctx, branch) {
+  const remoteDel = ctx.git.gitSpawn(
+    ctx.repoRoot,
+    'push',
+    '--no-verify',
+    'origin',
+    '--delete',
+    branch,
+  );
+  if (remoteDel.status === 0) return true;
+  const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
+  if (/remote ref does not exist|not found|unable to delete/i.test(stderr)) {
+    return true;
+  }
+  ctx.logger.warn(
+    `worktree.reap push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
+  );
+  return false;
+}
+
 async function deleteBranchAfterReap(ctx, { branch, push }) {
   if (!branch) return { branchDeleted: false, remoteBranchDeleted: false };
-
-  let branchDeleted = false;
-  const localDel = ctx.git.gitSpawn(ctx.repoRoot, 'branch', '-D', branch);
-  if (localDel.status === 0) {
-    branchDeleted = true;
-  } else {
-    const stderr = (localDel.stderr || localDel.stdout || '').trim();
-    if (/not found|not match|no such/i.test(stderr)) {
-      branchDeleted = true;
-    } else {
-      ctx.logger.warn(
-        `worktree.reap branch -D ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-      );
-    }
-  }
-
-  let remoteBranchDeleted = false;
-  if (push) {
-    const remoteDel = ctx.git.gitSpawn(
-      ctx.repoRoot,
-      'push',
-      '--no-verify',
-      'origin',
-      '--delete',
-      branch,
-    );
-    if (remoteDel.status === 0) {
-      remoteBranchDeleted = true;
-    } else {
-      const stderr = (remoteDel.stderr || remoteDel.stdout || '').trim();
-      if (
-        /remote ref does not exist|not found|unable to delete/i.test(stderr)
-      ) {
-        remoteBranchDeleted = true;
-      } else {
-        ctx.logger.warn(
-          `worktree.reap push --delete ${branch} failed: ${stderr || 'unknown'} (continuing)`,
-        );
-      }
-    }
-  }
-
+  const branchDeleted = reapDeleteLocal(ctx, branch);
+  const remoteBranchDeleted = push ? reapDeleteRemote(ctx, branch) : false;
   return { branchDeleted, remoteBranchDeleted };
 }
 
-export async function reap(ctx, storyId, opts = {}) {
+function checkReapPreconditions(ctx, storyId, opts, wtPath) {
   if (opts.force) {
     throw new Error(
       'WorktreeManager.reap: --force is not permitted by the framework',
     );
   }
-  const wtPath = pathFor(ctx, storyId);
-
   const known = opts.worktrees
     ? opts.worktrees.some((r) => samePath(r.path, wtPath, ctx.platform))
     : findByPath(ctx, wtPath) !== null;
-  if (!known) {
-    return { removed: false, reason: 'not-a-worktree', path: wtPath };
-  }
-
+  if (!known)
+    return {
+      ok: false,
+      result: { removed: false, reason: 'not-a-worktree', path: wtPath },
+    };
   if (storyIdFromPath(wtPath, ctx.worktreeRoot) !== null && !opts.epicBranch) {
-    return { removed: false, reason: 'epic-branch-required', path: wtPath };
+    return {
+      ok: false,
+      result: { removed: false, reason: 'epic-branch-required', path: wtPath },
+    };
   }
+  return { ok: true };
+}
 
+async function ensureSafeOrForceDiscard(ctx, storyId, wtPath, opts) {
   const safety = await isSafeToRemove(ctx, wtPath, {
     epicRef: opts.epicBranch ?? opts.epicRef ?? null,
   });
-  let discardedPaths = null;
-  if (!safety.safe) {
-    const discardAfterMerge = opts.discardAfterMerge !== false;
-    const branchName = `story-${validateStoryId(storyId)}`;
-    const canForceReap =
-      discardAfterMerge &&
-      safety.reason === 'uncommitted-changes' &&
-      opts.epicBranch &&
-      isStoryAlreadyMergedIntoEpic(ctx, branchName, opts.epicBranch);
+  if (safety.safe) return { ok: true, discardedPaths: null };
 
-    if (canForceReap) {
-      discardedPaths = collectDirtyPaths(ctx, wtPath);
-      if (!discardWorktreeChanges(ctx, wtPath)) {
-        ctx.logger.warn(
-          `reap-skipped storyId=${storyId} reason=discard-failed path=${wtPath}`,
-        );
-        return {
-          removed: false,
-          reason: 'discard-failed',
-          path: wtPath,
-          discardedPaths,
-        };
-      }
-      ctx.logger.info(
-        `worktree.reap discard-after-merge storyId=${storyId} paths=${discardedPaths.length}`,
-      );
-    } else {
-      ctx.logger.warn(
-        `reap-skipped storyId=${storyId} reason=${safety.reason} path=${wtPath}`,
-      );
-      return { removed: false, reason: safety.reason, path: wtPath };
-    }
+  const discardAfterMerge = opts.discardAfterMerge !== false;
+  const branchName = `story-${validateStoryId(storyId)}`;
+  const canForceReap =
+    discardAfterMerge &&
+    safety.reason === 'uncommitted-changes' &&
+    opts.epicBranch &&
+    isStoryAlreadyMergedIntoEpic(ctx, branchName, opts.epicBranch);
+  if (!canForceReap) {
+    ctx.logger.warn(
+      `reap-skipped storyId=${storyId} reason=${safety.reason} path=${wtPath}`,
+    );
+    return {
+      ok: false,
+      result: { removed: false, reason: safety.reason, path: wtPath },
+    };
   }
+  const discardedPaths = collectDirtyPaths(ctx, wtPath);
+  if (!discardWorktreeChanges(ctx, wtPath)) {
+    ctx.logger.warn(
+      `reap-skipped storyId=${storyId} reason=discard-failed path=${wtPath}`,
+    );
+    return {
+      ok: false,
+      result: {
+        removed: false,
+        reason: 'discard-failed',
+        path: wtPath,
+        discardedPaths,
+      },
+    };
+  }
+  ctx.logger.info(
+    `worktree.reap discard-after-merge storyId=${storyId} paths=${discardedPaths.length}`,
+  );
+  return { ok: true, discardedPaths };
+}
+
+function escapeWorktreeCwd(ctx, wtPath) {
+  if (!isInsideWorktree(process.cwd(), wtPath, ctx.platform)) return;
+  try {
+    process.chdir(ctx.repoRoot);
+  } catch (err) {
+    ctx.logger.warn(
+      `worktree.reap chdir-to-root failed: ${err.message} (continuing)`,
+    );
+  }
+}
+
+async function postRemoveBeltSweep(ctx, wtPath) {
+  if (!fs.existsSync(wtPath)) return;
+  const fsRm = ctx.fsRm ?? fsPromisesRm;
+  const belt = await fsRmWithRetry(fsRm, wtPath, {
+    maxRetries: 5,
+    retryDelay: 200,
+  });
+  if (!belt.success) {
+    ctx.logger.warn(
+      `worktree.reap post-remove fs-rm-retry failed path=${wtPath}: ${belt.error?.message ?? belt.error}`,
+    );
+  }
+  invalidateWorktreeCache(ctx);
+}
+
+function buildReapSuccess(wtPath, removeResult, discardedPaths) {
+  return {
+    removed: true,
+    path: wtPath,
+    ...(removeResult.method ? { method: removeResult.method } : {}),
+    ...(removeResult.branchDeleted !== undefined
+      ? { branchDeleted: removeResult.branchDeleted }
+      : {}),
+    ...(discardedPaths && discardedPaths.length > 0 ? { discardedPaths } : {}),
+  };
+}
+
+export async function reap(ctx, storyId, opts = {}) {
+  const wtPath = pathFor(ctx, storyId);
+  const pre = checkReapPreconditions(ctx, storyId, opts, wtPath);
+  if (!pre.ok) return pre.result;
+  const safetyCheck = await ensureSafeOrForceDiscard(
+    ctx,
+    storyId,
+    wtPath,
+    opts,
+  );
+  if (!safetyCheck.ok) return safetyCheck.result;
+  const { discardedPaths } = safetyCheck;
 
   removeCopiedAgents(ctx, wtPath);
   dropAllSubmoduleGitlinksFromIndex(ctx, wtPath);
-
-  if (isInsideWorktree(process.cwd(), wtPath, ctx.platform)) {
-    try {
-      process.chdir(ctx.repoRoot);
-    } catch (err) {
-      ctx.logger.warn(
-        `worktree.reap chdir-to-root failed: ${err.message} (continuing)`,
-      );
-    }
-  }
+  escapeWorktreeCwd(ctx, wtPath);
 
   const storyIdN = validateStoryId(storyId);
   const branch = `story-${storyIdN}`;
@@ -584,29 +680,7 @@ export async function reap(ctx, storyId, opts = {}) {
     };
   }
   invalidateWorktreeCache(ctx);
-
-  if (fs.existsSync(wtPath)) {
-    const fsRm = ctx.fsRm ?? fsPromisesRm;
-    const belt = await fsRmWithRetry(fsRm, wtPath, {
-      maxRetries: 5,
-      retryDelay: 200,
-    });
-    if (!belt.success) {
-      ctx.logger.warn(
-        `worktree.reap post-remove fs-rm-retry failed path=${wtPath}: ${belt.error?.message ?? belt.error}`,
-      );
-    }
-    invalidateWorktreeCache(ctx);
-  }
-
+  await postRemoveBeltSweep(ctx, wtPath);
   ctx.logger.info(`worktree.reaped storyId=${storyId} path=${wtPath}`);
-  return {
-    removed: true,
-    path: wtPath,
-    ...(removeResult.method ? { method: removeResult.method } : {}),
-    ...(removeResult.branchDeleted !== undefined
-      ? { branchDeleted: removeResult.branchDeleted }
-      : {}),
-    ...(discardedPaths && discardedPaths.length > 0 ? { discardedPaths } : {}),
-  };
+  return buildReapSuccess(wtPath, removeResult, discardedPaths);
 }

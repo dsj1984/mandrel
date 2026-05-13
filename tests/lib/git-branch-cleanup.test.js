@@ -8,6 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { after, describe, it } from 'node:test';
 import {
   deleteBranchBoth,
+  deleteBranchesBatched,
   deleteBranchLocal,
   deleteBranchRemote,
 } from '../../.agents/scripts/lib/git-branch-cleanup.js';
@@ -189,5 +190,105 @@ describe('deleteBranchBoth', () => {
     assert.equal(result.reason, 'deleted');
     assert.equal(result.local.reason, 'not-found');
     assert.equal(result.remote.reason, 'not-found');
+  });
+});
+
+describe('deleteBranchesBatched', () => {
+  it('returns empty result for an empty list (no git calls)', () => {
+    const calls = installScriptedSpawn([]);
+    const r = deleteBranchesBatched([], { scope: 'local', cwd: '/repo' });
+    assert.deepEqual(r, { deleted: [], failed: [] });
+    assert.equal(calls.length, 0);
+  });
+
+  it('rejects an unknown scope', () => {
+    installScriptedSpawn([]);
+    assert.throws(
+      () => deleteBranchesBatched(['story-1'], { scope: 'wat', cwd: '/repo' }),
+      /scope must be "local" or "remote"/,
+    );
+  });
+
+  it('local: batched delete succeeds in a single call', () => {
+    const calls = installScriptedSpawn([OK]);
+    const r = deleteBranchesBatched(['story-1', 'story-2'], {
+      scope: 'local',
+      cwd: '/repo',
+    });
+    assert.deepEqual(r.deleted, ['story-1', 'story-2']);
+    assert.deepEqual(r.failed, []);
+    assert.deepEqual(calls[0], ['branch', '-D', 'story-1', 'story-2']);
+  });
+
+  it('local: falls back per-ref when the batched call fails', () => {
+    // First call: batched fails. Per-ref: story-1 OK, story-2 fails.
+    const calls = installScriptedSpawn([
+      { status: 128, stdout: '', stderr: 'one ref unknown' },
+      OK,
+      { status: 128, stdout: '', stderr: 'fatal: boom' },
+    ]);
+    const r = deleteBranchesBatched(['story-1', 'story-2'], {
+      scope: 'local',
+      cwd: '/repo',
+    });
+    assert.equal(calls.length, 3);
+    assert.deepEqual(r.deleted, ['story-1']);
+    assert.equal(r.failed.length, 1);
+    assert.equal(r.failed[0].name, 'story-2');
+  });
+
+  it('local: honours force=false (uses -d)', () => {
+    const calls = installScriptedSpawn([OK]);
+    deleteBranchesBatched(['story-1'], {
+      scope: 'local',
+      cwd: '/repo',
+      force: false,
+    });
+    assert.deepEqual(calls[0], ['branch', '-d', 'story-1']);
+  });
+
+  it('remote: batched delete succeeds via push --delete', () => {
+    const calls = installScriptedSpawn([OK]);
+    const r = deleteBranchesBatched(['story-1', 'story-2'], {
+      scope: 'remote',
+      cwd: '/repo',
+    });
+    assert.deepEqual(r.deleted, ['story-1', 'story-2']);
+    assert.deepEqual(calls[0], [
+      'push',
+      'origin',
+      '--delete',
+      'story-1',
+      'story-2',
+    ]);
+  });
+
+  it('remote: honours noVerify=true', () => {
+    const calls = installScriptedSpawn([OK]);
+    deleteBranchesBatched(['story-1'], {
+      scope: 'remote',
+      cwd: '/repo',
+      noVerify: true,
+    });
+    assert.deepEqual(calls[0], [
+      'push',
+      '--no-verify',
+      'origin',
+      '--delete',
+      'story-1',
+    ]);
+  });
+
+  it('remote: rejects unsafe remote name', () => {
+    installScriptedSpawn([]);
+    assert.throws(
+      () =>
+        deleteBranchesBatched(['story-1'], {
+          scope: 'remote',
+          cwd: '/repo',
+          remote: 'bad name!',
+        }),
+      /Unsafe remote name/,
+    );
   });
 });
