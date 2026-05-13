@@ -20,6 +20,12 @@ import { loadBaseline, writeBaseline } from './lib/gates/baseline-store.js';
 import { emitFrictionSignal } from './lib/gates/friction.js';
 import { parseGateArgs, resolveScopedRef } from './lib/gates/gate-cli.js';
 import { Logger } from './lib/Logger.js';
+import {
+  applyFloorPolicy,
+  formatViolation,
+  loadFloorConfig,
+  parseFloorFlag,
+} from './lib/quality-floors.js';
 /**
  * CLI: verify CRAP scores against the committed baseline.
  *
@@ -488,6 +494,14 @@ export function buildCrapReport({
 }
 
 function printSummary(result, scanSummary) {
+  printSummaryHeader(result, scanSummary);
+  for (const v of result.violations) {
+    printViolation(v);
+  }
+  printRemovedRows(result);
+}
+
+export function printSummaryHeader(result, scanSummary) {
   Logger.info('\n--- CRAP Report ---');
   Logger.info(`Total methods scanned: ${result.total}`);
   Logger.info(`Regressions:           ${result.regressions}`);
@@ -500,33 +514,35 @@ function printSummary(result, scanSummary) {
     );
   }
   Logger.info('-------------------\n');
+}
 
-  for (const v of result.violations) {
-    if (v.kind === 'new') {
-      Logger.error(
-        `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
-      );
-      Logger.error(
-        `       crap=${v.crap.toFixed(2)} > ceiling=${v.ceiling} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
-      );
-    } else {
-      Logger.error(
-        `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${v.kind === 'drifted-regression' ? `, baseline line ${v.baselineStartLine}` : ''})`,
-      );
-      Logger.error(
-        `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
-      );
-    }
-  }
-  if (result.removed > 0) {
-    Logger.info(
-      `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
+export function printViolation(v) {
+  if (v.kind === 'new') {
+    Logger.error(
+      `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
     );
-    for (const r of result.removedRows) {
-      Logger.info(
-        `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
-      );
-    }
+    Logger.error(
+      `       crap=${v.crap.toFixed(2)} > ceiling=${v.ceiling} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
+    );
+    return;
+  }
+  Logger.error(
+    `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${v.kind === 'drifted-regression' ? `, baseline line ${v.baselineStartLine}` : ''})`,
+  );
+  Logger.error(
+    `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
+  );
+}
+
+export function printRemovedRows(result) {
+  if (result.removed <= 0) return;
+  Logger.info(
+    `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
+  );
+  for (const r of result.removedRows) {
+    Logger.info(
+      `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
+    );
   }
 }
 
@@ -605,6 +621,65 @@ export function loadCrapBaseline({
   return parsed;
 }
 
+/**
+ * Resolve the diff-scope file set. Returns either a `Set<string>` of changed
+ * files (when `--changed-since` is in effect) or `null` for full-scope. On a
+ * bad ref returns `{ error: 1 }` so the caller exits with the right code.
+ */
+/**
+ * Apply the `evaluateBaselineCompatibility` decision: returns the exit code
+ * to short-circuit on, or `null` when the check is clean. Emits warnings for
+ * the soft-fail path either way.
+ */
+function applyCompatDecision(compat) {
+  if (!compat.ok) {
+    if (compat.exitCode === 0) Logger.info(compat.message);
+    else Logger.error(compat.message);
+    return compat.exitCode;
+  }
+  for (const warning of compat.warnings ?? []) {
+    Logger.warn(warning);
+  }
+  return null;
+}
+
+/**
+ * Pure predicate: did the comparator find any regression or new-method
+ * ceiling violation? Wraps the two-field check so `handleCompareResult` is
+ * a straight log → emit → return ladder without an inline conjunction.
+ */
+function hasComparisonFailures(result) {
+  return result.regressions > 0 || result.newViolations > 0;
+}
+
+/**
+ * Handle a non-zero compare result: log the failure hint and emit a
+ * friction signal when a Story/Epic id pair is present. Returns the exit
+ * code (1 on failure, 0 on success).
+ */
+async function handleCompareResult(
+  result,
+  args,
+  refreshTag,
+  rest,
+  agentSettings,
+) {
+  if (!hasComparisonFailures(result)) {
+    Logger.info('[CRAP] ✅ check passed.');
+    return 0;
+  }
+  Logger.error(
+    `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
+  );
+  if (args.storyId && args.epicId) {
+    await emitFriction(args.storyId, args.epicId, result, {
+      ...rest,
+      agentSettings,
+    });
+  }
+  return 1;
+}
+
 async function main() {
   const args = parseArgv();
   const { agentSettings, ...rest } = resolveConfig();
@@ -629,52 +704,14 @@ async function main() {
   Logger.info(
     `[CRAP] scope=${resolvedScope.scope}${resolvedScope.ref ? ` ref=${resolvedScope.ref}` : ''} (source=${resolvedScope.source})`,
   );
-  let scopeSet = null;
-  if (resolvedScope.ref) {
-    try {
-      const changed = getChangedFiles({
-        ref: resolvedScope.ref,
-        cwd: process.cwd(),
-      });
-      scopeSet = new Set(changed);
-      Logger.info(
-        `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
-      );
-    } catch (err) {
-      Logger.error(
-        `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-      );
-      return 1;
-    }
-  }
+  const scopeOutcome = resolveScopeSet(resolvedScope);
+  if (scopeOutcome.exitCode !== undefined) return scopeOutcome.exitCode;
+  const scopeSet = scopeOutcome.scopeSet;
 
-  const baselinePath =
-    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
-  const baseline = loadCrapBaseline({
-    baselinePath,
-    epicRef: args.epicRef,
-  });
-  if (args.epicRef) {
-    Logger.info(
-      `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
-    );
-  }
+  const baseline = loadBaselineWithRefLog({ args, agentSettings });
   const runningEscomplex = resolveEscomplexVersion();
-  const runningTs = resolveTsTranspilerVersion();
-  const compat = evaluateBaselineCompatibility({
-    baseline,
-    runningKernelVersion: KERNEL_VERSION,
-    runningEscomplexVersion: runningEscomplex,
-    runningTsTranspilerVersion: runningTs,
-  });
-  if (!compat.ok) {
-    if (compat.exitCode === 0) Logger.info(compat.message);
-    else Logger.error(compat.message);
-    return compat.exitCode;
-  }
-  for (const warning of compat.warnings ?? []) {
-    Logger.warn(warning);
-  }
+  const compatOutcome = checkBaselineCompat(baseline, runningEscomplex);
+  if (compatOutcome.exitCode !== undefined) return compatOutcome.exitCode;
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const requireCoverage = crap.requireCoverage !== false;
@@ -708,44 +745,186 @@ async function main() {
   });
 
   printSummary(result, scan);
-
-  if (args.jsonPath) {
-    const envelope = buildCrapReport({
-      compareResult: result,
-      scanSummary: scan,
-      kernelVersion: KERNEL_VERSION,
-      escomplexVersion: runningEscomplex,
-      newMethodCeiling,
-      scopeInfo: {
-        scope: resolvedScope.scope,
-        diffRef: resolvedScope.ref,
-      },
-    });
-    try {
-      writeBaseline({ baselinePath: args.jsonPath, data: envelope });
-      Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
-    } catch (err) {
-      Logger.warn(
-        `[CRAP] failed to write --json report: ${err?.message ?? err}`,
-      );
-    }
-  }
+  maybeWriteJsonReport({
+    args,
+    result,
+    scan,
+    runningEscomplex,
+    newMethodCeiling,
+    resolvedScope,
+  });
 
   if (result.regressions > 0 || result.newViolations > 0) {
-    Logger.error(
-      `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
-    );
-    if (args.storyId && args.epicId) {
-      await emitFriction(args.storyId, args.epicId, result, {
-        ...rest,
-        agentSettings,
-      });
-    }
+    await handleGateFailure({ result, refreshTag, args, agentSettings, rest });
     return 1;
   }
 
+  const floorExit = enforceCrapFloor(scan, process.argv.slice(2));
+  if (floorExit !== 0) return floorExit;
+
   Logger.info('[CRAP] ✅ check passed.');
   return 0;
+}
+
+/**
+ * Load the CRAP baseline (optionally at the epic ref) and log the
+ * ref-read header. Extracted from `main` to keep CRAP under the v6 ceiling.
+ */
+function loadBaselineWithRefLog({ args, agentSettings }) {
+  const baselinePath =
+    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
+  const baseline = loadCrapBaseline({
+    baselinePath,
+    epicRef: args.epicRef,
+  });
+  if (args.epicRef) {
+    Logger.info(
+      `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
+    );
+  }
+  return baseline;
+}
+
+/**
+ * Emit the gate-failure log line + optional friction signal. Extracted
+ * from `main` to keep CRAP under the v6 ceiling.
+ */
+async function handleGateFailure({
+  result,
+  refreshTag,
+  args,
+  agentSettings,
+  rest,
+}) {
+  Logger.error(
+    `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
+  );
+  if (args.storyId && args.epicId) {
+    await emitFriction(args.storyId, args.epicId, result, {
+      ...rest,
+      agentSettings,
+    });
+  }
+}
+
+/**
+ * Run the baseline-compat check + emit warnings. Returns `{exitCode}` when
+ * the caller should exit early; otherwise `{exitCode: undefined}` and main
+ * continues. Extracted from `main` to keep CRAP under the v6 ceiling.
+ *
+ * @returns {{ exitCode: number | undefined }}
+ */
+function checkBaselineCompat(baseline, runningEscomplex) {
+  const runningTs = resolveTsTranspilerVersion();
+  const compat = evaluateBaselineCompatibility({
+    baseline,
+    runningKernelVersion: KERNEL_VERSION,
+    runningEscomplexVersion: runningEscomplex,
+    runningTsTranspilerVersion: runningTs,
+  });
+  if (!compat.ok) {
+    if (compat.exitCode === 0) Logger.info(compat.message);
+    else Logger.error(compat.message);
+    return { exitCode: compat.exitCode };
+  }
+  for (const warning of compat.warnings ?? []) {
+    Logger.warn(warning);
+  }
+  return { exitCode: undefined };
+}
+
+/**
+ * Resolve the changed-since scope into a Set of files (or null for full
+ * scope). Extracted from `main` to keep the orchestrator method's CRAP
+ * under the v6 ceiling.
+ *
+ * @returns {{ scopeSet: Set<string> | null, exitCode?: number }}
+ */
+function resolveScopeSet(resolvedScope) {
+  if (!resolvedScope.ref) return { scopeSet: null };
+  try {
+    const changed = getChangedFiles({
+      ref: resolvedScope.ref,
+      cwd: process.cwd(),
+    });
+    const scopeSet = new Set(changed);
+    Logger.info(
+      `[CRAP] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
+    );
+    return { scopeSet };
+  } catch (err) {
+    Logger.error(
+      `[CRAP] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
+    );
+    return { scopeSet: null, exitCode: 1 };
+  }
+}
+
+/**
+ * Optionally serialize the run's structured JSON report to `args.jsonPath`.
+ * Extracted from `main` to keep the orchestrator method's CRAP under the
+ * v6 ceiling.
+ */
+function maybeWriteJsonReport({
+  args,
+  result,
+  scan,
+  runningEscomplex,
+  newMethodCeiling,
+  resolvedScope,
+}) {
+  if (!args.jsonPath) return;
+  const envelope = buildCrapReport({
+    compareResult: result,
+    scanSummary: scan,
+    kernelVersion: KERNEL_VERSION,
+    escomplexVersion: runningEscomplex,
+    newMethodCeiling,
+    scopeInfo: {
+      scope: resolvedScope.scope,
+      diffRef: resolvedScope.ref,
+    },
+  });
+  try {
+    writeBaseline({ baselinePath: args.jsonPath, data: envelope });
+    Logger.info(`[CRAP] structured report written: ${args.jsonPath}`);
+  } catch (err) {
+    Logger.warn(`[CRAP] failed to write --json report: ${err?.message ?? err}`);
+  }
+}
+
+/**
+ * Story #1602 — absolute CRAP ceiling (≤20 per method by default).
+ * Runs after the ratchet/new-method check so a method that's matched
+ * the baseline but exceeds the ceiling still trips the gate. Opt-out:
+ * `--floor=off` for baseline-update runs. Extracted from `main` to keep
+ * the orchestrator method's per-method CRAP under the v6 ceiling.
+ *
+ * @returns {0 | 1} exit code (0 = pass / skipped, 1 = violation)
+ */
+function enforceCrapFloor(scan, argv) {
+  if (!parseFloorFlag(argv)) {
+    Logger.info('[CRAP] ⚠️  floor gate skipped (--floor=off)');
+    return 0;
+  }
+  const floors = loadFloorConfig();
+  const records = (scan.rows ?? []).map((r) => ({
+    file: r.file,
+    method: r.method,
+    score: r.crap,
+  }));
+  const { violations } = applyFloorPolicy(records, floors, 'crap');
+  if (violations.length === 0) return 0;
+  Logger.error(
+    `[CRAP] ❌ Absolute CRAP ceiling violated (${violations.length} method(s); ceiling=${floors.crap}):`,
+  );
+  for (const v of violations) {
+    Logger.error(`                ${formatViolation(v)}`);
+  }
+  Logger.error(
+    '[CRAP] Reduce complexity or add coverage on the flagged methods; the ceiling is non-negotiable. Use `--floor=off` only when running `crap:update`.',
+  );
+  return 1;
 }
 
 runAsCli(import.meta.url, main, {

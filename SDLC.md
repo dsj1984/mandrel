@@ -1,8 +1,16 @@
 # Software Development Life Cycle (SDLC) Workflow
 
-Version 5 uses **Epic-Centric GitHub Orchestration** — GitHub Issues, Labels,
-and Projects V2 are the Single Source of Truth. No local playbooks, no
-per-iteration directories, no JSON state files.
+Version 6 uses **Epic-Centric GitHub Orchestration** — GitHub Issues,
+Labels, and Projects V2 are the Single Source of Truth, fronted by a
+declarative `epic.yaml` artifact (v6 Epic D) that makes plans diff-able
+and reconcilable. No per-iteration directories, no JSON state files for
+ticket data.
+
+The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
+the slash-command surface lean in on Claude Code as the reference
+runtime, while the dispatcher (`.agents/scripts/`) stays runtime-neutral
+behind the `IExecutionAdapter` boundary. See ADR 20260512-coupling-stance
+in [`../docs/decisions.md`](../docs/decisions.md).
 
 ---
 
@@ -161,8 +169,8 @@ orchestration engine depends on.
    `agentSettings.quality.prGate.enforceBranchProtection` is `true`
    (default) — creates or merges branch protection on `main` with the
    project's `prGate.checks` as required status checks. This step is
-   load-bearing for the v5.40 SDL because PR merges to `main` are now the
-   sole promotion gate.
+   load-bearing for the v6 SDL because PR merges to `main` are the sole
+   promotion gate.
 
 > [!NOTE] Bootstrap runs once per repository. It is safe to re-run — existing
 > labels, fields, and branch-protection entries are preserved; missing ones
@@ -307,7 +315,7 @@ assembles a self-contained prompt:
 4. **Story branch context.** Automatic checkouts to the Story branch. Under
    worktree isolation, each Story runs in its own `.worktrees/story-<id>/` so
    branch swaps, staging, and reflog activity are isolated per-story. See
-   [`workflows/worktree-lifecycle.md`](workflows/worktree-lifecycle.md).
+   [`workflows/helpers/worktree-lifecycle.md`](workflows/helpers/worktree-lifecycle.md).
 5. Task-specific instructions and subtask checklist.
 
 ### State sync
@@ -315,7 +323,7 @@ assembles a self-contained prompt:
 Agents update their state in real-time on GitHub:
 
 - **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
-  intermediate review label was removed from the taxonomy in v5.40.0; the
+  intermediate review label is not part of the v6 taxonomy; the
   PR opened by `/epic-deliver` Phase 6 is the equivalent "ready to merge"
   signal at the Epic level. The `WaveObserver` submodule additionally
   syncs a GitHub Projects v2 Status column on each transition when a
@@ -593,11 +601,13 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
   `baseline-refresh:`-tagged commit convention for baseline edits is still
   the project standard, but the CI guardrail that enforced it was removed
   in 5.42 — the operator is the gate now during `/epic-deliver` Phase 7.
-- **Auto-fixing.** If High or Critical findings are detected, the system halts
-  for human review. A human can reply to the ticket with `/approve` or
-  `/approve-audit-fixes` (processed by `handle-approval.js`).
-- **Implementation.** Approved fixes automatically transition the ticket to
-  `agent::executing`, dispatching an agent to implement and verify the fixes.
+- **Human review on High/Critical.** If High or Critical findings are detected,
+  the workflow halts for human review at the corresponding `/epic-deliver`
+  phase. Approval is given by the operator advancing the phase (the
+  auto-approve webhook listener was never wired into CI and was removed in v6).
+- **Implementation.** Once the operator approves the fixes, the ticket
+  transitions to `agent::executing` and `/epic-deliver` dispatches an agent to
+  implement and verify them.
 
 ---
 

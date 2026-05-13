@@ -1,6 +1,6 @@
 # `.agents/schemas`
 
-JSON Schema (draft 2020-12) files consumed by the agent-protocols
+JSON Schema (draft 2020-12) files consumed by the mandrel
 orchestration layer. Each schema is the **contract** for one structured
 artefact — config files, runtime reports, persisted state. Where a runtime
 AJV schema also exists, the JSON file is a mirror kept in sync via a

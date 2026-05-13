@@ -193,6 +193,52 @@ export function parseInputArg(value, deps = {}) {
  *
  * @param {{ provider: object, returns: Array<{ storyId: number, returnText: string }> }} args
  */
+/**
+ * Pure validator for a single `--returns[]` entry. Throws the same
+ * `TypeError`s the outer loop used to throw inline, returning a
+ * `{ storyId, returnText }` pair on success. Extracted so `normalizeReturns`
+ * can route each entry through the same validate → parse → reconcile path
+ * without nesting four conditionals deep.
+ */
+export function validateReturnsEntry(entry, idx) {
+  if (!entry || typeof entry !== 'object') {
+    throw new TypeError(
+      `epic-execute-record-wave: returns[${idx}] must be an object; got ${typeof entry}`,
+    );
+  }
+  const storyId = Number(entry.storyId ?? entry.id);
+  if (!Number.isInteger(storyId) || storyId <= 0) {
+    throw new TypeError(
+      `epic-execute-record-wave: returns[${idx}].storyId must be a positive integer; got ${JSON.stringify(entry.storyId)}`,
+    );
+  }
+  let returnText;
+  if (typeof entry.returnText === 'string') {
+    returnText = entry.returnText;
+  } else if (entry.returnText == null) {
+    returnText = '';
+  } else {
+    returnText = JSON.stringify(entry.returnText);
+  }
+  return { storyId, returnText };
+}
+
+/**
+ * Pure helper: classify a parsed sub-agent return for a known `storyId`.
+ * Returns either `{ ok: true, value }` (use the parsed envelope as-is) or
+ * `{ ok: false, error }` (caller must reconcile from GitHub and record a
+ * parse failure with the message).
+ */
+export function classifyParsedReturn(parsed, storyId) {
+  if (parsed.ok && Number(parsed.value.storyId) === storyId) {
+    return { ok: true, value: parsed.value };
+  }
+  const error = parsed.ok
+    ? `parsed envelope storyId ${parsed.value.storyId} disagrees with expected ${storyId}`
+    : parsed.error;
+  return { ok: false, error };
+}
+
 export async function normalizeReturns({ provider, returns } = {}) {
   if (!Array.isArray(returns)) {
     throw new TypeError(
@@ -202,39 +248,16 @@ export async function normalizeReturns({ provider, returns } = {}) {
   const results = [];
   const parseFailures = [];
   for (const [idx, entry] of returns.entries()) {
-    if (!entry || typeof entry !== 'object') {
-      throw new TypeError(
-        `epic-execute-record-wave: returns[${idx}] must be an object; got ${typeof entry}`,
-      );
-    }
-    const storyId = Number(entry.storyId ?? entry.id);
-    if (!Number.isInteger(storyId) || storyId <= 0) {
-      throw new TypeError(
-        `epic-execute-record-wave: returns[${idx}].storyId must be a positive integer; got ${JSON.stringify(entry.storyId)}`,
-      );
-    }
-    const returnText =
-      typeof entry.returnText === 'string'
-        ? entry.returnText
-        : entry.returnText == null
-          ? ''
-          : JSON.stringify(entry.returnText);
-
+    const { storyId, returnText } = validateReturnsEntry(entry, idx);
     const parsed = parseStoryAgentReturn(returnText);
-    if (parsed.ok && Number(parsed.value.storyId) === storyId) {
-      results.push(parsed.value);
+    const classified = classifyParsedReturn(parsed, storyId);
+    if (classified.ok) {
+      results.push(classified.value);
       continue;
     }
-
     const reconciled = await reconcileStoryFromGitHub({ provider, storyId });
     results.push(reconciled);
-    parseFailures.push({
-      storyId,
-      error: parsed.ok
-        ? `parsed envelope storyId ${parsed.value.storyId} disagrees with expected ${storyId}`
-        : parsed.error,
-      returnText,
-    });
+    parseFailures.push({ storyId, error: classified.error, returnText });
   }
   return { results, parseFailures };
 }
@@ -411,6 +434,262 @@ function toRollupRow(verified, titleById) {
  *   now?: () => Date,
  * }} args
  */
+/**
+ * Build the notify-bound closure used by the curated webhook emitters. When
+ * a test passes `injectedNotify`, we route through it verbatim; otherwise
+ * thread `orchestration` + `provider` into the default `notify` so the
+ * downstream hook layer has everything it needs.
+ */
+function buildNotifyFn(injectedNotify, config, provider) {
+  if (injectedNotify) return injectedNotify;
+  return (ticketId, payload, opts = {}) =>
+    notify(ticketId, payload, {
+      orchestration: config.orchestration,
+      provider,
+      ...opts,
+    });
+}
+
+/** Pure: count Stories already marked `done` across every recorded wave. */
+export function countDoneStories(waves) {
+  return waves.reduce(
+    (acc, w) =>
+      acc +
+      (Array.isArray(w.stories)
+        ? w.stories.filter((s) => s?.state === 'done').length
+        : 0),
+    0,
+  );
+}
+
+/**
+ * Fire the curated webhook events for a wave boundary. Each emit is
+ * fire-and-forget (the emit helpers swallow webhook misconfiguration), but
+ * we still serialise them so the order matches the wave-loop emits in
+ * `lib/orchestration/epic-runner/phases/iterate-waves.js` for the host-LLM
+ * driven /epic-deliver path.
+ */
+async function emitWaveBoundaryNotifications({
+  injectedNotify,
+  config,
+  provider,
+  epicId,
+  wave,
+  status,
+  priorWaves,
+  nextWaves,
+  titleById,
+  totalWaves,
+  nextCurrentWave,
+  verified,
+  blockedStoryIds,
+}) {
+  const notifyFn = buildNotifyFn(injectedNotify, config, provider);
+  const totalStoriesEstimate = titleById.size;
+  const doneStoriesSoFar = countDoneStories(nextWaves);
+  const priorWaveRecord = priorWaves.find(
+    (w) => Number(w?.index) === Number(wave),
+  );
+  if (priorWaves.length === 0 && wave === 0) {
+    await emitEpicStarted({
+      notify: notifyFn,
+      epicId,
+      totalWaves,
+      totalStories: totalStoriesEstimate,
+      logger: Logger,
+    });
+  }
+  if (status === 'complete') {
+    await emitCompleteWaveNotifications({
+      notifyFn,
+      epicId,
+      priorWaveRecord,
+      doneStoriesSoFar,
+      totalStoriesEstimate,
+      nextCurrentWave,
+      totalWaves,
+    });
+    return;
+  }
+  await emitFailingWaveNotifications({
+    notifyFn,
+    epicId,
+    status,
+    blockedStoryIds,
+    verified,
+    doneStoriesSoFar,
+    totalStoriesEstimate,
+    nextCurrentWave,
+    totalWaves,
+  });
+}
+
+/** Emit the unblocked-then-progress pair for a `complete` wave. */
+async function emitCompleteWaveNotifications({
+  notifyFn,
+  epicId,
+  priorWaveRecord,
+  doneStoriesSoFar,
+  totalStoriesEstimate,
+  nextCurrentWave,
+  totalWaves,
+}) {
+  const resumedFromHalt =
+    priorWaveRecord &&
+    (priorWaveRecord.status === 'blocked' ||
+      priorWaveRecord.status === 'failed');
+  if (resumedFromHalt) {
+    await emitEpicUnblocked({
+      notify: notifyFn,
+      epicId,
+      resolvedBlocker: {
+        reason:
+          priorWaveRecord.status === 'blocked'
+            ? 'story_blocked'
+            : 'story_failed',
+      },
+      logger: Logger,
+    });
+  }
+  await emitEpicProgress({
+    notify: notifyFn,
+    epicId,
+    done: doneStoriesSoFar,
+    total: totalStoriesEstimate,
+    currentWave: nextCurrentWave,
+    totalWaves,
+    phase: 'iterate-waves',
+    openBlockers: [],
+    logger: Logger,
+  });
+  // The `epic-complete` webhook used to fire here, at the post-final-wave
+  // / pre-finalize boundary. That preceded `gh pr create` by minutes — the
+  // operator got an "Epic complete" ping with no PR to click. The fire
+  // moved to `epic-deliver-finalize.js`, which emits it after the PR URL
+  // is captured. See that script for the new emit point.
+}
+
+/** Emit blocked + progress (with open-blocker context) for a non-complete wave. */
+async function emitFailingWaveNotifications({
+  notifyFn,
+  epicId,
+  status,
+  blockedStoryIds,
+  verified,
+  doneStoriesSoFar,
+  totalStoriesEstimate,
+  nextCurrentWave,
+  totalWaves,
+}) {
+  const reason = status === 'blocked' ? 'story_blocked' : 'story_failed';
+  const failingStoryId =
+    blockedStoryIds[0] ?? verified.find((r) => r.status === 'failed')?.storyId;
+  await emitEpicBlocked({
+    notify: notifyFn,
+    epicId,
+    reason,
+    storyId: failingStoryId,
+    logger: Logger,
+  });
+  await emitEpicProgress({
+    notify: notifyFn,
+    epicId,
+    done: doneStoriesSoFar,
+    total: totalStoriesEstimate,
+    currentWave: nextCurrentWave,
+    totalWaves,
+    phase: 'iterate-waves',
+    openBlockers: [{ reason, storyId: failingStoryId }],
+    logger: Logger,
+  });
+}
+
+/** Validate the core `{ epicId, wave }` invariants. Throws on bad input. */
+export function validateEpicWave(epicId, wave) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: --epic must be a positive integer',
+    );
+  }
+  if (!Number.isInteger(wave) || wave < 0) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: --wave must be a non-negative integer',
+    );
+  }
+}
+
+/** Validate the `results`/`returns` XOR. Throws on bad input. */
+export function validateResultsReturnsXor(results, returns) {
+  if (results == null && returns == null) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: either `results` or `returns` is required',
+    );
+  }
+  if (results != null && returns != null) {
+    throw new TypeError(
+      'runEpicExecuteRecordWave: pass `results` OR `returns`, not both',
+    );
+  }
+}
+
+/** Resolve the effective concurrency cap, honouring CLI > checkpoint > config. */
+export function resolveConcurrencyCap(
+  concurrencyCapOverride,
+  existing,
+  deliverRunner,
+) {
+  const cap =
+    concurrencyCapOverride ??
+    Number(existing.concurrencyCap) ??
+    Number(deliverRunner.concurrencyCap) ??
+    1;
+  if (!Number.isInteger(cap) || cap < 1) {
+    throw new RangeError(
+      `runEpicExecuteRecordWave: resolved concurrencyCap "${cap}" must be a positive integer; ` +
+        'pass --concurrency-cap or set `orchestration.runners.deliverRunner.concurrencyCap`.',
+    );
+  }
+  return cap;
+}
+
+/**
+ * Parse / reconcile the per-Story returns (or pass `results` through). Posts
+ * a single rolled-up friction comment listing every malformed return on
+ * failure — non-fatal if the post itself fails.
+ *
+ * @returns {Promise<{ resolvedResults: Array, parseFailures: Array }>}
+ */
+async function resolveResolvedResults({
+  provider,
+  epicId,
+  wave,
+  results,
+  returns,
+}) {
+  if (returns == null) {
+    return { resolvedResults: results, parseFailures: [] };
+  }
+  const normalized = await normalizeReturns({ provider, returns });
+  if (normalized.parseFailures.length > 0) {
+    try {
+      const body = renderMalformedReturnsFriction({
+        epicId,
+        wave,
+        failures: normalized.parseFailures,
+      });
+      await postStructuredComment(provider, epicId, 'friction', body);
+    } catch (err) {
+      Logger.error(
+        `[epic-execute-record-wave] Failed to post malformed-return friction on Epic #${epicId}: ${err?.message ?? err}`,
+      );
+    }
+  }
+  return {
+    resolvedResults: normalized.results,
+    parseFailures: normalized.parseFailures,
+  };
+}
+
 export async function runEpicExecuteRecordWave({
   epicId,
   wave,
@@ -423,26 +702,8 @@ export async function runEpicExecuteRecordWave({
   injectedNotify,
   now = () => new Date(),
 } = {}) {
-  if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError(
-      'runEpicExecuteRecordWave: --epic must be a positive integer',
-    );
-  }
-  if (!Number.isInteger(wave) || wave < 0) {
-    throw new TypeError(
-      'runEpicExecuteRecordWave: --wave must be a non-negative integer',
-    );
-  }
-  if (results == null && returns == null) {
-    throw new TypeError(
-      'runEpicExecuteRecordWave: either `results` or `returns` is required',
-    );
-  }
-  if (results != null && returns != null) {
-    throw new TypeError(
-      'runEpicExecuteRecordWave: pass `results` OR `returns`, not both',
-    );
-  }
+  validateEpicWave(epicId, wave);
+  validateResultsReturnsXor(results, returns);
 
   const config = injectedConfig ?? resolveConfig({ cwd });
   const provider = injectedProvider ?? createProvider(config.orchestration);
@@ -458,42 +719,20 @@ export async function runEpicExecuteRecordWave({
 
   const totalWaves = Number(existing.totalWaves ?? 0);
   const deliverRunner = getRunners(config).deliverRunner ?? {};
-  const concurrencyCap =
-    concurrencyCapOverride ??
-    Number(existing.concurrencyCap) ??
-    Number(deliverRunner.concurrencyCap) ??
-    1;
-  if (!Number.isInteger(concurrencyCap) || concurrencyCap < 1) {
-    throw new RangeError(
-      `runEpicExecuteRecordWave: resolved concurrencyCap "${concurrencyCap}" must be a positive integer; ` +
-        'pass --concurrency-cap or set `orchestration.runners.deliverRunner.concurrencyCap`.',
-    );
-  }
+  const concurrencyCap = resolveConcurrencyCap(
+    concurrencyCapOverride,
+    existing,
+    deliverRunner,
+  );
 
   // 1. Parse / reconcile the per-Story returns.
-  let parseFailures = [];
-  let resolvedResults;
-  if (returns != null) {
-    const normalized = await normalizeReturns({ provider, returns });
-    resolvedResults = normalized.results;
-    parseFailures = normalized.parseFailures;
-    if (parseFailures.length > 0) {
-      try {
-        const body = renderMalformedReturnsFriction({
-          epicId,
-          wave,
-          failures: parseFailures,
-        });
-        await postStructuredComment(provider, epicId, 'friction', body);
-      } catch (err) {
-        Logger.error(
-          `[epic-execute-record-wave] Failed to post malformed-return friction on Epic #${epicId}: ${err?.message ?? err}`,
-        );
-      }
-    }
-  } else {
-    resolvedResults = results;
-  }
+  const { resolvedResults, parseFailures } = await resolveResolvedResults({
+    provider,
+    epicId,
+    wave,
+    results,
+    returns,
+  });
 
   const validated = validateResults(resolvedResults);
 
@@ -569,94 +808,21 @@ export async function runEpicExecuteRecordWave({
   //    for the host-LLM driven /epic-deliver path (which does not pass
   //    through `runEpic`). Each helper is fire-and-forget — webhook
   //    misconfig or a transient Slack outage must not block the wave loop.
-  const notifyFn =
-    injectedNotify ??
-    ((ticketId, payload, opts = {}) =>
-      notify(ticketId, payload, {
-        orchestration: config.orchestration,
-        provider,
-        ...opts,
-      }));
-  const totalStoriesEstimate = titleById.size;
-  const doneStoriesSoFar = nextWaves.reduce(
-    (acc, w) =>
-      acc +
-      (Array.isArray(w.stories)
-        ? w.stories.filter((s) => s?.state === 'done').length
-        : 0),
-    0,
-  );
-  const priorWaveRecord = priorWaves.find(
-    (w) => Number(w?.index) === Number(wave),
-  );
-  const isKickoff = priorWaves.length === 0 && wave === 0;
-  if (isKickoff) {
-    await emitEpicStarted({
-      notify: notifyFn,
-      epicId,
-      totalWaves,
-      totalStories: totalStoriesEstimate,
-      logger: Logger,
-    });
-  }
-  if (status === 'complete') {
-    const resumedFromHalt =
-      priorWaveRecord &&
-      (priorWaveRecord.status === 'blocked' ||
-        priorWaveRecord.status === 'failed');
-    if (resumedFromHalt) {
-      await emitEpicUnblocked({
-        notify: notifyFn,
-        epicId,
-        resolvedBlocker: {
-          reason:
-            priorWaveRecord.status === 'blocked'
-              ? 'story_blocked'
-              : 'story_failed',
-        },
-        logger: Logger,
-      });
-    }
-    await emitEpicProgress({
-      notify: notifyFn,
-      epicId,
-      done: doneStoriesSoFar,
-      total: totalStoriesEstimate,
-      currentWave: nextCurrentWave,
-      totalWaves,
-      phase: 'iterate-waves',
-      openBlockers: [],
-      logger: Logger,
-    });
-    // The `epic-complete` webhook used to fire here, at the post-final-wave
-    // / pre-finalize boundary. That preceded `gh pr create` by minutes — the
-    // operator got an "Epic complete" ping with no PR to click. The fire
-    // moved to `epic-deliver-finalize.js`, which emits it after the PR URL
-    // is captured. See that script for the new emit point.
-  } else {
-    const reason = status === 'blocked' ? 'story_blocked' : 'story_failed';
-    const failingStoryId =
-      blockedStoryIds[0] ??
-      verified.find((r) => r.status === 'failed')?.storyId;
-    await emitEpicBlocked({
-      notify: notifyFn,
-      epicId,
-      reason,
-      storyId: failingStoryId,
-      logger: Logger,
-    });
-    await emitEpicProgress({
-      notify: notifyFn,
-      epicId,
-      done: doneStoriesSoFar,
-      total: totalStoriesEstimate,
-      currentWave: nextCurrentWave,
-      totalWaves,
-      phase: 'iterate-waves',
-      openBlockers: [{ reason, storyId: failingStoryId }],
-      logger: Logger,
-    });
-  }
+  await emitWaveBoundaryNotifications({
+    injectedNotify,
+    config,
+    provider,
+    epicId,
+    wave,
+    status,
+    priorWaves,
+    nextWaves,
+    titleById,
+    totalWaves,
+    nextCurrentWave,
+    verified,
+    blockedStoryIds,
+  });
 
   const envelope = {
     epicId,
@@ -687,9 +853,12 @@ export async function runEpicExecuteRecordWave({
  *
  * @param {{ resultsRaw?: string, returnsRaw?: string }} parsed
  */
-export function resolveRecordInput(parsed) {
-  const hasResults = Boolean(parsed?.resultsRaw);
-  const hasReturns = Boolean(parsed?.returnsRaw);
+/**
+ * Pure helper: enforce the XOR contract between `--results` and `--returns`.
+ * Throws on "neither" / "both"; otherwise returns the chosen flag name so
+ * `resolveRecordInput` can route to `parseInputArg` with a single branch.
+ */
+export function selectInputFlag(hasResults, hasReturns) {
   if (hasResults && hasReturns) {
     throw new TypeError(
       'epic-execute-record-wave: pass --results OR --returns, not both',
@@ -700,9 +869,18 @@ export function resolveRecordInput(parsed) {
       'epic-execute-record-wave: --results or --returns is required',
     );
   }
-  return hasResults
-    ? { results: parseInputArg(parsed.resultsRaw, { flag: '--results' }) }
-    : { returns: parseInputArg(parsed.returnsRaw, { flag: '--returns' }) };
+  return hasResults ? 'results' : 'returns';
+}
+
+export function resolveRecordInput(parsed) {
+  const flag = selectInputFlag(
+    Boolean(parsed?.resultsRaw),
+    Boolean(parsed?.returnsRaw),
+  );
+  if (flag === 'results') {
+    return { results: parseInputArg(parsed.resultsRaw, { flag: '--results' }) };
+  }
+  return { returns: parseInputArg(parsed.returnsRaw, { flag: '--returns' }) };
 }
 
 /**

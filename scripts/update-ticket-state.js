@@ -7,7 +7,7 @@
  * This file preserves backward compatibility for CLI usage and existing
  * testing patterns.
  *
- * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
+ * Successor to the retired mandrel MCP tools. See ADR 20260424-702a in docs/decisions.md for the migration table.
  */
 
 import { parseArgs } from 'node:util';

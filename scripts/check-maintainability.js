@@ -16,6 +16,12 @@ import {
   getBaseline,
   scanDirectory,
 } from './lib/maintainability-utils.js';
+import {
+  applyFloorPolicy,
+  formatViolation,
+  loadFloorConfig,
+  parseFloorFlag,
+} from './lib/quality-floors.js';
 
 /**
  * CI script to verify that maintainability scores haven't regressed.
@@ -343,18 +349,7 @@ async function main() {
   const { agentSettings } = resolveConfig();
   const baselinePath = getBaselines({ agentSettings }).maintainability.path;
   const epicRef = parseEpicRefArg();
-  const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
-  if (epicRef) {
-    Logger.info(
-      `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
-    );
-  }
-  if (Object.keys(baseline).length === 0) {
-    Logger.warn(
-      `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
-    );
-    process.exit(0);
-  }
+  const baseline = loadAndValidateBaseline({ baselinePath, epicRef });
 
   const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
   const files = [];
@@ -372,33 +367,11 @@ async function main() {
   Logger.info(
     `[Maintainability] scope=${resolvedScope.scope}${changedSinceRef ? ` ref=${changedSinceRef}` : ''} (source=${resolvedScope.source})`,
   );
-  let scopedFiles = files;
-  let scopedBaseline = baseline;
-  if (changedSinceRef) {
-    let changedList;
-    try {
-      changedList = getChangedFiles({
-        ref: changedSinceRef,
-        cwd: process.cwd(),
-      });
-    } catch (err) {
-      Logger.error(
-        `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-      );
-      process.exit(1);
-    }
-    const scopeSet = new Set(changedList);
-    Logger.info(
-      `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
-    );
-    scopedFiles = files.filter((abs) => {
-      const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
-      return scopeSet.has(rel);
-    });
-    scopedBaseline = Object.fromEntries(
-      Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
-    );
-  }
+  const { scopedFiles, scopedBaseline } = applyDiffScope({
+    files,
+    baseline,
+    changedSinceRef,
+  });
 
   const scores = await calculateAll(scopedFiles);
 
@@ -414,39 +387,143 @@ async function main() {
   const stats = compareScores(scores, scopedBaseline, tolerance);
   printSummaryReport(scores, stats);
 
-  const jsonPath = parseJsonPathArg();
-  if (jsonPath) {
-    try {
-      writeBaseline({
-        baselinePath: jsonPath,
-        data: buildMaintainabilityReport(scores, stats, {
-          scope: resolvedScope.scope,
-          diffRef: resolvedScope.ref,
-        }),
-      });
-      Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
-    } catch (err) {
-      Logger.warn(
-        `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
-      );
-    }
-  }
+  maybeWriteMaintainabilityReport({ scores, stats, resolvedScope });
 
   if (stats.regressions > 0) {
-    Logger.error(
-      '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
-    );
-    const storyId = parseStoryIdArg();
-    const epicId = parseEpicIdArg();
-    if (storyId && epicId) {
-      await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
-        agentSettings,
-      });
-    }
-    process.exit(1);
+    await handleRegression(stats, agentSettings);
   }
 
+  enforceMaintainabilityFloor(scores, process.argv.slice(2));
+
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
+}
+
+/**
+ * Load the MI baseline at the optional epic ref, log the ref-read header
+ * if any, and bail out (exit 0) when no baseline exists. Extracted from
+ * `main` to keep the orchestrator's CRAP under the v6 ceiling.
+ *
+ * @returns {Record<string, number>}
+ */
+function loadAndValidateBaseline({ baselinePath, epicRef }) {
+  const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
+  if (epicRef) {
+    Logger.info(
+      `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
+    );
+  }
+  if (Object.keys(baseline).length === 0) {
+    Logger.warn(
+      `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
+    );
+    process.exit(0);
+  }
+  return baseline;
+}
+
+/**
+ * Handle the regression-found path: log, optionally emit a friction
+ * signal, then exit non-zero. Extracted from `main` to keep CRAP under
+ * the v6 ceiling.
+ */
+async function handleRegression(stats, agentSettings) {
+  Logger.error(
+    '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
+  );
+  const storyId = parseStoryIdArg();
+  const epicId = parseEpicIdArg();
+  if (storyId && epicId) {
+    await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
+      agentSettings,
+    });
+  }
+  process.exit(1);
+}
+
+/**
+ * Apply diff-scope to the file list + baseline. When `changedSinceRef` is
+ * unset, returns the inputs unchanged (full-scope). Extracted from `main`
+ * to keep the orchestrator's CRAP under the v6 ceiling.
+ *
+ * @returns {{ scopedFiles: string[], scopedBaseline: Record<string, number> }}
+ */
+function applyDiffScope({ files, baseline, changedSinceRef }) {
+  if (!changedSinceRef) return { scopedFiles: files, scopedBaseline: baseline };
+  let changedList;
+  try {
+    changedList = getChangedFiles({
+      ref: changedSinceRef,
+      cwd: process.cwd(),
+    });
+  } catch (err) {
+    Logger.error(
+      `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
+    );
+    process.exit(1);
+  }
+  const scopeSet = new Set(changedList);
+  Logger.info(
+    `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
+  );
+  const scopedFiles = files.filter((abs) => {
+    const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
+    return scopeSet.has(rel);
+  });
+  const scopedBaseline = Object.fromEntries(
+    Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
+  );
+  return { scopedFiles, scopedBaseline };
+}
+
+/**
+ * Optionally serialize the run's structured JSON report. Extracted from
+ * `main` to keep the orchestrator's CRAP under the v6 ceiling.
+ */
+function maybeWriteMaintainabilityReport({ scores, stats, resolvedScope }) {
+  const jsonPath = parseJsonPathArg();
+  if (!jsonPath) return;
+  try {
+    writeBaseline({
+      baselinePath: jsonPath,
+      data: buildMaintainabilityReport(scores, stats, {
+        scope: resolvedScope.scope,
+        diffRef: resolvedScope.ref,
+      }),
+    });
+    Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
+  } catch (err) {
+    Logger.warn(
+      `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
+ * Story #1602 — absolute MI floor (≥70 by default). Runs after the
+ * ratchet check so a file that hasn't regressed but is still under
+ * floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
+ * Extracted from `main` to keep the orchestrator method's CRAP under the
+ * v6 ceiling.
+ */
+function enforceMaintainabilityFloor(scores, argv) {
+  if (!parseFloorFlag(argv)) {
+    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
+    return;
+  }
+  const floors = loadFloorConfig();
+  const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
+  const { violations } = applyFloorPolicy(records, floors, 'maintainability');
+  if (violations.length === 0) return;
+  Logger.error(
+    `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
+  );
+  for (const v of violations) {
+    Logger.error(`                ${formatViolation(v)}`);
+  }
+  Logger.error(
+    '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
+  );
+  process.exit(1);
 }
 
 runAsCli(import.meta.url, main, {

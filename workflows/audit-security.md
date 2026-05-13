@@ -1,5 +1,5 @@
 ---
-description: Run a security and vulnerability audit
+description: Audit dependency CVEs, input-validation gaps, secrets handling, and auth boundaries; emit a structured High/Medium/Low findings report.
 ---
 
 # Security & Vulnerability Audit

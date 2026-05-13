@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://agent-protocols/.agents/schemas/mi-report.schema.json",
+  "$id": "https://mandrel/.agents/schemas/mi-report.schema.json",
   "title": "MaintainabilityReport",
   "description": "Structured `--json` output envelope emitted by check-maintainability.js. Parity shape with crap-report (kernelVersion, summary, violations) minus fixGuidance — MI scores don't decompose along the two CRAP axes, so per-violation remediation guidance is intentionally absent.",
   "type": "object",

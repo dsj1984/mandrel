@@ -5,7 +5,7 @@
  * select-audits.js — Thin CLI wrapper around the audit-suite `selectAudits`
  * SDK in `lib/audit-suite/`.
  *
- * Successor to the retired agent-protocols MCP tools. See ADR 20260424-702a
+ * Successor to the retired mandrel MCP tools. See ADR 20260424-702a
  * in docs/decisions.md for the migration table.
  *
  * Story #1083 (Epic #1072) moved the rule-matching logic

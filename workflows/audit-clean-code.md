@@ -1,5 +1,5 @@
 ---
-description: Run a clean code and maintainability audit
+description: Audit code smells, dead code, complexity hotspots, and maintainability-index outliers; emit a structured findings report.
 dispatchModel: haiku
 ---
 

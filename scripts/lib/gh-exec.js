@@ -150,6 +150,72 @@ export class GhGraphqlError extends GhExecError {
  *   path can distinguish "missing binary" from "binary present, said no".
  * @returns {GhExecError}
  */
+/**
+ * Ordered rule table for `classify`. The first row whose `test(haystack)`
+ * is truthy wins. Pulling these out of the function body collapses
+ * `classify` from a giant if/else chain (cc ≈ 4 with many condition
+ * literals → CRAP 22) to a simple find-then-construct (cc = 2).
+ *
+ * @type {Array<{
+ *   test: (h: string) => boolean,
+ *   build: (details: object) => Error,
+ * }>}
+ */
+// Per-category combined regexes. Alternation keeps each pattern at cc=1
+// (regex literals don't carry control-flow weight) so `classify`'s
+// dispatch loop stays well under the CRAP=20 ceiling for the file.
+const CLASSIFY_RULES = [
+  {
+    pattern:
+      /command not found|is not recognized|no such file or directory.*gh/,
+    build: (d) =>
+      new GhNotInstalledError(
+        'gh-exec: gh CLI is not installed or not on PATH',
+        d,
+      ),
+  },
+  {
+    pattern: /requires authentication|not logged into|authentication required/,
+    build: (d) =>
+      new GhAuthError(
+        'gh-exec: gh is not authenticated — run `gh auth login`',
+        d,
+      ),
+  },
+  {
+    pattern: /secondary rate limit|api rate limit exceeded|rate limit exceeded/,
+    build: (d) =>
+      new GhRateLimitError('gh-exec: gh API rate limit exceeded', d),
+  },
+  {
+    pattern:
+      /missing.*scope|requires the .* scope|your token has not been granted the required scopes/,
+    build: (d) =>
+      new GhScopeError(
+        'gh-exec: gh token is missing a required OAuth scope',
+        d,
+      ),
+  },
+  {
+    pattern: /http 404|could not resolve to a|not found/,
+    build: (d) => new GhNotFoundError('gh-exec: resource not found', d),
+  },
+  {
+    pattern: /^graphql:|graphql error|graphql.*errors/,
+    build: (d) => new GhGraphqlError('gh-exec: GraphQL error from gh api', d),
+  },
+];
+
+function classifySpawnError(spawnError, details) {
+  if (spawnError && spawnError.code === 'ENOENT') {
+    return new GhNotInstalledError(
+      `gh-exec: gh CLI is not installed or not on PATH: ${spawnError.message}`,
+      details,
+    );
+  }
+  return null;
+}
+
 export function classify({
   stderr = '',
   code = null,
@@ -158,72 +224,16 @@ export function classify({
   spawnError,
 } = {}) {
   const details = { args, stdout, stderr, code };
+  const spawnVerdict = classifySpawnError(spawnError, details);
+  if (spawnVerdict) return spawnVerdict;
   const haystack = `${stderr}`.toLowerCase();
-
-  if (spawnError && spawnError.code === 'ENOENT') {
-    return new GhNotInstalledError(
-      `gh-exec: gh CLI is not installed or not on PATH: ${spawnError.message}`,
-      details,
-    );
+  // If spawnError is present we skip the not-installed text heuristics so
+  // callers can distinguish "binary missing" from "binary present, refused".
+  const startIdx = spawnError ? 1 : 0;
+  for (let i = startIdx; i < CLASSIFY_RULES.length; i += 1) {
+    if (CLASSIFY_RULES[i].pattern.test(haystack))
+      return CLASSIFY_RULES[i].build(details);
   }
-  if (
-    !spawnError &&
-    (/command not found/.test(haystack) ||
-      /is not recognized/.test(haystack) ||
-      /no such file or directory.*gh/.test(haystack))
-  ) {
-    return new GhNotInstalledError(
-      'gh-exec: gh CLI is not installed or not on PATH',
-      details,
-    );
-  }
-
-  if (
-    /requires authentication/.test(haystack) ||
-    /not logged into/.test(haystack) ||
-    /authentication required/.test(haystack)
-  ) {
-    return new GhAuthError(
-      'gh-exec: gh is not authenticated — run `gh auth login`',
-      details,
-    );
-  }
-
-  if (
-    /secondary rate limit/.test(haystack) ||
-    /api rate limit exceeded/.test(haystack) ||
-    /rate limit exceeded/.test(haystack)
-  ) {
-    return new GhRateLimitError('gh-exec: gh API rate limit exceeded', details);
-  }
-
-  if (
-    /missing.*scope/.test(haystack) ||
-    /requires the .* scope/.test(haystack) ||
-    /your token has not been granted the required scopes/.test(haystack)
-  ) {
-    return new GhScopeError(
-      'gh-exec: gh token is missing a required OAuth scope',
-      details,
-    );
-  }
-
-  if (
-    /http 404/.test(haystack) ||
-    /could not resolve to a/.test(haystack) ||
-    /not found/.test(haystack)
-  ) {
-    return new GhNotFoundError('gh-exec: resource not found', details);
-  }
-
-  if (
-    /^graphql:/.test(haystack) ||
-    /graphql error/.test(haystack) ||
-    /graphql.*errors/.test(haystack)
-  ) {
-    return new GhGraphqlError('gh-exec: GraphQL error from gh api', details);
-  }
-
   return new GhExecError(`gh-exec: gh exited with code ${code}`, details);
 }
 

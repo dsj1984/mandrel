@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/dsj1984/agent-protocols/blob/main/.agents/schemas/agentrc.schema.json",
-  "title": "Agent Protocols .agentrc",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json",
+  "title": "Mandrel .agentrc",
   "description": "Static JSON Schema mirror of the authoritative AJV schemas in .agents/scripts/lib/config-schema.js + config-settings-schema.js. The AJV schemas are the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync.",
   "type": "object",
   "additionalProperties": false,
@@ -330,7 +330,29 @@
         "prGate": { "$ref": "#/$defs/prGate" },
         "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
         "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
-        "autoRefresh": { "$ref": "#/$defs/autoRefresh" }
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
+        "qualityFloors": {
+          "type": "object",
+          "description": "v6.0 absolute quality floors (Story #1602). Calibrated low for v6.0 cut; tighten in v6.x via Epic #1653.",
+          "properties": {
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+                "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+                "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+              },
+              "additionalProperties": false
+            },
+            "maintainability": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "crap": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },

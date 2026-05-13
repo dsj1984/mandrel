@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://agent-protocols.dev/schemas/audit-rules.schema.json",
+  "$id": "https://mandrel.dev/schemas/audit-rules.schema.json",
   "title": "AuditRulesManifest",
   "description": "Schema describing the audit-rules.json manifest read by select-audits.js and lib/audit-suite/runner.js. The manifest enumerates registered audit workflows and the triggers / substitution keys each one accepts.",
   "type": "object",

@@ -61,45 +61,51 @@ function parseArguments(args) {
   return { taskId, storyId, epicId, cmdArgs };
 }
 
-function classifyFrictionCategory(errorOutput) {
-  if (
-    errorOutput.includes('EADDRINUSE') ||
-    errorOutput.includes('address already in use')
-  ) {
-    return {
-      category: 'Tool Limitation',
-      remediation: ' - Port collision detected. Try: `npx kill-port <PORT>`.',
-    };
-  }
-  if (
-    errorOutput.includes('Cannot find module') ||
-    errorOutput.includes('TS2307')
-  ) {
-    return {
-      category: 'Missing Skill',
-      remediation:
-        ' - Missing dependency or bad import path. Ensure you are in the correct workspace root and have run `npm install`.',
-    };
-  }
-  if (errorOutput.includes('SyntaxError')) {
-    return {
-      category: 'Execution Error',
-      remediation:
-        ' - Syntax/parsing error. Check recently modified files for missing brackets, quotes, or invalid structures.',
-    };
-  }
-  if (errorOutput.includes('Astro') || errorOutput.includes('astro')) {
-    return {
-      category: 'Missing Skill',
-      remediation:
-        ' - Framework error: Refer to `.agents/skills/stack/frontend/astro/SKILL.md` for Astro rules.',
-    };
-  }
-  return {
+/**
+ * Ordered classification rules. The first rule whose `markers` are found
+ * (any-match) wins. Table-driven so adding a new pattern doesn't grow the
+ * cyclomatic complexity of `classifyFrictionCategory`.
+ *
+ * @type {ReadonlyArray<{markers: string[], category: string, remediation: string}>}
+ */
+const FRICTION_RULES = [
+  {
+    markers: ['EADDRINUSE', 'address already in use'],
+    category: 'Tool Limitation',
+    remediation: ' - Port collision detected. Try: `npx kill-port <PORT>`.',
+  },
+  {
+    markers: ['Cannot find module', 'TS2307'],
+    category: 'Missing Skill',
+    remediation:
+      ' - Missing dependency or bad import path. Ensure you are in the correct workspace root and have run `npm install`.',
+  },
+  {
+    markers: ['SyntaxError'],
     category: 'Execution Error',
     remediation:
-      ' - Generic failure. Review stderr above, refine your approach, or check `.agents/instructions.md`.',
-  };
+      ' - Syntax/parsing error. Check recently modified files for missing brackets, quotes, or invalid structures.',
+  },
+  {
+    markers: ['Astro', 'astro'],
+    category: 'Missing Skill',
+    remediation:
+      ' - Framework error: Refer to `.agents/skills/stack/frontend/astro/SKILL.md` for Astro rules.',
+  },
+];
+
+const FRICTION_DEFAULT = {
+  category: 'Execution Error',
+  remediation:
+    ' - Generic failure. Review stderr above, refine your approach, or check `.agents/instructions.md`.',
+};
+
+function classifyFrictionCategory(errorOutput) {
+  const matched = FRICTION_RULES.find((rule) =>
+    rule.markers.some((m) => errorOutput.includes(m)),
+  );
+  if (!matched) return FRICTION_DEFAULT;
+  return { category: matched.category, remediation: matched.remediation };
 }
 
 function toIntOrNull(value) {
