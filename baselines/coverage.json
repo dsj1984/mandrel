@@ -321,7 +321,7 @@
   },
   ".agents/scripts/lib/cli-args.js": {
     "lines": 98.13,
-    "branches": 88.99,
+    "branches": 89.38,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -559,9 +559,9 @@
     "branches": 81.25,
     "functions": 100
   },
-  ".agents/scripts/lib/mandrel-catalog.js": {
-    "lines": 100,
-    "branches": 90,
+  ".agents/scripts/lib/migrate-to-v6-core.js": {
+    "lines": 99.39,
+    "branches": 86.89,
     "functions": 100
   },
   ".agents/scripts/lib/notifications/notifier.js": {
@@ -1169,6 +1169,11 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/v5-to-v6-keymap.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/validation-evidence.js": {
     "lines": 97.12,
     "branches": 93.75,
@@ -1273,6 +1278,11 @@
     "lines": 86.83,
     "branches": 66.67,
     "functions": 77.78
+  },
+  ".agents/scripts/migrate-to-v6.js": {
+    "lines": 81.05,
+    "branches": 82.5,
+    "functions": 85.71
   },
   ".agents/scripts/noise-study.js": {
     "lines": 75.48,

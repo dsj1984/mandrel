@@ -3983,6 +3983,60 @@
     },
     {
       "crap": 5,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "resolveParent",
+      "startLine": 40
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "setPath",
+      "startLine": 63
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "hasPath",
+      "startLine": 88
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "deepClone",
+      "startLine": 103
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "rewriteAgentrc",
+      "startLine": 133
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "pruneEmptyParent",
+      "startLine": 197
+    },
+    {
+      "crap": 3.010497157019974,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "rewriteGitmodules",
+      "startLine": 225
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "rewritePackageJson",
+      "startLine": 254
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/migrate-to-v6-core.js",
+      "method": "planMigration",
+      "startLine": 302
+    },
+    {
+      "crap": 5,
       "file": ".agents/scripts/lib/notifications/notifier.js",
       "method": "eventSeverity",
       "startLine": 47
@@ -7660,6 +7714,12 @@
       "startLine": 20
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/v5-to-v6-keymap.js",
+      "method": "keymapByFrom",
+      "startLine": 202
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/validation-evidence.js",
       "method": "getEvidenceValidator",
@@ -8420,6 +8480,72 @@
       "file": ".agents/scripts/loc-delta.js",
       "method": "<anon method-4>",
       "startLine": 192
+    },
+    {
+      "crap": 3.2430000000000003,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "readJsonOrNull",
+      "startLine": 56
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "readTextOrNull",
+      "startLine": 72
+    },
+    {
+      "crap": 4.074074074074074,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "checkWorkingTree",
+      "startLine": 87
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "formatAgentrcChange",
+      "startLine": 107
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "agentrcSection",
+      "startLine": 116
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "gitmodulesSection",
+      "startLine": 122
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "packageJsonSection",
+      "startLine": 128
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "formatSummary",
+      "startLine": 147
+    },
+    {
+      "crap": 13,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "runMigration",
+      "startLine": 173
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "parseArgv",
+      "startLine": 245
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/migrate-to-v6.js",
+      "method": "main",
+      "startLine": 288
     },
     {
       "crap": 11,
