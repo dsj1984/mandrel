@@ -353,3 +353,96 @@ trail; once a follow-up Story lands a fix, the line above moves to the
    first, then the three `--full-scope` floor calls).
 6. Work through the [Manual residue checklist](#manual-residue-checklist)
    above and tick each item.
+
+---
+
+## Maintainer handoff checklist
+
+This section is the **maintainer-only** cut-over runbook for the v6
+release of Epic #1184. The steps below cannot be executed by an agent —
+they require GitHub admin permissions on `anthropics/agent-protocols`
+(soon `anthropics/mandrel`), an out-of-band v5 consumer checkout, and
+the ability to push tags + cut releases. Walk them in one sitting at
+ship time; mark each box complete on Story #1610 as you go.
+
+1. **Rename the GitHub repository.** In the repo's GitHub settings,
+   rename `agent-protocols` → `mandrel`. Confirm the rename has
+   propagated to the org's repo list. Update any pinned references
+   (org-level READMEs, internal wikis, dashboards) that hard-code the
+   old slug — GitHub's redirect handles `git`/`web` traffic, but
+   human-curated mentions do not auto-update.
+   - [ ] manual: repo renamed `agent-protocols` → `mandrel`
+
+2. **Verify GitHub redirects for web + `git clone` + `git submodule
+   sync`.** From a clean throwaway clone:
+   ```bash
+   # Web redirect (expect 301 → /mandrel)
+   curl -sI https://github.com/anthropics/agent-protocols | grep -i '^location:'
+
+   # git clone redirect (expect a successful clone with a warning line)
+   git clone https://github.com/anthropics/agent-protocols.git /tmp/redirect-check
+   rm -rf /tmp/redirect-check
+
+   # Submodule sync redirect — run inside a v5 consumer that still
+   # points its .gitmodules at the old URL
+   git -C <v5-consumer> submodule sync .agents
+   git -C <v5-consumer> submodule update --init .agents
+   ```
+   The optional helper `node .agents/scripts/post-handoff-verify.js`
+   automates the read-only half of this check (HTTP HEAD + a
+   `git ls-remote` against the new URL).
+   - [ ] manual: web + clone + submodule sync redirects all resolve
+
+3. **Smoke-test `migrate-to-v6.js` against a real v5 consumer.** On a
+   throwaway branch of an actual v5 consumer repo (not a synthetic
+   fixture):
+   ```bash
+   git submodule update --remote .agents       # pull v6 tag
+   node .agents/scripts/migrate-to-v6.js --dry-run
+   node .agents/scripts/migrate-to-v6.js
+   node .agents/scripts/migrate-to-v6.js       # idempotency re-run
+   npm ci && npm test && npm run lint
+   ```
+   The second `migrate-to-v6.js` run must report `alreadyV6` and write
+   nothing. The consumer's full test + lint suite must be green on the
+   v6 pin. Also re-run `npm pack` in the renamed repo and confirm the
+   artifact is `mandrel-6.0.0.tgz`.
+   - [ ] manual: `npm pack` produces `mandrel-6.0.0.tgz` and a v5
+         consumer is green on v6 after running `migrate-to-v6.js`
+
+4. **Push the `v6.0.0` tag and publish the GitHub release.** From the
+   maintainer's checkout of `main` (post-merge of Epic #1184):
+   ```bash
+   git fetch origin
+   git checkout main && git pull --ff-only
+   git tag -a v6.0.0 -m "v6.0.0 — Mandrel rebrand + breaking-change cut"
+   git push origin v6.0.0
+   gh release create v6.0.0 --title "v6.0.0 — Mandrel" \
+     --notes-file docs/migration-v6.md
+   ```
+   The release notes are sourced from this file so consumers landing
+   on the release page see the migration guide front-and-centre.
+   - [ ] manual: `v6.0.0` tag pushed; GitHub release published with
+         notes from `docs/migration-v6.md`
+
+5. **Migrate account / permission settings and rebind branch
+   protection.** GitHub's repo-rename preserves *most* settings, but a
+   handful require manual confirmation:
+   - Re-bind any branch-protection rules whose required-status-check
+     names referenced the old repo slug (the names are usually
+     workflow-relative, but verify).
+   - Re-attach repo-level secrets, environments, and any GitHub App
+     installations that scope by repo name rather than ID.
+   - Update any external CI integrations (status badges, webhooks,
+     CODEOWNERS bots) whose URLs hard-code `agent-protocols`.
+   - Confirm the org's team-permission grants still resolve against
+     the renamed repo (they should — GitHub keys these by repo ID —
+     but spot-check one read-only and one write-grant team).
+   - [ ] manual: branch protection re-bound; secrets, environments,
+         App installs, and team grants verified on the renamed repo
+
+After all five steps are green, close Story #1610 and Epic #1184 with a
+final retro comment. The optional verification helper at
+`.agents/scripts/post-handoff-verify.js` is a read-only post-flight you
+can re-run any time after the rename to confirm GitHub's redirects are
+still healthy.
