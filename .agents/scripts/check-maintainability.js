@@ -337,10 +337,12 @@ export function loadMaintainabilityBaseline({
   return parsed;
 }
 
-async function main() {
-  Logger.info('[Maintainability] Verifying code quality against baseline...');
-
-  const { agentSettings } = resolveConfig();
+/**
+ * Resolve baseline + path + (optional) epic ref. Logs the ref-mode banner
+ * when an epic ref is in play. Returns `null` when the baseline is empty
+ * — caller should treat that as the friendly "no baseline" exit-0.
+ */
+function loadBaselineForMain({ agentSettings }) {
   const baselinePath = getBaselines({ agentSettings }).maintainability.path;
   const epicRef = parseEpicRefArg();
   const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
@@ -353,52 +355,118 @@ async function main() {
     Logger.warn(
       `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
     );
-    process.exit(0);
+    return null;
   }
+  return { baseline, baselinePath, epicRef };
+}
 
+function enumerateTargetFiles(agentSettings) {
   const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
   const files = [];
   targetDirs.forEach((dir) => {
     scanDirectory(dir, files);
   });
+  return files;
+}
 
-  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
+/**
+ * Apply `--changed-since` narrowing to (files, baseline). Returns the
+ * scoped pair plus the resolved scope descriptor for logging.
+ *
+ * Exits non-zero on unresolvable ref — that is a CLI-level failure, not a
+ * data condition we can recover from in the caller.
+ */
+function narrowToChangedScope({ files, baseline, maintainabilityConfig }) {
   const resolvedScope = resolveChangedSinceRef({
     argv: process.argv.slice(2),
     env: process.env,
     maintainabilityConfig,
   });
-  const changedSinceRef = resolvedScope.ref;
   Logger.info(
-    `[Maintainability] scope=${resolvedScope.scope}${changedSinceRef ? ` ref=${changedSinceRef}` : ''} (source=${resolvedScope.source})`,
+    `[Maintainability] scope=${resolvedScope.scope}${
+      resolvedScope.ref ? ` ref=${resolvedScope.ref}` : ''
+    } (source=${resolvedScope.source})`,
   );
-  let scopedFiles = files;
-  let scopedBaseline = baseline;
-  if (changedSinceRef) {
-    let changedList;
-    try {
-      changedList = getChangedFiles({
-        ref: changedSinceRef,
-        cwd: process.cwd(),
-      });
-    } catch (err) {
-      Logger.error(
-        `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
-      );
-      process.exit(1);
-    }
-    const scopeSet = new Set(changedList);
-    Logger.info(
-      `[Maintainability] --changed-since ${changedSinceRef}: ${scopeSet.size} changed file(s) in diff`,
-    );
-    scopedFiles = files.filter((abs) => {
-      const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
-      return scopeSet.has(rel);
+  if (!resolvedScope.ref) {
+    return { scopedFiles: files, scopedBaseline: baseline, resolvedScope };
+  }
+  let changedList;
+  try {
+    changedList = getChangedFiles({
+      ref: resolvedScope.ref,
+      cwd: process.cwd(),
     });
-    scopedBaseline = Object.fromEntries(
-      Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
+  } catch (err) {
+    Logger.error(
+      `[Maintainability] ❌ ${err?.message ?? err}. Pass a resolvable ref or drop --changed-since for a full scan.`,
+    );
+    process.exit(1);
+  }
+  const scopeSet = new Set(changedList);
+  Logger.info(
+    `[Maintainability] --changed-since ${resolvedScope.ref}: ${scopeSet.size} changed file(s) in diff`,
+  );
+  const scopedFiles = files.filter((abs) => {
+    const rel = path.relative(process.cwd(), abs).replace(/\\/g, '/');
+    return scopeSet.has(rel);
+  });
+  const scopedBaseline = Object.fromEntries(
+    Object.entries(baseline).filter(([file]) => scopeSet.has(file)),
+  );
+  return { scopedFiles, scopedBaseline, resolvedScope };
+}
+
+function maybeWriteJsonReport({ scores, stats, resolvedScope }) {
+  const jsonPath = parseJsonPathArg();
+  if (!jsonPath) return;
+  try {
+    writeBaseline({
+      baselinePath: jsonPath,
+      data: buildMaintainabilityReport(scores, stats, {
+        scope: resolvedScope.scope,
+        diffRef: resolvedScope.ref,
+      }),
+    });
+    Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
+  } catch (err) {
+    Logger.warn(
+      `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
     );
   }
+}
+
+async function handleRegressions(stats, { agentSettings }) {
+  if (stats.regressions <= 0) {
+    Logger.info('[Maintainability] ✅ Clean Code check passed.');
+    return;
+  }
+  Logger.error(
+    '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
+  );
+  const storyId = parseStoryIdArg();
+  const epicId = parseEpicIdArg();
+  if (storyId && epicId) {
+    await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
+      agentSettings,
+    });
+  }
+  process.exit(1);
+}
+
+async function main() {
+  Logger.info('[Maintainability] Verifying code quality against baseline...');
+
+  const { agentSettings } = resolveConfig();
+  const loaded = loadBaselineForMain({ agentSettings });
+  if (!loaded) process.exit(0);
+  const { baseline } = loaded;
+  const maintainabilityConfig = getQuality({ agentSettings }).maintainability;
+  const files = enumerateTargetFiles(agentSettings);
+  const { scopedFiles, scopedBaseline, resolvedScope } = narrowToChangedScope({
+    files,
+    baseline,
+    maintainabilityConfig,
+  });
 
   const scores = await calculateAll(scopedFiles);
 
@@ -414,39 +482,8 @@ async function main() {
   const stats = compareScores(scores, scopedBaseline, tolerance);
   printSummaryReport(scores, stats);
 
-  const jsonPath = parseJsonPathArg();
-  if (jsonPath) {
-    try {
-      writeBaseline({
-        baselinePath: jsonPath,
-        data: buildMaintainabilityReport(scores, stats, {
-          scope: resolvedScope.scope,
-          diffRef: resolvedScope.ref,
-        }),
-      });
-      Logger.info(`[Maintainability] structured report written: ${jsonPath}`);
-    } catch (err) {
-      Logger.warn(
-        `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
-      );
-    }
-  }
-
-  if (stats.regressions > 0) {
-    Logger.error(
-      '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
-    );
-    const storyId = parseStoryIdArg();
-    const epicId = parseEpicIdArg();
-    if (storyId && epicId) {
-      await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
-        agentSettings,
-      });
-    }
-    process.exit(1);
-  }
-
-  Logger.info('[Maintainability] ✅ Clean Code check passed.');
+  maybeWriteJsonReport({ scores, stats, resolvedScope });
+  await handleRegressions(stats, { agentSettings });
 }
 
 runAsCli(import.meta.url, main, {

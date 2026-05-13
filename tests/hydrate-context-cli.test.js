@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  classifyCliInvocation,
   runHydrateContext,
   ticketToTask,
 } from '../.agents/scripts/hydrate-context.js';
@@ -38,6 +39,35 @@ class MockProvider {
     throw new Error(`Ticket #${id} not found`);
   }
 }
+
+test('classifyCliInvocation: --help returns help intent', () => {
+  assert.deepEqual(classifyCliInvocation({ help: true }), { kind: 'help' });
+});
+
+test('classifyCliInvocation: missing --ticket returns usage-error', () => {
+  const r = classifyCliInvocation({});
+  assert.equal(r.kind, 'usage-error');
+  assert.match(r.message, /--ticket <id> is required/);
+});
+
+test('classifyCliInvocation: non-positive ticket id returns usage-error', () => {
+  const a = classifyCliInvocation({ ticket: '0' });
+  const b = classifyCliInvocation({ ticket: '-5' });
+  const c = classifyCliInvocation({ ticket: 'abc' });
+  assert.equal(a.kind, 'usage-error');
+  assert.equal(b.kind, 'usage-error');
+  assert.equal(c.kind, 'usage-error');
+});
+
+test('classifyCliInvocation: valid ticket without epic returns run intent', () => {
+  const r = classifyCliInvocation({ ticket: '99' });
+  assert.deepEqual(r, { kind: 'run', ticketId: 99, epicId: undefined });
+});
+
+test('classifyCliInvocation: valid ticket with epic returns run intent', () => {
+  const r = classifyCliInvocation({ ticket: '99', epic: '1' });
+  assert.deepEqual(r, { kind: 'run', ticketId: 99, epicId: 1 });
+});
 
 test('ticketToTask: extracts persona from labels', () => {
   const task = ticketToTask({

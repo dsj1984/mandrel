@@ -199,24 +199,53 @@ export async function runEpicDeliverAutomerge({
   return { epicId, prNumber, strategy, merged: true, verdict, dryRun: false };
 }
 
-async function main() {
-  const args = parseAutomergeArgs(process.argv.slice(2));
-  if (args.help) {
-    Logger.info(HELP);
-    return;
+/**
+ * Pure: classify parsed CLI args into a runnable intent. Extracting this
+ * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
+ * lets unit tests cover every branch directly.
+ *
+ * Shapes:
+ *   - { kind: 'help' }
+ *   - { kind: 'usage-error', messages: string[] }
+ *   - { kind: 'run', epicId, prNumber, strategy, dryRun }
+ */
+export function classifyAutomergeInvocation(args) {
+  if (args?.help) return { kind: 'help' };
+  if (args?.epicId === null || args?.prNumber === null) {
+    return {
+      kind: 'usage-error',
+      messages: [
+        '[epic-deliver-automerge] ERROR: --epic <id> and --pr <prNumber> are required.',
+        HELP,
+      ],
+    };
   }
-  if (args.epicId === null || args.prNumber === null) {
-    Logger.error(
-      '[epic-deliver-automerge] ERROR: --epic <id> and --pr <prNumber> are required.',
-    );
-    Logger.error(HELP);
-    process.exit(2);
-  }
-  const out = await runEpicDeliverAutomerge({
+  return {
+    kind: 'run',
     epicId: args.epicId,
     prNumber: args.prNumber,
     strategy: args.strategy,
     dryRun: args.dryRun,
+  };
+}
+
+async function main() {
+  const intent = classifyAutomergeInvocation(
+    parseAutomergeArgs(process.argv.slice(2)),
+  );
+  if (intent.kind === 'help') {
+    Logger.info(HELP);
+    return;
+  }
+  if (intent.kind === 'usage-error') {
+    for (const m of intent.messages) Logger.error(m);
+    process.exit(2);
+  }
+  const out = await runEpicDeliverAutomerge({
+    epicId: intent.epicId,
+    prNumber: intent.prNumber,
+    strategy: intent.strategy,
+    dryRun: intent.dryRun,
   });
   Logger.info(JSON.stringify(out, null, 2));
   if (out.ghStderr) process.exit(1);

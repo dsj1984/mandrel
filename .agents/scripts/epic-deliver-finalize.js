@@ -514,6 +514,26 @@ export async function runEpicDeliverFinalize({
   };
 }
 
+/**
+ * Pure: classify parsed CLI values into a runnable intent. Extracting this
+ * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
+ * lets unit tests cover every branch directly.
+ */
+export function classifyFinalizeInvocation(values) {
+  if (values?.help) return { kind: 'help' };
+  const epicId = Number.parseInt(values?.epic ?? '', 10);
+  if (Number.isNaN(epicId) || epicId <= 0) {
+    return {
+      kind: 'usage-error',
+      messages: [
+        '[epic-deliver-finalize] ERROR: --epic <epicId> is required.',
+        HELP,
+      ],
+    };
+  }
+  return { kind: 'run', epicId };
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
@@ -522,17 +542,16 @@ async function main() {
     },
     strict: false,
   });
-  if (values.help) {
+  const intent = classifyFinalizeInvocation(values);
+  if (intent.kind === 'help') {
     Logger.info(HELP);
     return;
   }
-  const epicId = Number.parseInt(values.epic ?? '', 10);
-  if (Number.isNaN(epicId) || epicId <= 0) {
-    Logger.error('[epic-deliver-finalize] ERROR: --epic <epicId> is required.');
-    Logger.error(HELP);
+  if (intent.kind === 'usage-error') {
+    for (const m of intent.messages) Logger.error(m);
     process.exit(2);
   }
-  const out = await runEpicDeliverFinalize({ epicId });
+  const out = await runEpicDeliverFinalize({ epicId: intent.epicId });
   Logger.info(JSON.stringify(out, null, 2));
   if (out.blocker) process.exit(1);
 }

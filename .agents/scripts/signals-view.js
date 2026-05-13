@@ -59,6 +59,77 @@ const USAGE =
   'Usage: node .agents/scripts/signals-view.js <epic-id> [--story <id>] [--temp-root <path>]';
 
 /**
+ * Parse a token as a strict positive integer (no leading +, no float, no
+ * trailing junk). Returns `null` on any non-conforming input.
+ *
+ * @param {unknown} tok
+ * @returns {number|null}
+ */
+function parseStrictPositiveInt(tok) {
+  if (typeof tok !== 'string') return null;
+  const n = Number.parseInt(tok, 10);
+  if (!Number.isInteger(n) || n <= 0) return null;
+  if (String(n) !== tok.trim()) return null;
+  return n;
+}
+
+function err(error) {
+  return { ok: false, error };
+}
+
+function readValueFlag(argv, idx, flag) {
+  const next = argv[idx + 1];
+  if (next === undefined) return err(`${flag} requires a value. ${USAGE}`);
+  return { ok: true, value: next };
+}
+
+function readIntFlag(argv, idx, flag) {
+  const v = readValueFlag(argv, idx, flag);
+  if (!v.ok) return v;
+  const n = parseStrictPositiveInt(v.value);
+  if (n == null) {
+    return err(
+      `${flag} expects a positive integer; got ${JSON.stringify(v.value)}. ${USAGE}`,
+    );
+  }
+  return { ok: true, value: n };
+}
+
+const HELP_FLAGS = new Set(['--help', '-h']);
+
+function handleFlagToken(argv, i, out) {
+  const tok = argv[i];
+  if (HELP_FLAGS.has(tok)) return { done: true, result: err(USAGE) };
+  if (tok === '--story') {
+    const r = readIntFlag(argv, i, '--story');
+    if (!r.ok) return { done: true, result: r };
+    out.story = r.value;
+    return { advance: 2 };
+  }
+  if (tok === '--temp-root') {
+    const r = readValueFlag(argv, i, '--temp-root');
+    if (!r.ok) return { done: true, result: r };
+    out.tempRoot = r.value;
+    return { advance: 2 };
+  }
+  return null;
+}
+
+function handlePositional(tok, out) {
+  if (out.epic != null) {
+    return err(`unexpected token ${JSON.stringify(tok)}. ${USAGE}`);
+  }
+  const n = parseStrictPositiveInt(tok);
+  if (n == null) {
+    return err(
+      `<epic-id> must be a positive integer; got ${JSON.stringify(tok)}. ${USAGE}`,
+    );
+  }
+  out.epic = n;
+  return null;
+}
+
+/**
  * Parse argv slice (the array passed to `main` excludes node + script).
  *
  * @param {string[]} argv
@@ -66,61 +137,23 @@ const USAGE =
  */
 export function parseArgs(argv) {
   if (!Array.isArray(argv) || argv.length === 0) {
-    return { ok: false, error: `missing <epic-id>. ${USAGE}` };
+    return err(`missing <epic-id>. ${USAGE}`);
   }
-  let epic = null;
-  let story = null;
-  let tempRoot = null;
-  for (let i = 0; i < argv.length; i += 1) {
-    const tok = argv[i];
-    if (tok === '--story') {
-      const next = argv[i + 1];
-      if (next === undefined) {
-        return { ok: false, error: `--story requires a value. ${USAGE}` };
-      }
-      const n = Number.parseInt(next, 10);
-      if (!Number.isInteger(n) || n <= 0 || String(n) !== String(next).trim()) {
-        return {
-          ok: false,
-          error: `--story expects a positive integer; got ${JSON.stringify(next)}. ${USAGE}`,
-        };
-      }
-      story = n;
-      i += 1;
+  const out = { epic: null, story: null, tempRoot: null };
+  let i = 0;
+  while (i < argv.length) {
+    const flagResult = handleFlagToken(argv, i, out);
+    if (flagResult?.done) return flagResult.result;
+    if (flagResult?.advance) {
+      i += flagResult.advance;
       continue;
     }
-    if (tok === '--temp-root') {
-      const next = argv[i + 1];
-      if (next === undefined) {
-        return { ok: false, error: `--temp-root requires a path. ${USAGE}` };
-      }
-      tempRoot = next;
-      i += 1;
-      continue;
-    }
-    if (tok === '--help' || tok === '-h') {
-      return { ok: false, error: USAGE };
-    }
-    if (epic == null) {
-      const n = Number.parseInt(tok, 10);
-      if (!Number.isInteger(n) || n <= 0 || String(n) !== String(tok).trim()) {
-        return {
-          ok: false,
-          error: `<epic-id> must be a positive integer; got ${JSON.stringify(tok)}. ${USAGE}`,
-        };
-      }
-      epic = n;
-      continue;
-    }
-    return {
-      ok: false,
-      error: `unexpected token ${JSON.stringify(tok)}. ${USAGE}`,
-    };
+    const positionalErr = handlePositional(argv[i], out);
+    if (positionalErr) return positionalErr;
+    i += 1;
   }
-  if (epic == null) {
-    return { ok: false, error: `missing <epic-id>. ${USAGE}` };
-  }
-  return { ok: true, epic, story, tempRoot };
+  if (out.epic == null) return err(`missing <epic-id>. ${USAGE}`);
+  return { ok: true, ...out };
 }
 
 function formatDuration(ms) {

@@ -7,10 +7,28 @@ import {
   executeDeletion,
   parseDeleteArgs,
   planDeletion,
+  planMainAction,
   renderDeletionLine,
   renderDryRun,
   renderExecutionSummary,
 } from '../.agents/scripts/delete-epic-branches.js';
+
+describe('planMainAction', () => {
+  it('returns usage when epicId is null', () => {
+    assert.equal(planMainAction({ epicId: null, dryRun: false }).kind, 'usage');
+  });
+  it('returns dry-run plan when dryRun=true', () => {
+    const out = planMainAction({ epicId: 1, dryRun: true });
+    assert.equal(out.kind, 'dry-run');
+    assert.ok(out.plan);
+  });
+  it('returns execute plan when dryRun=false', () => {
+    const out = planMainAction({ epicId: 1, dryRun: false });
+    assert.equal(out.kind, 'execute');
+    assert.ok(out.plan);
+  });
+});
+
 import { __setGitRunners } from '../.agents/scripts/lib/git-utils.js';
 
 const DELETE_EPIC_BRANCHES_SRC = readFileSync(
