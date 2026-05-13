@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 90.72,
+    "branches": 89.58,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -505,12 +505,12 @@
     "functions": 100
   },
   ".agents/scripts/lib/git-merge-orchestrator.js": {
-    "lines": 58.19,
-    "branches": 69.23,
+    "lines": 55.93,
+    "branches": 66.67,
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
-    "lines": 95.26,
+    "lines": 94.99,
     "branches": 75.41,
     "functions": 89.47
   },
@@ -930,9 +930,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
-    "lines": 76.94,
-    "branches": 87.88,
-    "functions": 50
+    "lines": 100,
+    "branches": 100,
+    "functions": 70.83
   },
   ".agents/scripts/lib/orchestration/story-close/post-merge-close.js": {
     "lines": 100,
@@ -1030,13 +1030,18 @@
     "functions": 100
   },
   ".agents/scripts/lib/push-epic-retry.js": {
-    "lines": 91.96,
-    "branches": 72.97,
+    "lines": 91.46,
+    "branches": 71.79,
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
     "lines": 86.03,
     "branches": 79.82,
+    "functions": 100
+  },
+  ".agents/scripts/lib/rebrand-deny.js": {
+    "lines": 100,
+    "branches": 88.89,
     "functions": 100
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
@@ -1324,6 +1329,11 @@
     "branches": 70.37,
     "functions": 81.82
   },
+  ".agents/scripts/rebrand-to-mandrel.js": {
+    "lines": 97.12,
+    "branches": 94.12,
+    "functions": 83.33
+  },
   ".agents/scripts/render-manifest.js": {
     "lines": 87.94,
     "branches": 62.5,
@@ -1356,7 +1366,7 @@
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.8,
-    "branches": 75,
+    "branches": 74.65,
     "functions": 72.73
   },
   ".agents/scripts/story-task-progress.js": {
