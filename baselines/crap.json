@@ -1315,187 +1315,205 @@
       "crap": 6,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "parseCleanupArgs",
-      "startLine": 67
+      "startLine": 71
     },
     {
       "crap": 3,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "buildGlobFilter",
-      "startLine": 106
+      "startLine": 110
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-1>",
-      "startLine": 107
+      "startLine": 111
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-2>",
-      "startLine": 108
+      "startLine": 112
     },
     {
       "crap": 4,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "computeProtectedSet",
-      "startLine": 119
+      "startLine": 123
     },
     {
       "crap": 5.146108329540283,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "listLocalBranches",
-      "startLine": 136
+      "startLine": 140
     },
     {
       "crap": 5.20262390670554,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "listMergedBranches",
-      "startLine": 159
+      "startLine": 163
     },
     {
       "crap": 7.608000000000001,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "currentBranch",
-      "startLine": 181
+      "startLine": 185
     },
     {
       "crap": 4.6796875,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "readProtectedConfig",
-      "startLine": 195
+      "startLine": 199
     },
     {
       "crap": 16.021036814425244,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "worktreesByBranch",
-      "startLine": 211
+      "startLine": 215
     },
     {
       "crap": 5,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "probeMergedPr",
-      "startLine": 235
+      "startLine": 239
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "defaultGhRunner",
-      "startLine": 268
+      "startLine": 272
     },
     {
       "crap": 5,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "planCleanup",
-      "startLine": 301
+      "startLine": 305
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-7>",
-      "startLine": 310
+      "startLine": 314
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-8>",
-      "startLine": 311
+      "startLine": 315
     },
     {
-      "crap": 8,
+      "crap": 11,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "executeCleanup",
-      "startLine": 380
+      "startLine": 394
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-9>",
-      "startLine": 386
+      "startLine": 400
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "<anon method-10>",
-      "startLine": 387
+      "startLine": 401
+    },
+    {
+      "crap": 5.081018518518518,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "pruneRemoteTracking",
+      "startLine": 521
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "parsePrunedRefs",
+      "startLine": 545
     },
     {
       "crap": 17.478737997256516,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "removeWorktree",
-      "startLine": 480
+      "startLine": 571
     },
     {
       "crap": 4,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "renderDryRun",
-      "startLine": 500
+      "startLine": 591
     },
     {
       "crap": 6,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "renderExecutionLine",
-      "startLine": 517
+      "startLine": 608
     },
     {
-      "crap": 2,
+      "crap": 4,
+      "file": ".agents/scripts/git-cleanup-branches.js",
+      "method": "renderPruneLine",
+      "startLine": 630
+    },
+    {
+      "crap": 3,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "renderExecutionSummary",
-      "startLine": 531
+      "startLine": 643
     },
     {
       "crap": 1.2962962962962963,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "emitDryRunHuman",
-      "startLine": 539
+      "startLine": 654
     },
     {
-      "crap": 4.809327846364883,
+      "crap": 9.761833208114199,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "emitExecutionHuman",
-      "startLine": 544
+      "startLine": 659
     },
     {
       "crap": 3.6875,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "emitJson",
-      "startLine": 555
+      "startLine": 672
     },
     {
       "crap": 9.320987654320987,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "resolveBaseBranch",
-      "startLine": 561
+      "startLine": 678
     },
     {
       "crap": 1,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "buildJsonEnvelope",
-      "startLine": 586
+      "startLine": 704
     },
     {
       "crap": 4,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "computeExitCode",
-      "startLine": 608
+      "startLine": 727
     },
     {
       "crap": 9.029296875,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "emitResult",
-      "startLine": 615
+      "startLine": 734
     },
     {
       "crap": 9.029296875,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "maybeExecute",
-      "startLine": 625
+      "startLine": 744
     },
     {
       "crap": 1.8502697186178745,
       "file": ".agents/scripts/git-cleanup-branches.js",
       "method": "main",
-      "startLine": 635
+      "startLine": 754
     },
     {
       "crap": 12,
@@ -2618,6 +2636,12 @@
       "file": ".agents/scripts/lib/config-schema.js",
       "method": "getOrchestrationValidator",
       "startLine": 315
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/config-settings-schema.js",
+      "method": "getSettingsValidator",
+      "startLine": 533
     },
     {
       "crap": 3,
@@ -6874,10 +6898,34 @@
       "startLine": 234
     },
     {
-      "crap": 6.478276716722554,
+      "crap": 6.354227405247814,
       "file": ".agents/scripts/lib/quality-floors.js",
       "method": "checkCoverageRecord",
       "startLine": 246
+    },
+    {
+      "crap": 4.068228930171954,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyMaintainabilityFloor",
+      "startLine": 289
+    },
+    {
+      "crap": 6.318359375,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCrapCeiling",
+      "startLine": 327
+    },
+    {
+      "crap": 12.94921875,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "parseFloorFlag",
+      "startLine": 376
+    },
+    {
+      "crap": 10,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "formatViolation",
+      "startLine": 400
     },
     {
       "crap": 6,
@@ -7234,82 +7282,88 @@
       "startLine": 267
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/lib/spec/loader.js",
+      "method": "defaultEpicsDir",
+      "startLine": 74
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "getValidator",
-      "startLine": 81
+      "startLine": 96
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "_resetValidatorCacheForTests",
-      "startLine": 97
+      "startLine": 112
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "resolveOpts",
-      "startLine": 160
+      "startLine": 175
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "specPath",
-      "startLine": 177
+      "startLine": 192
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "statePath",
-      "startLine": 190
+      "startLine": 205
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "normaliseAjvErrors",
-      "startLine": 206
+      "startLine": 221
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "loadSpec",
-      "startLine": 233
+      "startLine": 248
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "emptyState",
-      "startLine": 278
+      "startLine": 293
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "loadState",
-      "startLine": 292
+      "startLine": 307
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "sortKeysDeep",
-      "startLine": 314
+      "startLine": 329
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "renderStateJson",
-      "startLine": 336
+      "startLine": 351
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "writeState",
-      "startLine": 353
+      "startLine": 368
     },
     {
       "crap": 5.390625,
       "file": ".agents/scripts/lib/spec/loader.js",
       "method": "writeSpec",
-      "startLine": 383
+      "startLine": 398
     },
     {
       "crap": 4,
