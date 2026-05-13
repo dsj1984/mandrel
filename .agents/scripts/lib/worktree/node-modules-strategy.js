@@ -202,19 +202,37 @@ export function runInstallWithRetry({
  * @param {string} wtPath Absolute worktree path.
  * @returns {{ status: 'installed' | 'failed' | 'skipped', reason?: string }}
  */
+function verifyInstallOutcome(ctx, wtPath, selection, run, policy) {
+  if (!run.ok) {
+    ctx.logger.warn(
+      `worktree.install FAILED after ${policy.maxAttempts} attempt(s). ` +
+        'Agent will need to run install manually in the worktree.',
+    );
+    return { status: 'failed', reason: 'install-command-nonzero' };
+  }
+  const nmPath = path.join(wtPath, 'node_modules');
+  if (!fs.existsSync(nmPath)) {
+    ctx.logger.warn(
+      `worktree.install cmd=${selection.cmd} exited 0 but node_modules missing at ${nmPath}`,
+    );
+    return { status: 'failed', reason: 'node-modules-missing' };
+  }
+  ctx.logger.info(
+    `worktree.install succeeded cmd=${selection.cmd} path=${wtPath}`,
+  );
+  return null;
+}
+
 export function installDependencies(ctx, wtPath) {
   const strategy = ctx.config.nodeModulesStrategy ?? 'per-worktree';
-
   // `symlink` re-points node_modules at a donor — no install command runs.
   if (strategy === 'symlink') {
     return { status: 'skipped', reason: 'symlink-strategy' };
   }
-
   const selection = selectInstallCommand(strategy, wtPath);
   if (selection === null) {
     return { status: 'skipped', reason: 'no-package-json' };
   }
-
   const policy = installRetryPolicy(selection.cmd);
   const run = runInstallWithRetry({
     cmd: selection.cmd,
@@ -227,27 +245,8 @@ export function installDependencies(ctx, wtPath) {
     logger: ctx.logger,
     strategy,
   });
-
-  if (!run.ok) {
-    ctx.logger.warn(
-      `worktree.install FAILED after ${policy.maxAttempts} attempt(s). ` +
-        'Agent will need to run install manually in the worktree.',
-    );
-    return { status: 'failed', reason: 'install-command-nonzero' };
-  }
-
-  const nmPath = path.join(wtPath, 'node_modules');
-  if (!fs.existsSync(nmPath)) {
-    ctx.logger.warn(
-      `worktree.install cmd=${selection.cmd} exited 0 but node_modules missing at ${nmPath}`,
-    );
-    return { status: 'failed', reason: 'node-modules-missing' };
-  }
-
-  ctx.logger.info(
-    `worktree.install succeeded cmd=${selection.cmd} path=${wtPath}`,
-  );
-
+  const verdict = verifyInstallOutcome(ctx, wtPath, selection, run, policy);
+  if (verdict) return verdict;
   // `pnpm-store` runs `pnpm install --frozen-lockfile`, but the resulting
   // node_modules is backed by a shared content-addressable store rather
   // than a self-contained tree. Report `skipped` so the workflow treats
@@ -255,7 +254,6 @@ export function installDependencies(ctx, wtPath) {
   if (strategy === 'pnpm-store') {
     return { status: 'skipped', reason: 'pnpm-store-strategy' };
   }
-
   return { status: 'installed' };
 }
 

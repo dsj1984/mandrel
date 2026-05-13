@@ -142,7 +142,7 @@ function coerceValue(type, raw) {
  * @param {{ env?: NodeJS.ProcessEnv }} [opts]
  * @returns {{ values: Record<string, any>, positionals: string[] }}
  */
-export function defineFlags(spec, args = [], opts = {}) {
+function validateSpec(spec) {
   for (const [name, def] of Object.entries(spec)) {
     if (!SUPPORTED_FLAG_TYPES.has(def.type)) {
       throw new Error(
@@ -150,21 +150,61 @@ export function defineFlags(spec, args = [], opts = {}) {
       );
     }
   }
+}
 
-  const env = opts.env ?? process.env;
+function initParserState(spec) {
   const values = {};
   const keyOf = {};
+  const shortMap = {};
   for (const [name, def] of Object.entries(spec)) {
     const key = def.alias ?? camelCase(name);
     keyOf[name] = key;
     values[key] = initialValueFor(def.type);
-  }
-
-  const shortMap = {};
-  for (const [name, def] of Object.entries(spec)) {
     if (def.short) shortMap[def.short] = name;
   }
+  return { values, keyOf, shortMap };
+}
 
+function classifyToken(tok, shortMap) {
+  if (tok.startsWith('--')) {
+    const eq = tok.indexOf('=');
+    if (eq >= 0)
+      return { flagName: tok.slice(2, eq), inlineValue: tok.slice(eq + 1) };
+    return { flagName: tok.slice(2), inlineValue: null };
+  }
+  if (tok.startsWith('-') && tok.length > 1) {
+    const candidate = shortMap[tok.slice(1)];
+    if (candidate) return { flagName: candidate, inlineValue: null };
+  }
+  return { flagName: null, inlineValue: null };
+}
+
+function assignFlagValue(values, key, def, raw) {
+  if (def.type === 'string-multi') {
+    values[key] = [...(values[key] ?? []), raw];
+  } else {
+    values[key] = coerceValue(def.type, raw);
+  }
+}
+
+function readValuedFlag(args, i, inlineValue, def, values, key) {
+  if (inlineValue !== null) {
+    assignFlagValue(values, key, def, inlineValue);
+    return i + 1;
+  }
+  const next = args[i + 1];
+  const missing =
+    next === undefined || (typeof next === 'string' && next.startsWith('--'));
+  if (missing) {
+    if (def.optionalValue !== undefined) values[key] = def.optionalValue;
+    return i + 1;
+  }
+  assignFlagValue(values, key, def, next);
+  return i + 2;
+}
+
+function parseTokens(args, spec, state) {
+  const { values, keyOf, shortMap } = state;
   const positionals = [];
   let i = 0;
   while (i < args.length) {
@@ -177,22 +217,7 @@ export function defineFlags(spec, args = [], opts = {}) {
       for (let j = i + 1; j < args.length; j += 1) positionals.push(args[j]);
       break;
     }
-
-    let flagName = null;
-    let inlineValue = null;
-    if (tok.startsWith('--')) {
-      const eq = tok.indexOf('=');
-      if (eq >= 0) {
-        flagName = tok.slice(2, eq);
-        inlineValue = tok.slice(eq + 1);
-      } else {
-        flagName = tok.slice(2);
-      }
-    } else if (tok.startsWith('-') && tok.length > 1) {
-      const candidate = shortMap[tok.slice(1)];
-      if (candidate) flagName = candidate;
-    }
-
+    const { flagName, inlineValue } = classifyToken(tok, shortMap);
     if (!flagName) {
       positionals.push(tok);
       i += 1;
@@ -204,58 +229,37 @@ export function defineFlags(spec, args = [], opts = {}) {
       continue;
     }
     const key = keyOf[flagName];
-
     if (def.type === 'boolean') {
       values[key] = true;
       i += 1;
       continue;
     }
-
-    let raw;
-    if (inlineValue !== null) {
-      raw = inlineValue;
-      i += 1;
-    } else {
-      const next = args[i + 1];
-      const missing =
-        next === undefined ||
-        (typeof next === 'string' && next.startsWith('--'));
-      if (missing) {
-        if (def.optionalValue !== undefined) {
-          values[key] = def.optionalValue;
-        }
-        i += 1;
-        continue;
-      }
-      raw = next;
-      i += 2;
-    }
-
-    if (def.type === 'string-multi') {
-      values[key] = [...(values[key] ?? []), raw];
-    } else {
-      values[key] = coerceValue(def.type, raw);
-    }
+    i = readValuedFlag(args, i, inlineValue, def, values, key);
   }
+  return positionals;
+}
 
+function isAbsentValue(def, cur) {
+  if (def.type === 'ticket') return cur === null;
+  if (def.type === 'string-multi') return cur.length === 0;
+  return cur === undefined;
+}
+
+function applyEnvFallbacks(spec, state, env) {
+  const { values, keyOf } = state;
   for (const [name, def] of Object.entries(spec)) {
     if (!def.envKey) continue;
     const envRaw = env?.[def.envKey];
     if (typeof envRaw !== 'string' || envRaw.length === 0) continue;
     const key = keyOf[name];
-    const cur = values[key];
-    let absent;
-    if (def.type === 'ticket') absent = cur === null;
-    else if (def.type === 'string-multi') absent = cur.length === 0;
-    else absent = cur === undefined;
-    if (!absent) continue;
-    if (def.type === 'string-multi') {
-      values[key] = [envRaw];
-    } else {
-      values[key] = coerceValue(def.type, envRaw);
-    }
+    if (!isAbsentValue(def, values[key])) continue;
+    if (def.type === 'string-multi') values[key] = [envRaw];
+    else values[key] = coerceValue(def.type, envRaw);
   }
+}
 
+function applyDefaults(spec, state) {
+  const { values, keyOf } = state;
   for (const [name, def] of Object.entries(spec)) {
     if (!('default' in def)) continue;
     const key = keyOf[name];
@@ -263,6 +267,14 @@ export function defineFlags(spec, args = [], opts = {}) {
     const absent = def.type === 'ticket' ? cur === null : cur === undefined;
     if (absent) values[key] = def.default;
   }
+}
 
-  return { values, positionals };
+export function defineFlags(spec, args = [], opts = {}) {
+  validateSpec(spec);
+  const env = opts.env ?? process.env;
+  const state = initParserState(spec);
+  const positionals = parseTokens(args, spec, state);
+  applyEnvFallbacks(spec, state, env);
+  applyDefaults(spec, state);
+  return { values: state.values, positionals };
 }

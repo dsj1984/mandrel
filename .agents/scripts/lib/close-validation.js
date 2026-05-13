@@ -302,6 +302,30 @@ function pipePrefixed(stream, prefix, emit) {
  * @param {{ cwd: string, signal?: AbortSignal, gateName?: string, log?: (m: string) => void }} opts
  * @returns {Promise<{ status: number }>}
  */
+/** Wire the AbortSignal so an abort kills the child. Returns the cleanup fn. */
+export function attachGateAbortHandler(child, signal) {
+  if (!signal) return () => {};
+  const killChild = () => {
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      /* race: already exited */
+    }
+  };
+  if (signal.aborted) {
+    killChild();
+    return () => {};
+  }
+  signal.addEventListener('abort', killChild, { once: true });
+  return () => signal.removeEventListener('abort', killChild);
+}
+
+/** SIGTERM (no exit code) on abort → non-zero so the gate counts as failed. */
+export function gateExitCode(code, sig) {
+  if (typeof code === 'number') return code;
+  return sig ? 143 : 1;
+}
+
 function defaultGateRunner(cmd, args, opts = {}) {
   const { cwd, signal, gateName, log } = opts;
   const child = spawn(cmd, args, {
@@ -314,38 +338,14 @@ function defaultGateRunner(cmd, args, opts = {}) {
     typeof log === 'function' ? log : (m) => process.stdout.write(`${m}\n`);
   pipePrefixed(child.stdout, prefix, emit);
   pipePrefixed(child.stderr, prefix, emit);
-
-  let onAbort = null;
-  if (signal) {
-    if (signal.aborted) {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        /* child may have exited */
-      }
-    } else {
-      onAbort = () => {
-        try {
-          child.kill('SIGTERM');
-        } catch {
-          /* race: already exited */
-        }
-      };
-      signal.addEventListener('abort', onAbort, { once: true });
-    }
-  }
-
+  const detach = attachGateAbortHandler(child, signal);
   return new Promise((resolve) => {
     child.on('exit', (code, sig) => {
-      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
-      // SIGTERM (no exit code) on abort → surface as non-zero so the gate
-      // counts as failed. `runCloseValidation` swallows aborted-sibling
-      // failures because firstFailure is already pinned.
-      const status = typeof code === 'number' ? code : sig ? 143 : 1;
-      resolve({ status });
+      detach();
+      resolve({ status: gateExitCode(code, sig) });
     });
     child.on('error', () => {
-      if (signal && onAbort) signal.removeEventListener('abort', onAbort);
+      detach();
       resolve({ status: 1 });
     });
   });

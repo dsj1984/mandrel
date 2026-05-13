@@ -211,6 +211,54 @@ function reportEnsureWarnings(ensured, progress) {
   }
 }
 
+async function fetchMainRefs({ mainCwd, progress }) {
+  progress('GIT', 'Fetching remote refs (main checkout)...');
+  const fetchResult = await gitFetchWithRetry(mainCwd, 'origin');
+  if (fetchResult.attempts > 1) {
+    progress(
+      'GIT',
+      `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
+    );
+  }
+}
+
+export function reportSnapshotFork(snapshot, epicBranch, progress) {
+  if (snapshot?.commit?.committed) {
+    progress(
+      'GIT',
+      `🧊 Forked main baselines → ${epicBranch} (commit ${snapshot.commit.sha?.slice(0, 7)}).`,
+    );
+    return;
+  }
+  progress(
+    'GIT',
+    `🧊 Snapshot fork skipped: ${snapshot?.commit?.reason ?? 'no-files'}.`,
+  );
+}
+
+export function maybeForkSnapshot({
+  epicId,
+  epicBranch,
+  mainCwd,
+  forkAndCommitEpicSnapshot,
+  progress,
+}) {
+  // Story #1585 (Epic #1471): defer the baseline-snapshot fork from
+  // /epic-plan to first-story-init so plan-time stays git-state-free and
+  // the snapshot reflects the current main rather than stale main at plan
+  // time. Idempotent + non-fatal on missing source baselines.
+  if (epicId === undefined || epicId === null) return;
+  try {
+    const snapshot = forkAndCommitEpicSnapshot({ epicId, cwd: mainCwd });
+    reportSnapshotFork(snapshot, epicBranch, progress);
+  } catch (err) {
+    progress(
+      'GIT',
+      `⚠️ snapshot fork failed (non-fatal): ${err?.message ?? err}`,
+    );
+  }
+}
+
 export async function bootstrapWorktree({
   epicBranch,
   epicId,
@@ -225,47 +273,15 @@ export async function bootstrapWorktree({
   onPhase,
   forkAndCommitEpicSnapshot = defaultForkAndCommitEpicSnapshot,
 }) {
-  progress('GIT', 'Fetching remote refs (main checkout)...');
-  const fetchResult = await gitFetchWithRetry(mainCwd, 'origin');
-  if (fetchResult.attempts > 1) {
-    progress(
-      'GIT',
-      `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
-    );
-  }
-
+  await fetchMainRefs({ mainCwd, progress });
   ensureEpicBranchRef(epicBranch, baseBranch, mainCwd, { progress });
-
-  // Story #1585 (Epic #1471): defer the baseline-snapshot fork from
-  // /epic-plan to first-story-init so plan-time stays git-state-free and
-  // the snapshot reflects the current main rather than stale main at plan
-  // time. Idempotent: `commitSnapshotsToEpicBranch` short-circuits when
-  // the per-epic baseline files already match (no changed files → no new
-  // commit), so subsequent story-inits for the same Epic are a no-op.
-  // Non-fatal: missing source baselines downgrade through the helper's
-  // existing warning path so story-init continues even on a fresh repo.
-  if (epicId !== undefined && epicId !== null) {
-    try {
-      const snapshot = forkAndCommitEpicSnapshot({ epicId, cwd: mainCwd });
-      if (snapshot?.commit?.committed) {
-        progress(
-          'GIT',
-          `🧊 Forked main baselines → ${epicBranch} (commit ${snapshot.commit.sha?.slice(0, 7)}).`,
-        );
-      } else {
-        progress(
-          'GIT',
-          `🧊 Snapshot fork skipped: ${snapshot?.commit?.reason ?? 'no-files'}.`,
-        );
-      }
-    } catch (err) {
-      progress(
-        'GIT',
-        `⚠️ snapshot fork failed (non-fatal): ${err?.message ?? err}`,
-      );
-    }
-  }
-
+  maybeForkSnapshot({
+    epicId,
+    epicBranch,
+    mainCwd,
+    forkAndCommitEpicSnapshot,
+    progress,
+  });
   ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress });
 
   const wm = new WorktreeManager({
