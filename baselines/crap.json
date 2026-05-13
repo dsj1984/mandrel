@@ -145,181 +145,181 @@
       "crap": 15,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapEnvOverrides",
-      "startLine": 71
+      "startLine": 77
     },
     {
       "crap": 6.6000000000000005,
       "file": ".agents/scripts/check-crap.js",
       "method": "readGateExtra",
-      "startLine": 125
+      "startLine": 131
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "parseArgv",
-      "startLine": 136
+      "startLine": 142
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "<anon method-1>",
-      "startLine": 139
+      "startLine": 145
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-crap.js",
       "method": "<anon method-2>",
-      "startLine": 140
+      "startLine": 146
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "resolveCrapChangedSince",
-      "startLine": 162
+      "startLine": 168
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "filterRowsByFileScope",
-      "startLine": 193
+      "startLine": 199
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "checkCrapRegression",
-      "startLine": 248
+      "startLine": 254
     },
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "compareCrap",
-      "startLine": 259
+      "startLine": 265
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-crap.js",
       "method": "evaluateBaselineCompatibility",
-      "startLine": 374
+      "startLine": 380
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-crap.js",
       "method": "buildCrapReport",
-      "startLine": 437
+      "startLine": 443
     },
     {
       "crap": 30,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 490
+      "startLine": 496
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 533
+      "startLine": 539
     },
     {
       "crap": 9.021751535698701,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 576
+      "startLine": 582
     },
     {
-      "crap": 29.552648912718528,
+      "crap": 53.125,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 608
+      "startLine": 614
     },
     {
       "crap": 8,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveMaintainabilityEnvOverrides",
-      "startLine": 63
+      "startLine": 69
     },
     {
       "crap": 20,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "compareScores",
-      "startLine": 101
+      "startLine": 107
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseStoryIdArg",
-      "startLine": 158
+      "startLine": 164
     },
     {
       "crap": 1.5787037037037037,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicIdArg",
-      "startLine": 172
+      "startLine": 178
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseChangedSinceArg",
-      "startLine": 179
+      "startLine": 185
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseFullScopeArg",
-      "startLine": 192
+      "startLine": 198
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "resolveChangedSinceRef",
-      "startLine": 203
+      "startLine": 209
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseEpicRefArg",
-      "startLine": 228
+      "startLine": 234
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "parseJsonPathArg",
-      "startLine": 232
+      "startLine": 238
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "buildMaintainabilityReport",
-      "startLine": 258
+      "startLine": 264
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "emitRegressionFriction",
-      "startLine": 283
+      "startLine": 289
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "printSummaryReport",
-      "startLine": 305
+      "startLine": 311
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "loadMaintainabilityBaseline",
-      "startLine": 319
+      "startLine": 325
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "<anon method-3>",
-      "startLine": 330
+      "startLine": 336
     },
     {
-      "crap": 40.06455688705506,
+      "crap": 67.69350950748596,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
-      "startLine": 340
+      "startLine": 346
     },
     {
       "crap": 2,
@@ -5968,6 +5968,72 @@
       "startLine": 96
     },
     {
+      "crap": 29.229504009330803,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "loadFloorConfig",
+      "startLine": 50
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "cloneDefaults",
+      "startLine": 146
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyFloorPolicy",
+      "startLine": 186
+    },
+    {
+      "crap": 5.390625,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "guardInputs",
+      "startLine": 193
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "wrapSingle",
+      "startLine": 218
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCoverageFloor",
+      "startLine": 222
+    },
+    {
+      "crap": 4.212567429654468,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "checkCoverageRecord",
+      "startLine": 234
+    },
+    {
+      "crap": 4.068228930171954,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyMaintainabilityFloor",
+      "startLine": 273
+    },
+    {
+      "crap": 6.318359375,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "applyCrapCeiling",
+      "startLine": 311
+    },
+    {
+      "crap": 12.94921875,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "parseFloorFlag",
+      "startLine": 360
+    },
+    {
+      "crap": 10,
+      "file": ".agents/scripts/lib/quality-floors.js",
+      "method": "formatViolation",
+      "startLine": 384
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/retrofit/task-body-retrofit.js",
       "method": "isTaskTicket",
@@ -7324,7 +7390,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65
