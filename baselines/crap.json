@@ -6088,25 +6088,25 @@
       "startLine": 140
     },
     {
-      "crap": 3.0052083333333335,
+      "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "resolveStoryWorktreePath",
       "startLine": 214
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runFetchOrigin",
       "startLine": 227
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runRebaseAndAbortOnConflict",
       "startLine": 234
     },
     {
-      "crap": 5.7503082107339525,
+      "crap": 4,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "rebaseStoryOnEpic",
       "startLine": 242
@@ -6118,25 +6118,25 @@
       "startLine": 289
     },
     {
-      "crap": 1.037037037037037,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "buildVerboseMergeLogger",
       "startLine": 293
     },
     {
-      "crap": 12,
+      "crap": 3,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "throwOnMajorConflict",
       "startLine": 300
     },
     {
-      "crap": 6,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "logMergeOutcome",
       "startLine": 311
     },
     {
-      "crap": 2.0054869684499312,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runFinalizeMerge",
       "startLine": 329
@@ -6154,22 +6154,28 @@
       "startLine": 389
     },
     {
-      "crap": 2,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "commitPendingMerge",
       "startLine": 393
     },
     {
-      "crap": 6.036925352753755,
+      "crap": 5,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "finalizeMergeIfPending",
       "startLine": 403
     },
     {
-      "crap": 1.9032962962962963,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
       "method": "runResumeMerge",
       "startLine": 435
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
+      "method": "<anon method-3>",
+      "startLine": 461
     },
     {
       "crap": 4,
@@ -6902,6 +6908,12 @@
       "file": ".agents/scripts/lib/quality-floors.js",
       "method": "formatViolation",
       "startLine": 396
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/rebrand-deny.js",
+      "method": "isDenied",
+      "startLine": 60
     },
     {
       "crap": 1,
@@ -8954,6 +8966,42 @@
       "file": ".agents/scripts/quality-preview.js",
       "method": "runCli",
       "startLine": 291
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "rebrandString",
+      "startLine": 60
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "listTrackedFiles",
+      "startLine": 81
+    },
+    {
+      "crap": 6.007327498473438,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "classify",
+      "startLine": 102
+    },
+    {
+      "crap": 7.005291005291006,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "run",
+      "startLine": 135
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "parseArgs",
+      "startLine": 184
+    },
+    {
+      "crap": 1.216,
+      "file": ".agents/scripts/rebrand-to-mandrel.js",
+      "method": "<anon method-4>",
+      "startLine": 202
     },
     {
       "crap": 3,
