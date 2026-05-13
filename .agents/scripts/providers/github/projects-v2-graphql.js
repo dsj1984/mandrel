@@ -28,25 +28,38 @@ const opt = (n, id) => ({
   description: '',
 });
 
-function resolveToken() {
-  const env = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-  if (env) return env;
+function readGhCliToken() {
   try {
     const t = execSync('gh auth token', {
       encoding: 'utf8',
       timeout: 5000,
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
-    if (t) {
-      if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = t;
-      return t;
-    }
+    return t || null;
   } catch {
-    /* fall through */
+    return null;
   }
-  throw new Error(
-    '[GitHubProvider] No GitHub token (set GITHUB_TOKEN or run `gh auth login`).',
-  );
+}
+
+function readEnvToken() {
+  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
+}
+
+function memoizeEnvToken(token) {
+  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
+}
+
+function resolveToken() {
+  const envToken = readEnvToken();
+  if (envToken) return envToken;
+  const ghToken = readGhCliToken();
+  if (!ghToken) {
+    throw new Error(
+      '[GitHubProvider] No GitHub token (set GITHUB_TOKEN or run `gh auth login`).',
+    );
+  }
+  memoizeEnvToken(ghToken);
+  return ghToken;
 }
 
 export const isInsufficientScopes = (e) =>

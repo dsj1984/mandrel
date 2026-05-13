@@ -77,37 +77,50 @@ export function __setExecSyncForTests(fn) {
 }
 
 /* node:coverage ignore next */
-function resolveToken() {
-  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
-  if (token) return token;
-
+function readGhCliToken() {
   try {
-    const ghToken = execSyncHolder
+    const t = execSyncHolder
       .impl('gh auth token', {
         encoding: 'utf8',
         timeout: 5000,
         stdio: ['pipe', 'pipe', 'pipe'],
       })
       .trim();
-    if (ghToken) {
-      if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = ghToken;
-      return ghToken;
-    }
+    return t || null;
   } catch {
     // gh CLI not installed or not authenticated.
+    return null;
   }
+}
 
-  throw new Error(
-    [
-      '[GitHubProvider] Authentication Failed: No GitHub token found.',
-      '',
-      'To resolve this, choose one of the following:',
-      '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
-      '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
-      '',
-      'See .agents/scripts/lib/orchestration/README.md#authentication for details.',
-    ].join('\n'),
-  );
+const TOKEN_MISSING_ERROR = [
+  '[GitHubProvider] Authentication Failed: No GitHub token found.',
+  '',
+  'To resolve this, choose one of the following:',
+  '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
+  '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
+  '',
+  'See .agents/scripts/lib/orchestration/README.md#authentication for details.',
+].join('\n');
+
+/* node:coverage ignore next */
+function readEnvToken() {
+  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
+}
+
+/* node:coverage ignore next */
+function memoizeEnvToken(token) {
+  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
+}
+
+/* node:coverage ignore next */
+function resolveToken() {
+  const envToken = readEnvToken();
+  if (envToken) return envToken;
+  const ghToken = readGhCliToken();
+  if (!ghToken) throw new Error(TOKEN_MISSING_ERROR);
+  memoizeEnvToken(ghToken);
+  return ghToken;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,26 +170,46 @@ function matchesAny(haystack, needles) {
   return false;
 }
 
-function classifyGithubError(err) {
-  if (!err) return 'permanent';
-
+/**
+ * Extract `{ lower, status, code }` from an error in the shape `gh-exec`
+ * throws. Pure — exported style for unit-testability without instantiating
+ * the provider. Defensive on shape: errors arrive as `Error` objects, plain
+ * `{message,status,code}` bags, or non-Errors stringified into `String(err)`.
+ */
+export function extractErrorFields(err) {
   const message = typeof err.message === 'string' ? err.message : String(err);
-  const lower = message.toLowerCase();
-  const status = typeof err.status === 'number' ? err.status : undefined;
-  const code = typeof err.code === 'string' ? err.code : undefined;
+  return {
+    lower: message.toLowerCase(),
+    status: typeof err.status === 'number' ? err.status : undefined,
+    code: typeof err.code === 'string' ? err.code : undefined,
+  };
+}
 
+/** Pure predicate: HTTP status that signals "transient — retry-eligible". */
+export function isTransientStatus(status) {
+  if (status === 429) return true;
+  return typeof status === 'number' && status >= 500;
+}
+
+/** Pure predicate: error code/message signals "transient — retry-eligible". */
+export function isTransientByCodeOrMessage(code, lower) {
+  if (TRANSIENT_CODES.has(code)) return true;
+  return matchesAny(lower, TRANSIENT_MESSAGES);
+}
+
+/** Pure predicate: HTTP status / message signals "permission denied". */
+export function isPermissionSignal(status, lower) {
+  if (status === 401 || status === 403) return true;
+  return matchesAny(lower, PERMISSION_MESSAGES);
+}
+
+export function classifyGithubError(err) {
+  if (!err) return 'permanent';
+  const { lower, status, code } = extractErrorFields(err);
   if (matchesAny(lower, FEATURE_DISABLED_MESSAGES)) return 'feature-disabled';
-
-  if (status === 429 || (typeof status === 'number' && status >= 500)) {
-    return 'transient';
-  }
-  if (TRANSIENT_CODES.has(code) || matchesAny(lower, TRANSIENT_MESSAGES)) {
-    return 'transient';
-  }
-
-  if (status === 401 || status === 403) return 'permission';
-  if (matchesAny(lower, PERMISSION_MESSAGES)) return 'permission';
-
+  if (isTransientStatus(status)) return 'transient';
+  if (isTransientByCodeOrMessage(code, lower)) return 'transient';
+  if (isPermissionSignal(status, lower)) return 'permission';
   return 'permanent';
 }
 

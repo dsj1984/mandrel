@@ -245,6 +245,40 @@ export function formatDiffTable(rows, { baselineHasByFile } = {}) {
   return lines.join('\n');
 }
 
+/**
+ * Load the baseline at `baselinePath` and return an empty-shape fallback when
+ * it is missing. `BaselineNotFoundError` is the only error class we tolerate
+ * — anything else propagates. Pure-ish (warns via Logger).
+ *
+ * @param {{ baselinePath: string, baselinePathRel: string, includeByFile: boolean }} args
+ * @returns {{ baseline: object, baselineHasByFile: boolean }}
+ */
+export function loadBaselineWithFallback({
+  baselinePath,
+  baselinePathRel,
+  includeByFile,
+}) {
+  const emptyBaseline = includeByFile
+    ? { errorCount: 0, warningCount: 0, byFile: {} }
+    : { errorCount: 0, warningCount: 0 };
+  try {
+    const baseline = loadBaseline({ baselinePath });
+    const baselineHasByFile =
+      includeByFile &&
+      baseline &&
+      typeof baseline.byFile === 'object' &&
+      baseline.byFile !== null;
+    return { baseline, baselineHasByFile };
+  } catch (err) {
+    if (!(err instanceof BaselineNotFoundError)) throw err;
+    const msg = includeByFile
+      ? `⚠️ No baseline found at ${baselinePathRel}. Treating baseline as empty.`
+      : `⚠️ No baseline found at ${baselinePathRel}. Assuming 0 baseline.`;
+    Logger.warn(msg);
+    return { baseline: emptyBaseline, baselineHasByFile: false };
+  }
+}
+
 export function diffBaseline(
   cmdConfig,
   executionTimeoutMs,
@@ -262,21 +296,11 @@ export function diffBaseline(
   );
   if (isDegraded(current)) return current;
 
-  let baseline = { errorCount: 0, warningCount: 0, byFile: {} };
-  let baselineHasByFile = false;
-  try {
-    baseline = loadBaseline({ baselinePath });
-    baselineHasByFile =
-      baseline &&
-      typeof baseline.byFile === 'object' &&
-      baseline.byFile !== null;
-  } catch (err) {
-    if (!(err instanceof BaselineNotFoundError)) throw err;
-    Logger.warn(
-      `⚠️ No baseline found at ${baselinePathRel}. Treating baseline as empty.`,
-    );
-    baseline = { errorCount: 0, warningCount: 0, byFile: {} };
-  }
+  const { baseline, baselineHasByFile } = loadBaselineWithFallback({
+    baselinePath,
+    baselinePathRel,
+    includeByFile: true,
+  });
 
   Logger.info(
     `   Baseline: ${baseline.errorCount ?? 0} errors, ${baseline.warningCount ?? 0} warnings`,
@@ -289,6 +313,22 @@ export function diffBaseline(
   const rows = diffPerFile(baseline, current);
   Logger.info(formatDiffTable(rows, { baselineHasByFile }));
   return { ...current, regressions: rows };
+}
+
+/** Pure predicate: current snapshot has more errors or warnings than baseline. */
+export function hasDegraded(current, baseline) {
+  return (
+    current.errorCount > baseline.errorCount ||
+    current.warningCount > baseline.warningCount
+  );
+}
+
+/** Pure predicate: current snapshot has strictly fewer of either count. */
+export function hasImproved(current, baseline) {
+  return (
+    current.errorCount < baseline.errorCount ||
+    current.warningCount < baseline.warningCount
+  );
 }
 
 export function checkBaseline(
@@ -308,15 +348,11 @@ export function checkBaseline(
   );
   if (isDegraded(current)) return current;
 
-  let baseline = { errorCount: 0, warningCount: 0 };
-  try {
-    baseline = loadBaseline({ baselinePath });
-  } catch (err) {
-    if (!(err instanceof BaselineNotFoundError)) throw err;
-    Logger.warn(
-      `⚠️ No baseline found at ${baselinePathRel}. Assuming 0 baseline.`,
-    );
-  }
+  const { baseline } = loadBaselineWithFallback({
+    baselinePath,
+    baselinePathRel,
+    includeByFile: false,
+  });
 
   Logger.info(
     `   Baseline: ${baseline.errorCount} errors, ${baseline.warningCount} warnings`,
@@ -325,20 +361,12 @@ export function checkBaseline(
     `   Current:  ${current.errorCount} errors, ${current.warningCount} warnings`,
   );
 
-  if (
-    current.errorCount > baseline.errorCount ||
-    current.warningCount > baseline.warningCount
-  ) {
+  if (hasDegraded(current, baseline)) {
     Logger.fatal(
       '\n🚨 LINT DEGRADATION DETECTED! You have introduced new lint issues compared to the baseline.',
     );
   }
-
-  // Ratchet (shrink baseline) if better
-  if (
-    current.errorCount < baseline.errorCount ||
-    current.warningCount < baseline.warningCount
-  ) {
+  if (hasImproved(current, baseline)) {
     writeBaseline({ baselinePath, data: current });
     Logger.info(
       `🎉 Lint health improved! Ratcheted baseline down to current levels.`,
