@@ -48,42 +48,57 @@ const KNOWN_COVERAGE_AXES = new Set(['lines', 'branches', 'functions']);
  * @returns {FloorConfig}
  */
 export function loadFloorConfig(agentrcPath) {
-  const target =
-    typeof agentrcPath === 'string' && agentrcPath.length > 0
-      ? path.isAbsolute(agentrcPath)
-        ? agentrcPath
-        : path.resolve(process.cwd(), agentrcPath)
-      : path.resolve(process.cwd(), '.agentrc.json');
+  const target = resolveAgentrcPath(agentrcPath);
+  const raw = readAgentrcOrNull(target);
+  if (raw === null) return cloneDefaults();
+  const parsed = parseAgentrcJson(target, raw);
+  const block = parsed?.agentSettings?.quality?.qualityFloors;
+  if (block === undefined || block === null) return cloneDefaults();
+  assertBlockShape(block);
+  assertKnownAxes(block);
+  const out = cloneDefaults();
+  applyCoverageBlock(out, block.coverage);
+  applyMaintainabilityBlock(out, block.maintainability);
+  applyCrapBlock(out, block.crap);
+  return out;
+}
 
-  let raw;
-  try {
-    raw = fs.readFileSync(target, 'utf8');
-  } catch {
-    // No config / unreadable → defaults. Deep-clone the frozen defaults so
-    // callers can mutate without surprising sibling callers.
-    return cloneDefaults();
+function resolveAgentrcPath(agentrcPath) {
+  if (typeof agentrcPath !== 'string' || agentrcPath.length === 0) {
+    return path.resolve(process.cwd(), '.agentrc.json');
   }
+  return path.isAbsolute(agentrcPath)
+    ? agentrcPath
+    : path.resolve(process.cwd(), agentrcPath);
+}
 
-  let parsed;
+function readAgentrcOrNull(target) {
   try {
-    parsed = JSON.parse(raw);
+    return fs.readFileSync(target, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function parseAgentrcJson(target, raw) {
+  try {
+    return JSON.parse(raw);
   } catch (err) {
     throw new Error(
       `qualityFloors: failed to parse ${target}: ${err instanceof Error ? err.message : String(err)}`,
     );
   }
+}
 
-  const block = parsed?.agentSettings?.quality?.qualityFloors;
-  if (block === undefined || block === null) {
-    return cloneDefaults();
-  }
+function assertBlockShape(block) {
   if (typeof block !== 'object' || Array.isArray(block)) {
     throw new Error(
       `qualityFloors: expected an object at agentSettings.quality.qualityFloors, got ${Array.isArray(block) ? 'array' : typeof block}`,
     );
   }
+}
 
-  // Reject unknown axes (top-level).
+function assertKnownAxes(block) {
   for (const key of Object.keys(block)) {
     if (!KNOWN_AXES.has(key)) {
       throw new Error(
@@ -91,56 +106,53 @@ export function loadFloorConfig(agentrcPath) {
       );
     }
   }
+}
 
-  const out = cloneDefaults();
-
-  if (block.coverage !== undefined) {
-    if (
-      typeof block.coverage !== 'object' ||
-      block.coverage === null ||
-      Array.isArray(block.coverage)
-    ) {
+function applyCoverageBlock(out, coverage) {
+  if (coverage === undefined) return;
+  if (
+    typeof coverage !== 'object' ||
+    coverage === null ||
+    Array.isArray(coverage)
+  ) {
+    throw new Error(
+      'qualityFloors.coverage: expected an object with numeric lines/branches/functions',
+    );
+  }
+  for (const key of Object.keys(coverage)) {
+    if (!KNOWN_COVERAGE_AXES.has(key)) {
       throw new Error(
-        'qualityFloors.coverage: expected an object with numeric lines/branches/functions',
+        `qualityFloors.coverage: unknown axis "${key}"; expected one of ${[...KNOWN_COVERAGE_AXES].join(', ')}`,
       );
     }
-    for (const key of Object.keys(block.coverage)) {
-      if (!KNOWN_COVERAGE_AXES.has(key)) {
-        throw new Error(
-          `qualityFloors.coverage: unknown axis "${key}"; expected one of ${[...KNOWN_COVERAGE_AXES].join(', ')}`,
-        );
-      }
-      const v = block.coverage[key];
-      if (!Number.isFinite(v) || v < 0 || v > 100) {
-        throw new Error(
-          `qualityFloors.coverage.${key}: expected a number in [0, 100], got ${JSON.stringify(v)}`,
-        );
-      }
-      out.coverage[key] = v;
-    }
-  }
-
-  if (block.maintainability !== undefined) {
-    const v = block.maintainability;
+    const v = coverage[key];
     if (!Number.isFinite(v) || v < 0 || v > 100) {
       throw new Error(
-        `qualityFloors.maintainability: expected a number in [0, 100], got ${JSON.stringify(v)}`,
+        `qualityFloors.coverage.${key}: expected a number in [0, 100], got ${JSON.stringify(v)}`,
       );
     }
-    out.maintainability = v;
+    out.coverage[key] = v;
   }
+}
 
-  if (block.crap !== undefined) {
-    const v = block.crap;
-    if (!Number.isFinite(v) || v < 0) {
-      throw new Error(
-        `qualityFloors.crap: expected a non-negative number, got ${JSON.stringify(v)}`,
-      );
-    }
-    out.crap = v;
+function applyMaintainabilityBlock(out, mi) {
+  if (mi === undefined) return;
+  if (!Number.isFinite(mi) || mi < 0 || mi > 100) {
+    throw new Error(
+      `qualityFloors.maintainability: expected a number in [0, 100], got ${JSON.stringify(mi)}`,
+    );
   }
+  out.maintainability = mi;
+}
 
-  return out;
+function applyCrapBlock(out, crap) {
+  if (crap === undefined) return;
+  if (!Number.isFinite(crap) || crap < 0) {
+    throw new Error(
+      `qualityFloors.crap: expected a non-negative number, got ${JSON.stringify(crap)}`,
+    );
+  }
+  out.crap = crap;
 }
 
 function cloneDefaults() {

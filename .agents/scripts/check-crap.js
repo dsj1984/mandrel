@@ -494,6 +494,14 @@ export function buildCrapReport({
 }
 
 function printSummary(result, scanSummary) {
+  printSummaryHeader(result, scanSummary);
+  for (const v of result.violations) {
+    printViolationLine(v);
+  }
+  printRemovedRows(result);
+}
+
+function printSummaryHeader(result, scanSummary) {
   Logger.info('\n--- CRAP Report ---');
   Logger.info(`Total methods scanned: ${result.total}`);
   Logger.info(`Regressions:           ${result.regressions}`);
@@ -506,33 +514,35 @@ function printSummary(result, scanSummary) {
     );
   }
   Logger.info('-------------------\n');
+}
 
-  for (const v of result.violations) {
-    if (v.kind === 'new') {
-      Logger.error(
-        `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
-      );
-      Logger.error(
-        `       crap=${v.crap.toFixed(2)} > ceiling=${v.ceiling} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
-      );
-    } else {
-      Logger.error(
-        `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${v.kind === 'drifted-regression' ? `, baseline line ${v.baselineStartLine}` : ''})`,
-      );
-      Logger.error(
-        `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
-      );
-    }
-  }
-  if (result.removed > 0) {
-    Logger.info(
-      `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
+function printViolationLine(v) {
+  if (v.kind === 'new') {
+    Logger.error(
+      `[CRAP] ❌ NEW-METHOD over ceiling: ${v.file}::${v.method} (line ${v.startLine})`,
     );
-    for (const r of result.removedRows) {
-      Logger.info(
-        `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
-      );
-    }
+    Logger.error(
+      `       crap=${v.crap.toFixed(2)} > ceiling=${v.ceiling} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
+    );
+    return;
+  }
+  Logger.error(
+    `[CRAP] ❌ REGRESSION: ${v.file}::${v.method} (line ${v.startLine}${v.kind === 'drifted-regression' ? `, baseline line ${v.baselineStartLine}` : ''})`,
+  );
+  Logger.error(
+    `       crap=${v.crap.toFixed(2)} > baseline=${v.baseline.toFixed(2)} (c=${v.cyclomatic}, cov=${v.coverage.toFixed(2)})`,
+  );
+}
+
+function printRemovedRows(result) {
+  if (result.removed <= 0) return;
+  Logger.info(
+    `[CRAP] ℹ ${result.removed} baseline row(s) absent from current scan (deleted or moved):`,
+  );
+  for (const r of result.removedRows) {
+    Logger.info(
+      `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
+    );
   }
 }
 
@@ -639,33 +649,10 @@ async function main() {
   if (scopeOutcome.exitCode !== undefined) return scopeOutcome.exitCode;
   const scopeSet = scopeOutcome.scopeSet;
 
-  const baselinePath =
-    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
-  const baseline = loadCrapBaseline({
-    baselinePath,
-    epicRef: args.epicRef,
-  });
-  if (args.epicRef) {
-    Logger.info(
-      `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
-    );
-  }
+  const baseline = loadBaselineWithRefLog({ args, agentSettings });
   const runningEscomplex = resolveEscomplexVersion();
-  const runningTs = resolveTsTranspilerVersion();
-  const compat = evaluateBaselineCompatibility({
-    baseline,
-    runningKernelVersion: KERNEL_VERSION,
-    runningEscomplexVersion: runningEscomplex,
-    runningTsTranspilerVersion: runningTs,
-  });
-  if (!compat.ok) {
-    if (compat.exitCode === 0) Logger.info(compat.message);
-    else Logger.error(compat.message);
-    return compat.exitCode;
-  }
-  for (const warning of compat.warnings ?? []) {
-    Logger.warn(warning);
-  }
+  const compatOutcome = checkBaselineCompat(baseline, runningEscomplex);
+  if (compatOutcome.exitCode !== undefined) return compatOutcome.exitCode;
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const requireCoverage = crap.requireCoverage !== false;
@@ -710,15 +697,7 @@ async function main() {
   });
 
   if (result.regressions > 0 || result.newViolations > 0) {
-    Logger.error(
-      `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
-    );
-    if (args.storyId && args.epicId) {
-      await emitFriction(args.storyId, args.epicId, result, {
-        ...rest,
-        agentSettings,
-      });
-    }
+    await handleGateFailure({ result, refreshTag, args, agentSettings, rest });
     return 1;
   }
 
@@ -727,6 +706,73 @@ async function main() {
 
   Logger.info('[CRAP] ✅ check passed.');
   return 0;
+}
+
+/**
+ * Load the CRAP baseline (optionally at the epic ref) and log the
+ * ref-read header. Extracted from `main` to keep CRAP under the v6 ceiling.
+ */
+function loadBaselineWithRefLog({ args, agentSettings }) {
+  const baselinePath =
+    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
+  const baseline = loadCrapBaseline({
+    baselinePath,
+    epicRef: args.epicRef,
+  });
+  if (args.epicRef) {
+    Logger.info(
+      `[CRAP] reading baseline at ref ${args.epicRef} (path=${baselinePath})`,
+    );
+  }
+  return baseline;
+}
+
+/**
+ * Emit the gate-failure log line + optional friction signal. Extracted
+ * from `main` to keep CRAP under the v6 ceiling.
+ */
+async function handleGateFailure({
+  result,
+  refreshTag,
+  args,
+  agentSettings,
+  rest,
+}) {
+  Logger.error(
+    `[CRAP] ❌ check failed. Reduce complexity or add coverage on the flagged methods, or run \`npm run crap:update\` with a \`${refreshTag}\` commit if justified.`,
+  );
+  if (args.storyId && args.epicId) {
+    await emitFriction(args.storyId, args.epicId, result, {
+      ...rest,
+      agentSettings,
+    });
+  }
+}
+
+/**
+ * Run the baseline-compat check + emit warnings. Returns `{exitCode}` when
+ * the caller should exit early; otherwise `{exitCode: undefined}` and main
+ * continues. Extracted from `main` to keep CRAP under the v6 ceiling.
+ *
+ * @returns {{ exitCode: number | undefined }}
+ */
+function checkBaselineCompat(baseline, runningEscomplex) {
+  const runningTs = resolveTsTranspilerVersion();
+  const compat = evaluateBaselineCompatibility({
+    baseline,
+    runningKernelVersion: KERNEL_VERSION,
+    runningEscomplexVersion: runningEscomplex,
+    runningTsTranspilerVersion: runningTs,
+  });
+  if (!compat.ok) {
+    if (compat.exitCode === 0) Logger.info(compat.message);
+    else Logger.error(compat.message);
+    return { exitCode: compat.exitCode };
+  }
+  for (const warning of compat.warnings ?? []) {
+    Logger.warn(warning);
+  }
+  return { exitCode: undefined };
 }
 
 /**

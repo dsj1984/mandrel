@@ -349,18 +349,7 @@ async function main() {
   const { agentSettings } = resolveConfig();
   const baselinePath = getBaselines({ agentSettings }).maintainability.path;
   const epicRef = parseEpicRefArg();
-  const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
-  if (epicRef) {
-    Logger.info(
-      `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
-    );
-  }
-  if (Object.keys(baseline).length === 0) {
-    Logger.warn(
-      `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
-    );
-    process.exit(0);
-  }
+  const baseline = loadAndValidateBaseline({ baselinePath, epicRef });
 
   const targetDirs = getQuality({ agentSettings }).maintainability.targetDirs;
   const files = [];
@@ -401,22 +390,54 @@ async function main() {
   maybeWriteMaintainabilityReport({ scores, stats, resolvedScope });
 
   if (stats.regressions > 0) {
-    Logger.error(
-      '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
-    );
-    const storyId = parseStoryIdArg();
-    const epicId = parseEpicIdArg();
-    if (storyId && epicId) {
-      await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
-        agentSettings,
-      });
-    }
-    process.exit(1);
+    await handleRegression(stats, agentSettings);
   }
 
   enforceMaintainabilityFloor(scores, process.argv.slice(2));
 
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
+}
+
+/**
+ * Load the MI baseline at the optional epic ref, log the ref-read header
+ * if any, and bail out (exit 0) when no baseline exists. Extracted from
+ * `main` to keep the orchestrator's CRAP under the v6 ceiling.
+ *
+ * @returns {Record<string, number>}
+ */
+function loadAndValidateBaseline({ baselinePath, epicRef }) {
+  const baseline = loadMaintainabilityBaseline({ baselinePath, epicRef });
+  if (epicRef) {
+    Logger.info(
+      `[Maintainability] reading baseline at ref ${epicRef} (path=${baselinePath})`,
+    );
+  }
+  if (Object.keys(baseline).length === 0) {
+    Logger.warn(
+      `[Maintainability] ⚠️ No baseline found at ${baselinePath}${epicRef ? ` (ref ${epicRef})` : ''}. Run 'npm run maintainability:update' to create one.`,
+    );
+    process.exit(0);
+  }
+  return baseline;
+}
+
+/**
+ * Handle the regression-found path: log, optionally emit a friction
+ * signal, then exit non-zero. Extracted from `main` to keep CRAP under
+ * the v6 ceiling.
+ */
+async function handleRegression(stats, agentSettings) {
+  Logger.error(
+    '[Maintainability] ❌ Regression check failed. Please refactor the affected files or update the baseline if the change is justified.',
+  );
+  const storyId = parseStoryIdArg();
+  const epicId = parseEpicIdArg();
+  if (storyId && epicId) {
+    await emitRegressionFriction(storyId, epicId, stats.regressedFiles, {
+      agentSettings,
+    });
+  }
+  process.exit(1);
 }
 
 /**
