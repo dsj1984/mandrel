@@ -115,9 +115,9 @@
     "functions": 80
   },
   ".agents/scripts/git-cleanup-branches.js": {
-    "lines": 81.98,
-    "branches": 90,
-    "functions": 87.1
+    "lines": 83.31,
+    "branches": 90.57,
+    "functions": 88.24
   },
   ".agents/scripts/git-pr-quality-gate.js": {
     "lines": 73.53,

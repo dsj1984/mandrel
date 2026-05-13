@@ -7,11 +7,13 @@ import {
   computeProtectedSet,
   executeCleanup,
   parseCleanupArgs,
+  parsePrunedRefs,
   planCleanup,
   probeMergedPr,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
+  renderPruneLine,
 } from '../../.agents/scripts/git-cleanup-branches.js';
 
 describe('git-cleanup-branches.parseCleanupArgs', () => {
@@ -333,12 +335,116 @@ describe('git-cleanup-branches.executeCleanup', () => {
       remote: true,
       deleteLocalFn: () => ({ deleted: true, reason: 'deleted' }),
       deleteRemoteFn: () => ({ deleted: true, reason: 'not-found' }),
+      pruneRemoteFn: () => ({ ok: true, pruned: [] }),
       logger: { info() {}, warn() {}, error() {} },
     });
     assert.equal(result.ok, true);
     assert.equal(result.remote.length, 1);
     assert.equal(result.remote[0].alreadyGone, true);
     assert.equal(result.remote[0].ok, true);
+  });
+
+  it('runs `git remote prune` once after remote deletes and surfaces pruned refs', () => {
+    let pruneCalls = 0;
+    let capturedRemote = null;
+    const result = executeCleanup({
+      candidates: [
+        baseCand({ branch: 'fix/a' }),
+        baseCand({ branch: 'fix/b' }),
+      ],
+      cwd: '/repo',
+      remote: true,
+      deleteLocalFn: () => ({ deleted: true, reason: 'deleted' }),
+      deleteRemoteFn: () => ({ deleted: true, reason: 'not-found' }),
+      pruneRemoteFn: (_cwd, remoteName) => {
+        pruneCalls += 1;
+        capturedRemote = remoteName;
+        return { ok: true, pruned: ['fix/a', 'fix/b'] };
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(pruneCalls, 1, 'prune should run exactly once');
+    assert.equal(capturedRemote, 'origin');
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.prune?.pruned, ['fix/a', 'fix/b']);
+    assert.equal(result.prune?.attempted, true);
+  });
+
+  it('skips prune when remote=false (no remote attempts made)', () => {
+    let pruneCalls = 0;
+    const result = executeCleanup({
+      candidates: [baseCand({ branch: 'fix/a' })],
+      cwd: '/repo',
+      remote: false,
+      deleteLocalFn: () => ({ deleted: true, reason: 'deleted' }),
+      pruneRemoteFn: () => {
+        pruneCalls += 1;
+        return { ok: true, pruned: [] };
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(pruneCalls, 0);
+    assert.equal(result.prune, null);
+  });
+
+  it('skips prune when remote=true but no candidates produced remote attempts', () => {
+    let pruneCalls = 0;
+    const result = executeCleanup({
+      candidates: [
+        baseCand({
+          branch: 'fix/wt',
+          hasWorktree: true,
+          worktreePath: '/wt/fix-wt',
+        }),
+      ],
+      cwd: '/repo',
+      remote: true,
+      removeWorktreeFn: () => ({ ok: false, dirty: true, stderr: 'boom' }),
+      deleteLocalFn: () => {
+        throw new Error('should not run');
+      },
+      pruneRemoteFn: () => {
+        pruneCalls += 1;
+        return { ok: true, pruned: [] };
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(pruneCalls, 0, 'no remote attempts means no prune');
+    assert.equal(result.prune, null);
+  });
+
+  it('records prune failure into failures[] and flips ok=false', () => {
+    const result = executeCleanup({
+      candidates: [baseCand({ branch: 'fix/a' })],
+      cwd: '/repo',
+      remote: true,
+      deleteLocalFn: () => ({ deleted: true, reason: 'deleted' }),
+      deleteRemoteFn: () => ({ deleted: true, reason: 'deleted' }),
+      pruneRemoteFn: () => ({ ok: false, pruned: [], stderr: 'prune-boom' }),
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(result.ok, false);
+    const pruneFailure = result.failures.find((f) => f.scope === 'prune');
+    assert.ok(pruneFailure, 'expected a prune-scoped failure');
+    assert.equal(pruneFailure.stderr, 'prune-boom');
+  });
+
+  it('respects a non-default remoteName when pruning', () => {
+    let capturedRemote = null;
+    executeCleanup({
+      candidates: [baseCand({ branch: 'fix/a' })],
+      cwd: '/repo',
+      remote: true,
+      remoteName: 'upstream',
+      deleteLocalFn: () => ({ deleted: true, reason: 'deleted' }),
+      deleteRemoteFn: () => ({ deleted: true, reason: 'deleted' }),
+      pruneRemoteFn: (_cwd, remoteName) => {
+        capturedRemote = remoteName;
+        return { ok: true, pruned: [] };
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(capturedRemote, 'upstream');
   });
 
   it('aggregates failures across scopes and flips ok=false', () => {
@@ -358,6 +464,7 @@ describe('git-cleanup-branches.executeCleanup', () => {
         reason: 'error',
         stderr: 'remote-boom',
       }),
+      pruneRemoteFn: () => ({ ok: true, pruned: [] }),
       logger: { info() {}, warn() {}, error() {} },
     });
     assert.equal(result.ok, false);
@@ -365,6 +472,39 @@ describe('git-cleanup-branches.executeCleanup', () => {
     assert.equal(result.failures.length, 2);
     const scopes = result.failures.map((f) => f.scope).sort();
     assert.deepEqual(scopes, ['local', 'remote']);
+  });
+});
+
+describe('git-cleanup-branches.parsePrunedRefs', () => {
+  it('extracts each `* [pruned] <remote>/<ref>` line, stripping the prefix', () => {
+    const stdout = [
+      'Pruning origin',
+      'URL: https://github.com/example/repo.git',
+      ' * [pruned] origin/story-1476',
+      ' * [pruned] origin/fix/keep',
+    ].join('\n');
+    assert.deepEqual(parsePrunedRefs(stdout, 'origin'), [
+      'story-1476',
+      'fix/keep',
+    ]);
+  });
+
+  it('returns [] when nothing was pruned', () => {
+    const stdout = ['Pruning origin', 'URL: https://example.com/repo'].join(
+      '\n',
+    );
+    assert.deepEqual(parsePrunedRefs(stdout, 'origin'), []);
+  });
+
+  it('leaves the ref name untouched when it does not start with the remote prefix', () => {
+    assert.deepEqual(parsePrunedRefs(' * [pruned] weird/branch', 'origin'), [
+      'weird/branch',
+    ]);
+  });
+
+  it('tolerates empty / null stdout', () => {
+    assert.deepEqual(parsePrunedRefs('', 'origin'), []);
+    assert.deepEqual(parsePrunedRefs(null, 'origin'), []);
   });
 });
 
@@ -414,6 +554,7 @@ describe('git-cleanup-branches.buildJsonEnvelope', () => {
     assert.deepEqual(env.local, []);
     assert.deepEqual(env.remote, []);
     assert.deepEqual(env.worktrees, []);
+    assert.equal(env.prune, null);
     assert.deepEqual(env.failures, []);
     assert.equal(env.ok, true);
   });
@@ -423,6 +564,12 @@ describe('git-cleanup-branches.buildJsonEnvelope', () => {
       worktrees: [{ path: '/wt/a', ok: true, dirty: false }],
       local: [{ branch: 'fix/a', ok: true }],
       remote: [{ branch: 'fix/a', ok: true, alreadyGone: true }],
+      prune: {
+        attempted: true,
+        ok: true,
+        remote: 'origin',
+        pruned: ['fix/a'],
+      },
       failures: [],
       ok: true,
     };
@@ -437,6 +584,7 @@ describe('git-cleanup-branches.buildJsonEnvelope', () => {
     assert.deepEqual(env.worktrees, result.worktrees);
     assert.deepEqual(env.local, result.local);
     assert.deepEqual(env.remote, result.remote);
+    assert.deepEqual(env.prune, result.prune);
     assert.equal(env.ok, true);
   });
 
@@ -571,9 +719,66 @@ describe('git-cleanup-branches renderers', () => {
       local: [1, 2],
       remote: [1],
       worktrees: [1],
+      prune: null,
       failures: [],
     });
     assert.match(out, /Reaped 2 local \+ 1 remote \+ 1 worktree/);
+  });
+
+  it('renderExecutionSummary appends stale-tracking-ref count when prune dropped some', () => {
+    const out = renderExecutionSummary({
+      ok: true,
+      local: [1],
+      remote: [1],
+      worktrees: [],
+      prune: {
+        attempted: true,
+        ok: true,
+        remote: 'origin',
+        pruned: ['a', 'b'],
+      },
+      failures: [],
+    });
+    assert.match(out, /2 stale tracking ref/);
+  });
+
+  it('renderPruneLine returns null when no prune was attempted', () => {
+    assert.equal(renderPruneLine(null), null);
+    assert.equal(renderPruneLine({ attempted: false }), null);
+  });
+
+  it('renderPruneLine reports "no stale refs" when pruned[] is empty', () => {
+    const out = renderPruneLine({
+      attempted: true,
+      ok: true,
+      remote: 'origin',
+      pruned: [],
+    });
+    assert.match(out, /no stale refs/);
+  });
+
+  it('renderPruneLine lists dropped refs prefixed with the remote name', () => {
+    const out = renderPruneLine({
+      attempted: true,
+      ok: true,
+      remote: 'origin',
+      pruned: ['story-1476', 'fix/keep'],
+    });
+    assert.match(out, /dropped 2 stale ref/);
+    assert.match(out, /origin\/story-1476/);
+    assert.match(out, /origin\/fix\/keep/);
+  });
+
+  it('renderPruneLine flags failure with the stderr message', () => {
+    const out = renderPruneLine({
+      attempted: true,
+      ok: false,
+      remote: 'origin',
+      pruned: [],
+      stderr: 'fatal: no such remote',
+    });
+    assert.match(out, /❌/);
+    assert.match(out, /fatal: no such remote/);
   });
 
   it('renderExecutionSummary reports failure count when not ok', () => {
