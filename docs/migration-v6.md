@@ -1,14 +1,195 @@
-# v6 migration notes
+# v6 migration guide (mandrel)
 
-This file collects the operator-facing migration notes for the v6 line of
-`agent-protocols`. v6 is a **major-boundary** release: the quality-gate
-contract changed shape in ways that are visible to any consumer who
-re-runs `npm run lint`, `coverage:check`, `maintainability:check`, or
-`crap:check` against a previously-passing tree.
+This is the **only doc** a v5 consumer needs to read to move to v6. v6 is
+the **Mandrel rebrand + breaking-change cut** (Epic #1184). It is a
+**major-boundary** release: the package name, submodule URL, quality-gate
+contract, and `.agentrc.json` schema all change shape.
 
 If you are upgrading a consuming repository from v5.x → v6.x, read this
 file once before bumping the `.agents/` submodule pin or the npm
 dependency.
+
+---
+
+## What changed (TL;DR)
+
+| Surface | v5 | v6 | Scripted? |
+| --- | --- | --- | --- |
+| Package name | `agent-protocols` | **`mandrel`** | yes — `migrate-to-v6.js` rewrites `package.json` deps |
+| Submodule URL | `…/agent-protocols(.git)` | `…/mandrel(.git)` | yes — `migrate-to-v6.js` rewrites `.gitmodules` |
+| `.agentrc.json` keys | flat / legacy positions | flat `orchestration.concurrency.*` etc. | yes — `migrate-to-v6.js` applies the v5→v6 keymap |
+| `.agentrc.json` schema | partial `additionalProperties` | **`additionalProperties: false` everywhere** | manual — unknown keys now throw |
+| Quality gates | per-file **ratchet** only | ratchet **+ absolute floor** (90/85/90 lines/branches/functions, MI ≥ 70, CRAP ≤ 20) | partial — gate ships; below-floor files block their own pushes |
+| Baselines (coverage / MI / CRAP) | v5 history | **fresh v6 snap** — not numerically comparable | manual — re-snap your own baselines after upgrade |
+| `VERSION` | `5.41.0` | **`6.0.0`** | n/a — published with the release |
+| `npm pack` artifact | `agent-protocols-5.x.tgz` | **`mandrel-6.0.0.tgz`** | n/a |
+| Live `CHANGELOG.md` | mixed 4.x / 5.x history | starts at v6 (`archive/CHANGELOG-pre-v6.md` holds pre-v6) | already done in the repo |
+| `.agents/` directory name | `.agents/` | **unchanged** — preserved by design | n/a |
+| `.agentrc.json` filename | `.agentrc.json` | **unchanged** — preserved by design | n/a |
+| Slash-command catalog | mixed names | audited + `/mandrel` discoverability | already done in the repo |
+
+Two principles to keep in mind while reading the rest:
+
+1. **`.agents/` and `.agentrc.json` are stable.** v6 keeps both names so
+   consumers do not have to `git submodule deinit` + re-add. Only the
+   *remote* the submodule points at changes — the on-disk path stays put.
+2. **Every mechanical change is scripted.** `migrate-to-v6.js` is the
+   one command a consumer runs. Anything it cannot do is collected in
+   the **manual residue checklist** below.
+
+---
+
+## How to migrate (running `migrate-to-v6.js`)
+
+From your consumer repo root, on a **clean working tree**:
+
+```bash
+# 1. Pin your .agents/ submodule (or your npm dep) at the v6 tag.
+#    Submodule consumers: bump the SHA in .gitmodules / superproject pin
+#    to the first v6 commit, then `git submodule update --init`.
+git submodule update --remote .agents
+
+# 2. Dry-run first to see the plan.
+node .agents/scripts/migrate-to-v6.js --dry-run
+
+# 3. Apply.
+node .agents/scripts/migrate-to-v6.js
+
+# 4. Re-run to confirm idempotency — should report zero changes.
+node .agents/scripts/migrate-to-v6.js
+```
+
+The script:
+
+- Reads `.agentrc.json`, `.gitmodules`, and `package.json` at the repo
+  root (skips any file that does not exist).
+- Rewrites legacy v5 keys per the v5→v6 keymap in
+  [`lib/v5-to-v6-keymap.js`](../.agents/scripts/lib/v5-to-v6-keymap.js).
+- Bumps the `.gitmodules` URL from `agent-protocols` → `mandrel`.
+- Renames the package reference in your `package.json` dependency
+  blocks (range preserved).
+- Prints a per-section summary and a "Total changes" count. The second
+  run on the same tree should report `alreadyV6` and write nothing.
+
+Flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--cwd <path>` | Target a repo other than the cwd. |
+| `--dry-run` | Compute the plan, print summary, write nothing. |
+| `--yes` / `-y` | Proceed on a dirty working tree (use sparingly). |
+| `--help` / `-h` | Print usage. |
+
+The tool makes **zero network calls** and never writes outside the
+target repo root.
+
+---
+
+## Manual residue checklist
+
+`migrate-to-v6.js` covers the mechanical changes. The items below
+require human judgement — work through them after running the script.
+
+- [ ] **Re-snap your baselines.** v6 ships new baselines for the repo
+      itself, but yours need a fresh capture against the v6 gate:
+      ```bash
+      npm run coverage:update
+      npm run maintainability:update
+      npm run crap:update
+      ```
+      Commit the regenerated `baselines/*.json`. Numbers will not be
+      diffable against your v5 history; see the
+      [Baseline reset](#baseline-reset-story-1602) section below.
+- [ ] **Run the full-scope floor gate.** Before pushing v6 for the
+      first time:
+      ```bash
+      npm run coverage:check -- --full-scope
+      npm run maintainability:check -- --full-scope
+      npm run crap:check -- --full-scope
+      ```
+      Every failure names the file, axis, current value, and floor.
+      Decide per-file: add tests, refactor, or — if the file is a
+      legitimate thin CLI shell whose logic lives in tested `lib/` —
+      add an entry to your `.c8rc.cjs` exclude list with a one-line
+      rationale and the `/* node:coverage ignore file */` pragma.
+- [ ] **Confirm `.husky/pre-push` reflects the v6 layout.** The hook
+      should run the ratchet calls first, then the three
+      `--full-scope` floor calls. The audit suite spot-checks for
+      accidental `--floor=off` on the hook — never wire it in.
+- [ ] **Audit your `.agentrc.json` for unknown keys.** v6 sets
+      `additionalProperties: false` on every nested object in
+      `agentrc.schema.json`; an unknown axis now throws at config
+      load. The migration tool only rewrites *known* legacy keys —
+      truly bespoke keys you may have added by hand have to be
+      reviewed manually. See [Schema tightening](#schema-tightening-epic-1184)
+      below.
+- [ ] **Verify `git submodule sync` resolves.** GitHub serves a
+      redirect from the old `agent-protocols` repo URL to `mandrel`
+      for web, `git clone`, and submodule sync — but the redirect is
+      best-effort. If you maintain an internal mirror, update its
+      upstream URL by hand.
+- [ ] **Smoke-test on a throwaway branch first.** Run your own test
+      and lint suites on the v6 pin in a branch before merging to
+      `main`. The gate is strict by design.
+
+---
+
+## Deletion sweep (Epic #1184, Phase 1)
+
+Epic F's Phase 1 explicitly drove **net-negative LOC** across the
+repository:
+
+- The `@deprecated`-marked carve-outs accumulated during Epics A–E
+  were removed at the v6 boundary rather than being aliased forward.
+  There are **no v5 → v6 compatibility shims** in the surface — every
+  removed symbol is gone, not deprecated-with-warning.
+- The obsolete checks from Epic #1143 (concurrent-close race, `npm
+  test` `core.bare` flip, post-merge push cascade, stale
+  `origin/epic/<id>`) were removed; the May 8 `withEpicMergeLock`
+  landing made them impossible by construction.
+- The scripts + commands surface was audited (`.agents/scripts/`
+  ~50 files; `.claude/commands/` 33 commands). Unreferenced scripts
+  and broken / orphaned commands were deleted. The new
+  `/mandrel` discoverability workflow at `.agents/workflows/mandrel.md`
+  prints the auto-generated Mandrel-owned catalog so consumers can
+  distinguish project commands from Claude Code built-ins without
+  forcing brand-prefixed names everywhere.
+- Audit-tracked High findings (clean-code, performance, dependencies,
+  security) were either remediated or carry an explicit follow-up
+  issue with deferral rationale — no silent drops.
+
+**Consumer impact:** if your code reached into any `@deprecated` v5
+symbol, it will fail at import / load time on v6 with a clear
+"undefined export" error. The cure is to move to the replacement named
+in the matching v5 changelog entry (see
+[`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md) for the
+full pre-v6 history).
+
+---
+
+## Schema tightening (Epic #1184)
+
+`agentrc.schema.json` already had `additionalProperties: false` at the
+top level. v6 audits every nested object in the schema for the same
+setting, and removes legacy fields the changelog had been trailing
+(e.g. `runners.epicRunner.healthRefresh`-style residue).
+
+What this means in practice:
+
+- Unknown keys at **any** depth of your `.agentrc.json` now throw.
+  Previously, a typo in a nested block could be silently ignored — v6
+  fails fast at config load with the offending JSON path.
+- Concurrency caps have already flattened to
+  `orchestration.concurrency.*` (Epic #1178 — see the live
+  `CHANGELOG.md` for the full keymap). `migrate-to-v6.js` rewrites
+  these for you; any *hand-authored* unknown key is your call.
+
+If your CI fails after the upgrade with a config validation error,
+read the JSON path the validator reports and either:
+
+- delete the key (if it was a typo or legacy residue), or
+- move it under the correct v6 location (cross-reference the v5→v6
+  keymap in [`lib/v5-to-v6-keymap.js`](../.agents/scripts/lib/v5-to-v6-keymap.js)).
 
 ---
 
@@ -156,14 +337,18 @@ trail; once a follow-up Story lands a fix, the line above moves to the
 
 1. Bump the `.agents/` submodule pin (or the npm dependency) to the
    first v6 tag.
-2. Run `npm run coverage:check -- --full-scope`,
-   `maintainability:check -- --full-scope`, `crap:check --full-scope`
-   from your repo root. Each failure names the specific file and
-   metric. Decide for each: add tests, refactor, or — if the file is a
-   legitimate thin CLI shell whose logic lives in tested `lib/` — add
-   an entry to your repo's `.c8rc.cjs` exclude list (with rationale +
-   pragma, per [`docs/quality-gates.md`](quality-gates.md#no-silent-excludes-c8rccjs-policy)).
-3. Re-snap your own baselines via the `*:update` scripts once the tree
+2. Run `node .agents/scripts/migrate-to-v6.js --dry-run` from your
+   repo root, review the plan, then re-run without `--dry-run`.
+3. Run `npm run coverage:check -- --full-scope`,
+   `maintainability:check -- --full-scope`, `crap:check --full-scope`.
+   Each failure names the specific file and metric. Decide for each:
+   add tests, refactor, or — if the file is a legitimate thin CLI
+   shell whose logic lives in tested `lib/` — add an entry to your
+   repo's `.c8rc.cjs` exclude list (with rationale + pragma, per
+   [`docs/quality-gates.md`](quality-gates.md#no-silent-excludes-c8rccjs-policy)).
+4. Re-snap your own baselines via the `*:update` scripts once the tree
    is clean.
-4. Confirm `.husky/pre-push` reflects the v6 hook layout (ratchet calls
+5. Confirm `.husky/pre-push` reflects the v6 hook layout (ratchet calls
    first, then the three `--full-scope` floor calls).
+6. Work through the [Manual residue checklist](#manual-residue-checklist)
+   above and tick each item.
