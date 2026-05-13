@@ -20,9 +20,9 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 81.85,
-    "branches": 80.92,
-    "functions": 86.67
+    "lines": 86.81,
+    "branches": 83.22,
+    "functions": 78.26
   },
   ".agents/scripts/check-maintainability.js": {
     "lines": 67.69,
@@ -76,7 +76,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 87.78,
-    "branches": 63.89,
+    "branches": 65.75,
     "functions": 80
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -95,9 +95,9 @@
     "functions": 50
   },
   ".agents/scripts/epic-execute-record-wave.js": {
-    "lines": 78.72,
-    "branches": 69.57,
-    "functions": 71.43
+    "lines": 87.09,
+    "branches": 79.78,
+    "functions": 84.62
   },
   ".agents/scripts/epic-plan-edit-flow.js": {
     "lines": 90.5,
@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 89.58,
+    "branches": 90.72,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -476,7 +476,7 @@
   },
   ".agents/scripts/lib/gates/baseline-store.js": {
     "lines": 96.23,
-    "branches": 77.27,
+    "branches": 78.26,
     "functions": 100
   },
   ".agents/scripts/lib/gates/friction.js": {
@@ -1255,9 +1255,9 @@
     "functions": 100
   },
   ".agents/scripts/lint-baseline.js": {
-    "lines": 63.62,
-    "branches": 83.33,
-    "functions": 61.54
+    "lines": 70.28,
+    "branches": 85,
+    "functions": 68.75
   },
   ".agents/scripts/loc-delta.js": {
     "lines": 84.88,
@@ -1280,14 +1280,14 @@
     "functions": 50
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 83.78,
-    "branches": 67.86,
-    "functions": 82.35
+    "lines": 86.13,
+    "branches": 72.37,
+    "functions": 86.67
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
-    "lines": 85.13,
+    "lines": 82.27,
     "branches": 82.18,
-    "functions": 91.67
+    "functions": 73.33
   },
   ".agents/scripts/quality-preview.js": {
     "lines": 96.81,

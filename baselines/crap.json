@@ -208,28 +208,76 @@
       "startLine": 437
     },
     {
-      "crap": 30,
+      "crap": 2,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printSummaryHeader",
+      "startLine": 490
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printViolation",
+      "startLine": 505
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "printRemovedRows",
+      "startLine": 527
+    },
+    {
+      "crap": 2,
       "file": ".agents/scripts/check-crap.js",
       "method": "printSummary",
-      "startLine": 490
+      "startLine": 539
     },
     {
       "crap": 6,
       "file": ".agents/scripts/check-crap.js",
       "method": "emitFriction",
-      "startLine": 533
+      "startLine": 545
     },
     {
       "crap": 9.021751535698701,
       "file": ".agents/scripts/check-crap.js",
       "method": "loadCrapBaseline",
-      "startLine": 576
+      "startLine": 588
     },
     {
-      "crap": 29.552648912718528,
+      "crap": 2,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "resolveScopeSet",
+      "startLine": 625
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "maybeWriteJsonReport",
+      "startLine": 649
+    },
+    {
+      "crap": 3.182569496619083,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "applyCompatDecision",
+      "startLine": 677
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "hasComparisonFailures",
+      "startLine": 694
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "handleCompareResult",
+      "startLine": 703
+    },
+    {
+      "crap": 10.018778220785592,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
-      "startLine": 608
+      "startLine": 720
     },
     {
       "crap": 8,
@@ -838,70 +886,142 @@
       "startLine": 159
     },
     {
-      "crap": 124.1112647462277,
+      "crap": 7,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "validateReturnsEntry",
+      "startLine": 203
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "classifyParsedReturn",
+      "startLine": 232
+    },
+    {
+      "crap": 10.8276671675432,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "normalizeReturns",
-      "startLine": 196
+      "startLine": 242
     },
     {
       "crap": 4,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "aggregateWaveStatus",
-      "startLine": 247
+      "startLine": 270
     },
     {
       "crap": 7.854629152150125,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "verifyWaveResults",
-      "startLine": 280
+      "startLine": 303
     },
     {
       "crap": 5.700539437235749,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "loadManifestTitleMap",
-      "startLine": 330
+      "startLine": 353
     },
     {
       "crap": 5,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "classifyWaveOutcome",
-      "startLine": 356
+      "startLine": 379
     },
     {
       "crap": 5.072886297376093,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "toRollupRow",
-      "startLine": 383
+      "startLine": 406
     },
     {
-      "crap": 28.06007806069825,
+      "crap": 2,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "buildNotifyFn",
+      "startLine": 443
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "countDoneStories",
+      "startLine": 454
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "emitWaveBoundaryNotifications",
+      "startLine": 472
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "emitCompleteWaveNotifications",
+      "startLine": 528
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "emitFailingWaveNotifications",
+      "startLine": 573
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "validateEpicWave",
+      "startLine": 609
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "validateResultsReturnsXor",
+      "startLine": 623
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "resolveConcurrencyCap",
+      "startLine": 637
+    },
+    {
+      "crap": 7.465494791666666,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "resolveResolvedResults",
+      "startLine": 659
+    },
+    {
+      "crap": 6.001185328478228,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runEpicExecuteRecordWave",
-      "startLine": 414
+      "startLine": 684
     },
     {
-      "crap": 36.013433747201304,
+      "crap": 6,
+      "file": ".agents/scripts/epic-execute-record-wave.js",
+      "method": "selectInputFlag",
+      "startLine": 852
+    },
+    {
+      "crap": 4.916,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "resolveRecordInput",
-      "startLine": 690
+      "startLine": 866
     },
     {
       "crap": 1.800655976676385,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "parseArgv",
-      "startLine": 713
+      "startLine": 882
     },
     {
       "crap": 6,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "runRecordWaveCli",
-      "startLine": 744
+      "startLine": 913
     },
     {
       "crap": 17.18359375,
       "file": ".agents/scripts/epic-execute-record-wave.js",
       "method": "main",
-      "startLine": 782
+      "startLine": 951
     },
     {
       "crap": 2,
@@ -7294,28 +7414,46 @@
       "startLine": 210
     },
     {
-      "crap": 28.370096021947873,
+      "crap": 7,
       "file": ".agents/scripts/lint-baseline.js",
-      "method": "diffBaseline",
-      "startLine": 248
+      "method": "loadBaselineWithFallback",
+      "startLine": 256
     },
     {
-      "crap": 53.466032733418636,
+      "crap": 5.666845481049563,
+      "file": ".agents/scripts/lint-baseline.js",
+      "method": "diffBaseline",
+      "startLine": 278
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lint-baseline.js",
+      "method": "hasDegraded",
+      "startLine": 315
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lint-baseline.js",
+      "method": "hasImproved",
+      "startLine": 323
+    },
+    {
+      "crap": 18.95686145404664,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "checkBaseline",
-      "startLine": 294
+      "startLine": 330
     },
     {
       "crap": 6.0099860277800605,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "runLintBaselineCli",
-      "startLine": 374
+      "startLine": 398
     },
     {
       "crap": 17.008592592592592,
       "file": ".agents/scripts/lint-baseline.js",
       "method": "main",
-      "startLine": 421
+      "startLine": 445
     },
     {
       "crap": 7.095703125,
@@ -7510,94 +7648,136 @@
       "startLine": 75
     },
     {
-      "crap": 27.728729248046875,
+      "crap": 5.252148148148148,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "readGhCliToken",
+      "startLine": 80
+    },
+    {
+      "crap": 5.666666666666668,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "readEnvToken",
+      "startLine": 107
+    },
+    {
+      "crap": 3.1851851851851856,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "memoizeEnvToken",
+      "startLine": 112
+    },
+    {
+      "crap": 9.029296875,
       "file": ".agents/scripts/providers/github.js",
       "method": "resolveToken",
-      "startLine": 80
+      "startLine": 117
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "matchesAny",
+      "startLine": 168
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "extractErrorFields",
+      "startLine": 179
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isTransientStatus",
+      "startLine": 189
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isTransientByCodeOrMessage",
+      "startLine": 195
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github.js",
+      "method": "isPermissionSignal",
+      "startLine": 201
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github.js",
-      "method": "matchesAny",
-      "startLine": 155
-    },
-    {
-      "crap": 210,
-      "file": ".agents/scripts/providers/github.js",
       "method": "classifyGithubError",
-      "startLine": 160
+      "startLine": 206
     },
     {
       "crap": 4.012021036814425,
       "file": ".agents/scripts/providers/github.js",
       "method": "normalizeLabels",
-      "startLine": 229
+      "startLine": 262
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToTicket",
-      "startLine": 241
+      "startLine": 274
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpic",
-      "startLine": 256
+      "startLine": 289
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "subIssueNodeToTicket",
-      "startLine": 270
+      "startLine": 303
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToListItem",
-      "startLine": 286
+      "startLine": 319
     },
     {
       "crap": 1,
       "file": ".agents/scripts/providers/github.js",
       "method": "issueToEpicListItem",
-      "startLine": 300
+      "startLine": 333
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 344
+      "startLine": 377
     },
     {
       "crap": 7,
       "file": ".agents/scripts/providers/github.js",
       "method": "isNotFoundError",
-      "startLine": 363
+      "startLine": 396
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "isLabelAlreadyExistsError",
-      "startLine": 388
+      "startLine": 421
     },
     {
       "crap": 5.0407083248524325,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 427
+      "startLine": 460
     },
     {
       "crap": 5.002194787379972,
       "file": ".agents/scripts/providers/github.js",
       "method": "createInlineTicketCache",
-      "startLine": 473
+      "startLine": 506
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github.js",
       "method": "primeIfAbsent",
-      "startLine": 477
+      "startLine": 510
     },
     {
       "crap": 1,
@@ -7612,64 +7792,82 @@
       "startLine": 24
     },
     {
-      "crap": 30,
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "readGhCliToken",
+      "startLine": 31
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "readEnvToken",
+      "startLine": 44
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
+      "method": "memoizeEnvToken",
+      "startLine": 48
+    },
+    {
+      "crap": 12,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveToken",
-      "startLine": 31
+      "startLine": 52
     },
     {
       "crap": 2,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon method-3>",
-      "startLine": 52
+      "startLine": 65
     },
     {
       "crap": 3,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "<anon method-4>",
-      "startLine": 54
+      "startLine": 67
     },
     {
       "crap": 3.0059176460918877,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "gql",
-      "startLine": 57
+      "startLine": 70
     },
     {
       "crap": 7,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "lookupProject",
-      "startLine": 81
+      "startLine": 94
     },
     {
       "crap": 7.946286327824611,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "resolveOrCreateProject",
-      "startLine": 100
+      "startLine": 113
     },
     {
       "crap": 7.142857142857143,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "ensureStatusField",
-      "startLine": 142
+      "startLine": 155
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "ensureProjectViews",
-      "startLine": 192
+      "startLine": 205
     },
     {
       "crap": 6,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "ensureProjectFields",
-      "startLine": 233
+      "startLine": 246
     },
     {
       "crap": 3,
       "file": ".agents/scripts/providers/github/projects-v2-graphql.js",
       "method": "addItemToProject",
-      "startLine": 259
+      "startLine": 272
     },
     {
       "crap": 5,
