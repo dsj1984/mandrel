@@ -2620,12 +2620,6 @@
       "startLine": 315
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/config-settings-schema.js",
-      "method": "getSettingsValidator",
-      "startLine": 516
-    },
-    {
       "crap": 3,
       "file": ".agents/scripts/lib/config/baselines.js",
       "method": "getBaselines",
@@ -6880,34 +6874,10 @@
       "startLine": 234
     },
     {
-      "crap": 4.212567429654468,
+      "crap": 6.478276716722554,
       "file": ".agents/scripts/lib/quality-floors.js",
       "method": "checkCoverageRecord",
       "startLine": 246
-    },
-    {
-      "crap": 4.068228930171954,
-      "file": ".agents/scripts/lib/quality-floors.js",
-      "method": "applyMaintainabilityFloor",
-      "startLine": 285
-    },
-    {
-      "crap": 6.318359375,
-      "file": ".agents/scripts/lib/quality-floors.js",
-      "method": "applyCrapCeiling",
-      "startLine": 323
-    },
-    {
-      "crap": 12.94921875,
-      "file": ".agents/scripts/lib/quality-floors.js",
-      "method": "parseFloorFlag",
-      "startLine": 372
-    },
-    {
-      "crap": 10,
-      "file": ".agents/scripts/lib/quality-floors.js",
-      "method": "formatViolation",
-      "startLine": 396
     },
     {
       "crap": 6,

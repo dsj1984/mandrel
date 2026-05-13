@@ -1,0 +1,954 @@
+epic:
+  id: 1653
+  title: '[Epic] v6.1.0 — Planning/Delivery token & runtime efficiency'
+features:
+  - slug: f-docs-fixes
+    title: Workflow documentation fixes
+    stories:
+      - slug: s-doc-ref-fixes
+        title: Fix epic-deliver / helper workflow references
+        wave: 0
+        tasks:
+          - slug: t-fix-epic-retro-ref
+            title: Resolve dead helpers/epic-retro.md reference in epic-deliver.md
+            body: >-
+              ## Goal
+
+              Fix the dead helpers/epic-retro.md reference under Story s-doc-ref-fixes so agents reading epic-deliver.md
+              don't chase a non-existent file.
+
+
+              ## Changes
+
+              - .agents/workflows/epic-deliver.md: remove the helpers/epic-retro.md link (around the retro phase) and
+              replace with a pointer to .agents/scripts/lib/orchestration/retro-runner.js as the canonical retro surface
+
+
+              ## Acceptance
+
+              - [ ] rg -n 'helpers/epic-retro.md' .agents/workflows/ returns no matches
+
+              - [ ] The retro section of epic-deliver.md links to a real file or script that exists on disk
+
+
+              ## Verify
+
+              - npm run lint (validate)
+
+              - node -e "const fs=require('fs');const
+              t=fs.readFileSync('.agents/workflows/epic-deliver.md','utf8');if(t.includes('helpers/epic-retro.md'))process.exit(1)"
+              (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+          - slug: t-fix-decompose-dryrun-flag
+            title: Correct --dry-run vs --paranoid flag docs in epic-plan-decompose helper
+            body: >-
+              ## Goal
+
+              Under Story s-doc-ref-fixes, fix the helper's claim that --dry-run runs the richer hierarchy checks —
+              those live behind --paranoid.
+
+
+              ## Changes
+
+              - .agents/workflows/helpers/epic-plan-decompose.md: replace the hierarchy-check guidance to point at
+              --paranoid (with a one-line note that --dry-run exists but only emits the plan without I/O)
+
+
+              ## Acceptance
+
+              - [ ] The helper documents --paranoid for hierarchy checks
+
+              - [ ] The helper still mentions --dry-run with its correct (plan-emit-only) behavior
+
+
+              ## Verify
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+          - slug: t-fix-code-review-step3
+            title: Dedupe Step 3 headings in epic-code-review helper
+            body: >-
+              ## Goal
+
+              Under Story s-doc-ref-fixes, collapse or renumber the two Step 3 headings in epic-code-review.md so agents
+              can refer to a unique step.
+
+
+              ## Changes
+
+              - .agents/workflows/helpers/epic-code-review.md: inspect the two Step 3 blocks — if they describe one
+              logical step, merge them; if two, renumber the second to Step 4 and renumber any subsequent steps
+              consistently
+
+
+              ## Acceptance
+
+              - [ ] grep -c '^### Step 3' .agents/workflows/helpers/epic-code-review.md returns 1
+
+              - [ ] Step numbers in the helper are strictly increasing and unique
+
+
+              ## Verify
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+        body: >-
+          Remove the dead helpers/epic-retro.md reference, correct the --dry-run vs --paranoid flag docs, and dedupe the
+          Step 3 heading in epic-code-review.md.
+        labels:
+          - type::story
+          - persona::technical-writer
+    body: >-
+      Resolve verified stale or wrong references in epic-deliver and helpers so agents don't waste turns chasing dead
+      paths.
+    labels:
+      - type::feature
+      - persona::technical-writer
+  - slug: f-envelope-diet
+    title: Planning + wave-loop envelope diet
+    stories:
+      - slug: s-prompt-emit-diet
+        title: Replace system-prompt bodies in --emit-context with hash refs
+        wave: 0
+        tasks:
+          - slug: t-skill-hash-loader
+            title: Add skill-hash loader module
+            body: >-
+              ## Goal
+
+              Under Story s-prompt-emit-diet, introduce a helper that reads a Skill's authoritative-prompt block and
+              returns { promptSource, promptVersion, promptHash } so emit-context can ship a reference instead of the
+              full prompt.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/templates/skill-hash (NEW): new module exporting loadSkillPromptMeta(skillPath) —
+              locates the authoritative-prompt fenced block in the SKILL.md, returns source path + parsed version +
+              sha256 hash
+
+              - tests/lib/templates/skill-hash.test (NEW): cover hash stability, missing-file failure, missing-block
+              failure
+
+
+              ## Acceptance
+
+              - [ ] loadSkillPromptMeta('.agents/skills/core/epic-plan-spec-author/SKILL.md') returns { promptSource,
+              promptVersion, promptHash } with a 64-char sha256 hex hash
+
+              - [ ] Calling it twice on the same unchanged file returns the same hash
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/templates/skill-hash.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-emit-context-prompt-refs
+            title: Wire skill-hash refs into emit-context envelopes + --include-prompts flag
+            body: >-
+              ## Goal
+
+              Under Story s-prompt-emit-diet, replace embedded prompt bodies in epic-plan-spec.js /
+              epic-plan-decompose.js --emit-context with { promptSource, promptVersion, promptHash } and add
+              --include-prompts for legacy callers.
+
+
+              ## Changes
+
+              - .agents/scripts/epic-plan-spec.js: use loadSkillPromptMeta for systemPrompts.prd and
+              systemPrompts.techSpec; gate the legacy embedded bodies behind --include-prompts
+
+              - .agents/scripts/epic-plan-decompose.js: same treatment for the decomposer system prompt; gate behind
+              --include-prompts
+
+              - tests/epic-plan-spec.emit-context.test (NEW): cover default (refs only) and --include-prompts (refs +
+              bodies) shapes
+
+              - tests/epic-plan-decompose.emit-context.test (NEW): same coverage
+
+
+              ## Acceptance
+
+              - [ ] Default --emit-context envelope bytes drop by ≥30% on a reference Epic (record before/after in the
+              PR description)
+
+              - [ ] --include-prompts restores the embedded prompt bodies byte-for-byte against the pre-change baseline
+
+              - [ ] Existing planner-context.json consumers (the epic-plan-spec-author Skill) still load successfully
+              against the new shape
+
+
+              ## Verify
+
+              - npm run test -- tests/epic-plan-spec.emit-context.test (NEW) tests/epic-plan-decompose.emit-context.test
+              (NEW) (unit)
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Emit { promptSource, promptVersion, promptHash } instead of the full PRD / Tech Spec / decomposer system
+          prompts when Skills already carry them.
+        labels:
+          - type::story
+          - persona::engineer
+      - slug: s-rendered-body-optional
+        title: Make wave-record renderedBody optional
+        wave: 0
+        tasks:
+          - slug: t-rendered-body-flags
+            title: Add --omit-rendered-body and --rendered-body-max-chars to record-wave
+            body: >-
+              ## Goal
+
+              Under Story s-rendered-body-optional, give operators a way to suppress or truncate the verbatim wave
+              markdown in the CLI envelope while preserving the canonical structured-comment surface.
+
+
+              ## Changes
+
+              - .agents/scripts/epic-execute-record-wave.js: parse --omit-rendered-body (boolean) and
+              --rendered-body-max-chars=<n>; when omitted, return { commentMarker, commentUrl, rowCounts, bodyHash } as
+              renderedBodyRef; when truncated, append a '…[truncated, see <commentUrl>]' tail
+
+              - tests/epic-execute-record-wave.flags.test (NEW): cover default schema, --omit-rendered-body,
+              --rendered-body-max-chars under and over the threshold
+
+
+              ## Acceptance
+
+              - [ ] Default invocation returns the existing schema unchanged (renderedBody present, byte-identical to
+              baseline on a fixture)
+
+              - [ ] --omit-rendered-body returns renderedBodyRef and no renderedBody key
+
+              - [ ] --rendered-body-max-chars truncates renderedBody to N chars and appends the truncation tail
+
+
+              ## Verify
+
+              - npm run test -- tests/epic-execute-record-wave.flags.test (NEW) (unit)
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-deliver-doc-rendered-body
+            title: Document --omit-rendered-body in epic-deliver Phase 2c
+            body: >-
+              ## Goal
+
+              Under Story s-rendered-body-optional, teach epic-deliver.md to pass --omit-rendered-body when the host
+              doesn't need the verbatim markdown in CLI output.
+
+
+              ## Changes
+
+              - .agents/workflows/epic-deliver.md: update Phase 2c to mention --omit-rendered-body /
+              --rendered-body-max-chars and the renderedBodyRef shape; cross-link to the canonical structured Epic
+              comment
+
+
+              ## Acceptance
+
+              - [ ] epic-deliver.md Phase 2c mentions --omit-rendered-body verbatim
+
+              - [ ] Workflow no longer instructs the host to print renderedBody verbatim by default — it now reads
+              'print renderedBody when present, otherwise echo the renderedBodyRef URL'
+
+
+              ## Verify
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+        body: >-
+          Add --omit-rendered-body and --rendered-body-max-chars to epic-execute-record-wave.js; return a compact
+          comment-ref envelope when opted out.
+        labels:
+          - type::story
+          - persona::engineer
+    body: >-
+      Strip system-prompt bodies and verbatim rendered markdown out of CLI envelopes that already have authoritative
+      sources in Skills and structured GitHub comments.
+    labels:
+      - type::feature
+      - persona::engineer
+  - slug: f-github-io
+    title: GitHub I/O efficiency for delivery hot paths
+    stories:
+      - slug: s-comment-id-cache
+        title: Cache structured-comment ids in checkpoint payloads
+        wave: 0
+        tasks:
+          - slug: t-checkpoint-commentids-schema
+            title: Extend checkpoint payloads with commentIds map
+            body: >-
+              ## Goal
+
+              Under Story s-comment-id-cache, persist the latest structured-comment id per marker in epic-plan-state /
+              wave-state / retro-state / automerge-state checkpoints so lookups can skip thread scans.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/spec/loader.js: add commentIds: { [marker]: number|null } to the checkpoint schemas;
+              tolerate older payloads missing the field
+
+              - .agents/scripts/lib/orchestration/checkpoint-writers (NEW): update writers to merge new commentIds
+              entries into the saved payload
+
+              - tests/lib/spec/loader.commentIds.test (NEW): cover forward-compat (older payload), commentIds round-trip
+
+
+              ## Acceptance
+
+              - [ ] Checkpoints written by the new writers carry a commentIds map alongside the existing fields
+
+              - [ ] Older checkpoints without commentIds load without error and trigger a thread scan on first lookup
+
+              - [ ] Schema validator accepts unknown markers under commentIds (additionalProperties allowed under that
+              map only)
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/spec/loader.commentIds.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-find-structured-comment-cache
+            title: Use knownCommentId in findStructuredComment / upsertStructuredComment
+            body: >-
+              ## Goal
+
+              Under Story s-comment-id-cache, short-circuit the full thread scan when a cached id is present and still
+              valid; PATCH on upsert when the id is known.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/ticketing.js: add { knownCommentId } option to findStructuredComment +
+              upsertStructuredComment; PATCH when known, POST + return new id otherwise
+
+              - tests/lib/orchestration/ticketing.structured-comment-cache.test (NEW): cover hit, miss (marker no longer
+              in body), PATCH-then-id-stable, fall-back-on-mismatch
+
+
+              ## Acceptance
+
+              - [ ] When knownCommentId points at a valid comment carrying the marker, no thread-list REST call is made
+
+              - [ ] When the cached id's body no longer carries the marker, the function falls back to the existing
+              thread scan and returns the rediscovered id
+
+              - [ ] Upsert with a knownCommentId issues a PATCH instead of a POST and preserves the id
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/ticketing.structured-comment-cache.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Extend checkpoint payloads with commentIds map; findStructuredComment / upsertStructuredComment use it to skip
+          full thread scans and PATCH known comments.
+        labels:
+          - type::story
+          - persona::engineer
+      - slug: s-wave-tick-ttl
+        title: Soften wave-tick per-story reads with a short TTL
+        wave: 0
+        tasks:
+          - slug: t-wave-tick-ttl
+            title: Replace fresh:true with maxAgeMs TTL in wave-tick
+            body: >-
+              ## Goal
+
+              Under Story s-wave-tick-ttl, drop the per-story fresh:true read in tick.js to a short TTL while keeping
+              wave-transition reads fresh.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/wave-runner/tick.js: read tracked stories with { maxAgeMs: WAVE_TICK_STORY_TTL_MS }
+              (default 10000, overrideable via env); leave wave-transition reads in wave-runner/index.js explicitly
+              fresh
+
+              - tests/lib/wave-runner/tick.ttl.test (NEW): cover in-wave-cached hit, TTL miss, transition-boundary fresh
+              read
+
+
+              ## Acceptance
+
+              - [ ] Within one TTL window, repeat ticks issue zero provider getTicket REST calls for the tracked stories
+
+              - [ ] Wave transitions still pass fresh:true and observe externally-flipped labels immediately
+
+              - [ ] WAVE_TICK_STORY_TTL_MS env var can override the default
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/wave-runner/tick.ttl.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Replace per-tick { fresh: true } reads with a short maxAgeMs TTL; reserve fresh reads for wave-transition
+          boundaries.
+        labels:
+          - type::story
+          - persona::engineer
+      - slug: s-progress-poll-scope
+        title: Scope ProgressReporter polling to the active wave
+        wave: 0
+        tasks:
+          - slug: t-progress-poll-active
+            title: Narrow ProgressReporter.fire() to active-wave fetch set
+            body: >-
+              ## Goal
+
+              Under Story s-progress-poll-scope, derive the per-fire fetch set as active wave + recently completed
+              stories; queued/done waves render from checkpoint state.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/epic-runner/progress-reporter.js: replace 'fetch every story in every
+              wave' with activeWave + completedSince(lastFireAt); add a fireFullSnapshot() entry point for the original
+              behavior
+
+              - tests/lib/orchestration/epic-runner/progress-reporter.scope.test (NEW): cover active-wave-only on
+              routine fire, full-snapshot on boundary, plan-state fallback for queued waves
+
+
+              ## Acceptance
+
+              - [ ] A routine fire issues getTicket REST calls only for stories in the active wave + completedSince set
+
+              - [ ] fireFullSnapshot() reproduces the pre-change full-fetch behavior byte-for-byte
+
+              - [ ] Queued and done waves render from checkpoint state without per-story REST calls
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/epic-runner/progress-reporter.scope.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Narrow the per-fire fetch set to active-wave stories + recently completed; render queued/done waves from
+          checkpoint state.
+        labels:
+          - type::story
+          - persona::engineer
+      - slug: s-graphql-subissues
+        title: Promote GraphQL sub-issues to the primary child-listing path
+        wave: 0
+        tasks:
+          - slug: t-graphql-subissues-query
+            title: Add GraphQL sub-issues query as primary child-listing path
+            body: >-
+              ## Goal
+
+              Under Story s-graphql-subissues, make providers/github.js prefer the GraphQL sub-issues query for Epic
+              children, with the existing repo-scan kept as a fallback.
+
+
+              ## Changes
+
+              - .agents/scripts/providers/github.js: add _graphqlSubIssues(epicId), _isSubIssuesUnsupportedError(err);
+              rewire _getReferencedChildren to try GraphQL first and fall back to repo-scan only on explicit unsupported
+              errors; prime the existing ticket cache after the narrow query
+
+              - tests/providers/github.subissues.test (NEW): cover GraphQL-success (no repo scan), GraphQL-unsupported
+              (falls back), GraphQL-rate-limited (propagates without fallback)
+
+
+              ## Acceptance
+
+              - [ ] On a fixture where GraphQL succeeds, no REST issues-list call is made
+
+              - [ ] On a fixture where GraphQL returns the 'unsupported' error, the repo-scan path runs and returns the
+              same children
+
+              - [ ] Rate-limit / network errors propagate as today (no silent fallback)
+
+
+              ## Verify
+
+              - npm run test -- tests/providers/github.subissues.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+              - risk::medium
+          - slug: t-graphql-callers-prime
+            title: Prime ticket cache from sub-issue callers
+            body: >-
+              ## Goal
+
+              Under Story s-graphql-subissues, make dispatch-pipeline and dispatcher use the narrow child query and
+              prime the ticket cache so downstream reads stay warm.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/dispatch-pipeline.js: route Epic-child listing through the narrow
+              query; call primeTicketCache after
+
+              - .agents/scripts/dispatcher.js: same routing for the dry-run manifest path
+
+              - tests/lib/orchestration/dispatch-pipeline.subissues.test (NEW): assert primeTicketCache is invoked after
+              a narrow listing
+
+
+              ## Acceptance
+
+              - [ ] Dispatch-pipeline and dispatcher consume the narrow query result; the ticket cache is primed with
+              the returned tickets
+
+              - [ ] A subsequent getTicket call on a primed id returns from cache without a network round trip
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/dispatch-pipeline.subissues.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Make providers/github.js prefer the native sub-issue / GraphQL parent-child query; fall back to repo-wide scan
+          only on explicit unsupported.
+        labels:
+          - type::story
+          - persona::engineer
+          - risk::medium
+    body: >-
+      Cache structured-comment ids, soften per-tick fresh reads, scope progress polling, and replace repo-wide child
+      scans with native sub-issue queries.
+    labels:
+      - type::feature
+      - persona::engineer
+  - slug: f-parallel-reads
+    title: Parallelize retro and perf comment reads
+    stories:
+      - slug: s-parallel-retro
+        title: Parallelize retro / perf comment reads with concurrentMap
+        wave: 1
+        tasks:
+          - slug: t-parallel-retro-reads
+            title: Wrap retro-runner story-comment reads with concurrentMap
+            body: >-
+              ## Goal
+
+              Under Story s-parallel-retro, parallelise the retro story-perf-summary reads at concurrency 6 and preserve
+              deterministic output ordering.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/retro-runner.js: replace the sequential for-loop over stories with
+              concurrentMap (cap 6); sort results by storyId before consuming
+
+              - tests/lib/orchestration/retro-runner.parallel.test (NEW): cover deterministic ordering under shuffled
+              completion order
+
+
+              ## Acceptance
+
+              - [ ] Retro output for a fixture is byte-identical regardless of comment-read completion order
+
+              - [ ] Concurrent read fan-out is capped at 6 (assert via mock provider call timing)
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/retro-runner.parallel.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-parallel-analyze-exec
+            title: Wrap analyze-execution comment walks with concurrentMap
+            body: >-
+              ## Goal
+
+              Under Story s-parallel-retro, give analyze-execution.js the same bounded-concurrency treatment so perf
+              rollups don't compound linearly.
+
+
+              ## Changes
+
+              - .agents/scripts/analyze-execution.js: replace nested sequential for loops with concurrentMap (cap 6)
+              over stories; collect, sort, then render
+
+              - tests/analyze-execution.parallel.test (NEW): cover ordering stability + concurrency cap
+
+
+              ## Acceptance
+
+              - [ ] Perf rollup output is byte-identical to the sequential baseline for a fixture
+
+              - [ ] Concurrency cap is observed (no more than 6 in-flight comment reads)
+
+
+              ## Verify
+
+              - npm run test -- tests/analyze-execution.parallel.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+        body: >-
+          Wrap retro-runner and analyze-execution per-story comment reads with concurrentMap (cap 6); preserve
+          deterministic output ordering by sorting results.
+        dependsOn:
+          - s-comment-id-cache
+        labels:
+          - type::story
+          - persona::engineer
+    body: >-
+      Wrap the per-story comment reads in retro-runner and analyze-execution with bounded concurrentMap so Phase 5
+      latency doesn't compound linearly.
+    labels:
+      - type::feature
+      - persona::engineer
+  - slug: f-perf-followups
+    title: 'Deferred #1597 perf follow-ups (substitutions cache + cascade disjoint)'
+    stories:
+      - slug: s-substitution-regex-cache
+        title: 'Cache per-key RegExp in audit-suite applySubstitutions (deferred from #1597)'
+        wave: 0
+        tasks:
+          - slug: t-substitution-cache
+            title: Cache per-key RegExp in applySubstitutions
+            body: >-
+              ## Goal
+
+              Under Story s-substitution-regex-cache, eliminate the per-call new RegExp construction by caching matchers
+              in a module-level Map keyed by substitution key.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/audit-suite/substitutions.js: add module-level Map<string, RegExp>; reuse on hit,
+              compile on miss; export __resetSubstitutionCache for tests
+
+              - tests/lib/audit-suite/substitutions.cache.test (NEW): cover cache hit/miss, behavior parity, escape of
+              special chars in keys, __resetSubstitutionCache
+
+
+              ## Acceptance
+
+              - [ ] Behavior is byte-identical to the pre-change applySubstitutions for every fixture in
+              substitutions.test.js
+
+              - [ ] The second call to applySubstitutions with the same key set does not construct a new RegExp
+              (verified via a spy on RegExp construction or cache size)
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/audit-suite/substitutions.cache.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-close-1652-superseded
+            title: 'Close pre-existing sub-issue #1652 as superseded'
+            body: >-
+              ## Goal
+
+              Under Story s-substitution-regex-cache, close the standalone task #1652 (which predates this Epic's
+              decomposition) as superseded once t-substitution-cache merges so the work is tracked in exactly one place.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/audit-suite/substitutions.js: no code change — close GitHub issue #1652 with
+              state_reason completed and a supersedence comment linking to t-substitution-cache's merged PR
+
+
+              ## Acceptance
+
+              - [ ] Issue #1652 is closed with a comment linking to the merged work
+
+              - [ ] No new code change in this task — it is a tracking-cleanup task
+
+
+              ## Verify
+
+              - manual:tracking-cleanup task; verified by reviewer confirming #1652 is closed with the supersedence
+              comment
+            labels:
+              - type::task
+              - persona::engineering-lead
+        body: >-
+          Replace per-call new RegExp construction with a module-level Map<string, RegExp>. Existing sub-issue #1652
+          tracks the same work — close it as superseded once this Story lands.
+        labels:
+          - type::story
+          - persona::engineer
+      - slug: s-cascade-disjoint
+        title: 'Parallelize cascadeCompletion parents in disjoint ancestor groups (deferred from #1597)'
+        wave: 0
+        tasks:
+          - slug: t-cascade-groupby-ancestor
+            title: Implement shared-ancestor grouping for cascadeCompletion
+            body: >-
+              ## Goal
+
+              Under Story s-cascade-disjoint, add a pure groupByAncestor(parents) helper that climbs each parent's
+              parent: #N chain to a fixpoint and partitions parents by their shared-ancestor set.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/ticketing.js: add groupByAncestor(parents, provider) — deterministic,
+              pure of side effects beyond the provider reads it needs for chain walking; cache walked ancestors to avoid
+              quadratic re-walks
+
+              - tests/lib/orchestration/ticketing.groupbyancestor.test (NEW): cover single parent (one group), two
+              disjoint parents (two groups), two parents sharing a grandparent (one group), cycle-safe behavior
+
+
+              ## Acceptance
+
+              - [ ] groupByAncestor returns an array of disjoint parent groups whose union equals the input set
+
+              - [ ] Two parents sharing a grandparent end up in the same group; two parents with no common ancestor end
+              up in different groups
+
+              - [ ] The function does not loop on cyclic parent chains (synthetic fixture)
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/ticketing.groupbyancestor.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-cascade-parallel-dispatch
+            title: Dispatch cascadeCompletion groups in parallel with ordered log flush
+            body: >-
+              ## Goal
+
+              Under Story s-cascade-disjoint, use groupByAncestor to drive Promise.all across disjoint groups while
+              keeping log output byte-identical to the serial baseline via per-parent line buffers flushed in input
+              order.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/ticketing.js: wrap cascadeCompletion's outer loop with Promise.all
+              over groups; serial within each group; buffer log lines per parent id and flush in original parsedParents
+              order after all groups resolve
+
+              - tests/lib/orchestration/ticketing.cascade-parallel.test (NEW): assert two disjoint parents overlap in
+              time, two shared-ancestor parents do not, and log output matches the serial baseline byte-for-byte
+
+
+              ## Acceptance
+
+              - [ ] Two disjoint parents have overlapping cascade durations (assertion via mock provider with controlled
+              latencies)
+
+              - [ ] Two shared-ancestor parents complete strictly sequentially in input order
+
+              - [ ] Captured log output matches the serial baseline for the same input
+
+
+              ## Verify
+
+              - npm run test -- tests/lib/orchestration/ticketing.cascade-parallel.test (NEW) (unit)
+            labels:
+              - type::task
+              - persona::engineer
+              - risk::medium
+          - slug: t-close-1639-superseded
+            title: 'Close pre-existing sub-issue #1639 as superseded'
+            body: >-
+              ## Goal
+
+              Under Story s-cascade-disjoint, close the standalone task #1639 (predating this Epic's decomposition) as
+              superseded once t-cascade-parallel-dispatch merges so the work tracks in one place.
+
+
+              ## Changes
+
+              - .agents/scripts/lib/orchestration/ticketing.js: no code change — close GitHub issue #1639 with
+              state_reason completed and a supersedence comment linking to t-cascade-parallel-dispatch's merged PR
+
+
+              ## Acceptance
+
+              - [ ] Issue #1639 is closed with a comment linking to the merged work
+
+
+              ## Verify
+
+              - manual:tracking-cleanup task; verified by reviewer confirming #1639 is closed with the supersedence
+              comment
+            labels:
+              - type::task
+              - persona::engineering-lead
+        body: >-
+          Climb each parent's parent: #N chain to a fixpoint; serial within shared-ancestor groups, parallel across
+          disjoint groups via Promise.all; preserve log order. Existing sub-issue #1639 tracks the same work — close it
+          as superseded once this Story lands.
+        labels:
+          - type::story
+          - persona::engineer
+          - risk::medium
+    body: >-
+      Land the two deferred hot-path perf items from Story #1597: per-key RegExp cache in audit-suite substitutions and
+      disjoint-group parallelization in cascadeCompletion.
+    labels:
+      - type::feature
+      - persona::engineer
+  - slug: f-migration-carryover
+    title: v6.0.0 → v6.1.0 migration scripts + docs carryover
+    stories:
+      - slug: s-migration-carryover
+        title: v6.0.0 → v6.1.0 migration script + docs carryover
+        wave: 2
+        tasks:
+          - slug: t-migrate-script-v6-1-0
+            title: Extend migrate-to-v6.js for v6.1.0 deltas
+            body: >-
+              ## Goal
+
+              Under Story s-migration-carryover, audit migrate-to-v6.js against the v6.1.0 shape introduced by Items
+              1–10 and add any keymap / URL / peerDep rewrites needed for idempotent upgrades.
+
+
+              ## Changes
+
+              - .agents/scripts/migrate-to-v6 (NEW on main; ships with Epic #1184): extend the LEGACY_KEY_MAP /
+              submodule-URL transform / package.json peerDep bump for any new shape from Items 1–10 (envelope-field
+              renames in Item 1, the optional renderedBody schema in Item 2, etc.)
+
+              - tests/migrate-to-v6-v6-1-0.test (NEW): idempotency assertion (changed:0 on second run) + behavior parity
+              for each new transform
+
+
+              ## Acceptance
+
+              - [ ] Running migrate-to-v6.js twice on the v5 fixture leaves the second run as a no-op (changed:0)
+
+              - [ ] Manual-steps tail printed by the script is empty for a clean v5 fixture
+
+              - [ ] All new transforms are covered by an idempotency assertion
+
+
+              ## Verify
+
+              - npm run test -- tests/migrate-to-v6-v6-1-0.test (NEW) (unit)
+
+              - node .agents/scripts/migrate-to-v6 (NEW on main; ships with Epic #1184) --fixture
+              tests/fixtures/v5-consumer (validate)
+            labels:
+              - type::task
+              - persona::engineer
+          - slug: t-migration-doc-v6-1-0
+            title: Append v6.1.0 section to docs/migration-v6.md
+            body: >-
+              ## Goal
+
+              Under Story s-migration-carryover, give v5→v6.1.0 consumers a single labeled section that enumerates every
+              Item 1–10 delta with explicit operator action or 'no action required' annotations.
+
+
+              ## Changes
+
+              - docs/migration-v6.md: append a '## v6.1.0' section after the existing v6.0.0 body; one bullet per Item
+              1–10 with operator action / no-action annotation and a back-link to the merged PR or sub-issue
+
+              - docs/migration-v6.md: if the existing v6.0.0 body is not already under a '## v6.0.0' heading at the same
+              level, add one
+
+
+              ## Acceptance
+
+              - [ ] docs/migration-v6.md contains a '## v6.1.0' heading
+
+              - [ ] Every Item 1–10 has exactly one bullet under v6.1.0 with either an operator action or 'no action
+              required — operator-invisible'
+
+              - [ ] Scope verification note: this task's deliverable may already be partly satisfied by
+              t-migrate-script-v6-1-0's PR if that PR appends release notes — before implementing, git diff main --
+              docs/migration-v6.md against the upstream Task branch and confirm whether a substantive edit is still
+              required, or whether only a cross-reference remains.
+
+
+              ## Verify
+
+              - npm run lint (validate)
+
+              - node -e "const t=require('fs').readFileSync('docs/migration-v6.md','utf8');if(!/^##
+              v6\.1\.0$/m.test(t))process.exit(1)" (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+          - slug: t-quality-gates-reconcile
+            title: Reconcile docs/quality-gates.md against v6.1.0 doc fixes
+            body: >-
+              ## Goal
+
+              Under Story s-migration-carryover, confirm every cross-link in docs/quality-gates.md still resolves after
+              Item 8's reference cleanup, and tighten any wording that drifted.
+
+
+              ## Changes
+
+              - docs/quality-gates.md: walk every cross-link and confirm the target file/heading exists post-Item-8; fix
+              or remove any broken link; tighten wording only where Item 8 actually changed a referenced surface
+
+
+              ## Acceptance
+
+              - [ ] rg -n 'helpers/epic-retro.md' docs/quality-gates.md returns no matches
+
+              - [ ] Every markdown link in docs/quality-gates.md resolves to a real file/heading (verified by a
+              link-checker run)
+
+
+              ## Verify
+
+              - npm run lint (validate)
+            labels:
+              - type::task
+              - persona::technical-writer
+        body: >-
+          Update migrate-to-v6.js for any v6.1.0 deltas, append a v6.1.0 section to docs/migration-v6.md summarising
+          every consumer-visible delta, and reconcile docs/quality-gates.md.
+        dependsOn:
+          - s-prompt-emit-diet
+          - s-rendered-body-optional
+          - s-comment-id-cache
+          - s-wave-tick-ttl
+          - s-progress-poll-scope
+          - s-graphql-subissues
+          - s-parallel-retro
+          - s-substitution-regex-cache
+          - s-cascade-disjoint
+          - s-doc-ref-fixes
+        labels:
+          - type::story
+          - persona::engineer
+    body: >-
+      Keep migrate-to-v6.js and docs/migration-v6.md current with the v6.1.0 deltas while Epic #1184's maintainer
+      handoff is still in flight.
+    labels:
+      - type::feature
+      - persona::engineer

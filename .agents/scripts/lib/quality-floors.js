@@ -249,6 +249,10 @@ function checkCoverageRecord(rec, coverageFloors, file) {
     const observed = rec?.[axis];
     const floor = coverageFloors?.[axis];
     if (!Number.isFinite(observed)) {
+      // Missing axis (e.g. re-export-only file with no functions) passes a
+      // floor of 0 — there's nothing to score, and the floor is the minimum
+      // acceptable value. Only flag as invalid when the floor demands content.
+      if (Number.isFinite(floor) && floor === 0) continue;
       out.push({
         scope: 'coverage',
         axis,

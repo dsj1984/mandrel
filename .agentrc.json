@@ -66,6 +66,11 @@
         "requireCoverage": true,
         "friction": { "markerKey": "crap-baseline-regression" },
         "refreshTag": "baseline-refresh:"
+      },
+      "qualityFloors": {
+        "coverage": { "lines": 40, "branches": 40, "functions": 0 },
+        "maintainability": 0,
+        "crap": 30
       }
     },
     "planning": {

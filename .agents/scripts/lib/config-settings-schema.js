@@ -385,6 +385,23 @@ const QUALITY_SCHEMA = {
     mergeMethods: MERGE_METHODS_SCHEMA,
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
+    qualityFloors: {
+      type: 'object',
+      properties: {
+        coverage: {
+          type: 'object',
+          properties: {
+            lines: { type: 'number', minimum: 0, maximum: 100 },
+            branches: { type: 'number', minimum: 0, maximum: 100 },
+            functions: { type: 'number', minimum: 0, maximum: 100 },
+          },
+          additionalProperties: false,
+        },
+        maintainability: { type: 'number', minimum: 0, maximum: 100 },
+        crap: { type: 'number', minimum: 0 },
+      },
+      additionalProperties: false,
+    },
   },
   additionalProperties: false,
 };

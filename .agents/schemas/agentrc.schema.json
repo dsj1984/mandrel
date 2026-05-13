@@ -330,7 +330,29 @@
         "prGate": { "$ref": "#/$defs/prGate" },
         "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
         "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
-        "autoRefresh": { "$ref": "#/$defs/autoRefresh" }
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
+        "qualityFloors": {
+          "type": "object",
+          "description": "v6.0 absolute quality floors (Story #1602). Calibrated low for v6.0 cut; tighten in v6.x via Epic #1653.",
+          "properties": {
+            "coverage": {
+              "type": "object",
+              "properties": {
+                "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+                "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+                "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+              },
+              "additionalProperties": false
+            },
+            "maintainability": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "crap": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     },
