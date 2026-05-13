@@ -13,10 +13,9 @@
  * fixCommand` table and exits with code 2 (the project-wide "preflight
  * refused" reservation).
  *
- * On a clean preflight the wrapper exec's the underlying test runner
- * (`node --experimental-test-module-mocks --test --test-concurrency=8
- * 'tests/**\/*.test.js'`) and inherits its exit code. The wrapper itself
- * adds no top-level npm dependencies — the runner stays node-builtin only.
+ * On a clean preflight npm continues to `.agents/scripts/run-tests.js`, which
+ * execs the underlying Node test runner and cleans test-reserved temp
+ * artefacts afterward. This wrapper itself adds no top-level npm dependencies.
  *
  * Wiring: `package.json` points `pretest` at this script. The `test`
  * script remains the node --test invocation so `npm test` still picks up

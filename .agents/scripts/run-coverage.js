@@ -35,6 +35,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
 const COVERAGE_DIR = path.join(ROOT, 'coverage');
@@ -61,6 +63,8 @@ const testRun = spawnSync(
     env: { ...process.env, NODE_V8_COVERAGE: V8_TMP },
   },
 );
+
+cleanupRepoTestTempArtifacts({ repoRoot: ROOT });
 
 const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);

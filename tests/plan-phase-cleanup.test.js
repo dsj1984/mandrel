@@ -17,9 +17,9 @@ describe('plan-phase-cleanup.resolvePhaseTempPaths', () => {
   });
 
   it('returns per-Epic paths under temp/epic-<id>/ for the decompose phase', () => {
-    const paths = resolvePhaseTempPaths('decompose', 7, '/repo');
+    const paths = resolvePhaseTempPaths('decompose', 999_007, '/repo');
     assert.equal(paths.length, PHASE_TEMP_PATHS.decompose.length);
-    assert.ok(paths.every((p) => p.includes('epic-7')));
+    assert.ok(paths.every((p) => p.includes('epic-999007')));
     assert.ok(paths.some((p) => p.endsWith('tickets.json')));
     assert.ok(paths.some((p) => p.endsWith('decomposer-context.json')));
   });

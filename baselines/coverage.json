@@ -6,8 +6,8 @@
   },
   ".agents/scripts/analyze-execution.js": {
     "lines": 92.82,
-    "branches": 64.71,
-    "functions": 100
+    "branches": 65.19,
+    "functions": 93.75
   },
   ".agents/scripts/assert-branch.js": {
     "lines": 71.08,
@@ -61,28 +61,28 @@
   },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.58,
-    "branches": 88.57,
-    "functions": 85.71
+    "branches": 89.21,
+    "functions": 81.82
   },
   ".agents/scripts/epic-deliver-automerge.js": {
     "lines": 87.01,
-    "branches": 82.86,
-    "functions": 66.67
+    "branches": 85.29,
+    "functions": 57.14
   },
   ".agents/scripts/epic-deliver-cleanup.js": {
     "lines": 92.24,
-    "branches": 89.47,
-    "functions": 83.33
+    "branches": 91.89,
+    "functions": 71.43
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 88.37,
-    "branches": 68.75,
+    "branches": 67.09,
     "functions": 81.82
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
     "lines": 81.12,
-    "branches": 77.78,
-    "functions": 66.67
+    "branches": 80.77,
+    "functions": 50
   },
   ".agents/scripts/epic-deliver-prepare.js": {
     "lines": 81.76,
@@ -96,8 +96,8 @@
   },
   ".agents/scripts/epic-execute-record-wave.js": {
     "lines": 87.21,
-    "branches": 79.78,
-    "functions": 84.62
+    "branches": 80.23,
+    "functions": 81.48
   },
   ".agents/scripts/epic-plan-edit-flow.js": {
     "lines": 90.5,
@@ -107,7 +107,7 @@
   ".agents/scripts/epic-reconcile.js": {
     "lines": 86.34,
     "branches": 65.33,
-    "functions": 58.33
+    "functions": 53.85
   },
   ".agents/scripts/evidence-gate.js": {
     "lines": 97.87,
@@ -321,7 +321,7 @@
   },
   ".agents/scripts/lib/cli-args.js": {
     "lines": 98.21,
-    "branches": 89.66,
+    "branches": 89.19,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -505,14 +505,14 @@
     "functions": 100
   },
   ".agents/scripts/lib/git-merge-orchestrator.js": {
-    "lines": 56.5,
+    "lines": 57.63,
     "branches": 66.67,
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
     "branches": 75.41,
-    "functions": 89.47
+    "functions": 85
   },
   ".agents/scripts/lib/Graph.js": {
     "lines": 100,
@@ -564,11 +564,6 @@
     "branches": 90,
     "functions": 100
   },
-  ".agents/scripts/lib/migrate-to-v6-core.js": {
-    "lines": 99.39,
-    "branches": 86.89,
-    "functions": 100
-  },
   ".agents/scripts/lib/notifications/notifier.js": {
     "lines": 100,
     "branches": 89.47,
@@ -582,7 +577,7 @@
   ".agents/scripts/lib/observability/baseline-refresh-rate.js": {
     "lines": 100,
     "branches": 87.76,
-    "functions": 100
+    "functions": 87.5
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
     "lines": 98.13,
@@ -697,7 +692,7 @@
   ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
     "lines": 89.01,
     "branches": 57.14,
-    "functions": 66.67
+    "functions": 75
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js": {
     "lines": 100,
@@ -926,8 +921,8 @@
   },
   ".agents/scripts/lib/orchestration/story-close/format-autofix.js": {
     "lines": 100,
-    "branches": 76.47,
-    "functions": 100
+    "branches": 81.25,
+    "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
     "lines": 100,
@@ -1011,8 +1006,8 @@
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 97.13,
-    "branches": 85.02,
-    "functions": 100
+    "branches": 85.4,
+    "functions": 95.45
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
     "lines": 97.39,
@@ -1030,18 +1025,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/push-epic-retry.js": {
-    "lines": 91.96,
+    "lines": 91.46,
     "branches": 71.79,
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
     "lines": 86.17,
     "branches": 79.09,
-    "functions": 100
-  },
-  ".agents/scripts/lib/rebrand-deny.js": {
-    "lines": 100,
-    "branches": 88.89,
     "functions": 100
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
@@ -1111,13 +1101,13 @@
   },
   ".agents/scripts/lib/story-init/dependency-guard.js": {
     "lines": 93.18,
-    "branches": 74.39,
-    "functions": 100
+    "branches": 75.31,
+    "functions": 87.5
   },
   ".agents/scripts/lib/story-init/hierarchy-tracer.js": {
     "lines": 100,
     "branches": 100,
-    "functions": 100
+    "functions": 50
   },
   ".agents/scripts/lib/story-init/state-transitioner.js": {
     "lines": 100,
@@ -1127,7 +1117,7 @@
   ".agents/scripts/lib/story-init/task-graph-builder.js": {
     "lines": 100,
     "branches": 94.44,
-    "functions": 100
+    "functions": 75
   },
   ".agents/scripts/lib/story-init/transition-summary.js": {
     "lines": 100,
@@ -1179,15 +1169,10 @@
     "branches": 100,
     "functions": 100
   },
-  ".agents/scripts/lib/v5-to-v6-keymap.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 100
-  },
   ".agents/scripts/lib/validation-evidence.js": {
     "lines": 97.12,
     "branches": 93.75,
-    "functions": 100
+    "functions": 90.91
   },
   ".agents/scripts/lib/wave-runner/tick.js": {
     "lines": 95.74,
@@ -1285,14 +1270,9 @@
     "functions": 68.75
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 86.83,
-    "branches": 64.29,
+    "lines": 84.88,
+    "branches": 58.06,
     "functions": 77.78
-  },
-  ".agents/scripts/migrate-to-v6.js": {
-    "lines": 90.22,
-    "branches": 94,
-    "functions": 90.91
   },
   ".agents/scripts/noise-study.js": {
     "lines": 75.48,
@@ -1329,11 +1309,6 @@
     "branches": 70.37,
     "functions": 81.82
   },
-  ".agents/scripts/rebrand-to-mandrel.js": {
-    "lines": 97.12,
-    "branches": 94.12,
-    "functions": 83.33
-  },
   ".agents/scripts/render-manifest.js": {
     "lines": 87.94,
     "branches": 62.5,
@@ -1361,8 +1336,8 @@
   },
   ".agents/scripts/story-execute-prepare.js": {
     "lines": 84.74,
-    "branches": 60.42,
-    "functions": 62.5
+    "branches": 61.7,
+    "functions": 55.56
   },
   ".agents/scripts/story-init.js": {
     "lines": 86.8,

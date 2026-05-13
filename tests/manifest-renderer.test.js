@@ -1,6 +1,10 @@
 import assert from 'node:assert';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
 import {
+  persistManifest,
   renderManifestMarkdown,
   renderStoryManifestMarkdown,
 } from '../.agents/scripts/lib/presentation/manifest-renderer.js';
@@ -290,18 +294,19 @@ test('renderStoryManifestMarkdown', async (t) => {
   });
 });
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { persistManifest } from '../.agents/scripts/lib/presentation/manifest-renderer.js';
-
 test('persistManifest', async (t) => {
-  const tempDir = path.join(process.cwd(), 'temp');
-  if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+  const projectRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'manifest-renderer-persist-'),
+  );
+  const tempDir = path.join(projectRoot, 'temp');
+  t.after(() => {
+    fs.rmSync(projectRoot, { recursive: true, force: true });
+  });
 
   await t.test('writes epic manifest files', () => {
     const manifest = {
       type: 'epic-dispatch',
-      epicId: 999,
+      epicId: 999_100,
       epicTitle: 'Test',
       generatedAt: new Date().toISOString(),
       summary: {},
@@ -309,14 +314,12 @@ test('persistManifest', async (t) => {
       waves: [],
     };
 
-    persistManifest(manifest);
+    persistManifest(manifest, { projectRoot });
     // Per-Epic layout (Epic #1030 Story #1040): manifest moved to
     // `temp/epic-<eid>/manifest.{md,json}`.
-    const epicDir = path.join(tempDir, 'epic-999');
+    const epicDir = path.join(tempDir, 'epic-999100');
     assert.ok(fs.existsSync(path.join(epicDir, 'manifest.json')));
     assert.ok(fs.existsSync(path.join(epicDir, 'manifest.md')));
-
-    fs.rmSync(epicDir, { recursive: true, force: true });
   });
 
   await t.test('writes story manifest files', () => {
@@ -326,8 +329,8 @@ test('persistManifest', async (t) => {
         {
           storyId: 888,
           storyTitle: 'Eight Eighty-Eight',
-          epicId: 1,
-          epicBranch: 'epic/1',
+          epicId: 999_001,
+          epicBranch: 'epic/999001',
           branchName: 'story-888',
           tasks: [],
         },
@@ -335,18 +338,16 @@ test('persistManifest', async (t) => {
       generatedAt: new Date().toISOString(),
     };
 
-    persistManifest(manifest);
+    persistManifest(manifest, { projectRoot });
     // Per-Epic layout: `temp/epic-<eid>/story-<sid>/manifest.{md,json}`.
-    const possibleDirs = [tempDir, path.join(process.cwd(), 'temp')];
-    let found = false;
-    for (const d of possibleDirs) {
-      const storyDir = path.join(d, 'epic-1', 'story-888');
-      if (fs.existsSync(path.join(storyDir, 'manifest.json'))) {
-        found = true;
-        fs.rmSync(path.join(d, 'epic-1'), { recursive: true, force: true });
-        break;
-      }
-    }
-    assert.ok(found, 'Should have found the persisted per-Story manifest');
+    const storyDir = path.join(tempDir, 'epic-999001', 'story-888');
+    assert.ok(
+      fs.existsSync(path.join(storyDir, 'manifest.json')),
+      'per-Story manifest.json',
+    );
+    assert.ok(
+      fs.existsSync(path.join(storyDir, 'manifest.md')),
+      'per-Story manifest.md',
+    );
   });
 });

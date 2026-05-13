@@ -76,7 +76,7 @@ describe('withEpicMergeLock', () => {
     await assert.rejects(
       () =>
         withEpicMergeLock(
-          7,
+          999_007,
           {
             repoRoot: '/repo',
             acquire: async () => {
@@ -90,11 +90,11 @@ describe('withEpicMergeLock', () => {
       (err) => {
         assert.match(
           err.message,
-          /Could not acquire epic-merge lock for epic #7/,
+          /Could not acquire epic-merge lock for epic #999007/,
         );
         assert.match(err.message, /EBUSY/);
         // Operator-actionable: the message must reference the lock path.
-        assert.match(err.message, /epic-7\.merge\.lock/);
+        assert.match(err.message, /epic-999007\.merge\.lock/);
         return true;
       },
     );

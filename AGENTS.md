@@ -81,7 +81,7 @@ mandrel/
 | Linter       | `biome` + `markdownlint` — run via `npm run lint`              |
 | Formatter    | `biome` — run via `npm run format`                             |
 | Git Hooks    | Husky + lint-staged (auto-lint `.md` files on commit)          |
-| Node Version | 20+                                                            |
+| Node Version | >=22.22.1 <25                                                 |
 | Package Mgr  | npm                                                            |
 | Shell        | PowerShell (Windows) — use `;` not `&&` as statement separator |
 | CI/CD        | GitHub Actions (`ci.yml`) — validates markdown, syncs `dist`   |
