@@ -15,7 +15,7 @@
  *   4. Optionally prune stale `refs/remotes/origin/*` tracking refs.
  *      `git push --delete` reports success for refs already gone on the
  *      remote, but does not drop the local tracking ref — so a single
- *      `git remote prune <remote>` runs after the remote-delete pass.
+ *      `git fetch --prune <remote>` runs after the remote-delete pass.
  *
  * Dry-run is the default. `--execute` is required to mutate anything;
  * `--remote` is required on top of `--execute` to touch `origin/`.
@@ -371,9 +371,13 @@ export function planCleanup(ctx) {
  * Pure-ish: execute the reap plan. Always removes attached worktrees
  * first, then the local branch, then (optionally) the remote ref. When
  * `remote=true` and at least one remote delete was attempted, a single
- * `git remote prune <remote>` runs after the loop to drop stale
+ * `git fetch --prune <remote>` runs after the loop to drop stale
  * `refs/remotes/<remote>/*` tracking refs that `push --delete` leaves
- * behind when the remote ref was already gone.
+ * behind when the remote ref was already gone. `fetch --prune` is used
+ * instead of `remote prune` because it re-fetches the ref advertisement
+ * authoritatively and avoids a brief replication-lag window right after
+ * a GitHub merge+auto-delete where `remote prune` can miss freshly-gone
+ * refs.
  *
  * @param {{
  *   candidates: ReturnType<typeof planCleanup>['candidates'],
@@ -500,9 +504,14 @@ export function executeCleanup(ctx) {
 }
 
 /**
- * Run `git remote prune <remote>` and parse the pruned refs from stdout.
+ * Run `git fetch --prune <remote>` and parse the pruned refs from stderr.
  * Idempotent: returns `ok=true` with an empty `pruned[]` when nothing was
- * stale.
+ * stale. `fetch --prune` is preferred over `remote prune` because it
+ * re-fetches the ref advertisement first; the brief replication-lag
+ * window after a GitHub merge+auto-delete can make `remote prune` miss
+ * refs that are already gone on the server (this was the root cause of
+ * the "Git Graph still shows merged branches" bug observed during the
+ * 2026-05-13 cleanup of #1713/#1714/#1715).
  *
  * @param {string} cwd
  * @param {string} remoteName
@@ -510,28 +519,38 @@ export function executeCleanup(ctx) {
  */
 /* node:coverage ignore next */
 function pruneRemoteTracking(cwd, remoteName) {
-  const res = gitSpawn(cwd, 'remote', 'prune', remoteName);
+  const res = gitSpawn(cwd, 'fetch', '--prune', '--quiet', remoteName);
   if (res.status !== 0) {
     return { ok: false, pruned: [], stderr: res.stderr };
   }
-  return { ok: true, pruned: parsePrunedRefs(res.stdout, remoteName) };
+  // git fetch --prune emits its pruned-ref report on stderr (not stdout).
+  // Even with --quiet, the `- [deleted]` lines come through.
+  return {
+    ok: true,
+    pruned: parsePrunedRefs(res.stderr, remoteName),
+  };
 }
 
 /**
- * Pure: extract the short ref names from `git remote prune` stdout. Each
- * pruned line looks like ` * [pruned] origin/foo` — we strip the
- * `<remoteName>/` prefix so the array matches the candidate branch names.
+ * Pure: extract the short ref names from `git fetch --prune` stderr.
+ * Each pruned line looks like ` - [deleted]         (none)     -> origin/foo`.
+ * Falls back to the legacy `git remote prune` format (` * [pruned] origin/foo`)
+ * so callers that inject a `remote prune` runner via tests still get a
+ * meaningful pruned[] back.
  *
- * @param {string} stdout
+ * @param {string} output
  * @param {string} remoteName
  * @returns {string[]}
  */
-export function parsePrunedRefs(stdout, remoteName) {
+export function parsePrunedRefs(output, remoteName) {
   const prefix = `${remoteName}/`;
   const out = [];
-  for (const raw of (stdout ?? '').split('\n')) {
+  for (const raw of (output ?? '').split('\n')) {
     const line = raw.trim();
-    const m = line.match(/^\*\s+\[pruned\]\s+(.+)$/);
+    // `git fetch --prune` format
+    let m = line.match(/^-\s+\[deleted\]\s+\S+\s+->\s+(.+)$/);
+    // `git remote prune` legacy format
+    if (!m) m = line.match(/^\*\s+\[pruned\]\s+(.+)$/);
     if (!m) continue;
     const ref = m[1].trim();
     out.push(ref.startsWith(prefix) ? ref.slice(prefix.length) : ref);

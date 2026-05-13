@@ -93,10 +93,14 @@ The script removes any attached worktree first, then deletes the
 local branch (`git branch -D`), then optionally the remote ref
 (`git push origin --delete`). Remote refs that are already gone are
 treated as idempotent success. After the remote-delete pass, a single
-`git remote prune <remote>` runs to drop any stale
+`git fetch --prune <remote>` runs to drop any stale
 `refs/remotes/<remote>/*` tracking refs that `push --delete` left
 behind (it does not prune local tracking when the remote ref was
-already gone).
+already gone). `fetch --prune` is used instead of `remote prune`
+because it re-fetches the ref advertisement first; without that, a
+brief replication-lag window right after a GitHub merge+auto-delete
+can make `remote prune` miss freshly-gone refs, leaving Git Graph
+showing the merged branch.
 
 Add `--json` for a structured result suitable for programmatic
 consumption:

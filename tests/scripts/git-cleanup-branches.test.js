@@ -476,7 +476,19 @@ describe('git-cleanup-branches.executeCleanup', () => {
 });
 
 describe('git-cleanup-branches.parsePrunedRefs', () => {
-  it('extracts each `* [pruned] <remote>/<ref>` line, stripping the prefix', () => {
+  it('extracts each `- [deleted] (none) -> <remote>/<ref>` line from `git fetch --prune` stderr', () => {
+    const stderr = [
+      'From https://github.com/example/repo',
+      ' - [deleted]           (none)     -> origin/story-1476',
+      ' - [deleted]           (none)     -> origin/fix/keep',
+    ].join('\n');
+    assert.deepEqual(parsePrunedRefs(stderr, 'origin'), [
+      'story-1476',
+      'fix/keep',
+    ]);
+  });
+
+  it('extracts each `* [pruned] <remote>/<ref>` line from legacy `git remote prune` output', () => {
     const stdout = [
       'Pruning origin',
       'URL: https://github.com/example/repo.git',
@@ -502,7 +514,7 @@ describe('git-cleanup-branches.parsePrunedRefs', () => {
     ]);
   });
 
-  it('tolerates empty / null stdout', () => {
+  it('tolerates empty / null output', () => {
     assert.deepEqual(parsePrunedRefs('', 'origin'), []);
     assert.deepEqual(parsePrunedRefs(null, 'origin'), []);
   });
