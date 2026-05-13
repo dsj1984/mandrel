@@ -1,5 +1,5 @@
 ---
-description: Run a DevOps infrastructure audit
+description: Audit CI/CD workflows, container images, infrastructure-as-code, and deployment pipelines; surface failure modes and hardening gaps.
 dispatchModel: haiku
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Run a performance and bottleneck audit
+description: Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`epic-close`, dispatcher, gates); propose remediations.
 dispatchModel: haiku
 ---
 
