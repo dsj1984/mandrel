@@ -1,5 +1,5 @@
 ---
-description: Run a privacy and PII data audit
+description: Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps.
 dispatchModel: haiku
 ---
 

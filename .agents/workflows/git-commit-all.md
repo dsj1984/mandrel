@@ -1,5 +1,5 @@
 ---
-description: Commit all outstanding changes to Git.
+description: Stage every untracked and modified file, then create a single conventional-commit on the current branch (no push).
 ---
 
 # /commit-all [Message]

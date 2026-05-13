@@ -1,5 +1,5 @@
 ---
-description: Run a testing and quality assurance audit
+description: Audit test coverage gaps, flaky tests, missing assertions, and test-pyramid balance; recommend a remediation batch.
 dispatchModel: haiku
 ---
 

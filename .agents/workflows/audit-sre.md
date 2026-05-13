@@ -1,5 +1,5 @@
 ---
-description: Run a production release candidate SRE audit
+description: Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths.
 dispatchModel: haiku
 ---
 

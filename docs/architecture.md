@@ -719,7 +719,7 @@ block) restores single-tree behavior. The `assert-branch.js` pre-commit guard
 and focus-area wave serialization remain in place as defense-in-depth in both
 modes.
 
-See [`worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md) for
+See [`worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md) for
 the operator reference, node_modules strategies, Windows long-path handling,
 and escape hatches.
 

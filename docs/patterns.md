@@ -159,7 +159,7 @@ For the architectural map, config keys, node_modules strategies, and the
 Windows path-length notes see
 [`docs/architecture.md`](architecture.md#worktree-isolation),
 [`docs/configuration.md`](configuration.md#orchestrationworktreeisolation),
-and [`.agents/workflows/worktree-lifecycle.md`](../.agents/workflows/worktree-lifecycle.md).
+and [`.agents/workflows/helpers/worktree-lifecycle.md`](../.agents/workflows/helpers/worktree-lifecycle.md).
 
 ---
 

@@ -1,5 +1,5 @@
 ---
-description: Run an SEO and Generative Engine Optimization audit
+description: Audit SEO fundamentals and Generative Engine Optimization signals (meta, structured data, crawlability); only relevant for web targets.
 dispatchModel: haiku
 ---
 
