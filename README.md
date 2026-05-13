@@ -1,5 +1,16 @@
 # Mandrel 🤖
 
+[![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
+
+<!--
+Badge URLs target the post-rename `mandrel` repository (Story #1610 performs
+the maintainer-driven GitHub rename). Until the rename lands, GitHub's
+automatic redirect from `dsj1984/agent-protocols` resolves these URLs to the
+live workflow. Once the rename completes, the badges render natively without
+a follow-up edit. The `noise-study.yml` workflow is `workflow_dispatch` only
+and intentionally has no badge (it would render `no status`).
+-->
+
 A structured framework of instructions, personas, skills, and SDLC workflows
 that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
 — all planning, execution, and state management lives natively in GitHub Issues,
