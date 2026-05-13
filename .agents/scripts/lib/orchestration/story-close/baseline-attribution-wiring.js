@@ -332,22 +332,13 @@ const DEFAULT_CRAP_TOLERANCE = 0.05;
  *   path: string,
  * }>}
  */
-export function diffCrapBaselines({
-  baselineRows,
-  headRows,
-  touchedFiles = null,
-  tolerance = DEFAULT_CRAP_TOLERANCE,
-} = {}) {
-  if (!Array.isArray(baselineRows) || !Array.isArray(headRows)) return [];
-  const scope =
-    touchedFiles == null
-      ? null
-      : touchedFiles instanceof Set
-        ? touchedFiles
-        : new Set(touchedFiles);
+function coerceScopeSet(touchedFiles) {
+  if (touchedFiles == null) return null;
+  if (touchedFiles instanceof Set) return touchedFiles;
+  return new Set(touchedFiles);
+}
 
-  // Index baseline by (file, method) — startLine drift is matched on the
-  // closest unused candidate, identical to `compareCrap`'s drift fallback.
+function indexCrapBaselineByMethod(baselineRows) {
   const byMethod = new Map();
   for (const b of baselineRows) {
     if (!b || typeof b.file !== 'string' || typeof b.method !== 'string') {
@@ -357,47 +348,71 @@ export function diffCrapBaselines({
     if (!byMethod.has(key)) byMethod.set(key, []);
     byMethod.get(key).push(b);
   }
-  const seen = new Set();
+  return byMethod;
+}
 
-  const regressions = [];
-  for (const row of headRows) {
-    if (
-      !row ||
-      typeof row.file !== 'string' ||
-      typeof row.method !== 'string'
-    ) {
-      continue;
+function pickClosestUnseen(candidates, headStartLine, seen) {
+  let pick = null;
+  let bestDist = Number.POSITIVE_INFINITY;
+  for (const c of candidates) {
+    const k = `${c.file}::${c.method}@${c.startLine}`;
+    if (seen.has(k)) continue;
+    const d = Math.abs((c.startLine ?? 0) - (headStartLine ?? 0));
+    if (d < bestDist) {
+      bestDist = d;
+      pick = c;
     }
+  }
+  return pick;
+}
+
+function isValidHeadRow(row) {
+  return row && typeof row.file === 'string' && typeof row.method === 'string';
+}
+
+function buildCrapRegression(row, pick) {
+  const headCrap = typeof row.crap === 'number' ? row.crap : 0;
+  const baseCrap = typeof pick.crap === 'number' ? pick.crap : 0;
+  return {
+    file: row.file,
+    path: row.file,
+    method: row.method,
+    startLine: row.startLine,
+    crap: headCrap,
+    projected: headCrap,
+    baseline: baseCrap,
+    drop: headCrap - baseCrap,
+    headCrap,
+    baseCrap,
+  };
+}
+
+export function diffCrapBaselines({
+  baselineRows,
+  headRows,
+  touchedFiles = null,
+  tolerance = DEFAULT_CRAP_TOLERANCE,
+} = {}) {
+  if (!Array.isArray(baselineRows) || !Array.isArray(headRows)) return [];
+  const scope = coerceScopeSet(touchedFiles);
+  const byMethod = indexCrapBaselineByMethod(baselineRows);
+  const seen = new Set();
+  const regressions = [];
+
+  for (const row of headRows) {
+    if (!isValidHeadRow(row)) continue;
     if (scope && !scope.has(row.file)) continue;
     const candidates = byMethod.get(`${row.file}::${row.method}`);
     if (!Array.isArray(candidates) || candidates.length === 0) continue;
-    // Pick the closest un-seen candidate by startLine distance.
-    let pick = null;
-    let bestDist = Number.POSITIVE_INFINITY;
-    for (const c of candidates) {
-      const k = `${c.file}::${c.method}@${c.startLine}`;
-      if (seen.has(k)) continue;
-      const d = Math.abs((c.startLine ?? 0) - (row.startLine ?? 0));
-      if (d < bestDist) {
-        bestDist = d;
-        pick = c;
-      }
-    }
+    const pick = pickClosestUnseen(candidates, row.startLine, seen);
     if (!pick) continue;
     seen.add(`${pick.file}::${pick.method}@${pick.startLine}`);
-    const headCrap = typeof row.crap === 'number' ? row.crap : 0;
-    const baseCrap = typeof pick.crap === 'number' ? pick.crap : 0;
-    if (headCrap <= baseCrap + tolerance) continue;
-    regressions.push({
-      file: row.file,
-      path: row.file,
-      method: row.method,
-      startLine: row.startLine,
-      crap: headCrap,
-      projected: headCrap,
-      baseline: baseCrap,
-      drop: headCrap - baseCrap,
-    });
+    const entry = buildCrapRegression(row, pick);
+    if (entry.headCrap <= entry.baseCrap + tolerance) continue;
+    // strip the internal `headCrap`/`baseCrap` fields — they were only
+    // here to give the caller a single read of each value.
+    const { headCrap: _h, baseCrap: _b, ...publicEntry } = entry;
+    regressions.push(publicEntry);
   }
   return regressions;
 }

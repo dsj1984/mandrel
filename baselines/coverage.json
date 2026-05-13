@@ -505,8 +505,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/git-merge-orchestrator.js": {
-    "lines": 58.19,
-    "branches": 69.23,
+    "lines": 55.93,
+    "branches": 66.67,
     "functions": 50
   },
   ".agents/scripts/lib/git-utils.js": {
@@ -590,8 +590,8 @@
     "functions": 88.89
   },
   ".agents/scripts/lib/orchestration/automerge-predicate.js": {
-    "lines": 98.7,
-    "branches": 89.09,
+    "lines": 100,
+    "branches": 95.38,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/code-review.js": {
@@ -705,13 +705,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 91.27,
-    "branches": 70.45,
-    "functions": 96.88
+    "lines": 92.57,
+    "branches": 70.65,
+    "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
-    "lines": 94.88,
-    "branches": 74.55,
+    "lines": 99.58,
+    "branches": 76.92,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js": {
@@ -845,9 +845,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
-    "lines": 82.7,
-    "branches": 78.79,
-    "functions": 100
+    "lines": 89.06,
+    "branches": 85.71,
+    "functions": 87.5
   },
   ".agents/scripts/lib/orchestration/recut.js": {
     "lines": 100,
@@ -865,8 +865,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/spec-renderer.js": {
-    "lines": 93.87,
-    "branches": 74.51,
+    "lines": 95.67,
+    "branches": 82.93,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close-recovery.js": {
@@ -875,14 +875,14 @@
     "functions": 64.71
   },
   ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js": {
-    "lines": 94.99,
-    "branches": 56.67,
+    "lines": 97.15,
+    "branches": 65.63,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
-    "lines": 84.97,
-    "branches": 59.55,
-    "functions": 66.67
+    "lines": 85.88,
+    "branches": 71.56,
+    "functions": 78.57
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
     "lines": 100,
@@ -920,9 +920,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
-    "lines": 58.29,
+    "lines": 100,
     "branches": 100,
-    "functions": 33.33
+    "functions": 70.83
   },
   ".agents/scripts/lib/orchestration/story-close/post-merge-close.js": {
     "lines": 100,
@@ -941,7 +941,7 @@
   },
   ".agents/scripts/lib/orchestration/story-grouper.js": {
     "lines": 91.3,
-    "branches": 89.47,
+    "branches": 94.74,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/structured-comment-parser.js": {
@@ -965,9 +965,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/ticket-validator.js": {
-    "lines": 95.09,
-    "branches": 91.11,
-    "functions": 80
+    "lines": 95.96,
+    "branches": 92.31,
+    "functions": 93.75
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
     "lines": 96.13,
@@ -1020,8 +1020,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/push-epic-retry.js": {
-    "lines": 91.96,
-    "branches": 72.97,
+    "lines": 91.46,
+    "branches": 71.79,
     "functions": 83.33
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
@@ -1260,8 +1260,8 @@
     "functions": 61.54
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 84.88,
-    "branches": 58.06,
+    "lines": 86.83,
+    "branches": 64.29,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {

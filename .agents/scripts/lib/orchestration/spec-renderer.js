@@ -285,14 +285,14 @@ function layerStories(storySlugs, bySlug) {
  * @returns {object} spec — `{ epic, features, gates? }` matching
  *   `.agents/schemas/epic-spec.schema.json`.
  */
-export function renderSpec(tickets, opts = {}) {
+function validateRenderSpecInputs(tickets, opts) {
   if (!Array.isArray(tickets)) {
     throw new TypeError('[spec-renderer] tickets must be an array');
   }
   if (!opts || typeof opts !== 'object' || !opts.epic) {
     throw new TypeError('[spec-renderer] opts.epic is required');
   }
-  const { epic, gates, schemaPath, validate = true } = opts;
+  const epic = opts.epic;
   if (!Number.isInteger(epic.id) || epic.id < 1) {
     throw new TypeError(
       '[spec-renderer] opts.epic.id must be a positive integer',
@@ -301,12 +301,9 @@ export function renderSpec(tickets, opts = {}) {
   if (typeof epic.title !== 'string' || epic.title.length === 0) {
     throw new TypeError('[spec-renderer] opts.epic.title must be a string');
   }
+}
 
-  const { bySlug, featureSlugs, storySlugs } = indexTickets(tickets);
-  const { layers } = layerStories(storySlugs, bySlug);
-
-  // Bucket Stories by parent_slug and Tasks by parent_slug so the
-  // hierarchy walk is O(N) rather than O(N²).
+function bucketChildren({ tickets, storySlugs, bySlug }) {
   const storiesByFeature = new Map();
   for (const slug of storySlugs) {
     const story = bySlug.get(slug);
@@ -323,86 +320,120 @@ export function renderSpec(tickets, opts = {}) {
     if (!tasksByStory.has(parent)) tasksByStory.set(parent, []);
     tasksByStory.get(parent).push(t.slug);
   }
+  return { storiesByFeature, tasksByStory };
+}
 
+function buildTaskOut(task) {
+  const out = { slug: task.slug, title: task.title };
+  assignNonEmpty(out, 'body', renderBody(task.body));
+  assignNonEmpty(out, 'labels', sanitizeLabels(task.labels));
+  return out;
+}
+
+function buildStoryOut({ story, taskSlugs, bySlug, layers, storySet }) {
+  const tasks = taskSlugs.map((slug) => buildTaskOut(bySlug.get(slug)));
+  const deps = Array.isArray(story.depends_on) ? story.depends_on : [];
+  const dependsOn = [
+    ...new Set(deps.filter((d) => storySet.has(d) && d !== story.slug)),
+  ];
+
+  const out = {
+    slug: story.slug,
+    title: story.title,
+    wave: layers.get(story.slug) ?? 0,
+    tasks,
+  };
+  assignNonEmpty(out, 'body', renderBody(story.body));
+  if (dependsOn.length > 0) out.dependsOn = dependsOn;
+  assignNonEmpty(out, 'labels', sanitizeLabels(story.labels));
+  return out;
+}
+
+function buildFeatureOut({
+  feature,
+  storySlugs,
+  bySlug,
+  layers,
+  storySet,
+  tasksByStory,
+}) {
+  const stories = storySlugs.map((storySlug) =>
+    buildStoryOut({
+      story: bySlug.get(storySlug),
+      taskSlugs: tasksByStory.get(storySlug) ?? [],
+      bySlug,
+      layers,
+      storySet,
+    }),
+  );
+  const out = { slug: feature.slug, title: feature.title, stories };
+  assignNonEmpty(out, 'body', renderBody(feature.body));
+  assignNonEmpty(out, 'labels', sanitizeLabels(feature.labels));
+  return out;
+}
+
+function buildEpicOut(epic) {
+  const out = { id: epic.id, title: epic.title };
+  assignNonEmpty(out, 'body', renderBody(epic.body));
+  assignNonEmpty(out, 'labels', sanitizeLabels(epic.labels));
+  return out;
+}
+
+function buildGatesOut(gates) {
+  if (!gates || typeof gates !== 'object') return null;
+  const out = {};
+  if (typeof gates.baseline === 'string' && gates.baseline.length > 0) {
+    out.baseline = gates.baseline;
+  }
+  if (typeof gates.config === 'string' && gates.config.length > 0) {
+    out.config = gates.config;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function validateSpec(spec, schemaPath) {
+  const effectiveSchemaPath = schemaPath ?? DEFAULT_SCHEMA_PATH;
+  if (!existsSync(effectiveSchemaPath)) {
+    throw new Error(
+      `[spec-renderer] schema not found at ${effectiveSchemaPath}`,
+    );
+  }
+  const validator = getValidator(effectiveSchemaPath);
+  if (!validator(spec)) {
+    throw new SpecRenderValidationError(
+      normaliseAjvErrors(validator.errors ?? []),
+    );
+  }
+}
+
+export function renderSpec(tickets, opts = {}) {
+  validateRenderSpecInputs(tickets, opts);
+  const { epic, gates, schemaPath, validate = true } = opts;
+
+  const { bySlug, featureSlugs, storySlugs } = indexTickets(tickets);
+  const { layers } = layerStories(storySlugs, bySlug);
+  const { storiesByFeature, tasksByStory } = bucketChildren({
+    tickets,
+    storySlugs,
+    bySlug,
+  });
   const storySet = new Set(storySlugs);
 
-  const features = [];
-  for (const featureSlug of featureSlugs) {
-    const feature = bySlug.get(featureSlug);
-    const storyEntries = storiesByFeature.get(featureSlug) ?? [];
+  const features = featureSlugs.map((featureSlug) =>
+    buildFeatureOut({
+      feature: bySlug.get(featureSlug),
+      storySlugs: storiesByFeature.get(featureSlug) ?? [],
+      bySlug,
+      layers,
+      storySet,
+      tasksByStory,
+    }),
+  );
 
-    const stories = [];
-    for (const storySlug of storyEntries) {
-      const story = bySlug.get(storySlug);
-      const taskEntries = tasksByStory.get(storySlug) ?? [];
+  const spec = { epic: buildEpicOut(epic), features };
+  const gatesOut = buildGatesOut(gates);
+  if (gatesOut) spec.gates = gatesOut;
 
-      const tasks = [];
-      for (const taskSlug of taskEntries) {
-        const task = bySlug.get(taskSlug);
-        const taskOut = { slug: task.slug, title: task.title };
-        assignNonEmpty(taskOut, 'body', renderBody(task.body));
-        assignNonEmpty(taskOut, 'labels', sanitizeLabels(task.labels));
-        tasks.push(taskOut);
-      }
-
-      const deps = Array.isArray(story.depends_on) ? story.depends_on : [];
-      const dependsOn = [
-        ...new Set(deps.filter((d) => storySet.has(d) && d !== storySlug)),
-      ];
-
-      const storyOut = {
-        slug: story.slug,
-        title: story.title,
-        wave: layers.get(storySlug) ?? 0,
-        tasks,
-      };
-      assignNonEmpty(storyOut, 'body', renderBody(story.body));
-      if (dependsOn.length > 0) storyOut.dependsOn = dependsOn;
-      assignNonEmpty(storyOut, 'labels', sanitizeLabels(story.labels));
-      stories.push(storyOut);
-    }
-
-    const featureOut = {
-      slug: feature.slug,
-      title: feature.title,
-      stories,
-    };
-    assignNonEmpty(featureOut, 'body', renderBody(feature.body));
-    assignNonEmpty(featureOut, 'labels', sanitizeLabels(feature.labels));
-    features.push(featureOut);
-  }
-
-  const epicOut = { id: epic.id, title: epic.title };
-  assignNonEmpty(epicOut, 'body', renderBody(epic.body));
-  assignNonEmpty(epicOut, 'labels', sanitizeLabels(epic.labels));
-
-  const spec = { epic: epicOut, features };
-  if (gates && typeof gates === 'object') {
-    const gatesOut = {};
-    if (typeof gates.baseline === 'string' && gates.baseline.length > 0) {
-      gatesOut.baseline = gates.baseline;
-    }
-    if (typeof gates.config === 'string' && gates.config.length > 0) {
-      gatesOut.config = gates.config;
-    }
-    if (Object.keys(gatesOut).length > 0) spec.gates = gatesOut;
-  }
-
-  if (validate) {
-    const effectiveSchemaPath = schemaPath ?? DEFAULT_SCHEMA_PATH;
-    if (!existsSync(effectiveSchemaPath)) {
-      throw new Error(
-        `[spec-renderer] schema not found at ${effectiveSchemaPath}`,
-      );
-    }
-    const validator = getValidator(effectiveSchemaPath);
-    const ok = validator(spec);
-    if (!ok) {
-      throw new SpecRenderValidationError(
-        normaliseAjvErrors(validator.errors ?? []),
-      );
-    }
-  }
-
+  if (validate) validateSpec(spec, schemaPath);
   return spec;
 }

@@ -281,6 +281,165 @@ function buildRefusalSignal({
  *   | { status: 'failed', reason: string, detail?: string }
  * >}
  */
+function resolveBaselineAbs(cwd, p) {
+  if (typeof p !== 'string' || p.length === 0) return null;
+  return path.isAbsolute(p) ? p : path.resolve(cwd, p);
+}
+
+function resolveBaselineAbsPaths({ cwd, config, getBaselines }) {
+  const baselines = getBaselines({ agentSettings: config.agentSettings });
+  return {
+    miAbs: resolveBaselineAbs(cwd, baselines?.maintainability?.path),
+    crapAbs: resolveBaselineAbs(cwd, baselines?.crap?.path),
+  };
+}
+
+function readPairedBaselines({ miAbs, crapAbs, fsImpl }) {
+  return {
+    mi: miAbs
+      ? readBaselineRows({ kind: 'mi', baselinePath: miAbs, fsImpl })
+      : null,
+    crap: crapAbs
+      ? readBaselineRows({ kind: 'crap', baselinePath: crapAbs, fsImpl })
+      : null,
+  };
+}
+
+function scopeRegeneratedRows({
+  scope,
+  scoredMi,
+  scoredCrap,
+  cwd,
+  epicBranch,
+  storyBranch,
+  gitRunner,
+  computeDiffPaths,
+}) {
+  if (scope === 'full') {
+    return { mi: scoredMi ?? [], crap: scoredCrap ?? [] };
+  }
+  const storyDiffPaths = computeDiffPaths({
+    cwd,
+    epicBranch,
+    storyBranch,
+    gitRunner,
+  });
+  return filterToStoryDiff({
+    miRows: scoredMi ?? [],
+    crapRows: scoredCrap ?? [],
+    storyDiffPaths,
+  });
+}
+
+async function probeDedup({ epicId, storyId, forEachLine, logger }) {
+  try {
+    return await priorRefusalSignalExists({ epicId, storyId, forEachLine });
+  } catch (err) {
+    logger.warn?.(
+      `[auto-refresh-runner] dedup probe failed: ${err?.message ?? err}`,
+    );
+    return false;
+  }
+}
+
+async function maybeAppendRefusalSignal({
+  dedup,
+  epicId,
+  storyId,
+  verdict,
+  caps,
+  appendSignal,
+  config,
+  logger,
+}) {
+  if (dedup) return false;
+  const signal = buildRefusalSignal({
+    epicId,
+    storyId,
+    miOverCap: verdict.miOverCap,
+    crapOverCap: verdict.crapOverCap,
+    refusalReasons: verdict.refusalReasons,
+    caps,
+  });
+  try {
+    return await appendSignal({ epicId, storyId, signal, config });
+  } catch (err) {
+    logger.warn?.(
+      `[auto-refresh-runner] friction signal append failed: ${err?.message ?? err}`,
+    );
+    return false;
+  }
+}
+
+function rollbackBaselineFiles({ cwd, baselineFiles, gitRunner, logger }) {
+  for (const filePath of baselineFiles) {
+    const rel = path.isAbsolute(filePath)
+      ? path.relative(cwd, filePath)
+      : filePath;
+    const posixRel = rel.split(path.sep).join('/');
+    const res = gitRunner.gitSpawn(cwd, 'checkout', 'HEAD', '--', posixRel);
+    if (res.status !== 0) {
+      logger.warn?.(
+        `[auto-refresh-runner] failed to restore ${rel} after refusal: ${res.stderr || res.stdout}`,
+      );
+    }
+  }
+}
+
+async function handleRefusal({
+  verdict,
+  caps,
+  epicId,
+  storyId,
+  cwd,
+  baselineFiles,
+  gitRunner,
+  appendSignal,
+  forEachLine,
+  config,
+  logger,
+}) {
+  const dedup = await probeDedup({ epicId, storyId, forEachLine, logger });
+  const signalAppended = await maybeAppendRefusalSignal({
+    dedup,
+    epicId,
+    storyId,
+    verdict,
+    caps,
+    appendSignal,
+    config,
+    logger,
+  });
+  rollbackBaselineFiles({ cwd, baselineFiles, gitRunner, logger });
+  logger.info?.(
+    `[auto-refresh-runner] refused — ${verdict.refusalReasons.length} cap breach(es); friction signal ${dedup ? 'already present (dedup)' : signalAppended ? 'appended' : 'append failed'}.`,
+  );
+  return {
+    status: 'refused',
+    refusalReasons: verdict.refusalReasons,
+    signalAppended,
+    dedup,
+    miOverCap: verdict.miOverCap,
+    crapOverCap: verdict.crapOverCap,
+  };
+}
+
+function resolveAutoRefreshDeps(deps) {
+  return {
+    logger: deps.logger ?? DefaultLogger,
+    getQuality: deps.getQuality ?? defaultGetQuality,
+    getBaselines: deps.getBaselines ?? defaultGetBaselines,
+    evaluateAutoRefresh: deps.evaluateAutoRefresh ?? defaultEvaluateAutoRefresh,
+    regenerateMainFromTree:
+      deps.regenerateMainFromTree ?? defaultRegenerateMainFromTree,
+    gitRunner: deps.gitRunner ?? { gitSpawn: defaultGitSpawn },
+    fsImpl: deps.fsImpl ?? fs,
+    appendSignal: deps.appendSignal ?? defaultAppendSignal,
+    forEachLine: deps.forEachLine ?? defaultForEachLine,
+    computeDiffPaths: deps.computeStoryDiffPaths ?? computeStoryDiffPaths,
+  };
+}
+
 export async function runAutoRefresh({
   storyId,
   epicId,
@@ -290,23 +449,21 @@ export async function runAutoRefresh({
   agentSettings,
   deps = {},
 } = {}) {
-  const logger = deps.logger ?? DefaultLogger;
-  const getQuality = deps.getQuality ?? defaultGetQuality;
-  const getBaselines = deps.getBaselines ?? defaultGetBaselines;
-  const evaluateAutoRefresh =
-    deps.evaluateAutoRefresh ?? defaultEvaluateAutoRefresh;
-  const regenerateMainFromTree =
-    deps.regenerateMainFromTree ?? defaultRegenerateMainFromTree;
-  const gitRunner = deps.gitRunner ?? { gitSpawn: defaultGitSpawn };
-  const fsImpl = deps.fsImpl ?? fs;
-  const appendSignal = deps.appendSignal ?? defaultAppendSignal;
-  const forEachLine = deps.forEachLine ?? defaultForEachLine;
-  const computeDiffPaths = deps.computeStoryDiffPaths ?? computeStoryDiffPaths;
-  // Allow tests to substitute a stub config wrapper.
+  const {
+    logger,
+    getQuality,
+    getBaselines,
+    evaluateAutoRefresh,
+    regenerateMainFromTree,
+    gitRunner,
+    fsImpl,
+    appendSignal,
+    forEachLine,
+    computeDiffPaths,
+  } = resolveAutoRefreshDeps(deps);
   const config = { agentSettings };
 
-  const quality = getQuality(config);
-  const autoRefresh = quality?.autoRefresh;
+  const autoRefresh = getQuality(config)?.autoRefresh;
   if (!autoRefresh || autoRefresh.enabled === false) {
     return { status: 'skipped', reason: 'disabled' };
   }
@@ -315,36 +472,19 @@ export async function runAutoRefresh({
     crapJumpCap: autoRefresh.crapJumpCap,
   };
 
-  // Capture the *current* on-disk baselines BEFORE regen so the evaluator
-  // can compare regenerated vs. previously committed rows. The regen helper
-  // overwrites these files in place.
-  const baselines = getBaselines({ agentSettings: config.agentSettings });
-  const miPath = baselines?.maintainability?.path;
-  const crapPath = baselines?.crap?.path;
-  const miAbs =
-    typeof miPath === 'string' && miPath.length > 0
-      ? path.isAbsolute(miPath)
-        ? miPath
-        : path.resolve(cwd, miPath)
-      : null;
-  const crapAbs =
-    typeof crapPath === 'string' && crapPath.length > 0
-      ? path.isAbsolute(crapPath)
-        ? crapPath
-        : path.resolve(cwd, crapPath)
-      : null;
+  const { miAbs, crapAbs } = resolveBaselineAbsPaths({
+    cwd,
+    config,
+    getBaselines,
+  });
 
-  const baselineMi = miAbs
-    ? readBaselineRows({ kind: 'mi', baselinePath: miAbs, fsImpl })
-    : null;
-  const baselineCrap = crapAbs
-    ? readBaselineRows({ kind: 'crap', baselinePath: crapAbs, fsImpl })
-    : null;
+  // Capture the on-disk baselines BEFORE regen overwrites them.
+  const { mi: baselineMi, crap: baselineCrap } = readPairedBaselines({
+    miAbs,
+    crapAbs,
+    fsImpl,
+  });
 
-  // Regenerate via the same helper /epic-deliver uses for post-merge
-  // reconciliation. The helper writes the canonical envelope (sorted keys,
-  // trailing newline) so a re-run with no real change is a byte-equal
-  // no-op — the runner's idempotency rests on this property.
   let regen;
   try {
     regen = await regenerateMainFromTree({ cwd });
@@ -355,41 +495,26 @@ export async function runAutoRefresh({
       detail: err?.message ?? String(err),
     };
   }
-
   if (!regen?.didChange) {
     return { status: 'skipped', reason: 'no-baseline-drift' };
   }
 
-  // Read the regenerated rows back from disk. We do NOT trust the regen
-  // helper's in-memory result shape — disk is the source of truth for the
-  // amend, and we want the evaluator to compare what's about to be
-  // committed against what was previously committed.
-  const scoredMi = miAbs
-    ? readBaselineRows({ kind: 'mi', baselinePath: miAbs, fsImpl })
-    : null;
-  const scoredCrap = crapAbs
-    ? readBaselineRows({ kind: 'crap', baselinePath: crapAbs, fsImpl })
-    : null;
+  const { mi: scoredMi, crap: scoredCrap } = readPairedBaselines({
+    miAbs,
+    crapAbs,
+    fsImpl,
+  });
 
-  // Default scope: 'diff' restricts evaluation to files the Story changed.
-  // 'full' evaluates every regenerated row vs the previous baseline.
-  const scope = autoRefresh.scope ?? 'diff';
-  let scoped;
-  if (scope === 'full') {
-    scoped = { mi: scoredMi ?? [], crap: scoredCrap ?? [] };
-  } else {
-    const storyDiffPaths = computeDiffPaths({
-      cwd,
-      epicBranch,
-      storyBranch,
-      gitRunner,
-    });
-    scoped = filterToStoryDiff({
-      miRows: scoredMi ?? [],
-      crapRows: scoredCrap ?? [],
-      storyDiffPaths,
-    });
-  }
+  const scoped = scopeRegeneratedRows({
+    scope: autoRefresh.scope ?? 'diff',
+    scoredMi,
+    scoredCrap,
+    cwd,
+    epicBranch,
+    storyBranch,
+    gitRunner,
+    computeDiffPaths,
+  });
 
   const verdict = evaluateAutoRefresh({
     scoredRows: scoped,
@@ -397,87 +522,24 @@ export async function runAutoRefresh({
     caps,
   });
 
+  const baselineFiles = [miAbs, crapAbs].filter(Boolean);
   if (!verdict.canAutoRefresh) {
-    // Over-cap → check for a prior refusal signal first to honour AC3
-    // (idempotent re-run does not duplicate the friction signal).
-    let dedup = false;
-    try {
-      dedup = await priorRefusalSignalExists({
-        epicId,
-        storyId,
-        forEachLine,
-      });
-    } catch (err) {
-      // Best-effort dedup — a stream read failure means we'll write a
-      // possibly-duplicate signal, which is preferable to silently
-      // dropping the refusal.
-      logger.warn?.(
-        `[auto-refresh-runner] dedup probe failed: ${err?.message ?? err}`,
-      );
-    }
-
-    let signalAppended = false;
-    if (!dedup) {
-      const signal = buildRefusalSignal({
-        epicId,
-        storyId,
-        miOverCap: verdict.miOverCap,
-        crapOverCap: verdict.crapOverCap,
-        refusalReasons: verdict.refusalReasons,
-        caps,
-      });
-      try {
-        signalAppended = await appendSignal({
-          epicId,
-          storyId,
-          signal,
-          config,
-        });
-      } catch (err) {
-        logger.warn?.(
-          `[auto-refresh-runner] friction signal append failed: ${err?.message ?? err}`,
-        );
-      }
-    }
-
-    // Roll back the on-disk baseline writes — we refused to amend, so the
-    // working tree must match HEAD again. `git checkout HEAD -- <path>`
-    // restores each baseline file to its committed state. Best-effort —
-    // a checkout failure logs and continues; the merge will still see
-    // dirty files but the amend never ran so the merge tree is unchanged.
-    for (const filePath of [miAbs, crapAbs].filter(Boolean)) {
-      const rel = path.isAbsolute(filePath)
-        ? path.relative(cwd, filePath)
-        : filePath;
-      const posixRel = rel.split(path.sep).join('/');
-      const res = gitRunner.gitSpawn(cwd, 'checkout', 'HEAD', '--', posixRel);
-      if (res.status !== 0) {
-        logger.warn?.(
-          `[auto-refresh-runner] failed to restore ${rel} after refusal: ${res.stderr || res.stdout}`,
-        );
-      }
-    }
-
-    logger.info?.(
-      `[auto-refresh-runner] refused — ${verdict.refusalReasons.length} cap breach(es); friction signal ${dedup ? 'already present (dedup)' : signalAppended ? 'appended' : 'append failed'}.`,
-    );
-    return {
-      status: 'refused',
-      refusalReasons: verdict.refusalReasons,
-      signalAppended,
-      dedup,
-      miOverCap: verdict.miOverCap,
-      crapOverCap: verdict.crapOverCap,
-    };
+    return handleRefusal({
+      verdict,
+      caps,
+      epicId,
+      storyId,
+      cwd,
+      baselineFiles,
+      gitRunner,
+      appendSignal,
+      forEachLine,
+      config,
+      logger,
+    });
   }
 
-  // Under-cap → amend the regenerated baseline files into HEAD.
-  const baselineFiles = [miAbs, crapAbs].filter(Boolean);
-  const amend = amendBaselinesIntoHead({
-    cwd,
-    baselineFiles,
-    gitRunner,
-  });
+  const amend = amendBaselinesIntoHead({ cwd, baselineFiles, gitRunner });
   if (!amend.ok) {
     return { status: 'failed', reason: 'amend-failed', detail: amend.error };
   }
