@@ -258,7 +258,7 @@
     {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
-      "method": "applyCompatDecision",
+      "method": "_applyCompatDecision",
       "startLine": 634
     },
     {
@@ -270,7 +270,7 @@
     {
       "crap": 20,
       "file": ".agents/scripts/check-crap.js",
-      "method": "handleCompareResult",
+      "method": "_handleCompareResult",
       "startLine": 660
     },
     {
@@ -434,6 +434,12 @@
       "file": ".agents/scripts/check-maintainability.js",
       "method": "enforceMaintainabilityFloor",
       "startLine": 508
+    },
+    {
+      "crap": 7.155836556075718,
+      "file": ".agents/scripts/cleanup-repo-test-temp.js",
+      "method": "cleanupRepoTestTempArtifacts",
+      "startLine": 30
     },
     {
       "crap": 1,
@@ -2260,18 +2266,6 @@
       "startLine": 34
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
-      "method": "isStoryBranch",
-      "startLine": 82
-    },
-    {
-      "crap": 4.021947873799726,
-      "file": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
-      "method": "samePath",
-      "startLine": 96
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/checks/index.js",
       "method": "clearRegistryCache",
@@ -2300,42 +2294,6 @@
       "file": ".agents/scripts/lib/checks/index.js",
       "method": "isValidCheck",
       "startLine": 247
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
-      "method": "isExemptPath",
-      "startLine": 57
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
-      "method": "walkJsFiles",
-      "startLine": 72
-    },
-    {
-      "crap": 9,
-      "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
-      "method": "readConstructorArgs",
-      "startLine": 111
-    },
-    {
-      "crap": 7.010907977850127,
-      "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
-      "method": "findOffences",
-      "startLine": 139
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/checks/push-hook-parity.js",
-      "method": "buildFixCommand",
-      "startLine": 85
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/checks/push-hook-parity.js",
-      "method": "indent",
-      "startLine": 102
     },
     {
       "crap": 1,
@@ -2404,18 +2362,6 @@
       "startLine": 425
     },
     {
-      "crap": 7.019915663262714,
-      "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
-      "method": "walkSources",
-      "startLine": 59
-    },
-    {
-      "crap": 9,
-      "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
-      "method": "scanFile",
-      "startLine": 100
-    },
-    {
       "crap": 1,
       "file": ".agents/scripts/lib/checks/subagent-agent-tool-required.js",
       "method": "listWorkflowFiles",
@@ -2444,12 +2390,6 @@
       "file": ".agents/scripts/lib/checks/worktree-bootstrap-env.js",
       "method": "buildFixCommand",
       "startLine": 73
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/checks/worktree-residue-biome.js",
-      "method": "buildFixCommand",
-      "startLine": 51
     },
     {
       "crap": 7,
@@ -5080,22 +5020,10 @@
       "startLine": 535
     },
     {
-      "crap": 15,
+      "crap": 13,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "projectStateForWrite",
       "startLine": 601
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
-      "method": "collectStructuralEdges",
-      "startLine": 670
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
-      "method": "topoSortCreates",
-      "startLine": 703
     },
     {
       "crap": 4,
@@ -7744,6 +7672,18 @@
       "startLine": 124
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
+      "method": "isReservedTestEpicTempId",
+      "startLine": 18
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/test-reserved-epic-temp-ids.js",
+      "method": "isReservedTestEpicTempDirName",
+      "startLine": 31
+    },
+    {
       "crap": 6.04548595344797,
       "file": ".agents/scripts/lib/util/concurrent-map.js",
       "method": "concurrentMap",
@@ -8572,7 +8512,7 @@
       "startLine": 41
     },
     {
-      "crap": 12.60122948737489,
+      "crap": 10.325153685921862,
       "file": ".agents/scripts/loc-delta.js",
       "method": "computeDeltaForPath",
       "startLine": 65
@@ -9076,6 +9016,24 @@
       "startLine": 67
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/run-tests.js",
+      "method": "buildNodeTestArgs",
+      "startLine": 21
+    },
+    {
+      "crap": 2.004665403119988,
+      "file": ".agents/scripts/run-tests.js",
+      "method": "runTestSuite",
+      "startLine": 31
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/run-tests.js",
+      "method": "<anon method-1>",
+      "startLine": 51
+    },
+    {
       "crap": 1.7865270823850707,
       "file": ".agents/scripts/select-audits.js",
       "method": "parseArgv",
@@ -9492,6 +9450,12 @@
     {
       "crap": 1,
       "file": ".agents/scripts/test-wrapper.js",
+      "method": "<anon method-1>",
+      "startLine": 45
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/test-wrapper.js",
       "method": "<anon method-2>",
       "startLine": 46
     },
@@ -9500,6 +9464,18 @@
       "file": ".agents/scripts/test-wrapper.js",
       "method": "<anon method-3>",
       "startLine": 47
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/test-wrapper.js",
+      "method": "runTestWrapperPreflight",
+      "startLine": 65
+    },
+    {
+      "crap": 9.029296875,
+      "file": ".agents/scripts/test-wrapper.js",
+      "method": "<anon method-4>",
+      "startLine": 91
     },
     {
       "crap": 3,

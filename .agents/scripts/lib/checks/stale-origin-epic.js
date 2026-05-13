@@ -1,12 +1,11 @@
 /**
  * stale-origin-epic — refuse-and-print blocker check.
  *
- * Detects the failure mode documented in
- * `feedback_close_push_epic_first.md`: a manual merge into `epic/<id>`
- * landed locally but the operator forgot to `git push` the epic branch
- * before re-running `story-close.js`. The close script's rebase then
- * fights a stale `origin/epic/<id>` and re-introduces a different
- * conflict on every retry.
+ * Detects the failure mode where a manual merge into `epic/<id>` landed
+ * locally but the operator forgot to `git push` the epic branch before
+ * re-running `story-close.js`. The close script's rebase then fights a
+ * stale `origin/epic/<id>` and re-introduces a different conflict on
+ * every retry.
  *
  * The check surfaces this at story-close preflight (and at retro time
  * read-only) so the operator is told to fetch + push the epic branch

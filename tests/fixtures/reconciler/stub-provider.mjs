@@ -39,7 +39,7 @@ export class StubProvider extends ITicketingProvider {
   _record(kind, args, result) {
     const call = { kind, args, result };
     this.calls.push(call);
-    if (this._failOn && this._failOn(call)) {
+    if (this._failOn?.(call)) {
       const err = new Error(`stub-provider: failOn(${kind})`);
       err.code = 'STUB_FAIL';
       throw err;
