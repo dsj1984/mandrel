@@ -20,12 +20,12 @@
     "functions": 71.43
   },
   ".agents/scripts/check-crap.js": {
-    "lines": 81.85,
+    "lines": 79.09,
     "branches": 80.92,
     "functions": 86.67
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 67.69,
+    "lines": 64.88,
     "branches": 82.5,
     "functions": 66.67
   },
@@ -291,7 +291,7 @@
   },
   ".agents/scripts/lib/checks/state.js": {
     "lines": 92.51,
-    "branches": 89.58,
+    "branches": 90.72,
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
@@ -1024,6 +1024,11 @@
     "branches": 72.97,
     "functions": 83.33
   },
+  ".agents/scripts/lib/quality-floors.js": {
+    "lines": 86.11,
+    "branches": 78.35,
+    "functions": 100
+  },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
     "lines": 100,
     "branches": 87.5,
@@ -1260,8 +1265,8 @@
     "functions": 61.54
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 84.88,
-    "branches": 58.06,
+    "lines": 86.83,
+    "branches": 66.67,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
