@@ -161,12 +161,13 @@ export class GhGraphqlError extends GhExecError {
  *   build: (details: object) => Error,
  * }>}
  */
+// Per-category combined regexes. Alternation keeps each pattern at cc=1
+// (regex literals don't carry control-flow weight) so `classify`'s
+// dispatch loop stays well under the CRAP=20 ceiling for the file.
 const CLASSIFY_RULES = [
   {
-    test: (h) =>
-      /command not found/.test(h) ||
-      /is not recognized/.test(h) ||
-      /no such file or directory.*gh/.test(h),
+    pattern:
+      /command not found|is not recognized|no such file or directory.*gh/,
     build: (d) =>
       new GhNotInstalledError(
         'gh-exec: gh CLI is not installed or not on PATH',
@@ -174,10 +175,7 @@ const CLASSIFY_RULES = [
       ),
   },
   {
-    test: (h) =>
-      /requires authentication/.test(h) ||
-      /not logged into/.test(h) ||
-      /authentication required/.test(h),
+    pattern: /requires authentication|not logged into|authentication required/,
     build: (d) =>
       new GhAuthError(
         'gh-exec: gh is not authenticated — run `gh auth login`',
@@ -185,18 +183,13 @@ const CLASSIFY_RULES = [
       ),
   },
   {
-    test: (h) =>
-      /secondary rate limit/.test(h) ||
-      /api rate limit exceeded/.test(h) ||
-      /rate limit exceeded/.test(h),
+    pattern: /secondary rate limit|api rate limit exceeded|rate limit exceeded/,
     build: (d) =>
       new GhRateLimitError('gh-exec: gh API rate limit exceeded', d),
   },
   {
-    test: (h) =>
-      /missing.*scope/.test(h) ||
-      /requires the .* scope/.test(h) ||
-      /your token has not been granted the required scopes/.test(h),
+    pattern:
+      /missing.*scope|requires the .* scope|your token has not been granted the required scopes/,
     build: (d) =>
       new GhScopeError(
         'gh-exec: gh token is missing a required OAuth scope',
@@ -204,17 +197,11 @@ const CLASSIFY_RULES = [
       ),
   },
   {
-    test: (h) =>
-      /http 404/.test(h) ||
-      /could not resolve to a/.test(h) ||
-      /not found/.test(h),
+    pattern: /http 404|could not resolve to a|not found/,
     build: (d) => new GhNotFoundError('gh-exec: resource not found', d),
   },
   {
-    test: (h) =>
-      /^graphql:/.test(h) ||
-      /graphql error/.test(h) ||
-      /graphql.*errors/.test(h),
+    pattern: /^graphql:|graphql error|graphql.*errors/,
     build: (d) => new GhGraphqlError('gh-exec: GraphQL error from gh api', d),
   },
 ];
@@ -244,7 +231,7 @@ export function classify({
   // callers can distinguish "binary missing" from "binary present, refused".
   const startIdx = spawnError ? 1 : 0;
   for (let i = startIdx; i < CLASSIFY_RULES.length; i += 1) {
-    if (CLASSIFY_RULES[i].test(haystack))
+    if (CLASSIFY_RULES[i].pattern.test(haystack))
       return CLASSIFY_RULES[i].build(details);
   }
   return new GhExecError(`gh-exec: gh exited with code ${code}`, details);
