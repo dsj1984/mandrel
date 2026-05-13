@@ -226,16 +226,28 @@
       "startLine": 582
     },
     {
-      "crap": 34.13801303866498,
+      "crap": 23.333333333333336,
       "file": ".agents/scripts/check-crap.js",
       "method": "main",
       "startLine": 614
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "resolveScopeSet",
+      "startLine": 739
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-crap.js",
+      "method": "maybeWriteJsonReport",
+      "startLine": 764
+    },
+    {
       "crap": 12,
       "file": ".agents/scripts/check-crap.js",
       "method": "enforceCrapFloor",
-      "startLine": 769
+      "startLine": 801
     },
     {
       "crap": 8,
@@ -322,16 +334,28 @@
       "startLine": 336
     },
     {
-      "crap": 41.014083472347636,
+      "crap": 22.232831999999995,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "main",
       "startLine": 346
     },
     {
+      "crap": 2.3511659807956105,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "applyDiffScope",
+      "startLine": 429
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-maintainability.js",
+      "method": "maybeWriteMaintainabilityReport",
+      "startLine": 461
+    },
+    {
       "crap": 12,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "enforceMaintainabilityFloor",
-      "startLine": 467
+      "startLine": 487
     },
     {
       "crap": 2,
