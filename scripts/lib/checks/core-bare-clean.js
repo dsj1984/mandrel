@@ -2,12 +2,11 @@
  * core-bare-clean — refuse-and-print blocker check.
  *
  * Asserts that `git config core.bare` on the main checkout is NOT set
- * to `true`. The `feedback_npm_test_flips_core_bare.md` note documents
- * the failure mode: an old `npm test` path mis-set `core.bare=true`
- * on the main checkout, after which `story-close.js`'s post-rebase
- * `git checkout` aborted with `fatal: this operation must be run in a
- * work tree`. `cleanGitEnv` already lands the live fix; this check is
- * the regression guard.
+ * to `true`. This guards the old failure mode where an `npm test` path
+ * mis-set `core.bare=true` on the main checkout, after which
+ * `story-close.js`'s post-rebase `git checkout` aborted with
+ * `fatal: this operation must be run in a work tree`. `cleanGitEnv`
+ * already lands the live fix; this check is the regression guard.
  *
  * Severity is `blocker` because story-close cannot recover on its own
  * — the operator must run `git config --unset core.bare` (or rely on

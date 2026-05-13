@@ -130,7 +130,7 @@ export function reapBranch(opts) {
         method = 'worktree-remove-force';
       } else if (typeof rmSyncFn === 'function') {
         // Third: fs rm + prune (Windows lock fallback from memory
-        // `feedback_sprint_story_close_reap`).
+        // partial-reap recovery incident).
         try {
           rmSyncFn(worktreePath, { recursive: true, force: true });
           worktreeReaped = true;

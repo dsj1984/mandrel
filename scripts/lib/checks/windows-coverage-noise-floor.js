@@ -4,11 +4,10 @@
  * Detects coverage-gate deltas that are within the Windows / Node-22
  * noise floor — i.e., tiny fractional branch-coverage swings that vary
  * run-to-run and would chase the gate to a different file if the
- * operator ratcheted from a flapping CI artifact. Background:
- * `feedback_windows_ci_coverage_flap.md` — the canonical mistake is to
- * fetch a failing run's coverage delta and bump the baseline by that
- * delta, which simply moves the noise floor to another file rather than
- * stabilising the gate.
+ * operator ratcheted from a flapping CI artifact. The canonical mistake
+ * is to fetch a failing run's coverage delta and bump the baseline by
+ * that delta, which simply moves the noise floor to another file rather
+ * than stabilising the gate.
  *
  * Scope: 'story-close', 'retro'. The check is `warning` severity (not
  * `blocker`) because flapping is informational — the operator decides

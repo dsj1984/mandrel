@@ -43,7 +43,7 @@ The frontmatter declares `recommendedModel: opus` (the aggregator runs in
 the parent's loop and benefits from reasoning headroom) and
 `dispatchModel: haiku` (the children are structured scanners + report
 writers, well within haiku's competency and ~4–6× cheaper). See
-[`README.md`](README.md) for the precedence rules.
+[`README.md`](../README.md#workflow-authoring) for the precedence rules.
 
 > Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) Rule 3
 > for the dispatch below — N independent audit dimensions get N parallel
@@ -76,7 +76,8 @@ each writes to `{{auditOutputDir}}/audit-<dimension>-results.md`), so all
 Emit **one assistant turn** containing **12 parallel `Agent` tool calls**,
 one per audit child. Use `subagent_type: general-purpose` and pass
 `model: 'haiku'` on every call (resolved from this workflow's
-`dispatchModel`; see [`README.md`](README.md) for the precedence rules).
+`dispatchModel`; see [`README.md`](../README.md#workflow-authoring) for
+the precedence rules).
 
 Each Agent call's prompt names the audit, instructs the child to invoke
 the corresponding `/audit-<dimension>` slash command, reminds it of the
@@ -194,9 +195,10 @@ even when all 12 dimensions ran.
   must drain via `run_in_background` + `Monitor` per Step 2.
 - **Always** pass `model: 'haiku'` on every `Agent` call, resolved from
   this workflow's `dispatchModel`. A per-call literal `model:` argument
-  overrides it for that one call (see [`README.md`](README.md)
-  precedence rules) — use this escape hatch only when one audit
-  genuinely needs different reasoning headroom than the rest.
+  overrides it for that one call (see
+  [`README.md`](../README.md#workflow-authoring) precedence rules) — use
+  this escape hatch only when one audit genuinely needs different
+  reasoning headroom than the rest.
 - **Always** group the unified report by envelope `status` and surface
   `reportLink` for drill-down. Do not re-derive findings by re-reading
   the dimension reports; the envelope **is** the aggregation contract.

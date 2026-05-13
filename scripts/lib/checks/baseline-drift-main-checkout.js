@@ -7,9 +7,8 @@
  * usually drifted from the Story branch by stale formatting / MI-baseline
  * commits, and the close validation then refuses to merge.
  *
- * See `feedback_close_validation_main_drift.md` for the original incident
- * report — pre-existing epic-branch format drift blocks every story close
- * when the validator hits the main checkout.
+ * Pre-existing epic-branch format drift blocks every story close when the
+ * validator hits the main checkout.
  *
  * Surface: `story-close` preflight and the `/diagnose` CLI. Surfaced as a
  * blocker — if the validator is running against the wrong tree, none of the
@@ -72,9 +71,9 @@ export default {
 };
 
 /**
- * Story branches use a flat `story-<n>` shape (see
- * feedback_delete_epic_branches_naming.md — the older `story/epic-<id>/<n>`
- * layout no longer applies). Accept both for forward compatibility.
+ * Story branches use a flat `story-<n>` shape; the older
+ * `story/epic-<id>/<n>` layout no longer applies. Accept both for forward
+ * compatibility.
  *
  * @param {string} ref
  * @returns {boolean}

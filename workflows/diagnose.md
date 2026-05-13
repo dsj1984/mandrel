@@ -102,7 +102,7 @@ pipelines and CI-step parsing.
 
 ## See also
 
-- [`.agents/scripts/lib/checks/README.md`](../scripts/lib/checks/README.md)
+- [`.agents/README.md` § Self-Healing Checks](../README.md#self-healing-checks)
   — the canonical contract every check module must satisfy.
 - [`.agents/scripts/diagnose.js`](../scripts/diagnose.js) — the CLI
   implementation backing this slash command.

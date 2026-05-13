@@ -605,16 +605,8 @@ function projectStateForWrite({ spec, priorState, slugToIssue, now }) {
   // The reconciler's contract (Tech Spec §"state.json") expects the
   // epic to appear in the mapping too: layer it on explicitly here so
   // a follow-up diff sees the epic mapped and emits no create for it.
-  if (
-    spec &&
-    spec.epic &&
-    typeof spec.epic.id === 'number' &&
-    !base.mapping.epic
-  ) {
-    const priorEpic =
-      priorState?.mapping && priorState.mapping.epic
-        ? priorState.mapping.epic
-        : {};
+  if (spec?.epic && typeof spec.epic.id === 'number' && !base.mapping.epic) {
+    const priorEpic = priorState?.mapping?.epic ? priorState.mapping.epic : {};
     base.mapping.epic = {
       issueNumber:
         typeof slugToIssue.epic === 'number'
