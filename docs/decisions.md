@@ -1,5 +1,19 @@
 # Architecture Decision Records (ADR)
 
+> **v6 ADR cluster.** The post-Epic-A/C/D/G/F reality is fixed by four
+> load-bearing ADRs that subsequent decisions cite:
+>
+> - [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) — Claude Code-first, runtime-pluggable dispatcher (Epic G).
+> - [`20260512-destructive-replan-retired`](#adr-20260512-destructive-replan-retired-epic-1182--retire-delete-epicjs-re-plan--edit-spec--reconcile) — declarative `epic.yaml` + reconciler (Epic D).
+> - [`20260512-loop-adoption`](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile) — adopt built-in `/loop`; no homegrown surface to reconcile (Epic G).
+> - The v6 absolute quality floors and floor-vs-ratchet policy live in
+>   [`quality-gates.md`](quality-gates.md) (Epic F Story #1602) — they
+>   are tooling commitments rather than architectural ADRs.
+>
+> Older ADRs remain authoritative on the architectural question they
+> answered at the time; cross-cuts that v6 supersedes are flagged in
+> the entries themselves.
+
 ## ADR 20260512-destructive-replan-retired: Epic #1182 — retire `delete-epic.js`; re-plan = edit-spec + reconcile
 
 **Status:** Accepted

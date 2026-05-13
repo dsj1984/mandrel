@@ -10,6 +10,14 @@ structured, how components interact, and where to find each subsystem.
 > This file covers the *architecture* (modules, interfaces, data flow) that
 > the workflow runs on top of. The slash-command reference index lives in
 > [`workflows.md`](workflows.md).
+>
+> **Coupling stance.** Mandrel is a **Claude Code-first opinionated
+> workflow framework with a runtime-pluggable dispatcher**. The
+> dispatcher / `.agents/scripts/` library stays runtime-neutral behind
+> the `IExecutionAdapter` boundary; the workflow / `.claude/` / hook /
+> skill surface leans in on Claude Code as the reference runtime.
+> See ADR `20260512-coupling-stance` in [`decisions.md`](decisions.md)
+> for the rationale and what it explicitly is and isn't.
 
 ---
 
@@ -150,9 +158,13 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
-v5.40 operator-facing surface is two slash commands on the SDL critical
+v6 operator-facing surface is two slash commands on the SDL critical
 path — `/epic-plan` (with optional ideation entry) and `/epic-deliver` —
 plus `/story-execute` for single-Story drives off the dispatch table.
+Planning is **git-state-free**: `/epic-plan` produces a declarative
+`epic.yaml` artifact (v6 Epic D #1182) that is diff-able, replayable,
+and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
+is no longer created at plan time.
 `/epic-deliver`'s host LLM owns the wave loop and fans Story sub-agents
 out directly via the Agent tool inside the operator's Claude session —
 there is no intermediate wave skill, no subprocess spawn pathway, and no
@@ -224,17 +236,16 @@ graph TB
 | `epic-deliver-runner.js`     | Coordinates all six `/epic-deliver` phases (prepare → wave loop → close-validation → code-review → retro → finalize) with phase-granular checkpointed resume.                                  |
 | `epic-deliver-finalize.js`   | Phase 6: pushes `epic/<id>`, opens a PR to `main`, sets the required-checks expectation, posts the hand-off comment. Epic stays at `agent::executing` until the operator's PR merge flips it to `agent::done`. Never merges `main` itself. |
 | `story-init.js`              | Initialises a Story worktree, transitions Tasks to `agent::executing`.                                                                                                                        |
-| `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Trimmed to a 189-line CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}` in Epic #946 (v5.31.1). |
+| `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
 | `context-hydrator.js`        | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).                                                                                                            |
 | `update-ticket-state.js`     | Syncs ticket status via GitHub labels (`agent::ready` → `agent::done`).                                                                                                                       |
 | `notify.js`                  | Dispatches notifications via @mention and webhook channels.                                                                                                                                   |
 | `analyze-execution.js`       | Reads per-Story `signals.ndjson` and emits the `story-perf-summary` / `epic-perf-report` consumed by the retro. Wired into the post-merge pipeline and into `/epic-deliver` Phase 5.           |
 
-#### v5.40 in-process orchestration modules
+#### In-process orchestration modules
 
-Three modules introduced in 5.40.0 fold the close-tail into the deliver
-runner so `/epic-deliver` runs end-to-end without spawning helper
-sessions:
+These modules fold the close-tail into the deliver runner so
+`/epic-deliver` runs end-to-end without spawning helper sessions:
 
 | Module                                   | Role                                                                                                                                                              |
 | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -302,7 +313,7 @@ so the error surface is auditable after a run completes. See
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. Replaced the rate-limited GitHub-comment emitter in Epic #1030 Story #1042. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. The single producer for the v6 telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`, v6 Epic C) is the sole consumer. |
 | `lib/orchestration/epic-runner/column-sync.js`      | Drives the Projects v2 Status column from `agent::` labels (best-effort). Missing project rows surface as friction, not as `unknown`.                 |
 
 `CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
@@ -796,12 +807,12 @@ They differ only in:
 - **Branch name validation**: `dependency-parser.js` enforces safe branch
   component characters (alphanumeric, hyphens, underscores, dots, slashes).
 - **Schema validation**: `orchestration` config is validated against an
-  embedded JSON Schema via `ajv`. As of Epic #990 (audit remediation),
-  the static `.agents/schemas/*.json` mirrors and the runtime AJV
-  schemas declare `additionalProperties: false` on the document root of
-  `audit-results`, `friction-event`, and `agentrc`; and use a closed
-  enum for `validation-evidence.gateName`. Payloads with extra keys or
-  free-text discriminators now fail validation rather than silently
+  embedded JSON Schema via `ajv`. The static `.agents/schemas/*.json`
+  mirrors and the runtime AJV schemas declare `additionalProperties:
+  false` on every nested object as well as the document roots of
+  `audit-results`, `friction-event`, `agentrc`, and `epic.yaml`, and use
+  a closed enum for `validation-evidence.gateName`. Payloads with extra
+  keys or free-text discriminators fail validation rather than silently
   passing.
 
 ### HITL pause point
@@ -828,7 +839,7 @@ The framework enforces two circuit breakers to prevent runaway cost:
 
 The framework emits a closed taxonomy of seven NDJSON record kinds —
 `friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, and the raw
-`trace` (Epic #1030, schema:
+`trace` (schema:
 [`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json)).
 Records are written **append-only to local disk** under
 `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
@@ -1065,8 +1076,10 @@ conventions to follow.
 
 - **Framework:** Node.js native test runner (`node --test`)
 - **Test file pattern:** `tests/**/*.test.js`
-- **Coverage:** `node --experimental-test-coverage` with thresholds
-  enforced in `npm run test:coverage` (lines 85, branches 70, functions 75)
+- **Coverage:** `node --experimental-test-coverage` with v6 absolute
+  floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
+  MI ≥ 70, CRAP ≤ 20. See [`quality-gates.md`](quality-gates.md) for the
+  ratchet-plus-floor policy.
 
 ### Key Scripts
 
@@ -1083,7 +1096,7 @@ conventions to follow.
 
 - **Ticketing provider:** GitHub (Issues, Labels, Projects V2, Sub-Issues API)
 - **CI:** GitHub Actions
-- **Distribution:** GitHub Releases (tagged from `main` post-PR-merge; tagging is operator-driven in v5.40 since `/epic-deliver` exits at PR-open).
+- **Distribution:** GitHub Releases (tagged from `main` post-PR-merge; tagging is operator-driven since `/epic-deliver` exits at PR-open).
 
 ### Testing Contract
 

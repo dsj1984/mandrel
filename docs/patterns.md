@@ -359,11 +359,11 @@ surfaced via `Logger.fatal()` at the CLI boundary.
 ### Why it matters
 
 1.  **Library code stays pure.** `lib/orchestration/**` and
-    `lib/worktree/**` are imported by the MCP server, the epic runner,
-    and multiple CLI scripts. If any of them called `process.exit()`,
-    they would kill the MCP server process on a recoverable error. The
-    only way library code ends a process is by throwing and letting the
-    top-level `runAsCli` handler convert that to an exit.
+    `lib/worktree/**` are imported by the epic runner and multiple CLI
+    scripts. If any of them called `process.exit()`, they would kill a
+    long-running parent process on a recoverable error. The only way
+    library code ends a process is by throwing and letting the top-level
+    `runAsCli` handler convert that to an exit.
 2.  **`runAsCli` gives uniform error output.** Every CLI that wraps its
     `main()` in `runAsCli(import.meta.url, main, { source: '<name>' })`
     prints `[<name>] Fatal error: <stack>` before exiting 1. Scripts
