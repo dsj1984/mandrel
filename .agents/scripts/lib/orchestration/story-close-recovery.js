@@ -133,7 +133,7 @@ export function detectPriorPhase({
   //
   //    Triggered when a prior close pushed the merge but stalled before the
   //    ticket transitions / cascade / dashboard regen finished — typical
-  //    Windows partial-reap recovery (memory: feedback_sprint_story_close_reap
+  //    Windows partial-reap recovery
   //    "merge/close succeed but branchDeleted: false"). Detected from either:
   //      a) the local `story-<id>` branch still exists and is an ancestor of
   //         `origin/epic/<id>`; or

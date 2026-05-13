@@ -6,7 +6,7 @@
  * freshly-created worktree under `.worktrees/<story>/` does not get them
  * unless the orchestration explicitly copies them. When they are missing,
  * tests that read environment variables silently take a different code
- * path — see `feedback_worktree_untracked_files.md`.
+ * path.
  *
  * Surface: `epic-deliver` preflight and the `/diagnose` CLI. Surfaced as a
  * warning rather than a blocker — the missing file may be a deliberate

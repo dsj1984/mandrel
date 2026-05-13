@@ -55,14 +55,14 @@ test('reportSnapshotFork: logs skip reason when not committed', () => {
   reportSnapshotFork(
     { commit: { committed: false, reason: 'no-change' } },
     'epic/42',
-    (k, m) => calls.push(m),
+    (_k, m) => calls.push(m),
   );
   assert.match(calls[0], /Snapshot fork skipped: no-change/);
 });
 
 test('reportSnapshotFork: defaults to no-files when reason is absent', () => {
   const calls = [];
-  reportSnapshotFork(null, 'epic/42', (k, m) => calls.push(m));
+  reportSnapshotFork(null, 'epic/42', (_k, m) => calls.push(m));
   assert.match(calls[0], /Snapshot fork skipped: no-files/);
 });
 

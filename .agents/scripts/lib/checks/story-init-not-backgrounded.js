@@ -4,11 +4,10 @@
  * Detects orchestration call sites that invoke `story-init.js` via the
  * Bash tool's `run_in_background: true` mode (with subsequent `Monitor`
  * waiting on completion) instead of a synchronous Bash call with a
- * 10-minute timeout. Background:
- * `feedback_subagents_no_agent_tool.md`-adjacent failure mode where
- * `Monitor`'s wait is not equivalent to script exit — a sub-agent that
- * exits during a Monitor wait kills `story-init.js` mid-batch, leaving a
- * half-initialized worktree and a failed wave aggregator.
+ * 10-minute timeout. This guards the failure mode where `Monitor`'s wait
+ * is not equivalent to script exit — a sub-agent that exits during a
+ * Monitor wait kills `story-init.js` mid-batch, leaving a half-initialized
+ * worktree and a failed wave aggregator.
  *
  * Scope: 'epic-deliver', 'story-close', 'retro'. The check runs at every
  * preflight surface that has the opportunity to invoke story-init —
@@ -109,12 +108,7 @@ function scanFile(file, src) {
     basename === 'story-init.js' ||
     basename === 'story-init-not-backgrounded.js' ||
     basename === 'story-init-not-backgrounded.test.js' ||
-    basename === 'parallel-tooling.md' ||
-    // Meta-note describing the collision pattern — references both
-    // `story-init.js` and the `run_in_background` token in adjacent prose
-    // (see Story #1606 memory sweep). Excluded for the same reason as
-    // `parallel-tooling.md` above.
-    basename === 'feedback_parallel_tooling_scanner_collision.md'
+    basename === 'parallel-tooling.md'
   ) {
     return offences;
   }

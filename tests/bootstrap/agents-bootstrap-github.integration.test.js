@@ -241,7 +241,7 @@ describe('agents-bootstrap-github — CI workflow template (Story #1401)', () =>
   it('threads --epic-ref through both gates when EPIC_REF is set', () => {
     const yaml = renderCiWorkflow();
     assert.ok(yaml.includes('EPIC_REF:'));
-    assert.ok(yaml.includes('--epic-ref "${EPIC_REF}"'));
+    assert.ok(yaml.includes('--epic-ref "$' + '{EPIC_REF}"'));
     // Both gates must accept --epic-ref — count occurrences.
     const epicRefMatches = yaml.match(/--epic-ref "\$\{EPIC_REF\}"/g) ?? [];
     assert.equal(

@@ -27,7 +27,7 @@
  *   2 → preflight refused (blocker findings)
  *
  * @see .agents/scripts/lib/preflight-runner.js
- * @see .agents/scripts/lib/checks/README.md
+ * @see .agents/README.md#self-healing-checks
  */
 
 import { runAsCli } from './lib/cli-utils.js';

@@ -100,7 +100,7 @@ const TOKEN_MISSING_ERROR = [
   '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
   '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
   '',
-  'See .agents/scripts/lib/orchestration/README.md#authentication for details.',
+  'See .agents/README.md#github-authentication for details.',
 ].join('\n');
 
 /* node:coverage ignore next */

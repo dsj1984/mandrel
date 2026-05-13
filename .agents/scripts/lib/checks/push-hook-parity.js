@@ -2,8 +2,7 @@
  * push-hook-parity — refuse-and-print check.
  *
  * Detects when the pre-push gates (biome check, MI gate) would fail at
- * `git push` time, BEFORE merge commits land. See
- * `feedback_post_merge_push_hook_cascade.md` — biome check and the MI
+ * `git push` time, BEFORE merge commits land. Biome check and the MI
  * gate fire at push time (not lint time), so an apparently-clean commit
  * cascade can still get stuck at the actual push step.
  *

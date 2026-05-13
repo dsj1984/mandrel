@@ -144,7 +144,7 @@ export async function runSingleStoryClose({
       // `runCloseValidation` short-circuits cleanly. `0` is rejected
       // downstream by `validation-evidence.evidencePath` (which
       // requires a positive integer epicId) and aborts the whole gate
-      // chain — see `feedback_single_story_close_skip_validation`.
+      // chain.
       // The trade-off is that re-runs of close on the same SHA don't
       // hit the evidence cache for standalone Stories; that's
       // acceptable until/unless the standalone path warrants its own

@@ -220,15 +220,15 @@ scripts (the skill will report "no new high-frequency calls"), but the
 step itself is non-optional: silence-by-omission is what produces the
 hand-tuned drift this maintenance is meant to eliminate.
 
-## Step 4 — Review the CHANGELOG and update consumer-side memories
+## Step 4 — Review the CHANGELOG and update consumer-side guidance
 
 Framework upgrades change behaviour the consumer project's own
-`AGENTS.md` (or `CLAUDE.md`) and per-agent memory files often encode —
-e.g., new validators that change what a planner is allowed to emit, new
+`AGENTS.md` (or `CLAUDE.md`) and project runbooks often encode — e.g.,
+new validators that change what a planner is allowed to emit, new
 ticket-body schemas downstream agents must produce, retired flags or
-defaults the consumer's instructions still reference. The pointer move
-is the right moment to reconcile those, while the diff is in front of
-the operator.
+defaults the consumer's instructions still reference. The pointer move is
+the right moment to reconcile those, while the diff is in front of the
+operator.
 
 Read [`docs/CHANGELOG.md`](../../docs/CHANGELOG.md) inside the bumped
 `.agents/` submodule. Focus on every entry between `OLD_SHA` and
@@ -243,14 +243,7 @@ stale or guidance that should now exist:
    fresh agent reading them in isolation produces output that passes
    the framework's new validators. Conversely, remove or rewrite
    instructions that contradict a tightened rule.
-2. **Memory files.** Agent memory under `.claude/projects/.../memory/`
-   (or wherever the consumer keeps its persistent agent notes) often
-   holds workarounds for bugs that have just been fixed, or pointers
-   to behaviours that have been renamed. For each changelog bullet
-   that says "fixes silent failure X" or "renames Y to Z," either
-   update the relevant memory entry to reflect the new state or
-   delete it if the workaround is now obsolete.
-3. **Project-specific runbooks.** If the consumer has its own runbooks
+2. **Project-specific runbooks.** If the consumer has its own runbooks
    (e.g., `docs/RUNBOOK.md`, `docs/orchestration.md`) that paraphrase
    framework workflows, sweep them for renamed flags / changed exit
    codes / removed scripts.
@@ -258,7 +251,7 @@ stale or guidance that should now exist:
 Do not invent updates. If a changelog entry has no consumer-side
 implication, note that explicitly in your scratch and move on — silence
 is a valid review outcome. The goal is to leave the consumer
-instructions and memories *consistent* with the new framework version,
+instructions and runbooks *consistent* with the new framework version,
 not to manufacture churn.
 
 Stage every consumer-side edit alongside the submodule pointer move so
@@ -272,12 +265,12 @@ response."
 The script never auto-commits. After reviewing the shortlog, any
 `.agentrc.json` reconciliation diff from Step 3, the
 `.claude/settings.json` allowlist patch from Step 3.6, and the consumer
-instruction / memory updates from Step 4, stage and commit the
+instruction / runbook updates from Step 4, stage and commit the
 pointer move (plus the reconciliation and consumer edits, if any)
 from the consumer repo root:
 
 ```bash
-git add .agents .agentrc.json .claude/settings.json AGENTS.md  # plus any memory / runbook files touched in Step 4
+git add .agents .agentrc.json .claude/settings.json AGENTS.md  # plus any runbook files touched in Step 4
 git commit -m "chore: bump .agents to <NEW_SHORT_SHA>
 
 OLD..NEW: a1b2c3d4e5f6..9f8e7d6c5b4a

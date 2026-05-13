@@ -4,8 +4,7 @@
  * Detects partial-reap residue under `.worktrees/` where a previous Story's
  * tree was deleted incompletely and left a nested `biome.json` behind. The
  * root `npm run lint` walks into the orphan tree, hits the nested config,
- * and fails. See `feedback_orphan_worktree_biome_block.md` for the original
- * incident report — the close-time biome block is the canonical symptom.
+ * and fails. The close-time biome block is the canonical symptom.
  *
  * Surface: `epic-deliver` preflight, `story-close` preflight, and the
  * `/diagnose` CLI. Surfaced as a blocker so the operator clears the residue
