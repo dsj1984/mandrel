@@ -483,7 +483,7 @@
   "tests/lib/mandrel-catalog.test.js": 115.248,
   "tests/lib/manifest-formatter-cache.test.js": 90.952,
   "tests/lib/manifest-formatter.test.js": 93.139,
-  "tests/lib/manifest-persistence.test.js": 90.821,
+  "tests/lib/manifest-persistence.test.js": 92.143,
   "tests/lib/manifest-renderer-eligibility.test.js": 121.964,
   "tests/lib/manifest-renderer-post.test.js": 110.146,
   "tests/lib/manifest-renderer.test.js": 95.604,
