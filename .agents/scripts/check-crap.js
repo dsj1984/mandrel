@@ -750,36 +750,45 @@ async function main() {
     return 1;
   }
 
-  // Story #1602 — absolute CRAP ceiling (≤20 per method by default).
-  // Runs after the ratchet/new-method check so a method that's matched
-  // the baseline but exceeds the ceiling still trips the gate. Opt-out:
-  // `--floor=off` for baseline-update runs.
-  if (parseFloorFlag(process.argv.slice(2))) {
-    const floors = loadFloorConfig();
-    const records = (scan.rows ?? []).map((r) => ({
-      file: r.file,
-      method: r.method,
-      score: r.crap,
-    }));
-    const { violations } = applyFloorPolicy(records, floors, 'crap');
-    if (violations.length > 0) {
-      Logger.error(
-        `[CRAP] ❌ Absolute CRAP ceiling violated (${violations.length} method(s); ceiling=${floors.crap}):`,
-      );
-      for (const v of violations) {
-        Logger.error(`                ${formatViolation(v)}`);
-      }
-      Logger.error(
-        '[CRAP] Reduce complexity or add coverage on the flagged methods; the ceiling is non-negotiable. Use `--floor=off` only when running `crap:update`.',
-      );
-      return 1;
-    }
-  } else {
-    Logger.info('[CRAP] ⚠️  floor gate skipped (--floor=off)');
-  }
+  const floorExit = enforceCrapFloor(scan, process.argv.slice(2));
+  if (floorExit !== 0) return floorExit;
 
   Logger.info('[CRAP] ✅ check passed.');
   return 0;
+}
+
+/**
+ * Story #1602 — absolute CRAP ceiling (≤20 per method by default).
+ * Runs after the ratchet/new-method check so a method that's matched
+ * the baseline but exceeds the ceiling still trips the gate. Opt-out:
+ * `--floor=off` for baseline-update runs. Extracted from `main` to keep
+ * the orchestrator method's per-method CRAP under the v6 ceiling.
+ *
+ * @returns {0 | 1} exit code (0 = pass / skipped, 1 = violation)
+ */
+function enforceCrapFloor(scan, argv) {
+  if (!parseFloorFlag(argv)) {
+    Logger.info('[CRAP] ⚠️  floor gate skipped (--floor=off)');
+    return 0;
+  }
+  const floors = loadFloorConfig();
+  const records = (scan.rows ?? []).map((r) => ({
+    file: r.file,
+    method: r.method,
+    score: r.crap,
+  }));
+  const { violations } = applyFloorPolicy(records, floors, 'crap');
+  if (violations.length === 0) return 0;
+  Logger.error(
+    `[CRAP] ❌ Absolute CRAP ceiling violated (${violations.length} method(s); ceiling=${floors.crap}):`,
+  );
+  for (const v of violations) {
+    Logger.error(`                ${formatViolation(v)}`);
+  }
+  Logger.error(
+    '[CRAP] Reduce complexity or add coverage on the flagged methods; the ceiling is non-negotiable. Use `--floor=off` only when running `crap:update`.',
+  );
+  return 1;
 }
 
 runAsCli(import.meta.url, main, {

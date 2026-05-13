@@ -110,35 +110,41 @@ function main() {
     process.exit(1);
   }
 
-  // Story #1602 — absolute floor gate. Runs after the ratchet check so a
-  // file that's below floor but matched the (stale) baseline still trips
-  // the gate. Opt-out via `--floor=off` for baseline-update runs.
-  if (parseFloorFlag(process.argv.slice(2))) {
-    const floors = loadFloorConfig();
-    const records = Object.entries(current).map(([file, s]) => ({
-      file,
-      lines: s.lines,
-      branches: s.branches,
-      functions: s.functions,
-    }));
-    const { violations } = applyFloorPolicy(records, floors, 'coverage');
-    if (violations.length > 0) {
-      Logger.error(
-        `[Coverage] ❌ Absolute floor violated (${violations.length} finding(s); floors: lines=${floors.coverage.lines}%, branches=${floors.coverage.branches}%, functions=${floors.coverage.functions}%):`,
-      );
-      for (const v of violations) {
-        Logger.error(`                ${formatViolation(v)}`);
-      }
-      Logger.error(
-        '[Coverage] Add tests on the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `coverage:update`.',
-      );
-      process.exit(1);
-    }
-  } else {
-    Logger.info('[Coverage] ⚠️  floor gate skipped (--floor=off)');
-  }
+  enforceCoverageFloor(current, process.argv.slice(2));
 
   Logger.info('[Coverage] ✅ Per-file coverage check passed.');
+}
+
+/**
+ * Story #1602 — absolute floor gate. Runs after the ratchet check so a
+ * file that's below floor but matched the (stale) baseline still trips
+ * the gate. Opt-out via `--floor=off` for baseline-update runs. Extracted
+ * from `main` to keep the orchestrator method's CRAP under the v6 ceiling.
+ */
+function enforceCoverageFloor(current, argv) {
+  if (!parseFloorFlag(argv)) {
+    Logger.info('[Coverage] ⚠️  floor gate skipped (--floor=off)');
+    return;
+  }
+  const floors = loadFloorConfig();
+  const records = Object.entries(current).map(([file, s]) => ({
+    file,
+    lines: s.lines,
+    branches: s.branches,
+    functions: s.functions,
+  }));
+  const { violations } = applyFloorPolicy(records, floors, 'coverage');
+  if (violations.length === 0) return;
+  Logger.error(
+    `[Coverage] ❌ Absolute floor violated (${violations.length} finding(s); floors: lines=${floors.coverage.lines}%, branches=${floors.coverage.branches}%, functions=${floors.coverage.functions}%):`,
+  );
+  for (const v of violations) {
+    Logger.error(`                ${formatViolation(v)}`);
+  }
+  Logger.error(
+    '[Coverage] Add tests on the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `coverage:update`.',
+  );
+  process.exit(1);
 }
 
 main();

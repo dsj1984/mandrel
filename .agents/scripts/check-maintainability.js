@@ -452,30 +452,37 @@ async function main() {
     process.exit(1);
   }
 
-  // Story #1602 — absolute MI floor (≥70 by default). Runs after the
-  // ratchet check so a file that hasn't regressed but is still under
-  // floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
-  if (parseFloorFlag(process.argv.slice(2))) {
-    const floors = loadFloorConfig();
-    const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
-    const { violations } = applyFloorPolicy(records, floors, 'maintainability');
-    if (violations.length > 0) {
-      Logger.error(
-        `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
-      );
-      for (const v of violations) {
-        Logger.error(`                ${formatViolation(v)}`);
-      }
-      Logger.error(
-        '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
-      );
-      process.exit(1);
-    }
-  } else {
-    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
-  }
+  enforceMaintainabilityFloor(scores, process.argv.slice(2));
 
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
+}
+
+/**
+ * Story #1602 — absolute MI floor (≥70 by default). Runs after the
+ * ratchet check so a file that hasn't regressed but is still under
+ * floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
+ * Extracted from `main` to keep the orchestrator method's CRAP under the
+ * v6 ceiling.
+ */
+function enforceMaintainabilityFloor(scores, argv) {
+  if (!parseFloorFlag(argv)) {
+    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
+    return;
+  }
+  const floors = loadFloorConfig();
+  const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
+  const { violations } = applyFloorPolicy(records, floors, 'maintainability');
+  if (violations.length === 0) return;
+  Logger.error(
+    `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
+  );
+  for (const v of violations) {
+    Logger.error(`                ${formatViolation(v)}`);
+  }
+  Logger.error(
+    '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
+  );
+  process.exit(1);
 }
 
 runAsCli(import.meta.url, main, {
