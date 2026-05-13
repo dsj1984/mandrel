@@ -43,7 +43,11 @@ jobs:
         run: npm audit --audit-level=high
 
       - name: Secret Scanning (TruffleHog)
-        uses: trufflesecurity/trufflehog@main
+        # Pinned to a released tag rather than the moving `@main` head — a
+        # third-party action's default branch is a supply-chain risk vector
+        # (CWE-1357). Bump deliberately when a new TruffleHog release ships;
+        # `npm run audit-security` flags any reversion to `@main` / `@master`.
+        uses: trufflesecurity/trufflehog@v3.95.3
         with:
           extra_args: --debug --only-verified
 

@@ -63,12 +63,19 @@ jobs:
       - name: Resolve report stem
         id: stem
         shell: bash
+        env:
+          # Pass workflow inputs / matrix axes via env so shell parameter
+          # expansion never sees raw `${{ ... }}` interpolation. This is the
+          # GitHub-recommended mitigation for actions/runner workflow command
+          # injection (CWE-94) — even though `workflow_dispatch` is gated to
+          # maintainers here, a malicious branch ref or input could otherwise
+          # smuggle shell metacharacters into the runner.
+          MATRIX_OS: ${{ matrix.os }}
         run: |
           # Use the dispatched date so both runners write to the same stem,
           # making downstream "merge into one docs/ report" trivial.
           DATE="$(date -u +%Y-%m-%d)"
-          OS_TAG="${{ matrix.os }}"
-          OS_TAG="${OS_TAG%-latest}"
+          OS_TAG="${MATRIX_OS%-latest}"
           echo "stem=docs/noise-study-${DATE}-${OS_TAG}" >> "$GITHUB_OUTPUT"
           echo "date=${DATE}" >> "$GITHUB_OUTPUT"
 
@@ -76,20 +83,32 @@ jobs:
         shell: bash
         env:
           AGENT_LOG_LEVEL: info
+          # Quarantine workflow_dispatch inputs from the shell command line
+          # (CWE-94 mitigation). Numeric / path values are validated by the
+          # noise-study.js argv parser, not by the shell.
+          INPUT_RUNS: ${{ inputs.runs }}
+          STEM: ${{ steps.stem.outputs.stem }}
         run: |
           mkdir -p docs
           node .agents/scripts/noise-study.js \
-            --runs "${{ inputs.runs }}" \
-            --out "${{ steps.stem.outputs.stem }}.md"
+            --runs "$INPUT_RUNS" \
+            --out "${STEM}.md"
 
       - name: Append job summary
         if: always()
         shell: bash
+        env:
+          # Mirror Step "Run noise study" — keep `${{ ... }}` out of the
+          # shell command line so workflow inputs / matrix axes can never
+          # smuggle metacharacters into the runner (CWE-94).
+          STEM: ${{ steps.stem.outputs.stem }}
+          MATRIX_OS: ${{ matrix.os }}
+          STEM_DATE: ${{ steps.stem.outputs.date }}
         run: |
-          if [[ -f "${{ steps.stem.outputs.stem }}.md" ]]; then
-            echo "## Noise study — ${{ matrix.os }} — ${{ steps.stem.outputs.date }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "${STEM}.md" ]]; then
+            echo "## Noise study — ${MATRIX_OS} — ${STEM_DATE}" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            cat "${{ steps.stem.outputs.stem }}.md" >> "$GITHUB_STEP_SUMMARY"
+            cat "${STEM}.md" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "Noise-study report not generated (job failed before write)." >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -98,6 +117,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          # `with:` block runs in the actions runtime, not the shell — these
+          # are safe expressions (no shell parser involved).
           name: noise-study-${{ matrix.os }}-${{ steps.stem.outputs.date }}
           path: |
             docs/noise-study-*.md
