@@ -33,8 +33,8 @@ Three steps, run once per consuming repo:
 3. **Bootstrap the GitHub repo.** Run the
    [`/agents-bootstrap-github`](workflows/agents-bootstrap-github.md)
    slash command (or `node .agents/scripts/agents-bootstrap-github.js`)
-   to create the v5 label taxonomy and the optional Project V2 fields.
-   It is idempotent — safe to re-run.
+   to create the framework's v6 label taxonomy and the optional Project
+   V2 fields. It is idempotent — safe to re-run.
 
 After step 3 you can run any slash command — `/epic-plan`,
 `/audit-security`, `/agents-update`, etc. The
@@ -89,8 +89,8 @@ moves to a Skill.
   JSON, validate against the schema, create GitHub issues, flip the Epic
   label. Deterministic GitHub I/O + schema validation. Stays a script.
 
-The split is exactly the v5.6 "host LLM authors directly" pattern made
-explicit: the prompt+judgment step gets a `description`, an
+The split codifies the "host LLM authors directly" pattern explicitly:
+the prompt+judgment step gets a `description`, an
 `allowed_tools` declaration, and a smoke test; the GitHub I/O around it
 keeps its imperative implementation.
 

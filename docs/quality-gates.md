@@ -2,9 +2,18 @@
 
 This is the consumer-facing reference for the quality gates the framework
 runs against your repo: the lint baseline ratchet, the maintainability
-ratchet, the CRAP per-method gate, the anti-thrashing protocol, and the
-concurrent close-safety retry that protects the Epic branch when multiple
-Stories close in quick succession.
+ratchet, the CRAP per-method gate, the **v6 absolute quality floors**
+(90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
+and the concurrent close-safety retry that protects the Epic branch when
+multiple Stories close in quick succession.
+
+The floor + ratchet duo is intentional: the ratchet protects against
+regressions on touched files; the floor enforces an absolute v6
+threshold on every in-scope file regardless of diff scope. See
+[§ Absolute quality floors (v6 / Epic #1184)](#absolute-quality-floors-v6--epic-1184)
+below for the policy and [`decisions.md`](decisions.md) (ADR
+20260512-coupling-stance) for the framework-wide stance that motivates
+the lift at the v6 major boundary.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
