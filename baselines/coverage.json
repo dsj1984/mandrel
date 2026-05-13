@@ -29,6 +29,11 @@
     "branches": 79.55,
     "functions": 60
   },
+  ".agents/scripts/cleanup-repo-test-temp.js": {
+    "lines": 91.04,
+    "branches": 91.67,
+    "functions": 100
+  },
   ".agents/scripts/delete-epic-branches.js": {
     "lines": 86.43,
     "branches": 90,
@@ -76,7 +81,7 @@
   },
   ".agents/scripts/epic-deliver-finalize.js": {
     "lines": 88.37,
-    "branches": 67.09,
+    "branches": 68.75,
     "functions": 81.82
   },
   ".agents/scripts/epic-deliver-note-intervention.js": {
@@ -376,7 +381,7 @@
   },
   ".agents/scripts/lib/config/quality.js": {
     "lines": 97.8,
-    "branches": 96.7,
+    "branches": 96.74,
     "functions": 100
   },
   ".agents/scripts/lib/config/runners.js": {
@@ -1144,6 +1149,11 @@
     "branches": 80,
     "functions": 100
   },
+  ".agents/scripts/lib/test-reserved-epic-temp-ids.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/util/concurrent-map.js": {
     "lines": 93.22,
     "branches": 88.89,
@@ -1270,8 +1280,8 @@
     "functions": 68.75
   },
   ".agents/scripts/loc-delta.js": {
-    "lines": 84.88,
-    "branches": 58.06,
+    "lines": 86.83,
+    "branches": 69.05,
     "functions": 77.78
   },
   ".agents/scripts/noise-study.js": {
@@ -1319,6 +1329,11 @@
     "branches": 100,
     "functions": 0
   },
+  ".agents/scripts/run-tests.js": {
+    "lines": 96.3,
+    "branches": 60,
+    "functions": 66.67
+  },
   ".agents/scripts/select-audits.js": {
     "lines": 82.14,
     "branches": 84.21,
@@ -1360,7 +1375,7 @@
     "functions": 85.71
   },
   ".agents/scripts/test-wrapper.js": {
-    "lines": 87.16,
+    "lines": 87.04,
     "branches": 100,
     "functions": 20
   },

@@ -231,6 +231,13 @@ test('sweep: deleteLegacyFlatManifest is a no-op when orphans are absent', () =>
   assert.equal(messages.length, 0);
 });
 
+test('sweep: deleteLegacyFlatManifest defaults to the framework project root safely', () => {
+  const result = deleteLegacyFlatManifest(999_078, {
+    logger: { info: () => assert.fail('no orphan should be swept') },
+  });
+  assert.deepEqual(result.removed, []);
+});
+
 test('sweep: deleteLegacyFlatManifest is idempotent across calls', () => {
   const root = makeTmpRoot();
   seedOrphans(root, 999077);
