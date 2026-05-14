@@ -15,8 +15,11 @@
  */
 
 import { spawn } from 'node:child_process';
+import { writeFile as defaultWriteFile } from 'node:fs/promises';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
+import { storyArtifactPath } from './config/temp-paths.js';
+import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
 import { getBaseline } from './maintainability-utils.js';
@@ -824,4 +827,78 @@ export function formatMaintainabilityProjection(result) {
     '[close-validation]   To land cleanly, run `npm run maintainability:update` and commit the refreshed baseline with a `baseline-refresh:` tagged subject (non-empty body) on the story branch before re-running close.',
   );
   return lines.join('\n');
+}
+
+/**
+ * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
+ *
+ * Writes the current `gh-exec` spawn counter to
+ * `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` so the
+ * `analyze-execution.js` child process — which authors the
+ * `story-perf-summary` structured comment — can read it and emit a
+ * `ghSpawnCount` field on the payload. The Story-close orchestrator
+ * calls this helper inside `runPostMergeClose` right before it spawns
+ * the perf-summary phase, capturing every `gh` invocation from
+ * preflight through the merge in a single counter snapshot.
+ *
+ * This is intentionally a separate writer rather than threading the
+ * counter through every call site — the perf-summary phase is the only
+ * downstream consumer, and the measurement is "throw-away" per the
+ * Story's acceptance (a follow-up cleanup commit removes both
+ * `getSpawnCount` and this emitter before the Story branch merges into
+ * the Epic branch).
+ *
+ * @param {object} opts
+ * @param {number|string} opts.epicId
+ * @param {number|string} opts.storyId
+ * @param {object} [opts.config]
+ *   Resolved config bag (`{ agentSettings, orchestration, project }`) so
+ *   `tempRoot` resolution honours the consumer's configured path.
+ * @param {() => number} [opts.getSpawnCountFn=defaultGetSpawnCount]
+ *   Test seam.
+ * @param {typeof defaultWriteFile} [opts.writeFileFn=defaultWriteFile]
+ *   Test seam.
+ * @param {{ warn?: (s: string) => void }} [opts.logger]
+ *   Best-effort logger for the failure path; never throws.
+ * @returns {Promise<{ status: 'ok'|'failed', path?: string, ghSpawnCount?: number, reason?: string }>}
+ */
+export async function emitGhSpawnCount({
+  epicId,
+  storyId,
+  config,
+  getSpawnCountFn = defaultGetSpawnCount,
+  writeFileFn = defaultWriteFile,
+  logger,
+} = {}) {
+  const eid = Number(epicId);
+  const sid = Number(storyId);
+  if (!Number.isInteger(eid) || eid < 1 || !Number.isInteger(sid) || sid < 1) {
+    return { status: 'failed', reason: 'invalid-ids' };
+  }
+  let ghSpawnCount;
+  try {
+    ghSpawnCount = getSpawnCountFn();
+  } catch (err) {
+    logger?.warn?.(
+      `[close-validation] gh-spawn-count read failed: ${err?.message ?? err}`,
+    );
+    return { status: 'failed', reason: 'counter-read-failed' };
+  }
+  const targetPath = storyArtifactPath(eid, sid, 'gh-spawn-count.json', config);
+  const payload = {
+    kind: 'gh-spawn-count',
+    epicId: eid,
+    storyId: sid,
+    ghSpawnCount,
+    capturedAt: new Date().toISOString(),
+  };
+  try {
+    await writeFileFn(targetPath, JSON.stringify(payload, null, 2));
+    return { status: 'ok', path: targetPath, ghSpawnCount };
+  } catch (err) {
+    logger?.warn?.(
+      `[close-validation] gh-spawn-count emit failed: ${err?.message ?? err}`,
+    );
+    return { status: 'failed', reason: 'write-failed' };
+  }
 }

@@ -11,7 +11,7 @@ import { PROJECT_ROOT } from '../config-resolver.js';
 import { branchExistsLocally } from '../git-branch-lifecycle.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
-import { hydrateContext } from './context-hydration-engine.js';
+import { hydrateContext, parseHierarchy } from './context-hydration-engine.js';
 import { getResolvedBranch } from './manifest-builder.js';
 import { STATE_LABELS } from './ticketing.js';
 
@@ -142,6 +142,78 @@ async function dispatchTaskInWave(task, ctx) {
 }
 
 /**
+ * Collect the unique (Epic, Tech Spec, Story) ticket IDs referenced by
+ * an iterable of Task tickets. Pulls hierarchy keys from each Task body
+ * via {@link parseHierarchy} and de-duplicates them. Exported so the
+ * per-wave prime path is testable in isolation.
+ *
+ * Story #1795 — used by `primeWaveHierarchy` to pre-load the hierarchy
+ * ticket cache once per wave so subsequent per-Task hydration is served
+ * from the provider's in-process ticket cache.
+ *
+ * @param {Iterable<object>} tasks
+ * @param {number} [epicId] — optional fallback when a task body omits
+ *   the `Epic: #N` reference (e.g. orphan-recovery paths).
+ * @returns {number[]} unique hierarchy IDs in deterministic order.
+ */
+export function collectHierarchyIds(tasks, epicId) {
+  const ids = new Set();
+  if (Number.isInteger(epicId) && epicId > 0) ids.add(epicId);
+  for (const task of tasks ?? []) {
+    const keys = parseHierarchy(task?.body ?? '');
+    for (const k of ['epic', 'techspec', 'story']) {
+      const v = keys[k];
+      if (Number.isInteger(v) && v > 0) ids.add(v);
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Pre-load the provider's ticket cache with the Epic, Tech Spec, and
+ * Story tickets referenced by every eligible Task in a wave. Issues at
+ * most one `getTicket` per unique hierarchy ID end-to-end; subsequent
+ * `hydrateContext` calls in `dispatchTaskInWave` serve those reads
+ * from cache.
+ *
+ * Best-effort: a fetch failure for any single ID is logged and the rest
+ * of the wave proceeds. The provider's hydration path falls back to a
+ * direct (uncached) read in that case, preserving existing behaviour.
+ *
+ * @param {object[]} eligibleTasks
+ * @param {{ provider: object, epicId?: number }} ctx
+ * @returns {Promise<{ primed: number[] }>}
+ */
+export async function primeWaveHierarchy(eligibleTasks, ctx) {
+  const provider = ctx?.provider;
+  if (!provider || typeof provider.primeTicketCache !== 'function') {
+    return { primed: [] };
+  }
+  if (typeof provider.getTicket !== 'function') {
+    return { primed: [] };
+  }
+  const ids = collectHierarchyIds(eligibleTasks, ctx?.epicId);
+  if (ids.length === 0) return { primed: [] };
+  const tickets = await Promise.all(
+    ids.map((id) =>
+      provider.getTicket(id).catch((err) => {
+        Logger.warn(
+          `[wave-dispatcher] prime fetch failed for #${id}: ${
+            err?.message ?? err
+          }`,
+        );
+        return null;
+      }),
+    ),
+  );
+  const seeded = tickets.filter((t) => t && typeof t === 'object');
+  if (seeded.length > 0) {
+    provider.primeTicketCache(seeded);
+  }
+  return { primed: seeded.map((t) => t.id) };
+}
+
+/**
  * Dispatch one wave. Returns `{ dispatched, shouldHalt, empty }`.
  * `shouldHalt=true` means upstream deps not complete; caller stops iterating.
  *
@@ -177,6 +249,15 @@ export async function dispatchWave(wave, taskMap, ctx) {
       empty: false,
     };
   }
+
+  // Story #1795 — pre-load the (Epic, Tech Spec, Story) hierarchy
+  // tickets for every eligible Task in this wave so per-Task hydration
+  // (`dispatchTaskInWave` → `hydrateContext`) is served from the
+  // provider's in-process cache. Issues at most one `getTicket` per
+  // unique hierarchy id end-to-end. Best-effort: a fetch failure
+  // logs and the wave proceeds — the existing per-Task fallback path
+  // reads the missing ticket uncached.
+  await primeWaveHierarchy(eligible, ctx);
 
   const dispatched = [];
 
