@@ -492,6 +492,23 @@ export async function apply(plan, provider, opts = {}) {
       : APPLY_CONCURRENCY;
   const slugToIssue = { ...(opts.slugToIssue ?? {}) };
 
+  // Seed the epic slug so child features can resolve `parentSlug: 'epic'`
+  // through `resolveParentId`. Story #1820: the CLI seeds
+  // `state.mapping.epic` so diff no longer emits a Create for the epic;
+  // without this matching seed on the apply side, `slugToIssue.epic` is
+  // never populated and the first feature create throws "parent slug
+  // epic has no mapped issue number". Priority: an existing
+  // `opts.slugToIssue.epic` wins (caller-supplied), then
+  // `opts.priorState.mapping.epic.issueNumber`, then `opts.epicId`.
+  if (typeof slugToIssue.epic !== 'number') {
+    const priorEpicNumber = opts.priorState?.mapping?.epic?.issueNumber;
+    if (typeof priorEpicNumber === 'number') {
+      slugToIssue.epic = priorEpicNumber;
+    } else if (typeof opts.epicId === 'number') {
+      slugToIssue.epic = opts.epicId;
+    }
+  }
+
   if (opts.dryRun === true) {
     return buildDryRunResult(plan, slugToIssue);
   }

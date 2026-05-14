@@ -489,3 +489,127 @@ describe('helper predicates', () => {
     assert.match(msg, /2 close operation/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Bootstrap seed: state.mapping.epic before diff (Story #1820)
+//
+// Regression for the duplicate-Epic bug: on a fresh reconcile with no
+// state.json, the CLI must seed `state.mapping.epic.issueNumber = epicId`
+// before calling diff() so the diff engine treats the epic as already
+// mapped and does not emit a Create op (which would land a duplicate
+// `[Epic]` GH issue via applyCreate).
+// ---------------------------------------------------------------------------
+
+describe('runReconcile — bootstrap state.mapping.epic', () => {
+  it('seeds an empty state.mapping with epic → epicId before diff()', async () => {
+    let observedState = null;
+    const { deps } = buildDeps({
+      loadState: () => ({ epicId: 1820, mapping: {} }),
+      diff: ({ state }) => {
+        observedState = state;
+        return emptyPlan();
+      },
+    });
+    await runReconcile(args({ epicId: 1820, dryRun: true }), deps);
+    assert.ok(observedState, 'diff() must have been called');
+    assert.ok(
+      observedState.mapping.epic,
+      'state.mapping.epic must be seeded before diff()',
+    );
+    assert.equal(observedState.mapping.epic.issueNumber, 1820);
+    assert.equal(observedState.mapping.epic.entity, 'epic');
+    assert.equal(observedState.mapping.epic.parentSlug, null);
+  });
+
+  it('seeds when loadState throws (absent state.json)', async () => {
+    let observedState = null;
+    const { deps } = buildDeps({
+      loadState: () => {
+        throw new Error('ENOENT');
+      },
+      diff: ({ state }) => {
+        observedState = state;
+        return emptyPlan();
+      },
+    });
+    await runReconcile(args({ epicId: 1820, dryRun: true }), deps);
+    assert.ok(observedState?.mapping?.epic);
+    assert.equal(observedState.mapping.epic.issueNumber, 1820);
+  });
+
+  it('seeds when loadState returns a non-object', async () => {
+    let observedState = null;
+    const { deps } = buildDeps({
+      loadState: () => null,
+      diff: ({ state }) => {
+        observedState = state;
+        return emptyPlan();
+      },
+    });
+    await runReconcile(args({ epicId: 1820, dryRun: true }), deps);
+    assert.ok(observedState?.mapping?.epic);
+    assert.equal(observedState.mapping.epic.issueNumber, 1820);
+  });
+
+  it('does not overwrite an existing state.mapping.epic entry', async () => {
+    let observedState = null;
+    const existing = {
+      issueNumber: 9999,
+      contentHash: 'sha256:preserved',
+      lastObservedAgentState: 'agent::executing',
+      entity: 'epic',
+      parentSlug: null,
+    };
+    const { deps } = buildDeps({
+      loadState: () => ({
+        epicId: 1820,
+        mapping: { epic: { ...existing } },
+      }),
+      diff: ({ state }) => {
+        observedState = state;
+        return emptyPlan();
+      },
+    });
+    await runReconcile(args({ epicId: 1820, dryRun: true }), deps);
+    assert.deepEqual(observedState.mapping.epic, existing);
+  });
+
+  it('seeded state prevents a duplicate-epic Create op on first apply', async () => {
+    // Regression: pair the real diff against an empty state. Without the
+    // bootstrap seed the diff engine emits a Create op for the synthetic
+    // `epic` slug (and applyCreate would materialise a duplicate GH
+    // issue). With the seed in place, the only Create ops should be for
+    // the spec's features/stories/tasks — never `entity: 'epic'`.
+    const { diff: realDiff } = await import(
+      '../../.agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js'
+    );
+    let observedPlan = null;
+    const { deps } = buildDeps({
+      loadSpec: () => ({
+        epic: { id: 1820, title: 'Duplicate-Epic Regression' },
+        features: [
+          {
+            slug: 'feat-only',
+            title: 'Feature only',
+            stories: [],
+          },
+        ],
+      }),
+      loadState: () => ({ epicId: 1820, mapping: {} }),
+      diff: (input) => {
+        observedPlan = realDiff(input);
+        return observedPlan;
+      },
+    });
+    await runReconcile(args({ epicId: 1820, dryRun: true }), deps);
+    assert.ok(observedPlan, 'real diff() must have been invoked');
+    const epicCreates = observedPlan.creates.filter(
+      (op) => op.entity === 'epic',
+    );
+    assert.equal(
+      epicCreates.length,
+      0,
+      'diff must not emit a Create op for the epic entity once the CLI has seeded mapping.epic',
+    );
+  });
+});
