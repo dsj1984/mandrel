@@ -93,7 +93,8 @@ export function reconcileCleanupState({
         nextBranchCleanup.remoteDeleted || !!drainedEntry.remoteBranchDeleted;
     }
     nextWorktreeReap.status =
-      nextWorktreeReap.status === 'deferred-to-sweep'
+      nextWorktreeReap.status === 'deferred-to-sweep' ||
+      nextWorktreeReap.status === 'stale-registry-entry'
         ? 'removed-after-drain'
         : nextWorktreeReap.status;
     nextWorktreeReap.pendingCleanup = null;
@@ -104,7 +105,10 @@ export function reconcileCleanupState({
     };
   }
 
-  if (nextWorktreeReap.status === 'deferred-to-sweep') {
+  if (
+    nextWorktreeReap.status === 'deferred-to-sweep' ||
+    nextWorktreeReap.status === 'stale-registry-entry'
+  ) {
     nextWorktreeReap.closeDrainStatus = getCloseDrainStatus({
       isPersistent,
       isStillPending,

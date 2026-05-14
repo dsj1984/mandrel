@@ -31,6 +31,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { notify } from '../../notify.js';
@@ -39,6 +40,7 @@ import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
 import { appendSignal } from '../observability/signals-writer.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
+import { recordPendingCleanup } from '../worktree/lifecycle/pending-cleanup.js';
 import { WorktreeManager } from '../worktree-manager.js';
 import { toDone } from './label-transitions.js';
 import { runPhase } from './phase-runner.js';
@@ -47,8 +49,63 @@ import { cascadeCompletion, STATE_LABELS } from './ticketing.js';
 const WINDOWS_LOCK_RE =
   /(permission denied|access is denied|directory not empty|resource busy|device or resource busy|sharing violation|EACCES|EBUSY|ENOTEMPTY)/i;
 
+/**
+ * Backoff delays (ms) between `git worktree prune` + re-list passes when a
+ * worktree entry is still registered after a successful reap. On Windows the
+ * registry-cleanup half of `git worktree remove` often loses a race with a
+ * background file handle (Defender / Search indexer / the editor) — the
+ * directory and branch are gone, but `.git/worktrees/<name>/` is locked
+ * for a beat. Three retries (250ms, 1s, 4s) cover the common case without
+ * adding noticeable latency to clean POSIX runs.
+ */
+const STALE_REGISTRY_REPRUNE_DELAYS_MS = [250, 1000, 4000];
+
 function isWindowsReapLockFailure(reason) {
   return typeof reason === 'string' && WINDOWS_LOCK_RE.test(reason);
+}
+
+function findStillRegisteredEntry(entries, storyId) {
+  if (!Array.isArray(entries)) return undefined;
+  const want = Number(storyId);
+  return entries.find((r) => {
+    if (!r || typeof r.path !== 'string') return false;
+    const match = r.path.match(/[/\\]story-(\d+)$/);
+    return match ? Number(match[1]) === want : false;
+  });
+}
+
+function resolveWorktreeRoot(repoRoot, orchestration) {
+  if (!repoRoot) return null;
+  const configuredRoot = orchestration?.worktreeIsolation?.root ?? '.worktrees';
+  return path.join(repoRoot, configuredRoot);
+}
+
+async function retryPruneUntilCleared(
+  wm,
+  storyId,
+  { sleep, delays = STALE_REGISTRY_REPRUNE_DELAYS_MS } = {},
+) {
+  const sleepFn =
+    typeof sleep === 'function'
+      ? sleep
+      : (ms) => new Promise((r) => setTimeout(r, ms));
+  let attempts = 0;
+  let lastEntry;
+  for (const delay of delays) {
+    await sleepFn(delay);
+    attempts += 1;
+    if (typeof wm.prune === 'function') {
+      try {
+        await wm.prune();
+      } catch {
+        // best-effort — prune failure is non-fatal; fall through to list check
+      }
+    }
+    const refreshed = (await wm.list()) ?? [];
+    lastEntry = findStillRegisteredEntry(refreshed, storyId);
+    if (!lastEntry) return { cleared: true, attempts };
+  }
+  return { cleared: false, attempts, stillRegistered: lastEntry };
 }
 
 function reapPhaseLogger(progress) {
@@ -115,6 +172,9 @@ export async function worktreeReapPhase(ctx) {
     logger,
     worktreeManagerFactory,
     config,
+    sleep,
+    recordPendingCleanupFn = recordPendingCleanup,
+    pathExistsFn = (p) => fs.existsSync(p),
   } = ctx;
   const wtConfig = orchestration?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
@@ -175,37 +235,124 @@ export async function worktreeReapPhase(ctx) {
     }
   }
 
-  const leftover = await wm.list();
-  const stillRegistered = leftover.find((r) =>
-    /[/\\]story-\d+$/.test(r.path)
-      ? Number(r.path.match(/story-(\d+)$/)?.[1]) === Number(storyId)
-      : false,
-  );
+  const leftover = (await wm.list()) ?? [];
+  let stillRegistered = findStillRegisteredEntry(leftover, storyId);
+
   if (stillRegistered) {
-    state = {
+    const retry = await retryPruneUntilCleared(wm, storyId, { sleep });
+    if (retry.cleared) {
+      log(
+        'WORKTREE',
+        `🧹 Stale worktree registry entry cleared after ${retry.attempts} re-prune attempt(s)`,
+      );
+      stillRegistered = undefined;
+    } else {
+      stillRegistered = retry.stillRegistered;
+    }
+  }
+
+  if (stillRegistered) {
+    state = applyStillRegisteredState({
+      state,
+      stillRegistered,
+      reapResult,
+      storyId,
+      orchestration,
+      repoRoot,
+      logger,
+      recordPendingCleanupFn,
+      pathExistsFn,
+    });
+    if (state.status === 'still-registered') {
+      logger.error(
+        `[story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
+          `${stillRegistered.path}. Run ` +
+          '`git worktree remove <path> --force && git worktree prune` to clean up.',
+      );
+      await emitReapFailureFriction({
+        storyId,
+        epicId,
+        reapResult: {
+          path: stillRegistered.path,
+          reason: 'still-registered-after-reap',
+        },
+        epicBranch,
+        logger,
+        config,
+      });
+    } else if (state.status === 'stale-registry-entry') {
+      logger.warn(
+        `[story-close] Worktree directory removed and branch deleted, but ` +
+          `\`git worktree list\` still shows ${stillRegistered.path}. ` +
+          'Scheduled for background prune via pending-cleanup; ' +
+          `branchDeleted=${state.branchDeleted}.`,
+      );
+    }
+  }
+  return state;
+}
+
+/**
+ * Decide how to treat a worktree entry that is still registered after reap +
+ * re-prune retries. Two outcomes:
+ *
+ *   - `stale-registry-entry` (operationally complete): the reap succeeded,
+ *     the worktree directory is gone, and the local branch was deleted by
+ *     reap. The only artifact left is the `.git/worktrees/<name>/` registry
+ *     entry — a Windows file-lock artifact, not a genuine cleanup failure.
+ *     Record a pending-cleanup entry so the post-close drain (or the next
+ *     plan-time sweep) re-runs `git worktree prune`, and let the close
+ *     pipeline report `branchDeleted: true` honestly.
+ *   - `still-registered` (genuine failure): the directory is still on disk
+ *     OR the branch was not deleted. The pre-existing OPERATOR ACTION
+ *     escalation still fires.
+ */
+function applyStillRegisteredState({
+  state,
+  stillRegistered,
+  reapResult,
+  storyId,
+  orchestration,
+  repoRoot,
+  logger,
+  recordPendingCleanupFn,
+  pathExistsFn,
+}) {
+  const pathGone = !pathExistsFn(stillRegistered.path);
+  const branchDeleted = reapResult.branchDeleted === true;
+  const operationallyComplete =
+    reapResult.removed === true && pathGone && branchDeleted;
+  if (!operationallyComplete) {
+    return {
       ...state,
       status: 'still-registered',
       path: stillRegistered.path,
       reason: 'still-registered-after-reap',
     };
-    logger.error(
-      `[story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
-        `${stillRegistered.path}. Run ` +
-        '`git worktree remove <path> --force && git worktree prune` to clean up.',
-    );
-    await emitReapFailureFriction({
-      storyId,
-      epicId,
-      reapResult: {
-        path: stillRegistered.path,
-        reason: 'still-registered-after-reap',
-      },
-      epicBranch,
-      logger,
-      config,
-    });
   }
-  return state;
+  const worktreeRoot = resolveWorktreeRoot(repoRoot, orchestration);
+  let manifestEntry = null;
+  if (worktreeRoot) {
+    try {
+      manifestEntry = recordPendingCleanupFn(worktreeRoot, {
+        storyId: Number(storyId),
+        branch: `story-${Number(storyId)}`,
+        path: stillRegistered.path,
+        push: false,
+      });
+    } catch (err) {
+      logger?.warn?.(
+        `[post-merge-pipeline] pending-cleanup record failed (continuing): ${err?.message ?? err}`,
+      );
+    }
+  }
+  return {
+    ...state,
+    status: 'stale-registry-entry',
+    path: stillRegistered.path,
+    reason: 'stale-registry-entry',
+    pendingCleanup: manifestEntry ?? state.pendingCleanup,
+  };
 }
 
 export async function branchCleanupPhase(ctx, state = {}) {

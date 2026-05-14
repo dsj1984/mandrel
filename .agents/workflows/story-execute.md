@@ -274,6 +274,21 @@ When run as a sub-agent, return one JSON object:
 `status === 'done'` requires every Task closed and
 `branchDeleted: true`.
 
+`branchDeleted` is sourced from the `branchDeleted` field of the
+`story-close.js` result envelope, which is `branchCleanup.localDeleted &&
+branchCleanup.remoteDeleted`. It is **independent** of `worktreeReap.status`.
+Specifically, when `worktreeReap.status === 'stale-registry-entry'` — a
+Windows-only outcome where the worktree directory was removed and the local
+branch was deleted but `git worktree list` still shows the entry — the
+close still reports `branchDeleted: true` because the branch was honestly
+deleted; a pending-cleanup entry is recorded so the next post-close drain
+(or the next plan-time sweep) clears the stale `.git/worktrees/<name>/`
+registry entry. Treat `stale-registry-entry` as operationally complete
+when computing your return contract: `status: 'done'` is appropriate when
+all Tasks are closed and `branchDeleted: true`, regardless of whether
+`worktreeReap.status` is `'removed'`, `'removed-after-drain'`, or
+`'stale-registry-entry'`.
+
 `renderedBody` is the **most recent** `renderedBody` returned by
 `story-task-progress.js` (typically the `phase: 'done'` snapshot at close,
 or the `phase: 'blocked'` snapshot on a blocker). The parent
