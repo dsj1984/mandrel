@@ -190,10 +190,13 @@ export async function main(args = process.argv.slice(2)) {
     );
   }
 
-  const { agentSettings } = resolveConfig();
-  const limits = getLimits({ agentSettings });
+  const config = resolveConfig();
+  const limits = getLimits(config);
   const executionTimeoutMs = limits.executionTimeoutMs;
-  const executionMaxBuffer = limits.executionMaxBuffer;
+  // Hardcoded post-reshape (Epic #1720 Story #1739). Node `spawnSync`
+  // buffer ceiling — 10 MiB is the framework-wide value used by every
+  // child-process spawn site. An OOM symptom, not a domain knob.
+  const executionMaxBuffer = 10485760;
 
   const commandStr = cmdArgs.join(' ');
   Logger.error(`[Diagnostic Interceptor] Executing: ${commandStr}`);

@@ -22,6 +22,15 @@ import { Logger } from './lib/Logger.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../..');
 
+/**
+ * Hardcoded Node `spawnSync` buffer ceiling (Epic #1720 Story #1739 —
+ * `limits.executionMaxBuffer` moved from `.agentrc.json` to a
+ * framework-internal constant). 10 MiB matches the legacy default;
+ * lint output that exceeds this much JSON is a symptom of misconfigured
+ * scopes, not a tuning case.
+ */
+const EXECUTION_MAX_BUFFER = 10485760;
+
 // Shared core: extract the JSON-array tail from shell output, then tally
 // errors/warnings. `detailed=true` also returns per-file counts + rule
 // histogram (used by `diff` + `captureBaseline` to attribute regressions).
@@ -433,10 +442,11 @@ export async function runLintBaselineCli(values, deps = {}) {
     diff: diffBaseline,
   };
   const runner = runners[mode];
+  // Hardcoded post-reshape (Epic #1720 Story #1739) — see EXECUTION_MAX_BUFFER.
   const envelope = runner(
     cmdConfig,
     limits.executionTimeoutMs,
-    limits.executionMaxBuffer,
+    EXECUTION_MAX_BUFFER,
     baselinePath,
     baselinePathRel,
     gateModeOpts,
