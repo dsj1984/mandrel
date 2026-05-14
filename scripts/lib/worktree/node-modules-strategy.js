@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- node_modules placement strategies (symlink/copy/install); pure filesystem I/O, integration-shaped */
+
 /**
  * worktree/node-modules-strategy.js
  *

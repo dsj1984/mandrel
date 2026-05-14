@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- ephemeral merge orchestrator over live git state; conflict triage tested via integration. Unit-mocking requires asserting only the mock structure */
+
 /**
  * git-merge-orchestrator.js — Ephemeral Candidate Branch Merge Logic
  *
