@@ -52,17 +52,63 @@ describe('Checkpointer', () => {
     );
   });
 
-  it('initialize() is idempotent when state exists', async () => {
+  it('initialize() is idempotent when re-called with the same shape', async () => {
     const provider = createFakeProvider();
     const cp = new Checkpointer({ provider, epicId: 321 });
-    await cp.initialize({ totalWaves: 3, concurrencyCap: 2 });
-    const second = await cp.initialize({
-      totalWaves: 9,
-      concurrencyCap: 9,
-    });
-    assert.equal(second.totalWaves, 3, 'existing state wins on re-initialize');
+    const first = await cp.initialize({ totalWaves: 3, concurrencyCap: 2 });
+    const second = await cp.initialize({ totalWaves: 3, concurrencyCap: 2 });
+    assert.equal(second.totalWaves, 3);
+    assert.equal(second.concurrencyCap, 2);
+    assert.equal(
+      second.startedAt,
+      first.startedAt,
+      'no rewrite when shape matches',
+    );
     const comments = provider._comments.get(321) ?? [];
     assert.equal(comments.length, 1, 'no duplicate checkpoint comment');
+  });
+
+  it('initialize() refreshes totalWaves/concurrencyCap when re-prepare detects a delta', async () => {
+    const provider = createFakeProvider();
+    const cp = new Checkpointer({ provider, epicId: 321 });
+    // Simulate an in-flight delivery: initial prepare saw 2 waves, then
+    // wave 1 ran and the plan + history were persisted.
+    await cp.initialize({ totalWaves: 2, concurrencyCap: 2 });
+    await cp.write({
+      ...(await cp.read()),
+      currentWave: 1,
+      waves: [{ wave: 0, status: 'complete' }],
+      blockerHistory: [{ wave: 0, reason: 'recovered' }],
+      plan: [['storyA'], ['storyB']],
+    });
+
+    // Re-prepare after reconciler fix expands the DAG to 6 waves.
+    const refreshed = await cp.initialize({
+      totalWaves: 6,
+      concurrencyCap: 4,
+    });
+
+    assert.equal(refreshed.totalWaves, 6, 'totalWaves refreshed in place');
+    assert.equal(refreshed.concurrencyCap, 4, 'concurrencyCap refreshed');
+    assert.equal(refreshed.currentWave, 1, 'currentWave preserved');
+    assert.deepEqual(
+      refreshed.waves,
+      [{ wave: 0, status: 'complete' }],
+      'waves[] preserved',
+    );
+    assert.deepEqual(
+      refreshed.blockerHistory,
+      [{ wave: 0, reason: 'recovered' }],
+      'blockerHistory preserved',
+    );
+    assert.deepEqual(
+      refreshed.plan,
+      [['storyA'], ['storyB']],
+      'plan preserved (caller overwrites on next write)',
+    );
+
+    const comments = provider._comments.get(321) ?? [];
+    assert.equal(comments.length, 1, 'still a single checkpoint comment');
   });
 
   it('write() overwrites prior checkpoints via marker upsert', async () => {
