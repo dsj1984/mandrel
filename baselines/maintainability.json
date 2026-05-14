@@ -82,7 +82,7 @@
   ".agents/scripts/lib/checks/worktree-residue-biome.js": 109.499,
   ".agents/scripts/lib/cli-args.js": 89.677,
   ".agents/scripts/lib/cli-utils.js": 112.695,
-  ".agents/scripts/lib/close-validation.js": 93.077,
+  ".agents/scripts/lib/close-validation.js": 94.094,
   ".agents/scripts/lib/config-gates-schema.js": 55.198,
   ".agents/scripts/lib/config-resolver.js": 84.277,
   ".agents/scripts/lib/config-schema-shared.js": 138.317,

@@ -1326,98 +1326,110 @@
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
+      "method": "isCrapGateEnabled",
+      "startLine": 174
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "buildTestGateEntry",
+      "startLine": 195
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildDefaultGates",
-      "startLine": 176
+      "startLine": 235
     },
     {
       "crap": 5.054012345679013,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildMutationGateEntry",
-      "startLine": 242
+      "startLine": 301
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "partitionGates",
-      "startLine": 287
+      "startLine": 346
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "pipePrefixed",
-      "startLine": 302
+      "startLine": 361
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "attachGateAbortHandler",
-      "startLine": 338
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-4>",
-      "startLine": 340
+      "startLine": 397
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-5>",
-      "startLine": 349
+      "startLine": 399
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-6>",
+      "startLine": 408
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "gateExitCode",
-      "startLine": 356
+      "startLine": 415
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGateRunner",
-      "startLine": 361
+      "startLine": 420
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGetHeadSha",
-      "startLine": 392
+      "startLine": 451
     },
     {
       "crap": 11.149667110471283,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "runCloseValidation",
-      "startLine": 446
+      "startLine": 505
     },
     {
       "crap": 5.8053155522163795,
       "file": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-11>",
-      "startLine": 475
+      "method": "<anon method-12>",
+      "startLine": 534
     },
     {
       "crap": 3.062196307094266,
       "file": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-12>",
-      "startLine": 498
+      "method": "<anon method-13>",
+      "startLine": 557
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
-      "method": "<anon method-13>",
-      "startLine": 521
+      "method": "<anon method-14>",
+      "startLine": 580
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "projectMaintainabilityRegressions",
-      "startLine": 668
+      "startLine": 727
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "formatMaintainabilityProjection",
-      "startLine": 753
+      "startLine": 812
     },
     {
       "crap": 3,
