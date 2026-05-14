@@ -16,6 +16,7 @@
 
 import { spawn } from 'node:child_process';
 import { getCommands } from './config/commands.js';
+import { getQuality } from './config/quality.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
 import { getBaseline } from './maintainability-utils.js';
@@ -222,6 +223,37 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       cmd: 'node',
       args: ['.agents/scripts/check-crap.js', ...epicRefArgs],
       hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
+    },
+    ...buildMutationGateEntry(agentSettings),
+  ];
+}
+
+/**
+ * Conditionally include the mutation gate (Story #1736) when
+ * `delivery.quality.gates.mutation.enabled` is true. The script
+ * self-skips when no Stryker config is detected, so the gate is safe to
+ * register unconditionally — but we keep the registration gated on the
+ * `enabled` flag so consumers who explicitly opt out don't pay the
+ * spawn-and-detect cost on every close.
+ *
+ * @param {object|undefined} agentSettings
+ * @returns {Gate[]}
+ */
+function buildMutationGateEntry(agentSettings) {
+  try {
+    const quality = getQuality({ agentSettings });
+    const mutation = quality.gates?.mutation;
+    if (!mutation || mutation.enabled === false) return [];
+  } catch {
+    // Malformed settings — registering the gate is harmless because the
+    // script itself self-skips when prerequisites are missing.
+  }
+  return [
+    {
+      name: 'check-mutation',
+      cmd: 'node',
+      args: ['.agents/scripts/check-mutation.js'],
+      hint: 'Mutation gate breached. Add tests that kill the surviving mutants, or — when the regression is intentional and justified — refresh the baseline with `node .agents/scripts/update-mutation-baseline.js` and commit it on the story branch with a `baseline-refresh:` tagged subject. Self-skips when no Stryker config is detected (`npx stryker init`).',
     },
   ];
 }

@@ -9,6 +9,11 @@
     "branches": 64.71,
     "functions": 100
   },
+  ".agents/scripts/check-mutation.js": {
+    "lines": 93.58,
+    "branches": 81.43,
+    "functions": 85.71
+  },
   ".agents/scripts/cleanup-repo-test-temp.js": {
     "lines": 91.04,
     "branches": 91.67,
@@ -235,9 +240,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 89.54,
-    "branches": 82.91,
-    "functions": 77.27
+    "lines": 88.54,
+    "branches": 81.67,
+    "functions": 78.26
   },
   ".agents/scripts/lib/config-gates-schema.js": {
     "lines": 100,
@@ -265,9 +270,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/config/github.js": {
-    "lines": 67.2,
-    "branches": 100,
-    "functions": 0
+    "lines": 100,
+    "branches": 96.88,
+    "functions": 100
   },
   ".agents/scripts/lib/config/limits.js": {
     "lines": 100,
@@ -462,6 +467,21 @@
   ".agents/scripts/lib/mandrel-catalog.js": {
     "lines": 100,
     "branches": 90,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mutation/baseline-snapshot.js": {
+    "lines": 93.28,
+    "branches": 85.96,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mutation/config-detector.js": {
+    "lines": 100,
+    "branches": 85,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mutation/stryker-runner.js": {
+    "lines": 97.71,
+    "branches": 81.25,
     "functions": 100
   },
   ".agents/scripts/lib/notifications/notifier.js": {
