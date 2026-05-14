@@ -77,14 +77,29 @@ export class Checkpointer {
   }
 
   /**
-   * Initial checkpoint for a brand-new run. Idempotent against re-dispatch —
-   * if a checkpoint already exists it is returned unchanged.
+   * Initial checkpoint for a brand-new run. Idempotent against re-dispatch
+   * when the wave shape is unchanged. When an existing checkpoint is found
+   * but the incoming `totalWaves` or `concurrencyCap` differs from the
+   * persisted values, refresh those fields in place — preserving
+   * `currentWave`, `waves[]`, `blockerHistory`, `manualInterventions`,
+   * `startedAt`, and any other already-persisted fields (e.g., `plan`,
+   * `phase`). The `plan` field is owned by the prepare caller, which
+   * overwrites it on every prepare run, so it does not need a delta check
+   * here.
    *
    * @param {{ totalWaves: number, concurrencyCap: number }} opts
    */
   async initialize({ totalWaves, concurrencyCap }) {
     const existing = await this.read();
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.totalWaves === totalWaves &&
+        existing.concurrencyCap === concurrencyCap
+      ) {
+        return existing;
+      }
+      return this.write({ ...existing, totalWaves, concurrencyCap });
+    }
     return this.write({
       epicId: this.epicId,
       startedAt: new Date().toISOString(),
