@@ -434,11 +434,7 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
 
   it('failure report carries gate identifier "coverage-capture" when crap.enabled is true', async () => {
     const gates = buildDefaultGates({
-      agentSettings: {
-        delivery: {
-          quality: { gates: { crap: { enabled: true } } },
-        },
-      },
+      agentSettings: { quality: { crap: { enabled: true } } },
     });
 
     const runner = (cmd, args) => {
@@ -482,11 +478,7 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
 
   it('no separate `test` gate appears in the failure report when crap.enabled is true', async () => {
     const gates = buildDefaultGates({
-      agentSettings: {
-        delivery: {
-          quality: { gates: { crap: { enabled: true } } },
-        },
-      },
+      agentSettings: { quality: { crap: { enabled: true } } },
     });
 
     // Sanity check the gate list itself: the standalone `test` gate is
@@ -526,5 +518,22 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
         '`test` must not appear in the failure report when crap.enabled is true',
       );
     }
+  });
+
+  it('legacy two-gate path: `test` gate is present when crap.enabled is false', () => {
+    // Existing-behaviour-preserved leg of the Story #1804 AC. When a
+    // consumer explicitly opts out of the CRAP gate, the standalone
+    // `test` gate stays in the graph so a fresh Story close still runs
+    // the suite (once, via the legacy gate — coverage-capture also runs
+    // unconditionally, but in the crap-disabled path it does not gate
+    // test failure).
+    const gates = buildDefaultGates({
+      agentSettings: { quality: { crap: { enabled: false } } },
+    });
+    const gateNames = gates.map((g) => g.name);
+    assert.ok(
+      gateNames.includes('test'),
+      `\`test\` gate must be preserved when crap.enabled is false; got: ${gateNames.join(', ')}`,
+    );
   });
 });
