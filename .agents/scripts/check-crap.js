@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- top-level CLI gate; tested logic lives in lib/crap-engine.js + lib/crap-utils.js + lib/gates/baseline-store.js */
+
 import path from 'node:path';
 import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';

@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- orchestration phase composer; sequences wave-gate + hierarchy-gate + retro-runner + code-review against live state, tested via integration */
+
 /**
  * lib/orchestration/epic-deliver-close-tail.js — Phases C through F of
  * `/epic-deliver` (Story #1155 / Epic #1142).

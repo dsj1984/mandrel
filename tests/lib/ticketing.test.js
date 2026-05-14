@@ -811,24 +811,31 @@ test('ticketing.js', async (t) => {
   );
 
   await t.test(
-    'cascadeCompletion processes multiple parents sequentially in input order (Story #1088)',
+    'cascadeCompletion runs shared-ancestor parents sequentially in input order (Story #1665)',
     async () => {
-      // Child #50 has two parents (#41 and #42). The outer cascade loop
-      // must walk them sequentially in the order they appear in the parsed
-      // parent list — concurrent processing would let their toggle/transition
-      // calls interleave and obscure cascade ordering in logs.
+      // Child #50 has two parents (#41 and #42), both of which point at a
+      // common grandparent #40 via `parent: #40`. The cascade groups them
+      // into a single shared-ancestor partition, so they must run strictly
+      // sequentially in input order — concurrent execution would race the
+      // "all children done?" check on the shared ancestor.
       const order = [];
       const tickets = {
+        40: {
+          id: 40,
+          labels: ['agent::executing', 'type::feature'],
+          body: 'Feature 40\n- [ ] #41\n- [ ] #42',
+          state: 'open',
+        },
         41: {
           id: 41,
           labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 41\n- [ ] #50',
+          body: 'Feature 41\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         42: {
           id: 42,
           labels: ['agent::executing', 'type::feature'],
-          body: 'Feature 42\n- [ ] #50',
+          body: 'Feature 42\nparent: #40\n- [ ] #50',
           state: 'open',
         },
         50: {
@@ -855,6 +862,7 @@ test('ticketing.js', async (t) => {
         },
         async getSubTickets(id) {
           if (id === 41 || id === 42) return [tickets[50]];
+          if (id === 40) return [tickets[41], tickets[42]];
           return [];
         },
       };
@@ -862,17 +870,28 @@ test('ticketing.js', async (t) => {
       await cascadeCompletion(fakeProvider, 50);
 
       // Sequential semantics: the entire #41 sub-flow (toggle → fresh-read →
-      // parent get → updateTicket) must complete before #42 begins. The
-      // first `get:42` must therefore appear AFTER the first `update:41`.
-      const firstUpdate41 = order.indexOf('update:41');
-      const firstGet42 = order.indexOf('get:42');
+      // parent get → updateTicket) must complete before #42 begins.
+      // `groupByAncestor` reads both parents up front to walk their chains;
+      // those reads are intentionally excluded from the ordering invariant
+      // because they precede the per-group dispatch and do not represent
+      // interleaved cascade work. The invariant is: once #41 starts its
+      // per-parent body, all of its update calls must complete before any
+      // update on #42.
+      const updates42 = order
+        .map((entry, idx) => ({ entry, idx }))
+        .filter(({ entry }) => entry === 'update:42')
+        .map(({ idx }) => idx);
+      const updates41 = order
+        .map((entry, idx) => ({ entry, idx }))
+        .filter(({ entry }) => entry === 'update:41')
+        .map(({ idx }) => idx);
       assert.ok(
-        firstUpdate41 !== -1 && firstGet42 !== -1,
-        `expected both parents to be visited; got order=${JSON.stringify(order)}`,
+        updates41.length > 0 && updates42.length > 0,
+        `expected both parents to be updated; got order=${JSON.stringify(order)}`,
       );
       assert.ok(
-        firstUpdate41 < firstGet42,
-        `parent #41 must finish before #42 starts (sequential outer loop); got order=${JSON.stringify(order)}`,
+        Math.max(...updates41) < Math.min(...updates42),
+        `shared-ancestor parents must run sequentially; got order=${JSON.stringify(order)}`,
       );
     },
   );

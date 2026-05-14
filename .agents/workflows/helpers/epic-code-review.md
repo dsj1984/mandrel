@@ -124,7 +124,7 @@ node .agents/scripts/check-maintainability.js
 If this check fails, you MUST refactor the offending files to meet or exceed the
 prior baseline before merging.
 
-## Step 3 — Produce Findings Report
+## Step 4 — Produce Findings Report
 
 Findings are **persisted as a `code-review` structured comment on the Epic
 issue** by `epic-code-review.js` (v5.9.0+). The comment is idempotent —
@@ -150,7 +150,7 @@ For every finding, provide:
 - **Description** of the issue
 - **Recommended fix** with a concrete code suggestion
 
-## Step 4 — Remediation
+## Step 5 — Remediation
 
 If the operator instructs you to fix any findings:
 

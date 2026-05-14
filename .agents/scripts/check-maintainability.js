@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- top-level CLI gate; tested logic lives in lib/maintainability-engine.js + lib/gates/baseline-store.js */
+
 import path from 'node:path';
 import { readBaselineAtRef } from './lib/baseline-loader.js';
 import { getChangedFiles } from './lib/changed-files.js';
@@ -503,14 +505,15 @@ function maybeWriteMaintainabilityReport({ scores, stats, resolvedScope }) {
  * ratchet check so a file that hasn't regressed but is still under
  * floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
  * Extracted from `main` to keep the orchestrator method's CRAP under the
- * v6 ceiling.
+ * v6 ceiling. Exported for regression tests that prove the floor gate
+ * trips on a deliberately sub-floor file (Story #1709, Epic #1653).
  */
-function enforceMaintainabilityFloor(scores, argv) {
+export function enforceMaintainabilityFloor(scores, argv, options = {}) {
   if (!parseFloorFlag(argv)) {
     Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
     return;
   }
-  const floors = loadFloorConfig();
+  const floors = options.floors ?? loadFloorConfig();
   const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
   const { violations } = applyFloorPolicy(records, floors, 'maintainability');
   if (violations.length === 0) return;
