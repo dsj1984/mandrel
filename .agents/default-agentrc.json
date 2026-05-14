@@ -76,7 +76,7 @@
     },
     "deliverRunner": {
       "concurrencyCap": 3,
-      "progressReportIntervalSec": 120
+      "progressReportIntervalSec": 300
     },
     "worktreeIsolation": {
       "enabled": true,
