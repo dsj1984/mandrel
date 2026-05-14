@@ -32,6 +32,39 @@
 import { spawn as defaultSpawn } from 'node:child_process';
 
 /**
+ * Throw-away in-process spawn counter (Story #1795 / Epic #1788).
+ *
+ * Incremented once per `exec()` invocation that successfully reaches the
+ * `spawnImpl('gh', ...)` call. Exported via `getSpawnCount` so the
+ * Story-close structured comment can emit it under `ghSpawnCount` for
+ * the ">=100 fewer spawns" acceptance criterion. This counter is
+ * deliberately ephemeral — Story #1795's acceptance includes removing
+ * the counter and `getSpawnCount` helper in a follow-up cleanup commit
+ * before the Story merges to the Epic branch.
+ */
+let _spawnCount = 0;
+
+/**
+ * Return the running total of `gh` spawns since this module was loaded
+ * (or since the last `resetSpawnCount()` call). Counts every spawn
+ * attempt, including those that error before the child exits.
+ *
+ * @returns {number}
+ */
+export function getSpawnCount() {
+  return _spawnCount;
+}
+
+/**
+ * Reset the spawn counter to zero. Test seam — production code never
+ * calls this. Tests that exercise the counter MUST reset it in
+ * `beforeEach` so test order doesn't bleed across cases.
+ */
+export function resetSpawnCount() {
+  _spawnCount = 0;
+}
+
+/**
  * Base class for all gh-exec errors. Carries the args that were passed to
  * `gh`, the captured stdout/stderr, and the process exit code (or null when
  * the process never produced one — e.g. timeout, spawn error).
@@ -282,6 +315,11 @@ export function exec({
   return new Promise((resolve, reject) => {
     let child;
     try {
+      // Throw-away spawn-count instrumentation (Story #1795). Counted
+      // before the spawnImpl call so an immediate-throw spawnError still
+      // reflects in the total — the measurement we care about is "did we
+      // attempt to launch gh", not "did gh exit cleanly".
+      _spawnCount += 1;
       child = spawnImpl('gh', args, spawnOpts);
     } catch (err) {
       reject(classify({ spawnError: err, args }));

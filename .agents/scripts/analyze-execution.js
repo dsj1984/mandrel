@@ -107,6 +107,38 @@ async function readPhaseTimings(epicId, storyId, config, overridePath) {
 }
 
 /**
+ * Throw-away ghSpawnCount reader (Story #1795 / Epic #1788). Looks for
+ * the `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` file written by
+ * `close-validation.emitGhSpawnCount` immediately before the perf-summary
+ * phase spawns this analyzer. Returns the integer count when present and
+ * well-formed; `null` when absent or unparseable. Callers treat `null` as
+ * "no signal" — the structured comment simply omits `ghSpawnCount`.
+ */
+async function readGhSpawnCount(epicId, storyId, config) {
+  const target = storyArtifactPath(
+    epicId,
+    storyId,
+    'gh-spawn-count.json',
+    config,
+  );
+  try {
+    const buf = await fs.readFile(target, 'utf8');
+    const parsed = JSON.parse(buf);
+    const count = parsed?.ghSpawnCount;
+    if (Number.isInteger(count) && count >= 0) return count;
+    return null;
+  } catch (err) {
+    if (err && err.code === 'ENOENT') return null;
+    Logger.warn(
+      `[analyze-execution] could not parse gh-spawn-count at ${target}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+    return null;
+  }
+}
+
+/**
  * Render a small operator-facing summary block that doubles as the
  * comment body. The fenced JSON payload is the canonical machine-
  * readable surface; the prose lines above it give a human a reason to
@@ -294,6 +326,7 @@ export async function runStoryMode(ctx) {
     config,
     ctx.phaseTimingsPath ?? null,
   );
+  const ghSpawnCount = await readGhSpawnCount(epicId, storyId, config);
 
   const payload = computeStoryPerfSummary(events, {
     storyId,
@@ -301,6 +334,14 @@ export async function runStoryMode(ctx) {
     closedAt: now().toISOString(),
     phaseTiming,
   });
+  if (ghSpawnCount !== null) {
+    // Throw-away measurement field (Story #1795). Surfaces the in-process
+    // `gh-exec.getSpawnCount()` snapshot captured at the end of close
+    // validation so the Story-close structured comment can be diffed
+    // against the baseline recorded under `temp/epic-1788/` for the
+    // "≥100 fewer spawns" acceptance criterion.
+    payload.ghSpawnCount = ghSpawnCount;
+  }
 
   const body = renderStoryBody(payload);
   const result = await upsertStructuredComment(

@@ -5,6 +5,8 @@ import { describe, it } from 'node:test';
 import exec, {
   GhExecError,
   GhExecTimeoutError,
+  getSpawnCount,
+  resetSpawnCount,
 } from '../../.agents/scripts/lib/gh-exec.js';
 
 /**
@@ -102,5 +104,38 @@ describe('gh-exec — timeout surfacing', () => {
         err.timeoutMs === 50 &&
         /exceeded 50ms/.test(err.message),
     );
+  });
+});
+
+describe('gh-exec — throw-away spawn counter (Story #1795)', () => {
+  it('increments getSpawnCount on every successful spawn', async () => {
+    resetSpawnCount();
+    assert.equal(getSpawnCount(), 0);
+    const { fake } = makeFakeSpawn({ stdout: '{"x":1}', code: 0 });
+    await exec({
+      args: ['issue', 'view', '1', '--json', 'x'],
+      spawnImpl: fake,
+    });
+    assert.equal(getSpawnCount(), 1);
+    await exec({
+      args: ['issue', 'view', '2', '--json', 'x'],
+      spawnImpl: fake,
+    });
+    assert.equal(getSpawnCount(), 2);
+  });
+
+  it('counts spawn attempts even when the child errors', async () => {
+    resetSpawnCount();
+    const { fake } = makeFakeSpawn({ stderr: 'boom', code: 1 });
+    await assert.rejects(exec({ args: ['repo', 'view'], spawnImpl: fake }));
+    assert.equal(getSpawnCount(), 1);
+  });
+
+  it('resetSpawnCount returns the counter to zero', async () => {
+    const { fake } = makeFakeSpawn({ stdout: '', code: 0 });
+    await exec({ args: ['auth', 'status'], spawnImpl: fake });
+    assert.ok(getSpawnCount() >= 1);
+    resetSpawnCount();
+    assert.equal(getSpawnCount(), 0);
   });
 });
