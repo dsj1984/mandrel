@@ -376,6 +376,68 @@ export function structuredCommentMarker(type, attrs = null) {
 }
 
 /**
+ * Process-level cache mapping `${ticketId}|${type}|${attrsHash}` to the
+ * comment id (and the cached comment payload) returned by the most
+ * recent `findStructuredComment` / `upsertStructuredComment` call.
+ * Story #1795 — every Epic run owns its process for the duration of
+ * the run, so a single seed-then-reuse window saves one
+ * `getTicketComments` per repeat upsert on the hot path (wave-level
+ * `story-run-progress`, `wave-N-end`, etc).
+ *
+ * Lifecycle:
+ *   - First call to `findStructuredComment(t, type, attrs)` hits
+ *     `getTicketComments` and seeds the cache with the resolved
+ *     comment (or `null` to record the "no comment yet" miss).
+ *   - Subsequent calls inside the same process return the cached row
+ *     without a list call.
+ *   - `upsertStructuredComment` refreshes the cache to the new
+ *     comment id after `postComment` succeeds.
+ *   - `deleteComment` paths inside this module evict the entry.
+ *
+ * Cross-process coherence is not required — the runner owns the
+ * process for the run's lifetime. Tests reset via the exported
+ * `_resetStructuredCommentCache()` seam.
+ */
+const _structuredCommentCache = new Map();
+
+/**
+ * Build a stable cache key for `(ticketId, type, attrs)`. Attrs object
+ * is normalised by sorted JSON so equivalent keys collide. Story #1795.
+ *
+ * @param {number} ticketId
+ * @param {string} type
+ * @param {Record<string, string|number>|null} attrs
+ * @returns {string}
+ */
+function structuredCommentCacheKey(ticketId, type, attrs) {
+  if (!attrs || typeof attrs !== 'object') {
+    return `${ticketId}|${type}|`;
+  }
+  const sorted = Object.keys(attrs)
+    .sort()
+    .map((k) => `${k}=${String(attrs[k])}`)
+    .join('&');
+  return `${ticketId}|${type}|${sorted}`;
+}
+
+/**
+ * Test seam — reset the process-level structured-comment ID cache.
+ * Exported so unit tests can isolate cases without restarting the
+ * process. Production callers never invoke this.
+ */
+export function _resetStructuredCommentCache() {
+  _structuredCommentCache.clear();
+}
+
+/**
+ * Test seam — peek at the cache contents. Returns the raw Map for
+ * read-only inspection (do not mutate). Story #1795.
+ */
+export function _peekStructuredCommentCache() {
+  return _structuredCommentCache;
+}
+
+/**
  * Find the most recent structured comment of a given type on a ticket.
  * Detection is based on the HTML marker produced by
  * `structuredCommentMarker(type, attrs)`.
@@ -383,6 +445,13 @@ export function structuredCommentMarker(type, attrs = null) {
  * When `attrs` is provided, only comments whose marker carries the same
  * discriminator attributes are returned — see `structuredCommentMarker` for
  * the per-wave `wave-run-progress` use case.
+ *
+ * Story #1795 — results are memoised in a process-level cache keyed by
+ * `(ticketId, type, attrsHash)`. The first call seeds the cache with
+ * the resolved comment (or `null` for the "no such comment yet" miss);
+ * every subsequent call returns the cached row without issuing another
+ * `getTicketComments`. `upsertStructuredComment` refreshes the cache
+ * after a successful repost, and its delete path evicts the entry.
  *
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
@@ -396,14 +465,19 @@ export async function findStructuredComment(
   type,
   attrs = null,
 ) {
+  const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
+  if (_structuredCommentCache.has(cacheKey)) {
+    return _structuredCommentCache.get(cacheKey);
+  }
   const marker = structuredCommentMarker(type, attrs);
   const comments = (await provider.getTicketComments(ticketId)) ?? [];
   // Return latest match (comments API sorts ascending by creation; take last).
   const matches = comments.filter(
     (c) => typeof c.body === 'string' && c.body.includes(marker),
   );
-  if (matches.length === 0) return null;
-  return matches[matches.length - 1];
+  const resolved = matches.length === 0 ? null : matches[matches.length - 1];
+  _structuredCommentCache.set(cacheKey, resolved);
+  return resolved;
 }
 
 /**
@@ -434,11 +508,15 @@ export async function upsertStructuredComment(
 ) {
   assertValidStructuredCommentType(type);
   const marker = structuredCommentMarker(type, attrs);
+  const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
   const existing = await findStructuredComment(provider, ticketId, type, attrs);
 
   if (existing && typeof provider.deleteComment === 'function') {
     try {
       await provider.deleteComment(existing.id);
+      // Story #1795 — evict before the repost so a postComment failure
+      // doesn't leave the cache pointing at a deleted comment id.
+      _structuredCommentCache.delete(cacheKey);
     } catch (err) {
       Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
@@ -447,7 +525,22 @@ export async function upsertStructuredComment(
   }
 
   const annotated = `${marker}\n\n${body}`;
-  return provider.postComment(ticketId, { type, body: annotated });
+  const result = await provider.postComment(ticketId, {
+    type,
+    body: annotated,
+  });
+  // Story #1795 — refresh the cache to the freshly-posted comment so the
+  // next upsert short-circuits the `getTicketComments` list call. The
+  // post result carries the new comment id; we synthesise a minimal
+  // cached row that `findStructuredComment` callers can rely on (only
+  // `id` and `body` are read by upstream).
+  if (result && typeof result.commentId === 'number') {
+    _structuredCommentCache.set(cacheKey, {
+      id: result.commentId,
+      body: annotated,
+    });
+  }
+  return result;
 }
 
 /**
