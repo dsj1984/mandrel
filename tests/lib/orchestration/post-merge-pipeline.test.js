@@ -437,6 +437,8 @@ describe('worktreeReapPhase', () => {
       logger,
       progress: () => {},
       worktreeManagerFactory: factory,
+      sleep: () => Promise.resolve(),
+      pathExistsFn: () => true,
     });
     assert.equal(result.status, 'still-registered');
     assert.ok(
