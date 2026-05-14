@@ -127,12 +127,15 @@ function makeTempRepo({ enabled = true, withBaseline = false } = {}) {
         },
         delivery: {
           quality: {
-            crap: {
-              enabled,
-              targetDirs: ['src'],
-              newMethodCeiling: 30,
-              tolerance: 0.001,
-              requireCoverage: false,
+            gates: {
+              crap: {
+                enabled,
+                targetDirs: ['src'],
+                newMethodCeiling: 30,
+                tolerance: { kind: 'absolute', value: 0.001 },
+                requireCoverage: false,
+                floors: { '*': { crap: 20 } },
+              },
             },
           },
         },

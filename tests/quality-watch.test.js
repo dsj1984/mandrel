@@ -74,10 +74,12 @@ test('buildPreviewSpawn — honours custom ref', () => {
 
 test('resolveWatchTargets — unions MI + CRAP target dirs without duplicates', () => {
   const dirs = resolveWatchTargets({
-    agentSettings: {
+    delivery: {
       quality: {
-        maintainability: { targetDirs: ['.agents/scripts', 'lib'] },
-        crap: { targetDirs: ['lib', 'tests'] },
+        gates: {
+          maintainability: { targetDirs: ['.agents/scripts', 'lib'] },
+          crap: { targetDirs: ['lib', 'tests'] },
+        },
       },
     },
   });
@@ -86,10 +88,12 @@ test('resolveWatchTargets — unions MI + CRAP target dirs without duplicates', 
 
 test('resolveWatchTargets — falls back to .agents/scripts + tests when both empty', () => {
   const dirs = resolveWatchTargets({
-    agentSettings: {
+    delivery: {
       quality: {
-        maintainability: { targetDirs: [] },
-        crap: { targetDirs: [] },
+        gates: {
+          maintainability: { targetDirs: [] },
+          crap: { targetDirs: [] },
+        },
       },
     },
   });
@@ -219,10 +223,12 @@ test('runCli — wires the injected chokidar loader and resolves a watcher handl
     cwd: '/tmp/proj',
     chokidarLoader: async () => chokidar,
     resolved: {
-      agentSettings: {
+      delivery: {
         quality: {
-          maintainability: { targetDirs: ['lib'] },
-          crap: { targetDirs: ['tests'] },
+          gates: {
+            maintainability: { targetDirs: ['lib'] },
+            crap: { targetDirs: ['tests'] },
+          },
         },
       },
     },
