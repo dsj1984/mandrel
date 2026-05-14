@@ -3316,7 +3316,7 @@
       "startLine": 74
     },
     {
-      "crap": 16,
+      "crap": 8.006910700788252,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
       "startLine": 88
@@ -7078,7 +7078,7 @@
       "startLine": 421
     },
     {
-      "crap": 5.0407083248524325,
+      "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
       "startLine": 460
