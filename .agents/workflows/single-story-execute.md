@@ -67,8 +67,18 @@ The script validates `type::story`, fetches `origin`, seeds
 `story-init` structured comment carrying `standalone: true`, and flips
 the Story to `agent::executing`.
 
+Between the fetch and the branch-seed step, the script also runs a
+**merged-`story-*` sweep**: it invokes the same primitive as
+`git-cleanup-branches.js` scoped to `story-*` only, in
+`--execute --remote` mode, with the current run's `story-<id>` branch
+excluded from the candidate list. Local refs, the matching `origin/`
+ref, and stale tracking refs for any merged sibling stories are reaped
+in one pass. The sweep never blocks init — failures are logged and the
+new story is initialized regardless.
+
 Capture `workCwd` from the result envelope. Add `--dry-run` to inspect
-the planned actions without git or ticket mutations.
+the planned actions without git or ticket mutations (dry-run also skips
+the sweep).
 
 ### Step 0.5 — `cd` into the workCwd
 
