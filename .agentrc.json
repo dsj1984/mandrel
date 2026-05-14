@@ -60,7 +60,9 @@
     "worktreeIsolation": {
       "enabled": true,
       "root": ".worktrees",
-      "nodeModulesStrategy": "per-worktree",
+      "nodeModulesStrategy": "symlink",
+      "primeFromPath": ".",
+      "allowSymlinkOnWindows": true,
       "reapOnSuccess": true,
       "reapOnCancel": true,
       "bootstrapFiles": [".env"]
