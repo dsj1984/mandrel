@@ -139,13 +139,31 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
             retry: { repeatCount: 3 },
           },
           quality: {
-            crap: {
-              enabled: true,
-              targetDirs: ['src'],
-              newMethodCeiling: 30,
-              coveragePath: 'coverage/coverage-final.json',
-              tolerance: 0.05,
-              requireCoverage: true,
+            gateScoping: { scope: 'diff', diffRef: 'main' },
+            gates: {
+              coverage: {
+                enabled: true,
+                baselinePath: 'baselines/coverage.json',
+                tolerance: { kind: 'absolute', value: 0 },
+                floors: { '*': { lines: 90, branches: 85, functions: 90 } },
+                coveragePath: 'coverage/coverage-final.json',
+              },
+              crap: {
+                enabled: true,
+                baselinePath: 'baselines/crap.json',
+                tolerance: { kind: 'absolute', value: 0.05 },
+                floors: { '*': { crap: 20 } },
+                targetDirs: ['src'],
+                newMethodCeiling: 30,
+                requireCoverage: true,
+              },
+              maintainability: {
+                enabled: true,
+                baselinePath: 'baselines/maintainability.json',
+                tolerance: { kind: 'absolute', value: 0.5 },
+                floors: { '*': { maintainability: 70 } },
+                targetDirs: ['src'],
+              },
             },
             codingGuardrails: {
               cyclomaticFlag: 8,
@@ -211,10 +229,48 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
       {
         ...REQ,
         delivery: {
-          quality: { maintainability: { halsteadTolerance: 0.1 } },
+          quality: { gates: { maintainability: { halsteadTolerance: 0.1 } } },
         },
       },
       'dropped halsteadTolerance',
+    );
+  });
+
+  it('rejects scalar tolerance on both sides (object shape only)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { quality: { gates: { crap: { tolerance: 0.05 } } } },
+      },
+      'scalar tolerance migrated to { kind, value }',
+    );
+  });
+
+  it('rejects floors without the catch-all key on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: { coverage: { floors: { 'packages/web': { lines: 90 } } } },
+          },
+        },
+      },
+      "floors require '*' catch-all",
+    );
+  });
+
+  it('rejects coveragePath on the CRAP gate (moved to coverage)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: { crap: { coveragePath: 'coverage/coverage-final.json' } },
+          },
+        },
+      },
+      'coveragePath ownership moved to coverage gate',
     );
   });
 
