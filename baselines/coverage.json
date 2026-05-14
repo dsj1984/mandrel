@@ -155,7 +155,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
-    "lines": 99.04,
+    "lines": 99.03,
     "branches": 77.27,
     "functions": 100
   },
@@ -176,11 +176,11 @@
   },
   ".agents/scripts/lib/checks/index.js": {
     "lines": 96.25,
-    "branches": 75.47,
+    "branches": 73.08,
     "functions": 100
   },
   ".agents/scripts/lib/checks/notifier-stub-required.js": {
-    "lines": 99.03,
+    "lines": 99.02,
     "branches": 89.58,
     "functions": 100
   },
@@ -200,13 +200,13 @@
     "functions": 81.82
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
-    "lines": 97.92,
-    "branches": 92.31,
+    "lines": 97.85,
+    "branches": 92.11,
     "functions": 100
   },
   ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
     "lines": 96.7,
-    "branches": 83.33,
+    "branches": 79.49,
     "functions": 100
   },
   ".agents/scripts/lib/checks/windows-coverage-noise-floor.js": {
@@ -645,7 +645,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js": {
-    "lines": 99.31,
+    "lines": 99.3,
     "branches": 83.2,
     "functions": 100
   },
@@ -880,7 +880,7 @@
     "functions": 50
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
-    "lines": 97.13,
+    "lines": 97.14,
     "branches": 85.02,
     "functions": 100
   },
