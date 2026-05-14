@@ -287,12 +287,12 @@ export function ensureQualityConfigDefaults(ctx) {
   if (!cfg) {
     return { action: 'missing-config', path: cfgPath, addedKeys: [] };
   }
-  cfg.agentSettings = cfg.agentSettings ?? {};
-  cfg.agentSettings.quality = cfg.agentSettings.quality ?? {};
+  cfg.delivery = cfg.delivery ?? {};
+  cfg.delivery.quality = cfg.delivery.quality ?? {};
   const { addedKeys } = mergeMissingKeys(
-    cfg.agentSettings.quality,
+    cfg.delivery.quality,
     QUALITY_CONFIG_DEFAULTS,
-    'agentSettings.quality',
+    'delivery.quality',
   );
   if (addedKeys.length > 0) writeJson(cfgPath, cfg);
   return {
