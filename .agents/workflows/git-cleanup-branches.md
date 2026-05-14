@@ -41,7 +41,7 @@ Confirm with the operator that they want to sweep merged branches.
 
 ## Step 2 — Checkout Stable Branch
 
-Switch to `main` (or whatever `agentSettings.baseBranch` resolves to)
+Switch to `main` (or whatever `project.baseBranch` resolves to)
 so the swept branches are never the current HEAD when
 `git branch -D` runs.
 

@@ -54,7 +54,7 @@ spawned.
   cleanliness. `--skip-retro` wins over `--full-retro`.
 
 Every other runtime modifier is sourced from the Epic's labels or from
-`orchestration.runners.deliverRunner` in `.agentrc.json`.
+`delivery.deliverRunner` in `.agentrc.json`.
 
 ---
 
@@ -283,7 +283,7 @@ node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
 Pushes `epic/<epicId>`, opens a PR to `main` (title
 `Epic #<epicId>: <title>`, body links run-progress / code-review /
 retro comments), sets required-checks from
-`agentSettings.quality.prGate.checks`, enables GitHub native auto-merge
+`github.branchProtection.checks`, enables GitHub native auto-merge
 (`gh pr merge --auto --squash --delete-branch`), and posts a hand-off
 comment with the PR URL. Auto-merge enablement failures are non-fatal
 (operator can merge through the UI). Branch cleanup is out-of-band

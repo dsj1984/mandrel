@@ -284,9 +284,9 @@ Each step is idempotent and surfaces its outcome under its own key:
    `node .agents/scripts/quality-preview.js --changed-since HEAD`) and
    `quality:watch` (`node .agents/scripts/quality-watch.js`) to
    `package.json` when missing. Existing values are preserved.
-4. **`config`** — seeds `agentSettings.quality.codingGuardrails`
+4. **`config`** — seeds `delivery.quality.codingGuardrails`
    (cyclomatic flag/must-fix, MI-drop refactor ceiling, sibling-test
-   toggle) and `agentSettings.quality.autoRefresh` (delta caps for the
+   toggle) and `delivery.quality.autoRefresh` (delta caps for the
    bounded auto-refresh that runs at story-close) in `.agentrc.json`.
    Only missing keys are written; project overrides survive.
 

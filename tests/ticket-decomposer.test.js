@@ -377,27 +377,21 @@ describe('ticket-decomposer orchestration (v5.6+)', () => {
       return { id, url: `https://github.com/test/${id}` };
     };
 
-    await decomposeEpic(
-      1,
-      mockProvider,
-      { tickets },
-      {
-        orchestration: { runners: { decomposer: { concurrencyCap: 2 } } },
-      },
-    );
+    await decomposeEpic(1, mockProvider, { tickets }, {});
 
     assert.equal(mockProvider.createdTickets.length, 13);
-    // Story pass has 6 siblings under cap=2 — peak must hit 2 exactly.
+    // Post-reshape (Epic #1720 Story #1739) the decomposer concurrency cap
+    // is hardcoded at 3 (DEFAULT_DECOMPOSER.concurrencyCap). Story-pass and
+    // task-pass each have 6 siblings under cap=3 — peak must hit 3.
     assert.equal(
       peakByType.story,
-      2,
-      `expected story-pass cap=2 but observed peak=${peakByType.story}`,
+      3,
+      `expected story-pass cap=3 but observed peak=${peakByType.story}`,
     );
-    // Task pass has 6 siblings under cap=2 — peak must hit 2 exactly.
     assert.equal(
       peakByType.task,
-      2,
-      `expected task-pass cap=2 but observed peak=${peakByType.task}`,
+      3,
+      `expected task-pass cap=3 but observed peak=${peakByType.task}`,
     );
   });
 
@@ -992,10 +986,8 @@ describe('ticket-decomposer buildDecompositionContext', () => {
         },
       };
       const ctx = await buildDecompositionContext(1, provider, {
-        agentSettings: {
-          limits: {
-            planningContext: { maxBytes: 1000000, summaryMode: 'always' },
-          },
+        planning: {
+          context: { maxBytes: 1000000, summaryMode: 'always' },
         },
       });
       assert.equal(ctx.contextMode, 'summary');

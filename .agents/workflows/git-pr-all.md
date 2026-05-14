@@ -46,14 +46,14 @@ workflow does not bypass them.
   When omitted, the branch is slugged from the commit subject (see
   Step 2).
 - `--base <branch>` — override the merge target. When omitted, reads
-  `agentSettings.baseBranch` from `.agentrc.json` (default `main`).
+  `project.baseBranch` from `.agentrc.json` (default `main`).
 
 ---
 
 ## Step 0 — Resolve Context
 
 1. Resolve `[BASE_BRANCH]` from `--base` or `.agentrc.json` →
-   `agentSettings.baseBranch` (default `main`).
+   `project.baseBranch` (default `main`).
 2. Read the current branch with `git rev-parse --abbrev-ref HEAD`.
 3. Determine the operating mode:
    - **`from-base` mode** — current branch equals `[BASE_BRANCH]`. The

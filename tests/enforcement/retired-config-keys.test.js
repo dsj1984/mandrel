@@ -11,13 +11,13 @@ const WORKFLOWS_DIR = path.join(REPO_ROOT, '.agents', 'workflows');
 const RETIRED_FLAT_KEYS = [
   {
     key: 'qualityGate',
-    replacement: 'agentSettings.quality.prGate',
-    epic: 'Epic #730 Story 4',
+    replacement: 'github.branchProtection.requiredChecks',
+    epic: 'Epic #730 Story 4 → Epic #1720 Story #1739',
   },
   {
     key: 'lintBaselinePath',
-    replacement: 'agentSettings.quality.baselines.lint.path',
-    epic: 'Epic #730 Story 6 (resolves #763)',
+    replacement: 'delivery.quality.baselines.lint.path',
+    epic: 'Epic #730 Story 6 → Epic #1720 Story #1739',
   },
 ];
 

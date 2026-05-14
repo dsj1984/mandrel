@@ -231,7 +231,7 @@ export async function main(args = process.argv.slice(2)) {
       await resolveContextIds(
         provider,
         { taskId, storyId, epicId },
-        agentSettings,
+        config.agentSettings,
       );
 
     const signal = buildFrictionSignal({
@@ -249,7 +249,7 @@ export async function main(args = process.argv.slice(2)) {
           epicId: resolvedEpicId,
           storyId: resolvedStoryId,
           signal,
-          config: { agentSettings },
+          config,
         });
         if (ok) {
           Logger.error(

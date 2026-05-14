@@ -6,33 +6,19 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import {
-  AGENT_SETTINGS_SCHEMA,
-  ORCHESTRATION_SCHEMA,
-} from '../.agents/scripts/lib/config-schema.js';
+import { AGENTRC_SCHEMA } from '../.agents/scripts/lib/config-settings-schema.js';
 
 // ---------------------------------------------------------------------------
 // Behavioural drift test — directionality contract.
 //
-// Authoritative direction: AJV → mirror. The runtime AJV schemas in
-// config-schema.js + config-settings-schema.js are the SOURCE OF TRUTH; the
-// static .agents/schemas/agentrc.schema.json file is an ADVISORY human-readable
+// Authoritative direction: AJV → mirror. The runtime AJV schema in
+// config-settings-schema.js is the SOURCE OF TRUTH; the static
+// .agents/schemas/agentrc.schema.json file is an ADVISORY human-readable
 // mirror. When the two diverge, the AJV side wins and the mirror MUST be
 // updated to match — never the other way around.
 //
-// What this test catches: AJV → mirror lag. A schema change landed on the AJV
-// side without a corresponding update to the static mirror, so the two
-// surfaces now disagree on which inputs to accept or reject.
-//
-// How to fix a failure: update .agents/schemas/agentrc.schema.json to mirror
-// the AJV-side change. Do NOT relax the AJV schema to match the mirror.
-//
-// Why verdict-equivalence rather than structural diff: the AJV side uses
-// programmatic shortcuts (compiled patternProperties, helper-built keyword
-// sets, etc.) that don't translate to a static JSON file. Comparing structure
-// would be brittle. Instead we assert the two surfaces produce the same
-// accept/reject verdicts on a curated fixture set covering every block whose
-// typing previous Stories added.
+// Post-reshape (Epic #1720 Story #1739) the doc-level schema validates
+// the four top-level blocks {project, github, planning, delivery}.
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,24 +32,27 @@ const MIRROR_PATH = path.resolve(
 
 const mirror = JSON.parse(readFileSync(MIRROR_PATH, 'utf8'));
 
-const ajv = new Ajv2020({ allErrors: true });
-addFormats(ajv);
-ajv.addSchema(mirror, 'mirror');
-
-const mirrorValidator = (defName) =>
-  ajv.getSchema(`mirror#/$defs/${defName}`) ??
-  ajv.compile({ $ref: `mirror#/$defs/${defName}` });
+const ajv2020 = new Ajv2020({ allErrors: true });
+addFormats(ajv2020);
+const mirrorValidator = ajv2020.compile(mirror);
 
 const runtimeAjv = new Ajv({ allErrors: true });
 addFormats(runtimeAjv);
-const runtimeValidators = {
-  agentSettings: runtimeAjv.compile(AGENT_SETTINGS_SCHEMA),
-  orchestration: runtimeAjv.compile(ORCHESTRATION_SCHEMA),
-};
+const runtimeValidator = runtimeAjv.compile(AGENTRC_SCHEMA);
 
-const assertAgree = (block, value, label) => {
-  const runtimeOk = runtimeValidators[block](value);
-  const mirrorOk = mirrorValidator(block)(value);
+const REQ = Object.freeze({
+  project: Object.freeze({
+    paths: Object.freeze({
+      agentRoot: '.agents',
+      docsRoot: 'docs',
+      tempRoot: 'temp',
+    }),
+  }),
+});
+
+const assertAgree = (value, label) => {
+  const runtimeOk = runtimeValidator(value);
+  const mirrorOk = mirrorValidator(value);
   let directionalHint = '';
   if (runtimeOk && !mirrorOk) {
     directionalHint =
@@ -77,486 +66,15 @@ const assertAgree = (block, value, label) => {
   assert.equal(
     mirrorOk,
     runtimeOk,
-    `[${block}] ${label}: runtime=${runtimeOk} mirror=${mirrorOk}.${directionalHint}`,
+    `${label}: runtime=${runtimeOk} mirror=${mirrorOk}.${directionalHint}`,
   );
 };
 
-describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
-  it('accepts a fully populated agentSettings block on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        baseBranch: 'main',
-        paths: {
-          agentRoot: '.agents',
-          docsRoot: 'docs',
-          tempRoot: 'temp',
-          auditOutputDir: 'temp',
-          scriptsRoot: '.agents/scripts',
-          workflowsRoot: '.agents/workflows',
-          personasRoot: '.agents/personas',
-          schemasRoot: '.agents/schemas',
-          skillsRoot: '.agents/skills',
-          templatesRoot: '.agents/templates',
-          rulesRoot: '.agents/rules',
-        },
-        commands: {
-          validate: 'npm run lint',
-          test: 'npm test',
-          typecheck: null,
-          build: null,
-        },
-        limits: {
-          maxTickets: 60,
-          maxInstructionSteps: 5,
-          maxTokenBudget: 200000,
-          executionTimeoutMs: 300000,
-          executionMaxBuffer: 10485760,
-          friction: {
-            repetitiveCommandCount: 3,
-            consecutiveErrorCount: 3,
-            stagnationStepCount: 5,
-            maxIntegrationRetries: 2,
-          },
-        },
-        docsContextFiles: ['architecture.md'],
-        quality: {
-          maintainability: { targetDirs: ['.agents/scripts'] },
-          crap: {
-            enabled: true,
-            targetDirs: ['.agents/scripts'],
-            newMethodCeiling: 30,
-            coveragePath: 'coverage/coverage-final.json',
-            tolerance: 0.001,
-            requireCoverage: true,
-          },
-          prGate: {
-            checks: [{ name: 'lint', cmd: ['npm', 'run', 'lint'] }],
-          },
-        },
-        release: {
-          docs: ['README.md'],
-          versionFile: '.agents/VERSION',
-          packageJson: true,
-          autoVersionBump: true,
-        },
-        planning: { riskHeuristics: ['no destructive ops'] },
-      },
-      'fully populated',
-    );
-  });
-
-  // Epic #1142 Story #1157: epicClose + orchestration.hitl deleted from
-  // both AJV schemas and the static mirror. Legacy v5.39.x configs that
-  // still carry these blocks must fail with `additionalProperties` errors
-  // on both validators.
-  it('rejects legacy epicClose at the agentSettings root on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        epicClose: { runRetro: true },
-      },
-      'legacy epicClose post-1157',
-    );
-  });
-
-  it('rejects legacy orchestration.hitl on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        hitl: {},
-      },
-      'legacy orchestration.hitl post-1157',
-    );
-  });
-
-  it('rejects shell-injection in baseBranch on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { baseBranch: 'main; rm -rf /' },
-      'shell injection in baseBranch',
-    );
-  });
-
-  it('rejects unknown property on planning on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { planning: { riskHeuristic: ['x'] } },
-      'planning typo',
-    );
-  });
-
-  // Epic #1142 Story #1157: legacy `riskGates` block at the root rejected.
-  it('rejects legacy agentSettings.riskGates on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        riskGates: { heuristics: ['x'] },
-      },
-      'legacy riskGates post-1157',
-    );
-  });
-
-  // Story #1398 (Epic #1386): autoRefresh under quality.
-  it('accepts quality.autoRefresh defaults on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: {
-          autoRefresh: {
-            enabled: true,
-            miDropCap: 1.5,
-            crapJumpCap: 5,
-            scope: 'diff',
-          },
-        },
-      },
-      'autoRefresh defaults',
-    );
-  });
-
-  it('rejects negative autoRefresh.miDropCap on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { autoRefresh: { miDropCap: -0.5 } },
-      },
-      'negative miDropCap',
-    );
-  });
-
-  it('rejects negative autoRefresh.crapJumpCap on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { autoRefresh: { crapJumpCap: -1 } },
-      },
-      'negative crapJumpCap',
-    );
-  });
-
-  it('rejects unknown autoRefresh.scope value on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { autoRefresh: { scope: 'sideways' } },
-      },
-      'unknown scope',
-    );
-  });
-
-  it('rejects unknown property under quality.autoRefresh on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { autoRefresh: { whoops: true } },
-      },
-      'autoRefresh typo',
-    );
-  });
-
-  it('rejects unknown property on quality.prGate on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { prGate: { check: ['x'] } },
-      },
-      'quality.prGate typo',
-    );
-  });
-
-  // Story #1399 (Epic #1386) — `quality.codingGuardrails` is the new numeric
-  // thresholds block the helper at code-quality-guardrails.md cites. Both
-  // surfaces must accept the populated block + reject typos / out-of-range.
-  it('accepts a populated quality.codingGuardrails block on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: {
-          codingGuardrails: {
-            cyclomaticFlag: 8,
-            cyclomaticMustFix: 12,
-            miDropRefactor: 1.5,
-            requireSiblingTest: false,
-          },
-        },
-      },
-      'codingGuardrails populated',
-    );
-  });
-
-  it('rejects unknown property on quality.codingGuardrails on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { codingGuardrails: { cyclomatic: 8 } },
-      },
-      'codingGuardrails typo',
-    );
-  });
-
-  it('rejects negative miDropRefactor on quality.codingGuardrails on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { codingGuardrails: { miDropRefactor: -0.5 } },
-      },
-      'codingGuardrails negative',
-    );
-  });
-
-  // Epic #1142 Story #1157: prGate.checks promoted to object items
-  // (`{ name, cmd[] }`) so the runner can spawn each check directly.
-  it('rejects prGate.checks string items on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        quality: { prGate: { checks: ['lint'] } },
-      },
-      'prGate.checks string item post-1157',
-    );
-  });
-
-  it('rejects unknown property on limits.friction on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        limits: { friction: { repetativeCommandCount: 3 } },
-      },
-      'limits.friction typo',
-    );
-  });
-
-  it('rejects non-integer limits.maxTokenBudget on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        limits: { maxTokenBudget: 'lots' },
-      },
-      'string limits.maxTokenBudget',
-    );
-  });
-
-  it('accepts null commands.typecheck on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { commands: { typecheck: null } },
-      'null commands.typecheck',
-    );
-  });
-
-  it('accepts null commands.build on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { commands: { build: null } },
-      'null commands.build',
-    );
-  });
-
-  it('rejects empty-string commands.typecheck on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { commands: { typecheck: '' } },
-      'empty commands.typecheck',
-    );
-  });
-
-  it('rejects empty-string commands.build on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { commands: { build: '' } },
-      'empty commands.build',
-    );
-  });
-
-  it('rejects unknown property under commands on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      { commands: { lint: 'npm run lint' } },
-      'commands typo',
-    );
-  });
-
-  it('rejects an unknown top-level agentSettings key on both sides (Epic #773 Story 9)', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        unknownTopLevel: true,
-      },
-      'unknown agentSettings top-level',
-    );
-  });
-
-  it('rejects a legacy `scriptsRoot` flat key at the top level on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        scriptsRoot: '.agents/scripts',
-      },
-      'flat *Root after Story 9 cutover',
-    );
-  });
-
-  it('accepts the seven *Root keys nested under paths on both sides', () => {
-    assertAgree(
-      'agentSettings',
-      {
-        paths: {
-          agentRoot: '.agents',
-          docsRoot: 'docs',
-          tempRoot: 'temp',
-          scriptsRoot: '.agents/scripts',
-          workflowsRoot: '.agents/workflows',
-          personasRoot: '.agents/personas',
-          schemasRoot: '.agents/schemas',
-          skillsRoot: '.agents/skills',
-          templatesRoot: '.agents/templates',
-          rulesRoot: '.agents/rules',
-        },
-      },
-      'paths.*Root accepted',
-    );
-  });
-
-  it('accepts a full orchestration block on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: {
-          owner: 'dsj1984',
-          repo: 'mandrel',
-          projectNumber: 1,
-          operatorHandle: '@dsj1984',
-        },
-        notifications: {
-          mentionOperator: false,
-          commentEvents: [
-            'state-transition',
-            'story-merged',
-            'operator-message',
-          ],
-          webhookEvents: [
-            'epic-started',
-            'epic-progress',
-            'epic-blocked',
-            'epic-unblocked',
-            'epic-complete',
-          ],
-        },
-        worktreeIsolation: {
-          enabled: true,
-          root: '.worktrees',
-          nodeModulesStrategy: 'per-worktree',
-        },
-        runners: {
-          deliverRunner: {
-            enabled: true,
-            concurrencyCap: 3,
-            progressReportIntervalSec: 30,
-          },
-          planRunner: { enabled: true, pollIntervalSec: 30 },
-        },
-      },
-      'full orchestration',
-    );
-  });
-
-  it('rejects flat deliverRunner under orchestration on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        deliverRunner: { enabled: true, concurrencyCap: 3 },
-      },
-      'flat deliverRunner is no longer allowed at the orchestration root',
-    );
-  });
-
-  // Epic #1142 Story #1157: legacy `epicRunner` / `closeRetry` keys under
-  // `runners` are rejected — repos must rename to deliverRunner /
-  // storyMergeRetry in `.agentrc.json`.
-  it('rejects legacy runners.epicRunner key on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        runners: { epicRunner: { enabled: true, concurrencyCap: 3 } },
-      },
-      'legacy runners.epicRunner post-1157',
-    );
-  });
-
-  it('rejects legacy runners.closeRetry key on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        runners: { closeRetry: { maxAttempts: 3 } },
-      },
-      'legacy runners.closeRetry post-1157',
-    );
-  });
-
-  it('rejects unknown property under orchestration.runners on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        runners: { unknownRunner: {} },
-      },
-      'unknown runners child',
-    );
-  });
-
-  it("rejects provider:'github' with no github block on both sides", () => {
-    assertAgree(
-      'orchestration',
-      { provider: 'github' },
-      'missing github block',
-    );
-  });
-
-  it('rejects missing provider on both sides', () => {
-    assertAgree(
-      'orchestration',
-      { github: { owner: 'org', repo: 'repo' } },
-      'missing provider',
-    );
-  });
-
-  it('rejects unknown top-level orchestration property on both sides', () => {
-    assertAgree(
-      'orchestration',
-      {
-        provider: 'github',
-        github: { owner: 'org', repo: 'repo' },
-        unknownField: true,
-      },
-      'unknown top-level',
-    );
+describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
+  it('mirror exposes the four top-level blocks under $defs', () => {
+    for (const def of ['project', 'github', 'planning', 'delivery']) {
+      assert.ok(mirror.$defs[def], `mirror is missing $defs.${def}`);
+    }
   });
 
   it('mirror references a draft 2020-12 $schema', () => {
@@ -566,9 +84,167 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schemas', () => {
     );
   });
 
-  it('mirror exposes agentSettings and orchestration under $defs', () => {
-    for (const def of ['agentSettings', 'orchestration']) {
-      assert.ok(mirror.$defs[def], `mirror is missing $defs.${def}`);
-    }
+  it('accepts a minimal valid doc on both sides', () => {
+    assertAgree({ ...REQ }, 'minimal valid doc');
+  });
+
+  it('accepts a populated doc on both sides', () => {
+    assertAgree(
+      {
+        project: {
+          baseBranch: 'main',
+          paths: REQ.project.paths,
+          docsContextFiles: ['architecture.md'],
+          commands: {
+            test: 'npm test',
+            typecheck: null,
+            lintBaseline: 'npm run lint',
+            formatCheck: 'npx biome format .',
+            formatWrite: 'npx biome format --write .',
+          },
+        },
+        github: {
+          owner: 'dsj1984',
+          repo: 'mandrel',
+          operatorHandle: '@dsj1984',
+          branchProtection: {
+            enforce: true,
+            requiredChecks: [{ name: 'lint', cmd: ['npm', 'run', 'lint'] }],
+          },
+          mergeMethods: { allow_squash_merge: true },
+          notifications: {
+            mentionOperator: false,
+            commentEvents: ['state-transition'],
+            webhookEvents: ['epic-started'],
+          },
+        },
+        planning: {
+          maxTickets: 60,
+          riskHeuristics: ['no destructive ops'],
+          context: { maxBytes: 50000, summaryMode: 'auto' },
+        },
+        delivery: {
+          execution: { timeoutMs: 600000 },
+          maxTokenBudget: 200000,
+          docsFreshness: { paths: ['README.md'] },
+          deliverRunner: { concurrencyCap: 3, progressReportIntervalSec: 120 },
+          worktreeIsolation: {
+            enabled: true,
+            root: '.worktrees',
+            nodeModulesStrategy: 'per-worktree',
+          },
+          signals: {
+            hotspot: { p95Multiplier: 1.25 },
+            rework: { editsPerFile: 5 },
+            retry: { repeatCount: 3 },
+          },
+          quality: {
+            crap: {
+              enabled: true,
+              targetDirs: ['src'],
+              newMethodCeiling: 30,
+              coveragePath: 'coverage/coverage-final.json',
+              tolerance: 0.05,
+              requireCoverage: true,
+            },
+            codingGuardrails: {
+              cyclomaticFlag: 8,
+              cyclomaticMustFix: 12,
+              miDropMustRefactor: 1.5,
+              requireSiblingTest: false,
+            },
+          },
+        },
+      },
+      'fully populated doc',
+    );
+  });
+
+  it('rejects legacy agentSettings on both sides', () => {
+    assertAgree(
+      { agentSettings: { paths: REQ.project.paths } },
+      'legacy agentSettings',
+    );
+  });
+
+  it('rejects legacy orchestration on both sides', () => {
+    assertAgree(
+      { ...REQ, orchestration: { provider: 'github' } },
+      'legacy orchestration',
+    );
+  });
+
+  it('rejects unknown top-level keys on both sides', () => {
+    assertAgree({ ...REQ, mystery: true }, 'unknown top-level key');
+  });
+
+  it('rejects shell-injection in project.baseBranch on both sides', () => {
+    assertAgree(
+      { project: { ...REQ.project, baseBranch: 'main; rm -rf /' } },
+      'shell injection in baseBranch',
+    );
+  });
+
+  it('rejects unknown property under project.commands on both sides', () => {
+    assertAgree(
+      {
+        project: { ...REQ.project, commands: { build: 'npm run build' } },
+      },
+      'commands typo (build dropped)',
+    );
+  });
+
+  it('rejects renamed-away miDropRefactor on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: { codingGuardrails: { miDropRefactor: 1.5 } },
+        },
+      },
+      'renamed codingGuardrails field',
+    );
+  });
+
+  it('rejects dropped halsteadTolerance on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: { maintainability: { halsteadTolerance: 0.1 } },
+        },
+      },
+      'dropped halsteadTolerance',
+    );
+  });
+
+  it('rejects dropped signals.churn on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { signals: { churn: { repeatCount: 4 } } },
+      },
+      'dropped signals.churn',
+    );
+  });
+
+  it('rejects legacy deliverRunner.enabled on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { deliverRunner: { enabled: true } },
+      },
+      'dropped deliverRunner.enabled',
+    );
+  });
+
+  it('rejects worktreeIsolation without root when enabled is true on both sides', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: { worktreeIsolation: { enabled: true } },
+      },
+      'conditional root required when enabled=true',
+    );
   });
 });
