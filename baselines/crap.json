@@ -1414,7 +1414,7 @@
       "startLine": 26
     },
     {
-      "crap": 103.02586113810602,
+      "crap": 10,
       "file": ".agents/scripts/lib/config/github.js",
       "method": "getGitHub",
       "startLine": 84

@@ -442,6 +442,7 @@
   "tests/lib/config-resolver-ctx.test.js": 112.252,
   "tests/lib/config-resolver.test.js": 108.267,
   "tests/lib/config-runners.test.js": 112.579,
+  "tests/lib/config/github.test.js": 108.478,
   "tests/lib/config/limits-override.test.js": 110.113,
   "tests/lib/config/limits.test.js": 110.179,
   "tests/lib/config/temp-paths.test.js": 114.276,
