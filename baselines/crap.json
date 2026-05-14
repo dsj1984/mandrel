@@ -3640,7 +3640,7 @@
       "startLine": 268
     },
     {
-      "crap": 5,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "renderDependsOnFooter",
       "startLine": 290
@@ -3649,73 +3649,73 @@
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "applyCreate",
-      "startLine": 313
+      "startLine": 322
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "applyUpdate",
-      "startLine": 356
+      "startLine": 365
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "applyClose",
-      "startLine": 392
+      "startLine": 401
     },
     {
       "crap": 8,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "applyRelink",
-      "startLine": 416
+      "startLine": 425
     },
     {
       "crap": 14.000128873181557,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "apply",
-      "startLine": 470
+      "startLine": 479
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "<anon method-9>",
-      "startLine": 506
+      "startLine": 515
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "<anon method-10>",
-      "startLine": 513
+      "startLine": 522
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "<anon method-11>",
-      "startLine": 523
+      "startLine": 532
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "<anon method-12>",
-      "startLine": 535
+      "startLine": 544
     },
     {
       "crap": 13,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "projectStateForWrite",
-      "startLine": 601
+      "startLine": 610
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "collectStructuralEdges",
-      "startLine": 662
+      "startLine": 671
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "topoSortCreates",
-      "startLine": 695
+      "startLine": 704
     },
     {
       "crap": 4,
