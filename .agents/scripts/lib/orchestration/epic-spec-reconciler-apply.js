@@ -290,11 +290,20 @@ function resolveParentId(slug, slugToIssue) {
 function renderDependsOnFooter(dependsOn, slugToIssue) {
   if (!Array.isArray(dependsOn) || dependsOn.length === 0) return '';
   const lines = [];
+  const unresolved = [];
   for (const slug of dependsOn) {
     const issueNumber = slugToIssue[slug];
     if (typeof issueNumber === 'number') {
       lines.push(`blocked by #${issueNumber}`);
+    } else {
+      unresolved.push(slug);
     }
+  }
+  if (unresolved.length > 0) {
+    throw new Error(
+      `[reconciler] renderDependsOnFooter: unresolved dependsOn slugs: ${unresolved.join(', ')}. ` +
+        `topoSortCreates must order dependencies ahead of dependents.`,
+    );
   }
   return lines.length ? `\n\n${lines.join('\n')}` : '';
 }
@@ -696,14 +705,26 @@ function topoSortCreates(creates, slugToIssue) {
   if (!creates.length) return [];
   const remaining = [...creates];
   const knownSlugs = new Set(Object.keys(slugToIssue));
+  // dependsOn slugs may reference siblings that are themselves in the
+  // create batch — those become known once their batch lands. Any slug
+  // that is neither pre-known nor will be created here is an external
+  // reference we can't satisfy via topo order; treat it as "satisfiable
+  // outside the batch" so we don't deadlock. The fail-loud renderer
+  // catches truly unresolved slugs at apply time.
+  const createSlugs = new Set(creates.map((op) => op.slug));
   const batches = [];
   while (remaining.length) {
-    const ready = remaining.filter(
-      (op) => !op.parentSlug || knownSlugs.has(op.parentSlug),
-    );
+    const ready = remaining.filter((op) => {
+      const parentReady = !op.parentSlug || knownSlugs.has(op.parentSlug);
+      const depsReady =
+        !Array.isArray(op.dependsOn) ||
+        op.dependsOn.every((d) => knownSlugs.has(d) || !createSlugs.has(d));
+      return parentReady && depsReady;
+    });
     if (ready.length === 0) {
       // Cycle or missing parent — break out by emitting the rest as one
-      // batch and letting `resolveParentId` raise the structured error.
+      // batch and letting `resolveParentId` / footer renderer raise the
+      // structured error.
       batches.push(remaining.splice(0));
       break;
     }

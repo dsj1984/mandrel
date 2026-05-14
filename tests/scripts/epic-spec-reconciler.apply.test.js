@@ -184,6 +184,92 @@ describe('reconciler apply — create path', () => {
     assert.ok(result.failure instanceof ApplyGateViolation);
     assert.equal(result.failure.reason, 'unmapped-parent');
   });
+
+  it('topo-sorts dependsOn within the create batch so footers resolve', async () => {
+    // Regression: before this fix, topoSortCreates only inspected
+    // parentSlug, so a dependent sibling (story-b depends_on story-a)
+    // landed in the same batch as its dependency and won the alphabetic
+    // race. renderDependsOnFooter then silently dropped the unresolved
+    // slug. This test orders the creates with the dependent FIRST and
+    // verifies the dependency lands first anyway, and the `blocked by`
+    // footer is rendered on the dependent.
+    const provider = new StubProvider({ startingIssue: 9200 });
+    const plan = emptyPlan();
+    plan.creates.push(
+      createOp({
+        slug: 'feat-parent',
+        entity: ENTITY_KINDS.FEATURE,
+        title: 'Parent Feature',
+        labels: ['type::feature'],
+        parentSlug: 'epic',
+      }),
+      // Dependent listed BEFORE its dependency.
+      createOp({
+        slug: 'story-b',
+        entity: ENTITY_KINDS.STORY,
+        title: 'B depends on A',
+        labels: ['type::story'],
+        parentSlug: 'feat-parent',
+        wave: 1,
+        dependsOn: ['story-a'],
+      }),
+      createOp({
+        slug: 'story-a',
+        entity: ENTITY_KINDS.STORY,
+        title: 'A (foundation)',
+        labels: ['type::story'],
+        parentSlug: 'feat-parent',
+        wave: 0,
+        dependsOn: [],
+      }),
+    );
+    const result = await apply(plan, provider, {
+      epicId: 9000,
+      slugToIssue: { epic: 9000 },
+    });
+    assert.equal(result.failure, undefined);
+    const aId = result.slugToIssue['story-a'];
+    const bId = result.slugToIssue['story-b'];
+    assert.equal(typeof aId, 'number');
+    assert.equal(typeof bId, 'number');
+    assert.ok(aId < bId, 'story-a must be created before story-b');
+    // Find story-b's create call and verify the footer landed.
+    // createTicket(parentId, ticketData) → args[1] is ticketData.
+    const bCall = provider.calls.find(
+      (c) => c.kind === 'createTicket' && c.args[1]?.title === 'B depends on A',
+    );
+    assert.ok(bCall, 'story-b createTicket call missing');
+    assert.match(bCall.args[1].body, new RegExp(`blocked by #${aId}`));
+  });
+
+  it('fails loud when a dependsOn slug cannot be resolved at apply time', async () => {
+    // Belt-and-suspenders: if the topo sort can't resolve a sibling
+    // dependency (e.g. a malformed plan with a phantom dependsOn slug
+    // that isn't in slugToIssue or createSlugs), the footer renderer
+    // must throw rather than silently drop the line.
+    const provider = new StubProvider({ startingIssue: 9300 });
+    const plan = emptyPlan();
+    plan.creates.push(
+      createOp({
+        slug: 'story-orphan',
+        entity: ENTITY_KINDS.STORY,
+        title: 'Orphan deps',
+        labels: ['type::story'],
+        parentSlug: 'epic',
+        wave: 0,
+        dependsOn: ['ghost-slug'],
+      }),
+    );
+    const result = await apply(plan, provider, {
+      epicId: 9000,
+      slugToIssue: { epic: 9000 },
+    });
+    assert.ok(result.failure instanceof Error);
+    assert.match(
+      result.failure.message,
+      /unresolved dependsOn slugs: ghost-slug/,
+    );
+  });
 });
 
 describe('reconciler apply — update path', () => {
