@@ -423,3 +423,37 @@ lacking explicit authorization), it flips the ticket/Epic to
 
 `agentSettings.planning.riskHeuristics` remains the rubric for identifying
 high-impact operations that should trigger blocker escalation.
+
+---
+
+## v6.1.0 baseline reset
+
+**Date:** 2026-05-14
+**Commit:** `0657272` (Story #1701, Epic #1653)
+**Files refreshed:** `baselines/coverage.json`,
+`baselines/maintainability.json`, `baselines/crap.json`.
+
+The v6.1.0 release ships a one-time baseline reset that captures fresh
+coverage, maintainability, and CRAP snapshots on the post-remediation
+`main` HEAD. The ratchet continues from this new floor, not from v5.x or
+v6.0.0 history.
+
+**Policy:** the v6.1.0 baselines are **non-comparable** to any prior
+baseline. Do not diff per-file numbers against v5.x or v6.0.0 entries to
+reason about regressions — the post-remediation tree contains refactors,
+extractions, and coverage gains that shift the absolute numbers in ways
+the per-file ratchet cannot reconcile across the discontinuity. Use the
+v6.1.0 capture as the new floor; ratchet from there.
+
+**Why now:** v6.0.0 closed the Epic #1184 floor-gate rollout. The
+absolute-floor gate (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20) is now wired
+into `.husky/pre-push` and the CI coverage workflow (see
+[`§ Absolute quality floors`](#absolute-quality-floors-v6--epic-1184)).
+With the floor enforced on every in-scope file, every per-file baseline
+entry must clear the absolute floor — the v6.1.0 snapshot is the first
+capture that holds that invariant repository-wide.
+
+**Operator action:** none. The new baseline is committed and
+`maintainability:check` / `coverage:check` / `crap:check` pass against
+it out of the box. The next regression you see will be diffed against
+the v6.1.0 baseline, not against pre-reset history.

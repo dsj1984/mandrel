@@ -25,9 +25,9 @@
     "functions": 70.37
   },
   ".agents/scripts/check-maintainability.js": {
-    "lines": 67.67,
-    "branches": 79.55,
-    "functions": 60
+    "lines": 71.48,
+    "branches": 80,
+    "functions": 65
   },
   ".agents/scripts/cleanup-repo-test-temp.js": {
     "lines": 91.04,
@@ -1041,7 +1041,7 @@
   },
   ".agents/scripts/lib/quality-floors.js": {
     "lines": 86.17,
-    "branches": 79.09,
+    "branches": 79.46,
     "functions": 100
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {

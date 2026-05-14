@@ -418,10 +418,10 @@
       "startLine": 482
     },
     {
-      "crap": 12,
+      "crap": 3,
       "file": ".agents/scripts/check-maintainability.js",
       "method": "enforceMaintainabilityFloor",
-      "startLine": 508
+      "startLine": 509
     },
     {
       "crap": 7.155836556075718,
