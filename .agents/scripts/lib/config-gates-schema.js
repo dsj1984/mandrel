@@ -1,0 +1,178 @@
+/* node:coverage ignore file -- AJV schema declaration (data-as-code); per-gate sub-schemas are flat literals with no business logic to test */
+
+import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
+
+/**
+ * Per-gate sub-schemas for `delivery.quality.gates.<tier>` (Story #1737).
+ *
+ * Every gate shares the same four-field base:
+ *
+ *   - `enabled`      — when `false`, the checker exits 0 with a skip line.
+ *   - `baselinePath` — repo-root-relative path to the gate's baseline file.
+ *   - `tolerance`    — `{ kind: 'absolute' | 'percent', value: number }`.
+ *   - `floors`       — workspace-keyed `{ "*": { ... } }` absolute floor object.
+ *
+ * Gate-specific extras (targetDirs for crap/MI, routes for lighthouse,
+ * bundles for bundleSize, coveragePath for coverage) layer on top via the
+ * per-gate schemas below. Split out of `config-settings-schema.js` to
+ * keep the parent module under the maintainability ceiling — schema
+ * literals score low on MI because they're long and flat.
+ */
+
+const SAFE_STRING = {
+  type: 'string',
+  not: { pattern: SHELL_INJECTION_PATTERN_STRING },
+};
+
+const NULLABLE_NONEMPTY_SAFE_STRING = {
+  type: ['string', 'null'],
+  minLength: 1,
+  not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
+};
+
+const LIST_OR_EXTENDER_OF_STRINGS = {
+  oneOf: [
+    { type: 'array', items: { type: 'string' } },
+    {
+      type: 'object',
+      properties: {
+        append: { type: 'array', items: { type: 'string' } },
+        prepend: { type: 'array', items: { type: 'string' } },
+      },
+      additionalProperties: false,
+    },
+  ],
+};
+
+/** Object-shaped tolerance: `{ kind: 'absolute' | 'percent', value: number }`. */
+const TOLERANCE_SCHEMA = {
+  type: 'object',
+  required: ['kind', 'value'],
+  properties: {
+    kind: { type: 'string', enum: ['absolute', 'percent'] },
+    value: { type: 'number', minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
+/** Workspace-keyed floors object — `"*"` catch-all required. */
+const FLOORS_SCHEMA = {
+  type: 'object',
+  required: ['*'],
+  additionalProperties: {
+    type: 'object',
+    additionalProperties: { type: 'number' },
+  },
+};
+
+const GATE_BASE = {
+  enabled: { type: 'boolean' },
+  baselinePath: { ...SAFE_STRING, minLength: 1 },
+  tolerance: TOLERANCE_SCHEMA,
+  floors: FLOORS_SCHEMA,
+};
+
+const LINT_GATE = {
+  type: 'object',
+  properties: { ...GATE_BASE },
+  additionalProperties: false,
+};
+
+const COVERAGE_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    coveragePath: { ...SAFE_STRING, minLength: 1 },
+  },
+  additionalProperties: false,
+};
+
+const CRAP_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    targetDirs: LIST_OR_EXTENDER_OF_STRINGS,
+    newMethodCeiling: { type: 'integer', minimum: 1 },
+    requireCoverage: { type: 'boolean' },
+    friction: {
+      type: 'object',
+      properties: { markerKey: { type: 'string', minLength: 1 } },
+      additionalProperties: false,
+    },
+    refreshTag: { ...SAFE_STRING, minLength: 1 },
+  },
+  additionalProperties: false,
+};
+
+const MAINTAINABILITY_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    targetDirs: LIST_OR_EXTENDER_OF_STRINGS,
+  },
+  additionalProperties: false,
+};
+
+const MUTATION_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    strykerConfigPath: NULLABLE_NONEMPTY_SAFE_STRING,
+  },
+  additionalProperties: false,
+};
+
+const LIGHTHOUSE_ROUTE = {
+  type: 'object',
+  required: ['path'],
+  properties: {
+    path: { type: 'string', minLength: 1 },
+    formFactor: { type: 'string', enum: ['mobile', 'desktop'] },
+  },
+  additionalProperties: false,
+};
+
+const LIGHTHOUSE_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    baseUrl: NULLABLE_NONEMPTY_SAFE_STRING,
+    routes: { type: 'array', items: LIGHTHOUSE_ROUTE },
+  },
+  additionalProperties: false,
+};
+
+const BUNDLE_DECLARATION = {
+  type: 'object',
+  required: ['name', 'path', 'limit'],
+  properties: {
+    name: { type: 'string', minLength: 1 },
+    path: { type: 'string', minLength: 1 },
+    limit: { type: 'string', minLength: 1 },
+  },
+  additionalProperties: false,
+};
+
+const BUNDLE_SIZE_GATE = {
+  type: 'object',
+  properties: {
+    ...GATE_BASE,
+    bundles: { type: 'array', items: BUNDLE_DECLARATION },
+  },
+  additionalProperties: false,
+};
+
+/** Composite `delivery.quality.gates` schema — closed shape. */
+export const GATES_SCHEMA = {
+  type: 'object',
+  properties: {
+    lint: LINT_GATE,
+    coverage: COVERAGE_GATE,
+    crap: CRAP_GATE,
+    maintainability: MAINTAINABILITY_GATE,
+    mutation: MUTATION_GATE,
+    lighthouse: LIGHTHOUSE_GATE,
+    bundleSize: BUNDLE_SIZE_GATE,
+  },
+  additionalProperties: false,
+};

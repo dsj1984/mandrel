@@ -9,6 +9,11 @@
     "branches": 64.71,
     "functions": 100
   },
+  ".agents/scripts/check-mutation.js": {
+    "lines": 93.58,
+    "branches": 81.43,
+    "functions": 85.71
+  },
   ".agents/scripts/cleanup-repo-test-temp.js": {
     "lines": 91.04,
     "branches": 91.67,
@@ -115,8 +120,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/branch-protection.js": {
-    "lines": 96.32,
-    "branches": 85.96,
+    "lines": 96.5,
+    "branches": 86.89,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/ci-workflow-template.js": {
@@ -131,12 +136,12 @@
   },
   ".agents/scripts/lib/bootstrap/merge-methods.js": {
     "lines": 100,
-    "branches": 93.1,
+    "branches": 93.33,
     "functions": 100
   },
   ".agents/scripts/lib/bootstrap/quality-bootstrap.js": {
     "lines": 98.76,
-    "branches": 87.27,
+    "branches": 89.09,
     "functions": 100
   },
   ".agents/scripts/lib/branch-name-guard.js": {
@@ -235,13 +240,18 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 89.54,
-    "branches": 82.91,
-    "functions": 77.27
+    "lines": 88.54,
+    "branches": 81.67,
+    "functions": 78.26
+  },
+  ".agents/scripts/lib/config-gates-schema.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
   },
   ".agents/scripts/lib/config-resolver.js": {
     "lines": 100,
-    "branches": 94.12,
+    "branches": 95.45,
     "functions": 100
   },
   ".agents/scripts/lib/config-schema-shared.js": {
@@ -250,13 +260,18 @@
     "functions": null
   },
   ".agents/scripts/lib/config/baselines.js": {
-    "lines": 100,
-    "branches": 100,
-    "functions": 100
+    "lines": 82.81,
+    "branches": 90.91,
+    "functions": 66.67
   },
   ".agents/scripts/lib/config/commands.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/config/github.js": {
+    "lines": 100,
+    "branches": 96.88,
     "functions": 100
   },
   ".agents/scripts/lib/config/limits.js": {
@@ -270,8 +285,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/config/quality.js": {
-    "lines": 97.8,
-    "branches": 96.74,
+    "lines": 99.55,
+    "branches": 85.87,
     "functions": 100
   },
   ".agents/scripts/lib/config/runners.js": {
@@ -281,27 +296,27 @@
   },
   ".agents/scripts/lib/config/runtime.js": {
     "lines": 100,
-    "branches": 97.14,
+    "branches": 97.37,
     "functions": 100
   },
   ".agents/scripts/lib/config/shared.js": {
     "lines": 97.83,
-    "branches": 93.75,
+    "branches": 91.67,
     "functions": 100
   },
   ".agents/scripts/lib/config/temp-paths.js": {
-    "lines": 94.79,
+    "lines": 94.95,
     "branches": 100,
     "functions": 88.89
   },
   ".agents/scripts/lib/config/validate-orchestration.js": {
     "lines": 100,
-    "branches": 100,
+    "branches": 96.3,
     "functions": 100
   },
   ".agents/scripts/lib/coverage-baseline.js": {
-    "lines": 99.62,
-    "branches": 90.48,
+    "lines": 99.64,
+    "branches": 87.69,
     "functions": 100
   },
   ".agents/scripts/lib/coverage-capture.js": {
@@ -454,6 +469,21 @@
     "branches": 90,
     "functions": 100
   },
+  ".agents/scripts/lib/mutation/baseline-snapshot.js": {
+    "lines": 93.28,
+    "branches": 85.96,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mutation/config-detector.js": {
+    "lines": 100,
+    "branches": 85,
+    "functions": 100
+  },
+  ".agents/scripts/lib/mutation/stryker-runner.js": {
+    "lines": 97.71,
+    "branches": 81.25,
+    "functions": 100
+  },
   ".agents/scripts/lib/notifications/notifier.js": {
     "lines": 100,
     "branches": 89.47,
@@ -536,7 +566,7 @@
   },
   ".agents/scripts/lib/orchestration/doc-reader.js": {
     "lines": 92.05,
-    "branches": 85,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js": {
@@ -576,7 +606,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
     "lines": 89.01,
-    "branches": 57.14,
+    "branches": 50,
     "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js": {
@@ -585,8 +615,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js": {
-    "lines": 88.32,
-    "branches": 56.25,
+    "lines": 91.24,
+    "branches": 58.06,
     "functions": 66.67
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js": {
@@ -596,7 +626,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
     "lines": 92.57,
-    "branches": 70.65,
+    "branches": 71.92,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
@@ -629,11 +659,6 @@
     "branches": 86.49,
     "functions": 100
   },
-  ".agents/scripts/lib/orchestration/epic-runner/version-bump-intent.js": {
-    "lines": 97.76,
-    "branches": 82.05,
-    "functions": 100
-  },
   ".agents/scripts/lib/orchestration/epic-runner/wave-observer.js": {
     "lines": 92.9,
     "branches": 80.39,
@@ -645,8 +670,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js": {
-    "lines": 99.3,
-    "branches": 83.2,
+    "lines": 99.32,
+    "branches": 83.33,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js": {
@@ -715,8 +740,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/planning-context-budget.js": {
-    "lines": 99.06,
-    "branches": 84.75,
+    "lines": 100,
+    "branches": 88.14,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/planning-state-manager.js": {
@@ -905,8 +930,8 @@
     "functions": 83.33
   },
   ".agents/scripts/lib/quality-floors.js": {
-    "lines": 86.17,
-    "branches": 79.46,
+    "lines": 87.36,
+    "branches": 80.49,
     "functions": 100
   },
   ".agents/scripts/lib/retrofit/task-body-retrofit.js": {
@@ -1075,7 +1100,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.89,
+    "lines": 92.94,
     "branches": 85.71,
     "functions": 70
   },

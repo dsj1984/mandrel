@@ -75,7 +75,6 @@ export class WorktreeManager {
     this.config = {
       root: '.worktrees',
       nodeModulesStrategy: 'per-worktree',
-      windowsPathLengthWarnThreshold: 240,
       bootstrapFiles: DEFAULT_WORKSPACE_FILES.slice(),
       ...config,
     };
@@ -123,7 +122,10 @@ export class WorktreeManager {
         maybeWarnWindowsPath(
           {
             platform: this.platform,
-            threshold: this.config.windowsPathLengthWarnThreshold,
+            // Hardcoded post-reshape (Epic #1720 Story #1739). The value
+            // tracks Windows MAX_PATH minus headroom for the worktree's own
+            // path overhead — not a domain knob operators tune.
+            threshold: 240,
             logger: this.logger,
           },
           wtPath,

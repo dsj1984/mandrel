@@ -1,39 +1,34 @@
 /**
- * `agentSettings.paths` accessor (Epic #730 Story 7; relocated under
- * lib/config/ in Epic #773 Story 6; extended with the seven `*Root` keys
- * in Epic #773 Story 9).
+ * `project.paths` accessor (Epic #1720 Story #1739 — top-level reshape).
+ *
+ * The seven legacy `*Root` subdirectory keys and the legacy `auditOutputDir`
+ * were dropped — every `${dir}Root` is derived at runtime as
+ * `${agentRoot}/<dir>`, and `auditOutputDir` is derived as `${tempRoot}/audit`.
  */
 
 /**
- * Framework defaults for `agentSettings.paths`. Required roots
- * (`agentRoot` / `docsRoot` / `tempRoot`) are schema-enforced — they have
- * no default and the resolver never silently fills them in. The optional
- * `auditOutputDir` plus the seven `*Root` directories carry framework
- * defaults that flow into the resolved config when the operator omits
- * them.
+ * Framework defaults for the derived path keys. `agentRoot`, `docsRoot`, and
+ * `tempRoot` are schema-required (no defaults — the resolver never silently
+ * fills them in); everything else is derived from the required roots and
+ * exposed here so call sites that previously read e.g.
+ * `paths.scriptsRoot` keep working byte-identically.
  */
 export const PATHS_DEFAULTS = Object.freeze({
-  auditOutputDir: 'temp',
-  scriptsRoot: '.agents/scripts',
-  workflowsRoot: '.agents/workflows',
-  personasRoot: '.agents/personas',
-  schemasRoot: '.agents/schemas',
-  skillsRoot: '.agents/skills',
-  templatesRoot: '.agents/templates',
-  rulesRoot: '.agents/rules',
+  agentRoot: '.agents',
+  docsRoot: 'docs',
+  tempRoot: 'temp',
 });
 
 /**
- * Merge a user-supplied `paths` block with framework defaults. Required
- * roots (`agentRoot` / `docsRoot` / `tempRoot`) flow through verbatim —
- * the schema rejects a config that omits them. `auditOutputDir` and the
- * seven `*Root` directories fall back to {@link PATHS_DEFAULTS}.
+ * Resolve the merged `project.paths` block, deriving the legacy `*Root`
+ * subdirectory keys at runtime so existing call sites keep reading the
+ * same shape.
  *
  * @param {object|undefined} userPaths
  * @returns {{
- *   agentRoot?: string,
- *   docsRoot?: string,
- *   tempRoot?: string,
+ *   agentRoot: string,
+ *   docsRoot: string,
+ *   tempRoot: string,
  *   auditOutputDir: string,
  *   scriptsRoot: string,
  *   workflowsRoot: string,
@@ -46,29 +41,39 @@ export const PATHS_DEFAULTS = Object.freeze({
  */
 export function resolvePaths(userPaths) {
   const paths = userPaths && typeof userPaths === 'object' ? userPaths : {};
+  const agentRoot = paths.agentRoot ?? PATHS_DEFAULTS.agentRoot;
+  const docsRoot = paths.docsRoot ?? PATHS_DEFAULTS.docsRoot;
+  const tempRoot = paths.tempRoot ?? PATHS_DEFAULTS.tempRoot;
   return {
-    agentRoot: paths.agentRoot,
-    docsRoot: paths.docsRoot,
-    tempRoot: paths.tempRoot,
-    auditOutputDir: paths.auditOutputDir ?? PATHS_DEFAULTS.auditOutputDir,
-    scriptsRoot: paths.scriptsRoot ?? PATHS_DEFAULTS.scriptsRoot,
-    workflowsRoot: paths.workflowsRoot ?? PATHS_DEFAULTS.workflowsRoot,
-    personasRoot: paths.personasRoot ?? PATHS_DEFAULTS.personasRoot,
-    schemasRoot: paths.schemasRoot ?? PATHS_DEFAULTS.schemasRoot,
-    skillsRoot: paths.skillsRoot ?? PATHS_DEFAULTS.skillsRoot,
-    templatesRoot: paths.templatesRoot ?? PATHS_DEFAULTS.templatesRoot,
-    rulesRoot: paths.rulesRoot ?? PATHS_DEFAULTS.rulesRoot,
+    agentRoot,
+    docsRoot,
+    tempRoot,
+    // Derived: every `${dir}Root` lives directly under the framework's
+    // `agentRoot`; `auditOutputDir` lives under `tempRoot/audit`.
+    auditOutputDir: `${tempRoot}/audit`,
+    scriptsRoot: `${agentRoot}/scripts`,
+    workflowsRoot: `${agentRoot}/workflows`,
+    personasRoot: `${agentRoot}/personas`,
+    schemasRoot: `${agentRoot}/schemas`,
+    skillsRoot: `${agentRoot}/skills`,
+    templatesRoot: `${agentRoot}/templates`,
+    rulesRoot: `${agentRoot}/rules`,
   };
 }
 
 /**
- * Read the merged `agentSettings.paths` block. Accepts either the full
- * resolved config or the bare `agentSettings` bag.
+ * Read the merged `project.paths` block. Accepts either the full resolved
+ * config or any unwrapped variant (`{ project }`, `{ paths }`, or — for the
+ * legacy two-shape contract — `{ agentSettings: { paths } }`).
  *
- * @param {{ agentSettings?: { paths?: object } } | object | null | undefined} config
+ * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolvePaths>}
  */
 export function getPaths(config) {
-  const userPaths = config?.agentSettings?.paths ?? config?.paths ?? undefined;
+  const userPaths =
+    config?.project?.paths ??
+    config?.paths ??
+    config?.agentSettings?.paths ??
+    undefined;
   return resolvePaths(userPaths);
 }

@@ -67,8 +67,15 @@ async function getResolveConfig() {
  */
 export function tempRootFrom(config) {
   if (!config || typeof config !== 'object') return 'temp';
-  const agentSettings = config.agentSettings ?? config;
-  const paths = agentSettings?.paths;
+  // Post-reshape: paths live under `project.paths.*`. Tolerate the bare
+  // `paths` bag (legacy two-shape contract) and the legacy
+  // `agentSettings.paths` shape so the resolver can still bootstrap when
+  // its caller hasn't been migrated yet.
+  const paths =
+    config.project?.paths ??
+    config.paths ??
+    config.agentSettings?.paths ??
+    null;
   const tempRoot = paths?.tempRoot;
   return typeof tempRoot === 'string' && tempRoot.length > 0
     ? tempRoot

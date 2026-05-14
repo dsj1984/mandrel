@@ -317,7 +317,8 @@ export async function runEpicDeliverFinalize({
   const provider = injectedProvider ?? createProvider(config.orchestration);
   const logger = loggerImpl ?? Logger;
   const repoCwd = cwd ?? PROJECT_ROOT;
-  const baseBranch = config.agentSettings?.baseBranch ?? 'main';
+  const baseBranch =
+    config.project?.baseBranch ?? config.agentSettings?.baseBranch ?? 'main';
   const epicBranch = `epic/${epicId}`;
   const baseRef = `origin/${baseBranch}`;
 

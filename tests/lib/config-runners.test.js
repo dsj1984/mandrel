@@ -1,16 +1,24 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { getRunners } from '../../.agents/scripts/lib/config/runners.js';
 import {
   DEFAULT_DECOMPOSER,
   DEFAULT_STORY_MERGE_RETRY,
-} from '../../.agents/scripts/lib/config-schema.js';
+  getRunners,
+} from '../../.agents/scripts/lib/config/runners.js';
+
+// Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner` is
+// configurable; the legacy `planRunner`, `concurrency`, `storyMergeRetry`,
+// and `decomposer` sub-blocks moved to framework-internal constants. The
+// `getRunners` accessor still returns the legacy-shaped wrapper so existing
+// call sites continue to destructure without rewriting.
 
 describe('getRunners', () => {
-  it('returns defaulted shape for null/undefined config', () => {
-    for (const input of [null, undefined, {}, { orchestration: {} }]) {
+  it('returns defaulted shape for null/undefined/empty config', () => {
+    for (const input of [null, undefined, {}, { delivery: {} }]) {
       const r = getRunners(input);
-      assert.deepEqual(r.deliverRunner, {});
+      // deliverRunner falls back to framework constants (3 / 120s).
+      assert.equal(r.deliverRunner.concurrencyCap, 3);
+      assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
       assert.deepEqual(r.planRunner, {});
       assert.deepEqual(r.concurrency, {});
       assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
@@ -18,87 +26,40 @@ describe('getRunners', () => {
     }
   });
 
-  it('passes through every populated sub-block from orchestration.runners', () => {
+  it('reads delivery.deliverRunner from the post-reshape config', () => {
+    const config = {
+      delivery: {
+        deliverRunner: { concurrencyCap: 5, progressReportIntervalSec: 60 },
+      },
+    };
+    const r = getRunners(config);
+    assert.deepEqual(r.deliverRunner, {
+      concurrencyCap: 5,
+      progressReportIntervalSec: 60,
+    });
+  });
+
+  it('still reads legacy orchestration.runners.deliverRunner during the transition', () => {
     const config = {
       orchestration: {
         runners: {
-          deliverRunner: { enabled: true, concurrencyCap: 5 },
-          planRunner: { enabled: false, pollIntervalSec: 45 },
-          concurrency: { waveGate: 2, commitAssertion: 3, progressReporter: 4 },
-          storyMergeRetry: {
-            maxAttempts: 5,
-            backoffMs: [100, 200, 400, 800, 1600],
-          },
-          decomposer: { concurrencyCap: 7 },
+          deliverRunner: { concurrencyCap: 2, progressReportIntervalSec: 30 },
         },
       },
     };
     const r = getRunners(config);
-    assert.deepEqual(r.deliverRunner, { enabled: true, concurrencyCap: 5 });
-    assert.deepEqual(r.planRunner, { enabled: false, pollIntervalSec: 45 });
-    assert.deepEqual(r.concurrency, {
-      waveGate: 2,
-      commitAssertion: 3,
-      progressReporter: 4,
-    });
-    assert.deepEqual(r.storyMergeRetry, {
-      maxAttempts: 5,
-      backoffMs: [100, 200, 400, 800, 1600],
-    });
-    assert.deepEqual(r.decomposer, { concurrencyCap: 7 });
+    assert.equal(r.deliverRunner.concurrencyCap, 2);
+    assert.equal(r.deliverRunner.progressReportIntervalSec, 30);
   });
 
-  it('falls back to defaults for absent sub-blocks while honouring others', () => {
-    const config = {
-      orchestration: {
-        runners: {
-          deliverRunner: { enabled: true, concurrencyCap: 2 },
-        },
-      },
-    };
-    const r = getRunners(config);
-    assert.deepEqual(r.deliverRunner, { enabled: true, concurrencyCap: 2 });
-    assert.deepEqual(r.planRunner, {});
-    assert.deepEqual(r.concurrency, {});
-    assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
-    assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
+  it('exposes the hardcoded story-merge-retry defaults', () => {
+    const r = getRunners({});
+    assert.equal(r.storyMergeRetry.maxAttempts, 3);
+    assert.deepEqual([...r.storyMergeRetry.backoffMs], [250, 500, 1000]);
   });
 
-  it('accepts a bare orchestration object (no top-level config wrapper)', () => {
-    const orchestration = {
-      runners: {
-        storyMergeRetry: { maxAttempts: 7, backoffMs: [50] },
-      },
-    };
-    const r = getRunners(orchestration);
-    assert.deepEqual(r.storyMergeRetry, { maxAttempts: 7, backoffMs: [50] });
-    assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
-  });
-
-  it('ignores legacy flat sub-blocks under orchestration (atomic cutover)', () => {
-    // Story 7 removes the flat shape from the schema — `getRunners` does not
-    // read `orchestration.deliverRunner` etc. AJV validation rejects such configs
-    // before this accessor sees them, but the contract is still that flat
-    // reads return defaults, never silently surface stale data.
-    const config = {
-      orchestration: {
-        deliverRunner: { enabled: true, concurrencyCap: 99 },
-        storyMergeRetry: { maxAttempts: 99 },
-      },
-    };
-    const r = getRunners(config);
-    assert.deepEqual(r.deliverRunner, {});
-    assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
-  });
-
-  it('is re-exported from the config-resolver facade', async () => {
-    const facade = await import('../../.agents/scripts/lib/config-resolver.js');
-    assert.equal(typeof facade.getRunners, 'function');
-    const r = facade.getRunners({
-      orchestration: {
-        runners: { decomposer: { concurrencyCap: 9 } },
-      },
-    });
-    assert.deepEqual(r.decomposer, { concurrencyCap: 9 });
+  it('exposes the hardcoded decomposer concurrency cap', () => {
+    const r = getRunners({});
+    assert.equal(r.decomposer.concurrencyCap, 3);
   });
 });

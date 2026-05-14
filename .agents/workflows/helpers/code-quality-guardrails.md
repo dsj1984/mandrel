@@ -6,7 +6,7 @@ read the same numbers from here so a "high cyclomatic complexity" finding in
 `/audit-clean-code` and a `task-execute` pre-commit refusal cite the same
 threshold.
 
-> Tunable via `agentSettings.quality.codingGuardrails` in `.agentrc.json` —
+> Tunable via `delivery.quality.codingGuardrails` in `.agentrc.json` —
 > see [`default-agentrc.json`](../../default-agentrc.json) for the framework
 > defaults and [`schemas/agentrc.schema.json`](../../schemas/agentrc.schema.json)
 > for the validated shape. Override per-project; never fork this helper to
@@ -26,7 +26,7 @@ gate. The `.husky/pre-commit` hook calls the same script.
 
 Cyclomatic complexity (CC) is measured per function by `escomplex` (the same
 engine `check-maintainability.js` runs). Two thresholds, sourced from
-`agentSettings.quality.codingGuardrails.cyclomaticFlag` /
+`delivery.quality.codingGuardrails.cyclomaticFlag` /
 `cyclomaticMustFix`:
 
 | CC range | Action |
@@ -47,7 +47,7 @@ source under `tests/<mirrored-path>/<basename>.test.js`. Same-commit pairing
 keeps the bisect honest — a regression and the test that would have caught
 it land or revert together.
 
-When `agentSettings.quality.codingGuardrails.requireSiblingTest` is `true`,
+When `delivery.quality.codingGuardrails.requireSiblingTest` is `true`,
 [`task-commit.js`](../../scripts/task-commit.js) refuses to commit a staged
 new source file that lacks a sibling test. Default is `false` so legacy
 repos opt in deliberately; once enabled, the structural check replaces the
@@ -58,7 +58,7 @@ review-time prose rule.
 Per-file Maintainability Index (MI) is tracked in
 [`baselines/maintainability.json`](../../../baselines/maintainability.json).
 A commit that drops a file's MI by more than
-`agentSettings.quality.codingGuardrails.miDropRefactor` points (default
+`delivery.quality.codingGuardrails.miDropMustRefactor` points (default
 `1.5`) requires a refactor in the same Story — not a baseline bump. The MI
 ratchet's per-file `tolerance` (default `0.5`) is a noise filter, **not**
 permission to spend the budget; the 1.5-point ceiling is the upper bound
@@ -73,7 +73,7 @@ working tree before the commit lands.
 Renaming a file (or moving it across `src/` directories) detaches its MI and
 CRAP history from the baseline keys. The correct response is a **baseline
 refresh**, not a regression entry: include `baseline-refresh:` (the
-`agentSettings.quality.crap.refreshTag` default) in the commit subject so the
+`delivery.quality.crap.refreshTag` default) in the commit subject so the
 ratchet treats the new key as a clean entry instead of comparing it to
 nothing.
 
@@ -86,7 +86,7 @@ suppress the noise.
 
 Update three places **in the same commit**:
 
-1. `agentSettings.quality.codingGuardrails.<key>` in
+1. `delivery.quality.codingGuardrails.<key>` in
    [`default-agentrc.json`](../../default-agentrc.json).
 2. The matching schema bound in
    [`schemas/agentrc.schema.json`](../../schemas/agentrc.schema.json) and the

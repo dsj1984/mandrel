@@ -118,19 +118,24 @@ function makeTempRepo({ enabled = true, withBaseline = false } = {}) {
     path.join(dir, '.agentrc.json'),
     JSON.stringify(
       {
-        agentSettings: {
+        project: {
           paths: {
             agentRoot: '.agents',
             docsRoot: 'docs',
             tempRoot: 'temp',
           },
+        },
+        delivery: {
           quality: {
-            crap: {
-              enabled,
-              targetDirs: ['src'],
-              newMethodCeiling: 30,
-              tolerance: 0.001,
-              requireCoverage: false,
+            gates: {
+              crap: {
+                enabled,
+                targetDirs: ['src'],
+                newMethodCeiling: 30,
+                tolerance: { kind: 'absolute', value: 0.001 },
+                requireCoverage: false,
+                floors: { '*': { crap: 20 } },
+              },
             },
           },
         },

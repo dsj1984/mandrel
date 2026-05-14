@@ -1,12 +1,11 @@
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
-  "agentSettings": {
+  "project": {
     "baseBranch": "main",
     "paths": {
       "agentRoot": ".agents",
       "docsRoot": "docs",
-      "tempRoot": "temp",
-      "auditOutputDir": "temp"
+      "tempRoot": "temp"
     },
     "docsContextFiles": [
       "architecture.md",
@@ -14,84 +13,18 @@
       "decisions.md",
       "patterns.md"
     ],
-    "release": {
-      "docs": ["README.md", "docs/CHANGELOG.md"],
-      "versionFile": ".agents/VERSION",
-      "packageJson": true,
-      "autoVersionBump": true
-    },
-    "limits": {
-      "maxInstructionSteps": 5,
-      "maxTickets": 60,
-      "maxTokenBudget": 200000,
-      "executionTimeoutMs": 300000,
-      "executionMaxBuffer": 10485760,
-      "friction": {
-        "repetitiveCommandCount": 3,
-        "consecutiveErrorCount": 3,
-        "stagnationStepCount": 5,
-        "maxIntegrationRetries": 2
-      },
-      "signals": {
-        "hotspot": { "p95Multiplier": 1.25 },
-        "rework": { "editsPerFile": 5 },
-        "churn": { "repeatCount": 4 },
-        "idle": { "gapSeconds": 120 },
-        "retry": { "repeatCount": 3 }
-      }
-    },
     "commands": {
-      "validate": "npm run lint",
       "lintBaseline": "npm run lint",
       "test": "npm test",
-      "typecheck": "node --version",
-      "build": null
-    },
-    "quality": {
-      "baselines": {
-        "lint": { "path": "baselines/lint.json" },
-        "crap": { "path": "baselines/crap.json" },
-        "maintainability": { "path": "baselines/maintainability.json" }
-      },
-      "maintainability": {
-        "targetDirs": [".agents/scripts", "tests"],
-        "tolerance": 0.5
-      },
-      "crap": {
-        "enabled": true,
-        "targetDirs": [".agents/scripts"],
-        "newMethodCeiling": 30,
-        "coveragePath": "coverage/coverage-final.json",
-        "tolerance": 0.05,
-        "requireCoverage": true,
-        "friction": { "markerKey": "crap-baseline-regression" },
-        "refreshTag": "baseline-refresh:"
-      },
-      "qualityFloors": {
-        "coverage": { "lines": 40, "branches": 40, "functions": 0 },
-        "maintainability": 0,
-        "crap": 30
-      }
-    },
-    "planning": {
-      "riskHeuristics": [
-        "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
-        "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
-        "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
-        "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
-        "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
-      ]
+      "typecheck": "node --version"
     }
   },
-  "orchestration": {
-    "provider": "github",
-    "github": {
-      "owner": "dsj1984",
-      "repo": "mandrel",
-      "projectNumber": 1,
-      "projectOwner": "dsj1984",
-      "operatorHandle": "@dsj1984"
-    },
+  "github": {
+    "owner": "dsj1984",
+    "repo": "mandrel",
+    "projectNumber": 1,
+    "projectOwner": "dsj1984",
+    "operatorHandle": "@dsj1984",
     "notifications": {
       "mentionOperator": false,
       "commentEvents": ["state-transition", "story-merged", "operator-message"],
@@ -102,6 +35,27 @@
         "epic-unblocked",
         "epic-complete"
       ]
+    }
+  },
+  "planning": {
+    "maxTickets": 60,
+    "riskHeuristics": [
+      "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
+      "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
+      "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
+      "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
+      "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
+    ]
+  },
+  "delivery": {
+    "execution": { "timeoutMs": 600000 },
+    "maxTokenBudget": 200000,
+    "docsFreshness": {
+      "paths": ["README.md", "docs/CHANGELOG.md"]
+    },
+    "deliverRunner": {
+      "concurrencyCap": 3,
+      "progressReportIntervalSec": 120
     },
     "worktreeIsolation": {
       "enabled": true,
@@ -111,15 +65,45 @@
       "reapOnCancel": true,
       "bootstrapFiles": [".env"]
     },
-    "runners": {
-      "deliverRunner": {
-        "enabled": true,
-        "concurrencyCap": 3,
-        "progressReportIntervalSec": 120
-      },
-      "planRunner": {
-        "enabled": true,
-        "pollIntervalSec": 30
+    "signals": {
+      "hotspot": { "p95Multiplier": 1.25 },
+      "rework": { "editsPerFile": 5 },
+      "retry": { "repeatCount": 3 }
+    },
+    "quality": {
+      "gateScoping": { "scope": "diff", "diffRef": "main" },
+      "gates": {
+        "lint": {
+          "enabled": true,
+          "baselinePath": "baselines/lint.json",
+          "tolerance": { "kind": "absolute", "value": 0 },
+          "floors": { "*": { "errors": 0 } }
+        },
+        "coverage": {
+          "enabled": true,
+          "baselinePath": "baselines/coverage.json",
+          "tolerance": { "kind": "absolute", "value": 0 },
+          "floors": { "*": { "lines": 40, "branches": 40, "functions": 0 } },
+          "coveragePath": "coverage/coverage-final.json"
+        },
+        "crap": {
+          "enabled": true,
+          "baselinePath": "baselines/crap.json",
+          "tolerance": { "kind": "absolute", "value": 0.05 },
+          "floors": { "*": { "crap": 30 } },
+          "targetDirs": [".agents/scripts"],
+          "newMethodCeiling": 30,
+          "requireCoverage": true,
+          "friction": { "markerKey": "crap-baseline-regression" },
+          "refreshTag": "baseline-refresh:"
+        },
+        "maintainability": {
+          "enabled": true,
+          "baselinePath": "baselines/maintainability.json",
+          "tolerance": { "kind": "absolute", "value": 0.5 },
+          "floors": { "*": { "maintainability": 0 } },
+          "targetDirs": [".agents/scripts", "tests"]
+        }
       }
     }
   }

@@ -13,8 +13,8 @@
  * This script runs the gate and emits a structured result so the .md routes
  * on outcome rather than re-implementing the command sequence. The three
  * checks it runs are read from
- * `.agentrc.json → agentSettings.quality.prGate` when present, falling back
- * to the hardcoded default trio.
+ * `.agentrc.json → github.branchProtection.requiredChecks` when present,
+ * falling back to the hardcoded default trio.
  *
  * Usage:
  *   node .agents/scripts/git-pr-quality-gate.js [--json] [--skip <name>[,<name>]]
@@ -52,14 +52,16 @@ export const DEFAULT_CHECKS = Object.freeze([
   { name: 'test', cmd: ['npm', 'test'] },
 ]);
 
-function resolveChecks(settings) {
-  const configured = settings?.quality?.prGate?.checks;
+function resolveChecks(config) {
+  // Post-reshape: required checks live under `github.branchProtection.requiredChecks`.
+  // Legacy `agentSettings.quality.prGate.checks` is still tolerated for ad-hoc
+  // test fixtures during the transition.
+  const configured =
+    config?.github?.branchProtection?.requiredChecks ??
+    config?.agentSettings?.quality?.prGate?.checks;
   if (!Array.isArray(configured) || configured.length === 0) {
     return DEFAULT_CHECKS;
   }
-  // Schema (post Epic #1142 Story #1157) requires items as `{ name, cmd }`
-  // objects with `cmd` as an argv array. AJV validation upstream rejects
-  // string-shape items, so the previous string-fallback branch is gone.
   return configured.map((c) => ({ name: c.name, cmd: c.cmd }));
 }
 
@@ -180,8 +182,8 @@ async function main() {
     },
     strict: false,
   });
-  const { agentSettings } = resolveConfig();
-  const checks = resolveChecks(agentSettings);
+  const config = resolveConfig();
+  const checks = resolveChecks(config);
   const skip = parseSkipList(values.skip);
 
   const result = runQualityGate({ checks, skip });

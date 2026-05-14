@@ -100,7 +100,7 @@ test('LintBaselineService.capture: swallows exec failures and logs at warn', asy
   assert.match(logger.calls.warn[0].msg, /non-fatal/);
 });
 
-test('LintBaselineService.capture: honours custom quality.baselines.lint.path in settings', async () => {
+test('LintBaselineService.capture: honours custom quality.gates.lint.baselinePath in settings', async () => {
   const seen = [];
   const logger = createLogger();
   const service = new LintBaselineService({
@@ -109,7 +109,7 @@ test('LintBaselineService.capture: honours custom quality.baselines.lint.path in
     settings: {
       paths: { scriptsRoot: '.agents/scripts' },
       quality: {
-        baselines: { lint: { path: 'custom/where/baseline.json' } },
+        gates: { lint: { baselinePath: 'custom/where/baseline.json' } },
       },
     },
     fs: {

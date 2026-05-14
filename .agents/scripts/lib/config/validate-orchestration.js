@@ -1,16 +1,21 @@
 /**
- * `validateOrchestrationConfig` — AJV + hand-written security checks for the
- * top-level `orchestration` block (Epic #773 Story 6 — split out of
- * config-resolver.js). The facade re-exports this symbol so consumer imports
- * resolve byte-identically.
+ * `validateOrchestrationConfig` — hand-written security checks for the
+ * post-reshape config (Epic #1720 Story #1739).
+ *
+ * The structural validation now lives in the top-level AJV schema (run by
+ * `resolveConfig` against the full `.agentrc.json` document). This module
+ * carries the security checks that JSON Schema cannot express:
+ *
+ *   - Shell-metacharacter injection on `github.{owner, repo, operatorHandle}`.
+ *   - Path-traversal containment on `delivery.worktreeIsolation.root`.
+ *
+ * Accepts either the full resolved config (`{ project, github, planning,
+ * delivery }`) or `null` (zero-config callers — no checks needed).
  */
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  getOrchestrationValidator,
-  SHELL_INJECTION_RE_STRICT as SHELL_INJECTION_RE,
-} from '../config-schema.js';
+import { SHELL_INJECTION_RE_STRICT as SHELL_INJECTION_RE } from '../config-schema.js';
 import { assertPathContainment } from '../path-security.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -18,73 +23,66 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '../../../..');
 
 /**
- * Validates the orchestration configuration block.
+ * Run the post-reshape security checks against a resolved config bag.
  *
- * Uses ajv for formal JSON Schema validation against the inline schema
- * constant, then applies additional hand-written security checks (shell
- * metacharacter injection) that are not expressible in JSON Schema.
- *
- * @param {object|null} orchestration - The raw orchestration config from .agentrc.json.
- * @throws {Error} If validation fails.
+ * @param {object|null} config - The resolved config (`{ project, github, ... }`)
+ *   or `null` for zero-config callers. Legacy callers pass the old
+ *   `orchestration` bag — the function tolerates both during the transition.
+ * @throws {Error} If any security check fails.
  */
-export function validateOrchestrationConfig(orchestration) {
-  if (orchestration == null) return;
-
-  if (typeof orchestration !== 'object' || Array.isArray(orchestration)) {
+export function validateOrchestrationConfig(config) {
+  if (config == null) return;
+  if (typeof config !== 'object' || Array.isArray(config)) {
     throw new Error(
-      'Invalid orchestration configuration: orchestration must be an object.',
+      'Invalid configuration: expected an object with `github` and `delivery` blocks.',
     );
   }
 
   const errors = [];
 
-  const validate = getOrchestrationValidator();
-  if (!validate(orchestration) && validate.errors) {
-    for (const err of validate.errors) {
-      errors.push(`- ${err.instancePath || '(root)'} ${err.message}`);
-    }
-  }
+  // Accept either the full resolved config or a bare github bag for
+  // back-compat with the handful of call sites that still pass
+  // `config.orchestration` (those sites are removed by Task #1761).
+  const github = config.github ?? config.orchestration?.github ?? null;
+  const worktreeIsolation =
+    config.delivery?.worktreeIsolation ??
+    config.orchestration?.worktreeIsolation ??
+    null;
 
-  // GitHub-specific shell injection checks
-  if (orchestration.provider === 'github' && orchestration.github) {
-    const gh = orchestration.github;
+  if (github && typeof github === 'object') {
     for (const field of ['owner', 'repo', 'operatorHandle']) {
-      if (typeof gh[field] === 'string' && SHELL_INJECTION_RE.test(gh[field])) {
+      const value = github[field];
+      if (typeof value === 'string' && SHELL_INJECTION_RE.test(value)) {
         errors.push(
-          `- [Security] Shell meta-characters detected in orchestration.github.${field}.`,
+          `- [Security] Shell meta-characters detected in github.${field}.`,
         );
       }
     }
   }
 
-  // worktreeIsolation.root — path-traversal guard. Root is interpreted
-  // relative to the repo root; resolved path must stay inside it so a hostile
-  // config like "../../../etc" cannot escape.
-  const wtRoot = orchestration.worktreeIsolation?.root;
+  const wtRoot = worktreeIsolation?.root;
   if (typeof wtRoot === 'string') {
     if (SHELL_INJECTION_RE.test(wtRoot)) {
       errors.push(
-        '- [Security] Shell meta-characters detected in orchestration.worktreeIsolation.root.',
+        '- [Security] Shell meta-characters detected in delivery.worktreeIsolation.root.',
       );
     } else {
       try {
         assertPathContainment(
           PROJECT_ROOT,
           path.resolve(PROJECT_ROOT, wtRoot),
-          'orchestration.worktreeIsolation.root',
+          'delivery.worktreeIsolation.root',
           { allowEmpty: false },
         );
       } catch {
         errors.push(
-          `- [Security] orchestration.worktreeIsolation.root resolves outside the repo root: ${wtRoot}`,
+          `- [Security] delivery.worktreeIsolation.root resolves outside the repo root: ${wtRoot}`,
         );
       }
     }
   }
 
   if (errors.length > 0) {
-    throw new Error(
-      `Invalid orchestration configuration:\n${errors.join('\n')}`,
-    );
+    throw new Error(`Invalid configuration:\n${errors.join('\n')}`);
   }
 }

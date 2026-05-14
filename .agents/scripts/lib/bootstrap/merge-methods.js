@@ -51,8 +51,9 @@ export function diffMergeMethods(current, target) {
  * @param {object} args
  * @param {object} args.provider - Provider exposing `getMergeMethods()` /
  *   `setMergeMethods(settings)`.
- * @param {object} [args.settings] - The resolved `agentSettings` block.
- *   Reads `quality.mergeMethods` and merges over framework defaults.
+ * @param {object} [args.settings] - The resolved settings bag. Reads
+ *   `github.mergeMethods` (post-reshape) or `quality.mergeMethods` (legacy)
+ *   and merges over framework defaults.
  * @param {(args:{summary:string, current:object, proposed:object})=>Promise<boolean>}
  *   [args.hitlConfirm] - HITL gate. Defaults to "abort on diverge".
  * @param {(msg:string)=>void} [args.log] - Logger sink.
@@ -63,7 +64,10 @@ export async function applyMergeMethods({
   hitlConfirm,
   log = () => {},
 }) {
-  const override = settings?.quality?.mergeMethods ?? {};
+  // Post-reshape: merge methods live under `github.mergeMethods`. Keep the
+  // legacy `quality.mergeMethods` read as a transitional fallback.
+  const override =
+    settings?.github?.mergeMethods ?? settings?.quality?.mergeMethods ?? {};
   const target = { ...TARGET_MERGE_METHODS, ...override };
 
   let current = {};

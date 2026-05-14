@@ -101,9 +101,8 @@ GitHub Task ticket:
   `node .agents/scripts/diagnose-friction.js --epic [EPIC_ID] --task [TASK_ID] --cmd [FAILED_COMMAND]`
 - **When to fire**: After consecutive tool validation errors, unrecoverable
   command failures, or ambiguity requiring explicit self-correction. Also
-  after repetitive sequences of commands (default threshold: 3+, see
-  `limits.friction.repetitiveCommandCount` in `.agentrc.json`) or
-  boilerplate-heavy steps that could be simplified by a workflow or skill.
+  after repetitive sequences of commands or boilerplate-heavy steps that
+  could be simplified by a workflow or skill.
 - **No-ticket fallback**: If you hit friction outside an Epic/Story/Task
   loop, write a JSON record to `temp/friction-<timestamp>.json` with the
   same fields, and mention the file in your final summary so a human can
@@ -123,20 +122,27 @@ on the `AGENT_LOG_LEVEL` environment variable:
 ### I. Anti-Thrashing Protocol
 
 You MUST proactively identify when you are "thrashing" or stuck in an
-infinite loop. If you satisfy either of the following conditions, you MUST
-immediately stop, summarize the blockers, and present a **Re-Plan** or yield
-to the user:
+infinite loop, and you MUST stop, summarize the blockers, and present a
+**Re-Plan** (or yield to the user) before consuming more tokens on a failing
+strategy. Use the qualitative cues below — there are no numeric thresholds
+because none of the framework code increments a counter or fires at a
+boundary; the call is yours to make.
 
-- **Error Threshold**: You execute multiple consecutive tools that return
-  errors (check `limits.friction.consecutiveErrorCount` in `.agentrc.json`,
-  default 3).
-- **Stagnation Threshold**: You perform consecutive steps of research or
-  analysis without modifying a file (check
-  `limits.friction.stagnationStepCount` in `.agentrc.json`, default 5),
-  excluding setup/scaffolding tasks.
+- **Failure cluster**: You have run a handful of tool calls in a row that
+  returned errors of the same shape. The remediation is the same each time,
+  and the next attempt is unlikely to surface new information. Stop.
+- **Research drift**: You are several steps into reading code or
+  documentation without writing or modifying anything, and the additional
+  reads are no longer narrowing the problem space. Stop and propose a plan
+  with the information you have.
+- **Same fix, same failure**: You have applied the same kind of fix more
+  than once for the same error class, and the failure mode hasn't changed.
+  Stop — the diagnosis is wrong.
 
-This protocol ensures the conversation remains focused and avoids consuming
-unnecessary tokens on failing strategies.
+When you stop, write a one-paragraph summary of what you tried, what
+recurred, and what assumption you would test next, then either Re-Plan or
+hand back to the operator. Do not paper over the loop with another
+just-in-case retry.
 
 ### J. HITL Blocker Escalation (Safe Execution)
 
@@ -151,7 +157,7 @@ for high-risk operations.
   `agent::blocked`, summarize the blocker, and wait for operator resume.
 - **Resume contract**: continue only after the operator explicitly unblocks
   (`agent::executing` or equivalent workflow instruction).
-- **High-risk heuristic**: use `agentSettings.planning.riskHeuristics` from
+- **High-risk heuristic**: use `planning.riskHeuristics` from
   `.agentrc.json` to decide when to escalate via `agent::blocked`. Typical
   triggers include destructive/irreversible data mutations, shared
   auth/security changes, CI/CD gate changes, monorepo-wide rewrites, and
@@ -185,11 +191,11 @@ FinOps protocol:
 1. **Context First:** Before proposing any solution, understand the
    repository's tech stack, historical context, and structure.
    - **Mandatory Reading**: Before starting ANY task, you MUST read every
-     file listed in `agentSettings.docsContextFiles` in `.agentrc.json`.
+     file listed in `project.docsContextFiles` in `.agentrc.json`.
      This list is the project's authoritative reference set (architecture,
      data dictionary, decisions log, patterns, etc.) and replaces any
      hardcoded filename list. Resolve each entry against
-     `agentSettings.paths.docsRoot` (default `docs/`) and skip silently
+     `project.paths.docsRoot` (default `docs/`) and skip silently
      when an entry's file is absent.
    - **Conditional Reads**: When the task touches UI copy, layout, or
      routing and the corresponding file is present in the project, also

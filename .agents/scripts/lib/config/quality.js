@@ -1,240 +1,323 @@
 /**
- * `agentSettings.quality` accessor (Epic #730 Story 6; relocated under
- * lib/config/ in Epic #773 Story 6). Composes the per-sub-block resolvers
- * (maintainability scan, CRAP, prGate, baselines) so consumers can read every
- * grouped field without re-running merge logic at the call site.
+ * `delivery.quality` accessor (Epic #1720 Story #1737 — uniform gate shape).
+ *
+ * The quality block under `delivery.quality.*` is now organised as a
+ * `gates.<tier>` object where every tier (lint, coverage, crap,
+ * maintainability, mutation, lighthouse, bundleSize) shares the same
+ * four-field base:
+ *
+ *   - `enabled`      — when `false`, the checker exits 0 with a skip line.
+ *   - `baselinePath` — repo-root-relative path to the gate's baseline file.
+ *   - `tolerance`    — `{ kind: 'absolute' | 'percent', value: number }`.
+ *   - `floors`       — workspace-keyed `{ "*": { ... } }` floor object.
+ *
+ * Story #1737 changes (vs the Story #1739 mechanical relocation):
+ *
+ *   - `gateScoping` is the single source of truth for diff scope / ref.
+ *     The duplicate `defaultScope` / `diffRef` keys on crap and
+ *     maintainability are gone — resolvers carry the scope through from
+ *     the lifted block.
+ *   - Scalar `tolerance` values became `{ kind, value }` objects.
+ *   - `coveragePath` moved from `gates.crap` to `gates.coverage`. CRAP
+ *     reads from the coverage gate instead of carrying its own.
+ *   - Flat `qualityFloors.*` shape is gone — every gate carries its own
+ *     workspace-keyed `floors` object.
+ *
+ * The resolver returns a flattened bag with the legacy field names
+ * (`crap.tolerance` as a number, `crap.targetDirs`, `maintainability.targetDirs`,
+ * `crap.coveragePath`, etc.) so existing call sites stay untouched.
+ * The translation from gate shape → legacy bag happens here, in one
+ * place.
  */
 
 import { Logger } from '../Logger.js';
-import { resolveBaselines } from './baselines.js';
 import { resolveListValue } from './shared.js';
-/** Framework defaults for `agentSettings.quality.crap` (lifted out of the
- * legacy `agentSettings.maintainability.crap` nest in Epic #730 Story 6).
- * Applied via {@link resolveQuality} so a consumer repo that omits the block
- * (or any key within it) still gets sane defaults. Exported for tests and
- * for consumers that want to introspect the canonical shape. */
-export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
+
+const DEFAULT_GATE_SCOPING = Object.freeze({ scope: 'diff', diffRef: 'main' });
+
+/**
+ * Default object-shape tolerance for each gate. Values match the historical
+ * scalar defaults so a consumer that omits `tolerance` keeps the prior
+ * gate behaviour.
+ */
+const DEFAULT_CRAP_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.05 });
+const DEFAULT_MI_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.5 });
+
+/**
+ * Default floors per gate. Mirrors the post-Phase-1 targets that
+ * `lib/quality-floors.js` carried as `DEFAULT_FLOORS`. Workspace-keyed so
+ * a single-workspace consumer reads `floors["*"]` and a monorepo consumer
+ * can override per-workspace.
+ */
+const DEFAULT_COVERAGE_FLOORS = Object.freeze({
+  '*': Object.freeze({ lines: 90, branches: 85, functions: 90 }),
+});
+const DEFAULT_CRAP_FLOORS = Object.freeze({
+  '*': Object.freeze({ crap: 20 }),
+});
+const DEFAULT_MI_FLOORS = Object.freeze({
+  '*': Object.freeze({ maintainability: 70 }),
+});
+
+/** Framework defaults for the CRAP gate (post-1737 uniform shape). */
+export const CRAP_GATE_DEFAULTS = Object.freeze({
   enabled: true,
+  baselinePath: 'baselines/crap.json',
+  tolerance: DEFAULT_CRAP_TOLERANCE,
+  floors: DEFAULT_CRAP_FLOORS,
   targetDirs: Object.freeze(['src']),
   newMethodCeiling: 30,
-  coveragePath: 'coverage/coverage-final.json',
-  // Raised from 0.001 in 5.36.1 — see check-crap.js:resolveCrapEnvOverrides
-  // for the rationale (CRAP scores are c²·(1−cov)³ + c, so cross-environment
-  // coverage rounding alone produces ~0.01 drift on a clean rebuild; 0.001
-  // flagged that as a regression). 0.05 absorbs the rounding without
-  // missing real regressions, which cross whole-integer thresholds.
-  tolerance: 0.05,
   requireCoverage: true,
   friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
   refreshTag: 'baseline-refresh:',
-  // Story #1394 (Epic #1386): `defaultScope` flips the CRAP gate to diff-
-  // scoped by default, parity with the MI gate. `diffRef` defaults to
-  // `'main'` so the scoped diff resolves against the repo's primary
-  // integration branch unless the project overrides it.
-  defaultScope: 'diff',
-  diffRef: 'main',
 });
 
-/** Recognized keys for `quality.crap` (post-Story-6). Used by the resolver
- * to warn (not fail) on unknown keys per AC19. */
-const MAINTAINABILITY_CRAP_KEYS = new Set(
-  Object.keys(MAINTAINABILITY_CRAP_DEFAULTS),
-);
+/** Framework defaults for the coverage gate. */
+export const COVERAGE_GATE_DEFAULTS = Object.freeze({
+  enabled: true,
+  baselinePath: 'baselines/coverage.json',
+  tolerance: Object.freeze({ kind: 'absolute', value: 0 }),
+  floors: DEFAULT_COVERAGE_FLOORS,
+  coveragePath: 'coverage/coverage-final.json',
+});
+
+/** Framework defaults for the maintainability gate. */
+export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
+  enabled: true,
+  baselinePath: 'baselines/maintainability.json',
+  tolerance: DEFAULT_MI_TOLERANCE,
+  floors: DEFAULT_MI_FLOORS,
+  targetDirs: Object.freeze([]),
+});
 
 /**
- * Merge a user-supplied `quality.crap` block with framework defaults.
- * Scalar keys replace; `targetDirs` supports the list-extender shape; unknown
- * keys emit a `Logger.warn` but do not fail resolution (AC19).
- *
- * @param {object|undefined} userCrap
- * @returns {object}
+ * Backward-compatible flattened defaults that existing call sites read.
+ * `MAINTAINABILITY_CRAP_DEFAULTS` is the legacy export name; it now
+ * synthesises a flat view over the gate-shaped defaults so resolver
+ * consumers see the historical keys (`tolerance` as a number,
+ * `coveragePath` from the coverage gate, `defaultScope` / `diffRef`
+ * from the gateScoping block).
  */
-export function resolveMaintainabilityCrap(userCrap) {
-  const defaults = MAINTAINABILITY_CRAP_DEFAULTS;
+export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
+  enabled: CRAP_GATE_DEFAULTS.enabled,
+  targetDirs: CRAP_GATE_DEFAULTS.targetDirs,
+  newMethodCeiling: CRAP_GATE_DEFAULTS.newMethodCeiling,
+  coveragePath: COVERAGE_GATE_DEFAULTS.coveragePath,
+  tolerance: CRAP_GATE_DEFAULTS.tolerance.value,
+  requireCoverage: CRAP_GATE_DEFAULTS.requireCoverage,
+  friction: CRAP_GATE_DEFAULTS.friction,
+  refreshTag: CRAP_GATE_DEFAULTS.refreshTag,
+  defaultScope: DEFAULT_GATE_SCOPING.scope,
+  diffRef: DEFAULT_GATE_SCOPING.diffRef,
+});
+
+export const MAINTAINABILITY_QUALITY_DEFAULTS = Object.freeze({
+  targetDirs: MAINTAINABILITY_GATE_DEFAULTS.targetDirs,
+  defaultScope: DEFAULT_GATE_SCOPING.scope,
+  diffRef: DEFAULT_GATE_SCOPING.diffRef,
+});
+
+const CRAP_GATE_KEYS = new Set([
+  'enabled',
+  'baselinePath',
+  'tolerance',
+  'floors',
+  'targetDirs',
+  'newMethodCeiling',
+  'requireCoverage',
+  'friction',
+  'refreshTag',
+]);
+
+const COVERAGE_GATE_KEYS = new Set([
+  'enabled',
+  'baselinePath',
+  'tolerance',
+  'floors',
+  'coveragePath',
+]);
+
+const MI_GATE_KEYS = new Set([
+  'enabled',
+  'baselinePath',
+  'tolerance',
+  'floors',
+  'targetDirs',
+]);
+
+/**
+ * Pure helper: coerce the object-shape tolerance to its scalar `value`
+ * for call sites that still expect a plain number. Returns the default
+ * scalar when the tolerance object is malformed.
+ *
+ * @param {{ kind?: string, value?: number } | undefined} tolerance
+ * @param {number} fallback scalar tolerance
+ * @returns {number}
+ */
+function toleranceScalar(tolerance, fallback) {
+  if (
+    tolerance &&
+    typeof tolerance === 'object' &&
+    Number.isFinite(tolerance.value) &&
+    tolerance.value >= 0
+  ) {
+    return tolerance.value;
+  }
+  return fallback;
+}
+
+function warnUnknownKeys(userBlock, knownKeys, blockLabel) {
+  for (const key of Object.keys(userBlock)) {
+    if (!knownKeys.has(key)) {
+      Logger.warn(`[config] Unknown key '${blockLabel}.${key}' — ignoring.`);
+    }
+  }
+}
+
+/**
+ * Resolve the CRAP gate. Accepts both the new `gates.crap.*` shape and
+ * the resolved `coverage` gate (for the `coveragePath` cross-read). The
+ * lifted `gateScoping` carries the diff scope and ref.
+ *
+ * @param {object | undefined} userCrap raw `delivery.quality.gates.crap`
+ * @param {{ scope: string, diffRef: string }} gateScoping resolved scoping
+ * @param {{ coveragePath: string }} coverageGate resolved coverage gate
+ * @returns {object} flattened legacy-bag view that existing callers read
+ */
+export function resolveMaintainabilityCrap(
+  userCrap,
+  gateScoping,
+  coverageGate,
+) {
+  const defaults = CRAP_GATE_DEFAULTS;
+  const scoping = {
+    defaultScope: gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
+    diffRef: gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
+  };
+  const coverage = coverageGate ?? COVERAGE_GATE_DEFAULTS;
   if (userCrap == null || typeof userCrap !== 'object') {
     return {
       enabled: defaults.enabled,
       targetDirs: [...defaults.targetDirs],
       newMethodCeiling: defaults.newMethodCeiling,
-      coveragePath: defaults.coveragePath,
-      tolerance: defaults.tolerance,
+      coveragePath: coverage.coveragePath,
+      tolerance: toleranceScalar(
+        defaults.tolerance,
+        DEFAULT_CRAP_TOLERANCE.value,
+      ),
       requireCoverage: defaults.requireCoverage,
       friction: { ...defaults.friction },
       refreshTag: defaults.refreshTag,
-      defaultScope: defaults.defaultScope,
-      diffRef: defaults.diffRef,
+      defaultScope: scoping.defaultScope,
+      diffRef: scoping.diffRef,
     };
   }
 
-  for (const key of Object.keys(userCrap)) {
-    if (!MAINTAINABILITY_CRAP_KEYS.has(key)) {
-      Logger.warn(`[config] Unknown key 'quality.crap.${key}' — ignoring.`);
-    }
-  }
+  warnUnknownKeys(userCrap, CRAP_GATE_KEYS, 'quality.gates.crap');
 
   return {
     enabled: userCrap.enabled ?? defaults.enabled,
     targetDirs: resolveListValue(defaults.targetDirs, userCrap.targetDirs),
     newMethodCeiling: userCrap.newMethodCeiling ?? defaults.newMethodCeiling,
-    coveragePath: userCrap.coveragePath ?? defaults.coveragePath,
-    tolerance: userCrap.tolerance ?? defaults.tolerance,
+    coveragePath: coverage.coveragePath,
+    tolerance: toleranceScalar(
+      userCrap.tolerance,
+      toleranceScalar(defaults.tolerance, DEFAULT_CRAP_TOLERANCE.value),
+    ),
     requireCoverage: userCrap.requireCoverage ?? defaults.requireCoverage,
     friction: { ...defaults.friction, ...(userCrap.friction ?? {}) },
     refreshTag: userCrap.refreshTag ?? defaults.refreshTag,
-    defaultScope:
-      userCrap.defaultScope === 'full' || userCrap.defaultScope === 'diff'
-        ? userCrap.defaultScope
-        : defaults.defaultScope,
-    diffRef:
-      typeof userCrap.diffRef === 'string' && userCrap.diffRef.length > 0
-        ? userCrap.diffRef
-        : defaults.diffRef,
+    defaultScope: scoping.defaultScope,
+    diffRef: scoping.diffRef,
   };
 }
 
 /**
- * Framework defaults for `agentSettings.quality.maintainability` — the per-file
- * MI targeting block. Empty `targetDirs` means "no MI scan unless the operator
- * declares targets". Lifted out of the old flat-key default in Story 6.
- *
- * Story #1394 (Epic #1386): `defaultScope` flips to `"diff"` so the MI gate
- * scopes by changed files by default. `diffRef` defaults to `"main"` so the
- * scoped diff resolves against the repo's primary integration branch unless
- * the project overrides it (e.g. monorepos with a different baseBranch).
+ * Resolve the maintainability gate. Returns the legacy-bag shape with
+ * `targetDirs` + a scalar `tolerance` (when set) + scoping inherited
+ * from `gateScoping`.
  */
-export const MAINTAINABILITY_QUALITY_DEFAULTS = Object.freeze({
-  targetDirs: Object.freeze([]),
-  defaultScope: 'diff',
-  diffRef: 'main',
-});
-
-/**
- * Merge a user-supplied `quality.maintainability` block with framework
- * defaults. The grouped block carries `targetDirs` (per-file scan roots),
- * `tolerance` (resolved by `check-maintainability.js`'s env-override helper),
- * and — added in Story #1394 — `defaultScope` + `diffRef` which drive the
- * diff-scoped gate default.
- *
- * @param {object|undefined} userBlock
- * @returns {{ targetDirs: string[], defaultScope: string, diffRef: string, tolerance?: number }}
- */
-export function resolveMaintainabilityQuality(userBlock) {
-  const defaults = MAINTAINABILITY_QUALITY_DEFAULTS;
+export function resolveMaintainabilityQuality(userBlock, gateScoping) {
+  const defaults = MAINTAINABILITY_GATE_DEFAULTS;
+  const scoping = {
+    defaultScope: gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
+    diffRef: gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
+  };
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       targetDirs: [...defaults.targetDirs],
-      defaultScope: defaults.defaultScope,
-      diffRef: defaults.diffRef,
+      defaultScope: scoping.defaultScope,
+      diffRef: scoping.diffRef,
     };
   }
+  warnUnknownKeys(userBlock, MI_GATE_KEYS, 'quality.gates.maintainability');
   const out = {
     targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
-    defaultScope:
-      userBlock.defaultScope === 'full' || userBlock.defaultScope === 'diff'
-        ? userBlock.defaultScope
-        : defaults.defaultScope,
-    diffRef:
-      typeof userBlock.diffRef === 'string' && userBlock.diffRef.length > 0
-        ? userBlock.diffRef
-        : defaults.diffRef,
+    defaultScope: scoping.defaultScope,
+    diffRef: scoping.diffRef,
   };
-  // `tolerance` flows through because `check-maintainability.js` reads it
-  // off the resolved block via `resolveMaintainabilityEnvOverrides`. We do
-  // not default-fill it here — the env-override helper carries the framework
-  // default (0.5) directly so the precedence layering stays in one place.
-  if (typeof userBlock.tolerance === 'number') {
-    out.tolerance = userBlock.tolerance;
+  if (userBlock.tolerance !== undefined) {
+    out.tolerance = toleranceScalar(
+      userBlock.tolerance,
+      toleranceScalar(defaults.tolerance, DEFAULT_MI_TOLERANCE.value),
+    );
   }
   return out;
 }
 
-/**
- * Framework defaults for `agentSettings.quality.prGate`. `checks` defaults to
- * an empty array so `git-pr-quality-gate.js` falls back to its hardcoded
- * DEFAULT_CHECKS trio (lint / format:check / test) when the operator hasn't
- * customised the suite. `enforceBranchProtection` defaults to `true` —
- * `/agents-bootstrap-github` (Epic #1142 Story #1157) writes the
- * `prGate.checks` names into GitHub's branch-protection rule on `main`
- * unless this flag is explicitly disabled.
- */
-export const PR_GATE_DEFAULTS = Object.freeze({
-  checks: Object.freeze([]),
-  enforceBranchProtection: true,
-});
-
-/**
- * Merge the user-supplied `quality.prGate` block with framework defaults.
- *
- * @param {object|undefined} userBlock
- * @returns {{ checks: object[], enforceBranchProtection: boolean }}
- */
-export function resolvePrGate(userBlock) {
+/** Resolve the coverage gate. Owns `coveragePath`. */
+export function resolveCoverageGate(userBlock) {
+  const defaults = COVERAGE_GATE_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
-      checks: [...PR_GATE_DEFAULTS.checks],
-      enforceBranchProtection: PR_GATE_DEFAULTS.enforceBranchProtection,
+      enabled: defaults.enabled,
+      baselinePath: defaults.baselinePath,
+      coveragePath: defaults.coveragePath,
+      tolerance: toleranceScalar(defaults.tolerance, 0),
     };
   }
+  warnUnknownKeys(userBlock, COVERAGE_GATE_KEYS, 'quality.gates.coverage');
   return {
-    checks: Array.isArray(userBlock.checks)
-      ? [...userBlock.checks]
-      : [...PR_GATE_DEFAULTS.checks],
-    enforceBranchProtection:
-      typeof userBlock.enforceBranchProtection === 'boolean'
-        ? userBlock.enforceBranchProtection
-        : PR_GATE_DEFAULTS.enforceBranchProtection,
+    enabled: userBlock.enabled ?? defaults.enabled,
+    baselinePath: userBlock.baselinePath ?? defaults.baselinePath,
+    coveragePath: userBlock.coveragePath ?? defaults.coveragePath,
+    tolerance: toleranceScalar(
+      userBlock.tolerance,
+      toleranceScalar(defaults.tolerance, 0),
+    ),
   };
 }
 
 /**
- * Framework defaults for `agentSettings.quality.codingGuardrails` — Story
- * #1399 (Epic #1386). The numeric coding-time rules the helper at
- * `.agents/workflows/helpers/code-quality-guardrails.md` cites. `cyclomaticFlag`
- * is the review-annotation ceiling; `cyclomaticMustFix` is the refactor-before-
- * merge ceiling; `miDropRefactor` is the per-file MI-drop ceiling above which a
- * regression requires a same-Story refactor; `requireSiblingTest` defaults to
- * `false` so legacy repos opt in to the structural sibling-test enforcement
- * deliberately (the rule is still review-time prose when off).
+ * Framework defaults for `delivery.quality.codingGuardrails`. The legacy
+ * field name `miDropRefactor` was renamed to `miDropMustRefactor` in
+ * Story 1 to avoid semantic collision with `autoRefresh.miDropCap`.
  */
 export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
   cyclomaticFlag: 8,
   cyclomaticMustFix: 12,
-  miDropRefactor: 1.5,
+  miDropMustRefactor: 1.5,
   requireSiblingTest: false,
 });
 
 const CODING_GUARDRAILS_KEYS = new Set(Object.keys(CODING_GUARDRAILS_DEFAULTS));
 
-/**
- * Merge a user-supplied `quality.codingGuardrails` block with framework
- * defaults. Scalar keys replace; unknown keys emit a `Logger.warn` but do not
- * fail resolution (mirrors the `crap`-block AC19 convention from Story 6).
- *
- * @param {object|undefined} userBlock
- * @returns {{
- *   cyclomaticFlag: number,
- *   cyclomaticMustFix: number,
- *   miDropRefactor: number,
- *   requireSiblingTest: boolean,
- * }}
- */
 export function resolveCodingGuardrails(userBlock) {
   const defaults = CODING_GUARDRAILS_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
     return { ...defaults };
   }
-  for (const key of Object.keys(userBlock)) {
-    if (!CODING_GUARDRAILS_KEYS.has(key)) {
-      Logger.warn(
-        `[config] Unknown key 'quality.codingGuardrails.${key}' — ignoring.`,
-      );
-    }
-  }
+  warnUnknownKeys(
+    userBlock,
+    CODING_GUARDRAILS_KEYS,
+    'quality.codingGuardrails',
+  );
   return {
     cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
     cyclomaticMustFix:
       userBlock.cyclomaticMustFix ?? defaults.cyclomaticMustFix,
-    miDropRefactor: userBlock.miDropRefactor ?? defaults.miDropRefactor,
+    miDropMustRefactor:
+      userBlock.miDropMustRefactor ?? defaults.miDropMustRefactor,
     requireSiblingTest:
       typeof userBlock.requireSiblingTest === 'boolean'
         ? userBlock.requireSiblingTest
@@ -242,20 +325,6 @@ export function resolveCodingGuardrails(userBlock) {
   };
 }
 
-/**
- * Framework defaults for `agentSettings.quality.autoRefresh` — bounded
- * baseline auto-refresh at story-close (Story #1398, Epic #1386). When
- * `enabled`, story-close regenerates baseline rows scoped to the Story diff
- * after pre-merge validation passes and amends them into the close commit
- * if every row's delta is at or below the configured caps.
- *
- *   - `miDropCap` — maximum allowed drop in per-file MI score (default 1.5).
- *   - `crapJumpCap` — maximum allowed jump in per-method CRAP score
- *     (default 5).
- *   - `scope` — `'diff'` restricts auto-refresh to files the Story changed;
- *     `'full'` regenerates the full baseline. Default is `'diff'` so the
- *     auto-refresh stays bounded to the Story's footprint.
- */
 export const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
   miDropCap: 1.5,
@@ -265,17 +334,6 @@ export const AUTO_REFRESH_DEFAULTS = Object.freeze({
 
 const AUTO_REFRESH_KEYS = new Set(Object.keys(AUTO_REFRESH_DEFAULTS));
 
-/**
- * Merge a user-supplied `quality.autoRefresh` block with framework defaults.
- * Scalar keys replace; unknown keys emit a `Logger.warn` (consistent with
- * `resolveMaintainabilityCrap`'s AC19 contract). Negative caps and unknown
- * `scope` values fall back to defaults — schema validation rejects them
- * up front, so the resolver fallback only matters when callers bypass
- * validation (e.g. inline test fixtures).
- *
- * @param {object|undefined} userBlock
- * @returns {{ enabled: boolean, miDropCap: number, crapJumpCap: number, scope: string }}
- */
 export function resolveAutoRefresh(userBlock) {
   const defaults = AUTO_REFRESH_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -287,13 +345,7 @@ export function resolveAutoRefresh(userBlock) {
     };
   }
 
-  for (const key of Object.keys(userBlock)) {
-    if (!AUTO_REFRESH_KEYS.has(key)) {
-      Logger.warn(
-        `[config] Unknown key 'quality.autoRefresh.${key}' — ignoring.`,
-      );
-    }
-  }
+  warnUnknownKeys(userBlock, AUTO_REFRESH_KEYS, 'quality.autoRefresh');
 
   return {
     enabled:
@@ -320,44 +372,74 @@ export function resolveAutoRefresh(userBlock) {
 }
 
 /**
- * Merge the entire `agentSettings.quality` block with framework defaults
- * (Epic #730 Story 6). Composes the per-sub-block resolvers so consumers can
- * read every grouped field — `targetDirs`, `crap.*`, `prGate.checks`,
- * `baselines.<kind>.path`, `autoRefresh.*` — without re-running merge logic
- * at the call site.
- *
- * @param {object|undefined} userQuality
- * @returns {{
- *   maintainability: { targetDirs: string[] },
- *   crap: object,
- *   prGate: { checks: string[] },
- *   baselines: { lint: object, crap: object, maintainability: object },
- *   codingGuardrails: ReturnType<typeof resolveCodingGuardrails>,
- *   autoRefresh: { enabled: boolean, miDropCap: number, crapJumpCap: number, scope: string }
- * }}
+ * Resolve the merged baselines block. Baselines now live alongside their
+ * gates (`gates.<tier>.baselinePath`); this helper preserves the
+ * historical flat `baselines.{lint, crap, maintainability}` shape so
+ * existing readers (`getBaselines(config)` in `config-resolver.js`)
+ * stay untouched. Each entry is synthesised from the resolved gate's
+ * `baselinePath`.
  */
-export function resolveQuality(userQuality) {
-  const block =
-    userQuality && typeof userQuality === 'object' ? userQuality : {};
+function resolveBaselinesFromGates(gates) {
   return {
-    maintainability: resolveMaintainabilityQuality(block.maintainability),
-    crap: resolveMaintainabilityCrap(block.crap),
-    prGate: resolvePrGate(block.prGate),
-    baselines: resolveBaselines(block.baselines),
-    codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
-    autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    lint: { path: gates?.lint?.baselinePath ?? 'baselines/lint.json' },
+    crap: {
+      path: gates?.crap?.baselinePath ?? CRAP_GATE_DEFAULTS.baselinePath,
+    },
+    maintainability: {
+      path:
+        gates?.maintainability?.baselinePath ??
+        MAINTAINABILITY_GATE_DEFAULTS.baselinePath,
+    },
   };
 }
 
 /**
- * Read the merged `agentSettings.quality` block. Accepts either the full
- * resolved config (`{ agentSettings, ... }`) or the bare `agentSettings` bag.
+ * Merge the entire `delivery.quality` block with framework defaults.
  *
- * @param {{ agentSettings?: { quality?: object } } | object | null | undefined} config
+ * Returns the historical flattened bag (so the existing call sites that
+ * read `q.crap.coveragePath`, `q.maintainability.targetDirs`, etc. keep
+ * working) plus the new `gates` resolved object and `gateScoping`.
+ *
+ * @param {object|undefined} userQuality
+ */
+export function resolveQuality(userQuality) {
+  const block =
+    userQuality && typeof userQuality === 'object' ? userQuality : {};
+  const gates =
+    block.gates && typeof block.gates === 'object' ? block.gates : {};
+  const gateScoping = {
+    scope: block.gateScoping?.scope ?? DEFAULT_GATE_SCOPING.scope,
+    diffRef: block.gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
+  };
+  const coverage = resolveCoverageGate(gates.coverage);
+  return {
+    maintainability: resolveMaintainabilityQuality(
+      gates.maintainability,
+      gateScoping,
+    ),
+    crap: resolveMaintainabilityCrap(gates.crap, gateScoping, coverage),
+    coverage,
+    baselines: resolveBaselinesFromGates(gates),
+    codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
+    autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    gateScoping,
+    gates,
+  };
+}
+
+/**
+ * Read the merged `delivery.quality` block. Accepts the full resolved
+ * config or any unwrapped variant (`{ delivery }`, `{ quality }`, or — for
+ * legacy compatibility — `{ agentSettings: { quality } }`).
+ *
+ * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveQuality>}
  */
 export function getQuality(config) {
   const userQuality =
-    config?.agentSettings?.quality ?? config?.quality ?? undefined;
+    config?.delivery?.quality ??
+    config?.quality ??
+    config?.agentSettings?.quality ??
+    undefined;
   return resolveQuality(userQuality);
 }

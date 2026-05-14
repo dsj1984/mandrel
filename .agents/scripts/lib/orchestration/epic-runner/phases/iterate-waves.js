@@ -1,8 +1,7 @@
 /**
  * Iterate-waves phase — the wave loop.
  *
- * Before the loop: flip Epic to `agent::executing`, initialize checkpoint,
- * run the version-bump-intent check.
+ * Before the loop: flip Epic to `agent::executing` and initialize checkpoint.
  *
  * Inside the loop: dispatch each wave via StoryLauncher, let WaveObserver
  * reclassify zero-delta stories, record wave history, checkpoint, and
@@ -20,7 +19,6 @@ import {
   emitEpicStarted,
   emitEpicUnblocked,
 } from '../progress-reporter.js';
-import { checkVersionBumpIntent } from '../version-bump-intent.js';
 
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
@@ -88,25 +86,10 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     logger,
   });
 
-  try {
-    await checkVersionBumpIntent({
-      provider,
-      epicId,
-      epicBody: epic.body ?? '',
-      autoVersionBump: Boolean(ctx.autoVersionBump),
-      logger,
-    });
-  } catch (err) {
-    logger.warn?.(
-      `[EpicRunner] version-bump-intent check failed: ${err.message}${journalSuffix()}`,
-    );
-    await journal?.record({
-      module: 'EpicRunner',
-      op: 'checkVersionBumpIntent',
-      error: err,
-      recovery: 'swallowed',
-    });
-  }
+  // The framework no longer owns versioning (Epic #1720 — release tooling is
+  // a consumer-project concern). The version-bump-intent module was removed
+  // along with the schema knobs (`release.autoVersionBump` etc.) that drove
+  // it; no replacement runs here.
 
   const waveHistory = [];
   while (scheduler.hasMoreWaves()) {

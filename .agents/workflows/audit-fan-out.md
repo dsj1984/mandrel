@@ -87,7 +87,7 @@ contract the child owes the aggregator.
 
 ### Concurrency cap and overflow
 
-Respect `orchestration.concurrencyCap` (or the caller's slot budget). The
+Respect `delivery.deliverRunner.concurrencyCap` (or the caller's slot budget). The
 default cap in this codebase is typically 5–6; the audit suite has 12
 children, so overflow is the common case.
 

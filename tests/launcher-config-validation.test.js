@@ -32,13 +32,13 @@ const SCRIPTS = [
   },
 ];
 
-function buildFixtureWithoutRequiredEpicRunnerField() {
+function buildInvalidFixture() {
   const raw = JSON.parse(
     fs.readFileSync(path.join(PROJECT_ROOT, '.agentrc.json'), 'utf8'),
   );
-  // Schema requires orchestration.runners.deliverRunner.concurrencyCap — drop it
-  // to force a validation failure before any long-running flow begins.
-  delete raw.orchestration.runners.deliverRunner.concurrencyCap;
+  // Post-reshape: force a validation failure by adding an unknown top-level
+  // key (additionalProperties: false on the new schema rejects this).
+  raw.unknownTopLevel = true;
   return raw;
 }
 
@@ -51,7 +51,7 @@ describe('launcher-level orchestration config validation', () => {
     );
     fs.writeFileSync(
       path.join(fixtureDir, '.agentrc.json'),
-      JSON.stringify(buildFixtureWithoutRequiredEpicRunnerField(), null, 2),
+      JSON.stringify(buildInvalidFixture(), null, 2),
     );
   });
 
@@ -62,7 +62,7 @@ describe('launcher-level orchestration config validation', () => {
   });
 
   for (const s of SCRIPTS) {
-    test(`${s.name} exits non-zero with schema error when deliverRunner.concurrencyCap is missing`, () => {
+    test(`${s.name} exits non-zero with schema error on top-level typo`, () => {
       const res = spawnSync(
         process.execPath,
         [path.join(PROJECT_ROOT, s.relPath), ...s.args],
@@ -83,7 +83,7 @@ describe('launcher-level orchestration config validation', () => {
       const combined = `${res.stdout}\n${res.stderr}`;
       assert.match(
         combined,
-        /schema validation failed|concurrencyCap|required property/i,
+        /Invalid \.agentrc\.json|additional properties|required property/i,
         `${s.name} should surface a schema error before any provider call. Got: ${combined}`,
       );
     });
