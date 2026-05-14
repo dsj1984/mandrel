@@ -329,56 +329,11 @@ const SIGNALS_SCHEMA = {
   additionalProperties: false,
 };
 
-const MAINTAINABILITY_CRAP_SCHEMA = {
-  type: 'object',
-  properties: {
-    enabled: { type: 'boolean' },
-    targetDirs: LIST_OR_EXTENDER_OF_STRINGS,
-    newMethodCeiling: { type: 'integer', minimum: 1 },
-    coveragePath: { ...SAFE_STRING, minLength: 1 },
-    tolerance: { type: 'number', minimum: 0 },
-    requireCoverage: { type: 'boolean' },
-    friction: {
-      type: 'object',
-      properties: { markerKey: { type: 'string', minLength: 1 } },
-      additionalProperties: false,
-    },
-    refreshTag: { ...SAFE_STRING, minLength: 1 },
-  },
-  // Coverage-path requirement only when CRAP is enabled AND requireCoverage.
-  allOf: [
-    {
-      if: {
-        properties: {
-          enabled: { const: true },
-          requireCoverage: { const: true },
-        },
-        required: ['enabled', 'requireCoverage'],
-      },
-      // biome-ignore lint/suspicious/noThenProperty: JSON Schema if/then keyword
-      then: { required: ['coveragePath'] },
-    },
-  ],
-};
-
-const MAINTAINABILITY_QUALITY_SCHEMA = {
-  type: 'object',
-  properties: {
-    targetDirs: LIST_OR_EXTENDER_OF_STRINGS,
-    tolerance: { type: 'number', minimum: 0 },
-  },
-  additionalProperties: false,
-};
-
-const BASELINE_ENTRY_SCHEMA = {
-  type: 'object',
-  required: ['path'],
-  properties: {
-    path: { ...SAFE_STRING, minLength: 1 },
-    refreshCommand: NULLABLE_NONEMPTY_SAFE_STRING,
-  },
-  additionalProperties: false,
-};
+// `delivery.quality.gates.<tier>` sub-schemas live in their own module
+// (Story #1737); see `config-gates-schema.js` for the seven gate shapes
+// and the shared { kind, value } tolerance + workspace-keyed floors
+// fragments.
+import { GATES_SCHEMA } from './config-gates-schema.js';
 
 const CODING_GUARDRAILS_SCHEMA = {
   type: 'object',
@@ -402,45 +357,18 @@ const AUTO_REFRESH_SCHEMA = {
   additionalProperties: false,
 };
 
-const QUALITY_FLOORS_SCHEMA = {
-  type: 'object',
-  properties: {
-    coverage: {
-      type: 'object',
-      properties: {
-        lines: { type: 'number', minimum: 0, maximum: 100 },
-        branches: { type: 'number', minimum: 0, maximum: 100 },
-        functions: { type: 'number', minimum: 0, maximum: 100 },
-      },
-      additionalProperties: false,
-    },
-    maintainability: { type: 'number', minimum: 0, maximum: 100 },
-    crap: { type: 'number', minimum: 0 },
-  },
-  additionalProperties: false,
-};
-
+/**
+ * `delivery.quality` — uniform per-gate shape (Story #1737).
+ *
+ * Every gate lives under `gates.<tier>` and shares the four-field base:
+ * `{ enabled, baselinePath, tolerance: { kind, value }, floors: { "*": {...} } }`.
+ * Shared scoping lives at the block root (`gateScoping`). The legacy
+ * top-level `crap`, `maintainability`, `qualityFloors`, and `baselines`
+ * keys are gone — replaced by the gate-shaped equivalents.
+ */
 const QUALITY_SCHEMA = {
   type: 'object',
   properties: {
-    baselines: {
-      type: 'object',
-      properties: {
-        lint: BASELINE_ENTRY_SCHEMA,
-        crap: BASELINE_ENTRY_SCHEMA,
-        maintainability: BASELINE_ENTRY_SCHEMA,
-      },
-      additionalProperties: false,
-    },
-    maintainability: MAINTAINABILITY_QUALITY_SCHEMA,
-    crap: MAINTAINABILITY_CRAP_SCHEMA,
-    codingGuardrails: CODING_GUARDRAILS_SCHEMA,
-    autoRefresh: AUTO_REFRESH_SCHEMA,
-    qualityFloors: QUALITY_FLOORS_SCHEMA,
-    // Story 1 mechanically relocates the existing `quality.*` block under
-    // `delivery.quality.*`. The uniform per-gate `gates.<tier>` restructure
-    // happens in Story 2 — keep the legacy fields here so callers continue
-    // to read through the existing resolver during the Story 1 cutover.
     gateScoping: {
       type: 'object',
       properties: {
@@ -449,6 +377,9 @@ const QUALITY_SCHEMA = {
       },
       additionalProperties: false,
     },
+    gates: GATES_SCHEMA,
+    codingGuardrails: CODING_GUARDRAILS_SCHEMA,
+    autoRefresh: AUTO_REFRESH_SCHEMA,
   },
   additionalProperties: false,
 };

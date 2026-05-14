@@ -20,6 +20,7 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { getQuality, resolveConfig } from './lib/config-resolver.js';
 import {
   buildScopePredicate,
   COVERAGE_BASELINE_PATH,
@@ -50,9 +51,16 @@ function main() {
   const cwd = process.cwd();
   Logger.info('[Coverage] Verifying per-file coverage against baseline...');
 
+  // Story #1737: coverage gate owns `coveragePath`. Read the configured
+  // path so the gate stays in sync with the CRAP gate (which now reads
+  // through `gates.coverage.coveragePath`).
+  const { agentSettings } = resolveConfig();
+  const quality = getQuality({ agentSettings });
+  const coveragePath = quality.coverage?.coveragePath;
+
   let raw;
   try {
-    raw = readCoverageFinal(cwd);
+    raw = readCoverageFinal(cwd, { coveragePath });
   } catch (err) {
     Logger.error(`[Coverage] ❌ ${err.message}`);
     process.exit(1);

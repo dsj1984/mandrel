@@ -365,22 +365,67 @@ describe('delivery.* shape', () => {
   });
 });
 
-describe('delivery.quality.* shape', () => {
-  it('accepts the relocated quality block', () => {
+describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
+  const POPULATED_GATES = {
+    lint: {
+      enabled: true,
+      baselinePath: 'baselines/lint.json',
+      tolerance: { kind: 'absolute', value: 0 },
+      floors: { '*': { errors: 0 } },
+    },
+    coverage: {
+      enabled: true,
+      baselinePath: 'baselines/coverage.json',
+      tolerance: { kind: 'absolute', value: 0 },
+      floors: { '*': { lines: 90, branches: 85, functions: 90 } },
+      coveragePath: 'coverage/coverage-final.json',
+    },
+    crap: {
+      enabled: true,
+      baselinePath: 'baselines/crap.json',
+      tolerance: { kind: 'absolute', value: 0.05 },
+      floors: { '*': { crap: 20 } },
+      targetDirs: ['src'],
+      newMethodCeiling: 30,
+      requireCoverage: true,
+    },
+    maintainability: {
+      enabled: true,
+      baselinePath: 'baselines/maintainability.json',
+      tolerance: { kind: 'absolute', value: 0.5 },
+      floors: { '*': { maintainability: 70 } },
+      targetDirs: ['src'],
+    },
+    mutation: {
+      enabled: true,
+      baselinePath: 'baselines/mutation.json',
+      tolerance: { kind: 'percent', value: 5 },
+      floors: { '*': { score: 60 } },
+    },
+    lighthouse: {
+      enabled: true,
+      baselinePath: 'baselines/lighthouse.json',
+      tolerance: { kind: 'percent', value: 5 },
+      floors: { '*': { performance: 80 } },
+      routes: [],
+    },
+    bundleSize: {
+      enabled: true,
+      baselinePath: 'baselines/bundle-size.json',
+      tolerance: { kind: 'percent', value: 5 },
+      floors: { '*': { kb: 250 } },
+      bundles: [],
+    },
+  };
+
+  it('accepts the populated gates block with all seven tiers', () => {
     assert.equal(
       validate({
         ...REQ,
         delivery: {
           quality: {
-            maintainability: { targetDirs: ['src'], tolerance: 0.5 },
-            crap: {
-              enabled: true,
-              targetDirs: ['src'],
-              newMethodCeiling: 30,
-              coveragePath: 'coverage/coverage-final.json',
-              requireCoverage: true,
-              tolerance: 0.05,
-            },
+            gateScoping: { scope: 'diff', diffRef: 'main' },
+            gates: POPULATED_GATES,
             codingGuardrails: {
               cyclomaticFlag: 8,
               cyclomaticMustFix: 12,
@@ -393,15 +438,156 @@ describe('delivery.quality.* shape', () => {
               crapJumpCap: 5,
               scope: 'diff',
             },
-            baselines: {
-              lint: { path: 'baselines/lint.json' },
-              crap: { path: 'baselines/crap.json' },
-              maintainability: { path: 'baselines/maintainability.json' },
+          },
+        },
+      }),
+      true,
+    );
+  });
+
+  it('rejects scalar tolerance values across every gate', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              crap: { tolerance: 0.05 },
+            },
+          },
+        },
+      },
+      /tolerance/,
+    );
+  });
+
+  it('accepts a percent tolerance', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              mutation: { tolerance: { kind: 'percent', value: 2.5 } },
             },
           },
         },
       }),
       true,
+    );
+  });
+
+  it('rejects an unknown tolerance kind', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: { crap: { tolerance: { kind: 'relative', value: 1 } } },
+          },
+        },
+      },
+      /kind/,
+    );
+  });
+
+  it('requires the catch-all key in floors', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: { coverage: { floors: { 'packages/web': { lines: 90 } } } },
+          },
+        },
+      },
+      /'\*'/,
+    );
+  });
+
+  it('rejects flat scalar floors (legacy qualityFloors shape)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            qualityFloors: {
+              coverage: { lines: 90 },
+              maintainability: 70,
+              crap: 20,
+            },
+          },
+        },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('rejects coveragePath on the CRAP gate (moved to coverage)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              crap: { coveragePath: 'coverage/coverage-final.json' },
+            },
+          },
+        },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('accepts coveragePath on the coverage gate', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              coverage: { coveragePath: 'coverage/coverage-final.json' },
+            },
+          },
+        },
+      }),
+      true,
+    );
+  });
+
+  it('rejects the legacy top-level maintainability key', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: { maintainability: { targetDirs: ['src'] } },
+        },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('rejects the legacy top-level crap key', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: { crap: { enabled: true } },
+        },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('rejects the legacy top-level baselines key', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: { baselines: { lint: { path: 'baselines/lint.json' } } },
+        },
+      },
+      /additional properties/,
     );
   });
 
@@ -422,29 +608,26 @@ describe('delivery.quality.* shape', () => {
       {
         ...REQ,
         delivery: {
-          quality: { maintainability: { halsteadTolerance: 0.1 } },
+          quality: { gates: { maintainability: { halsteadTolerance: 0.1 } } },
         },
       },
       /additional properties/,
     );
   });
 
-  it('c1Exemption is dropped (resolver warns; schema does not enforce closed shape on crap)', () => {
-    // crap subschema keeps `additionalProperties: true` so the resolver can
-    // emit a soft warning for unknown keys rather than fail validation
-    // (existing AC19 contract preserved through the reshape).
-    assert.equal(
-      validate({
+  it('rejects c1Exemption on the CRAP gate (closed shape)', () => {
+    expectErrors(
+      {
         ...REQ,
         delivery: {
-          quality: { crap: { enabled: false, c1Exemption: 'blanket' } },
+          quality: { gates: { crap: { c1Exemption: 'blanket' } } },
         },
-      }),
-      true,
+      },
+      /additional properties/,
     );
   });
 
-  it('accepts gateScoping (Story 1 forward-compat read)', () => {
+  it('accepts gateScoping at the quality-block root', () => {
     assert.equal(
       validate({
         ...REQ,
@@ -455,20 +638,6 @@ describe('delivery.quality.* shape', () => {
         },
       }),
       true,
-    );
-  });
-
-  it('requires coveragePath when crap.enabled+requireCoverage are true', () => {
-    expectErrors(
-      {
-        ...REQ,
-        delivery: {
-          quality: {
-            crap: { enabled: true, requireCoverage: true },
-          },
-        },
-      },
-      /coveragePath/,
     );
   });
 });

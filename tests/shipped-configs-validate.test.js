@@ -66,11 +66,16 @@ describe('shipped configs validate cleanly under the post-reshape schema', () =>
         );
       }
 
-      const crap = delivery.quality?.crap;
-      if (crap && crap.enabled === true && crap.requireCoverage === true) {
+      // Story #1737: coveragePath ownership moved from crap to coverage. When
+      // the CRAP gate is enabled with requireCoverage, the coverage gate must
+      // declare a coveragePath that crap reads from.
+      const crap = delivery.quality?.gates?.crap;
+      const coverage = delivery.quality?.gates?.coverage;
+      if (crap?.enabled === true && crap?.requireCoverage === true) {
         assert.ok(
-          typeof crap.coveragePath === 'string' && crap.coveragePath.length > 0,
-          `${relPath}: delivery.quality.crap.coveragePath is required when enabled+requireCoverage are true`,
+          typeof coverage?.coveragePath === 'string' &&
+            coverage.coveragePath.length > 0,
+          `${relPath}: delivery.quality.gates.coverage.coveragePath is required when crap.enabled+requireCoverage are true`,
         );
       }
     });

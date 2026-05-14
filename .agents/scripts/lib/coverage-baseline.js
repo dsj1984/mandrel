@@ -124,15 +124,28 @@ export function scoreCoverageFinal({ raw, cwd, scope }) {
  * Read + parse `coverage-final.json`. Throws a helpful error when the
  * file is missing — that's the operator-facing signal that they need
  * to run `npm run test:coverage` first.
+ *
+ * Story #1737: the per-file gate now reads `coveragePath` from
+ * `delivery.quality.gates.coverage` instead of the hardcoded
+ * `coverage/coverage-final.json`. Callers pass the resolved path via
+ * `opts.coveragePath`; the legacy default is preserved for tests that
+ * still spin up a tmp tree without a config.
  */
-export function readCoverageFinal(cwd, fsImpl = fs) {
-  const abs = path.resolve(cwd, COVERAGE_FINAL_PATH);
-  if (!fsImpl.existsSync(abs)) {
+export function readCoverageFinal(cwd, opts = {}, fsImpl) {
+  const resolvedFs = fsImpl ?? fs;
+  const coveragePath =
+    typeof opts === 'string'
+      ? opts
+      : (opts?.coveragePath ?? COVERAGE_FINAL_PATH);
+  const abs = path.isAbsolute(coveragePath)
+    ? coveragePath
+    : path.resolve(cwd, coveragePath);
+  if (!resolvedFs.existsSync(abs)) {
     throw new Error(
       `coverage-final.json not found at ${abs}. Run \`npm run test:coverage\` first.`,
     );
   }
-  return JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+  return JSON.parse(resolvedFs.readFileSync(abs, 'utf8'));
 }
 
 /**

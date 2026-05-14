@@ -14,16 +14,27 @@ import path from 'node:path';
  *   - maintainability index:                       70                (≥)
  *   - CRAP score per method:                       20                (≤)
  *
- * Configurable via `.agentrc.json → delivery.quality.qualityFloors`:
+ * Configurable via `.agentrc.json → delivery.quality.gates.<tier>.floors`.
+ * Story #1737 migrated the legacy flat `qualityFloors.*` shape to
+ * per-gate workspace-keyed floors objects:
  *
- *     {
- *       "coverage": { "lines": 90, "branches": 85, "functions": 90 },
- *       "maintainability": 70,
- *       "crap": 20
+ *     "delivery": {
+ *       "quality": {
+ *         "gates": {
+ *           "coverage": {
+ *             "floors": { "*": { "lines": 90, "branches": 85, "functions": 90 } }
+ *           },
+ *           "maintainability": { "floors": { "*": { "maintainability": 70 } } },
+ *           "crap":            { "floors": { "*": { "crap": 20 } } }
+ *         }
+ *       }
  *     }
  *
- * Unknown axes inside the `qualityFloors` block raise a validation error —
- * silent typos must never relax the gate.
+ * The `"*"` key is the catch-all default; real workspace names handle
+ * monorepo consumers. Unknown axes inside any workspace-keyed bag raise
+ * a validation error — silent typos must never relax the gate. The flat
+ * `qualityFloors.*` shape is rejected by the AJV schema and is no longer
+ * recognised by this loader.
  */
 
 /** @typedef {{lines: number, branches: number, functions: number}} CoverageFloor */
@@ -35,37 +46,43 @@ export const DEFAULT_FLOORS = Object.freeze({
   crap: 20,
 });
 
-const KNOWN_AXES = new Set(['coverage', 'maintainability', 'crap']);
 const KNOWN_COVERAGE_AXES = new Set(['lines', 'branches', 'functions']);
+const KNOWN_AXES = new Set(['coverage', 'maintainability', 'crap']);
 
 /**
- * Load + validate the qualityFloors block from `.agentrc.json` (or another
- * config path). Returns a fully-populated config; missing fields fall back
- * to the documented defaults. Unknown axes throw a validation error.
+ * Load + validate the per-gate floors blocks from `.agentrc.json` (or
+ * another config path). Returns a fully-populated config; missing fields
+ * fall back to the documented defaults. Unknown workspace-axis names
+ * throw a validation error.
  *
  * @param {string} [agentrcPath] absolute or cwd-relative path; defaults to
  *   `<cwd>/.agentrc.json`
+ * @param {{ workspace?: string }} [opts]
+ *   `workspace` selects which workspace key inside `floors` to read.
+ *   Defaults to `"*"` (the catch-all). Falls through to `"*"` when the
+ *   requested workspace is not declared.
  * @returns {FloorConfig}
  */
-export function loadFloorConfig(agentrcPath) {
+export function loadFloorConfig(agentrcPath, opts = {}) {
+  const workspace = typeof opts?.workspace === 'string' ? opts.workspace : '*';
   const target = resolveAgentrcPath(agentrcPath);
   const raw = readAgentrcOrNull(target);
   if (raw === null) return cloneDefaults();
   const parsed = parseAgentrcJson(target, raw);
-  // Post-reshape: floors live under `delivery.quality.qualityFloors`.
-  // Tolerate the legacy `agentSettings.quality.qualityFloors` path for
-  // configs that haven't migrated yet (the AJV schema rejects them, but
-  // ad-hoc test fixtures may still pass through here).
-  const block =
-    parsed?.delivery?.quality?.qualityFloors ??
-    parsed?.agentSettings?.quality?.qualityFloors;
-  if (block === undefined || block === null) return cloneDefaults();
-  assertBlockShape(block);
-  assertKnownAxes(block);
+  const gates =
+    parsed?.delivery?.quality?.gates ??
+    parsed?.agentSettings?.quality?.gates ??
+    null;
+  if (gates === null || typeof gates !== 'object') return cloneDefaults();
   const out = cloneDefaults();
-  applyCoverageBlock(out, block.coverage);
-  applyMaintainabilityBlock(out, block.maintainability);
-  applyCrapBlock(out, block.crap);
+  applyGateFloors(out, 'coverage', gates.coverage?.floors, workspace);
+  applyGateFloors(
+    out,
+    'maintainability',
+    gates.maintainability?.floors,
+    workspace,
+  );
+  applyGateFloors(out, 'crap', gates.crap?.floors, workspace);
   return out;
 }
 
@@ -96,69 +113,85 @@ function parseAgentrcJson(target, raw) {
   }
 }
 
-function assertBlockShape(block) {
-  if (typeof block !== 'object' || Array.isArray(block)) {
+/**
+ * Pull the workspace-specific floor bag for a single gate. Story #1737
+ * mandates the workspace-keyed shape: `floors: { "*": { ... } }`.
+ * Returns the entry under `workspace`, falling back to the catch-all
+ * `"*"` when the requested workspace is not declared.
+ */
+function selectWorkspaceFloors(floors, workspace) {
+  if (floors === undefined || floors === null) return null;
+  if (typeof floors !== 'object' || Array.isArray(floors)) {
     throw new Error(
-      `qualityFloors: expected an object at delivery.quality.qualityFloors, got ${Array.isArray(block) ? 'array' : typeof block}`,
+      `qualityFloors: expected an object at gates.<tier>.floors, got ${Array.isArray(floors) ? 'array' : typeof floors}`,
     );
   }
-}
-
-function assertKnownAxes(block) {
-  for (const key of Object.keys(block)) {
-    if (!KNOWN_AXES.has(key)) {
+  // Reject the legacy flat shape (e.g. floors: { lines: 90 }) — every
+  // value at the top level MUST be a workspace bag (an object).
+  for (const key of Object.keys(floors)) {
+    if (typeof floors[key] !== 'object' || floors[key] === null) {
       throw new Error(
-        `qualityFloors: unknown axis "${key}"; expected one of ${[...KNOWN_AXES].join(', ')}`,
+        `qualityFloors: workspace key "${key}" must point to an object of floor values, got ${typeof floors[key]}`,
       );
     }
   }
+  return floors[workspace] ?? floors['*'] ?? null;
 }
 
-function applyCoverageBlock(out, coverage) {
-  if (coverage === undefined) return;
-  if (
-    typeof coverage !== 'object' ||
-    coverage === null ||
-    Array.isArray(coverage)
-  ) {
-    throw new Error(
-      'qualityFloors.coverage: expected an object with numeric lines/branches/functions',
-    );
+function applyGateFloors(out, tier, floors, workspace) {
+  const bag = selectWorkspaceFloors(floors, workspace);
+  if (bag === null) return;
+  if (tier === 'coverage') {
+    applyCoverageBag(out.coverage, bag);
+    return;
   }
-  for (const key of Object.keys(coverage)) {
+  applyScalarBag(out, tier, bag);
+}
+
+function applyCoverageBag(target, bag) {
+  for (const key of Object.keys(bag)) {
     if (!KNOWN_COVERAGE_AXES.has(key)) {
       throw new Error(
         `qualityFloors.coverage: unknown axis "${key}"; expected one of ${[...KNOWN_COVERAGE_AXES].join(', ')}`,
       );
     }
-    const v = coverage[key];
+    const v = bag[key];
     if (!Number.isFinite(v) || v < 0 || v > 100) {
       throw new Error(
         `qualityFloors.coverage.${key}: expected a number in [0, 100], got ${JSON.stringify(v)}`,
       );
     }
-    out.coverage[key] = v;
+    target[key] = v;
   }
 }
 
-function applyMaintainabilityBlock(out, mi) {
-  if (mi === undefined) return;
-  if (!Number.isFinite(mi) || mi < 0 || mi > 100) {
-    throw new Error(
-      `qualityFloors.maintainability: expected a number in [0, 100], got ${JSON.stringify(mi)}`,
-    );
+function applyScalarBag(out, tier, bag) {
+  // The maintainability / crap bags carry a single named axis matching
+  // the tier name (`{ maintainability: 70 }` / `{ crap: 20 }`). Treat
+  // any other key as an unknown axis to keep the legacy validation
+  // contract — typos must never silently relax the gate.
+  for (const key of Object.keys(bag)) {
+    if (key !== tier) {
+      throw new Error(
+        `qualityFloors: unknown axis "${tier}.${key}"; expected "${tier}"`,
+      );
+    }
+    const v = bag[key];
+    if (tier === 'maintainability') {
+      if (!Number.isFinite(v) || v < 0 || v > 100) {
+        throw new Error(
+          `qualityFloors.maintainability: expected a number in [0, 100], got ${JSON.stringify(v)}`,
+        );
+      }
+    } else if (tier === 'crap') {
+      if (!Number.isFinite(v) || v < 0) {
+        throw new Error(
+          `qualityFloors.crap: expected a non-negative number, got ${JSON.stringify(v)}`,
+        );
+      }
+    }
+    out[tier] = v;
   }
-  out.maintainability = mi;
-}
-
-function applyCrapBlock(out, crap) {
-  if (crap === undefined) return;
-  if (!Number.isFinite(crap) || crap < 0) {
-    throw new Error(
-      `qualityFloors.crap: expected a non-negative number, got ${JSON.stringify(crap)}`,
-    );
-  }
-  out.crap = crap;
 }
 
 function cloneDefaults() {

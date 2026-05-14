@@ -92,24 +92,39 @@
       "retry": { "repeatCount": 3 }
     },
     "quality": {
-      "baselines": {
-        "lint": { "path": "baselines/lint.json" },
-        "crap": { "path": "baselines/crap.json" },
-        "maintainability": { "path": "baselines/maintainability.json" }
-      },
-      "maintainability": {
-        "targetDirs": ["src", "tests"],
-        "tolerance": 0.5
-      },
-      "crap": {
-        "enabled": true,
-        "targetDirs": ["src"],
-        "newMethodCeiling": 30,
-        "coveragePath": "coverage/coverage-final.json",
-        "tolerance": 0.05,
-        "requireCoverage": true,
-        "friction": { "markerKey": "crap-baseline-regression" },
-        "refreshTag": "baseline-refresh:"
+      "gateScoping": { "scope": "diff", "diffRef": "main" },
+      "gates": {
+        "lint": {
+          "enabled": true,
+          "baselinePath": "baselines/lint.json",
+          "tolerance": { "kind": "absolute", "value": 0 },
+          "floors": { "*": { "errors": 0 } }
+        },
+        "coverage": {
+          "enabled": true,
+          "baselinePath": "baselines/coverage.json",
+          "tolerance": { "kind": "absolute", "value": 0 },
+          "floors": { "*": { "lines": 90, "branches": 85, "functions": 90 } },
+          "coveragePath": "coverage/coverage-final.json"
+        },
+        "crap": {
+          "enabled": true,
+          "baselinePath": "baselines/crap.json",
+          "tolerance": { "kind": "absolute", "value": 0.05 },
+          "floors": { "*": { "crap": 20 } },
+          "targetDirs": ["src"],
+          "newMethodCeiling": 30,
+          "requireCoverage": true,
+          "friction": { "markerKey": "crap-baseline-regression" },
+          "refreshTag": "baseline-refresh:"
+        },
+        "maintainability": {
+          "enabled": true,
+          "baselinePath": "baselines/maintainability.json",
+          "tolerance": { "kind": "absolute", "value": 0.5 },
+          "floors": { "*": { "maintainability": 70 } },
+          "targetDirs": ["src", "tests"]
+        }
       },
       "codingGuardrails": {
         "cyclomaticFlag": 8,

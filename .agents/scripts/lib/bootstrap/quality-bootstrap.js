@@ -75,7 +75,7 @@ export const QUALITY_CONFIG_DEFAULTS = Object.freeze({
   codingGuardrails: Object.freeze({
     cyclomaticFlag: 8,
     cyclomaticMustFix: 12,
-    miDropRefactor: 1.5,
+    miDropMustRefactor: 1.5,
     requireSiblingTest: false,
   }),
   autoRefresh: Object.freeze({

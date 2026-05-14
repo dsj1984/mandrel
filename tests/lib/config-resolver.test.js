@@ -168,10 +168,12 @@ describe('helper accessors against the post-reshape shape', () => {
     assert.equal(lim.executionTimeoutMs, LIMITS_DEFAULTS.executionTimeoutMs);
   });
 
-  it('getQuality reads delivery.quality.*', () => {
+  it('getQuality reads delivery.quality.gates.<tier>.*', () => {
     const q = getQuality({
       delivery: {
-        quality: { maintainability: { targetDirs: ['src'] } },
+        quality: {
+          gates: { maintainability: { targetDirs: ['src'] } },
+        },
       },
     });
     assert.deepEqual(q.maintainability.targetDirs, ['src']);
@@ -186,11 +188,11 @@ describe('helper accessors against the post-reshape shape', () => {
     );
   });
 
-  it('getBaselines reads delivery.quality.baselines.*', () => {
+  it('getBaselines reads delivery.quality.gates.<tier>.baselinePath', () => {
     const b = getBaselines({
       delivery: {
         quality: {
-          baselines: { lint: { path: 'custom/lint.json' } },
+          gates: { lint: { baselinePath: 'custom/lint.json' } },
         },
       },
     });
