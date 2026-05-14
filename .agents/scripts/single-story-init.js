@@ -61,6 +61,7 @@ import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
+import { sweepMergedStoryBranches } from './lib/single-story-sweep.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
 
 const progress = Logger.createProgress('single-story-init', { stderr: true });
@@ -74,6 +75,7 @@ export async function runSingleStoryInit({
   cwd: cwdParam,
   injectedProvider,
   injectedConfig,
+  injectedSweep,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -134,6 +136,39 @@ export async function runSingleStoryInit({
       progress(
         'GIT',
         `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
+      );
+    }
+
+    // Reap previously-merged `story-*` branches before we start a new one,
+    // so stale local + origin refs do not accumulate across runs. The sweep
+    // excludes the current run's `storyBranch` and never blocks init: any
+    // sweep failure is logged but does not throw.
+    const sweepFn = injectedSweep ?? sweepMergedStoryBranches;
+    try {
+      const sweep = sweepFn({
+        cwd,
+        baseBranch,
+        currentStoryBranch: storyBranch,
+        logger: {
+          info: (m) => progress('CLEANUP', m),
+          warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
+        },
+      });
+      if (sweep.error) {
+        progress(
+          'CLEANUP',
+          `⚠️ sweep returned error (init continues): ${sweep.error}`,
+        );
+      } else if (sweep.candidates > 0) {
+        progress(
+          'CLEANUP',
+          `🧹 reaped ${sweep.localDeleted} local + ${sweep.remoteDeleted} remote story branch(es).`,
+        );
+      }
+    } catch (err) {
+      progress(
+        'CLEANUP',
+        `⚠️ sweep threw (init continues): ${err?.message ?? err}`,
       );
     }
 

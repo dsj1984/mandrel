@@ -230,7 +230,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.23,
+    "lines": 98.21,
     "branches": 89.29,
     "functions": 100
   },
@@ -968,6 +968,11 @@
     "lines": 100,
     "branches": 100,
     "functions": null
+  },
+  ".agents/scripts/lib/single-story-sweep.js": {
+    "lines": 100,
+    "branches": 90,
+    "functions": 100
   },
   ".agents/scripts/lib/spec/index.js": {
     "lines": 100,
