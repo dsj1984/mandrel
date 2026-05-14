@@ -284,6 +284,27 @@ export function assertValidStructuredCommentType(type) {
 }
 
 /**
+ * Emit a warn line for every per-parent cascade failure captured by
+ * {@link cascadeCompletion}. Each `error` string is pre-formatted with
+ * stderr + exit-code by `formatCascadeError`, so callers can pass the
+ * raw envelope through without further wrapping. Extracted from
+ * {@link transitionTicketState} to keep that function's cyclomatic
+ * complexity inside the project's per-method CRAP ceiling (Story #1817).
+ *
+ * @param {number} ticketId  The ticket whose `agent::done` transition
+ *                           triggered the cascade.
+ * @param {{ failed?: Array<{ parentId: number, error: string }> } | null} cascade
+ */
+function logCascadePartialFailures(ticketId, cascade) {
+  const cascadeFailures = cascade?.failed ?? [];
+  for (const { parentId, error } of cascadeFailures) {
+    Logger.warn(
+      `[Ticketing] Cascade from #${ticketId} hit partial-failure on parent #${parentId}: ${error}`,
+    );
+  }
+}
+
+/**
  * Transitions a ticket's label to the new state.
  * Removes other agent:: state labels.
  *
@@ -362,18 +383,7 @@ export async function transitionTicketState(
     const cascade = await cascadeCompletion(provider, ticketId, {
       notify: opts.notify,
     });
-    // Iterable hoisted out of the `for...of` initializer because the
-    // typhonjs-escomplex maintainability analyser mis-parses optional
-    // chaining inside that position (`traveler[node.type] is not a function`).
-    const cascadeFailures = cascade?.failed ?? [];
-    for (const { parentId, error } of cascadeFailures) {
-      // `error` already contains the formatted stderr/exit-code from
-      // `formatCascadeError` (Story #1817), so the operator-visible line
-      // carries the full classification context without further wrapping.
-      Logger.warn(
-        `[Ticketing] Cascade from #${ticketId} hit partial-failure on parent #${parentId}: ${error}`,
-      );
-    }
+    logCascadePartialFailures(ticketId, cascade);
   }
 
   // Fire the state-transition notification (fire-and-forget).

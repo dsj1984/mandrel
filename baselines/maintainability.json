@@ -212,7 +212,7 @@
   ".agents/scripts/lib/orchestration/task-fetcher.js": 114.391,
   ".agents/scripts/lib/orchestration/ticket-validator-sizing.js": 94.978,
   ".agents/scripts/lib/orchestration/ticket-validator.js": 93.264,
-  ".agents/scripts/lib/orchestration/ticketing.js": 94.778,
+  ".agents/scripts/lib/orchestration/ticketing.js": 95.26,
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": 88.783,
   ".agents/scripts/lib/orchestration/wave-marker.js": 117.783,
   ".agents/scripts/lib/path-security.js": 117.206,
