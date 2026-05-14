@@ -1213,79 +1213,79 @@
       "crap": 1,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "camelCase",
-      "startLine": 102
+      "startLine": 104
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "initialValueFor",
-      "startLine": 106
+      "startLine": 108
     },
     {
       "crap": 4.074074074074074,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "coerceValue",
-      "startLine": 113
+      "startLine": 115
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "validateSpec",
-      "startLine": 145
+      "startLine": 147
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "initParserState",
-      "startLine": 155
+      "startLine": 157
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "classifyToken",
-      "startLine": 168
+      "startLine": 170
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "assignFlagValue",
-      "startLine": 182
+      "startLine": 184
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "readValuedFlag",
-      "startLine": 190
+      "startLine": 192
     },
     {
       "crap": 8.040303206997084,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "parseTokens",
-      "startLine": 206
+      "startLine": 208
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "isAbsentValue",
-      "startLine": 242
+      "startLine": 244
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "applyEnvFallbacks",
-      "startLine": 248
+      "startLine": 250
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "applyDefaults",
-      "startLine": 261
+      "startLine": 263
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/cli-args.js",
       "method": "defineFlags",
-      "startLine": 272
+      "startLine": 274
     },
     {
       "crap": 2,
@@ -3316,7 +3316,7 @@
       "startLine": 74
     },
     {
-      "crap": 16,
+      "crap": 8.006910700788252,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
       "startLine": 88
@@ -7078,7 +7078,7 @@
       "startLine": 421
     },
     {
-      "crap": 5.0407083248524325,
+      "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
       "startLine": 460
@@ -7352,6 +7352,36 @@
       "file": ".agents/scripts/signals-view.js",
       "method": "<anon method-3>",
       "startLine": 299
+    },
+    {
+      "crap": 375.37185158400007,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "runSingleStoryClose",
+      "startLine": 68
+    },
+    {
+      "crap": 11.635180467691642,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "ensurePullRequest",
+      "startLine": 306
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "parsePrNumber",
+      "startLine": 388
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "enableAutoMerge",
+      "startLine": 408
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "defaultGhAutoMergeRunner",
+      "startLine": 432
     },
     {
       "crap": 2,

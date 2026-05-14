@@ -230,8 +230,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.21,
-    "branches": 89.19,
+    "lines": 98.23,
+    "branches": 89.29,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -416,7 +416,7 @@
   },
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
-    "branches": 75.41,
+    "branches": 82.54,
     "functions": 89.47
   },
   ".agents/scripts/lib/Graph.js": {
@@ -555,8 +555,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-engine.js": {
-    "lines": 82.74,
-    "branches": 76.92,
+    "lines": 92.39,
+    "branches": 85.71,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-pipeline.js": {
@@ -906,12 +906,12 @@
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 97.14,
-    "branches": 85.02,
+    "branches": 85.53,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
     "lines": 97.39,
-    "branches": 77.55,
+    "branches": 79.59,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-renderer.js": {
@@ -1160,8 +1160,8 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 86.13,
-    "branches": 72.37,
+    "lines": 86.25,
+    "branches": 73.04,
     "functions": 86.67
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
@@ -1183,6 +1183,11 @@
     "lines": 92.9,
     "branches": 73.12,
     "functions": 86.67
+  },
+  ".agents/scripts/single-story-close.js": {
+    "lines": 29.05,
+    "branches": 73.33,
+    "functions": 40
   },
   ".agents/scripts/sync-claude-commands.js": {
     "lines": 93.41,
