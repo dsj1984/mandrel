@@ -540,6 +540,13 @@ function _formatManifestMarkdownUncached(manifest) {
   );
   lines.push('');
 
+  // --- Top <details> block: operating procedures + full symbol legend.
+  // Sits directly under the meta line so an operator opening the manifest
+  // sees the run-instructions and the symbol key before scrolling the wave
+  // tables. The only HTML in the document; collapsed by default.
+  lines.push(renderProceduresAndLegendDetails(epicId));
+  lines.push('');
+
   // --- Wave Summary Table (Stories only — Features are containers) ---
   const allItems =
     manifest.storyManifest ||
@@ -555,11 +562,6 @@ function _formatManifestMarkdownUncached(manifest) {
     const nestedBlock = renderNestedWaveSections(storyManifest);
     if (nestedBlock) lines.push(nestedBlock);
   }
-
-  // --- Bottom <details> block: operating procedures + full symbol legend.
-  // The only HTML in the document; collapsed by default.
-  lines.push(renderProceduresAndLegendDetails(epicId));
-  lines.push('');
 
   // --- Agent Telemetry ---
   /* node:coverage ignore next */
