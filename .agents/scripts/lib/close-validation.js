@@ -148,12 +148,64 @@ export function resolveFormatWriteCommand(settings) {
 }
 
 /**
+ * Resolve whether the CRAP gate is enabled for this run. When enabled, the
+ * close-validation graph drops the standalone `test` gate because
+ * coverage-capture (which CRAP depends on) already runs the suite under c8
+ * instrumentation — running `npm test` separately would execute the suite
+ * twice per Story close (Story #1798 / Epic #1788).
+ *
+ * Reads `crap.enabled` directly from each of the shapes call sites pass us:
+ *   - the resolved legacy-shim shape (`agentSettings.quality.crap.enabled`),
+ *     which production callers receive from `resolveConfig().agentSettings`;
+ *   - the raw `.agentrc.json` shape under `delivery.quality.gates.crap.enabled`;
+ *   - the raw partial-config shape (`quality.gates.crap.enabled`) some
+ *     unit-test call sites construct directly.
+ *
+ * Defaults to `true` so a consumer that omits the gate entirely matches
+ * `CRAP_GATE_DEFAULTS.enabled`. We intentionally do NOT round-trip through
+ * `getQuality()` here because that resolver expects the unresolved
+ * `gates.crap.*` shape and re-running it against the already-resolved
+ * legacy-shim shape would silently collapse the user's setting back to the
+ * framework default.
+ *
+ * @param {object|undefined|null} agentSettings
+ * @returns {boolean}
+ */
+function isCrapGateEnabled(agentSettings) {
+  if (!agentSettings || typeof agentSettings !== 'object') return true;
+  const candidates = [
+    agentSettings?.quality?.crap?.enabled,
+    agentSettings?.delivery?.quality?.gates?.crap?.enabled,
+    agentSettings?.quality?.gates?.crap?.enabled,
+  ];
+  const firstBoolean = candidates.find((v) => typeof v === 'boolean');
+  return firstBoolean ?? true;
+}
+
+/**
+ * Conditionally produce the standalone `test` gate entry. Returns an empty
+ * array when the CRAP gate is enabled (Story #1798: coverage-capture is the
+ * canonical test runner in that mode); returns the legacy single-entry
+ * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
+ * the CRAP-cyclomatic gate.
+ *
+ * @param {object|undefined|null} agentSettings
+ * @returns {Gate[]}
+ */
+function buildTestGateEntry(agentSettings) {
+  if (isCrapGateEnabled(agentSettings)) return [];
+  return [{ name: 'test', cmd: 'npm', args: ['test'] }];
+}
+
+/**
  * Build the canonical close-validation gate list.
  *
  * Ordering rationale (cheapest fast-fail first):
  *   1. typecheck — pure compile-time check, fastest to fail
  *   2. lint     — static analysis
- *   3. test     — full test suite
+ *   3. test     — full test suite (dropped when `crap.enabled === true`;
+ *                 coverage-capture becomes the canonical test runner — see
+ *                 Story #1798)
  *   4. format   — configurable via `agentSettings.commands.formatCheck`
  *   5. check-maintainability
  *   6. coverage-capture
@@ -169,6 +221,13 @@ export function resolveFormatWriteCommand(settings) {
  * than via a working-tree fs read. Without it, those gates fall back to the
  * legacy fs read — `baselines/*.json` on whatever the spawn cwd's working
  * tree carries.
+ *
+ * Story #1798: when `delivery.quality.gates.crap.enabled === true` (the
+ * configured state for this repo and the framework default), the standalone
+ * `test` gate is dropped from the graph; coverage-capture carries
+ * test-failure signalling (exits non-zero on a failing suite, reports gate
+ * identifier `coverage-capture`). When `crap.enabled === false`, the legacy
+ * two-gate path is preserved so no consumer behaviour regresses.
  *
  * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
@@ -195,7 +254,7 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: TYPECHECK_HINT,
     },
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
-    { name: 'test', cmd: 'npm', args: ['test'] },
+    ...buildTestGateEntry(agentSettings),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
