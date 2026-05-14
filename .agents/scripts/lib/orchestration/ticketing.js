@@ -16,7 +16,13 @@ import {
   renderTransitionMessage,
 } from '../notifications/notifier.js';
 import { concurrentMap } from '../util/concurrent-map.js';
+import { dispatchCascadeGroups, groupByAncestor } from './cascade-grouping.js';
 import { WAVE_MARKER_RE } from './wave-marker.js';
+
+// Re-export `groupByAncestor` so external callers (notably tests written
+// against the ticketing surface) keep importing it from here unchanged
+// (Story #1665 split implementation into `./cascade-grouping.js`).
+export { groupByAncestor };
 
 /**
  * Cap on concurrent sibling re-reads inside `cascadeCompletion`. Bounded to
@@ -419,189 +425,6 @@ export async function upsertStructuredComment(
 }
 
 /**
- * Walks `parent: #N` references upward from the given ticket id until no new
- * ancestors are discovered. Returns the set of every ticket id reachable
- * along the chain, including the starting id. Cycle-safe by construction —
- * the visited set acts as the seen guard, so a cyclic `parent: #N` graph
- * terminates in finite steps without revisiting nodes.
- *
- * Pure of side effects beyond the provider reads it issues. Provider
- * failures on a single hop fall back to "no further ancestors discovered"
- * for that branch (the chain truncates rather than throwing); this matches
- * `cascadeCompletion`'s tolerant posture toward transient reads.
- *
- * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
- * @param {number} startId
- * @param {Map<number, Set<number>>} [cache] - Optional per-call cache of
- *   already-walked chains keyed by starting id. Reused across parents in
- *   {@link groupByAncestor} to amortise repeat walks.
- * @returns {Promise<Set<number>>} ancestor set including `startId`.
- */
-async function walkAncestorChain(provider, startId, cache) {
-  // Inner DFS with memoisation. `inProgress` guards cycles so a cyclic
-  // `parent: #N` graph terminates without recursion depth issues. Each
-  // visited node gets its own cache entry holding the set of ids reachable
-  // from it (inclusive), so a sibling walk that re-enters this subgraph
-  // can splice the cached set wholesale instead of re-reading the provider.
-  async function visit(id, inProgress) {
-    if (cache?.has(id)) return cache.get(id);
-    if (inProgress.has(id)) {
-      // Cycle: return a singleton so the caller still includes `id` in its
-      // ancestor set without recursing further through this loop. Do NOT
-      // memoise — the partial result is incomplete for `id`'s true chain.
-      return new Set([id]);
-    }
-    inProgress.add(id);
-
-    const set = new Set([id]);
-    let ticket = null;
-    try {
-      ticket = await provider.getTicket(id);
-    } catch {
-      // Provider read failure: truncate the chain branch. Memoise as the
-      // singleton so subsequent walks don't retry an already-failed read.
-      inProgress.delete(id);
-      cache?.set(id, set);
-      return set;
-    }
-
-    if (ticket?.body) {
-      const matches = [...ticket.body.matchAll(/parent:\s*#(\d+)/gi)];
-      for (const m of matches) {
-        const next = Number.parseInt(m[1], 10);
-        if (!Number.isFinite(next)) continue;
-        const subset = await visit(next, inProgress);
-        for (const v of subset) set.add(v);
-      }
-    }
-
-    inProgress.delete(id);
-    cache?.set(id, set);
-    return set;
-  }
-
-  return visit(startId, new Set());
-}
-
-/**
- * Partitions a list of parent ids into disjoint groups whose members share
- * at least one ancestor (transitively, via `parent: #N` references walked
- * to fixpoint).
- *
- * Two parents end up in the same group if and only if their ancestor sets
- * overlap on at least one ticket id. Parents with no shared ancestors end
- * up in singleton groups. The union of the returned groups equals the
- * input set; the order of `parents[]` is preserved within each group, and
- * groups are returned in the order their first member appears in the
- * input.
- *
- * Pure of side effects beyond the provider reads needed to walk chains.
- * Walked ancestor sets are cached per call so a parent that contributes
- * to multiple groups is not re-walked. Cycle-safe — see
- * {@link walkAncestorChain}.
- *
- * Used by {@link cascadeCompletion} to dispatch disjoint groups in
- * parallel while keeping shared-ancestor groups strictly sequential
- * (concurrent transitions on the same ancestor would race the
- * "all children done?" check).
- *
- * @param {Array<number>} parents
- * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
- * @returns {Promise<Array<Array<number>>>} disjoint groups of parent ids.
- */
-export async function groupByAncestor(parents, provider) {
-  if (!Array.isArray(parents) || parents.length === 0) return [];
-
-  // Walk each parent's ancestor chain once.
-  const cache = new Map();
-  const ancestorsByParent = new Map();
-  for (const parentId of parents) {
-    const chain = await walkAncestorChain(provider, parentId, cache);
-    ancestorsByParent.set(parentId, chain);
-  }
-
-  // Union-Find over the parents, joined whenever their ancestor sets
-  // overlap on any id.
-  const parentIndex = new Map();
-  parents.forEach((p, i) => {
-    parentIndex.set(p, i);
-  });
-  const uf = parents.map((_, i) => i);
-  const find = (i) => {
-    while (uf[i] !== i) {
-      uf[i] = uf[uf[i]];
-      i = uf[i];
-    }
-    return i;
-  };
-  const union = (a, b) => {
-    const ra = find(a);
-    const rb = find(b);
-    if (ra !== rb) uf[ra] = rb;
-  };
-
-  // For each ancestor id, collect parents whose chain hits it; union them.
-  const ancestorToParents = new Map();
-  for (const [parentId, chain] of ancestorsByParent) {
-    for (const ancestorId of chain) {
-      if (!ancestorToParents.has(ancestorId)) {
-        ancestorToParents.set(ancestorId, []);
-      }
-      ancestorToParents.get(ancestorId).push(parentId);
-    }
-  }
-  for (const sharing of ancestorToParents.values()) {
-    if (sharing.length < 2) continue;
-    const first = parentIndex.get(sharing[0]);
-    for (let i = 1; i < sharing.length; i++) {
-      union(first, parentIndex.get(sharing[i]));
-    }
-  }
-
-  // Bucket parents by representative, preserving first-seen order for
-  // both groups and within-group ordering.
-  const repToGroup = new Map();
-  const groupOrder = [];
-  for (const parentId of parents) {
-    const rep = find(parentIndex.get(parentId));
-    if (!repToGroup.has(rep)) {
-      repToGroup.set(rep, []);
-      groupOrder.push(rep);
-    }
-    repToGroup.get(rep).push(parentId);
-  }
-
-  return groupOrder.map((rep) => repToGroup.get(rep));
-}
-
-/**
- * Buffered logger shaped like the public `Logger` surface. Stores every
- * emitted line in `buffer[]` instead of writing to the console. Callers
- * flush the buffer to a real logger after the buffered region completes
- * so the visible log output is byte-identical to a serial run.
- *
- * @returns {{ buffer: Array<{ level: 'debug'|'info'|'warn'|'error', message: string }>, debug: Function, info: Function, warn: Function, error: Function }}
- */
-function createBufferedLogger() {
-  const buffer = [];
-  return {
-    buffer,
-    debug(message) {
-      buffer.push({ level: 'debug', message });
-    },
-    info(message) {
-      buffer.push({ level: 'info', message });
-    },
-    warn(message) {
-      buffer.push({ level: 'warn', message });
-    },
-    error(message) {
-      buffer.push({ level: 'error', message });
-    },
-  };
-}
-
-/**
  * Per-parent body of {@link cascadeCompletion}. Pulled out so the outer
  * function can dispatch disjoint groups in parallel while each parent
  * still runs against its own captured logger, ensuring byte-identical
@@ -772,56 +595,28 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     return { cascadedTo: [], failed: [] };
   }
 
-  // Partition parents by shared ancestor. Disjoint groups can run in
-  // parallel (no shared state); within each group, parents run serially.
+  // Partition parents by shared ancestor (disjoint groups run in
+  // parallel; within-group parents stay sequential to avoid racing the
+  // shared ancestor's "all children done?" check), then dispatch the
+  // per-parent work via `dispatchCascadeGroups` so the buffered-flush
+  // bookkeeping lives in `cascade-grouping.js`.
   const groups = await groupByAncestor(parsedParents, provider);
+  const results = await dispatchCascadeGroups({
+    parsedParents,
+    groups,
+    flushLogger: opts._logger ?? Logger,
+    processParent: (parentId, logger) =>
+      processCascadeParent(provider, ticketId, parentId, {
+        notify: opts.notify,
+        _logger: logger,
+      }),
+  });
 
-  // Per-parent buffered loggers — populated as each parent runs, flushed
-  // to the real `Logger` in `parsedParents` order after all groups resolve
-  // so the visible log stream matches the serial baseline.
-  const parentLoggers = new Map();
-  const parentResults = new Map();
-  for (const parentId of parsedParents) {
-    parentLoggers.set(parentId, createBufferedLogger());
-  }
-
-  await Promise.all(
-    groups.map(async (group) => {
-      // Within a shared-ancestor group, run parents strictly sequentially
-      // in input order. Concurrent execution would race the
-      // `all children done?` check on the shared ancestor.
-      for (const parentId of group) {
-        const logger = parentLoggers.get(parentId);
-        const result = await processCascadeParent(
-          provider,
-          ticketId,
-          parentId,
-          { notify: opts.notify, _logger: logger },
-        );
-        parentResults.set(parentId, result);
-      }
-    }),
-  );
-
-  // Flush buffered log lines in `parsedParents` order, then merge results
-  // in the same order so external observers see the same ordering as the
-  // pre-parallelisation baseline.
-  const flushLogger = opts._logger ?? Logger;
   const cascadedTo = [];
   const failed = [];
-  for (const parentId of parsedParents) {
-    const lg = parentLoggers.get(parentId);
-    if (lg) {
-      for (const entry of lg.buffer) {
-        flushLogger[entry.level](entry.message);
-      }
-    }
-    const result = parentResults.get(parentId);
-    if (result) {
-      cascadedTo.push(...result.cascadedTo);
-      failed.push(...result.failed);
-    }
+  for (const r of results) {
+    cascadedTo.push(...r.cascadedTo);
+    failed.push(...r.failed);
   }
-
   return { cascadedTo, failed };
 }
