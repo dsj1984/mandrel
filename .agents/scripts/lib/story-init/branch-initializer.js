@@ -18,7 +18,6 @@
 
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
-import { forkAndCommitEpicSnapshot as defaultForkAndCommitEpicSnapshot } from '../baseline-snapshot.js';
 import { resolveWorkingPath } from '../config-resolver.js';
 import {
   branchExistsLocally,
@@ -224,46 +223,8 @@ async function fetchMainRefs({ mainCwd, progress }) {
   }
 }
 
-export function reportSnapshotFork(snapshot, epicBranch, progress) {
-  if (snapshot?.commit?.committed) {
-    progress(
-      'GIT',
-      `🧊 Forked main baselines → ${epicBranch} (commit ${snapshot.commit.sha?.slice(0, 7)}).`,
-    );
-    return;
-  }
-  progress(
-    'GIT',
-    `🧊 Snapshot fork skipped: ${snapshot?.commit?.reason ?? 'no-files'}.`,
-  );
-}
-
-export function maybeForkSnapshot({
-  epicId,
-  epicBranch,
-  mainCwd,
-  forkAndCommitEpicSnapshot,
-  progress,
-}) {
-  // Story #1585 (Epic #1471): defer the baseline-snapshot fork from
-  // /epic-plan to first-story-init so plan-time stays git-state-free and
-  // the snapshot reflects the current main rather than stale main at plan
-  // time. Idempotent + non-fatal on missing source baselines.
-  if (epicId === undefined || epicId === null) return;
-  try {
-    const snapshot = forkAndCommitEpicSnapshot({ epicId, cwd: mainCwd });
-    reportSnapshotFork(snapshot, epicBranch, progress);
-  } catch (err) {
-    progress(
-      'GIT',
-      `⚠️ snapshot fork failed (non-fatal): ${err?.message ?? err}`,
-    );
-  }
-}
-
 export async function bootstrapWorktree({
   epicBranch,
-  epicId,
   storyBranch,
   storyId,
   baseBranch,
@@ -273,17 +234,9 @@ export async function bootstrapWorktree({
   fs = nodeFs,
   path = nodePath,
   onPhase,
-  forkAndCommitEpicSnapshot = defaultForkAndCommitEpicSnapshot,
 }) {
   await fetchMainRefs({ mainCwd, progress });
   ensureEpicBranchRef(epicBranch, baseBranch, mainCwd, { progress });
-  maybeForkSnapshot({
-    epicId,
-    epicBranch,
-    mainCwd,
-    forkAndCommitEpicSnapshot,
-    progress,
-  });
   ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress });
 
   const wm = new WorktreeManager({
@@ -325,7 +278,6 @@ export async function bootstrapWorktree({
  * @param {object} [deps.fs]
  * @param {object} deps.input
  * @param {number} deps.input.storyId
- * @param {number} [deps.input.epicId]
  * @param {string} deps.input.epicBranch
  * @param {string} deps.input.storyBranch
  * @param {string} deps.input.baseBranch
@@ -341,7 +293,6 @@ export async function bootstrapWorktree({
 export async function initializeBranch({ logger, fs = nodeFs, input }) {
   const {
     storyId,
-    epicId,
     epicBranch,
     storyBranch,
     baseBranch,
@@ -355,7 +306,6 @@ export async function initializeBranch({ logger, fs = nodeFs, input }) {
   if (worktreeEnabled) {
     const wtResult = await bootstrapWorktree({
       epicBranch,
-      epicId,
       storyBranch,
       storyId,
       baseBranch,
