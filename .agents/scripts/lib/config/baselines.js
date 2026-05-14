@@ -1,16 +1,11 @@
 /**
- * `delivery.quality.baselines` accessor.
- *
- * Story #1737 collapsed the old standalone `delivery.quality.baselines.*`
- * block — every gate now carries its own `baselinePath` under
+ * `delivery.quality.baselines` accessor (Epic #1720 Story #1737 — per-gate
+ * baselines). Every gate now carries its own `baselinePath` under
  * `delivery.quality.gates.<tier>.baselinePath`. This module preserves the
  * historical `{ lint, crap, maintainability }` envelope so existing call
- * sites that read `getBaselines(config).lint.path` keep working; the
- * envelope is synthesised from the per-gate `baselinePath` values.
- *
- * `refreshCommand` is no longer carried per-baseline (the schema dropped
- * the field along with the standalone block) — it returns `null` so the
- * historical envelope shape stays stable.
+ * sites that read `getBaselines(config).lint.path` keep working.
+ * `refreshCommand` is no longer carried per-baseline — it stays in the
+ * envelope as `null` for shape stability.
  */
 
 export const BASELINES_DEFAULTS = Object.freeze({
@@ -36,35 +31,34 @@ export function getBaselines(config) {
     config?.quality?.gates ??
     config?.agentSettings?.quality?.gates ??
     {};
-  const pick = (key) => ({
-    path: gates?.[key]?.baselinePath ?? BASELINES_DEFAULTS[key].path,
-    refreshCommand: null,
-  });
+  const merge = (key) => {
+    const fallback = BASELINES_DEFAULTS[key];
+    const path = gates[key]?.baselinePath ?? fallback.path;
+    return { path, refreshCommand: null };
+  };
   return {
-    lint: pick('lint'),
-    crap: pick('crap'),
-    maintainability: pick('maintainability'),
+    lint: merge('lint'),
+    crap: merge('crap'),
+    maintainability: merge('maintainability'),
   };
 }
 
 /**
- * Merge the user-supplied `quality.baselines` block with framework defaults.
- * Story #1737 retired the standalone block in favour of per-gate
- * `baselinePath` declarations; this helper now treats `userBlock` as a
- * `{ lint, crap, maintainability }` shape and projects each entry's `path`
- * onto a synthetic `gates.<tier>.baselinePath` so the envelope shape is
- * preserved for tests that exercised the legacy entry point.
+ * Legacy entry point retained for backward-compatible imports. Story #1737
+ * retired the standalone `baselines.*` block; this helper now translates
+ * `{ lint: { path }, ... }` input onto synthetic `gates.<tier>.baselinePath`.
  *
- * @param {object | undefined} userBlock
+ * @param {object|undefined} userBlock
  */
 export function resolveBaselines(userBlock) {
-  const block = userBlock && typeof userBlock === 'object' ? userBlock : {};
-  const gates = {};
-  for (const tier of ['lint', 'crap', 'maintainability']) {
-    const entry = block[tier];
-    if (entry && typeof entry === 'object' && typeof entry.path === 'string') {
-      gates[tier] = { baselinePath: entry.path };
-    }
-  }
-  return getBaselines({ quality: { gates } });
+  const block = userBlock ?? {};
+  return getBaselines({
+    quality: {
+      gates: {
+        lint: { baselinePath: block.lint?.path },
+        crap: { baselinePath: block.crap?.path },
+        maintainability: { baselinePath: block.maintainability?.path },
+      },
+    },
+  });
 }
