@@ -61,6 +61,27 @@ export async function drainPendingCleanupAfterClose({
   return { worktreeRoot, ...result };
 }
 
+const REAP_STATUSES_DRAIN_FLIPS = new Set([
+  'deferred-to-sweep',
+  'stale-registry-entry',
+]);
+
+function applyDrainedEntry(nextWorktreeReap, nextBranchCleanup, drainedEntry) {
+  if (drainedEntry.localBranchDeleted !== null) {
+    nextBranchCleanup.localDeleted =
+      nextBranchCleanup.localDeleted || !!drainedEntry.localBranchDeleted;
+  }
+  if (drainedEntry.remoteBranchDeleted !== null) {
+    nextBranchCleanup.remoteDeleted =
+      nextBranchCleanup.remoteDeleted || !!drainedEntry.remoteBranchDeleted;
+  }
+  if (REAP_STATUSES_DRAIN_FLIPS.has(nextWorktreeReap.status)) {
+    nextWorktreeReap.status = 'removed-after-drain';
+  }
+  nextWorktreeReap.pendingCleanup = null;
+  nextWorktreeReap.closeDrainStatus = 'drained';
+}
+
 export function reconcileCleanupState({
   storyId,
   worktreeReap,
@@ -78,40 +99,18 @@ export function reconcileCleanupState({
     pendingCleanupDrain.drainedDetails?.find(
       (entry) => Number(entry.storyId) === normalizedStoryId,
     ) ?? null;
-  const isStillPending =
-    pendingCleanupDrain.stillPending?.includes(normalizedStoryId) ?? false;
-  const isPersistent =
-    pendingCleanupDrain.persistent?.includes(normalizedStoryId) ?? false;
 
   if (drainedEntry) {
-    if (drainedEntry.localBranchDeleted !== null) {
-      nextBranchCleanup.localDeleted =
-        nextBranchCleanup.localDeleted || !!drainedEntry.localBranchDeleted;
-    }
-    if (drainedEntry.remoteBranchDeleted !== null) {
-      nextBranchCleanup.remoteDeleted =
-        nextBranchCleanup.remoteDeleted || !!drainedEntry.remoteBranchDeleted;
-    }
-    nextWorktreeReap.status =
-      nextWorktreeReap.status === 'deferred-to-sweep' ||
-      nextWorktreeReap.status === 'stale-registry-entry'
-        ? 'removed-after-drain'
-        : nextWorktreeReap.status;
-    nextWorktreeReap.pendingCleanup = null;
-    nextWorktreeReap.closeDrainStatus = 'drained';
-    return {
-      worktreeReap: nextWorktreeReap,
-      branchCleanup: nextBranchCleanup,
-    };
+    applyDrainedEntry(nextWorktreeReap, nextBranchCleanup, drainedEntry);
+    return { worktreeReap: nextWorktreeReap, branchCleanup: nextBranchCleanup };
   }
 
-  if (
-    nextWorktreeReap.status === 'deferred-to-sweep' ||
-    nextWorktreeReap.status === 'stale-registry-entry'
-  ) {
+  if (REAP_STATUSES_DRAIN_FLIPS.has(nextWorktreeReap.status)) {
     nextWorktreeReap.closeDrainStatus = getCloseDrainStatus({
-      isPersistent,
-      isStillPending,
+      isPersistent:
+        pendingCleanupDrain.persistent?.includes(normalizedStoryId) ?? false,
+      isStillPending:
+        pendingCleanupDrain.stillPending?.includes(normalizedStoryId) ?? false,
     });
   }
 

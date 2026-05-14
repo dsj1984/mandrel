@@ -161,6 +161,129 @@ async function emitReapFailureFriction({
   }
 }
 
+function resolveSkipState(wtConfig, log) {
+  if (!wtConfig?.enabled) {
+    log('WORKTREE', '⏭️ Skipping worktree reap (worktree isolation disabled)');
+    return createWorktreeReapState({ status: 'skipped-disabled' });
+  }
+  if (!(wtConfig.reapOnSuccess ?? true)) {
+    log('WORKTREE', '⏭️ Skipping worktree reap (reapOnSuccess=false)');
+    return createWorktreeReapState({ status: 'skipped-config' });
+  }
+  return null;
+}
+
+function resolveInitialReapStatus(reapResult) {
+  if (reapResult.removed) return 'removed';
+  if (reapResult.method === 'deferred-to-sweep') return 'deferred-to-sweep';
+  return 'failed';
+}
+
+function initialReapState(reapResult) {
+  return createWorktreeReapState({
+    status: resolveInitialReapStatus(reapResult),
+    path: reapResult.path ?? null,
+    reason: reapResult.reason ?? null,
+    method: reapResult.method ?? null,
+    pendingCleanup: reapResult.pendingCleanup ?? null,
+    branchDeleted:
+      reapResult.branchDeleted !== undefined ? reapResult.branchDeleted : null,
+    remoteBranchDeleted:
+      reapResult.remoteBranchDeleted !== undefined
+        ? reapResult.remoteBranchDeleted
+        : null,
+  });
+}
+
+async function logReapOutcome({
+  reapResult,
+  log,
+  logger,
+  storyId,
+  epicId,
+  epicBranch,
+  config,
+}) {
+  if (reapResult.removed) {
+    log('WORKTREE', `🗑️  Reaped worktree: ${reapResult.path}`);
+    return;
+  }
+  if (!reapResult.reason) return;
+  await emitReapFailureFriction({
+    storyId,
+    epicId,
+    reapResult,
+    epicBranch,
+    logger,
+    config,
+  });
+  log(
+    'WORKTREE',
+    `⚠️  Worktree not reaped (${reapResult.reason}): ${reapResult.path}`,
+  );
+  if (isWindowsReapLockFailure(reapResult.reason)) {
+    logger.error(
+      `[story-close] OPERATOR ACTION REQUIRED: Worktree at ${reapResult.path} ` +
+        `could not be removed (Windows lock/permission error: ${reapResult.reason}). ` +
+        'Close any editor/terminal holding the path, then run ' +
+        '`git worktree remove <path> --force && git worktree prune` to clean up.',
+    );
+  }
+}
+
+async function detectStillRegistered({ wm, storyId, log, sleep }) {
+  const leftover = (await wm.list()) ?? [];
+  const initial = findStillRegisteredEntry(leftover, storyId);
+  if (!initial) return null;
+  const retry = await retryPruneUntilCleared(wm, storyId, { sleep });
+  if (retry.cleared) {
+    log(
+      'WORKTREE',
+      `🧹 Stale worktree registry entry cleared after ${retry.attempts} re-prune attempt(s)`,
+    );
+    return null;
+  }
+  return retry.stillRegistered ?? initial;
+}
+
+async function escalateStillRegistered({
+  state,
+  stillRegistered,
+  storyId,
+  epicId,
+  epicBranch,
+  logger,
+  config,
+}) {
+  logger.error(
+    `[story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
+      `${stillRegistered.path}. Run ` +
+      '`git worktree remove <path> --force && git worktree prune` to clean up.',
+  );
+  await emitReapFailureFriction({
+    storyId,
+    epicId,
+    reapResult: {
+      path: stillRegistered.path,
+      reason: 'still-registered-after-reap',
+    },
+    epicBranch,
+    logger,
+    config,
+  });
+  return state;
+}
+
+function logStaleRegistryEntry({ state, stillRegistered, logger }) {
+  logger.warn(
+    `[story-close] Worktree directory removed and branch deleted, but ` +
+      `\`git worktree list\` still shows ${stillRegistered.path}. ` +
+      'Scheduled for background prune via pending-cleanup; ' +
+      `branchDeleted=${state.branchDeleted}.`,
+  );
+  return state;
+}
+
 export async function worktreeReapPhase(ctx) {
   const {
     orchestration,
@@ -178,116 +301,56 @@ export async function worktreeReapPhase(ctx) {
   } = ctx;
   const wtConfig = orchestration?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
-  if (!wtConfig?.enabled) {
-    const state = createWorktreeReapState({ status: 'skipped-disabled' });
-    log('WORKTREE', '⏭️ Skipping worktree reap (worktree isolation disabled)');
-    return state;
-  }
-  if (!(wtConfig.reapOnSuccess ?? true)) {
-    const state = createWorktreeReapState({ status: 'skipped-config' });
-    log('WORKTREE', '⏭️ Skipping worktree reap (reapOnSuccess=false)');
-    return state;
-  }
+  const skipState = resolveSkipState(wtConfig, log);
+  if (skipState) return skipState;
 
   const wm = worktreeManagerFactory
     ? worktreeManagerFactory({ repoRoot, config: wtConfig })
     : new WorktreeManager({ repoRoot, config: wtConfig });
   const reapResult = await wm.reap(storyId, { epicBranch });
-  let state = createWorktreeReapState({
-    status: reapResult.removed
-      ? 'removed'
-      : reapResult.method === 'deferred-to-sweep'
-        ? 'deferred-to-sweep'
-        : 'failed',
-    path: reapResult.path ?? null,
-    reason: reapResult.reason ?? null,
-    method: reapResult.method ?? null,
-    pendingCleanup: reapResult.pendingCleanup ?? null,
-    branchDeleted:
-      reapResult.branchDeleted !== undefined ? reapResult.branchDeleted : null,
-    remoteBranchDeleted:
-      reapResult.remoteBranchDeleted !== undefined
-        ? reapResult.remoteBranchDeleted
-        : null,
+  let state = initialReapState(reapResult);
+  await logReapOutcome({
+    reapResult,
+    log,
+    logger,
+    storyId,
+    epicId,
+    epicBranch,
+    config,
   });
-  if (reapResult.removed) {
-    log('WORKTREE', `🗑️  Reaped worktree: ${reapResult.path}`);
-  } else if (reapResult.reason) {
-    await emitReapFailureFriction({
+
+  const stillRegistered = await detectStillRegistered({
+    wm,
+    storyId,
+    log,
+    sleep,
+  });
+  if (!stillRegistered) return state;
+
+  state = applyStillRegisteredState({
+    state,
+    stillRegistered,
+    reapResult,
+    storyId,
+    orchestration,
+    repoRoot,
+    logger,
+    recordPendingCleanupFn,
+    pathExistsFn,
+  });
+  if (state.status === 'still-registered') {
+    return escalateStillRegistered({
+      state,
+      stillRegistered,
       storyId,
       epicId,
-      reapResult,
       epicBranch,
       logger,
       config,
     });
-    log(
-      'WORKTREE',
-      `⚠️  Worktree not reaped (${reapResult.reason}): ${reapResult.path}`,
-    );
-    if (isWindowsReapLockFailure(reapResult.reason)) {
-      logger.error(
-        `[story-close] OPERATOR ACTION REQUIRED: Worktree at ${reapResult.path} ` +
-          `could not be removed (Windows lock/permission error: ${reapResult.reason}). ` +
-          'Close any editor/terminal holding the path, then run ' +
-          '`git worktree remove <path> --force && git worktree prune` to clean up.',
-      );
-    }
   }
-
-  const leftover = (await wm.list()) ?? [];
-  let stillRegistered = findStillRegisteredEntry(leftover, storyId);
-
-  if (stillRegistered) {
-    const retry = await retryPruneUntilCleared(wm, storyId, { sleep });
-    if (retry.cleared) {
-      log(
-        'WORKTREE',
-        `🧹 Stale worktree registry entry cleared after ${retry.attempts} re-prune attempt(s)`,
-      );
-      stillRegistered = undefined;
-    } else {
-      stillRegistered = retry.stillRegistered;
-    }
-  }
-
-  if (stillRegistered) {
-    state = applyStillRegisteredState({
-      state,
-      stillRegistered,
-      reapResult,
-      storyId,
-      orchestration,
-      repoRoot,
-      logger,
-      recordPendingCleanupFn,
-      pathExistsFn,
-    });
-    if (state.status === 'still-registered') {
-      logger.error(
-        `[story-close] OPERATOR ACTION REQUIRED: Worktree still registered after reap: ` +
-          `${stillRegistered.path}. Run ` +
-          '`git worktree remove <path> --force && git worktree prune` to clean up.',
-      );
-      await emitReapFailureFriction({
-        storyId,
-        epicId,
-        reapResult: {
-          path: stillRegistered.path,
-          reason: 'still-registered-after-reap',
-        },
-        epicBranch,
-        logger,
-        config,
-      });
-    } else if (state.status === 'stale-registry-entry') {
-      logger.warn(
-        `[story-close] Worktree directory removed and branch deleted, but ` +
-          `\`git worktree list\` still shows ${stillRegistered.path}. ` +
-          'Scheduled for background prune via pending-cleanup; ' +
-          `branchDeleted=${state.branchDeleted}.`,
-      );
-    }
+  if (state.status === 'stale-registry-entry') {
+    return logStaleRegistryEntry({ state, stillRegistered, logger });
   }
   return state;
 }
