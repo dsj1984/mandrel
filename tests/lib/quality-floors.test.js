@@ -11,7 +11,7 @@ import {
   loadFloorConfig,
 } from '../../.agents/scripts/lib/quality-floors.js';
 
-describe('quality-floors — loadFloorConfig', () => {
+describe('quality-floors — loadFloorConfig (workspace-keyed floors)', () => {
   /** @type {string} */
   let tmpDir;
   /** @type {string} */
@@ -26,6 +26,11 @@ describe('quality-floors — loadFloorConfig', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
+  /** Build a gate-shaped config snippet for the test fixtures. */
+  function gates(block) {
+    return { delivery: { quality: { gates: block } } };
+  }
+
   it('returns documented defaults when the file is missing', () => {
     const cfg = loadFloorConfig(path.join(tmpDir, 'nope.json'));
     assert.equal(cfg.maintainability, 70);
@@ -33,8 +38,8 @@ describe('quality-floors — loadFloorConfig', () => {
     assert.deepEqual(cfg.coverage, { lines: 90, branches: 85, functions: 90 });
   });
 
-  it('returns documented defaults when qualityFloors block is absent', () => {
-    fs.writeFileSync(agentrcPath, JSON.stringify({ agentSettings: {} }));
+  it('returns documented defaults when the gates block is absent', () => {
+    fs.writeFileSync(agentrcPath, JSON.stringify({ delivery: {} }));
     const cfg = loadFloorConfig(agentrcPath);
     assert.equal(cfg.maintainability, DEFAULT_FLOORS.maintainability);
     assert.equal(cfg.crap, DEFAULT_FLOORS.crap);
@@ -44,17 +49,13 @@ describe('quality-floors — loadFloorConfig', () => {
   it('layers explicit values over the defaults', () => {
     fs.writeFileSync(
       agentrcPath,
-      JSON.stringify({
-        agentSettings: {
-          quality: {
-            qualityFloors: {
-              coverage: { lines: 95 },
-              maintainability: 75,
-              crap: 15,
-            },
-          },
-        },
-      }),
+      JSON.stringify(
+        gates({
+          coverage: { floors: { '*': { lines: 95 } } },
+          maintainability: { floors: { '*': { maintainability: 75 } } },
+          crap: { floors: { '*': { crap: 15 } } },
+        }),
+      ),
     );
     const cfg = loadFloorConfig(agentrcPath);
     assert.equal(cfg.coverage.lines, 95);
@@ -64,24 +65,39 @@ describe('quality-floors — loadFloorConfig', () => {
     assert.equal(cfg.crap, 15);
   });
 
-  it('throws on unknown top-level axes', () => {
+  it('honours a per-workspace override over the catch-all', () => {
     fs.writeFileSync(
       agentrcPath,
-      JSON.stringify({
-        agentSettings: { quality: { qualityFloors: { lint: 9 } } },
-      }),
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              'packages/web': { lines: 80 },
+            },
+          },
+        }),
+      ),
     );
-    assert.throws(() => loadFloorConfig(agentrcPath), /unknown axis "lint"/);
+    const cfg = loadFloorConfig(agentrcPath, { workspace: 'packages/web' });
+    assert.equal(cfg.coverage.lines, 80);
   });
 
-  it('throws on unknown coverage sub-axes', () => {
+  it('falls back to the catch-all when the workspace is undeclared', () => {
     fs.writeFileSync(
       agentrcPath,
-      JSON.stringify({
-        agentSettings: {
-          quality: { qualityFloors: { coverage: { statements: 90 } } },
-        },
-      }),
+      JSON.stringify(gates({ coverage: { floors: { '*': { lines: 87 } } } })),
+    );
+    const cfg = loadFloorConfig(agentrcPath, { workspace: 'packages/api' });
+    assert.equal(cfg.coverage.lines, 87);
+  });
+
+  it('throws on unknown coverage sub-axes inside the workspace bag', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({ coverage: { floors: { '*': { statements: 90 } } } }),
+      ),
     );
     assert.throws(
       () => loadFloorConfig(agentrcPath),
@@ -89,12 +105,27 @@ describe('quality-floors — loadFloorConfig', () => {
     );
   });
 
+  it('throws on the legacy flat scalar shape', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({ coverage: { floors: { lines: 90, branches: 85 } } }),
+      ),
+    );
+    assert.throws(
+      () => loadFloorConfig(agentrcPath),
+      /must point to an object/,
+    );
+  });
+
   it('throws when maintainability is out of range', () => {
     fs.writeFileSync(
       agentrcPath,
-      JSON.stringify({
-        agentSettings: { quality: { qualityFloors: { maintainability: 150 } } },
-      }),
+      JSON.stringify(
+        gates({
+          maintainability: { floors: { '*': { maintainability: 150 } } },
+        }),
+      ),
     );
     assert.throws(
       () => loadFloorConfig(agentrcPath),
@@ -105,9 +136,7 @@ describe('quality-floors — loadFloorConfig', () => {
   it('throws when crap is negative', () => {
     fs.writeFileSync(
       agentrcPath,
-      JSON.stringify({
-        agentSettings: { quality: { qualityFloors: { crap: -1 } } },
-      }),
+      JSON.stringify(gates({ crap: { floors: { '*': { crap: -1 } } } })),
     );
     assert.throws(() => loadFloorConfig(agentrcPath), /qualityFloors\.crap/);
   });
