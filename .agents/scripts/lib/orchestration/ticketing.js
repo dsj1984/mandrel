@@ -575,16 +575,165 @@ export async function groupByAncestor(parents, provider) {
 }
 
 /**
+ * Buffered logger shaped like the public `Logger` surface. Stores every
+ * emitted line in `buffer[]` instead of writing to the console. Callers
+ * flush the buffer to a real logger after the buffered region completes
+ * so the visible log output is byte-identical to a serial run.
+ *
+ * @returns {{ buffer: Array<{ level: 'debug'|'info'|'warn'|'error', message: string }>, debug: Function, info: Function, warn: Function, error: Function }}
+ */
+function createBufferedLogger() {
+  const buffer = [];
+  return {
+    buffer,
+    debug(message) {
+      buffer.push({ level: 'debug', message });
+    },
+    info(message) {
+      buffer.push({ level: 'info', message });
+    },
+    warn(message) {
+      buffer.push({ level: 'warn', message });
+    },
+    error(message) {
+      buffer.push({ level: 'error', message });
+    },
+  };
+}
+
+/**
+ * Per-parent body of {@link cascadeCompletion}. Pulled out so the outer
+ * function can dispatch disjoint groups in parallel while each parent
+ * still runs against its own captured logger, ensuring byte-identical
+ * log output across serial and parallel execution paths.
+ *
+ * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId  - The ticket whose `agent::done` transition
+ *                             triggered the cascade.
+ * @param {number} parentId  - The parent currently being processed.
+ * @param {{ notify?: Function, _logger?: object }} opts
+ * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }>, error?: Error }>}
+ */
+async function processCascadeParent(provider, ticketId, parentId, opts) {
+  const logger = opts._logger ?? Logger;
+  const cascadedTo = [];
+  const failed = [];
+  try {
+    await toggleTasklistCheckbox(provider, parentId, ticketId, true);
+
+    const subTickets = await provider.getSubTickets(parentId);
+    // Re-fetch each sibling with fresh reads before the all-done check.
+    // `getSubTickets` populates each row via `getTicket`, which honors the
+    // per-instance ticket cache — a stale CLOSED entry for a sibling that
+    // has since been reopened (operator action, prior failed cascade) would
+    // otherwise let the cascade close the parent while a sibling is still
+    // open. Cache invalidation here is cheap (one HTTP read per sibling)
+    // and only fires when the closing ticket itself reaches `agent::done`,
+    // so the cost is bounded.
+    //
+    // The sibling-read fan-out is bounded via `concurrentMap` (cap=8) so a
+    // wide tasklist does not saturate the provider's connection pool. The
+    // mapper preserves input order and the per-row try/catch guarantees a
+    // transient read failure falls back to the (possibly stale) row from
+    // `getSubTickets` rather than rejecting the whole cascade.
+    const freshSubTickets = await concurrentMap(
+      subTickets,
+      async (st) => {
+        if (typeof provider.invalidateTicket === 'function') {
+          try {
+            provider.invalidateTicket(st.id);
+          } catch {
+            // Cache invalidation is best-effort — fall through to whatever
+            // `getTicket` returns even if the invalidation hook throws.
+          }
+        }
+        if (typeof provider.getTicket !== 'function') return st;
+        try {
+          return await provider.getTicket(st.id, { fresh: true });
+        } catch {
+          // A transient read failure must not silently flip the cascade
+          // to "all done"; fall back to the (possibly stale) row from
+          // `getSubTickets` so the existing label check still applies.
+          return st;
+        }
+      },
+      { concurrency: CASCADE_SIBLING_READ_CONCURRENCY },
+    );
+    const allDone = freshSubTickets.every(
+      (st) => st.labels.includes(STATE_LABELS.DONE) || st.state === 'closed',
+    );
+    if (!allDone) return { cascadedTo, failed };
+
+    // EXCLUSION: Epics and Planning tickets (PRDs, Tech Specs) do not
+    // auto-close via cascade.
+    //   - Epics close via formal /epic-deliver (their own machinery
+    //     handles branch merges, version bumps, release tags).
+    //   - Planning tickets (context::prd, context::tech-spec) close by
+    //     operator once the Epic is finalized.
+    //
+    // Features, by contrast, DO auto-close via cascade. A Feature is a
+    // purely hierarchical grouping — no standalone branch, no merge
+    // step. When its last child Story closes, the Feature is complete
+    // by definition. Operators who need Feature-level AC verification
+    // should encode it in the final child Story, not rely on a manual
+    // close step.
+    const parent = await provider.getTicket(parentId);
+    const isEpic = parent.labels.includes(TYPE_LABELS.EPIC);
+    const isPlanning =
+      parent.labels.includes('context::prd') ||
+      parent.labels.includes('context::tech-spec');
+    if (isEpic || isPlanning) {
+      logger.warn(
+        `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (Epics close via the operator's PR merge; Planning tickets close manually post-merge).`,
+      );
+      return { cascadedTo, failed };
+    }
+
+    await transitionTicketState(provider, parentId, STATE_LABELS.DONE, {
+      notify: opts.notify,
+    });
+    await postStructuredComment(
+      provider,
+      parentId,
+      'progress',
+      'All child tickets completed via recursive cascade.',
+    );
+    cascadedTo.push(parentId);
+
+    const nested = await cascadeCompletion(provider, parentId, {
+      notify: opts.notify,
+      _logger: logger,
+    });
+    cascadedTo.push(...nested.cascadedTo);
+    failed.push(...nested.failed);
+  } catch (err) {
+    failed.push({ parentId, error: err.message ?? String(err) });
+    logger.warn(
+      `[Ticketing] Cascade to parent #${parentId} failed: ${err.message ?? err}`,
+    );
+  }
+  return { cascadedTo, failed };
+}
+
+/**
  * Recursively cascade upward.
  * If ticket reaches DONE, it toggles its checkbox in its parent.
  * Then checks if parent's sub-tickets are ALL DONE.
  * If yes, transitions parent to DONE and cascades up.
  *
- * Parents are processed **sequentially** (a `for ... of` over the parsed
- * parent list) so cascade logs preserve input order and concurrent
- * transitions cannot interleave when two parents share an ancestor. Within
- * each parent, sibling re-reads fan out via `concurrentMap` with a fixed
- * cap (8) — see `CASCADE_SIBLING_READ_CONCURRENCY`.
+ * Parents are partitioned into disjoint groups by shared ancestor
+ * ({@link groupByAncestor}). Groups run in parallel via `Promise.all`,
+ * but parents **within** a group run strictly sequentially in input
+ * order — concurrent transitions against a shared ancestor would race
+ * the "all children done?" check. Within each parent, sibling re-reads
+ * fan out via `concurrentMap` with a fixed cap (8) — see
+ * `CASCADE_SIBLING_READ_CONCURRENCY`.
+ *
+ * Log output is captured per parent into a buffered logger and flushed
+ * to the real {@link Logger} after all groups resolve, in the original
+ * `parsedParents` order. The visible log stream is therefore
+ * byte-identical to a serial baseline; only the I/O between parents in
+ * disjoint groups overlaps.
  *
  * Per-parent errors are isolated: a failure updating one parent (network,
  * permission, stale ticket) never discards progress on sibling parents.
@@ -593,8 +742,11 @@ export async function groupByAncestor(parents, provider) {
  *
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
- * @param {{ notify?: Function }} [opts] - Forwarded to any recursive
- *   `transitionTicketState` fired on parent tickets.
+ * @param {{ notify?: Function, _logger?: object }} [opts] - `notify` is
+ *   forwarded to any recursive `transitionTicketState` fired on parent
+ *   tickets. `_logger` is an internal hook used by nested cascade calls
+ *   to keep buffered output coherent — external callers should leave it
+ *   unset so the module-level {@link Logger} is used.
  * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
  */
 export async function cascadeCompletion(provider, ticketId, opts = {}) {
@@ -616,107 +768,58 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
     parsedParents = parentMatch.map((m) => Number.parseInt(m[1], 10));
   }
 
+  if (parsedParents.length === 0) {
+    return { cascadedTo: [], failed: [] };
+  }
+
+  // Partition parents by shared ancestor. Disjoint groups can run in
+  // parallel (no shared state); within each group, parents run serially.
+  const groups = await groupByAncestor(parsedParents, provider);
+
+  // Per-parent buffered loggers — populated as each parent runs, flushed
+  // to the real `Logger` in `parsedParents` order after all groups resolve
+  // so the visible log stream matches the serial baseline.
+  const parentLoggers = new Map();
+  const parentResults = new Map();
+  for (const parentId of parsedParents) {
+    parentLoggers.set(parentId, createBufferedLogger());
+  }
+
+  await Promise.all(
+    groups.map(async (group) => {
+      // Within a shared-ancestor group, run parents strictly sequentially
+      // in input order. Concurrent execution would race the
+      // `all children done?` check on the shared ancestor.
+      for (const parentId of group) {
+        const logger = parentLoggers.get(parentId);
+        const result = await processCascadeParent(
+          provider,
+          ticketId,
+          parentId,
+          { notify: opts.notify, _logger: logger },
+        );
+        parentResults.set(parentId, result);
+      }
+    }),
+  );
+
+  // Flush buffered log lines in `parsedParents` order, then merge results
+  // in the same order so external observers see the same ordering as the
+  // pre-parallelisation baseline.
+  const flushLogger = opts._logger ?? Logger;
   const cascadedTo = [];
   const failed = [];
-
-  // Outer parent loop is intentionally **sequential**. Cascades fan upward
-  // (Story → Feature → Epic), and processing parents one at a time keeps the
-  // cascade log readable in input order and avoids interleaved transitions
-  // when two parents share an ancestor. Per-parent failures are caught so a
-  // single bad parent never aborts the cascade for its siblings.
   for (const parentId of parsedParents) {
-    try {
-      await toggleTasklistCheckbox(provider, parentId, ticketId, true);
-
-      const subTickets = await provider.getSubTickets(parentId);
-      // Re-fetch each sibling with fresh reads before the all-done check.
-      // `getSubTickets` populates each row via `getTicket`, which honors the
-      // per-instance ticket cache — a stale CLOSED entry for a sibling that
-      // has since been reopened (operator action, prior failed cascade) would
-      // otherwise let the cascade close the parent while a sibling is still
-      // open. Cache invalidation here is cheap (one HTTP read per sibling)
-      // and only fires when the closing ticket itself reaches `agent::done`,
-      // so the cost is bounded.
-      //
-      // The sibling-read fan-out is bounded via `concurrentMap` (cap=8) so a
-      // wide tasklist does not saturate the provider's connection pool. The
-      // mapper preserves input order and the per-row try/catch guarantees a
-      // transient read failure falls back to the (possibly stale) row from
-      // `getSubTickets` rather than rejecting the whole cascade.
-      const freshSubTickets = await concurrentMap(
-        subTickets,
-        async (st) => {
-          if (typeof provider.invalidateTicket === 'function') {
-            try {
-              provider.invalidateTicket(st.id);
-            } catch {
-              // Cache invalidation is best-effort — fall through to whatever
-              // `getTicket` returns even if the invalidation hook throws.
-            }
-          }
-          if (typeof provider.getTicket !== 'function') return st;
-          try {
-            return await provider.getTicket(st.id, { fresh: true });
-          } catch {
-            // A transient read failure must not silently flip the cascade
-            // to "all done"; fall back to the (possibly stale) row from
-            // `getSubTickets` so the existing label check still applies.
-            return st;
-          }
-        },
-        { concurrency: CASCADE_SIBLING_READ_CONCURRENCY },
-      );
-      const allDone = freshSubTickets.every(
-        (st) => st.labels.includes(STATE_LABELS.DONE) || st.state === 'closed',
-      );
-      if (!allDone) continue;
-
-      // EXCLUSION: Epics and Planning tickets (PRDs, Tech Specs) do not
-      // auto-close via cascade.
-      //   - Epics close via formal /epic-deliver (their own machinery
-      //     handles branch merges, version bumps, release tags).
-      //   - Planning tickets (context::prd, context::tech-spec) close by
-      //     operator once the Epic is finalized.
-      //
-      // Features, by contrast, DO auto-close via cascade. A Feature is a
-      // purely hierarchical grouping — no standalone branch, no merge
-      // step. When its last child Story closes, the Feature is complete
-      // by definition. Operators who need Feature-level AC verification
-      // should encode it in the final child Story, not rely on a manual
-      // close step.
-      const parent = await provider.getTicket(parentId);
-      const isEpic = parent.labels.includes(TYPE_LABELS.EPIC);
-      const isPlanning =
-        parent.labels.includes('context::prd') ||
-        parent.labels.includes('context::tech-spec');
-      if (isEpic || isPlanning) {
-        Logger.warn(
-          `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (Epics close via the operator's PR merge; Planning tickets close manually post-merge).`,
-        );
-        continue;
+    const lg = parentLoggers.get(parentId);
+    if (lg) {
+      for (const entry of lg.buffer) {
+        flushLogger[entry.level](entry.message);
       }
-
-      await transitionTicketState(provider, parentId, STATE_LABELS.DONE, {
-        notify: opts.notify,
-      });
-      await postStructuredComment(
-        provider,
-        parentId,
-        'progress',
-        'All child tickets completed via recursive cascade.',
-      );
-      cascadedTo.push(parentId);
-
-      const nested = await cascadeCompletion(provider, parentId, {
-        notify: opts.notify,
-      });
-      cascadedTo.push(...nested.cascadedTo);
-      failed.push(...nested.failed);
-    } catch (err) {
-      failed.push({ parentId, error: err.message ?? String(err) });
-      Logger.warn(
-        `[Ticketing] Cascade to parent #${parentId} failed: ${err.message ?? err}`,
-      );
+    }
+    const result = parentResults.get(parentId);
+    if (result) {
+      cascadedTo.push(...result.cascadedTo);
+      failed.push(...result.failed);
     }
   }
 
