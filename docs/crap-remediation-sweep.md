@@ -56,10 +56,15 @@ method, `epic-execute-record-wave.js::main` (line 960), sits at CRAP
 
 ## Cluster: remaining (`lib/wave-runner/`, `lib/audit-suite/`, top-level scripts) (Task #1708)
 
-- Methods scanned across `lib/wave-runner/`, `lib/audit-suite/`, and
-  `.agents/scripts/*.js` top-level: see baseline
-- Methods with CRAP > 20: **0**
-- Methods at CRAP = 20 (at the floor) in top-level scripts: 17
+- Methods scanned in `lib/wave-runner/`: 10
+- Methods scanned in `lib/audit-suite/`: 27
+- Methods scanned in top-level `.agents/scripts/*.js` (excluding the
+  record-wave entry covered by Task #1706): 412
+- Methods with CRAP > 20 across all three: **0**
+- Methods at CRAP = 20 (at the floor):
+  - `lib/wave-runner/`: 1
+  - `lib/audit-suite/`: 0
+  - top-level scripts: 14
 
 The wave-runner cluster (`lib/wave-runner/tick.js` after Item 5) and the
 audit-suite cluster (after the substitutions cache, Item 9) sit under
