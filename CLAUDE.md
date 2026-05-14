@@ -13,9 +13,6 @@
 
 ## Global Rules (always active)
 
-@.agents/rules/api-conventions.md
-@.agents/rules/changelog-style.md
-@.agents/rules/gherkin-standards.md
 @.agents/rules/git-conventions.md
 @.agents/rules/orchestration-error-handling.md
 @.agents/rules/security-baseline.md
