@@ -26,7 +26,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
   → Phase 4 — code-review          (helpers/epic-code-review.md)
-  → Phase 5 — retro                (helpers/epic-retro.md)
+  → Phase 5 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
   → Phase 6 — finalize             (epic-deliver-finalize.js → open PR to main)
   → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
   → Phase 7.5 — auto-merge gate    (epic-deliver-automerge.js)
@@ -263,9 +263,11 @@ structured comment on the Epic.
 
 Skip when `--skip-retro`. Otherwise post the `epic-perf-report` via
 `node .agents/scripts/analyze-execution.js --epic <epicId>` (failure →
-warn and continue; the retro helper falls back). Then auto-invoke
-[`helpers/epic-retro.md`](helpers/epic-retro.md) inline; propagate
-`--full-retro` to bypass the compact-path heuristic.
+warn and continue; the retro runner falls back). Then invoke the retro
+runner inline — the canonical surface lives at
+[`.agents/scripts/lib/orchestration/retro-runner.js`](../scripts/lib/orchestration/retro-runner.js)
+and is driven by `epic-deliver.js`. Propagate `--full-retro` to bypass
+the compact-path heuristic.
 
 Retro fires here (before the PR opens) so it stays in the operator's
 local session with full env access (env vars, credentials, MCP).
