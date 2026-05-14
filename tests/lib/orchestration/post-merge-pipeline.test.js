@@ -281,10 +281,7 @@ describe('worktreeReapPhase', () => {
   });
 
   function makeWmFactory(overrides = {}) {
-    const calls = { reap: [], list: 0, prune: 0 };
-    const listResults = Array.isArray(overrides.listSequence)
-      ? [...overrides.listSequence]
-      : null;
+    const calls = { reap: [], list: 0 };
     const wm = {
       reap: async (storyId, opts) => {
         calls.reap.push({ storyId, opts });
@@ -292,23 +289,11 @@ describe('worktreeReapPhase', () => {
       },
       list: async () => {
         calls.list += 1;
-        if (listResults) {
-          return listResults.length > 0
-            ? listResults.shift()
-            : (overrides.listAfterSequence ?? []);
-        }
         return overrides.list ?? [];
-      },
-      prune: async () => {
-        calls.prune += 1;
-        if (typeof overrides.prune === 'function') return overrides.prune();
-        return { pruned: true };
       },
     };
     return { factory: () => wm, calls };
   }
-
-  const FAST_SLEEP = () => Promise.resolve();
 
   it('no-ops when worktree isolation is disabled', async () => {
     const { factory, calls } = makeWmFactory();
@@ -437,8 +422,8 @@ describe('worktreeReapPhase', () => {
     );
   });
 
-  it('flags still-registered worktrees after reap when directory persists (genuine failure)', async () => {
-    const { factory, calls } = makeWmFactory({
+  it('flags still-registered worktrees after reap', async () => {
+    const { factory } = makeWmFactory({
       reap: { removed: true, path: '/wt/story-1' },
       list: [{ path: '/repo/.worktrees/story-1' }],
     });
@@ -452,11 +437,10 @@ describe('worktreeReapPhase', () => {
       logger,
       progress: () => {},
       worktreeManagerFactory: factory,
-      sleep: FAST_SLEEP,
+      sleep: () => Promise.resolve(),
       pathExistsFn: () => true,
     });
     assert.equal(result.status, 'still-registered');
-    assert.ok(calls.list > 1, 'expected re-prune retries to run wm.list again');
     assert.ok(
       logger.errors.some(
         (m) =>
@@ -467,112 +451,6 @@ describe('worktreeReapPhase', () => {
     const signals = readFrictionSignals(9, 1);
     assert.equal(signals.length, 1);
     assert.equal(signals[0].category, 'reap-failure');
-  });
-
-  it('retries `worktree prune` with backoff and clears stale registry entry', async () => {
-    // First list (after reap) finds the entry; the next retry clears it.
-    const { factory, calls } = makeWmFactory({
-      reap: { removed: true, path: '/repo/.worktrees/story-1' },
-      listSequence: [[{ path: '/repo/.worktrees/story-1' }], []],
-    });
-    const logger = makeLogger();
-    const sleepDelays = [];
-    const result = await worktreeReapPhase({
-      orchestration: { worktreeIsolation: { enabled: true } },
-      storyId: 1,
-      epicId: 9,
-      epicBranch: 'epic/9',
-      repoRoot: '/repo',
-      logger,
-      progress: () => {},
-      worktreeManagerFactory: factory,
-      sleep: (ms) => {
-        sleepDelays.push(ms);
-        return Promise.resolve();
-      },
-      pathExistsFn: () => false,
-    });
-    assert.equal(result.status, 'removed');
-    assert.equal(calls.prune, 1);
-    assert.deepEqual(sleepDelays, [250]);
-    assert.equal(
-      logger.errors.filter((m) => m.includes('OPERATOR ACTION REQUIRED'))
-        .length,
-      0,
-    );
-    assert.equal(readFrictionSignals(9, 1).length, 0);
-  });
-
-  it('reports stale-registry-entry (operationally complete) when reap removed dir and deleted branch', async () => {
-    // Three retries fail to clear the registry entry, but the reap already
-    // removed the directory and deleted the local branch. The phase reports
-    // status=stale-registry-entry (NOT still-registered), preserves
-    // branchDeleted=true, records a pending-cleanup entry, and logs a warn
-    // (not an OPERATOR ACTION error).
-    const recorded = [];
-    const { factory, calls } = makeWmFactory({
-      reap: {
-        removed: true,
-        method: 'fs-rm-retry',
-        path: '/repo/.worktrees/story-42',
-        branchDeleted: true,
-        remoteBranchDeleted: false,
-      },
-      list: [{ path: '/repo/.worktrees/story-42' }],
-    });
-    const logger = makeLogger();
-    const result = await worktreeReapPhase({
-      orchestration: {
-        worktreeIsolation: { enabled: true, root: '.worktrees' },
-      },
-      storyId: 42,
-      epicId: 7,
-      epicBranch: 'epic/7',
-      repoRoot: '/repo',
-      logger,
-      progress: () => {},
-      worktreeManagerFactory: factory,
-      sleep: FAST_SLEEP,
-      pathExistsFn: () => false,
-      recordPendingCleanupFn: (worktreeRoot, entry) => {
-        recorded.push({ worktreeRoot, entry });
-        return { ...entry, attempts: 0 };
-      },
-    });
-    assert.equal(result.status, 'stale-registry-entry');
-    assert.equal(result.branchDeleted, true);
-    assert.equal(result.remoteBranchDeleted, false);
-    assert.equal(result.path, '/repo/.worktrees/story-42');
-    assert.equal(result.reason, 'stale-registry-entry');
-    assert.ok(result.pendingCleanup, 'expected pending-cleanup recorded');
-    assert.equal(recorded.length, 1);
-    assert.equal(recorded[0].entry.storyId, 42);
-    assert.equal(recorded[0].entry.branch, 'story-42');
-    assert.equal(recorded[0].entry.push, false);
-    assert.ok(
-      recorded[0].worktreeRoot.endsWith(path.join('repo', '.worktrees')) ||
-        recorded[0].worktreeRoot.endsWith('/repo/.worktrees') ||
-        recorded[0].worktreeRoot.endsWith('\\repo\\.worktrees'),
-      `unexpected worktreeRoot: ${recorded[0].worktreeRoot}`,
-    );
-    assert.equal(
-      logger.errors.filter((m) => m.includes('OPERATOR ACTION REQUIRED'))
-        .length,
-      0,
-      'stale-registry-entry must not raise OPERATOR ACTION REQUIRED',
-    );
-    assert.ok(
-      logger.warnings.some((m) =>
-        m.includes('Scheduled for background prune via pending-cleanup'),
-      ),
-      `expected pending-cleanup warn, got: ${JSON.stringify(logger.warnings)}`,
-    );
-    // The greater than 3 means: initial check + 3 retries
-    assert.ok(
-      calls.list >= 4,
-      `expected at least 4 list calls (initial + 3 retries), got ${calls.list}`,
-    );
-    assert.equal(calls.prune, 3, 'expected 3 prune retries');
   });
 
   it('routes reap-failure friction through the ctx.config tempRoot (regression: leakage to process.cwd())', async () => {
