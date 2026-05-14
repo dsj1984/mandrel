@@ -91,8 +91,14 @@ the single source of truth for post-decompose validation — the Phase 4 run
 inside `/epic-plan` calls the same script, so local and remote flows agree.
 
 ```bash
-node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --dry-run
+node .agents/scripts/epic-plan-healthcheck.js --epic [Epic_ID] --paranoid
 ```
+
+`--paranoid` is the flag that runs the richer hierarchy and dependency
+checks; pair it with `--epic [Epic_ID]` so the script can fetch the
+ticket tree. `--dry-run` exists as well but only emits the planned
+checks without performing any I/O — it is not a substitute for
+`--paranoid` when you need the hierarchy invariants validated.
 
 The script exits 0 regardless of findings (non-blocking), but lists any
 `ERR`-level findings that must be addressed before execution:
