@@ -3166,7 +3166,7 @@
       "startLine": 214
     },
     {
-      "crap": 1.0046296296296295,
+      "crap": 1.0013717421124828,
       "file": ".agents/scripts/lib/orchestration/cascade-grouping.js",
       "method": "createBufferedLogger",
       "startLine": 258
@@ -3316,7 +3316,7 @@
       "startLine": 74
     },
     {
-      "crap": 16,
+      "crap": 8.006910700788252,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
       "startLine": 88
@@ -5152,76 +5152,130 @@
       "startLine": 362
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "<anon method-1>",
+      "startLine": 43
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "__setCascadeRetryDelays",
+      "startLine": 54
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "withParentCascadeLock",
+      "startLine": 84
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "__resetParentCascadeLocks",
+      "startLine": 104
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "isTransientCascadeError",
+      "startLine": 118
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "formatCascadeError",
+      "startLine": 148
+    },
+    {
+      "crap": 4.012021036814425,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "retryTransient",
+      "startLine": 175
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "isValidStructuredCommentType",
-      "startLine": 98
+      "startLine": 262
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "assertValidStructuredCommentType",
-      "startLine": 114
+      "startLine": 278
     },
     {
-      "crap": 14.11929165104514,
+      "crap": 14.243069247968316,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "transitionTicketState",
-      "startLine": 145
+      "startLine": 309
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 273
+      "startLine": 440
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "postStructuredComment",
-      "startLine": 315
+      "startLine": 482
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "structuredCommentMarker",
-      "startLine": 341
+      "startLine": 508
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "findStructuredComment",
-      "startLine": 367
+      "startLine": 534
     },
     {
       "crap": 3.0416666666666665,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
-      "startLine": 402
+      "startLine": 569
     },
     {
-      "crap": 6.018432,
+      "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "processCascadeParent",
-      "startLine": 440
+      "startLine": 607
     },
     {
-      "crap": 3.67181804927832,
+      "crap": 8.002978829089308,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "<anon method-6>",
-      "startLine": 464
+      "method": "processCascadeParentLocked",
+      "startLine": 622
+    },
+    {
+      "crap": 3.16401807843709,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "<anon method-11>",
+      "startLine": 671
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "method": "<anon method-14>",
+      "startLine": 732
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 575
+      "startLine": 796
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "<anon method-9>",
-      "startLine": 608
+      "method": "<anon method-16>",
+      "startLine": 829
     },
     {
       "crap": 7,
@@ -7078,7 +7132,7 @@
       "startLine": 421
     },
     {
-      "crap": 5.0407083248524325,
+      "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
       "startLine": 460
