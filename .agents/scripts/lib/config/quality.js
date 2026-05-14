@@ -1,56 +1,51 @@
 /**
- * `agentSettings.quality` accessor (Epic #730 Story 6; relocated under
- * lib/config/ in Epic #773 Story 6). Composes the per-sub-block resolvers
- * (maintainability scan, CRAP, prGate, baselines) so consumers can read every
- * grouped field without re-running merge logic at the call site.
+ * `delivery.quality` accessor (Epic #1720 Story #1739 — top-level reshape).
+ *
+ * The quality block mechanically relocates from `agentSettings.quality.*` to
+ * `delivery.quality.*`. Story 1 preserves the **internal** shape of the
+ * block — the uniform per-gate `gates.<tier>` restructure happens in Story
+ * 2. Story 1's only internal changes are:
+ *
+ *   - `prGate` and `mergeMethods` move out to `github.*` (see
+ *     `lib/config/github.js`).
+ *   - `c1Exemption` and `halsteadTolerance` are dropped from the schema —
+ *     the resolver simply ignores them if a legacy config carries them
+ *     (the schema rejects them up front).
+ *   - `defaultScope` / `diffRef` live on both `crap` and `maintainability`
+ *     during the Story 1 transition. Story 2 lifts them to a shared
+ *     `delivery.quality.gateScoping` block; this resolver pre-reads the
+ *     shared block when present so Story 2 can land it without breaking
+ *     existing call sites.
  */
 
 import { Logger } from '../Logger.js';
 import { resolveBaselines } from './baselines.js';
 import { resolveListValue } from './shared.js';
-/** Framework defaults for `agentSettings.quality.crap` (lifted out of the
- * legacy `agentSettings.maintainability.crap` nest in Epic #730 Story 6).
- * Applied via {@link resolveQuality} so a consumer repo that omits the block
- * (or any key within it) still gets sane defaults. Exported for tests and
- * for consumers that want to introspect the canonical shape. */
+
+/** Framework defaults for `delivery.quality.crap`. */
 export const MAINTAINABILITY_CRAP_DEFAULTS = Object.freeze({
   enabled: true,
   targetDirs: Object.freeze(['src']),
   newMethodCeiling: 30,
   coveragePath: 'coverage/coverage-final.json',
-  // Raised from 0.001 in 5.36.1 — see check-crap.js:resolveCrapEnvOverrides
-  // for the rationale (CRAP scores are c²·(1−cov)³ + c, so cross-environment
-  // coverage rounding alone produces ~0.01 drift on a clean rebuild; 0.001
-  // flagged that as a regression). 0.05 absorbs the rounding without
-  // missing real regressions, which cross whole-integer thresholds.
   tolerance: 0.05,
   requireCoverage: true,
   friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
   refreshTag: 'baseline-refresh:',
-  // Story #1394 (Epic #1386): `defaultScope` flips the CRAP gate to diff-
-  // scoped by default, parity with the MI gate. `diffRef` defaults to
-  // `'main'` so the scoped diff resolves against the repo's primary
-  // integration branch unless the project overrides it.
   defaultScope: 'diff',
   diffRef: 'main',
 });
 
-/** Recognized keys for `quality.crap` (post-Story-6). Used by the resolver
- * to warn (not fail) on unknown keys per AC19. */
 const MAINTAINABILITY_CRAP_KEYS = new Set(
   Object.keys(MAINTAINABILITY_CRAP_DEFAULTS),
 );
 
-/**
- * Merge a user-supplied `quality.crap` block with framework defaults.
- * Scalar keys replace; `targetDirs` supports the list-extender shape; unknown
- * keys emit a `Logger.warn` but do not fail resolution (AC19).
- *
- * @param {object|undefined} userCrap
- * @returns {object}
- */
-export function resolveMaintainabilityCrap(userCrap) {
+export function resolveMaintainabilityCrap(userCrap, gateScoping) {
   const defaults = MAINTAINABILITY_CRAP_DEFAULTS;
+  const scopingDefaults = {
+    defaultScope: gateScoping?.scope ?? defaults.defaultScope,
+    diffRef: gateScoping?.diffRef ?? defaults.diffRef,
+  };
   if (userCrap == null || typeof userCrap !== 'object') {
     return {
       enabled: defaults.enabled,
@@ -61,8 +56,8 @@ export function resolveMaintainabilityCrap(userCrap) {
       requireCoverage: defaults.requireCoverage,
       friction: { ...defaults.friction },
       refreshTag: defaults.refreshTag,
-      defaultScope: defaults.defaultScope,
-      diffRef: defaults.diffRef,
+      defaultScope: scopingDefaults.defaultScope,
+      diffRef: scopingDefaults.diffRef,
     };
   }
 
@@ -84,47 +79,32 @@ export function resolveMaintainabilityCrap(userCrap) {
     defaultScope:
       userCrap.defaultScope === 'full' || userCrap.defaultScope === 'diff'
         ? userCrap.defaultScope
-        : defaults.defaultScope,
+        : scopingDefaults.defaultScope,
     diffRef:
       typeof userCrap.diffRef === 'string' && userCrap.diffRef.length > 0
         ? userCrap.diffRef
-        : defaults.diffRef,
+        : scopingDefaults.diffRef,
   };
 }
 
-/**
- * Framework defaults for `agentSettings.quality.maintainability` — the per-file
- * MI targeting block. Empty `targetDirs` means "no MI scan unless the operator
- * declares targets". Lifted out of the old flat-key default in Story 6.
- *
- * Story #1394 (Epic #1386): `defaultScope` flips to `"diff"` so the MI gate
- * scopes by changed files by default. `diffRef` defaults to `"main"` so the
- * scoped diff resolves against the repo's primary integration branch unless
- * the project overrides it (e.g. monorepos with a different baseBranch).
- */
+/** Framework defaults for `delivery.quality.maintainability`. */
 export const MAINTAINABILITY_QUALITY_DEFAULTS = Object.freeze({
   targetDirs: Object.freeze([]),
   defaultScope: 'diff',
   diffRef: 'main',
 });
 
-/**
- * Merge a user-supplied `quality.maintainability` block with framework
- * defaults. The grouped block carries `targetDirs` (per-file scan roots),
- * `tolerance` (resolved by `check-maintainability.js`'s env-override helper),
- * and — added in Story #1394 — `defaultScope` + `diffRef` which drive the
- * diff-scoped gate default.
- *
- * @param {object|undefined} userBlock
- * @returns {{ targetDirs: string[], defaultScope: string, diffRef: string, tolerance?: number }}
- */
-export function resolveMaintainabilityQuality(userBlock) {
+export function resolveMaintainabilityQuality(userBlock, gateScoping) {
   const defaults = MAINTAINABILITY_QUALITY_DEFAULTS;
+  const scopingDefaults = {
+    defaultScope: gateScoping?.scope ?? defaults.defaultScope,
+    diffRef: gateScoping?.diffRef ?? defaults.diffRef,
+  };
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       targetDirs: [...defaults.targetDirs],
-      defaultScope: defaults.defaultScope,
-      diffRef: defaults.diffRef,
+      defaultScope: scopingDefaults.defaultScope,
+      diffRef: scopingDefaults.diffRef,
     };
   }
   const out = {
@@ -132,16 +112,12 @@ export function resolveMaintainabilityQuality(userBlock) {
     defaultScope:
       userBlock.defaultScope === 'full' || userBlock.defaultScope === 'diff'
         ? userBlock.defaultScope
-        : defaults.defaultScope,
+        : scopingDefaults.defaultScope,
     diffRef:
       typeof userBlock.diffRef === 'string' && userBlock.diffRef.length > 0
         ? userBlock.diffRef
-        : defaults.diffRef,
+        : scopingDefaults.diffRef,
   };
-  // `tolerance` flows through because `check-maintainability.js` reads it
-  // off the resolved block via `resolveMaintainabilityEnvOverrides`. We do
-  // not default-fill it here — the env-override helper carries the framework
-  // default (0.5) directly so the precedence layering stays in one place.
   if (typeof userBlock.tolerance === 'number') {
     out.tolerance = userBlock.tolerance;
   }
@@ -149,75 +125,19 @@ export function resolveMaintainabilityQuality(userBlock) {
 }
 
 /**
- * Framework defaults for `agentSettings.quality.prGate`. `checks` defaults to
- * an empty array so `git-pr-quality-gate.js` falls back to its hardcoded
- * DEFAULT_CHECKS trio (lint / format:check / test) when the operator hasn't
- * customised the suite. `enforceBranchProtection` defaults to `true` —
- * `/agents-bootstrap-github` (Epic #1142 Story #1157) writes the
- * `prGate.checks` names into GitHub's branch-protection rule on `main`
- * unless this flag is explicitly disabled.
- */
-export const PR_GATE_DEFAULTS = Object.freeze({
-  checks: Object.freeze([]),
-  enforceBranchProtection: true,
-});
-
-/**
- * Merge the user-supplied `quality.prGate` block with framework defaults.
- *
- * @param {object|undefined} userBlock
- * @returns {{ checks: object[], enforceBranchProtection: boolean }}
- */
-export function resolvePrGate(userBlock) {
-  if (userBlock == null || typeof userBlock !== 'object') {
-    return {
-      checks: [...PR_GATE_DEFAULTS.checks],
-      enforceBranchProtection: PR_GATE_DEFAULTS.enforceBranchProtection,
-    };
-  }
-  return {
-    checks: Array.isArray(userBlock.checks)
-      ? [...userBlock.checks]
-      : [...PR_GATE_DEFAULTS.checks],
-    enforceBranchProtection:
-      typeof userBlock.enforceBranchProtection === 'boolean'
-        ? userBlock.enforceBranchProtection
-        : PR_GATE_DEFAULTS.enforceBranchProtection,
-  };
-}
-
-/**
- * Framework defaults for `agentSettings.quality.codingGuardrails` — Story
- * #1399 (Epic #1386). The numeric coding-time rules the helper at
- * `.agents/workflows/helpers/code-quality-guardrails.md` cites. `cyclomaticFlag`
- * is the review-annotation ceiling; `cyclomaticMustFix` is the refactor-before-
- * merge ceiling; `miDropRefactor` is the per-file MI-drop ceiling above which a
- * regression requires a same-Story refactor; `requireSiblingTest` defaults to
- * `false` so legacy repos opt in to the structural sibling-test enforcement
- * deliberately (the rule is still review-time prose when off).
+ * Framework defaults for `delivery.quality.codingGuardrails`. The legacy
+ * field name `miDropRefactor` was renamed to `miDropMustRefactor` in
+ * Story 1 to avoid semantic collision with `autoRefresh.miDropCap`.
  */
 export const CODING_GUARDRAILS_DEFAULTS = Object.freeze({
   cyclomaticFlag: 8,
   cyclomaticMustFix: 12,
-  miDropRefactor: 1.5,
+  miDropMustRefactor: 1.5,
   requireSiblingTest: false,
 });
 
 const CODING_GUARDRAILS_KEYS = new Set(Object.keys(CODING_GUARDRAILS_DEFAULTS));
 
-/**
- * Merge a user-supplied `quality.codingGuardrails` block with framework
- * defaults. Scalar keys replace; unknown keys emit a `Logger.warn` but do not
- * fail resolution (mirrors the `crap`-block AC19 convention from Story 6).
- *
- * @param {object|undefined} userBlock
- * @returns {{
- *   cyclomaticFlag: number,
- *   cyclomaticMustFix: number,
- *   miDropRefactor: number,
- *   requireSiblingTest: boolean,
- * }}
- */
 export function resolveCodingGuardrails(userBlock) {
   const defaults = CODING_GUARDRAILS_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -234,7 +154,8 @@ export function resolveCodingGuardrails(userBlock) {
     cyclomaticFlag: userBlock.cyclomaticFlag ?? defaults.cyclomaticFlag,
     cyclomaticMustFix:
       userBlock.cyclomaticMustFix ?? defaults.cyclomaticMustFix,
-    miDropRefactor: userBlock.miDropRefactor ?? defaults.miDropRefactor,
+    miDropMustRefactor:
+      userBlock.miDropMustRefactor ?? defaults.miDropMustRefactor,
     requireSiblingTest:
       typeof userBlock.requireSiblingTest === 'boolean'
         ? userBlock.requireSiblingTest
@@ -242,20 +163,6 @@ export function resolveCodingGuardrails(userBlock) {
   };
 }
 
-/**
- * Framework defaults for `agentSettings.quality.autoRefresh` — bounded
- * baseline auto-refresh at story-close (Story #1398, Epic #1386). When
- * `enabled`, story-close regenerates baseline rows scoped to the Story diff
- * after pre-merge validation passes and amends them into the close commit
- * if every row's delta is at or below the configured caps.
- *
- *   - `miDropCap` — maximum allowed drop in per-file MI score (default 1.5).
- *   - `crapJumpCap` — maximum allowed jump in per-method CRAP score
- *     (default 5).
- *   - `scope` — `'diff'` restricts auto-refresh to files the Story changed;
- *     `'full'` regenerates the full baseline. Default is `'diff'` so the
- *     auto-refresh stays bounded to the Story's footprint.
- */
 export const AUTO_REFRESH_DEFAULTS = Object.freeze({
   enabled: true,
   miDropCap: 1.5,
@@ -265,17 +172,6 @@ export const AUTO_REFRESH_DEFAULTS = Object.freeze({
 
 const AUTO_REFRESH_KEYS = new Set(Object.keys(AUTO_REFRESH_DEFAULTS));
 
-/**
- * Merge a user-supplied `quality.autoRefresh` block with framework defaults.
- * Scalar keys replace; unknown keys emit a `Logger.warn` (consistent with
- * `resolveMaintainabilityCrap`'s AC19 contract). Negative caps and unknown
- * `scope` values fall back to defaults — schema validation rejects them
- * up front, so the resolver fallback only matters when callers bypass
- * validation (e.g. inline test fixtures).
- *
- * @param {object|undefined} userBlock
- * @returns {{ enabled: boolean, miDropCap: number, crapJumpCap: number, scope: string }}
- */
 export function resolveAutoRefresh(userBlock) {
   const defaults = AUTO_REFRESH_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -320,44 +216,54 @@ export function resolveAutoRefresh(userBlock) {
 }
 
 /**
- * Merge the entire `agentSettings.quality` block with framework defaults
- * (Epic #730 Story 6). Composes the per-sub-block resolvers so consumers can
- * read every grouped field — `targetDirs`, `crap.*`, `prGate.checks`,
- * `baselines.<kind>.path`, `autoRefresh.*` — without re-running merge logic
- * at the call site.
+ * Merge the entire `delivery.quality` block with framework defaults.
  *
  * @param {object|undefined} userQuality
  * @returns {{
- *   maintainability: { targetDirs: string[] },
- *   crap: object,
- *   prGate: { checks: string[] },
- *   baselines: { lint: object, crap: object, maintainability: object },
+ *   maintainability: ReturnType<typeof resolveMaintainabilityQuality>,
+ *   crap: ReturnType<typeof resolveMaintainabilityCrap>,
+ *   baselines: object,
  *   codingGuardrails: ReturnType<typeof resolveCodingGuardrails>,
- *   autoRefresh: { enabled: boolean, miDropCap: number, crapJumpCap: number, scope: string }
+ *   autoRefresh: ReturnType<typeof resolveAutoRefresh>,
+ *   gateScoping: { scope: string, diffRef: string },
  * }}
  */
 export function resolveQuality(userQuality) {
   const block =
     userQuality && typeof userQuality === 'object' ? userQuality : {};
+  const gateScoping = {
+    scope: block.gateScoping?.scope ?? 'diff',
+    diffRef: block.gateScoping?.diffRef ?? 'main',
+  };
   return {
-    maintainability: resolveMaintainabilityQuality(block.maintainability),
-    crap: resolveMaintainabilityCrap(block.crap),
-    prGate: resolvePrGate(block.prGate),
+    maintainability: resolveMaintainabilityQuality(block.maintainability, {
+      scope: gateScoping.scope,
+      diffRef: gateScoping.diffRef,
+    }),
+    crap: resolveMaintainabilityCrap(block.crap, {
+      scope: gateScoping.scope,
+      diffRef: gateScoping.diffRef,
+    }),
     baselines: resolveBaselines(block.baselines),
     codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    gateScoping,
   };
 }
 
 /**
- * Read the merged `agentSettings.quality` block. Accepts either the full
- * resolved config (`{ agentSettings, ... }`) or the bare `agentSettings` bag.
+ * Read the merged `delivery.quality` block. Accepts the full resolved
+ * config or any unwrapped variant (`{ delivery }`, `{ quality }`, or — for
+ * legacy compatibility — `{ agentSettings: { quality } }`).
  *
- * @param {{ agentSettings?: { quality?: object } } | object | null | undefined} config
+ * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveQuality>}
  */
 export function getQuality(config) {
   const userQuality =
-    config?.agentSettings?.quality ?? config?.quality ?? undefined;
+    config?.delivery?.quality ??
+    config?.quality ??
+    config?.agentSettings?.quality ??
+    undefined;
   return resolveQuality(userQuality);
 }
