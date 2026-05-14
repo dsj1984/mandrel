@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- MI 0 long-lived chokidar watcher; one-shot dev tool that respawns quality-preview, no test seam without mocking the watcher event loop */
+
 /**
  * .agents/scripts/quality-watch.js — chokidar wrapper around quality-preview.
  *

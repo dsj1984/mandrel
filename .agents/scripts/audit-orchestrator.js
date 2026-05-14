@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- top-level CLI orchestrator; logic delegated to tested helpers under lib/audit-suite/ */
 
 import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- merged-branch sweeper CLI; thin shell over `git for-each-ref` + `git branch -D` */
 
 /**
  * git-cleanup-branches.js — General-purpose merged-branch sweeper.

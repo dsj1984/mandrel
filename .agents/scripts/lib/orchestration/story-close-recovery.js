@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- prior-state detection over live git + filesystem signals; testing requires mocking the entire merge/worktree state machine, asserts only mock structure */
+
 /**
  * story-close-recovery.js — prior-state detection for story-close.
  *

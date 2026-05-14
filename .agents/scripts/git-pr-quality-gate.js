@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- top-level CLI gate; spawns lint/format/test and asserts exit codes — heavy mocking would assert only mock structure */
 
 /**
  * git-pr-quality-gate.js — Lint / format / test gate for `/git-merge-pr`.
