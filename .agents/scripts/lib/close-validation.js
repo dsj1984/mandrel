@@ -178,10 +178,23 @@ function isCrapGateEnabled(agentSettings) {
     agentSettings?.delivery?.quality?.gates?.crap?.enabled,
     agentSettings?.quality?.gates?.crap?.enabled,
   ];
-  for (const value of candidates) {
-    if (typeof value === 'boolean') return value;
-  }
-  return true;
+  const firstBoolean = candidates.find((v) => typeof v === 'boolean');
+  return firstBoolean ?? true;
+}
+
+/**
+ * Conditionally produce the standalone `test` gate entry. Returns an empty
+ * array when the CRAP gate is enabled (Story #1798: coverage-capture is the
+ * canonical test runner in that mode); returns the legacy single-entry
+ * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
+ * the CRAP-cyclomatic gate.
+ *
+ * @param {object|undefined|null} agentSettings
+ * @returns {Gate[]}
+ */
+function buildTestGateEntry(agentSettings) {
+  if (isCrapGateEnabled(agentSettings)) return [];
+  return [{ name: 'test', cmd: 'npm', args: ['test'] }];
 }
 
 /**
@@ -233,10 +246,6 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
     typeof epicBranch === 'string' && epicBranch.length > 0
       ? ['--epic-ref', epicBranch]
       : [];
-  const crapEnabled = isCrapGateEnabled(agentSettings);
-  const testGateEntry = crapEnabled
-    ? []
-    : [{ name: 'test', cmd: 'npm', args: ['test'] }];
   return [
     {
       name: 'typecheck',
@@ -245,7 +254,7 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: TYPECHECK_HINT,
     },
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
-    ...testGateEntry,
+    ...buildTestGateEntry(agentSettings),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
