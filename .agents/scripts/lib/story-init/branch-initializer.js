@@ -34,6 +34,7 @@ import {
   verify as verifyWorkspace,
 } from '../workspace-provisioner.js';
 import { WorktreeManager } from '../worktree-manager.js';
+import { ensureDonorPrimed } from './donor-precheck.js';
 
 function defaultProgress() {
   return () => {};
@@ -285,6 +286,17 @@ export async function bootstrapWorktree({
     progress,
   });
   ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress });
+
+  // Symlink-strategy fast path: verify the donor has node_modules before
+  // creating the worktree. A missing donor would otherwise produce a
+  // dangling junction/symlink. Idempotent across concurrent wave
+  // dispatches via a filesystem lock at the donor path.
+  ensureDonorPrimed({
+    strategy: wtConfig?.nodeModulesStrategy,
+    primeFromPath: wtConfig?.primeFromPath,
+    repoRoot: mainCwd,
+    logger: { progress },
+  });
 
   const wm = new WorktreeManager({
     repoRoot: mainCwd,
