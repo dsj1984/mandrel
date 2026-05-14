@@ -1303,121 +1303,121 @@
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildFormatHint",
-      "startLine": 61
+      "startLine": 62
     },
     {
       "crap": 3.0262390670553936,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveTypecheckCommand",
-      "startLine": 83
+      "startLine": 84
     },
     {
       "crap": 3.0885568513119535,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveFormatCheckCommand",
-      "startLine": 109
+      "startLine": 110
     },
     {
       "crap": 3.0885568513119535,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveFormatWriteCommand",
-      "startLine": 135
+      "startLine": 136
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildDefaultGates",
-      "startLine": 176
+      "startLine": 177
     },
     {
       "crap": 5.054012345679013,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildMutationGateEntry",
-      "startLine": 242
+      "startLine": 243
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "partitionGates",
-      "startLine": 287
+      "startLine": 288
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "pipePrefixed",
-      "startLine": 302
+      "startLine": 303
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "attachGateAbortHandler",
-      "startLine": 338
+      "startLine": 339
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-4>",
-      "startLine": 340
+      "startLine": 341
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-5>",
-      "startLine": 349
+      "startLine": 350
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "gateExitCode",
-      "startLine": 356
+      "startLine": 357
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGateRunner",
-      "startLine": 361
+      "startLine": 362
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGetHeadSha",
-      "startLine": 392
+      "startLine": 393
     },
     {
       "crap": 11.149667110471283,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "runCloseValidation",
-      "startLine": 446
+      "startLine": 447
     },
     {
       "crap": 5.8053155522163795,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-11>",
-      "startLine": 475
+      "startLine": 476
     },
     {
       "crap": 3.062196307094266,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-12>",
-      "startLine": 498
+      "startLine": 499
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-13>",
-      "startLine": 521
+      "startLine": 522
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "projectMaintainabilityRegressions",
-      "startLine": 668
+      "startLine": 669
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "formatMaintainabilityProjection",
-      "startLine": 753
+      "startLine": 758
     },
     {
       "crap": 3,
@@ -2654,6 +2654,30 @@
       "file": ".agents/scripts/lib/git-utils.js",
       "method": "getTaskBranch",
       "startLine": 343
+    },
+    {
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/lib/git/cached-fetch.js",
+      "method": "__resetModuleCache",
+      "startLine": 81
+    },
+    {
+      "crap": 1.2962962962962963,
+      "file": ".agents/scripts/lib/git/cached-fetch.js",
+      "method": "__moduleCacheSize",
+      "startLine": 86
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/git/cached-fetch.js",
+      "method": "cachedGitFetch",
+      "startLine": 102
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/git/cached-fetch.js",
+      "method": "cachedGitFetchSync",
+      "startLine": 136
     },
     {
       "crap": 5,
@@ -6182,6 +6206,24 @@
       "file": ".agents/scripts/lib/story-init/dependency-guard.js",
       "method": "formatBlockerReport",
       "startLine": 290
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/story-init/donor-precheck.js",
+      "method": "planDonorAction",
+      "startLine": 47
+    },
+    {
+      "crap": 3.0262390670553936,
+      "file": ".agents/scripts/lib/story-init/donor-precheck.js",
+      "method": "waitForLockClear",
+      "startLine": 73
+    },
+    {
+      "crap": 8.529453068149095,
+      "file": ".agents/scripts/lib/story-init/donor-precheck.js",
+      "method": "ensureDonorPrimed",
+      "startLine": 117
     },
     {
       "crap": 1,
