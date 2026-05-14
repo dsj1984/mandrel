@@ -2,9 +2,8 @@
  * notifier-stub-required — refuse-and-print check.
  *
  * Detects test files that construct a Notifier or NotificationHook without
- * stubbing both `cwd` and `fetchImpl`. Background:
- * `feedback_webhook_leak_in_tests.md` — any test path that builds a
- * Notifier/NotificationHook with the real cwd + the real fetch will POST
+ * stubbing both `cwd` and `fetchImpl`. Any test path that builds a
+ * Notifier/NotificationHook with the real cwd + the real fetch can POST
  * to the production Slack webhook the moment its scenario runs. The
  * canonical defense is to stub both fields in every test construction.
  *

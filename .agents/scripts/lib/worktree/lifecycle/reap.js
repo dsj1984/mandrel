@@ -243,7 +243,7 @@ function finalizeGitWorktreeRemove(ctx) {
 function handleRemoveFailure(
   ctx,
   wtPath,
-  stderr,
+  _stderr,
   classification,
   attempt,
   maxAttempts,
@@ -542,7 +542,7 @@ async function deleteBranchAfterReap(ctx, { branch, push }) {
   return { branchDeleted, remoteBranchDeleted };
 }
 
-function checkReapPreconditions(ctx, storyId, opts, wtPath) {
+function checkReapPreconditions(ctx, _storyId, opts, wtPath) {
   if (opts.force) {
     throw new Error(
       'WorktreeManager.reap: --force is not permitted by the framework',

@@ -76,35 +76,25 @@ entirely**:
 - `delete-epic-branches.js` is **retained** as a worktree + local-branch
   cleanup utility. It no longer fronts GH state. Its companion workflow
   (`/delete-epic-branches`) remains the right tool for "scrap and reset"
-  branch hygiene, and is independently tracked by the
-  `delete-epic-branches misses flat story-NNNN naming` memory entry
-  (resolution out of scope for this Epic — that entry concerns regex
-  coverage, not the destructive-replan loop).
+  branch hygiene. Flat `story-NNNN` branch regex coverage is tracked by
+  the `delete-epic-branches-naming` self-healing check and was out of
+  scope for this Epic.
 
 ### Consequences
 
 - Re-plan is **edit-spec + reconcile**. The destructive replay loop that
-  drove both PRD-cited memory entries no longer exists in the SDL.
+  drove the cited incidents no longer exists in the SDL.
 - Operators who land on the old `/delete-epic-tickets` command via muscle
   memory hit a missing-command error; the SDLC.md command table and
   `docs/workflows.md` table both surface `epic-reconcile.js --explicit-delete`
   as the supersedent.
-- The `post-merge-close ignores test sandbox tempRoot` entry's amplifier
-  is removed: operators are no longer forced into the close + cleanup
-  hot path to re-shape a Story. The underlying `tempRoot` bug is not
-  itself fixed by this ADR — only its blast radius is bounded.
-- The `delete-epic-branches misses flat story-NNNN naming` entry survives
-  unchanged as a memory entry; this ADR explicitly records that it was
-  surfaced in the PRD but not in scope for resolution here. The
-  `delete-epic-branches-naming` check (`lib/checks/`) remains the gate.
-
-### Status of memory entries
-
-| Memory entry                                                  | Status after Epic #1182 |
-| ------------------------------------------------------------- | ----------------------- |
-| `post-memory-close ignores test sandbox tempRoot`             | **Mitigated** — destructive-replan amplifier removed. Underlying `tempRoot` bug remains tracked separately. |
-| `delete-epic-branches misses flat story-NNNN naming`          | **Documented, out of scope** — `delete-epic-branches.js` retained as branch-cleanup utility; regex hardening tracked independently. |
-| Adjacent destructive-replan friction (any not enumerated here) | **Supersedent path documented** — re-plan = edit `.agents/epics/<id>.yaml` + `epic-reconcile.js --apply`. |
+- The test-sandbox `tempRoot` amplifier is removed: operators are no
+  longer forced into the close + cleanup hot path to re-shape a Story.
+  The underlying `tempRoot` bug is not itself fixed by this ADR — only
+  its blast radius is bounded.
+- Flat `story-NNNN` cleanup remains tracked by
+  `delete-epic-branches-naming`; this ADR explicitly records that it was
+  surfaced in the PRD but not in scope for resolution here.
 
 ---
 
@@ -342,11 +332,11 @@ because the operator's PR merge is the sole promotion gate.
   rename the destructure to `agentSettings`.  This is one mechanical
   change per call site; the framework's ~50 call sites are updated
   in the same PR via Story #1155.
-- **Deletion-completeness test guards future regressions.**
-  `tests/deletion-completeness.test.js` ripgreps the repo for every
-  removed concept on every CI run.  Reintroducing any deleted token
-  (e.g. a stray `BookendChainer` reference) fails the test with the
-  exact file:line, preventing slow drift back toward the v5.39 shape.
+- **Targeted retired-surface tests guard future regressions.**
+  Schema, workflow, and live-import tests reject retired config keys,
+  command names, and module imports at the boundary that still matters.
+  Historical narrative remains in docs and archives without forcing a
+  repo-wide forbidden-token sweep into every CI run.
 - **Operator workflow simplification.**  Two commands replace three
   on the SDL critical path.  Ideation entry replaces an opaque manual
   Epic-body-authoring step.  The HITL touchpoints reduce from
@@ -357,7 +347,7 @@ because the operator's PR merge is the sole promotion gate.
 
 See the 5.40.0 entry in [`CHANGELOG.md`](CHANGELOG.md) for the
 full operator migration script (config renames, command-shape
-updates, deletion-completeness test wiring).  The CHANGELOG carries
+updates, retired-surface test wiring).  The CHANGELOG carries
 side-by-side `.agentrc.json` before/after blocks for every removed,
 renamed, moved, promoted, and bumped key.
 
@@ -386,9 +376,10 @@ architecture was unreachable from a clean consumer install.
 
 Even if the agent file were scaffolded, the topology has a second
 load-bearing harness assumption: that custom sub-agent types continue to
-be granted nested `Agent`. That assumption has wobbled across releases
-(see `feedback_subagents_no_agent_tool.md`). Two-level dispatch with the
-host LLM as the wave dispatcher needs neither assumption.
+be granted nested `Agent`. That assumption has wobbled across releases;
+the `subagent-agent-tool-required` self-healing check now guards the
+current flat fan-out contract. Two-level dispatch with the host LLM as
+the wave dispatcher needs neither assumption.
 
 ### Decision
 
@@ -684,10 +675,11 @@ inline so the Epic could complete.
    STOP gate is preserved unchanged.
 3. **Slim `.agents/README.md`** to ≤ 150 lines: activation + a single
    "where to look" pointer table. Detailed reference content moves to
-   `docs/configuration.md`, new `docs/quality-gates.md`, and
-   `.agents/scripts/lib/orchestration/README.md`. (Windows git-perf
-   guidance was historically a fourth target; superseded by
-   `.agents/scripts/check-windows-git-perf.js` in 5.36.3.)
+   `docs/configuration.md`, new `docs/quality-gates.md`, and the
+   root `.agents/README.md` sections for distributed-submodule
+   conventions. (Windows git-perf guidance was historically a fourth
+   target; superseded by `.agents/scripts/check-windows-git-perf.js` in
+   5.36.3.)
 4. **Tighten schemas:** `additionalProperties: false` on
    `audit-results`, `friction-event`, and `agentrc` root; `if/then`
    conditional requirements on `healthRefresh.cadence`; closed enum on
@@ -1303,9 +1295,8 @@ By early 2026-04 two costs had compounded against that value:
   also read. Fresh checkouts needed the file before `/sprint-execute` would
   find a webhook. Worktrees had to bootstrap-copy it into every isolated
   tree. Every surface that resolved the webhook had to traverse two code
-  paths. Epic #710 traced the leak behaviour documented in the operator
-  memory entry _feedback_webhook_leak_in_tests.md_ back to this dual
-  sourcing.
+  paths. Epic #710 traced the test webhook leak behaviour back to this
+  dual sourcing.
 
 ### Decision
 
@@ -1723,8 +1714,8 @@ submodule paths are internal implementation detail.
         breaks the "GitHub issue is the SSOT" invariant the whole
         framework rests on.
 *   **Consequences:**
-    *   Operator memory entry `feedback_retro_github_only.md` is
-        resolved at the framework level, not just as a per-project rule.
+    *   Retro routing is resolved at the framework level, not just as a
+        per-project rule.
     *   `notify.js` is now scoped exclusively to short operator pings;
         its payload surface is correspondingly smaller.
     *   Retro resumption is a first-class flow: the `retro-partial`
@@ -1810,8 +1801,6 @@ submodule paths are internal implementation detail.
     *   The default (no-flag) failure is loud and informative rather
         than silent — operators see what state the close is in before
         they choose their next action.
-    *   Memory feedback entry `feedback_sprint_story_close_reap.md`
-        gains a worked recovery example tied to the new flags.
 
 ## ADR-20260422-441a: Force-reap worktrees whose Story branch is already merged
 
@@ -1841,10 +1830,9 @@ submodule paths are internal implementation detail.
         branch before merging — rejected; increases pre-merge noise
         without changing the post-merge "discard is safe" property.
 *   **Consequences:**
-    *   Memory feedback entry `feedback_sprint_story_close_reap.md`
-        becomes obsolete for the `already-merged` case; it remains
-        relevant only for truly-in-progress worktrees, which is now
-        the exclusive domain of the `--no-` override.
+    *   The manual reap recipe becomes obsolete for the `already-merged`
+        case; truly-in-progress worktrees are now the exclusive domain
+        of the `--no-` override.
     *   Operators who intentionally leave work-in-progress in a
         worktree after close must pass the override explicitly.
 

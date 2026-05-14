@@ -633,7 +633,7 @@ export function loadCrapBaseline({
  * to short-circuit on, or `null` when the check is clean. Emits warnings for
  * the soft-fail path either way.
  */
-function applyCompatDecision(compat) {
+function _applyCompatDecision(compat) {
   if (!compat.ok) {
     if (compat.exitCode === 0) Logger.info(compat.message);
     else Logger.error(compat.message);
@@ -659,7 +659,7 @@ function hasComparisonFailures(result) {
  * friction signal when a Story/Epic id pair is present. Returns the exit
  * code (1 on failure, 0 on success).
  */
-async function handleCompareResult(
+async function _handleCompareResult(
   result,
   args,
   refreshTag,

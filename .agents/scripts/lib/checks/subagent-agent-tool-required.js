@@ -2,12 +2,12 @@
  * subagent-agent-tool-required — refuse-and-print check.
  *
  * Detects sub-agent workflow definitions that declare access to the
- * `Agent` tool (or otherwise document nested Agent dispatch). Background:
- * `feedback_subagents_no_agent_tool.md` — nested Agent dispatch is not
- * supported in this Claude Code, so any wave-runner-as-sub-agent or
- * cascading fan-out design that declares `Agent` in its tool list will
- * silently fail at runtime. The remediation is to flatten the fan-out
- * back to the host agent and run sub-agents at one level only.
+ * `Agent` tool (or otherwise document nested Agent dispatch). Nested
+ * Agent dispatch is not supported in this Claude Code, so any
+ * wave-runner-as-sub-agent or cascading fan-out design that declares
+ * `Agent` in its tool list will silently fail at runtime. The remediation
+ * is to flatten the fan-out back to the host agent and run sub-agents at
+ * one level only.
  *
  * Scope: 'epic-deliver', 'retro'. Surfaces as a blocker at preflight for
  * `epic-deliver` (the fan-out site) and as audit signal at retro.

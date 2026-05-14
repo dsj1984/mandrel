@@ -1385,17 +1385,17 @@ output omitted test contracts, definition-of-done, and file paths.
   empty-section variant; orchestrator footer survives renderer
   round-trip; retrofit script skips already-conforming tasks.
 
-### `/agents-update` now reconciles consumer instructions + memories
+### `/agents-update` now reconciles consumer instructions + runbooks
 
 The framework-bump workflow previously ended at "move the submodule
 pointer + sync `.claude/commands/`." That left consumer-side
-`AGENTS.md` / `CLAUDE.md` and per-agent memory files quietly drifting
-out of sync with new framework contracts (e.g., a memory pinning a
-workaround for a bug that the bump just fixed; an `AGENTS.md` line
-contradicting a tightened validator).
+`AGENTS.md` / `CLAUDE.md` and project runbooks quietly drifting out of
+sync with new framework contracts (e.g., a runbook pinning a workaround
+for a bug that the bump just fixed; an `AGENTS.md` line contradicting a
+tightened validator).
 
 - New **Step 4 — Review the CHANGELOG and update consumer-side
-  memories** added to `.agents/workflows/agents-update.md`. The
+  guidance** added to `.agents/workflows/agents-update.md`. The
   operator reads the framework CHANGELOG between `OLD_SHA` and
   `NEW_SHA`, sweeps consumer instructions / memories / runbooks for
   each entry, and stages every reconciliation alongside the pointer
@@ -1699,7 +1699,7 @@ Each level of the execution hierarchy now surfaces a rendered markdown progress 
 
 #### Bug fix — Windows worktree reap force-drain hardening
 
-The Stage 1 `fs-rm-retry` budget (5 × 200ms) was too short for c8 to release the file handles it holds across the close-validation chain on Windows, leaving `node_modules/.cache` and `coverage/` paths un-removable. Even when the deferred-to-sweep manifest correctly recorded the residue, [`removeWorktreeWithRecovery`](../.agents/scripts/lib/worktree/lifecycle/reap.js) returned `branchDeleted: false` because the local-and-remote branch cleanup was gated on Stage 1 success — operators had to follow up with manual `git branch -D` and `push --delete` (memory: feedback_sprint_story_close_reap). Two changes:
+The Stage 1 `fs-rm-retry` budget (5 × 200ms) was too short for c8 to release the file handles it holds across the close-validation chain on Windows, leaving `node_modules/.cache` and `coverage/` paths un-removable. Even when the deferred-to-sweep manifest correctly recorded the residue, [`removeWorktreeWithRecovery`](../.agents/scripts/lib/worktree/lifecycle/reap.js) returned `branchDeleted: false` because the local-and-remote branch cleanup was gated on Stage 1 success — operators had to follow up with manual `git branch -D` and `push --delete`. Two changes:
 
 1. **New Stage 1.5 coverage-leak quiesce.** On `win32`, after Stage 1 retries exhaust, the reap sleeps `forceRemoveBackoffMs` (default 3s) to let coverage / AV / Search-indexer holds release, then attempts one extended `fs.rm` call with `maxRetries: 10, retryDelay: 500` (Node's own retry budget), lifting the wall-clock budget to ~10s on the failure path without touching happy-path latency.
 2. **Branch cleanup runs unconditionally.** The local `git branch -D` and (when `push: true`) `git push --delete` calls were lifted into a shared `deleteBranchAfterReap` helper and now run on both the Stage 1 success path and the Stage 2 deferred-to-sweep path. The deferred return surfaces `branchDeleted` / `remoteBranchDeleted` even when the on-disk worktree is stuck.

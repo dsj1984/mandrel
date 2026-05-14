@@ -2,11 +2,10 @@
  * delete-epic-branches-naming — refuse-and-print warning check.
  *
  * The `delete-epic-branches.js` cleanup script's regex expects nested
- * story branches of the shape `story/epic-<id>/<n>`. The
- * `feedback_delete_epic_branches_naming.md` note documents the failure
- * mode where the flat naming `story-NNNN` is created instead and never
- * cleaned up — the branch leaks across epic closures and accumulates
- * in `git branch -a` output.
+ * story branches of the shape `story/epic-<id>/<n>`. This detects the
+ * flat naming `story-NNNN` that can be created instead and never cleaned
+ * up — the branch leaks across epic closures and accumulates in
+ * `git branch -a` output.
  *
  * This check fires when one or more local branches matches the literal
  * pattern `^story-\d+$`. It is a `warning` rather than a `blocker`

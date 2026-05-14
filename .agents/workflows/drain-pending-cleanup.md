@@ -35,7 +35,8 @@ All automatic paths call `forceDrainPendingCleanup()` (or are folded into
 - The end-of-epic banner reports `pending-cleanup persistent-lock: story-N, ...`.
 - `git worktree list` shows `.worktrees/story-N/` for a closed Story.
 - `npm run lint` fails because of a nested `biome.json` in a half-reaped
-  worktree (see [`feedback_orphan_worktree_biome_block.md`](../../memory/feedback_orphan_worktree_biome_block.md)).
+  worktree. The `worktree-residue-biome` self-healing check detects this
+  failure mode.
 
 ## Usage
 
@@ -91,7 +92,7 @@ sweep — by which time the indexer/AV has usually moved on.
 ## Manual escape hatch
 
 When even escalation can't clear an entry, the pre-`ff34fa9` recipe still
-works (see [`feedback_sprint_story_close_reap.md`](../../memory/feedback_sprint_story_close_reap.md)):
+works:
 
 ```bash
 cd <main-checkout>
@@ -101,5 +102,6 @@ git branch -D story-<id>
 git push origin --delete story-<id>
 ```
 
-(Direct `rm -rf .worktrees/story-<id>` is blocked by the global
-`Bash(rm -rf *)` deny hook — see [`feedback_rm_rf_worktrees_hook.md`](../../memory/feedback_rm_rf_worktrees_hook.md).)
+(Direct `rm -rf .worktrees/story-<id>` may be blocked by the global
+`Bash(rm -rf *)` deny hook. The Node `fs.rmSync` fallback above avoids
+that shell-pattern denial.)
