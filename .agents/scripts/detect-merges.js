@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- pre-push conflict-marker scanner; pure I/O glue over `git ls-files` */
+
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';

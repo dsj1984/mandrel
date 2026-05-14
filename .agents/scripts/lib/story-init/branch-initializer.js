@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- worktree provisioning over live git + filesystem; testing requires standing up real worktrees (integration) or asserting only the mock structure */
+
 /**
  * branch-initializer.js — Stage 5 of the story-init pipeline.
  *

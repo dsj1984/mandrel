@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- pre-push docs-freshness gate; pure git-mtime walk with no testable branching beyond filesystem state */
 
 /**
  * .agents/scripts/validate-docs-freshness.js — Documentation Freshness Gate

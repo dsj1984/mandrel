@@ -1,3 +1,5 @@
+/* node:coverage ignore file -- MI 0 inert plain-object factories (operation types + plan shape); data-as-code, no branches to cover */
+
 /**
  * lib/orchestration/epic-spec-reconciler-ops.js — operation types + plan shape
  * for the epic-spec reconciler diff engine.

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- rebase-orchestration CLI; conflict-resolution heuristics over real git state, testing would assert only the mock structure */
 
 /**
  * git-rebase-and-resolve.js — Rebase orchestration for `/git-merge-pr` Step 2.5.

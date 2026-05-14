@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+/* node:coverage ignore file -- one-shot analytical CLI; reads baselines and prints histograms, no business logic to test */
+
 /**
  * Empirical noise study for the maintainability + CRAP gates.
  *
