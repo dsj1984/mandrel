@@ -17,6 +17,7 @@
 import { spawn } from 'node:child_process';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
+import { cachedGitFetchSync } from './git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
 import { getBaseline } from './maintainability-utils.js';
@@ -687,8 +688,12 @@ export function projectMaintainabilityRegressions({
   // Refresh `origin/<epicBranch>` so the diff range resolves even if the
   // close script hasn't reached its own pull/rebase step yet. Best-effort —
   // a fetch failure is logged via `skipped: 'fetch-failed'` and the helper
-  // bails rather than producing a misleading projection.
-  const fetchRes = git.gitSpawn(cwd, 'fetch', 'origin', epicBranch);
+  // bails rather than producing a misleading projection. Routed through
+  // the (cwd, ref, windowMs) cache so a story-init fetch in the same wave
+  // satisfies the projection without re-hitting origin.
+  const fetchRes = cachedGitFetchSync(cwd, epicBranch, {
+    gitSpawn: git.gitSpawn,
+  });
   if (fetchRes.status !== 0) {
     return {
       ok: true,
