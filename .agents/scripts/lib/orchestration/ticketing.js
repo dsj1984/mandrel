@@ -40,8 +40,10 @@ const CASCADE_SIBLING_READ_CONCURRENCY = 8;
  * {@link __setCascadeRetryDelays} so tests don't pay real wall-clock time.
  */
 const CASCADE_RETRY_BACKOFF_MS = [250, 500, 1000];
+const defaultCascadeSleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
 let _cascadeRetryDelays = CASCADE_RETRY_BACKOFF_MS;
-let _cascadeSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+let _cascadeSleep = defaultCascadeSleep;
 
 /**
  * Test seam — replace the backoff schedule and/or the sleep implementation
@@ -54,9 +56,7 @@ export function __setCascadeRetryDelays(opts = {}) {
     ? opts.delays
     : CASCADE_RETRY_BACKOFF_MS;
   _cascadeSleep =
-    typeof opts.sleep === 'function'
-      ? opts.sleep
-      : (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    typeof opts.sleep === 'function' ? opts.sleep : defaultCascadeSleep;
 }
 
 /**
