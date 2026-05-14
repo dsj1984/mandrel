@@ -88,6 +88,48 @@
       "startLine": 650
     },
     {
+      "crap": 10,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "resolveMutationGate",
+      "startLine": 59
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "extractFloors",
+      "startLine": 102
+    },
+    {
+      "crap": 5.022657849686147,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "evaluateFloors",
+      "startLine": 145
+    },
+    {
+      "crap": 9.79701166180758,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "resolveFloorFor",
+      "startLine": 177
+    },
+    {
+      "crap": 8.02332361516035,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "runMutationGate",
+      "startLine": 221
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "readBaselineSafe",
+      "startLine": 306
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-mutation.js",
+      "method": "main",
+      "startLine": 320
+    },
+    {
       "crap": 7.155836556075718,
       "file": ".agents/scripts/cleanup-repo-test-temp.js",
       "method": "cleanupRepoTestTempArtifacts",
@@ -1261,115 +1303,121 @@
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildFormatHint",
-      "startLine": 60
+      "startLine": 61
     },
     {
       "crap": 3.0262390670553936,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveTypecheckCommand",
-      "startLine": 82
+      "startLine": 83
     },
     {
       "crap": 3.0885568513119535,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveFormatCheckCommand",
-      "startLine": 108
+      "startLine": 109
     },
     {
       "crap": 3.0885568513119535,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "resolveFormatWriteCommand",
-      "startLine": 134
+      "startLine": 135
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "buildDefaultGates",
-      "startLine": 175
+      "startLine": 176
+    },
+    {
+      "crap": 5.054012345679013,
+      "file": ".agents/scripts/lib/close-validation.js",
+      "method": "buildMutationGateEntry",
+      "startLine": 242
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "partitionGates",
-      "startLine": 255
+      "startLine": 287
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "pipePrefixed",
-      "startLine": 270
+      "startLine": 302
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "attachGateAbortHandler",
-      "startLine": 306
+      "startLine": 338
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-4>",
-      "startLine": 308
+      "startLine": 340
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-5>",
-      "startLine": 317
+      "startLine": 349
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "gateExitCode",
-      "startLine": 324
+      "startLine": 356
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGateRunner",
-      "startLine": 329
+      "startLine": 361
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "defaultGetHeadSha",
-      "startLine": 360
+      "startLine": 392
     },
     {
       "crap": 11.149667110471283,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "runCloseValidation",
-      "startLine": 414
+      "startLine": 446
     },
     {
       "crap": 5.8053155522163795,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-11>",
-      "startLine": 443
+      "startLine": 475
     },
     {
       "crap": 3.062196307094266,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-12>",
-      "startLine": 466
+      "startLine": 498
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-13>",
-      "startLine": 489
+      "startLine": 521
     },
     {
       "crap": 20,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "projectMaintainabilityRegressions",
-      "startLine": 636
+      "startLine": 668
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/close-validation.js",
       "method": "formatMaintainabilityProjection",
-      "startLine": 721
+      "startLine": 753
     },
     {
       "crap": 3,
@@ -2726,6 +2774,66 @@
       "file": ".agents/scripts/lib/mandrel-catalog.js",
       "method": "renderCatalog",
       "startLine": 148
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/mutation/baseline-snapshot.js",
+      "method": "readBaseline",
+      "startLine": 65
+    },
+    {
+      "crap": 8.664715251690458,
+      "file": ".agents/scripts/lib/mutation/baseline-snapshot.js",
+      "method": "writeBaseline",
+      "startLine": 101
+    },
+    {
+      "crap": 17.147968,
+      "file": ".agents/scripts/lib/mutation/baseline-snapshot.js",
+      "method": "validateBaseline",
+      "startLine": 167
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/mutation/baseline-snapshot.js",
+      "method": "canonicaliseWorkspaces",
+      "startLine": 226
+    },
+    {
+      "crap": 11,
+      "file": ".agents/scripts/lib/mutation/config-detector.js",
+      "method": "detectStrykerConfig",
+      "startLine": 58
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/mutation/config-detector.js",
+      "method": "getCanonicalConfigFilenames",
+      "startLine": 117
+    },
+    {
+      "crap": 15.033554814675682,
+      "file": ".agents/scripts/lib/mutation/stryker-runner.js",
+      "method": "runStryker",
+      "startLine": 70
+    },
+    {
+      "crap": 17,
+      "file": ".agents/scripts/lib/mutation/stryker-runner.js",
+      "method": "summariseReport",
+      "startLine": 226
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/mutation/stryker-runner.js",
+      "method": "countsTowardDenominator",
+      "startLine": 293
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/mutation/stryker-runner.js",
+      "method": "round2",
+      "startLine": 304
     },
     {
       "crap": 5,
