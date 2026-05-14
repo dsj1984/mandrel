@@ -67,8 +67,18 @@ The script validates `type::story`, fetches `origin`, seeds
 `story-init` structured comment carrying `standalone: true`, and flips
 the Story to `agent::executing`.
 
+Between the fetch and the branch-seed step, the script also runs a
+**merged-`story-*` sweep**: it invokes the same primitive as
+`git-cleanup-branches.js` scoped to `story-*` only, in
+`--execute --remote` mode, with the current run's `story-<id>` branch
+excluded from the candidate list. Local refs, the matching `origin/`
+ref, and stale tracking refs for any merged sibling stories are reaped
+in one pass. The sweep never blocks init — failures are logged and the
+new story is initialized regardless.
+
 Capture `workCwd` from the result envelope. Add `--dry-run` to inspect
-the planned actions without git or ticket mutations.
+the planned actions without git or ticket mutations (dry-run also skips
+the sweep).
 
 ### Step 0.5 — `cd` into the workCwd
 
@@ -140,21 +150,46 @@ The script:
    exists, opens one via `gh pr create --base <baseBranch>`. The PR
    body carries `Closes #<storyId>` so the GitHub merge auto-closes the
    issue.
+3a. **Enables GitHub native auto-merge by default** via
+   `gh pr merge <prNumber> --auto --squash --delete-branch`. Once CI's
+   required checks turn green, GitHub squash-merges the PR and deletes
+   the source branch — the operator does not need to babysit the merge
+   button. Mirrors the `/epic-deliver` finalize path. Failure is
+   non-fatal: the operator retains the manual merge surface in the
+   GitHub UI. Pass `--no-auto-merge` to opt out when the PR needs a
+   pre-merge eyeball.
 4. Flips the Story to `agent::done`. The GitHub issue stays open until
-   the operator merges the PR.
+   the auto-merge fires (or until the operator merges manually); the
+   `Closes #<id>` PR footer auto-closes the issue on merge.
 5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
 
 `--skip-validation` bypasses Step 1 (gates). Use only when re-running
 close after a fixed gate failure that's already known to pass.
 
+`--no-auto-merge` disables Step 3a. Use when the PR materially changes
+behaviour and warrants pre-merge review.
+
 ---
 
-## Step 4 — Human merge
+## Step 4 — Merge
 
-The PR is the merge gate. The operator reviews and merges via the
-GitHub UI; the `Closes #<id>` auto-close fires when the merge lands on
-`main`.
+With auto-merge enabled (default), no operator action is needed —
+GitHub squash-merges the PR when required checks pass and the
+`Closes #<id>` footer auto-closes the issue.
+
+With `--no-auto-merge`, the PR is the merge gate. The operator reviews
+and merges via the GitHub UI; the same `Closes #<id>` auto-close fires
+when the merge lands on `main`.
+
+Optional: watch CI progress from the terminal with
+
+```bash
+gh pr checks <prNumber> --watch
+```
+
+The `prNumber` field is included in the close-script result envelope
+so a wrapper can pipe it straight in.
 
 ---
 
