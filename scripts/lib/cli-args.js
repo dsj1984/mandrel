@@ -55,6 +55,7 @@ export function parseSprintArgs(args = process.argv) {
       'dry-run': { type: 'boolean', default: false },
       'skip-dashboard': { type: 'boolean', default: false },
       'skip-validation': { type: 'boolean', default: false },
+      'no-auto-merge': { type: 'boolean', default: false },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -73,6 +74,7 @@ export function parseSprintArgs(args = process.argv) {
     dryRun: values['dry-run'] ?? false,
     skipDashboard: values['skip-dashboard'] ?? false,
     skipValidation: coerceBooleanFlag(values['skip-validation']),
+    noAutoMerge: coerceBooleanFlag(values['no-auto-merge']),
     executor: values.executor ?? null,
     // Resolve worktree cwd from flag or env. Empty string/whitespace → null.
     cwd:

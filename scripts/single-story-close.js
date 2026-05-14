@@ -69,6 +69,7 @@ export async function runSingleStoryClose({
   storyId: storyIdParam,
   cwd: cwdParam,
   skipValidation: skipValidationParam,
+  noAutoMerge: noAutoMergeParam,
   injectedProvider,
   injectedConfig,
 } = {}) {
@@ -78,15 +79,17 @@ export async function runSingleStoryClose({
           storyId: storyIdParam,
           cwd: cwdParam ?? null,
           skipValidation: !!skipValidationParam,
+          noAutoMerge: !!noAutoMergeParam,
         }
       : parseSprintArgs();
   const { storyId } = parsed;
   const skipValidation = skipValidationParam ?? parsed.skipValidation ?? false;
+  const noAutoMerge = noAutoMergeParam ?? parsed.noAutoMerge ?? false;
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
     Logger.fatal(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--no-auto-merge]',
     );
   }
 
@@ -187,6 +190,42 @@ export async function runSingleStoryClose({
     baseBranch,
   });
 
+  // Step 3a: enable GitHub native auto-merge so the PR squash-merges itself
+  // when required checks pass. Mirrors `epic-deliver-finalize.js`. Default
+  // is on for the standalone path because a single-story PR has no
+  // intermediate review surface; opt-out via `--no-auto-merge` when the
+  // operator wants to inspect the diff before clicking merge. Failures are
+  // non-fatal — the operator retains the manual merge path through the
+  // GitHub UI.
+  const prNumber = parsePrNumber(prUrl);
+  let autoMergeEnabled = false;
+  let autoMergeReason = null;
+  if (noAutoMerge) {
+    autoMergeReason = 'disabled-by-flag';
+    progress('PR', '⏭  Auto-merge disabled (--no-auto-merge).');
+  } else if (prNumber == null) {
+    autoMergeReason = 'pr-number-unparseable';
+    progress(
+      'PR',
+      `⚠️ Auto-merge skipped: could not parse PR number from URL ${prUrl}.`,
+    );
+  } else {
+    const result = enableAutoMerge({ cwd, prNumber });
+    if (result.enabled) {
+      autoMergeEnabled = true;
+      progress(
+        'PR',
+        `✅ Auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
+      );
+    } else {
+      autoMergeReason = result.reason;
+      progress(
+        'PR',
+        `⚠️ Auto-merge enablement failed (${result.reason}) — operator can merge manually.`,
+      );
+    }
+  }
+
   // Step 4: flip Story label to agent::done. The GitHub issue stays open
   // until the operator merges the PR (which fires the `Closes #<id>`
   // auto-close).
@@ -243,9 +282,14 @@ export async function runSingleStoryClose({
     storyBranch,
     baseBranch,
     prUrl,
+    prNumber,
     pushed: true,
+    autoMergeEnabled,
+    autoMergeReason,
     worktreeReaped,
-    note: 'PR open against baseBranch. Operator merges via GitHub UI to close the issue (Closes #<id> auto-close).',
+    note: autoMergeEnabled
+      ? 'PR open against baseBranch with auto-merge enabled. GitHub will squash-merge when required checks pass; the Closes #<id> footer auto-closes the issue.'
+      : 'PR open against baseBranch. Operator merges via GitHub UI to close the issue (Closes #<id> auto-close).',
   };
 
   Logger.info(
@@ -330,6 +374,75 @@ export function ensurePullRequest({
     throw new Error(
       `[single-story-close] \`gh pr create\` failed: ${err?.message ?? err}`,
     );
+  }
+}
+
+/**
+ * Extract the numeric PR ID from a `gh pr create` URL. The CLI returns a
+ * URL like `https://github.com/<owner>/<repo>/pull/<n>`; we want `<n>`.
+ * Returns `null` when the URL doesn't match. Exported for testing.
+ *
+ * @param {string|null|undefined} prUrl
+ * @returns {number|null}
+ */
+export function parsePrNumber(prUrl) {
+  if (typeof prUrl !== 'string') return null;
+  const match = prUrl.match(/\/pull\/(\d+)(?:[/?#]|$)/);
+  if (!match) return null;
+  const n = Number.parseInt(match[1], 10);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * Enable GitHub native auto-merge on the PR. Mirrors the call in
+ * `epic-deliver-finalize.js`: squash strategy, delete the branch on merge.
+ * Non-fatal — returns `{ enabled: false, reason }` on any failure so the
+ * caller can fall back to the operator-merges-button path.
+ *
+ * Exported for testing; the injection seam lets tests stub the `gh`
+ * invocation without touching the network.
+ *
+ * @param {{ cwd: string, prNumber: number, runner?: (args: string[], opts: object) => { status: number, stdout?: string, stderr?: string } }} opts
+ * @returns {{ enabled: boolean, reason?: string }}
+ */
+export function enableAutoMerge({ cwd, prNumber, runner }) {
+  const exec = runner ?? defaultGhAutoMergeRunner;
+  try {
+    const result = exec(
+      [
+        'pr',
+        'merge',
+        String(prNumber),
+        '--auto',
+        '--squash',
+        '--delete-branch',
+      ],
+      { cwd },
+    );
+    if (result.status === 0) return { enabled: true };
+    return {
+      enabled: false,
+      reason: `gh-exit-${result.status}: ${(result.stderr ?? '').trim().slice(0, 200)}`,
+    };
+  } catch (err) {
+    return { enabled: false, reason: `gh-spawn-error: ${err?.message ?? err}` };
+  }
+}
+
+function defaultGhAutoMergeRunner(args, { cwd }) {
+  try {
+    const stdout = execFileSync('gh', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { status: 0, stdout, stderr: '' };
+  } catch (err) {
+    return {
+      status: typeof err.status === 'number' ? err.status : 1,
+      stdout: err.stdout?.toString?.() ?? '',
+      stderr: err.stderr?.toString?.() ?? String(err?.message ?? err),
+    };
   }
 }
 
