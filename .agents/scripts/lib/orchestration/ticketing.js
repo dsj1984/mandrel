@@ -126,13 +126,13 @@ export function assertValidStructuredCommentType(type) {
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} newState - Must be one of STATE_LABELS.
- * @param {{ notify?: Function, cascade?: boolean }} [opts] - Optional notify
- *   function (the exported `notify(ticketId, payload, opts)` from `notify.js`,
- *   or any stub matching its shape). When provided, a state-transition
- *   notification fires after a successful transition. Story/Epic →
- *   `agent::done` events are dispatched as `medium`; all other transitions
- *   are `low` and filtered out at the default `medium` channel thresholds.
- *   The dispatched payload carries the typed envelope fields
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ *   Optional notify function (the exported `notify(ticketId, payload, opts)`
+ *   from `notify.js`, or any stub matching its shape). When provided, a
+ *   state-transition notification fires after a successful transition.
+ *   Story/Epic → `agent::done` events are dispatched as `medium`; all other
+ *   transitions are `low` and filtered out at the default `medium` channel
+ *   thresholds. The dispatched payload carries the typed envelope fields
  *   (`event: 'state-transition'`, `level: 'task'|'story'|'wave'|'epic'`,
  *   `epicId`) for routable webhook subscribers.
  *
@@ -141,6 +141,14 @@ export function assertValidStructuredCommentType(type) {
  *   from `story-task-progress.js` pass `cascade: false` so the Story/Epic
  *   only flips to `agent::done` at story-close (after the merge lands), not
  *   when the last Task commit lands on the still-unmerged Story branch.
+ *
+ *   `ticketSnapshot` (Story #1795 / Epic #1788) is an optional pre-fetched
+ *   ticket object. When the caller already holds the ticket (e.g.
+ *   `batchTransitionTickets`, which loops over a list it just hydrated),
+ *   passing the snapshot eliminates the two `getTicket` round-trips that
+ *   `transitionTicketState` would otherwise issue — one for the notify
+ *   `fromState` lookup and one inside `provider.updateTicket`'s label
+ *   merge path. Backwards compatible: when omitted, behaviour is unchanged.
  */
 export async function transitionTicketState(
   provider,
@@ -158,18 +166,30 @@ export async function transitionTicketState(
   // error). A transient read failure MUST NOT block a label transition —
   // the transition itself is idempotent and `fromState: null` is a valid
   // payload value.
+  //
+  // Story #1795 — when the caller threads `opts.ticketSnapshot` we reuse
+  // it as the notify snapshot without issuing a fresh `getTicket`. The
+  // snapshot is also forwarded to `provider.updateTicket` so the label
+  // merge path skips its own `getTicket` call (the second of the two
+  // round-trips this seam eliminates).
   let fromState = null;
-  let ticketSnapshot = null;
-  if (opts.notify && typeof provider.getTicket === 'function') {
+  let ticketSnapshot = opts.ticketSnapshot ?? null;
+  if (
+    opts.notify &&
+    ticketSnapshot === null &&
+    typeof provider.getTicket === 'function'
+  ) {
     try {
       ticketSnapshot = await provider.getTicket(ticketId);
-      fromState =
-        ticketSnapshot?.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
     } catch (err) {
       Logger.debug(
         `[Ticketing] fromState lookup failed for #${ticketId}: ${err.message ?? err}`,
       );
     }
+  }
+  if (ticketSnapshot) {
+    fromState =
+      ticketSnapshot.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
   }
 
   // Closing/reopening mirrors the label state so GitHub shows the correct
@@ -183,6 +203,12 @@ export async function transitionTicketState(
     },
     state: isDone ? 'closed' : 'open',
     state_reason: isDone ? 'completed' : null,
+    // Internal-only escape hatch threaded through `provider.updateTicket`
+    // to `_applyLabelMutations`. Honored by `providers/github.js`; ignored
+    // by providers that don't recognise it. Underscore-prefixed to mark
+    // it as a provider-internal contract rather than part of the public
+    // `mutations` shape.
+    _ticketSnapshot: ticketSnapshot,
   });
 
   // Automatically trigger upward cascade when a ticket is completed.

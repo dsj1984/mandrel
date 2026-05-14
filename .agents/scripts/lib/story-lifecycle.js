@@ -121,8 +121,14 @@ export async function batchTransitionTickets(
     let lastErr;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        // Story #1795 — thread the already-hydrated ticket through
+        // `opts.ticketSnapshot` so `transitionTicketState` skips both
+        // round-trips (notify snapshot + label merge). `batchTransitionTickets`
+        // is the single hot caller of this seam — every wave-close passes
+        // its full task list through here.
         await transitionTicketState(provider, ticket.id, targetLabel, {
           notify,
+          ticketSnapshot: ticket,
         });
         progress?.(
           'TICKETS',
