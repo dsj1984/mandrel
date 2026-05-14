@@ -961,13 +961,13 @@
       "crap": 2,
       "file": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "isStoryBranch",
-      "startLine": 82
+      "startLine": 81
     },
     {
       "crap": 4.021947873799726,
       "file": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "samePath",
-      "startLine": 96
+      "startLine": 95
     },
     {
       "crap": 1,
@@ -1003,37 +1003,37 @@
       "crap": 3,
       "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
       "method": "isExemptPath",
-      "startLine": 57
+      "startLine": 56
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
       "method": "walkJsFiles",
-      "startLine": 72
+      "startLine": 71
     },
     {
       "crap": 9,
       "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
       "method": "readConstructorArgs",
-      "startLine": 111
+      "startLine": 110
     },
     {
       "crap": 7.010907977850127,
       "file": ".agents/scripts/lib/checks/notifier-stub-required.js",
       "method": "findOffences",
-      "startLine": 139
+      "startLine": 138
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/checks/push-hook-parity.js",
       "method": "buildFixCommand",
-      "startLine": 85
+      "startLine": 84
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/checks/push-hook-parity.js",
       "method": "indent",
-      "startLine": 102
+      "startLine": 101
     },
     {
       "crap": 1,
@@ -1105,13 +1105,13 @@
       "crap": 7.019915663262714,
       "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
       "method": "walkSources",
-      "startLine": 59
+      "startLine": 58
     },
     {
-      "crap": 9,
+      "crap": 8,
       "file": ".agents/scripts/lib/checks/story-init-not-backgrounded.js",
       "method": "scanFile",
-      "startLine": 100
+      "startLine": 99
     },
     {
       "crap": 1,
@@ -1147,7 +1147,7 @@
       "crap": 2,
       "file": ".agents/scripts/lib/checks/worktree-residue-biome.js",
       "method": "buildFixCommand",
-      "startLine": 51
+      "startLine": 50
     },
     {
       "crap": 7,
@@ -3700,7 +3700,7 @@
       "startLine": 535
     },
     {
-      "crap": 15,
+      "crap": 13,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "projectStateForWrite",
       "startLine": 601
@@ -3709,13 +3709,13 @@
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "collectStructuralEdges",
-      "startLine": 670
+      "startLine": 662
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
       "method": "topoSortCreates",
-      "startLine": 703
+      "startLine": 695
     },
     {
       "crap": 4,
@@ -5290,7 +5290,7 @@
       "startLine": 503
     },
     {
-      "crap": 14.563826200895583,
+      "crap": 14.267000000000001,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
       "startLine": 523
@@ -5299,37 +5299,37 @@
       "crap": 20,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "buildManifestFromSpec",
-      "startLine": 653
+      "startLine": 655
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "<anon method-30>",
-      "startLine": 660
+      "startLine": 662
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "<anon method-31>",
-      "startLine": 666
+      "startLine": 668
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "fromSpec",
-      "startLine": 762
+      "startLine": 764
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatStoryManifestMarkdown",
-      "startLine": 789
+      "startLine": 791
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "printStoryDispatchTable",
-      "startLine": 854
+      "startLine": 856
     },
     {
       "crap": 1,
