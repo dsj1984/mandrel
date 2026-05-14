@@ -33,6 +33,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { setTimeout as sleepPromise } from 'node:timers/promises';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { notify } from '../../notify.js';
 import { storyArtifactPath } from '../config/temp-paths.js';
@@ -85,10 +86,7 @@ async function retryPruneUntilCleared(
   storyId,
   { sleep, delays = STALE_REGISTRY_REPRUNE_DELAYS_MS } = {},
 ) {
-  const sleepFn =
-    typeof sleep === 'function'
-      ? sleep
-      : (ms) => new Promise((r) => setTimeout(r, ms));
+  const sleepFn = typeof sleep === 'function' ? sleep : sleepPromise;
   let attempts = 0;
   let lastEntry;
   for (const delay of delays) {
@@ -297,7 +295,7 @@ export async function worktreeReapPhase(ctx) {
     config,
     sleep,
     recordPendingCleanupFn = recordPendingCleanup,
-    pathExistsFn = (p) => fs.existsSync(p),
+    pathExistsFn = fs.existsSync,
   } = ctx;
   const wtConfig = orchestration?.worktreeIsolation;
   const log = reapPhaseLogger(progress);
