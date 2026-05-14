@@ -43,9 +43,10 @@ CRAP-cluster substantially and is reflected in the current baseline.
 
 ## Cluster: `.agents/scripts/providers/` and `epic-execute-record-wave.js` (Task #1706)
 
-- Methods scanned in `providers/`: see baseline
-- Methods scanned in `epic-execute-record-wave.js`: see baseline
+- Methods scanned in `providers/`: 38
+- Methods scanned in `epic-execute-record-wave.js`: 25
 - Methods with CRAP > 20 in either: **0**
+- Methods at CRAP = 20 (at the floor) in either: 0
 
 The `providers/github.js` GraphQL-primary path (Epic #1653 Item 3) and
 the `epic-execute-record-wave.js` envelope-diet work (Item 2) landed
