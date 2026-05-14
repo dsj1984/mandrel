@@ -231,7 +231,7 @@
   },
   ".agents/scripts/lib/cli-args.js": {
     "lines": 98.21,
-    "branches": 89.19,
+    "branches": 89.29,
     "functions": 100
   },
   ".agents/scripts/lib/cli-utils.js": {
@@ -240,7 +240,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 88.54,
+    "lines": 88.62,
     "branches": 81.67,
     "functions": 78.26
   },
@@ -419,6 +419,11 @@
     "branches": 75.41,
     "functions": 89.47
   },
+  ".agents/scripts/lib/git/cached-fetch.js": {
+    "lines": 94.81,
+    "branches": 95.83,
+    "functions": 63.64
+  },
   ".agents/scripts/lib/Graph.js": {
     "lines": 100,
     "branches": 91.36,
@@ -555,8 +560,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-engine.js": {
-    "lines": 82.74,
-    "branches": 76.92,
+    "lines": 92.39,
+    "branches": 85.71,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-pipeline.js": {
@@ -906,12 +911,12 @@
   },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
     "lines": 97.14,
-    "branches": 85.02,
+    "branches": 85.53,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
     "lines": 97.39,
-    "branches": 77.55,
+    "branches": 79.59,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-renderer.js": {
@@ -997,6 +1002,11 @@
   ".agents/scripts/lib/story-init/dependency-guard.js": {
     "lines": 93.18,
     "branches": 74.39,
+    "functions": 100
+  },
+  ".agents/scripts/lib/story-init/donor-precheck.js": {
+    "lines": 89.86,
+    "branches": 78.79,
     "functions": 100
   },
   ".agents/scripts/lib/story-init/hierarchy-tracer.js": {
@@ -1160,8 +1170,8 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 86.13,
-    "branches": 72.37,
+    "lines": 86.25,
+    "branches": 73.04,
     "functions": 86.67
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
