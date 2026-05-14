@@ -68,18 +68,64 @@ import { loadSpec, loadState } from './lib/spec/index.js';
  * }} [deps]
  * @returns {string|null} pre-rendered Markdown, or null on any failure.
  */
+/**
+ * Overlay live task `status` labels from the just-built manifest onto the
+ * loaded state mapping. The spec-aware renderer (`buildManifestFromSpec`)
+ * looks up each task's status via `state.mapping[slug].lastObservedAgentState`;
+ * that field is only refreshed by the structural reconciler, so during
+ * `/epic-deliver` execution it stays `null` and every task renders as ⬜
+ * pending even after the Story merges. The wave-runner replaced the
+ * dispatcher-per-wave refresh loop and the local state.json never sees
+ * the progress signal.
+ *
+ * The overlay walks `manifest.waves[].tasks[]` (which carry the live
+ * `taskId` + `status` from `fetchEpicContext`'s GH query) and copies the
+ * status onto the slug that matches each `issueNumber`. Pure; returns the
+ * mutated state. Safe on null/undefined.
+ *
+ * @param {object|null|undefined} state
+ * @param {object|null|undefined} manifest
+ * @returns {object|null|undefined}
+ */
+export function overlayLiveTaskStateFromManifest(state, manifest) {
+  if (!state?.mapping || !manifest?.waves) return state;
+  const issueNumberToSlug = new Map();
+  for (const [slug, entry] of Object.entries(state.mapping)) {
+    if (entry && typeof entry.issueNumber === 'number') {
+      issueNumberToSlug.set(entry.issueNumber, slug);
+    }
+  }
+  for (const wave of manifest.waves) {
+    if (!Array.isArray(wave?.tasks)) continue;
+    for (const task of wave.tasks) {
+      const slug = issueNumberToSlug.get(task?.taskId);
+      if (!slug) continue;
+      if (
+        typeof task.status === 'string' &&
+        task.status.startsWith('agent::')
+      ) {
+        state.mapping[slug].lastObservedAgentState = task.status;
+      }
+    }
+  }
+  return state;
+}
+
 export function tryRenderFromSpec(manifest, deps = {}) {
   const epicId = manifest?.epicId;
   if (!epicId || manifest.type === 'story-execution') return null;
   const loadSpecFn = deps.loadSpec ?? loadSpec;
   const loadStateFn = deps.loadState ?? loadState;
   const fromSpecFn = deps.fromSpec ?? fromSpec;
+  const overlayFn =
+    deps.overlayLiveTaskState ?? overlayLiveTaskStateFromManifest;
   const loaderOpts = deps.loaderOpts ?? {};
   try {
     const spec = loadSpecFn(epicId, loaderOpts);
     const state = loadStateFn(epicId, loaderOpts);
+    const overlayedState = overlayFn(state, manifest);
     return fromSpecFn(spec, {
-      state,
+      state: overlayedState,
       generatedAt: manifest.generatedAt,
       executor: manifest.executor,
       dryRun: manifest.dryRun,
