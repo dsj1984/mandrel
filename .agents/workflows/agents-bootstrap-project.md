@@ -108,6 +108,57 @@ Read `package.json`, then add — only if missing — the following fields:
 Write the merged `package.json` back with 2-space indentation and a trailing
 newline.
 
+## Step 2.5 — Seed `.agentrc.json` from `.agents/min-agentrc.json`
+
+The framework ships a minimal, hand-authored exemplar at
+[`.agents/min-agentrc.json`](../min-agentrc.json) that lists **only** the
+schema-required keys plus the small set of values every consumer must
+override (github identity, base branch). Every other key the agent runtime
+reads has a framework default and is intentionally omitted — when a
+consumer wants project-specific values for them (e.g. custom
+`project.commands`, non-default `delivery.quality.gates.*.baselinePath`),
+they add those keys to `.agentrc.json` manually.
+
+> **Why min-agentrc, not default-agentrc?** The consumer config is a
+> **delta** over the framework defaults, not a copy of them. Seeding from
+> the full default template restates every default in the consumer repo,
+> which then drifts the moment the framework moves a default. The minimal
+> seed lets the framework own its defaults and the consumer own its
+> overrides.
+
+### 2.5a — Create `.agentrc.json` if missing
+
+If `.agentrc.json` does not exist at `[PROJECT_ROOT]`, copy
+`.agents/min-agentrc.json` verbatim to the project root as
+`.agentrc.json`. The operator then replaces the `[OWNER]`, `[REPO]`, and
+`[USERNAME]` placeholders with the project's GitHub coordinates.
+
+If `.agentrc.json` already exists, **skip** this step entirely. Never
+overwrite an existing config — the operator's overrides win.
+
+### 2.5b — Verify schema conformance
+
+Validate the freshly seeded (or pre-existing) `.agentrc.json` against the
+AJV validator:
+
+```bash
+node -e "
+import('./.agents/scripts/lib/config-settings-schema.js').then(m => {
+  const fs = require('fs');
+  const v = m.getAgentrcValidator();
+  const data = JSON.parse(fs.readFileSync('.agentrc.json','utf8'));
+  if (!v(data)) {
+    console.error(JSON.stringify(v.errors, null, 2));
+    process.exit(1);
+  }
+  console.log('.agentrc.json validates');
+});
+"
+```
+
+A validation failure is a hard stop — the operator must fix the config
+before the rest of the workflow proceeds.
+
 ## Step 3 — Wire the `UserPromptSubmit` hook in `.claude/settings.json`
 
 ### 3a. Create `[CLAUDE_SETTINGS]` if missing
@@ -346,6 +397,7 @@ Emit a compact summary showing what was touched on this run:
 [agents-bootstrap-project]
   package.json        scripts.sync:commands  added | already present
   package.json        scripts.prepare        added | appended | already present
+  .agentrc.json                              seeded-from-min | already present
   .claude/settings.json  UserPromptSubmit    wired | merged | already present
   .gitignore             .claude/commands/   added | already present
   .gitignore             .mcp.json           added | already present
