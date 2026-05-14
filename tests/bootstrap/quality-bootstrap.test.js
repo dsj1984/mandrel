@@ -132,14 +132,15 @@ describe('quality-bootstrap — fresh tmp project', () => {
     // Pre-existing scripts preserved.
     assert.equal(pkg.scripts.test, 'echo ok');
 
-    // Config has both keysets seeded with framework defaults.
+    // Config has both keysets seeded with framework defaults under
+    // delivery.quality (post-reshape).
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
     assert.deepEqual(
-      cfg.agentSettings.quality.codingGuardrails,
+      cfg.delivery.quality.codingGuardrails,
       QUALITY_CONFIG_DEFAULTS.codingGuardrails,
     );
     assert.deepEqual(
-      cfg.agentSettings.quality.autoRefresh,
+      cfg.delivery.quality.autoRefresh,
       QUALITY_CONFIG_DEFAULTS.autoRefresh,
     );
 
@@ -198,8 +199,9 @@ describe('quality-bootstrap — preserves operator overrides', () => {
   it('preserves existing config values when seeding defaults', () => {
     const projectRoot = makeProject({
       agentrc: {
-        agentSettings: {
-          baseBranch: 'main',
+        // Post-reshape: quality lives under `delivery.quality.*`.
+        project: { baseBranch: 'main' },
+        delivery: {
           quality: {
             codingGuardrails: { cyclomaticFlag: 6 },
             // autoRefresh entirely absent → seeded from defaults.
@@ -212,15 +214,15 @@ describe('quality-bootstrap — preserves operator overrides', () => {
     assert.equal(result.action, 'updated');
     // Custom override survives.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
-    assert.equal(cfg.agentSettings.quality.codingGuardrails.cyclomaticFlag, 6);
+    assert.equal(cfg.delivery.quality.codingGuardrails.cyclomaticFlag, 6);
     // Sibling defaults filled in.
     assert.equal(
-      cfg.agentSettings.quality.codingGuardrails.cyclomaticMustFix,
+      cfg.delivery.quality.codingGuardrails.cyclomaticMustFix,
       QUALITY_CONFIG_DEFAULTS.codingGuardrails.cyclomaticMustFix,
     );
     // autoRefresh seeded entirely.
     assert.deepEqual(
-      cfg.agentSettings.quality.autoRefresh,
+      cfg.delivery.quality.autoRefresh,
       QUALITY_CONFIG_DEFAULTS.autoRefresh,
     );
     // The added-keys list reflects only the seeded keys, not the preserved one.

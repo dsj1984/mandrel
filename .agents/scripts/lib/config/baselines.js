@@ -1,15 +1,8 @@
 /**
- * `agentSettings.quality.baselines` accessor (Epic #730 Story 5.5; relocated
- * under lib/config/ in Epic #773 Story 6).
+ * `delivery.quality.baselines` accessor (Epic #1720 Story #1739 — top-level
+ * reshape; the block relocated from `agentSettings.quality.baselines.*`).
  */
 
-/**
- * Canonical on-disk locations for every ratchet baseline (Epic #730 Story 5.5).
- * The framework treats `<repoRoot>/baselines/` as the single tracked directory
- * for `lint.json` / `crap.json` / `maintainability.json`; operators may
- * override per-baseline `path` in `agentSettings.quality.baselines.*` but the
- * defaults are designed so a fresh clone has working ratchets immediately.
- */
 export const BASELINES_DEFAULTS = Object.freeze({
   lint: Object.freeze({ path: 'baselines/lint.json', refreshCommand: null }),
   crap: Object.freeze({ path: 'baselines/crap.json', refreshCommand: null }),
@@ -20,21 +13,18 @@ export const BASELINES_DEFAULTS = Object.freeze({
 });
 
 /**
- * Read the grouped `agentSettings.quality.baselines` block, applying framework
+ * Read the grouped `delivery.quality.baselines` block, applying framework
  * defaults for any baseline (or any field within a baseline) the operator
- * omitted. Returns a `{ lint, crap, maintainability }` trio whose entries are
- * each `{ path, refreshCommand }` — never `undefined`.
+ * omitted. Accepts the full resolved config or any unwrapped variant.
  *
- * Accepts either the full resolved config (`{ agentSettings, ... }` wrapper)
- * or a bare `agentSettings` bag — the canonical two-shape accessor contract.
- *
- * @param {{ agentSettings?: { quality?: { baselines?: object } } } | object | null | undefined} config
+ * @param {object | null | undefined} config
  * @returns {{ lint: { path: string, refreshCommand: string|null }, crap: { path: string, refreshCommand: string|null }, maintainability: { path: string, refreshCommand: string|null } }}
  */
 export function getBaselines(config) {
   const baselines =
-    config?.agentSettings?.quality?.baselines ||
-    config?.quality?.baselines ||
+    config?.delivery?.quality?.baselines ??
+    config?.quality?.baselines ??
+    config?.agentSettings?.quality?.baselines ??
     {};
   const merge = (key) => {
     const fallback = BASELINES_DEFAULTS[key];
@@ -56,9 +46,6 @@ export function getBaselines(config) {
 
 /**
  * Merge the user-supplied `quality.baselines` block with framework defaults.
- * Mirrors {@link getBaselines} but returns the same `{ lint, crap,
- * maintainability }` trio shape — used during the in-place defaults pass so
- * `agentSettings.quality.baselines` is fully populated for any direct reader.
  *
  * @param {object|undefined} userBlock
  */

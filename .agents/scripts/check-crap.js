@@ -554,7 +554,8 @@ async function emitFriction(storyId, epicId, result, orchestration) {
   // `orchestration` here is the full resolved config bag — the legacy
   // parameter name predates bag-style threading and stays for surface stability.
   const category =
-    orchestration?.agentSettings?.maintainability?.crap?.friction?.markerKey ??
+    orchestration?.delivery?.quality?.crap?.friction?.markerKey ??
+    orchestration?.agentSettings?.quality?.crap?.friction?.markerKey ??
     'crap-baseline-regression';
   await emitFrictionSignal({
     storyId,

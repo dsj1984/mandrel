@@ -34,7 +34,7 @@ GitHub I/O, no commit creation, no label transitions.
 
 | Argument         | Required | Description                                                                                                                            |
 | ---------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `<epic-id>`      | yes      | Positive integer Epic ID. The viewer resolves `temp/epic-<id>/` under the configured `agentSettings.paths.tempRoot`.                  |
+| `<epic-id>`      | yes      | Positive integer Epic ID. The viewer resolves `temp/epic-<id>/` under the configured `project.paths.tempRoot`.                  |
 | `--story <id>`   | no       | Positive integer Story ID. When set, the printed tree is narrowed to a single Story subtree under the Epic.                            |
 
 ## Flags (test-only)
@@ -86,7 +86,7 @@ node .agents/scripts/signals-view.js 9999
 - **Never** uses Ink, blessed, or terminal-control escape sequences.
   Output goes through `console.log` exclusively so the viewer works on
   Windows + bash hosts (see [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md)).
-- **Always** honours the configured `agentSettings.paths.tempRoot`.
+- **Always** honours the configured `project.paths.tempRoot`.
   Earlier post-merge work leaked to the real repo root regardless of
   test sandbox `tempRoot` (project memory: `phase_timings_uses_project_root`) —
   this viewer reads via [`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)

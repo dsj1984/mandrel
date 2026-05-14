@@ -22,7 +22,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import { getSettingsValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
+import { getAgentrcValidator } from '../../.agents/scripts/lib/config-settings-schema.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = path.resolve(__dirname, '..', '..', '.agents', 'schemas');
@@ -218,40 +218,26 @@ describe('epic-perf-report.schema.json', () => {
   });
 });
 
-describe('agentrc agentSettings.limits.signals — runtime AJV schema', () => {
-  const validate = getSettingsValidator();
+describe('agentrc delivery.signals — runtime AJV schema (post-reshape)', () => {
+  const validate = getAgentrcValidator();
   const REQ = Object.freeze({
-    paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
   });
 
-  it('still accepts an agentSettings without the new signals block (back-compat)', () => {
+  it('accepts a doc without the signals block', () => {
     assert.equal(validate({ ...REQ }), true);
-    assert.equal(validate({ ...REQ, limits: {} }), true);
-    assert.equal(
-      validate({
-        ...REQ,
-        limits: {
-          friction: {
-            repetitiveCommandCount: 3,
-            consecutiveErrorCount: 3,
-            stagnationStepCount: 5,
-            maxIntegrationRetries: 2,
-          },
-        },
-      }),
-      true,
-    );
+    assert.equal(validate({ ...REQ, delivery: {} }), true);
   });
 
-  it('accepts a fully-populated signals block', () => {
+  it('accepts a fully-populated three-detector signals block', () => {
     const ok = validate({
       ...REQ,
-      limits: {
+      delivery: {
         signals: {
           hotspot: { p95Multiplier: 1.25 },
           rework: { editsPerFile: 5 },
-          churn: { repeatCount: 4 },
-          idle: { gapSeconds: 120 },
           retry: { repeatCount: 3 },
         },
       },
@@ -259,10 +245,26 @@ describe('agentrc agentSettings.limits.signals — runtime AJV schema', () => {
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
+  it('rejects the dropped churn detector', () => {
+    const ok = validate({
+      ...REQ,
+      delivery: { signals: { churn: { repeatCount: 4 } } },
+    });
+    assert.equal(ok, false);
+  });
+
+  it('rejects the dropped idle detector', () => {
+    const ok = validate({
+      ...REQ,
+      delivery: { signals: { idle: { gapSeconds: 120 } } },
+    });
+    assert.equal(ok, false);
+  });
+
   it('accepts a partial signals block (single detector override)', () => {
     const ok = validate({
       ...REQ,
-      limits: { signals: { idle: { gapSeconds: 240 } } },
+      delivery: { signals: { hotspot: { p95Multiplier: 1.5 } } },
     });
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
@@ -270,7 +272,7 @@ describe('agentrc agentSettings.limits.signals — runtime AJV schema', () => {
   it('rejects a typo under signals.* (additionalProperties: false)', () => {
     const ok = validate({
       ...REQ,
-      limits: { signals: { hotpsot: { p95Multiplier: 1 } } },
+      delivery: { signals: { hotpsot: { p95Multiplier: 1 } } },
     });
     assert.equal(ok, false);
   });
@@ -286,7 +288,7 @@ describe('agentrc agentSettings.limits.signals — runtime AJV schema', () => {
   it('rejects non-numeric p95Multiplier', () => {
     const ok = validate({
       ...REQ,
-      limits: { signals: { hotspot: { p95Multiplier: 'high' } } },
+      delivery: { signals: { hotspot: { p95Multiplier: 'high' } } },
     });
     assert.equal(ok, false);
   });
@@ -294,7 +296,7 @@ describe('agentrc agentSettings.limits.signals — runtime AJV schema', () => {
   it('rejects sub-1 editsPerFile (integer minimum 1)', () => {
     const ok = validate({
       ...REQ,
-      limits: { signals: { rework: { editsPerFile: 0 } } },
+      delivery: { signals: { rework: { editsPerFile: 0 } } },
     });
     assert.equal(ok, false);
   });

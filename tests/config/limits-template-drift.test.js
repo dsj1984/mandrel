@@ -5,110 +5,67 @@ import { fileURLToPath } from 'node:url';
 import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 
 // ---------------------------------------------------------------------------
-// Story #1002 / Task #1015 — drift guard between
-// `.agents/default-agentrc.json` (`agentSettings.limits`) and
-// `LIMITS_DEFAULTS` from `.agents/scripts/lib/config/limits.js`.
+// Post-reshape drift guard (Epic #1720 Story #1739).
 //
-// Operators bootstrap their `.agentrc.json` from the distributed template, so
-// the template's `agentSettings.limits` MUST deep-equal the runtime defaults
-// the framework would otherwise resolve. Any divergence makes consumer
-// behaviour depend on whether they copied the template wholesale (bigger
-// numbers win) or merged it on top of their own block (defaults win).
+// The surviving budget/timeout keys are spread across the new top-level
+// blocks rather than a single `agentSettings.limits` block:
+//   - planning.maxTickets
+//   - planning.context.{maxBytes, summaryMode}
+//   - delivery.maxTokenBudget
+//   - delivery.execution.timeoutMs
+//   - delivery.signals.{hotspot, rework, retry}
+//
+// This guard keeps `.agents/default-agentrc.json` aligned with
+// `LIMITS_DEFAULTS` so consumers who bootstrap from the template inherit
+// the same values the resolver would otherwise compute.
 // ---------------------------------------------------------------------------
 
 const TEMPLATE_PATH = fileURLToPath(
   new URL('../../.agents/default-agentrc.json', import.meta.url),
 );
 
-/**
- * Strip `Object.freeze` so deep-equal compares value shape, not identity.
- * @template T
- * @param {T} value
- * @returns {T}
- */
-function unfreeze(value) {
-  return JSON.parse(JSON.stringify(value));
-}
+describe('default-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
+  const parsed = JSON.parse(readFileSync(TEMPLATE_PATH, 'utf8'));
 
-/**
- * Diff two plain objects key-by-key, descending into nested objects as far
- * as needed. Originally a one-level diff scoped to `friction` /
- * `planningContext`; Epic #1030 Story #1039 introduced the two-level
- * `signals.<detector>.<key>` block so the helper now walks the tree.
- * Arrays compare via JSON-stringification (deep value equality, no
- * identity sensitivity).
- *
- * @param {unknown} expected
- * @param {unknown} actual
- * @param {string} prefix
- * @param {Set<string>} [diffs]
- * @returns {string[]}
- */
-function divergentKeys(expected, actual, prefix = '', diffs = new Set()) {
-  const expIsObj =
-    expected !== null &&
-    typeof expected === 'object' &&
-    !Array.isArray(expected);
-  const actIsObj =
-    actual !== null && typeof actual === 'object' && !Array.isArray(actual);
-  if (expIsObj && actIsObj) {
-    const keys = new Set([
-      ...Object.keys(/** @type {object} */ (expected)),
-      ...Object.keys(/** @type {object} */ (actual)),
-    ]);
-    for (const key of keys) {
-      const path = prefix ? `${prefix}.${key}` : key;
-      divergentKeys(
-        /** @type {Record<string, unknown>} */ (expected)[key],
-        /** @type {Record<string, unknown>} */ (actual)[key],
-        path,
-        diffs,
-      );
-    }
-    return prefix === '' ? [...diffs].sort() : [];
-  }
-  if (Array.isArray(expected) && Array.isArray(actual)) {
-    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
-      diffs.add(prefix);
-    }
-  } else if (expected !== actual) {
-    diffs.add(prefix);
-  }
-  return prefix === '' ? [...diffs].sort() : [];
-}
+  it('declares planning.maxTickets matching LIMITS_DEFAULTS.maxTickets', () => {
+    assert.equal(parsed?.planning?.maxTickets, LIMITS_DEFAULTS.maxTickets);
+  });
 
-describe('default-agentrc.json agentSettings.limits ↔ LIMITS_DEFAULTS', () => {
-  const raw = readFileSync(TEMPLATE_PATH, 'utf8');
-  const parsed = JSON.parse(raw);
-  const templateLimits = parsed?.agentSettings?.limits;
+  it('declares planning.context matching LIMITS_DEFAULTS.planningContext', () => {
+    assert.deepEqual(parsed?.planning?.context, {
+      ...LIMITS_DEFAULTS.planningContext,
+    });
+  });
 
-  it('template ships an agentSettings.limits block', () => {
-    assert.ok(
-      templateLimits && typeof templateLimits === 'object',
-      'default-agentrc.json must define agentSettings.limits as an object',
+  it('declares delivery.maxTokenBudget matching LIMITS_DEFAULTS.maxTokenBudget', () => {
+    assert.equal(
+      parsed?.delivery?.maxTokenBudget,
+      LIMITS_DEFAULTS.maxTokenBudget,
     );
   });
 
-  it('every LIMITS_DEFAULTS key appears in the template', () => {
-    const expected = unfreeze(LIMITS_DEFAULTS);
-    const missing = Object.keys(expected).filter(
-      (k) => !(k in /** @type {object} */ (templateLimits)),
-    );
-    assert.deepEqual(
-      missing,
-      [],
-      `template is missing limit keys: ${missing.join(', ')}`,
+  it('declares delivery.execution.timeoutMs matching LIMITS_DEFAULTS.executionTimeoutMs', () => {
+    assert.equal(
+      parsed?.delivery?.execution?.timeoutMs,
+      LIMITS_DEFAULTS.executionTimeoutMs,
     );
   });
 
-  it('template deep-equals LIMITS_DEFAULTS (no maxTickets / friction / planningContext drift)', () => {
-    const expected = unfreeze(LIMITS_DEFAULTS);
-    const diverged = divergentKeys(expected, templateLimits);
-    assert.deepEqual(
-      diverged,
-      [],
-      `default-agentrc.json agentSettings.limits drifted from LIMITS_DEFAULTS at: ${diverged.join(', ')}. Update .agents/default-agentrc.json or .agents/scripts/lib/config/limits.js so both sides agree.`,
+  it('declares the three surviving detector blocks under delivery.signals', () => {
+    const sig = parsed?.delivery?.signals;
+    assert.ok(sig, 'delivery.signals must be present');
+    assert.deepEqual(Object.keys(sig).sort(), ['hotspot', 'retry', 'rework']);
+    assert.equal(
+      sig.hotspot.p95Multiplier,
+      LIMITS_DEFAULTS.signals.hotspot.p95Multiplier,
     );
-    assert.deepEqual(templateLimits, expected);
+    assert.equal(
+      sig.rework.editsPerFile,
+      LIMITS_DEFAULTS.signals.rework.editsPerFile,
+    );
+    assert.equal(
+      sig.retry.repeatCount,
+      LIMITS_DEFAULTS.signals.retry.repeatCount,
+    );
   });
 });

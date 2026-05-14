@@ -1,12 +1,11 @@
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
-  "agentSettings": {
+  "project": {
     "baseBranch": "main",
     "paths": {
       "agentRoot": ".agents",
       "docsRoot": "docs",
-      "tempRoot": "temp",
-      "auditOutputDir": "temp"
+      "tempRoot": "temp"
     },
     "docsContextFiles": [
       "architecture.md",
@@ -14,38 +13,62 @@
       "decisions.md",
       "patterns.md"
     ],
-    "release": {
-      "docs": ["README.md", "docs/CHANGELOG.md"],
-      "versionFile": ".agents/VERSION",
-      "packageJson": true,
-      "autoVersionBump": true
-    },
-    "limits": {
-      "maxInstructionSteps": 5,
-      "maxTickets": 60,
-      "maxTokenBudget": 200000,
-      "executionTimeoutMs": 300000,
-      "executionMaxBuffer": 10485760,
-      "friction": {
-        "repetitiveCommandCount": 3,
-        "consecutiveErrorCount": 3,
-        "stagnationStepCount": 5,
-        "maxIntegrationRetries": 2
-      },
-      "signals": {
-        "hotspot": { "p95Multiplier": 1.25 },
-        "rework": { "editsPerFile": 5 },
-        "churn": { "repeatCount": 4 },
-        "idle": { "gapSeconds": 120 },
-        "retry": { "repeatCount": 3 }
-      }
-    },
     "commands": {
-      "validate": "npm run lint",
       "lintBaseline": "npm run lint",
       "test": "npm test",
-      "typecheck": "node --version",
-      "build": null
+      "typecheck": "node --version"
+    }
+  },
+  "github": {
+    "owner": "dsj1984",
+    "repo": "mandrel",
+    "projectNumber": 1,
+    "projectOwner": "dsj1984",
+    "operatorHandle": "@dsj1984",
+    "notifications": {
+      "mentionOperator": false,
+      "commentEvents": ["state-transition", "story-merged", "operator-message"],
+      "webhookEvents": [
+        "epic-started",
+        "epic-progress",
+        "epic-blocked",
+        "epic-unblocked",
+        "epic-complete"
+      ]
+    }
+  },
+  "planning": {
+    "maxTickets": 60,
+    "riskHeuristics": [
+      "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
+      "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
+      "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
+      "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
+      "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
+    ]
+  },
+  "delivery": {
+    "execution": { "timeoutMs": 600000 },
+    "maxTokenBudget": 200000,
+    "docsFreshness": {
+      "paths": ["README.md", "docs/CHANGELOG.md"]
+    },
+    "deliverRunner": {
+      "concurrencyCap": 3,
+      "progressReportIntervalSec": 120
+    },
+    "worktreeIsolation": {
+      "enabled": true,
+      "root": ".worktrees",
+      "nodeModulesStrategy": "per-worktree",
+      "reapOnSuccess": true,
+      "reapOnCancel": true,
+      "bootstrapFiles": [".env"]
+    },
+    "signals": {
+      "hotspot": { "p95Multiplier": 1.25 },
+      "rework": { "editsPerFile": 5 },
+      "retry": { "repeatCount": 3 }
     },
     "quality": {
       "baselines": {
@@ -71,55 +94,6 @@
         "coverage": { "lines": 40, "branches": 40, "functions": 0 },
         "maintainability": 0,
         "crap": 30
-      }
-    },
-    "planning": {
-      "riskHeuristics": [
-        "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
-        "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
-        "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
-        "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
-        "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
-      ]
-    }
-  },
-  "orchestration": {
-    "provider": "github",
-    "github": {
-      "owner": "dsj1984",
-      "repo": "mandrel",
-      "projectNumber": 1,
-      "projectOwner": "dsj1984",
-      "operatorHandle": "@dsj1984"
-    },
-    "notifications": {
-      "mentionOperator": false,
-      "commentEvents": ["state-transition", "story-merged", "operator-message"],
-      "webhookEvents": [
-        "epic-started",
-        "epic-progress",
-        "epic-blocked",
-        "epic-unblocked",
-        "epic-complete"
-      ]
-    },
-    "worktreeIsolation": {
-      "enabled": true,
-      "root": ".worktrees",
-      "nodeModulesStrategy": "per-worktree",
-      "reapOnSuccess": true,
-      "reapOnCancel": true,
-      "bootstrapFiles": [".env"]
-    },
-    "runners": {
-      "deliverRunner": {
-        "enabled": true,
-        "concurrencyCap": 3,
-        "progressReportIntervalSec": 120
-      },
-      "planRunner": {
-        "enabled": true,
-        "pollIntervalSec": 30
       }
     }
   }

@@ -94,10 +94,10 @@ describe('agents-update — fresh-upgrade path', () => {
       QUALITY_NPM_SCRIPTS['quality:preview'],
     );
 
-    // Config seeded with framework defaults.
+    // Config seeded with framework defaults under delivery.quality.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
     assert.deepEqual(
-      cfg.agentSettings.quality.codingGuardrails,
+      cfg.delivery.quality.codingGuardrails,
       QUALITY_CONFIG_DEFAULTS.codingGuardrails,
     );
 

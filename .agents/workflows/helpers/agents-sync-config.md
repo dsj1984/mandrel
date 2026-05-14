@@ -31,8 +31,7 @@ including optional keys the template does not declare.
 
 This is a deliberate departure from the previous "structural diff against
 template" behaviour, which silently stripped legitimate optional keys (e.g.
-`orchestration.concurrency`, `storyMergeRetry`, `github.projectName`,
-`agentSettings.quality.prGate`) on every sync.
+`github.branchProtection` requiredChecks customisations) on every sync.
 
 The reconciliation rules are:
 
@@ -71,10 +70,10 @@ and line number. Never attempt to silently "fix" malformed JSON.
 Validate the loaded `[PROJECT_CONFIG]` against the runtime AJV validators
 (which mirror `[SCHEMA]`):
 
-- `getSettingsValidator()` from `.agents/scripts/lib/config-settings-schema.js`
-  → applied to `agentSettings`.
-- `getOrchestrationValidator()` from `.agents/scripts/lib/config-schema.js`
-  → applied to `orchestration`.
+- `getAgentrcValidator()` from `.agents/scripts/lib/config-settings-schema.js`
+  → applied to the full `.agentrc.json` document (project / github / planning /
+  delivery). Post-reshape (Epic #1720 Story #1739) the validator is one schema
+  per document rather than two separate validators for the old top-level split.
 
 If any validator returns errors:
 
@@ -84,7 +83,7 @@ If any validator returns errors:
    project config (typo, wrong type, missing required key) and re-run.
 
 The schema is authoritative. Keys absent from `[TEMPLATE]` but valid under the
-schema (e.g. `orchestration.concurrency`, `agentSettings.quality.prGate`) pass
+schema (e.g. `github.branchProtection`, `delivery.quality.codingGuardrails`) pass
 validation and survive untouched.
 
 ## Step 3 — Merge Missing Template Keys Into the Project Config
@@ -114,11 +113,12 @@ mergeMissing(template, project):
   keys; it never replaces a project value with a template value.
 - **Arrays are opaque, project-owned.** The merge does not append-merge array
   elements. Operators who want new defaults from the template must edit those
-  arrays (`docsContextFiles`, `release.docs`, `planning.riskHeuristics`, etc.)
+  arrays (`project.docsContextFiles`, `delivery.docsFreshness.paths`,
+  `planning.riskHeuristics`, etc.)
   manually.
 - **Optional keys absent from the template are preserved.** Unlike the
   previous template-diff behaviour, the project may carry schema-valid keys
-  (like `orchestration.concurrency` or `agentSettings.quality.prGate`) that the
+  (like `orchestration.concurrency` or `github.branchProtection`) that the
   template never declares — they pass validation in Step 2 and survive merge
   in Step 3 because the project sets them.
 - **`$schema` and top-level metadata** (`title`) follow the same rule as any

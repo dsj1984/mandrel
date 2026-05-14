@@ -35,7 +35,7 @@ Epic-scoped machinery (cascade, dispatch manifest, dashboard regen).
 `/story-execute` requires a parent Epic and will refuse to initialize a
 Story that lacks the `Epic: #N` reference.
 
-> **Worktree isolation.** When `orchestration.worktreeIsolation.enabled` is
+> **Worktree isolation.** When `delivery.worktreeIsolation.enabled` is
 > `true`, Step 0 creates a worktree at `.worktrees/story-<id>/` and prints
 > its absolute path as `workCwd`. You **must** `cd` into that path before
 > Step 1. The main checkout's HEAD is never moved. See

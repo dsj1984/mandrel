@@ -14,13 +14,13 @@ describe('resolveConfig with injected ctx.fs', () => {
       readFileSync: (p) => {
         reads.push(p);
         return JSON.stringify({
-          agentSettings: {
+          project: {
+            baseBranch: 'develop',
             paths: {
               agentRoot: '.agents',
               docsRoot: 'docs',
               tempRoot: 'temp',
             },
-            baseBranch: 'develop',
           },
         });
       },
@@ -34,6 +34,9 @@ describe('resolveConfig with injected ctx.fs', () => {
     });
 
     assert.equal(resolved.source, agentrcPath);
+    assert.equal(resolved.project.baseBranch, 'develop');
+    // Legacy shim preserves the baseBranch under agentSettings for
+    // in-flight call sites that haven't migrated yet.
     assert.equal(resolved.agentSettings.baseBranch, 'develop');
     assert.deepEqual(reads, [agentrcPath]);
   });
@@ -55,12 +58,10 @@ describe('resolveConfig with injected ctx.fs', () => {
     });
 
     assert.equal(resolved.source, 'built-in defaults');
-    assert.equal(resolved.orchestration, null);
-    // `paths.agentRoot` is no longer a zero-config default — schema-required
-    // keys are not silently filled in. The seven `*Root` keys moved under
-    // `paths.*` in Epic #773 Story 9; their framework defaults still flow
-    // through `resolvePaths`.
-    assert.equal(resolved.agentSettings.paths.agentRoot, undefined);
-    assert.equal(resolved.agentSettings.paths.scriptsRoot, '.agents/scripts');
+    assert.equal(resolved.github, null);
+    // Zero-config defaults now ship project.paths.agentRoot (no schema
+    // gate against the synthetic zero-config wrapper).
+    assert.equal(resolved.project.paths.agentRoot, '.agents');
+    assert.equal(resolved.project.paths.scriptsRoot, '.agents/scripts');
   });
 });

@@ -442,12 +442,18 @@ export async function runBootstrap(orchestration, opts = {}) {
   // The legacy `ensureMainBranchProtection` helper is preserved (re-
   // exported below) so the Epic #1142 Story #1157 contract tests stay
   // green; `applyBranchProtection` is its consumer-parity successor.
-  const settings = opts.agentSettings
-    ? {
-        ...opts.agentSettings,
-        baseBranch: opts.baseBranch ?? opts.agentSettings?.baseBranch ?? 'main',
-      }
-    : { baseBranch: opts.baseBranch ?? 'main' };
+  // Post-reshape: bootstrap reads from the new `project` + `github` blocks;
+  // the legacy `agentSettings` bag is still accepted so consumer-bootstrap
+  // tests that hand-craft fixtures keep working.
+  const projectCfg = opts.project ?? opts.agentSettings ?? {};
+  const githubCfg = opts.github ?? {};
+  const settings = {
+    ...projectCfg,
+    baseBranch: opts.baseBranch ?? projectCfg.baseBranch ?? 'main',
+    github: githubCfg,
+    // Preserve the legacy `quality` shape pointer when callers still pass it.
+    quality: projectCfg.quality,
+  };
   const hitlConfirm =
     opts.hitlConfirm ??
     ((args) =>
@@ -588,6 +594,9 @@ async function main() {
   try {
     const result = await runBootstrap(config.orchestration, {
       installWorkflows,
+      project: config.project,
+      github: config.github,
+      // Legacy shim — older consumer test fixtures may still read this.
       agentSettings: config.agentSettings,
       assumeYes,
       assumeNo,

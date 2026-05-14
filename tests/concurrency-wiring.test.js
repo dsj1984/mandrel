@@ -42,8 +42,12 @@ describe('resolveConcurrency — defaults preserve v5.21.0 constants', () => {
   });
 });
 
-describe('resolveConcurrency — overrides flow through', () => {
-  it('accepts the orchestration block carrying runners.concurrency', () => {
+describe('resolveConcurrency — overrides ignored post-reshape', () => {
+  // Epic #1720 Story #1739 removed the `orchestration.runners.concurrency`
+  // config knob. resolveConcurrency() is preserved for call-site stability
+  // but always returns DEFAULT_CONCURRENCY — the per-site caps are
+  // framework-internal constants now.
+  it('ignores orchestration overrides and returns DEFAULT_CONCURRENCY', () => {
     const out = resolveConcurrency({
       runners: {
         concurrency: {
@@ -53,43 +57,20 @@ describe('resolveConcurrency — overrides flow through', () => {
         },
       },
     });
-    assert.deepEqual(out, {
-      waveGate: 12,
-      commitAssertion: 2,
-      progressReporter: 16,
-    });
+    assert.deepEqual(out, DEFAULT_CONCURRENCY);
   });
 
-  it('accepts a pre-narrowed concurrency block', () => {
+  it('ignores a pre-narrowed concurrency block and returns DEFAULT_CONCURRENCY', () => {
     const out = resolveConcurrency({
       waveGate: 4,
       commitAssertion: 6,
       progressReporter: 10,
     });
-    assert.equal(out.waveGate, 4);
-    assert.equal(out.commitAssertion, 6);
-    assert.equal(out.progressReporter, 10);
-  });
-
-  it('falls back per-field on malformed overrides', () => {
-    const out = resolveConcurrency({
-      runners: {
-        concurrency: {
-          waveGate: -5,
-          commitAssertion: 0,
-          progressReporter: Number.NaN,
-        },
-      },
-    });
-    // Negative waveGate → default 0. commitAssertion 0 violates ≥1 → 4.
-    // NaN → 8.
     assert.deepEqual(out, DEFAULT_CONCURRENCY);
   });
 
   it('returns a frozen object', () => {
-    const out = resolveConcurrency({
-      runners: { concurrency: { waveGate: 5 } },
-    });
+    const out = resolveConcurrency({});
     assert.throws(() => {
       out.waveGate = 999;
     });
@@ -106,7 +87,7 @@ describe('createRuntimeContext — ctx.concurrency', () => {
     assert.deepEqual(ctx.concurrency, DEFAULT_CONCURRENCY);
   });
 
-  it('resolves from overrides.orchestration', () => {
+  it('ignores overrides.orchestration (config knob removed post-reshape)', () => {
     const ctx = createRuntimeContext({
       orchestration: {
         runners: {
@@ -118,19 +99,12 @@ describe('createRuntimeContext — ctx.concurrency', () => {
         },
       },
     });
-    assert.equal(ctx.concurrency.waveGate, 7);
-    assert.equal(ctx.concurrency.commitAssertion, 3);
-    assert.equal(ctx.concurrency.progressReporter, 12);
+    assert.deepEqual(ctx.concurrency, DEFAULT_CONCURRENCY);
   });
 
-  it('overrides.concurrency takes precedence over overrides.orchestration', () => {
+  it('overrides.concurrency takes precedence (passthrough only)', () => {
     const ctx = createRuntimeContext({
       concurrency: { waveGate: 99, commitAssertion: 99, progressReporter: 99 },
-      orchestration: {
-        runners: {
-          concurrency: { waveGate: 1, commitAssertion: 1, progressReporter: 1 },
-        },
-      },
     });
     assert.equal(ctx.concurrency.waveGate, 99);
   });

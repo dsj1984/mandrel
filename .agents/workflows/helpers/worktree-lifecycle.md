@@ -20,7 +20,7 @@ architectural rationale.
 
 ## Configuration
 
-All knobs live under `orchestration.worktreeIsolation` in `.agentrc.json`:
+All knobs live under `delivery.worktreeIsolation` in `.agentrc.json`:
 
 ```jsonc
 {
@@ -162,7 +162,7 @@ Symlink strategy:
 - **Long-path warning**: when `worktreePath.length + 80` exceeds
   `windowsPathLengthWarnThreshold` (default 240), `WorktreeManager` emits a
   warning locally and the dispatcher posts an `⚠️` comment on the Epic issue.
-  Relocate `orchestration.worktreeIsolation.root` to a shorter prefix (e.g.
+  Relocate `delivery.worktreeIsolation.root` to a shorter prefix (e.g.
   `C:\w`) if you see this.
 - **`packed-refs` contention**: two worktrees fetching concurrently can collide
   on `.git/packed-refs.lock`. `gitFetchWithRetry` (`git-utils.js`) retries that
@@ -171,7 +171,7 @@ Symlink strategy:
 
 ## Fallback: single-tree mode
 
-Set `orchestration.worktreeIsolation.enabled: false` (or omit the block) to
+Set `delivery.worktreeIsolation.enabled: false` (or omit the block) to
 restore v5.5.1 single-tree behavior:
 
 - No `git worktree add` / `remove` calls.
@@ -209,7 +209,7 @@ Human reviewers should **keep using the main checkout** — not a worktree:
   retry has exhausted. Dirty unmerged work must still refuse deletion.
 - **Never** commit the `.worktrees/` directory. It must be gitignored.
 - **Always** use the main checkout for code review — not a per-story worktree.
-- **Always** respect `orchestration.worktreeIsolation.enabled: false` as a
+- **Always** respect `delivery.worktreeIsolation.enabled: false` as a
   first-class fallback mode, not a degraded one. v5.5.1 single-tree guards
   (`assert-branch.js`, focus-area serialization) remain the primary defense in
   that mode.

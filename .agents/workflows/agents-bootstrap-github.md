@@ -121,8 +121,8 @@ entirely.
 ### Branch protection on `main` (Epic #1142 Story #1157)
 
 After labels and project setup, the bootstrap script writes the
-`agentSettings.quality.prGate.checks` suite into GitHub's branch-protection
-rule on the configured `agentSettings.baseBranch` (default `main`). The
+`github.branchProtection.checks` suite into GitHub's branch-protection
+rule on the configured `project.baseBranch` (default `main`). The
 behaviour is deliberately additive:
 
 - **No existing rule** — a fresh protection rule is created carrying just
@@ -135,7 +135,7 @@ behaviour is deliberately additive:
   written through unchanged so re-running the bootstrap never clobbers
   operator-tuned settings.
 
-Set `agentSettings.quality.prGate.enforceBranchProtection: false` in
+Set `github.branchProtection.enforceBranchProtection: false` in
 `.agentrc.json` to skip the step entirely — useful when branch protection
 is managed out-of-band (Terraform, manual UI, an org-level ruleset). The
 flag defaults to `true` so the framework's promoted prGate suite is
@@ -173,7 +173,7 @@ CI-gates-only stance onto the consumer repo. Two steps run in sequence:
    | `allow_auto_merge` | `true` | Lets the operator queue a PR with `gh pr merge --auto --squash`. |
    | `delete_branch_on_merge` | `true` | Head branches are throwaway. |
 
-   Override per-consumer via `agentSettings.quality.mergeMethods` in
+   Override per-consumer via `github.mergeMethods` in
    `.agentrc.json`. Any drift between config + live repo routes through
    HITL before a PATCH lands.
 

@@ -63,7 +63,7 @@ the same shape as Rule 1 but at the sub-agent layer.
   for units that have no dependency edge between them. The wave aggregator
   is designed for the parallel shape — the serial shape is strictly slower
   and offers no isolation benefit.
-- **Concurrency cap:** respect `orchestration.concurrencyCap` (or the
+- **Concurrency cap:** respect `delivery.deliverRunner.concurrencyCap` (or the
   caller's wave-slot budget) — beyond that cap you starve other waves, not
   speed up your own. When N exceeds the cap, slice into batches of `cap`
   and dispatch each batch in its own turn.

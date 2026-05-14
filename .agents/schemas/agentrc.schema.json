@@ -2,22 +2,30 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/agentrc.schema.json",
   "title": "Mandrel .agentrc",
-  "description": "Static JSON Schema mirror of the authoritative AJV schemas in .agents/scripts/lib/config-schema.js + config-settings-schema.js. The AJV schemas are the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync.",
+  "description": "Static JSON Schema mirror of the authoritative AJV schema in .agents/scripts/lib/config-settings-schema.js. The AJV schema is the runtime source of truth; this file exists for editor tooling and human readers. A drift test (tests/config-schema-mirror-drift.test.js) keeps the two in sync. Top-level reshape: Epic #1720 Story #1739 pivoted from {agentSettings, orchestration} to {project, github, planning, delivery}.",
   "type": "object",
   "additionalProperties": false,
+  "required": ["project"],
   "properties": {
     "$schema": { "type": "string" },
-    "agentSettings": { "$ref": "#/$defs/agentSettings" },
-    "orchestration": { "$ref": "#/$defs/orchestration" }
+    "project": { "$ref": "#/$defs/project" },
+    "github": { "$ref": "#/$defs/github" },
+    "planning": { "$ref": "#/$defs/planning" },
+    "delivery": { "$ref": "#/$defs/delivery" }
   },
   "$defs": {
     "safeString": {
       "type": "string",
-      "not": { "pattern": "([;&|`]|\\$\\()" }
+      "not": { "pattern": "[;&|`$<>]" }
     },
     "nullableSafeString": {
       "type": ["string", "null"],
-      "not": { "type": "string", "pattern": "([;&|`]|\\$\\()" }
+      "not": { "type": "string", "pattern": "[;&|`$<>]" }
+    },
+    "nullableNonEmptySafeString": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "not": { "type": "string", "pattern": "[;&|`$<>]" }
     },
     "listOrExtenderOfStrings": {
       "oneOf": [
@@ -32,185 +40,73 @@
         }
       ]
     },
-    "maintainabilityCrap": {
+    "paths": {
       "type": "object",
+      "required": ["agentRoot", "docsRoot", "tempRoot"],
       "properties": {
-        "enabled": { "type": "boolean" },
-        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
-        "newMethodCeiling": { "type": "integer", "minimum": 1 },
-        "coveragePath": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
+        "agentRoot": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
         },
-        "tolerance": { "type": "number", "minimum": 0 },
-        "c1Exemption": {
-          "type": "string",
-          "enum": ["blanket", "confidenceBand"]
+        "docsRoot": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
         },
-        "requireCoverage": { "type": "boolean" },
-        "friction": {
-          "type": "object",
-          "properties": { "markerKey": { "type": "string", "minLength": 1 } },
-          "additionalProperties": false
-        },
-        "refreshTag": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
+        "tempRoot": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
         }
       },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "enabled": { "const": true },
-              "requireCoverage": { "const": true }
-            },
-            "required": ["enabled", "requireCoverage"]
-          },
-          "then": { "required": ["coveragePath"] }
-        }
-      ]
+      "additionalProperties": false
     },
-    "release": {
+    "commands": {
       "type": "object",
       "properties": {
-        "docs": {
+        "lintBaseline": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "test": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "typecheck": { "$ref": "#/$defs/nullableNonEmptySafeString" },
+        "formatCheck": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "formatWrite": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        }
+      },
+      "additionalProperties": false
+    },
+    "project": {
+      "type": "object",
+      "required": ["paths"],
+      "properties": {
+        "baseBranch": { "$ref": "#/$defs/safeString" },
+        "paths": { "$ref": "#/$defs/paths" },
+        "docsContextFiles": { "type": "array", "items": { "type": "string" } },
+        "commands": { "$ref": "#/$defs/commands" }
+      },
+      "additionalProperties": false
+    },
+    "branchProtectionCheck": {
+      "type": "object",
+      "required": ["name", "cmd"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "cmd": {
           "type": "array",
-          "items": {
-            "allOf": [
-              { "$ref": "#/$defs/safeString" },
-              { "type": "string", "minLength": 1 }
-            ]
-          }
-        },
-        "versionFile": { "$ref": "#/$defs/nullableSafeString" },
-        "packageJson": { "type": "boolean" },
-        "autoVersionBump": { "type": "boolean" }
-      },
-      "additionalProperties": false
-    },
-    "frictionLimits": {
-      "type": "object",
-      "properties": {
-        "repetitiveCommandCount": { "type": "integer", "minimum": 1 },
-        "consecutiveErrorCount": { "type": "integer", "minimum": 1 },
-        "stagnationStepCount": { "type": "integer", "minimum": 1 },
-        "maxIntegrationRetries": { "type": "integer", "minimum": 1 }
-      },
-      "additionalProperties": false
-    },
-    "signalsLimits": {
-      "type": "object",
-      "description": "Detector thresholds for the performance-signal taxonomy (Epic #1030). All nested blocks are optional; the resolver fills missing keys from framework defaults.",
-      "properties": {
-        "hotspot": {
-          "type": "object",
-          "properties": {
-            "p95Multiplier": { "type": "number", "minimum": 0 }
-          },
-          "additionalProperties": false
-        },
-        "rework": {
-          "type": "object",
-          "properties": {
-            "editsPerFile": { "type": "integer", "minimum": 1 }
-          },
-          "additionalProperties": false
-        },
-        "churn": {
-          "type": "object",
-          "properties": {
-            "repeatCount": { "type": "integer", "minimum": 1 }
-          },
-          "additionalProperties": false
-        },
-        "idle": {
-          "type": "object",
-          "properties": {
-            "gapSeconds": { "type": "integer", "minimum": 1 }
-          },
-          "additionalProperties": false
-        },
-        "retry": {
-          "type": "object",
-          "properties": {
-            "repeatCount": { "type": "integer", "minimum": 1 }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "planningContextLimits": {
-      "type": "object",
-      "properties": {
-        "maxBytes": { "type": "integer", "minimum": 1024 },
-        "summaryMode": {
-          "type": "string",
-          "enum": ["auto", "always", "never"]
-        }
-      },
-      "additionalProperties": false
-    },
-    "limits": {
-      "type": "object",
-      "properties": {
-        "maxInstructionSteps": { "type": "integer", "minimum": 1 },
-        "maxTickets": { "type": "integer", "minimum": 1 },
-        "maxTokenBudget": { "type": "integer", "minimum": 1 },
-        "executionTimeoutMs": { "type": "integer", "minimum": 1 },
-        "executionMaxBuffer": { "type": "integer", "minimum": 1 },
-        "friction": { "$ref": "#/$defs/frictionLimits" },
-        "planningContext": { "$ref": "#/$defs/planningContextLimits" },
-        "signals": { "$ref": "#/$defs/signalsLimits" }
-      },
-      "additionalProperties": false
-    },
-    "planning": {
-      "type": "object",
-      "properties": {
-        "riskHeuristics": {
-          "type": "array",
+          "minItems": 1,
           "items": { "type": "string", "minLength": 1 }
-        },
-        "taskSizing": { "$ref": "#/$defs/taskSizing" }
+        }
       },
       "additionalProperties": false
     },
-    "taskSizing": {
+    "branchProtection": {
       "type": "object",
       "properties": {
-        "maxAcceptance": { "type": "integer", "minimum": 1, "default": 6 },
-        "maxChanges": { "type": "integer", "minimum": 1, "default": 8 },
-        "softFileCount": { "type": "integer", "minimum": 1, "default": 3 },
-        "softAcceptanceCount": { "type": "integer", "minimum": 1, "default": 4 }
-      },
-      "additionalProperties": false
-    },
-    "prGate": {
-      "type": "object",
-      "properties": {
-        "checks": {
+        "enforce": { "type": "boolean" },
+        "requiredChecks": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "required": ["name", "cmd"],
-            "properties": {
-              "name": { "type": "string", "minLength": 1 },
-              "cmd": {
-                "type": "array",
-                "minItems": 1,
-                "items": { "type": "string", "minLength": 1 }
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "enforceBranchProtection": { "type": "boolean" }
+          "items": { "$ref": "#/$defs/branchProtectionCheck" }
+        }
       },
       "additionalProperties": false
     },
@@ -222,238 +118,6 @@
         "allow_merge_commit": { "type": "boolean" },
         "allow_auto_merge": { "type": "boolean" },
         "delete_branch_on_merge": { "type": "boolean" }
-      },
-      "additionalProperties": false
-    },
-    "maintainabilityQuality": {
-      "type": "object",
-      "properties": {
-        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
-        "tolerance": { "type": "number", "minimum": 0 },
-        "halsteadTolerance": { "type": ["number", "null"], "minimum": 0 }
-      },
-      "additionalProperties": false
-    },
-    "nullableNonemptySafeString": {
-      "type": ["string", "null"],
-      "minLength": 1,
-      "not": { "type": "string", "pattern": "([;&|`]|\\$\\()" }
-    },
-    "commands": {
-      "type": "object",
-      "properties": {
-        "validate": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "lintBaseline": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "test": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "typecheck": { "$ref": "#/$defs/nullableNonemptySafeString" },
-        "build": { "$ref": "#/$defs/nullableNonemptySafeString" },
-        "formatCheck": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "formatWrite": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "baselineEntry": {
-      "type": "object",
-      "required": ["path"],
-      "properties": {
-        "path": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "refreshCommand": { "$ref": "#/$defs/nullableNonemptySafeString" }
-      },
-      "additionalProperties": false
-    },
-    "codingGuardrails": {
-      "type": "object",
-      "description": "Story #1399 (Epic #1386) — numeric coding-time thresholds the helper at .agents/workflows/helpers/code-quality-guardrails.md cites. Tunable via .agentrc.json so projects do not fork the helper.",
-      "properties": {
-        "cyclomaticFlag": { "type": "integer", "minimum": 1 },
-        "cyclomaticMustFix": { "type": "integer", "minimum": 1 },
-        "miDropRefactor": { "type": "number", "minimum": 0 },
-        "requireSiblingTest": { "type": "boolean" }
-      },
-      "additionalProperties": false
-    },
-    "autoRefresh": {
-      "type": "object",
-      "description": "Bounded baseline auto-refresh at story-close (Story #1398). When enabled, story-close regenerates baseline rows scoped to the Story diff and amends them into the close commit if every row's delta is at or below miDropCap (per-file MI drop) and crapJumpCap (per-method CRAP jump). Over-cap rows surface a baseline-refresh-regression friction signal instead.",
-      "properties": {
-        "enabled": { "type": "boolean" },
-        "miDropCap": { "type": "number", "minimum": 0 },
-        "crapJumpCap": { "type": "number", "minimum": 0 },
-        "scope": { "type": "string", "enum": ["diff", "full"] }
-      },
-      "additionalProperties": false
-    },
-    "quality": {
-      "type": "object",
-      "properties": {
-        "baselines": {
-          "type": "object",
-          "properties": {
-            "lint": { "$ref": "#/$defs/baselineEntry" },
-            "crap": { "$ref": "#/$defs/baselineEntry" },
-            "maintainability": { "$ref": "#/$defs/baselineEntry" }
-          },
-          "additionalProperties": false
-        },
-        "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
-        "crap": { "$ref": "#/$defs/maintainabilityCrap" },
-        "prGate": { "$ref": "#/$defs/prGate" },
-        "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
-        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
-        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
-        "qualityFloors": {
-          "type": "object",
-          "description": "v6.0 absolute quality floors (Story #1602). Calibrated low for v6.0 cut; tighten in v6.x via Epic #1653.",
-          "properties": {
-            "coverage": {
-              "type": "object",
-              "properties": {
-                "lines": { "type": "number", "minimum": 0, "maximum": 100 },
-                "branches": { "type": "number", "minimum": 0, "maximum": 100 },
-                "functions": { "type": "number", "minimum": 0, "maximum": 100 }
-              },
-              "additionalProperties": false
-            },
-            "maintainability": {
-              "type": "number",
-              "minimum": 0,
-              "maximum": 100
-            },
-            "crap": { "type": "number", "minimum": 0 }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    "paths": {
-      "type": "object",
-      "required": ["agentRoot", "docsRoot", "tempRoot"],
-      "properties": {
-        "agentRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "docsRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "tempRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "auditOutputDir": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "scriptsRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "workflowsRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "personasRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "schemasRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "skillsRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "templatesRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        },
-        "rulesRoot": {
-          "allOf": [
-            { "$ref": "#/$defs/safeString" },
-            { "type": "string", "minLength": 1 }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "agentSettings": {
-      "type": "object",
-      "required": ["paths"],
-      "properties": {
-        "baseBranch": { "$ref": "#/$defs/safeString" },
-        "docsContextFiles": { "type": "array", "items": { "type": "string" } },
-        "release": { "$ref": "#/$defs/release" },
-        "planning": { "$ref": "#/$defs/planning" },
-        "quality": { "$ref": "#/$defs/quality" },
-        "commands": { "$ref": "#/$defs/commands" },
-        "paths": { "$ref": "#/$defs/paths" },
-        "limits": { "$ref": "#/$defs/limits" }
-      },
-      "additionalProperties": false
-    },
-    "github": {
-      "type": "object",
-      "required": ["owner", "repo"],
-      "properties": {
-        "owner": { "type": "string", "minLength": 1 },
-        "repo": { "type": "string", "minLength": 1 },
-        "projectNumber": { "type": ["integer", "null"], "minimum": 1 },
-        "projectOwner": { "type": ["string", "null"], "minLength": 1 },
-        "projectName": { "type": ["string", "null"], "minLength": 1 },
-        "operatorHandle": { "type": "string", "pattern": "^@.+" }
       },
       "additionalProperties": false
     },
@@ -484,7 +148,65 @@
           "uniqueItems": true
         }
       },
-      "required": ["commentEvents", "webhookEvents"],
+      "additionalProperties": false
+    },
+    "github": {
+      "type": "object",
+      "required": ["owner", "repo"],
+      "properties": {
+        "owner": { "type": "string", "minLength": 1 },
+        "repo": { "type": "string", "minLength": 1 },
+        "projectNumber": { "type": ["integer", "null"], "minimum": 1 },
+        "projectOwner": { "type": ["string", "null"], "minLength": 1 },
+        "operatorHandle": { "type": "string", "pattern": "^@.+" },
+        "branchProtection": { "$ref": "#/$defs/branchProtection" },
+        "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
+        "notifications": { "$ref": "#/$defs/notifications" }
+      },
+      "additionalProperties": false
+    },
+    "planningContext": {
+      "type": "object",
+      "properties": {
+        "maxBytes": { "type": "integer", "minimum": 1024 },
+        "summaryMode": { "type": "string", "enum": ["auto", "always", "never"] }
+      },
+      "additionalProperties": false
+    },
+    "planning": {
+      "type": "object",
+      "properties": {
+        "riskHeuristics": { "$ref": "#/$defs/listOrExtenderOfStrings" },
+        "maxTickets": { "type": "integer", "minimum": 1 },
+        "context": { "$ref": "#/$defs/planningContext" }
+      },
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "timeoutMs": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
+    "docsFreshness": {
+      "type": "object",
+      "properties": {
+        "paths": {
+          "type": "array",
+          "items": {
+            "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "deliverRunner": {
+      "type": "object",
+      "properties": {
+        "concurrencyCap": { "type": "integer", "minimum": 1 },
+        "progressReportIntervalSec": { "type": "integer", "minimum": 0 }
+      },
       "additionalProperties": false
     },
     "worktreeIsolation": {
@@ -500,7 +222,6 @@
         "allowSymlinkOnWindows": { "type": "boolean" },
         "reapOnSuccess": { "type": "boolean" },
         "reapOnCancel": { "type": "boolean" },
-        "windowsPathLengthWarnThreshold": { "type": "integer", "minimum": 1 },
         "bootstrapFiles": {
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
@@ -517,93 +238,157 @@
         }
       ]
     },
-    "deliverRunner": {
+    "signals": {
+      "type": "object",
+      "properties": {
+        "hotspot": {
+          "type": "object",
+          "properties": { "p95Multiplier": { "type": "number", "minimum": 0 } },
+          "additionalProperties": false
+        },
+        "rework": {
+          "type": "object",
+          "properties": { "editsPerFile": { "type": "integer", "minimum": 1 } },
+          "additionalProperties": false
+        },
+        "retry": {
+          "type": "object",
+          "properties": { "repeatCount": { "type": "integer", "minimum": 1 } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "baselineEntry": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "refreshCommand": { "$ref": "#/$defs/nullableNonEmptySafeString" }
+      },
+      "additionalProperties": false
+    },
+    "maintainabilityQuality": {
+      "type": "object",
+      "properties": {
+        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
+        "tolerance": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "maintainabilityCrap": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
-        "concurrencyCap": { "type": "integer", "minimum": 1 },
-        "progressReportIntervalSec": { "type": "integer", "minimum": 0 }
+        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
+        "newMethodCeiling": { "type": "integer", "minimum": 1 },
+        "coveragePath": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "tolerance": { "type": "number", "minimum": 0 },
+        "requireCoverage": { "type": "boolean" },
+        "friction": {
+          "type": "object",
+          "properties": { "markerKey": { "type": "string", "minLength": 1 } },
+          "additionalProperties": false
+        },
+        "refreshTag": {
+          "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        }
       },
-      "additionalProperties": false,
       "allOf": [
         {
           "if": {
-            "not": {
-              "properties": { "enabled": { "const": false } },
-              "required": ["enabled"]
-            }
+            "properties": {
+              "enabled": { "const": true },
+              "requireCoverage": { "const": true }
+            },
+            "required": ["enabled", "requireCoverage"]
           },
-          "then": { "required": ["concurrencyCap"] }
+          "then": { "required": ["coveragePath"] }
         }
       ]
     },
-    "planRunner": {
+    "codingGuardrails": {
+      "type": "object",
+      "properties": {
+        "cyclomaticFlag": { "type": "integer", "minimum": 1 },
+        "cyclomaticMustFix": { "type": "integer", "minimum": 1 },
+        "miDropMustRefactor": { "type": "number", "minimum": 0 },
+        "requireSiblingTest": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "autoRefresh": {
       "type": "object",
       "properties": {
         "enabled": { "type": "boolean" },
-        "pollIntervalSec": { "type": "integer", "minimum": 1 }
+        "miDropCap": { "type": "number", "minimum": 0 },
+        "crapJumpCap": { "type": "number", "minimum": 0 },
+        "scope": { "type": "string", "enum": ["diff", "full"] }
       },
       "additionalProperties": false
     },
-    "concurrency": {
+    "qualityFloors": {
       "type": "object",
       "properties": {
-        "waveGate": { "type": "integer", "minimum": 0 },
-        "commitAssertion": { "type": "integer", "minimum": 1 },
-        "progressReporter": { "type": "integer", "minimum": 1 }
+        "coverage": {
+          "type": "object",
+          "properties": {
+            "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+            "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+            "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+          },
+          "additionalProperties": false
+        },
+        "maintainability": { "type": "number", "minimum": 0, "maximum": 100 },
+        "crap": { "type": "number", "minimum": 0 }
       },
       "additionalProperties": false
     },
-    "storyMergeRetry": {
+    "gateScoping": {
       "type": "object",
       "properties": {
-        "maxAttempts": { "type": "integer", "minimum": 1 },
-        "backoffMs": {
-          "type": "array",
-          "items": { "type": "integer", "minimum": 0 }
-        }
+        "scope": { "type": "string", "enum": ["diff", "full"] },
+        "diffRef": { "type": "string", "minLength": 1 }
       },
       "additionalProperties": false
     },
-    "decomposer": {
+    "quality": {
       "type": "object",
       "properties": {
-        "concurrencyCap": { "type": "integer", "minimum": 1 }
+        "baselines": {
+          "type": "object",
+          "properties": {
+            "lint": { "$ref": "#/$defs/baselineEntry" },
+            "crap": { "$ref": "#/$defs/baselineEntry" },
+            "maintainability": { "$ref": "#/$defs/baselineEntry" }
+          },
+          "additionalProperties": false
+        },
+        "maintainability": { "$ref": "#/$defs/maintainabilityQuality" },
+        "crap": { "$ref": "#/$defs/maintainabilityCrap" },
+        "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
+        "qualityFloors": { "$ref": "#/$defs/qualityFloors" },
+        "gateScoping": { "$ref": "#/$defs/gateScoping" }
       },
       "additionalProperties": false
     },
-    "runners": {
+    "delivery": {
       "type": "object",
       "properties": {
+        "execution": { "$ref": "#/$defs/execution" },
+        "maxTokenBudget": { "type": "integer", "minimum": 1 },
+        "docsFreshness": { "$ref": "#/$defs/docsFreshness" },
         "deliverRunner": { "$ref": "#/$defs/deliverRunner" },
-        "planRunner": { "$ref": "#/$defs/planRunner" },
-        "concurrency": { "$ref": "#/$defs/concurrency" },
-        "storyMergeRetry": { "$ref": "#/$defs/storyMergeRetry" },
-        "decomposer": { "$ref": "#/$defs/decomposer" }
+        "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
+        "signals": { "$ref": "#/$defs/signals" },
+        "quality": { "$ref": "#/$defs/quality" }
       },
       "additionalProperties": false
-    },
-    "orchestration": {
-      "type": "object",
-      "required": ["provider"],
-      "properties": {
-        "provider": { "type": "string", "enum": ["github"] },
-        "github": { "$ref": "#/$defs/github" },
-        "executor": { "type": "string" },
-        "notifications": { "$ref": "#/$defs/notifications" },
-        "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
-        "runners": { "$ref": "#/$defs/runners" }
-      },
-      "additionalProperties": false,
-      "allOf": [
-        {
-          "if": {
-            "properties": { "provider": { "const": "github" } },
-            "required": ["provider"]
-          },
-          "then": { "required": ["github"] }
-        }
-      ]
     }
   }
 }

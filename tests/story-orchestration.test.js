@@ -398,22 +398,16 @@ test('story-close: successful merge and closure', async () => {
   fs.writeFileSync(
     path.join(sandboxCwd, '.agentrc.json'),
     JSON.stringify({
-      agentSettings: {
+      project: {
         baseBranch: 'main',
         paths: {
           agentRoot: '.agents',
           docsRoot: 'docs',
-          // Absolute sandbox tempRoot so every per-Story artifact (signals,
-          // phase-timings, manifest cleanup targets) lands inside this
-          // disposable directory rather than leaking to the framework repo.
           tempRoot: path.join(sandboxCwd, 'temp'),
         },
       },
-      orchestration: {
-        provider: 'github',
-        github: { owner: 'o', repo: 'r' },
-        worktreeIsolation: { enabled: false },
-      },
+      github: { owner: 'o', repo: 'r' },
+      delivery: { worktreeIsolation: { enabled: false } },
     }),
   );
   const originalReap = WorktreeManager.prototype.reap;
@@ -468,7 +462,7 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
   fs.writeFileSync(
     path.join(explicitMainRepo, '.agentrc.json'),
     JSON.stringify({
-      agentSettings: {
+      project: {
         baseBranch: 'main',
         paths: {
           agentRoot: '.agents',
@@ -476,9 +470,8 @@ test('story-close: reaps worktree using resolved --cwd repo root', async () => {
           tempRoot: path.join(explicitMainRepo, 'temp'),
         },
       },
-      orchestration: {
-        provider: 'github',
-        github: { owner: 'o', repo: 'r' },
+      github: { owner: 'o', repo: 'r' },
+      delivery: {
         worktreeIsolation: {
           enabled: true,
           root: '.worktrees',
@@ -536,7 +529,7 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
   fs.writeFileSync(
     path.join(tmp, '.agentrc.json'),
     JSON.stringify({
-      agentSettings: {
+      project: {
         baseBranch: 'main',
         paths: {
           agentRoot: '.agents',
@@ -544,11 +537,8 @@ test('story-close: resolves config from runtime --cwd (can disable reap)', async
           tempRoot: path.join(tmp, 'temp'),
         },
       },
-      orchestration: {
-        provider: 'github',
-        github: { owner: 'o', repo: 'r' },
-        worktreeIsolation: { enabled: false },
-      },
+      github: { owner: 'o', repo: 'r' },
+      delivery: { worktreeIsolation: { enabled: false } },
     }),
   );
 
@@ -599,7 +589,7 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
   fs.writeFileSync(
     path.join(tmp, '.agentrc.json'),
     JSON.stringify({
-      agentSettings: {
+      project: {
         baseBranch: 'main',
         paths: {
           agentRoot: '.agents',
@@ -607,11 +597,8 @@ test('story-init: resolves config from runtime --cwd for worktree mode', async (
           tempRoot: path.join(tmp, 'temp'),
         },
       },
-      orchestration: {
-        provider: 'github',
-        github: { owner: 'o', repo: 'r' },
-        worktreeIsolation: { enabled: false },
-      },
+      github: { owner: 'o', repo: 'r' },
+      delivery: { worktreeIsolation: { enabled: false } },
     }),
   );
 

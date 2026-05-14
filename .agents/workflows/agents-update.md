@@ -150,8 +150,8 @@ The four `quality-bootstrap` outcomes:
 3. **`scripts`** — backfills `quality:preview` and `quality:watch` in
    `package.json` only when the keys are absent. Existing operator
    values survive.
-4. **`config`** — seeds `agentSettings.quality.codingGuardrails` and
-   `agentSettings.quality.autoRefresh` defaults in `.agentrc.json`.
+4. **`config`** — seeds `delivery.quality.codingGuardrails` and
+   `delivery.quality.autoRefresh` defaults in `.agentrc.json`.
    Only missing keys are written — operator overrides survive.
 
 The `baselines-layout-migration` step relocates per-Epic snapshots

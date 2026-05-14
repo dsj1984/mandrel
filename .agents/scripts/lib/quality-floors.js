@@ -14,7 +14,7 @@ import path from 'node:path';
  *   - maintainability index:                       70                (≥)
  *   - CRAP score per method:                       20                (≤)
  *
- * Configurable via `.agentrc.json → agentSettings.quality.qualityFloors`:
+ * Configurable via `.agentrc.json → delivery.quality.qualityFloors`:
  *
  *     {
  *       "coverage": { "lines": 90, "branches": 85, "functions": 90 },
@@ -52,7 +52,13 @@ export function loadFloorConfig(agentrcPath) {
   const raw = readAgentrcOrNull(target);
   if (raw === null) return cloneDefaults();
   const parsed = parseAgentrcJson(target, raw);
-  const block = parsed?.agentSettings?.quality?.qualityFloors;
+  // Post-reshape: floors live under `delivery.quality.qualityFloors`.
+  // Tolerate the legacy `agentSettings.quality.qualityFloors` path for
+  // configs that haven't migrated yet (the AJV schema rejects them, but
+  // ad-hoc test fixtures may still pass through here).
+  const block =
+    parsed?.delivery?.quality?.qualityFloors ??
+    parsed?.agentSettings?.quality?.qualityFloors;
   if (block === undefined || block === null) return cloneDefaults();
   assertBlockShape(block);
   assertKnownAxes(block);
@@ -93,7 +99,7 @@ function parseAgentrcJson(target, raw) {
 function assertBlockShape(block) {
   if (typeof block !== 'object' || Array.isArray(block)) {
     throw new Error(
-      `qualityFloors: expected an object at agentSettings.quality.qualityFloors, got ${Array.isArray(block) ? 'array' : typeof block}`,
+      `qualityFloors: expected an object at delivery.quality.qualityFloors, got ${Array.isArray(block) ? 'array' : typeof block}`,
     );
   }
 }

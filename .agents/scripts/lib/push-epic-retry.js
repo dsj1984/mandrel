@@ -16,7 +16,7 @@
  * `PushRetryConflictError` naming the conflicting files.
  */
 
-import { DEFAULT_STORY_MERGE_RETRY } from './config-schema.js';
+import { DEFAULT_STORY_MERGE_RETRY } from './config/runners.js';
 
 /**
  * Stderr patterns git emits when `git push` is rejected because the remote
