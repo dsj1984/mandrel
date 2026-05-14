@@ -30,7 +30,7 @@ Analyze the repository with a focus on:
   cyclomatic complexity > 8 (`delivery.quality.codingGuardrails.cyclomaticFlag`)
   is **flag in review** (annotate or split); > 12
   (`codingGuardrails.cyclomaticMustFix`) is **must-fix** before the work merges.
-  A per-file MI drop > 1.5pt (`codingGuardrails.miDropRefactor`) requires a
+  A per-file MI drop > 1.5pt (`codingGuardrails.miDropMustRefactor`) requires a
   refactor in the same Story rather than a baseline bump.
 - **Duplication:** Find "copy-paste" logic that should be abstracted into
   reusable utilities or hooks.
