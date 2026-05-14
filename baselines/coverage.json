@@ -416,7 +416,7 @@
   },
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
-    "branches": 75.41,
+    "branches": 82.54,
     "functions": 89.47
   },
   ".agents/scripts/lib/Graph.js": {
@@ -1188,6 +1188,11 @@
     "lines": 92.9,
     "branches": 73.12,
     "functions": 86.67
+  },
+  ".agents/scripts/single-story-close.js": {
+    "lines": 29.05,
+    "branches": 73.33,
+    "functions": 40
   },
   ".agents/scripts/sync-claude-commands.js": {
     "lines": 93.41,
