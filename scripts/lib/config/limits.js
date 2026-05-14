@@ -1,148 +1,139 @@
 /**
- * `agentSettings.limits` accessor (Epic #730 Story 8; relocated under
- * lib/config/ in Epic #773 Story 6).
+ * Limits/budgets/signals accessors (Epic #1720 Story #1739 — top-level reshape).
+ *
+ * Pre-reshape, every runtime ceiling lived under `agentSettings.limits.*`.
+ * Post-reshape, the surviving keys are split across `planning.*` and
+ * `delivery.*`:
+ *
+ *   - `planning.maxTickets` (decomposer ceiling)
+ *   - `planning.context.{maxBytes, summaryMode}` (planning-context budget)
+ *   - `delivery.maxTokenBudget` (task-prompt hydration cap)
+ *   - `delivery.execution.timeoutMs` (per-process execution timeout)
+ *   - `delivery.signals.{hotspot, rework, retry}` (performance-signal
+ *     detector thresholds — `churn` and `idle` dropped)
+ *
+ * Dropped entirely: `maxInstructionSteps`, `friction.*` (the LLM
+ * self-pacing thresholds rewritten as qualitative prose in
+ * `.agents/instructions.md`), `executionMaxBuffer` (now a framework-internal
+ * constant in the spawn caller modules), `signals.{churn, idle}`.
+ *
+ * The historic combined accessor `getLimits(config)` is preserved as a
+ * compatibility surface: it returns a wrapper carrying the surviving
+ * subset so existing call sites that destructured `getLimits` keep
+ * working. New call sites should prefer the specific accessors below.
  */
 
 /**
- * Framework defaults for the performance-signal detector thresholds
- * (Epic #1030 / Story #1047). Promoted to a standalone export so the
- * detector wiring layer can `import { SIGNALS_DEFAULTS } from '…/limits.js'`
- * without reaching into `LIMITS_DEFAULTS.signals` — the two refer to the
- * same frozen reference, so any drift is structural rather than silent.
- *
- * Operators override individual keys via
- * `agentSettings.limits.signals.<detector>.<key>` in `.agentrc.json`; the
- * resolver shallow-merges per-detector blocks on top of this object.
+ * Framework defaults for the performance-signal detector thresholds. The two
+ * dropped detectors (`churn`, `idle`) are omitted entirely.
  */
 export const SIGNALS_DEFAULTS = Object.freeze({
   hotspot: Object.freeze({ p95Multiplier: 1.25 }),
   rework: Object.freeze({ editsPerFile: 5 }),
-  churn: Object.freeze({ repeatCount: 4 }),
-  idle: Object.freeze({ gapSeconds: 120 }),
   retry: Object.freeze({ repeatCount: 3 }),
 });
 
 /**
- * Framework defaults for `agentSettings.limits` (Epic #730 Story 8). Mirrors
- * the long-standing flat-key fallbacks the framework used before grouping —
- * `maxTickets: 60` (bumped from 40 in Epic #1142 to fit larger 5.40.x
- * Epics without per-repo override), 5-minute exec timeout, 10MB exec
- * buffer, 200k token budget. `friction` defaults match the prior
- * `frictionThresholds` block.
- * `planningContext` (Epic #817 Story 9) caps `--emit-context` JSON payloads
- * at 50KB before switching to a summary representation. The `signals`
- * sub-block is the same frozen reference as the `SIGNALS_DEFAULTS` export
- * above (Story #1047) — promoted for ergonomic detector imports.
+ * Framework defaults for the surviving limits surface. `executionTimeoutMs`
+ * bumps from 5 min to 10 min per the Story 1 decisions log.
  */
 export const LIMITS_DEFAULTS = Object.freeze({
-  maxInstructionSteps: 5,
   maxTickets: 60,
   maxTokenBudget: 200000,
-  executionTimeoutMs: 300000,
-  executionMaxBuffer: 10485760,
-  friction: Object.freeze({
-    repetitiveCommandCount: 3,
-    consecutiveErrorCount: 3,
-    stagnationStepCount: 5,
-    maxIntegrationRetries: 2,
-  }),
+  executionTimeoutMs: 600000,
   planningContext: Object.freeze({
     maxBytes: 50000,
     summaryMode: 'auto',
   }),
-  /**
-   * Detector thresholds for the performance-signal taxonomy (Epic #1030).
-   * Each nested block tunes one detector; defaults match the values in
-   * the Tech Spec configuration block. Operators override individual
-   * keys via `agentSettings.limits.signals.<detector>.<key>` in
-   * `.agentrc.json`. This is the same frozen reference as the
-   * `SIGNALS_DEFAULTS` export above (Story #1047) so the two stay in lock
-   * step by construction.
-   */
   signals: SIGNALS_DEFAULTS,
 });
 
 /**
- * Merge a user-supplied `agentSettings.limits` block with framework defaults.
- * Scalar keys replace; the nested `friction` block is merged shallowly so an
+ * Per-detector merge of an operator-supplied `delivery.signals.*` block
+ * with framework defaults. Each detector is shallow-overlaid so an
  * operator can override a single threshold without re-listing the others.
  *
- * @param {object|undefined} userLimits
+ * @param {object|undefined} userSignals
+ * @returns {{ hotspot: {p95Multiplier: number}, rework: {editsPerFile: number}, retry: {repeatCount: number} }}
+ */
+function mergeSignals(userSignals) {
+  const user =
+    userSignals && typeof userSignals === 'object' ? userSignals : {};
+  const merged = {};
+  for (const detector of Object.keys(SIGNALS_DEFAULTS)) {
+    const userDetector =
+      user[detector] && typeof user[detector] === 'object'
+        ? user[detector]
+        : {};
+    merged[detector] = { ...SIGNALS_DEFAULTS[detector], ...userDetector };
+  }
+  return merged;
+}
+
+/**
+ * Resolve the surviving limits surface against a `.agentrc.json` shape
+ * (post-reshape). Accepts the resolved-config wrapper or a partial bag —
+ * pulls `maxTickets` and `planningContext` from `planning.*`, pulls
+ * `maxTokenBudget` and `executionTimeoutMs` from `delivery.*`, pulls
+ * signals from `delivery.signals.*`.
+ *
+ * @param {object|undefined} config
  * @returns {{
- *   maxInstructionSteps: number,
  *   maxTickets: number,
  *   maxTokenBudget: number,
  *   executionTimeoutMs: number,
- *   executionMaxBuffer: number,
- *   friction: {
- *     repetitiveCommandCount: number,
- *     consecutiveErrorCount: number,
- *     stagnationStepCount: number,
- *     maxIntegrationRetries: number,
- *   },
+ *   planningContext: { maxBytes: number, summaryMode: string },
+ *   signals: ReturnType<typeof mergeSignals>,
  * }}
  */
-export function resolveLimits(userLimits) {
-  const block = userLimits && typeof userLimits === 'object' ? userLimits : {};
-  const userFriction =
-    block.friction && typeof block.friction === 'object' ? block.friction : {};
-  const userPlanning =
-    block.planningContext && typeof block.planningContext === 'object'
-      ? block.planningContext
+export function resolveLimits(config) {
+  const planning =
+    config?.planning && typeof config.planning === 'object'
+      ? config.planning
       : {};
-  const userSignals =
-    block.signals && typeof block.signals === 'object' ? block.signals : {};
-  // Per-detector merge: take each detector's defaults and shallow-overlay
-  // any operator-supplied keys, mirroring the friction-block convention.
-  const mergedSignals = {};
-  for (const detector of Object.keys(LIMITS_DEFAULTS.signals)) {
-    const userDetector =
-      userSignals[detector] && typeof userSignals[detector] === 'object'
-        ? userSignals[detector]
-        : {};
-    mergedSignals[detector] = {
-      ...LIMITS_DEFAULTS.signals[detector],
-      ...userDetector,
-    };
-  }
+  const delivery =
+    config?.delivery && typeof config.delivery === 'object'
+      ? config.delivery
+      : {};
+  const planningContextUser =
+    planning.context && typeof planning.context === 'object'
+      ? planning.context
+      : {};
+  const execution =
+    delivery.execution && typeof delivery.execution === 'object'
+      ? delivery.execution
+      : {};
   return {
-    maxInstructionSteps:
-      block.maxInstructionSteps ?? LIMITS_DEFAULTS.maxInstructionSteps,
-    maxTickets: block.maxTickets ?? LIMITS_DEFAULTS.maxTickets,
-    maxTokenBudget: block.maxTokenBudget ?? LIMITS_DEFAULTS.maxTokenBudget,
+    maxTickets: planning.maxTickets ?? LIMITS_DEFAULTS.maxTickets,
+    maxTokenBudget: delivery.maxTokenBudget ?? LIMITS_DEFAULTS.maxTokenBudget,
     executionTimeoutMs:
-      block.executionTimeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
-    executionMaxBuffer:
-      block.executionMaxBuffer ?? LIMITS_DEFAULTS.executionMaxBuffer,
-    friction: { ...LIMITS_DEFAULTS.friction, ...userFriction },
+      execution.timeoutMs ?? LIMITS_DEFAULTS.executionTimeoutMs,
     planningContext: {
       ...LIMITS_DEFAULTS.planningContext,
-      ...userPlanning,
+      ...planningContextUser,
     },
-    signals: mergedSignals,
+    signals: mergeSignals(delivery.signals),
   };
 }
 
 /**
- * Read the merged `agentSettings.limits` block. Accepts either the full
- * resolved config or the bare `agentSettings` bag.
+ * Read the merged limits surface. Accepts the full resolved config bag.
+ * Returns the wrapper described in `resolveLimits`.
  *
- * @param {{ agentSettings?: { limits?: object } } | object | null | undefined} config
+ * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveLimits>}
  */
 export function getLimits(config) {
-  const userLimits =
-    config?.agentSettings?.limits ?? config?.limits ?? undefined;
-  return resolveLimits(userLimits);
+  return resolveLimits(config ?? undefined);
 }
 
 /**
- * Read the merged `agentSettings.limits.signals` block (Story #1047 helper).
- * Equivalent to `getLimits(config).signals` but spelled out so detectors
- * can `import { getSignals } from '…/limits.js'` without dragging the
- * whole limits surface into their bundle.
+ * Read the merged `delivery.signals` block. Equivalent to
+ * `getLimits(config).signals` but exposed as a standalone accessor so
+ * detector wiring can import it without dragging the whole limits
+ * surface into their bundle.
  *
- * @param {{ agentSettings?: { limits?: object } } | object | null | undefined} config
+ * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveLimits>['signals']}
  */
 export function getSignals(config) {

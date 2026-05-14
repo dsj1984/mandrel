@@ -1,15 +1,23 @@
 /**
- * Unified Configuration Resolver — facade (Epic #773 Story 6).
+ * Unified Configuration Resolver — facade (Epic #1720 Story #1739).
  *
- * Resolution chain: <project-root>/.agentrc.json → built-in defaults.
+ * Resolution chain: `<project-root>/.agentrc.json` → built-in defaults.
  * `.env` is loaded lazily once per resolved root via `loadEnv`.
  *
- * Responsibilities kept here:
- *   - The `.agentrc.json` load + `agentSettings` AJV gate.
- *   - The per-root cache.
- *   - Re-exporting every accessor that previously lived in this file. Consumer
- *     imports (`import { ... } from './config-resolver.js'`) resolve
- *     byte-identically; the implementations now live under `lib/config/`.
+ * Post-reshape, `.agentrc.json` declares four top-level blocks:
+ * `project`, `github`, `planning`, `delivery`. The resolver runs the
+ * full-document AJV gate (`AGENTRC_SCHEMA`) on load and returns a wrapper
+ * carrying each block plus a `raw`/`source` metadata pair.
+ *
+ * Hard cutover: legacy `agentSettings.*` / `orchestration.*` documents are
+ * rejected up front by the AJV schema. Consumers update their
+ * `.agentrc.json` in lockstep with the framework bump.
+ *
+ * Backwards-compat shim: the returned object additionally exposes
+ * `agentSettings` and `orchestration` pointers that surface a synthesized
+ * view of the legacy shape, so call sites that haven't migrated yet keep
+ * reading the same fields. The shim is read-only and converges on the
+ * post-reshape paths internally.
  */
 
 import fs from 'node:fs';
@@ -19,7 +27,7 @@ import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
 import { resolveQuality } from './config/quality.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
-import { getSettingsValidator } from './config-schema.js';
+import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
 
 export {
@@ -27,8 +35,14 @@ export {
   getBaselines,
   resolveBaselines,
 } from './config/baselines.js';
-// --- Re-exports (facade contract) ---
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
+export {
+  BRANCH_PROTECTION_DEFAULTS,
+  DEFAULT_REQUIRED_CHECKS,
+  getGitHub,
+  MERGE_METHODS_DEFAULTS,
+  NOTIFICATIONS_DEFAULTS,
+} from './config/github.js';
 export {
   getLimits,
   getSignals,
@@ -43,15 +57,17 @@ export {
   getQuality,
   MAINTAINABILITY_CRAP_DEFAULTS,
   MAINTAINABILITY_QUALITY_DEFAULTS,
-  PR_GATE_DEFAULTS,
   resolveAutoRefresh,
   resolveCodingGuardrails,
   resolveMaintainabilityCrap,
   resolveMaintainabilityQuality,
-  resolvePrGate,
   resolveQuality,
 } from './config/quality.js';
-export { getRunners } from './config/runners.js';
+export {
+  DEFAULT_DECOMPOSER,
+  DEFAULT_STORY_MERGE_RETRY,
+  getRunners,
+} from './config/runners.js';
 export {
   resolveRuntime,
   resolveSessionId,
@@ -71,72 +87,96 @@ const _cacheByRoot = new Map();
 const _envLoadedRoots = new Set();
 
 /**
- * Defaults applied to a loaded .agentrc.json. Narrower than the zero-config
- * set: fields intentionally omitted here (e.g. baseBranch) remain undefined
- * unless the operator set them explicitly. The `paths`, `quality`, and
- * `limits` blocks are filled in by their resolvers below, not here. The
- * seven `*Root` filesystem keys moved under `paths.*` in Epic #773
- * Story 9; their defaults now live in {@link PATHS_DEFAULTS}.
+ * Apply framework defaults for the four top-level blocks. Pure (no
+ * mutation) — returns a fresh object.
  */
-const LOADED_CONFIG_DEFAULTS = Object.freeze({
-  docsContextFiles: [
-    'architecture.md',
-    'data-dictionary.md',
-    'decisions.md',
-    'patterns.md',
-  ],
-});
-
-/** Defaults for the zero-config (no .agentrc.json present) path. Same omission
- * rule as {@link LOADED_CONFIG_DEFAULTS}; zero-config callers that need the
- * required path roots must declare a `.agentrc.json`. */
-const ZERO_CONFIG_DEFAULTS = Object.freeze({
-  docsContextFiles: [
-    'architecture.md',
-    'data-dictionary.md',
-    'decisions.md',
-    'patterns.md',
-  ],
-  baseBranch: 'main',
-});
-
-/** Keys filled in on a loaded config when the operator omitted them. `quality`,
- * `paths`, and `limits` are intentionally absent — they are filled by their
- * resolvers (deep-merge, not top-level fill) right after this loop runs. */
-const LOADED_CONFIG_APPLY_KEYS = ['docsContextFiles', 'baseBranch'];
+function applyDefaults(raw) {
+  const project = { ...(raw.project ?? {}) };
+  // Default docsContextFiles list — same five files the framework has
+  // always shipped, preserved here so zero-config callers and configs
+  // that omit the list both get the canonical mandatory-reads set.
+  if (project.docsContextFiles == null) {
+    project.docsContextFiles = [
+      'architecture.md',
+      'data-dictionary.md',
+      'decisions.md',
+      'patterns.md',
+    ];
+  }
+  if (project.baseBranch == null) {
+    project.baseBranch = 'main';
+  }
+  project.paths = resolvePaths(project.paths);
+  return {
+    project,
+    github: raw.github ?? null,
+    planning: raw.planning ?? {},
+    delivery: raw.delivery ?? {},
+  };
+}
 
 /**
- * Extract the flat agentSettings bag from whichever config format is present.
- * Results are cached per resolved root path to avoid redundant file I/O.
+ * Build the legacy-shape compatibility shim. Lets call sites that still
+ * read `config.agentSettings.*` / `config.orchestration.*` keep working
+ * during the migration sweep (Task #1761). The shim surfaces the
+ * post-reshape blocks under their old paths — read-only and the values
+ * stay reference-equal to the canonical blocks.
+ */
+function buildLegacyShim(blocks) {
+  const { project, github, planning, delivery } = blocks;
+  const resolvedQuality = resolveQuality(delivery?.quality);
+  return {
+    agentSettings: {
+      baseBranch: project.baseBranch,
+      paths: project.paths,
+      docsContextFiles: project.docsContextFiles,
+      commands: project.commands ?? {},
+      planning,
+      quality: resolvedQuality,
+      limits: resolveLimits({ planning, delivery }),
+    },
+    orchestration: github
+      ? {
+          provider: 'github',
+          github: {
+            owner: github.owner,
+            repo: github.repo,
+            projectNumber: github.projectNumber ?? null,
+            projectOwner: github.projectOwner ?? null,
+            operatorHandle: github.operatorHandle,
+          },
+          notifications: github.notifications ?? {
+            mentionOperator: false,
+            commentEvents: [],
+            webhookEvents: [],
+          },
+          worktreeIsolation: delivery?.worktreeIsolation ?? {},
+          runners: {
+            deliverRunner: delivery?.deliverRunner ?? {},
+          },
+        }
+      : null,
+  };
+}
+
+/**
+ * Load + validate `.agentrc.json` and return the resolved wrapper.
+ *
+ * Returned shape:
+ *   {
+ *     project, github, planning, delivery,  // post-reshape canonical blocks
+ *     agentSettings, orchestration,         // legacy-compat shim (read-only)
+ *     raw, source,
+ *   }
  *
  * Error policy:
  *   - File missing (ENOENT) → fall through to built-in defaults (zero-config).
- *   - File present but malformed JSON → throw immediately (config corruption is
- *     a fatal error, not a silent fallback scenario).
+ *   - File present but malformed JSON → throw immediately.
+ *   - Schema validation failure → throw with a single-line error list.
  *
  * @param {{ bustCache?: boolean, cwd?: string, validate?: boolean, ctx?: object }} [opts]
- *   - `cwd`: absolute path to the directory whose `.agentrc.json` should be
- *     loaded. Defaults to the framework's `PROJECT_ROOT`. Worktree-mode
- *     callers pass the worktree path so each worktree resolves its own config.
- *   - `bustCache`: force re-read for the resolved root.
- *   - `validate`: when `false`, skip `validateOrchestrationConfig()`. Default
- *     `true`. Only unit tests that feed deliberately-malformed configs should
- *     opt out; production callers must leave it on so a broken orchestration
- *     block fails loudly at load time instead of mid-run.
- *   - `ctx`: runtime context from `lib/runtime-context.js`. When provided,
- *     `ctx.fs` is used for `.agentrc.json` I/O instead of the module-level
- *     `node:fs`.
- * @returns {{ agentSettings: object, orchestration: object|null, raw: object|null, source: string }}
- *   The `agentSettings` key mirrors the on-disk `.agentrc.json` field name so
- *   destructure sites read identically to the file shape they describe. The
- *   accessors (`getLimits`, `getQuality`, `getPaths`, `getCommands`,
- *   `getBaselines`) accept this wrapper *or* a bare `agentSettings` bag — the
- *   two-shape contract documented on each accessor.
  */
 export function resolveConfig(opts) {
-  // Test-only override: `AP_AGENTRC_CWD` lets fixture tests point launcher
-  // subprocesses at a temp dir holding a synthetic `.agentrc.json`, without
-  // disk-swapping the real project config and racing against parallel tests.
   const envCwd = process.env.AP_AGENTRC_CWD;
   const root = path.resolve(opts?.cwd ?? envCwd ?? PROJECT_ROOT);
   const validate = opts?.validate !== false;
@@ -146,8 +186,6 @@ export function resolveConfig(opts) {
     return _cacheByRoot.get(root);
   }
 
-  // Lazy .env load: deferred from module scope so importing this module
-  // never mutates process.env as a side effect. Loaded once per root.
   if (!_envLoadedRoots.has(root)) {
     loadEnv(root);
     _envLoadedRoots.add(root);
@@ -165,44 +203,42 @@ export function resolveConfig(opts) {
       );
     }
 
-    const agentSettings = raw.agentSettings ?? {};
-
-    const validateSettings = getSettingsValidator();
-    if (!validateSettings(agentSettings)) {
-      const details = validateSettings.errors
-        .map((e) => `${e.instancePath || '(agentSettings)'} ${e.message}`)
-        .join(', ');
-      throw new Error(
-        `[config] Invalid agentSettings in .agentrc.json: ${details}`,
-      );
+    if (validate) {
+      const validateAgentrc = getAgentrcValidator();
+      if (!validateAgentrc(raw)) {
+        const details = (validateAgentrc.errors || [])
+          .map((e) => `${e.instancePath || '(root)'} ${e.message}`)
+          .join(', ');
+        throw new Error(`[config] Invalid .agentrc.json: ${details}`);
+      }
     }
 
-    const orchestration = raw.orchestration ?? null;
+    const blocks = applyDefaults(raw);
+    const shim = buildLegacyShim(blocks);
 
-    for (const key of LOADED_CONFIG_APPLY_KEYS) {
-      agentSettings[key] = agentSettings[key] ?? LOADED_CONFIG_DEFAULTS[key];
-    }
+    if (validate) validateOrchestrationConfig({ ...blocks, ...shim });
 
-    agentSettings.quality = resolveQuality(agentSettings.quality);
-    agentSettings.paths = resolvePaths(agentSettings.paths);
-    agentSettings.limits = resolveLimits(agentSettings.limits);
-
-    if (validate) validateOrchestrationConfig(orchestration);
-
-    const resolved = { agentSettings, orchestration, raw, source: agentrcPath };
+    const resolved = {
+      ...blocks,
+      ...shim,
+      raw,
+      source: agentrcPath,
+    };
     _cacheByRoot.set(root, resolved);
     return resolved;
   }
 
-  // Hard-coded defaults (zero-config experience)
-  const zeroAgentSettings = { ...ZERO_CONFIG_DEFAULTS };
-  zeroAgentSettings.quality = resolveQuality(zeroAgentSettings.quality);
-  zeroAgentSettings.paths = resolvePaths(zeroAgentSettings.paths);
-  zeroAgentSettings.limits = resolveLimits(zeroAgentSettings.limits);
+  // Hard-coded defaults (zero-config experience).
+  const zeroRaw = {
+    project: {
+      paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+    },
+  };
+  const blocks = applyDefaults(zeroRaw);
+  const shim = buildLegacyShim(blocks);
   const resolved = {
-    agentSettings: zeroAgentSettings,
-    orchestration: null,
-    audits: null,
+    ...blocks,
+    ...shim,
     raw: null,
     source: 'built-in defaults',
   };

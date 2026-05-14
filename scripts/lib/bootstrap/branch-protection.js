@@ -97,9 +97,9 @@ function isBehaviorShifting(diff) {
  * @param {object} args
  * @param {object} args.provider - Ticketing provider exposing
  *   `getBranchProtection(branch)` and `setBranchProtection(branch, opts)`.
- * @param {object} args.settings - The resolved `agentSettings` block.
- *   Reads `quality.prGate.{checks, enforceBranchProtection}` and the
- *   optional `baseBranch` (default `main`).
+ * @param {object} args.settings - The resolved settings bag. Carries
+ *   `baseBranch` (default `main`) and `github.branchProtection.{enforce,
+ *   requiredChecks}` post-reshape.
  * @param {(args:{summary:string, current:object|null, proposed:object})=>Promise<boolean>}
  *   [args.hitlConfirm] - HITL gate. Defaults to "abort on diverge"
  *   (returns false) when omitted — matching the non-TTY contract.
@@ -112,21 +112,31 @@ export async function applyBranchProtection({
   log = () => {},
 }) {
   const baseBranch = settings?.baseBranch ?? 'main';
-  const prGate = settings?.quality?.prGate ?? null;
+  // Post-reshape: branch protection lives under `github.branchProtection`.
+  // The legacy `quality.prGate` location is gone from the schema; reading
+  // it here is a transitional fallback only.
+  const branchProtection =
+    settings?.github?.branchProtection ?? settings?.quality?.prGate ?? null;
+  const enforce =
+    branchProtection?.enforce ??
+    branchProtection?.enforceBranchProtection ??
+    true;
+  const requiredChecks =
+    branchProtection?.requiredChecks ?? branchProtection?.checks ?? [];
 
-  if (prGate?.enforceBranchProtection === false) {
+  if (enforce === false) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (agentSettings.quality.prGate.enforceBranchProtection=false).`,
+      `[bootstrap] Branch protection on '${baseBranch}': skipped (github.branchProtection.enforce=false).`,
     );
     return { status: 'skipped', reason: 'opt-out' };
   }
 
-  const checkNames = (prGate?.checks ?? [])
+  const checkNames = requiredChecks
     .map((c) => c?.name)
     .filter((n) => typeof n === 'string' && n.length > 0);
   if (checkNames.length === 0) {
     log(
-      `[bootstrap] Branch protection on '${baseBranch}': skipped (no prGate.checks configured).`,
+      `[bootstrap] Branch protection on '${baseBranch}': skipped (no github.branchProtection.requiredChecks configured).`,
     );
     return { status: 'skipped', reason: 'no-checks' };
   }

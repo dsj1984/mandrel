@@ -241,7 +241,7 @@ planned.
    ticket array to `temp/epic-[Epic_ID]/tickets.json`. Do **not** inline
    the JSON authoring in the workflow body.
 
-   The `maxTickets` cap (`agentSettings.limits.maxTickets` in
+   The `maxTickets` cap (`planning.maxTickets` in
    `.agentrc.json`; framework default in
    `.agents/scripts/lib/config/limits.js`) is the hard ceiling. The
    `epic-plan-decompose.js` script also logs the resolved cap to stderr
@@ -412,4 +412,4 @@ chooses to gate on them.
   open child of the Epic are skipped (their issue IDs flow through the
   parent/dep wiring), and only the missing ones are created. To force-throttle
   from the first call on a known-large Epic, set
-  `orchestration.concurrency.decomposer: 1` in `.agentrc.json`.
+  `(framework constant: decomposer concurrency): 1` in `.agentrc.json`.

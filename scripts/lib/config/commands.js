@@ -1,49 +1,41 @@
 /**
- * `agentSettings.commands` accessor (Epic #730 Story 5; relocated under
- * lib/config/ in Epic #773 Story 6).
+ * `project.commands` accessor (Epic #1720 Story #1739 — top-level reshape).
+ *
+ * The legacy `validate` and `build` keys were dropped (no production
+ * consumers). The surviving five are `lintBaseline`, `test`, `typecheck`,
+ * `formatCheck`, `formatWrite`.
  */
 
-/**
- * Defaults applied when a setting omits `agentSettings.commands` or any field
- * within it. Mirrors the long-standing built-in fallbacks the framework used
- * before Epic #730 Story 5 grouped these keys; consumers that previously read
- * `settings.<flatCommand> ?? '<default>'` now go through {@link getCommands}.
- *
- * `typecheck` and `build` default to `null` (Story 3 disabled-means-null
- * convention) — consumers short-circuit on falsy values.
- */
 export const COMMANDS_DEFAULTS = Object.freeze({
-  validate: 'npm run lint',
   lintBaseline: 'npx eslint . --format json',
   test: 'npm test',
   typecheck: null,
-  build: null,
   formatCheck: 'npx biome format .',
   formatWrite: 'npx biome format --write .',
 });
 
 /**
- * Read the grouped `agentSettings.commands` block, applying framework defaults
- * for any field the operator omitted.
+ * Read the grouped `project.commands` block, applying framework defaults
+ * for any field the operator omitted. Accepts the full resolved config or
+ * an unwrapped variant (`{ project }`, `{ commands }`, or — for legacy
+ * compatibility — `{ agentSettings: { commands } }`).
  *
- * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} config
- *   Either the full resolved config (`{ agentSettings, orchestration, ... }`)
- *   or the bare `agentSettings` bag — both shapes are accepted so call sites
- *   can pass whichever they already have in scope.
- * @returns {{ validate: string, lintBaseline: string, test: string, typecheck: string|null, build: string|null }}
+ * @param {object | null | undefined} config
+ * @returns {{ lintBaseline: string, test: string, typecheck: string|null, formatCheck: string, formatWrite: string }}
  */
 export function getCommands(config) {
-  const commands = config?.agentSettings?.commands || config?.commands || {};
+  const commands =
+    config?.project?.commands ??
+    config?.commands ??
+    config?.agentSettings?.commands ??
+    {};
   return {
-    validate: commands.validate ?? COMMANDS_DEFAULTS.validate,
     lintBaseline: commands.lintBaseline ?? COMMANDS_DEFAULTS.lintBaseline,
     test: commands.test ?? COMMANDS_DEFAULTS.test,
     typecheck:
       commands.typecheck === undefined
         ? COMMANDS_DEFAULTS.typecheck
         : commands.typecheck,
-    build:
-      commands.build === undefined ? COMMANDS_DEFAULTS.build : commands.build,
     formatCheck: commands.formatCheck ?? COMMANDS_DEFAULTS.formatCheck,
     formatWrite: commands.formatWrite ?? COMMANDS_DEFAULTS.formatWrite,
   };

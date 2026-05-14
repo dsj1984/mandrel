@@ -28,7 +28,7 @@ overhead rather than help.
 | Trait                         | `/single-story-execute`                              | `/story-execute`                                        |
 | ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
 | Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
-| Branch base                   | `agentSettings.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
+| Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
 | Merge target                  | `main` via PR                                        | `epic/<epicId>` via `--no-ff` merge                     |
 | Cascade up to Feature/Epic    | No                                                   | Yes                                                     |
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
@@ -42,7 +42,7 @@ doesn't, use this workflow.
 1. A GitHub Issue with the `type::story` label and **no** `Epic: #N`
    reference in its body.
 2. `GITHUB_TOKEN` or `gh auth status` clean — `gh pr create` runs at close.
-3. The base branch (`agentSettings.baseBranch`, default `main`) exists on
+3. The base branch (`project.baseBranch`, default `main`) exists on
    both local and `origin`.
 
 ---
@@ -63,7 +63,7 @@ node .agents/scripts/single-story-init.js --story <storyId>
 
 The script validates `type::story`, fetches `origin`, seeds
 `story-<id>` from `baseBranch`, materializes a worktree (when
-`orchestration.worktreeIsolation.enabled` is true), upserts a
+`delivery.worktreeIsolation.enabled` is true), upserts a
 `story-init` structured comment carrying `standalone: true`, and flips
 the Story to `agent::executing`.
 
@@ -142,7 +142,7 @@ The script:
    issue.
 4. Flips the Story to `agent::done`. The GitHub issue stays open until
    the operator merges the PR.
-5. Reaps the worktree when `orchestration.worktreeIsolation.reapOnSuccess`
+5. Reaps the worktree when `delivery.worktreeIsolation.reapOnSuccess`
    is enabled.
 
 `--skip-validation` bypasses Step 1 (gates). Use only when re-running

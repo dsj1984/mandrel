@@ -4,7 +4,7 @@
 /**
  * .agents/scripts/validate-docs-freshness.js — Documentation Freshness Gate
  *
- * For each doc in `release.docs` + `agentSettings.docsContextFiles`, verify
+ * For each doc in `delivery.docsFreshness.paths` + `project.docsContextFiles`, verify
  * that the file was meaningfully updated during this Epic's lifecycle. A
  * file passes when **either** of the following holds:
  *
@@ -47,24 +47,32 @@ import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 
 /**
- * Resolve the canonical doc list for a release: `release.docs` entries
- * plus `docsContextFiles` prefixed by `docsRoot`. Paths are returned as
- * project-relative POSIX strings so git commands can consume them verbatim.
+ * Resolve the canonical doc list for a release: `delivery.docsFreshness.paths`
+ * entries plus `project.docsContextFiles` prefixed by `project.paths.docsRoot`.
+ * Accepts either the full resolved config (`{ project, delivery, ... }`) or
+ * the legacy `agentSettings` bag (so call sites that haven't migrated yet
+ * keep working).
  *
- * @param {object} settings
+ * @param {object} config
  * @returns {string[]}
  */
-export function resolveDocList(settings) {
-  const releaseDocs = Array.isArray(settings?.release?.docs)
-    ? settings.release.docs
-    : [];
-  const contextDocs = Array.isArray(settings?.docsContextFiles)
-    ? settings.docsContextFiles
-    : [];
-  const docsRoot =
-    getPaths({ agentSettings: settings ?? {} }).docsRoot ?? 'docs';
+export function resolveDocList(config) {
+  // Read from new shape first; fall back to the legacy shim/bag.
+  const project = config?.project ?? config;
+  const delivery = config?.delivery ?? null;
+  const docsFreshnessPaths = Array.isArray(delivery?.docsFreshness?.paths)
+    ? delivery.docsFreshness.paths
+    : Array.isArray(config?.release?.docs)
+      ? config.release.docs
+      : [];
+  const contextDocs = Array.isArray(project?.docsContextFiles)
+    ? project.docsContextFiles
+    : Array.isArray(config?.docsContextFiles)
+      ? config.docsContextFiles
+      : [];
+  const docsRoot = getPaths(config).docsRoot ?? 'docs';
   const resolved = [
-    ...releaseDocs,
+    ...docsFreshnessPaths,
     ...contextDocs.map((f) => path.posix.join(docsRoot, f)),
   ];
   return Array.from(new Set(resolved));
@@ -212,8 +220,8 @@ function reportEmptyDocs(epicId, json) {
     return;
   }
   Logger.info(
-    `[docs-freshness] ⏭  No docs configured under release.docs or ` +
-      `docsContextFiles — nothing to check.`,
+    `[docs-freshness] ⏭  No docs configured under delivery.docsFreshness.paths or ` +
+      `project.docsContextFiles — nothing to check.`,
   );
 }
 
@@ -240,8 +248,8 @@ async function main() {
     );
   }
   const { epicId, json, docsList } = args;
-  const { agentSettings } = resolveConfig();
-  const docs = docsList ?? resolveDocList(agentSettings);
+  const config = resolveConfig();
+  const docs = docsList ?? resolveDocList(config);
   if (docs.length === 0) {
     reportEmptyDocs(epicId, json);
     return;

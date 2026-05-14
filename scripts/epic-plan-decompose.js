@@ -39,6 +39,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import { drainPendingCleanupAtBoot } from './epic-plan-spec.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { DEFAULT_DECOMPOSER } from './lib/config/runners.js';
 import {
   getLimits,
   getRunners,
@@ -46,7 +47,6 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { DEFAULT_DECOMPOSER } from './lib/config-schema.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { PlanRunnerContext } from './lib/orchestration/context.js';
@@ -208,7 +208,10 @@ export async function buildDecompositionContext(
     provider.getTicket(epic.linkedIssues.techSpec),
   ]);
 
-  const heuristics = config.agentSettings?.planning?.riskHeuristics || [];
+  const heuristics =
+    (Array.isArray(config.planning?.riskHeuristics)
+      ? config.planning.riskHeuristics
+      : config.agentSettings?.planning?.riskHeuristics) || [];
   const limits = getLimits(config);
   const maxTickets = limits.maxTickets;
   const planningLimits = limits.planningContext;

@@ -554,7 +554,8 @@ async function emitFriction(storyId, epicId, result, orchestration) {
   // `orchestration` here is the full resolved config bag — the legacy
   // parameter name predates bag-style threading and stays for surface stability.
   const category =
-    orchestration?.agentSettings?.maintainability?.crap?.friction?.markerKey ??
+    orchestration?.delivery?.quality?.crap?.friction?.markerKey ??
+    orchestration?.agentSettings?.quality?.crap?.friction?.markerKey ??
     'crap-baseline-regression';
   await emitFrictionSignal({
     storyId,
@@ -685,11 +686,36 @@ async function _handleCompareResult(
 async function main() {
   const args = parseArgv();
   const { agentSettings, ...rest } = resolveConfig();
-  const crap = getQuality({ agentSettings }).crap;
+  const resolvedConfig = resolveConfig();
+  const quality = getQuality({ agentSettings });
+  const crap = quality.crap;
 
   if (crap.enabled === false) {
     Logger.info('[CRAP] gate skipped (disabled)');
     return 0;
+  }
+
+  // Story #1737: when CRAP declares `requireCoverage: true`, a missing or
+  // empty `delivery.quality.gates.coverage` block is an operator error —
+  // the gate cannot resolve a coveragePath without one. Fail fast with a
+  // pointer to the new schema location.
+  if (crap.requireCoverage) {
+    const rawGates =
+      resolvedConfig?.delivery?.quality?.gates ??
+      resolvedConfig?.raw?.delivery?.quality?.gates;
+    const coverageConfigured =
+      rawGates &&
+      typeof rawGates === 'object' &&
+      rawGates.coverage &&
+      typeof rawGates.coverage === 'object' &&
+      Object.keys(rawGates.coverage).length > 0;
+    if (!coverageConfigured) {
+      Logger.error(
+        '[CRAP] ❌ delivery.quality.gates.coverage is not configured but gates.crap.requireCoverage is true. ' +
+          'Add a gates.coverage block (at minimum `coveragePath`) or set gates.crap.requireCoverage to false.',
+      );
+      return 1;
+    }
   }
 
   // Story #1394: diff-scoped scan is the default. The resolver layers CLI

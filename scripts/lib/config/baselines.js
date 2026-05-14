@@ -1,15 +1,13 @@
 /**
- * `agentSettings.quality.baselines` accessor (Epic #730 Story 5.5; relocated
- * under lib/config/ in Epic #773 Story 6).
+ * `delivery.quality.baselines` accessor (Epic #1720 Story #1737 — per-gate
+ * baselines). Every gate now carries its own `baselinePath` under
+ * `delivery.quality.gates.<tier>.baselinePath`. This module preserves the
+ * historical `{ lint, crap, maintainability }` envelope so existing call
+ * sites that read `getBaselines(config).lint.path` keep working.
+ * `refreshCommand` is no longer carried per-baseline — it stays in the
+ * envelope as `null` for shape stability.
  */
 
-/**
- * Canonical on-disk locations for every ratchet baseline (Epic #730 Story 5.5).
- * The framework treats `<repoRoot>/baselines/` as the single tracked directory
- * for `lint.json` / `crap.json` / `maintainability.json`; operators may
- * override per-baseline `path` in `agentSettings.quality.baselines.*` but the
- * defaults are designed so a fresh clone has working ratchets immediately.
- */
 export const BASELINES_DEFAULTS = Object.freeze({
   lint: Object.freeze({ path: 'baselines/lint.json', refreshCommand: null }),
   crap: Object.freeze({ path: 'baselines/crap.json', refreshCommand: null }),
@@ -20,32 +18,23 @@ export const BASELINES_DEFAULTS = Object.freeze({
 });
 
 /**
- * Read the grouped `agentSettings.quality.baselines` block, applying framework
- * defaults for any baseline (or any field within a baseline) the operator
- * omitted. Returns a `{ lint, crap, maintainability }` trio whose entries are
- * each `{ path, refreshCommand }` — never `undefined`.
+ * Read the per-gate baseline paths and surface them under the historical
+ * flat envelope. Accepts the full resolved config or any unwrapped
+ * variant; `agentSettings` is honoured for the legacy shim path.
  *
- * Accepts either the full resolved config (`{ agentSettings, ... }` wrapper)
- * or a bare `agentSettings` bag — the canonical two-shape accessor contract.
- *
- * @param {{ agentSettings?: { quality?: { baselines?: object } } } | object | null | undefined} config
- * @returns {{ lint: { path: string, refreshCommand: string|null }, crap: { path: string, refreshCommand: string|null }, maintainability: { path: string, refreshCommand: string|null } }}
+ * @param {object | null | undefined} config
+ * @returns {{ lint: { path: string, refreshCommand: null }, crap: { path: string, refreshCommand: null }, maintainability: { path: string, refreshCommand: null } }}
  */
 export function getBaselines(config) {
-  const baselines =
-    config?.agentSettings?.quality?.baselines ||
-    config?.quality?.baselines ||
+  const gates =
+    config?.delivery?.quality?.gates ??
+    config?.quality?.gates ??
+    config?.agentSettings?.quality?.gates ??
     {};
   const merge = (key) => {
     const fallback = BASELINES_DEFAULTS[key];
-    const user = baselines[key] ?? {};
-    return {
-      path: user.path ?? fallback.path,
-      refreshCommand:
-        user.refreshCommand === undefined
-          ? fallback.refreshCommand
-          : user.refreshCommand,
-    };
+    const path = gates[key]?.baselinePath ?? fallback.path;
+    return { path, refreshCommand: null };
   };
   return {
     lint: merge('lint'),
@@ -55,13 +44,21 @@ export function getBaselines(config) {
 }
 
 /**
- * Merge the user-supplied `quality.baselines` block with framework defaults.
- * Mirrors {@link getBaselines} but returns the same `{ lint, crap,
- * maintainability }` trio shape — used during the in-place defaults pass so
- * `agentSettings.quality.baselines` is fully populated for any direct reader.
+ * Legacy entry point retained for backward-compatible imports. Story #1737
+ * retired the standalone `baselines.*` block; this helper now translates
+ * `{ lint: { path }, ... }` input onto synthetic `gates.<tier>.baselinePath`.
  *
  * @param {object|undefined} userBlock
  */
 export function resolveBaselines(userBlock) {
-  return getBaselines({ quality: { baselines: userBlock ?? {} } });
+  const block = userBlock ?? {};
+  return getBaselines({
+    quality: {
+      gates: {
+        lint: { baselinePath: block.lint?.path },
+        crap: { baselinePath: block.crap?.path },
+        maintainability: { baselinePath: block.maintainability?.path },
+      },
+    },
+  });
 }

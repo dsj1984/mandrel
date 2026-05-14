@@ -56,7 +56,10 @@
  *               sub-agent's text matches the canonical envelope.
  */
 
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
@@ -690,6 +693,50 @@ async function resolveResolvedResults({
   };
 }
 
+/**
+ * Re-render `temp/epic-<id>/manifest.{md,json}` from live GitHub state.
+ *
+ * Spawns `dispatcher.js <epicId> --dry-run` in a subprocess so the existing
+ * fetch-Epic / build-manifest / persist-manifest pipeline runs end-to-end
+ * without coupling this CLI to the dispatcher internals. Stdout/stderr are
+ * piped to a single buffer so failures can be logged but never pollute
+ * this script's JSON envelope output.
+ *
+ * @param {{ epicId: number, dispatcherPath?: string, runner?: typeof spawn }} opts
+ * @returns {Promise<void>}
+ */
+export async function refreshLocalManifest({
+  epicId,
+  dispatcherPath,
+  runner = spawn,
+}) {
+  const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+  const dispatcher = dispatcherPath ?? path.join(scriptDir, 'dispatcher.js');
+  await new Promise((resolve, reject) => {
+    const child = runner(
+      process.execPath,
+      [dispatcher, String(epicId), '--dry-run'],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let stderr = '';
+    child.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(
+          new Error(
+            `dispatcher.js --dry-run exited ${code}; stderr: ${stderr.slice(0, 500)}`,
+          ),
+        );
+      }
+    });
+  });
+}
+
 export async function runEpicExecuteRecordWave({
   epicId,
   wave,
@@ -822,6 +869,18 @@ export async function runEpicExecuteRecordWave({
     nextCurrentWave,
     verified,
     blockedStoryIds,
+  });
+
+  // 9. Refresh the local `temp/epic-<id>/manifest.{md,json}` so the
+  //    operator-facing on-disk view reflects this wave's progress. The
+  //    wave-runner architecture (Epic #1182) replaced the dispatcher's
+  //    per-wave refresh loop; without this hop the manifest is frozen at
+  //    planning time and shows `0/N tasks` even after Stories merge.
+  //    Best-effort: failure here must not block the wave loop.
+  await refreshLocalManifest({ epicId }).catch((err) => {
+    Logger.warn(
+      `[record-wave] Non-fatal: could not refresh local manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,
+    );
   });
 
   const envelope = {

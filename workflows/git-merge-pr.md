@@ -122,7 +122,7 @@ git push --force-with-lease origin [HEAD_BRANCH]
 Run the full lint / format / test suite via the gate wrapper. The wrapper
 owns the command list so this skill doesn't rot when a project renames
 `lint` → `lint:ci` or swaps Biome for ESLint. The default check set is
-`lint`, `format:check`, `test`; override via `.agentrc.json → agentSettings.quality.prGate`.
+`lint`, `format:check`, `test`; override via `.agentrc.json → github.branchProtection`.
 
 ```powershell
 node .agents/scripts/git-pr-quality-gate.js --json

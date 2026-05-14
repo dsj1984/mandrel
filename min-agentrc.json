@@ -1,0 +1,16 @@
+{
+  "$schema": "./.agents/schemas/agentrc.schema.json",
+  "project": {
+    "baseBranch": "main",
+    "paths": {
+      "agentRoot": ".agents",
+      "docsRoot": "docs",
+      "tempRoot": "temp"
+    }
+  },
+  "github": {
+    "owner": "[OWNER]",
+    "repo": "[REPO]",
+    "operatorHandle": "@[USERNAME]"
+  }
+}
