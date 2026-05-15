@@ -39,6 +39,7 @@ import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { parseInstallCmd } from './lib/install-cmd-parser.js';
 import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
@@ -94,28 +95,6 @@ export function resolveInstallCommand(options = {}) {
     return trimmed;
   }
   return 'npm ci';
-}
-
-// Whitespace tokenization + Windows .cmd shim for known package managers.
-// Closes the CWE-78 argv-injection vector that `shell: true` would open
-// when an operator-supplied installCmd is re-parsed by the platform shell.
-const WINDOWS_SHIMMED_BINS = new Set(['npm', 'pnpm', 'yarn', 'npx']);
-
-export function parseInstallCmd(installCmd) {
-  const tokens = String(installCmd ?? '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (tokens.length === 0) {
-    throw new RangeError(
-      'parseInstallCmd: install command must contain at least one token',
-    );
-  }
-  let [bin, ...args] = tokens;
-  if (process.platform === 'win32' && WINDOWS_SHIMMED_BINS.has(bin)) {
-    bin = `${bin}.cmd`;
-  }
-  return { bin, args };
 }
 
 /**

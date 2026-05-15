@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
+import { parseInstallCmd } from '../../.agents/scripts/lib/install-cmd-parser.js';
 import {
   deriveInstallAction,
-  parseInstallCmd,
   resolveInstallCommand,
   runStoryExecutePrepare,
 } from '../../.agents/scripts/story-execute-prepare.js';
