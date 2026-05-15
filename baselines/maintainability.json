@@ -8,7 +8,7 @@
   ".agents/scripts/check-crap.js": 86.116,
   ".agents/scripts/check-dead-exports.js": 92.663,
   ".agents/scripts/check-maintainability.js": 95.365,
-  ".agents/scripts/check-mutation.js": 84.32,
+  ".agents/scripts/check-mutation.js": 84.36,
   ".agents/scripts/check-windows-git-perf.js": 95.062,
   ".agents/scripts/cleanup-repo-test-temp.js": 99.892,
   ".agents/scripts/consolidate-changelog-archive.js": 91.11,
