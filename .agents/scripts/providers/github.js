@@ -1,50 +1,42 @@
 /**
- * GitHub Provider — every surface routes through gh-exec
- * (Epic #1179, Wave 3 / Story #1363 — final cutover).
+ * GitHub Provider — composition root.
  *
- * Wave 0 landed `lib/gh-exec.js`. Waves 1–2 migrated the issue, comment,
- * branch-protection, PR, label, merge-method, repo, and branches surfaces
- * onto `gh.api` / `gh.pr.*` / `gh.label.*` / `gh.repo.*`, and collapsed the
- * Projects V2 helpers into a single self-contained shim at
- * `./github/projects-v2-graphql.js`. **This file is now the only resolution
- * path.** The legacy submodule tree (`./github/auth.js`, `./github/http.js`,
- * `./github/issues.js`, etc.) is deleted; the only remaining file under
- * `./github/` is the projects-v2-graphql shim.
+ * Story #1846 split the four cross-cutting concerns out of this file into
+ * the `./github/` sub-package. This module now does three things:
  *
- * What used to live in submodules now lives here as the helpers immediately
- * below:
+ *   1. **Imports + re-exports** the public surface so external callers
+ *      (tests, downstream code) keep resolving every symbol through the
+ *      canonical `providers/github.js` import path. The named symbols
+ *      live in their dedicated sub-modules:
  *
- *   - `resolveToken` / `__setExecSyncForTests` — token resolution
- *     (env → `gh auth token` fallback). Memoizes to `GITHUB_TOKEN` exactly
- *     once. Used by callers that historically reached for `provider.token`
- *     (currently a single test); the rest of the provider routes through
- *     gh-exec, which owns its own auth.
+ *        - `./github/auth.js`     — `resolveToken`, `__setExecSyncForTests`,
+ *                                   `execSyncHolder`, `readGhCliToken`
+ *        - `./github/cache.js`    — `createInlineTicketCache`
+ *        - `./github/errors.js`   — `classifyGithubError`, `extractErrorFields`,
+ *                                   `isTransientStatus`, `isTransientByCodeOrMessage`,
+ *                                   `isPermissionSignal`, `SUB_ISSUES_QUERY`,
+ *                                   `ADD_SUB_ISSUE_MUTATION`,
+ *                                   `REMOVE_SUB_ISSUE_MUTATION`
+ *        - `./github/mappers.js`  — `issueToTicket`, `issueToEpic`,
+ *                                   `issueToListItem`, `issueToEpicListItem`,
+ *                                   `subIssueNodeToTicket`
+ *        - `./github/projects-v2-graphql.js` — Projects V2 helpers
  *
- *   - `classifyGithubError` — normalises transport errors into
- *     `feature-disabled` / `permission` / `transient` / `permanent` so the
- *     sub-issues fallback and the retry loop have a deterministic switch.
+ *   2. **Owns the gh-exec call surface** — the `GitHubProvider` class
+ *      itself. Every transport method (issues, comments, branch-protection,
+ *      PRs, labels, merge-methods) routes through the `gh` facade and uses
+ *      the imported helpers to classify errors, parse payloads, and prime
+ *      the per-instance cache.
  *
- *   - `ADD_SUB_ISSUE_MUTATION` / `REMOVE_SUB_ISSUE_MUTATION` /
- *     `SUB_ISSUES_QUERY` — the three GraphQL shapes the sub-issues feature
- *     reads/writes. `_ghGraphql` shells these out via `gh api graphql`.
+ *   3. **Holds the small file-local helpers** that bind the gh-exec call
+ *      surface together — `parseApiJson`, `isNotFoundError`,
+ *      `isLabelAlreadyExistsError`, `paginateRest`, and the retry/concurrency
+ *      budget constants. These are private to the class and not part of the
+ *      public surface.
  *
- *   - `issueToTicket` / `issueToEpic` / `issueToListItem` /
- *     `issueToEpicListItem` / `subIssueNodeToTicket` — pure mappers that
- *     translate REST/GraphQL payloads into the normalized ticket shape the
- *     orchestration layer consumes. Pure functions, no I/O.
- *
- *   - `createInlineTicketCache` — per-instance ticket cache (one bare
- *     `Map<id, { ticket, insertedAt }>`) shared by dispatcher, reconciler,
- *     and cascade. The old TTL wrapper is gone because `peekFresh` already
- *     bounds entries by a caller-supplied `maxAgeMs`.
- *
- * `graphql(query, variables, opts)` now routes through `_ghGraphql` (i.e.
- * `gh api graphql`) so callers like `epic-reconcile.js` and `epic-runner/
- * column-sync.js` keep their public surface unchanged after the
- * `GithubHttpClient` deletion.
- *
- * The only remaining import from `./github/` is the projects-v2-graphql shim
- * — Projects V2 is its own scope and lives there.
+ * `graphql(query, variables, opts)` routes through `_ghGraphql`
+ * (`gh api graphql`) so callers like `epic-reconcile.js` keep their public
+ * surface unchanged.
  *
  * @see docs/v5-implementation-plan.md (legacy reference — superseded by
  *      Epic #1179 Tech Spec #1350).
