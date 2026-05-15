@@ -13,11 +13,13 @@ import { createHash } from 'node:crypto';
 import { Logger } from '../Logger.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { buildManifestFromSpec } from './manifest-builder.js';
+import { renderNestedWaveSections } from './manifest-render-waves.js';
 
-// Re-exported so callers that imported `buildManifestFromSpec` from the
-// formatter keep working (Story #1849 Task #1869 split). The canonical
-// home is `manifest-builder.js`.
-export { buildManifestFromSpec };
+// Re-exported so callers that imported `buildManifestFromSpec` /
+// `renderNestedWaveSections` from the formatter keep working (Story
+// #1849 split). The canonical homes are `manifest-builder.js` and
+// `manifest-render-waves.js`.
+export { buildManifestFromSpec, renderNestedWaveSections };
 // ---------------------------------------------------------------------------
 // Pure render helpers (Story #484 — exported for direct fixture testing)
 // ---------------------------------------------------------------------------
@@ -351,135 +353,6 @@ export function computeStoryProgress(story) {
   const done = tasks.filter((t) => t.status === AGENT_LABELS.DONE).length;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   return { pct, done, total };
-}
-
-/**
- * Render one `## <emoji> Wave N` section per wave with nested per-Story H3
- * headings and inline checkbox Task lists. The TOC links from
- * `renderWaveSections` jump straight into these H2 anchors.
- *
- * @param {object[]} storyManifest
- * @returns {string} Markdown block, or empty string when nothing to render.
- */
-export function renderNestedWaveSections(storyManifest) {
-  if (!storyManifest || storyManifest.length === 0) return '';
-
-  const waveStories = storyManifest.filter((s) => s.type !== 'feature');
-  const featureItems = storyManifest.filter((s) => s.type === 'feature');
-
-  const waveGroups = new Map();
-  const waveStats = new Map();
-  for (const story of waveStories) {
-    const w = story.earliestWave ?? -1;
-    if (!waveGroups.has(w)) {
-      waveGroups.set(w, []);
-      waveStats.set(w, { stories: 0, tasks: 0, done: 0 });
-    }
-    waveGroups.get(w).push(story);
-    const stat = waveStats.get(w);
-    stat.stories++;
-    stat.tasks += story.tasks.length;
-    stat.done += story.tasks.filter(
-      (t) => t.status === AGENT_LABELS.DONE,
-    ).length;
-  }
-
-  const sortedWaves = [...waveGroups.keys()].sort((a, b) => a - b);
-  const lines = [];
-
-  for (const waveIdx of sortedWaves) {
-    const stories = waveGroups.get(waveIdx);
-    const stat = waveStats.get(waveIdx);
-    const waveLabel = waveIdx === -1 ? 'Ungrouped' : `Wave ${waveIdx}`;
-    const status = deriveWaveStatus(waveIdx, waveStats, sortedWaves);
-
-    // The H2 text and slug must match `renderWaveSections` exactly so the
-    // TOC links land on the right anchor.
-    lines.push(`## ${waveHeadingText(waveLabel, status.emoji)}`);
-    lines.push('');
-
-    // Single-line wave summary. Add a context-specific tail only when it
-    // tells the reader something the table doesn't: which wave is gating
-    // a Blocked one, or that a Ready wave fans out in parallel.
-    let tail = '';
-    if (status.word === 'Blocked') {
-      const priorWaves = sortedWaves.filter((sw) => sw < waveIdx);
-      const lastPrior = priorWaves[priorWaves.length - 1];
-      if (lastPrior !== undefined) tail = ` · gated on Wave ${lastPrior}`;
-    } else if (status.word === 'Ready' && stories.length > 1) {
-      tail = ` · ${stories.length} run in parallel`;
-    }
-    lines.push(
-      `> ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'} · ${stat.done}/${stat.tasks} tasks${tail}`,
-    );
-    lines.push('');
-
-    for (const story of stories) {
-      const sp = computeStoryProgress(story);
-      const symbol = deriveStorySymbol(story);
-      const titleCandidate = story.storyTitle || story.storySlug || '';
-      lines.push(
-        `### ${symbol} #${story.storyId} — ${titleCandidate} · ${sp.done}/${sp.total} tasks`,
-      );
-      lines.push('');
-
-      if (story.tasks.length === 0) {
-        lines.push('_(no tasks)_');
-      } else {
-        // Order Tasks root → blocked-last so the manifest reads in
-        // execution order. We then annotate each Task that has any
-        // in-Story dependency with the most recent dep (Story #1194 Task
-        // #1213) — "most recent" is defined as the dep with the largest
-        // position in the sorted list (the one whose work has to land
-        // last for this Task to unblock).
-        const sortedTasks = topoSortTasks(story.tasks);
-        const inStoryIds = new Set(story.tasks.map((t) => String(t.taskId)));
-        const positionInSort = new Map(
-          sortedTasks.map((t, idx) => [String(t.taskId), idx]),
-        );
-        for (const task of sortedTasks) {
-          const isDone = task.status === AGENT_LABELS.DONE;
-          const checkbox = isDone ? '[x]' : '[ ]';
-          const taskTitle = task.taskSlug || task.title || '';
-          const inStoryDeps = (task.dependencies ?? []).filter((d) =>
-            inStoryIds.has(String(d)),
-          );
-          let suffix = '';
-          if (inStoryDeps.length > 0) {
-            // Pick the dep that appears latest in the sorted order — that's
-            // the one whose completion actually unblocks this Task.
-            const latest = inStoryDeps.reduce((a, b) =>
-              (positionInSort.get(String(a)) ?? -1) >
-              (positionInSort.get(String(b)) ?? -1)
-                ? a
-                : b,
-            );
-            suffix = ` *(after #${latest})*`;
-          }
-          lines.push(`- ${checkbox} #${task.taskId} — ${taskTitle}${suffix}`);
-        }
-      }
-      lines.push('');
-    }
-  }
-
-  if (featureItems.length > 0) {
-    lines.push('## Feature Containers');
-    lines.push('');
-    lines.push(
-      '> Features are organizational groupings and are **not directly executable**.',
-    );
-    lines.push('> Execute the Stories within each Feature instead.');
-    lines.push('');
-    lines.push('| Feature | Title | Child Tasks |');
-    lines.push('| :--- | :--- | :--- |');
-    for (const f of featureItems) {
-      lines.push(`| #${f.storyId} | ${f.storySlug} | ${f.tasks.length} |`);
-    }
-    lines.push('');
-  }
-
-  return lines.join('\n');
 }
 
 // ---------------------------------------------------------------------------
