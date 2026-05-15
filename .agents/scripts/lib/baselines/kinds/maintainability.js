@@ -11,8 +11,8 @@
  * `typhonjs-escomplex` too.
  */
 
-import { kernelVersion as crapKernelVersion } from './crap.js';
 import { canonicalise } from '../path-canon.js';
+import { kernelVersion as crapKernelVersion } from './crap.js';
 
 export const name = 'maintainability';
 export const keyField = 'path';

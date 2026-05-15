@@ -42,9 +42,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { assertCanonical } from './path-canon.js';
 import { assertEnvelope, buildEnvelope } from './envelope.js';
 import { currentKernelVersion, getKindModule } from './kernel.js';
+import { assertCanonical } from './path-canon.js';
 
 /**
  * Assemble + validate a baseline envelope. Returns the envelope object
