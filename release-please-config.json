@@ -10,6 +10,7 @@
     ".": {
       "package-name": "mandrel",
       "changelog-path": "docs/CHANGELOG.md",
+      "versioning": "always-bump-minor",
       "extra-files": [
         {
           "type": "generic",
