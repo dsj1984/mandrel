@@ -16,6 +16,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { formatCliError } from './error-redactor.js';
 
 /**
  * Is the current module being executed directly as a CLI (as opposed to
@@ -62,7 +63,7 @@ export function runAsCli(importMetaUrl, main, options = {}) {
       return;
     }
     const prefix = errorPrefix ?? `[${source}] Fatal error`;
-    console.error(`${prefix}: ${err?.stack ?? err?.message ?? err}`);
+    console.error(`${prefix}: ${formatCliError(err)}`);
     process.exit(exitCode);
   });
 }
