@@ -158,11 +158,11 @@ Each skill contains a `SKILL.md` file with constraints and an optional
 
 The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
-v6 operator-facing surface is two slash commands on the SDL critical
+operator-facing surface is two slash commands on the SDL critical
 path — `/epic-plan` (with optional ideation entry) and `/epic-deliver` —
 plus `/story-execute` for single-Story drives off the dispatch table.
 Planning is **git-state-free**: `/epic-plan` produces a declarative
-`epic.yaml` artifact (v6 Epic D #1182) that is diff-able, replayable,
+`epic.yaml` artifact (Epic #1182) that is diff-able, replayable,
 and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
 is no longer created at plan time.
 `/epic-deliver`'s host LLM owns the wave loop and fans Story sub-agents
@@ -313,7 +313,7 @@ so the error surface is auditable after a run completes. See
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. The single producer for the v6 telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`, v6 Epic C) is the sole consumer. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`) is the sole consumer. |
 | `lib/orchestration/epic-runner/column-sync.js`      | Drives the Projects v2 Status column from `agent::` labels (best-effort). Missing project rows surface as friction, not as `unknown`.                 |
 
 `CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
@@ -1083,7 +1083,7 @@ conventions to follow.
 
 - **Framework:** Node.js native test runner (`node --test`)
 - **Test file pattern:** `tests/**/*.test.js`
-- **Coverage:** `node --experimental-test-coverage` with v6 absolute
+- **Coverage:** `node --experimental-test-coverage` with absolute
   floors enforced per-file: lines ≥ 90, branches ≥ 85, functions ≥ 90,
   MI ≥ 70, CRAP ≤ 20. See [`quality-gates.md`](quality-gates.md) for the
   ratchet-plus-floor policy.

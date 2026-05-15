@@ -79,18 +79,15 @@ The independent `/audit-clean-code` re-run on the post-Epic-#1653 tree
 
 > **Methods with CRAP > 20**: **0**
 
-— see `docs/quality-floor-inventory-v6-1-0.md` on `main`.
-
 ## Branch Coverage Note
 
 Story #1703 acceptance also calls for branch coverage ≥ 85% on every
 changed file post-change. Because no file in this Story is modified to
 remediate CRAP (no over-floor method exists), no file is "changed" in
 the AC sense — the branch-coverage clause is vacuously satisfied for
-the Story's diff. Branch-coverage gaps that remain in the cluster
-(documented in `docs/quality-floor-inventory-v6-1-0.md`) are tracked by
-the sibling Stories under Feature #1699 (`coverage + MI remediation`),
-not by this Story.
+the Story's diff. Branch-coverage gaps that remain in the cluster are
+tracked by the sibling Stories under Feature #1699 (`coverage + MI
+remediation`), not by this Story.
 
 ## Verification Commands
 
