@@ -14,6 +14,86 @@
 > answered at the time; cross-cuts that v6 supersedes are flagged in
 > the entries themselves.
 
+## ADR 20260514-drop-churn-idle: Drop `churn` + `idle` from active perf-signal taxonomy
+
+**Status:** Accepted
+**Date:** 2026-05-14
+**Epic:** [#1721](https://github.com/dsj1984/mandrel/issues/1721) —
+performance-signal detectors
+**Supersedes (in part):**
+[ADR 20260507-1030a — Performance-signal telemetry](#adr-20260507-1030a-performance-signal-telemetry--events-local-summaries-on-tickets)
+(updates the active-detector subset; the events-local / summaries-on-
+tickets architecture is unchanged)
+
+### Context
+
+ADR 20260507-1030a pinned a seven-kind perf-signal taxonomy
+(`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, `trace`)
+and reserved a slot in `SIGNALS_DEFAULTS` for each of the five
+detectors. When Epic #1721 sat down to actually ship the missing three
+(`hotspot`, `rework`, `retry`), the design review for `churn` and
+`idle` exposed two problems:
+
+- **`churn` semantically duplicates `rework` + `retry`.** The original
+  intent was "the same surface keeps getting touched" — but rework
+  already counts file edits past a per-file threshold, and retry
+  counts repeated failed Bash invocations. Whatever a hypothetical
+  churn detector would surface is either a strict subset of one of
+  those two, or a noisier rollup that would mostly fire as a duplicate
+  of an event that already landed.
+- **`idle` (gap between tool calls) is too noisy to act on.** The
+  signal as specified — fire when the gap exceeds
+  `idle.gapSeconds` — has no meaningful denominator. Plan-mode
+  pauses, model thinking time, deliberate human-in-the-loop pauses,
+  and the seconds-long startup of a `gh` spawn all look identical to
+  the detector. Without a way to distinguish "agent stalled" from
+  "agent waiting on an external process or operator", the signal
+  generates more friction than it surfaces.
+
+### Decision
+
+1. **Drop `churn` and `idle` from the active detector set.** Neither
+   ships a detector module; neither carries a config key on
+   `delivery.signals`. The wired detector set is exactly
+   `{ rework, retry, hotspot }`.
+2. **Keep `CHURN` and `IDLE` in the
+   [`EVENT_KINDS`](../.agents/scripts/lib/signals/schema.js)
+   enumeration.** The schema entries remain reserved for future use so
+   a re-introduction does not need a schema bump or a coordinated
+   producer/consumer migration. The aggregator's `signalCounts`
+   surface continues to carry both keys at zero so a downstream
+   consumer that referenced them does not break.
+3. **Drop the unused config keys.** `delivery.signals.churn` and
+   `delivery.signals.idle` are removed from `SIGNALS_DEFAULTS` and the
+   `agentrc.schema.json` validation block. Operators who carried them
+   in `.agentrc.json` from a pre-Epic-#1721 template see them ignored,
+   not rejected — the schema is permissive on unknown nested keys
+   under `delivery.signals` to keep the migration silent.
+4. **Update `docs/architecture.md`** to name the three shipped
+   detectors explicitly (no "future" qualifier) and to note that the
+   schema retains the two reserved kinds.
+
+### Consequences
+
+- **Smaller shipping surface, same architecture.** The events-local /
+  summaries-on-tickets contract from ADR 20260507-1030a is unchanged;
+  only the active-detector subset narrows.
+- **Detector set is now provable end-to-end.** Each shipped detector
+  has a pure module under `lib/signals/detectors/`, a wiring layer in
+  the orchestrator (`post-merge-pipeline.js` for rework + retry,
+  `epic-runner/progress-reporter.js` for hotspot), and a render-surface
+  test in `tests/lib/observability/render/`.
+- **Operators with leftover config keys are not punished.** Carrying
+  `delivery.signals.churn` or `.idle` in a project's `.agentrc.json`
+  is a no-op rather than an error. The next operator-friendly
+  template refresh removes the stale keys without an audible failure.
+- **Reintroducing churn or idle later is cheap.** The schema entries
+  remain; only a detector module + a wiring layer + a render test
+  would be required, with no coordination across the producer ↔
+  consumer boundary.
+
+---
+
 ## ADR 20260512-destructive-replan-retired: Epic #1182 — retire `delete-epic.js`; re-plan = edit-spec + reconcile
 
 **Status:** Accepted

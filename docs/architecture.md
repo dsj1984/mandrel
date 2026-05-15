@@ -837,10 +837,14 @@ The framework enforces two circuit breakers to prevent runaway cost:
 
 ### Performance-Signal Telemetry
 
-The framework emits a closed taxonomy of seven NDJSON record kinds —
-`friction`, `hotspot`, `rework`, `churn`, `idle`, `retry`, and the raw
+The framework emits a closed taxonomy of NDJSON record kinds — the
+active detectors `friction`, `hotspot`, `rework`, `retry`, plus the raw
 `trace` (schema:
 [`signal-event.schema.json`](../.agents/schemas/signal-event.schema.json)).
+The schema also reserves `churn` and `idle` slots for future use; their
+detectors and config keys were dropped under Epic #1721 (see ADR in
+[`docs/decisions.md`](decisions.md)) but the names remain in
+`EVENT_KINDS` so a future re-introduction does not need a schema bump.
 Records are written **append-only to local disk** under
 `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
 `traces.ndjson` for `kind: trace`). GitHub tickets receive **summaries
@@ -856,14 +860,17 @@ The model has three layers:
    detectors that fire from inside a sub-agent that may exit abruptly do
    not lose their tail. The per-Story directory is created lazily on the
    first write; `epicId` / `storyId` must be positive integers.
-2. **Detectors — `diagnose-friction.js` and the signal modules.**
-   Detector thresholds resolve from `agentSettings.limits.signals` via
-   `getSignals(config)` (defaults: `hotspot.p95Multiplier=1.25`,
-   `rework.editsPerFile=5`, `churn.repeatCount=4`, `idle.gapSeconds=120`,
+2. **Detectors — `diagnose-friction.js` and the per-detector pure
+   modules under `lib/signals/detectors/` (`rework.js`, `retry.js`,
+   `hotspot.js`).** Rework + retry run inside the post-Task close
+   pipeline (`lib/orchestration/post-merge-pipeline.js`); hotspot runs
+   at Epic close from `lib/orchestration/epic-runner/progress-reporter.js`.
+   Each call site resolves thresholds via `getSignals(config)`
+   (defaults: `hotspot.p95Multiplier=1.25`, `rework.editsPerFile=5`,
    `retry.repeatCount=3`). Operators override individual keys in
-   `.agentrc.json`; the resolver shallow-merges per detector, so a
-   re-tuned `hotspot.p95Multiplier` does not require re-listing the
-   other detectors.
+   `.agentrc.json` under `delivery.signals.*`; the resolver shallow-
+   merges per detector, so a re-tuned `hotspot.p95Multiplier` does not
+   require re-listing the others.
 3. **Analyzers — Story close + Epic deliver retro.** At Story close,
    `story-close.js` rolls the local NDJSON into a single
    [`structured:story-perf-summary`](../.agents/schemas/story-perf-summary.schema.json)
