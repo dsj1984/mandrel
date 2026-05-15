@@ -928,6 +928,78 @@
       "startLine": 640
     },
     {
+      "crap": 8,
+      "file": ".agents/scripts/lib/baselines/components.js",
+      "method": "resolveComponents",
+      "startLine": 45
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/components.js",
+      "method": "cloneDefault",
+      "startLine": 64
+    },
+    {
+      "crap": 15,
+      "file": ".agents/scripts/lib/baselines/components.js",
+      "method": "groupRows",
+      "startLine": 91
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "ajv",
+      "startLine": 65
+    },
+    {
+      "crap": 6.318832260445283,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "resolveBaselinePath",
+      "startLine": 79
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "canonicaliseRowPath",
+      "startLine": 121
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "canonicaliseRow",
+      "startLine": 136
+    },
+    {
+      "crap": 5.024,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "validate",
+      "startLine": 157
+    },
+    {
+      "crap": 2.0932944606413995,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "readAndShape",
+      "startLine": 191
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "inferKindFromSchema",
+      "startLine": 229
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "load",
+      "startLine": 247
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/baselines/reader.js",
+      "method": "loadFile",
+      "startLine": 268
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
       "method": "moveOneSnapshot",
