@@ -36,6 +36,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
+import { C8_CLI } from './lib/c8-cli-path.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -67,18 +68,10 @@ cleanupRepoTestTempArtifacts({ repoRoot: ROOT });
 const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
 
-// Spawn c8 via `node <cli>` directly (shell:false) instead of `npx c8`
-// to avoid the npx.cmd shim path and close the CWE-78 shell:true vector.
-const c8Cli = path.join(
-  path.dirname(require.resolve('c8/package.json')),
-  'bin',
-  'c8.js',
-);
-
 const reportRun = spawnSync(
   process.execPath,
   [
-    c8Cli,
+    C8_CLI,
     'report',
     '--reporter=json',
     '--reporter=text',
