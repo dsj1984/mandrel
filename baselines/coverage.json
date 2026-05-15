@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T20:41:20.735Z",
+  "generatedAt": "2026-05-15T20:47:18.444Z",
   "rollup": {
     "*": {
-      "lines": 97.18,
-      "branches": 87.44,
-      "functions": 92.47
+      "lines": 96.89,
+      "branches": 86.48,
+      "functions": 92.54
     }
   },
   "rows": [
@@ -21,6 +21,12 @@
       "lines": 91.72,
       "branches": 62.24,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "lines": 83.62,
+      "branches": 65.52,
+      "functions": 72.73
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -90,8 +96,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
-      "lines": 100,
-      "branches": 100,
+      "lines": 97.56,
+      "branches": 78.13,
       "functions": 100
     },
     {
@@ -138,7 +144,7 @@
     },
     {
       "path": ".agents/scripts/lib/auto-refresh-baselines.js",
-      "lines": 99.33,
+      "lines": 99.35,
       "branches": 88.24,
       "functions": 100
     },
@@ -149,10 +155,94 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/baseline-schema-registry.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/baseline-snapshot.js",
       "lines": 96.97,
       "branches": 75.64,
       "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/components.js",
+      "lines": 100,
+      "branches": 81.08,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/envelope.js",
+      "lines": 96.4,
+      "branches": 93.18,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kernel.js",
+      "lines": 100,
+      "branches": 100,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "lines": 83.93,
+      "branches": 50,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "lines": 84.93,
+      "branches": 56.25,
+      "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "lines": 89.66,
+      "branches": 70,
+      "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "lines": 81.58,
+      "branches": 41.18,
+      "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "lines": 100,
+      "branches": 55,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "lines": 89.71,
+      "branches": 80,
+      "functions": 85.71
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "lines": 85.94,
+      "branches": 42.86,
+      "functions": 83.33
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/path-canon.js",
+      "lines": 97.66,
+      "branches": 94.87,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/reader.js",
+      "lines": 92.79,
+      "branches": 65.67,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/writer.js",
+      "lines": 92.73,
+      "branches": 76.47,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -306,7 +396,7 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "lines": 89.31,
+      "lines": 89.49,
       "branches": 84.07,
       "functions": 83.33
     },
@@ -337,7 +427,7 @@
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "lines": 100,
-      "branches": 93.48,
+      "branches": 93.62,
       "functions": 100
     },
     {
@@ -349,7 +439,7 @@
     {
       "path": ".agents/scripts/lib/config/baselines.js",
       "lines": 82.81,
-      "branches": 90.91,
+      "branches": 91.67,
       "functions": 66.67
     },
     {
@@ -379,7 +469,7 @@
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "lines": 98.43,
-      "branches": 86.67,
+      "branches": 86.81,
       "functions": 100
     },
     {
@@ -420,8 +510,8 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
-      "lines": 99.64,
-      "branches": 87.69,
+      "lines": 99.71,
+      "branches": 85.88,
       "functions": 100
     },
     {
@@ -450,8 +540,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 87.62,
-      "branches": 81.08,
+      "lines": 86.04,
+      "branches": 80.17,
       "functions": 100
     },
     {
@@ -612,8 +702,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 92.33,
-      "branches": 81.25,
+      "lines": 92.95,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -846,14 +936,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "lines": 99.58,
-      "branches": 76.92,
+      "lines": 99.33,
+      "branches": 77.27,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "lines": 100,
-      "branches": 86.67,
+      "lines": 98.91,
+      "branches": 80,
       "functions": 100
     },
     {
@@ -979,7 +1069,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/planning-context-budget.js",
       "lines": 100,
-      "branches": 88.14,
+      "branches": 88.33,
       "functions": 100
     },
     {
@@ -1032,9 +1122,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "lines": 86.3,
-      "branches": 73.28,
-      "functions": 80
+      "lines": 86.53,
+      "branches": 73.98,
+      "functions": 81.25
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
@@ -1272,8 +1362,8 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "lines": 87.36,
-      "branches": 80.49,
+      "lines": 87.61,
+      "branches": 80.17,
       "functions": 100
     },
     {
@@ -1658,6 +1748,12 @@
       "path": ".agents/scripts/sync-claude-commands.js",
       "lines": 93.41,
       "branches": 44.44,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/update-maintainability-baseline.js",
+      "lines": 96.3,
+      "branches": 75,
       "functions": 100
     },
     {
