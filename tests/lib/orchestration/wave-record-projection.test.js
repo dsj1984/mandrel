@@ -12,9 +12,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  STORY_STATUS_TO_ROW_STATE,
-  VALID_RESULT_STATUSES,
-  VALID_STORY_STATUSES,
   aggregateWaveStatus,
   classifyParsedReturn,
   classifyWaveOutcome,
@@ -22,8 +19,11 @@ import {
   normalizeReturnsPure,
   projectWaveRecord,
   resolveConcurrencyCap,
+  STORY_STATUS_TO_ROW_STATE,
   selectInputFlag,
   toRollupRow,
+  VALID_RESULT_STATUSES,
+  VALID_STORY_STATUSES,
   validateEpicWave,
   validateResults,
   validateResultsReturnsXor,
@@ -69,7 +69,13 @@ describe('validateResults', () => {
       },
     ]);
     assert.deepEqual(out, [
-      { storyId: 1, status: 'done', phase: 'done', tasksDone: 2, tasksTotal: 2 },
+      {
+        storyId: 1,
+        status: 'done',
+        phase: 'done',
+        tasksDone: 2,
+        tasksTotal: 2,
+      },
     ]);
   });
 

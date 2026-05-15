@@ -30,11 +30,7 @@
 import { parseStoryAgentReturn } from './epic-runner/sub-agent-return.js';
 
 /** Valid wave-level rollup statuses. */
-export const VALID_RESULT_STATUSES = new Set([
-  'complete',
-  'blocked',
-  'failed',
-]);
+export const VALID_RESULT_STATUSES = new Set(['complete', 'blocked', 'failed']);
 
 /** Per-Story return statuses we accept off `/story-execute` sub-agents. */
 export const VALID_STORY_STATUSES = new Set(['done', 'blocked', 'failed']);
@@ -369,9 +365,7 @@ export function projectWaveRecord({
     );
   }
   if (!existing || typeof existing !== 'object') {
-    throw new TypeError(
-      'projectWaveRecord: existing checkpoint is required',
-    );
+    throw new TypeError('projectWaveRecord: existing checkpoint is required');
   }
   if (!(titleById instanceof Map)) {
     throw new TypeError('projectWaveRecord: titleById must be a Map');
