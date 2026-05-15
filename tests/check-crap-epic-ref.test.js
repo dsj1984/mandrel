@@ -132,6 +132,32 @@ describe('check-crap — --epic-ref (Story #1120)', () => {
       '.agents/scripts/check-crap.js',
       '--epic-ref',
       'epic/1114',
+      '--full-scope',
     ]);
+  });
+
+  it('buildDefaultGates defaults to full-scope CRAP (Story #1945)', () => {
+    const gates = buildDefaultGates({});
+    const crap = gates.find((g) => g.name === 'check-crap');
+    assert.ok(crap);
+    assert.ok(
+      crap.args.includes('--full-scope'),
+      'CRAP gate must pass --full-scope at close time by default',
+    );
+    assert.match(
+      crap.hint,
+      /--full-scope/,
+      'CRAP gate hint must mention the full-scope baseline-refresh remediation',
+    );
+  });
+
+  it('buildDefaultGates omits --full-scope when fullScopeCrap is false (Story #1945)', () => {
+    const gates = buildDefaultGates({ fullScopeCrap: false });
+    const crap = gates.find((g) => g.name === 'check-crap');
+    assert.ok(crap);
+    assert.ok(
+      !crap.args.includes('--full-scope'),
+      'CRAP gate must omit --full-scope when fullScopeCrap=false',
+    );
   });
 });

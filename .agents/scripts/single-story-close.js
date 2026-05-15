@@ -69,6 +69,7 @@ export async function runSingleStoryClose({
   cwd: cwdParam,
   skipValidation: skipValidationParam,
   noAutoMerge: noAutoMergeParam,
+  noFullScopeCrap: noFullScopeCrapParam,
   injectedProvider,
   injectedConfig,
 } = {}) {
@@ -79,16 +80,19 @@ export async function runSingleStoryClose({
           cwd: cwdParam ?? null,
           skipValidation: !!skipValidationParam,
           noAutoMerge: !!noAutoMergeParam,
+          noFullScopeCrap: !!noFullScopeCrapParam,
         }
       : parseSprintArgs();
   const { storyId } = parsed;
   const skipValidation = skipValidationParam ?? parsed.skipValidation ?? false;
   const noAutoMerge = noAutoMergeParam ?? parsed.noAutoMerge ?? false;
+  const noFullScopeCrap =
+    noFullScopeCrapParam ?? parsed.noFullScopeCrap ?? false;
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--no-auto-merge]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--no-auto-merge] [--no-full-scope-crap]',
     );
   }
 
@@ -137,7 +141,11 @@ export async function runSingleStoryClose({
     const validation = await runCloseValidation({
       cwd,
       worktreePath,
-      gates: buildDefaultGates({ agentSettings, epicBranch: baseBranch }),
+      gates: buildDefaultGates({
+        agentSettings,
+        epicBranch: baseBranch,
+        fullScopeCrap: !noFullScopeCrap,
+      }),
       log: (m) => Logger.info(m),
       storyId,
       // Standalone Stories have no parent Epic, so there's no per-Epic
