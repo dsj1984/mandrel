@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T21:26:16.340Z",
+  "generatedAt": "2026-05-15T23:12:25.622Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.235,
+      "p50": 103.244,
       "p95": 121.479
     }
   },
@@ -163,8 +163,8 @@
       "mi": 82.223
     },
     {
-      "path": ".agents/scripts/git-cleanup-branches.js",
-      "mi": 93.214
+      "path": ".agents/scripts/git-cleanup.js",
+      "mi": 87.66
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -439,6 +439,10 @@
       "mi": 110.109
     },
     {
+      "path": ".agents/scripts/lib/config/defaults.js",
+      "mi": 89.437
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "mi": 81.124
     },
@@ -465,6 +469,10 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
+    },
+    {
+      "path": ".agents/scripts/lib/config/sync-agentrc.js",
+      "mi": 92.446
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
@@ -1395,6 +1403,10 @@
       "mi": 89.273
     },
     {
+      "path": ".agents/scripts/sync-agentrc.js",
+      "mi": 105.583
+    },
+    {
       "path": ".agents/scripts/sync-claude-commands.js",
       "mi": 98.907
     },
@@ -1643,8 +1655,16 @@
       "mi": 108.466
     },
     {
+      "path": "tests/config/agentrc-defaults.test.js",
+      "mi": 114.456
+    },
+    {
       "path": "tests/config/limits-template-drift.test.js",
       "mi": 123.149
+    },
+    {
+      "path": "tests/config/sync-agentrc.test.js",
+      "mi": 104.567
     },
     {
       "path": "tests/context-hydrator.test.js",
@@ -2927,8 +2947,8 @@
       "mi": 108.963
     },
     {
-      "path": "tests/scripts/git-cleanup-branches.test.js",
-      "mi": 107.868
+      "path": "tests/scripts/git-cleanup.test.js",
+      "mi": 107.403
     },
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",

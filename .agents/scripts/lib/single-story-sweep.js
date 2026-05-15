@@ -1,7 +1,7 @@
 /**
  * single-story-sweep.js — Sweep merged `story-*` branches at init.
  *
- * Wraps `git-cleanup-branches.js` with a fixed policy tuned for the
+ * Wraps `git-cleanup.js` with a fixed policy tuned for the
  * `/single-story-execute` boot path:
  *
  *   - Scope: `story-*` only (never touches `epic/*`, `story/<id>/*`, etc.).
@@ -19,7 +19,7 @@ import {
   buildGlobFilter,
   executeCleanup as defaultExecuteCleanup,
   planCleanup as defaultPlanCleanup,
-} from '../git-cleanup-branches.js';
+} from '../git-cleanup.js';
 
 const STORY_BRANCH_INCLUDE = 'story-*';
 
