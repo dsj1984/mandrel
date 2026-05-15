@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T20:47:27.421Z",
+  "generatedAt": "2026-05-15T19:49:56.516Z",
   "rollup": {
     "*": {
       "min": 0,
       "p50": 103.235,
-      "p95": 121.479
+      "p95": 121.571
     }
   },
   "rows": [
@@ -392,7 +392,7 @@
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
-      "mi": 112.427
+      "mi": 112.695
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
