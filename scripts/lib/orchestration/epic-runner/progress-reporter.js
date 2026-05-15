@@ -1,130 +1,80 @@
 /**
- * ProgressReporter — emits periodic progress snapshots during a wave.
+ * progress-reporter.js — facade module for the /epic-deliver progress
+ * narrative. Story #1847 split the original 1158-LOC monolith into three
+ * sibling sub-modules under `progress-reporter/`:
  *
- * Fires every `intervalSec` (from `orchestration.runners.deliverRunner.progressReportIntervalSec`).
- * Each fire:
- *   1. Reads current state of the active wave's stories via `provider.getTicket`.
- *   2. Renders a markdown table: ID | State | Title.
- *   3. Appends a "Notable" section with mechanically-detected signals
- *      (stalled stories, blocked stories, elapsed wave time).
- *   4. Emits the rendered body to the logger AND upserts an `epic-run-progress`
- *      structured comment on the Epic issue so operators watching the ticket
- *      see a single in-place update rather than N comments.
- *   5. When `logFile` is set, also appends the rendered snapshot (with an
- *      ISO-timestamped divider) to that path. This lets the /epic-deliver
- *      skill tail the file via `Monitor` to stream progress into IDE chat even
- *      when the runner itself is invoked in a background Bash that doesn't
- *      surface stdout live.
+ *   - `composition.js` — structured-comment body builders and the
+ *     `ProgressReporter` class's pure rendering helpers.
+ *   - `transport.js` — the curated webhook emit surface (epic-started,
+ *     epic-progress, epic-blocked, epic-unblocked, epic-complete).
+ *   - `signals.js` — pure parse/aggregate over `story-run-progress` and
+ *     `phase-timings` structured comments + the shared state lookup
+ *     tables (PHASE_TO_STATE, PHASE_ORDER, STATE_EMOJI).
  *
- * Disabled when `intervalSec` is 0, null, or negative.
- *
- * The reporter is tolerant of read failures — a failed provider call logs a
- * warning and skips the fire rather than crashing the runner.
- *
- * The reporter is responsible for the GitHub-comment narrative only.
- * Webhook delivery of the curated `epic-progress` event is event-driven
- * (wave boundaries, blocker transitions) and lives in `emitEpicProgress()`
- * below — the periodic timer does not mirror to the webhook.
+ * The `ProgressReporter` class — the periodic-emission orchestration
+ * shell — lives here and composes the sub-modules. All other public
+ * symbols are re-exported below so existing import paths
+ * (`epic-execute-record-wave.js`, the test suite, `wave-record-notifications.js`)
+ * continue to resolve without churn.
  */
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-
 import { AGENT_LABELS } from '../../label-constants.js';
 import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
-import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
 } from '../ticketing.js';
 import { runHotspotDetection } from './hotspot-detection.js';
+import {
+  deriveState as deriveStateFromComposition,
+  renderProgressBody as renderProgressBodyFromComposition,
+  truncate as truncateFromComposition,
+  upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
+} from './progress-reporter/composition.js';
+import {
+  aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
+  EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+  PHASE_TIMINGS_TYPE as PHASE_TIMINGS_TYPE_FROM_SIGNALS,
+  parsePhaseTimingsComment as parsePhaseTimingsCommentFromSignals,
+  parseStoryRunProgressComment as parseStoryRunProgressCommentFromSignals,
+  phaseToState as phaseToStateFromSignals,
+  renderPhaseTimingsSection as renderPhaseTimingsSectionFromSignals,
+  STORY_RUN_PROGRESS_TYPE as STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+} from './progress-reporter/signals.js';
+import {
+  EPIC_PROGRESS_EVENT as EPIC_PROGRESS_EVENT_FROM_TRANSPORT,
+  emitEpicBlocked as emitEpicBlockedFromTransport,
+  emitEpicComplete as emitEpicCompleteFromTransport,
+  emitEpicProgress as emitEpicProgressFromTransport,
+  emitEpicStarted as emitEpicStartedFromTransport,
+  emitEpicUnblocked as emitEpicUnblockedFromTransport,
+} from './progress-reporter/transport.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
-export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
-export const PHASE_TIMINGS_TYPE = 'phase-timings';
-export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
-
-/**
- * Webhook event name for the curated epic-progress rollup. Distinct from
- * the `epic-run-progress` structured-comment kind above — the comment is
- * the operator-facing per-poll snapshot on the Epic ticket, the webhook
- * event is the coarse-grained rollup that fires at wave boundaries and
- * after blocker transitions.
- */
-export const EPIC_PROGRESS_EVENT = 'epic-progress';
-
-/**
- * Parse a `story-run-progress` structured comment posted by `/story-execute`.
- * Returns `null` for any malformed body — the caller falls back to the
- * ticket-label state derivation in that case.
- *
- * Expected payload shape (JSON inside a fenced json codeblock):
- *   {
- *     storyId: number,
- *     branch?: string,
- *     phase: 'init'|'implementing'|'closing'|'blocked'|'done',
- *     tasks?: [{ id, title?, state, commitSha? }],
- *     title?: string,
- *     updatedAt?: string,
- *   }
- */
-export function parseStoryRunProgressComment(comment) {
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') return null;
-  const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
-  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-  const tasksTotal = tasks.length;
-  const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
-  return {
-    storyId: Number(payload.storyId),
-    title: typeof payload.title === 'string' ? payload.title : '',
-    phase,
-    state: phaseToState(phase),
-    tasksDone,
-    tasksTotal,
-  };
-}
-
-// Phase → high-level state classification. Lookup table flattens the
-// previous switch so cyclomatic complexity stays at 1 (one branch in the
-// `??` fallback) rather than 6 — keeps the CRAP score floor-bound under
-// coverage variance.
-const PHASE_TO_STATE = {
-  done: 'done',
-  blocked: 'blocked',
-  implementing: 'in-flight',
-  closing: 'in-flight',
-  init: 'queued',
-};
-
-export function phaseToState(phase) {
-  return PHASE_TO_STATE[phase] ?? 'unknown';
-}
-
-// Fixed ordering for the rendered phase-timings table. Matches the enum
-// in lib/util/phase-timer.js so rows line up with how operators think
-// about the story lifecycle rather than re-sorting by alphabet or
-// frequency.
-const PHASE_ORDER = [
-  'worktree-create',
-  'bootstrap',
-  'install',
-  'implement',
-  'lint',
-  'test',
-  'close',
-  'api-sync',
-];
-
-const STATE_EMOJI = {
-  done: '✅',
-  blocked: '🚧',
-  'in-flight': '🔧',
-  queued: '⏳',
-  unknown: '❓',
-};
+// Re-exports — sub-module surfaces are aliased back to the parent path so
+// existing imports (epic-execute-record-wave.js, the test suite,
+// wave-record-notifications.js) keep resolving.
+export const EPIC_RUN_PROGRESS_TYPE = EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS;
+export const PHASE_TIMINGS_TYPE = PHASE_TIMINGS_TYPE_FROM_SIGNALS;
+export const STORY_RUN_PROGRESS_TYPE = STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS;
+export const EPIC_PROGRESS_EVENT = EPIC_PROGRESS_EVENT_FROM_TRANSPORT;
+export const emitEpicProgress = emitEpicProgressFromTransport;
+export const emitEpicStarted = emitEpicStartedFromTransport;
+export const emitEpicBlocked = emitEpicBlockedFromTransport;
+export const emitEpicUnblocked = emitEpicUnblockedFromTransport;
+export const emitEpicComplete = emitEpicCompleteFromTransport;
+export const parseStoryRunProgressComment =
+  parseStoryRunProgressCommentFromSignals;
+export const parsePhaseTimingsComment = parsePhaseTimingsCommentFromSignals;
+export const aggregatePhaseTimings = aggregatePhaseTimingsFromSignals;
+export const renderPhaseTimingsSection = renderPhaseTimingsSectionFromSignals;
+export const phaseToState = phaseToStateFromSignals;
+export const upsertEpicRunProgress = upsertEpicRunProgressFromComposition;
+export { runHotspotDetection };
 
 export class ProgressReporter {
   /**
@@ -347,7 +297,7 @@ export class ProgressReporter {
               id,
               {
                 state: fromComment.state,
-                title: truncate(fromComment.title ?? '', 60),
+                title: truncateFromComposition(fromComment.title ?? '', 60),
                 tasksDone: fromComment.tasksDone,
                 tasksTotal: fromComment.tasksTotal,
               },
@@ -360,8 +310,8 @@ export class ProgressReporter {
             return [
               id,
               {
-                state: deriveState(ticket),
-                title: truncate(ticket?.title ?? '', 60),
+                state: deriveStateFromComposition(ticket, AGENT_LABELS),
+                title: truncateFromComposition(ticket?.title ?? '', 60),
               },
             ];
           } catch (err) {
@@ -531,634 +481,16 @@ export class ProgressReporter {
   }
 
   async #render(rows, phaseSummaries = []) {
-    const done = rows.filter((r) => r.state === 'done').length;
-    const total = rows.length;
-    const totalWaves = this.plan?.length ?? this.currentWave?.totalWaves ?? '?';
-    const currentWaveNum = this.currentWave
-      ? this.currentWave.index + 1
-      : (this.plan?.length ?? '?');
-    const waveLabel = `Wave ${currentWaveNum}/${totalWaves}`;
-    const elapsedSrc =
-      this.epicStartedAt ?? this.currentWave?.startedAt ?? null;
-    const elapsed = elapsedSrc
-      ? ` · ${formatElapsed(this.now() - new Date(elapsedSrc))} elapsed`
-      : '';
-
-    const header = `### 📊 Progress — ${waveLabel} · ${done}/${total} closed${elapsed}`;
-
-    const includeWaveCol = rows.some((r) => Number.isInteger(r.wave));
-    const table = includeWaveCol
-      ? [
-          '| Wave | ID | State | Title |',
-          '|---|---|---|---|',
-          ...rows.map(
-            (r) =>
-              `| ${r.wave + 1} | #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-          ),
-        ].join('\n')
-      : [
-          '| ID | State | Title |',
-          '|---|---|---|',
-          ...rows.map(
-            (r) =>
-              `| #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-          ),
-        ].join('\n');
-
-    const notable = await this.#renderNotable(rows);
-    const phaseBlock = renderPhaseTimingsSection(phaseSummaries);
-    const parts = [header, '', table, '', '**Notable**', notable];
-    if (phaseBlock) parts.push('', phaseBlock);
-    return parts.join('\n');
-  }
-
-  async #renderNotable(rows) {
-    const items = [];
-    const blocked = rows.filter((r) => r.state === 'blocked');
-    if (blocked.length) {
-      items.push(
-        `- 🚧 ${blocked.length} stor${blocked.length === 1 ? 'y' : 'ies'} blocked: ${blocked.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const inFlight = rows.filter((r) => r.state === 'in-flight');
-    if (inFlight.length) {
-      items.push(
-        `- 🔧 ${inFlight.length} in flight: ${inFlight.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const unknown = rows.filter((r) => r.state === 'unknown');
-    if (unknown.length) {
-      items.push(
-        `- ❓ ${unknown.length} unreadable (token scope / network?): ${unknown.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const ctx = { wave: this.currentWave };
-    const detectorResults = await Promise.all(
-      this.detectors.map(async (detector) => {
-        try {
-          const fn =
-            typeof detector === 'function' ? detector : detector?.detect;
-          if (typeof fn !== 'function') return [];
-          const out = await fn.call(detector, rows, ctx);
-          return Array.isArray(out) ? out : [];
-        } catch (err) {
-          this.logger.warn?.(
-            `[ProgressReporter] detector failed: ${err.message}`,
-          );
-          return [];
-        }
-      }),
-    );
-    for (const bullets of detectorResults) {
-      for (const b of bullets) items.push(b.startsWith('- ') ? b : `- ${b}`);
-    }
-
-    if (!items.length) items.push('- (none)');
-    return items.join('\n');
-  }
-}
-
-function deriveState(ticket) {
-  if (!ticket) return 'unknown';
-  const labels = ticket.labels ?? [];
-  const state = (ticket.state ?? '').toString().toUpperCase();
-  if (state === 'CLOSED' || labels.includes(AGENT_LABELS.DONE)) return 'done';
-  if (labels.includes(AGENT_LABELS.BLOCKED)) return 'blocked';
-  if (labels.includes(AGENT_LABELS.EXECUTING)) return 'in-flight';
-  if (labels.includes(AGENT_LABELS.READY)) return 'queued';
-  return 'unknown';
-}
-
-function truncate(s, n) {
-  if (!s) return '';
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
-}
-
-function escapePipes(s) {
-  return String(s).replace(/\|/g, '\\|');
-}
-
-function formatElapsed(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m ${sec}s`;
-  return `${sec}s`;
-}
-
-/**
- * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
- *
- * Called by `/epic-deliver` Step 2b (`epic-execute-record-wave.js`) after
- * each wave completes. The caller folds `state.waves[]` from the
- * `epic-run-state` checkpoint into the per-wave rows and persists the
- * unified rollup as a fenced-JSON payload on the Epic ticket via
- * `upsertStructuredComment`. There is no separate per-wave structured
- * comment — `epic-run-progress` is the single operator-facing summary,
- * grouped by wave.
- *
- * The payload schema is pinned by `epic-execute.md` Step 2b / tech spec
- * #902:
- *
- *   {
- *     "kind": "epic-run-progress",
- *     "epicId": <number>,
- *     "currentWave": <number>,
- *     "totalWaves": <number>,
- *     "waves": [ { wave, concurrencyCap?, stories[] } ],
- *     "startedAt"?: "<iso8601>",
- *     "updatedAt": "<iso8601>"
- *   }
- *
- * The function does not re-derive Story state from labels — it trusts the
- * `waves` argument supplied by the caller, which itself is the projection
- * of the validated, verified per-Story rows recorded on the checkpoint.
- *
- * @param {{
- *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
- *   epicId: number,
- *   waves: Array<{
- *     wave: number,
- *     concurrencyCap?: number,
- *     stories?: Array<{ id: number, title?: string, state?: string,
- *                       tasksDone?: number, tasksTotal?: number,
- *                       blockerCommentId?: string }>,
- *   }>,
- *   currentWave: number,
- *   totalWaves: number,
- *   startedAt?: string,
- *   now?: () => Date,
- * }} args
- * @returns {Promise<{ body: string, payload: object }>} the rendered body
- *   and payload that were upserted onto the Epic.
- */
-export async function upsertEpicRunProgress({
-  provider,
-  epicId,
-  waves,
-  currentWave,
-  totalWaves,
-  startedAt,
-  now = () => new Date(),
-} = {}) {
-  if (!provider || typeof provider.postComment !== 'function') {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a provider with postComment',
-    );
-  }
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) {
-    throw new TypeError('upsertEpicRunProgress requires a numeric epicId');
-  }
-  const totalWavesNum = Number(totalWaves);
-  if (!Number.isInteger(totalWavesNum) || totalWavesNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer totalWaves',
-    );
-  }
-  const currentWaveNum = Number(currentWave);
-  if (!Number.isInteger(currentWaveNum) || currentWaveNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer currentWave',
-    );
-  }
-  const wavesArr = Array.isArray(waves) ? waves : [];
-
-  const updatedAt = now().toISOString();
-  const normalizedWaves = wavesArr.map((w) => {
-    const stories = Array.isArray(w?.stories) ? w.stories : [];
-    const out = {
-      wave: Number(w?.wave),
-      stories,
-    };
-    if (Number.isInteger(w?.concurrencyCap)) {
-      out.concurrencyCap = Number(w.concurrencyCap);
-    }
-    return out;
-  });
-
-  const payload = {
-    kind: EPIC_RUN_PROGRESS_TYPE,
-    epicId: epicIdNum,
-    currentWave: currentWaveNum,
-    totalWaves: totalWavesNum,
-    waves: normalizedWaves,
-    updatedAt,
-  };
-  if (typeof startedAt === 'string' && startedAt) {
-    payload.startedAt = startedAt;
-  }
-
-  const totalStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.length,
-    0,
-  );
-  const doneStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.filter((s) => s?.state === 'done').length,
-    0,
-  );
-  const header = `### 📊 Epic Progress — Wave ${Math.min(currentWaveNum + 1, Math.max(totalWavesNum, 1))}/${totalWavesNum || '?'} · ${doneStories}/${totalStories} stories done`;
-
-  const tableLines = ['| Wave | ID | State | Title |', '|---|---|---|---|'];
-  if (normalizedWaves.length === 0) {
-    tableLines.push('| — | — | _(no waves yet)_ | — |');
-  } else {
-    for (const w of normalizedWaves) {
-      if (w.stories.length === 0) {
-        tableLines.push(`| ${w.wave + 1} | — | _(empty wave)_ | — |`);
-        continue;
-      }
-      for (const s of w.stories) {
-        const state = String(s?.state ?? 'unknown');
-        const emoji = STATE_EMOJI[state] ?? '';
-        const id = Number(s?.id ?? 0);
-        const title = escapePipes(truncate(String(s?.title ?? ''), 60));
-        tableLines.push(
-          `| ${w.wave + 1} | #${id} | ${emoji} ${state} | ${title} |`,
-        );
-      }
-    }
-  }
-
-  const body = [
-    header,
-    '',
-    tableLines.join('\n'),
-    '',
-    '```json',
-    JSON.stringify(payload, null, 2),
-    '```',
-  ].join('\n');
-
-  await upsertStructuredComment(
-    provider,
-    epicIdNum,
-    EPIC_RUN_PROGRESS_TYPE,
-    body,
-  );
-
-  return { body, payload };
-}
-
-/**
- * Fire a curated `epic-progress` webhook event. Event-driven only — called
- * at wave boundaries and after blocker raise/clear transitions. Carries
- * the rollup payload `{ pct, done, total, currentWave, totalWaves, phase,
- * openBlockers }`, which Slack consumers and downstream subscribers use to
- * track epic progress without subscribing to per-story chatter.
- *
- * The dispatch passes `skipComment: true` — the operator-facing GitHub
- * comment is owned by `ProgressReporter.fire()` and `upsertEpicRunProgress`,
- * not by this webhook fire.
- *
- * Failures are swallowed by design: the runner must keep moving even if
- * the webhook URL is misconfigured or the network is flaky.
- *
- * @param {{
- *   notify: Function|null,
- *   epicId: number,
- *   done: number,
- *   total: number,
- *   currentWave: number,
- *   totalWaves: number,
- *   phase?: string,
- *   openBlockers?: Array<{ reason: string, storyId?: number }>,
- *   logger?: { warn?: Function },
- * }} args
- * @returns {Promise<{ payload: object } | null>}
- */
-export async function emitEpicProgress({
-  notify,
-  epicId,
-  done,
-  total,
-  currentWave,
-  totalWaves,
-  phase,
-  openBlockers = [],
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const totalN = Math.max(0, Number(total) || 0);
-  const doneN = Math.max(0, Math.min(totalN, Number(done) || 0));
-  const pct = totalN === 0 ? 0 : Math.round((doneN / totalN) * 100);
-  const blockerCount = Array.isArray(openBlockers) ? openBlockers.length : 0;
-  const blockerSuffix =
-    blockerCount > 0
-      ? ` · 🚧 ${blockerCount} blocker${blockerCount === 1 ? '' : 's'}`
-      : '';
-  const message = `Epic #${epicIdNum} progress · Wave ${currentWave}/${totalWaves} · ${doneN}/${totalN} stories done (${pct}%)${blockerSuffix}`;
-
-  const payload = {
-    severity: blockerCount > 0 ? 'high' : 'medium',
-    message,
-    event: EPIC_PROGRESS_EVENT,
-    level: 'epic',
-    epicId: epicIdNum,
-  };
-  if (phase) payload.phase = phase;
-
-  try {
-    await notify(epicIdNum, payload, { skipComment: true });
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicProgress] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-    return null;
-  }
-  return {
-    payload: {
-      pct,
-      done: doneN,
-      total: totalN,
-      currentWave,
-      totalWaves,
-      phase,
-      openBlockers: openBlockers ?? [],
-    },
-  };
-}
-
-/**
- * Fire a curated `epic-started` webhook event at /epic-deliver kickoff.
- * The Slack consumer anchors the rest of the epic narrative to this fire.
- * Failures are swallowed.
- */
-export async function emitEpicStarted({
-  notify,
-  epicId,
-  totalWaves,
-  totalStories,
-  title,
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const message = `Epic #${epicIdNum} started · ${totalWaves} wave${totalWaves === 1 ? '' : 's'} · ${totalStories} stor${totalStories === 1 ? 'y' : 'ies'}${title ? ` — ${title}` : ''}`;
-  try {
-    await notify(
-      epicIdNum,
-      {
-        severity: 'medium',
-        message,
-        event: 'epic-started',
-        level: 'epic',
-        epicId: epicIdNum,
-      },
-      { skipComment: true },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicStarted] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-  return null;
-}
-
-/**
- * Fire a curated `epic-blocked` webhook event when a wave aggregates to
- * `blocked` or `failed` outside the `BlockerHandler.halt` code path (the
- * /epic-deliver host-LLM loop has no handler instance — it calls this
- * helper directly from `epic-execute-record-wave.js`). The payload shape
- * matches the inline emit in `BlockerHandler.halt` so downstream consumers
- * see one canonical envelope regardless of which entry point fired.
- * Failures are swallowed.
- */
-export async function emitEpicBlocked({
-  notify,
-  epicId,
-  reason,
-  storyId,
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const storyPart = storyId ? ` (story #${storyId})` : '';
-  const message = `🚨 Action Required: Epic #${epicIdNum}${storyPart} blocked: ${reason}`;
-  try {
-    await notify(
-      epicIdNum,
-      {
-        severity: 'high',
-        message,
-        event: 'epic-blocked',
-        level: 'epic',
-        epicId: epicIdNum,
-      },
-      { skipComment: true },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicBlocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-  return null;
-}
-
-/**
- * Fire a curated `epic-unblocked` webhook event after the operator flips
- * the Epic label back to `agent::executing`. Paired with `epic-blocked` so
- * downstream consumers can track open-blocker lifecycle. Failures are
- * swallowed.
- */
-export async function emitEpicUnblocked({
-  notify,
-  epicId,
-  resolvedBlocker,
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const reasonPart = resolvedBlocker?.reason
-    ? ` (${resolvedBlocker.reason})`
-    : '';
-  const message = `Epic #${epicIdNum} unblocked${reasonPart} · resuming.`;
-  try {
-    await notify(
-      epicIdNum,
-      {
-        severity: 'medium',
-        message,
-        event: 'epic-unblocked',
-        level: 'epic',
-        epicId: epicIdNum,
-      },
-      { skipComment: true },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicUnblocked] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-  return null;
-}
-
-/**
- * Fire a curated `epic-complete` webhook event at the `pr-ready` boundary
- * of /epic-deliver — the merge PR has been opened against `main` and the
- * operator can click through. Bookends the `epic-started` fire at kickoff.
- * Failures are swallowed.
- *
- * Earlier the fire lived at the post-final-wave / pre-finalize boundary in
- * `epic-execute-record-wave.js`, but that preceded `gh pr create` by minutes
- * — operators got an "Epic complete" ping with nothing to action. The
- * single emit point is now `epic-deliver-finalize.js`, immediately after
- * the PR URL is captured. The legacy dispatcher path's own inline
- * `epic-complete` webhook (`epic-lifecycle-detector.js`) is also gated to
- * the comment surface only for the same reason.
- *
- * @param {{
- *   notify: Function,
- *   epicId: number|string,
- *   totalStories?: number,
- *   totalWaves?: number,
- *   prUrl?: string|null,
- *   logger?: { warn?: Function },
- * }} args
- */
-export async function emitEpicComplete({
-  notify,
-  epicId,
-  totalStories,
-  totalWaves,
-  prUrl,
-  logger,
-}) {
-  if (typeof notify !== 'function') return null;
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) return null;
-  const wavePart = Number.isFinite(Number(totalWaves))
-    ? ` · ${totalWaves} wave${Number(totalWaves) === 1 ? '' : 's'}`
-    : '';
-  const storyPart = Number.isFinite(Number(totalStories))
-    ? ` · ${totalStories} stor${Number(totalStories) === 1 ? 'y' : 'ies'}`
-    : '';
-  const prPart = prUrl ? ` · PR: ${prUrl}` : '';
-  const message = `Epic #${epicIdNum} complete${wavePart}${storyPart}${prPart}.`;
-  try {
-    await notify(
-      epicIdNum,
-      {
-        severity: 'medium',
-        message,
-        event: 'epic-complete',
-        level: 'epic',
-        epicId: epicIdNum,
-        prUrl: prUrl ?? null,
-      },
-      { skipComment: true },
-    );
-  } catch (err) {
-    logger?.warn?.(
-      `[emitEpicComplete] notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-  return null;
-}
-
-// runHotspotDetection lives in `./hotspot-detection.js` so this file
-// stays focused on the periodic-progress + comment-render surface.
-// Re-exported here for backwards compatibility — Epic-close call sites
-// can import either path.
-export { runHotspotDetection };
-
-/**
- * Extract the `{ phases, ... }` payload from a `phase-timings` structured
- * comment. Comment body is the fenced-JSON format produced by
- * `renderPhaseTimingsCommentBody` in story-close. Returns `null`
- * for any parse failure — the caller treats that as "no summary
- * available" without erroring out progress rendering.
- */
-export function parsePhaseTimingsComment(comment) {
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') return null;
-  if (!Array.isArray(payload.phases)) return null;
-  return {
-    storyId: Number(payload.storyId),
-    totalMs: Number(payload.totalMs) || 0,
-    phases: payload.phases
-      .filter(
-        (p) =>
-          p &&
-          typeof p.name === 'string' &&
-          Number.isFinite(Number(p.elapsedMs)),
-      )
-      .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
-  };
-}
-
-/**
- * Aggregate a list of `phase-timings` summaries into per-phase median,
- * p95, and sample count. Returns phases ordered by the canonical
- * `PHASE_ORDER` so the rendered table always has the same row sequence —
- * operators should never have to hunt for the `install` row.
- */
-export function aggregatePhaseTimings(summaries) {
-  const buckets = new Map();
-  for (const s of summaries) {
-    if (!s || !Array.isArray(s.phases)) continue;
-    for (const p of s.phases) {
-      if (!buckets.has(p.name)) buckets.set(p.name, []);
-      buckets.get(p.name).push(p.elapsedMs);
-    }
-  }
-  const rows = [];
-  for (const name of PHASE_ORDER) {
-    const samples = buckets.get(name);
-    if (!samples || samples.length === 0) continue;
-    rows.push({
-      name,
-      median: percentile(samples, 0.5),
-      p95: percentile(samples, 0.95),
-      n: samples.length,
+    const phaseSummariesBlock = renderPhaseTimingsSection(phaseSummaries);
+    return renderProgressBodyFromComposition({
+      rows,
+      plan: this.plan,
+      currentWave: this.currentWave,
+      epicStartedAt: this.epicStartedAt,
+      now: this.now,
+      detectors: this.detectors,
+      phaseSummariesBlock,
+      logger: this.logger,
     });
   }
-  // Include any unexpected phase names at the tail so a future enum
-  // addition surfaces in the table instead of being silently dropped.
-  for (const [name, samples] of buckets.entries()) {
-    if (PHASE_ORDER.includes(name)) continue;
-    rows.push({
-      name,
-      median: percentile(samples, 0.5),
-      p95: percentile(samples, 0.95),
-      n: samples.length,
-    });
-  }
-  return rows;
-}
-
-function percentile(samples, q) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  if (sorted.length === 0) return 0;
-  // Nearest-rank method — clamped so q=1 picks the last element.
-  const idx = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil(q * sorted.length) - 1),
-  );
-  return sorted[idx];
-}
-
-/**
- * Render the aggregated phase-timings table. Returns `null` when there
- * are no summaries to render so the caller can elide the section
- * entirely rather than emitting an empty stub.
- */
-export function renderPhaseTimingsSection(summaries) {
-  if (!Array.isArray(summaries) || summaries.length === 0) return null;
-  const rows = aggregatePhaseTimings(summaries);
-  if (rows.length === 0) return null;
-  const header = `### Phase timings (last ${summaries.length} completed stor${summaries.length === 1 ? 'y' : 'ies'})`;
-  const table = [
-    '| Phase | median ms | p95 ms | n |',
-    '| --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${r.name} | ${r.median} | ${r.p95} | ${r.n} |`),
-  ].join('\n');
-  return `${header}\n\n${table}`;
 }

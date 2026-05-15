@@ -1,0 +1,384 @@
+/**
+ * lib/orchestration/ticketing/state.js — Per-ticket state mutators.
+ *
+ * Owns the one-ticket-at-a-time mutation surface: state-label
+ * transitions, tasklist checkbox toggling, and structured-comment
+ * post/upsert. Pulled out of `../ticketing.js` under Story #1848 so
+ * the read-side (`./reads.js`) and the cascade/bulk side (`./bulk.js`)
+ * each live behind a narrower import contract.
+ *
+ * Note on the cycle: `transitionTicketState` fires `cascadeCompletion`
+ * from `./bulk.js` whenever a ticket flips to `agent::done` with the
+ * default `cascade: true`. `./bulk.js` in turn imports
+ * `transitionTicketState` to walk the parent chain. ESM tolerates the
+ * cycle because neither side dereferences the other at
+ * module-evaluation time — both bindings are resolved at call-time
+ * once both modules have completed evaluation.
+ */
+
+import { extractEpicIdFromBody } from '../../dependency-parser.js';
+import { Logger } from '../../Logger.js';
+import {
+  eventSeverity,
+  renderTransitionMessage,
+} from '../../notifications/notifier.js';
+// Story #1848 — `cascadeCompletion` + `logCascadePartialFailures` live
+// in `./bulk.js`. The ESM cycle between state.js ↔ bulk.js is safe
+// because neither side dereferences the imported bindings at module-
+// evaluation time — both are invoked at call-time once the cycle has
+// fully resolved.
+import { cascadeCompletion, logCascadePartialFailures } from './bulk.js';
+import {
+  ALL_STATES,
+  assertValidStructuredCommentType,
+  findStructuredComment,
+  getProviderCommentCache,
+  STATE_LABELS,
+  structuredCommentCacheKey,
+  structuredCommentMarker,
+} from './reads.js';
+
+/**
+ * Guard the inputs to {@link transitionTicketState}. Extracted from the
+ * outer function so that the per-method cyclomatic complexity of
+ * `transitionTicketState` lands below the CRAP-12 ceiling required by
+ * Story #1848 (was CRAP 16 prior to the split — see baselines/crap.json).
+ *
+ * Currently a single label-membership predicate, but extracting it as a
+ * named function lets future input guards (e.g. provider-shape checks,
+ * concurrency-token validation) accrete here without re-inflating the
+ * caller's complexity.
+ *
+ * @param {string} newState - Target `agent::*` label.
+ * @returns {string} The validated newState, returned for fluent reuse.
+ * @throws {Error} when `newState` is not a recognised state label.
+ */
+function validateTransitionInputs(newState) {
+  if (!ALL_STATES.includes(newState)) {
+    throw new Error(`Invalid state: ${newState}`);
+  }
+  return newState;
+}
+
+/**
+ * Resolve the pre-transition ticket snapshot that drives the notify
+ * payload and the provider's label-merge path. Honors the caller-supplied
+ * `opts.ticketSnapshot` (Story #1795) when present; otherwise issues a
+ * best-effort `getTicket` and returns `null` on transient failure.
+ *
+ * @param {object} provider
+ * @param {{ notify?: Function, ticketSnapshot?: object|null }} opts
+ * @param {number} ticketId
+ * @returns {Promise<object|null>}
+ */
+async function loadTicketSnapshot(provider, opts, ticketId) {
+  if (opts.ticketSnapshot) return opts.ticketSnapshot;
+  if (!opts.notify || typeof provider.getTicket !== 'function') return null;
+  try {
+    return await provider.getTicket(ticketId);
+  } catch (err) {
+    Logger.debug(
+      `[Ticketing] fromState lookup failed for #${ticketId}: ${err.message ?? err}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Dispatch the state-transition notification once the label flip has
+ * landed. Pulled out of `transitionTicketState` so the outer function
+ * stays below the CRAP-12 ceiling: this is where the severity gating,
+ * the ticket-type derivation, the level mapping, and the fire-and-forget
+ * dispatch all live.
+ *
+ * @param {{
+ *   notify: Function,
+ *   ticketId: number,
+ *   ticketSnapshot: object|null,
+ *   fromState: string|null,
+ *   newState: string,
+ * }} args
+ */
+function dispatchTransitionNotification(args) {
+  const { notify, ticketId, ticketSnapshot, fromState, newState } = args;
+  const typeLabel =
+    ticketSnapshot?.labels?.find((l) => l.startsWith('type::')) ?? '';
+  const ticketType = typeLabel.replace(/^type::/, '') || 'ticket';
+  const epicId = extractEpicIdFromBody(ticketSnapshot?.body) ?? null;
+  const event = {
+    kind: 'state-transition',
+    ticket: {
+      id: ticketId,
+      title: ticketSnapshot?.title,
+      type: ticketType,
+    },
+    fromState,
+    toState: newState,
+  };
+  const severity = eventSeverity(event);
+  // Suppress the dispatch entirely for low-severity transitions (task-
+  // level, or non-terminal story / epic flips). Pre-migration the
+  // comment channel filtered these out via `commentMinLevel: medium`;
+  // post-migration the channel is event-allowlist gated and would
+  // surface every transition equally, so the noise filter moves to
+  // the emit point.
+  if (severity === 'low') return;
+  const message = renderTransitionMessage(event);
+  // Post to the epic so operators get a single timeline feed; fall back
+  // to the transitioned ticket itself when no epic reference is present.
+  // The dispatch is fire-and-forget by design (a failed notification must
+  // not block the state transition itself), but surfacing the failure via
+  // the logger preserves operator visibility — the previous empty-handler
+  // .catch swallowed network blips and webhook 5xxs without any signal.
+  const targetId = epicId ?? ticketId;
+  const level =
+    ticketType === 'epic' || ticketType === 'wave' || ticketType === 'story'
+      ? ticketType
+      : 'task';
+  Promise.resolve(
+    notify(targetId, {
+      severity,
+      message,
+      event: 'state-transition',
+      level,
+      epicId: epicId ?? undefined,
+    }),
+  ).catch((err) => {
+    Logger.warn(
+      `[Ticketing] notify dispatch failed for #${targetId}: ${err?.message ?? err}`,
+    );
+  });
+}
+
+/**
+ * Transitions a ticket's label to the new state.
+ * Removes other agent:: state labels.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId
+ * @param {string} newState - Must be one of STATE_LABELS.
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ *   Optional notify function (the exported `notify(ticketId, payload, opts)`
+ *   from `notify.js`, or any stub matching its shape). When provided, a
+ *   state-transition notification fires after a successful transition.
+ *   Story/Epic → `agent::done` events are dispatched as `medium`; all other
+ *   transitions are `low` and filtered out at the default `medium` channel
+ *   thresholds. The dispatched payload carries the typed envelope fields
+ *   (`event: 'state-transition'`, `level: 'task'|'story'|'wave'|'epic'`,
+ *   `epicId`) for routable webhook subscribers.
+ *
+ *   `cascade` (default `true`) controls whether a `done` transition fans the
+ *   `cascadeCompletion` upward to parents. Per-Task closes invoked mid-Story
+ *   from `story-task-progress.js` pass `cascade: false` so the Story/Epic
+ *   only flips to `agent::done` at story-close (after the merge lands), not
+ *   when the last Task commit lands on the still-unmerged Story branch.
+ *
+ *   `ticketSnapshot` (Story #1795 / Epic #1788) is an optional pre-fetched
+ *   ticket object. When the caller already holds the ticket (e.g.
+ *   `batchTransitionTickets`, which loops over a list it just hydrated),
+ *   passing the snapshot eliminates the two `getTicket` round-trips that
+ *   `transitionTicketState` would otherwise issue — one for the notify
+ *   `fromState` lookup and one inside `provider.updateTicket`'s label
+ *   merge path. Backwards compatible: when omitted, behaviour is unchanged.
+ */
+export async function transitionTicketState(
+  provider,
+  ticketId,
+  newState,
+  opts = {},
+) {
+  validateTransitionInputs(newState);
+
+  const toRemove = ALL_STATES.filter((state) => state !== newState);
+
+  // Snapshot prior state for the notification payload (best-effort; skip on
+  // error). A transient read failure MUST NOT block a label transition —
+  // the transition itself is idempotent and `fromState: null` is a valid
+  // payload value.
+  //
+  // Story #1795 — when the caller threads `opts.ticketSnapshot` we reuse
+  // it as the notify snapshot without issuing a fresh `getTicket`. The
+  // snapshot is also forwarded to `provider.updateTicket` so the label
+  // merge path skips its own `getTicket` call (the second of the two
+  // round-trips this seam eliminates).
+  const ticketSnapshot = await loadTicketSnapshot(provider, opts, ticketId);
+  const fromState =
+    ticketSnapshot?.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
+
+  // Closing/reopening mirrors the label state so GitHub shows the correct
+  // issue state without requiring a separate manual close step.
+  const isDone = newState === STATE_LABELS.DONE;
+
+  await provider.updateTicket(ticketId, {
+    labels: {
+      add: [newState],
+      remove: toRemove,
+    },
+    state: isDone ? 'closed' : 'open',
+    state_reason: isDone ? 'completed' : null,
+    // Internal-only escape hatch threaded through `provider.updateTicket`
+    // to `_applyLabelMutations`. Honored by `providers/github.js`; ignored
+    // by providers that don't recognise it. Underscore-prefixed to mark
+    // it as a provider-internal contract rather than part of the public
+    // `mutations` shape.
+    _ticketSnapshot: ticketSnapshot,
+  });
+
+  // Automatically trigger upward cascade when a ticket is completed.
+  // This ensures parents (Stories, Features) close as soon as their last
+  // child is marked done. Per-parent failures are aggregated by
+  // `cascadeCompletion`; surface any to the operator so a partial close
+  // doesn't look like a clean one. Callers that close a child while the
+  // parent's "done" precondition is something other than "all children
+  // done" (notably `story-task-progress.js`, which closes Tasks at
+  // commit-time but defers the Story flip to story-close after the
+  // branch is merged) opt out by passing `cascade: false`.
+  if (isDone && opts.cascade !== false) {
+    const cascade = await cascadeCompletion(provider, ticketId, {
+      notify: opts.notify,
+    });
+    logCascadePartialFailures(ticketId, cascade);
+  }
+
+  // Fire the state-transition notification (fire-and-forget).
+  if (typeof opts.notify === 'function') {
+    dispatchTransitionNotification({
+      notify: opts.notify,
+      ticketId,
+      ticketSnapshot,
+      fromState,
+      newState,
+    });
+  }
+}
+
+/**
+ * Mutates the tasklist checkbox in the parent's body.
+ * E.g., `- [ ] #123` to `- [x] #123`
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId - ID of parent ticket
+ * @param {number} subIssueId - ID of child ticket
+ * @param {boolean} checked
+ */
+export async function toggleTasklistCheckbox(
+  provider,
+  ticketId,
+  subIssueId,
+  checked,
+) {
+  const ticket = await provider.getTicket(ticketId);
+  const body = ticket.body || '';
+
+  if (!body.includes(`#${subIssueId}`)) {
+    return; // sub-issue not directly referenced in body
+  }
+
+  const targetBox = checked ? '- [x]' : '- [ ]';
+
+  let newBody = body;
+
+  if (checked) {
+    // replace `- [ ] #123` or `- [] #123` with `- [x] #123`
+    const re = new RegExp(`-\\s*\\[\\s*\\]\\s+#${subIssueId}\\b`, 'g');
+    newBody = newBody.replace(re, `${targetBox} #${subIssueId}`);
+  } else {
+    // replace `- [x] #123` or `- [X] #123` with `- [ ] #123`
+    const re = new RegExp(`-\\s*\\[[xX]\\]\\s+#${subIssueId}\\b`, 'g');
+    newBody = newBody.replace(re, `${targetBox} #${subIssueId}`);
+  }
+
+  if (newBody !== body) {
+    await provider.updateTicket(ticketId, {
+      body: newBody,
+    });
+  }
+}
+
+/**
+ * Post a structured comment to a ticket.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId
+ * @param {'progress'|'friction'|'notification'} type
+ * @param {string} payload
+ */
+export async function postStructuredComment(provider, ticketId, type, payload) {
+  assertValidStructuredCommentType(type);
+  await provider.postComment(ticketId, {
+    type,
+    body: payload,
+  });
+}
+
+/**
+ * Idempotently post a structured comment identified by an embedded HTML
+ * marker. If an existing comment with the same `type` marker (and matching
+ * `attrs`, when supplied) exists it is deleted first, then the new one is
+ * posted. The marker is prepended to the body automatically.
+ *
+ * `attrs` lets the same `type` carry multiple in-place snapshots keyed by
+ * an additional dimension — e.g., one `wave-run-progress` comment per wave
+ * via `{ wave: N }` so the cross-wave rollup can read every wave's snapshot
+ * instead of only the most recent one.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId
+ * @param {string} type - arbitrary structured-comment type (e.g.,
+ *   `dispatch-manifest`, `retro`, `code-review`).
+ * @param {string} body - markdown payload.
+ * @param {Record<string, string|number>} [attrs]
+ * @returns {Promise<{ commentId: number }>}
+ */
+export async function upsertStructuredComment(
+  provider,
+  ticketId,
+  type,
+  body,
+  attrs = null,
+) {
+  assertValidStructuredCommentType(type);
+  const marker = structuredCommentMarker(type, attrs);
+  const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
+  const cache = getProviderCommentCache(provider);
+  const existing = await findStructuredComment(provider, ticketId, type, attrs);
+
+  if (existing && typeof provider.deleteComment === 'function') {
+    try {
+      await provider.deleteComment(existing.id);
+      // Story #1795 — evict before the repost so a postComment failure
+      // doesn't leave the cache pointing at a deleted comment id.
+      cache.delete(cacheKey);
+    } catch (err) {
+      Logger.warn(
+        `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
+      );
+    }
+  }
+
+  const annotated = `${marker}\n\n${body}`;
+  const result = await provider.postComment(ticketId, {
+    type,
+    body: annotated,
+  });
+  // Story #1795 — refresh the cache to the freshly-posted comment so the
+  // next upsert short-circuits the `getTicketComments` list call. The
+  // post result carries the new comment id; we synthesise a minimal
+  // cached row that `findStructuredComment` callers can rely on (only
+  // `id` and `body` are read by upstream). Accept either `commentId`
+  // (production GitHubProvider shape) or `id` (test-fake shape) so the
+  // cache update fires uniformly across providers.
+  const newCommentId =
+    typeof result?.commentId === 'number'
+      ? result.commentId
+      : typeof result?.id === 'number'
+        ? result.id
+        : null;
+  if (newCommentId !== null) {
+    cache.set(cacheKey, {
+      id: newCommentId,
+      body: annotated,
+    });
+  }
+  return result;
+}

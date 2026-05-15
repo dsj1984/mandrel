@@ -373,7 +373,7 @@ export function checkBaseline(
   );
 
   if (hasDegraded(current, baseline)) {
-    Logger.fatal(
+    throw new Error(
       '\n🚨 LINT DEGRADATION DETECTED! You have introduced new lint issues compared to the baseline.',
     );
   }
@@ -395,9 +395,10 @@ export function checkBaseline(
  * this → render → exit. CLI surface unchanged (same modes, same exit
  * codes, same stdout JSON schema for degraded envelopes).
  *
- * Note: `checkBaseline` itself still calls `Logger.fatal` on real lint
- * degradation (preserved CLI behaviour). Tests for the validation-error
- * branch use the explicit `'invalid'` mode which never reaches the runner.
+ * Note: `checkBaseline` itself still throws on real lint degradation
+ * (preserved CLI behaviour — `runAsCli` maps the throw to exit 1). Tests
+ * for the validation-error branch use the explicit `'invalid'` mode which
+ * never reaches the runner.
  *
  * @param {{ mode: string, gateModeArgv?: string[] }} values
  * @param {{
@@ -463,8 +464,7 @@ export async function main(args = process.argv) {
   const { exitCode, result } = await runLintBaselineCli(values);
 
   if (result.kind === 'validation-error') {
-    Logger.fatal(result.message);
-    return; // unreachable — Logger.fatal exits.
+    throw new Error(result.message);
   }
   // kind === 'envelope': only print on degraded soft-fail (preserves
   // pre-refactor stdout contract — happy paths stay quiet on stdout).

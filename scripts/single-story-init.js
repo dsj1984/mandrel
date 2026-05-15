@@ -89,7 +89,7 @@ export async function runSingleStoryInit({
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node single-story-init.js --story <STORY_ID> [--dry-run]',
     );
   }

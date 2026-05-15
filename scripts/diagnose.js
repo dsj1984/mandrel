@@ -169,28 +169,54 @@ export async function runDiagnose({
   return { exitCode, findings, scope };
 }
 
+/**
+ * Classify a caught error from `runDiagnose` into a side-effect-free
+ * response envelope. Returns one of:
+ *
+ *   - `{ kind: 'help', text }`  — user passed `--help` / `-h`.
+ *   - `{ kind: 'error', text, exitCode }` — every other thrown shape.
+ *
+ * Extracted from `main` so the CLI's terminal branch (which `main`
+ * exercises) stays straight-line and so the help-vs-error guard cascade
+ * is testable without spawning the CLI or stubbing `process.exit`. The
+ * caller owns the actual stdout/stderr write and exit.
+ *
+ * @param {unknown} err
+ * @returns {{kind: 'help', text: string} | {kind: 'error', text: string, exitCode: number}}
+ */
+export function validateDiagnoseArgs(err) {
+  if (err && err.message === 'HELP') {
+    return {
+      kind: 'help',
+      text: [
+        'Usage: diagnose [--scope <scope>] [--fail-on-blocker] [--json]',
+        '',
+        'Options:',
+        '  --scope <s>         Filter checks by scope (default: diagnose).',
+        '                      Use `all` to run every registered check.',
+        '  --fail-on-blocker   Exit 2 when at least one finding is a blocker.',
+        '  --json              Emit findings as a single line of JSON.',
+        '',
+      ].join('\n'),
+    };
+  }
+  const message = err && err.message ? err.message : String(err);
+  return { kind: 'error', text: `[diagnose] ${message}\n`, exitCode: 1 };
+}
+
 async function main() {
   try {
     const { exitCode } = await runDiagnose();
     if (exitCode !== 0) process.exit(exitCode);
+    return;
   } catch (err) {
-    if (err && err.message === 'HELP') {
-      process.stdout.write(
-        [
-          'Usage: diagnose [--scope <scope>] [--fail-on-blocker] [--json]',
-          '',
-          'Options:',
-          '  --scope <s>         Filter checks by scope (default: diagnose).',
-          '                      Use `all` to run every registered check.',
-          '  --fail-on-blocker   Exit 2 when at least one finding is a blocker.',
-          '  --json              Emit findings as a single line of JSON.',
-          '',
-        ].join('\n'),
-      );
+    const response = validateDiagnoseArgs(err);
+    if (response.kind === 'help') {
+      process.stdout.write(response.text);
       return;
     }
-    process.stderr.write(`[diagnose] ${err.message}\n`);
-    process.exit(1);
+    process.stderr.write(response.text);
+    process.exit(response.exitCode);
   }
 }
 

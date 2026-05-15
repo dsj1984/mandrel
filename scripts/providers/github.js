@@ -1,346 +1,109 @@
 /**
- * GitHub Provider — every surface routes through gh-exec
- * (Epic #1179, Wave 3 / Story #1363 — final cutover).
+ * GitHub Provider — composition root.
  *
- * Wave 0 landed `lib/gh-exec.js`. Waves 1–2 migrated the issue, comment,
- * branch-protection, PR, label, merge-method, repo, and branches surfaces
- * onto `gh.api` / `gh.pr.*` / `gh.label.*` / `gh.repo.*`, and collapsed the
- * Projects V2 helpers into a single self-contained shim at
- * `./github/projects-v2-graphql.js`. **This file is now the only resolution
- * path.** The legacy submodule tree (`./github/auth.js`, `./github/http.js`,
- * `./github/issues.js`, etc.) is deleted; the only remaining file under
- * `./github/` is the projects-v2-graphql shim.
+ * Story #1846 split the four cross-cutting concerns out of this file into
+ * the `./github/` sub-package. This module now does three things:
  *
- * What used to live in submodules now lives here as the helpers immediately
- * below:
+ *   1. **Imports + re-exports** the public surface so external callers
+ *      (tests, downstream code) keep resolving every symbol through the
+ *      canonical `providers/github.js` import path. The named symbols
+ *      live in their dedicated sub-modules:
  *
- *   - `resolveToken` / `__setExecSyncForTests` — token resolution
- *     (env → `gh auth token` fallback). Memoizes to `GITHUB_TOKEN` exactly
- *     once. Used by callers that historically reached for `provider.token`
- *     (currently a single test); the rest of the provider routes through
- *     gh-exec, which owns its own auth.
+ *        - `./github/auth.js`     — `resolveToken`, `__setExecSyncForTests`,
+ *                                   `execSyncHolder`, `readGhCliToken`
+ *        - `./github/cache.js`    — `createInlineTicketCache`
+ *        - `./github/errors.js`   — `classifyGithubError`, `extractErrorFields`,
+ *                                   `isTransientStatus`, `isTransientByCodeOrMessage`,
+ *                                   `isPermissionSignal`, `SUB_ISSUES_QUERY`,
+ *                                   `ADD_SUB_ISSUE_MUTATION`,
+ *                                   `REMOVE_SUB_ISSUE_MUTATION`
+ *        - `./github/mappers.js`  — `issueToTicket`, `issueToEpic`,
+ *                                   `issueToListItem`, `issueToEpicListItem`,
+ *                                   `subIssueNodeToTicket`
+ *        - `./github/projects-v2-graphql.js` — Projects V2 helpers
  *
- *   - `classifyGithubError` — normalises transport errors into
- *     `feature-disabled` / `permission` / `transient` / `permanent` so the
- *     sub-issues fallback and the retry loop have a deterministic switch.
+ *   2. **Owns the gh-exec call surface** — the `GitHubProvider` class
+ *      itself. Every transport method (issues, comments, branch-protection,
+ *      PRs, labels, merge-methods) routes through the `gh` facade and uses
+ *      the imported helpers to classify errors, parse payloads, and prime
+ *      the per-instance cache.
  *
- *   - `ADD_SUB_ISSUE_MUTATION` / `REMOVE_SUB_ISSUE_MUTATION` /
- *     `SUB_ISSUES_QUERY` — the three GraphQL shapes the sub-issues feature
- *     reads/writes. `_ghGraphql` shells these out via `gh api graphql`.
+ *   3. **Holds the small file-local helpers** that bind the gh-exec call
+ *      surface together — `parseApiJson`, `isNotFoundError`,
+ *      `isLabelAlreadyExistsError`, `paginateRest`, and the retry/concurrency
+ *      budget constants. These are private to the class and not part of the
+ *      public surface.
  *
- *   - `issueToTicket` / `issueToEpic` / `issueToListItem` /
- *     `issueToEpicListItem` / `subIssueNodeToTicket` — pure mappers that
- *     translate REST/GraphQL payloads into the normalized ticket shape the
- *     orchestration layer consumes. Pure functions, no I/O.
- *
- *   - `createInlineTicketCache` — per-instance ticket cache (one bare
- *     `Map<id, { ticket, insertedAt }>`) shared by dispatcher, reconciler,
- *     and cascade. The old TTL wrapper is gone because `peekFresh` already
- *     bounds entries by a caller-supplied `maxAgeMs`.
- *
- * `graphql(query, variables, opts)` now routes through `_ghGraphql` (i.e.
- * `gh api graphql`) so callers like `epic-reconcile.js` and `epic-runner/
- * column-sync.js` keep their public surface unchanged after the
- * `GithubHttpClient` deletion.
- *
- * The only remaining import from `./github/` is the projects-v2-graphql shim
- * — Projects V2 is its own scope and lives there.
+ * `graphql(query, variables, opts)` routes through `_ghGraphql`
+ * (`gh api graphql`) so callers like `epic-reconcile.js` keep their public
+ * surface unchanged.
  *
  * @see docs/v5-implementation-plan.md (legacy reference — superseded by
  *      Epic #1179 Tech Spec #1350).
  */
 
-import { execSync as defaultExecSync } from 'node:child_process';
 import { parseBlockedBy, parseBlocks } from '../lib/dependency-parser.js';
 import { gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
-import { parseLinkedIssues } from '../lib/issue-link-parser.js';
 import { Logger } from '../lib/Logger.js';
 import { TYPE_LABELS } from '../lib/label-constants.js';
 import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../lib/util/concurrent-map.js';
+import {
+  __setExecSyncForTests,
+  execSyncHolder,
+  readGhCliToken,
+  resolveToken,
+} from './github/auth.js';
+import { createInlineTicketCache } from './github/cache.js';
+import {
+  ADD_SUB_ISSUE_MUTATION,
+  classifyGithubError,
+  extractErrorFields,
+  isPermissionSignal,
+  isTransientByCodeOrMessage,
+  isTransientStatus,
+  REMOVE_SUB_ISSUE_MUTATION,
+  SUB_ISSUES_QUERY,
+} from './github/errors.js';
+import {
+  issueToEpic,
+  issueToEpicListItem,
+  issueToListItem,
+  issueToTicket,
+  subIssueNodeToTicket,
+} from './github/mappers.js';
 import * as projects from './github/projects-v2-graphql.js';
 
 // ---------------------------------------------------------------------------
-// Token resolution (inlined from the retired `./github/auth.js`)
+// Re-exports of extracted modules (Story #1846).
 //
-// Hierarchy: GITHUB_TOKEN / GH_TOKEN env → `gh auth token` CLI fallback
-// → throws with an instructive error. `execSync` is indirected through a
-// holder so the (now-deleted) token-memoize test could swap it — the holder
-// + setter stay for back-compat with any external caller that reaches for
-// the test seam. Production always uses the real impl.
+// Public surface preserved so external callers (tests, downstream code)
+// keep resolving the same symbols through `./providers/github.js`:
+//   - auth.js     → token resolution
+//   - cache.js    → createInlineTicketCache
+//   - errors.js   → classifyGithubError + GraphQL constants
+//   - mappers.js  → pure REST/GraphQL ticket mappers
 // ---------------------------------------------------------------------------
-const execSyncHolder = { impl: defaultExecSync };
-
-export function __setExecSyncForTests(fn) {
-  execSyncHolder.impl = fn ?? defaultExecSync;
-}
-
-/* node:coverage ignore next */
-function readGhCliToken() {
-  try {
-    const t = execSyncHolder
-      .impl('gh auth token', {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-      .trim();
-    return t || null;
-  } catch {
-    // gh CLI not installed or not authenticated.
-    return null;
-  }
-}
-
-const TOKEN_MISSING_ERROR = [
-  '[GitHubProvider] Authentication Failed: No GitHub token found.',
-  '',
-  'To resolve this, choose one of the following:',
-  '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
-  '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
-  '',
-  'See .agents/README.md#github-authentication for details.',
-].join('\n');
-
-/* node:coverage ignore next */
-function readEnvToken() {
-  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
-}
-
-/* node:coverage ignore next */
-function memoizeEnvToken(token) {
-  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
-}
-
-/* node:coverage ignore next */
-function resolveToken() {
-  const envToken = readEnvToken();
-  if (envToken) return envToken;
-  const ghToken = readGhCliToken();
-  if (!ghToken) throw new Error(TOKEN_MISSING_ERROR);
-  memoizeEnvToken(ghToken);
-  return ghToken;
-}
-
-// ---------------------------------------------------------------------------
-// Error classifier (inlined from the retired `./github/error-classifier.js`)
-//
-// Buckets `gh-exec`-thrown errors into 4 categories so the sub-issues
-// fallback and the addSubIssue retry loop have a deterministic switch.
-// Rate-limit detection wins over the 401/403 → permission rule because
-// GitHub's secondary rate limit is delivered as HTTP 403 with a known
-// message; if we bucketed it as 'permission' it would never be retried.
-// ---------------------------------------------------------------------------
-const FEATURE_DISABLED_MESSAGES = [
-  'feature not available',
-  'feature is not enabled',
-  "field 'subissues'",
-  'field "subissues"',
-  'subissues is not available',
-  'sub-issues',
-  "doesn't exist on type",
-  'does not exist on type',
-  'unknown field',
-];
-
-const TRANSIENT_CODES = new Set([
-  'ECONNRESET',
-  'ETIMEDOUT',
-  'ENOTFOUND',
-  'EAI_AGAIN',
-  'ABORT_ERR',
-]);
-
-const TRANSIENT_MESSAGES = [
-  'rate limit',
-  'secondary rate limit',
-  'abuse detection',
-  'fetch failed',
-  'network',
-  'timeout',
-  'timed out',
-  'aborted',
-];
-
-const PERMISSION_MESSAGES = ['unauthorized', 'forbidden', 'permission'];
-
-function matchesAny(haystack, needles) {
-  for (const n of needles) if (haystack.includes(n)) return true;
-  return false;
-}
-
-/**
- * Extract `{ lower, status, code }` from an error in the shape `gh-exec`
- * throws. Pure — exported style for unit-testability without instantiating
- * the provider. Defensive on shape: errors arrive as `Error` objects, plain
- * `{message,status,code}` bags, or non-Errors stringified into `String(err)`.
- */
-export function extractErrorFields(err) {
-  const message = typeof err.message === 'string' ? err.message : String(err);
-  return {
-    lower: message.toLowerCase(),
-    status: typeof err.status === 'number' ? err.status : undefined,
-    code: typeof err.code === 'string' ? err.code : undefined,
-  };
-}
-
-/** Pure predicate: HTTP status that signals "transient — retry-eligible". */
-export function isTransientStatus(status) {
-  if (status === 429) return true;
-  return typeof status === 'number' && status >= 500;
-}
-
-/** Pure predicate: error code/message signals "transient — retry-eligible". */
-export function isTransientByCodeOrMessage(code, lower) {
-  if (TRANSIENT_CODES.has(code)) return true;
-  return matchesAny(lower, TRANSIENT_MESSAGES);
-}
-
-/** Pure predicate: HTTP status / message signals "permission denied". */
-export function isPermissionSignal(status, lower) {
-  if (status === 401 || status === 403) return true;
-  return matchesAny(lower, PERMISSION_MESSAGES);
-}
-
-export function classifyGithubError(err) {
-  if (!err) return 'permanent';
-  const { lower, status, code } = extractErrorFields(err);
-  if (matchesAny(lower, FEATURE_DISABLED_MESSAGES)) return 'feature-disabled';
-  if (isTransientStatus(status)) return 'transient';
-  if (isTransientByCodeOrMessage(code, lower)) return 'transient';
-  if (isPermissionSignal(status, lower)) return 'permission';
-  return 'permanent';
-}
-
-// ---------------------------------------------------------------------------
-// Sub-issues GraphQL shapes (inlined from the retired `./github/graphql-builder.js`)
-// ---------------------------------------------------------------------------
-const SUB_ISSUES_QUERY = `query($id: ID!, $cursor: String) {
-  node(id: $id) {
-    ... on Issue {
-      subIssues(first: 100, after: $cursor) {
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          number
-          databaseId
-          id
-          title
-          body
-          state
-          labels(first: 30) { nodes { name } }
-          assignees(first: 20) { nodes { login } }
-        }
-      }
-    }
-  }
-}`;
-
-const ADD_SUB_ISSUE_MUTATION = `
-  mutation($parentId: ID!, $subIssueId: ID!, $replaceParent: Boolean) {
-    addSubIssue(input: { issueId: $parentId, subIssueId: $subIssueId, replaceParent: $replaceParent }) {
-      issue { number }
-      subIssue { number }
-    }
-  }`;
-
-const REMOVE_SUB_ISSUE_MUTATION = `
-  mutation($parentId: ID!, $subIssueId: ID!) {
-    removeSubIssue(input: { issueId: $parentId, subIssueId: $subIssueId }) {
-      issue { number }
-      subIssue { number }
-    }
-  }`;
-
-// ---------------------------------------------------------------------------
-// Ticket mappers (inlined from the retired `./github/ticket-mapper.js`)
-//
-// Pure functions that translate raw GitHub API payloads (REST Issue,
-// GraphQL sub-issue node) into the normalized ticket shape consumed
-// throughout the orchestration layer. No I/O, no state.
-// ---------------------------------------------------------------------------
-function normalizeLabels(issue) {
-  const raw = issue?.labels;
-  if (!raw) return [];
-  if (Array.isArray(raw?.nodes)) {
-    return raw.nodes.map((l) => l.name);
-  }
-  if (Array.isArray(raw)) {
-    return raw.map((l) => (typeof l === 'string' ? l : l.name));
-  }
-  return [];
-}
-
-function issueToTicket(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    assignees: (issue.assignees ?? []).map((a) => a.login),
-    state: issue.state,
-  };
-}
-
-function issueToEpic(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    linkedIssues: parseLinkedIssues(issue.body),
-  };
-}
-
-function subIssueNodeToTicket(node) {
-  const labels = normalizeLabels(node);
-  return {
-    id: node.number,
-    internalId: node.databaseId,
-    nodeId: node.id,
-    title: node.title,
-    body: node.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    assignees: (node.assignees?.nodes ?? []).map((a) => a.login),
-    state:
-      typeof node.state === 'string' ? node.state.toLowerCase() : node.state,
-  };
-}
-
-function issueToListItem(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    state: issue.state,
-  };
-}
-
-function issueToEpicListItem(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    title: issue.title,
-    labels,
-    labelSet: new Set(labels),
-    state: issue.state,
-    state_reason: issue.state_reason,
-  };
-}
+export {
+  __setExecSyncForTests,
+  ADD_SUB_ISSUE_MUTATION,
+  classifyGithubError,
+  createInlineTicketCache,
+  execSyncHolder,
+  extractErrorFields,
+  isPermissionSignal,
+  issueToEpic,
+  issueToEpicListItem,
+  issueToListItem,
+  issueToTicket,
+  isTransientByCodeOrMessage,
+  isTransientStatus,
+  REMOVE_SUB_ISSUE_MUTATION,
+  readGhCliToken,
+  SUB_ISSUES_QUERY,
+  subIssueNodeToTicket,
+};
 
 // ---------------------------------------------------------------------------
 // Concurrency + retry budgets — preserved from the old `./github/issues.js`
@@ -473,80 +236,6 @@ async function paginateRest(ghFacade, endpoint) {
     page++;
   }
   return items;
-}
-
-/**
- * Per-instance ticket cache, inlined from the (now retired)
- * `./github/cache-manager.js` factory. One bare `Map<id, { ticket, insertedAt }>`
- * scoped to the lifetime of a single `GitHubProvider`, shared by dispatcher,
- * reconciler, and cascade. We deliberately drop the outer TTL wrapper here
- * because `peekFresh` already bounds entries by a caller-supplied `maxAgeMs`,
- * and every other reader (`getTicket` without `maxAgeMs`) trusts the
- * orchestration mutators (`updateTicket` / `postComment` / `addSubIssue` /
- * `removeSubIssue`) to call `invalidate` explicitly.
- *
- * Surface is intentionally narrower than the old `createTicketCacheManager`:
- * only methods the provider itself reaches for live here (`has` / `peek` /
- * `peekFresh` / `set` / `primeIfAbsent` / `primeMany` / `invalidate`). The
- * `getOrLoad` / `clear` helpers stayed behind in `./github/cache-manager.js`
- * for the test suites that exercise that factory directly — Wave 3 deletes
- * the file.
- *
- * @param {{ now?: () => number }} [opts]
- * @returns {{
- *   has(ticketId: number): boolean,
- *   peek(ticketId: number): object|undefined,
- *   peekFresh(ticketId: number, maxAgeMs: number): object|undefined,
- *   set(ticketId: number, ticket: object): void,
- *   primeIfAbsent(ticket: object): void,
- *   primeMany(tickets: Array<object>): void,
- *   invalidate(ticketId: number): void,
- * }}
- */
-function createInlineTicketCache({ now = Date.now } = {}) {
-  /** @type {Map<number, { ticket: object, insertedAt: number }>} */
-  const store = new Map();
-
-  function primeIfAbsent(ticket) {
-    if (!ticket || typeof ticket.id !== 'number') return;
-    if (store.has(ticket.id)) return;
-    if (!ticket.labelSet && Array.isArray(ticket.labels)) {
-      ticket.labelSet = new Set(ticket.labels);
-    }
-    store.set(ticket.id, { ticket, insertedAt: now() });
-  }
-
-  return {
-    has(ticketId) {
-      return store.has(ticketId);
-    },
-
-    peek(ticketId) {
-      return store.get(ticketId)?.ticket;
-    },
-
-    peekFresh(ticketId, maxAgeMs) {
-      const entry = store.get(ticketId);
-      if (!entry) return undefined;
-      if (!Number.isFinite(maxAgeMs) || maxAgeMs < 0) return undefined;
-      if (now() - entry.insertedAt >= maxAgeMs) return undefined;
-      return entry.ticket;
-    },
-
-    set(ticketId, ticket) {
-      store.set(ticketId, { ticket, insertedAt: now() });
-    },
-
-    primeIfAbsent,
-
-    primeMany(tickets) {
-      for (const t of tickets ?? []) primeIfAbsent(t);
-    },
-
-    invalidate(ticketId) {
-      store.delete(ticketId);
-    },
-  };
 }
 
 export class GitHubProvider extends ITicketingProvider {

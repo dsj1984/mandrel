@@ -29,7 +29,7 @@ async function main() {
   const epicId = Number.parseInt(values.epic ?? '', 10);
 
   if (!ticketId || !epicId) {
-    Logger.fatal('Missing required arguments: (--task|--ticket) and --epic');
+    throw new Error('Missing required arguments: (--task|--ticket) and --epic');
   }
 
   const { orchestration } = resolveConfig();

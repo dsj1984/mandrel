@@ -692,7 +692,7 @@ async function main(argv = process.argv.slice(2)) {
   const args = parseCli(argv);
 
   if (!args.epicId) {
-    Logger.fatal(
+    throw new Error(
       'Usage: analyze-execution.js --epic <eid> [--story <sid>] [--phase-timings <path>]',
     );
   }

@@ -267,6 +267,101 @@ export function computeStoryPerfSummary(events, opts) {
  * @param {{ epicId: number, generatedAt?: string, events?: Iterable<object>, waveParallelism?: Array<object>, topHotspots?: Array<object> }} opts
  * @returns {object} EpicPerfReport payload (schema: epic-perf-report)
  */
+/**
+ * Predicate / collector: walk a `perStorySummaries` iterable and emit
+ * only the entries whose `kind === 'story-perf-summary'`. Extracted from
+ * `computeEpicPerfReport` so the input-validation cascade is independently
+ * testable and the parent stays straight-line. Returns `[]` for nullish
+ * inputs, which matches the parent's prior behaviour.
+ *
+ * @param {Iterable<object>|null|undefined} perStorySummaries
+ * @returns {object[]}
+ */
+export function collectValidStorySamples(perStorySummaries) {
+  const out = [];
+  if (!perStorySummaries) return out;
+  for (const s of perStorySummaries) {
+    if (isObject(s) && s.kind === 'story-perf-summary') out.push(s);
+  }
+  return out;
+}
+
+/**
+ * Build the `signalCounts` block. When `events` is supplied we roll up
+ * across every kind in `SIGNAL_COUNT_KINDS`; otherwise we sum the
+ * per-Story friction counts so the legacy summary-only path keeps the
+ * same friction total.
+ *
+ * @param {Iterable<object>|null|undefined} events
+ * @param {object[]} summaries
+ * @returns {{friction: number, hotspot: number, rework: number, churn: number, idle: number, retry: number}}
+ */
+function buildSignalCounts(events, summaries) {
+  const counts = {
+    friction: 0,
+    hotspot: 0,
+    rework: 0,
+    churn: 0,
+    idle: 0,
+    retry: 0,
+  };
+  if (events) {
+    for (const evt of events) {
+      if (!isObject(evt) || typeof evt.kind !== 'string') continue;
+      if (SIGNAL_COUNT_KINDS.includes(evt.kind)) {
+        counts[evt.kind] += 1;
+      }
+    }
+    return counts;
+  }
+  for (const s of summaries) {
+    if (!isObject(s.frictionByCategory)) continue;
+    for (const v of Object.values(s.frictionByCategory)) {
+      counts.friction += nonNegativeInt(v);
+    }
+  }
+  return counts;
+}
+
+/**
+ * Aggregate the `topHotspots` block from per-Story samples: group each
+ * story's `topSlowPhasesVsBaseline` rows by phase, count occurrences,
+ * average the ratio, then sort by `occurrences desc, avgRatio desc` and
+ * cap at 5. Extracted from `computeEpicPerfReport` so the parent stays
+ * straight-line; callers that pass `opts.topHotspots` skip this helper
+ * entirely.
+ *
+ * @param {object[]} summaries
+ * @returns {Array<{phase: string, occurrences: number, avgRatio: number}>}
+ */
+function aggregateTopHotspots(summaries) {
+  const acc = new Map();
+  for (const s of summaries) {
+    const arr = Array.isArray(s.topSlowPhasesVsBaseline)
+      ? s.topSlowPhasesVsBaseline
+      : [];
+    for (const row of arr) {
+      if (!isObject(row) || typeof row.phase !== 'string') continue;
+      const rec = acc.get(row.phase) ?? {
+        phase: row.phase,
+        occurrences: 0,
+        ratioSum: 0,
+      };
+      rec.occurrences += 1;
+      rec.ratioSum += nonNegativeNumber(row.ratio);
+      acc.set(row.phase, rec);
+    }
+  }
+  return [...acc.values()]
+    .map((r) => ({
+      phase: r.phase,
+      occurrences: r.occurrences,
+      avgRatio: r.occurrences > 0 ? r.ratioSum / r.occurrences : 0,
+    }))
+    .sort((a, b) => b.occurrences - a.occurrences || b.avgRatio - a.avgRatio)
+    .slice(0, 5);
+}
+
 export function computeEpicPerfReport(perStorySummaries, opts) {
   if (!isObject(opts)) {
     throw new TypeError('computeEpicPerfReport: opts is required');
@@ -282,69 +377,15 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
       ? opts.generatedAt
       : new Date().toISOString();
 
-  const summaries = [];
-  for (const s of perStorySummaries ?? []) {
-    if (isObject(s) && s.kind === 'story-perf-summary') summaries.push(s);
-  }
+  const summaries = collectValidStorySamples(perStorySummaries);
 
   // signalCounts: prefer the raw-event roll-up; fall back to friction-only
   // when the caller did not pass events.
-  const signalCounts = {
-    friction: 0,
-    hotspot: 0,
-    rework: 0,
-    churn: 0,
-    idle: 0,
-    retry: 0,
-  };
-  if (opts.events) {
-    for (const evt of opts.events) {
-      if (!isObject(evt) || typeof evt.kind !== 'string') continue;
-      if (SIGNAL_COUNT_KINDS.includes(evt.kind)) {
-        signalCounts[evt.kind] += 1;
-      }
-    }
-  } else {
-    for (const s of summaries) {
-      if (!isObject(s.frictionByCategory)) continue;
-      for (const v of Object.values(s.frictionByCategory)) {
-        signalCounts.friction += nonNegativeInt(v);
-      }
-    }
-  }
+  const signalCounts = buildSignalCounts(opts.events, summaries);
 
-  // topHotspots: aggregate across summaries' `topSlowPhasesVsBaseline`.
-  // Group by phase, count occurrences, average ratio, sort by occurrences
-  // desc then avgRatio desc, cap at 5.
-  const hotspotAcc = new Map();
-  for (const s of summaries) {
-    const arr = Array.isArray(s.topSlowPhasesVsBaseline)
-      ? s.topSlowPhasesVsBaseline
-      : [];
-    for (const row of arr) {
-      if (!isObject(row) || typeof row.phase !== 'string') continue;
-      const rec = hotspotAcc.get(row.phase) ?? {
-        phase: row.phase,
-        occurrences: 0,
-        ratioSum: 0,
-      };
-      rec.occurrences += 1;
-      rec.ratioSum += nonNegativeNumber(row.ratio);
-      hotspotAcc.set(row.phase, rec);
-    }
-  }
   const topHotspots = Array.isArray(opts.topHotspots)
     ? opts.topHotspots
-    : [...hotspotAcc.values()]
-        .map((r) => ({
-          phase: r.phase,
-          occurrences: r.occurrences,
-          avgRatio: r.occurrences > 0 ? r.ratioSum / r.occurrences : 0,
-        }))
-        .sort(
-          (a, b) => b.occurrences - a.occurrences || b.avgRatio - a.avgRatio,
-        )
-        .slice(0, 5);
+    : aggregateTopHotspots(summaries);
 
   // mostFrictionStories: per-Story friction count, sorted desc, capped.
   // When the upstream signal carries an optional `dispatchModel` hint

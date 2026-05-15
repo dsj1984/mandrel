@@ -100,7 +100,7 @@ async function collectDescendants(provider, epicId) {
 
 export async function runHierarchyGate({ epicId, injectedProvider } = {}) {
   if (!epicId || Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node hierarchy-gate.js --epic <EPIC_ID>');
+    throw new Error('Usage: node hierarchy-gate.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();

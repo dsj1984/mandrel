@@ -185,7 +185,7 @@ export async function main(args = process.argv.slice(2)) {
   const { taskId, storyId, epicId, cmdArgs } = parseArguments(args);
 
   if (cmdArgs.length === 0) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node diagnose-friction.js [--task <TASK_ID>] [--story <STORY_ID>] [--epic <EPIC_ID>] --cmd <command with args...>',
     );
   }

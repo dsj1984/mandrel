@@ -498,6 +498,27 @@ export function projectCrapRegressions({
  *
  * @returns {Array<{ path: string, file: string, method: string, startLine: number, crap: number, projected: number, baseline: number, drop: number }>}
  */
+/**
+ * Predicate: do the three projection-context fields the CRAP projector
+ * needs (`cwd`, `epicBranch`, `storyBranch`) all carry truthy values?
+ * Returns `true` when the bag is usable, `false` when any required field
+ * is missing or falsy. Extracted from `projectCrapForGate` so the guard
+ * cascade is independently testable and so the projector body stays a
+ * straight-line transform.
+ *
+ * @param {object} ctx
+ * @param {*} ctx.cwd
+ * @param {*} ctx.epicBranch
+ * @param {*} ctx.storyBranch
+ * @returns {boolean}
+ */
+export function validateProjectionContext({ cwd, epicBranch, storyBranch }) {
+  if (!cwd) return false;
+  if (!epicBranch) return false;
+  if (!storyBranch) return false;
+  return true;
+}
+
 function projectCrapForGate({
   cwd,
   epicBranch,
@@ -509,7 +530,7 @@ function projectCrapForGate({
   computeTouched = computeStoryDiffPaths,
   projectCrap = projectCrapRegressions,
 } = {}) {
-  if (!cwd || !epicBranch || !storyBranch) return [];
+  if (!validateProjectionContext({ cwd, epicBranch, storyBranch })) return [];
   const touchedFiles = new Set(
     computeTouched({ cwd, epicBranch, storyBranch }),
   );

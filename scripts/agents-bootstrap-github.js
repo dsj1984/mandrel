@@ -571,7 +571,7 @@ async function main() {
   const config = resolveConfig();
 
   if (!config.orchestration) {
-    Logger.fatal(
+    throw new Error(
       '[bootstrap] No "orchestration" block found in .agentrc.json.',
     );
   }
@@ -603,7 +603,7 @@ async function main() {
     });
     printSummary(result);
   } catch (err) {
-    Logger.fatal(`[bootstrap] runBootstrap failed: ${err.message}`);
+    throw new Error(`[bootstrap] runBootstrap failed: ${err.message}`);
   }
 }
 
