@@ -102,9 +102,14 @@ export function resolveInstallCommand(options = {}) {
 const WINDOWS_SHIMMED_BINS = new Set(['npm', 'pnpm', 'yarn', 'npx']);
 
 export function parseInstallCmd(installCmd) {
-  const tokens = String(installCmd ?? '').trim().split(/\s+/).filter(Boolean);
+  const tokens = String(installCmd ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (tokens.length === 0) {
-    throw new RangeError('parseInstallCmd: install command must contain at least one token');
+    throw new RangeError(
+      'parseInstallCmd: install command must contain at least one token',
+    );
   }
   let [bin, ...args] = tokens;
   if (process.platform === 'win32' && WINDOWS_SHIMMED_BINS.has(bin)) {
