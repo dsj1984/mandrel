@@ -131,3 +131,30 @@ function componentMatches(component, path) {
     path === component.includes || path.startsWith(`${component.includes}/`)
   );
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). The metric is
+ * the maximum absolute delta across `errorCount` and `warningCount`. The
+ * framework default for lint is epsilon 0 (counts are integer; any change
+ * is meaningful), but the function honours any non-negative epsilon for
+ * operator overrides. Missing-prior rows fall through.
+ *
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} prior
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance on count deltas
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.path, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.path);
+    if (!p) return row;
+    const errDelta = Math.abs((row.errorCount ?? 0) - (p.errorCount ?? 0));
+    const warnDelta = Math.abs((row.warningCount ?? 0) - (p.warningCount ?? 0));
+    return Math.max(errDelta, warnDelta) <= eps ? p : row;
+  });
+}

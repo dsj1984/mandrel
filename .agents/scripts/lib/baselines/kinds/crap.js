@@ -160,3 +160,26 @@ function componentMatches(component, p) {
   if (!component || typeof component.includes !== 'string') return false;
   return p === component.includes || p.startsWith(`${component.includes}/`);
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). CRAP rows match
+ * by the composite `path::method@startLine` identity. Sub-epsilon CRAP
+ * deltas resolve to the prior row bytes; missing-prior rows fall through.
+ *
+ * @param {Array<{path: string, method: string, startLine: number, crap: number}>} prior
+ * @param {Array<{path: string, method: string, startLine: number, crap: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance on CRAP
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(crapRowKey(r), r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(crapRowKey(row));
+    if (!p) return row;
+    return Math.abs((row.crap ?? 0) - (p.crap ?? 0)) <= eps ? p : row;
+  });
+}
