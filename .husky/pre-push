@@ -1,37 +1,15 @@
-# Story #1829: `npm run lint` now invokes `biome ci .` (lint + format
-# check + import order, single AST pass) and `markdownlint-cli2` in
-# parallel via .agents/scripts/run-lint.js, so the old separate
-# `npm run format:check` invocation here is redundant and removed.
+# `npm run lint` runs biome ci + markdownlint-cli2 in parallel (covers
+# lint + format check + import order).
 npm run lint
-# Diff against the REMOTE main (origin/main), not the local main ref.
-# When pushing from a feature branch that's caught up to local main, the two
-# are equivalent. When pushing FROM main (a release commit, an emergency
-# push-to-main), `git diff main...HEAD` is empty — pre-push then skipped
-# both coverage capture and the CRAP gate, letting unpinned new methods
-# slip into CI's full-repo scan (regression seen on the 5.29.0 push).
-# `origin/main` makes the diff equal to "unpushed commits", which is exactly
-# what pre-push should validate. (Story #829, 2026-04-26.)
-#
-# Story #1394 (Epic #1386): the gate CLIs now default `--changed-since` to
-# the local `main` ref. We pass `origin/main` explicitly here so the diff
-# stays aligned with what's actually being pushed, regardless of how stale
-# the local `main` happens to be on the operator's machine. MI grew the
-# explicit ref for symmetry with CRAP — both gates now scope identically.
+# Diff against origin/main so the scope equals "unpushed commits"
+# regardless of how stale the local main ref is.
 npm run maintainability:check -- --changed-since origin/main
-# Story #1829: `npm audit --audit-level=high` runs in CI on every PR and
-# push-to-main (`Dependency Vulnerability Audit (SCA)` step in ci.yml),
-# so it cannot reach main without surfacing there. Removed from pre-push
-# to skip the advisory-DB network call on every local push. Set
-# `PREPUSH_AUDIT=1` to opt back in locally.
+# CI runs `npm audit --audit-level=high` on every PR and push-to-main.
+# Opt back in locally with `PREPUSH_AUDIT=1` when reviewing advisories.
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
   npm audit --audit-level=high
 fi
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check -- --changed-since origin/main
-# Story #1829: the trailing `--full-scope` block (coverage / MI / CRAP)
-# previously re-ran each gate against the entire repo to catch in-scope
-# files below the v6 absolute floor (coverage 90/85/90, MI>=70, CRAP<=20).
-# CI runs the same `--full-scope` gates on every PR and push-to-main
-# (.github/workflows/ci.yml), so the local repeat was duplicate
-# enforcement against duplicate floors. Removed from pre-push; CI is
-# the authoritative full-scope gate.
+# CI is the authoritative `--full-scope` floor gate (coverage 90/85/90,
+# MI>=70, CRAP<=20). Local pre-push stays diff-scoped for speed.
