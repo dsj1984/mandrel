@@ -53,7 +53,6 @@
 import { parseBlockedBy, parseBlocks } from '../lib/dependency-parser.js';
 import { gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
-import { parseLinkedIssues } from '../lib/issue-link-parser.js';
 import { Logger } from '../lib/Logger.js';
 import { TYPE_LABELS } from '../lib/label-constants.js';
 import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
@@ -75,6 +74,13 @@ import {
   REMOVE_SUB_ISSUE_MUTATION,
   SUB_ISSUES_QUERY,
 } from './github/errors.js';
+import {
+  issueToEpic,
+  issueToEpicListItem,
+  issueToListItem,
+  issueToTicket,
+  subIssueNodeToTicket,
+} from './github/mappers.js';
 import * as projects from './github/projects-v2-graphql.js';
 
 // ---------------------------------------------------------------------------
@@ -82,9 +88,10 @@ import * as projects from './github/projects-v2-graphql.js';
 //
 // Public surface preserved so external callers (tests, downstream code)
 // keep resolving the same symbols through `./providers/github.js`:
-//   - auth.js        → token resolution
-//   - errors.js      → classifyGithubError + GraphQL constants
-//   - cache.js       → createInlineTicketCache
+//   - auth.js     → token resolution
+//   - cache.js    → createInlineTicketCache
+//   - errors.js   → classifyGithubError + GraphQL constants
+//   - mappers.js  → pure REST/GraphQL ticket mappers
 // ---------------------------------------------------------------------------
 export {
   __setExecSyncForTests,
@@ -96,100 +103,15 @@ export {
   isPermissionSignal,
   isTransientByCodeOrMessage,
   isTransientStatus,
+  issueToEpic,
+  issueToEpicListItem,
+  issueToListItem,
+  issueToTicket,
   readGhCliToken,
   REMOVE_SUB_ISSUE_MUTATION,
   SUB_ISSUES_QUERY,
+  subIssueNodeToTicket,
 };
-
-// ---------------------------------------------------------------------------
-// Ticket mappers (inlined from the retired `./github/ticket-mapper.js`)
-//
-// Pure functions that translate raw GitHub API payloads (REST Issue,
-// GraphQL sub-issue node) into the normalized ticket shape consumed
-// throughout the orchestration layer. No I/O, no state.
-// ---------------------------------------------------------------------------
-function normalizeLabels(issue) {
-  const raw = issue?.labels;
-  if (!raw) return [];
-  if (Array.isArray(raw?.nodes)) {
-    return raw.nodes.map((l) => l.name);
-  }
-  if (Array.isArray(raw)) {
-    return raw.map((l) => (typeof l === 'string' ? l : l.name));
-  }
-  return [];
-}
-
-function issueToTicket(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    assignees: (issue.assignees ?? []).map((a) => a.login),
-    state: issue.state,
-  };
-}
-
-function issueToEpic(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    linkedIssues: parseLinkedIssues(issue.body),
-  };
-}
-
-function subIssueNodeToTicket(node) {
-  const labels = normalizeLabels(node);
-  return {
-    id: node.number,
-    internalId: node.databaseId,
-    nodeId: node.id,
-    title: node.title,
-    body: node.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    assignees: (node.assignees?.nodes ?? []).map((a) => a.login),
-    state:
-      typeof node.state === 'string' ? node.state.toLowerCase() : node.state,
-  };
-}
-
-function issueToListItem(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    internalId: issue.id,
-    nodeId: issue.node_id,
-    title: issue.title,
-    body: issue.body ?? '',
-    labels,
-    labelSet: new Set(labels),
-    state: issue.state,
-  };
-}
-
-function issueToEpicListItem(issue) {
-  const labels = normalizeLabels(issue);
-  return {
-    id: issue.number,
-    title: issue.title,
-    labels,
-    labelSet: new Set(labels),
-    state: issue.state,
-    state_reason: issue.state_reason,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Concurrency + retry budgets — preserved from the old `./github/issues.js`
