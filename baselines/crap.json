@@ -340,10 +340,16 @@
       "startLine": 136
     },
     {
-      "crap": 20,
+      "crap": 5,
+      "file": ".agents/scripts/diagnose.js",
+      "method": "validateDiagnoseArgs",
+      "startLine": 187
+    },
+    {
+      "crap": 12,
       "file": ".agents/scripts/diagnose.js",
       "method": "main",
-      "startLine": 172
+      "startLine": 207
     },
     {
       "crap": 3,
@@ -1180,40 +1186,46 @@
       "startLine": 153
     },
     {
-      "crap": 20,
+      "crap": 6,
+      "file": ".agents/scripts/lib/checks/state.js",
+      "method": "validatePidProbeInputs",
+      "startLine": 186
+    },
+    {
+      "crap": 12,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "defaultPidLivenessProbe",
-      "startLine": 184
+      "startLine": 202
     },
     {
       "crap": 17,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "probeGit",
-      "startLine": 203
+      "startLine": 221
     },
     {
       "crap": 7,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "probeFs",
-      "startLine": 284
+      "startLine": 302
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "probeEnv",
-      "startLine": 339
+      "startLine": 357
     },
     {
       "crap": 9,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "assembleState",
-      "startLine": 369
+      "startLine": 387
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/checks/state.js",
       "method": "getScopeKeys",
-      "startLine": 425
+      "startLine": 443
     },
     {
       "crap": 7.019915663262714,
@@ -3142,22 +3154,40 @@
       "startLine": 215
     },
     {
-      "crap": 18.001179790623578,
+      "crap": 4,
+      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
+      "method": "collectValidStorySamples",
+      "startLine": 280
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
+      "method": "buildSignalCounts",
+      "startLine": 299
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/observability/perf-aggregator.js",
+      "method": "aggregateTopHotspots",
+      "startLine": 337
+    },
+    {
+      "crap": 8.001166350779997,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeEpicPerfReport",
-      "startLine": 270
+      "startLine": 365
     },
     {
       "crap": 3.009,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeStoryPerfSummaryFromStore",
-      "startLine": 426
+      "startLine": 467
     },
     {
       "crap": 3.0146549969468754,
       "file": ".agents/scripts/lib/observability/perf-aggregator.js",
       "method": "computeEpicPerfReportFromStore",
-      "startLine": 465
+      "startLine": 506
     },
     {
       "crap": 1,
@@ -3472,16 +3502,46 @@
       "startLine": 17
     },
     {
-      "crap": 19.003068449370584,
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
+      "method": "isFocusOverlapEdgeEligible",
+      "startLine": 78
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
+      "method": "hasUsableFocus",
+      "startLine": 101
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
+      "method": "focusBagsOverlap",
+      "startLine": 115
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
+      "method": "eitherDirectionAlreadyReachable",
+      "startLine": 133
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
+      "method": "pickEdgeDirection",
+      "startLine": 148
+    },
+    {
+      "crap": 5,
       "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
       "method": "addFocusOverlapEdges",
-      "startLine": 55
+      "startLine": 155
     },
     {
       "crap": 7.183079462052564,
       "file": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
       "method": "computeStoryWaves",
-      "startLine": 134
+      "startLine": 218
     },
     {
       "crap": 1,
@@ -4996,22 +5056,28 @@
       "startLine": 453
     },
     {
-      "crap": 20,
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "validateProjectionContext",
+      "startLine": 515
+    },
+    {
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectCrapForGate",
-      "startLine": 501
+      "startLine": 522
     },
     {
       "crap": 5.429499999999999,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectRegressionsForGate",
-      "startLine": 552
+      "startLine": 573
     },
     {
       "crap": 6.135506172839506,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "runPreMergeGatesWithAttribution",
-      "startLine": 598
+      "startLine": 619
     },
     {
       "crap": 2,
@@ -5302,16 +5368,46 @@
       "startLine": 44
     },
     {
-      "crap": 19.12089816958162,
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
+      "method": "shouldSkipTicket",
+      "startLine": 67
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
+      "method": "validateTaskBodyShape",
+      "startLine": 83
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
+      "method": "collectChangesErrors",
+      "startLine": 104
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
+      "method": "collectAcceptanceErrors",
+      "startLine": 135
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
+      "method": "collectVerifyErrors",
+      "startLine": 148
+    },
+    {
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "method": "collectTaskBodyErrors",
-      "startLine": 63
+      "startLine": 177
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/task-body-validator.js",
       "method": "validateTaskBodies",
-      "startLine": 143
+      "startLine": 193
     },
     {
       "crap": 1,
@@ -7186,34 +7282,46 @@
       "startLine": 244
     },
     {
-      "crap": 20,
+      "crap": 9,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "groupByWave",
       "startLine": 286
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "extractValidStoryEntries",
+      "startLine": 326
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/wave-runner/tick.js",
+      "method": "resolveStoryEntry",
+      "startLine": 352
+    },
+    {
       "crap": 3,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "resolvePlan",
-      "startLine": 335
+      "startLine": 377
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "isUndispatched",
-      "startLine": 344
+      "startLine": 386
     },
     {
       "crap": 5.31930879038317,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "readGateFailures",
-      "startLine": 352
+      "startLine": 394
     },
     {
       "crap": 1.1714677640603566,
       "file": ".agents/scripts/lib/wave-runner/tick.js",
       "method": "defaultSignalEmit",
-      "startLine": 368
+      "startLine": 410
     },
     {
       "crap": 13,
@@ -7408,6 +7516,30 @@
       "startLine": 15
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
+      "method": "resolveHeadSha",
+      "startLine": 31
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
+      "method": "checkHeadAncestor",
+      "startLine": 54
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
+      "method": "hasMergeCommitForStory",
+      "startLine": 85
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js",
+      "method": "checkMergeReachability",
+      "startLine": 113
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js",
       "method": "manifestPath",
@@ -7474,148 +7606,166 @@
       "startLine": 186
     },
     {
-      "crap": 18.383571476192568,
+      "crap": 4,
+      "file": ".agents/scripts/lib/worktree/lifecycle/precheck.js",
+      "method": "checkLocalSafety",
+      "startLine": 47
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/worktree/lifecycle/precheck.js",
+      "method": "checkWorktreeDirty",
+      "startLine": 68
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/worktree/lifecycle/precheck.js",
+      "method": "readWorkingBranch",
+      "startLine": 90
+    },
+    {
+      "crap": 4,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isSafeToRemove",
-      "startLine": 68
+      "startLine": 70
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "isStoryAlreadyMergedIntoEpic",
-      "startLine": 164
+      "startLine": 87
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "collectDirtyPaths",
-      "startLine": 180
+      "startLine": 103
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "discardWorktreeChanges",
-      "startLine": 194
+      "startLine": 117
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "fsRmWithRetry",
-      "startLine": 207
+      "startLine": 130
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "<anon method-3>",
-      "startLine": 220
+      "startLine": 143
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "classifyRemoveStderr",
-      "startLine": 227
+      "startLine": 150
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "finalizeGitWorktreeRemove",
-      "startLine": 238
+      "startLine": 161
     },
     {
       "crap": 7,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "handleRemoveFailure",
-      "startLine": 243
+      "startLine": 166
     },
     {
       "crap": 8,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "runGitWorktreeRemoveLoop",
-      "startLine": 273
+      "startLine": 196
     },
     {
       "crap": 7.0066083379692845,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryForceRemoveFallback",
-      "startLine": 298
+      "startLine": 221
     },
     {
       "crap": 1.034114465085977,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "tryStage15WindowsFsRm",
-      "startLine": 338
+      "startLine": 261
     },
     {
       "crap": 3.274658203125,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "recordPendingCleanupSafe",
-      "startLine": 376
+      "startLine": 299
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "handleFsRmFailure",
-      "startLine": 393
+      "startLine": 316
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "removeWorktreeWithRecovery",
-      "startLine": 443
+      "startLine": 366
     },
     {
       "crap": 6.036,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteLocal",
-      "startLine": 507
+      "startLine": 430
     },
     {
       "crap": 6.141711619769646,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reapDeleteRemote",
-      "startLine": 518
+      "startLine": 441
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "deleteBranchAfterReap",
-      "startLine": 538
+      "startLine": 461
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "checkReapPreconditions",
-      "startLine": 545
+      "startLine": 468
     },
     {
       "crap": 8.45304232804233,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "ensureSafeOrForceDiscard",
-      "startLine": 568
+      "startLine": 491
     },
     {
       "crap": 3.372,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "escapeWorktreeCwd",
-      "startLine": 611
+      "startLine": 534
     },
     {
       "crap": 3.2099125364431487,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "postRemoveBeltSweep",
-      "startLine": 622
+      "startLine": 545
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "buildReapSuccess",
-      "startLine": 637
+      "startLine": 560
     },
     {
       "crap": 4.149292899839627,
       "file": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "method": "reap",
-      "startLine": 649
+      "startLine": 572
     },
     {
       "crap": 1,

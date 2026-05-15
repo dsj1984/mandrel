@@ -30,9 +30,9 @@
     "functions": 83.33
   },
   ".agents/scripts/diagnose.js": {
-    "lines": 87.31,
-    "branches": 83.33,
-    "functions": 66.67
+    "lines": 92.83,
+    "branches": 86.05,
+    "functions": 71.43
   },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.58,
@@ -205,9 +205,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/checks/state.js": {
-    "lines": 92.51,
-    "branches": 89.58,
-    "functions": 81.82
+    "lines": 92.81,
+    "branches": 90.48,
+    "functions": 83.33
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
     "lines": 97.85,
@@ -525,8 +525,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
-    "lines": 98.13,
-    "branches": 81.1,
+    "lines": 98.28,
+    "branches": 82.44,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
@@ -575,8 +575,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dependency-analyzer.js": {
-    "lines": 94.85,
-    "branches": 80,
+    "lines": 96.76,
+    "branches": 87.1,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/detectors-phase.js": {
@@ -835,9 +835,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
-    "lines": 85.88,
-    "branches": 71.56,
-    "functions": 78.57
+    "lines": 86.3,
+    "branches": 73.28,
+    "functions": 80
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
     "lines": 100,
@@ -905,8 +905,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/task-body-validator.js": {
-    "lines": 96.64,
-    "branches": 86,
+    "lines": 100,
+    "branches": 95,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/task-fetcher.js": {
@@ -1185,8 +1185,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/wave-runner/tick.js": {
-    "lines": 95.74,
-    "branches": 83.49,
+    "lines": 96.17,
+    "branches": 85.84,
     "functions": 100
   },
   ".agents/scripts/lib/wave-runner/wave-runner-error.js": {
@@ -1249,14 +1249,24 @@
     "branches": 81.25,
     "functions": 100
   },
+  ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js": {
     "lines": 98.48,
     "branches": 78.46,
     "functions": 100
   },
+  ".agents/scripts/lib/worktree/lifecycle/precheck.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/worktree/lifecycle/reap.js": {
-    "lines": 89.8,
-    "branches": 74.25,
+    "lines": 90.97,
+    "branches": 75.17,
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle/registry-sync.js": {
