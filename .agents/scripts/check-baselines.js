@@ -363,6 +363,48 @@ function runCompareStage(headBaseline, cmp) {
   }
 }
 
+/**
+ * Apply the per-gate tolerance to the raw compare output. Without an
+ * explicit tolerance the per-kind classifier wins. With
+ * `{ kind: 'absolute', value: N }`, regressions whose largest absolute
+ * axis-delta is below N are demoted to `unchanged`.
+ */
+function tolerantNumericFields(head, base) {
+  const fields = [];
+  if (!head || !base) return fields;
+  for (const key of Object.keys(head)) {
+    const h = head[key];
+    const b = base[key];
+    if (typeof h === 'number' && typeof b === 'number') {
+      fields.push({ key, head: h, base: b });
+    }
+  }
+  return fields;
+}
+
+function regressionExceedsTolerance(reg, threshold) {
+  const fields = tolerantNumericFields(reg.head, reg.base);
+  if (fields.length === 0) return true;
+  return fields.some(({ head, base }) => Math.abs(head - base) >= threshold);
+}
+
+function applyTolerance(compareOutput, tolerance) {
+  if (!tolerance || tolerance.kind !== 'absolute') return compareOutput;
+  const threshold = Number(tolerance.value);
+  if (!Number.isFinite(threshold) || threshold <= 0) return compareOutput;
+  const kept = [];
+  const demoted = [];
+  for (const reg of compareOutput.regressions) {
+    if (regressionExceedsTolerance(reg, threshold)) kept.push(reg);
+    else demoted.push(reg);
+  }
+  return {
+    ...compareOutput,
+    regressions: kept,
+    unchanged: [...compareOutput.unchanged, ...demoted],
+  };
+}
+
 function buildGateReport({
   kind,
   gateBlock,
@@ -403,11 +445,13 @@ async function evaluateKind({ kind, gateBlock, scope, cwd, configPath }) {
   // Stage 2: floor.
   const findings = applyFloors(kind, baseline.rollup, gateBlock.floors ?? {});
   const breaches = flattenBreaches(findings);
-  // Stage 3 (tolerance) is forwarded via gateBlock.tolerance into the
-  // gate report; the dispatcher does not interpret it today.
+  // Stage 3 (tolerance) is applied to the compare output below — the
+  // gateBlock.tolerance entry demotes near-floor noise back to unchanged
+  // so a routine percent-point of jitter does not trip EXIT_REGRESSION.
   // Stage 4: compare (head vs base @ scope.ref).
   const cmp = await evaluateCompare({ kind, gateBlock, scope, cwd });
-  const compareOutput = runCompareStage(baseline, cmp);
+  const rawCompare = runCompareStage(baseline, cmp);
+  const compareOutput = applyTolerance(rawCompare, gateBlock.tolerance ?? null);
   return buildGateReport({
     kind,
     gateBlock,
@@ -631,8 +675,19 @@ function dispatchPerKind({ wanted, quality, env, cwd, configPath }) {
   );
 }
 
+/**
+ * Map a per-kind gate result to its exit code. Regression contributes to
+ * EXIT_REGRESSION only when the gate has an explicit tolerance policy
+ * configured — without one the per-kind CLIs (still in the close-validation
+ * chain alongside this dispatcher) own the regression veto, and the
+ * dispatcher's compare stage is informational. Once Epic #1943 finishes
+ * deleting the per-kind CLIs, every gate will carry an explicit tolerance
+ * and this guard becomes a no-op.
+ */
 function exitCodeForGate(result) {
-  if ((result.regressionCount ?? 0) > 0) return EXIT_REGRESSION;
+  if ((result.regressionCount ?? 0) > 0 && result.tolerance) {
+    return EXIT_REGRESSION;
+  }
   if (result.breachCount > 0) return EXIT_FLOOR;
   return EXIT_PASS;
 }
