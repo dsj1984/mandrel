@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/coverage.schema.json",
+  "title": "CoverageBaseline",
+  "description": "Per-kind baseline schema for the coverage gate. Extends the shared baseline-envelope contract.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["lines", "branches", "functions"],
+        "additionalProperties": false,
+        "properties": {
+          "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+          "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+          "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["lines", "branches", "functions"],
+          "additionalProperties": false,
+          "properties": {
+            "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+            "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+            "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "lines", "branches", "functions"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+          "branches": { "type": "number", "minimum": 0, "maximum": 100 },
+          "functions": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/baseline-envelope.schema.json",
+  "title": "BaselineEnvelope",
+  "description": "Shared envelope contract for every committed Mandrel baseline (lint, coverage, crap, maintainability, mutation, lighthouse, bundle-size). Each per-kind schema extends this envelope via allOf to constrain the row and rollup shape. The envelope itself is intentionally agnostic about row contents so the kernel can evolve without churning the shared contract.",
+  "type": "object",
+  "required": ["$schema", "kernelVersion", "generatedAt", "rollup", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Pointer back to the per-kind schema for editor tooling and AJV resolution."
+    },
+    "kernelVersion": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "description": "Semver version of the in-repo kernel that produced this baseline. Bumped when the scoring formula, scan shape, or rollup math changes. Consumers compare against the running kernel and emit drift signals when they mismatch."
+    },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of the baseline run. Used for stale-baseline detection and audit trails."
+    },
+    "rollup": {
+      "type": "object",
+      "description": "Aggregate metrics keyed by component. The '*' key is reserved for the whole-repo rollup and is REQUIRED; additional keys MAY be present, one per declared component.",
+      "required": ["*"],
+      "additionalProperties": true,
+      "properties": {
+        "*": {
+          "type": "object",
+          "description": "Whole-repo rollup. Per-kind schemas tighten the inner shape."
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "description": "Per-row metrics. Order is kind-specific (e.g. CRAP sorts by file+startLine+method); per-kind schemas tighten the item shape.",
+      "items": {
+        "type": "object"
+      }
+    }
+  }
+}

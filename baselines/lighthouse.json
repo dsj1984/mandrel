@@ -1,0 +1,14 @@
+{
+  "$schema": ".agents/schemas/baselines/lighthouse.schema.json",
+  "kernelVersion": "1.0.0",
+  "generatedAt": "2026-05-15T00:00:00.000Z",
+  "rollup": {
+    "*": {
+      "performance": 0,
+      "accessibility": 0,
+      "bestPractices": 0,
+      "seo": 0
+    }
+  },
+  "rows": []
+}

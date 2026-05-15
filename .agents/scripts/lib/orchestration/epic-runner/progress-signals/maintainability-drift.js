@@ -1,6 +1,7 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
 
+import { resolveComponents } from '../../../baselines/components.js';
 import { calculateForSource } from '../../../maintainability-engine.js';
 
 const DEFAULT_THRESHOLD = 2.0;
@@ -38,6 +39,66 @@ const BASELINE_FILENAME = 'wave-mi-snapshot.json';
  *   baselineDir?: string,           // directory (under cwd) to persist snapshot
  * }} [opts]
  */
+/**
+ * Detect per-component maintainability regressions from a baseline rollup
+ * against the gate's configured floors. Pure — the caller loads the
+ * baseline via `lib/baselines/reader.js#load('maintainability')` and passes
+ * the resulting `{ rollup }` plus the gate config block.
+ *
+ * Bullet shape (Task #1919, Epic #1786):
+ *
+ *   📉 maintainability: <component> <axis> <value> < floor <floor>
+ *
+ * Maintainability is "higher is better" — every axis breach reports when
+ * `value < floor`. Component-scoped breaches do NOT trigger a `*` bullet
+ * unless `*` itself breaches.
+ *
+ * @param {{
+ *   rollup?: Record<string, Record<string, number>>,
+ *   gateConfig?: { floors?: Record<string, Record<string, number>> } & object,
+ * }} params
+ * @returns {string[]}
+ */
+export function detectComponentRegressions(params = {}) {
+  const rollup = params.rollup ?? {};
+  const gateConfig = params.gateConfig ?? {};
+  const floors = gateConfig.floors ?? {};
+  const components = resolveComponents(gateConfig);
+  const names = new Set([
+    ...Object.keys(components),
+    ...Object.keys(floors),
+    ...Object.keys(rollup),
+  ]);
+  const bullets = [];
+  for (const name of [...names].sort(componentOrder)) {
+    const aggregate = rollup[name];
+    if (!aggregate || typeof aggregate !== 'object') continue;
+    const floor = floors[name] ?? floors['*'];
+    if (!floor || typeof floor !== 'object') continue;
+    for (const axis of Object.keys(floor).sort()) {
+      const target = floor[axis];
+      const value = aggregate[axis];
+      if (typeof target !== 'number' || !Number.isFinite(target)) continue;
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      if (value >= target) continue;
+      bullets.push(
+        `📉 maintainability: ${name} ${axis} ${formatNumber(value)} < floor ${formatNumber(target)}`,
+      );
+    }
+  }
+  return bullets;
+}
+
+function componentOrder(a, b) {
+  if (a === '*') return -1;
+  if (b === '*') return 1;
+  return a.localeCompare(b);
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
 export function createMaintainabilityDriftDetector(opts = {}) {
   const fs = opts.fs ?? nodeFs;
   const cwd = opts.cwd ?? process.cwd();

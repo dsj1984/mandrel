@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { createMaintainabilityDriftDetector } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js';
+import {
+  createMaintainabilityDriftDetector,
+  detectComponentRegressions,
+} from '../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js';
 
 const CWD = path.join(path.sep, 'repo');
 const BASELINE_PATH = path.join(CWD, '.agents/state/wave-mi-snapshot.json');
@@ -114,5 +117,56 @@ describe('maintainability-drift detector', () => {
     detector.loadBaseline();
     const bullets = await detector.detect();
     assert.deepEqual(bullets, []);
+  });
+});
+
+describe('maintainability detectComponentRegressions (Task #1919)', () => {
+  it('emits per-component bullets that name the failing component', () => {
+    const bullets = detectComponentRegressions({
+      rollup: {
+        '*': { maintainability: 75 },
+        worker: { maintainability: 42 },
+      },
+      gateConfig: {
+        components: { worker: ['src/worker/**'] },
+        floors: {
+          '*': { maintainability: 60 },
+          worker: { maintainability: 50 },
+        },
+      },
+    });
+    assert.deepEqual(bullets, [
+      '📉 maintainability: worker maintainability 42 < floor 50',
+    ]);
+  });
+
+  it('does not report `*` when only a component-scoped floor was breached', () => {
+    const bullets = detectComponentRegressions({
+      rollup: {
+        '*': { maintainability: 80 },
+        worker: { maintainability: 45 },
+      },
+      gateConfig: {
+        components: { worker: ['src/worker/**'] },
+        floors: {
+          '*': { maintainability: 60 },
+          worker: { maintainability: 50 },
+        },
+      },
+    });
+    assert.equal(bullets.length, 1);
+    assert.match(bullets[0], /^📉 maintainability: worker/);
+  });
+
+  it('returns no bullets when every component passes', () => {
+    const bullets = detectComponentRegressions({
+      rollup: { '*': { maintainability: 80 } },
+      gateConfig: { floors: { '*': { maintainability: 60 } } },
+    });
+    assert.deepEqual(bullets, []);
+  });
+
+  it('tolerates missing rollup / floors gracefully', () => {
+    assert.deepEqual(detectComponentRegressions({}), []);
   });
 });

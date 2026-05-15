@@ -1,0 +1,14 @@
+{
+  "$schema": ".agents/schemas/baselines/mutation.schema.json",
+  "kernelVersion": "1.0.0",
+  "generatedAt": "2026-05-15T00:00:00.000Z",
+  "rollup": {
+    "*": {
+      "score": 0,
+      "killed": 0,
+      "survived": 0,
+      "noCoverage": 0
+    }
+  },
+  "rows": []
+}

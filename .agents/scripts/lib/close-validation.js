@@ -241,6 +241,18 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
     },
     ...buildMutationGateEntry(agentSettings),
+    {
+      // Story #1912 / Task #1917 — unified floor + tolerance + schema gate.
+      // Runs IN ADDITION to the per-kind regression checks above; the
+      // redundancy is intentional for this Epic and collapses to a single
+      // gate in follow-up Epic #1943. `check-baselines.js` self-skips
+      // gates whose `enabled === false` is configured, so this is safe to
+      // register unconditionally.
+      name: 'check-baselines',
+      cmd: 'node',
+      args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
+      hint: 'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.',
+    },
   ];
 }
 

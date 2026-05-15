@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { createCrapDriftDetector } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
+import {
+  createCrapDriftDetector,
+  detectComponentRegressions,
+} from '../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
 
 const CWD = path.join(path.sep, 'repo');
 const BASELINE_PATH = path.join(CWD, '.agents/state/wave-crap-snapshot.json');
@@ -238,5 +241,51 @@ describe('crap-drift detector', () => {
     });
     const bullets = await detector.detect();
     assert.deepEqual(bullets, []);
+  });
+});
+
+describe('crap detectComponentRegressions (Task #1919)', () => {
+  it('emits per-component bullets that name the failing component', () => {
+    const bullets = detectComponentRegressions({
+      rollup: {
+        '*': { p95: 5, max: 8 },
+        api: { p95: 9.2, max: 12 },
+      },
+      gateConfig: {
+        components: { api: ['src/api/**'] },
+        floors: { '*': { p95: 6 }, api: { p95: 8 } },
+      },
+    });
+    assert.deepEqual(bullets, ['🧨 crap: api p95 9.20 > floor 8']);
+  });
+
+  it('does not report `*` when only a component-scoped floor was breached', () => {
+    const bullets = detectComponentRegressions({
+      rollup: {
+        '*': { p95: 5 },
+        api: { p95: 9 },
+      },
+      gateConfig: {
+        components: { api: ['src/api/**'] },
+        floors: { '*': { p95: 10 }, api: { p95: 8 } },
+      },
+    });
+    assert.deepEqual(bullets, ['🧨 crap: api p95 9 > floor 8']);
+  });
+
+  it('returns no bullets when every component passes its floor', () => {
+    const bullets = detectComponentRegressions({
+      rollup: { '*': { p95: 5 }, api: { p95: 7 } },
+      gateConfig: { floors: { '*': { p95: 10 }, api: { p95: 8 } } },
+    });
+    assert.deepEqual(bullets, []);
+  });
+
+  it('tolerates missing rollup / floors gracefully', () => {
+    assert.deepEqual(detectComponentRegressions({}), []);
+    assert.deepEqual(
+      detectComponentRegressions({ rollup: {}, gateConfig: {} }),
+      [],
+    );
   });
 });

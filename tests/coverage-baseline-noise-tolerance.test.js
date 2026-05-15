@@ -199,7 +199,61 @@ test('readBaseline — parses JSON when file exists', () => {
   });
 });
 
-test('writeBaseline — strips denominators and sorts keys', () => {
+test('readBaseline — projects an envelope-shape baseline back to the flat map', () => {
+  const envelopeJson = JSON.stringify({
+    $schema: '.agents/schemas/baselines/coverage.schema.json',
+    kernelVersion: '1.0.0',
+    generatedAt: '2026-05-15T00:00:00Z',
+    rollup: { '*': { lines: 90, branches: 80, functions: 100 } },
+    rows: [
+      { path: 'src/a.js', lines: 91, branches: 80, functions: 100 },
+      { path: 'src/b.js', lines: 70, branches: 50, functions: 80 },
+    ],
+  });
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => envelopeJson,
+  };
+  const result = readBaseline('/cwd', fakeFs);
+  assert.deepStrictEqual(result, {
+    'src/a.js': { lines: 91, branches: 80, functions: 100 },
+    'src/b.js': { lines: 70, branches: 50, functions: 80 },
+  });
+});
+
+test('readBaseline — skips envelope rows with non-string path', () => {
+  const envelopeJson = JSON.stringify({
+    $schema: '.agents/schemas/baselines/coverage.schema.json',
+    kernelVersion: '1.0.0',
+    generatedAt: '2026-05-15T00:00:00Z',
+    rollup: { '*': { lines: 90, branches: 80, functions: 100 } },
+    rows: [
+      { path: 'src/a.js', lines: 91, branches: 80, functions: 100 },
+      { path: 123, lines: 0, branches: 0, functions: 0 },
+      null,
+    ],
+  });
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => envelopeJson,
+  };
+  const result = readBaseline('/cwd', fakeFs);
+  assert.deepStrictEqual(result, {
+    'src/a.js': { lines: 91, branches: 80, functions: 100 },
+  });
+});
+
+test('readBaseline — passes through a non-envelope JSON value (array)', () => {
+  const payload = JSON.stringify(['a', 'b']);
+  const fakeFs = {
+    existsSync: () => true,
+    readFileSync: () => payload,
+  };
+  // Array shape is preserved (legacy / corrupted baseline — pass through).
+  assert.deepStrictEqual(readBaseline('/cwd', fakeFs), ['a', 'b']);
+});
+
+test('writeBaseline — strips denominators and produces an envelope with sorted rows', () => {
   let written = null;
   const fakeFs = {
     mkdirSync: () => {},
@@ -218,13 +272,18 @@ test('writeBaseline — strips denominators and sorts keys', () => {
   };
   writeBaseline('/cwd', baseline, fakeFs);
   const parsed = JSON.parse(written);
-  assert.deepStrictEqual(Object.keys(parsed), ['a.js', 'z.js']);
-  assert.deepStrictEqual(parsed['z.js'], {
-    lines: 90,
-    branches: 80,
-    functions: 100,
-  });
-  assert.strictEqual('denominators' in parsed['z.js'], false);
+  // Story #1891: envelope-shape baseline. The reader projects it back to
+  // the flat `{ file: { ... } }` shape for legacy consumers.
+  assert.ok(Array.isArray(parsed.rows));
+  assert.deepStrictEqual(
+    parsed.rows.map((r) => r.path),
+    ['a.js', 'z.js'],
+  );
+  const zRow = parsed.rows.find((r) => r.path === 'z.js');
+  assert.strictEqual(zRow.lines, 90);
+  assert.strictEqual(zRow.branches, 80);
+  assert.strictEqual(zRow.functions, 100);
+  assert.strictEqual('denominators' in zRow, false);
 });
 
 test('compareScores — newFiles array populated when current has files missing from baseline', () => {

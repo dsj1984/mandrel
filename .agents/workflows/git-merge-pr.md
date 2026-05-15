@@ -148,10 +148,40 @@ Exit code 0 means every check passed. On failure:
    git push origin [HEAD_BRANCH]
    ```
 
-6. Re-run the gate until it exits 0 before continuing to Step 4.
+6. Re-run the gate until it exits 0 before continuing to Step 3.5.
 
 > If a failure cannot be resolved after exhausting reasonable remediation
 > attempts, **STOP** and escalate to the operator with a detailed summary.
+
+---
+
+## Step 3.5 — Unified Baselines Gate (`check-baselines`)
+
+Story #1912 / Task #1917 introduced a thin unified floor + tolerance +
+schema gate that runs **in addition to** the per-kind regression checks
+folded into the Step 3 wrapper. The two are deliberately redundant for
+this Epic — the per-kind CLIs own regression comparison (head vs.
+`epic-ref` via `git show`), while `check-baselines.js` owns the absolute
+floor, schema validation, and kernel-mismatch surface. The redundancy
+collapses to a single gate in follow-up Epic #1943.
+
+```powershell
+node .agents/scripts/check-baselines.js --format text
+```
+
+Exit codes:
+
+- `0` — every enabled gate's floors are met and no schema errors.
+- `1` — any floor breach. Inspect the JSON output
+  (`--format json`, the default) to see which kind / component / axis
+  fell below floor.
+- `2` — any baseline failed schema validation. Regenerate the offending
+  baseline through its per-kind update script.
+- `3` — config resolution error (typically a malformed `.agentrc.json`).
+
+Treat any non-zero exit as a hard merge block. The per-kind regression
+checks (Step 3) and this unified gate must **both** pass before
+proceeding to Step 4.
 
 ---
 

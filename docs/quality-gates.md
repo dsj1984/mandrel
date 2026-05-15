@@ -21,6 +21,12 @@ The configuration knobs that drive these gates live in
 file is the runbook side — what the gate does, when it fires, and how to
 bootstrap or refresh it.
 
+The **baseline envelope, per-kind shapes, component model, writer/reader
+contract, and floor-override path** are documented in a dedicated
+reference — [`docs/baselines.md`](baselines.md). Each per-gate section
+below cross-links back to that reference; consult it once and reuse the
+context as you read through any individual gate.
+
 ---
 
 ## Concurrent close safety
@@ -61,6 +67,9 @@ flakes the pin is preventing.
 ---
 
 ## Coverage baseline gate
+
+> Baseline envelope, axes, and component model: see
+> [`docs/baselines.md`](baselines.md).
 
 `npm run test:coverage` drives
 [`.agents/scripts/run-coverage.js`](../.agents/scripts/run-coverage.js),
@@ -235,6 +244,9 @@ the trace.
 
 ## Lint baseline ratchet
 
+> Baseline envelope, axes, and component model: see
+> [`docs/baselines.md`](baselines.md).
+
 The lint baseline engine enforces zero-deterioration during Epic
 workflows. Integrations fail if new lint warnings are introduced, and the
 baseline automatically tightens when the codebase improves.
@@ -255,6 +267,9 @@ this was removed in 5.42; the operator is now the gate.
 
 ## Maintainability ratchet
 
+> Baseline envelope, axes, and component model: see
+> [`docs/baselines.md`](baselines.md).
+
 A per-file maintainability scoring engine computes composite scores based
 on cyclomatic complexity, file length, and dependency counts. The
 `baselines/maintainability.json` baseline prevents score degradation
@@ -270,6 +285,9 @@ directories — defaults to `["src"]`, accepts `{ "append": [...] }` /
 ---
 
 ## CRAP gate (v5.22.0+) — Consumer onboarding
+
+> Baseline envelope, axes, and component model: see
+> [`docs/baselines.md`](baselines.md).
 
 A sibling per-method gate alongside the maintainability ratchet. CRAP
 scores each JavaScript method via `c² · (1 − cov)³ + c`, combining

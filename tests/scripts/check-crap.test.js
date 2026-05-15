@@ -71,4 +71,18 @@ describe('check-crap — floor policy semantics', () => {
     assert.equal(violations[0].method, 'expensive');
     assert.equal(passed.length, 2);
   });
+
+  // Story #1895: canonical envelope rows key on `path` (not `file`). The
+  // floor policy MUST accept either field so a consumer that has already
+  // migrated off the legacy shape keeps working.
+  it('canonical envelope: rows keyed on `path` flow through unchanged', () => {
+    const { violations } = applyFloorPolicy(
+      [{ path: 'lib/legacy.js', method: 'doWork', score: 25.5 }],
+      floors,
+      'crap',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].method, 'doWork');
+    assert.equal(violations[0].file, 'lib/legacy.js');
+  });
 });
