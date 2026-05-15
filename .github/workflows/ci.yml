@@ -52,9 +52,11 @@ jobs:
           extra_args: --debug --only-verified
 
       - name: Lint and Format
-        run: |
-          npm run lint
-          npm run format:check
+        # Story #1829: `npm run lint` now invokes `biome ci .` (lint +
+        # format check + import order) in parallel with `markdownlint-cli2`
+        # via .agents/scripts/run-lint.js, so the prior separate
+        # `npm run format:check` step is folded in and removed.
+        run: npm run lint
 
       - name: Maintainability Check
         # Story #1394 (Epic #1386): the gate CLIs now default --changed-since

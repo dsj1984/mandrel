@@ -1,12 +1,11 @@
 {
   "**/*.js": [
-    "biome check --write",
-    "biome format --write"
+    "biome check --write"
   ],
   "**/!(package-lock).{json,jsonc,json5}": [
     "biome format --write"
   ],
   "{.agents/**/,}*.md": [
-    "markdownlint --fix"
+    "markdownlint-cli2 --fix"
   ]
 }

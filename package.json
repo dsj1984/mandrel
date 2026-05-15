@@ -10,10 +10,10 @@
     "test:coverage": "node .agents/scripts/run-coverage.js",
     "coverage:check": "node .agents/scripts/check-coverage-baseline.js",
     "coverage:update": "node .agents/scripts/update-coverage-baseline.js",
-    "lint:md": "markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
-    "lint": "biome lint . && markdownlint \".agents/**/*.md\" \"*.md\" --ignore node_modules",
+    "lint:md": "markdownlint-cli2 \".agents/**/*.md\" \"*.md\" \"!node_modules/**\" \"!.worktrees/**\"",
+    "lint": "node .agents/scripts/run-lint.js",
     "format": "biome format --write .",
-    "format:check": "biome format .",
+    "format:check": "biome ci .",
     "maintainability:check": "node .agents/scripts/check-maintainability.js",
     "maintainability:update": "node .agents/scripts/update-maintainability-baseline.js",
     "crap:check": "node .agents/scripts/check-crap.js",
@@ -46,7 +46,7 @@
     "chokidar": "^5.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.4",
-    "markdownlint-cli": "^0.48.0",
+    "markdownlint-cli2": "^0.18.1",
     "memfs": "^4.57.2"
   },
   "dependencies": {

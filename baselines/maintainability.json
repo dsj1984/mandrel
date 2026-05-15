@@ -293,6 +293,7 @@
   ".agents/scripts/retrofit-task-bodies.js": 85.331,
   ".agents/scripts/run-audit-suite.js": 107.591,
   ".agents/scripts/run-coverage.js": 95.463,
+  ".agents/scripts/run-lint.js": 114.954,
   ".agents/scripts/run-tests.js": 115.799,
   ".agents/scripts/select-audits.js": 86.597,
   ".agents/scripts/signals-view.js": 92.43,
