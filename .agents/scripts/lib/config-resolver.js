@@ -112,7 +112,10 @@ function applyDefaults(raw) {
   // block doesn't suppress notify.js's comment/webhook channels (which read
   // the shim directly and treat an empty allowlist as "channel off").
   const github = raw.github
-    ? { ...raw.github, notifications: getGitHub({ github: raw.github }).notifications }
+    ? {
+        ...raw.github,
+        notifications: getGitHub({ github: raw.github }).notifications,
+      }
     : null;
   return {
     project,
