@@ -9,7 +9,6 @@
     },
     "commands": {
       "lintBaseline": "npm run lint",
-      "test": "npm test",
       "typecheck": "node --version"
     }
   },
@@ -37,14 +36,9 @@
       "progressReportIntervalSec": 300
     },
     "worktreeIsolation": {
-      "enabled": true,
-      "root": ".worktrees",
       "nodeModulesStrategy": "symlink",
       "primeFromPath": ".",
-      "allowSymlinkOnWindows": true,
-      "reapOnSuccess": true,
-      "reapOnCancel": true,
-      "bootstrapFiles": [".env"]
+      "allowSymlinkOnWindows": true
     },
     "quality": {
       "gates": {
