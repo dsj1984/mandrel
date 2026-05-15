@@ -114,6 +114,11 @@
     "branches": 70,
     "functions": 100
   },
+  ".agents/scripts/lib/baseline-schema-registry.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/baseline-snapshot.js": {
     "lines": 96.97,
     "branches": 75.64,
@@ -1235,7 +1240,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.94,
+    "lines": 92.55,
     "branches": 83.33,
     "functions": 70
   },

@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/lint.schema.json",
+  "title": "LintBaseline",
+  "description": "Per-kind baseline schema for the lint gate. Extends the shared baseline-envelope contract.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["errorCount", "warningCount"],
+        "additionalProperties": false,
+        "properties": {
+          "errorCount": { "type": "integer", "minimum": 0 },
+          "warningCount": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["errorCount", "warningCount"],
+          "additionalProperties": false,
+          "properties": {
+            "errorCount": { "type": "integer", "minimum": 0 },
+            "warningCount": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "errorCount", "warningCount"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "errorCount": { "type": "integer", "minimum": 0 },
+          "warningCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

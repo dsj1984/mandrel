@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import {
+  BASELINE_SCHEMA_FILES,
+  BASELINE_SCHEMAS_DIR,
+  buildBaselineSchemaAjv,
+} from '../.agents/scripts/lib/config-schema-shared.js';
 import { AGENTRC_SCHEMA } from '../.agents/scripts/lib/config-settings-schema.js';
 
 // ---------------------------------------------------------------------------
@@ -301,6 +306,43 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
         delivery: { worktreeIsolation: { enabled: true } },
       },
       'conditional root required when enabled=true',
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Baseline schema registry drift test (Story #1888).
+//
+// The shared registry in config-schema-shared.js lists every baseline schema
+// that AJV consumers should be able to compile. The on-disk directory under
+// .agents/schemas/baselines/ is the second source of truth. Whenever a new
+// per-kind schema lands on disk without an entry in BASELINE_KIND_SCHEMA_FILES,
+// the registry stops covering it — these tests catch that drift loudly.
+// ---------------------------------------------------------------------------
+
+describe('baseline schema registry — drift vs .agents/schemas/baselines/', () => {
+  it('every registered schema id loads through buildBaselineSchemaAjv without throwing', () => {
+    const ajv = buildBaselineSchemaAjv();
+    for (const filename of BASELINE_SCHEMA_FILES) {
+      const schemaObj = ajv.getSchema(filename);
+      assert.ok(
+        schemaObj,
+        `${filename} is not reachable from the shared AJV registry`,
+      );
+    }
+  });
+
+  it('registry list matches the on-disk *.schema.json contents', () => {
+    const onDisk = readdirSync(BASELINE_SCHEMAS_DIR)
+      .filter((name) => name.endsWith('.schema.json'))
+      .sort();
+    const registered = [...BASELINE_SCHEMA_FILES].sort();
+    assert.deepEqual(
+      onDisk,
+      registered,
+      'Baseline schema directory drifted from BASELINE_SCHEMA_FILES. ' +
+        'When a new schema lands under .agents/schemas/baselines/, add it ' +
+        'to BASELINE_KIND_SCHEMA_FILES in config-schema-shared.js.',
     );
   });
 });

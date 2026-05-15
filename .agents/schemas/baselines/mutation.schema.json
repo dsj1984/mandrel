@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/mutation.schema.json",
+  "title": "MutationBaseline",
+  "description": "Per-kind baseline schema for the mutation-testing gate. Extends the shared baseline-envelope contract.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["score", "killed", "survived", "noCoverage"],
+        "additionalProperties": false,
+        "properties": {
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "killed": { "type": "integer", "minimum": 0 },
+          "survived": { "type": "integer", "minimum": 0 },
+          "noCoverage": { "type": "integer", "minimum": 0 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["score", "killed", "survived", "noCoverage"],
+          "additionalProperties": false,
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "killed": { "type": "integer", "minimum": 0 },
+            "survived": { "type": "integer", "minimum": 0 },
+            "noCoverage": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "score", "killed", "survived"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "killed": { "type": "integer", "minimum": 0 },
+          "survived": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
