@@ -558,9 +558,7 @@ describe('lib/wave-runner/tick — extractValidStoryEntries (predicate)', () => 
     {
       name: 'guard: non-integer wave (string)',
       spec: {
-        features: [
-          { slug: 'f1', stories: [{ slug: 'a', wave: 'one' }] },
-        ],
+        features: [{ slug: 'f1', stories: [{ slug: 'a', wave: 'one' }] }],
       },
       mapping: goodMapping,
       expected: [],

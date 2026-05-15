@@ -75,7 +75,13 @@ function rollUpStoryFocus(storyGroups) {
  * @param {number|string} args.b
  * @returns {boolean}
  */
-export function isFocusOverlapEdgeEligible({ focusA, focusB, reachable, a, b }) {
+export function isFocusOverlapEdgeEligible({
+  focusA,
+  focusB,
+  reachable,
+  a,
+  b,
+}) {
   if (!hasUsableFocus(focusA)) return false;
   if (!hasUsableFocus(focusB)) return false;
   if (!focusBagsOverlap(focusA, focusB)) return false;

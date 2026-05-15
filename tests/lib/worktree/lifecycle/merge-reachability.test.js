@@ -150,12 +150,7 @@ describe('hasMergeCommitForStory', () => {
 describe('checkMergeReachability', () => {
   it('propagates resolveHeadSha failure as safe:false', async () => {
     const ctx = fakeCtx([{ status: 128, stderr: 'fatal: HEAD missing' }]);
-    const out = await checkMergeReachability(
-      ctx,
-      '/wt',
-      'story-42',
-      'epic/1',
-    );
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.deepEqual(out, {
       safe: false,
       reason: 'rev-parse-failed: fatal: HEAD missing',
@@ -167,12 +162,7 @@ describe('checkMergeReachability', () => {
       { status: 0, stdout: 'abc1234' }, // rev-parse HEAD
       { status: 0 }, // merge-base --is-ancestor
     ]);
-    const out = await checkMergeReachability(
-      ctx,
-      '/wt',
-      'story-42',
-      'epic/1',
-    );
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.deepEqual(out, {
       safe: true,
       reason: 'head-reachable-from-epic',
@@ -184,12 +174,7 @@ describe('checkMergeReachability', () => {
       { status: 0, stdout: 'abc1234' },
       { status: 128, stderr: 'fatal: bad ref' },
     ]);
-    const out = await checkMergeReachability(
-      ctx,
-      '/wt',
-      'story-42',
-      'epic/1',
-    );
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.equal(out.safe, false);
     assert.match(out.reason, /^merge-check-failed: head=abc1234 epic=epic\/1/);
     assert.match(out.reason, /fatal: bad ref/);
@@ -201,12 +186,7 @@ describe('checkMergeReachability', () => {
       { status: 1 }, // ancestor: not ancestor
       { status: 0, stdout: 'deadbeef' }, // grep hits
     ]);
-    const out = await checkMergeReachability(
-      ctx,
-      '/wt',
-      'story-42',
-      'epic/1',
-    );
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.deepEqual(out, {
       safe: true,
       reason: 'merge-commit-reachable',
@@ -219,12 +199,7 @@ describe('checkMergeReachability', () => {
       { status: 1 }, // ancestor: not ancestor
       { status: 0, stdout: '' }, // grep: no match
     ]);
-    const out = await checkMergeReachability(
-      ctx,
-      '/wt',
-      'story-42',
-      'epic/1',
-    );
+    const out = await checkMergeReachability(ctx, '/wt', 'story-42', 'epic/1');
     assert.deepEqual(out, {
       safe: false,
       reason: 'unmerged-commits: head=abc1234 epic=epic/1',
@@ -232,10 +207,7 @@ describe('checkMergeReachability', () => {
   });
 
   it('reports unmerged-commits without spawning grep for non-story branches', async () => {
-    const ctx = fakeCtx([
-      { status: 0, stdout: 'abc1234' },
-      { status: 1 },
-    ]);
+    const ctx = fakeCtx([{ status: 0, stdout: 'abc1234' }, { status: 1 }]);
     const out = await checkMergeReachability(
       ctx,
       '/wt',
