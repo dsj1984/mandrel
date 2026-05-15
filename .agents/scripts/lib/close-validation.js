@@ -17,6 +17,7 @@
 
 import { spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
+import { buildInProcessBaselineGate } from './close-validation/in-process-baseline-gate.js';
 import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
@@ -34,6 +35,11 @@ import {
  * @property {string}   cmd   - Executable to run.
  * @property {string[]} args  - Arguments passed to `cmd`.
  * @property {string}   [hint] - Remediation hint shown on failure.
+ * @property {(cmd: string, args: string[], opts: { cwd: string, gateName?: string, log?: (m: string) => void, signal?: AbortSignal }) => Promise<{ status: number }> | { status: number }} [run]
+ *   - Optional in-process runner. Story #1973: when present, the gate
+ *     executes via this callable instead of spawning `cmd`/`args` through
+ *     the default runner — used for per-kind baseline gates that import
+ *     `compare(head, base)` directly.
  */
 
 /**
@@ -223,9 +229,22 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: buildFormatHint(formatWriteString),
     },
     {
+      // Story #1973 / Task #1984 — in-process gate. The legacy
+      // `check-maintainability.js` CLI was the regression-compare arm for
+      // the maintainability baseline; that compare now runs in-process via
+      // the per-kind module's `compare(head, base)` import. The cmd/args
+      // are retained as a no-op shape so the evidence config-hash and any
+      // call site introspecting `gate.cmd`/`gate.args` keep working —
+      // `runCloseValidation` prefers `gate.run` when present and never
+      // spawns the CLI for this gate.
       name: 'check-maintainability',
       cmd: 'node',
       args: ['.agents/scripts/check-maintainability.js', ...epicRefArgs],
+      run: buildInProcessBaselineGate({
+        kind: 'maintainability',
+        epicBranch,
+        agentSettings,
+      }),
       hint: 'Run `npm run maintainability:update` to refresh the baseline — the refreshed baseline MUST be committed on the story branch.',
     },
     {
@@ -235,12 +254,19 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
     },
     {
+      // Story #1973 / Task #1984 — in-process gate (see check-maintainability
+      // above for the rationale).
       name: 'check-crap',
       cmd: 'node',
       args: ['.agents/scripts/check-crap.js', ...epicRefArgs],
+      run: buildInProcessBaselineGate({
+        kind: 'crap',
+        epicBranch,
+        agentSettings,
+      }),
       hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
     },
-    ...buildMutationGateEntry(agentSettings),
+    ...buildMutationGateEntry(agentSettings, epicBranch),
     {
       // Story #1912 / Task #1917 — unified floor + tolerance + schema gate.
       // Runs IN ADDITION to the per-kind regression checks above; the
@@ -265,9 +291,10 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
  * spawn-and-detect cost on every close.
  *
  * @param {object|undefined} agentSettings
+ * @param {string|undefined} epicBranch
  * @returns {Gate[]}
  */
-function buildMutationGateEntry(agentSettings) {
+function buildMutationGateEntry(agentSettings, epicBranch) {
   try {
     const quality = getQuality({ agentSettings });
     const mutation = quality.gates?.mutation;
@@ -278,9 +305,18 @@ function buildMutationGateEntry(agentSettings) {
   }
   return [
     {
+      // Story #1973 / Task #1984 — in-process gate. See `check-maintainability`
+      // in `buildDefaultGates` for the migration rationale; the cmd/args
+      // legacy shape is preserved so existing call sites that introspect
+      // `gate.cmd` / `gate.args` keep working unchanged.
       name: 'check-mutation',
       cmd: 'node',
       args: ['.agents/scripts/check-mutation.js'],
+      run: buildInProcessBaselineGate({
+        kind: 'mutation',
+        epicBranch,
+        agentSettings,
+      }),
       hint: 'Mutation gate breached. Add tests that kill the surviving mutants, or — when the regression is intentional and justified — refresh the baseline with `node .agents/scripts/update-mutation-baseline.js` and commit it on the story branch with a `baseline-refresh:` tagged subject. Self-skips when no Stryker config is detected (`npx stryker init`).',
     },
   ];
@@ -522,13 +558,24 @@ export async function runCloseValidation({
     }
   };
 
-  /** Run a single gate through the injected runner; returns `{ status }`. */
+  /**
+   * Run a single gate. When `gate.run` is a function the gate executes
+   * **in process** (Story #1973 / Task #1984 — per-kind baseline gates
+   * removed their `child_process.spawn(node check-<kind>.js)` arm and
+   * call `compare(head, base)` directly). The `run` callable receives
+   * the same `(cmd, args, opts)` argv shape as `runner` so it slots into
+   * the existing contract without churn at the runner boundary.
+   * Otherwise the supplied `runner` is used (default: spawn).
+   *
+   * @returns {Promise<{ status: number }>}
+   */
   const dispatchGate = async (gate, signal) => {
     log(
       `[close-validation] ▶ ${gate.name}${worktreePath ? ` (cwd=${worktreePath})` : ''}`,
     );
     if (typeof onGateStart === 'function') onGateStart(gate);
-    const result = await runner(gate.cmd, gate.args, {
+    const dispatcher = typeof gate.run === 'function' ? gate.run : runner;
+    const result = await dispatcher(gate.cmd, gate.args, {
       cwd: spawnCwd,
       gateName: gate.name,
       log,
