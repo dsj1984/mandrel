@@ -44,13 +44,9 @@ const require = createRequire(import.meta.url);
 const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
-// Resolve c8's CLI entry directly so we can spawn it via `node ...`
-// (process.execPath) instead of `npx c8 …`. Bypassing npx removes the
-// last .cmd-shim invocation in this script and lets us run with
-// shell:false — closing the CWE-78 argv-injection vector that shell:true
-// would otherwise leave open if external input ever flowed into argv.
-// Resolved via the package.json (which is always in `exports`) +
-// path.join because `bin/c8.js` is not exported from c8's package.json.
+// Spawn c8 via `node <path>` directly (shell:false) instead of `npx c8`,
+// which would invoke npx.cmd on Windows. Closes the CWE-78 vector that
+// shell:true with .cmd shims would otherwise leave open.
 const C8_CLI = path.join(
   path.dirname(require.resolve('c8/package.json')),
   'bin',
