@@ -3808,6 +3808,102 @@
       "startLine": 194
     },
     {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "seedEpicSlug",
+      "startLine": 244
+    },
+    {
+      "crap": 1.0026241338308253,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "buildDryRunResult",
+      "startLine": 257
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "resolveParentId",
+      "startLine": 296
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "renderDependsOnFooter",
+      "startLine": 318
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyCreate",
+      "startLine": 350
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyUpdate",
+      "startLine": 393
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyClose",
+      "startLine": 429
+    },
+    {
+      "crap": 8,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "applyRelink",
+      "startLine": 453
+    },
+    {
+      "crap": 14.000128873181557,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "apply",
+      "startLine": 507
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-9>",
+      "startLine": 543
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-10>",
+      "startLine": 550
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-11>",
+      "startLine": 560
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "<anon method-12>",
+      "startLine": 572
+    },
+    {
+      "crap": 13.001201923076923,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "projectStateForWrite",
+      "startLine": 638
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "collectStructuralEdges",
+      "startLine": 699
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
+      "method": "topoSortCreates",
+      "startLine": 732
+    },
+    {
       "crap": 4,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
       "method": "labelsEqual",
@@ -3826,7 +3922,7 @@
       "startLine": 129
     },
     {
-      "crap": 12.378265625,
+      "crap": 11.121,
       "file": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
       "method": "fieldChanges",
       "startLine": 143
@@ -7538,36 +7634,6 @@
       "file": ".agents/scripts/signals-view.js",
       "method": "<anon method-3>",
       "startLine": 299
-    },
-    {
-      "crap": 375.37185158400007,
-      "file": ".agents/scripts/single-story-close.js",
-      "method": "runSingleStoryClose",
-      "startLine": 68
-    },
-    {
-      "crap": 11.635180467691642,
-      "file": ".agents/scripts/single-story-close.js",
-      "method": "ensurePullRequest",
-      "startLine": 306
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/single-story-close.js",
-      "method": "parsePrNumber",
-      "startLine": 388
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/single-story-close.js",
-      "method": "enableAutoMerge",
-      "startLine": 408
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/single-story-close.js",
-      "method": "defaultGhAutoMergeRunner",
-      "startLine": 432
     },
     {
       "crap": 2,
