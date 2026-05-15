@@ -57,9 +57,8 @@ import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { createProvider } from './lib/provider-factory.js';
-import { dispatchStoryMergedNotify } from './lib/single-story/story-merged-notify.js';
+import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
-import { notify } from './notify.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
@@ -236,33 +235,17 @@ export async function runSingleStoryClose({
     }
   }
 
-  // Step 4: flip Story label to agent::done. The GitHub issue stays open
-  // until the operator merges the PR (which fires the `Closes #<id>`
-  // auto-close).
-  let labelFlipped = false;
-  try {
-    const labels = (story.labels || [])
-      .filter((l) => !l.startsWith('agent::'))
-      .concat('agent::done');
-    await provider.updateTicket(storyId, { labels });
-    labelFlipped = true;
-    progress('LABELS', `🏷️  Story #${storyId} → agent::done`);
-  } catch (err) {
-    Logger.error(
-      `[single-story-close] ⚠️ Failed to flip Story labels: ${err?.message ?? err}`,
-    );
-  }
-
-  await dispatchStoryMergedNotify({
-    notifyFn: injectedNotify ?? notify,
-    labelFlipped,
+  // Step 4: flip Story label to agent::done and fire story-merged notify.
+  await flipLabelAndNotify({
+    provider,
+    notifyFn: injectedNotify,
     storyId,
     story,
     prUrl,
     autoMergeEnabled,
     autoMergeReason,
     orchestration,
-    provider,
+    progress,
   });
 
   // Step 5: reap worktree. The branch is still alive on origin so the PR
