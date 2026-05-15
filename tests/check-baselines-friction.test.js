@@ -108,9 +108,7 @@ describe('check-baselines — friction emission (Task #1976)', () => {
       path.join(root, 'baselines', 'coverage.json'),
       coverageEnvelope({
         rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
-        rows: [
-          { path: 'src/a.js', lines: 70, branches: 60, functions: 70 },
-        ],
+        rows: [{ path: 'src/a.js', lines: 70, branches: 60, functions: 70 }],
       }),
     );
     writeJson(
@@ -125,9 +123,7 @@ describe('check-baselines — friction emission (Task #1976)', () => {
     // version that the head will regress against.
     const baseCoverage = JSON.stringify(
       coverageEnvelope({
-        rows: [
-          { path: 'src/a.js', lines: 95, branches: 95, functions: 95 },
-        ],
+        rows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
       }),
     );
     const baseLint = JSON.stringify(

@@ -42,7 +42,14 @@
 // friction directly — the dispatcher is the single emission site.
 
 import { checkKernelVersion, getKindModule } from './lib/baselines/kernel.js';
-import { aggregate as aggregateExitCodes, EXIT_CONFIG, EXIT_FLOOR, EXIT_PASS, EXIT_REGRESSION, EXIT_SCHEMA } from './lib/baselines/exit-codes.js';
+import {
+  aggregate as aggregateExitCodes,
+  EXIT_CONFIG,
+  EXIT_FLOOR,
+  EXIT_PASS,
+  EXIT_REGRESSION,
+  EXIT_SCHEMA,
+} from './lib/baselines/exit-codes.js';
 import { readBaseFromGit } from './lib/baselines/git-base.js';
 import * as reader from './lib/baselines/reader.js';
 import { resolveScope } from './lib/baselines/scope.js';
@@ -232,7 +239,8 @@ export function applyFloors(kind, rollup, floors) {
  */
 function baselineRelativePath(kind, gateBlock) {
   const configured =
-    typeof gateBlock?.baselinePath === 'string' && gateBlock.baselinePath.length > 0
+    typeof gateBlock?.baselinePath === 'string' &&
+    gateBlock.baselinePath.length > 0
       ? gateBlock.baselinePath
       : null;
   return configured ?? DEFAULT_BASELINE_PATHS[kind];
@@ -275,27 +283,57 @@ function resolveDispatchScope({ kind, quality, env }) {
  */
 async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
   if (scope.mode !== 'diff' || !scope.ref) {
-    return { regressions: [], improvements: [], unchanged: [], baseRef: null, baseRead: false };
+    return {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      baseRef: null,
+      baseRead: false,
+    };
   }
   const rel = baselineRelativePath(kind, gateBlock);
   let raw;
   try {
     raw = readBaseFromGit(scope.ref, rel, { cwd });
   } catch {
-    return { regressions: [], improvements: [], unchanged: [], baseRef: scope.ref, baseRead: false };
+    return {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      baseRef: scope.ref,
+      baseRead: false,
+    };
   }
   if (raw === null) {
-    return { regressions: [], improvements: [], unchanged: [], baseRef: scope.ref, baseRead: false };
+    return {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      baseRef: scope.ref,
+      baseRead: false,
+    };
   }
   let basePayload;
   try {
     basePayload = JSON.parse(raw);
   } catch {
-    return { regressions: [], improvements: [], unchanged: [], baseRef: scope.ref, baseRead: false };
+    return {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      baseRef: scope.ref,
+      baseRead: false,
+    };
   }
   const kindModule = getKindModule(kind);
   if (typeof kindModule.compare !== 'function') {
-    return { regressions: [], improvements: [], unchanged: [], baseRef: scope.ref, baseRead: false };
+    return {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      baseRef: scope.ref,
+      baseRead: false,
+    };
   }
   // The head baseline was already loaded once by the caller via
   // `reader.load`; we receive only the rows we need to compare against.
@@ -342,7 +380,9 @@ async function evaluateKind({ kind, gateBlock, scope, cwd, configPath }) {
     try {
       const result = cmp.kindModule.compare(
         { rows: baseline.rows },
-        { rows: Array.isArray(cmp.basePayload.rows) ? cmp.basePayload.rows : [] },
+        {
+          rows: Array.isArray(cmp.basePayload.rows) ? cmp.basePayload.rows : [],
+        },
       );
       regressions = result?.regressions ?? [];
       improvements = result?.improvements ?? [];
@@ -425,9 +465,10 @@ async function emitGateFriction({ gateReport, schemaError, args }) {
       severity: 'floor',
       file: first?.component ?? null,
       method: first?.axis ?? null,
-      delta: typeof first?.value === 'number' && typeof first?.floor === 'number'
-        ? first.value - first.floor
-        : null,
+      delta:
+        typeof first?.value === 'number' && typeof first?.floor === 'number'
+          ? first.value - first.floor
+          : null,
     };
     emitted.push(ev);
     await emitFrictionSignal({
@@ -536,7 +577,11 @@ export function formatReport(report, format) {
  *
  * @param {{ argv?: string[], cwd?: string, env?: object }} [opts]
  */
-export async function runCheckBaselines({ argv, cwd = process.cwd(), env = process.env } = {}) {
+export async function runCheckBaselines({
+  argv,
+  cwd = process.cwd(),
+  env = process.env,
+} = {}) {
   const args = parseArgs(argv ?? []);
   if (args.help) {
     return {

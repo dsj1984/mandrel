@@ -85,7 +85,10 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
 
   it('PASS fixture exits 0', async () => {
     root = setupTmpRepo();
-    writeJson(path.join(root, 'baselines', 'coverage.json'), coverageEnvelope());
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope(),
+    );
     __setSpawnRunner({
       spawn: () => ({ status: 128, stdout: '', stderr: 'no base' }),
     });
@@ -206,9 +209,6 @@ describe('check-baselines — exit-code contract (Task #1975)', () => {
     // EXIT_REGRESSION (4) > EXIT_FLOOR (1) — aggregate(...) takes the max.
     assert.equal(res.exitCode, 4);
     assert.ok(res.report.totalBreaches > 0, 'floor breach also recorded');
-    assert.ok(
-      res.report.totalRegressions > 0,
-      'regression also recorded',
-    );
+    assert.ok(res.report.totalRegressions > 0, 'regression also recorded');
   });
 });
