@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/maintainability.schema.json",
+  "title": "MaintainabilityBaseline",
+  "description": "Per-kind baseline schema for the Maintainability Index (MI) gate. Extends the shared baseline-envelope contract.",
+  "allOf": [
+    { "$ref": "baseline-envelope.schema.json" }
+  ],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["min", "p50", "p95"],
+        "additionalProperties": false,
+        "properties": {
+          "min": { "type": "number" },
+          "p50": { "type": "number" },
+          "p95": { "type": "number" }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["min", "p50", "p95"],
+          "additionalProperties": false,
+          "properties": {
+            "min": { "type": "number" },
+            "p50": { "type": "number" },
+            "p95": { "type": "number" }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "mi"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "mi": { "type": "number" }
+        }
+      }
+    }
+  }
+}
