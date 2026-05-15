@@ -2,40 +2,51 @@
 /* node:coverage ignore file */
 
 /**
- * epic-close.js — Epic-level close entry point with preflight guard.
+ * epic-close.js — Epic-level close entry point.
  *
- * Wires the self-healing checks registry into the front of any Epic-close
- * flow. Runs `runChecks({ scope: 'epic-close', autoFix: true })` against
- * the assembled state probe; if any `blocker` finding survives, prints a
- * `id · summary · fixCommand` table and exits with code 2 (the project's
- * reserved "preflight refused" exit code, mirrored by `story-close.js`
- * and the npm test wrapper).
+ * Two responsibilities:
  *
- * On a clean preflight (no blockers, possibly some auto-corrected
- * findings), the script logs the auto-fix summary and delegates to the
- * existing close-tail logic. The close-tail is intentionally a no-op
- * placeholder today — epic-close is currently a thin front-door that
- * exists so future work can pipe Epic-level integration tasks (PR merge,
- * branch reap, retro hook) through a single preflight-guarded entry.
+ *   1. Run the self-healing checks registry (scope=`epic-close`,
+ *      autoFix=true) as a preflight guard. Any surviving `blocker`
+ *      finding short-circuits with exit code 2 ("preflight refused").
+ *
+ *   2. On a clean preflight, run the post-merge close-tail (Story
+ *      #1951):
+ *        - Close the Epic's planning artifacts (PRD + Tech Spec) via
+ *          `closePlanningArtifacts`. Best-effort.
+ *        - Verify the Epic ticket is `state: 'closed'` via
+ *          `verifyAndRecoverEpicClose`; if GitHub did not auto-close
+ *          it (typically because the PR-driven `Closes #N` was
+ *          suppressed), apply a recovery transition to `agent::done`.
+ *
+ * Idempotent. Re-running against an Epic whose planning artifacts and
+ * Epic ticket are already closed is a no-op (each ticket transition is
+ * a no-op when the label already matches).
  *
  * Usage:
- *   node .agents/scripts/epic-close.js [--epic <epicId>]
+ *   node .agents/scripts/epic-close.js --epic <epicId>
  *
  * Exit codes:
- *   0 → preflight clean, delegated close-tail succeeded
- *   1 → unexpected error (anything other than preflight refusal)
+ *   0 → preflight clean, close-tail completed (or skipped where not applicable)
+ *   1 → unexpected error
  *   2 → preflight refused (blocker findings)
  *
  * @see .agents/scripts/lib/preflight-runner.js
- * @see .agents/README.md#self-healing-checks
+ * @see .agents/scripts/epic-deliver-finalize.js
  */
 
+import {
+  closePlanningArtifacts as defaultClosePlanningArtifacts,
+  verifyAndRecoverEpicClose as defaultVerifyAndRecoverEpicClose,
+} from './epic-deliver-finalize.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { resolveConfig as defaultResolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import {
   PREFLIGHT_REFUSED_EXIT_CODE,
   runPreflight,
 } from './lib/preflight-runner.js';
+import { createProvider as defaultCreateProvider } from './lib/provider-factory.js';
 
 /** Default Logger adapter — same shape preflight-runner uses. */
 const DEFAULT_LOGGER = {
@@ -45,18 +56,90 @@ const DEFAULT_LOGGER = {
 };
 
 /**
- * Run the epic-close entry point. Exported for testing — the unit test
- * harness drives this directly with injected probes / fixture registry
- * rather than spawning a subprocess.
+ * Run the close-tail: planning-artifact close + Epic state recovery.
+ * Exported so the unit-test harness can drive it directly without
+ * having to thread fixture probes through the preflight runner.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   logger?: object,
+ *   closePlanningArtifactsFn?: typeof defaultClosePlanningArtifacts,
+ *   verifyAndRecoverEpicCloseFn?: typeof defaultVerifyAndRecoverEpicClose,
+ * }} opts
+ * @returns {Promise<{
+ *   planningClose: object,
+ *   epicClose: object,
+ * }>}
+ */
+export async function runEpicCloseTail({
+  epicId,
+  provider,
+  logger = DEFAULT_LOGGER,
+  closePlanningArtifactsFn = defaultClosePlanningArtifacts,
+  verifyAndRecoverEpicCloseFn = defaultVerifyAndRecoverEpicClose,
+} = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'runEpicCloseTail: epicId is required (positive integer).',
+    );
+  }
+  if (!provider) {
+    throw new TypeError('runEpicCloseTail: provider is required.');
+  }
+
+  // Read the Epic so we have `linkedIssues.{prd,techSpec}` for the
+  // planning-close step. `getEpic` is preferred (parses linkedIssues
+  // out of the body); fall back to `getTicket` for test doubles.
+  let epic = null;
+  try {
+    if (typeof provider.getEpic === 'function') {
+      epic = await provider.getEpic(epicId);
+    } else if (typeof provider.getTicket === 'function') {
+      epic = await provider.getTicket(epicId);
+    }
+  } catch (err) {
+    logger.warn?.(
+      `[epic-close] failed to read Epic #${epicId}: ${err?.message ?? err}`,
+    );
+  }
+
+  const planningClose = await closePlanningArtifactsFn({
+    epicId,
+    epic,
+    provider,
+    logger,
+  });
+
+  const epicClose = await verifyAndRecoverEpicCloseFn({
+    epicId,
+    provider,
+    logger,
+  });
+
+  return { planningClose, epicClose };
+}
+
+/**
+ * Run the epic-close entry point. Exported for testing.
  *
  * @param {object} [opts]
- * @param {string} [opts.epicId]
+ * @param {number|string} [opts.epicId]
  * @param {string} [opts.cwd=process.cwd()]
  * @param {object} [opts.probes]   Test-only — forwarded to assembleState.
  * @param {object} [opts.registry] Test-only — bypass loadRegistry.
  * @param {string} [opts.dir]      Test-only fixture directory.
  * @param {{ info?: Function, warn?: Function, error?: Function }} [opts.logger]
- * @returns {Promise<{ status: 'ok' | 'blocked', findings: Array, fixed: Array }>}
+ * @param {object} [opts.injectedProvider] Test-only — bypass createProvider.
+ * @param {object} [opts.injectedConfig]   Test-only — bypass resolveConfig.
+ * @param {Function} [opts.runEpicCloseTailFn] Test seam for the close-tail body.
+ * @returns {Promise<{
+ *   status: 'ok' | 'blocked',
+ *   findings: Array,
+ *   fixed: Array,
+ *   planningClose?: object,
+ *   epicClose?: object,
+ * }>}
  */
 export async function runEpicClose({
   epicId,
@@ -65,9 +148,17 @@ export async function runEpicClose({
   registry,
   dir,
   logger = DEFAULT_LOGGER,
+  injectedProvider,
+  injectedConfig,
+  resolveConfigFn = defaultResolveConfig,
+  createProviderFn = defaultCreateProvider,
+  runEpicCloseTailFn = runEpicCloseTail,
 } = {}) {
+  const parsedEpicId = Number.parseInt(epicId, 10);
+  const haveEpicId = Number.isInteger(parsedEpicId) && parsedEpicId > 0;
+
   logger.info(
-    `[epic-close] Running preflight checks (scope=epic-close) for Epic #${epicId ?? '?'}...`,
+    `[epic-close] Running preflight checks (scope=epic-close) for Epic #${haveEpicId ? parsedEpicId : '?'}...`,
   );
   const preflight = await runPreflight({
     scope: 'epic-close',
@@ -85,18 +176,37 @@ export async function runEpicClose({
       fixed: preflight.fixed,
     };
   }
-  // Close-tail placeholder. Today epic-close.js exists as the preflight
-  // front door; subsequent Stories under Epic #1143 may add PR merge, retro
-  // hook, and branch reap here. The placeholder logs that the front door
-  // is clear so operators can distinguish "preflight passed; nothing to
-  // do" from "preflight passed; close-tail ran" in audit logs.
+
+  if (!haveEpicId) {
+    logger.warn(
+      '[epic-close] preflight clean — --epic <id> not supplied; skipping close-tail.',
+    );
+    return {
+      status: 'ok',
+      findings: preflight.findings,
+      fixed: preflight.fixed,
+    };
+  }
+
+  const config = injectedConfig ?? resolveConfigFn({ cwd });
+  const provider = injectedProvider ?? createProviderFn(config.orchestration);
+
+  logger.info(`[epic-close] Running close-tail for Epic #${parsedEpicId}...`);
+  const tail = await runEpicCloseTailFn({
+    epicId: parsedEpicId,
+    provider,
+    logger,
+  });
   logger.info(
-    '[epic-close] preflight clean — close-tail is currently a no-op.',
+    `[epic-close] complete — planning: prd=${tail.planningClose.prd.status} techSpec=${tail.planningClose.techSpec.status}; epic=${tail.epicClose.status}.`,
   );
+
   return {
     status: 'ok',
     findings: preflight.findings,
     fixed: preflight.fixed,
+    planningClose: tail.planningClose,
+    epicClose: tail.epicClose,
   };
 }
 
