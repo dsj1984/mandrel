@@ -5425,157 +5425,175 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "<anon method-1>",
-      "startLine": 43
+      "startLine": 76
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "__setCascadeRetryDelays",
-      "startLine": 54
+      "startLine": 87
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "withParentCascadeLock",
-      "startLine": 84
+      "startLine": 117
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "__resetParentCascadeLocks",
-      "startLine": 104
+      "startLine": 137
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "isTransientCascadeError",
-      "startLine": 118
+      "startLine": 151
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "formatCascadeError",
-      "startLine": 148
+      "startLine": 181
     },
     {
       "crap": 4.012021036814425,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "retryTransient",
-      "startLine": 175
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "isValidStructuredCommentType",
-      "startLine": 262
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "assertValidStructuredCommentType",
-      "startLine": 278
+      "startLine": 208
     },
     {
       "crap": 1.125,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "logCascadePartialFailures",
-      "startLine": 298
-    },
-    {
-      "crap": 16.0263671875,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "transitionTicketState",
-      "startLine": 338
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "toggleTasklistCheckbox",
-      "startLine": 476
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "postStructuredComment",
-      "startLine": 518
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "structuredCommentMarker",
-      "startLine": 544
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "getProviderCommentCache",
-      "startLine": 586
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "structuredCommentCacheKey",
-      "startLine": 605
-    },
-    {
-      "crap": 3.576,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "_resetStructuredCommentCache",
-      "startLine": 629
-    },
-    {
-      "crap": 8.208333333333336,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "_peekStructuredCommentCache",
-      "startLine": 643
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "findStructuredComment",
-      "startLine": 672
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "upsertStructuredComment",
-      "startLine": 713
+      "startLine": 247
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "processCascadeParent",
-      "startLine": 779
+      "startLine": 269
     },
     {
       "crap": 8.002978829089308,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "processCascadeParentLocked",
-      "startLine": 794
+      "startLine": 284
     },
     {
       "crap": 3.16401807843709,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "<anon method-12>",
-      "startLine": 843
+      "method": "<anon method-6>",
+      "startLine": 333
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "<anon method-15>",
-      "startLine": 904
+      "method": "<anon method-9>",
+      "startLine": 394
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "cascadeCompletion",
-      "startLine": 968
+      "startLine": 458
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
-      "method": "<anon method-17>",
-      "startLine": 1001
+      "method": "<anon method-11>",
+      "startLine": 491
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "isValidStructuredCommentType",
+      "startLine": 91
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "assertValidStructuredCommentType",
+      "startLine": 107
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "structuredCommentMarker",
+      "startLine": 133
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "getProviderCommentCache",
+      "startLine": 175
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "structuredCommentCacheKey",
+      "startLine": 194
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "_resetStructuredCommentCache",
+      "startLine": 218
+    },
+    {
+      "crap": 3.0416666666666665,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "_peekStructuredCommentCache",
+      "startLine": 232
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "findStructuredComment",
+      "startLine": 261
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "validateTransitionInputs",
+      "startLine": 60
+    },
+    {
+      "crap": 5.1574074074074066,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "loadTicketSnapshot",
+      "startLine": 78
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "dispatchTransitionNotification",
+      "startLine": 106
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "transitionTicketState",
+      "startLine": 188
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "toggleTasklistCheckbox",
+      "startLine": 268
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "postStructuredComment",
+      "startLine": 310
+    },
+    {
+      "crap": 6.0163859808830225,
+      "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
+      "method": "upsertStructuredComment",
+      "startLine": 337
     },
     {
       "crap": 7,
