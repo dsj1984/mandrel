@@ -35,7 +35,10 @@ import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
-import { emitEpicComplete } from './lib/orchestration/epic-runner/progress-reporter.js';
+import {
+  emitEpicComplete,
+  runHotspotDetection,
+} from './lib/orchestration/epic-runner/progress-reporter.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { notify as defaultNotify } from './notify.js';
@@ -353,6 +356,14 @@ export async function runEpicDeliverFinalize({
   logger.info?.(
     `[epic-deliver-finalize] FF ok — ${epicBranch} is ${ff.ahead} commit(s) ahead of ${baseRef}.`,
   );
+
+  // 1a. Story #1770 / Task #1780: run the hotspot detector across the
+  // Epic's per-Story trace streams and persist any emissions to
+  // `temp/epic-<id>/signals.ndjson` BEFORE the analyzer renders
+  // epic-perf-report. The aggregator's SIGNAL_COUNT_KINDS already
+  // includes `'hotspot'`, so emitting first is enough — no renderer
+  // change needed. Failure-isolated inside `runHotspotDetection`.
+  await runHotspotDetection({ epicId, config, logger });
 
   // 1b. Story #1396: post-merge baseline reconciliation. Regenerate the
   // tracked main baselines from the Epic-branch tree and commit any drift as
