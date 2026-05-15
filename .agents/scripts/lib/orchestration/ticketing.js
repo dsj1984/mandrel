@@ -31,6 +31,170 @@ export { groupByAncestor };
  */
 const CASCADE_SIBLING_READ_CONCURRENCY = 8;
 
+/**
+ * Retry budget for transient `gh` failures (rate limit, secondary rate limit,
+ * 5xx, transport timeouts) inside the cascade transition. Three attempts with
+ * exponential backoff (250ms / 500ms / 1000ms) mirrors the budget used by
+ * `gitFetchWithRetry` (see `lib/git-utils.js`) and the HTTP-client retry path
+ * referenced by `epic-plan-decompose.js`. Backoff is overridable via
+ * {@link __setCascadeRetryDelays} so tests don't pay real wall-clock time.
+ */
+const CASCADE_RETRY_BACKOFF_MS = [250, 500, 1000];
+const defaultCascadeSleep = (ms) =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+let _cascadeRetryDelays = CASCADE_RETRY_BACKOFF_MS;
+let _cascadeSleep = defaultCascadeSleep;
+
+/**
+ * Test seam — replace the backoff schedule and/or the sleep implementation
+ * used by the cascade retry loop. Restore by calling with no arguments.
+ *
+ * @param {{ delays?: number[], sleep?: (ms: number) => Promise<void> }} [opts]
+ */
+export function __setCascadeRetryDelays(opts = {}) {
+  _cascadeRetryDelays = Array.isArray(opts.delays)
+    ? opts.delays
+    : CASCADE_RETRY_BACKOFF_MS;
+  _cascadeSleep =
+    typeof opts.sleep === 'function' ? opts.sleep : defaultCascadeSleep;
+}
+
+/**
+ * Per-parent serial lock used to prevent two concurrent cascades within the
+ * same wave from racing the parent's "all children done?" check (Story
+ * #1817). The map is keyed by parent issue number; entries are reclaimed
+ * once the last awaiter finishes. The lock is scoped to a single Node
+ * process — cross-process races (multiple worktrees closing in parallel)
+ * still rely on the retry/idempotency path.
+ *
+ * @type {Map<number, Promise<unknown>>}
+ */
+const parentCascadeLocks = new Map();
+
+/**
+ * Acquire the per-parent cascade lock, run `fn`, then release. Awaiters
+ * queue strictly in invocation order. Failures of prior holders do not
+ * propagate — each acquirer sees a clean entry into `fn`.
+ *
+ * @template R
+ * @param {number} parentId
+ * @param {() => Promise<R>} fn
+ * @returns {Promise<R>}
+ */
+async function withParentCascadeLock(parentId, fn) {
+  const prev = parentCascadeLocks.get(parentId) ?? Promise.resolve();
+  const current = prev.then(
+    () => fn(),
+    () => fn(),
+  );
+  parentCascadeLocks.set(parentId, current);
+  try {
+    return await current;
+  } finally {
+    if (parentCascadeLocks.get(parentId) === current) {
+      parentCascadeLocks.delete(parentId);
+    }
+  }
+}
+
+/**
+ * Test seam — clear the per-parent cascade lock map between tests so a
+ * pending entry from one scenario does not leak into the next.
+ */
+export function __resetParentCascadeLocks() {
+  parentCascadeLocks.clear();
+}
+
+/**
+ * Classifies a thrown cascade error as "transient" (rate limit, secondary
+ * rate limit, 5xx, transport timeout / reset) so the retry loop can back
+ * off instead of surfacing the failure to the operator. Provider-agnostic:
+ * matches on typed error names (`GhRateLimitError`), HTTP status, and
+ * conservative regex over stderr + message.
+ *
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isTransientCascadeError(err) {
+  if (!err || typeof err !== 'object') return false;
+  if (err.name === 'GhRateLimitError') return true;
+  const status = typeof err.status === 'number' ? err.status : null;
+  if (status === 429) return true;
+  if (status !== null && status >= 500) return true;
+  const haystack = `${err.message ?? ''}\n${err.stderr ?? ''}`.toLowerCase();
+  if (
+    /secondary rate limit|api rate limit exceeded|rate limit exceeded/.test(
+      haystack,
+    )
+  )
+    return true;
+  if (/abuse detection/.test(haystack)) return true;
+  if (/econnreset|etimedout|enotfound|eai_again|abort_err/.test(haystack))
+    return true;
+  if (/timed out|timeout|aborted|fetch failed|network/.test(haystack))
+    return true;
+  return false;
+}
+
+/**
+ * Render a cascade-failure error into a single log-friendly string that
+ * preserves stderr and exit-code context. The legacy log line collapsed
+ * `gh-exec`-thrown errors to a bare "exit 1" message, which made the
+ * failure mode unclassifiable post-hoc (see Story #1817).
+ *
+ * @param {unknown} err
+ * @returns {string}
+ */
+function formatCascadeError(err) {
+  if (!err) return 'unknown error';
+  if (typeof err !== 'object') return String(err);
+  const parts = [];
+  if (err.name && err.name !== 'Error') parts.push(`${err.name}`);
+  if (err.message) parts.push(err.message);
+  if (typeof err.code === 'number') parts.push(`exit=${err.code}`);
+  if (typeof err.status === 'number') parts.push(`http=${err.status}`);
+  if (typeof err.stderr === 'string' && err.stderr.trim()) {
+    const trimmed = err.stderr.trim().replace(/\s+/g, ' ');
+    const capped = trimmed.length > 400 ? `${trimmed.slice(0, 400)}…` : trimmed;
+    parts.push(`stderr=${capped}`);
+  }
+  return parts.join(' | ') || String(err);
+}
+
+/**
+ * Run `fn` with exponential backoff on transient errors. Non-transient
+ * errors propagate immediately on the first attempt. The total attempt
+ * count is `delays.length + 1` (one initial attempt plus one retry per
+ * delay).
+ *
+ * @template R
+ * @param {() => Promise<R>} fn
+ * @param {{ onRetry?: (err: unknown, attempt: number, delayMs: number) => void }} [opts]
+ * @returns {Promise<R>}
+ */
+async function retryTransient(fn, opts = {}) {
+  const delays = _cascadeRetryDelays;
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (!isTransientCascadeError(err)) throw err;
+      if (attempt >= delays.length) throw err;
+      const delay = delays[attempt];
+      if (typeof opts.onRetry === 'function') {
+        try {
+          opts.onRetry(err, attempt + 1, delay);
+        } catch {
+          // listener failures must not abort the retry
+        }
+      }
+      await _cascadeSleep(delay);
+      attempt += 1;
+    }
+  }
+}
+
 export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
@@ -117,6 +281,27 @@ export function assertValidStructuredCommentType(type) {
     `Invalid structured-comment type: ${JSON.stringify(type)}. ` +
       `Accepted: ${STRUCTURED_COMMENT_TYPES.join(', ')} or patterns ${WAVE_TYPE_PATTERN}, ${CLAIM_TYPE_PATTERN}.`,
   );
+}
+
+/**
+ * Emit a warn line for every per-parent cascade failure captured by
+ * {@link cascadeCompletion}. Each `error` string is pre-formatted with
+ * stderr + exit-code by `formatCascadeError`, so callers can pass the
+ * raw envelope through without further wrapping. Extracted from
+ * {@link transitionTicketState} to keep that function's cyclomatic
+ * complexity inside the project's per-method CRAP ceiling (Story #1817).
+ *
+ * @param {number} ticketId  The ticket whose `agent::done` transition
+ *                           triggered the cascade.
+ * @param {{ failed?: Array<{ parentId: number, error: string }> } | null} cascade
+ */
+function logCascadePartialFailures(ticketId, cascade) {
+  const cascadeFailures = cascade?.failed ?? [];
+  for (const { parentId, error } of cascadeFailures) {
+    Logger.warn(
+      `[Ticketing] Cascade from #${ticketId} hit partial-failure on parent #${parentId}: ${error}`,
+    );
+  }
 }
 
 /**
@@ -224,15 +409,7 @@ export async function transitionTicketState(
     const cascade = await cascadeCompletion(provider, ticketId, {
       notify: opts.notify,
     });
-    // Iterable hoisted out of the `for...of` initializer because the
-    // typhonjs-escomplex maintainability analyser mis-parses optional
-    // chaining inside that position (`traveler[node.type] is not a function`).
-    const cascadeFailures = cascade?.failed ?? [];
-    for (const { parentId, error } of cascadeFailures) {
-      Logger.warn(
-        `[Ticketing] Cascade from #${ticketId} hit partial-failure on parent #${parentId}: ${error}`,
-      );
-    }
+    logCascadePartialFailures(ticketId, cascade);
   }
 
   // Fire the state-transition notification (fire-and-forget).
@@ -558,10 +735,50 @@ export async function upsertStructuredComment(
  */
 async function processCascadeParent(provider, ticketId, parentId, opts) {
   const logger = opts._logger ?? Logger;
+  return withParentCascadeLock(parentId, () =>
+    processCascadeParentLocked(provider, ticketId, parentId, opts, logger),
+  );
+}
+
+/**
+ * Body of {@link processCascadeParent} that runs under the per-parent lock.
+ * Split out so the lock-acquire scaffolding stays a one-liner and the
+ * cyclomatic complexity of the per-parent worker doesn't drift over the
+ * project's CRAP ceiling once the retry / idempotency branches are added.
+ *
+ * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
+ */
+async function processCascadeParentLocked(
+  provider,
+  ticketId,
+  parentId,
+  opts,
+  logger,
+) {
   const cascadedTo = [];
   const failed = [];
   try {
     await toggleTasklistCheckbox(provider, parentId, ticketId, true);
+
+    // Idempotency check (Story #1817): re-fetch the parent under the lock
+    // so a concurrent cascade winner that already flipped this parent to
+    // `agent::done` short-circuits us without re-running the transition.
+    // The provider cache may still hold a stale row from before the
+    // winner's PATCH — invalidate first when supported.
+    if (typeof provider.invalidateTicket === 'function') {
+      try {
+        provider.invalidateTicket(parentId);
+      } catch {
+        // best-effort cache invalidation
+      }
+    }
+    const parentSnapshot = await provider.getTicket(parentId);
+    if (parentSnapshot?.labels?.includes(STATE_LABELS.DONE)) {
+      logger.debug(
+        `[Ticketing] Cascade to parent #${parentId} skipped: already agent::done (concurrent winner).`,
+      );
+      return { cascadedTo, failed };
+    }
 
     const subTickets = await provider.getSubTickets(parentId);
     // Re-fetch each sibling with fresh reads before the all-done check.
@@ -631,9 +848,24 @@ async function processCascadeParent(provider, ticketId, parentId, opts) {
       return { cascadedTo, failed };
     }
 
-    await transitionTicketState(provider, parentId, STATE_LABELS.DONE, {
-      notify: opts.notify,
-    });
+    // Retry the parent transition on transient `gh` failures (rate limit,
+    // 5xx, transport timeouts). Permanent failures fall through to the
+    // outer catch on the first attempt so the operator sees the real
+    // error rather than three retries' worth of noise.
+    await retryTransient(
+      () =>
+        transitionTicketState(provider, parentId, STATE_LABELS.DONE, {
+          notify: opts.notify,
+        }),
+      {
+        onRetry: (err, attempt, delayMs) => {
+          logger.warn(
+            `[Ticketing] Cascade to parent #${parentId} hit transient ${err?.name ?? 'error'} ` +
+              `(attempt ${attempt}); retrying in ${delayMs}ms. ${formatCascadeError(err)}`,
+          );
+        },
+      },
+    );
     await postStructuredComment(
       provider,
       parentId,
@@ -649,10 +881,9 @@ async function processCascadeParent(provider, ticketId, parentId, opts) {
     cascadedTo.push(...nested.cascadedTo);
     failed.push(...nested.failed);
   } catch (err) {
-    failed.push({ parentId, error: err.message ?? String(err) });
-    logger.warn(
-      `[Ticketing] Cascade to parent #${parentId} failed: ${err.message ?? err}`,
-    );
+    const detail = formatCascadeError(err);
+    failed.push({ parentId, error: detail });
+    logger.warn(`[Ticketing] Cascade to parent #${parentId} failed: ${detail}`);
   }
   return { cascadedTo, failed };
 }

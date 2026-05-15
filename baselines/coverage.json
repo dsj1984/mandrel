@@ -416,7 +416,7 @@
   },
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
-    "branches": 75.41,
+    "branches": 82.54,
     "functions": 89.47
   },
   ".agents/scripts/lib/git/cached-fetch.js": {
@@ -974,6 +974,11 @@
     "branches": 100,
     "functions": null
   },
+  ".agents/scripts/lib/single-story-sweep.js": {
+    "lines": 100,
+    "branches": 90,
+    "functions": 100
+  },
   ".agents/scripts/lib/spec/index.js": {
     "lines": 100,
     "branches": 100,
@@ -1193,6 +1198,11 @@
     "lines": 92.9,
     "branches": 73.12,
     "functions": 86.67
+  },
+  ".agents/scripts/single-story-close.js": {
+    "lines": 29.05,
+    "branches": 73.33,
+    "functions": 40
   },
   ".agents/scripts/sync-claude-commands.js": {
     "lines": 93.41,
