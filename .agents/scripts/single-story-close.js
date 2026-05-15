@@ -58,6 +58,7 @@ import { Logger } from './lib/Logger.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { createProvider } from './lib/provider-factory.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
+import { dispatchStoryMergedNotify } from './lib/single-story/story-merged-notify.js';
 import { notify } from './notify.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
@@ -449,45 +450,6 @@ export function enableAutoMerge({ cwd, prNumber, runner }) {
     };
   } catch (err) {
     return { enabled: false, reason: `gh-spawn-error: ${err?.message ?? err}` };
-  }
-}
-
-/**
- * Fire the `story-merged` event for a standalone Story close. Best-effort —
- * any thrown error is caught and warned so a flaky webhook never fails the
- * close. Reuses the event name from `post-merge-pipeline.notificationPhase`
- * so operator subscriptions cover both Epic-attached and standalone Stories.
- */
-async function dispatchStoryMergedNotify({
-  notifyFn,
-  labelFlipped,
-  storyId,
-  story,
-  prUrl,
-  autoMergeEnabled,
-  autoMergeReason,
-  orchestration,
-  provider,
-}) {
-  if (!labelFlipped) return;
-  const autoMergeNote = autoMergeEnabled
-    ? 'auto-merge enabled — GitHub will squash-merge when required checks pass'
-    : `auto-merge not enabled (${autoMergeReason ?? 'unknown'}) — operator merges via GitHub UI`;
-  try {
-    await notifyFn(
-      storyId,
-      {
-        severity: 'medium',
-        message: `✅ Standalone Story #${storyId} — *${story.title}* — flipped to \`agent::done\`. PR: ${prUrl} (${autoMergeNote}).`,
-        event: 'story-merged',
-        level: 'story',
-      },
-      { orchestration, provider },
-    );
-  } catch (err) {
-    Logger.warn(
-      `[single-story-close] ⚠️ story-merged notify dispatch failed (swallowed): ${err?.message ?? err}`,
-    );
   }
 }
 
