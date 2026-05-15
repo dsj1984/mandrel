@@ -75,5 +75,7 @@ function componentMatches(component, path) {
   // shared-writer foundation we only need a deterministic fallback so the
   // rollup runs without a components registry.
   if (!component || typeof component.includes !== 'string') return false;
-  return path === component.includes || path.startsWith(`${component.includes}/`);
+  return (
+    path === component.includes || path.startsWith(`${component.includes}/`)
+  );
 }

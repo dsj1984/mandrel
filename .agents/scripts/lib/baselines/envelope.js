@@ -153,7 +153,10 @@ export function buildEnvelope({
       `envelope.buildEnvelope: kind must be one of ${KNOWN_KINDS.join(', ')} (got ${JSON.stringify(kind)})`,
     );
   }
-  if (typeof kernelVersion !== 'string' || !kernelVersionPattern().test(kernelVersion)) {
+  if (
+    typeof kernelVersion !== 'string' ||
+    !kernelVersionPattern().test(kernelVersion)
+  ) {
     throw new TypeError(
       `envelope.buildEnvelope: kernelVersion must be semver-shaped (got ${JSON.stringify(kernelVersion)})`,
     );
@@ -163,7 +166,7 @@ export function buildEnvelope({
       'envelope.buildEnvelope: rollup must be an object keyed by component',
     );
   }
-  if (!Object.prototype.hasOwnProperty.call(rollup, '*')) {
+  if (!Object.hasOwn(rollup, '*')) {
     throw new Error(
       'envelope.buildEnvelope: rollup["*"] (whole-repo rollup) is required',
     );
@@ -243,12 +246,10 @@ const REQUIRED_TOP_LEVEL_KEYS = Object.freeze([
  */
 export function assertEnvelope(envelope) {
   if (!envelope || typeof envelope !== 'object' || Array.isArray(envelope)) {
-    throw new TypeError(
-      'envelope.assertEnvelope: expected an object envelope',
-    );
+    throw new TypeError('envelope.assertEnvelope: expected an object envelope');
   }
   for (const key of REQUIRED_TOP_LEVEL_KEYS) {
-    if (!Object.prototype.hasOwnProperty.call(envelope, key)) {
+    if (!Object.hasOwn(envelope, key)) {
       throw new Error(
         `envelope.assertEnvelope: missing required top-level key "${key}"`,
       );

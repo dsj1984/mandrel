@@ -108,7 +108,7 @@ export function write({
   // The rollup() implementations always seed `*` from `aggregate()`, but
   // the AC pins this explicitly: the envelope ALWAYS carries `*` even
   // when `components` is undefined or empty. Belt-and-braces.
-  if (!Object.prototype.hasOwnProperty.call(rollup, '*')) {
+  if (!Object.hasOwn(rollup, '*')) {
     throw new Error(
       `writer.write: ${kind} rollup is missing the required "*" key`,
     );

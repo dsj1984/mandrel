@@ -6,10 +6,7 @@ import {
   resolveConfig,
 } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import {
-  calculateAll,
-  scanDirectory,
-} from './lib/maintainability-utils.js';
+import { calculateAll, scanDirectory } from './lib/maintainability-utils.js';
 
 /**
  * Script to update the maintainability baseline file.

@@ -134,7 +134,13 @@ describe('assertEnvelope()', () => {
     assert.doesNotThrow(() => assertEnvelope(env));
   });
 
-  for (const key of ['$schema', 'kernelVersion', 'generatedAt', 'rollup', 'rows']) {
+  for (const key of [
+    '$schema',
+    'kernelVersion',
+    'generatedAt',
+    'rollup',
+    'rows',
+  ]) {
     it(`rejects an envelope missing the top-level "${key}" key`, () => {
       const env = canonicalLint();
       delete env[key];

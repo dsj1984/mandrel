@@ -17,10 +17,7 @@ import {
 describe('canonicalise()', () => {
   describe('worktree-prefix stripping', () => {
     it("strips '.worktrees/<workspace>/' prefix", () => {
-      assert.equal(
-        canonicalise('.worktrees/story-1/src/foo.ts'),
-        'src/foo.ts',
-      );
+      assert.equal(canonicalise('.worktrees/story-1/src/foo.ts'), 'src/foo.ts');
     });
 
     it('strips the prefix when the workspace name contains hyphens and digits', () => {

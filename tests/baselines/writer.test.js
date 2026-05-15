@@ -82,10 +82,13 @@ describe('write() — schema conformance per kind', () => {
     it(`emits an assertEnvelope-passing envelope for ${kind}`, () => {
       const env = buildWithFixedClock(fixture);
       assert.doesNotThrow(() => assertEnvelope(env));
-      assert.equal(env.$schema, `.agents/schemas/baselines/${kind}.schema.json`);
+      assert.equal(
+        env.$schema,
+        `.agents/schemas/baselines/${kind}.schema.json`,
+      );
       assert.equal(env.generatedAt, FIXED_TIMESTAMP);
       assert.ok(typeof env.kernelVersion === 'string');
-      assert.ok(Object.prototype.hasOwnProperty.call(env.rollup, '*'));
+      assert.ok(Object.hasOwn(env.rollup, '*'));
     });
   }
 });
@@ -163,7 +166,7 @@ describe('write() — canonicalisation at the boundary', () => {
 describe('write() — rollup["*"] presence', () => {
   it('emits rollup["*"] even when components is undefined', () => {
     const env = buildWithFixedClock(FIXTURES.lint);
-    assert.ok(Object.prototype.hasOwnProperty.call(env.rollup, '*'));
+    assert.ok(Object.hasOwn(env.rollup, '*'));
   });
 
   it('emits rollup["*"] when components is an empty array', () => {
@@ -172,7 +175,7 @@ describe('write() — rollup["*"] presence', () => {
       components: [],
       generatedAt: FIXED_TIMESTAMP,
     });
-    assert.ok(Object.prototype.hasOwnProperty.call(env.rollup, '*'));
+    assert.ok(Object.hasOwn(env.rollup, '*'));
   });
 
   it('emits a component bucket alongside "*" when components are supplied', () => {
@@ -181,8 +184,8 @@ describe('write() — rollup["*"] presence', () => {
       components: [{ name: 'core', includes: 'src' }],
       generatedAt: FIXED_TIMESTAMP,
     });
-    assert.ok(Object.prototype.hasOwnProperty.call(env.rollup, '*'));
-    assert.ok(Object.prototype.hasOwnProperty.call(env.rollup, 'core'));
+    assert.ok(Object.hasOwn(env.rollup, '*'));
+    assert.ok(Object.hasOwn(env.rollup, 'core'));
   });
 });
 

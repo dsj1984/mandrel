@@ -67,5 +67,7 @@ export function rollup(rows, components = []) {
 
 function componentMatches(component, path) {
   if (!component || typeof component.includes !== 'string') return false;
-  return path === component.includes || path.startsWith(`${component.includes}/`);
+  return (
+    path === component.includes || path.startsWith(`${component.includes}/`)
+  );
 }

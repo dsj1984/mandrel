@@ -94,7 +94,9 @@ async function main() {
   // doesn't churn.
   const envelope = write({
     kind: 'crap',
-    rows: rows.filter((r) => typeof r?.crap === 'number' && Number.isFinite(r.crap)),
+    rows: rows.filter(
+      (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+    ),
   });
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath

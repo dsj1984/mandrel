@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  mkdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,10 +57,13 @@ describe('coverage-baseline.writeBaseline — envelope migration', () => {
     const parsed = JSON.parse(
       readFileSync(path.join(workDir, 'baselines', 'coverage.json'), 'utf8'),
     );
-    assert.equal(parsed.$schema, '.agents/schemas/baselines/coverage.schema.json');
+    assert.equal(
+      parsed.$schema,
+      '.agents/schemas/baselines/coverage.schema.json',
+    );
     assert.equal(typeof parsed.kernelVersion, 'string');
     assert.equal(typeof parsed.generatedAt, 'string');
-    assert.ok(Object.prototype.hasOwnProperty.call(parsed.rollup, '*'));
+    assert.ok(Object.hasOwn(parsed.rollup, '*'));
     assert.doesNotThrow(() => assertEnvelope(parsed));
   });
 
@@ -93,7 +102,11 @@ describe('coverage-baseline.writeBaseline — envelope migration', () => {
 
   it('canonicalises worktree-prefixed paths', () => {
     const baseline = {
-      '.worktrees/story-1/src/a.js': { lines: 90, branches: 80, functions: 100 },
+      '.worktrees/story-1/src/a.js': {
+        lines: 90,
+        branches: 80,
+        functions: 100,
+      },
     };
     writeBaseline(workDir, baseline);
     const parsed = JSON.parse(
@@ -161,14 +174,18 @@ describe('update-maintainability-baseline.js — end-to-end smoke', () => {
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    const baselinePath = path.join(workDir, 'baselines', 'maintainability.json');
+    const baselinePath = path.join(
+      workDir,
+      'baselines',
+      'maintainability.json',
+    );
     const parsed = JSON.parse(readFileSync(baselinePath, 'utf8'));
     assert.equal(
       parsed.$schema,
       '.agents/schemas/baselines/maintainability.schema.json',
     );
     assert.equal(parsed.generatedAt, '2026-05-15T00:00:00Z');
-    assert.ok(Object.prototype.hasOwnProperty.call(parsed.rollup, '*'));
+    assert.ok(Object.hasOwn(parsed.rollup, '*'));
     assert.ok(Array.isArray(parsed.rows));
     assert.doesNotThrow(() => assertEnvelope(parsed));
   });

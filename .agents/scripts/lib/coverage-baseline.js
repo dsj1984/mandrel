@@ -198,16 +198,15 @@ export function writeBaseline(cwd, baseline, fsImpl = fs) {
   //
   // `denominators` is an in-memory-only runtime signal for the noise-
   // tolerance gate — it never persists, so strip before projection.
-  const rows = Object.entries(baseline ?? {})
-    .map(([file, scores]) => {
-      const { denominators: _ignored, ...rest } = scores ?? {};
-      return {
-        path: file,
-        lines: rest.lines ?? 0,
-        branches: rest.branches ?? 0,
-        functions: rest.functions ?? 0,
-      };
-    });
+  const rows = Object.entries(baseline ?? {}).map(([file, scores]) => {
+    const { denominators: _ignored, ...rest } = scores ?? {};
+    return {
+      path: file,
+      lines: rest.lines ?? 0,
+      branches: rest.branches ?? 0,
+      functions: rest.functions ?? 0,
+    };
+  });
   const envelope = write({ kind: 'coverage', rows });
   // Honour the injected fsImpl seam for tests that pass `memfs` or a
   // spy — fall through to the writer's atomic write when `fsImpl === fs`.
