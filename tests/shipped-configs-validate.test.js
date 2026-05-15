@@ -9,10 +9,14 @@ import { getAgentrcValidator } from '../.agents/scripts/lib/config-settings-sche
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-// Both shipped configs — the project's `.agentrc.json` and the distributed
-// `.agents/default-agentrc.json` — must validate cleanly under the
-// post-reshape schema (Epic #1720 Story #1739).
-const SHIPPED_CONFIGS = ['.agentrc.json', '.agents/default-agentrc.json'];
+// All shipped configs — the project's `.agentrc.json`, the bootstrap
+// starter template, and the exhaustive reference — must validate cleanly
+// under the post-reshape schema (Epic #1720 Story #1739).
+const SHIPPED_CONFIGS = [
+  '.agentrc.json',
+  '.agents/starter-agentrc.json',
+  '.agents/full-agentrc.json',
+];
 
 function loadAndValidate(relPath) {
   const raw = JSON.parse(

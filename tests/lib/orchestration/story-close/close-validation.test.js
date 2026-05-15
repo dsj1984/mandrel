@@ -424,7 +424,7 @@ describe('runCloseValidation — coverage-capture test-failure contract (Story #
   //
   // The repo's own `.agentrc.json` ships `crap.enabled: true`, so this is
   // also the live default for callers that pass `agentSettings: undefined`
-  // / the framework default-agentrc.
+  // / the framework full-agentrc.
   //
   // NB: these tests exercise the *failure-report shape* (gate identifier,
   // non-zero status, no double-`test`-gate appearance). The Task #1804

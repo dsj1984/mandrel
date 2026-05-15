@@ -159,8 +159,10 @@ Before any Epic workflow, bootstrap your GitHub repository to create the
 labels, project fields, and (when enabled) main-branch protection the
 orchestration engine depends on.
 
-1. **Configure.** Copy `.agents/default-agentrc.json` to `.agentrc.json` at your
-   project root and fill in the `orchestration` block (owner, repo, etc.).
+1. **Configure.** Copy `.agents/starter-agentrc.json` to `.agentrc.json` at
+   your project root and fill in the `orchestration` block (owner, repo,
+   etc.). See `.agents/full-agentrc.json` for the exhaustive reference of
+   every available key.
 2. **Authenticate.** Ensure a valid GitHub token is available (see
    Authentication in [README.md](README.md)).
 3. **Run bootstrap.** Execute `/agents-bootstrap-github` (or

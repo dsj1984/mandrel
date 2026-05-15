@@ -25,7 +25,7 @@ Three steps, run once per consuming repo:
 2. **Copy the config template.** From the host repo root:
 
    ```bash
-   cp .agents/default-agentrc.json .agentrc.json
+   cp .agents/starter-agentrc.json .agentrc.json
    ```
 
    Then edit `orchestration.github.{owner,repo}` and any
@@ -50,7 +50,8 @@ After step 3 you can run any slash command — `/epic-plan`,
 | [`instructions.md`](instructions.md) | Primary system prompt loaded by the host AI tool. |
 | [`VERSION`](VERSION) | Framework version shipped by this submodule. |
 | [`SDLC.md`](SDLC.md) | Operator process for `/epic-plan` and `/epic-deliver`. |
-| [`default-agentrc.json`](default-agentrc.json) | Template copied to the consumer repo root as `.agentrc.json`. |
+| [`starter-agentrc.json`](starter-agentrc.json) | Bootstrap delta-seed copied to the consumer repo root as `.agentrc.json`. |
+| [`full-agentrc.json`](full-agentrc.json) | Exhaustive editor reference enumerating every schema key with its framework default. |
 | [`personas/`](personas/) | Role-specific behavior packs selected by task persona or explicit user instruction. |
 | [`rules/`](rules/) | Domain-agnostic coding, security, testing, shell, git, and workflow rules. |
 | [`skills/core/`](skills/core/) | Universal process skills such as debugging, TDD, security, documentation, and code review. |
@@ -352,10 +353,10 @@ each with different cost/portability trade-offs:
 | -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `per-worktree` | Default-safe — no host setup, no symlink semantics to worry about. | Full `npm ci` per Story. | Slowest. Each worktree gets an independent `node_modules`.                                                  |
 | `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
-| `pnpm-store`   | pnpm repos. **Shipped consumer default in `default-agentrc.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
+| `pnpm-store`   | pnpm repos. **Shipped consumer default in `full-agentrc.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
 
 The **shipped consumer default in
-[`.agents/default-agentrc.json`](./default-agentrc.json) remains
+[`.agents/full-agentrc.json`](./full-agentrc.json) remains
 `pnpm-store`**. Repos that do not use pnpm should opt in to `symlink`
 explicitly in their root `.agentrc.json`; this repo dogfoods that
 configuration.
@@ -395,19 +396,21 @@ falls from minutes to under a second.
 
 ---
 
-## Root config vs distributed template
+## Root config vs distributed templates
 
-Two `.agentrc`-shaped files live in this repository and are easy to
+Three `.agentrc`-shaped files live in this repository and are easy to
 confuse:
 
-| File                            | Audience                          | Role                                                                                                                              |
-| ------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)     | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-execute` against this repo. Exercises the framework end-to-end. |
-| `.agents/default-agentrc.json`  | Downstream consumer repos         | Template a consumer copies via `cp .agents/default-agentrc.json .agentrc.json` when bootstrapping. Sane defaults for any repo.    |
+| File                              | Audience                          | Role                                                                                                                              |
+| --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-execute` against this repo. Exercises the framework end-to-end. |
+| `.agents/starter-agentrc.json`    | Downstream consumer repos         | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys.        |
+| `.agents/full-agentrc.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
 
-The two files share a schema; where they legitimately diverge (target
+The three files share a schema; where they legitimately diverge (target
 dirs, repo identifiers, version-file pointer) is documented in
 [`docs/configuration.md` § Root dogfood vs distributed template](../docs/configuration.md#root-dogfood-vs-distributed-template).
-Edit `default-agentrc.json` for changes that should ship to consumers;
-edit the root `.agentrc.json` for changes that only affect this repo's
-own dogfood runs.
+Edit `full-agentrc.json` when a framework default changes; edit
+`starter-agentrc.json` only when the bootstrap seed itself needs new
+schema-required keys; edit the root `.agentrc.json` for changes that
+only affect this repo's own dogfood runs.

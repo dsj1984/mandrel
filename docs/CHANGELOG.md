@@ -46,6 +46,37 @@ schema validation.
   checkboxes, per‑wave decomposition notes, single footer `<details>`). Behavior
   is locked by **`tests/lib/presentation/manifest-formatter-end-to-end.test.js`**.
 
+### Changed (Story #1922 — agentrc template rename + role split)
+
+- **Renamed `.agents/min-agentrc.json` → `.agents/starter-agentrc.json`**. The
+  bootstrap delta-seed consumers copy to `.agentrc.json` is now named for what
+  it is: a *starter*, not the absolute minimum. Content unchanged from the
+  pre-rename `min-agentrc.json`.
+- **Renamed `.agents/default-agentrc.json` → `.agents/full-agentrc.json`** and
+  expanded it to enumerate every schema key. The reference template now
+  includes the three Epic #1720 gates (`mutation`, `lighthouse`,
+  `bundleSize`) plus the two `worktreeIsolation` keys (`primeFromPath`,
+  `allowSymlinkOnWindows`) the schema accepts. Values mirror the in-code
+  framework defaults so the file documents reality, not aspiration. Story
+  #1911 will lift the placeholder mutation / lighthouse / bundle-size
+  floors to their high-bar values.
+- **Trimmed the dogfood `.agentrc.json`** to minimum + delta. Dropped every
+  key whose value matched a framework default (`planning.maxTickets`,
+  `delivery.execution.timeoutMs`, `delivery.maxTokenBudget`,
+  `delivery.deliverRunner.concurrencyCap`, all of `delivery.signals.*`,
+  `delivery.quality.gateScoping`, the entire `lint` gate, and several
+  inherited fields from `coverage` / `crap` / `maintainability`). The
+  remaining keys are genuine project overrides — primarily the workspace
+  floors, the symlink worktree strategy, and the `riskHeuristics` /
+  `docsFreshness.paths` lists whose runtime fallback is empty.
+- **Bootstrap workflow** ([agents-bootstrap-project.md §2.5](../.agents/workflows/agents-bootstrap-project.md))
+  rewritten to seed from `starter-agentrc.json` with a refreshed
+  "Why starter, not full?" callout explaining the delta-vs-copy rationale.
+
+No schema changes. The static schema mirror, AJV runtime schemas, and the
+runtime defaults in code (`LIMITS_DEFAULTS`, `*_GATE_DEFAULTS`,
+`DEFAULT_DELIVER_RUNNER`, etc.) are untouched.
+
 ### Removed
 
 - Epic #1235 hands-off CI automation: bot approver, auto-fix, triage-PR,

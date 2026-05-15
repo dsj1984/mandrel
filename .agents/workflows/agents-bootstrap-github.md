@@ -191,7 +191,8 @@ the behavior-shifting steps route through the gate.
 ## Troubleshooting
 
 - **"No orchestration block"**: Add the `orchestration` object to your
-  `.agentrc.json`. Copy from `.agents/default-agentrc.json`.
+  `.agentrc.json`. Copy from `.agents/starter-agentrc.json` (or
+  cross-reference `.agents/full-agentrc.json` for the exhaustive shape).
 - **"gh CLI not found on PATH"** / **"gh ... is older than required
   2.40.0"**: Install or upgrade the `gh` CLI from
   <https://cli.github.com/> (or `brew upgrade gh` /

@@ -108,28 +108,31 @@ Read `package.json`, then add — only if missing — the following fields:
 Write the merged `package.json` back with 2-space indentation and a trailing
 newline.
 
-## Step 2.5 — Seed `.agentrc.json` from `.agents/min-agentrc.json`
+## Step 2.5 — Seed `.agentrc.json` from `.agents/starter-agentrc.json`
 
 The framework ships a minimal, hand-authored exemplar at
-[`.agents/min-agentrc.json`](../min-agentrc.json) that lists **only** the
-schema-required keys plus the small set of values every consumer must
-override (github identity, base branch). Every other key the agent runtime
-reads has a framework default and is intentionally omitted — when a
-consumer wants project-specific values for them (e.g. custom
-`project.commands`, non-default `delivery.quality.gates.*.baselinePath`),
-they add those keys to `.agentrc.json` manually.
+[`.agents/starter-agentrc.json`](../starter-agentrc.json) that lists
+**only** the schema-required keys plus the small set of values every
+consumer must override (github identity, base branch). Every other key
+the agent runtime reads has a framework default and is intentionally
+omitted — when a consumer wants project-specific values for them (e.g.
+custom `project.commands`, non-default
+`delivery.quality.gates.*.baselinePath`), they add those keys to
+`.agentrc.json` manually. Refer to
+[`.agents/full-agentrc.json`](../full-agentrc.json) as an exhaustive
+editor reference of every available key and its default value.
 
-> **Why min-agentrc, not default-agentrc?** The consumer config is a
+> **Why starter-agentrc, not full-agentrc?** The consumer config is a
 > **delta** over the framework defaults, not a copy of them. Seeding from
-> the full default template restates every default in the consumer repo,
-> which then drifts the moment the framework moves a default. The minimal
-> seed lets the framework own its defaults and the consumer own its
-> overrides.
+> the full reference template restates every default in the consumer
+> repo, which then drifts the moment the framework moves a default. The
+> starter seed lets the framework own its defaults and the consumer own
+> its overrides.
 
 ### 2.5a — Create `.agentrc.json` if missing
 
 If `.agentrc.json` does not exist at `[PROJECT_ROOT]`, copy
-`.agents/min-agentrc.json` verbatim to the project root as
+`.agents/starter-agentrc.json` verbatim to the project root as
 `.agentrc.json`. The operator then replaces the `[OWNER]`, `[REPO]`, and
 `[USERNAME]` placeholders with the project's GitHub coordinates.
 
