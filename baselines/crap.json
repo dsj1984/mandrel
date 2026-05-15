@@ -97,67 +97,241 @@
       "crap": 18.6328125,
       "file": ".agents/scripts/check-baselines.js",
       "method": "parseArgs",
-      "startLine": 56
+      "startLine": 94
     },
     {
       "crap": 4,
       "file": ".agents/scripts/check-baselines.js",
       "method": "selectEnabledGates",
-      "startLine": 105
+      "startLine": 141
     },
     {
       "crap": 9,
       "file": ".agents/scripts/check-baselines.js",
       "method": "compareToFloor",
-      "startLine": 137
+      "startLine": 172
     },
     {
       "crap": 7,
       "file": ".agents/scripts/check-baselines.js",
       "method": "axisDirection",
-      "startLine": 154
+      "startLine": 189
     },
     {
       "crap": 3,
       "file": ".agents/scripts/check-baselines.js",
       "method": "applyFloors",
-      "startLine": 179
+      "startLine": 208
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "baselineRelativePath",
+      "startLine": 240
     },
     {
       "crap": 1,
       "file": ".agents/scripts/check-baselines.js",
-      "method": "evaluateGate",
-      "startLine": 211
+      "method": "resolveDispatchScope",
+      "startLine": 258
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "emptyCompareResult",
+      "startLine": 284
+    },
+    {
+      "crap": 2.075851851851852,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "readBaseBaselinePayload",
+      "startLine": 288
+    },
+    {
+      "crap": 5.1157407407407405,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "evaluateCompare",
+      "startLine": 304
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-baselines.js",
-      "method": "emitKernelFriction",
-      "startLine": 234
+      "method": "loadHeadBaseline",
+      "startLine": 326
     },
     {
-      "crap": 7.0986328125,
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "flattenBreaches",
+      "startLine": 336
+    },
+    {
+      "crap": 5.256842278293745,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "runCompareStage",
+      "startLine": 342
+    },
+    {
+      "crap": 30,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "tolerantNumericFields",
+      "startLine": 372
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "regressionExceedsTolerance",
+      "startLine": 385
+    },
+    {
+      "crap": 17.6982421875,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "applyTolerance",
+      "startLine": 391
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "buildGateReport",
+      "startLine": 408
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "evaluateKind",
+      "startLine": 438
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "buildSchemaEvent",
+      "startLine": 480
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "buildFloorEvent",
+      "startLine": 484
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "buildRegressionEvent",
+      "startLine": 501
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "buildKernelMismatchEvent",
+      "startLine": 512
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "dispatchFrictionEvent",
+      "startLine": 524
+    },
+    {
+      "crap": 6.166666666666667,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "emitGateFriction",
+      "startLine": 536
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "formatHeader",
+      "startLine": 594
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "formatGateStatus",
+      "startLine": 602
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "formatGateLine",
+      "startLine": 607
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "formatViolationLine",
+      "startLine": 616
+    },
+    {
+      "crap": 2.3511659807956105,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "appendGateText",
+      "startLine": 621
+    },
+    {
+      "crap": 2.0438957475994513,
       "file": ".agents/scripts/check-baselines.js",
       "method": "formatReport",
-      "startLine": 254
+      "startLine": 631
     },
     {
-      "crap": 9.47677951388889,
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "emptyReport",
+      "startLine": 650
+    },
+    {
+      "crap": 3.072,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "pickWantedKinds",
+      "startLine": 662
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "dispatchPerKind",
+      "startLine": 668
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "exitCodeForGate",
+      "startLine": 687
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "accumulateSchemaError",
+      "startLine": 695
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "accumulateGateResult",
+      "startLine": 710
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-baselines.js",
+      "method": "consumePerKindResults",
+      "startLine": 720
+    },
+    {
+      "crap": 2.0161063110443274,
       "file": ".agents/scripts/check-baselines.js",
       "method": "runCheckBaselines",
-      "startLine": 299
+      "startLine": 735
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-baselines.js",
       "method": "helpReport",
-      "startLine": 372
+      "startLine": 780
     },
     {
       "crap": 2,
       "file": ".agents/scripts/check-baselines.js",
       "method": "main",
-      "startLine": 392
+      "startLine": 802
     },
     {
       "crap": 9,
@@ -1174,10 +1348,16 @@
       "startLine": 33
     },
     {
+      "crap": 11.020747599451303,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "compare",
+      "startLine": 56
+    },
+    {
       "crap": 1.125,
       "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
       "method": "rollup",
-      "startLine": 47
+      "startLine": 93
     },
     {
       "crap": 1,
@@ -1216,10 +1396,28 @@
       "startLine": 59
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "compare",
+      "startLine": 80
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "perfectCoverageRow",
+      "startLine": 102
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "classifyCoverage",
+      "startLine": 106
+    },
+    {
       "crap": 20,
       "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
       "method": "componentMatches",
-      "startLine": 68
+      "startLine": 126
     },
     {
       "crap": 7.06721536351166,
@@ -1258,10 +1456,22 @@
       "startLine": 104
     },
     {
+      "crap": 9.021751535698701,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "compare",
+      "startLine": 123
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "crapRowKey",
+      "startLine": 155
+    },
+    {
       "crap": 20,
       "file": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "componentMatches",
-      "startLine": 113
+      "startLine": 159
     },
     {
       "crap": 1,
@@ -1300,10 +1510,28 @@
       "startLine": 60
     },
     {
+      "crap": 4,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "compare",
+      "startLine": 86
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "perfectLighthouseRow",
+      "startLine": 108
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "classify",
+      "startLine": 118
+    },
+    {
       "crap": 20,
       "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
       "method": "componentMatchesRoute",
-      "startLine": 71
+      "startLine": 131
     },
     {
       "crap": 1,
@@ -1330,10 +1558,16 @@
       "startLine": 68
     },
     {
+      "crap": 11.020747599451303,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "compare",
+      "startLine": 87
+    },
+    {
       "crap": 4,
       "file": ".agents/scripts/lib/baselines/kinds/lint.js",
       "method": "componentMatches",
-      "startLine": 72
+      "startLine": 124
     },
     {
       "crap": 1,
@@ -1372,10 +1606,16 @@
       "startLine": 56
     },
     {
+      "crap": 9.003689868804665,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "compare",
+      "startLine": 75
+    },
+    {
       "crap": 20,
       "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
       "method": "componentMatches",
-      "startLine": 65
+      "startLine": 104
     },
     {
       "crap": 1,
@@ -1408,10 +1648,16 @@
       "startLine": 52
     },
     {
+      "crap": 9.003689868804665,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "compare",
+      "startLine": 71
+    },
+    {
       "crap": 20,
       "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
       "method": "componentMatches",
-      "startLine": 61
+      "startLine": 100
     },
     {
       "crap": 4,

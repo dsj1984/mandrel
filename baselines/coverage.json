@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T22:22:10.911Z",
+  "generatedAt": "2026-05-15T23:27:09.762Z",
   "rollup": {
     "*": {
-      "lines": 96.91,
-      "branches": 86.57,
-      "functions": 92.61
+      "lines": 97.02,
+      "branches": 86.86,
+      "functions": 92.71
     }
   },
   "rows": [
@@ -24,9 +24,9 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "lines": 83.62,
-      "branches": 65.52,
-      "functions": 72.73
+      "lines": 86.67,
+      "branches": 71.04,
+      "functions": 85
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -187,7 +187,7 @@
     {
       "path": ".agents/scripts/lib/baselines/git-base.js",
       "lines": 97.03,
-      "branches": 83.33,
+      "branches": 84.62,
       "functions": 100
     },
     {
@@ -198,45 +198,45 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "lines": 83.93,
-      "branches": 50,
+      "lines": 89.22,
+      "branches": 57.89,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "lines": 84.93,
-      "branches": 56.25,
-      "functions": 85.71
+      "lines": 91.6,
+      "branches": 75,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 89.66,
-      "branches": 70,
-      "functions": 85.71
+      "lines": 91.36,
+      "branches": 72.73,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "lines": 81.58,
-      "branches": 41.18,
-      "functions": 85.71
+      "lines": 89.71,
+      "branches": 67.57,
+      "functions": 90
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "lines": 100,
-      "branches": 55,
+      "lines": 98.5,
+      "branches": 59.57,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "lines": 89.71,
-      "branches": 80,
-      "functions": 85.71
+      "lines": 92.52,
+      "branches": 75.61,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "lines": 85.94,
-      "branches": 42.86,
-      "functions": 83.33
+      "lines": 90.29,
+      "branches": 62.5,
+      "functions": 85.71
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -247,7 +247,7 @@
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "lines": 92.79,
-      "branches": 65.67,
+      "branches": 66.18,
       "functions": 100
     },
     {
@@ -487,7 +487,7 @@
     {
       "path": ".agents/scripts/lib/config/quality.js",
       "lines": 98.43,
-      "branches": 86.81,
+      "branches": 88.04,
       "functions": 100
     },
     {
@@ -625,7 +625,7 @@
     {
       "path": ".agents/scripts/lib/gates/friction.js",
       "lines": 90.7,
-      "branches": 80,
+      "branches": 83.33,
       "functions": 100
     },
     {
