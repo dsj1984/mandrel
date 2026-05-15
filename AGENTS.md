@@ -123,6 +123,26 @@ Releases are automated by
    The existing `dist` sync in `ci.yml` propagates the new
    `.agents/VERSION` to consumers.
 
+#### Major-version policy
+
+`release-please-config.json` sets `"versioning": "always-bump-minor"`,
+which caps automatic bumps at the minor axis even when commits carry
+`BREAKING CHANGE:` footers or `!` markers. Major versions require
+**manual operator intervention**:
+
+1. Land the breaking work on `main` as usual (Conventional Commits).
+2. On the release PR that release-please opens, either:
+   - **Edit `package.json`, `.agents/VERSION`, and `docs/CHANGELOG.md`
+     in-place** on the release branch to set the major version
+     (release-please will respect the edits and tag accordingly), OR
+   - **Add a one-shot commit on `main`** with `Release-As: X.0.0` in
+     the trailer — release-please will adopt that as the proposed
+     version on its next run.
+
+The cap is intentional: it prevents an inadvertent `BREAKING CHANGE:`
+footer from auto-tagging a major release without an explicit human
+decision.
+
 ---
 
 ## Key Reference Documents
