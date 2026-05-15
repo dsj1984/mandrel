@@ -281,59 +281,33 @@ function resolveDispatchScope({ kind, quality, env }) {
  * @param {{ kind: string, gateBlock: object, scope: object, cwd: string }} input
  * @returns {Promise<object>}
  */
-async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
-  if (scope.mode !== 'diff' || !scope.ref) {
-    return {
-      regressions: [],
-      improvements: [],
-      unchanged: [],
-      baseRef: null,
-      baseRead: false,
-    };
-  }
+function emptyCompareResult(baseRef) {
+  return { baseRef, baseRead: false };
+}
+
+function readBaseBaselinePayload(scope, kind, gateBlock, cwd) {
   const rel = baselineRelativePath(kind, gateBlock);
   let raw;
   try {
     raw = readBaseFromGit(scope.ref, rel, { cwd });
   } catch {
-    return {
-      regressions: [],
-      improvements: [],
-      unchanged: [],
-      baseRef: scope.ref,
-      baseRead: false,
-    };
+    return null;
   }
-  if (raw === null) {
-    return {
-      regressions: [],
-      improvements: [],
-      unchanged: [],
-      baseRef: scope.ref,
-      baseRead: false,
-    };
-  }
-  let basePayload;
+  if (raw === null) return null;
   try {
-    basePayload = JSON.parse(raw);
+    return JSON.parse(raw);
   } catch {
-    return {
-      regressions: [],
-      improvements: [],
-      unchanged: [],
-      baseRef: scope.ref,
-      baseRead: false,
-    };
+    return null;
   }
+}
+
+async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
+  if (scope.mode !== 'diff' || !scope.ref) return emptyCompareResult(null);
+  const basePayload = readBaseBaselinePayload(scope, kind, gateBlock, cwd);
+  if (!basePayload) return emptyCompareResult(scope.ref);
   const kindModule = getKindModule(kind);
   if (typeof kindModule.compare !== 'function') {
-    return {
-      regressions: [],
-      improvements: [],
-      unchanged: [],
-      baseRef: scope.ref,
-      baseRead: false,
-    };
+    return emptyCompareResult(scope.ref);
   }
   // The head baseline was already loaded once by the caller via
   // `reader.load`; we receive only the rows we need to compare against.
@@ -349,69 +323,100 @@ async function evaluateCompare({ kind, gateBlock, scope, cwd }) {
  *           configPath?: string }} input
  * @returns {Promise<object>}
  */
-async function evaluateKind({ kind, gateBlock, scope, cwd, configPath }) {
-  // Stage 1: schema (head load via reader, which validates).
-  let baseline;
+function loadHeadBaseline(kind, cwd, configPath) {
   try {
-    baseline = reader.load(kind, { cwd, configPath });
+    return { baseline: reader.load(kind, { cwd, configPath }) };
   } catch (err) {
     const message = err?.message ?? String(err);
     const tag = /schema validation failed/i.test(message) ? 'schema' : 'read';
-    return { kind, schemaError: { tag, message } };
+    return { schemaError: { tag, message } };
   }
-  const kernel = checkKernelVersion(kind, baseline.kernelVersion);
+}
 
-  // Stage 2: floor.
-  const findings = applyFloors(kind, baseline.rollup, gateBlock.floors ?? {});
-  const breaches = findings.flatMap((f) =>
+function flattenBreaches(findings) {
+  return findings.flatMap((f) =>
     f.violations.map((v) => ({ ...v, component: f.component })),
   );
+}
 
-  // Stage 3: tolerance — forwarded for transparency. The dispatcher does
-  // not interpret tolerance today; per-kind compare consumers may.
-  const tolerance = gateBlock.tolerance ?? null;
-
-  // Stage 4: compare (head vs base @ scope.ref).
-  const cmp = await evaluateCompare({ kind, gateBlock, scope, cwd });
-  let regressions = [];
-  let improvements = [];
-  let unchanged = [];
-  if (cmp.baseRead && cmp.basePayload && cmp.kindModule) {
-    try {
-      const result = cmp.kindModule.compare(
-        { rows: baseline.rows },
-        {
-          rows: Array.isArray(cmp.basePayload.rows) ? cmp.basePayload.rows : [],
-        },
-      );
-      regressions = result?.regressions ?? [];
-      improvements = result?.improvements ?? [];
-      unchanged = result?.unchanged ?? [];
-    } catch {
-      // Compare failures are advisory — drop to "no regression" rather
-      // than failing the whole gate; the per-kind module owns the
-      // hard contract.
-    }
+function runCompareStage(headBaseline, cmp) {
+  const empty = { regressions: [], improvements: [], unchanged: [] };
+  if (!cmp.baseRead || !cmp.basePayload || !cmp.kindModule) return empty;
+  try {
+    const baseRows = Array.isArray(cmp.basePayload.rows)
+      ? cmp.basePayload.rows
+      : [];
+    const result = cmp.kindModule.compare(
+      { rows: headBaseline.rows },
+      { rows: baseRows },
+    );
+    return {
+      regressions: result?.regressions ?? [],
+      improvements: result?.improvements ?? [],
+      unchanged: result?.unchanged ?? [],
+    };
+  } catch {
+    // Compare failures are advisory — drop to "no regression" rather
+    // than failing the whole gate; the per-kind module owns the
+    // hard contract.
+    return empty;
   }
+}
 
+function buildGateReport({
+  kind,
+  gateBlock,
+  baseline,
+  findings,
+  breaches,
+  compareOutput,
+  cmp,
+}) {
+  const kernel = checkKernelVersion(kind, baseline.kernelVersion);
   return {
     kind,
     enabled: true,
     kernelMatch: kernel.match,
     kernelCurrent: kernel.current,
     kernelBaseline: baseline.kernelVersion,
-    tolerance,
+    tolerance: gateBlock.tolerance ?? null,
     floors: gateBlock.floors ?? {},
     components: findings,
     breachCount: breaches.length,
     breaches,
-    regressions,
-    improvements,
-    unchanged,
-    regressionCount: regressions.length,
+    regressions: compareOutput.regressions,
+    improvements: compareOutput.improvements,
+    unchanged: compareOutput.unchanged,
+    regressionCount: compareOutput.regressions.length,
     baseRef: cmp.baseRef ?? null,
     generatedAt: baseline.generatedAt,
   };
+}
+
+async function evaluateKind({ kind, gateBlock, scope, cwd, configPath }) {
+  // Stage 1: schema (head load via reader, which validates).
+  const headLoad = loadHeadBaseline(kind, cwd, configPath);
+  if (headLoad.schemaError) {
+    return { kind, schemaError: headLoad.schemaError };
+  }
+  const baseline = headLoad.baseline;
+  // Stage 2: floor.
+  const findings = applyFloors(kind, baseline.rollup, gateBlock.floors ?? {});
+  const breaches = flattenBreaches(findings);
+  // Stage 3 (tolerance) is forwarded via gateBlock.tolerance into the
+  // gate report; the dispatcher does not interpret it today.
+  // Stage 4: compare (head vs base @ scope.ref).
+  const cmp = await evaluateCompare({ kind, gateBlock, scope, cwd });
+  const compareOutput = runCompareStage(baseline, cmp);
+  return buildGateReport({
+    kind,
+    gateBlock,
+    baseline,
+    findings,
+    breaches,
+    compareOutput,
+    cmp,
+  });
 }
 
 /**
@@ -428,100 +433,111 @@ async function evaluateKind({ kind, gateBlock, scope, cwd, configPath }) {
  *
  * Returns the list of emitted events for test inspection.
  */
+function buildSchemaEvent(envelope, schemaError) {
+  return { ...envelope, severity: 'schema', message: schemaError.message };
+}
+
+function buildFloorEvent(envelope, breaches) {
+  const first = breaches?.[0];
+  const value = first?.value;
+  const floor = first?.floor;
+  const delta =
+    typeof value === 'number' && typeof floor === 'number'
+      ? value - floor
+      : null;
+  return {
+    ...envelope,
+    severity: 'floor',
+    file: first?.component ?? null,
+    method: first?.axis ?? null,
+    delta,
+  };
+}
+
+function buildRegressionEvent(envelope, regressions) {
+  const first = regressions?.[0];
+  return {
+    ...envelope,
+    severity: 'regression',
+    file: first?.key ?? null,
+    method: null,
+    delta: null,
+  };
+}
+
+function buildKernelMismatchEvent(envelope, gateReport) {
+  return {
+    ...envelope,
+    severity: 'kernel-mismatch',
+    file: null,
+    method: null,
+    delta: null,
+    baselineKernelVersion: gateReport.kernelBaseline,
+    runningKernelVersion: gateReport.kernelCurrent,
+  };
+}
+
+async function dispatchFrictionEvent({ args, category, details, payload }) {
+  await emitFrictionSignal({
+    storyId: args.storyId,
+    epicId: args.epicId,
+    category,
+    tool: 'check-baselines',
+    details,
+    payload,
+    logLabel: 'check-baselines',
+  });
+}
+
 async function emitGateFriction({ gateReport, schemaError, args }) {
   const emitted = [];
   if (!args.friction) return emitted;
   const baseRef = gateReport?.baseRef ?? null;
   const kind = gateReport?.kind ?? schemaError?.kind;
-  const baseEnvelope = {
-    tool: 'check-baselines',
-    kind,
-    baseRef,
-  };
+  const envelope = { tool: 'check-baselines', kind, baseRef };
 
   if (schemaError) {
-    const ev = {
-      ...baseEnvelope,
-      severity: 'schema',
-      message: schemaError.message,
-    };
+    const ev = buildSchemaEvent(envelope, schemaError);
     emitted.push(ev);
-    await emitFrictionSignal({
-      storyId: args.storyId,
-      epicId: args.epicId,
+    await dispatchFrictionEvent({
+      args,
       category: 'baseline-schema-error',
-      tool: 'check-baselines',
       details: schemaError.message,
       payload: ev,
-      logLabel: 'check-baselines',
     });
     return emitted;
   }
 
   if ((gateReport?.breachCount ?? 0) > 0) {
-    const first = gateReport.breaches[0];
-    const ev = {
-      ...baseEnvelope,
-      severity: 'floor',
-      file: first?.component ?? null,
-      method: first?.axis ?? null,
-      delta:
-        typeof first?.value === 'number' && typeof first?.floor === 'number'
-          ? first.value - first.floor
-          : null,
-    };
+    const ev = buildFloorEvent(envelope, gateReport.breaches);
     emitted.push(ev);
-    await emitFrictionSignal({
-      storyId: args.storyId,
-      epicId: args.epicId,
+    await dispatchFrictionEvent({
+      args,
       category: 'baseline-floor-breach',
-      tool: 'check-baselines',
       details: `kind=${kind}; breaches=${gateReport.breachCount}`,
       payload: ev,
-      logLabel: 'check-baselines',
     });
   }
 
   if ((gateReport?.regressionCount ?? 0) > 0) {
-    const first = gateReport.regressions[0];
-    const ev = {
-      ...baseEnvelope,
-      severity: 'regression',
-      file: first?.key ?? null,
-      method: null,
-      delta: null,
-    };
+    const ev = buildRegressionEvent(envelope, gateReport.regressions);
     emitted.push(ev);
-    await emitFrictionSignal({
-      storyId: args.storyId,
-      epicId: args.epicId,
+    await dispatchFrictionEvent({
+      args,
       category: 'baseline-regression',
-      tool: 'check-baselines',
       details: `kind=${kind}; regressions=${gateReport.regressionCount}; baseRef=${baseRef ?? 'none'}`,
       payload: ev,
-      logLabel: 'check-baselines',
     });
   }
 
-  if (gateReport && gateReport.kernelMatch === false) {
-    const ev = {
-      ...baseEnvelope,
-      severity: 'kernel-mismatch',
-      file: null,
-      method: null,
-      delta: null,
-      baselineKernelVersion: gateReport.kernelBaseline,
-      runningKernelVersion: gateReport.kernelCurrent,
-    };
+  if (gateReport?.kernelMatch === false) {
+    const ev = buildKernelMismatchEvent(envelope, gateReport);
     emitted.push(ev);
-    await emitFrictionSignal({
-      storyId: args.storyId,
-      epicId: args.epicId,
+    await dispatchFrictionEvent({
+      args,
       category: 'baseline-kernel-mismatch',
-      tool: 'check-baselines',
       details: `kind=${kind}; baseline=${gateReport.kernelBaseline}; running=${gateReport.kernelCurrent}`,
       payload: ev,
-      logLabel: 'check-baselines',
     });
   }
 
@@ -531,37 +547,47 @@ async function emitGateFriction({ gateReport, schemaError, args }) {
 /**
  * Format the structured report for stdout. Pure.
  */
-export function formatReport(report, format) {
-  if (format === 'json') return JSON.stringify(report, null, 2);
-  const lines = [];
-  lines.push(
+function formatHeader(report) {
+  return (
     `[check-baselines] ${report.gates.length} gate(s) — ` +
-      `breaches=${report.totalBreaches}, regressions=${report.totalRegressions ?? 0}, ` +
-      `kernelDrift=${report.kernelDriftCount}, schemaErrors=${report.schemaErrors.length}`,
+    `breaches=${report.totalBreaches}, regressions=${report.totalRegressions ?? 0}, ` +
+    `kernelDrift=${report.kernelDriftCount}, schemaErrors=${report.schemaErrors.length}`
   );
-  for (const g of report.gates) {
-    const status =
-      g.breachCount === 0 && (g.regressionCount ?? 0) === 0
-        ? 'PASS'
-        : `FAIL (breaches=${g.breachCount}, regressions=${g.regressionCount ?? 0})`;
-    lines.push(
-      `  - ${g.kind}: ${status}` +
-        (g.kernelMatch
-          ? ''
-          : ` [kernel drift ${g.kernelBaseline} → ${g.kernelCurrent}]`) +
-        (g.baseRef ? ` [baseRef=${g.baseRef}]` : ''),
-    );
-    for (const c of g.components) {
-      if (c.violations.length === 0) continue;
-      for (const v of c.violations) {
-        lines.push(
-          `    · ${c.component}.${v.axis}: ${v.value} ${
-            v.direction === 'gte' ? '<' : '>'
-          } floor ${v.floor}`,
-        );
-      }
+}
+
+function formatGateStatus(g) {
+  if (g.breachCount === 0 && (g.regressionCount ?? 0) === 0) return 'PASS';
+  return `FAIL (breaches=${g.breachCount}, regressions=${g.regressionCount ?? 0})`;
+}
+
+function formatGateLine(g) {
+  const status = formatGateStatus(g);
+  const drift = g.kernelMatch
+    ? ''
+    : ` [kernel drift ${g.kernelBaseline} → ${g.kernelCurrent}]`;
+  const baseRef = g.baseRef ? ` [baseRef=${g.baseRef}]` : '';
+  return `  - ${g.kind}: ${status}${drift}${baseRef}`;
+}
+
+function formatViolationLine(component, v) {
+  const op = v.direction === 'gte' ? '<' : '>';
+  return `    · ${component}.${v.axis}: ${v.value} ${op} floor ${v.floor}`;
+}
+
+function appendGateText(lines, g) {
+  lines.push(formatGateLine(g));
+  for (const c of g.components) {
+    if (c.violations.length === 0) continue;
+    for (const v of c.violations) {
+      lines.push(formatViolationLine(c.component, v));
     }
   }
+}
+
+export function formatReport(report, format) {
+  if (format === 'json') return JSON.stringify(report, null, 2);
+  const lines = [formatHeader(report)];
+  for (const g of report.gates) appendGateText(lines, g);
   for (const s of report.schemaErrors) {
     lines.push(`  ! schema error (${s.kind}): ${s.message}`);
   }
@@ -577,6 +603,80 @@ export function formatReport(report, format) {
  *
  * @param {{ argv?: string[], cwd?: string, env?: object }} [opts]
  */
+function emptyReport(cwd) {
+  return {
+    schemaVersion: '1',
+    cwd,
+    gates: [],
+    totalBreaches: 0,
+    totalRegressions: 0,
+    kernelDriftCount: 0,
+    schemaErrors: [],
+  };
+}
+
+function pickWantedKinds(quality, gateFilter) {
+  const allKinds = selectEnabledGates(quality);
+  if (!gateFilter || gateFilter.length === 0) return allKinds;
+  return allKinds.filter((k) => gateFilter.includes(k));
+}
+
+function dispatchPerKind({ wanted, quality, env, cwd, configPath }) {
+  return Promise.all(
+    wanted.map((kind) => {
+      const gateBlock = quality.gates[kind];
+      const scope = resolveDispatchScope({ kind, quality, env });
+      return evaluateKind({ kind, gateBlock, scope, cwd, configPath });
+    }),
+  );
+}
+
+function exitCodeForGate(result) {
+  if ((result.regressionCount ?? 0) > 0) return EXIT_REGRESSION;
+  if (result.breachCount > 0) return EXIT_FLOOR;
+  return EXIT_PASS;
+}
+
+async function accumulateSchemaError(result, ctx) {
+  ctx.report.schemaErrors.push({
+    kind: result.kind,
+    tag: result.schemaError.tag,
+    message: result.schemaError.message,
+  });
+  ctx.perKindExitCodes.push(EXIT_SCHEMA);
+  const events = await emitGateFriction({
+    gateReport: null,
+    schemaError: { ...result.schemaError, kind: result.kind },
+    args: ctx.args,
+  });
+  ctx.frictionEvents.push(...events);
+}
+
+async function accumulateGateResult(result, ctx) {
+  ctx.report.gates.push(result);
+  ctx.report.totalBreaches += result.breachCount;
+  ctx.report.totalRegressions += result.regressionCount ?? 0;
+  if (!result.kernelMatch) ctx.report.kernelDriftCount += 1;
+  ctx.perKindExitCodes.push(exitCodeForGate(result));
+  const events = await emitGateFriction({ gateReport: result, args: ctx.args });
+  ctx.frictionEvents.push(...events);
+}
+
+async function consumePerKindResults(perKindResults, args, report) {
+  const ctx = { args, report, perKindExitCodes: [], frictionEvents: [] };
+  for (const result of perKindResults) {
+    if (result.schemaError) {
+      await accumulateSchemaError(result, ctx);
+      continue;
+    }
+    await accumulateGateResult(result, ctx);
+  }
+  return {
+    exitCode: aggregateExitCodes(...ctx.perKindExitCodes),
+    frictionEvents: ctx.frictionEvents,
+  };
+}
+
 export async function runCheckBaselines({
   argv,
   cwd = process.cwd(),
@@ -596,83 +696,24 @@ export async function runCheckBaselines({
     configPath: args.configPath ?? undefined,
   });
   const quality = getQuality({ delivery: config.delivery });
-  const allKinds = selectEnabledGates(quality);
-  const wanted =
-    args.gates && args.gates.length > 0
-      ? allKinds.filter((k) => args.gates.includes(k))
-      : allKinds;
-
+  const wanted = pickWantedKinds(quality, args.gates);
   // Per-kind pipeline: Promise.all over the configured kind list. Each
   // pipeline runs schema → floor → tolerance → compare in sequence
   // internally; pipelines run independently across kinds.
-  const perKindResults = await Promise.all(
-    wanted.map((kind) => {
-      const gateBlock = quality.gates[kind];
-      const scope = resolveDispatchScope({ kind, quality, env });
-      return evaluateKind({
-        kind,
-        gateBlock,
-        scope,
-        cwd,
-        configPath: args.configPath ?? undefined,
-      });
-    }),
-  );
-
-  const report = {
-    schemaVersion: '1',
+  const perKindResults = await dispatchPerKind({
+    wanted,
+    quality,
+    env,
     cwd,
-    gates: [],
-    totalBreaches: 0,
-    totalRegressions: 0,
-    kernelDriftCount: 0,
-    schemaErrors: [],
-  };
+    configPath: args.configPath ?? undefined,
+  });
 
-  // Friction emission centralised here — the dispatcher is the single
-  // emission site (Task #1976). Per-kind modules MUST NOT emit.
-  const frictionEvents = [];
-  const perKindExitCodes = [];
-
-  for (const result of perKindResults) {
-    if (result.schemaError) {
-      report.schemaErrors.push({
-        kind: result.kind,
-        tag: result.schemaError.tag,
-        message: result.schemaError.message,
-      });
-      perKindExitCodes.push(EXIT_SCHEMA);
-      const events = await emitGateFriction({
-        gateReport: null,
-        schemaError: { ...result.schemaError, kind: result.kind },
-        args,
-      });
-      frictionEvents.push(...events);
-      continue;
-    }
-    report.gates.push(result);
-    report.totalBreaches += result.breachCount;
-    report.totalRegressions += result.regressionCount ?? 0;
-    if (!result.kernelMatch) report.kernelDriftCount += 1;
-
-    // Per-kind exit-code mapping. Multiple severities collapse into the
-    // highest severity for that kind; the dispatcher's overall exit code
-    // is aggregate(...) across every kind.
-    let kindCode = EXIT_PASS;
-    if (result.breachCount > 0) kindCode = EXIT_FLOOR;
-    if ((result.regressionCount ?? 0) > 0) kindCode = EXIT_REGRESSION;
-    perKindExitCodes.push(kindCode);
-
-    const events = await emitGateFriction({ gateReport: result, args });
-    frictionEvents.push(...events);
-  }
-
-  // Aggregate exit codes via the shared helper. Schema errors already
-  // pushed EXIT_SCHEMA (2) above; floor and regression flow in here.
-  // Precedence is numeric: EXIT_REGRESSION (4) > EXIT_CONFIG (3) >
-  // EXIT_SCHEMA (2) > EXIT_FLOOR (1) > EXIT_PASS (0).
-  const exitCode = aggregateExitCodes(...perKindExitCodes);
-
+  const report = emptyReport(cwd);
+  const { exitCode, frictionEvents } = await consumePerKindResults(
+    perKindResults,
+    args,
+    report,
+  );
   return {
     exitCode,
     report,
