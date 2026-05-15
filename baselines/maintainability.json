@@ -36,7 +36,7 @@
     },
     {
       "path": ".agents/scripts/check-crap.js",
-      "mi": 86.073
+      "mi": 86.48
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -280,7 +280,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
-      "mi": 94.56
+      "mi": 94.538
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -488,7 +488,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "mi": 89.738
+      "mi": 90.47
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -592,7 +592,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 96.016
+      "mi": 96.945
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -888,7 +888,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "mi": 84.453
+      "mi": 84.567
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
@@ -1048,7 +1048,7 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "mi": 88.011
+      "mi": 87.96
     },
     {
       "path": ".agents/scripts/lib/retrofit/task-body-retrofit.js",
@@ -1496,7 +1496,7 @@
     },
     {
       "path": "tests/baselines/reader.test.js",
-      "mi": 110.695
+      "mi": 110.789
     },
     {
       "path": "tests/baselines/refresh-entry-points-migration.test.js",
@@ -1504,7 +1504,7 @@
     },
     {
       "path": "tests/baselines/shipped-baselines-idempotency.test.js",
-      "mi": 102.128
+      "mi": 101.509
     },
     {
       "path": "tests/baselines/writer.test.js",
@@ -2800,15 +2800,15 @@
     },
     {
       "path": "tests/scripts/check-coverage-baseline.test.js",
-      "mi": 115.857
+      "mi": 114.878
     },
     {
       "path": "tests/scripts/check-crap.test.js",
-      "mi": 112.454
+      "mi": 110.884
     },
     {
       "path": "tests/scripts/check-maintainability.test.js",
-      "mi": 116.853
+      "mi": 115.025
     },
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
