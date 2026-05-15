@@ -133,7 +133,11 @@ export function write({
     if (!Array.isArray(prior)) {
       throw new TypeError('writer.write: prior must be an array when provided');
     }
-    if (typeof epsilon !== 'number' || !Number.isFinite(epsilon) || epsilon < 0) {
+    if (
+      typeof epsilon !== 'number' ||
+      !Number.isFinite(epsilon) ||
+      epsilon < 0
+    ) {
       throw new TypeError(
         `writer.write: epsilon must be a non-negative finite number (got ${JSON.stringify(epsilon)})`,
       );

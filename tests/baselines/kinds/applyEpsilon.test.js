@@ -68,9 +68,7 @@ describe('coverage.applyEpsilon', () => {
 });
 
 describe('crap.applyEpsilon', () => {
-  const prior = [
-    { path: 'src/a.js', method: 'foo', startLine: 10, crap: 4.2 },
-  ];
+  const prior = [{ path: 'src/a.js', method: 'foo', startLine: 10, crap: 4.2 }];
   const regenUnder = [
     { path: 'src/a.js', method: 'foo', startLine: 10, crap: 4.5 },
   ];

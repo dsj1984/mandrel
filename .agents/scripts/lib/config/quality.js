@@ -500,9 +500,7 @@ export function resolveBaselineEpsilon(userBlock) {
  */
 export function getBaselineEpsilon(kind, config) {
   if (!BASELINE_EPSILON_KINDS.has(kind)) {
-    throw new Error(
-      `[config] getBaselineEpsilon: unknown kind '${kind}'`,
-    );
+    throw new Error(`[config] getBaselineEpsilon: unknown kind '${kind}'`);
   }
   const userBlock =
     config?.delivery?.quality?.baselineEpsilon ??
