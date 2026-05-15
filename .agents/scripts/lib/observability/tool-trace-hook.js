@@ -87,6 +87,67 @@ function hashTarget(value) {
 }
 
 /**
+ * Normalise a Bash command string into a stable identity for the retry
+ * detector (Story #1768 / Task #1775). The output is what we hash to
+ * derive `details.normalizedHash`; the raw value is still hashed
+ * separately into `details.targetHash` so the privacy contract for the
+ * raw command is unchanged.
+ *
+ * ## Rules (documented contract — kept narrow on purpose)
+ *
+ *   1. **Whitespace collapse.** Leading/trailing whitespace is stripped
+ *      and runs of internal whitespace collapse to a single space.
+ *      `npm  test` → `npm test`. `\n` and `\t` count as whitespace.
+ *
+ *   2. **Strip benign trailing flags.** `--no-color` and `--quiet`
+ *      anywhere in the argv are removed (with their surrounding
+ *      whitespace re-collapsed). These flags affect output only and
+ *      never change the command's identity for retry-detection
+ *      purposes. The list is deliberately tiny — adding more flags is
+ *      a new ADR conversation, not a hook tweak.
+ *
+ *   3. **`npm test` ≡ `npm run test`.** Only this single paraphrase
+ *      collapses. `npm run lint` and `npm test` do **not** collapse;
+ *      `npm run build` and `npm build` do **not** collapse. The
+ *      treatment is intentional: it covers the one paraphrase the
+ *      `package.json` `scripts.test` shorthand makes idiomatic, and
+ *      stops there.
+ *
+ * Returns `null` when the input is not a non-empty string (so the
+ * caller can omit the field rather than recording a hash of `''`).
+ *
+ * Exported for testing — the unit suite asserts the collapse rules.
+ *
+ * @param {unknown} command
+ * @returns {string|null}
+ */
+export function normaliseBashCommand(command) {
+  if (typeof command !== 'string' || command.length === 0) return null;
+
+  // Step 1: whitespace collapse. Trim then collapse internal runs.
+  let normalised = command.trim().replace(/\s+/g, ' ');
+  if (normalised.length === 0) return null;
+
+  // Step 2: strip benign trailing/inline flags. Token-level removal so
+  // we don't accidentally chew into a longer flag (e.g. `--quiet-mode`
+  // would not match `--quiet`).
+  const benignFlags = new Set(['--no-color', '--quiet']);
+  const tokens = normalised.split(' ').filter((tok) => !benignFlags.has(tok));
+  normalised = tokens.join(' ');
+  if (normalised.length === 0) return null;
+
+  // Step 3: collapse `npm run test` → `npm test`. Only this exact
+  // paraphrase. We rewrite to the shorter form because the longer form
+  // is more verbose; either direction would work, but the `scripts.test`
+  // shorthand is the form most operators type.
+  if (normalised === 'npm run test') {
+    normalised = 'npm test';
+  }
+
+  return normalised;
+}
+
+/**
  * Clamp a string field so a misbehaving tool argument can't bloat the
  * trace file. Non-string input is returned unchanged (numbers, booleans,
  * etc. are size-bounded by JSON serialisation).
@@ -142,6 +203,18 @@ function buildDetails({ tool, toolInput, durationMs }) {
     // Bash: hash `command` so a token-laden string never lands on disk.
     if (typeof toolInput.command === 'string') {
       details.targetHash = hashTarget(toolInput.command);
+      // Story #1768 / Task #1775 — additive `normalizedHash` lets the
+      // retry detector collapse paraphrases (`npm test` ≡ `npm run test`,
+      // collapsed whitespace, stripped `--no-color` / `--quiet`) without
+      // ever touching the raw command. Same `sha256:<hex>` shape as
+      // `targetHash`, distinct value (the normalised input is hashed).
+      // Bash-only on purpose: every other tool keeps `targetHash`
+      // semantics unchanged. `normaliseBashCommand` returns `null` for
+      // empty / non-string input, in which case we omit the field.
+      const normalised = normaliseBashCommand(toolInput.command);
+      if (normalised !== null) {
+        details.normalizedHash = hashTarget(normalised);
+      }
     }
     // Edit / Write / Read: hash `file_path` for the same reason — the
     // operator's local path layout is not interesting to the analyzer.

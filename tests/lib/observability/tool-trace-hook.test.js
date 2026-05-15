@@ -27,6 +27,7 @@ import {
   handlePost,
   handlePre,
   main,
+  normaliseBashCommand,
   resolveActiveStory,
 } from '../../../.agents/scripts/lib/observability/tool-trace-hook.js';
 
@@ -280,6 +281,241 @@ describe('tool-trace-hook — hashing & privacy', () => {
       .update(filePath, 'utf8')
       .digest('hex')}`;
     assert.equal(trace.details.targetHash, expectedHash);
+  });
+});
+
+describe('tool-trace-hook — normaliseBashCommand (Story #1768 / Task #1775)', () => {
+  it('returns null for non-string / empty input', () => {
+    assert.equal(normaliseBashCommand(null), null);
+    assert.equal(normaliseBashCommand(undefined), null);
+    assert.equal(normaliseBashCommand(''), null);
+    assert.equal(normaliseBashCommand(42), null);
+    assert.equal(normaliseBashCommand({}), null);
+  });
+
+  it('returns null when input is whitespace-only (collapses to empty)', () => {
+    assert.equal(normaliseBashCommand('   '), null);
+    assert.equal(normaliseBashCommand('\t\n  '), null);
+  });
+
+  it('collapses runs of internal whitespace to a single space', () => {
+    assert.equal(normaliseBashCommand('npm  test'), 'npm test');
+    assert.equal(normaliseBashCommand('npm\t\ttest'), 'npm test');
+    assert.equal(
+      normaliseBashCommand('  npm   run   build  '),
+      'npm run build',
+    );
+  });
+
+  it('strips benign trailing flags (--no-color, --quiet)', () => {
+    assert.equal(normaliseBashCommand('npm test --no-color'), 'npm test');
+    assert.equal(normaliseBashCommand('npm test --quiet'), 'npm test');
+    assert.equal(
+      normaliseBashCommand('npm test --no-color --quiet'),
+      'npm test',
+    );
+    // Inline placement is also stripped — the rule is token-level, not
+    // positional.
+    assert.equal(
+      normaliseBashCommand('npm --no-color run lint'),
+      'npm run lint',
+    );
+  });
+
+  it('does NOT strip flags whose name only starts with the benign prefix', () => {
+    // --quiet-mode is a different token; must not collapse.
+    assert.equal(
+      normaliseBashCommand('npm test --quiet-mode'),
+      'npm test --quiet-mode',
+    );
+    assert.equal(
+      normaliseBashCommand('npm test --no-color-output'),
+      'npm test --no-color-output',
+    );
+  });
+
+  it('collapses ONLY `npm test` ≡ `npm run test`', () => {
+    assert.equal(normaliseBashCommand('npm run test'), 'npm test');
+    assert.equal(normaliseBashCommand('npm test'), 'npm test');
+    // Other npm-run paraphrases do NOT collapse.
+    assert.equal(normaliseBashCommand('npm run lint'), 'npm run lint');
+    assert.equal(normaliseBashCommand('npm run build'), 'npm run build');
+    assert.equal(normaliseBashCommand('npm build'), 'npm build');
+  });
+
+  it('preserves command identity for unrelated paraphrases', () => {
+    // No globally-applied lowercase, no path normalisation, no env
+    // stripping — explicitly out of scope.
+    assert.equal(normaliseBashCommand('NPM test'), 'NPM test');
+    assert.equal(
+      normaliseBashCommand('./node_modules/.bin/eslint .'),
+      './node_modules/.bin/eslint .',
+    );
+  });
+});
+
+describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Task #1775)', () => {
+  it('records details.normalizedHash on Bash trace records, distinct from targetHash', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-nh-1',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm  run  test' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const trace = JSON.parse(raw.trim());
+    assert.equal(typeof trace.details.targetHash, 'string');
+    assert.match(trace.details.targetHash, /^sha256:[0-9a-f]{64}$/);
+    assert.equal(typeof trace.details.normalizedHash, 'string');
+    assert.match(trace.details.normalizedHash, /^sha256:[0-9a-f]{64}$/);
+    // Distinct: raw input and normalised input differ.
+    assert.notEqual(trace.details.normalizedHash, trace.details.targetHash);
+
+    // The normalised hash is sha256 of the canonical normalised form.
+    const expected = `sha256:${createHash('sha256')
+      .update('npm test', 'utf8')
+      .digest('hex')}`;
+    assert.equal(trace.details.normalizedHash, expected);
+  });
+
+  it('produces identical normalizedHash for `npm test` and `npm  run  test`', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-nh-2a',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm test' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-nh-2b',
+        tool_name: 'Bash',
+        tool_input: { command: 'npm  run  test' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(lines.length, 2);
+    // normalizedHash collapses despite different raw commands.
+    assert.equal(
+      lines[0].details.normalizedHash,
+      lines[1].details.normalizedHash,
+    );
+    // targetHash differs because raw commands differ.
+    assert.notEqual(lines[0].details.targetHash, lines[1].details.targetHash);
+  });
+
+  it('does NOT record normalizedHash on non-Bash tool events (Edit / Write / Read / Grep / Glob)', async () => {
+    const cases = [
+      { tool: 'Edit', tool_input: { file_path: '/x/a.ts' } },
+      { tool: 'Write', tool_input: { file_path: '/x/b.ts' } },
+      { tool: 'Read', tool_input: { file_path: '/x/c.ts' } },
+      { tool: 'Grep', tool_input: { pattern: 'foo' } },
+      { tool: 'Glob', tool_input: { pattern: '**/*.ts' } },
+    ];
+    let i = 0;
+    for (const { tool, tool_input } of cases) {
+      await handlePost(
+        {
+          hook_event_name: 'PostToolUse',
+          tool_use_id: `tu-nb-${i++}`,
+          tool_name: tool,
+          tool_input,
+        },
+        { epicId: 1030, storyId: 1043 },
+      );
+    }
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(lines.length, cases.length);
+    for (const trace of lines) {
+      assert.equal(
+        Object.hasOwn(trace.details, 'normalizedHash'),
+        false,
+        `${trace.source.tool} trace must not carry normalizedHash`,
+      );
+    }
+  });
+
+  it('omits normalizedHash on a Bash event whose command is empty or whitespace-only', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-empty',
+        tool_name: 'Bash',
+        tool_input: { command: '' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-ws',
+        tool_name: 'Bash',
+        tool_input: { command: '   \t  ' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(lines.length, 2);
+    for (const trace of lines) {
+      assert.equal(Object.hasOwn(trace.details, 'normalizedHash'), false);
+    }
+  });
+
+  it('omits normalizedHash on a Bash event whose command is non-string', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-nonstr',
+        tool_name: 'Bash',
+        tool_input: { command: 42 },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const trace = JSON.parse(raw.trim());
+    assert.equal(Object.hasOwn(trace.details, 'normalizedHash'), false);
+    // targetHash is also absent (the existing hashTarget guard returns null
+    // for non-string input — the field is simply not set).
+    assert.equal(Object.hasOwn(trace.details, 'targetHash'), false);
   });
 });
 
