@@ -57,8 +57,8 @@ import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { createProvider } from './lib/provider-factory.js';
-import { WorktreeManager } from './lib/worktree-manager.js';
 import { dispatchStoryMergedNotify } from './lib/single-story/story-merged-notify.js';
+import { WorktreeManager } from './lib/worktree-manager.js';
 import { notify } from './notify.js';
 
 const progress = Logger.createProgress('single-story-close', { stderr: true });
