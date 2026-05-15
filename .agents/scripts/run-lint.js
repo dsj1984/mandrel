@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// cli-opt-out: top-level-await driver with no main() function — runAsCli wraps an async main, which doesn't apply here.
 /* node:coverage ignore file */
 
 /**
