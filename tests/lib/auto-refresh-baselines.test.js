@@ -10,7 +10,7 @@ import { evaluateAutoRefresh } from '../../.agents/scripts/lib/auto-refresh-base
  * must surface a `baseline-refresh-regression` friction signal instead.
  *
  * The evaluator is pure (no I/O) — every test injects scoredRows + baseline
- * fixtures plus the canonical caps from `.agents/default-agentrc.json`
+ * fixtures plus the canonical caps from `.agents/full-agentrc.json`
  * (`miDropCap: 1.5`, `crapJumpCap: 5`).
  */
 

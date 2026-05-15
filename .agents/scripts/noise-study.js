@@ -227,7 +227,7 @@ export function summarizeRows(acc) {
  * is its own safety margin; bump if you want headroom).
  *
  * Returns the raw value plus a rounded suggestion (2 decimals) suitable
- * for pasting into `.agents/default-agentrc.json`.
+ * for pasting into `.agents/full-agentrc.json`.
  *
  * @param {Array<{ p95AbsDev: number }>} summarizedRows
  * @param {number} [safetyMultiplier]

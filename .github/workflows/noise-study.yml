@@ -5,7 +5,7 @@ name: Noise study
 # The job runs in parallel on windows-latest and ubuntu-latest under Node 22,
 # uploads the per-runner markdown report and CSV as artifacts, and prints the
 # recommended-threshold block to the job summary so a reviewer can paste it
-# into `.agents/default-agentrc.json` via a baseline-refresh: commit.
+# into `.agents/full-agentrc.json` via a baseline-refresh: commit.
 #
 # Story #1397 — see docs/noise-study-<date>.md for the combined report once
 # the CI artifacts are downloaded and merged into a single docs/ commit.

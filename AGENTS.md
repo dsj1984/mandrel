@@ -37,7 +37,8 @@ mandrel/
 │   ├── scripts/              # Deterministic JS tooling (orchestration engine)
 │   ├── schemas/              # JSON Schemas for structured output validation
 │   ├── templates/            # Epic / planning prompt templates
-│   ├── default-agentrc.json  # Default config — consumers copy to project root
+│   ├── starter-agentrc.json # Bootstrap delta-seed — consumers copy to project root
+│   ├── full-agentrc.json    # Exhaustive editor reference (every schema key)
 │   ├── SDLC.md               # End-to-end SDLC narrative (/epic-plan + /epic-deliver)
 │   └── README.md             # Detailed consumer user guide
 ├── .agentrc.json             # Root config for this repo (dogfooding)

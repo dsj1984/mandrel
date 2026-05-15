@@ -28,7 +28,7 @@
  * `agentSettings` bag); when omitted it lazy-loads via `resolveConfig()` so
  * call sites already inside the resolver can pass their own bag and avoid the
  * round-trip. The missing-tempRoot fallback resolves to `'temp'` — the
- * framework default shipped in `.agents/default-agentrc.json`. Note that the
+ * framework default shipped in `.agents/full-agentrc.json`. Note that the
  * AJV schema marks `tempRoot` as required for any loaded `.agentrc.json`, so
  * the fallback only matters in zero-config callers (tests, ad-hoc scripts).
  */

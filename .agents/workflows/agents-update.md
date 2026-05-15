@@ -84,7 +84,7 @@ A no-op run (already up to date) looks like:
 ## Step 3 — Reconcile `.agentrc.json` against the new defaults
 
 A framework bump can add or reshape fields in
-`.agents/default-agentrc.json` (and the underlying schema). Run the
+`.agents/full-agentrc.json` (and the underlying schema). Run the
 reconciliation helper so the consumer's `.agentrc.json` tracks the new schema
 without losing any project-specific overrides.
 

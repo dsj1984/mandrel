@@ -700,7 +700,7 @@ declare default values that the `.agentrc.json` template could mirror.
   guards on the summary schemas mean a producer drift fails AJV at
   close time, not at consumer parse time.
 - **Operator overrides survive template re-bootstraps.**
-  `.agents/default-agentrc.json` mirrors `SIGNALS_DEFAULTS` exactly
+  `.agents/full-agentrc.json` mirrors `SIGNALS_DEFAULTS` exactly
   (the `tests/config/limits-template-drift.test.js` guard fails on any
   divergence), so an operator who copied the template wholesale and one
   who merged it on top of an existing block resolve to the same

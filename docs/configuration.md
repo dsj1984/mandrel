@@ -16,9 +16,10 @@ and
 A drift test (`tests/config-schema-mirror-drift.test.js`) keeps the static
 mirror aligned with the runtime validators.
 
-> **Editor support.** Both `.agentrc.json` and `.agents/default-agentrc.json`
-> declare `"$schema": "./.agents/schemas/agentrc.schema.json"`, so any editor
-> with JSON Schema support gets autocomplete and inline validation.
+> **Editor support.** `.agentrc.json`, `.agents/starter-agentrc.json`, and
+> `.agents/full-agentrc.json` all declare
+> `"$schema": "./.agents/schemas/agentrc.schema.json"`, so any editor with
+> JSON Schema support gets autocomplete and inline validation.
 
 ## Top-level shape
 
@@ -332,8 +333,8 @@ checkout's HEAD.
 Every runner-flavoured sub-block lives under `orchestration.runners.*`.
 The schema rejects unknown keys with `additionalProperties: false` at
 both the runners root and each runner sub-block, so legacy flat keys
-and prior names are not accepted. The merged `default-agentrc.json`
-ships with the current key names.
+and prior names are not accepted. The merged `full-agentrc.json`
+reference documents the current key names.
 
 #### `orchestration.runners.deliverRunner`
 
@@ -376,16 +377,17 @@ ships with the current key names.
 
 ---
 
-## Root dogfood vs distributed template
+## Root dogfood vs distributed templates
 
-Two `.agentrc`-shaped files live in this repository and serve different
+Three `.agentrc`-shaped files live in this repository and serve different
 audiences. They share the same schema but legitimately disagree on a small
 number of keys.
 
-| File                            | Audience                            | Role                                                                                                                                |
-| ------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)     | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-execute` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
-| `.agents/default-agentrc.json`  | Downstream consumer repos           | Template a consumer copies via `cp .agents/default-agentrc.json .agentrc.json` when bootstrapping. Sane defaults for any repo.      |
+| File                              | Audience                            | Role                                                                                                                                |
+| --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-execute` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
+| `.agents/starter-agentrc.json`    | Downstream consumer repos           | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys only.      |
+| `.agents/full-agentrc.json`       | Operators and reviewers             | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                             |
 
 | Key                                       | Root dogfood                          | Distributed template                | Why they differ                                                                                                                                                                          |
 | ----------------------------------------- | ------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -404,9 +406,11 @@ template-introduced keys the project does not already define. Project-side
 values that validate are preserved unconditionally — including optional keys
 the template does not declare.
 
-> **Editing rule of thumb:** edit `.agents/default-agentrc.json` for changes
-> that should ship to consumers; edit `.agentrc.json` for changes that only
-> affect this repo's own dogfood runs.
+> **Editing rule of thumb:** edit `.agents/full-agentrc.json` when a
+> framework default changes; edit `.agents/starter-agentrc.json` only when
+> the bootstrap seed itself needs new schema-required keys; edit
+> `.agentrc.json` for changes that only affect this repo's own dogfood
+> runs.
 
 ---
 
