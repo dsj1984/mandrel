@@ -9,6 +9,11 @@
     "branches": 62.24,
     "functions": 100
   },
+  ".agents/scripts/check-dead-exports.js": {
+    "lines": 89.64,
+    "branches": 83.93,
+    "functions": 81.82
+  },
   ".agents/scripts/check-mutation.js": {
     "lines": 93.58,
     "branches": 81.43,

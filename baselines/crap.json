@@ -94,6 +94,72 @@
       "startLine": 691
     },
     {
+      "crap": 9,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "parseArgv",
+      "startLine": 42
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "loadBaseline",
+      "startLine": 75
+    },
+    {
+      "crap": 14,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "extractRowsFromKnip",
+      "startLine": 97
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "diffRows",
+      "startLine": 131
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "<anon method-1>",
+      "startLine": 132
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "<anon method-4>",
+      "startLine": 138
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "renderDiff",
+      "startLine": 156
+    },
+    {
+      "crap": 27.323832749072807,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "runKnip",
+      "startLine": 178
+    },
+    {
+      "crap": 1.0233236151603498,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "readKnipOutput",
+      "startLine": 213
+    },
+    {
+      "crap": 8.000311619006812,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "runCli",
+      "startLine": 235
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/check-dead-exports.js",
+      "method": "main",
+      "startLine": 295
+    },
+    {
       "crap": 10,
       "file": ".agents/scripts/check-mutation.js",
       "method": "resolveMutationGate",
@@ -5470,7 +5536,7 @@
       "startLine": 672
     },
     {
-      "crap": 6.0163859808830225,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing.js",
       "method": "upsertStructuredComment",
       "startLine": 713
