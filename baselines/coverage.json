@@ -645,8 +645,23 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 92.61,
-    "branches": 71.92,
+    "lines": 89.31,
+    "branches": 77.48,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js": {
+    "lines": 99.14,
+    "branches": 78.79,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js": {
+    "lines": 100,
+    "branches": 85.71,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js": {
+    "lines": 98.66,
+    "branches": 74.63,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
