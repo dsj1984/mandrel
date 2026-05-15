@@ -38,7 +38,10 @@ describe('validateProjectionInputs — missing-arg branches', () => {
   });
 
   it('returns missing-story-branch when storyBranch is null', () => {
-    const result = validateProjectionInputs({ ...goodInputs, storyBranch: null });
+    const result = validateProjectionInputs({
+      ...goodInputs,
+      storyBranch: null,
+    });
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'missing-story-branch');
   });

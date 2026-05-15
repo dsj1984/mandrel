@@ -152,7 +152,9 @@ describe('formatMaintainabilityProjection — submodule', () => {
 
   it('renders an advisory line per regression and includes the refresh workflow', () => {
     const text = formatMaintainabilityProjection({
-      regressions: [{ file: 'lib/x.js', projected: 50, baseline: 80, drop: 30 }],
+      regressions: [
+        { file: 'lib/x.js', projected: 50, baseline: 80, drop: 30 },
+      ],
     });
     assert.match(text, /Pre-merge MI projection: 1 file\(s\)/);
     assert.match(text, /lib\/x\.js/);
