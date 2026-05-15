@@ -144,6 +144,35 @@ jobs:
           name: crap-report
           path: temp/crap-report.json
 
+  baselines:
+    # Story #1912 / Task #1914 — surface the unified floor + tolerance +
+    # schema gate as its own status check named `baselines`. This runs
+    # alongside (not in place of) the per-kind regression gates folded
+    # into the `Validate and Test` job above; the per-kind names stay in
+    # `github.branchProtection.requiredChecks` until Epic #1943 collapses
+    # the contract to `["baselines"]`.
+    name: baselines
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run check-baselines
+        run: node .agents/scripts/check-baselines.js --format text
+
   publish:
     name: Publish to Dist
     needs: [validate]
