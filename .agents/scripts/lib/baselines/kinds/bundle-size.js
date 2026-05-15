@@ -44,6 +44,52 @@ function aggregate(rows) {
   };
 }
 
+/**
+ * Pure compare(head, base) for the bundle-size kind. Diffs rows by
+ * `bundle`. A row regresses when rawKb or gzippedKb increases; improves
+ * when either decreases without the other increasing; otherwise
+ * unchanged. New bundles count as regressions when they carry any size;
+ * removed bundles count as improvements when they had any size.
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.bundle, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.bundle);
+    const b = baseByKey.get(h.bundle);
+    if (!b) {
+      const total = (h.rawKb ?? 0) + (h.gzippedKb ?? 0);
+      if (total > 0) regressions.push({ key: h.bundle, head: h, base: null });
+      else unchanged.push({ key: h.bundle, head: h, base: null });
+      continue;
+    }
+    const rawDelta = (h.rawKb ?? 0) - (b.rawKb ?? 0);
+    const gzDelta = (h.gzippedKb ?? 0) - (b.gzippedKb ?? 0);
+    if (rawDelta > 0 || gzDelta > 0) {
+      regressions.push({ key: h.bundle, head: h, base: b });
+    } else if (rawDelta < 0 || gzDelta < 0) {
+      improvements.push({ key: h.bundle, head: h, base: b });
+    } else {
+      unchanged.push({ key: h.bundle, head: h, base: b });
+    }
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.bundle)) continue;
+    const total = (b.rawKb ?? 0) + (b.gzippedKb ?? 0);
+    if (total > 0) improvements.push({ key: b.bundle, head: null, base: b });
+    else unchanged.push({ key: b.bundle, head: null, base: b });
+  }
+  return { regressions, improvements, unchanged };
+}
+
 export function rollup(rows, components = []) {
   const out = { '*': aggregate(rows) };
   for (const c of components ?? []) {
