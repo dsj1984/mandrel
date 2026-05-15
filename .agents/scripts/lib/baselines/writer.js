@@ -51,12 +51,29 @@ import { assertCanonical } from './path-canon.js';
  * (no disk I/O). Callers feed the result into `writeFile()` when they're
  * ready to persist.
  *
+ * Story #1964 (s-stability-epsilon) added the optional `prior` and
+ * `epsilon` parameters. When both are present, the writer calls the
+ * per-kind `applyEpsilon(prior, regenerated, epsilon)` stabilizer
+ * **after** projection but **before** sort/rollup/serialise. Sub-epsilon
+ * row deltas resolve to the prior bytes, so env variance never rewrites
+ * the on-disk envelope. When either is absent (`undefined`), behaviour is
+ * unchanged from the pre-#1964 contract — this is regression-fail-safe by
+ * design so existing call sites stay untouched.
+ *
+ * `prior` MUST be an array of already-canonical rows (typically the
+ * `rows[]` from the previous envelope on disk). Passing raw, un-projected
+ * rows is a programming error: the lookup matches by the canonical key
+ * field, so non-canonical paths simply miss the prior map and fall
+ * through to the regenerated row.
+ *
  * @param {{
  *   kind: string,
  *   rows: Array<object>,
  *   components?: Array<object>,
  *   kernelVersion?: string,
  *   generatedAt?: string,
+ *   prior?: Array<object>,
+ *   epsilon?: number,
  * }} params
  * @returns {object}
  */
@@ -66,6 +83,8 @@ export function write({
   components,
   kernelVersion,
   generatedAt,
+  prior,
+  epsilon,
 } = {}) {
   if (typeof kind !== 'string' || kind.length === 0) {
     throw new TypeError('writer.write: kind is required');
@@ -102,7 +121,29 @@ export function write({
     });
   }
 
-  const sortedRows = mod.sortRows(projected);
+  // Story #1964 — s-stability-epsilon. When both `prior` and `epsilon`
+  // are present, fold sub-epsilon row deltas back to the prior bytes
+  // before sort/rollup. The per-kind module owns the metric and the
+  // composite-key match (e.g. CRAP keys on `path::method@startLine`).
+  // Skip silently when the kind doesn't export `applyEpsilon` so the
+  // writer stays forward-compatible with future kinds added without the
+  // stabilizer.
+  let stabilised = projected;
+  if (prior !== undefined && epsilon !== undefined) {
+    if (!Array.isArray(prior)) {
+      throw new TypeError('writer.write: prior must be an array when provided');
+    }
+    if (typeof epsilon !== 'number' || !Number.isFinite(epsilon) || epsilon < 0) {
+      throw new TypeError(
+        `writer.write: epsilon must be a non-negative finite number (got ${JSON.stringify(epsilon)})`,
+      );
+    }
+    if (typeof mod.applyEpsilon === 'function') {
+      stabilised = mod.applyEpsilon(prior, projected, epsilon);
+    }
+  }
+
+  const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
 
   // The rollup() implementations always seed `*` from `aggregate()`, but
