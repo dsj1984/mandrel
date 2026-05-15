@@ -226,6 +226,34 @@ function assertGates(plan, opts) {
  * @param {Record<string, number>} slugToIssue
  * @returns {ApplyResult}
  */
+/**
+ * Seed `slugToIssue.epic` so child features can resolve
+ * `parentSlug: 'epic'` through `resolveParentId`. Story #1820: the CLI
+ * seeds `state.mapping.epic` so diff no longer emits a Create for the
+ * epic; without this matching seed on the apply side, `slugToIssue.epic`
+ * is never populated and the first feature create throws "parent slug
+ * epic has no mapped issue number". Priority order:
+ *   1. Existing `slugToIssue.epic` (caller-supplied) — wins.
+ *   2. `opts.priorState.mapping.epic.issueNumber`.
+ *   3. `opts.epicId`.
+ *
+ * @param {Record<string, number>} slugToIssue cloned mapping (mutated in place)
+ * @param {ApplyOptions} opts
+ * @returns {Record<string, number>} same mapping, returned for chaining
+ */
+function seedEpicSlug(slugToIssue, opts) {
+  if (typeof slugToIssue.epic === 'number') return slugToIssue;
+  const priorEpicNumber = opts.priorState?.mapping?.epic?.issueNumber;
+  const seed =
+    typeof priorEpicNumber === 'number'
+      ? priorEpicNumber
+      : typeof opts.epicId === 'number'
+        ? opts.epicId
+        : null;
+  if (seed !== null) slugToIssue.epic = seed;
+  return slugToIssue;
+}
+
 function buildDryRunResult(plan, slugToIssue) {
   return {
     dryRun: true,
@@ -490,7 +518,7 @@ export async function apply(plan, provider, opts = {}) {
     typeof opts.concurrency === 'number' && opts.concurrency > 0
       ? opts.concurrency
       : APPLY_CONCURRENCY;
-  const slugToIssue = { ...(opts.slugToIssue ?? {}) };
+  const slugToIssue = seedEpicSlug({ ...(opts.slugToIssue ?? {}) }, opts);
 
   if (opts.dryRun === true) {
     return buildDryRunResult(plan, slugToIssue);
