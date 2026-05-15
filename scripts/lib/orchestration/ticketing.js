@@ -311,13 +311,13 @@ function logCascadePartialFailures(ticketId, cascade) {
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
  * @param {string} newState - Must be one of STATE_LABELS.
- * @param {{ notify?: Function, cascade?: boolean }} [opts] - Optional notify
- *   function (the exported `notify(ticketId, payload, opts)` from `notify.js`,
- *   or any stub matching its shape). When provided, a state-transition
- *   notification fires after a successful transition. Story/Epic →
- *   `agent::done` events are dispatched as `medium`; all other transitions
- *   are `low` and filtered out at the default `medium` channel thresholds.
- *   The dispatched payload carries the typed envelope fields
+ * @param {{ notify?: Function, cascade?: boolean, ticketSnapshot?: object }} [opts]
+ *   Optional notify function (the exported `notify(ticketId, payload, opts)`
+ *   from `notify.js`, or any stub matching its shape). When provided, a
+ *   state-transition notification fires after a successful transition.
+ *   Story/Epic → `agent::done` events are dispatched as `medium`; all other
+ *   transitions are `low` and filtered out at the default `medium` channel
+ *   thresholds. The dispatched payload carries the typed envelope fields
  *   (`event: 'state-transition'`, `level: 'task'|'story'|'wave'|'epic'`,
  *   `epicId`) for routable webhook subscribers.
  *
@@ -326,6 +326,14 @@ function logCascadePartialFailures(ticketId, cascade) {
  *   from `story-task-progress.js` pass `cascade: false` so the Story/Epic
  *   only flips to `agent::done` at story-close (after the merge lands), not
  *   when the last Task commit lands on the still-unmerged Story branch.
+ *
+ *   `ticketSnapshot` (Story #1795 / Epic #1788) is an optional pre-fetched
+ *   ticket object. When the caller already holds the ticket (e.g.
+ *   `batchTransitionTickets`, which loops over a list it just hydrated),
+ *   passing the snapshot eliminates the two `getTicket` round-trips that
+ *   `transitionTicketState` would otherwise issue — one for the notify
+ *   `fromState` lookup and one inside `provider.updateTicket`'s label
+ *   merge path. Backwards compatible: when omitted, behaviour is unchanged.
  */
 export async function transitionTicketState(
   provider,
@@ -343,18 +351,30 @@ export async function transitionTicketState(
   // error). A transient read failure MUST NOT block a label transition —
   // the transition itself is idempotent and `fromState: null` is a valid
   // payload value.
+  //
+  // Story #1795 — when the caller threads `opts.ticketSnapshot` we reuse
+  // it as the notify snapshot without issuing a fresh `getTicket`. The
+  // snapshot is also forwarded to `provider.updateTicket` so the label
+  // merge path skips its own `getTicket` call (the second of the two
+  // round-trips this seam eliminates).
   let fromState = null;
-  let ticketSnapshot = null;
-  if (opts.notify && typeof provider.getTicket === 'function') {
+  let ticketSnapshot = opts.ticketSnapshot ?? null;
+  if (
+    opts.notify &&
+    ticketSnapshot === null &&
+    typeof provider.getTicket === 'function'
+  ) {
     try {
       ticketSnapshot = await provider.getTicket(ticketId);
-      fromState =
-        ticketSnapshot?.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
     } catch (err) {
       Logger.debug(
         `[Ticketing] fromState lookup failed for #${ticketId}: ${err.message ?? err}`,
       );
     }
+  }
+  if (ticketSnapshot) {
+    fromState =
+      ticketSnapshot.labels?.find((l) => ALL_STATES.includes(l)) ?? null;
   }
 
   // Closing/reopening mirrors the label state so GitHub shows the correct
@@ -368,6 +388,12 @@ export async function transitionTicketState(
     },
     state: isDone ? 'closed' : 'open',
     state_reason: isDone ? 'completed' : null,
+    // Internal-only escape hatch threaded through `provider.updateTicket`
+    // to `_applyLabelMutations`. Honored by `providers/github.js`; ignored
+    // by providers that don't recognise it. Underscore-prefixed to mark
+    // it as a provider-internal contract rather than part of the public
+    // `mutations` shape.
+    _ticketSnapshot: ticketSnapshot,
   });
 
   // Automatically trigger upward cascade when a ticket is completed.
@@ -527,6 +553,101 @@ export function structuredCommentMarker(type, attrs = null) {
 }
 
 /**
+ * Per-provider cache mapping `${ticketId}|${type}|${attrsHash}` to the
+ * comment id (and the cached comment payload) returned by the most
+ * recent `findStructuredComment` / `upsertStructuredComment` call.
+ * Story #1795 — every Epic run owns its process for the duration of
+ * the run, so a single seed-then-reuse window saves one
+ * `getTicketComments` per repeat upsert on the hot path (wave-level
+ * `story-run-progress`, `wave-N-end`, etc).
+ *
+ * Lifecycle:
+ *   - First call to `findStructuredComment(provider, t, type, attrs)`
+ *     hits `getTicketComments` and seeds the cache with the resolved
+ *     comment (or `null` to record the "no comment yet" miss).
+ *   - Subsequent calls with the same provider return the cached row
+ *     without a list call.
+ *   - `upsertStructuredComment` refreshes the cache to the new
+ *     comment id after `postComment` succeeds.
+ *   - `deleteComment` paths inside this module evict the entry.
+ *
+ * Cache is scoped to the provider instance via a WeakMap — different
+ * providers (including per-test fakes) get isolated caches so state
+ * cannot leak across boundaries. Tests reset via the exported
+ * `_resetStructuredCommentCache()` seam.
+ */
+const _structuredCommentCache = new WeakMap();
+
+/**
+ * Lookup (or lazily create) the per-provider cache map.
+ * @param {object} provider
+ * @returns {Map<string, object|null>}
+ */
+function getProviderCommentCache(provider) {
+  if (!provider || typeof provider !== 'object') return new Map();
+  let map = _structuredCommentCache.get(provider);
+  if (!map) {
+    map = new Map();
+    _structuredCommentCache.set(provider, map);
+  }
+  return map;
+}
+
+/**
+ * Build a stable cache key for `(ticketId, type, attrs)`. Attrs object
+ * is normalised by sorted JSON so equivalent keys collide. Story #1795.
+ *
+ * @param {number} ticketId
+ * @param {string} type
+ * @param {Record<string, string|number>|null} attrs
+ * @returns {string}
+ */
+function structuredCommentCacheKey(ticketId, type, attrs) {
+  if (!attrs || typeof attrs !== 'object') {
+    return `${ticketId}|${type}|`;
+  }
+  const sorted = Object.keys(attrs)
+    .sort()
+    .map((k) => `${k}=${String(attrs[k])}`)
+    .join('&');
+  return `${ticketId}|${type}|${sorted}`;
+}
+
+/**
+ * Test seam — reset the structured-comment ID cache.
+ * Exported so unit tests can isolate cases without restarting the
+ * process. Without arguments the entire WeakMap is dropped by
+ * reassigning the per-provider map of every known provider — in
+ * practice tests just hand in their fresh provider instance which
+ * has no cached state yet. Production callers never invoke this.
+ *
+ * @param {object} [provider] When supplied, clears just that
+ *   provider's cache; otherwise no-op (per-provider caches are
+ *   already isolated by WeakMap and tests creating fresh providers
+ *   get clean state automatically).
+ */
+export function _resetStructuredCommentCache(provider) {
+  if (provider && typeof provider === 'object') {
+    _structuredCommentCache.delete(provider);
+  }
+}
+
+/**
+ * Test seam — peek at a provider's cache contents. Returns the raw
+ * Map for read-only inspection (do not mutate). Story #1795.
+ *
+ * @param {object} [provider] If supplied, returns that provider's
+ *   cache Map; otherwise returns an empty Map for callers that just
+ *   want a stable shape.
+ */
+export function _peekStructuredCommentCache(provider) {
+  if (provider && typeof provider === 'object') {
+    return _structuredCommentCache.get(provider) ?? new Map();
+  }
+  return new Map();
+}
+
+/**
  * Find the most recent structured comment of a given type on a ticket.
  * Detection is based on the HTML marker produced by
  * `structuredCommentMarker(type, attrs)`.
@@ -534,6 +655,13 @@ export function structuredCommentMarker(type, attrs = null) {
  * When `attrs` is provided, only comments whose marker carries the same
  * discriminator attributes are returned — see `structuredCommentMarker` for
  * the per-wave `wave-run-progress` use case.
+ *
+ * Story #1795 — results are memoised in a process-level cache keyed by
+ * `(ticketId, type, attrsHash)`. The first call seeds the cache with
+ * the resolved comment (or `null` for the "no such comment yet" miss);
+ * every subsequent call returns the cached row without issuing another
+ * `getTicketComments`. `upsertStructuredComment` refreshes the cache
+ * after a successful repost, and its delete path evicts the entry.
  *
  * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
  * @param {number} ticketId
@@ -547,14 +675,20 @@ export async function findStructuredComment(
   type,
   attrs = null,
 ) {
+  const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
+  const cache = getProviderCommentCache(provider);
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
+  }
   const marker = structuredCommentMarker(type, attrs);
   const comments = (await provider.getTicketComments(ticketId)) ?? [];
   // Return latest match (comments API sorts ascending by creation; take last).
   const matches = comments.filter(
     (c) => typeof c.body === 'string' && c.body.includes(marker),
   );
-  if (matches.length === 0) return null;
-  return matches[matches.length - 1];
+  const resolved = matches.length === 0 ? null : matches[matches.length - 1];
+  cache.set(cacheKey, resolved);
+  return resolved;
 }
 
 /**
@@ -585,11 +719,16 @@ export async function upsertStructuredComment(
 ) {
   assertValidStructuredCommentType(type);
   const marker = structuredCommentMarker(type, attrs);
+  const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
+  const cache = getProviderCommentCache(provider);
   const existing = await findStructuredComment(provider, ticketId, type, attrs);
 
   if (existing && typeof provider.deleteComment === 'function') {
     try {
       await provider.deleteComment(existing.id);
+      // Story #1795 — evict before the repost so a postComment failure
+      // doesn't leave the cache pointing at a deleted comment id.
+      cache.delete(cacheKey);
     } catch (err) {
       Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
@@ -598,7 +737,30 @@ export async function upsertStructuredComment(
   }
 
   const annotated = `${marker}\n\n${body}`;
-  return provider.postComment(ticketId, { type, body: annotated });
+  const result = await provider.postComment(ticketId, {
+    type,
+    body: annotated,
+  });
+  // Story #1795 — refresh the cache to the freshly-posted comment so the
+  // next upsert short-circuits the `getTicketComments` list call. The
+  // post result carries the new comment id; we synthesise a minimal
+  // cached row that `findStructuredComment` callers can rely on (only
+  // `id` and `body` are read by upstream). Accept either `commentId`
+  // (production GitHubProvider shape) or `id` (test-fake shape) so the
+  // cache update fires uniformly across providers.
+  const newCommentId =
+    typeof result?.commentId === 'number'
+      ? result.commentId
+      : typeof result?.id === 'number'
+        ? result.id
+        : null;
+  if (newCommentId !== null) {
+    cache.set(cacheKey, {
+      id: newCommentId,
+      body: annotated,
+    });
+  }
+  return result;
 }
 
 /**

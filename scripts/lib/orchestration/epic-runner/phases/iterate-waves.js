@@ -20,6 +20,40 @@ import {
   emitEpicUnblocked,
 } from '../progress-reporter.js';
 
+/**
+ * Pull the set of Story IDs that the prior checkpoint marked as part of
+ * a halted wave. Story #1795 — used by the resume-check cache pre-warm:
+ * Stories appearing in this set are force-fresh-fetched on resume (the
+ * operator may have hand-edited their labels during the blocker
+ * window); every other Story serves its resume-check from the
+ * provider's in-process cache.
+ *
+ * Tolerant of partial/legacy checkpoint shapes: a missing or
+ * unparseable checkpoint returns an empty set so the resume-check
+ * gracefully degrades to "use cache for all" — the existing
+ * cold-start fallback inside `getTicket` still issues the real fetch.
+ *
+ * @param {object | null | undefined} checkpoint
+ * @returns {Set<number>}
+ */
+export function collectHaltedStoryIds(checkpoint) {
+  const halted = new Set();
+  const waves = checkpoint?.waves;
+  if (!Array.isArray(waves)) return halted;
+  for (const wave of waves) {
+    if (wave?.status !== 'halted') continue;
+    const stories = Array.isArray(wave.stories) ? wave.stories : [];
+    for (const story of stories) {
+      const id =
+        story?.storyId ??
+        story?.id ??
+        (typeof story === 'number' ? story : null);
+      if (Number.isInteger(id) && id > 0) halted.add(id);
+    }
+  }
+  return halted;
+}
+
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
   const { concurrencyCap } = getRunners(config).deliverRunner;
@@ -57,6 +91,17 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     totalWaves: scheduler.totalWaves,
     concurrencyCap,
   });
+
+  // Story #1795 — resume-check cache pre-warm.
+  // Read the checkpoint once up-front and build a Set of story IDs that
+  // were in a `halted` wave on the previous run. Those Stories may have
+  // had their labels hand-edited by the operator during the resume
+  // window, so the per-wave resume-check must still force-fresh them.
+  // Every other Story serves the resume-check from the provider's
+  // in-process cache — eliminating the `fresh: true` round-trip we
+  // historically issued for every Story in every wave.
+  const checkpoint = await checkpointer.read().catch(() => null);
+  const haltedStoryIds = collectHaltedStoryIds(checkpoint);
 
   // Curated webhook fires: `epic-started` anchors the epic narrative; the
   // initial `epic-progress` puts the consumer at 0% with the full
@@ -118,11 +163,19 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     // notices the ticket is already closed and bails. Filter here so the
     // launcher only sees real work.
     const waveStoryIds = wave.stories.map((s) => s.id ?? s.storyId ?? s);
+    // Story #1795 — resume-check now reads labels from the cache by
+    // default. Only Stories that the checkpoint reports as halted on a
+    // prior wave are force-refreshed, since they're the operator-resume
+    // case where labels may have been hand-edited. Cold-start tickets
+    // (cache miss) fall through to the underlying provider read, which
+    // historically issued the same single fetch the legacy fresh:true
+    // path did.
     const freshStates = await concurrentMap(
       waveStoryIds,
       async (id) => {
         try {
-          const ticket = await provider.getTicket(id, { fresh: true });
+          const opts = haltedStoryIds.has(id) ? { fresh: true } : {};
+          const ticket = await provider.getTicket(id, opts);
           return { id, labels: ticket?.labels ?? [] };
         } catch {
           return { id, labels: [] };

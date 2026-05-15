@@ -340,6 +340,61 @@ Schema conventions:
 
 ---
 
+## Worktree dependency strategies
+
+When `delivery.worktreeIsolation.enabled` is `true`, each Story runs in
+its own worktree under `.worktrees/story-<id>/`. The
+`nodeModulesStrategy` field on `delivery.worktreeIsolation` controls how
+`node_modules` is populated in that worktree. Three values are supported,
+each with different cost/portability trade-offs:
+
+| Strategy       | When to use                                                      | Cold-start cost          | Notes                                                                                                       |
+| -------------- | ---------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `per-worktree` | Default-safe — no host setup, no symlink semantics to worry about. | Full `npm ci` per Story. | Slowest. Each worktree gets an independent `node_modules`.                                                  |
+| `symlink`      | npm/yarn repos that want the fast path. **Opt-in.**              | Near-zero.               | Junctions a single donor `node_modules` into each worktree. Refuses on Windows unless explicitly opted in.  |
+| `pnpm-store`   | pnpm repos. **Shipped consumer default in `default-agentrc.json`.** | Fast (store-backed).     | Runs `pnpm install --frozen-lockfile` against the shared content-addressable store.                         |
+
+The **shipped consumer default in
+[`.agents/default-agentrc.json`](./default-agentrc.json) remains
+`pnpm-store`**. Repos that do not use pnpm should opt in to `symlink`
+explicitly in their root `.agentrc.json`; this repo dogfoods that
+configuration.
+
+### Symlink opt-in (npm / yarn)
+
+To opt in, set three fields on `delivery.worktreeIsolation` in your root
+`.agentrc.json`:
+
+```json
+{
+  "delivery": {
+    "worktreeIsolation": {
+      "enabled": true,
+      "nodeModulesStrategy": "symlink",
+      "primeFromPath": ".",
+      "allowSymlinkOnWindows": true
+    }
+  }
+}
+```
+
+- **`nodeModulesStrategy: "symlink"`** — switch off the per-worktree
+  install and link instead.
+- **`primeFromPath`** — relative path (from the repo root) to the donor
+  worktree whose `node_modules/` is reused. `"."` means the root
+  checkout, which must already have `node_modules/` populated before a
+  Story initializes. `story-init.js` enforces this with a pre-check.
+- **`allowSymlinkOnWindows`** — required on Windows. The strategy uses
+  junctions (no admin rights needed) on Windows when this is `true`; it
+  refuses with an explanatory error otherwise, because symlink semantics
+  vary by Windows version.
+
+Once these are set, `story-init.js` skips `npm ci` in the worktree and
+junctions/symlinks `node_modules` from the donor — typical cold-start
+falls from minutes to under a second.
+
+---
+
 ## Root config vs distributed template
 
 Two `.agentrc`-shaped files live in this repository and are easy to

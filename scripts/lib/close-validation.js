@@ -15,8 +15,12 @@
  */
 
 import { spawn } from 'node:child_process';
+import { writeFile as defaultWriteFile } from 'node:fs/promises';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
+import { storyArtifactPath } from './config/temp-paths.js';
+import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
+import { cachedGitFetchSync } from './git/cached-fetch.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
 import { getBaseline } from './maintainability-utils.js';
@@ -148,12 +152,64 @@ export function resolveFormatWriteCommand(settings) {
 }
 
 /**
+ * Resolve whether the CRAP gate is enabled for this run. When enabled, the
+ * close-validation graph drops the standalone `test` gate because
+ * coverage-capture (which CRAP depends on) already runs the suite under c8
+ * instrumentation — running `npm test` separately would execute the suite
+ * twice per Story close (Story #1798 / Epic #1788).
+ *
+ * Reads `crap.enabled` directly from each of the shapes call sites pass us:
+ *   - the resolved legacy-shim shape (`agentSettings.quality.crap.enabled`),
+ *     which production callers receive from `resolveConfig().agentSettings`;
+ *   - the raw `.agentrc.json` shape under `delivery.quality.gates.crap.enabled`;
+ *   - the raw partial-config shape (`quality.gates.crap.enabled`) some
+ *     unit-test call sites construct directly.
+ *
+ * Defaults to `true` so a consumer that omits the gate entirely matches
+ * `CRAP_GATE_DEFAULTS.enabled`. We intentionally do NOT round-trip through
+ * `getQuality()` here because that resolver expects the unresolved
+ * `gates.crap.*` shape and re-running it against the already-resolved
+ * legacy-shim shape would silently collapse the user's setting back to the
+ * framework default.
+ *
+ * @param {object|undefined|null} agentSettings
+ * @returns {boolean}
+ */
+function isCrapGateEnabled(agentSettings) {
+  if (!agentSettings || typeof agentSettings !== 'object') return true;
+  const candidates = [
+    agentSettings?.quality?.crap?.enabled,
+    agentSettings?.delivery?.quality?.gates?.crap?.enabled,
+    agentSettings?.quality?.gates?.crap?.enabled,
+  ];
+  const firstBoolean = candidates.find((v) => typeof v === 'boolean');
+  return firstBoolean ?? true;
+}
+
+/**
+ * Conditionally produce the standalone `test` gate entry. Returns an empty
+ * array when the CRAP gate is enabled (Story #1798: coverage-capture is the
+ * canonical test runner in that mode); returns the legacy single-entry
+ * gate otherwise. Splitting this out keeps `buildDefaultGates` flat for
+ * the CRAP-cyclomatic gate.
+ *
+ * @param {object|undefined|null} agentSettings
+ * @returns {Gate[]}
+ */
+function buildTestGateEntry(agentSettings) {
+  if (isCrapGateEnabled(agentSettings)) return [];
+  return [{ name: 'test', cmd: 'npm', args: ['test'] }];
+}
+
+/**
  * Build the canonical close-validation gate list.
  *
  * Ordering rationale (cheapest fast-fail first):
  *   1. typecheck — pure compile-time check, fastest to fail
  *   2. lint     — static analysis
- *   3. test     — full test suite
+ *   3. test     — full test suite (dropped when `crap.enabled === true`;
+ *                 coverage-capture becomes the canonical test runner — see
+ *                 Story #1798)
  *   4. format   — configurable via `agentSettings.commands.formatCheck`
  *   5. check-maintainability
  *   6. coverage-capture
@@ -169,6 +225,13 @@ export function resolveFormatWriteCommand(settings) {
  * than via a working-tree fs read. Without it, those gates fall back to the
  * legacy fs read — `baselines/*.json` on whatever the spawn cwd's working
  * tree carries.
+ *
+ * Story #1798: when `delivery.quality.gates.crap.enabled === true` (the
+ * configured state for this repo and the framework default), the standalone
+ * `test` gate is dropped from the graph; coverage-capture carries
+ * test-failure signalling (exits non-zero on a failing suite, reports gate
+ * identifier `coverage-capture`). When `crap.enabled === false`, the legacy
+ * two-gate path is preserved so no consumer behaviour regresses.
  *
  * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
@@ -195,7 +258,7 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: TYPECHECK_HINT,
     },
     { name: 'lint', cmd: 'npm', args: ['run', 'lint'] },
-    { name: 'test', cmd: 'npm', args: ['test'] },
+    ...buildTestGateEntry(agentSettings),
     {
       // Gate name kept generic ("format") so the close-orchestrator log line
       // and the per-gate phase-timer key don't shift when a repo swaps biome
@@ -687,8 +750,12 @@ export function projectMaintainabilityRegressions({
   // Refresh `origin/<epicBranch>` so the diff range resolves even if the
   // close script hasn't reached its own pull/rebase step yet. Best-effort —
   // a fetch failure is logged via `skipped: 'fetch-failed'` and the helper
-  // bails rather than producing a misleading projection.
-  const fetchRes = git.gitSpawn(cwd, 'fetch', 'origin', epicBranch);
+  // bails rather than producing a misleading projection. Routed through
+  // the (cwd, ref, windowMs) cache so a story-init fetch in the same wave
+  // satisfies the projection without re-hitting origin.
+  const fetchRes = cachedGitFetchSync(cwd, epicBranch, {
+    gitSpawn: git.gitSpawn,
+  });
   if (fetchRes.status !== 0) {
     return {
       ok: true,
@@ -765,4 +832,78 @@ export function formatMaintainabilityProjection(result) {
     '[close-validation]   To land cleanly, run `npm run maintainability:update` and commit the refreshed baseline with a `baseline-refresh:` tagged subject (non-empty body) on the story branch before re-running close.',
   );
   return lines.join('\n');
+}
+
+/**
+ * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
+ *
+ * Writes the current `gh-exec` spawn counter to
+ * `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` so the
+ * `analyze-execution.js` child process — which authors the
+ * `story-perf-summary` structured comment — can read it and emit a
+ * `ghSpawnCount` field on the payload. The Story-close orchestrator
+ * calls this helper inside `runPostMergeClose` right before it spawns
+ * the perf-summary phase, capturing every `gh` invocation from
+ * preflight through the merge in a single counter snapshot.
+ *
+ * This is intentionally a separate writer rather than threading the
+ * counter through every call site — the perf-summary phase is the only
+ * downstream consumer, and the measurement is "throw-away" per the
+ * Story's acceptance (a follow-up cleanup commit removes both
+ * `getSpawnCount` and this emitter before the Story branch merges into
+ * the Epic branch).
+ *
+ * @param {object} opts
+ * @param {number|string} opts.epicId
+ * @param {number|string} opts.storyId
+ * @param {object} [opts.config]
+ *   Resolved config bag (`{ agentSettings, orchestration, project }`) so
+ *   `tempRoot` resolution honours the consumer's configured path.
+ * @param {() => number} [opts.getSpawnCountFn=defaultGetSpawnCount]
+ *   Test seam.
+ * @param {typeof defaultWriteFile} [opts.writeFileFn=defaultWriteFile]
+ *   Test seam.
+ * @param {{ warn?: (s: string) => void }} [opts.logger]
+ *   Best-effort logger for the failure path; never throws.
+ * @returns {Promise<{ status: 'ok'|'failed', path?: string, ghSpawnCount?: number, reason?: string }>}
+ */
+export async function emitGhSpawnCount({
+  epicId,
+  storyId,
+  config,
+  getSpawnCountFn = defaultGetSpawnCount,
+  writeFileFn = defaultWriteFile,
+  logger,
+} = {}) {
+  const eid = Number(epicId);
+  const sid = Number(storyId);
+  if (!Number.isInteger(eid) || eid < 1 || !Number.isInteger(sid) || sid < 1) {
+    return { status: 'failed', reason: 'invalid-ids' };
+  }
+  let ghSpawnCount;
+  try {
+    ghSpawnCount = getSpawnCountFn();
+  } catch (err) {
+    logger?.warn?.(
+      `[close-validation] gh-spawn-count read failed: ${err?.message ?? err}`,
+    );
+    return { status: 'failed', reason: 'counter-read-failed' };
+  }
+  const targetPath = storyArtifactPath(eid, sid, 'gh-spawn-count.json', config);
+  const payload = {
+    kind: 'gh-spawn-count',
+    epicId: eid,
+    storyId: sid,
+    ghSpawnCount,
+    capturedAt: new Date().toISOString(),
+  };
+  try {
+    await writeFileFn(targetPath, JSON.stringify(payload, null, 2));
+    return { status: 'ok', path: targetPath, ghSpawnCount };
+  } catch (err) {
+    logger?.warn?.(
+      `[close-validation] gh-spawn-count emit failed: ${err?.message ?? err}`,
+    );
+    return { status: 'failed', reason: 'write-failed' };
+  }
 }
