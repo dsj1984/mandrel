@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T23:07:58.330Z",
+  "generatedAt": "2026-05-15T23:13:14.944Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -300,7 +300,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 93.753
+      "mi": 96.887
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -464,7 +464,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 82.228
+      "mi": 84.005
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",

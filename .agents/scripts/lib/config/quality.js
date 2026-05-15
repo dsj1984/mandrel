@@ -458,31 +458,27 @@ const BASELINE_EPSILON_KINDS = new Set(Object.keys(BASELINE_EPSILON_DEFAULTS));
  * @param {object | undefined} userBlock
  * @returns {{ [kind: string]: number }}
  */
+function assertEpsilonValue(kind, v) {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+    const err = new Error(
+      `[config] quality.baselineEpsilon.${kind} must be a non-negative finite number (got ${JSON.stringify(v)})`,
+    );
+    err.code = 'EXIT_CONFIG';
+    err.exitCode = 3;
+    throw err;
+  }
+}
+
 export function resolveBaselineEpsilon(userBlock) {
-  const defaults = BASELINE_EPSILON_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
-    return { ...defaults };
+    return { ...BASELINE_EPSILON_DEFAULTS };
   }
-  for (const key of Object.keys(userBlock)) {
-    if (!BASELINE_EPSILON_KINDS.has(key)) {
-      Logger.warn(
-        `[config] Unknown key 'quality.baselineEpsilon.${key}' — ignoring.`,
-      );
-    }
-  }
-  const out = { ...defaults };
+  warnUnknownKeys(userBlock, BASELINE_EPSILON_KINDS, 'quality.baselineEpsilon');
+  const out = { ...BASELINE_EPSILON_DEFAULTS };
   for (const kind of BASELINE_EPSILON_KINDS) {
     if (!Object.hasOwn(userBlock, kind)) continue;
-    const v = userBlock[kind];
-    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
-      const err = new Error(
-        `[config] quality.baselineEpsilon.${kind} must be a non-negative finite number (got ${JSON.stringify(v)})`,
-      );
-      err.code = 'EXIT_CONFIG';
-      err.exitCode = 3;
-      throw err;
-    }
-    out[kind] = v;
+    assertEpsilonValue(kind, userBlock[kind]);
+    out[kind] = userBlock[kind];
   }
   return out;
 }

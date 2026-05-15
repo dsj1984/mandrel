@@ -121,31 +121,7 @@ export function write({
     });
   }
 
-  // Story #1964 — s-stability-epsilon. When both `prior` and `epsilon`
-  // are present, fold sub-epsilon row deltas back to the prior bytes
-  // before sort/rollup. The per-kind module owns the metric and the
-  // composite-key match (e.g. CRAP keys on `path::method@startLine`).
-  // Skip silently when the kind doesn't export `applyEpsilon` so the
-  // writer stays forward-compatible with future kinds added without the
-  // stabilizer.
-  let stabilised = projected;
-  if (prior !== undefined && epsilon !== undefined) {
-    if (!Array.isArray(prior)) {
-      throw new TypeError('writer.write: prior must be an array when provided');
-    }
-    if (
-      typeof epsilon !== 'number' ||
-      !Number.isFinite(epsilon) ||
-      epsilon < 0
-    ) {
-      throw new TypeError(
-        `writer.write: epsilon must be a non-negative finite number (got ${JSON.stringify(epsilon)})`,
-      );
-    }
-    if (typeof mod.applyEpsilon === 'function') {
-      stabilised = mod.applyEpsilon(prior, projected, epsilon);
-    }
-  }
+  const stabilised = stabiliseRows(mod, projected, prior, epsilon);
 
   const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
@@ -207,4 +183,26 @@ export function writeFile(absPath, envelope) {
   fs.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
   fs.renameSync(tmpPath, absPath);
   return absPath;
+}
+
+/**
+ * Story #1964 — s-stability-epsilon stabilizer dispatch. When both
+ * `prior` and `epsilon` are present, fold sub-epsilon row deltas back to
+ * the prior bytes via the per-kind `applyEpsilon`. Returns `projected`
+ * unchanged when either is omitted, or when the kind doesn't ship the
+ * stabilizer (forward-compatible).
+ */
+function stabiliseRows(mod, projected, prior, epsilon) {
+  if (prior === undefined || epsilon === undefined) return projected;
+  if (!Array.isArray(prior)) {
+    throw new TypeError('writer.write: prior must be an array when provided');
+  }
+  if (typeof epsilon !== 'number' || !Number.isFinite(epsilon) || epsilon < 0) {
+    throw new TypeError(
+      `writer.write: epsilon must be a non-negative finite number (got ${JSON.stringify(epsilon)})`,
+    );
+  }
+  return typeof mod.applyEpsilon === 'function'
+    ? mod.applyEpsilon(prior, projected, epsilon)
+    : projected;
 }
