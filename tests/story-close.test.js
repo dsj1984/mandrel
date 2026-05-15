@@ -277,7 +277,13 @@ test('runCloseValidation', async (t) => {
       const crapIdx = names.findIndex((n) => n.includes('crap'));
       assert.ok(crapIdx > miIdx, 'crap gate must run AFTER maintainability');
       const gate = DEFAULT_GATES[crapIdx];
-      assert.deepStrictEqual(gate.args, ['.agents/scripts/check-crap.js']);
+      // Story #1945: close-time CRAP defaults to --full-scope so the gate
+      // mirrors CI's post-merge `push` scope and catches method-level
+      // regressions in files the Story didn't touch.
+      assert.deepStrictEqual(gate.args, [
+        '.agents/scripts/check-crap.js',
+        '--full-scope',
+      ]);
       assert.match(gate.hint, /crap:update/);
       assert.match(gate.hint, /baseline-refresh:/);
     },

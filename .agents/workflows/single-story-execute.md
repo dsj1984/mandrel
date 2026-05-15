@@ -171,9 +171,17 @@ close after a fixed gate failure that's already known to pass.
 `--no-auto-merge` disables Step 3a. Use when the PR materially changes
 behaviour and warrants pre-merge review.
 
+`--no-full-scope-crap` disables the close-time full-scope CRAP scan
+(Story #1945) and falls back to the diff-scoped check the framework used
+historically. The full-scope scan adds ~3s to close on a ~1400-method
+repo; the opt-out exists for cases where that cost becomes prohibitive.
+The post-merge CI run still enforces full-scope CRAP either way, so the
+opt-out trades close-time detection for the slower watch-loop round-trip
+described in Step 4.
+
 ---
 
-## Step 4 — CI watch + fix loop (**required, not optional**)
+## Step 4 — CI watch + fix loop (safety net, post Story #1945)
 
 The Story is **not done** when `single-story-close.js` returns. Auto-merge
 only fires when every required CI check turns green. Local close-validation
@@ -182,6 +190,16 @@ particular concurrency), but CI runs on a different OS and concurrency —
 coverage rounding, platform-conditional branches, and timing-sensitive
 tests routinely drift between the two. The agent owns the green-CI
 outcome, not just the push.
+
+Story #1945 narrowed the gap by running **full-scope** CRAP and coverage
+gates at close time, mirroring CI's post-merge `push` event on main. The
+common drift mode that motivated this workflow's watch+fix loop — an
+unrelated method's CRAP score regressing on CI Linux after a PR that
+didn't touch the file — is now caught **before** push in the close-
+validation chain rather than after auto-merge in the CI run. Genuine
+host-vs-CI drift (platform-conditional code paths, true flakes) still
+escapes close, so the loop below remains the canonical safety net; it is
+no longer the primary detection point for environmental CRAP drift.
 
 After `single-story-close.js` succeeds, enter the watch + fix loop:
 
