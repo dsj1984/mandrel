@@ -276,6 +276,13 @@
         "additionalProperties": { "type": "number" }
       }
     },
+    "components": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "minLength": 1 }
+      }
+    },
     "lintGate": {
       "type": "object",
       "properties": {
@@ -284,7 +291,8 @@
           "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
-        "floors": { "$ref": "#/$defs/floors" }
+        "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" }
       },
       "additionalProperties": false
     },
@@ -297,6 +305,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "coveragePath": {
           "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
         }
@@ -312,6 +321,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
         "newMethodCeiling": { "type": "integer", "minimum": 1 },
         "requireCoverage": { "type": "boolean" },
@@ -335,6 +345,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" }
       },
       "additionalProperties": false
@@ -348,6 +359,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "strykerConfigPath": { "$ref": "#/$defs/nullableNonEmptySafeString" }
       },
       "additionalProperties": false
@@ -370,6 +382,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "baseUrl": { "$ref": "#/$defs/nullableNonEmptySafeString" },
         "routes": {
           "type": "array",
@@ -397,6 +410,7 @@
         },
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
+        "components": { "$ref": "#/$defs/components" },
         "bundles": {
           "type": "array",
           "items": { "$ref": "#/$defs/bundleDeclaration" }

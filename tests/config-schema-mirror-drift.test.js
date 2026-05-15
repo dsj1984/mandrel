@@ -183,6 +183,60 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('accepts per-component globs under gates.<kind>.components (Story #1892)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              coverage: {
+                baselinePath: 'baselines/coverage.json',
+                floors: { '*': { lines: 80 } },
+                components: {
+                  app: ['src/app/**'],
+                  worker: ['src/worker/**'],
+                },
+              },
+            },
+          },
+        },
+      },
+      'per-component globs',
+    );
+  });
+
+  it('accepts new rollup-keyed floors (Story #1892)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              crap: {
+                baselinePath: 'baselines/crap.json',
+                floors: { '*': { p95: 5, perMethod: 30 } },
+              },
+              maintainability: {
+                baselinePath: 'baselines/maintainability.json',
+                floors: { '*': { min: 50, p50: 80 } },
+              },
+              mutation: {
+                baselinePath: 'baselines/mutation.json',
+                floors: { '*': { score: 70 } },
+              },
+              lint: {
+                baselinePath: 'baselines/lint.json',
+                floors: { '*': { errorCount: 0, warningCount: 0 } },
+              },
+            },
+          },
+        },
+      },
+      'rollup-keyed floors',
+    );
+  });
+
   it('rejects legacy agentSettings on both sides', () => {
     assertAgree(
       { agentSettings: { paths: REQ.project.paths } },
