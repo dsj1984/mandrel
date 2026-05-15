@@ -84,23 +84,65 @@ describe('runEpicClose preflight', () => {
 
   it('proceeds with status ok when no findings exist (empty registry)', async () => {
     const logger = makeLogger();
+    const tailCalls = [];
+    const stubTail = async (args) => {
+      tailCalls.push(args);
+      return {
+        planningClose: {
+          prd: { id: null, status: 'skipped' },
+          techSpec: { id: null, status: 'skipped' },
+        },
+        epicClose: { status: 'already-closed' },
+      };
+    };
     const result = await runEpicClose({
       epicId: 1143,
       probes: noopProbes,
       registry: [],
       logger,
+      runEpicCloseTailFn: stubTail,
+      injectedProvider: {},
+      injectedConfig: { orchestration: {} },
     });
     assert.equal(result.status, 'ok');
     assert.deepEqual(result.findings, []);
     assert.deepEqual(result.fixed, []);
-    // Placeholder close-tail message lands on info.
+    // Close-tail ran with the parsed epicId.
+    assert.equal(tailCalls.length, 1);
+    assert.equal(tailCalls[0].epicId, 1143);
+    // Close-tail completion lands on info.
     const info = logger._lines.info.join('\n');
-    assert.match(info, /preflight clean/);
+    assert.match(info, /\[epic-close\] complete/);
+  });
+
+  it('skips close-tail when --epic is not supplied (preflight-only mode)', async () => {
+    const logger = makeLogger();
+    let tailCalled = false;
+    const result = await runEpicClose({
+      probes: noopProbes,
+      registry: [],
+      logger,
+      runEpicCloseTailFn: async () => {
+        tailCalled = true;
+        return {};
+      },
+    });
+    assert.equal(result.status, 'ok');
+    assert.equal(tailCalled, false);
+    const warn = logger._lines.warn.join('\n');
+    assert.match(warn, /skipping close-tail/);
   });
 
   it('logs auto-corrected findings via logFixes without blocking', async () => {
     const logger = makeLogger();
     let fixCalls = 0;
+    const stubTail = async () => ({
+      planningClose: {
+        prd: { id: null, status: 'skipped' },
+        techSpec: { id: null, status: 'skipped' },
+      },
+      epicClose: { status: 'already-closed' },
+    });
     const autoCheck = {
       id: 'fixture-epic-close-auto',
       severity: 'warning',
@@ -126,6 +168,9 @@ describe('runEpicClose preflight', () => {
       probes: noopProbes,
       registry: [autoCheck],
       logger,
+      runEpicCloseTailFn: stubTail,
+      injectedProvider: {},
+      injectedConfig: { orchestration: {} },
     });
     assert.equal(result.status, 'ok');
     assert.equal(result.findings.length, 0);
