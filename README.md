@@ -92,6 +92,19 @@ The full configuration reference is in
 [`.agents/SDLC.md`](.agents/SDLC.md) for the end-to-end workflow narrative
 and [`docs/workflows.md`](docs/workflows.md) for the slash-command index.
 
+### Install scripts are disabled by default
+
+The repo ships a committed [`.npmrc`](.npmrc) that sets
+`ignore-scripts=true`, so `npm install` / `npm ci` will **not** execute
+`preinstall` / `install` / `postinstall` hooks from any dependency — a
+defense-in-depth measure against malicious lifecycle scripts in
+typo-squatted or compromised transitive packages (CWE-1357). CI already
+passes `--ignore-scripts` explicitly, so behaviour is identical between
+contributor workstations and the GitHub Actions runner. No package in
+this repo currently requires install-time scripts; if a contributor
+knowingly needs them for a specific install, run
+`npm install --ignore-scripts=false` for that invocation only.
+
 ---
 
 ## Stabilized quality gates
