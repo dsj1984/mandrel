@@ -1,0 +1,41 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    ".agents/scripts/**/*.js",
+    "scripts/**/*.js",
+    "tests/**/*.{js,mjs,cjs}",
+    "*.config.{js,mjs,cjs}",
+    ".husky/**"
+  ],
+  "project": [
+    ".agents/scripts/**/*.js",
+    "scripts/**/*.js",
+    "tests/**/*.{js,mjs,cjs}"
+  ],
+  "ignore": [
+    "node_modules/**",
+    ".worktrees/**",
+    "coverage/**",
+    "temp/**",
+    "baselines/**",
+    ".claude/**"
+  ],
+  "ignoreDependencies": [
+    "typescript",
+    "c8"
+  ],
+  "rules": {
+    "files": "off",
+    "duplicates": "off",
+    "dependencies": "off",
+    "devDependencies": "off",
+    "binaries": "off",
+    "unlisted": "off",
+    "unresolved": "off",
+    "exports": "error",
+    "types": "error",
+    "nsExports": "error",
+    "nsTypes": "error",
+    "enumMembers": "error"
+  }
+}
