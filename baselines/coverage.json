@@ -245,9 +245,24 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 90.1,
-    "branches": 82.12,
-    "functions": 80.77
+    "lines": 89.31,
+    "branches": 84.07,
+    "functions": 83.33
+  },
+  ".agents/scripts/lib/close-validation/projections/head-sha.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/close-validation/projections/inputs.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/close-validation/projections/maintainability.js": {
+    "lines": 100,
+    "branches": 84.44,
+    "functions": 100
   },
   ".agents/scripts/lib/config-gates-schema.js": {
     "lines": 100,
@@ -426,7 +441,7 @@
   },
   ".agents/scripts/lib/git/cached-fetch.js": {
     "lines": 94.81,
-    "branches": 95.83,
+    "branches": 96,
     "functions": 63.64
   },
   ".agents/scripts/lib/Graph.js": {
@@ -1255,9 +1270,29 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 86.35,
-    "branches": 73.16,
-    "functions": 86.67
+    "lines": 85.38,
+    "branches": 68.13,
+    "functions": 82
+  },
+  ".agents/scripts/providers/github/auth.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/cache.js": {
+    "lines": 100,
+    "branches": 96.3,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/errors.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/mappers.js": {
+    "lines": 98.96,
+    "branches": 92.59,
+    "functions": 100
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
     "lines": 82.27,
