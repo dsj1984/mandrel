@@ -1098,9 +1098,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "lines": 86.3,
-      "branches": 73.28,
-      "functions": 80
+      "lines": 86.53,
+      "branches": 73.98,
+      "functions": 81.25
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",

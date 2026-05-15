@@ -338,13 +338,22 @@ function coerceScopeSet(touchedFiles) {
   return new Set(touchedFiles);
 }
 
+// Story #1895: rows from the canonical envelope key by `path`; legacy
+// rows key by `file`. Accept either so this attribution layer keeps
+// working while the Epic migrates consumers off the legacy shape.
+function rowFileKey(row) {
+  if (!row) return null;
+  if (typeof row.file === 'string') return row.file;
+  if (typeof row.path === 'string') return row.path;
+  return null;
+}
+
 function indexCrapBaselineByMethod(baselineRows) {
   const byMethod = new Map();
   for (const b of baselineRows) {
-    if (!b || typeof b.file !== 'string' || typeof b.method !== 'string') {
-      continue;
-    }
-    const key = `${b.file}::${b.method}`;
+    const f = rowFileKey(b);
+    if (!f || typeof b.method !== 'string') continue;
+    const key = `${f}::${b.method}`;
     if (!byMethod.has(key)) byMethod.set(key, []);
     byMethod.get(key).push(b);
   }
@@ -355,7 +364,8 @@ function pickClosestUnseen(candidates, headStartLine, seen) {
   let pick = null;
   let bestDist = Number.POSITIVE_INFINITY;
   for (const c of candidates) {
-    const k = `${c.file}::${c.method}@${c.startLine}`;
+    const f = rowFileKey(c);
+    const k = `${f}::${c.method}@${c.startLine}`;
     if (seen.has(k)) continue;
     const d = Math.abs((c.startLine ?? 0) - (headStartLine ?? 0));
     if (d < bestDist) {
@@ -367,15 +377,16 @@ function pickClosestUnseen(candidates, headStartLine, seen) {
 }
 
 function isValidHeadRow(row) {
-  return row && typeof row.file === 'string' && typeof row.method === 'string';
+  return Boolean(row && rowFileKey(row) && typeof row.method === 'string');
 }
 
 function buildCrapRegression(row, pick) {
   const headCrap = typeof row.crap === 'number' ? row.crap : 0;
   const baseCrap = typeof pick.crap === 'number' ? pick.crap : 0;
+  const f = rowFileKey(row);
   return {
-    file: row.file,
-    path: row.file,
+    file: f,
+    path: f,
     method: row.method,
     startLine: row.startLine,
     crap: headCrap,
@@ -401,12 +412,13 @@ export function diffCrapBaselines({
 
   for (const row of headRows) {
     if (!isValidHeadRow(row)) continue;
-    if (scope && !scope.has(row.file)) continue;
-    const candidates = byMethod.get(`${row.file}::${row.method}`);
+    const rowFile = rowFileKey(row);
+    if (scope && !scope.has(rowFile)) continue;
+    const candidates = byMethod.get(`${rowFile}::${row.method}`);
     if (!Array.isArray(candidates) || candidates.length === 0) continue;
     const pick = pickClosestUnseen(candidates, row.startLine, seen);
     if (!pick) continue;
-    seen.add(`${pick.file}::${pick.method}@${pick.startLine}`);
+    seen.add(`${rowFileKey(pick)}::${pick.method}@${pick.startLine}`);
     const entry = buildCrapRegression(row, pick);
     if (entry.headCrap <= entry.baseCrap + tolerance) continue;
     // strip the internal `headCrap`/`baseCrap` fields — they were only

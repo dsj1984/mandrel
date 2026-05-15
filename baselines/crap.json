@@ -5545,62 +5545,68 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
+      "method": "rowFileKey",
+      "startLine": 344,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "indexCrapBaselineByMethod",
-      "startLine": 341,
-      "crap": 5
+      "startLine": 351,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "pickClosestUnseen",
-      "startLine": 354,
+      "startLine": 363,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "isValidHeadRow",
-      "startLine": 369,
+      "startLine": 379,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "buildCrapRegression",
-      "startLine": 373,
+      "startLine": 383,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "diffCrapBaselines",
-      "startLine": 390,
+      "startLine": 401,
       "crap": 10
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectCrapRegressions",
-      "startLine": 453,
+      "startLine": 465,
       "crap": 6.0056857441809965
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "validateProjectionContext",
-      "startLine": 515,
+      "startLine": 527,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectCrapForGate",
-      "startLine": 522,
+      "startLine": 534,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "projectRegressionsForGate",
-      "startLine": 573,
+      "startLine": 585,
       "crap": 5.429499999999999
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
       "method": "runPreMergeGatesWithAttribution",
-      "startLine": 619,
+      "startLine": 631,
       "crap": 6.135506172839506
     },
     {
