@@ -56,6 +56,137 @@ function validateSpecShape(level, value) {
 }
 
 /**
+ * Private factory: build the slug→id and slug→status resolvers from a
+ * state mapping. Returning the two closures from one factory keeps the
+ * branching that interprets the optional `state.mapping` shape out of
+ * `buildManifestFromSpec`'s body.
+ *
+ * Per Tech Spec #1483, agent::* status labels do not live in the spec.
+ * `resolveStatus` reads `state.mapping[slug].lastObservedAgentState` when
+ * present and falls back to `agent::ready` for un-mapped Stories/Tasks.
+ * `resolveId` falls back to a deterministic `slug:<slug>` sentinel so
+ * the renderer never sees a null id.
+ *
+ * @param {{ mapping?: Record<string, { issueNumber?: number|null, lastObservedAgentState?: string|null }> }|null} state
+ * @returns {{ resolveId: (slug: string) => number|string, resolveStatus: (slug: string) => string }}
+ */
+function buildResolvers(state) {
+  const mapping =
+    state && typeof state.mapping === 'object' && state.mapping !== null
+      ? state.mapping
+      : {};
+
+  const resolveId = (slug) => {
+    const entry = mapping[slug];
+    const id =
+      entry && typeof entry.issueNumber === 'number' ? entry.issueNumber : null;
+    return id ?? `slug:${slug}`;
+  };
+  const resolveStatus = (slug) => {
+    const entry = mapping[slug];
+    return entry && typeof entry.lastObservedAgentState === 'string'
+      ? entry.lastObservedAgentState
+      : 'agent::ready';
+  };
+  return { resolveId, resolveStatus };
+}
+
+/**
+ * Private: project a single spec Task into a manifest Task entry. Caller
+ * is responsible for filtering out non-object task nodes via
+ * `validateSpecShape('task', ...)` before invoking.
+ *
+ * @param {object} task
+ * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
+ * @returns {{ taskId: number|string, taskSlug: string, status: string, dependencies: [] }}
+ */
+function projectTask(task, resolvers) {
+  return {
+    taskId: resolvers.resolveId(task.slug),
+    taskSlug: task.slug ?? '',
+    // Tasks have no `dependsOn` surface in the spec — dependency edges
+    // are inferred at the wave-ordering layer, not carried here.
+    dependencies: [],
+    status: resolvers.resolveStatus(task.slug),
+  };
+}
+
+/**
+ * Private: project a single spec Story into a manifest Story entry plus
+ * the per-story task tallies. Caller filters non-object stories with
+ * `validateSpecShape('story', ...)` before invoking.
+ *
+ * @param {object} story
+ * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
+ * @returns {{
+ *   storyEntry: object,
+ *   wave: number,
+ *   storyTotalTasks: number,
+ *   storyDoneTasks: number,
+ * }}
+ */
+function projectStory(story, resolvers) {
+  const storyTasks = validateSpecShape('tasks', story.tasks) ? story.tasks : [];
+  const tasks = [];
+  let storyDoneTasks = 0;
+  for (const t of storyTasks) {
+    if (!validateSpecShape('task', t)) continue;
+    const projected = projectTask(t, resolvers);
+    if (projected.status === AGENT_LABELS.DONE) storyDoneTasks++;
+    tasks.push(projected);
+  }
+  const wave = Number.isInteger(story.wave) ? story.wave : -1;
+  const storyId = resolvers.resolveId(story.slug);
+  const storyEntry = {
+    storyId,
+    storyTitle: story.title ?? '',
+    storySlug: story.slug ?? '',
+    type: 'story',
+    branchName:
+      typeof storyId === 'number' ? `story-${storyId}` : `story-${story.slug}`,
+    earliestWave: wave,
+    tasks,
+  };
+  return { storyEntry, wave, storyTotalTasks: tasks.length, storyDoneTasks };
+}
+
+/**
+ * Private: walk every feature → story pair in a spec and collect the
+ * per-story projections + roll-up counters. Keeps the loop machinery
+ * out of `buildManifestFromSpec` so the entry point reads as a straight
+ * assembly of the result envelope.
+ *
+ * @param {object[]} features
+ * @param {{ resolveId: Function, resolveStatus: Function }} resolvers
+ * @returns {{
+ *   storyManifest: object[],
+ *   totalTasks: number,
+ *   doneTasks: number,
+ *   waveSet: Set<number>,
+ * }}
+ */
+function projectFeatures(features, resolvers) {
+  const storyManifest = [];
+  let totalTasks = 0;
+  let doneTasks = 0;
+  const waveSet = new Set();
+  for (const feature of features) {
+    const stories = validateSpecShape('stories', feature?.stories)
+      ? feature.stories
+      : [];
+    for (const story of stories) {
+      if (!validateSpecShape('story', story)) continue;
+      const projection = projectStory(story, resolvers);
+      storyManifest.push(projection.storyEntry);
+      totalTasks += projection.storyTotalTasks;
+      doneTasks += projection.storyDoneTasks;
+      if (projection.wave >= 0) waveSet.add(projection.wave);
+    }
+  }
+  return { storyManifest, totalTasks, doneTasks, waveSet };
+}
+
+/**
  * Build a manifest-shaped object from a spec entry. Mirrors the contract
  * produced by `lib/orchestration/manifest-builder.js#buildManifest` so
  * `formatManifestMarkdown` (the renderer that backs `fromManifest`)
@@ -81,85 +212,19 @@ function validateSpecShape(level, value) {
  * @returns {object} manifest object matching the shape `formatManifestMarkdown` consumes.
  */
 export function buildManifestFromSpec(spec, opts = {}) {
-  const state = opts.state ?? null;
-  const mapping =
-    state && typeof state.mapping === 'object' && state.mapping !== null
-      ? state.mapping
-      : {};
-
-  const resolveId = (slug) => {
-    const entry = mapping[slug];
-    const id =
-      entry && typeof entry.issueNumber === 'number' ? entry.issueNumber : null;
-    return id ?? `slug:${slug}`;
-  };
-  const resolveStatus = (slug) => {
-    const entry = mapping[slug];
-    return entry && typeof entry.lastObservedAgentState === 'string'
-      ? entry.lastObservedAgentState
-      : 'agent::ready';
-  };
-
+  const resolvers = buildResolvers(opts.state ?? null);
   const epicId =
     spec?.epic && typeof spec.epic.id === 'number' ? spec.epic.id : null;
   const epicTitle =
     spec?.epic && typeof spec.epic.title === 'string' ? spec.epic.title : '';
-
   const features = validateSpecShape('features', spec?.features)
     ? spec.features
     : [];
 
-  // Project each spec Story into a storyManifest entry. Tasks within a
-  // Story carry their slug-derived id + the spec-author title as the
-  // task slug so the rendered `- [ ] #id — slug` line is stable across
-  // re-incarnations (no GH issue number drift bleeds through into the
-  // diff). Per-Story `earliestWave` mirrors `story.wave` directly —
-  // spec waves are authoritative; the dependency analyzer is bypassed.
-  const storyManifest = [];
-  let totalTasks = 0;
-  let doneTasks = 0;
-  const waveSet = new Set();
-
-  for (const feature of features) {
-    const stories = validateSpecShape('stories', feature?.stories)
-      ? feature.stories
-      : [];
-    for (const story of stories) {
-      if (!validateSpecShape('story', story)) continue;
-      const storyTasks = validateSpecShape('tasks', story.tasks)
-        ? story.tasks
-        : [];
-      const tasks = [];
-      for (const t of storyTasks) {
-        if (!validateSpecShape('task', t)) continue;
-        const status = resolveStatus(t.slug);
-        if (status === AGENT_LABELS.DONE) doneTasks++;
-        totalTasks++;
-        tasks.push({
-          taskId: resolveId(t.slug),
-          taskSlug: t.slug ?? '',
-          status,
-          dependencies: [], // Tasks have no dependsOn surface in the spec.
-        });
-      }
-
-      const wave = Number.isInteger(story.wave) ? story.wave : -1;
-      if (wave >= 0) waveSet.add(wave);
-
-      storyManifest.push({
-        storyId: resolveId(story.slug),
-        storyTitle: story.title ?? '',
-        storySlug: story.slug ?? '',
-        type: 'story',
-        branchName:
-          typeof resolveId(story.slug) === 'number'
-            ? `story-${resolveId(story.slug)}`
-            : `story-${story.slug}`,
-        earliestWave: wave,
-        tasks,
-      });
-    }
-  }
+  const { storyManifest, totalTasks, doneTasks, waveSet } = projectFeatures(
+    features,
+    resolvers,
+  );
 
   const progressPercent =
     totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0;

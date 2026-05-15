@@ -225,7 +225,7 @@
   ".agents/scripts/lib/path-security.js": 117.206,
   ".agents/scripts/lib/plan-phase-cleanup.js": 97.866,
   ".agents/scripts/lib/preflight-runner.js": 106.958,
-  ".agents/scripts/lib/presentation/manifest-builder.js": 86.278,
+  ".agents/scripts/lib/presentation/manifest-builder.js": 92.608,
   ".agents/scripts/lib/presentation/manifest-formatter.js": 100.108,
   ".agents/scripts/lib/presentation/manifest-persistence.js": 94.963,
   ".agents/scripts/lib/presentation/manifest-procedures.js": 100.741,
