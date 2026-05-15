@@ -1,25 +1,50 @@
 /**
  * manifest-formatter.js
  *
- * Pure Markdown / console rendering for dispatch and story manifests. No fs
- * access, no provider calls, no config I/O. Callers that need injected values
- * (e.g. `renderStoryManifestMarkdown`'s script-path hints) pass them via `opts`.
+ * Wiring facade for the dispatch-manifest presentation layer. Composes
+ * the projection (`manifest-builder.js`), the per-wave renderer
+ * (`manifest-render-waves.js`), the operating-procedures `<details>` block
+ * (`manifest-procedures.js`), and the story-execution + CLI dispatch
+ * views (`manifest-story-views.js`) into one Markdown emission for the
+ * Epic-level dispatch manifest, then memoises the result on a per-input
+ * content hash so the progress-reporter does not re-render unchanged
+ * manifests every tick.
  *
- * The facade `manifest-renderer.js` re-exports from this module and owns the
- * one impure helper that reads config to build the options bag.
+ * Pure: no fs / provider / config I/O. Callers that need injected values
+ * (e.g. `renderStoryManifestMarkdown`'s script-path hints) pass them via
+ * `opts`. The outer façade `manifest-renderer.js` re-exports this module
+ * and owns the one impure helper that reads config to build the options
+ * bag.
+ *
+ * All small pure helpers (`deriveStorySymbol`, `computeProgress`,
+ * `slugifyHeading`, `waveHeadingText`, `renderProgressBar`,
+ * `deriveWaveStatus`, `renderWaveSections`, `topoSortTasks`,
+ * `computeStoryProgress`) stay in this file — they are the shared
+ * vocabulary of the dispatch manifest and are imported by both the
+ * per-wave renderer and external callers via this module's exports.
  */
 
 import { createHash } from 'node:crypto';
-import { Logger } from '../Logger.js';
 import { AGENT_LABELS } from '../label-constants.js';
 import { buildManifestFromSpec } from './manifest-builder.js';
+import { renderProceduresAndLegendDetails } from './manifest-procedures.js';
 import { renderNestedWaveSections } from './manifest-render-waves.js';
+import {
+  formatStoryManifestMarkdown,
+  printStoryDispatchTable,
+} from './manifest-story-views.js';
 
-// Re-exported so callers that imported `buildManifestFromSpec` /
-// `renderNestedWaveSections` from the formatter keep working (Story
-// #1849 split). The canonical homes are `manifest-builder.js` and
-// `manifest-render-waves.js`.
-export { buildManifestFromSpec, renderNestedWaveSections };
+// Re-exported so existing call-sites and tests that imported these names
+// from `manifest-formatter.js` keep working without a path change
+// (Story #1849 split).
+export {
+  buildManifestFromSpec,
+  formatStoryManifestMarkdown,
+  printStoryDispatchTable,
+  renderNestedWaveSections,
+  renderProceduresAndLegendDetails,
+};
+
 // ---------------------------------------------------------------------------
 // Pure render helpers (Story #484 — exported for direct fixture testing)
 // ---------------------------------------------------------------------------
@@ -93,34 +118,25 @@ export function computeProgress(manifest) {
 }
 
 /**
- * Derive a GitHub-flavoured Markdown anchor slug from a heading's visible text.
- *
- * GitHub's slug algorithm (per `jch/html-pipeline`'s TocFilter) is:
+ * Derive a GitHub-flavoured Markdown anchor slug from a heading's visible
+ * text. GitHub's slug algorithm (per `jch/html-pipeline`'s TocFilter):
  *   1. Lowercase the text.
  *   2. Strip emojis and other non-letter/digit/space/hyphen Unicode.
  *   3. Replace runs of whitespace with a single hyphen.
  *   4. Trim leading/trailing hyphens.
  *
  * Used by both the Wave Summary TOC and the per-wave H2 emission so the
- * link `href` and the anchor stay in lock-step. Exporting this from the
- * formatter (rather than a utility module) keeps the TOC ↔ H2 contract
- * inside one file — drift here would manifest as broken jump-links in the
- * rendered manifest.
+ * link `href` and the anchor stay in lock-step.
  *
  * @param {string} text
  * @returns {string}
  */
 export function slugifyHeading(text) {
   const raw = String(text ?? '');
-  // Lowercase, then drop anything that isn't a letter, digit, space, or hyphen.
-  // The Unicode property escapes match the GitHub behaviour for accented chars
-  // (kept) and emoji / punctuation (dropped).
   const stripped = raw
     .toLowerCase()
     .replace(/[^\p{L}\p{N}\s-]+/gu, '')
     .trim();
-  // Collapse any run of whitespace (or pre-existing hyphens) into a single
-  // hyphen and strip the boundaries.
   return stripped.replace(/[\s-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
@@ -154,9 +170,9 @@ export function renderProgressBar(percent, opts = {}) {
 }
 
 /**
- * Derive the per-wave status label and emoji used by both the TOC table and
- * the per-wave H2 heading. Single source of truth so the TOC link slug and
- * the H2 anchor stay in lock-step.
+ * Derive the per-wave status label and emoji used by both the TOC table
+ * and the per-wave H2 heading. Single source of truth so the TOC link
+ * slug and the H2 anchor stay in lock-step.
  *
  * @param {number} waveIdx                — current wave index (or -1)
  * @param {Map<number, { tasks: number, done: number }>} waveStats
@@ -181,8 +197,8 @@ export function deriveWaveStatus(waveIdx, waveStats, sortedWaves) {
 }
 
 /**
- * Render the "## Wave Summary" section for a manifest's wave-eligible items
- * (Stories only — Features are containers and excluded by the caller).
+ * Render the "## Wave Summary" section for a manifest's wave-eligible
+ * items (Stories only — Features are containers and excluded by caller).
  *
  * @param {object[]} waveEligible
  * @returns {string} Markdown block, or empty string when nothing to render.
@@ -214,8 +230,8 @@ export function renderWaveSections(waveEligible) {
     const stat = waveStats.get(w);
     const waveLabel = w === -1 ? 'Ungrouped' : `Wave ${w}`;
     const status = deriveWaveStatus(w, waveStats, sortedWaves);
-    // The TOC cell links into the matching per-wave H2 section. Both sides
-    // call `waveHeadingText` + `slugifyHeading` so the anchor stays correct.
+    // Both sides call `waveHeadingText` + `slugifyHeading` so the TOC
+    // anchor stays in lock-step with the per-wave H2.
     const headingText = waveHeadingText(waveLabel, status.emoji);
     const anchor = slugifyHeading(headingText);
     const waveCell = `[${waveLabel}](#${anchor})`;
@@ -228,55 +244,11 @@ export function renderWaveSections(waveEligible) {
 }
 
 /**
- * Render the bottom collapsed `<details>` block carrying the operating
- * procedures and the full symbol legend (Story #1194 Task #1214). This is
- * the only HTML the manifest emits by AC — every other section is plain
- * Markdown.
- *
- * @param {number|string} epicId  the Epic id used to substitute `/epic-deliver` examples.
- * @returns {string}
- */
-export function renderProceduresAndLegendDetails(epicId) {
-  const lines = [];
-  lines.push(
-    '<details><summary>🤖 Agent Operating Procedures &amp; symbol reference</summary>',
-  );
-  lines.push('');
-  lines.push('### Operating Procedures');
-  lines.push('');
-  lines.push(
-    `1. **Deliver**: Run \`/epic-deliver ${epicId}\`. The runner iterates waves in order, fans Stories out in parallel via \`/story-execute\`, and only pauses when the Epic flips to \`agent::blocked\`.`,
-  );
-  lines.push(
-    '2. **Resume (granular, optional)**: Re-running `/epic-deliver` resumes from the checkpointed wave. To re-drive a single Story, run `/story-execute <storyId>`. Re-runs are checkpoint-idempotent.',
-  );
-  lines.push(
-    `3. **Close**: \`/epic-deliver ${epicId}\` runs close-validation, code-review, retro, and PR-create in its tail. Operators merge the PR via the GitHub UI.`,
-  );
-  lines.push('');
-  lines.push('### Symbol legend');
-  lines.push('');
-  lines.push('| Symbol | Meaning |');
-  lines.push('| :--- | :--- |');
-  lines.push('| ⬜ | Pending — no Tasks started |');
-  lines.push('| 🔄 | In-flight — at least one Task done or executing |');
-  lines.push('| ✅ | Done — every Task complete |');
-  lines.push('| 🚧 | Blocked — at least one Task is `agent::blocked` |');
-  lines.push('| 🚀 Ready | Wave is unblocked and ready to dispatch |');
-  lines.push('| ⏳ Blocked | Wave is gated on a prior wave still completing |');
-  lines.push('| `█` / `░` | Progress bar: filled / remaining cells |');
-  lines.push('| `*(after #N)*` | Task callout: depends on in-Story Task #N |');
-  lines.push('');
-  lines.push('</details>');
-  return lines.join('\n');
-}
-
-/**
  * Topologically sort a Story's Tasks by their `dependencies` (in-Story
- * `depends_on` ids). Stable: ties resolve in the original declaration order
- * so a Story with no edges renders Tasks exactly as authored. Cross-Story
- * dependencies (ids that aren't in the same `tasks[]`) are ignored — the
- * runtime resolves those at the wave-ordering layer.
+ * `depends_on` ids). Stable: ties resolve in the original declaration
+ * order so a Story with no edges renders Tasks exactly as authored.
+ * Cross-Story dependencies (ids that aren't in the same `tasks[]`) are
+ * ignored — the runtime resolves those at the wave-ordering layer.
  *
  * Pure / O(n + e) — Kahn's algorithm with a deterministic tie-breaker.
  *
@@ -285,7 +257,6 @@ export function renderProceduresAndLegendDetails(epicId) {
  */
 export function topoSortTasks(tasks) {
   if (!tasks || tasks.length === 0) return [];
-  // Build the in-Story id set first so we can ignore cross-Story deps.
   const idSet = new Set(tasks.map((t) => String(t.taskId)));
   const order = new Map();
   tasks.forEach((t, idx) => {
@@ -307,7 +278,6 @@ export function topoSortTasks(tasks) {
     }
   }
 
-  // Ready queue ordered by original declaration index for determinism.
   const ready = tasks
     .map((t) => String(t.taskId))
     .filter((tid) => (inDegree.get(tid) ?? 0) === 0)
@@ -321,7 +291,6 @@ export function topoSortTasks(tasks) {
     for (const next of adj.get(tid) ?? []) {
       inDegree.set(next, inDegree.get(next) - 1);
       if (inDegree.get(next) === 0) {
-        // Insert by original declaration order to preserve stability.
         let i = 0;
         while (i < ready.length && order.get(ready[i]) < order.get(next)) i++;
         ready.splice(i, 0, next);
@@ -329,9 +298,9 @@ export function topoSortTasks(tasks) {
     }
   }
 
-  // Cycle fallback: append any leftover tasks in original order so we never
-  // silently drop work. The Tech Spec forbids cycles within a Story, but
-  // this keeps the renderer robust if upstream validation drifts.
+  // Cycle fallback: append any leftover tasks in original order so we
+  // never silently drop work. Upstream validation forbids cycles; this
+  // keeps the renderer robust if it drifts.
   if (out.length < tasks.length) {
     for (const t of tasks) {
       if (!out.includes(t)) out.push(t);
@@ -341,8 +310,9 @@ export function topoSortTasks(tasks) {
 }
 
 /**
- * Compute per-Story aggregates for the nested wave layout: a 0..100 progress
- * percent and the done/total task counts. Pure — derived from `story.tasks[]`.
+ * Compute per-Story aggregates for the nested wave layout: a 0..100
+ * progress percent and the done/total task counts. Pure — derived from
+ * `story.tasks[]`.
  *
  * @param {{ tasks?: Array<{ status?: string }> }} story
  * @returns {{ pct: number, done: number, total: number }}
@@ -356,7 +326,7 @@ export function computeStoryProgress(story) {
 }
 
 // ---------------------------------------------------------------------------
-// Dispatch manifest (Epic-level) Markdown
+// Dispatch manifest (Epic-level) Markdown — memoised public entry
 // ---------------------------------------------------------------------------
 
 let _lastManifestRef = null;
@@ -370,8 +340,9 @@ function hashManifest(manifest) {
 }
 
 /**
- * Clear the content-hash cache for `formatManifestMarkdown`. Intended for tests
- * and for callers that mutate manifest objects in place between renders.
+ * Clear the content-hash cache for `formatManifestMarkdown`. Intended
+ * for tests and for callers that mutate manifest objects in place
+ * between renders.
  */
 export function __resetManifestFormatterCache() {
   _lastManifestRef = null;
@@ -380,13 +351,13 @@ export function __resetManifestFormatterCache() {
 }
 
 export function formatManifestMarkdown(manifest) {
-  // Fast path: same manifest instance as last call (progress-reporter reuses
-  // the same object across ticks when nothing has changed).
+  // Fast path: same manifest instance as last call (progress-reporter
+  // reuses the same object across ticks when nothing has changed).
   if (manifest === _lastManifestRef && _lastManifestOutput !== null) {
     return _lastManifestOutput;
   }
-  // Slow path: content-hash comparison for cases where the caller built a
-  // fresh manifest object with identical content.
+  // Slow path: content-hash comparison for cases where the caller built
+  // a fresh manifest object with identical content.
   const hash = hashManifest(manifest);
   if (hash === _lastManifestHash && _lastManifestOutput !== null) {
     _lastManifestRef = manifest;
@@ -404,9 +375,8 @@ function _formatManifestMarkdownUncached(manifest) {
   const progress = computeProgress(manifest);
   const lines = [];
 
-  // --- Header ---
-  // Title + subtitle + a single meta line that folds the timestamp and the
-  // task / story / wave totals together. The Wave Summary table (next)
+  // Title + subtitle + a single meta line that folds the timestamp and
+  // task / story / wave totals together. The Wave Summary table next
   // breaks the totals down per wave, so a hero progress block here would
   // just echo the same numbers a third time.
   lines.push(`# 📋 Dispatch Manifest — Epic #${epicId}`);
@@ -419,14 +389,13 @@ function _formatManifestMarkdownUncached(manifest) {
   );
   lines.push('');
 
-  // --- Top <details> block: operating procedures + full symbol legend.
-  // Sits directly under the meta line so an operator opening the manifest
-  // sees the run-instructions and the symbol key before scrolling the wave
-  // tables. The only HTML in the document; collapsed by default.
+  // Top <details> block: operating procedures + full symbol legend. Sits
+  // directly under the meta line so an operator opening the manifest
+  // sees the run instructions and the symbol key before scrolling.
   lines.push(renderProceduresAndLegendDetails(epicId));
   lines.push('');
 
-  // --- Wave Summary Table (Stories only — Features are containers) ---
+  // Wave Summary table (Stories only — Features are containers).
   const allItems =
     manifest.storyManifest ||
     manifest.stories ||
@@ -436,13 +405,12 @@ function _formatManifestMarkdownUncached(manifest) {
   const waveBlock = renderWaveSections(waveEligible);
   if (waveBlock) lines.push(waveBlock);
 
-  // --- Per-wave H2 sections nesting Stories (H3) and Tasks (checkbox lists)
+  // Per-wave H2 sections nesting Stories (H3) and Tasks (checkbox lists).
   if (storyManifest && storyManifest.length > 0) {
     const nestedBlock = renderNestedWaveSections(storyManifest);
     if (nestedBlock) lines.push(nestedBlock);
   }
 
-  // --- Agent Telemetry ---
   /* node:coverage ignore next */
   if (manifest.agentTelemetry) {
     lines.push('## 📈 Agent Telemetry & Diagnostics');
@@ -476,28 +444,19 @@ export const renderManifestMarkdown = formatManifestMarkdown;
 // ---------------------------------------------------------------------------
 // Dual entry points: fromManifest / fromSpec (Epic #1182 Story #1501)
 //
-// `fromManifest` is the canonical-by-name alias for `formatManifestMarkdown` —
-// the legacy entry point that consumes a fully-resolved dispatch manifest
-// (GH issue numbers, agent::* statuses, summary totals) and emits Markdown.
-// It is preserved unchanged for non-spec callers (the dispatcher's
-// pre-Story #1501 path, every existing test, the manifest-renderer facade).
+// `fromManifest` is the canonical-by-name alias for
+// `formatManifestMarkdown` — the legacy entry point that consumes a
+// fully-resolved dispatch manifest (GH issue numbers, agent::* statuses,
+// summary totals) and emits Markdown. Preserved unchanged for non-spec
+// callers (the dispatcher's pre-Story #1501 path, every existing test,
+// the manifest-renderer facade).
 //
-// `fromSpec` is the new entry point that takes a structural spec (the
-// `.agents/epics/<epic-id>.yaml` shape returned by `lib/spec/loader.js#loadSpec`)
-// plus a state mapping (the sibling `<epic-id>.state.json` shape returned
-// by `loadState`) and projects a manifest-shaped object, then funnels it
-// back through `formatManifestMarkdown`. Funnelling — rather than
-// open-coding the Markdown emit a second time — is the round-trip
-// byte-identity guarantee: any drift in the renderer affects both
-// entry points equally.
-//
-// Per Tech Spec #1483, agent::* status labels do not live in the spec.
-// `fromSpec` reads `state.mapping[slug].lastObservedAgentState` when
-// present and falls back to `agent::ready` for un-mapped Stories/Tasks.
-// Slug→issue-number resolution falls back to a deterministic
-// `slug:<slug>` sentinel so the renderer never trips on a missing id
-// (the rendered output annotates these so the operator can spot un-
-// materialised entries at a glance).
+// `fromSpec` is the new entry point that takes a structural spec plus a
+// state mapping, projects a manifest-shaped object via
+// `manifest-builder.js`, then funnels it back through
+// `formatManifestMarkdown`. Funnelling — rather than open-coding the
+// Markdown emit a second time — is the round-trip byte-identity
+// guarantee: any drift in the renderer affects both entry points equally.
 // ---------------------------------------------------------------------------
 
 /**
@@ -509,8 +468,8 @@ export const fromManifest = formatManifestMarkdown;
 /**
  * Render a Markdown dispatch manifest from a structural spec. Funnels
  * through `formatManifestMarkdown` so the output is byte-identical to
- * `fromManifest` when given an equivalent manifest fixture (the round-
- * trip parity AC for Story #1501).
+ * `fromManifest` when given an equivalent manifest fixture (round-trip
+ * parity AC for Story #1501).
  *
  * @param {object} spec — parsed epic-spec.
  * @param {Parameters<typeof buildManifestFromSpec>[1]} [opts]
@@ -518,146 +477,9 @@ export const fromManifest = formatManifestMarkdown;
  */
 export function fromSpec(spec, opts = {}) {
   const manifest = buildManifestFromSpec(spec, opts);
-  // Bust the cache so callers that toggle between fromSpec / fromManifest
-  // in the same process don't get a stale render from a content-hash
-  // collision on a different manifest instance.
+  // Bust the cache so callers toggling fromSpec / fromManifest in the
+  // same process don't get a stale render from a content-hash collision
+  // on a different manifest instance.
   __resetManifestFormatterCache();
   return formatManifestMarkdown(manifest);
-}
-
-// ---------------------------------------------------------------------------
-// Story-execution manifest Markdown
-// ---------------------------------------------------------------------------
-
-/**
- * Format the per-story execution manifest. Pure: caller must supply
- * `opts.agentSettings` (the resolved `agentSettings` bag) so we can cite the
- * canonical `story-init.js` / `story-close.js` paths without touching
- * `resolveConfig` (fs).
- *
- * `scriptsRoot` lives under `agentSettings.paths.*` post-Epic #773 Story 9
- * (it was a flat agentSettings key prior). The fallback string keeps the
- * formatter usable in tiny test fixtures that omit the paths block.
- *
- * @param {object} manifest
- * @param {{ agentSettings: { paths?: { scriptsRoot?: string }, commands?: { validate?: string, test?: string } } }} opts
- * @returns {string}
- */
-export function formatStoryManifestMarkdown(manifest, opts = {}) {
-  const agentSettings = opts.agentSettings ?? {};
-  const scriptsRoot = agentSettings.paths?.scriptsRoot ?? '.agents/scripts';
-  const commands = agentSettings.commands ?? {};
-  const validateCmd = commands.validate ?? 'npm run lint';
-  const testCmd = commands.test ?? 'npm test';
-
-  const lines = [];
-  lines.push(`# 📚 Story Execution Manifest`);
-  lines.push('');
-  lines.push(`> **Generated:** ${manifest.generatedAt}`);
-  lines.push('');
-
-  for (const story of manifest.stories) {
-    lines.push(`## Story #${story.storyId}: ${story.storyTitle}`);
-    lines.push(`- **Epic Branch:** \`${story.epicBranch}\``);
-    lines.push(`- **Story Branch:** \`${story.branchName}\``);
-    lines.push('');
-    lines.push('**Tasks (execution order):**');
-    for (const task of story.tasks) {
-      const isDone = task.status === AGENT_LABELS.DONE;
-      const checkbox = isDone ? '[x]' : '[ ]';
-      const deps =
-        task.dependencies && task.dependencies.length > 0
-          ? ` _(blocked by: ${task.dependencies.map((d) => `#${d}`).join(', ')})_`
-          : '';
-      lines.push(`- ${checkbox} **#${task.taskId}** — ${task.title}${deps}`);
-    }
-    lines.push('');
-  }
-
-  lines.push('---');
-  lines.push('');
-  lines.push('## Execution Steps');
-  lines.push('');
-
-  const initPath = `${scriptsRoot}/story-init.js`;
-  const closePath = `${scriptsRoot}/story-close.js`;
-
-  lines.push(
-    `1. \`node ${initPath} --story <storyId>\` (bootstraps branch, transitions tasks)`,
-  );
-  lines.push('2. Implement each Task sequentially and commit after each one.');
-  lines.push(`3. Run \`${validateCmd}\` and \`${testCmd}\` to validate.`);
-  lines.push(
-    `4. \`node <main-repo>/${closePath} --story <storyId> --cwd <main-repo>\` (merges, cleans up, closes tickets)`,
-  );
-  lines.push('');
-
-  return lines.join('\n');
-}
-
-// ---------------------------------------------------------------------------
-// Story dispatch table (CLI output)
-// ---------------------------------------------------------------------------
-
-/**
- * Print the CLI Story Dispatch Table. Writes to the supplied `logger.log`
- * channel (defaults to `Logger.info`). Keeping the sink injectable makes the
- * function testable without capturing stdout.
- *
- * @param {object[]} storyManifest
- * @param {{ logger?: { log: (line: string) => void } }} [opts]
- */
-/* node:coverage ignore next */
-export function printStoryDispatchTable(storyManifest, opts = {}) {
-  const log = opts.logger?.log ?? ((line) => Logger.info(line));
-  if (!storyManifest || storyManifest.length === 0) return;
-
-  // Split into wave-eligible Stories and Feature containers
-  const stories = storyManifest.filter((s) => s.type !== 'feature');
-  const features = storyManifest.filter((s) => s.type === 'feature');
-
-  log(
-    '\n┌─────────┬──────────────────────────────────────┬──────┬────────────┬──────────────┐',
-  );
-  log(
-    '│                           📋 STORY DISPATCH TABLE                            │',
-  );
-  log(
-    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
-  );
-  log(
-    '│ Story   │ Title                                │ Wave │ Tasks        │',
-  );
-  log(
-    '├─────────┼──────────────────────────────────────┼──────┼──────────────┤',
-  );
-
-  for (const story of stories) {
-    const id =
-      story.storyId === '__ungrouped__' ? '(none)' : `#${story.storyId}`;
-    const title = (story.storySlug ?? '').substring(0, 36).padEnd(36);
-    const wave = (
-      story.earliestWave === -1 ? '-' : String(story.earliestWave)
-    ).padEnd(4);
-    const taskCount = `${story.tasks.length} task(s)`.padEnd(12);
-    log(`│ ${id.padEnd(7)} │ ${title} │ ${wave} │ ${taskCount} │`);
-  }
-
-  log(
-    '└─────────┴──────────────────────────────────────┴──────┴──────────────┘',
-  );
-  log('');
-  log('  💡 Stories in the same [Wave] can be executed in parallel.');
-  log('  💡 Use /epic-deliver #[Story ID] to execute a Story.');
-
-  if (features.length > 0) {
-    log('');
-    log('  📦 Feature Containers (not directly executable):');
-    for (const f of features) {
-      log(
-        `     #${f.storyId} — ${f.storySlug} (${f.tasks.length} orphaned tasks)`,
-      );
-    }
-  }
-  log('');
 }
