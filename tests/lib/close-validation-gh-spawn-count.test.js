@@ -12,6 +12,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { emitGhSpawnCount } from '../../.agents/scripts/lib/close-validation.js';
+import { defaultGetHeadSha } from '../../.agents/scripts/lib/close-validation/projections/head-sha.js';
 
 describe('emitGhSpawnCount — happy path', () => {
   it('writes the counter to story-scoped temp path and returns ok', async () => {
@@ -81,5 +82,21 @@ describe('emitGhSpawnCount — failure paths', () => {
     });
     assert.equal(result.status, 'failed');
     assert.equal(result.reason, 'counter-read-failed');
+  });
+});
+
+describe('defaultGetHeadSha — re-export contract (Story #1850 / Task #1873)', () => {
+  it('resolves a clean SHA from the injected gitSpawn', () => {
+    const gitSpawn = () => ({ status: 0, stdout: 'deadbeef\n', stderr: '' });
+    assert.equal(defaultGetHeadSha('/repo', gitSpawn), 'deadbeef');
+  });
+
+  it('returns null when gitSpawn reports a non-zero status', () => {
+    const gitSpawn = () => ({
+      status: 128,
+      stdout: '',
+      stderr: 'fatal: not a git repo',
+    });
+    assert.equal(defaultGetHeadSha('/repo', gitSpawn), null);
   });
 });

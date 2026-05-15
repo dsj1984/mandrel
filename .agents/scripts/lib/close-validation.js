@@ -21,6 +21,7 @@ import { getQuality } from './config/quality.js';
 import { storyArtifactPath } from './config/temp-paths.js';
 import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
 import { cachedGitFetchSync } from './git/cached-fetch.js';
+import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { gitSpawn as defaultGitSpawn } from './git-utils.js';
 import { calculateForSource } from './maintainability-engine.js';
 import { getBaseline } from './maintainability-utils.js';
@@ -444,23 +445,6 @@ function defaultGateRunner(cmd, args, opts = {}) {
       resolve({ status: 1 });
     });
   });
-}
-
-/**
- * Resolve the current `git rev-parse HEAD` SHA inside `cwd`. Returns `null`
- * when git is unavailable or the call fails — callers treat that as
- * "evidence skip disabled" so the gate runs as before.
- *
- */
-function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
-  try {
-    const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
-    if (res.status !== 0) return null;
-    const sha = (res.stdout || '').trim();
-    return sha.length > 0 ? sha : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
