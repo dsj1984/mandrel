@@ -24,7 +24,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const TEST_CONCURRENCY_CAP = 16;
 
 export function resolveTestConcurrency(
-  parallelism = os.availableParallelism?.() ?? os.cpus().length ?? 1,
+  parallelism = os.availableParallelism(),
   cap = TEST_CONCURRENCY_CAP,
 ) {
   const n = Math.max(1, Math.min(parallelism, cap));
