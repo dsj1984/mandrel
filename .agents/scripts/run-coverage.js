@@ -44,15 +44,6 @@ const require = createRequire(import.meta.url);
 const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
-// Spawn c8 via `node <path>` directly (shell:false) instead of `npx c8`,
-// which would invoke npx.cmd on Windows. Closes the CWE-78 vector that
-// shell:true with .cmd shims would otherwise leave open.
-const C8_CLI = path.join(
-  path.dirname(require.resolve('c8/package.json')),
-  'bin',
-  'c8.js',
-);
-
 rmSync(COVERAGE_DIR, { recursive: true, force: true });
 mkdirSync(V8_TMP, { recursive: true });
 
@@ -76,10 +67,18 @@ cleanupRepoTestTempArtifacts({ repoRoot: ROOT });
 const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
 
+// Spawn c8 via `node <cli>` directly (shell:false) instead of `npx c8`
+// to avoid the npx.cmd shim path and close the CWE-78 shell:true vector.
+const c8Cli = path.join(
+  path.dirname(require.resolve('c8/package.json')),
+  'bin',
+  'c8.js',
+);
+
 const reportRun = spawnSync(
   process.execPath,
   [
-    C8_CLI,
+    c8Cli,
     'report',
     '--reporter=json',
     '--reporter=text',
