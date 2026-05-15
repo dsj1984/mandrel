@@ -1029,7 +1029,7 @@
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "method": "sortRows",
       "startLine": 72,
-      "crap": 1.0029154518950438
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
@@ -2541,7 +2541,55 @@
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "getCrapBaseline",
       "startLine": 93,
-      "crap": 13.50732421875
+      "crap": 17.62418002915452
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "sortRows",
+      "startLine": 150,
+      "crap": 1.015625
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "canonicalizeRow",
+      "startLine": 159,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "canonicalizeEnvelope",
+      "startLine": 168,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "buildBaselineEnvelope",
+      "startLine": 194,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "saveCrapBaseline",
+      "startLine": 231,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "scanAndScore",
+      "startLine": 276,
+      "crap": 12.405181355587217
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "scoreFileSerial",
+      "startLine": 367,
+      "crap": 7.333333333333334
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "scoreFilesViaPool",
+      "startLine": 422,
+      "crap": 1.037037037037037
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -3363,7 +3411,25 @@
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "getBaseline",
       "startLine": 128,
-      "crap": 13
+      "crap": 16.814549601380786
+    },
+    {
+      "path": ".agents/scripts/lib/maintainability-utils.js",
+      "method": "saveBaseline",
+      "startLine": 180,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/maintainability-utils.js",
+      "method": "scanDirectory",
+      "startLine": 221,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/maintainability-utils.js",
+      "method": "calculateAll",
+      "startLine": 264,
+      "crap": 3.124416
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -6806,31 +6872,31 @@
     {
       "path": ".agents/scripts/lib/quality-floors.js",
       "method": "checkCoverageRecord",
-      "startLine": 285,
+      "startLine": 288,
       "crap": 6.354227405247814
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
       "method": "applyMaintainabilityFloor",
-      "startLine": 328,
-      "crap": 4.068228930171954
+      "startLine": 331,
+      "crap": 4.054
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
       "method": "applyCrapCeiling",
-      "startLine": 366,
-      "crap": 6.318359375
+      "startLine": 372,
+      "crap": 6.061227313318324
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
       "method": "parseFloorFlag",
-      "startLine": 415,
+      "startLine": 424,
       "crap": 12.94921875
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
       "method": "formatViolation",
-      "startLine": 439,
+      "startLine": 448,
       "crap": 10
     },
     {
