@@ -87,6 +87,67 @@ function hashTarget(value) {
 }
 
 /**
+ * Normalise a Bash command string into a stable identity for the retry
+ * detector (Story #1768 / Task #1775). The output is what we hash to
+ * derive `details.normalizedHash`; the raw value is still hashed
+ * separately into `details.targetHash` so the privacy contract for the
+ * raw command is unchanged.
+ *
+ * ## Rules (documented contract — kept narrow on purpose)
+ *
+ *   1. **Whitespace collapse.** Leading/trailing whitespace is stripped
+ *      and runs of internal whitespace collapse to a single space.
+ *      `npm  test` → `npm test`. `\n` and `\t` count as whitespace.
+ *
+ *   2. **Strip benign trailing flags.** `--no-color` and `--quiet`
+ *      anywhere in the argv are removed (with their surrounding
+ *      whitespace re-collapsed). These flags affect output only and
+ *      never change the command's identity for retry-detection
+ *      purposes. The list is deliberately tiny — adding more flags is
+ *      a new ADR conversation, not a hook tweak.
+ *
+ *   3. **`npm test` ≡ `npm run test`.** Only this single paraphrase
+ *      collapses. `npm run lint` and `npm test` do **not** collapse;
+ *      `npm run build` and `npm build` do **not** collapse. The
+ *      treatment is intentional: it covers the one paraphrase the
+ *      `package.json` `scripts.test` shorthand makes idiomatic, and
+ *      stops there.
+ *
+ * Returns `null` when the input is not a non-empty string (so the
+ * caller can omit the field rather than recording a hash of `''`).
+ *
+ * Exported for testing — the unit suite asserts the collapse rules.
+ *
+ * @param {unknown} command
+ * @returns {string|null}
+ */
+export function normaliseBashCommand(command) {
+  if (typeof command !== 'string' || command.length === 0) return null;
+
+  // Step 1: whitespace collapse. Trim then collapse internal runs.
+  let normalised = command.trim().replace(/\s+/g, ' ');
+  if (normalised.length === 0) return null;
+
+  // Step 2: strip benign trailing/inline flags. Token-level removal so
+  // we don't accidentally chew into a longer flag (e.g. `--quiet-mode`
+  // would not match `--quiet`).
+  const benignFlags = new Set(['--no-color', '--quiet']);
+  const tokens = normalised.split(' ').filter((tok) => !benignFlags.has(tok));
+  normalised = tokens.join(' ');
+  if (normalised.length === 0) return null;
+
+  // Step 3: collapse `npm run test` → `npm test`. Only this exact
+  // paraphrase. We rewrite to the shorter form because the longer form
+  // is more verbose; either direction would work, but the `scripts.test`
+  // shorthand is the form most operators type.
+  if (normalised === 'npm run test') {
+    normalised = 'npm test';
+  }
+
+  return normalised;
+}
+
+/**
  * Clamp a string field so a misbehaving tool argument can't bloat the
  * trace file. Non-string input is returned unchanged (numbers, booleans,
  * etc. are size-bounded by JSON serialisation).
@@ -122,6 +183,28 @@ export function resolveActiveStory(env = process.env) {
 }
 
 /**
+ * Story #1768 / Task #1775 — extract the Bash-input hashing into a
+ * helper so `buildDetails` stays under its CRAP baseline. Returns
+ * `{ targetHash, normalizedHash? }` for Bash input, `null` for any
+ * other shape so the caller can fall through to the file_path / pattern
+ * branches unchanged. The `normalizedHash` is omitted when
+ * `normaliseBashCommand` rejects the input (non-string / empty after
+ * normalisation).
+ *
+ * @param {object} toolInput
+ * @returns {{ targetHash: string, normalizedHash?: string } | null}
+ */
+function hashBashInput(toolInput) {
+  if (typeof toolInput?.command !== 'string') return null;
+  const out = { targetHash: hashTarget(toolInput.command) };
+  const normalised = normaliseBashCommand(toolInput.command);
+  if (normalised !== null) {
+    out.normalizedHash = hashTarget(normalised);
+  }
+  return out;
+}
+
+/**
  * Build the canonical `details` block for a trace line. Hashes the
  * Bash command (`tool_input.command`) and any file-path-shaped input
  * (`tool_input.file_path`, `tool_input.path`, `tool_input.pattern`)
@@ -140,9 +223,10 @@ function buildDetails({ tool, toolInput, durationMs }) {
 
   if (toolInput && typeof toolInput === 'object') {
     // Bash: hash `command` so a token-laden string never lands on disk.
-    if (typeof toolInput.command === 'string') {
-      details.targetHash = hashTarget(toolInput.command);
-    }
+    // Story #1768 also records `normalizedHash` (paraphrase-collapsed)
+    // for retry detection. See `hashBashInput`.
+    const bash = hashBashInput(toolInput);
+    if (bash) Object.assign(details, bash);
     // Edit / Write / Read: hash `file_path` for the same reason — the
     // operator's local path layout is not interesting to the analyzer.
     if (

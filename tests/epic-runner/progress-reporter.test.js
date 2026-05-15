@@ -9,6 +9,7 @@ import {
   ProgressReporter,
   parsePhaseTimingsComment,
   renderPhaseTimingsSection,
+  runHotspotDetection,
 } from '../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
@@ -637,5 +638,156 @@ describe('ProgressReporter', () => {
     assert.equal(intervalCleared, true);
     const [comment] = await provider.listComments();
     assert.ok(comment.body.includes('Progress — Wave 1/1'));
+  });
+});
+
+describe('runHotspotDetection', () => {
+  function makeLogger() {
+    const warnings = [];
+    const infos = [];
+    return {
+      warnings,
+      infos,
+      info: (m) => infos.push(m),
+      warn: (m) => warnings.push(m),
+      error: () => {},
+    };
+  }
+
+  it('resolves multiplier via getSignals(config) and persists each event via appendEpicSignal', async () => {
+    const logger = makeLogger();
+    const detectorCalls = [];
+    const appendCalls = [];
+    const events = [
+      {
+        ts: 't',
+        kind: 'hotspot',
+        source: { tool: 'hotspot-detector' },
+        epicId: 1721,
+        details: {
+          targetHash: 'h-a',
+          totalEdits: 12,
+          storiesAffected: 3,
+          p95Threshold: 7.5,
+          multiplier: 1.5,
+        },
+      },
+      {
+        ts: 't',
+        kind: 'hotspot',
+        source: { tool: 'hotspot-detector' },
+        epicId: 1721,
+        details: {
+          targetHash: 'h-b',
+          totalEdits: 14,
+          storiesAffected: 2,
+          p95Threshold: 7.5,
+          multiplier: 1.5,
+        },
+      },
+    ];
+    const result = await runHotspotDetection({
+      epicId: 1721,
+      config: {
+        delivery: { signals: { hotspot: { p95Multiplier: 1.5 } } },
+      },
+      logger,
+      detect: async (args) => {
+        detectorCalls.push(args);
+        return events;
+      },
+      append: async (args) => {
+        appendCalls.push(args);
+        return true;
+      },
+    });
+    assert.deepEqual(result, { hotspot: 2 });
+    assert.equal(detectorCalls.length, 1);
+    assert.equal(detectorCalls[0].epicId, 1721);
+    assert.equal(
+      detectorCalls[0].multiplier,
+      1.5,
+      'forwards merged multiplier',
+    );
+    assert.equal(appendCalls.length, 2);
+    assert.equal(appendCalls[0].epicId, 1721);
+    assert.equal(appendCalls[0].signal.kind, 'hotspot');
+  });
+
+  it('failure-isolated: detector throws → returns hotspot=0 and logs warn', async () => {
+    const logger = makeLogger();
+    const result = await runHotspotDetection({
+      epicId: 1721,
+      config: {},
+      logger,
+      detect: async () => {
+        throw new Error('detector boom');
+      },
+      append: async () => true,
+    });
+    assert.deepEqual(result, { hotspot: 0 });
+    assert.ok(
+      logger.warnings.some((m) => /detector threw/.test(m)),
+      `expected warn log, got: ${JSON.stringify(logger.warnings)}`,
+    );
+  });
+
+  it('failure-isolated: appendEpicSignal throwing on one event does not block subsequent events', async () => {
+    const logger = makeLogger();
+    let calls = 0;
+    const result = await runHotspotDetection({
+      epicId: 1721,
+      config: {},
+      logger,
+      detect: async () => [
+        {
+          ts: 't',
+          kind: 'hotspot',
+          source: { tool: 'hotspot-detector' },
+          epicId: 1721,
+          details: {
+            targetHash: 'a',
+            totalEdits: 9,
+            storiesAffected: 2,
+            p95Threshold: 5,
+            multiplier: 1.25,
+          },
+        },
+        {
+          ts: 't',
+          kind: 'hotspot',
+          source: { tool: 'hotspot-detector' },
+          epicId: 1721,
+          details: {
+            targetHash: 'b',
+            totalEdits: 9,
+            storiesAffected: 2,
+            p95Threshold: 5,
+            multiplier: 1.25,
+          },
+        },
+      ],
+      append: async () => {
+        calls += 1;
+        if (calls === 1) throw new Error('disk boom');
+        return true;
+      },
+    });
+    assert.deepEqual(result, { hotspot: 1 });
+    assert.ok(logger.warnings.some((m) => /appendEpicSignal failed/.test(m)));
+  });
+
+  it('skips with hotspot=0 when epicId is invalid', async () => {
+    const logger = makeLogger();
+    const result = await runHotspotDetection({
+      epicId: 0,
+      config: {},
+      logger,
+      detect: async () => {
+        throw new Error('should not be called');
+      },
+      append: async () => true,
+    });
+    assert.deepEqual(result, { hotspot: 0 });
   });
 });

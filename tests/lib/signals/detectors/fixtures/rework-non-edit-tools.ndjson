@@ -1,0 +1,7 @@
+{"ts":"2026-05-15T00:00:01.000Z","kind":"trace","source":{"tool":"Read"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":3}}
+{"ts":"2026-05-15T00:00:02.000Z","kind":"trace","source":{"tool":"Bash"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":4}}
+{"ts":"2026-05-15T00:00:03.000Z","kind":"trace","source":{"tool":"Grep"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":5}}
+{"ts":"2026-05-15T00:00:04.000Z","kind":"trace","source":{"tool":"Glob"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":6}}
+{"ts":"2026-05-15T00:00:05.000Z","kind":"trace","source":{"tool":"Read"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":7}}
+{"ts":"2026-05-15T00:00:06.000Z","kind":"trace","source":{"tool":"Bash"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":8}}
+{"ts":"2026-05-15T00:00:07.000Z","kind":"trace","source":{"tool":"Grep"},"epicId":1721,"storyId":1771,"taskId":1772,"details":{"targetHash":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff","durationMs":9}}

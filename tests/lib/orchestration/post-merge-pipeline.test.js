@@ -184,6 +184,7 @@ describe('runPostMergePipeline', () => {
       'notification',
       'dashboard-refresh',
       'temp-cleanup',
+      'detectors',
       'perf-summary',
     ]);
   });

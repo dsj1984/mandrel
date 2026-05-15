@@ -35,6 +35,7 @@ import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
 import { parseFencedJsonComment } from '../structured-comment-parser.js';
+import { runHotspotDetection } from './hotspot-detection.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -1061,6 +1062,12 @@ export async function emitEpicComplete({
   }
   return null;
 }
+
+// runHotspotDetection lives in `./hotspot-detection.js` so this file
+// stays focused on the periodic-progress + comment-render surface.
+// Re-exported here for backwards compatibility — Epic-close call sites
+// can import either path.
+export { runHotspotDetection };
 
 /**
  * Extract the `{ phases, ... }` payload from a `phase-timings` structured

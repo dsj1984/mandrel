@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* node:coverage ignore file */
 
 /**
  * single-story-close.js — Close a standalone Story (no parent Epic).

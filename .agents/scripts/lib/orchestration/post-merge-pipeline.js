@@ -34,15 +34,16 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleepPromise } from 'node:timers/promises';
+import { storyArtifactPath } from '../config/temp-paths.js';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { notify } from '../../notify.js';
-import { storyArtifactPath } from '../config/temp-paths.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
 import { appendSignal } from '../observability/signals-writer.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
 import { recordPendingCleanup } from '../worktree/lifecycle/pending-cleanup.js';
 import { WorktreeManager } from '../worktree-manager.js';
+import { detectorsPhase } from './detectors-phase.js';
 import { toDone } from './label-transitions.js';
 import { runPhase } from './phase-runner.js';
 import { cascadeCompletion, STATE_LABELS } from './ticketing.js';
@@ -727,6 +728,49 @@ export async function perfSummaryPhase(ctx) {
   }
 }
 
+/**
+ * detectorsPhase — runs the per-Story signal detectors (rework + retry) at
+ * post-Task-merge close, before `perf-summary` shells out to the analyzer.
+ *
+ * The detectors are pure modules: they read the per-Story `traces.ndjson`
+ * and return SignalEvent arrays. This phase resolves the operator-tunable
+ * thresholds via `getSignals(config)` (Epic #1720 — `delivery.signals.*`),
+ * invokes each detector, and persists the events through `appendSignal`
+ * so they land in the per-Story `signals.ndjson` stream the aggregator
+ * already consumes (`SIGNAL_COUNT_KINDS` covers both kinds).
+ *
+ * **Failure isolation contract.** Per Story #1770 / Task #1779, a failing
+ * detector MUST NOT block Task close. Each detector call (and each per-event
+ * append) is wrapped in try/catch; failures degrade to a warn and counts
+ * fall back to 0 for the offending detector. The phase always resolves
+ * with a `{ rework, retry }` count summary so downstream phases (and tests)
+ * see a stable shape.
+ *
+ * The single info-level summary line (`detectors: rework=N retry=M`) is
+ * the canonical observability signal — operators tailing `story-close`
+ * stdout see one line per Story instead of two per detector + N per event.
+ *
+ * @param {{
+ *   epicId: number|string,
+ *   storyId: number|string,
+ *   tasks?: Array<{ id?: number|string }>,
+ *   projectRoot?: string,
+ *   config?: object,
+ *   progress?: Function,
+ *   logger?: object,
+ *   detectorsImpl?: { detectRework?: typeof detectRework, detectRetry?: typeof detectRetry },
+ *   appendSignalFn?: typeof appendSignal,
+ * }} ctx
+ * @returns {Promise<{ rework: number, retry: number }>}
+ */
+// detectorsPhase is the post-merge phase that fires the rework + retry
+// signal detectors against the per-Story `traces.ndjson` and appends each
+// emission to `signals.ndjson` BEFORE the analyzer renders the
+// `<!-- structured:story-perf-summary -->` comment. Implementation lives
+// in `lib/orchestration/detectors-phase.js` so this sequencer stays focused
+// on phase orchestration; re-exported here for backwards compatibility.
+export { detectorsPhase };
+
 export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
   {
     name: 'worktree-reap',
@@ -746,6 +790,12 @@ export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
     stateKey: 'manifestUpdated',
   },
   { name: 'temp-cleanup', fn: tempCleanupPhase },
+  // Detectors MUST run before `perf-summary`. The perf phase shells out
+  // to `analyze-execution.js`, which reads the per-Story signals stream
+  // to author the `<!-- structured:story-perf-summary -->` comment;
+  // emitting rework/retry events first ensures the rendered surface
+  // reflects this Story's signals.
+  { name: 'detectors', fn: detectorsPhase, stateKey: 'detectors' },
   { name: 'perf-summary', fn: perfSummaryPhase, stateKey: 'perfSummary' },
 ]);
 
