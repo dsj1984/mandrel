@@ -459,6 +459,11 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/install-cmd-parser.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
   ".agents/scripts/lib/issue-link-parser.js": {
     "lines": 100,
     "branches": 100,

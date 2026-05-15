@@ -210,11 +210,11 @@ export async function runStoryExecutePrepare(args) {
     const runner =
       runInstallOverride ??
       ((cmd, dir) => {
-        const { bin, args: cmdArgs } = parseInstallCmd(cmd);
+        const { bin, args: cmdArgs, shell } = parseInstallCmd(cmd);
         const r = spawnSync(bin, cmdArgs, {
           cwd: dir,
           stdio: 'inherit',
-          shell: false,
+          shell,
         });
         return {
           status: r.status ?? 1,

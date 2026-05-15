@@ -44,7 +44,18 @@ const require = createRequire(import.meta.url);
 const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
 
-const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+// Resolve c8's CLI entry directly so we can spawn it via `node ...`
+// (process.execPath) instead of `npx c8 …`. Bypassing npx removes the
+// last .cmd-shim invocation in this script and lets us run with
+// shell:false — closing the CWE-78 argv-injection vector that shell:true
+// would otherwise leave open if external input ever flowed into argv.
+// Resolved via the package.json (which is always in `exports`) +
+// path.join because `bin/c8.js` is not exported from c8's package.json.
+const C8_CLI = path.join(
+  path.dirname(require.resolve('c8/package.json')),
+  'bin',
+  'c8.js',
+);
 
 rmSync(COVERAGE_DIR, { recursive: true, force: true });
 mkdirSync(V8_TMP, { recursive: true });
@@ -70,9 +81,9 @@ const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
 
 const reportRun = spawnSync(
-  NPX,
+  process.execPath,
   [
-    'c8',
+    C8_CLI,
     'report',
     '--reporter=json',
     '--reporter=text',
@@ -81,9 +92,6 @@ const reportRun = spawnSync(
     ...includeArgs,
     ...excludeArgs,
   ],
-  // shell:false closes the CWE-78 argv-injection vector that shell:true
-  // opens if external input ever flows into argv. `NPX` carries the
-  // platform-correct .cmd shim already.
   { cwd: ROOT, stdio: 'inherit', shell: false },
 );
 
