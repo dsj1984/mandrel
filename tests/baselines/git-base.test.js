@@ -179,10 +179,16 @@ describe('readBaseFromGit', () => {
       const sizeBefore = __cacheSize();
       const got2 = readBaseFromGit('HEAD', 'baseline.json', { cwd: dir });
       assert.equal(got2, got);
-      assert.equal(__cacheSize(), sizeBefore, 'second read must not grow cache');
+      assert.equal(
+        __cacheSize(),
+        sizeBefore,
+        'second read must not grow cache',
+      );
 
       // Missing file at HEAD → null.
-      const missing = readBaseFromGit('HEAD', 'no-such-file.json', { cwd: dir });
+      const missing = readBaseFromGit('HEAD', 'no-such-file.json', {
+        cwd: dir,
+      });
       assert.equal(missing, null);
     } finally {
       rmSync(dir, { recursive: true, force: true });

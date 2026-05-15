@@ -73,10 +73,7 @@ describe('aggregate()', () => {
       ),
       EXIT_REGRESSION,
     );
-    assert.equal(
-      aggregate(EXIT_FLOOR, EXIT_SCHEMA, EXIT_CONFIG),
-      EXIT_CONFIG,
-    );
+    assert.equal(aggregate(EXIT_FLOOR, EXIT_SCHEMA, EXIT_CONFIG), EXIT_CONFIG);
     assert.equal(aggregate(EXIT_FLOOR, EXIT_SCHEMA), EXIT_SCHEMA);
   });
 

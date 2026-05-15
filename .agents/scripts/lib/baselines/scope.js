@@ -195,7 +195,9 @@ export function resolveScope(input = {}) {
       mode: 'diff',
       ref: cfgRef ?? DEFAULT_DIFF_REF,
       files: asFilesSet(cli.changedFiles),
-      source: cfgRef ? 'config:gateScoping.diffRef' : 'config:gateScoping.scope=diff',
+      source: cfgRef
+        ? 'config:gateScoping.diffRef'
+        : 'config:gateScoping.scope=diff',
     });
   }
 
