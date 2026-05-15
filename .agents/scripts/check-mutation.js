@@ -183,7 +183,7 @@ function resolveFloorFor(workspace, floors, baseline, tolerancePct) {
       return { value: floors['*'], source: 'floors' };
     }
   }
-  if (baseline && baseline.workspaces) {
+  if (baseline?.workspaces) {
     const baselineTol = Number.isFinite(baseline.tolerancePct)
       ? baseline.tolerancePct
       : tolerancePct;
