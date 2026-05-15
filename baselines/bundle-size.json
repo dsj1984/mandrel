@@ -1,0 +1,12 @@
+{
+  "$schema": ".agents/schemas/baselines/bundle-size.schema.json",
+  "kernelVersion": "1.0.0",
+  "generatedAt": "2026-05-15T00:00:00.000Z",
+  "rollup": {
+    "*": {
+      "totalKb": 0,
+      "gzippedKb": 0
+    }
+  },
+  "rows": []
+}

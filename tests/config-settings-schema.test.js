@@ -409,7 +409,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       floors: { '*': { performance: 80 } },
       routes: [],
     },
-    bundleSize: {
+    'bundle-size': {
       enabled: true,
       baselinePath: 'baselines/bundle-size.json',
       tolerance: { kind: 'percent', value: 5 },
