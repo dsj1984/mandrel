@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T23:27:09.762Z",
+  "generatedAt": "2026-05-15T23:49:39.993Z",
   "rollup": {
     "*": {
-      "lines": 97.02,
-      "branches": 86.86,
-      "functions": 92.71
+      "lines": 97.06,
+      "branches": 86.84,
+      "functions": 92.76
     }
   },
   "rows": [
@@ -24,21 +24,15 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "lines": 86.67,
-      "branches": 71.04,
-      "functions": 85
+      "lines": 87.65,
+      "branches": 70.97,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
       "lines": 89.64,
       "branches": 83.93,
       "functions": 81.82
-    },
-    {
-      "path": ".agents/scripts/check-mutation.js",
-      "lines": 93.58,
-      "branches": 81.43,
-      "functions": 85.71
     },
     {
       "path": ".agents/scripts/cleanup-repo-test-temp.js",
@@ -187,7 +181,7 @@
     {
       "path": ".agents/scripts/lib/baselines/git-base.js",
       "lines": 97.03,
-      "branches": 84.62,
+      "branches": 85.19,
       "functions": 100
     },
     {
@@ -198,45 +192,45 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "lines": 89.22,
-      "branches": 57.89,
+      "lines": 91.41,
+      "branches": 54.9,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "lines": 91.6,
-      "branches": 75,
-      "functions": 90
+      "lines": 93.41,
+      "branches": 74.07,
+      "functions": 90.91
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 91.36,
-      "branches": 72.73,
-      "functions": 88.89
-    },
-    {
-      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "lines": 89.71,
-      "branches": 67.57,
+      "lines": 92.43,
+      "branches": 71.21,
       "functions": 90
     },
     {
+      "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "lines": 91.52,
+      "branches": 66.67,
+      "functions": 90.91
+    },
+    {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "lines": 98.5,
-      "branches": 59.57,
+      "lines": 98.75,
+      "branches": 56.67,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "lines": 92.52,
-      "branches": 75.61,
-      "functions": 87.5
+      "lines": 93.89,
+      "branches": 71.7,
+      "functions": 88.89
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "lines": 90.29,
-      "branches": 62.5,
-      "functions": 85.71
+      "lines": 92.06,
+      "branches": 60.78,
+      "functions": 87.5
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -258,8 +252,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "lines": 92.73,
-      "branches": 76.47,
+      "lines": 94.23,
+      "branches": 83.33,
       "functions": 100
     },
     {
@@ -486,8 +480,8 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "lines": 98.43,
-      "branches": 88.04,
+      "lines": 98.67,
+      "branches": 89.83,
       "functions": 100
     },
     {
@@ -720,8 +714,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 92.95,
-      "branches": 82.61,
+      "lines": 90.38,
+      "branches": 79.1,
       "functions": 100
     },
     {
@@ -1380,8 +1374,8 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "lines": 87.61,
-      "branches": 80.17,
+      "lines": 86.74,
+      "branches": 75.89,
       "functions": 100
     },
     {
