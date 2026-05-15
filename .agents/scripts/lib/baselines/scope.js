@@ -210,3 +210,85 @@ export function resolveScope(input = {}) {
     source: 'default',
   });
 }
+
+/**
+ * Generic scope-aware row merge for s-diff-scoped-writes (Story #1974).
+ *
+ * Each per-kind module re-exports a thin wrapper that pins `scopeKey` to
+ * the field used to identify the file the row belongs to (path / route /
+ * bundle). This helper does the actual merge:
+ *
+ *   - `scope.mode === 'full'` (or `scope` is null/undefined / `scope.files`
+ *     is empty): regenerated wins everywhere — returned as-is. This keeps
+ *     the legacy "always rewrite" behaviour intact when no scope filter is
+ *     applied.
+ *   - `scope.mode === 'diff'`: rows whose `scopeKey` value is OUTSIDE
+ *     `scope.files` are preserved from `prior` verbatim. Rows whose
+ *     `scopeKey` value is INSIDE `scope.files` are taken from
+ *     `regenerated` (the regenerated values for in-scope files). Prior
+ *     rows for in-scope files are dropped (regen replaces them); regen
+ *     rows for out-of-scope files are dropped (the writer should not have
+ *     computed them, but we filter defensively).
+ *   - Missing `prior` (null / undefined / empty) — regenerated wins
+ *     everywhere; behaves like full mode.
+ *
+ * Identity matching uses the per-kind `identity(row)` function — for
+ * coverage / lint / maintainability / mutation / lighthouse / bundle-size
+ * the identity is the keyField value; for crap it's a composite
+ * `path::method@startLine`. The merge preserves row ordering by
+ * concatenating in-scope regen rows then out-of-scope prior rows; the
+ * downstream `sortRows` from the per-kind module re-sorts before write.
+ *
+ * Pure. No I/O.
+ *
+ * @template TRow
+ * @param {object} args
+ * @param {Array<TRow>|null|undefined} args.prior
+ * @param {Array<TRow>|null|undefined} args.regenerated
+ * @param {{mode?: 'full'|'diff', files?: Set<string>|Iterable<string>}|null|undefined} args.scope
+ * @param {(row: TRow) => string} args.scopeKey  Per-kind scope-key extractor — returns the
+ *        file path / route / bundle name used to match against `scope.files`.
+ * @param {(row: TRow) => string} [args.identity] Per-kind identity extractor — defaults to
+ *        the same as `scopeKey`. CRAP overrides this with `path::method@startLine`.
+ * @returns {Array<TRow>}
+ */
+export function mergeRowsByScope({
+  prior,
+  regenerated,
+  scope,
+  scopeKey,
+  identity,
+} = {}) {
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const priorRows = Array.isArray(prior) ? prior : [];
+  if (typeof scopeKey !== 'function') {
+    throw new TypeError('mergeRowsByScope: scopeKey must be a function');
+  }
+  const idFn = typeof identity === 'function' ? identity : scopeKey;
+
+  // No scope filter / full mode / no prior → regen wins everywhere.
+  const mode = scope?.mode;
+  if (!scope || mode === 'full' || priorRows.length === 0) {
+    return regenRows.slice();
+  }
+
+  // Coerce scope.files to a Set for O(1) membership tests. An empty Set in
+  // diff mode means "no files in scope" — every prior row is preserved
+  // and every regen row is dropped (defensive: writer feeds in-scope rows).
+  const filesSet =
+    scope.files instanceof Set
+      ? scope.files
+      : new Set(scope.files ?? []);
+
+  // In-scope regen rows: keep regen.
+  const regenInScope = regenRows.filter((row) => filesSet.has(scopeKey(row)));
+  // Out-of-scope prior rows: keep prior, but drop any whose identity
+  // collides with an in-scope regen row (defensive — should not happen
+  // since identity within a kind is keyField-derived).
+  const inScopeIds = new Set(regenInScope.map((row) => idFn(row)));
+  const priorOutOfScope = priorRows.filter(
+    (row) => !filesSet.has(scopeKey(row)) && !inScopeIds.has(idFn(row)),
+  );
+
+  return regenInScope.concat(priorOutOfScope);
+}

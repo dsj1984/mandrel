@@ -6,6 +6,7 @@
  */
 
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'lighthouse';
 export const keyField = 'route';
@@ -161,5 +162,32 @@ export function applyEpsilon(prior, regenerated, epsilon) {
       if (d > maxAxisDelta) maxAxisDelta = d;
     }
     return maxAxisDelta <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Lighthouse
+ * rows match by `route`. In diff mode, rows whose `route` is OUTSIDE
+ * `scope.files` are preserved from `prior` verbatim; in-scope rows come
+ * from `regenerated`. In full mode (or no scope), regenerated wins
+ * everywhere.
+ *
+ * Note: lighthouse routes are not file paths, so the scope filter only
+ * narrows naturally when callers seed `scope.files` with route strings.
+ * Auto-refresh callers using a Story file diff will see no in-scope rows
+ * and therefore preserve every prior row — which is the safe default for
+ * a baseline that is not file-derived.
+ *
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} prior
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.route,
   });
 }
