@@ -35,8 +35,12 @@ describe('kinds/coverage.compare()', () => {
   });
 
   it('mixed up+down is a regression (any drop dominates)', () => {
-    const head = { rows: [{ path: 'src/a.js', lines: 95, branches: 50, functions: 80 }] };
-    const base = { rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 80 }] };
+    const head = {
+      rows: [{ path: 'src/a.js', lines: 95, branches: 50, functions: 80 }],
+    };
+    const base = {
+      rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 80 }],
+    };
     const out = compare(head, base);
     assert.equal(out.regressions.length, 1);
   });

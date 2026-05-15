@@ -103,7 +103,14 @@ function perfectCoverageRow(path) {
   return { path, lines: 100, branches: 100, functions: 100 };
 }
 
-function classifyCoverage(regressions, improvements, unchanged, key, head, base) {
+function classifyCoverage(
+  regressions,
+  improvements,
+  unchanged,
+  key,
+  head,
+  base,
+) {
   let down = false;
   let up = false;
   for (const axis of COV_AXES) {

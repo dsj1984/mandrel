@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T21:01:50.417Z",
+  "generatedAt": "2026-05-15T22:31:44.815Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.235,
+      "p50": 103.09,
       "p95": 121.479
     }
   },
@@ -247,36 +247,44 @@
       "mi": 97.507
     },
     {
+      "path": ".agents/scripts/lib/baselines/exit-codes.js",
+      "mi": 102.038
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/git-base.js",
+      "mi": 106.692
+    },
+    {
       "path": ".agents/scripts/lib/baselines/kernel.js",
       "mi": 117.18
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "mi": 110.793
+      "mi": 93.599
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "mi": 109.327
+      "mi": 99.737
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 106.519
+      "mi": 97.185
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "mi": 105.05
+      "mi": 97.275
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "mi": 110.422
+      "mi": 92.284
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "mi": 115.882
+      "mi": 101.606
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "mi": 110.321
+      "mi": 96.261
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -285,6 +293,10 @@
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "mi": 94.538
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/scope.js",
+      "mi": 95.284
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
@@ -392,7 +404,7 @@
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
-      "mi": 112.695
+      "mi": 112.427
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
@@ -1503,8 +1515,48 @@
       "mi": 114.631
     },
     {
+      "path": "tests/baselines/exit-codes.test.js",
+      "mi": 117.111
+    },
+    {
+      "path": "tests/baselines/git-base.test.js",
+      "mi": 108.89
+    },
+    {
       "path": "tests/baselines/kernel.test.js",
       "mi": 120.671
+    },
+    {
+      "path": "tests/baselines/kinds/bundle-size.compare.test.js",
+      "mi": 107.949
+    },
+    {
+      "path": "tests/baselines/kinds/coverage.compare.test.js",
+      "mi": 105.744
+    },
+    {
+      "path": "tests/baselines/kinds/crap.compare.test.js",
+      "mi": 106.3
+    },
+    {
+      "path": "tests/baselines/kinds/lighthouse.compare.test.js",
+      "mi": 106.937
+    },
+    {
+      "path": "tests/baselines/kinds/lint.compare.test.js",
+      "mi": 100.546
+    },
+    {
+      "path": "tests/baselines/kinds/maintainability.compare.test.js",
+      "mi": 106.613
+    },
+    {
+      "path": "tests/baselines/kinds/mutation.compare.test.js",
+      "mi": 108.778
+    },
+    {
+      "path": "tests/baselines/kinds/purity.test.js",
+      "mi": 99.857
     },
     {
       "path": "tests/baselines/path-canon.test.js",
@@ -1517,6 +1569,10 @@
     {
       "path": "tests/baselines/refresh-entry-points-migration.test.js",
       "mi": 102.675
+    },
+    {
+      "path": "tests/baselines/scope.test.js",
+      "mi": 106.527
     },
     {
       "path": "tests/baselines/shipped-baselines-idempotency.test.js",

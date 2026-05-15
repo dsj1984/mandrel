@@ -33,7 +33,11 @@ const KINDS = [
   { name: 'crap', mod: crap, sample: crapSample() },
   { name: 'lighthouse', mod: lighthouse, sample: lighthouseSample() },
   { name: 'lint', mod: lint, sample: lintSample() },
-  { name: 'maintainability', mod: maintainability, sample: maintainabilitySample() },
+  {
+    name: 'maintainability',
+    mod: maintainability,
+    sample: maintainabilitySample(),
+  },
   { name: 'mutation', mod: mutation, sample: mutationSample() },
 ];
 
@@ -45,20 +49,48 @@ function bundleSizeSample() {
 }
 function coverageSample() {
   return {
-    head: { rows: [{ path: 'src/a.js', lines: 80, branches: 70, functions: 90 }] },
-    base: { rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 95 }] },
+    head: {
+      rows: [{ path: 'src/a.js', lines: 80, branches: 70, functions: 90 }],
+    },
+    base: {
+      rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 95 }],
+    },
   };
 }
 function crapSample() {
   return {
-    head: { rows: [{ path: 'src/a.js', method: 'foo', startLine: 1, crap: 12 }] },
-    base: { rows: [{ path: 'src/a.js', method: 'foo', startLine: 1, crap: 8 }] },
+    head: {
+      rows: [{ path: 'src/a.js', method: 'foo', startLine: 1, crap: 12 }],
+    },
+    base: {
+      rows: [{ path: 'src/a.js', method: 'foo', startLine: 1, crap: 8 }],
+    },
   };
 }
 function lighthouseSample() {
   return {
-    head: { rows: [{ route: '/dashboard', performance: 80, accessibility: 90, bestPractices: 90, seo: 90 }] },
-    base: { rows: [{ route: '/dashboard', performance: 90, accessibility: 95, bestPractices: 95, seo: 95 }] },
+    head: {
+      rows: [
+        {
+          route: '/dashboard',
+          performance: 80,
+          accessibility: 90,
+          bestPractices: 90,
+          seo: 90,
+        },
+      ],
+    },
+    base: {
+      rows: [
+        {
+          route: '/dashboard',
+          performance: 90,
+          accessibility: 95,
+          bestPractices: 95,
+          seo: 95,
+        },
+      ],
+    },
   };
 }
 function lintSample() {
@@ -152,7 +184,10 @@ describe('per-kind compare(head, base) purity (Task #1967)', () => {
       // will throw inside the patched namespace and fail the test.
       const out = mod.compare(sample.head, sample.base);
       assert.ok(
-        out && Array.isArray(out.regressions) && Array.isArray(out.improvements) && Array.isArray(out.unchanged),
+        out &&
+          Array.isArray(out.regressions) &&
+          Array.isArray(out.improvements) &&
+          Array.isArray(out.unchanged),
         `kinds/${name}.compare must return { regressions, improvements, unchanged }`,
       );
     });
