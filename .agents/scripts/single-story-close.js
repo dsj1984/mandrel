@@ -87,7 +87,7 @@ export async function runSingleStoryClose({
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--no-auto-merge]',
     );
   }

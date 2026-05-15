@@ -259,10 +259,9 @@ async function main() {
   const { epicId, dryRun, json } = parseDeleteArgs(process.argv.slice(2));
   const action = planMainAction({ epicId, dryRun });
   if (action.kind === 'usage') {
-    Logger.fatal(
+    throw new Error(
       'Usage: node delete-epic-branches.js --epic <id> [--dry-run] [--json]',
     );
-    return;
   }
   if (action.kind === 'dry-run') {
     runDryRun(action.plan, {

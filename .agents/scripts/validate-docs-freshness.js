@@ -243,7 +243,7 @@ function reportGateOutcome({ epicId, json, ok, results }) {
 async function main() {
   const args = parseFreshnessArgs(process.argv.slice(2));
   if (args.epicId === null) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node validate-docs-freshness.js --epic <EPIC_ID> [--docs a.md,b.md] [--json]',
     );
   }

@@ -28,7 +28,6 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { Logger } from './lib/Logger.js';
 import {
   PLAN_PHASES,
   PlanCheckpointer,
@@ -167,14 +166,14 @@ async function main() {
   });
 
   if (!values.epic) {
-    Logger.fatal(
+    throw new Error(
       'Usage: epic-plan.js --epic <EpicId> --prd <file> --techspec <file> --tickets <file> [--force]',
     );
   }
 
   const epicId = Number.parseInt(values.epic, 10);
   if (Number.isNaN(epicId)) {
-    Logger.fatal(`Invalid epic ID: "${values.epic}" — must be a number.`);
+    throw new Error(`Invalid epic ID: "${values.epic}" — must be a number.`);
   }
 
   let config;
@@ -182,7 +181,7 @@ async function main() {
     config = resolveConfig();
     validateOrchestrationConfig(config.orchestration);
   } catch (err) {
-    Logger.fatal(
+    throw new Error(
       `Orchestration config schema validation failed:\n${err.message}`,
     );
   }
@@ -205,7 +204,7 @@ async function main() {
   const willEdit = specProbe.exists && !values.force;
 
   if (!willEdit && (!values.prd || !values.techspec || !values.tickets)) {
-    Logger.fatal(
+    throw new Error(
       'Missing required inputs. Need --prd, --techspec, and --tickets files.',
     );
   }
@@ -224,7 +223,7 @@ async function main() {
     try {
       tickets = JSON.parse(ticketsRaw);
     } catch (err) {
-      Logger.fatal(
+      throw new Error(
         `Failed to parse tickets file "${values.tickets}" as JSON: ${err.message}`,
       );
     }

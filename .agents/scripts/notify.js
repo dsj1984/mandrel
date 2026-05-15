@@ -211,7 +211,7 @@ export async function notify(ticketId, payload, opts = {}) {
 
 export function parseNotifyArgs(args) {
   if (args.length < 1) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node notify.js [TicketId] <Message> [--severity low|medium|high]',
     );
   }
@@ -222,14 +222,16 @@ export function parseNotifyArgs(args) {
   if (sevIdx !== -1) {
     const raw = args[sevIdx + 1];
     if (!raw || !Object.hasOwn(SEVERITY_RANK, raw)) {
-      Logger.fatal('[Notify] --severity requires one of: low | medium | high.');
+      throw new Error(
+        '[Notify] --severity requires one of: low | medium | high.',
+      );
     }
     severity = raw;
     working = args.filter((_a, i) => i !== sevIdx && i !== sevIdx + 1);
   }
 
   if (working.length === 0) {
-    Logger.fatal('[Notify] Error: Message is required.');
+    throw new Error('[Notify] Error: Message is required.');
   }
 
   let ticketId = 0;
@@ -241,7 +243,9 @@ export function parseNotifyArgs(args) {
   if (explicitTicketFlag !== -1) {
     const rawTicketId = working[explicitTicketFlag + 1] ?? '';
     if (!/^\d+$/.test(rawTicketId)) {
-      Logger.fatal('[Notify] Error: --ticket/--issue requires a numeric ID.');
+      throw new Error(
+        '[Notify] Error: --ticket/--issue requires a numeric ID.',
+      );
     }
     ticketId = Number.parseInt(rawTicketId, 10);
     const positional = working.filter(
@@ -262,7 +266,7 @@ export function parseNotifyArgs(args) {
   }
 
   if (!message) {
-    Logger.fatal('[Notify] Error: Message is required.');
+    throw new Error('[Notify] Error: Message is required.');
   }
 
   return { ticketId, message, severity };

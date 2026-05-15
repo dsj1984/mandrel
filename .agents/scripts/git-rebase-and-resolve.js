@@ -224,7 +224,7 @@ function emitRebaseHuman(result) {
 async function main() {
   const args = parseRebaseArgs(process.argv.slice(2));
   const action = selectRebaseAction(args);
-  if (action.kind === 'usage-error') Logger.fatal(action.message);
+  if (action.kind === 'usage-error') throw new Error(action.message);
   const result = runSelectedAction(action, PROJECT_ROOT);
   if (args.json) process.stdout.write(`${JSON.stringify(result)}\n`);
   else emitRebaseHuman(result);

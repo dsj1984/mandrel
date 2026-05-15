@@ -98,7 +98,7 @@ export async function runStoryInit({
   const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
 
   if (!storyId) {
-    Logger.fatal('Usage: node story-init.js --story <STORY_ID> [--dry-run]');
+    throw new Error('Usage: node story-init.js --story <STORY_ID> [--dry-run]');
   }
 
   const config = injectedConfig || resolveConfig({ cwd });
