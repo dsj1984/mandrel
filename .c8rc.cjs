@@ -133,6 +133,8 @@ module.exports = {
     '.agents/scripts/run-audit-suite.js',
     '.agents/scripts/run-tests.js',
     '.agents/scripts/select-audits.js',
+    '.agents/scripts/single-story-close.js',
+    '.agents/scripts/single-story-init.js',
     '.agents/scripts/story-close.js',
     '.agents/scripts/story-execute-prepare.js',
     '.agents/scripts/story-init.js',

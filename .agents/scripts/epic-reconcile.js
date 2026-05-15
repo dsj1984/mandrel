@@ -466,6 +466,27 @@ export async function runReconcile(args, deps = {}) {
     state = { epicId: args.epicId, mapping: {} };
   }
 
+  // 2a. Seed the synthetic `epic` slug mapping. The diff engine's
+  // `flattenSpec` unconditionally yields an entity for the epic, and
+  // `applyCreate` carries a long-standing comment asserting the epic
+  // "is bootstrapped before reconciliation". On a fresh apply with no
+  // state.json, nothing previously did that — so diff emitted a Create
+  // op for the epic and `provider.createTicket` materialised a duplicate
+  // GH issue (Story #1820). The CLI is the right seam to seed it: keeps
+  // diff/apply pure and one-shot per reconcile run.
+  if (!state.mapping || typeof state.mapping !== 'object') {
+    state.mapping = {};
+  }
+  if (!state.mapping.epic) {
+    state.mapping.epic = {
+      issueNumber: args.epicId,
+      contentHash: '',
+      lastObservedAgentState: null,
+      entity: 'epic',
+      parentSlug: null,
+    };
+  }
+
   // 3. Resolve provider, fetch GH state.
   let provider = deps.provider;
   if (!provider) {
