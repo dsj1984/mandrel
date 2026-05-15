@@ -23,6 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getGitHub } from './config/github.js';
 import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
 import { resolveQuality } from './config/quality.js';
@@ -107,9 +108,17 @@ function applyDefaults(raw) {
     project.baseBranch = 'main';
   }
   project.paths = resolvePaths(project.paths);
+  // Enrich `github.notifications` with NOTIFICATIONS_DEFAULTS so the
+  // canonical block matches the shim (consumers read either path). The
+  // rest of getGitHub()'s output is left out here to preserve the raw
+  // shape of unrelated fields.
+  let github = raw.github ?? null;
+  if (github) {
+    github = { ...github, notifications: getGitHub({ github }).notifications };
+  }
   return {
     project,
-    github: raw.github ?? null,
+    github,
     planning: raw.planning ?? {},
     delivery: raw.delivery ?? {},
   };
@@ -145,11 +154,11 @@ function buildLegacyShim(blocks) {
             projectOwner: github.projectOwner ?? null,
             operatorHandle: github.operatorHandle,
           },
-          notifications: github.notifications ?? {
-            mentionOperator: false,
-            commentEvents: [],
-            webhookEvents: [],
-          },
+          // Route through getGitHub() so a config that omits the
+          // `notifications` block (or any subfield) still receives
+          // NOTIFICATIONS_DEFAULTS. Without this, notify.js read the shim
+          // directly and silently suppressed comment/webhook channels.
+          notifications: getGitHub({ github }).notifications,
           worktreeIsolation: delivery?.worktreeIsolation ?? {},
           runners: {
             deliverRunner: delivery?.deliverRunner ?? {},

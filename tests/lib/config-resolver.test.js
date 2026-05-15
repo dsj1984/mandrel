@@ -123,6 +123,41 @@ describe('config-resolver — loading + legacy shim', () => {
     const second = resolveConfig({});
     assert.equal(first, second);
   });
+
+  it('applies NOTIFICATIONS_DEFAULTS when github.notifications is omitted', () => {
+    // Regression: notify.js reads `orchestration.notifications.{commentEvents,
+    // webhookEvents}` directly, and an empty allowlist suppresses the channel
+    // entirely. Prior to this fix, omitting the block resolved to `[]` arrays
+    // and silently disabled comments + webhooks.
+    const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
+    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
+    vol.writeFileSync(
+      agentrcPath,
+      JSON.stringify({
+        project: REQ.project,
+        github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
+      }),
+    );
+    const config = resolveConfig({ bustCache: true });
+    assert.deepEqual(config.orchestration.notifications.commentEvents, [
+      'state-transition',
+      'story-merged',
+      'operator-message',
+    ]);
+    assert.deepEqual(config.orchestration.notifications.webhookEvents, [
+      'epic-started',
+      'epic-progress',
+      'epic-blocked',
+      'epic-unblocked',
+      'epic-complete',
+    ]);
+    assert.equal(config.orchestration.notifications.mentionOperator, false);
+    // Canonical `github.notifications` mirrors the shim.
+    assert.deepEqual(
+      config.github.notifications,
+      config.orchestration.notifications,
+    );
+  });
 });
 
 describe('helper accessors against the post-reshape shape', () => {
