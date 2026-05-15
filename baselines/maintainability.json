@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T19:49:56.516Z",
+  "generatedAt": "2026-05-15T21:01:50.417Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -100,7 +100,7 @@
     },
     {
       "path": ".agents/scripts/epic-close.js",
-      "mi": 112.275
+      "mi": 97.229
     },
     {
       "path": ".agents/scripts/epic-code-review.js",
@@ -116,7 +116,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-finalize.js",
-      "mi": 83.992
+      "mi": 81.364
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -980,7 +980,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "mi": 96.862
+      "mi": 97.182
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
@@ -1740,7 +1740,7 @@
     },
     {
       "path": "tests/epic-close-preflight.test.js",
-      "mi": 108.119
+      "mi": 105.181
     },
     {
       "path": "tests/epic-code-review-run.test.js",
@@ -2855,6 +2855,10 @@
       "mi": 101.796
     },
     {
+      "path": "tests/scripts/epic-close-planning-artifacts.test.js",
+      "mi": 105.012
+    },
+    {
       "path": "tests/scripts/epic-deliver-automerge.test.js",
       "mi": 113.219
     },
@@ -2868,7 +2872,7 @@
     },
     {
       "path": "tests/scripts/epic-deliver-finalize.test.js",
-      "mi": 108.083
+      "mi": 107.331
     },
     {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",
