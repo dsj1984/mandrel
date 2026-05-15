@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T23:12:25.622Z",
+  "generatedAt": "2026-05-15T23:36:34.851Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -1127,6 +1127,10 @@
       "mi": 95.083
     },
     {
+      "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
+      "mi": 106.306
+    },
+    {
       "path": ".agents/scripts/lib/spec/index.js",
       "mi": 171
     },
@@ -1380,7 +1384,7 @@
     },
     {
       "path": ".agents/scripts/single-story-close.js",
-      "mi": 84.897
+      "mi": 83.302
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -2996,7 +3000,7 @@
     },
     {
       "path": "tests/single-story-close-orchestration.test.js",
-      "mi": 97.829
+      "mi": 98.068
     },
     {
       "path": "tests/skills/_harness/run-skill-smoke.js",
