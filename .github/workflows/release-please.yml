@@ -23,11 +23,24 @@ jobs:
       # is a supply-chain risk vector (CWE-1357). Bump deliberately when a
       # new release-please-action ships; `npm run audit-security` flags
       # any reversion to `@main` / `@master`.
+      #
+      # Token preference: RELEASE_PLEASE_TOKEN (operator-managed PAT or
+      # GitHub App installation token) first, default GITHUB_TOKEN as
+      # fallback. The default GITHUB_TOKEN deliberately does NOT trigger
+      # downstream workflows on PRs it opens (GitHub's anti-recursion
+      # safeguard), so release PRs opened under it never run the required
+      # `Validate and Test` check and cannot satisfy branch protection on
+      # `main`. A user-scoped PAT (or App token) acts like a real user,
+      # so workflows fire normally and auto-merge can clear the gate
+      # without operator intervention. Create the PAT once (fine-scoped
+      # to this repo with `contents: write` + `pull-requests: write` +
+      # `workflows: write`) and store as the `RELEASE_PLEASE_TOKEN`
+      # repository secret.
       - name: Run release-please
         id: release
         uses: googleapis/release-please-action@v5.0.0
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
