@@ -88,7 +88,7 @@
       "startLine": 663
     },
     {
-      "crap": 3.131456790123457,
+      "crap": 3.27,
       "file": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 691
@@ -1084,7 +1084,7 @@
       "startLine": 81
     },
     {
-      "crap": 4.021947873799726,
+      "crap": 4.18,
       "file": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "samePath",
       "startLine": 95
@@ -3598,7 +3598,7 @@
       "startLine": 74
     },
     {
-      "crap": 8.006910700788252,
+      "crap": 16,
       "file": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
       "startLine": 88
