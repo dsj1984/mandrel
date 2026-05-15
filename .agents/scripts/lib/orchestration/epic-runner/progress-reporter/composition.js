@@ -17,19 +17,7 @@
  */
 
 import { upsertStructuredComment } from '../../ticketing.js';
-
-// Re-imported from the parent module's constant surface. Once signals.js
-// lands (Task #1864) these will move into a shared `signals.js` and
-// composition will import from there instead.
-const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
-
-const STATE_EMOJI = {
-  done: '✅',
-  blocked: '🚧',
-  'in-flight': '🔧',
-  queued: '⏳',
-  unknown: '❓',
-};
+import { EPIC_RUN_PROGRESS_TYPE, STATE_EMOJI } from './signals.js';
 
 /**
  * Truncate `s` to at most `n` characters, suffixing with a single ellipsis

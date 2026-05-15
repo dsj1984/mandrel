@@ -1,50 +1,37 @@
 /**
- * ProgressReporter — emits periodic progress snapshots during a wave.
+ * progress-reporter.js — facade module for the /epic-deliver progress
+ * narrative. Story #1847 split the original 1158-LOC monolith into three
+ * sibling sub-modules under `progress-reporter/`:
  *
- * Fires every `intervalSec` (from `orchestration.runners.deliverRunner.progressReportIntervalSec`).
- * Each fire:
- *   1. Reads current state of the active wave's stories via `provider.getTicket`.
- *   2. Renders a markdown table: ID | State | Title.
- *   3. Appends a "Notable" section with mechanically-detected signals
- *      (stalled stories, blocked stories, elapsed wave time).
- *   4. Emits the rendered body to the logger AND upserts an `epic-run-progress`
- *      structured comment on the Epic issue so operators watching the ticket
- *      see a single in-place update rather than N comments.
- *   5. When `logFile` is set, also appends the rendered snapshot (with an
- *      ISO-timestamped divider) to that path. This lets the /epic-deliver
- *      skill tail the file via `Monitor` to stream progress into IDE chat even
- *      when the runner itself is invoked in a background Bash that doesn't
- *      surface stdout live.
+ *   - `composition.js` — structured-comment body builders and the
+ *     `ProgressReporter` class's pure rendering helpers.
+ *   - `transport.js` — the curated webhook emit surface (epic-started,
+ *     epic-progress, epic-blocked, epic-unblocked, epic-complete).
+ *   - `signals.js` — pure parse/aggregate over `story-run-progress` and
+ *     `phase-timings` structured comments + the shared state lookup
+ *     tables (PHASE_TO_STATE, PHASE_ORDER, STATE_EMOJI).
  *
- * Disabled when `intervalSec` is 0, null, or negative.
- *
- * The reporter is tolerant of read failures — a failed provider call logs a
- * warning and skips the fire rather than crashing the runner.
- *
- * The reporter is responsible for the GitHub-comment narrative only.
- * Webhook delivery of the curated `epic-progress` event is event-driven
- * (wave boundaries, blocker transitions) and lives in `emitEpicProgress()`
- * below — the periodic timer does not mirror to the webhook.
+ * The `ProgressReporter` class — the periodic-emission orchestration
+ * shell — lives here and composes the sub-modules. All other public
+ * symbols are re-exported below so existing import paths
+ * (`epic-execute-record-wave.js`, the test suite, `wave-record-notifications.js`)
+ * continue to resolve without churn.
  */
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { AGENT_LABELS } from '../../label-constants.js';
 import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
-import { parseFencedJsonComment } from '../structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
 } from '../ticketing.js';
 import { runHotspotDetection } from './hotspot-detection.js';
+import { AGENT_LABELS } from '../../label-constants.js';
 import {
   deriveState as deriveStateFromComposition,
-  escapePipes as escapePipesFromComposition,
-  formatElapsed as formatElapsedFromComposition,
-  renderNotable as renderNotableFromComposition,
   renderProgressBody as renderProgressBodyFromComposition,
   truncate as truncateFromComposition,
   upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
@@ -57,97 +44,37 @@ import {
   emitEpicUnblocked as emitEpicUnblockedFromTransport,
   EPIC_PROGRESS_EVENT as EPIC_PROGRESS_EVENT_FROM_TRANSPORT,
 } from './progress-reporter/transport.js';
+import {
+  aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
+  EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+  parsePhaseTimingsComment as parsePhaseTimingsCommentFromSignals,
+  parseStoryRunProgressComment as parseStoryRunProgressCommentFromSignals,
+  PHASE_TIMINGS_TYPE as PHASE_TIMINGS_TYPE_FROM_SIGNALS,
+  phaseToState as phaseToStateFromSignals,
+  renderPhaseTimingsSection as renderPhaseTimingsSectionFromSignals,
+  STORY_RUN_PROGRESS_TYPE as STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+} from './progress-reporter/signals.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
-export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
-export const PHASE_TIMINGS_TYPE = 'phase-timings';
-export const STORY_RUN_PROGRESS_TYPE = 'story-run-progress';
-
-// Webhook event name for the curated epic-progress rollup. Sourced from
-// `progress-reporter/transport.js` and re-exported here so existing
-// callers (`wave-record-notifications.js`, tests) keep their imports
-// stable. Story #1847 (transport split).
+// Re-exports — sub-module surfaces are aliased back to the parent path so
+// existing imports (epic-execute-record-wave.js, the test suite,
+// wave-record-notifications.js) keep resolving.
+export const EPIC_RUN_PROGRESS_TYPE = EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS;
+export const PHASE_TIMINGS_TYPE = PHASE_TIMINGS_TYPE_FROM_SIGNALS;
+export const STORY_RUN_PROGRESS_TYPE = STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS;
 export const EPIC_PROGRESS_EVENT = EPIC_PROGRESS_EVENT_FROM_TRANSPORT;
-
-// Re-exports of the webhook emit surface from
-// `progress-reporter/transport.js`. The implementations moved as part of
-// Story #1847 to keep transport I/O isolated from comment composition.
 export const emitEpicProgress = emitEpicProgressFromTransport;
 export const emitEpicStarted = emitEpicStartedFromTransport;
 export const emitEpicBlocked = emitEpicBlockedFromTransport;
 export const emitEpicUnblocked = emitEpicUnblockedFromTransport;
 export const emitEpicComplete = emitEpicCompleteFromTransport;
-
-/**
- * Parse a `story-run-progress` structured comment posted by `/story-execute`.
- * Returns `null` for any malformed body — the caller falls back to the
- * ticket-label state derivation in that case.
- *
- * Expected payload shape (JSON inside a fenced json codeblock):
- *   {
- *     storyId: number,
- *     branch?: string,
- *     phase: 'init'|'implementing'|'closing'|'blocked'|'done',
- *     tasks?: [{ id, title?, state, commitSha? }],
- *     title?: string,
- *     updatedAt?: string,
- *   }
- */
-export function parseStoryRunProgressComment(comment) {
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') return null;
-  const phase = typeof payload.phase === 'string' ? payload.phase : undefined;
-  const tasks = Array.isArray(payload.tasks) ? payload.tasks : [];
-  const tasksTotal = tasks.length;
-  const tasksDone = tasks.filter((t) => t && t.state === 'done').length;
-  return {
-    storyId: Number(payload.storyId),
-    title: typeof payload.title === 'string' ? payload.title : '',
-    phase,
-    state: phaseToState(phase),
-    tasksDone,
-    tasksTotal,
-  };
-}
-
-// Phase → high-level state classification. Lookup table flattens the
-// previous switch so cyclomatic complexity stays at 1 (one branch in the
-// `??` fallback) rather than 6 — keeps the CRAP score floor-bound under
-// coverage variance.
-const PHASE_TO_STATE = {
-  done: 'done',
-  blocked: 'blocked',
-  implementing: 'in-flight',
-  closing: 'in-flight',
-  init: 'queued',
-};
-
-export function phaseToState(phase) {
-  return PHASE_TO_STATE[phase] ?? 'unknown';
-}
-
-// Fixed ordering for the rendered phase-timings table. Matches the enum
-// in lib/util/phase-timer.js so rows line up with how operators think
-// about the story lifecycle rather than re-sorting by alphabet or
-// frequency.
-const PHASE_ORDER = [
-  'worktree-create',
-  'bootstrap',
-  'install',
-  'implement',
-  'lint',
-  'test',
-  'close',
-  'api-sync',
-];
-
-const STATE_EMOJI = {
-  done: '✅',
-  blocked: '🚧',
-  'in-flight': '🔧',
-  queued: '⏳',
-  unknown: '❓',
-};
+export const parseStoryRunProgressComment = parseStoryRunProgressCommentFromSignals;
+export const parsePhaseTimingsComment = parsePhaseTimingsCommentFromSignals;
+export const aggregatePhaseTimings = aggregatePhaseTimingsFromSignals;
+export const renderPhaseTimingsSection = renderPhaseTimingsSectionFromSignals;
+export const phaseToState = phaseToStateFromSignals;
+export const upsertEpicRunProgress = upsertEpicRunProgressFromComposition;
+export { runHotspotDetection };
 
 export class ProgressReporter {
   /**
@@ -370,7 +297,7 @@ export class ProgressReporter {
               id,
               {
                 state: fromComment.state,
-                title: truncate(fromComment.title ?? '', 60),
+                title: truncateFromComposition(fromComment.title ?? '', 60),
                 tasksDone: fromComment.tasksDone,
                 tasksTotal: fromComment.tasksTotal,
               },
@@ -383,8 +310,8 @@ export class ProgressReporter {
             return [
               id,
               {
-                state: deriveState(ticket),
-                title: truncate(ticket?.title ?? '', 60),
+                state: deriveStateFromComposition(ticket, AGENT_LABELS),
+                title: truncateFromComposition(ticket?.title ?? '', 60),
               },
             ];
           } catch (err) {
@@ -568,129 +495,3 @@ export class ProgressReporter {
   }
 }
 
-// Local function shims. The implementations now live in
-// `progress-reporter/composition.js`; these wrappers preserve the
-// existing function-call ergonomics for code in this file (and any
-// future consumers that import them from the parent re-export) without
-// forcing every callsite to spell out the imported alias.
-function deriveState(ticket) {
-  return deriveStateFromComposition(ticket, AGENT_LABELS);
-}
-
-function truncate(s, n) {
-  return truncateFromComposition(s, n);
-}
-
-function escapePipes(s) {
-  return escapePipesFromComposition(s);
-}
-
-function formatElapsed(ms) {
-  return formatElapsedFromComposition(ms);
-}
-
-// Re-exported from progress-reporter/composition.js as part of the
-// Story #1847 split. Kept here so existing callers
-// (epic-execute-record-wave.js, epic-deliver-finalize.js, the tests) can
-// continue importing from the parent path without churn.
-export const upsertEpicRunProgress = upsertEpicRunProgressFromComposition;
-
-// runHotspotDetection lives in `./hotspot-detection.js` so this file
-// stays focused on the periodic-progress + comment-render surface.
-// Re-exported here for backwards compatibility — Epic-close call sites
-// can import either path.
-export { runHotspotDetection };
-
-/**
- * Extract the `{ phases, ... }` payload from a `phase-timings` structured
- * comment. Comment body is the fenced-JSON format produced by
- * `renderPhaseTimingsCommentBody` in story-close. Returns `null`
- * for any parse failure — the caller treats that as "no summary
- * available" without erroring out progress rendering.
- */
-export function parsePhaseTimingsComment(comment) {
-  const payload = parseFencedJsonComment(comment);
-  if (!payload || typeof payload !== 'object') return null;
-  if (!Array.isArray(payload.phases)) return null;
-  return {
-    storyId: Number(payload.storyId),
-    totalMs: Number(payload.totalMs) || 0,
-    phases: payload.phases
-      .filter(
-        (p) =>
-          p &&
-          typeof p.name === 'string' &&
-          Number.isFinite(Number(p.elapsedMs)),
-      )
-      .map((p) => ({ name: p.name, elapsedMs: Number(p.elapsedMs) })),
-  };
-}
-
-/**
- * Aggregate a list of `phase-timings` summaries into per-phase median,
- * p95, and sample count. Returns phases ordered by the canonical
- * `PHASE_ORDER` so the rendered table always has the same row sequence —
- * operators should never have to hunt for the `install` row.
- */
-export function aggregatePhaseTimings(summaries) {
-  const buckets = new Map();
-  for (const s of summaries) {
-    if (!s || !Array.isArray(s.phases)) continue;
-    for (const p of s.phases) {
-      if (!buckets.has(p.name)) buckets.set(p.name, []);
-      buckets.get(p.name).push(p.elapsedMs);
-    }
-  }
-  const rows = [];
-  for (const name of PHASE_ORDER) {
-    const samples = buckets.get(name);
-    if (!samples || samples.length === 0) continue;
-    rows.push({
-      name,
-      median: percentile(samples, 0.5),
-      p95: percentile(samples, 0.95),
-      n: samples.length,
-    });
-  }
-  // Include any unexpected phase names at the tail so a future enum
-  // addition surfaces in the table instead of being silently dropped.
-  for (const [name, samples] of buckets.entries()) {
-    if (PHASE_ORDER.includes(name)) continue;
-    rows.push({
-      name,
-      median: percentile(samples, 0.5),
-      p95: percentile(samples, 0.95),
-      n: samples.length,
-    });
-  }
-  return rows;
-}
-
-function percentile(samples, q) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  if (sorted.length === 0) return 0;
-  // Nearest-rank method — clamped so q=1 picks the last element.
-  const idx = Math.min(
-    sorted.length - 1,
-    Math.max(0, Math.ceil(q * sorted.length) - 1),
-  );
-  return sorted[idx];
-}
-
-/**
- * Render the aggregated phase-timings table. Returns `null` when there
- * are no summaries to render so the caller can elide the section
- * entirely rather than emitting an empty stub.
- */
-export function renderPhaseTimingsSection(summaries) {
-  if (!Array.isArray(summaries) || summaries.length === 0) return null;
-  const rows = aggregatePhaseTimings(summaries);
-  if (rows.length === 0) return null;
-  const header = `### Phase timings (last ${summaries.length} completed stor${summaries.length === 1 ? 'y' : 'ies'})`;
-  const table = [
-    '| Phase | median ms | p95 ms | n |',
-    '| --- | --- | --- | --- |',
-    ...rows.map((r) => `| ${r.name} | ${r.median} | ${r.p95} | ${r.n} |`),
-  ].join('\n');
-  return `${header}\n\n${table}`;
-}
