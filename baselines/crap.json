@@ -5956,6 +5956,30 @@
       "startLine": 42
     },
     {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/detectors/rework.js",
+      "method": "isPositiveInt",
+      "startLine": 65
+    },
+    {
+      "crap": 5.9259259259259265,
+      "file": ".agents/scripts/lib/signals/detectors/rework.js",
+      "method": "extractTool",
+      "startLine": 77
+    },
+    {
+      "crap": 10.065751623243198,
+      "file": ".agents/scripts/lib/signals/detectors/rework.js",
+      "method": "tallyEditsByTarget",
+      "startLine": 94
+    },
+    {
+      "crap": 12.049764299946542,
+      "file": ".agents/scripts/lib/signals/detectors/rework.js",
+      "method": "detectRework",
+      "startLine": 157
+    },
+    {
       "crap": 1,
       "file": ".agents/scripts/lib/signals/read.js",
       "method": "__resetMalformedLatchForTests",

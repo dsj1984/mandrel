@@ -949,6 +949,16 @@
     "branches": 100,
     "functions": 25
   },
+  ".agents/scripts/lib/signals/detectors/index.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
+  ".agents/scripts/lib/signals/detectors/rework.js": {
+    "lines": 94.84,
+    "branches": 74.47,
+    "functions": 100
+  },
   ".agents/scripts/lib/signals/index.js": {
     "lines": 100,
     "branches": 100,
