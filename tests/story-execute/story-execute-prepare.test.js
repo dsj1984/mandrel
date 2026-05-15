@@ -3,6 +3,7 @@ import test from 'node:test';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   deriveInstallAction,
+  parseInstallCmd,
   resolveInstallCommand,
   runStoryExecutePrepare,
 } from '../../.agents/scripts/story-execute-prepare.js';
@@ -227,4 +228,47 @@ test('runStoryExecutePrepare: throws if no story-init comment is found', async (
     runStoryExecutePrepare({ storyId: 999, provider }),
     /no story-init comment found/,
   );
+});
+
+test('parseInstallCmd: tokenizes "npm ci" into bin + empty/ci argv', () => {
+  const { bin, args } = parseInstallCmd('npm ci');
+  // On Windows the bin must carry the .cmd shim because shell:false
+  // bypasses PATHEXT resolution.
+  if (process.platform === 'win32') {
+    assert.equal(bin, 'npm.cmd');
+  } else {
+    assert.equal(bin, 'npm');
+  }
+  assert.deepEqual(args, ['ci']);
+});
+
+test('parseInstallCmd: tokenizes multi-arg pnpm overrides', () => {
+  const { bin, args } = parseInstallCmd('pnpm install --frozen-lockfile');
+  if (process.platform === 'win32') {
+    assert.equal(bin, 'pnpm.cmd');
+  } else {
+    assert.equal(bin, 'pnpm');
+  }
+  assert.deepEqual(args, ['install', '--frozen-lockfile']);
+});
+
+test('parseInstallCmd: collapses internal whitespace and trims edges', () => {
+  const { bin, args } = parseInstallCmd('  npm   install   --silent  ');
+  if (process.platform === 'win32') {
+    assert.equal(bin, 'npm.cmd');
+  } else {
+    assert.equal(bin, 'npm');
+  }
+  assert.deepEqual(args, ['install', '--silent']);
+});
+
+test('parseInstallCmd: leaves non-shimmed binaries untouched on Windows', () => {
+  const { bin, args } = parseInstallCmd('/usr/local/bin/custom-installer --ci');
+  assert.equal(bin, '/usr/local/bin/custom-installer');
+  assert.deepEqual(args, ['--ci']);
+});
+
+test('parseInstallCmd: rejects empty input', () => {
+  assert.throws(() => parseInstallCmd(''), /at least one token/);
+  assert.throws(() => parseInstallCmd('   '), /at least one token/);
 });
