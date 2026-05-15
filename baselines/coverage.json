@@ -676,7 +676,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js": {
     "lines": 95.21,
-    "branches": 86.49,
+    "branches": 86.67,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/wave-observer.js": {
@@ -907,6 +907,21 @@
   ".agents/scripts/lib/orchestration/wave-marker.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/wave-record-io.js": {
+    "lines": 77.21,
+    "branches": 60,
+    "functions": 80
+  },
+  ".agents/scripts/lib/orchestration/wave-record-notifications.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/wave-record-projection.js": {
+    "lines": 99.05,
+    "branches": 90.55,
     "functions": 100
   },
   ".agents/scripts/lib/path-security.js": {

@@ -5620,6 +5620,138 @@
       "startLine": 23
     },
     {
+      "crap": 1.5787037037037037,
+      "file": ".agents/scripts/lib/orchestration/wave-record-io.js",
+      "method": "normalizeReturns",
+      "startLine": 38
+    },
+    {
+      "crap": 7.854629152150125,
+      "file": ".agents/scripts/lib/orchestration/wave-record-io.js",
+      "method": "verifyWaveResults",
+      "startLine": 60
+    },
+    {
+      "crap": 5.700539437235749,
+      "file": ".agents/scripts/lib/orchestration/wave-record-io.js",
+      "method": "loadManifestTitleMap",
+      "startLine": 110
+    },
+    {
+      "crap": 5.286333333333333,
+      "file": ".agents/scripts/lib/orchestration/wave-record-io.js",
+      "method": "resolveResolvedResults",
+      "startLine": 137
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/wave-record-io.js",
+      "method": "refreshLocalManifest",
+      "startLine": 180
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
+      "method": "buildNotifyFn",
+      "startLine": 33
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
+      "method": "emitWaveBoundaryNotifications",
+      "startLine": 50
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
+      "method": "emitCompleteWaveNotifications",
+      "startLine": 112
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
+      "method": "emitFailingWaveNotifications",
+      "startLine": 157
+    },
+    {
+      "crap": 2.006513331976389,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "validateResults",
+      "startLine": 54
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "validateReturnsEntry",
+      "startLine": 96
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "classifyParsedReturn",
+      "startLine": 125
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "aggregateWaveStatus",
+      "startLine": 140
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "classifyWaveOutcome",
+      "startLine": 164
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "toRollupRow",
+      "startLine": 191
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "countDoneStories",
+      "startLine": 207
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "validateEpicWave",
+      "startLine": 219
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "validateResultsReturnsXor",
+      "startLine": 233
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "resolveConcurrencyCap",
+      "startLine": 247
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "selectInputFlag",
+      "startLine": 271
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "normalizeReturnsPure",
+      "startLine": 303
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/orchestration/wave-record-projection.js",
+      "method": "projectWaveRecord",
+      "startLine": 354
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/path-security.js",
       "method": "assertPathContainment",
