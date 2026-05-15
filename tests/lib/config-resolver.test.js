@@ -13,6 +13,7 @@ import {
   getQuality,
   LIMITS_DEFAULTS,
   MAINTAINABILITY_CRAP_DEFAULTS,
+  NOTIFICATIONS_DEFAULTS,
   PROJECT_ROOT,
   resolveCodingGuardrails,
   resolveConfig,
@@ -125,10 +126,9 @@ describe('config-resolver — loading + legacy shim', () => {
   });
 
   it('applies NOTIFICATIONS_DEFAULTS when github.notifications is omitted', () => {
-    // Regression: notify.js reads `orchestration.notifications.{commentEvents,
-    // webhookEvents}` directly, and an empty allowlist suppresses the channel
-    // entirely. Prior to this fix, omitting the block resolved to `[]` arrays
-    // and silently disabled comments + webhooks.
+    // Regression: notify.js treats an empty `orchestration.notifications.*`
+    // allowlist as "channel off"; omitting the block must resolve to the
+    // framework defaults, not to `[]`.
     const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
     vol.mkdirSync(PROJECT_ROOT, { recursive: true });
     vol.writeFileSync(
@@ -139,23 +139,17 @@ describe('config-resolver — loading + legacy shim', () => {
       }),
     );
     const config = resolveConfig({ bustCache: true });
-    assert.deepEqual(config.orchestration.notifications.commentEvents, [
-      'state-transition',
-      'story-merged',
-      'operator-message',
-    ]);
-    assert.deepEqual(config.orchestration.notifications.webhookEvents, [
-      'epic-started',
-      'epic-progress',
-      'epic-blocked',
-      'epic-unblocked',
-      'epic-complete',
-    ]);
-    assert.equal(config.orchestration.notifications.mentionOperator, false);
-    // Canonical `github.notifications` mirrors the shim.
     assert.deepEqual(
-      config.github.notifications,
       config.orchestration.notifications,
+      config.github.notifications,
+    );
+    assert.deepEqual(
+      config.orchestration.notifications.commentEvents,
+      NOTIFICATIONS_DEFAULTS.commentEvents,
+    );
+    assert.deepEqual(
+      config.orchestration.notifications.webhookEvents,
+      NOTIFICATIONS_DEFAULTS.webhookEvents,
     );
   });
 });
