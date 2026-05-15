@@ -64,6 +64,7 @@ import {
   readGhCliToken,
   resolveToken,
 } from './github/auth.js';
+import { createInlineTicketCache } from './github/cache.js';
 import {
   ADD_SUB_ISSUE_MUTATION,
   classifyGithubError,
@@ -83,11 +84,13 @@ import * as projects from './github/projects-v2-graphql.js';
 // keep resolving the same symbols through `./providers/github.js`:
 //   - auth.js        → token resolution
 //   - errors.js      → classifyGithubError + GraphQL constants
+//   - cache.js       → createInlineTicketCache
 // ---------------------------------------------------------------------------
 export {
   __setExecSyncForTests,
   ADD_SUB_ISSUE_MUTATION,
   classifyGithubError,
+  createInlineTicketCache,
   execSyncHolder,
   extractErrorFields,
   isPermissionSignal,
@@ -319,80 +322,6 @@ async function paginateRest(ghFacade, endpoint) {
     page++;
   }
   return items;
-}
-
-/**
- * Per-instance ticket cache, inlined from the (now retired)
- * `./github/cache-manager.js` factory. One bare `Map<id, { ticket, insertedAt }>`
- * scoped to the lifetime of a single `GitHubProvider`, shared by dispatcher,
- * reconciler, and cascade. We deliberately drop the outer TTL wrapper here
- * because `peekFresh` already bounds entries by a caller-supplied `maxAgeMs`,
- * and every other reader (`getTicket` without `maxAgeMs`) trusts the
- * orchestration mutators (`updateTicket` / `postComment` / `addSubIssue` /
- * `removeSubIssue`) to call `invalidate` explicitly.
- *
- * Surface is intentionally narrower than the old `createTicketCacheManager`:
- * only methods the provider itself reaches for live here (`has` / `peek` /
- * `peekFresh` / `set` / `primeIfAbsent` / `primeMany` / `invalidate`). The
- * `getOrLoad` / `clear` helpers stayed behind in `./github/cache-manager.js`
- * for the test suites that exercise that factory directly — Wave 3 deletes
- * the file.
- *
- * @param {{ now?: () => number }} [opts]
- * @returns {{
- *   has(ticketId: number): boolean,
- *   peek(ticketId: number): object|undefined,
- *   peekFresh(ticketId: number, maxAgeMs: number): object|undefined,
- *   set(ticketId: number, ticket: object): void,
- *   primeIfAbsent(ticket: object): void,
- *   primeMany(tickets: Array<object>): void,
- *   invalidate(ticketId: number): void,
- * }}
- */
-function createInlineTicketCache({ now = Date.now } = {}) {
-  /** @type {Map<number, { ticket: object, insertedAt: number }>} */
-  const store = new Map();
-
-  function primeIfAbsent(ticket) {
-    if (!ticket || typeof ticket.id !== 'number') return;
-    if (store.has(ticket.id)) return;
-    if (!ticket.labelSet && Array.isArray(ticket.labels)) {
-      ticket.labelSet = new Set(ticket.labels);
-    }
-    store.set(ticket.id, { ticket, insertedAt: now() });
-  }
-
-  return {
-    has(ticketId) {
-      return store.has(ticketId);
-    },
-
-    peek(ticketId) {
-      return store.get(ticketId)?.ticket;
-    },
-
-    peekFresh(ticketId, maxAgeMs) {
-      const entry = store.get(ticketId);
-      if (!entry) return undefined;
-      if (!Number.isFinite(maxAgeMs) || maxAgeMs < 0) return undefined;
-      if (now() - entry.insertedAt >= maxAgeMs) return undefined;
-      return entry.ticket;
-    },
-
-    set(ticketId, ticket) {
-      store.set(ticketId, { ticket, insertedAt: now() });
-    },
-
-    primeIfAbsent,
-
-    primeMany(tickets) {
-      for (const t of tickets ?? []) primeIfAbsent(t);
-    },
-
-    invalidate(ticketId) {
-      store.delete(ticketId);
-    },
-  };
 }
 
 export class GitHubProvider extends ITicketingProvider {
