@@ -35,11 +35,11 @@ import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
 import { parseFencedJsonComment } from '../structured-comment-parser.js';
-import { runHotspotDetection } from './hotspot-detection.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
 } from '../ticketing.js';
+import { runHotspotDetection } from './hotspot-detection.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
 export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
