@@ -58,6 +58,46 @@ export function rollup(rows, components = []) {
   return out;
 }
 
+/**
+ * Pure compare(head, base) for the mutation kind. Diffs rows by `path`.
+ * Higher score = better — a row regresses when its score drops vs base,
+ * improves when it rises, unchanged when equal. New paths inherit a base
+ * score of 100 (so any lower head registers as a regression); removed
+ * paths inherit a head of 100 (so any lower base registers as an
+ * improvement).
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.path, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.path);
+    const b = baseByKey.get(h.path);
+    const baseScore = b ? (b.score ?? 0) : 100;
+    const delta = (h.score ?? 0) - baseScore;
+    if (delta < 0) regressions.push({ key: h.path, head: h, base: b ?? null });
+    else if (delta > 0)
+      improvements.push({ key: h.path, head: h, base: b ?? null });
+    else unchanged.push({ key: h.path, head: h, base: b ?? null });
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.path)) continue;
+    const delta = 100 - (b.score ?? 0);
+    if (delta < 0) regressions.push({ key: b.path, head: null, base: b });
+    else if (delta > 0)
+      improvements.push({ key: b.path, head: null, base: b });
+    else unchanged.push({ key: b.path, head: null, base: b });
+  }
+  return { regressions, improvements, unchanged };
+}
+
 function componentMatches(component, p) {
   if (!component || typeof component.includes !== 'string') return false;
   return p === component.includes || p.startsWith(`${component.includes}/`);
