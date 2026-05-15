@@ -206,8 +206,10 @@ export async function runStoryExecutePrepare(args) {
   let installResult = null;
   if (installAction === 'install') {
     installCmd = resolveInstallCommand({ override: installCmdOverride });
-    const runner = runInstallOverride ?? runInstallCommand;
-    installResult = runner(installCmd, workCwd);
+    installResult = (runInstallOverride ?? runInstallCommand)(
+      installCmd,
+      workCwd,
+    );
     if (installResult.status !== 0) {
       throw new Error(
         `runStoryExecutePrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,
