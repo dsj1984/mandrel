@@ -984,9 +984,19 @@
     "branches": 58.82,
     "functions": 50
   },
+  ".agents/scripts/lib/presentation/manifest-builder.js": {
+    "lines": 100,
+    "branches": 96.83,
+    "functions": 100
+  },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
-    "lines": 97.14,
-    "branches": 85.53,
+    "lines": 89.66,
+    "branches": 83.33,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-helpers.js": {
+    "lines": 98.55,
+    "branches": 90.53,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
@@ -994,9 +1004,24 @@
     "branches": 79.59,
     "functions": 100
   },
+  ".agents/scripts/lib/presentation/manifest-procedures.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-render-waves.js": {
+    "lines": 99.13,
+    "branches": 86.89,
+    "functions": 100
+  },
   ".agents/scripts/lib/presentation/manifest-renderer.js": {
     "lines": 100,
     "branches": 84.78,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-story-views.js": {
+    "lines": 100,
+    "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/provider-factory.js": {
@@ -1210,7 +1235,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.55,
+    "lines": 92.94,
     "branches": 83.33,
     "functions": 70
   },

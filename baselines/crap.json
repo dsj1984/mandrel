@@ -3790,100 +3790,118 @@
       "startLine": 8
     },
     {
-      "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "parseStoryRunProgressComment",
-      "startLine": 73
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "truncate",
+      "startLine": 27
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "phaseToState",
-      "startLine": 102
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "escapePipes",
+      "startLine": 36
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "formatElapsed",
+      "startLine": 44
     },
     {
       "crap": 7,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "method": "deriveState",
-      "startLine": 621
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "truncate",
-      "startLine": 632
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "escapePipes",
-      "startLine": 637
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "formatElapsed",
-      "startLine": 641
-    },
-    {
-      "crap": 15,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "upsertEpicRunProgress",
-      "startLine": 697
-    },
-    {
-      "crap": 12.12090517675665,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "emitEpicProgress",
-      "startLine": 832
-    },
-    {
-      "crap": 7.105266691282602,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "emitEpicStarted",
-      "startLine": 891
-    },
-    {
-      "crap": 5.053707495552348,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "emitEpicBlocked",
-      "startLine": 932
-    },
-    {
-      "crap": 5.048828125,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "emitEpicUnblocked",
-      "startLine": 970
-    },
-    {
-      "crap": 9.087391898042785,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "emitEpicComplete",
-      "startLine": 1026
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "parsePhaseTimingsComment",
-      "startLine": 1079
-    },
-    {
-      "crap": 7.467679550324179,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "aggregatePhaseTimings",
-      "startLine": 1103
+      "startLine": 61
     },
     {
       "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "method": "percentile",
-      "startLine": 1137
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "renderProgressTable",
+      "startLine": 79
+    },
+    {
+      "crap": 7.019195890947606,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "renderNotable",
+      "startLine": 112
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "renderProgressBody",
+      "startLine": 160
+    },
+    {
+      "crap": 15,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
+      "method": "upsertEpicRunProgress",
+      "startLine": 241
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
+      "method": "phaseToState",
+      "startLine": 89
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
+      "method": "parseStoryRunProgressComment",
+      "startLine": 108
     },
     {
       "crap": 5,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
+      "method": "parsePhaseTimingsComment",
+      "startLine": 132
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
+      "method": "aggregatePhaseTimings",
+      "startLine": 156
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
+      "method": "percentile",
+      "startLine": 190
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
       "method": "renderPhaseTimingsSection",
-      "startLine": 1153
+      "startLine": 206
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
+      "method": "emitEpicProgress",
+      "startLine": 67
+    },
+    {
+      "crap": 7,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
+      "method": "emitEpicStarted",
+      "startLine": 126
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
+      "method": "emitEpicBlocked",
+      "startLine": 167
+    },
+    {
+      "crap": 5.048828125,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
+      "method": "emitEpicUnblocked",
+      "startLine": 205
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js",
+      "method": "emitEpicComplete",
+      "startLine": 261
     },
     {
       "crap": 1,
@@ -5980,130 +5998,154 @@
       "startLine": 183
     },
     {
+      "crap": 7,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "validateSpecShape",
+      "startLine": 44
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "buildResolvers",
+      "startLine": 73
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "<anon method-1>",
+      "startLine": 79
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "<anon method-2>",
+      "startLine": 85
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "projectTask",
+      "startLine": 103
+    },
+    {
       "crap": 6,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "deriveStorySymbol",
-      "startLine": 33
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "projectStory",
+      "startLine": 128
     },
     {
-      "crap": 2,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "computeProgress",
-      "startLine": 60
+      "crap": 4,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "projectFeatures",
+      "startLine": 168
     },
     {
-      "crap": 1,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "slugifyHeading",
-      "startLine": 105
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "waveHeadingText",
-      "startLine": 129
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderProgressBar",
-      "startLine": 141
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "deriveWaveStatus",
-      "startLine": 158
-    },
-    {
-      "crap": 5,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderWaveSections",
-      "startLine": 182
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderProceduresAndLegendDetails",
-      "startLine": 231
-    },
-    {
-      "crap": 13.061588921282798,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "topoSortTasks",
-      "startLine": 278
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "computeStoryProgress",
-      "startLine": 342
-    },
-    {
-      "crap": 18.0001875,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "renderNestedWaveSections",
-      "startLine": 358
+      "crap": 7,
+      "file": ".agents/scripts/lib/presentation/manifest-builder.js",
+      "method": "buildManifestFromSpec",
+      "startLine": 214
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "hashManifest",
-      "startLine": 487
+      "startLine": 72
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "__resetManifestFormatterCache",
-      "startLine": 497
+      "startLine": 83
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "formatManifestMarkdown",
-      "startLine": 503
+      "startLine": 89
     },
     {
-      "crap": 14.267000000000001,
+      "crap": 2.0240420736288502,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "_formatManifestMarkdownUncached",
-      "startLine": 523
+      "startLine": 109
     },
     {
-      "crap": 20,
+      "crap": 2,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "buildManifestFromSpec",
-      "startLine": 655
+      "method": "renderManifestHeader",
+      "startLine": 129
     },
     {
-      "crap": 3,
+      "crap": 8,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "<anon method-30>",
-      "startLine": 662
+      "method": "renderManifestBody",
+      "startLine": 152
     },
     {
-      "crap": 3,
+      "crap": 5.500616421467905,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "<anon method-31>",
-      "startLine": 668
+      "method": "renderManifestTelemetry",
+      "startLine": 178
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
       "method": "fromSpec",
-      "startLine": 764
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "formatStoryManifestMarkdown",
-      "startLine": 791
+      "startLine": 225
     },
     {
       "crap": 6,
-      "file": ".agents/scripts/lib/presentation/manifest-formatter.js",
-      "method": "printStoryDispatchTable",
-      "startLine": 856
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "deriveStorySymbol",
+      "startLine": 26
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "computeProgress",
+      "startLine": 52
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "slugifyHeading",
+      "startLine": 90
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "waveHeadingText",
+      "startLine": 108
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "renderProgressBar",
+      "startLine": 120
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "deriveWaveStatus",
+      "startLine": 136
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "renderWaveSections",
+      "startLine": 160
+    },
+    {
+      "crap": 13.076923076923077,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "topoSortTasks",
+      "startLine": 209
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-helpers.js",
+      "method": "computeStoryProgress",
+      "startLine": 269
     },
     {
       "crap": 1,
@@ -6149,6 +6191,42 @@
     },
     {
       "crap": 1,
+      "file": ".agents/scripts/lib/presentation/manifest-procedures.js",
+      "method": "renderProceduresAndLegendDetails",
+      "startLine": 22
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/presentation/manifest-render-waves.js",
+      "method": "validateWaveSection",
+      "startLine": 47
+    },
+    {
+      "crap": 5.1157407407407405,
+      "file": ".agents/scripts/lib/presentation/manifest-render-waves.js",
+      "method": "pickWaveTail",
+      "startLine": 71
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/presentation/manifest-render-waves.js",
+      "method": "groupStoriesByWave",
+      "startLine": 91
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/presentation/manifest-render-waves.js",
+      "method": "renderStoryTaskList",
+      "startLine": 118
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/presentation/manifest-render-waves.js",
+      "method": "renderNestedWaveSections",
+      "startLine": 161
+    },
+    {
+      "crap": 1,
       "file": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "method": "renderStoryManifestMarkdown",
       "startLine": 50
@@ -6182,6 +6260,18 @@
       "file": ".agents/scripts/lib/presentation/manifest-renderer.js",
       "method": "postParkedFollowOnsComment",
       "startLine": 154
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/presentation/manifest-story-views.js",
+      "method": "formatStoryManifestMarkdown",
+      "startLine": 30
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/lib/presentation/manifest-story-views.js",
+      "method": "printStoryDispatchTable",
+      "startLine": 91
     },
     {
       "crap": 5,
