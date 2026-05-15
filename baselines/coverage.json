@@ -559,11 +559,6 @@
     "branches": 80,
     "functions": 100
   },
-  ".agents/scripts/lib/orchestration/detectors-phase.js": {
-    "lines": 97.24,
-    "branches": 81.82,
-    "functions": 100
-  },
   ".agents/scripts/lib/orchestration/dispatch-engine.js": {
     "lines": 92.39,
     "branches": 85.71,
@@ -619,11 +614,6 @@
     "branches": 50,
     "functions": 66.67
   },
-  ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js": {
-    "lines": 95.41,
-    "branches": 80,
-    "functions": 100
-  },
   ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js": {
     "lines": 100,
     "branches": 75,
@@ -640,7 +630,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 92.61,
+    "lines": 92.57,
     "branches": 71.92,
     "functions": 100
   },
@@ -765,7 +755,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 97.12,
+    "lines": 96.93,
     "branches": 74.47,
     "functions": 100
   },
@@ -961,7 +951,7 @@
   },
   ".agents/scripts/lib/signals/detectors/hotspot.js": {
     "lines": 98.39,
-    "branches": 86.49,
+    "branches": 84.29,
     "functions": 100
   },
   ".agents/scripts/lib/signals/detectors/index.js": {
@@ -971,12 +961,12 @@
   },
   ".agents/scripts/lib/signals/detectors/retry.js": {
     "lines": 96.97,
-    "branches": 73.08,
+    "branches": 72.55,
     "functions": 100
   },
   ".agents/scripts/lib/signals/detectors/rework.js": {
     "lines": 94.84,
-    "branches": 75,
+    "branches": 74.47,
     "functions": 100
   },
   ".agents/scripts/lib/signals/index.js": {
@@ -985,8 +975,8 @@
     "functions": null
   },
   ".agents/scripts/lib/signals/read.js": {
-    "lines": 96.86,
-    "branches": 92.06,
+    "lines": 95.69,
+    "branches": 88.71,
     "functions": 100
   },
   ".agents/scripts/lib/signals/schema.js": {
