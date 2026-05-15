@@ -3,9 +3,7 @@
   "$id": "https://mandrel/.agents/schemas/baselines/coverage.schema.json",
   "title": "CoverageBaseline",
   "description": "Per-kind baseline schema for the coverage gate. Extends the shared baseline-envelope contract.",
-  "allOf": [
-    { "$ref": "baseline-envelope.schema.json" }
-  ],
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {

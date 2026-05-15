@@ -3,9 +3,7 @@
   "$id": "https://mandrel/.agents/schemas/baselines/maintainability.schema.json",
   "title": "MaintainabilityBaseline",
   "description": "Per-kind baseline schema for the Maintainability Index (MI) gate. Extends the shared baseline-envelope contract.",
-  "allOf": [
-    { "$ref": "baseline-envelope.schema.json" }
-  ],
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {

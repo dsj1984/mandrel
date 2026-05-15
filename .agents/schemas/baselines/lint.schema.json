@@ -3,9 +3,7 @@
   "$id": "https://mandrel/.agents/schemas/baselines/lint.schema.json",
   "title": "LintBaseline",
   "description": "Per-kind baseline schema for the lint gate. Extends the shared baseline-envelope contract.",
-  "allOf": [
-    { "$ref": "baseline-envelope.schema.json" }
-  ],
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {

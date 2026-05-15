@@ -3,9 +3,7 @@
   "$id": "https://mandrel/.agents/schemas/baselines/bundle-size.schema.json",
   "title": "BundleSizeBaseline",
   "description": "Per-kind baseline schema for the bundle-size gate. Extends the shared baseline-envelope contract.",
-  "allOf": [
-    { "$ref": "baseline-envelope.schema.json" }
-  ],
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {

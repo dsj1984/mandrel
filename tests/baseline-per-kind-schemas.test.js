@@ -116,7 +116,9 @@ const MISMATCHED_ROLLUP = { '*': { mystery: 1, totallyUnknown: 'no' } };
 
 describe('per-kind baseline schemas (Story #1888)', () => {
   it('exposes all seven schema files plus the envelope on disk', () => {
-    const files = readdirSync(SCHEMAS_DIR).filter((f) => f.endsWith('.schema.json'));
+    const files = readdirSync(SCHEMAS_DIR).filter((f) =>
+      f.endsWith('.schema.json'),
+    );
     for (const f of [...KIND_FILES, 'baseline-envelope.schema.json']) {
       assert.ok(files.includes(f), `missing schema file: ${f}`);
     }

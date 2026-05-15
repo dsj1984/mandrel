@@ -3,9 +3,7 @@
   "$id": "https://mandrel/.agents/schemas/baselines/crap.schema.json",
   "title": "CrapBaselineV2",
   "description": "Per-kind baseline schema for the CRAP gate, envelope-shaped. Extends the shared baseline-envelope contract. Distinct from the legacy crap-baseline.schema.json which used a flat shape.",
-  "allOf": [
-    { "$ref": "baseline-envelope.schema.json" }
-  ],
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {
