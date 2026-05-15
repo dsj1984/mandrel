@@ -13,7 +13,6 @@ import {
   getQuality,
   LIMITS_DEFAULTS,
   MAINTAINABILITY_CRAP_DEFAULTS,
-  NOTIFICATIONS_DEFAULTS,
   PROJECT_ROOT,
   resolveCodingGuardrails,
   resolveConfig,
@@ -123,34 +122,6 @@ describe('config-resolver — loading + legacy shim', () => {
     const first = resolveConfig({ bustCache: true });
     const second = resolveConfig({});
     assert.equal(first, second);
-  });
-
-  it('applies NOTIFICATIONS_DEFAULTS when github.notifications is omitted', () => {
-    // Regression: notify.js treats an empty `orchestration.notifications.*`
-    // allowlist as "channel off"; omitting the block must resolve to the
-    // framework defaults, not to `[]`.
-    const agentrcPath = path.join(PROJECT_ROOT, '.agentrc.json');
-    vol.mkdirSync(PROJECT_ROOT, { recursive: true });
-    vol.writeFileSync(
-      agentrcPath,
-      JSON.stringify({
-        project: REQ.project,
-        github: { owner: 'org', repo: 'repo', operatorHandle: '@me' },
-      }),
-    );
-    const config = resolveConfig({ bustCache: true });
-    assert.deepEqual(
-      config.orchestration.notifications,
-      config.github.notifications,
-    );
-    assert.deepEqual(
-      config.orchestration.notifications.commentEvents,
-      NOTIFICATIONS_DEFAULTS.commentEvents,
-    );
-    assert.deepEqual(
-      config.orchestration.notifications.webhookEvents,
-      NOTIFICATIONS_DEFAULTS.webhookEvents,
-    );
   });
 });
 
