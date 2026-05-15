@@ -451,6 +451,20 @@
       },
       "additionalProperties": false
     },
+    "baselineEpsilon": {
+      "type": "object",
+      "description": "Per-kind epsilon for s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to prior bytes so env variance does not rewrite the on-disk baseline.",
+      "properties": {
+        "maintainability": { "type": "number", "minimum": 0 },
+        "crap": { "type": "number", "minimum": 0 },
+        "coverage": { "type": "number", "minimum": 0 },
+        "mutation": { "type": "number", "minimum": 0 },
+        "lint": { "type": "number", "minimum": 0 },
+        "lighthouse": { "type": "number", "minimum": 0 },
+        "bundle-size": { "type": "number", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
     "gateScoping": {
       "type": "object",
       "properties": {
@@ -465,7 +479,8 @@
         "gateScoping": { "$ref": "#/$defs/gateScoping" },
         "gates": { "$ref": "#/$defs/gates" },
         "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
-        "autoRefresh": { "$ref": "#/$defs/autoRefresh" }
+        "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
+        "baselineEpsilon": { "$ref": "#/$defs/baselineEpsilon" }
       },
       "additionalProperties": false
     },

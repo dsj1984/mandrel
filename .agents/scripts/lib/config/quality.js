@@ -422,9 +422,95 @@ export function resolveQuality(userQuality) {
     baselines: resolveBaselinesFromGates(gates),
     codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
+    baselineEpsilon: resolveBaselineEpsilon(block.baselineEpsilon),
     gateScoping,
     gates,
   };
+}
+
+/**
+ * Framework defaults for `delivery.quality.baselineEpsilon` (Story #1964 —
+ * s-stability-epsilon). The writer folds sub-epsilon row deltas back to
+ * the prior bytes so env variance never rewrites the on-disk baseline.
+ *
+ * Defaults match the AC: MI 0.5, CRAP 0.5, coverage 0.1, mutation 0.5,
+ * lint 0 (counts are integer), lighthouse 1, bundle-size 1024 (bytes).
+ */
+export const BASELINE_EPSILON_DEFAULTS = Object.freeze({
+  maintainability: 0.5,
+  crap: 0.5,
+  coverage: 0.1,
+  mutation: 0.5,
+  lint: 0,
+  lighthouse: 1,
+  'bundle-size': 1024,
+});
+
+const BASELINE_EPSILON_KINDS = new Set(Object.keys(BASELINE_EPSILON_DEFAULTS));
+
+/**
+ * Resolve the merged `delivery.quality.baselineEpsilon` block. Returns a
+ * frozen per-kind map keyed by the same kind names used by the per-kind
+ * modules. Unknown keys raise a warning. Negative or non-numeric overrides
+ * throw an `EXIT_CONFIG`-style error so a misconfigured project halts at
+ * startup rather than silently dropping the override.
+ *
+ * @param {object | undefined} userBlock
+ * @returns {{ [kind: string]: number }}
+ */
+export function resolveBaselineEpsilon(userBlock) {
+  const defaults = BASELINE_EPSILON_DEFAULTS;
+  if (userBlock == null || typeof userBlock !== 'object') {
+    return { ...defaults };
+  }
+  for (const key of Object.keys(userBlock)) {
+    if (!BASELINE_EPSILON_KINDS.has(key)) {
+      Logger.warn(
+        `[config] Unknown key 'quality.baselineEpsilon.${key}' — ignoring.`,
+      );
+    }
+  }
+  const out = { ...defaults };
+  for (const kind of BASELINE_EPSILON_KINDS) {
+    if (!Object.hasOwn(userBlock, kind)) continue;
+    const v = userBlock[kind];
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
+      const err = new Error(
+        `[config] quality.baselineEpsilon.${kind} must be a non-negative finite number (got ${JSON.stringify(v)})`,
+      );
+      err.code = 'EXIT_CONFIG';
+      err.exitCode = 3;
+      throw err;
+    }
+    out[kind] = v;
+  }
+  return out;
+}
+
+/**
+ * Convenience accessor: resolve a single kind's epsilon from a config
+ * (project override or framework default). Returns the framework default
+ * when the user block is absent or omits the kind. Throws when the kind
+ * is unknown.
+ *
+ * @param {string} kind
+ * @param {object | null | undefined} config full resolved config OR
+ *   a `{ delivery: { quality: ... } }` / `{ quality: ... }` shape.
+ * @returns {number}
+ */
+export function getBaselineEpsilon(kind, config) {
+  if (!BASELINE_EPSILON_KINDS.has(kind)) {
+    throw new Error(
+      `[config] getBaselineEpsilon: unknown kind '${kind}'`,
+    );
+  }
+  const userBlock =
+    config?.delivery?.quality?.baselineEpsilon ??
+    config?.quality?.baselineEpsilon ??
+    config?.agentSettings?.quality?.baselineEpsilon ??
+    undefined;
+  const resolved = resolveBaselineEpsilon(userBlock);
+  return resolved[kind];
 }
 
 /**

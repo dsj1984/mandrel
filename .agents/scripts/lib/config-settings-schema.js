@@ -358,6 +358,25 @@ const AUTO_REFRESH_SCHEMA = {
 };
 
 /**
+ * `delivery.quality.baselineEpsilon` — per-kind epsilon for
+ * s-stability-epsilon (Story #1964). Sub-epsilon row deltas resolve to
+ * the prior bytes so env variance never rewrites the on-disk baseline.
+ */
+const BASELINE_EPSILON_SCHEMA = {
+  type: 'object',
+  properties: {
+    maintainability: { type: 'number', minimum: 0 },
+    crap: { type: 'number', minimum: 0 },
+    coverage: { type: 'number', minimum: 0 },
+    mutation: { type: 'number', minimum: 0 },
+    lint: { type: 'number', minimum: 0 },
+    lighthouse: { type: 'number', minimum: 0 },
+    'bundle-size': { type: 'number', minimum: 0 },
+  },
+  additionalProperties: false,
+};
+
+/**
  * `delivery.quality` — uniform per-gate shape (Story #1737).
  *
  * Every gate lives under `gates.<tier>` and shares the four-field base:
@@ -380,6 +399,7 @@ const QUALITY_SCHEMA = {
     gates: GATES_SCHEMA,
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
+    baselineEpsilon: BASELINE_EPSILON_SCHEMA,
   },
   additionalProperties: false,
 };
