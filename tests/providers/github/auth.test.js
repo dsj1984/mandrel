@@ -23,9 +23,8 @@ const authMod = await import(
   ).href
 );
 const providerMod = await import(
-  pathToFileURL(
-    path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'),
-  ).href
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
+    .href
 );
 
 const { __setExecSyncForTests, resolveToken, readGhCliToken, execSyncHolder } =

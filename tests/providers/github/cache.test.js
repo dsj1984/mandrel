@@ -19,9 +19,8 @@ const cacheMod = await import(
   ).href
 );
 const providerMod = await import(
-  pathToFileURL(
-    path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'),
-  ).href
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
+    .href
 );
 
 const { createInlineTicketCache } = cacheMod;

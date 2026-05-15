@@ -26,9 +26,8 @@ const mappersMod = await import(
   ).href
 );
 const providerMod = await import(
-  pathToFileURL(
-    path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'),
-  ).href
+  pathToFileURL(path.join(ROOT, '.agents', 'scripts', 'providers', 'github.js'))
+    .href
 );
 
 const {
@@ -153,7 +152,9 @@ describe('providers/github/mappers.js — GraphQL payload shapes', () => {
       title: 'Child',
       body: 'child body',
       state: 'OPEN',
-      labels: { nodes: [{ name: 'type::task' }, { name: 'persona::engineer' }] },
+      labels: {
+        nodes: [{ name: 'type::task' }, { name: 'persona::engineer' }],
+      },
       assignees: { nodes: [{ login: 'carol' }] },
     };
     const t = subIssueNodeToTicket(node);
