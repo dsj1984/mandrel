@@ -2539,56 +2539,62 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
+      "method": "projectCrapEnvelopeToLegacy",
+      "startLine": 102,
+      "crap": 6.662000000000001
+    },
+    {
+      "path": ".agents/scripts/lib/crap-utils.js",
       "method": "getCrapBaseline",
-      "startLine": 93,
-      "crap": 17.62418002915452
+      "startLine": 123,
+      "crap": 10.872684714024018
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "sortRows",
-      "startLine": 150,
+      "startLine": 158,
       "crap": 1.015625
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeRow",
-      "startLine": 159,
+      "startLine": 167,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeEnvelope",
-      "startLine": 168,
+      "startLine": 176,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "buildBaselineEnvelope",
-      "startLine": 194,
+      "startLine": 202,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "saveCrapBaseline",
-      "startLine": 231,
+      "startLine": 239,
       "crap": 3
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "scanAndScore",
-      "startLine": 276,
+      "startLine": 284,
       "crap": 12.405181355587217
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "scoreFileSerial",
-      "startLine": 367,
+      "startLine": 375,
       "crap": 7.333333333333334
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
       "method": "scoreFilesViaPool",
-      "startLine": 422,
+      "startLine": 430,
       "crap": 1.037037037037037
     },
     {
@@ -3409,26 +3415,32 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
+      "method": "projectMaintainabilityEnvelopeToFlat",
+      "startLine": 135,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "getBaseline",
-      "startLine": 128,
-      "crap": 16.814549601380786
+      "startLine": 154,
+      "crap": 5
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "saveBaseline",
-      "startLine": 180,
+      "startLine": 179,
       "crap": 4
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "scanDirectory",
-      "startLine": 221,
+      "startLine": 220,
       "crap": 6
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "method": "calculateAll",
-      "startLine": 264,
+      "startLine": 263,
       "crap": 3.124416
     },
     {

@@ -4,8 +4,8 @@
   "generatedAt": "2026-05-15T16:50:00Z",
   "rollup": {
     "*": {
-      "lines": 96.96,
-      "branches": 86.67,
+      "lines": 96.97,
+      "branches": 86.68,
       "functions": 92.7
     }
   },
@@ -528,8 +528,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 85.55,
-      "branches": 80.87,
+      "lines": 86.04,
+      "branches": 80.17,
       "functions": 100
     },
     {
@@ -678,8 +678,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 88.82,
-      "branches": 79.71,
+      "lines": 92.95,
+      "branches": 82.35,
       "functions": 100
     },
     {

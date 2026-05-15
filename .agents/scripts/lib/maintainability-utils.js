@@ -125,6 +125,32 @@ function isSupportedSourceFile(filePath) {
  *   JSON. Required.
  * @returns {Record<string, number>}
  */
+/**
+ * Story #1895: project the canonical maintainability envelope back to the
+ * legacy flat `{ path: mi }` map so existing gate consumers keep working
+ * without churn — Story #1912 will replace this shim with the shared
+ * reader. Returns the parsed input unchanged when it doesn't look like an
+ * envelope (legacy flat shape stays flat).
+ */
+function projectMaintainabilityEnvelopeToFlat(parsed) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    !Array.isArray(parsed.rows) ||
+    typeof parsed.$schema !== 'string'
+  ) {
+    return parsed;
+  }
+  const flat = {};
+  for (const row of parsed.rows) {
+    if (row && typeof row.path === 'string' && typeof row.mi === 'number') {
+      flat[row.path] = row.mi;
+    }
+  }
+  return flat;
+}
+
 export function getBaseline(baselinePath) {
   if (typeof baselinePath !== 'string' || baselinePath.length === 0) {
     throw new TypeError(
@@ -135,41 +161,14 @@ export function getBaseline(baselinePath) {
   const abs = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  if (fs.existsSync(abs)) {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(abs, 'utf-8'));
-      // Story #1895: shipped baseline switched from the flat
-      // `{ path: mi }` map to the canonical envelope shape
-      // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`).
-      // Project the envelope back to the legacy flat shape so existing
-      // gate consumers keep working without churn — Story #1912 will
-      // replace this transitional reader with the shared reader.
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        !Array.isArray(parsed) &&
-        Array.isArray(parsed.rows) &&
-        typeof parsed.$schema === 'string'
-      ) {
-        const flat = {};
-        for (const row of parsed.rows) {
-          if (
-            row &&
-            typeof row.path === 'string' &&
-            typeof row.mi === 'number'
-          ) {
-            flat[row.path] = row.mi;
-          }
-        }
-        return flat;
-      }
-      return parsed;
-    } catch (err) {
-      Logger.warn(`[Maintainability] Failed to parse baseline: ${err.message}`);
-      return {};
-    }
+  if (!fs.existsSync(abs)) return {};
+  try {
+    const parsed = JSON.parse(fs.readFileSync(abs, 'utf-8'));
+    return projectMaintainabilityEnvelopeToFlat(parsed);
+  } catch (err) {
+    Logger.warn(`[Maintainability] Failed to parse baseline: ${err.message}`);
+    return {};
   }
-  return {};
 }
 
 /**

@@ -90,6 +90,36 @@ function resolveBaselinePath({ cwd = process.cwd(), baselinePath } = {}) {
  *   rows: Array<{file: string, method: string, startLine: number, crap: number}>,
  * }|null}
  */
+/**
+ * Story #1895: shipped baseline switched to the canonical envelope shape
+ * (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows` keyed on
+ * `path`). Backfill the legacy `escomplexVersion`/`tsTranspilerVersion`
+ * version fields from the running scorer and re-key rows by `file` so
+ * existing comparators keep working until Story #1912 lands the unified
+ * gate. Detection probes the first row for the new `path` key — the
+ * legacy envelope also carries `$schema` but keys rows by `file`.
+ */
+function projectCrapEnvelopeToLegacy(parsed) {
+  if (
+    !Array.isArray(parsed.rows) ||
+    parsed.rows.length === 0 ||
+    typeof parsed.rows[0]?.path !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    kernelVersion: parsed.kernelVersion,
+    escomplexVersion: resolveEscomplexVersion(),
+    tsTranspilerVersion: resolveTsTranspilerVersion(),
+    rows: parsed.rows.map((row) => ({
+      crap: row.crap,
+      file: row.path,
+      method: row.method,
+      startLine: row.startLine,
+    })),
+  };
+}
+
 export function getCrapBaseline(opts = {}) {
   const filePath = resolveBaselinePath(opts);
   if (!fs.existsSync(filePath)) return null;
@@ -110,30 +140,8 @@ export function getCrapBaseline(opts = {}) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
-  // Story #1895: shipped baseline switched to the canonical envelope
-  // shape — no per-envelope `escomplexVersion`/`tsTranspilerVersion`
-  // fields, and rows key the file as `path`. Backfill the legacy
-  // version fields from the running scorer so existing comparators
-  // keep working until Story #1912 lands the unified gate. Detect by
-  // probing the first row for the new `path` key (the legacy envelope
-  // also carries `$schema`, but its rows still use `file`).
-  if (
-    Array.isArray(parsed.rows) &&
-    parsed.rows.length > 0 &&
-    typeof parsed.rows[0]?.path === 'string'
-  ) {
-    return {
-      kernelVersion: parsed.kernelVersion,
-      escomplexVersion: resolveEscomplexVersion(),
-      tsTranspilerVersion: resolveTsTranspilerVersion(),
-      rows: parsed.rows.map((row) => ({
-        crap: row.crap,
-        file: row.path,
-        method: row.method,
-        startLine: row.startLine,
-      })),
-    };
-  }
+  const projected = projectCrapEnvelopeToLegacy(parsed);
+  if (projected) return projected;
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;

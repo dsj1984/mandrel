@@ -583,6 +583,36 @@ async function emitFriction(storyId, epicId, result, orchestration) {
 }
 
 /**
+ * Story #1895: project a canonical envelope read from the Epic ref back
+ * to the legacy CRAP shape (`escomplexVersion`/`tsTranspilerVersion`
+ * backfilled from the running scorer, rows re-keyed by `file`). Returns
+ * `null` when `parsed` isn't a canonical envelope so the legacy
+ * shape-check path can run. Detection probes the first row's `path`
+ * key — the legacy envelope also carries `$schema` but keys rows by
+ * `file`.
+ */
+function projectEpicRefCrapEnvelope(parsed) {
+  if (
+    !Array.isArray(parsed.rows) ||
+    parsed.rows.length === 0 ||
+    typeof parsed.rows[0]?.path !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    kernelVersion: parsed.kernelVersion,
+    escomplexVersion: resolveEscomplexVersion(),
+    tsTranspilerVersion: resolveTsTranspilerVersion(),
+    rows: parsed.rows.map((row) => ({
+      crap: row.crap,
+      file: row.path,
+      method: row.method,
+      startLine: row.startLine,
+    })),
+  };
+}
+
+/**
  * Pure helper: resolve the CRAP baseline either from the working tree
  * (legacy fs read via `getCrapBaseline`) or, when `epicRef` is supplied,
  * from `git show <epicRef>:<baselinePath>` via `readBaselineAtRef`.
@@ -615,29 +645,8 @@ export function loadCrapBaseline({
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
-  // Story #1895: canonical envelope at the epic ref carries `$schema` and
-  // `path` row keys instead of `file`; backfill the legacy `escomplexVersion`
-  // / `tsTranspilerVersion` fields from the running scorer so existing
-  // comparators keep working until Story #1912 lands the unified gate.
-  // Probe the first row for the new `path` key to discriminate from the
-  // legacy envelope (which also carries `$schema` but keys rows by `file`).
-  if (
-    Array.isArray(parsed.rows) &&
-    parsed.rows.length > 0 &&
-    typeof parsed.rows[0]?.path === 'string'
-  ) {
-    return {
-      kernelVersion: parsed.kernelVersion,
-      escomplexVersion: resolveEscomplexVersion(),
-      tsTranspilerVersion: resolveTsTranspilerVersion(),
-      rows: parsed.rows.map((row) => ({
-        crap: row.crap,
-        file: row.path,
-        method: row.method,
-        startLine: row.startLine,
-      })),
-    };
-  }
+  const projected = projectEpicRefCrapEnvelope(parsed);
+  if (projected) return projected;
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;
