@@ -199,7 +199,7 @@ test('readBaseline — parses JSON when file exists', () => {
   });
 });
 
-test('writeBaseline — strips denominators and sorts keys', () => {
+test('writeBaseline — strips denominators and produces an envelope with sorted rows', () => {
   let written = null;
   const fakeFs = {
     mkdirSync: () => {},
@@ -218,13 +218,18 @@ test('writeBaseline — strips denominators and sorts keys', () => {
   };
   writeBaseline('/cwd', baseline, fakeFs);
   const parsed = JSON.parse(written);
-  assert.deepStrictEqual(Object.keys(parsed), ['a.js', 'z.js']);
-  assert.deepStrictEqual(parsed['z.js'], {
-    lines: 90,
-    branches: 80,
-    functions: 100,
-  });
-  assert.strictEqual('denominators' in parsed['z.js'], false);
+  // Story #1891: envelope-shape baseline. The reader projects it back to
+  // the flat `{ file: { ... } }` shape for legacy consumers.
+  assert.ok(Array.isArray(parsed.rows));
+  assert.deepStrictEqual(
+    parsed.rows.map((r) => r.path),
+    ['a.js', 'z.js'],
+  );
+  const zRow = parsed.rows.find((r) => r.path === 'z.js');
+  assert.strictEqual(zRow.lines, 90);
+  assert.strictEqual(zRow.branches, 80);
+  assert.strictEqual(zRow.functions, 100);
+  assert.strictEqual('denominators' in zRow, false);
 });
 
 test('compareScores — newFiles array populated when current has files missing from baseline', () => {

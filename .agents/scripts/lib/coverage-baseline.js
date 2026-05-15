@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
+import { write, writeFile } from './baselines/writer.js';
 
 export const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
 export const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -157,27 +158,78 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
 export function readBaseline(cwd, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   if (!fsImpl.existsSync(abs)) return null;
-  return JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+  const parsed = JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+  // Story #1891: the writer ships envelope-shape baselines
+  // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`). The
+  // legacy reader contract returns a flat `{ file: { lines, branches,
+  // functions } }` map, so we project rows back to that shape for
+  // backwards-compatible consumers (Story #1892 migrates them off the
+  // flat shape).
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.rows) &&
+    typeof parsed.$schema === 'string'
+  ) {
+    const out = {};
+    for (const row of parsed.rows) {
+      if (!row || typeof row.path !== 'string') continue;
+      out[row.path] = {
+        lines: row.lines,
+        branches: row.branches,
+        functions: row.functions,
+      };
+    }
+    return out;
+  }
+  // Legacy shape — pass through.
+  return parsed;
 }
 
 export function writeBaseline(cwd, baseline, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
-  // Strip the in-memory `denominators` field — it's a runtime-only signal
-  // for the noise-tolerance gate; the on-disk baseline stays a flat
-  // `{ lines, branches, functions }` triple per file for backward compat
-  // and small diffs.
-  const stripped = Object.fromEntries(
-    Object.entries(baseline).map(([file, scores]) => {
+  // Story #1891: route through the shared baseline writer. The writer
+  // produces an envelope-shaped JSON (`$schema`, `kernelVersion`,
+  // `generatedAt`, `rollup`, `rows`) instead of the legacy flat
+  // `{ file: { lines, branches, functions } }` map. Reader migration
+  // (Story #1892) and on-disk regen (Story #1895) ship in the same Epic,
+  // so this entry point and the reader move in lockstep.
+  //
+  // `denominators` is an in-memory-only runtime signal for the noise-
+  // tolerance gate — it never persists, so strip before projection.
+  const rows = Object.entries(baseline ?? {})
+    .map(([file, scores]) => {
       const { denominators: _ignored, ...rest } = scores ?? {};
-      return [file, rest];
-    }),
-  );
-  // Sorted keys keep diffs stable run-to-run.
-  const sorted = Object.fromEntries(
-    Object.entries(stripped).sort(([a], [b]) => a.localeCompare(b)),
-  );
-  fsImpl.writeFileSync(abs, `${JSON.stringify(sorted, null, 2)}\n`);
+      return {
+        path: file,
+        lines: rest.lines ?? 0,
+        branches: rest.branches ?? 0,
+        functions: rest.functions ?? 0,
+      };
+    });
+  const envelope = write({ kind: 'coverage', rows });
+  // Honour the injected fsImpl seam for tests that pass `memfs` or a
+  // spy — fall through to the writer's atomic write when `fsImpl === fs`.
+  if (fsImpl === fs) {
+    writeFile(abs, envelope);
+  } else {
+    fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
+    fsImpl.writeFileSync(
+      abs,
+      `${JSON.stringify(
+        {
+          $schema: envelope.$schema,
+          kernelVersion: envelope.kernelVersion,
+          generatedAt: envelope.generatedAt,
+          rollup: envelope.rollup,
+          rows: envelope.rows,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+  }
   return abs;
 }
 

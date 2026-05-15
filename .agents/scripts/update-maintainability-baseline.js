@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { write, writeFile } from './lib/baselines/writer.js';
 import {
   getBaselines,
   getQuality,
@@ -6,7 +8,6 @@ import {
 import { Logger } from './lib/Logger.js';
 import {
   calculateAll,
-  saveBaseline,
   scanDirectory,
 } from './lib/maintainability-utils.js';
 
@@ -33,10 +34,19 @@ async function main() {
   );
   const scores = await calculateAll(files);
 
-  saveBaseline(scores, baselinePath);
+  // Story #1891: route through the shared writer. The legacy `saveBaseline`
+  // emitted a flat `{ relPath: mi }` map; the writer assembles an envelope
+  // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`) and
+  // canonicalises every row path (defensive worktree-prefix policy).
+  const rows = Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
+  const envelope = write({ kind: 'maintainability', rows });
+  const absBaselinePath = path.isAbsolute(baselinePath)
+    ? baselinePath
+    : path.resolve(process.cwd(), baselinePath);
+  writeFile(absBaselinePath, envelope);
 
   Logger.info(
-    `[Maintainability] ✅ Baseline updated successfully at ${baselinePath}`,
+    `[Maintainability] ✅ Baseline updated successfully at ${absBaselinePath} (kernelVersion=${envelope.kernelVersion}).`,
   );
 }
 

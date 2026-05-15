@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { write, writeFile } from './lib/baselines/writer.js';
 import {
   getBaselines,
   getQuality,
@@ -6,10 +7,8 @@ import {
 } from './lib/config-resolver.js';
 import { loadCoverage } from './lib/coverage-utils.js';
 import {
-  buildBaselineEnvelope,
   resolveEscomplexVersion,
   resolveTsTranspilerVersion,
-  saveCrapBaseline,
   scanAndScore,
 } from './lib/crap-utils.js';
 
@@ -87,12 +86,20 @@ async function main() {
 
   const escomplexVersion = resolveEscomplexVersion();
   const tsTranspilerVersion = resolveTsTranspilerVersion();
-  const envelope = buildBaselineEnvelope({
-    rows,
-    escomplexVersion,
-    tsTranspilerVersion,
+  // Story #1891: route through the shared writer. The writer canonicalises
+  // every row path, applies the per-kind row + rollup math, stamps
+  // `$schema` / `kernelVersion` / `generatedAt`, and validates against the
+  // per-kind schema before persisting. Kept the legacy escomplex /
+  // ts-transpiler version logging so existing operator-visible output
+  // doesn't churn.
+  const envelope = write({
+    kind: 'crap',
+    rows: rows.filter((r) => typeof r?.crap === 'number' && Number.isFinite(r.crap)),
   });
-  saveCrapBaseline(envelope, { baselinePath });
+  const absBaselinePath = path.isAbsolute(baselinePath)
+    ? baselinePath
+    : path.resolve(process.cwd(), baselinePath);
+  writeFile(absBaselinePath, envelope);
 
   Logger.info(
     `[CRAP] Scanned ${scannedFiles} file(s); wrote ${envelope.rows.length} row(s).`,
@@ -108,7 +115,7 @@ async function main() {
     );
   }
   Logger.info(
-    `[CRAP] ✅ Baseline updated (kernelVersion=${envelope.kernelVersion}, escomplexVersion=${escomplexVersion}, tsTranspilerVersion=${tsTranspilerVersion}).`,
+    `[CRAP] ✅ Baseline updated (kernelVersion=${envelope.kernelVersion}, escomplexVersion=${escomplexVersion}, tsTranspilerVersion=${tsTranspilerVersion}). Wrote to ${absBaselinePath}.`,
   );
 }
 
