@@ -14,8 +14,9 @@ structured divergent and convergent thinking.
 
 1.  **Understand & Expand (Divergent):** Restate the idea, ask sharpening
     questions, and generate variations.
-2.  **Evaluate & Converge:** Cluster ideas, stress-test them, and surface hidden
-    assumptions.
+2.  **Evaluate & Converge (Grill):** Cluster the resonant directions, then
+    walk each unresolved decision branch — one question at a time, with a
+    recommended answer — until no branches remain.
 3.  **Sharpen & Ship:** Produce a concrete markdown one-pager moving work
     forward.
 
@@ -34,6 +35,8 @@ bash /mnt/skills/user/idea-refine/scripts/idea-refine.sh
 - "Help me refine this idea"
 - "Ideate on [concept]"
 - "Stress-test my plan"
+- "Grill me on this"
+- "Walk me through the decision tree"
 
 ## Output
 
@@ -106,35 +109,78 @@ Read `frameworks.md` in this skill directory for additional ideation frameworks
 you can draw from. Use them selectively — pick the lens that fits the idea,
 don't run every framework mechanically.
 
-#### Phase 2: Evaluate & Converge
+#### Phase 2: Evaluate & Converge (Grill)
 
 After the user reacts to Phase 1 (indicates which ideas resonate, pushes back,
-adds context), shift to convergent mode:
+adds context), shift to convergent mode. The job here is not just to *list*
+open questions — it is to **resolve** them, one at a time, before anything
+lands in the Phase 3 one-pager.
+
+> **Off-ramp.** Before starting the grill loop, restate the chosen direction
+> in one sentence and check whether any decision branches remain unresolved.
+> If the idea is already crisply scoped — target user clear, MVP boundary
+> obvious, no architectural forks, no hidden assumptions — skip directly to
+> Phase 3. Don't grill trivial ideas for the sake of process.
 
 1. **Cluster** the ideas that resonated into 2-3 distinct directions. Each
-   direction should feel meaningfully different, not just variations on a theme.
+   direction should feel meaningfully different, not just variations on a
+   theme. Get the user's pick (or a tentative lean) before enumerating
+   branches — the grill loop runs against the *chosen* direction, not the
+   full set.
 
-2. **Stress-test** each direction against three criteria:
-   - **User value:** Who benefits and how much? Is this a painkiller or a
-     vitamin?
-   - **Feasibility:** What's the technical and resource cost? What's the hardest
-     part?
-   - **Differentiation:** What makes this genuinely different? Would someone
-     switch from their current solution?
+2. **Enumerate open branches.** List every unresolved decision the chosen
+   direction depends on. Use the stress-test rubric and the assumption
+   surfaces below as your source material:
 
-   Read `refinement-criteria.md` in this skill directory for the full evaluation
-   rubric.
+   - **User value branches.** Who benefits and how much? Painkiller or
+     vitamin? Which segment first?
+   - **Feasibility branches.** Technical/resource cost. Hardest part. Build
+     vs. buy. Sequencing.
+   - **Differentiation branches.** What makes this genuinely different?
+     Why would someone switch?
+   - **Hidden assumptions.** What you're betting is true (but haven't
+     validated). What could kill this. What you're choosing to ignore (and
+     why that's okay for now).
 
-3. **Surface hidden assumptions.** For each direction, explicitly name:
-   - What you're betting is true (but haven't validated)
-   - What could kill this idea
-   - What you're choosing to ignore (and why that's okay for now)
+   Read `refinement-criteria.md` in this skill directory for the full
+   evaluation rubric. Treat each unresolved item as a branch to grill on.
+   If the list is empty after enumeration, take the off-ramp.
 
-   This is where most ideation fails. Don't skip it.
+3. **Interrogate sequentially.** For each branch, in priority order
+   (highest-leverage / most blocking first):
 
-**Be honest, not supportive.** If an idea is weak, say so with kindness. A good
-ideation partner is not a yes-machine. Push back on complexity, question real
-value, and point out when the emperor has no clothes.
+   - Pose **one** question at a time. Never batch.
+   - State your **recommended answer** with a one-line rationale grounded
+     in what the user has already told you, the codebase if you're inside
+     one, or first-principles reasoning. The recommendation is a forcing
+     function — accepting it should be the easy path; the user pushes back
+     only when they actually disagree.
+   - Use the `AskUserQuestion` tool so the recommendation surfaces as the
+     first option.
+   - **Wait for the response** (accept, modify, or reject) before moving on.
+     Record the resolution inline so it's available when you author Phase 3.
+
+4. **Re-enumerate after each answer.** A resolved branch may collapse other
+   branches (a "build" decision moots the "buy" follow-ups) or expand the
+   tree (a new constraint surfaces fresh forks). Don't pre-compute the full
+   question list — re-derive it after each answer and pick the next
+   highest-leverage branch.
+
+5. **Stop condition.** Phase 2 ends when no branches remain unresolved.
+   Resolutions feed directly into the Phase 3 one-pager: confirmed bets
+   become "Key Assumptions" with their validation strategy; rejected
+   branches become "Not Doing" entries with the reason; chosen scope
+   becomes "MVP Scope".
+
+**Be honest, not supportive.** If an idea is weak, say so with kindness. A
+good ideation partner is not a yes-machine. Push back on complexity,
+question real value, and point out when the emperor has no clothes — and do
+it inside the grill loop, not after the one-pager is already written.
+
+> The Phase 2 interrogation discipline is inspired by Matt Pocock's
+> [`grill-me`](https://github.com/mattpocock/skills/blob/main/skills/productivity/grill-me/SKILL.md)
+> skill (one question at a time, recommended answer per question, walk the
+> decision tree to resolution).
 
 #### Phase 3: Sharpen & Ship
 
@@ -213,6 +259,11 @@ sessions look like.
 - Producing a plan without a "Not Doing" list
 - Ignoring existing codebase constraints when ideating inside a project
 - Jumping straight to Phase 3 output without running Phases 1 and 2
+- Batching grill-loop questions (asking 3+ at once) instead of one at a time
+- Posing grill questions without a recommended answer — the recommendation
+  is the forcing function, not optional
+- Carrying unresolved branches into the Phase 3 one-pager (assumptions are
+  fine; *unresolved decisions* are not)
 
 ## Verification
 
@@ -222,6 +273,8 @@ After completing an ideation session:
 - [ ] The target user and success criteria are defined
 - [ ] Multiple directions were explored, not just the first idea
 - [ ] Hidden assumptions are explicitly listed with validation strategies
+- [ ] Every open decision branch was either resolved in the grill loop or
+      consciously deferred (with the deferral reason recorded)
 - [ ] A "Not Doing" list makes trade-offs explicit
 - [ ] The output is a concrete artifact (markdown one-pager), not just
       conversation
