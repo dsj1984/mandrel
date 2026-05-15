@@ -88,6 +88,19 @@ const _cacheByRoot = new Map();
 const _envLoadedRoots = new Set();
 
 /**
+ * Enrich `github.notifications` with NOTIFICATIONS_DEFAULTS so an omitted
+ * block doesn't suppress notify.js's comment/webhook channels (which read
+ * the shim directly and treat an empty allowlist as "channel off").
+ */
+function applyGithubDefaults(rawGithub) {
+  if (!rawGithub) return null;
+  return {
+    ...rawGithub,
+    notifications: getGitHub({ github: rawGithub }).notifications,
+  };
+}
+
+/**
  * Apply framework defaults for the four top-level blocks. Pure (no
  * mutation) — returns a fresh object.
  */
@@ -108,18 +121,9 @@ function applyDefaults(raw) {
     project.baseBranch = 'main';
   }
   project.paths = resolvePaths(project.paths);
-  // Enrich `github.notifications` with NOTIFICATIONS_DEFAULTS so an omitted
-  // block doesn't suppress notify.js's comment/webhook channels (which read
-  // the shim directly and treat an empty allowlist as "channel off").
-  const github = raw.github
-    ? {
-        ...raw.github,
-        notifications: getGitHub({ github: raw.github }).notifications,
-      }
-    : null;
   return {
     project,
-    github,
+    github: applyGithubDefaults(raw.github),
     planning: raw.planning ?? {},
     delivery: raw.delivery ?? {},
   };
