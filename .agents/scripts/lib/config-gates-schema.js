@@ -13,7 +13,7 @@ import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
  *   - `floors`       — workspace-keyed `{ "*": { ... } }` absolute floor object.
  *
  * Gate-specific extras (targetDirs for crap/MI, routes for lighthouse,
- * bundles for bundleSize, coveragePath for coverage) layer on top via the
+ * bundles for bundle-size, coveragePath for coverage) layer on top via the
  * per-gate schemas below. Split out of `config-settings-schema.js` to
  * keep the parent module under the maintainability ceiling — schema
  * literals score low on MI because they're long and flat.
@@ -202,7 +202,7 @@ export const GATES_SCHEMA = {
     maintainability: MAINTAINABILITY_GATE,
     mutation: MUTATION_GATE,
     lighthouse: LIGHTHOUSE_GATE,
-    bundleSize: BUNDLE_SIZE_GATE,
+    'bundle-size': BUNDLE_SIZE_GATE,
   },
   additionalProperties: false,
 };

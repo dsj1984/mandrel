@@ -46,7 +46,6 @@ function defaultRollupFor(kind) {
     case 'lighthouse':
       return { performance: 90, accessibility: 90, bestPractices: 90, seo: 90 };
     case 'bundle-size':
-    case 'bundleSize':
       return { totalKb: 100, gzippedKb: 30 };
     default:
       throw new Error(`unknown kind ${kind}`);

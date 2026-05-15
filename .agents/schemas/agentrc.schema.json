@@ -427,7 +427,7 @@
         "maintainability": { "$ref": "#/$defs/maintainabilityGate" },
         "mutation": { "$ref": "#/$defs/mutationGate" },
         "lighthouse": { "$ref": "#/$defs/lighthouseGate" },
-        "bundleSize": { "$ref": "#/$defs/bundleSizeGate" }
+        "bundle-size": { "$ref": "#/$defs/bundleSizeGate" }
       },
       "additionalProperties": false
     },

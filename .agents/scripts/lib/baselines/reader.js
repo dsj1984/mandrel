@@ -4,7 +4,7 @@
 //
 // Every gate that compares against a committed baseline file (`lint`,
 // `coverage`, `crap`, `maintainability`, `mutation`, `lighthouse`,
-// `bundleSize`) MUST go through this module rather than open-coding
+// `bundle-size`) MUST go through this module rather than open-coding
 // `JSON.parse(readFileSync(...))`. The reader:
 //
 //   1. Resolves the on-disk path for the given kind from the resolved
@@ -46,7 +46,7 @@ const DEFAULT_PATHS = Object.freeze({
   maintainability: 'baselines/maintainability.json',
   mutation: 'baselines/mutation.json',
   lighthouse: 'baselines/lighthouse.json',
-  bundleSize: 'baselines/bundle-size.json',
+  'bundle-size': 'baselines/bundle-size.json',
 });
 
 const KIND_TO_SCHEMA_FILE = Object.freeze({
@@ -56,7 +56,7 @@ const KIND_TO_SCHEMA_FILE = Object.freeze({
   maintainability: 'maintainability.schema.json',
   mutation: 'mutation.schema.json',
   lighthouse: 'lighthouse.schema.json',
-  bundleSize: 'bundle-size.schema.json',
+  'bundle-size': 'bundle-size.schema.json',
 });
 
 // Lazy singleton — building the AJV instance reads eight schema files off
@@ -136,7 +136,11 @@ export function canonicaliseRowPath(value) {
 function canonicaliseRow(kind, row) {
   if (!row || typeof row !== 'object') return row;
   const field =
-    kind === 'lighthouse' ? 'route' : kind === 'bundleSize' ? 'bundle' : 'path';
+    kind === 'lighthouse'
+      ? 'route'
+      : kind === 'bundle-size'
+        ? 'bundle'
+        : 'path';
   const value = row[field];
   if (typeof value !== 'string') return row;
   const canonical = canonicaliseRowPath(value);
@@ -240,7 +244,7 @@ function inferKindFromSchema(schemaValue) {
  * on-disk path.
  *
  * @param {string} kind  One of lint | coverage | crap | maintainability |
- *   mutation | lighthouse | bundleSize.
+ *   mutation | lighthouse | bundle-size.
  * @param {{ configPath?: string, cwd?: string }} [opts]
  * @returns {{ rollup: object, rows: Array<object>, kernelVersion: string, generatedAt: string }}
  */
