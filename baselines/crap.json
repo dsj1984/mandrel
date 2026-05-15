@@ -1672,7 +1672,7 @@
       "startLine": 187
     },
     {
-      "crap": 4,
+      "crap": 4.101610526850582,
       "file": ".agents/scripts/lib/config/quality.js",
       "method": "resolveMaintainabilityQuality",
       "startLine": 240
