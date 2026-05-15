@@ -342,6 +342,24 @@ export function loadMaintainabilityBaseline({
   // Epic-ref read may return a non-object — coerce to {} so downstream
   // `Object.entries` / `Object.keys` never throws.
   if (epicRef && (parsed === null || typeof parsed !== 'object')) return {};
+  // Story #1895: the on-disk baseline switched from the flat
+  // `{ path: mi }` map to the canonical envelope shape. Project envelope
+  // back to the legacy flat shape so downstream comparators keep working.
+  if (
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.rows) &&
+    typeof parsed.$schema === 'string'
+  ) {
+    const flat = {};
+    for (const row of parsed.rows) {
+      if (row && typeof row.path === 'string' && typeof row.mi === 'number') {
+        flat[row.path] = row.mi;
+      }
+    }
+    return flat;
+  }
   return parsed;
 }
 

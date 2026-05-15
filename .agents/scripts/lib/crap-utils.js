@@ -110,6 +110,30 @@ export function getCrapBaseline(opts = {}) {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
+  // Story #1895: shipped baseline switched to the canonical envelope
+  // shape — no per-envelope `escomplexVersion`/`tsTranspilerVersion`
+  // fields, and rows key the file as `path`. Backfill the legacy
+  // version fields from the running scorer so existing comparators
+  // keep working until Story #1912 lands the unified gate. Detect by
+  // probing the first row for the new `path` key (the legacy envelope
+  // also carries `$schema`, but its rows still use `file`).
+  if (
+    Array.isArray(parsed.rows) &&
+    parsed.rows.length > 0 &&
+    typeof parsed.rows[0]?.path === 'string'
+  ) {
+    return {
+      kernelVersion: parsed.kernelVersion,
+      escomplexVersion: resolveEscomplexVersion(),
+      tsTranspilerVersion: resolveTsTranspilerVersion(),
+      rows: parsed.rows.map((row) => ({
+        crap: row.crap,
+        file: row.path,
+        method: row.method,
+        startLine: row.startLine,
+      })),
+    };
+  }
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;

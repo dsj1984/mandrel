@@ -817,49 +817,49 @@
       "crap": 2,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "isFiniteNumber",
-      "startLine": 82
+      "startLine": 91
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "indexMiBaseline",
-      "startLine": 92
+      "startLine": 101
     },
     {
       "crap": 9.192,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "indexCrapBaseline",
-      "startLine": 113
+      "startLine": 122
     },
     {
       "crap": 7,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "pickClosestBaseline",
-      "startLine": 135
+      "startLine": 144
     },
     {
       "crap": 8,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "evaluateMiRows",
-      "startLine": 159
+      "startLine": 168
     },
     {
       "crap": 10,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "evaluateCrapRows",
-      "startLine": 189
+      "startLine": 198
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "buildRefusalReasons",
-      "startLine": 224
+      "startLine": 233
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/auto-refresh-baselines.js",
       "method": "evaluateAutoRefresh",
-      "startLine": 264
+      "startLine": 273
     },
     {
       "crap": 1,
@@ -946,6 +946,366 @@
       "startLine": 91
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "schemaRefFor",
+      "startLine": 82
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "kernelVersionPattern",
+      "startLine": 86
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "isoTimestampPattern",
+      "startLine": 90
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "resolveGeneratedAt",
+      "startLine": 112
+    },
+    {
+      "crap": 10.291545189504374,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "buildEnvelope",
+      "startLine": 144
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "getAjv",
+      "startLine": 194
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "getValidator",
+      "startLine": 209
+    },
+    {
+      "crap": 9.158203125,
+      "file": ".agents/scripts/lib/baselines/envelope.js",
+      "method": "assertEnvelope",
+      "startLine": 247
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/kernel.js",
+      "method": "getKindModule",
+      "startLine": 61
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kernel.js",
+      "method": "currentKernelVersion",
+      "startLine": 79
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kernel.js",
+      "method": "checkKernelVersion",
+      "startLine": 92
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kernel.js",
+      "method": "listKinds",
+      "startLine": 107
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "kernelVersion",
+      "startLine": 12
+    },
+    {
+      "crap": 3.3333333333333335,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "projectRow",
+      "startLine": 16
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "sortRows",
+      "startLine": 29
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "aggregate",
+      "startLine": 33
+    },
+    {
+      "crap": 1.125,
+      "file": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
+      "method": "rollup",
+      "startLine": 47
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "kernelVersion",
+      "startLine": 18
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "projectRow",
+      "startLine": 22
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "roundPct",
+      "startLine": 31
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "sortRows",
+      "startLine": 36
+    },
+    {
+      "crap": 3.0123456790123457,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "aggregate",
+      "startLine": 40
+    },
+    {
+      "crap": 1.052734375,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "rollup",
+      "startLine": 59
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/baselines/kinds/coverage.js",
+      "method": "componentMatches",
+      "startLine": 68
+    },
+    {
+      "crap": 7.06721536351166,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "kernelVersion",
+      "startLine": 35
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "projectRow",
+      "startLine": 63
+    },
+    {
+      "crap": 1.0029154518950438,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "sortRows",
+      "startLine": 72
+    },
+    {
+      "crap": 3.0416666666666665,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "aggregate",
+      "startLine": 80
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "percentile",
+      "startLine": 93
+    },
+    {
+      "crap": 1.052734375,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "rollup",
+      "startLine": 104
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/baselines/kinds/crap.js",
+      "method": "componentMatches",
+      "startLine": 113
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "kernelVersion",
+      "startLine": 14
+    },
+    {
+      "crap": 4.03125,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "canonRoute",
+      "startLine": 18
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "projectRow",
+      "startLine": 27
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "sortRows",
+      "startLine": 37
+    },
+    {
+      "crap": 3.0123456790123457,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "aggregate",
+      "startLine": 41
+    },
+    {
+      "crap": 1.125,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "rollup",
+      "startLine": 60
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
+      "method": "componentMatchesRoute",
+      "startLine": 71
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "kernelVersion",
+      "startLine": 19
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "rollup",
+      "startLine": 32
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "projectRow",
+      "startLine": 60
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "sortRows",
+      "startLine": 68
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/baselines/kinds/lint.js",
+      "method": "componentMatches",
+      "startLine": 72
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "kernelVersion",
+      "startLine": 20
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "projectRow",
+      "startLine": 26
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "sortRows",
+      "startLine": 33
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "aggregate",
+      "startLine": 37
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "percentile",
+      "startLine": 47
+    },
+    {
+      "crap": 1.052734375,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "rollup",
+      "startLine": 56
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/baselines/kinds/maintainability.js",
+      "method": "componentMatches",
+      "startLine": 65
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "kernelVersion",
+      "startLine": 15
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "projectRow",
+      "startLine": 19
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "sortRows",
+      "startLine": 28
+    },
+    {
+      "crap": 3.010497157019974,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "aggregate",
+      "startLine": 32
+    },
+    {
+      "crap": 1.052734375,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "rollup",
+      "startLine": 52
+    },
+    {
+      "crap": 20,
+      "file": ".agents/scripts/lib/baselines/kinds/mutation.js",
+      "method": "componentMatches",
+      "startLine": 61
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/lib/baselines/path-canon.js",
+      "method": "isAbsolute",
+      "startLine": 43
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baselines/path-canon.js",
+      "method": "hasTraversal",
+      "startLine": 60
+    },
+    {
+      "crap": 7.032218295389168,
+      "file": ".agents/scripts/lib/baselines/path-canon.js",
+      "method": "canonicalise",
+      "startLine": 75
+    },
+    {
+      "crap": 9,
+      "file": ".agents/scripts/lib/baselines/path-canon.js",
+      "method": "assertCanonical",
+      "startLine": 132
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/lib/baselines/reader.js",
       "method": "ajv",
@@ -998,6 +1358,18 @@
       "file": ".agents/scripts/lib/baselines/reader.js",
       "method": "loadFile",
       "startLine": 268
+    },
+    {
+      "crap": 6.2373046875,
+      "file": ".agents/scripts/lib/baselines/writer.js",
+      "method": "write",
+      "startLine": 63
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/baselines/writer.js",
+      "method": "writeFile",
+      "startLine": 139
     },
     {
       "crap": 2,
@@ -1957,73 +2329,109 @@
       "crap": 1,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "toForwardSlash",
-      "startLine": 36
+      "startLine": 37
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "buildScopePredicate",
-      "startLine": 46
+      "startLine": 47
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "<anon method-1>",
-      "startLine": 48
+      "startLine": 49
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "<anon method-2>",
-      "startLine": 50
+      "startLine": 51
     },
     {
       "crap": 5,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "scoreEntry",
-      "startLine": 70
+      "startLine": 71
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "<anon method-4>",
-      "startLine": 96
+      "startLine": 97
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "scoreCoverageFinal",
-      "startLine": 112
+      "startLine": 113
     },
     {
       "crap": 4.00390625,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "readCoverageFinal",
-      "startLine": 134
+      "startLine": 135
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "isEnvelopeShape",
+      "startLine": 158
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "projectEnvelopeToFlat",
+      "startLine": 168
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "normaliseParsedBaseline",
+      "startLine": 181
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "readBaseline",
-      "startLine": 157
+      "startLine": 191
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "projectFlatToRows",
+      "startLine": 197
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "writeEnvelopeViaFsImpl",
+      "startLine": 209
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/coverage-baseline.js",
+      "method": "dispatchEnvelopeWrite",
+      "startLine": 221
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "writeBaseline",
-      "startLine": 163
+      "startLine": 229
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "axisToleranceFor",
-      "startLine": 197
+      "startLine": 261
     },
     {
       "crap": 11,
       "file": ".agents/scripts/lib/coverage-baseline.js",
       "method": "compareScores",
-      "startLine": 227
+      "startLine": 291
     },
     {
       "crap": 2.0054869684499312,
@@ -2194,58 +2602,10 @@
       "startLine": 66
     },
     {
-      "crap": 9.847869873046875,
+      "crap": 13.50732421875,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "getCrapBaseline",
       "startLine": 93
-    },
-    {
-      "crap": 1.015625,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "sortRows",
-      "startLine": 126
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "canonicalizeRow",
-      "startLine": 135
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "canonicalizeEnvelope",
-      "startLine": 144
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "buildBaselineEnvelope",
-      "startLine": 170
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "saveCrapBaseline",
-      "startLine": 207
-    },
-    {
-      "crap": 12.405181355587217,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "scanAndScore",
-      "startLine": 252
-    },
-    {
-      "crap": 7.333333333333334,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFileSerial",
-      "startLine": 343
-    },
-    {
-      "crap": 1.037037037037037,
-      "file": ".agents/scripts/lib/crap-utils.js",
-      "method": "scoreFilesViaPool",
-      "startLine": 398
     },
     {
       "crap": 1,
@@ -2992,28 +3352,10 @@
       "startLine": 114
     },
     {
-      "crap": 5,
+      "crap": 13,
       "file": ".agents/scripts/lib/maintainability-utils.js",
       "method": "getBaseline",
       "startLine": 128
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/lib/maintainability-utils.js",
-      "method": "saveBaseline",
-      "startLine": 154
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/lib/maintainability-utils.js",
-      "method": "scanDirectory",
-      "startLine": 195
-    },
-    {
-      "crap": 3.124416,
-      "file": ".agents/scripts/lib/maintainability-utils.js",
-      "method": "calculateAll",
-      "startLine": 238
     },
     {
       "crap": 11,
@@ -8444,6 +8786,12 @@
       "file": ".agents/scripts/sync-claude-commands.js",
       "method": "<anon method-1>",
       "startLine": 44
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/update-maintainability-baseline.js",
+      "method": "main",
+      "startLine": 17
     },
     {
       "crap": 5,

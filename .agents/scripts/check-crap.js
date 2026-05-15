@@ -615,6 +615,29 @@ export function loadCrapBaseline({
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
+  // Story #1895: canonical envelope at the epic ref carries `$schema` and
+  // `path` row keys instead of `file`; backfill the legacy `escomplexVersion`
+  // / `tsTranspilerVersion` fields from the running scorer so existing
+  // comparators keep working until Story #1912 lands the unified gate.
+  // Probe the first row for the new `path` key to discriminate from the
+  // legacy envelope (which also carries `$schema` but keys rows by `file`).
+  if (
+    Array.isArray(parsed.rows) &&
+    parsed.rows.length > 0 &&
+    typeof parsed.rows[0]?.path === 'string'
+  ) {
+    return {
+      kernelVersion: parsed.kernelVersion,
+      escomplexVersion: resolveEscomplexVersion(),
+      tsTranspilerVersion: resolveTsTranspilerVersion(),
+      rows: parsed.rows.map((row) => ({
+        crap: row.crap,
+        file: row.path,
+        method: row.method,
+        startLine: row.startLine,
+      })),
+    };
+  }
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;

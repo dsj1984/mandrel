@@ -137,7 +137,29 @@ export function getBaseline(baselinePath) {
     : path.resolve(process.cwd(), baselinePath);
   if (fs.existsSync(abs)) {
     try {
-      return JSON.parse(fs.readFileSync(abs, 'utf-8'));
+      const parsed = JSON.parse(fs.readFileSync(abs, 'utf-8'));
+      // Story #1895: shipped baseline switched from the flat
+      // `{ path: mi }` map to the canonical envelope shape
+      // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`).
+      // Project the envelope back to the legacy flat shape so existing
+      // gate consumers keep working without churn — Story #1912 will
+      // replace this transitional reader with the shared reader.
+      if (
+        parsed &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        Array.isArray(parsed.rows) &&
+        typeof parsed.$schema === 'string'
+      ) {
+        const flat = {};
+        for (const row of parsed.rows) {
+          if (row && typeof row.path === 'string' && typeof row.mi === 'number') {
+            flat[row.path] = row.mi;
+          }
+        }
+        return flat;
+      }
+      return parsed;
     } catch (err) {
       Logger.warn(`[Maintainability] Failed to parse baseline: ${err.message}`);
       return {};
