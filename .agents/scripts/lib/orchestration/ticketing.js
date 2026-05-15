@@ -553,7 +553,7 @@ export function structuredCommentMarker(type, attrs = null) {
 }
 
 /**
- * Process-level cache mapping `${ticketId}|${type}|${attrsHash}` to the
+ * Per-provider cache mapping `${ticketId}|${type}|${attrsHash}` to the
  * comment id (and the cached comment payload) returned by the most
  * recent `findStructuredComment` / `upsertStructuredComment` call.
  * Story #1795 — every Epic run owns its process for the duration of
@@ -562,20 +562,36 @@ export function structuredCommentMarker(type, attrs = null) {
  * `story-run-progress`, `wave-N-end`, etc).
  *
  * Lifecycle:
- *   - First call to `findStructuredComment(t, type, attrs)` hits
- *     `getTicketComments` and seeds the cache with the resolved
+ *   - First call to `findStructuredComment(provider, t, type, attrs)`
+ *     hits `getTicketComments` and seeds the cache with the resolved
  *     comment (or `null` to record the "no comment yet" miss).
- *   - Subsequent calls inside the same process return the cached row
+ *   - Subsequent calls with the same provider return the cached row
  *     without a list call.
  *   - `upsertStructuredComment` refreshes the cache to the new
  *     comment id after `postComment` succeeds.
  *   - `deleteComment` paths inside this module evict the entry.
  *
- * Cross-process coherence is not required — the runner owns the
- * process for the run's lifetime. Tests reset via the exported
+ * Cache is scoped to the provider instance via a WeakMap — different
+ * providers (including per-test fakes) get isolated caches so state
+ * cannot leak across boundaries. Tests reset via the exported
  * `_resetStructuredCommentCache()` seam.
  */
-const _structuredCommentCache = new Map();
+const _structuredCommentCache = new WeakMap();
+
+/**
+ * Lookup (or lazily create) the per-provider cache map.
+ * @param {object} provider
+ * @returns {Map<string, object|null>}
+ */
+function getProviderCommentCache(provider) {
+  if (!provider || typeof provider !== 'object') return new Map();
+  let map = _structuredCommentCache.get(provider);
+  if (!map) {
+    map = new Map();
+    _structuredCommentCache.set(provider, map);
+  }
+  return map;
+}
 
 /**
  * Build a stable cache key for `(ticketId, type, attrs)`. Attrs object
@@ -598,20 +614,37 @@ function structuredCommentCacheKey(ticketId, type, attrs) {
 }
 
 /**
- * Test seam — reset the process-level structured-comment ID cache.
+ * Test seam — reset the structured-comment ID cache.
  * Exported so unit tests can isolate cases without restarting the
- * process. Production callers never invoke this.
+ * process. Without arguments the entire WeakMap is dropped by
+ * reassigning the per-provider map of every known provider — in
+ * practice tests just hand in their fresh provider instance which
+ * has no cached state yet. Production callers never invoke this.
+ *
+ * @param {object} [provider] When supplied, clears just that
+ *   provider's cache; otherwise no-op (per-provider caches are
+ *   already isolated by WeakMap and tests creating fresh providers
+ *   get clean state automatically).
  */
-export function _resetStructuredCommentCache() {
-  _structuredCommentCache.clear();
+export function _resetStructuredCommentCache(provider) {
+  if (provider && typeof provider === 'object') {
+    _structuredCommentCache.delete(provider);
+  }
 }
 
 /**
- * Test seam — peek at the cache contents. Returns the raw Map for
- * read-only inspection (do not mutate). Story #1795.
+ * Test seam — peek at a provider's cache contents. Returns the raw
+ * Map for read-only inspection (do not mutate). Story #1795.
+ *
+ * @param {object} [provider] If supplied, returns that provider's
+ *   cache Map; otherwise returns an empty Map for callers that just
+ *   want a stable shape.
  */
-export function _peekStructuredCommentCache() {
-  return _structuredCommentCache;
+export function _peekStructuredCommentCache(provider) {
+  if (provider && typeof provider === 'object') {
+    return _structuredCommentCache.get(provider) ?? new Map();
+  }
+  return new Map();
 }
 
 /**
@@ -643,8 +676,9 @@ export async function findStructuredComment(
   attrs = null,
 ) {
   const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
-  if (_structuredCommentCache.has(cacheKey)) {
-    return _structuredCommentCache.get(cacheKey);
+  const cache = getProviderCommentCache(provider);
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey);
   }
   const marker = structuredCommentMarker(type, attrs);
   const comments = (await provider.getTicketComments(ticketId)) ?? [];
@@ -653,7 +687,7 @@ export async function findStructuredComment(
     (c) => typeof c.body === 'string' && c.body.includes(marker),
   );
   const resolved = matches.length === 0 ? null : matches[matches.length - 1];
-  _structuredCommentCache.set(cacheKey, resolved);
+  cache.set(cacheKey, resolved);
   return resolved;
 }
 
@@ -686,6 +720,7 @@ export async function upsertStructuredComment(
   assertValidStructuredCommentType(type);
   const marker = structuredCommentMarker(type, attrs);
   const cacheKey = structuredCommentCacheKey(ticketId, type, attrs);
+  const cache = getProviderCommentCache(provider);
   const existing = await findStructuredComment(provider, ticketId, type, attrs);
 
   if (existing && typeof provider.deleteComment === 'function') {
@@ -693,7 +728,7 @@ export async function upsertStructuredComment(
       await provider.deleteComment(existing.id);
       // Story #1795 — evict before the repost so a postComment failure
       // doesn't leave the cache pointing at a deleted comment id.
-      _structuredCommentCache.delete(cacheKey);
+      cache.delete(cacheKey);
     } catch (err) {
       Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
@@ -710,10 +745,18 @@ export async function upsertStructuredComment(
   // next upsert short-circuits the `getTicketComments` list call. The
   // post result carries the new comment id; we synthesise a minimal
   // cached row that `findStructuredComment` callers can rely on (only
-  // `id` and `body` are read by upstream).
-  if (result && typeof result.commentId === 'number') {
-    _structuredCommentCache.set(cacheKey, {
-      id: result.commentId,
+  // `id` and `body` are read by upstream). Accept either `commentId`
+  // (production GitHubProvider shape) or `id` (test-fake shape) so the
+  // cache update fires uniformly across providers.
+  const newCommentId =
+    typeof result?.commentId === 'number'
+      ? result.commentId
+      : typeof result?.id === 'number'
+        ? result.id
+        : null;
+  if (newCommentId !== null) {
+    cache.set(cacheKey, {
+      id: newCommentId,
       body: annotated,
     });
   }
