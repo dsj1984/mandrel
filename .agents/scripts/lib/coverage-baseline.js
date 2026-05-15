@@ -178,10 +178,7 @@ function projectEnvelopeToFlat(envelope) {
   return out;
 }
 
-export function readBaseline(cwd, fsImpl = fs) {
-  const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  if (!fsImpl.existsSync(abs)) return null;
-  const parsed = JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+function normaliseParsedBaseline(parsed) {
   // Story #1891: the writer ships envelope-shape baselines
   // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`). The
   // legacy reader contract returns a flat `{ file: { lines, branches,
@@ -189,6 +186,12 @@ export function readBaseline(cwd, fsImpl = fs) {
   // backwards-compatible consumers (Story #1892 migrates them off the
   // flat shape).
   return isEnvelopeShape(parsed) ? projectEnvelopeToFlat(parsed) : parsed;
+}
+
+export function readBaseline(cwd, fsImpl = fs) {
+  const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
+  if (!fsImpl.existsSync(abs)) return null;
+  return normaliseParsedBaseline(JSON.parse(fsImpl.readFileSync(abs, 'utf8')));
 }
 
 function projectFlatToRows(baseline) {
@@ -215,6 +218,14 @@ function writeEnvelopeViaFsImpl(abs, envelope, fsImpl) {
   fsImpl.writeFileSync(abs, `${JSON.stringify(canonical, null, 2)}\n`);
 }
 
+function dispatchEnvelopeWrite(abs, envelope, fsImpl) {
+  // Honour the injected fsImpl seam for tests that pass `memfs` or a spy —
+  // fall through to the writer's atomic write when `fsImpl === fs`.
+  return fsImpl === fs
+    ? writeFile(abs, envelope)
+    : writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
+}
+
 export function writeBaseline(cwd, baseline, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   // Story #1891: route through the shared baseline writer. The writer
@@ -230,13 +241,7 @@ export function writeBaseline(cwd, baseline, fsImpl = fs) {
     kind: 'coverage',
     rows: projectFlatToRows(baseline),
   });
-  // Honour the injected fsImpl seam for tests that pass `memfs` or a
-  // spy — fall through to the writer's atomic write when `fsImpl === fs`.
-  if (fsImpl === fs) {
-    writeFile(abs, envelope);
-  } else {
-    writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
-  }
+  dispatchEnvelopeWrite(abs, envelope, fsImpl);
   return abs;
 }
 
