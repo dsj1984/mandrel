@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T19:34:44.509Z",
+  "generatedAt": "2026-05-15T19:41:44.052Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.133,
-      "p95": 121.479
+      "p50": 103.235,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -319,6 +319,10 @@
       "mi": 96.228
     },
     {
+      "path": ".agents/scripts/lib/c8-cli-path.js",
+      "mi": 122.902
+    },
+    {
       "path": ".agents/scripts/lib/CacheLayer.js",
       "mi": 89.627
     },
@@ -412,7 +416,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 84.277
+      "mi": 90.908
     },
     {
       "path": ".agents/scripts/lib/config-schema-shared.js",
@@ -469,6 +473,10 @@
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "mi": 90.007
+    },
+    {
+      "path": ".agents/scripts/lib/config/worktree-isolation.js",
+      "mi": 98.375
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
@@ -569,6 +577,10 @@
     {
       "path": ".agents/scripts/lib/IExecutionAdapter.js",
       "mi": 145.311
+    },
+    {
+      "path": ".agents/scripts/lib/install-cmd-parser.js",
+      "mi": 105.556
     },
     {
       "path": ".agents/scripts/lib/issue-link-parser.js",
@@ -1283,10 +1295,6 @@
       "mi": 94.191
     },
     {
-      "path": ".agents/scripts/noise-study.js",
-      "mi": 88.128
-    },
-    {
       "path": ".agents/scripts/notify.js",
       "mi": 89.814
     },
@@ -1340,7 +1348,7 @@
     },
     {
       "path": ".agents/scripts/run-coverage.js",
-      "mi": 95.463
+      "mi": 96.35
     },
     {
       "path": ".agents/scripts/run-lint.js",
@@ -1372,7 +1380,7 @@
     },
     {
       "path": ".agents/scripts/story-execute-prepare.js",
-      "mi": 93.661
+      "mi": 93.255
     },
     {
       "path": ".agents/scripts/story-init.js",
@@ -2067,8 +2075,20 @@
       "mi": 106.263
     },
     {
+      "path": "tests/lib/config-resolver-commands.test.js",
+      "mi": 113.462
+    },
+    {
       "path": "tests/lib/config-resolver-ctx.test.js",
       "mi": 112.252
+    },
+    {
+      "path": "tests/lib/config-resolver-notifications.test.js",
+      "mi": 110.612
+    },
+    {
+      "path": "tests/lib/config-resolver-worktree.test.js",
+      "mi": 108.637
     },
     {
       "path": "tests/lib/config-resolver.test.js",
@@ -2731,10 +2751,6 @@
       "mi": 98.101
     },
     {
-      "path": "tests/noise-study.test.js",
-      "mi": 99.815
-    },
-    {
       "path": "tests/notify.test.js",
       "mi": 99.641
     },
@@ -3008,7 +3024,7 @@
     },
     {
       "path": "tests/story-execute/story-execute-prepare.test.js",
-      "mi": 105.013
+      "mi": 106.035
     },
     {
       "path": "tests/story-execute/story-task-progress.test.js",

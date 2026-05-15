@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T19:34:40.007Z",
+  "generatedAt": "2026-05-15T19:41:40.194Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -100,6 +100,72 @@
       "method": "main",
       "startLine": 691,
       "crap": 3.131456790123457
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "parseArgs",
+      "startLine": 56,
+      "crap": 18.6328125
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "selectEnabledGates",
+      "startLine": 105,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "compareToFloor",
+      "startLine": 137,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "axisDirection",
+      "startLine": 154,
+      "crap": 7
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "applyFloors",
+      "startLine": 179,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "evaluateGate",
+      "startLine": 211,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "emitKernelFriction",
+      "startLine": 234,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "formatReport",
+      "startLine": 254,
+      "crap": 7.0986328125
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "runCheckBaselines",
+      "startLine": 299,
+      "crap": 9.47677951388889
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "helpReport",
+      "startLine": 372,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/check-baselines.js",
+      "method": "main",
+      "startLine": 392,
+      "crap": 2
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -586,6 +652,30 @@
       "method": "parseArgv",
       "startLine": 49,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/findings.js",
+      "method": "aggregateSummary",
+      "startLine": 30,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/findings.js",
+      "method": "resolveRollup",
+      "startLine": 55,
+      "crap": 4.592592592592593
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/findings.js",
+      "method": "diffAxes",
+      "startLine": 81,
+      "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/audit-suite/findings.js",
+      "method": "aggregateBaselineDelta",
+      "startLine": 121,
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
@@ -1233,7 +1323,7 @@
       "path": ".agents/scripts/lib/baselines/reader.js",
       "method": "resolveBaselinePath",
       "startLine": 79,
-      "crap": 6.318832260445283
+      "crap": 6.184509409979909
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
@@ -1813,9 +1903,81 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
+      "method": "buildMutationGateEntry",
+      "startLine": 270,
+      "crap": 5.054012345679013
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "partitionGates",
+      "startLine": 315,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "pipePrefixed",
+      "startLine": 330,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "attachGateAbortHandler",
+      "startLine": 366,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-5>",
+      "startLine": 368,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
       "method": "<anon method-6>",
       "startLine": 377,
-      "crap": 2
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "gateExitCode",
+      "startLine": 384,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "defaultGateRunner",
+      "startLine": 389,
+      "crap": 12
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "runCloseValidation",
+      "startLine": 451,
+      "crap": 11.149667110471283
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-12>",
+      "startLine": 480,
+      "crap": 5.8053155522163795
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-13>",
+      "startLine": 503,
+      "crap": 3.062196307094266
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "<anon method-14>",
+      "startLine": 526,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation.js",
+      "method": "emitGhSpawnCount",
+      "startLine": 665,
+      "crap": 5.000390625
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -1876,24 +2038,6 @@
       "method": "formatMaintainabilityProjection",
       "startLine": 278,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDefaults",
-      "startLine": 93,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "buildLegacyShim",
-      "startLine": 125,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 179,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -4333,14 +4477,92 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "normaliseCoveragePath",
+      "startLine": 20,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "coverageKeyMatches",
+      "startLine": 30,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "detectComponentRegressions",
+      "startLine": 57,
+      "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "componentOrder",
+      "startLine": 88,
+      "crap": 3.072
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "formatNumber",
+      "startLine": 94,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "createCrapDriftDetector",
+      "startLine": 137,
+      "crap": 16.000058037463184
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "methodKey",
       "startLine": 156,
       "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "findCoverageEntry",
+      "startLine": 164,
+      "crap": 5.018782870022539
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
+      "method": "scoreFile",
+      "startLine": 176,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "readCoverageMap",
       "startLine": 203,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
+      "method": "detectComponentRegressions",
+      "startLine": 62,
+      "crap": 10
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
+      "method": "componentOrder",
+      "startLine": 92,
+      "crap": 3.576
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
+      "method": "formatNumber",
+      "startLine": 98,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
+      "method": "createMaintainabilityDriftDetector",
+      "startLine": 102,
+      "crap": 9
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
+      "method": "scoreFile",
+      "startLine": 115,
       "crap": 2
     },
     {
