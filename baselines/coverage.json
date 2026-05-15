@@ -4,9 +4,9 @@
   "generatedAt": "2026-05-15T20:23:10.940Z",
   "rollup": {
     "*": {
-      "lines": 96.85,
-      "branches": 86.4,
-      "functions": 91.86
+      "lines": 96.86,
+      "branches": 86.39,
+      "functions": 91.91
     }
   },
   "rows": [
@@ -449,6 +449,12 @@
       "functions": 100
     },
     {
+      "path": ".agents/scripts/lib/config/defaults.js",
+      "lines": 96.55,
+      "branches": 87.04,
+      "functions": 100
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "lines": 100,
       "branches": 96.88,
@@ -488,6 +494,12 @@
       "path": ".agents/scripts/lib/config/shared.js",
       "lines": 97.83,
       "branches": 91.67,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/config/sync-agentrc.js",
+      "lines": 98.94,
+      "branches": 82.76,
       "functions": 100
     },
     {
