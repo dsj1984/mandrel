@@ -326,27 +326,32 @@ async function processCascadeParentLocked(
     );
     if (!allDone) return { cascadedTo, failed };
 
-    // EXCLUSION: Epics and Planning tickets (PRDs, Tech Specs) do not
-    // auto-close via cascade.
-    //   - Epics close via formal /epic-deliver (their own machinery
-    //     handles branch merges, version bumps, release tags).
-    //   - Planning tickets (context::prd, context::tech-spec) close by
-    //     operator once the Epic is finalized.
+    // EXCLUSION: Epics do not auto-close via cascade. Epics close via
+    // formal /epic-deliver (its own machinery handles branch merges,
+    // PR-driven `Closes #N` auto-close, and a recovery transition in
+    // `epic-deliver-finalize.js`).
     //
-    // Features, by contrast, DO auto-close via cascade. A Feature is a
-    // purely hierarchical grouping — no standalone branch, no merge
-    // step. When its last child Story closes, the Feature is complete
-    // by definition. Operators who need Feature-level AC verification
+    // Planning tickets (context::prd, context::tech-spec) DO close via
+    // cascade now (Story #1951). Previously they were excluded under
+    // the assumption that the operator would close them manually
+    // post-merge — but that step never reliably happened and leaving
+    // them open as native sub-issues of the Epic blocks GitHub from
+    // honoring the Epic's `Closes #N` footer. The Epic finalize phase
+    // also closes them explicitly; this cascade branch is the
+    // defense-in-depth path when a Story's tasklist references a
+    // planning ticket directly.
+    //
+    // Features auto-close via cascade. A Feature is a purely
+    // hierarchical grouping — no standalone branch, no merge step.
+    // When its last child Story closes, the Feature is complete by
+    // definition. Operators who need Feature-level AC verification
     // should encode it in the final child Story, not rely on a manual
     // close step.
     const parent = await provider.getTicket(parentId);
     const isEpic = parent.labels.includes(TYPE_LABELS.EPIC);
-    const isPlanning =
-      parent.labels.includes('context::prd') ||
-      parent.labels.includes('context::tech-spec');
-    if (isEpic || isPlanning) {
+    if (isEpic) {
       logger.warn(
-        `[Ticketing] Cascade reached ${isEpic ? 'Epic' : 'Planning'} #${parentId}. Skipping auto-close (Epics close via the operator's PR merge; Planning tickets close manually post-merge).`,
+        `[Ticketing] Cascade reached Epic #${parentId}. Skipping auto-close (Epics close via the operator's PR merge or /epic-close recovery).`,
       );
       return { cascadedTo, failed };
     }

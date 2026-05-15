@@ -39,7 +39,11 @@ import {
   emitEpicComplete,
   runHotspotDetection,
 } from './lib/orchestration/epic-runner/progress-reporter.js';
-import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+  upsertStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 import { notify as defaultNotify } from './notify.js';
 
@@ -277,6 +281,142 @@ export async function reconcileBaselinesOnEpicBranch({
 }
 
 /**
+ * Close the Epic's linked PRD and Tech Spec planning artifacts.
+ *
+ * The cascade walker in `lib/orchestration/ticketing/bulk.js` does not
+ * recurse upward into the Epic (and historically excluded planning
+ * tickets), so without this helper the PRD / Tech Spec stay
+ * `agent::executing` (or whatever they were set to during planning)
+ * forever. Beyond cosmetics, leaving planning tickets open as native
+ * sub-issues of the Epic suppresses GitHub's PR-driven auto-close on
+ * the Epic itself when sub-issue parent-close rules apply — closing
+ * them here is what lets the `Closes #${epicId}` footer actually fire.
+ *
+ * Best-effort: a failure on one ticket logs a warn and is reported in
+ * the result envelope; it never blocks the PR from opening.
+ *
+ * @param {{
+ *   epicId: number,
+ *   epic: { linkedIssues?: { prd?: number|null, techSpec?: number|null } } | null,
+ *   provider: object,
+ *   logger?: object,
+ *   transitionFn?: typeof transitionTicketState,
+ * }} args
+ * @returns {Promise<{
+ *   prd: { id: number|null, status: 'closed'|'skipped'|'failed', detail?: string },
+ *   techSpec: { id: number|null, status: 'closed'|'skipped'|'failed', detail?: string },
+ * }>}
+ */
+export async function closePlanningArtifacts({
+  epicId,
+  epic,
+  provider,
+  logger = Logger,
+  transitionFn = transitionTicketState,
+} = {}) {
+  const result = {
+    prd: { id: null, status: 'skipped' },
+    techSpec: { id: null, status: 'skipped' },
+  };
+  const prdId = epic?.linkedIssues?.prd ?? null;
+  const techSpecId = epic?.linkedIssues?.techSpec ?? null;
+
+  for (const [kind, id] of [
+    ['prd', prdId],
+    ['techSpec', techSpecId],
+  ]) {
+    if (!Number.isInteger(id) || id <= 0) {
+      result[kind] = { id: null, status: 'skipped', detail: 'no-link' };
+      continue;
+    }
+    try {
+      // cascade:false avoids walking up the parent chain — the Epic is
+      // closed by GitHub when the operator merges the PR (or by the
+      // recovery path below), not by a cascade.
+      await transitionFn(provider, id, STATE_LABELS.DONE, { cascade: false });
+      result[kind] = { id, status: 'closed' };
+      logger.info?.(
+        `[epic-deliver-finalize] Closed planning artifact ${kind} #${id} for Epic #${epicId}.`,
+      );
+    } catch (err) {
+      const detail = err?.message ?? String(err);
+      result[kind] = { id, status: 'failed', detail };
+      logger.warn?.(
+        `[epic-deliver-finalize] Failed to close planning artifact ${kind} #${id}: ${detail}`,
+      );
+    }
+  }
+  return result;
+}
+
+/**
+ * Verify the Epic ticket reached `state: 'closed'` after the PR-driven
+ * auto-close window. If it is still open, transition it explicitly via
+ * `transitionTicketState`. Returns a structured envelope so callers can
+ * surface "primary auto-close worked" vs "recovery fired" in audit logs.
+ *
+ * Failures are non-fatal — a recovery attempt that throws leaves the
+ * Epic open and is reported in the envelope; the operator can re-run
+ * `/epic-close` or close manually.
+ *
+ * @param {{
+ *   epicId: number,
+ *   provider: object,
+ *   logger?: object,
+ *   transitionFn?: typeof transitionTicketState,
+ * }} args
+ * @returns {Promise<{
+ *   status: 'already-closed'|'recovered'|'still-open'|'check-failed',
+ *   priorState?: string,
+ *   detail?: string,
+ * }>}
+ */
+export async function verifyAndRecoverEpicClose({
+  epicId,
+  provider,
+  logger = Logger,
+  transitionFn = transitionTicketState,
+} = {}) {
+  let snapshot;
+  try {
+    if (typeof provider.invalidateTicket === 'function') {
+      try {
+        provider.invalidateTicket(epicId);
+      } catch {
+        // best-effort cache invalidation
+      }
+    }
+    snapshot = await provider.getTicket(epicId);
+  } catch (err) {
+    const detail = err?.message ?? String(err);
+    logger.warn?.(
+      `[epic-deliver-finalize] Epic #${epicId} close-verify read failed: ${detail}`,
+    );
+    return { status: 'check-failed', detail };
+  }
+  if (snapshot?.state === 'closed') {
+    return { status: 'already-closed', priorState: 'closed' };
+  }
+  logger.warn?.(
+    `[epic-deliver-finalize] Epic #${epicId} still open after PR finalize — applying recovery transition to agent::done.`,
+  );
+  try {
+    await transitionFn(provider, epicId, STATE_LABELS.DONE, { cascade: false });
+    return { status: 'recovered', priorState: snapshot?.state ?? 'open' };
+  } catch (err) {
+    const detail = err?.message ?? String(err);
+    logger.warn?.(
+      `[epic-deliver-finalize] Epic #${epicId} recovery transition failed: ${detail}`,
+    );
+    return {
+      status: 'still-open',
+      priorState: snapshot?.state ?? 'open',
+      detail,
+    };
+  }
+}
+
+/**
  * End-to-end finalize. DI-friendly.
  *
  * @param {{
@@ -309,6 +449,7 @@ export async function runEpicDeliverFinalize({
   upsertCommentFn = upsertStructuredComment,
   notifyFn = defaultNotify,
   reconcileBaselinesFn = reconcileBaselinesOnEpicBranch,
+  closePlanningArtifactsFn = closePlanningArtifacts,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -398,7 +539,16 @@ export async function runEpicDeliverFinalize({
   // 3. gh pr create.
   let epic;
   try {
-    epic = await provider.getTicket?.(epicId);
+    // Prefer `getEpic` so `linkedIssues.{prd,techSpec}` are parsed out of
+    // the Epic body for the planning-close phase below. Fall back to
+    // `getTicket` for providers / test doubles that do not expose the
+    // Epic-shaped reader — those callers will skip planning close
+    // because `linkedIssues` will be absent.
+    if (typeof provider.getEpic === 'function') {
+      epic = await provider.getEpic(epicId);
+    } else if (typeof provider.getTicket === 'function') {
+      epic = await provider.getTicket(epicId);
+    }
   } catch (err) {
     logger.warn?.(
       `[epic-deliver-finalize] failed to fetch Epic #${epicId} title: ${err?.message ?? err}`,
@@ -482,6 +632,18 @@ export async function runEpicDeliverFinalize({
     }
   }
 
+  // 3b. Close the Epic's planning artifacts (PRD + Tech Spec). The
+  // cascade walker does not auto-close them and leaving them open as
+  // native sub-issues of the Epic blocks GitHub's `Closes #${epicId}`
+  // auto-close path. Best-effort: failures land in the envelope but do
+  // not abort the rest of finalize.
+  const planningClose = await closePlanningArtifactsFn({
+    epicId,
+    epic,
+    provider,
+    logger,
+  });
+
   // 4. Post hand-off comment.
   const handoff = buildHandoffBody({ epicId, prUrl });
   let postedHandoff = false;
@@ -523,6 +685,7 @@ export async function runEpicDeliverFinalize({
     postedHandoff,
     autoMergeEnabled,
     reconcile,
+    planningClose,
   };
 }
 

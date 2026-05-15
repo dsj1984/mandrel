@@ -491,3 +491,118 @@ test('runEpicDeliverFinalize: rejects missing/invalid epicId', async () => {
     /positive integer/,
   );
 });
+
+test('runEpicDeliverFinalize: closes planning artifacts after gh pr create succeeds (Story #1951)', async () => {
+  // Verifies the new 3b phase: the Epic's linked PRD and Tech Spec are
+  // closed via the injected `closePlanningArtifactsFn` after the PR is
+  // opened, and the result is surfaced in the envelope as `planningClose`.
+  const provider = {
+    async getEpic(id) {
+      return {
+        id,
+        title: 'Test Epic',
+        linkedIssues: { prd: 9001, techSpec: 9002 },
+      };
+    },
+    async getTicket(id) {
+      return { id, title: 'fallback' };
+    },
+  };
+  const { fn: gitSpawnFn } = makeGitSpawnFn([
+    { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
+    { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },
+    {
+      matcher: (args) => args[0] === 'rev-list',
+      response: { status: 0, stdout: '1' },
+    },
+    { matcher: (args) => args[0] === 'push', response: { status: 0 } },
+  ]);
+  const planningCalls = [];
+  const closePlanningArtifactsFn = async ({ epicId, epic, provider: p }) => {
+    planningCalls.push({
+      epicId,
+      prd: epic?.linkedIssues?.prd,
+      hasProvider: !!p,
+    });
+    return {
+      prd: { id: 9001, status: 'closed' },
+      techSpec: { id: 9002, status: 'closed' },
+    };
+  };
+  const out = await runEpicDeliverFinalize({
+    epicId: 1942,
+    cwd: '.',
+    injectedProvider: provider,
+    injectedConfig: {
+      agentSettings: { baseBranch: 'main' },
+      orchestration: {},
+    },
+    loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    gitSpawnFn,
+    ghSpawnFn: () => ({
+      status: 0,
+      stdout: 'https://github.com/me/repo/pull/123\n',
+      stderr: '',
+    }),
+    upsertCommentFn: async () => ({ commentId: 1 }),
+    notifyFn: () => Promise.resolve(),
+    closePlanningArtifactsFn,
+  });
+
+  assert.equal(planningCalls.length, 1);
+  assert.equal(planningCalls[0].epicId, 1942);
+  assert.equal(planningCalls[0].prd, 9001);
+  assert.equal(planningCalls[0].hasProvider, true);
+  assert.deepEqual(out.planningClose, {
+    prd: { id: 9001, status: 'closed' },
+    techSpec: { id: 9002, status: 'closed' },
+  });
+});
+
+test('runEpicDeliverFinalize: planning-close partial failure does not block finalize', async () => {
+  // PRD closes ok, Tech Spec transition throws — finalize must still
+  // succeed and report `planningClose.techSpec.status === 'failed'`.
+  const provider = {
+    async getEpic(id) {
+      return { id, linkedIssues: { prd: 9001, techSpec: 9002 } };
+    },
+  };
+  const { fn: gitSpawnFn } = makeGitSpawnFn([
+    { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
+    { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },
+    {
+      matcher: (args) => args[0] === 'rev-list',
+      response: { status: 0, stdout: '1' },
+    },
+    { matcher: (args) => args[0] === 'push', response: { status: 0 } },
+  ]);
+  const closePlanningArtifactsFn = async () => ({
+    prd: { id: 9001, status: 'closed' },
+    techSpec: { id: 9002, status: 'failed', detail: 'transient gh 500' },
+  });
+  const out = await runEpicDeliverFinalize({
+    epicId: 1942,
+    cwd: '.',
+    injectedProvider: provider,
+    injectedConfig: {
+      agentSettings: { baseBranch: 'main' },
+      orchestration: {},
+    },
+    loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    gitSpawnFn,
+    ghSpawnFn: () => ({
+      status: 0,
+      stdout: 'https://github.com/me/repo/pull/123\n',
+      stderr: '',
+    }),
+    upsertCommentFn: async () => ({ commentId: 1 }),
+    notifyFn: () => Promise.resolve(),
+    closePlanningArtifactsFn,
+  });
+
+  assert.equal(out.pushed, true);
+  assert.equal(out.prUrl, 'https://github.com/me/repo/pull/123');
+  assert.equal(out.postedHandoff, true);
+  assert.equal(out.blocker, undefined);
+  assert.equal(out.planningClose.techSpec.status, 'failed');
+});
