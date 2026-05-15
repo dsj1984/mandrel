@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T22:31:44.815Z",
+  "generatedAt": "2026-05-15T23:05:08.297Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.09,
+      "p50": 103.133,
       "p95": 121.479
     }
   },
@@ -260,31 +260,31 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "mi": 93.599
+      "mi": 93.402
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "mi": 99.737
+      "mi": 98.45
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 97.185
+      "mi": 96.807
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "mi": 97.275
+      "mi": 96.407
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "mi": 92.284
+      "mi": 92.312
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "mi": 101.606
+      "mi": 100.698
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "mi": 96.261
+      "mi": 96.197
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -300,7 +300,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 98.659
+      "mi": 93.753
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -440,7 +440,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 48.292
+      "mi": 46.73
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -464,7 +464,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 82.673
+      "mi": 82.228
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
@@ -1527,6 +1527,10 @@
       "mi": 120.671
     },
     {
+      "path": "tests/baselines/kinds/applyEpsilon.test.js",
+      "mi": 106.879
+    },
+    {
       "path": "tests/baselines/kinds/bundle-size.compare.test.js",
       "mi": 107.949
     },
@@ -1577,6 +1581,10 @@
     {
       "path": "tests/baselines/shipped-baselines-idempotency.test.js",
       "mi": 101.509
+    },
+    {
+      "path": "tests/baselines/writer-epsilon.test.js",
+      "mi": 108.604
     },
     {
       "path": "tests/baselines/writer.test.js",
@@ -1697,6 +1705,10 @@
     {
       "path": "tests/config/limits-template-drift.test.js",
       "mi": 123.149
+    },
+    {
+      "path": "tests/config/quality-epsilon.test.js",
+      "mi": 120.896
     },
     {
       "path": "tests/context-hydrator.test.js",
