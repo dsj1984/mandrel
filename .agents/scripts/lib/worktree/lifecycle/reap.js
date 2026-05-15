@@ -22,7 +22,9 @@ import {
 } from '../bootstrapper.js';
 import { isInsideWorktree, samePath, storyIdFromPath } from '../inspector.js';
 import { sleepSync } from '../node-modules-strategy.js';
+import { checkMergeReachability } from './merge-reachability.js';
 import { recordPendingCleanup } from './pending-cleanup.js';
+import { checkLocalSafety } from './precheck.js';
 import {
   findByPath,
   invalidateWorktreeCache,
@@ -66,93 +68,14 @@ const WINDOWS_CWD_RE =
  * @returns {Promise<{ safe: boolean, reason?: string }>}
  */
 export async function isSafeToRemove(ctx, wtPath, opts = {}) {
-  if (!fs.existsSync(wtPath)) {
-    return { safe: true, reason: 'path-missing' };
-  }
-
-  const status = ctx.git.gitSpawn(wtPath, 'status', '--porcelain');
-  if (status.status !== 0) {
-    return { safe: false, reason: `status-failed: ${status.stderr}` };
-  }
-  if (status.stdout.length > 0) {
-    return { safe: false, reason: 'uncommitted-changes' };
-  }
-
-  const headRes = ctx.git.gitSpawn(wtPath, 'rev-parse', '--abbrev-ref', 'HEAD');
-  if (headRes.status !== 0) {
-    return { safe: false, reason: `rev-parse-failed: ${headRes.stderr}` };
-  }
-  const branch = headRes.stdout;
-  if (branch === 'HEAD') {
-    return { safe: false, reason: 'detached-head' };
-  }
+  const local = checkLocalSafety(ctx, wtPath);
+  if (!local.safe) return local;
+  if (local.reason === 'path-missing') return local;
 
   const epicRef = opts.epicRef ?? opts.epicBranch ?? null;
-  if (!epicRef) {
-    return { safe: true };
-  }
+  if (!epicRef) return { safe: true };
 
-  // Resolve HEAD to a commit SHA inside the worktree. The ancestry test
-  // then runs from `ctx.repoRoot` against that SHA so the result is
-  // independent of the local branch ref (which is the whole point — a
-  // post-rebase branch ref may have moved off the merged tip even though
-  // the merged commit still lives on the Epic).
-  const headShaRes = ctx.git.gitSpawn(wtPath, 'rev-parse', 'HEAD');
-  if (headShaRes.status !== 0) {
-    return {
-      safe: false,
-      reason: `rev-parse-failed: ${headShaRes.stderr || 'HEAD'}`,
-    };
-  }
-  const headSha = headShaRes.stdout.trim();
-  const headShort = headSha.slice(0, 7) || 'HEAD';
-
-  // Primary gate: HEAD is reachable from the Epic ref.
-  const ancestor = ctx.git.gitSpawn(
-    ctx.repoRoot,
-    'merge-base',
-    '--is-ancestor',
-    headSha,
-    epicRef,
-  );
-  if (ancestor.status === 0) {
-    return { safe: true, reason: 'head-reachable-from-epic' };
-  }
-  if (ancestor.status !== 1) {
-    return {
-      safe: false,
-      reason: `merge-check-failed: head=${headShort} epic=${epicRef}: ${
-        ancestor.stderr || ancestor.stdout || 'unknown'
-      }`,
-    };
-  }
-
-  // Fallback: a `--no-ff` merge commit on the Epic for this Story exists.
-  // The merge subject is `feat: ... (resolves #<storyId>)` (see
-  // story-close/merge-runner.js), so a one-line `git log --grep` against
-  // the Epic ref is sufficient — we don't need to walk parents ourselves.
-  const storyMatch = /^story-(\d+)$/.exec(branch);
-  if (storyMatch) {
-    const storyId = storyMatch[1];
-    const grep = ctx.git.gitSpawn(
-      ctx.repoRoot,
-      'log',
-      epicRef,
-      '--merges',
-      '-n',
-      '1',
-      '--pretty=%H',
-      `--grep=resolves #${storyId}`,
-    );
-    if (grep.status === 0 && grep.stdout.trim().length > 0) {
-      return { safe: true, reason: 'merge-commit-reachable' };
-    }
-  }
-
-  return {
-    safe: false,
-    reason: `unmerged-commits: head=${headShort} epic=${epicRef}`,
-  };
+  return checkMergeReachability(ctx, wtPath, local.branch, epicRef);
 }
 
 /**
