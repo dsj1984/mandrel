@@ -41,7 +41,6 @@
 // file?, method?, delta?, baseRef}`. Per-kind modules MUST NOT emit
 // friction directly — the dispatcher is the single emission site.
 
-import { checkKernelVersion, getKindModule } from './lib/baselines/kernel.js';
 import {
   aggregate as aggregateExitCodes,
   EXIT_CONFIG,
@@ -51,6 +50,7 @@ import {
   EXIT_SCHEMA,
 } from './lib/baselines/exit-codes.js';
 import { readBaseFromGit } from './lib/baselines/git-base.js';
+import { checkKernelVersion, getKindModule } from './lib/baselines/kernel.js';
 import * as reader from './lib/baselines/reader.js';
 import { resolveScope } from './lib/baselines/scope.js';
 import { runAsCli } from './lib/cli-utils.js';

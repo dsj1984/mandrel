@@ -18,8 +18,7 @@
 // `check-baselines-exit-codes.test.js`).
 
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import {
+import fs, {
   mkdirSync,
   mkdtempSync,
   readFileSync,
