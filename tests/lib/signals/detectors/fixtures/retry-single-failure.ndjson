@@ -1,0 +1,1 @@
+{"ts":"2026-05-15T00:00:01.000Z","kind":"trace","source":{"tool":"Bash"},"epicId":1721,"storyId":1768,"taskId":1773,"details":{"targetHash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","normalizedHash":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","exitCode":1,"durationMs":11}}
