@@ -949,6 +949,11 @@
     "branches": 100,
     "functions": 25
   },
+  ".agents/scripts/lib/signals/detectors/hotspot.js": {
+    "lines": 98.39,
+    "branches": 84.29,
+    "functions": 100
+  },
   ".agents/scripts/lib/signals/detectors/index.js": {
     "lines": 100,
     "branches": 100,
