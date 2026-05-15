@@ -9,4 +9,5 @@
  * @module lib/signals/detectors
  */
 
+export { detectRetry } from './retry.js';
 export { detectRework } from './rework.js';
