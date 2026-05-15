@@ -109,7 +109,10 @@ describe('shipped baselines — writer-idempotent and canonical', () => {
   it('baselines/crap.json keys rows on `path` (not `file`)', () => {
     const { parsed } = loadShipped('baselines/crap.json');
     const rows = Array.isArray(parsed.rows) ? parsed.rows : [];
-    assert.ok(rows.length > 0, 'shipped crap baseline must carry at least one row');
+    assert.ok(
+      rows.length > 0,
+      'shipped crap baseline must carry at least one row',
+    );
     for (const row of rows) {
       assert.ok(
         typeof row?.path === 'string',

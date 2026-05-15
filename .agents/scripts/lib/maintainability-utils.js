@@ -153,7 +153,11 @@ export function getBaseline(baselinePath) {
       ) {
         const flat = {};
         for (const row of parsed.rows) {
-          if (row && typeof row.path === 'string' && typeof row.mi === 'number') {
+          if (
+            row &&
+            typeof row.path === 'string' &&
+            typeof row.mi === 'number'
+          ) {
             flat[row.path] = row.mi;
           }
         }
