@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  formatMaintainabilityProjection,
-  projectMaintainabilityRegressions,
-} from '../.agents/scripts/lib/close-validation.js';
-import {
   formatMaintainabilityProjection as formatFromSubmodule,
   projectMaintainabilityRegressions as projectFromSubmodule,
 } from '../.agents/scripts/lib/close-validation/projections/maintainability.js';
+import {
+  formatMaintainabilityProjection,
+  projectMaintainabilityRegressions,
+} from '../.agents/scripts/lib/close-validation.js';
 
 /**
  * Unit tests for the pre-merge MI ceiling projection helper.

@@ -17,11 +17,11 @@
 
 import { spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
+import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
 import { storyArtifactPath } from './config/temp-paths.js';
 import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
-import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import {
   recordPass as defaultRecordPass,
   shouldSkip as defaultShouldSkip,
