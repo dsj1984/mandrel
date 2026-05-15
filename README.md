@@ -81,7 +81,7 @@ Five commands take you from zero to a planned, delivered Epic:
 ```powershell
 git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
 node .agents/scripts/agents-bootstrap-github.js --install-workflows
-cp .agents/default-agentrc.json .agentrc.json   # then fill in orchestration.github
+cp .agents/starter-agentrc.json .agentrc.json   # then fill in orchestration.github (see full-agentrc.json for exhaustive reference)
 # in your agentic IDE:
 /epic-plan          # ideation entry — sharpen idea, create the Epic, decompose
 /epic-deliver <id>  # wave loop → validation → review → retro → open PR to main
@@ -153,7 +153,7 @@ themselves live under `agentSettings.quality.codingGuardrails`,
 `agentSettings.quality.autoRefresh`,
 `agentSettings.quality.maintainability`, and
 `agentSettings.quality.crap` in
-[`.agents/default-agentrc.json`](.agents/default-agentrc.json).
+[`.agents/full-agentrc.json`](.agents/full-agentrc.json).
 
 ### For downstream projects
 

@@ -47,7 +47,10 @@ export function readPackageVersion(root = DEFAULT_ROOT) {
 
 export function readVersionFile(root = DEFAULT_ROOT) {
   const raw = readFileSync(resolve(root, '.agents/VERSION'), 'utf8');
-  return raw.trim();
+  // The file may carry an `# x-release-please-version` marker comment so
+  // release-please's generic updater can find it. Strip the comment tail
+  // and any whitespace before comparing.
+  return raw.split('\n')[0].split('#')[0].trim();
 }
 
 export function readChangelogVersion(root = DEFAULT_ROOT) {
@@ -56,11 +59,10 @@ export function readChangelogVersion(root = DEFAULT_ROOT) {
   if (match) {
     return match[1];
   }
-  // No `## [X.Y.Z]` heading yet (e.g. the v6 pre-cut window after Story
-  // #1605 consolidated the 5.x history out of the live file but before
-  // the v6.0.0 release entry has been written). An `## [Unreleased]`
-  // anchor is treated as a wildcard that matches whatever version the
-  // other two sources agree on.
+  // No `## [X.Y.Z]` heading yet — release-please opens the next release
+  // PR with an `## [Unreleased]` anchor that gets rewritten to the
+  // concrete version on merge. Treat the anchor as a wildcard that
+  // matches whatever version the other two sources agree on.
   if (CHANGELOG_UNRELEASED_RE.test(raw)) {
     return null;
   }
@@ -77,8 +79,9 @@ export function checkVersionSync(root = DEFAULT_ROOT) {
   };
 
   // The CHANGELOG may legitimately return `null` while sitting on a bare
-  // `## [Unreleased]` anchor (the v6 pre-cut window). When that happens,
-  // the changelog source is a wildcard — drop it from the equality check.
+  // `## [Unreleased]` anchor (release-please's pre-cut window). When
+  // that happens, the changelog source is a wildcard — drop it from
+  // the equality check.
   const concreteSources = Object.fromEntries(
     Object.entries(sources).filter(([, version]) => version != null),
   );

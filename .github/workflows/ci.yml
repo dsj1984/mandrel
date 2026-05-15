@@ -183,7 +183,8 @@ jobs:
           echo "Validating dist contents..."
           test -f instructions.md \
             && test -f VERSION \
-            && test -f default-agentrc.json \
+            && test -f starter-agentrc.json \
+            && test -f full-agentrc.json \
             && test -d personas \
             && test -d rules \
             && test -d skills \

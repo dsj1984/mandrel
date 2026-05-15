@@ -19,7 +19,12 @@ function agentsPath(...parts) {
 // Core file existence
 // ---------------------------------------------------------------------------
 describe('Core .agents/ files', () => {
-  const coreRequired = ['default-agentrc.json', 'instructions.md', 'README.md'];
+  const coreRequired = [
+    'full-agentrc.json',
+    'starter-agentrc.json',
+    'instructions.md',
+    'README.md',
+  ];
 
   for (const file of coreRequired) {
     it(`${file} exists`, () => {

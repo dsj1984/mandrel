@@ -23,7 +23,7 @@ description: >-
 
 This procedure performs a **schema-driven validate-then-merge** between the
 project-local configuration (`.agentrc.json` at the repository root) and the
-framework template (`.agents/default-agentrc.json`). The authoritative contract
+framework reference template (`.agents/full-agentrc.json`). The authoritative contract
 is the schema (`.agents/schemas/agentrc.schema.json`, mirrored at runtime by the
 AJV schemas in `.agents/scripts/lib/config-schema.js` /
 `config-settings-schema.js`). Any project key that validates is preserved —
@@ -50,7 +50,7 @@ The reconciliation rules are:
 ## Step 0 — Resolve File Paths
 
 1. `[PROJECT_CONFIG]` → `.agentrc.json` at the repository root
-2. `[TEMPLATE]` → `.agents/default-agentrc.json`
+2. `[TEMPLATE]` → `.agents/full-agentrc.json`
 3. `[SCHEMA]` → `.agents/schemas/agentrc.schema.json`
 
 If `[TEMPLATE]` or `[SCHEMA]` is missing, abort — the framework submodule is

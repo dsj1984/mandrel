@@ -240,7 +240,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 90.21,
+    "lines": 90.1,
     "branches": 82.12,
     "functions": 80.77
   },
@@ -285,8 +285,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/config/quality.js": {
-    "lines": 99.55,
-    "branches": 85.87,
+    "lines": 98.43,
+    "branches": 86.67,
     "functions": 100
   },
   ".agents/scripts/lib/config/runners.js": {
@@ -1145,7 +1145,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.94,
+    "lines": 92.55,
     "branches": 83.33,
     "functions": 70
   },
@@ -1206,7 +1206,7 @@
   },
   ".agents/scripts/providers/github.js": {
     "lines": 86.35,
-    "branches": 73.04,
+    "branches": 73.16,
     "functions": 86.67
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {

@@ -2,18 +2,18 @@
 
 This is the consumer-facing reference for the quality gates the framework
 runs against your repo: the lint baseline ratchet, the maintainability
-ratchet, the CRAP per-method gate, the **v6 absolute quality floors**
+ratchet, the CRAP per-method gate, the **absolute quality floors**
 (90/85/90 coverage, MI ≥ 70, CRAP ≤ 20), the anti-thrashing protocol,
 and the concurrent close-safety retry that protects the Epic branch when
 multiple Stories close in quick succession.
 
 The floor + ratchet duo is intentional: the ratchet protects against
-regressions on touched files; the floor enforces an absolute v6
-threshold on every in-scope file regardless of diff scope. See
-[§ Absolute quality floors (v6 / Epic #1184)](#absolute-quality-floors-v6--epic-1184)
+regressions on touched files; the floor enforces an absolute threshold
+on every in-scope file regardless of diff scope. See
+[§ Absolute quality floors (Epic #1184)](#absolute-quality-floors-epic-1184)
 below for the policy and [`decisions.md`](decisions.md) (ADR
 20260512-coupling-stance) for the framework-wide stance that motivates
-the lift at the v6 major boundary.
+the lift the floor gate represents.
 
 The configuration knobs that drive these gates live in
 [`docs/configuration.md`](configuration.md) under
@@ -127,7 +127,7 @@ artifact.
 
 ---
 
-## Absolute quality floors (v6 / Epic #1184)
+## Absolute quality floors (Epic #1184)
 
 The per-file ratchet only protects against **regressions** — if a file
 has been sitting at 60 % coverage or MI = 58 since the v5 baseline, the
@@ -168,7 +168,7 @@ trips the gate.
   and **CRAP Check** steps already enforce floors. Epic #1184 added an
   explicit **Coverage Baseline + Floor Check** step (diff-scoped on
   PRs, `--full-scope` on push-to-main) to complete the three-axis
-  coverage of the v6 contract.
+  coverage of the floor-gate contract.
 
 ### Opt-out
 
@@ -209,15 +209,15 @@ against requirements 1 and 2 above.
 
 ### Discontinuity with v5 baselines
 
-The v6 floor gate landed alongside a fresh baseline reset
+The floor gate landed alongside a fresh baseline reset
 (Tasks #1623, #1625, #1626, #1629). Any direct numeric comparison
-against pre-v6 baseline snapshots is meaningless because the v5 scope
-included files that v6 excludes (CLI shells, generated artifacts) and
-because the absolute-floor gate is new — historical files that were
-"green" on the ratchet may now show as below floor and require either
-real test additions or an intentional `.c8rc.cjs` exclude. The Story
-#1602 close-out lists every file that flipped category in the v5 → v6
-reset.
+against pre-floor-gate baseline snapshots is meaningless because the
+pre-rebrand scope included files the current tree excludes (CLI shells,
+generated artifacts) and because the absolute-floor gate is new —
+historical files that were "green" on the ratchet may now show as below
+floor and require either real test additions or an intentional
+`.c8rc.cjs` exclude. The Story #1602 close-out lists every file that
+flipped category in the reset.
 
 ---
 
@@ -426,34 +426,33 @@ high-impact operations that should trigger blocker escalation.
 
 ---
 
-## v6.1.0 baseline reset
+## Post-floor-gate baseline reset (Story #1701)
 
 **Date:** 2026-05-14
 **Commit:** `0657272` (Story #1701, Epic #1653)
 **Files refreshed:** `baselines/coverage.json`,
 `baselines/maintainability.json`, `baselines/crap.json`.
 
-The v6.1.0 release ships a one-time baseline reset that captures fresh
-coverage, maintainability, and CRAP snapshots on the post-remediation
-`main` HEAD. The ratchet continues from this new floor, not from v5.x or
-v6.0.0 history.
+A one-time baseline reset captured fresh coverage, maintainability, and
+CRAP snapshots on the post-remediation `main` HEAD. The ratchet
+continues from this new floor, not from any pre-floor-gate history.
 
-**Policy:** the v6.1.0 baselines are **non-comparable** to any prior
-baseline. Do not diff per-file numbers against v5.x or v6.0.0 entries to
+**Policy:** these baselines are **non-comparable** to any prior
+baseline. Do not diff per-file numbers against pre-reset entries to
 reason about regressions — the post-remediation tree contains refactors,
 extractions, and coverage gains that shift the absolute numbers in ways
 the per-file ratchet cannot reconcile across the discontinuity. Use the
-v6.1.0 capture as the new floor; ratchet from there.
+post-reset capture as the new floor; ratchet from there.
 
-**Why now:** v6.0.0 closed the Epic #1184 floor-gate rollout. The
-absolute-floor gate (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20) is now wired
-into `.husky/pre-push` and the CI coverage workflow (see
-[`§ Absolute quality floors`](#absolute-quality-floors-v6--epic-1184)).
+**Why:** Epic #1184 closed the floor-gate rollout. The absolute-floor
+gate (coverage 90/85/90, MI ≥ 70, CRAP ≤ 20) is wired into
+`.husky/pre-push` and the CI coverage workflow (see
+[`§ Absolute quality floors`](#absolute-quality-floors-epic-1184)).
 With the floor enforced on every in-scope file, every per-file baseline
-entry must clear the absolute floor — the v6.1.0 snapshot is the first
+entry must clear the absolute floor — this snapshot is the first
 capture that holds that invariant repository-wide.
 
-**Operator action:** none. The new baseline is committed and
+**Operator action:** none. The baseline is committed and
 `maintainability:check` / `coverage:check` / `crap:check` pass against
 it out of the box. The next regression you see will be diffed against
-the v6.1.0 baseline, not against pre-reset history.
+this baseline, not against pre-reset history.

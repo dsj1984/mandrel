@@ -2,12 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
-## [6.0.0] — 2026-05-13
+## [1.0.0] — 2026-05-15
 
-**Mandrel rebrand plus v6 breaking cut** (Epic #1184). History for v1.x–v5.41.x
-lives only in [`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md). One-time migration CLIs shipped for Epic #1184 (`docs/migration-v6.md`, `migrate-to-v6*` / `rebrand-to-mandrel*`, tests) are removed from this tree; adopters bump to **`mandrel`** / **`mandrel.git`** on submodule and npm deps.
+**Mandrel 1.0 — rebrand + clean slate.** The framework relaunches under the
+**Mandrel** name with a fresh major-version line. The pre-rebrand version
+history (v1.x – v5.41.x under the old name, plus the transitional `6.0.0`
+cut-over tag) is preserved verbatim in
+[`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md) and is **not
+comparable** to entries under this line — file structure, package name,
+and configuration shapes all changed at the rebrand boundary. New
+adopters target the **`mandrel`** package / **`mandrel.git`** submodule
+from this point forward.
 
-### Added (Epic #1185 — dispatch hints & parallel tooling)
+### Added (dispatch hints & parallel tooling)
 
 All optional unless used; untouched consumers behave as before.
 
@@ -19,7 +26,7 @@ All optional unless used; untouched consumers behave as before.
   items; omitted when absent. See PRD #1276 / Tech Spec #1277 /
   Stories #1326–#1329.
 
-### Breaking changes (Epic #1178 — decomposition & manifest)
+### Breaking changes (decomposition & manifest)
 
 Hard cut — no aliases. Update `.agentrc.json` in lockstep; legacy shapes fail
 schema validation.
@@ -39,6 +46,37 @@ schema validation.
   checkboxes, per‑wave decomposition notes, single footer `<details>`). Behavior
   is locked by **`tests/lib/presentation/manifest-formatter-end-to-end.test.js`**.
 
+### Changed (Story #1922 — agentrc template rename + role split)
+
+- **Renamed `.agents/min-agentrc.json` → `.agents/starter-agentrc.json`**. The
+  bootstrap delta-seed consumers copy to `.agentrc.json` is now named for what
+  it is: a *starter*, not the absolute minimum. Content unchanged from the
+  pre-rename `min-agentrc.json`.
+- **Renamed `.agents/default-agentrc.json` → `.agents/full-agentrc.json`** and
+  expanded it to enumerate every schema key. The reference template now
+  includes the three Epic #1720 gates (`mutation`, `lighthouse`,
+  `bundleSize`) plus the two `worktreeIsolation` keys (`primeFromPath`,
+  `allowSymlinkOnWindows`) the schema accepts. Values mirror the in-code
+  framework defaults so the file documents reality, not aspiration. Story
+  #1911 will lift the placeholder mutation / lighthouse / bundle-size
+  floors to their high-bar values.
+- **Trimmed the dogfood `.agentrc.json`** to minimum + delta. Dropped every
+  key whose value matched a framework default (`planning.maxTickets`,
+  `delivery.execution.timeoutMs`, `delivery.maxTokenBudget`,
+  `delivery.deliverRunner.concurrencyCap`, all of `delivery.signals.*`,
+  `delivery.quality.gateScoping`, the entire `lint` gate, and several
+  inherited fields from `coverage` / `crap` / `maintainability`). The
+  remaining keys are genuine project overrides — primarily the workspace
+  floors, the symlink worktree strategy, and the `riskHeuristics` /
+  `docsFreshness.paths` lists whose runtime fallback is empty.
+- **Bootstrap workflow** ([agents-bootstrap-project.md §2.5](../.agents/workflows/agents-bootstrap-project.md))
+  rewritten to seed from `starter-agentrc.json` with a refreshed
+  "Why starter, not full?" callout explaining the delta-vs-copy rationale.
+
+No schema changes. The static schema mirror, AJV runtime schemas, and the
+runtime defaults in code (`LIMITS_DEFAULTS`, `*_GATE_DEFAULTS`,
+`DEFAULT_DELIVER_RUNNER`, etc.) are untouched.
+
 ### Removed
 
 - Epic #1235 hands-off CI automation: bot approver, auto-fix, triage-PR,
@@ -57,3 +95,8 @@ schema validation.
 - **`epic-complete` webhook** fires after **`gh pr create`** (**`epic-deliver-finalize.js`**).
 - **Maintainability** gate default tolerance **0.001 → 0.5**, overridable via
   **`agentSettings.quality.maintainability.tolerance`** / **`CRAP_TOLERANCE`**.
+
+---
+
+Pre-rebrand history (the old-name v1.x–v5.41.x line and the 6.0.0 cut-over
+tag) is preserved in [`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md).

@@ -38,7 +38,6 @@
     }
   },
   "planning": {
-    "maxTickets": 60,
     "riskHeuristics": [
       "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
       "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
@@ -48,13 +47,10 @@
     ]
   },
   "delivery": {
-    "execution": { "timeoutMs": 600000 },
-    "maxTokenBudget": 200000,
     "docsFreshness": {
       "paths": ["README.md", "docs/CHANGELOG.md"]
     },
     "deliverRunner": {
-      "concurrencyCap": 3,
       "progressReportIntervalSec": 300
     },
     "worktreeIsolation": {
@@ -67,42 +63,16 @@
       "reapOnCancel": true,
       "bootstrapFiles": [".env"]
     },
-    "signals": {
-      "hotspot": { "p95Multiplier": 1.25 },
-      "rework": { "editsPerFile": 5 },
-      "retry": { "repeatCount": 3 }
-    },
     "quality": {
-      "gateScoping": { "scope": "diff", "diffRef": "main" },
       "gates": {
-        "lint": {
-          "enabled": true,
-          "baselinePath": "baselines/lint.json",
-          "tolerance": { "kind": "absolute", "value": 0 },
-          "floors": { "*": { "errors": 0 } }
-        },
         "coverage": {
-          "enabled": true,
-          "baselinePath": "baselines/coverage.json",
-          "tolerance": { "kind": "absolute", "value": 0 },
-          "floors": { "*": { "lines": 40, "branches": 40, "functions": 0 } },
-          "coveragePath": "coverage/coverage-final.json"
+          "floors": { "*": { "lines": 40, "branches": 40, "functions": 0 } }
         },
         "crap": {
-          "enabled": true,
-          "baselinePath": "baselines/crap.json",
-          "tolerance": { "kind": "absolute", "value": 0.05 },
           "floors": { "*": { "crap": 30 } },
-          "targetDirs": [".agents/scripts"],
-          "newMethodCeiling": 30,
-          "requireCoverage": true,
-          "friction": { "markerKey": "crap-baseline-regression" },
-          "refreshTag": "baseline-refresh:"
+          "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "enabled": true,
-          "baselinePath": "baselines/maintainability.json",
-          "tolerance": { "kind": "absolute", "value": 0.5 },
           "floors": { "*": { "maintainability": 0 } },
           "targetDirs": [".agents/scripts", "tests"]
         }
