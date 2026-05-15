@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T19:49:56.516Z",
+  "generatedAt": "2026-05-15T20:43:11.353Z",
   "rollup": {
     "*": {
       "min": 0,
       "p50": 103.235,
-      "p95": 121.571
+      "p95": 121.479
     }
   },
   "rows": [
@@ -392,7 +392,7 @@
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
-      "mi": 112.695
+      "mi": 112.427
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
@@ -525,6 +525,10 @@
     {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
       "mi": 93.441
+    },
+    {
+      "path": ".agents/scripts/lib/error-redactor.js",
+      "mi": 99.894
     },
     {
       "path": ".agents/scripts/lib/errors/index.js",
@@ -1609,6 +1613,10 @@
     {
       "path": "tests/ci-workflow-stderr-capture.test.js",
       "mi": 113.945
+    },
+    {
+      "path": "tests/cli-utils-redactor.test.js",
+      "mi": 113.227
     },
     {
       "path": "tests/close-validation-mi-projection.test.js",
