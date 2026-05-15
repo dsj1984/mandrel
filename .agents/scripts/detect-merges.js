@@ -96,7 +96,7 @@ export async function main() {
           `Conflict marker '${marker.trim()}' found in tracked file: ${file}`,
         );
       }
-      Logger.fatal(
+      throw new Error(
         '\nERROR: Merge conflicts detected. Please resolve them before proceeding.',
       );
     } else {
@@ -104,7 +104,7 @@ export async function main() {
       process.exit(0);
     }
   } catch (err) {
-    Logger.fatal(`Error detecting merges: ${err.message}`);
+    throw new Error(`Error detecting merges: ${err.message}`);
   }
 }
 

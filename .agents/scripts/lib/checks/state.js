@@ -174,6 +174,24 @@ function defaultLockProbe(absPath) {
 }
 
 /**
+ * Predicate: is `pid` a shape we can hand to `process.kill(_, 0)`? Splits
+ * the input-validity check out of `defaultPidLivenessProbe` so the
+ * defensive guard cascade and the OS round-trip are independently
+ * testable. Exported so sibling tests can exercise every branch without
+ * monkey-patching `process.kill`.
+ *
+ * @param {*} pid
+ * @returns {boolean}
+ */
+export function validatePidProbeInputs(pid) {
+  if (pid === null || pid === undefined) return false;
+  if (typeof pid !== 'number') return false;
+  if (!Number.isFinite(pid)) return false;
+  if (pid <= 0) return false;
+  return true;
+}
+
+/**
  * Default process-liveness probe — `process.kill(pid, 0)` checks existence
  * without delivering a signal. Returns true for live, false for dead/missing.
  * Separated from the lock probe so tests can independently spy on each.
@@ -182,7 +200,7 @@ function defaultLockProbe(absPath) {
  * @returns {boolean}
  */
 function defaultPidLivenessProbe(pid) {
-  if (!Number.isFinite(pid) || pid <= 0) return false;
+  if (!validatePidProbeInputs(pid)) return false;
   try {
     process.kill(pid, 0);
     return true;

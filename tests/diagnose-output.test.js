@@ -4,6 +4,7 @@ import {
   parseArgs,
   renderTable,
   runDiagnose,
+  validateDiagnoseArgs,
 } from '../.agents/scripts/diagnose.js';
 
 /**
@@ -274,4 +275,64 @@ describe('runDiagnose — --json output shape', () => {
     assert.equal(result.findings.length, 1);
     assert.equal(result.findings[0].scope, 'epic-deliver');
   });
+});
+
+describe('diagnose — validateDiagnoseArgs (predicate)', () => {
+  const cases = [
+    {
+      name: 'HELP error → help envelope with usage text',
+      err: new Error('HELP'),
+      expectKind: 'help',
+      expectIncludes: 'Usage: diagnose',
+    },
+    {
+      name: 'unknown-arg error → error envelope, exit 1',
+      err: new Error('unknown argument: --bogus'),
+      expectKind: 'error',
+      expectIncludes: '[diagnose] unknown argument: --bogus',
+      expectExitCode: 1,
+    },
+    {
+      name: 'scope-missing-value error → error envelope, exit 1',
+      err: new Error('--scope requires a value'),
+      expectKind: 'error',
+      expectIncludes: '[diagnose] --scope requires a value',
+      expectExitCode: 1,
+    },
+    {
+      name: 'null error coerces to string envelope, exit 1',
+      err: null,
+      expectKind: 'error',
+      expectIncludes: '[diagnose] null',
+      expectExitCode: 1,
+    },
+    {
+      name: 'undefined error coerces to string envelope, exit 1',
+      err: undefined,
+      expectKind: 'error',
+      expectIncludes: '[diagnose] undefined',
+      expectExitCode: 1,
+    },
+    {
+      name: 'plain object with no message coerces to [object Object] envelope',
+      err: {},
+      expectKind: 'error',
+      expectIncludes: '[diagnose] [object Object]',
+      expectExitCode: 1,
+    },
+  ];
+
+  for (const tc of cases) {
+    it(tc.name, () => {
+      const result = validateDiagnoseArgs(tc.err);
+      assert.equal(result.kind, tc.expectKind);
+      assert.ok(
+        result.text.includes(tc.expectIncludes),
+        `expected text to include ${JSON.stringify(tc.expectIncludes)}, got ${JSON.stringify(result.text)}`,
+      );
+      if (tc.expectKind === 'error') {
+        assert.equal(result.exitCode, tc.expectExitCode);
+      }
+    });
+  }
 });

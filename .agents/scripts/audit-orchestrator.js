@@ -175,7 +175,7 @@ async function main() {
   });
 
   if (!values.ticket || !values.gate) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node audit-orchestrator.js --ticket <ID> --gate <gateName> [--base-branch <branch>]',
     );
   }

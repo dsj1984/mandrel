@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  collectValidStorySamples,
   computeEpicPerfReport,
   computeStoryPerfSummary,
 } from '../../../.agents/scripts/lib/observability/perf-aggregator.js';
@@ -344,4 +345,44 @@ describe('computeEpicPerfReport', () => {
       }
     });
   });
+});
+
+describe('collectValidStorySamples (predicate)', () => {
+  const cases = [
+    { name: 'null input → []', input: null, expected: [] },
+    { name: 'undefined input → []', input: undefined, expected: [] },
+    { name: 'empty iterable → []', input: [], expected: [] },
+    {
+      name: 'drops non-object entries (null/string/number)',
+      input: [null, 'nope', 42],
+      expected: [],
+    },
+    {
+      name: 'drops entries with wrong kind',
+      input: [{ kind: 'other' }, { kind: 'story-perf-summary', storyId: 1 }],
+      expected: [{ kind: 'story-perf-summary', storyId: 1 }],
+    },
+    {
+      name: 'drops entries with no kind field',
+      input: [{ storyId: 1 }, { kind: 'story-perf-summary', storyId: 2 }],
+      expected: [{ kind: 'story-perf-summary', storyId: 2 }],
+    },
+    {
+      name: 'preserves multiple valid samples in iteration order',
+      input: [
+        { kind: 'story-perf-summary', storyId: 1 },
+        { kind: 'story-perf-summary', storyId: 2 },
+      ],
+      expected: [
+        { kind: 'story-perf-summary', storyId: 1 },
+        { kind: 'story-perf-summary', storyId: 2 },
+      ],
+    },
+  ];
+
+  for (const tc of cases) {
+    it(tc.name, () => {
+      assert.deepEqual(collectValidStorySamples(tc.input), tc.expected);
+    });
+  }
 });

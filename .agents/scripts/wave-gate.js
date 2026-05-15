@@ -79,7 +79,7 @@ export async function runWaveGate({
   injectedConcurrency,
 } = {}) {
   if (!epicId || Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node wave-gate.js --epic <EPIC_ID>');
+    throw new Error('Usage: node wave-gate.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();

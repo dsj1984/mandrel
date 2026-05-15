@@ -52,6 +52,106 @@ function rollUpStoryFocus(storyGroups) {
  * @param {Map<number|string, {tasks: object[]}>} storyGroups
  * @returns {number}
  */
+/**
+ * Predicate: would adding a focus-overlap edge between stories `a` and
+ * `b` be both semantically correct (they overlap) and graph-safe (neither
+ * direction is already reachable)? Returns `true` when the caller should
+ * insert an edge, `false` when the pair should be skipped.
+ *
+ * Extracted from `addFocusOverlapEdges` so the per-pair guard cascade
+ * (missing focus, both-empty-non-global, no overlap, reachability collision)
+ * is straight-line and independently testable; the parent loop body
+ * collapses to "decide direction + push if not already present" once the
+ * predicate has cleared.
+ *
+ * @param {object} args
+ * @param {{areas: Set<string>, global: boolean}|undefined} args.focusA
+ *   Rolled-up focus bag for story `a`.
+ * @param {{areas: Set<string>, global: boolean}|undefined} args.focusB
+ *   Rolled-up focus bag for story `b`.
+ * @param {Map<number|string, Set<number|string>>} args.reachable
+ *   Transitive-reach map from `computeReachability(adjacency)`.
+ * @param {number|string} args.a
+ * @param {number|string} args.b
+ * @returns {boolean}
+ */
+export function isFocusOverlapEdgeEligible({
+  focusA,
+  focusB,
+  reachable,
+  a,
+  b,
+}) {
+  if (!hasUsableFocus(focusA)) return false;
+  if (!hasUsableFocus(focusB)) return false;
+  if (!focusBagsOverlap(focusA, focusB)) return false;
+  if (eitherDirectionAlreadyReachable(reachable, a, b)) return false;
+  return true;
+}
+
+/**
+ * Predicate: does the focus bag actually carry usable focus signal? A
+ * bag with no declared areas and not flagged global is treated as
+ * "unknown" and skipped by the overlap predicate — the caller deliberately
+ * over-serializes only when at least one side declares scope.
+ *
+ * @param {{areas: Set<string>, global: boolean}|undefined} focus
+ * @returns {boolean}
+ */
+function hasUsableFocus(focus) {
+  if (!focus) return false;
+  if (focus.global) return true;
+  return focus.areas.size > 0;
+}
+
+/**
+ * Predicate: do two rolled-up focus bags overlap? Either side being
+ * global implies overlap; otherwise we test set intersection.
+ *
+ * @param {{areas: Set<string>, global: boolean}} focusA
+ * @param {{areas: Set<string>, global: boolean}} focusB
+ * @returns {boolean}
+ */
+function focusBagsOverlap(focusA, focusB) {
+  if (focusA.global || focusB.global) return true;
+  for (const area of focusA.areas) {
+    if (focusB.areas.has(area)) return true;
+  }
+  return false;
+}
+
+/**
+ * Predicate: is either direction `a → b` or `b → a` already reachable in
+ * the existing adjacency closure? When yes, adding a new overlap edge
+ * would either be redundant or risk a cycle, so the caller skips.
+ *
+ * @param {Map<number|string, Set<number|string>>} reachable
+ * @param {number|string} a
+ * @param {number|string} b
+ * @returns {boolean}
+ */
+function eitherDirectionAlreadyReachable(reachable, a, b) {
+  if (reachable.get(a)?.has(b)) return true;
+  if (reachable.get(b)?.has(a)) return true;
+  return false;
+}
+
+/**
+ * Pick the deterministic edge direction for a focus-overlap pair: lower
+ * id runs first. Numeric ids sort numerically; string ids (rare — only
+ * `__ungrouped__`, already filtered upstream) fall back to lexicographic.
+ *
+ * @param {number|string} a
+ * @param {number|string} b
+ * @returns {[from: number|string, to: number|string]}
+ */
+function pickEdgeDirection(a, b) {
+  if (typeof a === 'number' && typeof b === 'number') {
+    return a < b ? [a, b] : [b, a];
+  }
+  return String(a) < String(b) ? [a, b] : [b, a];
+}
+
 function addFocusOverlapEdges(adjacency, storyGroups) {
   const storyFocus = rollUpStoryFocus(storyGroups);
   const reachable = computeReachability(adjacency);
@@ -64,32 +164,16 @@ function addFocusOverlapEdges(adjacency, storyGroups) {
     for (let j = i + 1; j < storyIds.length; j++) {
       const a = storyIds[i];
       const b = storyIds[j];
-      const fa = storyFocus.get(a);
-      const fb = storyFocus.get(b);
-      if (!fa || !fb) continue;
-      if (fa.areas.size === 0 && !fa.global) continue;
-      if (fb.areas.size === 0 && !fb.global) continue;
+      const eligible = isFocusOverlapEdgeEligible({
+        focusA: storyFocus.get(a),
+        focusB: storyFocus.get(b),
+        reachable,
+        a,
+        b,
+      });
+      if (!eligible) continue;
 
-      const overlap =
-        fa.global || fb.global || [...fa.areas].some((x) => fb.areas.has(x));
-      if (!overlap) continue;
-
-      const aReachesB = reachable.get(a)?.has(b);
-      const bReachesA = reachable.get(b)?.has(a);
-      if (aReachesB || bReachesA) continue;
-
-      // Deterministic direction: lower id runs first. Numeric ids sort
-      // numerically; string ids (rare — only `__ungrouped__`, already
-      // filtered) would fall through to lexicographic, which is fine.
-      const [from, to] =
-        typeof a === 'number' && typeof b === 'number'
-          ? a < b
-            ? [a, b]
-            : [b, a]
-          : String(a) < String(b)
-            ? [a, b]
-            : [b, a];
-
+      const [from, to] = pickEdgeDirection(a, b);
       const deps = adjacency.get(to) ?? [];
       if (!deps.includes(from)) {
         deps.push(from);

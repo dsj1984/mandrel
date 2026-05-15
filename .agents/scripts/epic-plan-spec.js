@@ -453,14 +453,14 @@ async function main() {
   });
 
   if (!values.epic) {
-    Logger.fatal(
+    throw new Error(
       'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
     );
   }
 
   const epicId = Number.parseInt(values.epic, 10);
   if (Number.isNaN(epicId)) {
-    Logger.fatal(`Invalid epic ID: "${values.epic}" — must be a number.`);
+    throw new Error(`Invalid epic ID: "${values.epic}" — must be a number.`);
   }
 
   let orchestration;
@@ -469,7 +469,7 @@ async function main() {
     ({ orchestration, agentSettings: settings } = resolveConfig());
     validateOrchestrationConfig(orchestration);
   } catch (err) {
-    Logger.fatal(
+    throw new Error(
       `Orchestration config schema validation failed:\n${err.message}`,
     );
   }
@@ -499,7 +499,7 @@ async function main() {
   }
 
   if (!values.prd || !values.techspec) {
-    Logger.fatal(
+    throw new Error(
       'Missing --prd and/or --techspec file paths. (Use --emit-context first to gather authoring context.)',
     );
   }

@@ -9,6 +9,11 @@
     "branches": 62.24,
     "functions": 100
   },
+  ".agents/scripts/check-dead-exports.js": {
+    "lines": 89.64,
+    "branches": 83.93,
+    "functions": 81.82
+  },
   ".agents/scripts/check-mutation.js": {
     "lines": 93.58,
     "branches": 81.43,
@@ -20,14 +25,14 @@
     "functions": 100
   },
   ".agents/scripts/delete-epic-branches.js": {
-    "lines": 86.43,
+    "lines": 86.74,
     "branches": 90,
     "functions": 83.33
   },
   ".agents/scripts/diagnose.js": {
-    "lines": 87.31,
-    "branches": 83.33,
-    "functions": 66.67
+    "lines": 92.83,
+    "branches": 86.05,
+    "functions": 71.43
   },
   ".agents/scripts/epic-code-review.js": {
     "lines": 96.58,
@@ -200,9 +205,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/checks/state.js": {
-    "lines": 92.51,
-    "branches": 89.58,
-    "functions": 81.82
+    "lines": 92.81,
+    "branches": 90.48,
+    "functions": 83.33
   },
   ".agents/scripts/lib/checks/story-init-not-backgrounded.js": {
     "lines": 97.85,
@@ -240,9 +245,24 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 90.1,
-    "branches": 82.12,
-    "functions": 80.77
+    "lines": 89.31,
+    "branches": 84.07,
+    "functions": 83.33
+  },
+  ".agents/scripts/lib/close-validation/projections/head-sha.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/close-validation/projections/inputs.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/close-validation/projections/maintainability.js": {
+    "lines": 100,
+    "branches": 84.44,
+    "functions": 100
   },
   ".agents/scripts/lib/config-gates-schema.js": {
     "lines": 100,
@@ -421,7 +441,7 @@
   },
   ".agents/scripts/lib/git/cached-fetch.js": {
     "lines": 94.81,
-    "branches": 95.83,
+    "branches": 96,
     "functions": 63.64
   },
   ".agents/scripts/lib/Graph.js": {
@@ -505,8 +525,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/observability/perf-aggregator.js": {
-    "lines": 98.13,
-    "branches": 81.1,
+    "lines": 98.28,
+    "branches": 82.44,
     "functions": 100
   },
   ".agents/scripts/lib/observability/signals-writer.js": {
@@ -555,8 +575,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dependency-analyzer.js": {
-    "lines": 94.85,
-    "branches": 80,
+    "lines": 96.76,
+    "branches": 87.1,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/detectors-phase.js": {
@@ -640,8 +660,23 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
-    "lines": 92.61,
-    "branches": 71.92,
+    "lines": 89.31,
+    "branches": 77.48,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js": {
+    "lines": 99.14,
+    "branches": 78.79,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js": {
+    "lines": 100,
+    "branches": 85.71,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js": {
+    "lines": 98.66,
+    "branches": 74.63,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
@@ -671,7 +706,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-runner/sub-agent-return.js": {
     "lines": 95.21,
-    "branches": 86.49,
+    "branches": 86.67,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/wave-observer.js": {
@@ -800,9 +835,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
-    "lines": 85.88,
-    "branches": 71.56,
-    "functions": 78.57
+    "lines": 86.3,
+    "branches": 73.28,
+    "functions": 80
   },
   ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
     "lines": 100,
@@ -870,8 +905,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/task-body-validator.js": {
-    "lines": 96.64,
-    "branches": 86,
+    "lines": 100,
+    "branches": 95,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/task-fetcher.js": {
@@ -890,9 +925,24 @@
     "functions": 93.75
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 97.24,
-    "branches": 85.07,
-    "functions": 96.15
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
+  ".agents/scripts/lib/orchestration/ticketing/bulk.js": {
+    "lines": 97.68,
+    "branches": 82.08,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/ticketing/reads.js": {
+    "lines": 99.64,
+    "branches": 90.24,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/ticketing/state.js": {
+    "lines": 97.66,
+    "branches": 94.81,
+    "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
     "lines": 87.35,
@@ -902,6 +952,21 @@
   ".agents/scripts/lib/orchestration/wave-marker.js": {
     "lines": 100,
     "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/wave-record-io.js": {
+    "lines": 77.21,
+    "branches": 60,
+    "functions": 80
+  },
+  ".agents/scripts/lib/orchestration/wave-record-notifications.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/wave-record-projection.js": {
+    "lines": 99.05,
+    "branches": 90.55,
     "functions": 100
   },
   ".agents/scripts/lib/path-security.js": {
@@ -919,9 +984,19 @@
     "branches": 58.82,
     "functions": 50
   },
+  ".agents/scripts/lib/presentation/manifest-builder.js": {
+    "lines": 100,
+    "branches": 96.83,
+    "functions": 100
+  },
   ".agents/scripts/lib/presentation/manifest-formatter.js": {
-    "lines": 97.14,
-    "branches": 85.53,
+    "lines": 89.66,
+    "branches": 83.33,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-helpers.js": {
+    "lines": 98.55,
+    "branches": 90.53,
     "functions": 100
   },
   ".agents/scripts/lib/presentation/manifest-persistence.js": {
@@ -929,9 +1004,24 @@
     "branches": 79.59,
     "functions": 100
   },
+  ".agents/scripts/lib/presentation/manifest-procedures.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-render-waves.js": {
+    "lines": 99.13,
+    "branches": 86.89,
+    "functions": 100
+  },
   ".agents/scripts/lib/presentation/manifest-renderer.js": {
     "lines": 100,
     "branches": 84.78,
+    "functions": 100
+  },
+  ".agents/scripts/lib/presentation/manifest-story-views.js": {
+    "lines": 100,
+    "branches": 80,
     "functions": 100
   },
   ".agents/scripts/lib/provider-factory.js": {
@@ -1120,8 +1210,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/wave-runner/tick.js": {
-    "lines": 95.74,
-    "branches": 83.49,
+    "lines": 96.17,
+    "branches": 85.84,
     "functions": 100
   },
   ".agents/scripts/lib/wave-runner/wave-runner-error.js": {
@@ -1145,7 +1235,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.55,
+    "lines": 92.94,
     "branches": 83.33,
     "functions": 70
   },
@@ -1184,14 +1274,24 @@
     "branches": 81.25,
     "functions": 100
   },
+  ".agents/scripts/lib/worktree/lifecycle/merge-reachability.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js": {
     "lines": 98.48,
     "branches": 78.46,
     "functions": 100
   },
+  ".agents/scripts/lib/worktree/lifecycle/precheck.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
   ".agents/scripts/lib/worktree/lifecycle/reap.js": {
-    "lines": 89.8,
-    "branches": 74.25,
+    "lines": 90.97,
+    "branches": 75.17,
     "functions": 100
   },
   ".agents/scripts/lib/worktree/lifecycle/registry-sync.js": {
@@ -1205,9 +1305,29 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 86.35,
-    "branches": 73.16,
-    "functions": 86.67
+    "lines": 85.38,
+    "branches": 68.13,
+    "functions": 82
+  },
+  ".agents/scripts/providers/github/auth.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/cache.js": {
+    "lines": 100,
+    "branches": 96.3,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/errors.js": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100
+  },
+  ".agents/scripts/providers/github/mappers.js": {
+    "lines": 98.96,
+    "branches": 92.59,
+    "functions": 100
   },
   ".agents/scripts/providers/github/projects-v2-graphql.js": {
     "lines": 82.27,

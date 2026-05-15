@@ -45,7 +45,7 @@ if (
   const removeLabel = values['remove-label'];
 
   if (Number.isNaN(ticketId) || (!state && !removeLabel)) {
-    Logger.fatal(
+    throw new Error(
       'Usage: node update-ticket-state.js ' +
         '(--ticket|--task) <id> ' +
         '[--state <state> | --remove-label <label>]',
@@ -53,53 +53,55 @@ if (
   }
 
   (async () => {
-    try {
-      const config = resolveConfig();
-      const provider = createProvider(config.orchestration);
+    const config = resolveConfig();
+    const provider = createProvider(config.orchestration);
 
-      // Label-only mutation path — no state transition. Callers that just
-      // need to drop a single label without flipping the agent::* state.
-      if (removeLabel && !state) {
-        Logger.info(
-          `[State-Sync] Removing label \`${removeLabel}\` from ticket #${ticketId}...`,
-        );
-        await provider.updateTicket(ticketId, {
-          labels: { remove: [removeLabel] },
-        });
-        Logger.info('[State-Sync] ✅ Success');
-        return;
-      }
-
+    // Label-only mutation path — no state transition. Callers that just
+    // need to drop a single label without flipping the agent::* state.
+    if (removeLabel && !state) {
       Logger.info(
-        `[State-Sync] Transitioning ticket #${ticketId} to ${state}...`,
+        `[State-Sync] Removing label \`${removeLabel}\` from ticket #${ticketId}...`,
       );
-      await transitionTicketState(provider, ticketId, state);
-
-      if (state === STATE_LABELS.DONE) {
-        Logger.info(`[State-Sync] Cascading completion from #${ticketId}...`);
-        const cascade = await cascadeCompletion(provider, ticketId);
-        // Hoisted out of the `for...of` initializer because typhonjs-escomplex
-        // mis-parses optional chaining there (it would zero out this file's
-        // maintainability score).
-        const cascadeFailures = cascade?.failed ?? [];
-        for (const { parentId, error } of cascadeFailures) {
-          Logger.warn(
-            `[State-Sync] ⚠️  Cascade partial-failure on parent #${parentId}: ${error}`,
-          );
-        }
-      }
-
-      // Optional secondary label removal alongside the state transition
-      // (e.g. clear `status::blocked` when transitioning back to ready).
-      if (removeLabel) {
-        await provider.updateTicket(ticketId, {
-          labels: { remove: [removeLabel] },
-        });
-      }
-
+      await provider.updateTicket(ticketId, {
+        labels: { remove: [removeLabel] },
+      });
       Logger.info('[State-Sync] ✅ Success');
-    } catch (err) {
-      Logger.fatal(err.message);
+      return;
     }
-  })();
+
+    Logger.info(
+      `[State-Sync] Transitioning ticket #${ticketId} to ${state}...`,
+    );
+    await transitionTicketState(provider, ticketId, state);
+
+    if (state === STATE_LABELS.DONE) {
+      Logger.info(`[State-Sync] Cascading completion from #${ticketId}...`);
+      const cascade = await cascadeCompletion(provider, ticketId);
+      // Hoisted out of the `for...of` initializer because typhonjs-escomplex
+      // mis-parses optional chaining there (it would zero out this file's
+      // maintainability score).
+      const cascadeFailures = cascade?.failed ?? [];
+      for (const { parentId, error } of cascadeFailures) {
+        Logger.warn(
+          `[State-Sync] ⚠️  Cascade partial-failure on parent #${parentId}: ${error}`,
+        );
+      }
+    }
+
+    // Optional secondary label removal alongside the state transition
+    // (e.g. clear `status::blocked` when transitioning back to ready).
+    if (removeLabel) {
+      await provider.updateTicket(ticketId, {
+        labels: { remove: [removeLabel] },
+      });
+    }
+
+    Logger.info('[State-Sync] ✅ Success');
+  })().catch((err) => {
+    // Re-throw as an unhandled rejection so Node exits with a non-zero
+    // status. Per orchestration-error-handling rule, orchestrator CLIs MUST
+    // surface failures via throw rather than Logger.fatal so a stubbed
+    // process.exit (in tests) does not silently mask the error.
+    throw new Error(err.message);
+  });
 }

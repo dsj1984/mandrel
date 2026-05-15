@@ -13,6 +13,7 @@ import { describe, it } from 'node:test';
 import {
   collectTaskBodyErrors,
   validateTaskBodies,
+  validateTaskBodyShape,
 } from '../.agents/scripts/lib/orchestration/task-body-validator.js';
 
 function task(slug, body) {
@@ -175,4 +176,112 @@ describe('validateTaskBodies', () => {
     const tickets = [task('t1', validTaskBody)];
     assert.equal(validateTaskBodies(tickets), tickets);
   });
+});
+
+describe('validateTaskBodyShape (predicate)', () => {
+  /**
+   * Table-driven coverage of every branch in the per-task predicate. The
+   * iterating wrapper (`collectTaskBodyErrors`) is already covered above;
+   * these rows exercise the predicate directly so each defensive guard
+   * has a named row.
+   */
+  const cases = [
+    {
+      name: 'happy path: every section populated',
+      body: validTaskBody,
+      expectErrors: 0,
+    },
+    {
+      name: 'non-object body (number)',
+      body: 42,
+      expectIncludes: 'body must be an object, got number',
+    },
+    {
+      name: 'goal missing',
+      body: { ...validTaskBody, goal: undefined },
+      expectIncludes: 'body.goal must be a non-empty string',
+    },
+    {
+      name: 'goal blank',
+      body: { ...validTaskBody, goal: '   ' },
+      expectIncludes: 'body.goal must be a non-empty string',
+    },
+    {
+      name: 'goal non-string',
+      body: { ...validTaskBody, goal: 123 },
+      expectIncludes: 'body.goal must be a non-empty string',
+    },
+    {
+      name: 'changes empty array',
+      body: { ...validTaskBody, changes: [] },
+      expectIncludes: 'body.changes must list at least one bullet',
+    },
+    {
+      name: 'changes not an array',
+      body: { ...validTaskBody, changes: 'one bullet' },
+      expectIncludes: 'body.changes must list at least one bullet',
+    },
+    {
+      name: 'changes bullets name no path',
+      body: { ...validTaskBody, changes: ['do the thing'] },
+      expectIncludes: 'name no path-shaped token',
+    },
+    {
+      name: 'changes bullet uses vague verb without target',
+      body: {
+        ...validTaskBody,
+        changes: ['clean up things', 'src/x.ts: extract handleSubmit'],
+      },
+      expectIncludes: 'vague verb "clean up"',
+    },
+    {
+      name: 'acceptance empty array',
+      body: { ...validTaskBody, acceptance: [] },
+      expectIncludes: 'body.acceptance must list at least one criterion',
+    },
+    {
+      name: 'acceptance not an array',
+      body: { ...validTaskBody, acceptance: 'one' },
+      expectIncludes: 'body.acceptance must list at least one criterion',
+    },
+    {
+      name: 'verify empty array',
+      body: { ...validTaskBody, verify: [] },
+      expectIncludes: 'body.verify must list at least one entry',
+    },
+    {
+      name: 'verify manual: with no reason',
+      body: { ...validTaskBody, verify: ['manual:'] },
+      expectIncludes: '"manual:" entry has no reason after the colon',
+    },
+    {
+      name: 'verify manual: with whitespace reason',
+      body: { ...validTaskBody, verify: ['manual:   '] },
+      expectIncludes: '"manual:" entry has no reason after the colon',
+    },
+    {
+      name: 'verify manual: with valid reason is clean',
+      body: { ...validTaskBody, verify: ['manual: see PR'] },
+      expectErrors: 0,
+    },
+    {
+      name: 'verify entries containing non-strings are tolerated',
+      body: { ...validTaskBody, verify: [42, 'npm test'] },
+      expectErrors: 0,
+    },
+  ];
+
+  for (const tc of cases) {
+    it(tc.name, () => {
+      const errors = validateTaskBodyShape(task('tX', tc.body));
+      if (tc.expectErrors === 0) {
+        assert.deepEqual(errors, []);
+      } else {
+        assert.ok(
+          errors.some((e) => e.includes(tc.expectIncludes)),
+          `expected errors to include ${JSON.stringify(tc.expectIncludes)}; got: ${JSON.stringify(errors)}`,
+        );
+      }
+    });
+  }
 });

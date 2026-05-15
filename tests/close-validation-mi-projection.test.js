@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  formatMaintainabilityProjection as formatFromSubmodule,
+  projectMaintainabilityRegressions as projectFromSubmodule,
+} from '../.agents/scripts/lib/close-validation/projections/maintainability.js';
+import {
   formatMaintainabilityProjection,
   projectMaintainabilityRegressions,
 } from '../.agents/scripts/lib/close-validation.js';
@@ -185,5 +189,42 @@ describe('formatMaintainabilityProjection', () => {
     assert.match(text, /lib\/bar\.js/);
     assert.match(text, /baseline-refresh:/);
     assert.match(text, /maintainability:update/);
+  });
+});
+
+describe('projections/maintainability re-export (Story #1850 / Task #1874)', () => {
+  it('parent close-validation re-export is identical to the sub-module export', () => {
+    assert.equal(projectMaintainabilityRegressions, projectFromSubmodule);
+    assert.equal(formatMaintainabilityProjection, formatFromSubmodule);
+  });
+
+  it('predicate-extracted helper still normalises fine-grained missing-arg reasons to "missing-args"', () => {
+    const result = projectFromSubmodule({
+      cwd: '/repo',
+      epicBranch: 'epic/1831',
+      // missing storyBranch
+      baselinePath: '/repo/baselines/maintainability.json',
+      loadBaseline: () => ({ 'lib/a.js': 80 }),
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, 'missing-args');
+    assert.deepEqual(result.regressions, []);
+  });
+
+  it('predicate-extracted helper short-circuits on no-baseline before any git call', () => {
+    const calls = [];
+    const result = projectFromSubmodule({
+      ...baseOpts,
+      git: {
+        gitSpawn: (...args) => {
+          calls.push(args);
+          return { status: 0, stdout: '', stderr: '' };
+        },
+      },
+      loadBaseline: () => ({}),
+      scoreSource: () => 100,
+    });
+    assert.equal(result.skipped, 'no-baseline');
+    assert.deepEqual(calls, []); // predicate caught it before any spawn
   });
 });

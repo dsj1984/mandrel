@@ -4,6 +4,7 @@ import {
   assembleState,
   clearStateCache,
   getScopeKeys,
+  validatePidProbeInputs,
 } from '../../../.agents/scripts/lib/checks/state.js';
 
 /**
@@ -392,4 +393,24 @@ describe('assembleState', () => {
       'epic/9999': { local: null, remote: null, ahead: false },
     });
   });
+});
+
+describe('validatePidProbeInputs (predicate)', () => {
+  const cases = [
+    { name: 'null', pid: null, expected: false },
+    { name: 'undefined', pid: undefined, expected: false },
+    { name: 'string', pid: '123', expected: false },
+    { name: 'NaN', pid: Number.NaN, expected: false },
+    { name: 'Infinity', pid: Number.POSITIVE_INFINITY, expected: false },
+    { name: '-Infinity', pid: Number.NEGATIVE_INFINITY, expected: false },
+    { name: 'zero', pid: 0, expected: false },
+    { name: 'negative', pid: -1, expected: false },
+    { name: 'positive integer', pid: 1234, expected: true },
+    { name: 'positive finite float', pid: 1234.5, expected: true },
+  ];
+  for (const tc of cases) {
+    it(`returns ${tc.expected} for ${tc.name}`, () => {
+      assert.equal(validatePidProbeInputs(tc.pid), tc.expected);
+    });
+  }
 });

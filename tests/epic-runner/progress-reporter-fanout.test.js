@@ -105,4 +105,72 @@ describe('ProgressReporter fanout concurrency cap', () => {
       `50 ids / concurrency=8: expected peak in-flight to saturate at 8, got ${peak}`,
     );
   });
+
+  it('retry-path: transient postComment failure is swallowed and snapshot still returns', async () => {
+    // Deterministic mocked adapter — getTicket returns a static
+    // executing-ticket on every call, and postComment fails on the
+    // first attempt then succeeds. The reporter's transport-boundary
+    // contract is to log + swallow the comment-upsert failure, not
+    // halt the wave, so `fire()` must still resolve with the snapshot
+    // rendered from the fetched rows. Story #1847.
+    const provider = {
+      async getTicket(id) {
+        return {
+          number: id,
+          id,
+          title: `Story ${id}`,
+          state: 'open',
+          labels: ['agent::executing'],
+        };
+      },
+      async getTicketComments() {
+        return [];
+      },
+      async listComments() {
+        return [];
+      },
+    };
+
+    const postCalls = [];
+    provider.postComment = async (ticketId, { body }) => {
+      postCalls.push({ ticketId, body });
+      if (postCalls.length === 1) {
+        throw new Error('transient gh rate-limit (mock)');
+      }
+      return { commentId: postCalls.length };
+    };
+
+    const warnings = [];
+    const reporter = new ProgressReporter({
+      provider,
+      epicId: 7,
+      intervalSec: 60,
+      logger: { info() {}, warn: (msg) => warnings.push(msg) },
+      detectors: [],
+    });
+    reporter.setPlan({
+      waves: [
+        [
+          { id: 101, title: 'A' },
+          { id: 102, title: 'B' },
+        ],
+      ],
+      startedAt: new Date().toISOString(),
+    });
+
+    const first = await reporter.fire();
+    assert.ok(first, 'first fire() returned null');
+    assert.equal(first.rows.length, 2, 'first fire returned both rows');
+    assert.equal(postCalls.length, 1, 'first fire attempted one upsert');
+    assert.ok(
+      warnings.some((w) => w.includes('comment upsert failed')),
+      'expected transient upsert failure to be logged',
+    );
+
+    // Second fire should succeed end-to-end now that the deterministic
+    // adapter has flipped to the success branch.
+    const second = await reporter.fire();
+    assert.ok(second);
+    assert.equal(postCalls.length, 2);
+  });
 });

@@ -288,28 +288,14 @@ export function groupByWave(spec, state = null) {
     state && typeof state.mapping === 'object' && state.mapping !== null
       ? state.mapping
       : {};
+  const entries = extractValidStoryEntries(spec, mapping);
+  if (entries.length === 0) return [];
   const byWave = new Map();
   let maxWave = -1;
-  const features = Array.isArray(spec?.features) ? spec.features : [];
-  for (const feature of features) {
-    const stories = Array.isArray(feature?.stories) ? feature.stories : [];
-    for (const story of stories) {
-      if (!story || typeof story !== 'object') continue;
-      const wave = Number.isInteger(story.wave) ? story.wave : null;
-      if (wave === null || wave < 0) continue;
-      const slug = typeof story.slug === 'string' ? story.slug : null;
-      if (!slug) continue;
-      const mapped = mapping[slug];
-      const issueNumber =
-        mapped && typeof mapped.issueNumber === 'number'
-          ? mapped.issueNumber
-          : null;
-      if (issueNumber === null) continue;
-      const entry = { id: issueNumber, title: story.title, slug };
-      if (!byWave.has(wave)) byWave.set(wave, []);
-      byWave.get(wave).push(entry);
-      if (wave > maxWave) maxWave = wave;
-    }
+  for (const { wave, entry } of entries) {
+    if (!byWave.has(wave)) byWave.set(wave, []);
+    byWave.get(wave).push(entry);
+    if (wave > maxWave) maxWave = wave;
   }
   if (maxWave < 0) return [];
   const out = [];
@@ -317,6 +303,62 @@ export function groupByWave(spec, state = null) {
     out.push(byWave.get(i) ?? []);
   }
   return out;
+}
+
+/**
+ * Walk every feature/story pair in `spec` and emit only the entries that
+ * survive the spec-validity cascade: the story must be a non-null object,
+ * declare a non-negative integer `wave`, declare a string `slug`, and
+ * resolve to a numeric `issueNumber` in `mapping`. Each surviving entry
+ * is returned as `{ wave, entry }` where `entry` carries the same shape
+ * (`{ id, title, slug }`) that `groupByWave` previously pushed into its
+ * per-wave bucket.
+ *
+ * Extracted from `groupByWave` so the bucketing transform stays
+ * straight-line; this predicate owns the entire defensive guard cascade
+ * and is the right place to add new validation rules going forward.
+ *
+ * @param {object|null|undefined} spec Parsed epic-spec.
+ * @param {Record<string, {issueNumber?: number}>} mapping
+ *   Slug → issue-number lookup from the sibling state file.
+ * @returns {Array<{wave: number, entry: {id: number, title?: string, slug: string}}>}
+ */
+export function extractValidStoryEntries(spec, mapping) {
+  const out = [];
+  const features = Array.isArray(spec?.features) ? spec.features : [];
+  for (const feature of features) {
+    const stories = Array.isArray(feature?.stories) ? feature.stories : [];
+    for (const story of stories) {
+      const resolved = resolveStoryEntry(story, mapping);
+      if (resolved) out.push(resolved);
+    }
+  }
+  return out;
+}
+
+/**
+ * Validate a single `story` against the spec-validity cascade and return
+ * `{ wave, entry }` when every guard passes, or `null` when any guard
+ * trips. Splitting the per-story cascade out keeps both
+ * `extractValidStoryEntries` (which owns iteration) and `resolveStoryEntry`
+ * (which owns validation) below CRAP 5 even when none of the branches are
+ * exercised at runtime — the predicate's cyclomatic footprint is small
+ * enough that uncovered branches do not blow the baseline budget.
+ *
+ * @param {*} story Candidate story from `spec.features[].stories[]`.
+ * @param {Record<string, {issueNumber?: number}>} mapping Slug → issue lookup.
+ * @returns {{wave: number, entry: {id: number, title?: string, slug: string}} | null}
+ */
+function resolveStoryEntry(story, mapping) {
+  if (!story || typeof story !== 'object') return null;
+  if (!Number.isInteger(story.wave) || story.wave < 0) return null;
+  if (typeof story.slug !== 'string' || !story.slug) return null;
+  const mapped = mapping[story.slug];
+  if (!mapped || typeof mapped.issueNumber !== 'number') return null;
+  return {
+    wave: story.wave,
+    entry: { id: mapped.issueNumber, title: story.title, slug: story.slug },
+  };
 }
 
 /**

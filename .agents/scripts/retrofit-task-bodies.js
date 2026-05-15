@@ -249,13 +249,13 @@ async function main() {
   });
 
   if (!values.epic) {
-    Logger.fatal(
+    throw new Error(
       'Usage: retrofit-task-bodies.js --epic <id> (--emit-context [--out FILE] [--pretty] | --bodies FILE [--dry-run | --apply])',
     );
   }
   const epicId = Number.parseInt(values.epic, 10);
   if (Number.isNaN(epicId)) {
-    Logger.fatal(`Invalid epic ID: "${values.epic}"`);
+    throw new Error(`Invalid epic ID: "${values.epic}"`);
   }
 
   const config = resolveConfig();
@@ -270,12 +270,12 @@ async function main() {
   }
 
   if (!values.bodies) {
-    Logger.fatal(
+    throw new Error(
       'Missing --bodies <file>. Run with --emit-context first to gather context, then have your LLM author bodies and pass them back via --bodies.',
     );
   }
   if (values.apply && values['dry-run']) {
-    Logger.fatal('--apply and --dry-run are mutually exclusive.');
+    throw new Error('--apply and --dry-run are mutually exclusive.');
   }
   const dryRun = !values.apply;
 

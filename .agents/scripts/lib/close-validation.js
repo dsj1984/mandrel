@@ -1,29 +1,27 @@
 /**
  * close-validation.js — Shift-left validation gates for story-close.
  *
- * Runs lint, test, format check, and maintainability regression check
- * before the story merge so drift is caught in the worktree rather than at
- * pre-push time on the Epic branch. The format command is configurable via
- * `agentSettings.commands.formatCheck`; default is `npx biome format .`. All gates inherit stdio so the operator
- * sees the raw output; the returned summary is used to surface actionable
- * hints when a gate fails.
+ * Runs typecheck, lint, test, format check, and maintainability/coverage/
+ * CRAP regression checks before the story merge so drift is caught in the
+ * worktree rather than at pre-push time on the Epic branch. Format command
+ * is configurable via `agentSettings.commands.formatCheck`; default is
+ * `npx biome format .`. All gates inherit stdio so the operator sees the
+ * raw output; the returned summary surfaces actionable hints on failure.
  *
- * Also exports `projectMaintainabilityRegressions` — a pre-merge advisory that
- * the close script invokes before the merge step so the operator sees the
- * exact list of files that would breach their MI baseline post-merge and can
- * ship a `baseline-refresh:` commit atomically with the Story PR.
+ * Pre-merge MI projection (Story #781) is re-exported from
+ * `close-validation/projections/maintainability.js` — the engine that
+ * surfaces, by name, the files that would breach their per-file MI
+ * baseline post-merge so the operator can ship a `baseline-refresh:`
+ * commit atomically with the Story PR.
  */
 
 import { spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
+import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
 import { getQuality } from './config/quality.js';
 import { storyArtifactPath } from './config/temp-paths.js';
 import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
-import { cachedGitFetchSync } from './git/cached-fetch.js';
-import { gitSpawn as defaultGitSpawn } from './git-utils.js';
-import { calculateForSource } from './maintainability-engine.js';
-import { getBaseline } from './maintainability-utils.js';
 import {
   recordPass as defaultRecordPass,
   shouldSkip as defaultShouldSkip,
@@ -39,28 +37,20 @@ import {
  */
 
 /**
- * Fallback typecheck command when `agentSettings.commands.typecheck` is unset
- * or null. Mirrors the lint/test fallback shape so the gate runs unconditionally
- * — there is intentionally no config switch to disable it (Epic-branch type
- * regressions surface in the next Story's pre-push otherwise; see CHANGELOG
- * 5.30.1).
+ * Fallback typecheck command — the gate is mandatory by design (Epic-branch
+ * type regressions surface in the next Story's pre-push otherwise).
  */
 const TYPECHECK_FALLBACK = 'npm run typecheck';
 
 const TYPECHECK_HINT =
   'TypeScript regression — fix type errors on the Story branch before retrying close. If the failure is a stale generated type (e.g. wrangler types), regenerate locally and commit before the close.';
 
-/**
- * Default formatter command for the close-validation format gate. Used when
- * `agentSettings.commands.formatCheck` is unset or empty. Mirrors the long-
- * standing close-script behaviour so repos that don't opt in keep working.
- */
+/** Default formatter command when `agentSettings.commands.formatCheck` is unset. */
 const FORMAT_CHECK_FALLBACK = 'npx biome format .';
 
 /**
- * Build the format-gate hint dynamically from the resolved write command so a
- * Prettier-only repo gets `prettier --write` in its hint, not biome. Falls
- * back to the historical biome string when no write command is resolvable.
+ * Build the format-gate hint dynamically from the resolved write command so
+ * a Prettier-only repo gets `prettier --write` in its hint, not biome.
  */
 function buildFormatHint(writeCmd) {
   const cmd =
@@ -71,106 +61,84 @@ function buildFormatHint(writeCmd) {
 }
 
 /**
- * Resolve the typecheck command for the close-validation typecheck gate.
- *
- * Reads `agentSettings.commands.typecheck` (string) when present and non-empty
- * and falls back to `npm run typecheck` otherwise. The framework-wide
- * `COMMANDS_DEFAULTS.typecheck` is `null` (disabled-means-null convention used
- * by other call sites), but the close-validation gate is mandatory by design,
- * so we apply the fallback here rather than short-circuiting on null.
- *
- * Exported for testing.
+ * Resolve a string `agentSettings.commands.<key>` with a fallback when the
+ * value is missing, empty, or the resolver throws on malformed settings.
+ * Shared engine behind the three resolveX command helpers.
  *
  * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
- * @returns {string} command string (e.g. `pnpm exec turbo run typecheck`)
+ * @param {string} key
+ * @param {string} fallback
+ * @returns {string}
  */
-export function resolveTypecheckCommand(settings) {
+function resolveCommandWithFallback(settings, key, fallback) {
   try {
     const cmds = getCommands({ agentSettings: settings });
-    if (
-      typeof cmds.typecheck === 'string' &&
-      cmds.typecheck.trim().length > 0
-    ) {
-      return cmds.typecheck.trim();
+    const value = cmds[key];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
     }
   } catch {
     // Malformed settings — fall through to the framework default.
   }
-  return TYPECHECK_FALLBACK;
+  return fallback;
 }
 
 /**
- * Resolve the format-check command for the close-validation format gate.
- * Reads `agentSettings.commands.formatCheck` (string) when present and non-
- * empty and falls back to `npx biome format .` otherwise so existing repos
- * that haven't set the field keep their previous behaviour byte-for-byte.
+ * Resolve the typecheck command. Reads `agentSettings.commands.typecheck`;
+ * falls back to `npm run typecheck`. The framework-wide
+ * `COMMANDS_DEFAULTS.typecheck` is `null` but this gate is mandatory, so
+ * we apply the fallback here. Exported for testing.
  *
- * Exported for testing.
+ * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
+ * @returns {string}
+ */
+export function resolveTypecheckCommand(settings) {
+  return resolveCommandWithFallback(settings, 'typecheck', TYPECHECK_FALLBACK);
+}
+
+/**
+ * Resolve the format-check command. Reads `agentSettings.commands.formatCheck`;
+ * falls back to `npx biome format .` so existing repos keep working byte-
+ * for-byte. Exported for testing.
  *
  * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
  * @returns {string}
  */
 export function resolveFormatCheckCommand(settings) {
-  try {
-    const cmds = getCommands({ agentSettings: settings });
-    if (
-      typeof cmds.formatCheck === 'string' &&
-      cmds.formatCheck.trim().length > 0
-    ) {
-      return cmds.formatCheck.trim();
-    }
-  } catch {
-    // Malformed settings — fall through to the framework default.
-  }
-  return FORMAT_CHECK_FALLBACK;
+  return resolveCommandWithFallback(
+    settings,
+    'formatCheck',
+    FORMAT_CHECK_FALLBACK,
+  );
 }
 
 /**
- * Resolve the format-write command used by the story-close format-autofix
- * step (and surfaced in the format-gate hint). Reads
- * `agentSettings.commands.formatWrite`; falls back to the historical
- * `npx biome format --write .` so repos that haven't opted in keep working.
- *
- * Exported for testing.
+ * Resolve the format-write command used by story-close format-autofix (and
+ * surfaced in the format-gate hint). Reads `agentSettings.commands.formatWrite`;
+ * falls back to `npx biome format --write .`. Exported for testing.
  *
  * @param {{ agentSettings?: { commands?: object } } | object | null | undefined} settings
  * @returns {string}
  */
 export function resolveFormatWriteCommand(settings) {
-  try {
-    const cmds = getCommands({ agentSettings: settings });
-    if (
-      typeof cmds.formatWrite === 'string' &&
-      cmds.formatWrite.trim().length > 0
-    ) {
-      return cmds.formatWrite.trim();
-    }
-  } catch {
-    // Malformed settings — fall through to the framework default.
-  }
-  return 'npx biome format --write .';
+  return resolveCommandWithFallback(
+    settings,
+    'formatWrite',
+    'npx biome format --write .',
+  );
 }
 
 /**
- * Resolve whether the CRAP gate is enabled for this run. When enabled, the
- * close-validation graph drops the standalone `test` gate because
- * coverage-capture (which CRAP depends on) already runs the suite under c8
- * instrumentation — running `npm test` separately would execute the suite
- * twice per Story close (Story #1798 / Epic #1788).
+ * Resolve whether the CRAP gate is enabled. When enabled, the close-
+ * validation graph drops the standalone `test` gate because coverage-
+ * capture already runs the suite under c8 instrumentation (Story #1798).
  *
- * Reads `crap.enabled` directly from each of the shapes call sites pass us:
- *   - the resolved legacy-shim shape (`agentSettings.quality.crap.enabled`),
- *     which production callers receive from `resolveConfig().agentSettings`;
- *   - the raw `.agentrc.json` shape under `delivery.quality.gates.crap.enabled`;
- *   - the raw partial-config shape (`quality.gates.crap.enabled`) some
- *     unit-test call sites construct directly.
- *
- * Defaults to `true` so a consumer that omits the gate entirely matches
- * `CRAP_GATE_DEFAULTS.enabled`. We intentionally do NOT round-trip through
- * `getQuality()` here because that resolver expects the unresolved
- * `gates.crap.*` shape and re-running it against the already-resolved
- * legacy-shim shape would silently collapse the user's setting back to the
- * framework default.
+ * Reads `crap.enabled` from any of the shapes call sites pass us (the
+ * resolved legacy-shim shape, the raw `.agentrc.json` shape, and the raw
+ * partial-config shape some unit tests construct directly). Defaults to
+ * `true` so an omitted setting matches `CRAP_GATE_DEFAULTS.enabled`. We
+ * deliberately do NOT round-trip through `getQuality()` here because that
+ * resolver expects the unresolved `gates.crap.*` shape.
  *
  * @param {object|undefined|null} agentSettings
  * @returns {boolean}
@@ -204,34 +172,19 @@ function buildTestGateEntry(agentSettings) {
 /**
  * Build the canonical close-validation gate list.
  *
- * Ordering rationale (cheapest fast-fail first):
- *   1. typecheck — pure compile-time check, fastest to fail
- *   2. lint     — static analysis
- *   3. test     — full test suite (dropped when `crap.enabled === true`;
- *                 coverage-capture becomes the canonical test runner — see
- *                 Story #1798)
- *   4. format   — configurable via `agentSettings.commands.formatCheck`
- *   5. check-maintainability
- *   6. coverage-capture
- *   7. check-crap
+ * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
+ * format → check-maintainability → coverage-capture → check-crap →
+ * [check-mutation]. The standalone `test` gate is dropped when
+ * `crap.enabled === true` (Story #1798) because coverage-capture carries
+ * test-failure signalling under c8 in that mode.
  *
- * The `typecheck` gate is mandatory; consumers cannot opt out via config. They
- * may customise the command via `agentSettings.commands.typecheck`; otherwise
- * `npm run typecheck` is used.
+ * `typecheck` is mandatory; consumers may customise the command via
+ * `agentSettings.commands.typecheck` (default `npm run typecheck`).
  *
  * Story #1120: when `epicBranch` is supplied, the maintainability and CRAP
  * gates receive `--epic-ref <epicBranch>` so they read their committed
- * baseline at the Epic-branch HEAD via `git show` (baseline-loader) rather
- * than via a working-tree fs read. Without it, those gates fall back to the
- * legacy fs read — `baselines/*.json` on whatever the spawn cwd's working
- * tree carries.
- *
- * Story #1798: when `delivery.quality.gates.crap.enabled === true` (the
- * configured state for this repo and the framework default), the standalone
- * `test` gate is dropped from the graph; coverage-capture carries
- * test-failure signalling (exits non-zero on a failing suite, reports gate
- * identifier `coverage-capture`). When `crap.enabled === false`, the legacy
- * two-gate path is preserved so no consumer behaviour regresses.
+ * baseline at the Epic-branch HEAD via `git show` rather than via a
+ * working-tree fs read.
  *
  * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
@@ -447,43 +400,24 @@ function defaultGateRunner(cmd, args, opts = {}) {
 }
 
 /**
- * Resolve the current `git rev-parse HEAD` SHA inside `cwd`. Returns `null`
- * when git is unavailable or the call fails — callers treat that as
- * "evidence skip disabled" so the gate runs as before.
+ * Run every gate sequentially. Stops collecting after the first failure but
+ * still returns a summary so the caller decides how to surface the result.
  *
- */
-function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
-  try {
-    const res = gitSpawn(cwd, 'rev-parse', 'HEAD');
-    if (res.status !== 0) return null;
-    const sha = (res.stdout || '').trim();
-    return sha.length > 0 ? sha : null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Run every gate sequentially. Stops collecting after the first failure is
- * recorded but still returns a summary so the caller can decide how to
- * surface the result.
- *
- * **Worktree locality (Story #1120).** When `worktreePath` is supplied,
- * every gate runner is spawned with `cwd: worktreePath` so the gate sees
- * the Story branch's post-rebase tree, not the main checkout's working
- * tree. Evidence reads/writes still key against `cwd` (the main checkout)
- * because the per-Epic temp tree lives under the main `.git/`. Failure
- * messages name the worktree path so the operator can locate the failing
- * tree without re-deriving it from the Story ID. When `worktreePath` is
- * omitted, behaviour is unchanged — gate spawn falls back to `cwd`.
+ * Worktree locality (Story #1120): when `worktreePath` is supplied, every
+ * gate runner is spawned with `cwd: worktreePath` so the gate sees the
+ * Story branch's post-rebase tree. Evidence reads/writes still key against
+ * `cwd` (the main checkout) because the per-Epic temp tree lives under
+ * the main `.git/`. Failure messages name the worktree path.
  *
  * Evidence-aware: when both `storyId` and `epicId` are provided and
- * `useEvidence !== false`, each gate consults
- * `validation-evidence.shouldSkip()` against the current `git rev-parse
- * HEAD` + the gate's command-config hash. A matching record skips the gate
- * (logged at info level); a successful run is recorded so the next caller
- * in the local hot path can skip in turn. Without `epicId`, evidence is
- * inert (the per-Epic-tree path cannot be resolved).
+ * `useEvidence !== false`, each gate consults `validation-evidence
+ * .shouldSkip()` against current HEAD + the gate's command-config hash. A
+ * matching record skips the gate; a successful run is recorded so the
+ * next caller in the local hot path can skip in turn.
+ *
+ * `onGateStart` is invoked immediately before each gate's runner spawn.
+ * story-close uses it to drive `phaseTimer.mark(...)` for per-gate
+ * wall-clock telemetry. Errors thrown from the hook propagate.
  *
  * @param {{
  *   cwd: string,
@@ -500,10 +434,6 @@ function defaultGetHeadSha(cwd, gitSpawn = defaultGitSpawn) {
  *   recordPass?: typeof defaultRecordPass,
  *   shouldSkip?: typeof defaultShouldSkip,
  * }} opts
- *   `onGateStart` is invoked immediately before each gate's runner spawn.
- *   story-close uses it to drive `phaseTimer.mark('lint'|'test')`
- *   so the per-gate wall-clock lands in the `phase-timings` structured
- *   comment. Errors thrown from the hook propagate and halt the run.
  * @returns {{ ok: boolean, failed: Array<{ gate: Gate, status: number, cwd: string }>, skipped: Array<{ gate: Gate, reason: string }> }}
  */
 export async function runCloseValidation({
@@ -685,186 +615,39 @@ export async function runCloseValidation({
 }
 
 /**
- * Default tolerance shared with check-maintainability.js: small floating-point
- * variances must not register as a regression.
+ * Pre-merge MI ceiling projection helpers — `projectMaintainabilityRegressions`
+ * and `formatMaintainabilityProjection` were extracted to
+ * `close-validation/projections/maintainability.js` (Story #1850) so the
+ * parent module stays below the 700-LOC ceiling and the inline guard
+ * cascade collapses into the shared `validateProjectionInputs` predicate.
+ * The re-export below preserves the public contract — every existing call
+ * site continues to import from `./close-validation.js`.
  */
-const DEFAULT_MI_TOLERANCE = 0.001;
-
-/**
- * Project the post-merge maintainability scores for every file changed on
- * the Story branch relative to the Epic branch, and return the subset whose
- * projected score breaches the per-file baseline ceiling.
- *
- * Advisory only — the result is rendered as a log line by story-close
- * before the merge runs. The hard MI gate still runs at pre-push time via the
- * husky hook. The point of this projection is to surface the breach **before**
- * the merge so the operator can ship a `baseline-refresh:` commit atomically
- * with the Story PR rather than as a follow-on after the push.
- *
- * The "post-merge body" of each file is approximated by the file content at
- * the tip of the Story branch — a `--no-ff` merge into the Epic branch does
- * not modify file contents, so this is exact when the merge applies cleanly
- * and a close-enough projection when it auto-resolves minor conflicts.
- *
- * The helper never throws and never has side effects beyond running `git`
- * subcommands via the injected interface. Any failure path resolves to
- * `{ ok: true, regressions: [], skipped: '<reason>' }` so the caller treats
- * the advisory as best-effort.
- *
- * @param {{
- *   cwd: string,
- *   epicBranch: string,
- *   storyBranch: string,
- *   baselinePath: string,
- *   tolerance?: number,
- *   git?: { gitSpawn: typeof defaultGitSpawn },
- *   scoreSource?: (source: string) => number,
- *   loadBaseline?: (path: string) => Record<string, number>,
- * }} opts
- * @returns {{
- *   ok: boolean,
- *   regressions: Array<{ file: string, projected: number, baseline: number, drop: number }>,
- *   skipped?: string,
- *   detail?: string,
- * }}
- */
-export function projectMaintainabilityRegressions({
-  cwd,
-  epicBranch,
-  storyBranch,
-  baselinePath,
-  tolerance = DEFAULT_MI_TOLERANCE,
-  git = { gitSpawn: defaultGitSpawn },
-  scoreSource = calculateForSource,
-  loadBaseline = getBaseline,
-} = {}) {
-  if (!cwd || !epicBranch || !storyBranch || !baselinePath) {
-    return { ok: true, regressions: [], skipped: 'missing-args' };
-  }
-
-  const baseline = loadBaseline(baselinePath);
-  if (!baseline || Object.keys(baseline).length === 0) {
-    return { ok: true, regressions: [], skipped: 'no-baseline' };
-  }
-
-  // Refresh `origin/<epicBranch>` so the diff range resolves even if the
-  // close script hasn't reached its own pull/rebase step yet. Best-effort —
-  // a fetch failure is logged via `skipped: 'fetch-failed'` and the helper
-  // bails rather than producing a misleading projection. Routed through
-  // the (cwd, ref, windowMs) cache so a story-init fetch in the same wave
-  // satisfies the projection without re-hitting origin.
-  const fetchRes = cachedGitFetchSync(cwd, epicBranch, {
-    gitSpawn: git.gitSpawn,
-  });
-  if (fetchRes.status !== 0) {
-    return {
-      ok: true,
-      regressions: [],
-      skipped: 'fetch-failed',
-      detail: fetchRes.stderr || fetchRes.stdout || `exit ${fetchRes.status}`,
-    };
-  }
-
-  const diff = git.gitSpawn(
-    cwd,
-    'diff',
-    '--name-only',
-    `origin/${epicBranch}...${storyBranch}`,
-  );
-  if (diff.status !== 0) {
-    return {
-      ok: true,
-      regressions: [],
-      skipped: 'diff-failed',
-      detail: diff.stderr || diff.stdout || `exit ${diff.status}`,
-    };
-  }
-
-  const changedFiles = (diff.stdout || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
-
-  const regressions = [];
-  for (const file of changedFiles) {
-    if (!file.endsWith('.js') && !file.endsWith('.mjs')) continue;
-    const baselineScore = baseline[file];
-    if (typeof baselineScore !== 'number') continue;
-
-    const show = git.gitSpawn(cwd, 'show', `${storyBranch}:${file}`);
-    if (show.status !== 0) continue; // file deleted/renamed on the story branch
-
-    const projected = scoreSource(show.stdout || '');
-    if (projected < baselineScore - tolerance) {
-      regressions.push({
-        file,
-        projected,
-        baseline: baselineScore,
-        drop: baselineScore - projected,
-      });
-    }
-  }
-
-  return { ok: regressions.length === 0, regressions };
-}
-
-/**
- * Render the pre-merge MI advisory as a human-readable multi-line log block.
- * Returns `null` when there are no regressions to surface so callers can `if`
- * past the log call without a string-empty check.
- *
- * @param {ReturnType<typeof projectMaintainabilityRegressions>} result
- * @returns {string | null}
- */
-export function formatMaintainabilityProjection(result) {
-  if (!result || !Array.isArray(result.regressions)) return null;
-  if (result.regressions.length === 0) return null;
-  const lines = [
-    `[close-validation] ⚠ Pre-merge MI projection: ${result.regressions.length} file(s) would breach baseline post-merge:`,
-  ];
-  for (const r of result.regressions) {
-    lines.push(
-      `  • ${r.file}  projected=${r.projected.toFixed(2)}  baseline=${r.baseline.toFixed(2)}  drop=-${r.drop.toFixed(2)}`,
-    );
-  }
-  lines.push(
-    '[close-validation]   To land cleanly, run `npm run maintainability:update` and commit the refreshed baseline with a `baseline-refresh:` tagged subject (non-empty body) on the story branch before re-running close.',
-  );
-  return lines.join('\n');
-}
+export {
+  formatMaintainabilityProjection,
+  projectMaintainabilityRegressions,
+} from './close-validation/projections/maintainability.js';
 
 /**
  * Throw-away ghSpawnCount emitter (Story #1795 / Epic #1788).
  *
  * Writes the current `gh-exec` spawn counter to
  * `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` so the
- * `analyze-execution.js` child process — which authors the
- * `story-perf-summary` structured comment — can read it and emit a
- * `ghSpawnCount` field on the payload. The Story-close orchestrator
- * calls this helper inside `runPostMergeClose` right before it spawns
- * the perf-summary phase, capturing every `gh` invocation from
- * preflight through the merge in a single counter snapshot.
- *
- * This is intentionally a separate writer rather than threading the
- * counter through every call site — the perf-summary phase is the only
- * downstream consumer, and the measurement is "throw-away" per the
- * Story's acceptance (a follow-up cleanup commit removes both
- * `getSpawnCount` and this emitter before the Story branch merges into
- * the Epic branch).
+ * `analyze-execution.js` child process can read it and emit a
+ * `ghSpawnCount` field on the `story-perf-summary` payload. The Story-
+ * close orchestrator calls this inside `runPostMergeClose` right before
+ * the perf-summary phase, capturing every `gh` invocation from preflight
+ * through the merge in one counter snapshot.
  *
  * @param {object} opts
  * @param {number|string} opts.epicId
  * @param {number|string} opts.storyId
- * @param {object} [opts.config]
- *   Resolved config bag (`{ agentSettings, orchestration, project }`) so
- *   `tempRoot` resolution honours the consumer's configured path.
- * @param {() => number} [opts.getSpawnCountFn=defaultGetSpawnCount]
- *   Test seam.
- * @param {typeof defaultWriteFile} [opts.writeFileFn=defaultWriteFile]
- *   Test seam.
- * @param {{ warn?: (s: string) => void }} [opts.logger]
- *   Best-effort logger for the failure path; never throws.
+ * @param {object} [opts.config] - Resolved config bag so `tempRoot`
+ *   resolution honours the consumer's configured path.
+ * @param {() => number} [opts.getSpawnCountFn=defaultGetSpawnCount] - Test seam.
+ * @param {typeof defaultWriteFile} [opts.writeFileFn=defaultWriteFile] - Test seam.
+ * @param {{ warn?: (s: string) => void }} [opts.logger] - Best-effort
+ *   failure-path logger; never throws.
  * @returns {Promise<{ status: 'ok'|'failed', path?: string, ghSpawnCount?: number, reason?: string }>}
  */
 export async function emitGhSpawnCount({

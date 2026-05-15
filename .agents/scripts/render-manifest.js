@@ -87,7 +87,7 @@ export async function renderManifestFromComment({
   injectedProvider,
 } = {}) {
   if (!epicId || Number.isNaN(epicId) || epicId <= 0) {
-    Logger.fatal('Usage: node render-manifest.js --epic <EPIC_ID>');
+    throw new Error('Usage: node render-manifest.js --epic <EPIC_ID>');
   }
 
   const { orchestration } = resolveConfig();

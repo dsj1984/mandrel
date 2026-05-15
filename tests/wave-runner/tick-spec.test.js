@@ -22,6 +22,7 @@ import { describe, it } from 'node:test';
 
 import { AGENT_LABELS } from '../../.agents/scripts/lib/label-constants.js';
 import {
+  extractValidStoryEntries,
   groupByWave,
   tick,
 } from '../../.agents/scripts/lib/wave-runner/tick.js';
@@ -501,5 +502,161 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
     assert.equal(result.nextAction.kind, 'epic-complete');
     assert.equal(result.totalWaves, 2);
     assert.ok(sig.emitted.some((e) => e.kind === 'epic-complete'));
+  });
+});
+
+describe('lib/wave-runner/tick — extractValidStoryEntries (predicate)', () => {
+  /**
+   * Table-driven coverage of every guard branch in the predicate. Each row
+   * lists a single spec/mapping pair plus the expected surviving entries —
+   * a defensive failure path drops to `[]`, while the happy-path baseline
+   * row at the top of the table proves the predicate produces the same
+   * `{ wave, entry }` shape `groupByWave` consumes.
+   */
+  const goodMapping = { a: { issueNumber: 101 } };
+  const goodSpec = {
+    features: [{ slug: 'f1', stories: [{ slug: 'a', title: 'A', wave: 0 }] }],
+  };
+
+  const cases = [
+    {
+      name: 'happy path: emits {wave, entry} for valid story',
+      spec: goodSpec,
+      mapping: goodMapping,
+      expected: [{ wave: 0, entry: { id: 101, title: 'A', slug: 'a' } }],
+    },
+    {
+      name: 'guard: missing features',
+      spec: {},
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: features not an array',
+      spec: { features: 'nope' },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: stories not an array',
+      spec: { features: [{ slug: 'f1', stories: null }] },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: story is null',
+      spec: { features: [{ slug: 'f1', stories: [null] }] },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: story is not an object',
+      spec: { features: [{ slug: 'f1', stories: ['nope'] }] },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: non-integer wave (string)',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ slug: 'a', wave: 'one' }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: non-integer wave (float)',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ slug: 'a', wave: 1.5 }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: negative wave',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ slug: 'a', wave: -1 }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: missing slug',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ wave: 0, title: 'no-slug' }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: empty-string slug',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ slug: '', wave: 0 }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: non-string slug (number)',
+      spec: {
+        features: [{ slug: 'f1', stories: [{ slug: 42, wave: 0 }] }],
+      },
+      mapping: goodMapping,
+      expected: [],
+    },
+    {
+      name: 'guard: slug not in mapping',
+      spec: goodSpec,
+      mapping: {},
+      expected: [],
+    },
+    {
+      name: 'guard: mapping entry without issueNumber',
+      spec: goodSpec,
+      mapping: { a: {} },
+      expected: [],
+    },
+    {
+      name: 'guard: issueNumber is not a number',
+      spec: goodSpec,
+      mapping: { a: { issueNumber: '101' } },
+      expected: [],
+    },
+  ];
+
+  for (const tc of cases) {
+    it(tc.name, () => {
+      assert.deepEqual(
+        extractValidStoryEntries(tc.spec, tc.mapping),
+        tc.expected,
+      );
+    });
+  }
+
+  it('preserves declaration order across multiple features and waves', () => {
+    const spec = {
+      features: [
+        {
+          slug: 'f1',
+          stories: [
+            { slug: 'a', title: 'A', wave: 0 },
+            { slug: 'b', title: 'B', wave: 1 },
+          ],
+        },
+        {
+          slug: 'f2',
+          stories: [{ slug: 'c', title: 'C', wave: 0 }],
+        },
+      ],
+    };
+    const mapping = {
+      a: { issueNumber: 1 },
+      b: { issueNumber: 2 },
+      c: { issueNumber: 3 },
+    };
+    assert.deepEqual(extractValidStoryEntries(spec, mapping), [
+      { wave: 0, entry: { id: 1, title: 'A', slug: 'a' } },
+      { wave: 1, entry: { id: 2, title: 'B', slug: 'b' } },
+      { wave: 0, entry: { id: 3, title: 'C', slug: 'c' } },
+    ]);
   });
 });
