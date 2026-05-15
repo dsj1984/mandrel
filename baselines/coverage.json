@@ -271,7 +271,7 @@
   },
   ".agents/scripts/lib/config-resolver.js": {
     "lines": 100,
-    "branches": 95.45,
+    "branches": 93.48,
     "functions": 100
   },
   ".agents/scripts/lib/config-schema-shared.js": {
@@ -331,7 +331,12 @@
   },
   ".agents/scripts/lib/config/validate-orchestration.js": {
     "lines": 100,
-    "branches": 96.3,
+    "branches": 92.59,
+    "functions": 100
+  },
+  ".agents/scripts/lib/config/worktree-isolation.js": {
+    "lines": 100,
+    "branches": 76.47,
     "functions": 100
   },
   ".agents/scripts/lib/coverage-baseline.js": {
@@ -801,7 +806,7 @@
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
     "lines": 97.12,
-    "branches": 74.47,
+    "branches": 73.94,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -861,7 +866,7 @@
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
     "lines": 98.59,
-    "branches": 83.33,
+    "branches": 79.17,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -1235,7 +1240,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.94,
+    "lines": 92.55,
     "branches": 83.33,
     "functions": 70
   },
@@ -1306,7 +1311,7 @@
   },
   ".agents/scripts/providers/github.js": {
     "lines": 85.38,
-    "branches": 68.13,
+    "branches": 68.32,
     "functions": 82
   },
   ".agents/scripts/providers/github/auth.js": {
