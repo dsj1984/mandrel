@@ -880,6 +880,12 @@
       "startLine": 75
     },
     {
+      "crap": 1,
+      "file": ".agents/scripts/lib/baseline-schema-registry.js",
+      "method": "buildBaselineSchemaAjv",
+      "startLine": 59
+    },
+    {
       "crap": 5,
       "file": ".agents/scripts/lib/baseline-snapshot.js",
       "method": "epicSnapshotPathFor",
@@ -8392,5 +8398,5 @@
       "startLine": 248
     }
   ],
-  "tsTranspilerVersion": "5.9.3"
+  "tsTranspilerVersion": "6.0.3"
 }
