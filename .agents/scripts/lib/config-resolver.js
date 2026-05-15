@@ -23,11 +23,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
 import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
 import { resolveQuality } from './config/quality.js';
 import { validateOrchestrationConfig } from './config/validate-orchestration.js';
+import { getWorktreeIsolation } from './config/worktree-isolation.js';
 import { getAgentrcValidator } from './config-schema.js';
 import { loadEnv } from './env-loader.js';
 
@@ -77,6 +79,10 @@ export {
 } from './config/runtime.js';
 export { resolveListValue } from './config/shared.js';
 export { validateOrchestrationConfig } from './config/validate-orchestration.js';
+export {
+  getWorktreeIsolation,
+  WORKTREE_ISOLATION_DEFAULTS,
+} from './config/worktree-isolation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // scripts/lib/ → scripts/ → .agents/ → project root
@@ -101,11 +107,34 @@ function applyGithubDefaults(rawGithub) {
 }
 
 /**
+ * Enrich `project.commands` so an omitted field resolves to COMMANDS_DEFAULTS
+ * rather than `undefined` — callers that read `project.commands.test` etc.
+ * directly (without going through `getCommands()`) get the framework value.
+ */
+function applyCommandsDefaults(project) {
+  return { ...project, commands: getCommands({ project }) };
+}
+
+/**
+ * Enrich `delivery.worktreeIsolation` so an omitted field resolves to
+ * WORKTREE_ISOLATION_DEFAULTS. Critical for `enabled`/`root` —
+ * `Boolean(undefined) === false` previously disabled worktrees silently
+ * when the operator omitted the block.
+ */
+function applyDeliveryDefaults(rawDelivery) {
+  const delivery = { ...(rawDelivery ?? {}) };
+  delivery.worktreeIsolation = getWorktreeIsolation({
+    worktreeIsolation: delivery.worktreeIsolation,
+  });
+  return delivery;
+}
+
+/**
  * Apply framework defaults for the four top-level blocks. Pure (no
  * mutation) — returns a fresh object.
  */
 function applyDefaults(raw) {
-  const project = { ...(raw.project ?? {}) };
+  const project = applyCommandsDefaults({ ...(raw.project ?? {}) });
   // Default docsContextFiles list — same five files the framework has
   // always shipped, preserved here so zero-config callers and configs
   // that omit the list both get the canonical mandatory-reads set.
@@ -125,7 +154,7 @@ function applyDefaults(raw) {
     project,
     github: applyGithubDefaults(raw.github),
     planning: raw.planning ?? {},
-    delivery: raw.delivery ?? {},
+    delivery: applyDeliveryDefaults(raw.delivery),
   };
 }
 
@@ -160,7 +189,7 @@ function buildLegacyShim(blocks) {
             operatorHandle: github.operatorHandle,
           },
           notifications: github.notifications,
-          worktreeIsolation: delivery?.worktreeIsolation ?? {},
+          worktreeIsolation: delivery.worktreeIsolation,
           runners: {
             deliverRunner: delivery?.deliverRunner ?? {},
           },
