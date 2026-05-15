@@ -20,10 +20,7 @@
     "baselines/**",
     ".claude/**"
   ],
-  "ignoreDependencies": [
-    "typescript",
-    "c8"
-  ],
+  "ignoreDependencies": ["typescript", "c8"],
   "rules": {
     "files": "off",
     "duplicates": "off",
