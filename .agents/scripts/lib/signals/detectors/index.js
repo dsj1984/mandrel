@@ -9,5 +9,6 @@
  * @module lib/signals/detectors
  */
 
+export { detectHotspot, nearestRankP95 } from './hotspot.js';
 export { detectRetry } from './retry.js';
 export { detectRework } from './rework.js';
