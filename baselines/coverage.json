@@ -124,6 +124,16 @@
     "branches": 75.64,
     "functions": 85.71
   },
+  ".agents/scripts/lib/baselines/components.js": {
+    "lines": 100,
+    "branches": 80,
+    "functions": 100
+  },
+  ".agents/scripts/lib/baselines/reader.js": {
+    "lines": 92.38,
+    "branches": 56.45,
+    "functions": 100
+  },
   ".agents/scripts/lib/bootstrap/baselines-layout-migration.js": {
     "lines": 100,
     "branches": 87.1,
@@ -286,7 +296,7 @@
   },
   ".agents/scripts/lib/config/baselines.js": {
     "lines": 82.81,
-    "branches": 90.91,
+    "branches": 91.67,
     "functions": 66.67
   },
   ".agents/scripts/lib/config/commands.js": {
