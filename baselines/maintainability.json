@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T22:31:44.815Z",
+  "generatedAt": "2026-05-15T23:06:17.839Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.09,
+      "p50": 102.964,
       "p95": 121.479
     }
   },
@@ -32,7 +32,7 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "mi": 87.465
+      "mi": 81.059
     },
     {
       "path": ".agents/scripts/check-coverage-baseline.js",
@@ -1617,6 +1617,18 @@
     {
       "path": "tests/check-baselines-cli-read-surface.test.js",
       "mi": 121.336
+    },
+    {
+      "path": "tests/check-baselines-dispatch-pipeline.test.js",
+      "mi": 102.296
+    },
+    {
+      "path": "tests/check-baselines-exit-codes.test.js",
+      "mi": 98.684
+    },
+    {
+      "path": "tests/check-baselines-friction.test.js",
+      "mi": 98.03
     },
     {
       "path": "tests/check-baselines-pre-merge-wiring.test.js",
