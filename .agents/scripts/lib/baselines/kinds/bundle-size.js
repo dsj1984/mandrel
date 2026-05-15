@@ -100,3 +100,29 @@ export function rollup(rows, components = []) {
   }
   return out;
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Bundle-size rows
+ * match by `bundle`. The metric is the maximum absolute KB delta across
+ * `rawKb` and `gzippedKb`. Sub-epsilon deltas resolve to the prior bytes;
+ * missing-prior rows fall through.
+ *
+ * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} prior
+ * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance in KB
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.bundle, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.bundle);
+    if (!p) return row;
+    const rawDelta = Math.abs((row.rawKb ?? 0) - (p.rawKb ?? 0));
+    const gzDelta = Math.abs((row.gzippedKb ?? 0) - (p.gzippedKb ?? 0));
+    return Math.max(rawDelta, gzDelta) <= eps ? p : row;
+  });
+}

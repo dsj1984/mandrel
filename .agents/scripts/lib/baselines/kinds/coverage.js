@@ -129,3 +129,39 @@ function componentMatches(component, path) {
     path === component.includes || path.startsWith(`${component.includes}/`)
   );
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Folds sub-epsilon
+ * row deltas back to the prior bytes so env variance (e.g. ±0.05% jitter
+ * on a coverage axis) does not rewrite the on-disk baseline.
+ *
+ * For coverage, the comparison metric is the maximum |delta| across the
+ * three axes (lines, branches, functions). When the prior row exists and
+ * every axis delta is within `epsilon`, the prior row is returned
+ * verbatim; otherwise the regenerated row wins. Missing-prior rows always
+ * fall through to the regenerated row.
+ *
+ * No I/O. No mutation of inputs.
+ *
+ * @param {Array<{path: string, lines: number, branches: number, functions: number}>} prior
+ * @param {Array<{path: string, lines: number, branches: number, functions: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance (percentage points)
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.path, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.path);
+    if (!p) return row;
+    let maxAxisDelta = 0;
+    for (const axis of COV_AXES) {
+      const d = Math.abs((row[axis] ?? 0) - (p[axis] ?? 0));
+      if (d > maxAxisDelta) maxAxisDelta = d;
+    }
+    return maxAxisDelta <= eps ? p : row;
+  });
+}

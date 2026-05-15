@@ -134,3 +134,32 @@ function componentMatchesRoute(component, route) {
     route === component.includes || route.startsWith(`${component.includes}/`)
   );
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Lighthouse rows
+ * match by `route`. The metric is the maximum absolute delta across the
+ * four scoring axes. Sub-epsilon deltas resolve to the prior bytes;
+ * missing-prior rows fall through.
+ *
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} prior
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance per axis
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.route, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.route);
+    if (!p) return row;
+    let maxAxisDelta = 0;
+    for (const axis of LH_AXES) {
+      const d = Math.abs((row[axis] ?? 0) - (p[axis] ?? 0));
+      if (d > maxAxisDelta) maxAxisDelta = d;
+    }
+    return maxAxisDelta <= eps ? p : row;
+  });
+}

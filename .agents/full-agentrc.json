@@ -185,6 +185,15 @@
         "miDropCap": 1.5,
         "crapJumpCap": 5,
         "scope": "diff"
+      },
+      "baselineEpsilon": {
+        "maintainability": 0.5,
+        "crap": 0.5,
+        "coverage": 0.1,
+        "mutation": 0.5,
+        "lint": 0,
+        "lighthouse": 1,
+        "bundle-size": 1024
       }
     }
   }

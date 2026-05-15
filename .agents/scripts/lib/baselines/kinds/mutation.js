@@ -101,3 +101,26 @@ function componentMatches(component, p) {
   if (!component || typeof component.includes !== 'string') return false;
   return p === component.includes || p.startsWith(`${component.includes}/`);
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Folds sub-epsilon
+ * mutation-score deltas back to the prior bytes. Missing-prior rows fall
+ * through to the regenerated row.
+ *
+ * @param {Array<{path: string, score: number, killed: number, survived: number}>} prior
+ * @param {Array<{path: string, score: number, killed: number, survived: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance on mutation score
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.path, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.path);
+    if (!p) return row;
+    return Math.abs((row.score ?? 0) - (p.score ?? 0)) <= eps ? p : row;
+  });
+}

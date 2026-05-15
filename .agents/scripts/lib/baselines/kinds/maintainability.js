@@ -105,3 +105,27 @@ function componentMatches(component, p) {
   if (!component || typeof component.includes !== 'string') return false;
   return p === component.includes || p.startsWith(`${component.includes}/`);
 }
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Folds sub-epsilon
+ * MI deltas back to the prior bytes so env variance does not rewrite the
+ * on-disk baseline. Missing-prior rows fall through to the regenerated
+ * row.
+ *
+ * @param {Array<{path: string, mi: number}>} prior
+ * @param {Array<{path: string, mi: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance on MI
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.path, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.path);
+    if (!p) return row;
+    return Math.abs((row.mi ?? 0) - (p.mi ?? 0)) <= eps ? p : row;
+  });
+}
