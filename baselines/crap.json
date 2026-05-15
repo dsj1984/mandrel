@@ -7600,142 +7600,142 @@
       "startLine": 19
     },
     {
-      "crap": 1.2962962962962963,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "__setExecSyncForTests",
-      "startLine": 75
-    },
-    {
-      "crap": 5.252148148148148,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "readGhCliToken",
-      "startLine": 80
-    },
-    {
-      "crap": 5.666666666666668,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "readEnvToken",
-      "startLine": 107
-    },
-    {
-      "crap": 3.1851851851851856,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "memoizeEnvToken",
-      "startLine": 112
-    },
-    {
-      "crap": 9.029296875,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "resolveToken",
-      "startLine": 117
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "matchesAny",
-      "startLine": 168
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "extractErrorFields",
-      "startLine": 179
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "isTransientStatus",
-      "startLine": 189
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "isTransientByCodeOrMessage",
-      "startLine": 195
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "isPermissionSignal",
-      "startLine": 201
-    },
-    {
-      "crap": 6,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "classifyGithubError",
-      "startLine": 206
-    },
-    {
-      "crap": 4.012021036814425,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "normalizeLabels",
-      "startLine": 262
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "issueToTicket",
-      "startLine": 274
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "issueToEpic",
-      "startLine": 289
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "subIssueNodeToTicket",
-      "startLine": 303
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "issueToListItem",
-      "startLine": 319
-    },
-    {
-      "crap": 1,
-      "file": ".agents/scripts/providers/github.js",
-      "method": "issueToEpicListItem",
-      "startLine": 333
-    },
-    {
       "crap": 2,
       "file": ".agents/scripts/providers/github.js",
       "method": "parseApiJson",
-      "startLine": 377
+      "startLine": 140
     },
     {
       "crap": 7,
       "file": ".agents/scripts/providers/github.js",
       "method": "isNotFoundError",
-      "startLine": 396
+      "startLine": 159
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "isLabelAlreadyExistsError",
-      "startLine": 421
+      "startLine": 184
     },
     {
       "crap": 5,
       "file": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
-      "startLine": 460
+      "startLine": 223
     },
     {
-      "crap": 5.002194787379972,
-      "file": ".agents/scripts/providers/github.js",
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/auth.js",
+      "method": "__setExecSyncForTests",
+      "startLine": 16
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/auth.js",
+      "method": "readGhCliToken",
+      "startLine": 21
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/auth.js",
+      "method": "readEnvToken",
+      "startLine": 48
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/auth.js",
+      "method": "memoizeEnvToken",
+      "startLine": 53
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/auth.js",
+      "method": "resolveToken",
+      "startLine": 58
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/providers/github/cache.js",
       "method": "createInlineTicketCache",
-      "startLine": 506
+      "startLine": 28
     },
     {
       "crap": 6,
-      "file": ".agents/scripts/providers/github.js",
+      "file": ".agents/scripts/providers/github/cache.js",
       "method": "primeIfAbsent",
-      "startLine": 510
+      "startLine": 32
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "matchesAny",
+      "startLine": 51
+    },
+    {
+      "crap": 4,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "extractErrorFields",
+      "startLine": 62
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "isTransientStatus",
+      "startLine": 72
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "isTransientByCodeOrMessage",
+      "startLine": 78
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "isPermissionSignal",
+      "startLine": 84
+    },
+    {
+      "crap": 6,
+      "file": ".agents/scripts/providers/github/errors.js",
+      "method": "classifyGithubError",
+      "startLine": 89
+    },
+    {
+      "crap": 4.012021036814425,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "normalizeLabels",
+      "startLine": 15
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "issueToTicket",
+      "startLine": 27
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "issueToEpic",
+      "startLine": 42
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "subIssueNodeToTicket",
+      "startLine": 56
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "issueToListItem",
+      "startLine": 72
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/providers/github/mappers.js",
+      "method": "issueToEpicListItem",
+      "startLine": 86
     },
     {
       "crap": 1,
