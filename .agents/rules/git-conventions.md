@@ -22,10 +22,19 @@ creation via `story-init.js`; agents commit on the active Story branch only.
 
 - MUST adhere to Conventional Commits format:
   `<type>(<optional scope>): <description>`
-- Types allowed: `feat:`, `fix:`, `chore:`, `docs:`, `style:`, `refactor:`,
-  `perf:`, `test:`.
+- Types allowed: `feat:`, `fix:`, `perf:`, `refactor:`, `revert:`, `docs:`,
+  `style:`, `chore:`, `test:`, `build:`, `ci:`. This list mirrors the
+  `changelog-sections` in `release-please-config.json`; keep the two in
+  sync when adding a type.
 - Description must be in the imperative mood (e.g., "add feature", not
   "adds" or "added").
+- **Local enforcement**: the `commit-msg` Husky hook runs `commitlint`
+  against every local commit (`.husky/commit-msg` →
+  `commitlint --edit "$1"`, config in `commitlint.config.js`). A
+  non-conventional subject fails the hook and no commit is created. Do not
+  bypass with `--no-verify`. The hook does **not** run on squash-merge
+  titles edited in the GitHub UI; author the PR title in conventional form
+  so the squash commit on `main` parses cleanly for release-please.
 
 ## Push Validation & Reliability
 

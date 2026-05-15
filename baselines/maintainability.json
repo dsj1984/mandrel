@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T21:01:50.417Z",
+  "generatedAt": "2026-05-15T21:26:16.340Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -388,15 +388,15 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "mi": 89.321
+      "mi": 88.972
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
-      "mi": 112.695
+      "mi": 112.427
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 95.351
+      "mi": 95.307
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -1372,7 +1372,7 @@
     },
     {
       "path": ".agents/scripts/single-story-close.js",
-      "mi": 85.18
+      "mi": 84.897
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -1576,7 +1576,7 @@
     },
     {
       "path": "tests/check-crap-epic-ref.test.js",
-      "mi": 116.19
+      "mi": 116.196
     },
     {
       "path": "tests/check-crap-json.test.js",
@@ -1617,6 +1617,10 @@
     {
       "path": "tests/cli-utils-redactor.test.js",
       "mi": 113.227
+    },
+    {
+      "path": "tests/close-validation-full-scope-crap.test.js",
+      "mi": 116.28
     },
     {
       "path": "tests/close-validation-mi-projection.test.js",
@@ -1900,7 +1904,7 @@
     },
     {
       "path": "tests/gate-integration.test.js",
-      "mi": 94.264
+      "mi": 94.244
     },
     {
       "path": "tests/gate-json-byte-stability.test.js",
@@ -2440,7 +2444,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
-      "mi": 114.22
+      "mi": 114.251
     },
     {
       "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
@@ -3028,7 +3032,7 @@
     },
     {
       "path": "tests/story-close.test.js",
-      "mi": 102.964
+      "mi": 102.969
     },
     {
       "path": "tests/story-close/format-autofix.test.js",
