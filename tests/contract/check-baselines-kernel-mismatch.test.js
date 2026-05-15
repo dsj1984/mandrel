@@ -104,10 +104,7 @@ function setupRepo() {
   runGit(['config', 'user.name', 'contract'], root);
   runGit(['config', 'commit.gpgsign', 'false'], root);
 
-  writeJson(
-    path.join(root, 'baselines', 'coverage.json'),
-    coverageEnvelope(),
-  );
+  writeJson(path.join(root, 'baselines', 'coverage.json'), coverageEnvelope());
   runGit(['add', '.agentrc.json', 'baselines/coverage.json'], root);
   runGit(['commit', '-m', 'baseline: initial (kernel-correct)'], root);
 
