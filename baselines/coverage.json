@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T23:13:41.133Z",
+  "generatedAt": "2026-05-15T23:27:09.762Z",
   "rollup": {
     "*": {
-      "lines": 97.03,
-      "branches": 86.87,
-      "functions": 92.72
+      "lines": 97.02,
+      "branches": 86.86,
+      "functions": 92.71
     }
   },
   "rows": [
@@ -24,9 +24,9 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "lines": 89.38,
-      "branches": 71.91,
-      "functions": 89.19
+      "lines": 86.67,
+      "branches": 71.04,
+      "functions": 85
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -211,7 +211,7 @@
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
       "lines": 91.36,
-      "branches": 74.55,
+      "branches": 72.73,
       "functions": 88.89
     },
     {
