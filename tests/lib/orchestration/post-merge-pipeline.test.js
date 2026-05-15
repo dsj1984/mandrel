@@ -799,11 +799,40 @@ describe('detectorsPhase', () => {
     const logger = makeLogger();
     const { events: progressEvents, fn: progress } = captureProgress();
     const reworkEvents = [
-      { ts: 't', kind: 'rework', source: { tool: 'rework-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { targetHash: 'h1', editCount: 7, threshold: 5 } },
-      { ts: 't', kind: 'rework', source: { tool: 'rework-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { targetHash: 'h2', editCount: 6, threshold: 5 } },
+      {
+        ts: 't',
+        kind: 'rework',
+        source: { tool: 'rework-detector' },
+        epicId: 1,
+        storyId: 2,
+        taskId: 9,
+        details: { targetHash: 'h1', editCount: 7, threshold: 5 },
+      },
+      {
+        ts: 't',
+        kind: 'rework',
+        source: { tool: 'rework-detector' },
+        epicId: 1,
+        storyId: 2,
+        taskId: 9,
+        details: { targetHash: 'h2', editCount: 6, threshold: 5 },
+      },
     ];
     const retryEvents = [
-      { ts: 't', kind: 'retry', source: { tool: 'retry-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { commandHash: 'c1', failureCount: 4, threshold: 3, normalizationRules: [] } },
+      {
+        ts: 't',
+        kind: 'retry',
+        source: { tool: 'retry-detector' },
+        epicId: 1,
+        storyId: 2,
+        taskId: 9,
+        details: {
+          commandHash: 'c1',
+          failureCount: 4,
+          threshold: 3,
+          normalizationRules: [],
+        },
+      },
     ];
     const reworkCalls = [];
     const retryCalls = [];
@@ -812,7 +841,11 @@ describe('detectorsPhase', () => {
       epicId: 1,
       storyId: 2,
       tasks: [{ id: 7 }, { id: 9 }],
-      config: { delivery: { signals: { rework: { editsPerFile: 5 }, retry: { repeatCount: 3 } } } },
+      config: {
+        delivery: {
+          signals: { rework: { editsPerFile: 5 }, retry: { repeatCount: 3 } },
+        },
+      },
       progress,
       logger,
       detectorsImpl: {
@@ -835,13 +868,19 @@ describe('detectorsPhase', () => {
     assert.equal(reworkCalls[0].threshold, 5);
     assert.equal(reworkCalls[0].epicId, 1);
     assert.equal(reworkCalls[0].storyId, 2);
-    assert.equal(reworkCalls[0].taskId, 9, 'tags signals with the last Task ID');
+    assert.equal(
+      reworkCalls[0].taskId,
+      9,
+      'tags signals with the last Task ID',
+    );
     assert.match(reworkCalls[0].tracesPath, /traces\.ndjson$/);
     assert.equal(retryCalls.length, 1);
     assert.equal(retryCalls[0].threshold, 3);
     assert.equal(appendCalls.length, 3);
     assert.ok(
-      progressEvents.some((e) => e.phase === 'DETECTORS' && /rework=2 retry=1/.test(e.msg)),
+      progressEvents.some(
+        (e) => e.phase === 'DETECTORS' && /rework=2 retry=1/.test(e.msg),
+      ),
       `expected DETECTORS summary line, got: ${JSON.stringify(progressEvents)}`,
     );
   });
@@ -860,7 +899,20 @@ describe('detectorsPhase', () => {
           throw new Error('rework boom');
         },
         detectRetry: async () => [
-          { ts: 't', kind: 'retry', source: { tool: 'retry-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { commandHash: 'c', failureCount: 5, threshold: 3, normalizationRules: [] } },
+          {
+            ts: 't',
+            kind: 'retry',
+            source: { tool: 'retry-detector' },
+            epicId: 1,
+            storyId: 2,
+            taskId: 9,
+            details: {
+              commandHash: 'c',
+              failureCount: 5,
+              threshold: 3,
+              normalizationRules: [],
+            },
+          },
         ],
       },
       appendSignalFn: async () => true,
@@ -884,8 +936,24 @@ describe('detectorsPhase', () => {
       logger,
       detectorsImpl: {
         detectRework: async () => [
-          { ts: 't', kind: 'rework', source: { tool: 'rework-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { targetHash: 'a', editCount: 9, threshold: 5 } },
-          { ts: 't', kind: 'rework', source: { tool: 'rework-detector' }, epicId: 1, storyId: 2, taskId: 9, details: { targetHash: 'b', editCount: 9, threshold: 5 } },
+          {
+            ts: 't',
+            kind: 'rework',
+            source: { tool: 'rework-detector' },
+            epicId: 1,
+            storyId: 2,
+            taskId: 9,
+            details: { targetHash: 'a', editCount: 9, threshold: 5 },
+          },
+          {
+            ts: 't',
+            kind: 'rework',
+            source: { tool: 'rework-detector' },
+            epicId: 1,
+            storyId: 2,
+            taskId: 9,
+            details: { targetHash: 'b', editCount: 9, threshold: 5 },
+          },
         ],
         detectRetry: async () => [],
       },
@@ -896,7 +964,9 @@ describe('detectorsPhase', () => {
       },
     });
     assert.deepEqual(result, { rework: 1, retry: 0 });
-    assert.ok(logger.warnings.some((m) => /rework appendSignal failed/.test(m)));
+    assert.ok(
+      logger.warnings.some((m) => /rework appendSignal failed/.test(m)),
+    );
   });
 
   it('skips with zero counts when epicId/storyId are invalid', async () => {

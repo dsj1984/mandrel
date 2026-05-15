@@ -704,7 +704,11 @@ describe('runHotspotDetection', () => {
     assert.deepEqual(result, { hotspot: 2 });
     assert.equal(detectorCalls.length, 1);
     assert.equal(detectorCalls[0].epicId, 1721);
-    assert.equal(detectorCalls[0].multiplier, 1.5, 'forwards merged multiplier');
+    assert.equal(
+      detectorCalls[0].multiplier,
+      1.5,
+      'forwards merged multiplier',
+    );
     assert.equal(appendCalls.length, 2);
     assert.equal(appendCalls[0].epicId, 1721);
     assert.equal(appendCalls[0].signal.kind, 'hotspot');
@@ -736,8 +740,32 @@ describe('runHotspotDetection', () => {
       config: {},
       logger,
       detect: async () => [
-        { ts: 't', kind: 'hotspot', source: { tool: 'hotspot-detector' }, epicId: 1721, details: { targetHash: 'a', totalEdits: 9, storiesAffected: 2, p95Threshold: 5, multiplier: 1.25 } },
-        { ts: 't', kind: 'hotspot', source: { tool: 'hotspot-detector' }, epicId: 1721, details: { targetHash: 'b', totalEdits: 9, storiesAffected: 2, p95Threshold: 5, multiplier: 1.25 } },
+        {
+          ts: 't',
+          kind: 'hotspot',
+          source: { tool: 'hotspot-detector' },
+          epicId: 1721,
+          details: {
+            targetHash: 'a',
+            totalEdits: 9,
+            storiesAffected: 2,
+            p95Threshold: 5,
+            multiplier: 1.25,
+          },
+        },
+        {
+          ts: 't',
+          kind: 'hotspot',
+          source: { tool: 'hotspot-detector' },
+          epicId: 1721,
+          details: {
+            targetHash: 'b',
+            totalEdits: 9,
+            storiesAffected: 2,
+            p95Threshold: 5,
+            multiplier: 1.25,
+          },
+        },
       ],
       append: async () => {
         calls += 1;
@@ -746,9 +774,7 @@ describe('runHotspotDetection', () => {
       },
     });
     assert.deepEqual(result, { hotspot: 1 });
-    assert.ok(
-      logger.warnings.some((m) => /appendEpicSignal failed/.test(m)),
-    );
+    assert.ok(logger.warnings.some((m) => /appendEpicSignal failed/.test(m)));
   });
 
   it('skips with hotspot=0 when epicId is invalid', async () => {

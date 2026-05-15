@@ -781,7 +781,12 @@ export async function detectorsPhase(ctx) {
 
   const eid = Number(epicId);
   const sid = Number(storyId);
-  if (!Number.isInteger(eid) || eid <= 0 || !Number.isInteger(sid) || sid <= 0) {
+  if (
+    !Number.isInteger(eid) ||
+    eid <= 0 ||
+    !Number.isInteger(sid) ||
+    sid <= 0
+  ) {
     logger?.warn?.(
       `[post-merge-pipeline] detectors phase skipped: invalid epicId=${epicId} / storyId=${storyId}`,
     );
@@ -828,7 +833,12 @@ export async function detectorsPhase(ctx) {
     });
     for (const evt of events) {
       try {
-        await appendSignalFn({ epicId: eid, storyId: sid, signal: evt, config });
+        await appendSignalFn({
+          epicId: eid,
+          storyId: sid,
+          signal: evt,
+          config,
+        });
         reworkCount += 1;
       } catch (err) {
         logger?.warn?.(
@@ -853,7 +863,12 @@ export async function detectorsPhase(ctx) {
     });
     for (const evt of events) {
       try {
-        await appendSignalFn({ epicId: eid, storyId: sid, signal: evt, config });
+        await appendSignalFn({
+          epicId: eid,
+          storyId: sid,
+          signal: evt,
+          config,
+        });
         retryCount += 1;
       } catch (err) {
         logger?.warn?.(

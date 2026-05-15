@@ -1108,9 +1108,7 @@ export async function runHotspotDetection(opts = {}) {
   } = opts;
   const eid = Number(epicId);
   if (!Number.isInteger(eid) || eid <= 0) {
-    logger?.warn?.(
-      `[runHotspotDetection] skipped: invalid epicId=${epicId}`,
-    );
+    logger?.warn?.(`[runHotspotDetection] skipped: invalid epicId=${epicId}`);
     return { hotspot: 0 };
   }
 
@@ -1143,7 +1141,9 @@ export async function runHotspotDetection(opts = {}) {
     );
   }
 
-  logger?.info?.(`[runHotspotDetection] hotspot=${count} (multiplier=${multiplier})`);
+  logger?.info?.(
+    `[runHotspotDetection] hotspot=${count} (multiplier=${multiplier})`,
+  );
   return { hotspot: count };
 }
 
