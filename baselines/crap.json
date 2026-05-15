@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T19:49:52.702Z",
+  "generatedAt": "2026-05-15T20:40:33.537Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -67,6 +67,12 @@
     },
     {
       "path": ".agents/scripts/analyze-execution.js",
+      "method": "<anon method-8>",
+      "startLine": 316,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/analyze-execution.js",
       "method": "collectStorySummaries",
       "startLine": 367,
       "crap": 8.215784143518519
@@ -91,6 +97,12 @@
     },
     {
       "path": ".agents/scripts/analyze-execution.js",
+      "method": "<anon method-17>",
+      "startLine": 575,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/analyze-execution.js",
       "method": "parseCli",
       "startLine": 663,
       "crap": 10
@@ -99,7 +111,7 @@
       "path": ".agents/scripts/analyze-execution.js",
       "method": "main",
       "startLine": 691,
-      "crap": 3.131456790123457
+      "crap": 3.2710123456790123
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -543,6 +555,12 @@
       "path": ".agents/scripts/epic-code-review.js",
       "method": "<anon method-2>",
       "startLine": 588,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/epic-code-review.js",
+      "method": "<anon method-3>",
+      "startLine": 594,
       "crap": 1
     },
     {
@@ -1557,7 +1575,7 @@
       "path": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
       "method": "samePath",
       "startLine": 95,
-      "crap": 4.021947873799726
+      "crap": 4.175582990397805
     },
     {
       "path": ".agents/scripts/lib/checks/index.js",
@@ -2925,7 +2943,7 @@
       "path": ".agents/scripts/lib/gates/baseline-store.js",
       "method": "writeBaseline",
       "startLine": 82,
-      "crap": 1.000512
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/gates/friction.js",
@@ -3205,6 +3223,12 @@
     },
     {
       "path": ".agents/scripts/lib/git-branch-lifecycle.js",
+      "method": "<anon method-1>",
+      "startLine": 69,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "_assertOnBranch",
       "startLine": 131,
       "crap": 2
@@ -3214,6 +3238,12 @@
       "method": "checkoutStoryBranch",
       "startLine": 152,
       "crap": 7
+    },
+    {
+      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
+      "method": "<anon method-2>",
+      "startLine": 159,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/git-branch-lifecycle.js",
@@ -3229,9 +3259,21 @@
     },
     {
       "path": ".agents/scripts/lib/git-branch-lifecycle.js",
+      "method": "<anon method-3>",
+      "startLine": 230,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
       "method": "ensureLocalBranch",
       "startLine": 276,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/git-branch-lifecycle.js",
+      "method": "<anon method-4>",
+      "startLine": 278,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/git-utils.js",
@@ -3261,6 +3303,18 @@
       "path": ".agents/scripts/lib/git-utils.js",
       "method": "createGitInterface",
       "startLine": 138,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git-utils.js",
+      "method": "<anon method-2>",
+      "startLine": 142,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/git-utils.js",
+      "method": "<anon method-3>",
+      "startLine": 142,
       "crap": 1
     },
     {
@@ -3601,6 +3655,12 @@
     },
     {
       "path": ".agents/scripts/lib/mutation/baseline-snapshot.js",
+      "method": "<anon method-1>",
+      "startLine": 104,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/mutation/baseline-snapshot.js",
       "method": "validateBaseline",
       "startLine": 167,
       "crap": 17.147968
@@ -3628,6 +3688,12 @@
       "method": "runStryker",
       "startLine": 70,
       "crap": 15.033554814675682
+    },
+    {
+      "path": ".agents/scripts/lib/mutation/stryker-runner.js",
+      "method": "<anon method-1>",
+      "startLine": 79,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/mutation/stryker-runner.js",
@@ -3712,6 +3778,12 @@
       "method": "computeBaselineRefreshRate",
       "startLine": 129,
       "crap": 14
+    },
+    {
+      "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
+      "method": "<anon method-1>",
+      "startLine": 130,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
@@ -4227,7 +4299,7 @@
       "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "method": "resolveAndDispatch",
       "startLine": 88,
-      "crap": 8.006910700788252
+      "crap": 16
     },
     {
       "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
@@ -4321,6 +4393,18 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
+      "method": "<anon method-2>",
+      "startLine": 125,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
+      "method": "<anon method-3>",
+      "startLine": 127,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
       "method": "defaultGitAdapter",
       "startLine": 129,
       "crap": 4
@@ -4348,6 +4432,12 @@
       "method": "createEpicRunnerCollaborators",
       "startLine": 26,
       "crap": 1.0034783092634332
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
+      "method": "<anon method-1>",
+      "startLine": 36,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
@@ -5853,7 +5943,7 @@
       "path": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
       "method": "resolveCloseInputs",
       "startLine": 67,
-      "crap": 7
+      "crap": 7.007143898527482
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/comment-bodies.js",
@@ -5878,6 +5968,12 @@
       "method": "runFormatAutofix",
       "startLine": 73,
       "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
+      "method": "<anon method-3>",
+      "startLine": 83,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
@@ -6495,7 +6591,7 @@
       "path": ".agents/scripts/lib/orchestration/wave-record-io.js",
       "method": "refreshLocalManifest",
       "startLine": 180,
-      "crap": 1
+      "crap": 1.0000214334705075
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-record-notifications.js",
@@ -6940,6 +7036,12 @@
       "method": "printStoryDispatchTable",
       "startLine": 91,
       "crap": 6
+    },
+    {
+      "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
+      "method": "<anon method-2>",
+      "startLine": 92,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",
@@ -7680,10 +7782,22 @@
       "crap": 3
     },
     {
+      "path": ".agents/scripts/lib/story-init/blocker-validator.js",
+      "method": "<anon method-1>",
+      "startLine": 23,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/story-init/context-resolver.js",
       "method": "resolveContext",
       "startLine": 26,
       "crap": 10.629221665908057
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/context-resolver.js",
+      "method": "<anon method-1>",
+      "startLine": 28,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/story-init/dependency-guard.js",
@@ -7723,6 +7837,12 @@
     },
     {
       "path": ".agents/scripts/lib/story-init/dependency-guard.js",
+      "method": "<anon method-5>",
+      "startLine": 262,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/dependency-guard.js",
       "method": "formatBlockerReport",
       "startLine": 290,
       "crap": 2
@@ -7741,9 +7861,21 @@
     },
     {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
+      "method": "<anon method-1>",
+      "startLine": 84,
+      "crap": 1.421875
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/donor-precheck.js",
       "method": "ensureDonorPrimed",
       "startLine": 117,
       "crap": 8.529453068149095
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/donor-precheck.js",
+      "method": "<anon method-2>",
+      "startLine": 129,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/story-init/hierarchy-tracer.js",
@@ -7752,9 +7884,21 @@
       "crap": 1
     },
     {
+      "path": ".agents/scripts/lib/story-init/hierarchy-tracer.js",
+      "method": "<anon method-1>",
+      "startLine": 21,
+      "crap": 1
+    },
+    {
       "path": ".agents/scripts/lib/story-init/state-transitioner.js",
       "method": "transitionTaskStates",
       "startLine": 30,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/state-transitioner.js",
+      "method": "<anon method-1>",
+      "startLine": 32,
       "crap": 1
     },
     {
@@ -7768,6 +7912,18 @@
       "method": "buildTaskGraph",
       "startLine": 45,
       "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
+      "method": "<anon method-4>",
+      "startLine": 47,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
+      "method": "<anon method-5>",
+      "startLine": 48,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
@@ -7903,6 +8059,12 @@
     },
     {
       "path": ".agents/scripts/lib/util/phase-timer.js",
+      "method": "<anon method-1>",
+      "startLine": 81,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/util/phase-timer.js",
       "method": "closeCurrent",
       "startLine": 111,
       "crap": 2
@@ -7959,6 +8121,12 @@
       "path": ".agents/scripts/lib/validation-evidence.js",
       "method": "resolveOpts",
       "startLine": 79,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/validation-evidence.js",
+      "method": "<anon method-1>",
+      "startLine": 84,
       "crap": 1
     },
     {
@@ -8086,6 +8254,12 @@
       "method": "handleCrapWorkerMessage",
       "startLine": 57,
       "crap": 13
+    },
+    {
+      "path": ".agents/scripts/lib/workers/crap-worker.js",
+      "method": "<anon method-1>",
+      "startLine": 76,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/workers/maintainability-worker.js",
@@ -8595,7 +8769,7 @@
       "path": ".agents/scripts/providers/github.js",
       "method": "paginateRest",
       "startLine": 223,
-      "crap": 5
+      "crap": 5.0407083248524325
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
