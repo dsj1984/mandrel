@@ -74,6 +74,7 @@ After step 3 you can run any slash command — `/epic-plan`,
 | The system prompt loaded by your AI tool | [`instructions.md`](instructions.md) |
 | Every `.agentrc.json` key, default, and override | [`docs/configuration.md`](../docs/configuration.md) |
 | Quality-gate runbooks (CRAP, MI, lint, friction) | [`docs/quality-gates.md`](../docs/quality-gates.md) |
+| Baseline envelope, component model, writer/reader contract | [`docs/baselines.md`](../docs/baselines.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
 | Render the signals span-tree (`/signals`) | [`workflows/signals.md`](workflows/signals.md) |
 | Persona behavior packs | [`personas/`](personas/) |
@@ -306,6 +307,45 @@ Module boundary rules:
 - Shared probes belong in `state.js`; pure formatting helpers may live in
   sibling helper modules.
 - Checks do not keep module-level mutable state.
+
+---
+
+## Baselines
+
+The framework's quality gates compare against per-kind baseline files
+under `baselines/<kind>.json` (lint, coverage, crap, maintainability,
+mutation, lighthouse, bundle-size). Every baseline shares a single
+envelope, every gate reads through one shared module
+([`.agents/scripts/lib/baselines/reader.js`](scripts/lib/baselines/reader.js)),
+and every refresher writes through one shared writer
+([`.agents/scripts/lib/baselines/writer.js`](scripts/lib/baselines/writer.js)).
+
+See [`docs/baselines.md`](../docs/baselines.md) for the full reference:
+envelope shape, per-kind axes, component model, path canonicalisation,
+writer/reader contract, kernel-version friction, and — most relevant to
+consumers — the **floor override** path. Consumers add a `floors` block
+(and optional `components`) under their gate in `.agentrc.json`:
+
+```json
+{
+  "delivery": {
+    "quality": {
+      "gates": {
+        "coverage": {
+          "floors": { "*": { "lines": 90, "branches": 85 } },
+          "components": { "api": ["src/api/**"] }
+        }
+      }
+    }
+  }
+}
+```
+
+The unified runtime gate
+[`.agents/scripts/check-baselines.js`](scripts/check-baselines.js)
+currently runs floor + tolerance + schema + kernel-mismatch checks only;
+full regression absorption and per-kind CLI deletion are tracked in
+follow-up **Epic #1943**.
 
 ---
 

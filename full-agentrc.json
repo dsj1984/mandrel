@@ -32,7 +32,24 @@
       "requiredChecks": [
         { "name": "lint", "cmd": ["npm", "run", "lint"] },
         { "name": "format:check", "cmd": ["npm", "run", "format:check"] },
-        { "name": "test", "cmd": ["npm", "test"] }
+        { "name": "test", "cmd": ["npm", "test"] },
+        {
+          "name": "coverage",
+          "cmd": ["node", ".agents/scripts/check-coverage-baseline.js"]
+        },
+        { "name": "crap", "cmd": ["node", ".agents/scripts/check-crap.js"] },
+        {
+          "name": "maintainability",
+          "cmd": ["node", ".agents/scripts/check-maintainability.js"]
+        },
+        {
+          "name": "mutation",
+          "cmd": ["node", ".agents/scripts/check-mutation.js"]
+        },
+        {
+          "name": "baselines",
+          "cmd": ["node", ".agents/scripts/check-baselines.js"]
+        }
       ]
     },
     "mergeMethods": {
@@ -131,7 +148,7 @@
           "enabled": true,
           "baselinePath": "baselines/mutation.json",
           "tolerance": { "kind": "percent", "value": 0 },
-          "floors": { "*": { "mutation": 0 } },
+          "floors": { "*": { "score": 60 } },
           "strykerConfigPath": null
         },
         "lighthouse": {
@@ -149,7 +166,7 @@
           "baseUrl": null,
           "routes": []
         },
-        "bundleSize": {
+        "bundle-size": {
           "enabled": false,
           "baselinePath": "baselines/bundle-size.json",
           "tolerance": { "kind": "percent", "value": 0 },

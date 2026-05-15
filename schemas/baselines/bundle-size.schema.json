@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/bundle-size.schema.json",
+  "title": "BundleSizeBaseline",
+  "description": "Per-kind baseline schema for the bundle-size gate. Extends the shared baseline-envelope contract.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["totalKb", "gzippedKb"],
+        "additionalProperties": false,
+        "properties": {
+          "totalKb": { "type": "number", "minimum": 0 },
+          "gzippedKb": { "type": "number", "minimum": 0 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["totalKb", "gzippedKb"],
+          "additionalProperties": false,
+          "properties": {
+            "totalKb": { "type": "number", "minimum": 0 },
+            "gzippedKb": { "type": "number", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["bundle", "rawKb", "gzippedKb"],
+        "additionalProperties": false,
+        "properties": {
+          "bundle": { "type": "string" },
+          "rawKb": { "type": "number", "minimum": 0 },
+          "gzippedKb": { "type": "number", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

@@ -60,7 +60,7 @@ export async function runPreMergeGates({
   runCloseValidation = defaultRunCloseValidation,
 }) {
   logger.info?.(
-    `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
+    `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability, crap, baselines)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
   const validation = await runCloseValidation({
     cwd,

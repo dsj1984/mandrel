@@ -2,6 +2,15 @@
  * auto-refresh-baselines.js — pure delta-cap evaluator for the bounded
  * baseline auto-refresh at story-close (Story #1398, Epic #1386).
  *
+ * Story #1891 (Epic #1786) note: this evaluator is purely functional and
+ * has never written a baseline JSON file directly — every regenerated row
+ * funnels through the per-kind refresh entry points
+ * (`update-crap-baseline.js`, `update-maintainability-baseline.js`,
+ * `lib/coverage-baseline.js`'s `writeBaseline`), which now write through
+ * the shared `lib/baselines/writer.js`. The migration leaves this
+ * evaluator unchanged structurally; it remains the single seam for the
+ * delta-cap decision.
+ *
  * After the close-validation chain has passed (`runPreMergeGatesWithAttribution`
  * already auto-refreshed any attributable drift), `story-close` regenerates
  * the baseline rows scoped to the Story diff and asks this evaluator whether

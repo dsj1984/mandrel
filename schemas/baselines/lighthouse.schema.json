@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel/.agents/schemas/baselines/lighthouse.schema.json",
+  "title": "LighthouseBaseline",
+  "description": "Per-kind baseline schema for the Lighthouse audit gate. Extends the shared baseline-envelope contract.",
+  "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
+  "type": "object",
+  "properties": {
+    "rollup": {
+      "type": "object",
+      "required": ["*"],
+      "additionalProperties": {
+        "type": "object",
+        "required": ["performance", "accessibility", "bestPractices", "seo"],
+        "additionalProperties": false,
+        "properties": {
+          "performance": { "type": "number", "minimum": 0, "maximum": 100 },
+          "accessibility": { "type": "number", "minimum": 0, "maximum": 100 },
+          "bestPractices": { "type": "number", "minimum": 0, "maximum": 100 },
+          "seo": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      },
+      "properties": {
+        "*": {
+          "type": "object",
+          "required": ["performance", "accessibility", "bestPractices", "seo"],
+          "additionalProperties": false,
+          "properties": {
+            "performance": { "type": "number", "minimum": 0, "maximum": 100 },
+            "accessibility": { "type": "number", "minimum": 0, "maximum": 100 },
+            "bestPractices": { "type": "number", "minimum": 0, "maximum": 100 },
+            "seo": { "type": "number", "minimum": 0, "maximum": 100 }
+          }
+        }
+      }
+    },
+    "rows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "route",
+          "performance",
+          "accessibility",
+          "bestPractices",
+          "seo"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "route": { "type": "string" },
+          "performance": { "type": "number", "minimum": 0, "maximum": 100 },
+          "accessibility": { "type": "number", "minimum": 0, "maximum": 100 },
+          "bestPractices": { "type": "number", "minimum": 0, "maximum": 100 },
+          "seo": { "type": "number", "minimum": 0, "maximum": 100 }
+        }
+      }
+    }
+  }
+}

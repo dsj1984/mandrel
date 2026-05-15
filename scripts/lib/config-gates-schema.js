@@ -13,7 +13,7 @@ import { SHELL_INJECTION_PATTERN_STRING } from './config-schema-shared.js';
  *   - `floors`       — workspace-keyed `{ "*": { ... } }` absolute floor object.
  *
  * Gate-specific extras (targetDirs for crap/MI, routes for lighthouse,
- * bundles for bundleSize, coveragePath for coverage) layer on top via the
+ * bundles for bundle-size, coveragePath for coverage) layer on top via the
  * per-gate schemas below. Split out of `config-settings-schema.js` to
  * keep the parent module under the maintainability ceiling — schema
  * literals score low on MI because they're long and flat.
@@ -55,7 +55,18 @@ const TOLERANCE_SCHEMA = {
   additionalProperties: false,
 };
 
-/** Workspace-keyed floors object — `"*"` catch-all required. */
+/**
+ * Workspace-keyed floors object — `"*"` catch-all required.
+ *
+ * Each value is a per-component floor object whose keys are the metric
+ * names the gate consumes. The metric name keyset is intentionally open
+ * (`additionalProperties: { type: 'number' }`) so per-kind rollup keys
+ * (e.g. `p95`, `perMethod`, `min`, `p50`, `score`, `errorCount`,
+ * `warningCount`) flow through without each per-gate sub-schema having
+ * to enumerate them. Story #1892 / Task #1894 affirmed this contract:
+ * the open-keyset shape is what unblocks the per-rollup floors that
+ * land in S6.
+ */
 const FLOORS_SCHEMA = {
   type: 'object',
   required: ['*'],
@@ -65,11 +76,30 @@ const FLOORS_SCHEMA = {
   },
 };
 
+/**
+ * Per-gate `components` map — name → glob list. Defaulted to
+ * `{ '*': ['**'] }` at the resolver layer (see
+ * `.agents/scripts/lib/baselines/components.js`); the schema only
+ * constrains the shape when an operator declares it explicitly.
+ *
+ * Story #1892 / Task #1894: introduced as the shared seam between the
+ * reader and writer so per-component rollups + floors can land
+ * independently of any one gate.
+ */
+const COMPONENTS_SCHEMA = {
+  type: 'object',
+  additionalProperties: {
+    type: 'array',
+    items: { type: 'string', minLength: 1 },
+  },
+};
+
 const GATE_BASE = {
   enabled: { type: 'boolean' },
   baselinePath: { ...SAFE_STRING, minLength: 1 },
   tolerance: TOLERANCE_SCHEMA,
   floors: FLOORS_SCHEMA,
+  components: COMPONENTS_SCHEMA,
 };
 
 const LINT_GATE = {
@@ -172,7 +202,7 @@ export const GATES_SCHEMA = {
     maintainability: MAINTAINABILITY_GATE,
     mutation: MUTATION_GATE,
     lighthouse: LIGHTHOUSE_GATE,
-    bundleSize: BUNDLE_SIZE_GATE,
+    'bundle-size': BUNDLE_SIZE_GATE,
   },
   additionalProperties: false,
 };

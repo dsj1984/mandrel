@@ -3,7 +3,7 @@
  *
  * The quality block under `delivery.quality.*` is now organised as a
  * `gates.<tier>` object where every tier (lint, coverage, crap,
- * maintainability, mutation, lighthouse, bundleSize) shares the same
+ * maintainability, mutation, lighthouse, bundle-size) shares the same
  * four-field base:
  *
  *   - `enabled`      — when `false`, the checker exits 0 with a skip line.

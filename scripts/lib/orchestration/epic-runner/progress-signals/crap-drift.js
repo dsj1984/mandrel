@@ -1,5 +1,6 @@
 import nodeFs from 'node:fs';
 import path from 'node:path';
+import { resolveComponents } from '../../../baselines/components.js';
 import { loadCoverage as defaultLoadCoverage } from '../../../coverage-utils.js';
 import { calculateCrapForSource } from '../../../crap-engine.js';
 
@@ -29,6 +30,69 @@ export function normaliseCoveragePath(relPath) {
 export function coverageKeyMatches(key, suffix) {
   const norm = String(key).replace(/\\/g, '/');
   return norm === suffix || norm.endsWith(`/${suffix}`);
+}
+
+/**
+ * Detect per-component CRAP regressions from a baseline rollup against the
+ * gate's configured floors. Pure — the caller loads the baseline via
+ * `lib/baselines/reader.js#load('crap')` and passes the resulting
+ * `{ rollup }` plus the gate config block.
+ *
+ * Bullet shape (Task #1919, Epic #1786):
+ *
+ *   🧨 crap: <component> <axis> <value> > floor <floor>
+ *
+ * Only components whose rollup exceeds the configured floor surface — a
+ * breach in a component-scoped floor does NOT report against `*` unless
+ * `*` itself breaches. This keeps the rollout narrowly targeted: when an
+ * operator wires up a per-component floor for `api`, regressing `api`
+ * names `api` — not `*`.
+ *
+ * @param {{
+ *   rollup?: Record<string, Record<string, number>>,
+ *   gateConfig?: { floors?: Record<string, Record<string, number>> } & object,
+ * }} params
+ * @returns {string[]}
+ */
+export function detectComponentRegressions(params = {}) {
+  const rollup = params.rollup ?? {};
+  const gateConfig = params.gateConfig ?? {};
+  const floors = gateConfig.floors ?? {};
+  const components = resolveComponents(gateConfig);
+  const names = new Set([
+    ...Object.keys(components),
+    ...Object.keys(floors),
+    ...Object.keys(rollup),
+  ]);
+  const bullets = [];
+  // CRAP is a "lower is better" gate — every axis under crap is ≤ floor.
+  for (const name of [...names].sort(componentOrder)) {
+    const aggregate = rollup[name];
+    if (!aggregate || typeof aggregate !== 'object') continue;
+    const floor = floors[name] ?? floors['*'];
+    if (!floor || typeof floor !== 'object') continue;
+    for (const axis of Object.keys(floor).sort()) {
+      const cap = floor[axis];
+      const value = aggregate[axis];
+      if (typeof cap !== 'number' || !Number.isFinite(cap)) continue;
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+      if (value <= cap) continue;
+      bullets.push(
+        `🧨 crap: ${name} ${axis} ${formatNumber(value)} > floor ${formatNumber(cap)}`,
+      );
+    }
+  }
+  return bullets;
+}
+
+function componentOrder(a, b) {
+  if (a === '*') return -1;
+  if (b === '*') return 1;
+  return a.localeCompare(b);
+}
+
+function formatNumber(value) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
 /**

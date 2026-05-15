@@ -20,6 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import picomatch from 'picomatch';
+import { write, writeFile } from './baselines/writer.js';
 
 export const COVERAGE_FINAL_PATH = 'coverage/coverage-final.json';
 export const COVERAGE_BASELINE_PATH = 'baselines/coverage.json';
@@ -154,30 +155,93 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
  * pass) from "baseline exists but is empty" (treat every in-scope
  * file as new = fail).
  */
+function isEnvelopeShape(parsed) {
+  return (
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.rows) &&
+    typeof parsed.$schema === 'string'
+  );
+}
+
+function projectEnvelopeToFlat(envelope) {
+  const out = {};
+  for (const row of envelope.rows) {
+    if (!row || typeof row.path !== 'string') continue;
+    out[row.path] = {
+      lines: row.lines,
+      branches: row.branches,
+      functions: row.functions,
+    };
+  }
+  return out;
+}
+
+function normaliseParsedBaseline(parsed) {
+  // Story #1891: the writer ships envelope-shape baselines
+  // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`). The
+  // legacy reader contract returns a flat `{ file: { lines, branches,
+  // functions } }` map, so we project rows back to that shape for
+  // backwards-compatible consumers (Story #1892 migrates them off the
+  // flat shape).
+  return isEnvelopeShape(parsed) ? projectEnvelopeToFlat(parsed) : parsed;
+}
+
 export function readBaseline(cwd, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   if (!fsImpl.existsSync(abs)) return null;
-  return JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+  return normaliseParsedBaseline(JSON.parse(fsImpl.readFileSync(abs, 'utf8')));
+}
+
+function projectFlatToRows(baseline) {
+  return Object.entries(baseline ?? {}).map(([file, scores]) => {
+    const { denominators: _ignored, ...rest } = scores ?? {};
+    return {
+      path: file,
+      lines: rest.lines ?? 0,
+      branches: rest.branches ?? 0,
+      functions: rest.functions ?? 0,
+    };
+  });
+}
+
+function writeEnvelopeViaFsImpl(abs, envelope, fsImpl) {
+  fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
+  const canonical = {
+    $schema: envelope.$schema,
+    kernelVersion: envelope.kernelVersion,
+    generatedAt: envelope.generatedAt,
+    rollup: envelope.rollup,
+    rows: envelope.rows,
+  };
+  fsImpl.writeFileSync(abs, `${JSON.stringify(canonical, null, 2)}\n`);
+}
+
+function dispatchEnvelopeWrite(abs, envelope, fsImpl) {
+  // Honour the injected fsImpl seam for tests that pass `memfs` or a spy —
+  // fall through to the writer's atomic write when `fsImpl === fs`.
+  return fsImpl === fs
+    ? writeFile(abs, envelope)
+    : writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
 }
 
 export function writeBaseline(cwd, baseline, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
-  // Strip the in-memory `denominators` field — it's a runtime-only signal
-  // for the noise-tolerance gate; the on-disk baseline stays a flat
-  // `{ lines, branches, functions }` triple per file for backward compat
-  // and small diffs.
-  const stripped = Object.fromEntries(
-    Object.entries(baseline).map(([file, scores]) => {
-      const { denominators: _ignored, ...rest } = scores ?? {};
-      return [file, rest];
-    }),
-  );
-  // Sorted keys keep diffs stable run-to-run.
-  const sorted = Object.fromEntries(
-    Object.entries(stripped).sort(([a], [b]) => a.localeCompare(b)),
-  );
-  fsImpl.writeFileSync(abs, `${JSON.stringify(sorted, null, 2)}\n`);
+  // Story #1891: route through the shared baseline writer. The writer
+  // produces an envelope-shaped JSON (`$schema`, `kernelVersion`,
+  // `generatedAt`, `rollup`, `rows`) instead of the legacy flat
+  // `{ file: { lines, branches, functions } }` map. Reader migration
+  // (Story #1892) and on-disk regen (Story #1895) ship in the same Epic,
+  // so this entry point and the reader move in lockstep.
+  //
+  // `denominators` is an in-memory-only runtime signal for the noise-
+  // tolerance gate — it never persists, so strip before projection.
+  const envelope = write({
+    kind: 'coverage',
+    rows: projectFlatToRows(baseline),
+  });
+  dispatchEnvelopeWrite(abs, envelope, fsImpl);
   return abs;
 }
 
