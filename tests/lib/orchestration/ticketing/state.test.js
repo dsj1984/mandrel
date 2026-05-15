@@ -11,16 +11,16 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import { ITicketingProvider } from '../../../../.agents/scripts/lib/ITicketingProvider.js';
 import {
+  _resetStructuredCommentCache,
+  STATE_LABELS,
+  structuredCommentMarker,
+} from '../../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
+import {
   postStructuredComment,
   toggleTasklistCheckbox,
   transitionTicketState,
   upsertStructuredComment,
 } from '../../../../.agents/scripts/lib/orchestration/ticketing/state.js';
-import {
-  _resetStructuredCommentCache,
-  STATE_LABELS,
-  structuredCommentMarker,
-} from '../../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
 
 class MockProvider extends ITicketingProvider {
   constructor() {

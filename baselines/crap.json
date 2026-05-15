@@ -5423,87 +5423,87 @@
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-1>",
-      "startLine": 76
+      "startLine": 52
     },
     {
       "crap": 3,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "__setCascadeRetryDelays",
-      "startLine": 87
+      "startLine": 63
     },
     {
       "crap": 2,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "withParentCascadeLock",
-      "startLine": 117
+      "startLine": 93
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "__resetParentCascadeLocks",
-      "startLine": 137
+      "startLine": 113
     },
     {
       "crap": 12,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "isTransientCascadeError",
-      "startLine": 151
+      "startLine": 127
     },
     {
       "crap": 12,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "formatCascadeError",
-      "startLine": 181
+      "startLine": 157
     },
     {
       "crap": 4.012021036814425,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "retryTransient",
-      "startLine": 208
+      "startLine": 184
     },
     {
       "crap": 1.125,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "logCascadePartialFailures",
-      "startLine": 247
+      "startLine": 220
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processCascadeParent",
-      "startLine": 269
+      "startLine": 242
     },
     {
       "crap": 8.002978829089308,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processCascadeParentLocked",
-      "startLine": 284
+      "startLine": 257
     },
     {
       "crap": 3.16401807843709,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-6>",
-      "startLine": 333
+      "startLine": 306
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-9>",
-      "startLine": 394
+      "startLine": 367
     },
     {
       "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "cascadeCompletion",
-      "startLine": 458
+      "startLine": 431
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/ticketing.js",
+      "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-11>",
-      "startLine": 491
+      "startLine": 464
     },
     {
       "crap": 5,
@@ -5557,43 +5557,43 @@
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "validateTransitionInputs",
-      "startLine": 60
+      "startLine": 56
     },
     {
       "crap": 5.1574074074074066,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "loadTicketSnapshot",
-      "startLine": 78
+      "startLine": 74
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "dispatchTransitionNotification",
-      "startLine": 106
+      "startLine": 102
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "transitionTicketState",
-      "startLine": 188
+      "startLine": 184
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "toggleTasklistCheckbox",
-      "startLine": 268
+      "startLine": 264
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "postStructuredComment",
-      "startLine": 310
+      "startLine": 306
     },
     {
       "crap": 6.0163859808830225,
       "file": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "method": "upsertStructuredComment",
-      "startLine": 337
+      "startLine": 333
     },
     {
       "crap": 7,

@@ -53,10 +53,7 @@ describe('ticketing/reads — constants and validators', () => {
       'story-init',
       'story-run-progress',
     ]) {
-      assert.ok(
-        STRUCTURED_COMMENT_TYPES.includes(t),
-        `expected ${t} in enum`,
-      );
+      assert.ok(STRUCTURED_COMMENT_TYPES.includes(t), `expected ${t} in enum`);
     }
   });
 
@@ -100,10 +97,7 @@ describe('ticketing/reads — structuredCommentMarker', () => {
       wave: null,
       foo: undefined,
     });
-    assert.equal(
-      marker,
-      '<!-- ap:structured-comment type="progress" -->',
-    );
+    assert.equal(marker, '<!-- ap:structured-comment type="progress" -->');
   });
 });
 

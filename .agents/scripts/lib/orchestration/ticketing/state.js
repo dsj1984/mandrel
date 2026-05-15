@@ -22,16 +22,12 @@ import {
   eventSeverity,
   renderTransitionMessage,
 } from '../../notifications/notifier.js';
-// Story #1848 — `cascadeCompletion` + `logCascadePartialFailures` remain
-// in the parent ticketing facade until Task #1868 moves them into
-// `./bulk.js`. Importing them from the parent here keeps the cycle
-// stable while we land the verb-family split task-by-task: facade
-// re-exports the binding, so renaming the source location later is a
-// drop-in change.
-import {
-  cascadeCompletion,
-  logCascadePartialFailures,
-} from '../ticketing.js';
+// Story #1848 — `cascadeCompletion` + `logCascadePartialFailures` live
+// in `./bulk.js`. The ESM cycle between state.js ↔ bulk.js is safe
+// because neither side dereferences the imported bindings at module-
+// evaluation time — both are invoked at call-time once the cycle has
+// fully resolved.
+import { cascadeCompletion, logCascadePartialFailures } from './bulk.js';
 import {
   ALL_STATES,
   assertValidStructuredCommentType,
