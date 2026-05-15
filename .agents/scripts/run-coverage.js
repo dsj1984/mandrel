@@ -36,7 +36,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
-import { resolveTestConcurrency } from './run-tests.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -55,7 +54,7 @@ const testRun = spawnSync(
   [
     '--experimental-test-module-mocks',
     '--test',
-    `--test-concurrency=${resolveTestConcurrency()}`,
+    '--test-concurrency=8',
     'tests/**/*.test.js',
   ],
   {
