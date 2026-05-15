@@ -25,7 +25,7 @@
     "functions": 100
   },
   ".agents/scripts/delete-epic-branches.js": {
-    "lines": 86.43,
+    "lines": 86.74,
     "branches": 90,
     "functions": 83.33
   },
@@ -895,9 +895,24 @@
     "functions": 93.75
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 97.24,
-    "branches": 85.07,
-    "functions": 96.15
+    "lines": 100,
+    "branches": 100,
+    "functions": null
+  },
+  ".agents/scripts/lib/orchestration/ticketing/bulk.js": {
+    "lines": 97.68,
+    "branches": 82.08,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/ticketing/reads.js": {
+    "lines": 99.64,
+    "branches": 90.24,
+    "functions": 100
+  },
+  ".agents/scripts/lib/orchestration/ticketing/state.js": {
+    "lines": 97.66,
+    "branches": 94.81,
+    "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
     "lines": 87.35,

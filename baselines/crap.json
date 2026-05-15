@@ -5425,85 +5425,85 @@
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-1>",
-      "startLine": 52
+      "startLine": 49
     },
     {
       "crap": 3,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "__setCascadeRetryDelays",
-      "startLine": 63
+      "startLine": 60
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "withParentCascadeLock",
-      "startLine": 93
+      "startLine": 90
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "__resetParentCascadeLocks",
-      "startLine": 113
+      "startLine": 110
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "isTransientCascadeError",
-      "startLine": 127
+      "startLine": 124
     },
     {
       "crap": 12,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "formatCascadeError",
-      "startLine": 157
+      "startLine": 154
     },
     {
       "crap": 4.012021036814425,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "retryTransient",
-      "startLine": 184
+      "startLine": 181
     },
     {
       "crap": 1.125,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "logCascadePartialFailures",
-      "startLine": 220
+      "startLine": 217
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processCascadeParent",
-      "startLine": 242
+      "startLine": 239
     },
     {
       "crap": 8.002978829089308,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "processCascadeParentLocked",
-      "startLine": 257
+      "startLine": 254
     },
     {
       "crap": 3.16401807843709,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-6>",
-      "startLine": 306
+      "startLine": 303
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-9>",
-      "startLine": 367
+      "startLine": 364
     },
     {
       "crap": 6,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "cascadeCompletion",
-      "startLine": 431
+      "startLine": 428
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "method": "<anon method-11>",
-      "startLine": 464
+      "startLine": 461
     },
     {
       "crap": 5,
