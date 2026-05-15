@@ -515,9 +515,9 @@
     "functions": 83.33
   },
   ".agents/scripts/lib/observability/tool-trace-hook.js": {
-    "lines": 89.14,
-    "branches": 66.67,
-    "functions": 88.89
+    "lines": 92.19,
+    "branches": 77.14,
+    "functions": 90.91
   },
   ".agents/scripts/lib/orchestration/automerge-predicate.js": {
     "lines": 100,
@@ -953,6 +953,11 @@
     "lines": 100,
     "branches": 100,
     "functions": null
+  },
+  ".agents/scripts/lib/signals/detectors/retry.js": {
+    "lines": 96.97,
+    "branches": 72.55,
+    "functions": 100
   },
   ".agents/scripts/lib/signals/detectors/rework.js": {
     "lines": 94.84,

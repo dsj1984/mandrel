@@ -3088,52 +3088,64 @@
       "startLine": 84
     },
     {
+      "crap": 6,
+      "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
+      "method": "normaliseBashCommand",
+      "startLine": 124
+    },
+    {
       "crap": 3.7084548104956268,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "clamp",
-      "startLine": 94
+      "startLine": 155
     },
     {
       "crap": 7,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "resolveActiveStory",
-      "startLine": 113
+      "startLine": 174
     },
     {
-      "crap": 11.059538562472664,
+      "crap": 3,
+      "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
+      "method": "hashBashInput",
+      "startLine": 197
+    },
+    {
+      "crap": 11,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "buildDetails",
-      "startLine": 133
+      "startLine": 216
     },
     {
       "crap": 2,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "handlePre",
-      "startLine": 182
+      "startLine": 266
     },
     {
       "crap": 4,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "handlePost",
-      "startLine": 201
+      "startLine": 285
     },
     {
       "crap": 6.730277986476334,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "main",
-      "startLine": 240
+      "startLine": 324
     },
     {
       "crap": 10.65242746756087,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "runFromStdin",
-      "startLine": 273
+      "startLine": 357
     },
     {
       "crap": 1,
       "file": ".agents/scripts/lib/observability/tool-trace-hook.js",
       "method": "_resetInflightForTests",
-      "startLine": 311
+      "startLine": 395
     },
     {
       "crap": 3,
@@ -5954,6 +5966,42 @@
       "file": ".agents/scripts/lib/runtime-context.js",
       "method": "createRuntimeContext",
       "startLine": 42
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "isPositiveInt",
+      "startLine": 103
+    },
+    {
+      "crap": 5.9259259259259265,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "extractTool",
+      "startLine": 114
+    },
+    {
+      "crap": 5.507137490608565,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "resolveIdentity",
+      "startLine": 133
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "isFailedBash",
+      "startLine": 157
+    },
+    {
+      "crap": 9.024,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "tallyFailuresByIdentity",
+      "startLine": 169
+    },
+    {
+      "crap": 12,
+      "file": ".agents/scripts/lib/signals/detectors/retry.js",
+      "method": "detectRetry",
+      "startLine": 236
     },
     {
       "crap": 2,
