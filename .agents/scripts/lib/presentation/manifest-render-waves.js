@@ -12,13 +12,9 @@
  * predicate so `renderNestedWaveSections` reads as a straight projection
  * and lands below CRAP 12.
  *
- * Imports the small pure helpers from `manifest-formatter.js` — those
- * functions are re-used by `renderWaveSections` and other callers in the
- * formatter and we keep them where the existing tests already exercise
- * them. Node ESM handles the cycle correctly because none of these
- * helpers run at module load — every reference happens inside the
- * `renderNestedWaveSections` body, well after both modules finish
- * top-level evaluation.
+ * Imports the small pure helpers from `manifest-helpers.js` — the
+ * formatter re-exports them so existing call-sites that read these
+ * names off `manifest-formatter.js` keep working.
  */
 
 import { AGENT_LABELS } from '../label-constants.js';
@@ -28,7 +24,7 @@ import {
   deriveWaveStatus,
   topoSortTasks,
   waveHeadingText,
-} from './manifest-formatter.js';
+} from './manifest-helpers.js';
 
 /**
  * Private: shape-guard for the per-level nodes touched by the wave
