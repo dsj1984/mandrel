@@ -18,7 +18,7 @@
     "maintainability:update": "node .agents/scripts/update-maintainability-baseline.js",
     "crap:check": "node .agents/scripts/check-crap.js",
     "crap:update": "node .agents/scripts/update-crap-baseline.js",
-    "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD",
+    "quality:preview": "node .agents/scripts/quality-preview.js --changed-since HEAD && node .agents/scripts/check-dead-exports.js",
     "quality:watch": "node .agents/scripts/quality-watch.js",
     "sync:commands": "node .agents/scripts/sync-claude-commands.js",
     "prepare": "husky && npm run sync:commands"
