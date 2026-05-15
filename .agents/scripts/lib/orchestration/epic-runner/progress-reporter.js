@@ -40,6 +40,15 @@ import {
   upsertStructuredComment,
 } from '../ticketing.js';
 import { runHotspotDetection } from './hotspot-detection.js';
+import {
+  deriveState as deriveStateFromComposition,
+  escapePipes as escapePipesFromComposition,
+  formatElapsed as formatElapsedFromComposition,
+  renderNotable as renderNotableFromComposition,
+  renderProgressBody as renderProgressBodyFromComposition,
+  truncate as truncateFromComposition,
+  upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
+} from './progress-reporter/composition.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
 export const EPIC_RUN_PROGRESS_TYPE = 'epic-run-progress';
@@ -531,276 +540,46 @@ export class ProgressReporter {
   }
 
   async #render(rows, phaseSummaries = []) {
-    const done = rows.filter((r) => r.state === 'done').length;
-    const total = rows.length;
-    const totalWaves = this.plan?.length ?? this.currentWave?.totalWaves ?? '?';
-    const currentWaveNum = this.currentWave
-      ? this.currentWave.index + 1
-      : (this.plan?.length ?? '?');
-    const waveLabel = `Wave ${currentWaveNum}/${totalWaves}`;
-    const elapsedSrc =
-      this.epicStartedAt ?? this.currentWave?.startedAt ?? null;
-    const elapsed = elapsedSrc
-      ? ` · ${formatElapsed(this.now() - new Date(elapsedSrc))} elapsed`
-      : '';
-
-    const header = `### 📊 Progress — ${waveLabel} · ${done}/${total} closed${elapsed}`;
-
-    const includeWaveCol = rows.some((r) => Number.isInteger(r.wave));
-    const table = includeWaveCol
-      ? [
-          '| Wave | ID | State | Title |',
-          '|---|---|---|---|',
-          ...rows.map(
-            (r) =>
-              `| ${r.wave + 1} | #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-          ),
-        ].join('\n')
-      : [
-          '| ID | State | Title |',
-          '|---|---|---|',
-          ...rows.map(
-            (r) =>
-              `| #${r.id} | ${STATE_EMOJI[r.state] ?? ''} ${r.state} | ${escapePipes(r.title)} |`,
-          ),
-        ].join('\n');
-
-    const notable = await this.#renderNotable(rows);
-    const phaseBlock = renderPhaseTimingsSection(phaseSummaries);
-    const parts = [header, '', table, '', '**Notable**', notable];
-    if (phaseBlock) parts.push('', phaseBlock);
-    return parts.join('\n');
-  }
-
-  async #renderNotable(rows) {
-    const items = [];
-    const blocked = rows.filter((r) => r.state === 'blocked');
-    if (blocked.length) {
-      items.push(
-        `- 🚧 ${blocked.length} stor${blocked.length === 1 ? 'y' : 'ies'} blocked: ${blocked.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const inFlight = rows.filter((r) => r.state === 'in-flight');
-    if (inFlight.length) {
-      items.push(
-        `- 🔧 ${inFlight.length} in flight: ${inFlight.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const unknown = rows.filter((r) => r.state === 'unknown');
-    if (unknown.length) {
-      items.push(
-        `- ❓ ${unknown.length} unreadable (token scope / network?): ${unknown.map((r) => `#${r.id}`).join(', ')}`,
-      );
-    }
-    const ctx = { wave: this.currentWave };
-    const detectorResults = await Promise.all(
-      this.detectors.map(async (detector) => {
-        try {
-          const fn =
-            typeof detector === 'function' ? detector : detector?.detect;
-          if (typeof fn !== 'function') return [];
-          const out = await fn.call(detector, rows, ctx);
-          return Array.isArray(out) ? out : [];
-        } catch (err) {
-          this.logger.warn?.(
-            `[ProgressReporter] detector failed: ${err.message}`,
-          );
-          return [];
-        }
-      }),
-    );
-    for (const bullets of detectorResults) {
-      for (const b of bullets) items.push(b.startsWith('- ') ? b : `- ${b}`);
-    }
-
-    if (!items.length) items.push('- (none)');
-    return items.join('\n');
+    const phaseSummariesBlock = renderPhaseTimingsSection(phaseSummaries);
+    return renderProgressBodyFromComposition({
+      rows,
+      plan: this.plan,
+      currentWave: this.currentWave,
+      epicStartedAt: this.epicStartedAt,
+      now: this.now,
+      detectors: this.detectors,
+      phaseSummariesBlock,
+      logger: this.logger,
+    });
   }
 }
 
+// Local function shims. The implementations now live in
+// `progress-reporter/composition.js`; these wrappers preserve the
+// existing function-call ergonomics for code in this file (and any
+// future consumers that import them from the parent re-export) without
+// forcing every callsite to spell out the imported alias.
 function deriveState(ticket) {
-  if (!ticket) return 'unknown';
-  const labels = ticket.labels ?? [];
-  const state = (ticket.state ?? '').toString().toUpperCase();
-  if (state === 'CLOSED' || labels.includes(AGENT_LABELS.DONE)) return 'done';
-  if (labels.includes(AGENT_LABELS.BLOCKED)) return 'blocked';
-  if (labels.includes(AGENT_LABELS.EXECUTING)) return 'in-flight';
-  if (labels.includes(AGENT_LABELS.READY)) return 'queued';
-  return 'unknown';
+  return deriveStateFromComposition(ticket, AGENT_LABELS);
 }
 
 function truncate(s, n) {
-  if (!s) return '';
-  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+  return truncateFromComposition(s, n);
 }
 
 function escapePipes(s) {
-  return String(s).replace(/\|/g, '\\|');
+  return escapePipesFromComposition(s);
 }
 
 function formatElapsed(ms) {
-  const s = Math.max(0, Math.floor(ms / 1000));
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  if (h) return `${h}h ${m}m`;
-  if (m) return `${m}m ${sec}s`;
-  return `${sec}s`;
+  return formatElapsedFromComposition(ms);
 }
 
-/**
- * Render and upsert the rolled-up `epic-run-progress` comment on the Epic.
- *
- * Called by `/epic-deliver` Step 2b (`epic-execute-record-wave.js`) after
- * each wave completes. The caller folds `state.waves[]` from the
- * `epic-run-state` checkpoint into the per-wave rows and persists the
- * unified rollup as a fenced-JSON payload on the Epic ticket via
- * `upsertStructuredComment`. There is no separate per-wave structured
- * comment — `epic-run-progress` is the single operator-facing summary,
- * grouped by wave.
- *
- * The payload schema is pinned by `epic-execute.md` Step 2b / tech spec
- * #902:
- *
- *   {
- *     "kind": "epic-run-progress",
- *     "epicId": <number>,
- *     "currentWave": <number>,
- *     "totalWaves": <number>,
- *     "waves": [ { wave, concurrencyCap?, stories[] } ],
- *     "startedAt"?: "<iso8601>",
- *     "updatedAt": "<iso8601>"
- *   }
- *
- * The function does not re-derive Story state from labels — it trusts the
- * `waves` argument supplied by the caller, which itself is the projection
- * of the validated, verified per-Story rows recorded on the checkpoint.
- *
- * @param {{
- *   provider: import('../../ITicketingProvider.js').ITicketingProvider,
- *   epicId: number,
- *   waves: Array<{
- *     wave: number,
- *     concurrencyCap?: number,
- *     stories?: Array<{ id: number, title?: string, state?: string,
- *                       tasksDone?: number, tasksTotal?: number,
- *                       blockerCommentId?: string }>,
- *   }>,
- *   currentWave: number,
- *   totalWaves: number,
- *   startedAt?: string,
- *   now?: () => Date,
- * }} args
- * @returns {Promise<{ body: string, payload: object }>} the rendered body
- *   and payload that were upserted onto the Epic.
- */
-export async function upsertEpicRunProgress({
-  provider,
-  epicId,
-  waves,
-  currentWave,
-  totalWaves,
-  startedAt,
-  now = () => new Date(),
-} = {}) {
-  if (!provider || typeof provider.postComment !== 'function') {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a provider with postComment',
-    );
-  }
-  const epicIdNum = Number(epicId);
-  if (!Number.isInteger(epicIdNum) || epicIdNum <= 0) {
-    throw new TypeError('upsertEpicRunProgress requires a numeric epicId');
-  }
-  const totalWavesNum = Number(totalWaves);
-  if (!Number.isInteger(totalWavesNum) || totalWavesNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer totalWaves',
-    );
-  }
-  const currentWaveNum = Number(currentWave);
-  if (!Number.isInteger(currentWaveNum) || currentWaveNum < 0) {
-    throw new TypeError(
-      'upsertEpicRunProgress requires a non-negative integer currentWave',
-    );
-  }
-  const wavesArr = Array.isArray(waves) ? waves : [];
-
-  const updatedAt = now().toISOString();
-  const normalizedWaves = wavesArr.map((w) => {
-    const stories = Array.isArray(w?.stories) ? w.stories : [];
-    const out = {
-      wave: Number(w?.wave),
-      stories,
-    };
-    if (Number.isInteger(w?.concurrencyCap)) {
-      out.concurrencyCap = Number(w.concurrencyCap);
-    }
-    return out;
-  });
-
-  const payload = {
-    kind: EPIC_RUN_PROGRESS_TYPE,
-    epicId: epicIdNum,
-    currentWave: currentWaveNum,
-    totalWaves: totalWavesNum,
-    waves: normalizedWaves,
-    updatedAt,
-  };
-  if (typeof startedAt === 'string' && startedAt) {
-    payload.startedAt = startedAt;
-  }
-
-  const totalStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.length,
-    0,
-  );
-  const doneStories = normalizedWaves.reduce(
-    (acc, w) => acc + w.stories.filter((s) => s?.state === 'done').length,
-    0,
-  );
-  const header = `### 📊 Epic Progress — Wave ${Math.min(currentWaveNum + 1, Math.max(totalWavesNum, 1))}/${totalWavesNum || '?'} · ${doneStories}/${totalStories} stories done`;
-
-  const tableLines = ['| Wave | ID | State | Title |', '|---|---|---|---|'];
-  if (normalizedWaves.length === 0) {
-    tableLines.push('| — | — | _(no waves yet)_ | — |');
-  } else {
-    for (const w of normalizedWaves) {
-      if (w.stories.length === 0) {
-        tableLines.push(`| ${w.wave + 1} | — | _(empty wave)_ | — |`);
-        continue;
-      }
-      for (const s of w.stories) {
-        const state = String(s?.state ?? 'unknown');
-        const emoji = STATE_EMOJI[state] ?? '';
-        const id = Number(s?.id ?? 0);
-        const title = escapePipes(truncate(String(s?.title ?? ''), 60));
-        tableLines.push(
-          `| ${w.wave + 1} | #${id} | ${emoji} ${state} | ${title} |`,
-        );
-      }
-    }
-  }
-
-  const body = [
-    header,
-    '',
-    tableLines.join('\n'),
-    '',
-    '```json',
-    JSON.stringify(payload, null, 2),
-    '```',
-  ].join('\n');
-
-  await upsertStructuredComment(
-    provider,
-    epicIdNum,
-    EPIC_RUN_PROGRESS_TYPE,
-    body,
-  );
-
-  return { body, payload };
-}
+// Re-exported from progress-reporter/composition.js as part of the
+// Story #1847 split. Kept here so existing callers
+// (epic-execute-record-wave.js, epic-deliver-finalize.js, the tests) can
+// continue importing from the parent path without churn.
+export const upsertEpicRunProgress = upsertEpicRunProgressFromComposition;
 
 /**
  * Fire a curated `epic-progress` webhook event. Event-driven only — called
