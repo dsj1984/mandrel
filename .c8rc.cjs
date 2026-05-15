@@ -73,7 +73,7 @@
  *     notify.js, loc-delta.js
  *
  *   Git-manipulation CLIs (rebase + branch sweepers, integration-shaped):
- *     git-rebase-and-resolve.js, git-cleanup-branches.js
+ *     git-rebase-and-resolve.js, git-cleanup.js
  *
  *   Long-lived dev tools (one-shot watchers):
  *     quality-watch.js
@@ -120,7 +120,7 @@ module.exports = {
     '.agents/scripts/epic-deliver-runner.js',
     '.agents/scripts/epic-execute-record-wave.js',
     '.agents/scripts/epic-reconcile.js',
-    '.agents/scripts/git-cleanup-branches.js',
+    '.agents/scripts/git-cleanup.js',
     '.agents/scripts/git-pr-quality-gate.js',
     '.agents/scripts/git-rebase-and-resolve.js',
     '.agents/scripts/hydrate-context.js',

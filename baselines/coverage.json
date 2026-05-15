@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T20:23:10.940Z",
+  "generatedAt": "2026-05-15T23:12:19.439Z",
   "rollup": {
     "*": {
-      "lines": 96.86,
-      "branches": 86.39,
-      "functions": 91.91
+      "lines": 96.85,
+      "branches": 86.4,
+      "functions": 92.54
     }
   },
   "rows": [
@@ -19,8 +19,8 @@
     {
       "path": ".agents/scripts/analyze-execution.js",
       "lines": 91.32,
-      "branches": 62.94,
-      "functions": 94.12
+      "branches": 62.24,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -61,8 +61,8 @@
     {
       "path": ".agents/scripts/epic-code-review.js",
       "lines": 96.58,
-      "branches": 89.21,
-      "functions": 81.82
+      "branches": 88.57,
+      "functions": 85.71
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -300,7 +300,7 @@
     },
     {
       "path": ".agents/scripts/lib/checks/baseline-drift-main-checkout.js",
-      "lines": 98.06,
+      "lines": 99.03,
       "branches": 77.27,
       "functions": 100
     },
@@ -391,12 +391,12 @@
     {
       "path": ".agents/scripts/lib/cli-utils.js",
       "lines": 100,
-      "branches": 84.21,
+      "branches": 93.75,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "lines": 89.63,
+      "lines": 89.49,
       "branches": 84.07,
       "functions": 83.33
     },
@@ -535,7 +535,7 @@
     {
       "path": ".agents/scripts/lib/coverage-utils.js",
       "lines": 100,
-      "branches": 88.76,
+      "branches": 88.89,
       "functions": 100
     },
     {
@@ -547,7 +547,7 @@
     {
       "path": ".agents/scripts/lib/crap-engine.js",
       "lines": 100,
-      "branches": 83.33,
+      "branches": 84,
       "functions": 100
     },
     {
@@ -612,8 +612,8 @@
     },
     {
       "path": ".agents/scripts/lib/gates/baseline-store.js",
-      "lines": 98.11,
-      "branches": 82.61,
+      "lines": 96.23,
+      "branches": 78.26,
       "functions": 100
     },
     {
@@ -650,7 +650,7 @@
       "path": ".agents/scripts/lib/git-utils.js",
       "lines": 95.26,
       "branches": 81.54,
-      "functions": 85
+      "functions": 89.47
     },
     {
       "path": ".agents/scripts/lib/git/cached-fetch.js",
@@ -715,7 +715,7 @@
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
       "lines": 92.95,
-      "branches": 82.35,
+      "branches": 82.61,
       "functions": 100
     },
     {
@@ -758,7 +758,7 @@
       "path": ".agents/scripts/lib/observability/baseline-refresh-rate.js",
       "lines": 100,
       "branches": 87.76,
-      "functions": 87.5
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/observability/perf-aggregator.js",
@@ -835,7 +835,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/dispatch-engine.js",
       "lines": 82.74,
-      "branches": 84.62,
+      "branches": 85.71,
       "functions": 100
     },
     {
@@ -896,7 +896,7 @@
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "lines": 89.01,
       "branches": 50,
-      "functions": 75
+      "functions": 66.67
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -1177,8 +1177,8 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
       "lines": 100,
-      "branches": 81.25,
-      "functions": 66.67
+      "branches": 76.47,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
@@ -1248,8 +1248,8 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
-      "lines": 97.68,
-      "branches": 82.08,
+      "lines": 97.71,
+      "branches": 82.86,
       "functions": 100
     },
     {
@@ -1333,7 +1333,7 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-persistence.js",
       "lines": 97.39,
-      "branches": 77.55,
+      "branches": 79.59,
       "functions": 100
     },
     {
@@ -1357,8 +1357,8 @@
     {
       "path": ".agents/scripts/lib/presentation/manifest-story-views.js",
       "lines": 100,
-      "branches": 78.26,
-      "functions": 66.67
+      "branches": 80,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/provider-factory.js",
@@ -1483,20 +1483,20 @@
     {
       "path": ".agents/scripts/lib/story-init/dependency-guard.js",
       "lines": 93.18,
-      "branches": 75.31,
-      "functions": 87.5
+      "branches": 74.39,
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/story-init/donor-precheck.js",
       "lines": 89.86,
-      "branches": 81.25,
+      "branches": 78.79,
       "functions": 85.71
     },
     {
       "path": ".agents/scripts/lib/story-init/hierarchy-tracer.js",
       "lines": 100,
       "branches": 100,
-      "functions": 50
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/story-init/state-transitioner.js",
@@ -1508,7 +1508,7 @@
       "path": ".agents/scripts/lib/story-init/task-graph-builder.js",
       "lines": 100,
       "branches": 94.44,
-      "functions": 75
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/story-init/transition-summary.js",
@@ -1580,7 +1580,7 @@
       "path": ".agents/scripts/lib/validation-evidence.js",
       "lines": 97.12,
       "branches": 93.75,
-      "functions": 90.91
+      "functions": 100
     },
     {
       "path": ".agents/scripts/lib/wave-runner/tick.js",
@@ -1597,7 +1597,7 @@
     {
       "path": ".agents/scripts/lib/workers/crap-worker.js",
       "lines": 100,
-      "branches": 97.37,
+      "branches": 97.22,
       "functions": 100
     },
     {
@@ -1614,7 +1614,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree-manager.js",
-      "lines": 92.94,
+      "lines": 92.55,
       "branches": 83.33,
       "functions": 70
     },
@@ -1627,7 +1627,7 @@
     {
       "path": ".agents/scripts/lib/worktree/inspector.js",
       "lines": 100,
-      "branches": 97.83,
+      "branches": 97.78,
       "functions": 100
     },
     {
@@ -1681,7 +1681,7 @@
     {
       "path": ".agents/scripts/lib/worktree/lifecycle/reap.js",
       "lines": 90.97,
-      "branches": 75,
+      "branches": 75.17,
       "functions": 100
     },
     {
@@ -1700,7 +1700,7 @@
       "path": ".agents/scripts/providers/github.js",
       "lines": 84.84,
       "branches": 67.09,
-      "functions": 80
+      "functions": 82
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",

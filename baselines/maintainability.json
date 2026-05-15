@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T23:33:10.639Z",
+  "generatedAt": "2026-05-15T23:36:34.851Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -163,8 +163,8 @@
       "mi": 82.223
     },
     {
-      "path": ".agents/scripts/git-cleanup-branches.js",
-      "mi": 93.214
+      "path": ".agents/scripts/git-cleanup.js",
+      "mi": 87.66
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -2951,8 +2951,8 @@
       "mi": 108.963
     },
     {
-      "path": "tests/scripts/git-cleanup-branches.test.js",
-      "mi": 107.868
+      "path": "tests/scripts/git-cleanup.test.js",
+      "mi": 107.403
     },
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",
