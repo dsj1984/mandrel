@@ -1,5 +1,8 @@
+# Story #1829: `npm run lint` now invokes `biome ci .` (lint + format
+# check + import order, single AST pass) and `markdownlint-cli2` in
+# parallel via .agents/scripts/run-lint.js, so the old separate
+# `npm run format:check` invocation here is redundant and removed.
 npm run lint
-npm run format:check
 # Diff against the REMOTE main (origin/main), not the local main ref.
 # When pushing from a feature branch that's caught up to local main, the two
 # are equivalent. When pushing FROM main (a release commit, an emergency
@@ -15,15 +18,20 @@ npm run format:check
 # the local `main` happens to be on the operator's machine. MI grew the
 # explicit ref for symmetry with CRAP — both gates now scope identically.
 npm run maintainability:check -- --changed-since origin/main
-npm audit --audit-level=high
+# Story #1829: `npm audit --audit-level=high` runs in CI on every PR and
+# push-to-main (`Dependency Vulnerability Audit (SCA)` step in ci.yml),
+# so it cannot reach main without surfacing there. Removed from pre-push
+# to skip the advisory-DB network call on every local push. Set
+# `PREPUSH_AUDIT=1` to opt back in locally.
+if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
+  npm audit --audit-level=high
+fi
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check -- --changed-since origin/main
-# Story #1602 (Epic #1184): absolute floor gate. Runs full-scope after the
-# per-file ratchet calls above so a file that is still in-scope but below
-# the v6 floor (coverage 90/85/90, MI>=70, CRAP<=20) trips the gate even
-# when the diff does not touch it. The three checkers self-skip the floor
-# block when `--floor=off` is passed (used by the `*:update` baseline-snap
-# scripts).
-npm run coverage:check -- --full-scope
-npm run maintainability:check -- --full-scope
-npm run crap:check -- --full-scope
+# Story #1829: the trailing `--full-scope` block (coverage / MI / CRAP)
+# previously re-ran each gate against the entire repo to catch in-scope
+# files below the v6 absolute floor (coverage 90/85/90, MI>=70, CRAP<=20).
+# CI runs the same `--full-scope` gates on every PR and push-to-main
+# (.github/workflows/ci.yml), so the local repeat was duplicate
+# enforcement against duplicate floors. Removed from pre-push; CI is
+# the authoritative full-scope gate.
