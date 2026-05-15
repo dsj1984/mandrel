@@ -4,8 +4,8 @@
   "generatedAt": "2026-05-15T16:50:00Z",
   "rollup": {
     "*": {
-      "lines": 96.97,
-      "branches": 86.65,
+      "lines": 96.96,
+      "branches": 86.67,
       "functions": 92.7
     }
   },
@@ -192,8 +192,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 88.79,
-      "branches": 64.29,
+      "lines": 89.66,
+      "branches": 70,
       "functions": 85.71
     },
     {
@@ -235,7 +235,7 @@
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
       "lines": 92.73,
-      "branches": 75,
+      "branches": 76.47,
       "functions": 100
     },
     {
@@ -528,8 +528,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 87.62,
-      "branches": 81.08,
+      "lines": 85.55,
+      "branches": 80.87,
       "functions": 100
     },
     {
@@ -678,8 +678,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 92.33,
-      "branches": 80.95,
+      "lines": 88.82,
+      "branches": 79.71,
       "functions": 100
     },
     {
@@ -1338,8 +1338,8 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "lines": 87.36,
-      "branches": 80.49,
+      "lines": 87.61,
+      "branches": 80.17,
       "functions": 100
     },
     {
