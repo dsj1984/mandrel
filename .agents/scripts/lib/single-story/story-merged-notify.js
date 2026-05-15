@@ -9,8 +9,8 @@
  * webhook ever fails the close.
  */
 
-import { Logger } from '../Logger.js';
 import { notify as defaultNotify } from '../../notify.js';
+import { Logger } from '../Logger.js';
 
 export async function flipLabelAndNotify({
   provider,
