@@ -5,6 +5,7 @@ import {
   handleBaselineGateFailure,
   runPreMergeGatesWithAttribution,
   runRefreshCommit,
+  validateProjectionContext,
 } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { renderBaselineFrictionBody } from '../../../../.agents/scripts/lib/orchestration/story-close/baseline-friction-body.js';
 
@@ -404,4 +405,54 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       /failed at "lint"/,
     );
   });
+});
+
+describe('validateProjectionContext (predicate)', () => {
+  const cases = [
+    {
+      name: 'all three fields populated → true',
+      ctx: { cwd: '/r', epicBranch: 'epic/1', storyBranch: 'story-2' },
+      expected: true,
+    },
+    {
+      name: 'missing cwd → false',
+      ctx: { cwd: '', epicBranch: 'epic/1', storyBranch: 'story-2' },
+      expected: false,
+    },
+    {
+      name: 'null cwd → false',
+      ctx: { cwd: null, epicBranch: 'epic/1', storyBranch: 'story-2' },
+      expected: false,
+    },
+    {
+      name: 'undefined cwd → false',
+      ctx: { epicBranch: 'epic/1', storyBranch: 'story-2' },
+      expected: false,
+    },
+    {
+      name: 'missing epicBranch → false',
+      ctx: { cwd: '/r', epicBranch: '', storyBranch: 'story-2' },
+      expected: false,
+    },
+    {
+      name: 'null epicBranch → false',
+      ctx: { cwd: '/r', epicBranch: null, storyBranch: 'story-2' },
+      expected: false,
+    },
+    {
+      name: 'missing storyBranch → false',
+      ctx: { cwd: '/r', epicBranch: 'epic/1', storyBranch: '' },
+      expected: false,
+    },
+    {
+      name: 'null storyBranch → false',
+      ctx: { cwd: '/r', epicBranch: 'epic/1', storyBranch: null },
+      expected: false,
+    },
+  ];
+  for (const tc of cases) {
+    it(tc.name, () => {
+      assert.equal(validateProjectionContext(tc.ctx), tc.expected);
+    });
+  }
 });

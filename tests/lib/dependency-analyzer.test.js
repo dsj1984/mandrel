@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   __test,
   computeStoryWaves,
+  isFocusOverlapEdgeEligible,
 } from '../../.agents/scripts/lib/orchestration/dependency-analyzer.js';
 
 // ---------------------------------------------------------------------------
@@ -148,4 +149,156 @@ test('rollUpStoryFocus: unions task focus areas and detects global scope', () =>
   assert.strictEqual(rolled.get(100).global, false);
   assert.strictEqual(rolled.get(200).global, true);
   assert.strictEqual(rolled.get(300).global, true);
+});
+
+// ---------------------------------------------------------------------------
+// isFocusOverlapEdgeEligible (predicate, exported)
+// ---------------------------------------------------------------------------
+
+function focus(areas = [], global = false) {
+  return { areas: new Set(areas), global };
+}
+function reach(pairs = []) {
+  const m = new Map();
+  for (const [from, to] of pairs) {
+    if (!m.has(from)) m.set(from, new Set());
+    m.get(from).add(to);
+  }
+  return m;
+}
+
+test('isFocusOverlapEdgeEligible: missing focus bag on either side → false', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: undefined,
+      focusB: focus(['x']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: undefined,
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: both empty non-global → false', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus([]),
+      focusB: focus([]),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: one side empty non-global, other usable → false', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: focus([]),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: disjoint areas → false', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: focus(['y']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: shared area → true', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x', 'y']),
+      focusB: focus(['y']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    true,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: A is global → true even with no shared areas', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus([], true),
+      focusB: focus(['y']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    true,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: B is global → true', () => {
+  const reachable = reach();
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: focus([], true),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    true,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: a→b already reachable → false', () => {
+  const reachable = reach([[1, 2]]);
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: focus(['x']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
+});
+
+test('isFocusOverlapEdgeEligible: b→a already reachable → false', () => {
+  const reachable = reach([[2, 1]]);
+  assert.equal(
+    isFocusOverlapEdgeEligible({
+      focusA: focus(['x']),
+      focusB: focus(['x']),
+      reachable,
+      a: 1,
+      b: 2,
+    }),
+    false,
+  );
 });
