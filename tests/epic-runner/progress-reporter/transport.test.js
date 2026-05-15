@@ -16,12 +16,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  EPIC_PROGRESS_EVENT,
   emitEpicBlocked,
   emitEpicComplete,
   emitEpicProgress,
   emitEpicStarted,
   emitEpicUnblocked,
-  EPIC_PROGRESS_EVENT,
 } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js';
 
 function recordingNotify(behavior = 'ok') {

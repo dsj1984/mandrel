@@ -20,7 +20,7 @@
 
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
-
+import { AGENT_LABELS } from '../../label-constants.js';
 import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
@@ -29,7 +29,6 @@ import {
   upsertStructuredComment,
 } from '../ticketing.js';
 import { runHotspotDetection } from './hotspot-detection.js';
-import { AGENT_LABELS } from '../../label-constants.js';
 import {
   deriveState as deriveStateFromComposition,
   renderProgressBody as renderProgressBodyFromComposition,
@@ -37,23 +36,23 @@ import {
   upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
 } from './progress-reporter/composition.js';
 import {
+  aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
+  EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+  PHASE_TIMINGS_TYPE as PHASE_TIMINGS_TYPE_FROM_SIGNALS,
+  parsePhaseTimingsComment as parsePhaseTimingsCommentFromSignals,
+  parseStoryRunProgressComment as parseStoryRunProgressCommentFromSignals,
+  phaseToState as phaseToStateFromSignals,
+  renderPhaseTimingsSection as renderPhaseTimingsSectionFromSignals,
+  STORY_RUN_PROGRESS_TYPE as STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS,
+} from './progress-reporter/signals.js';
+import {
+  EPIC_PROGRESS_EVENT as EPIC_PROGRESS_EVENT_FROM_TRANSPORT,
   emitEpicBlocked as emitEpicBlockedFromTransport,
   emitEpicComplete as emitEpicCompleteFromTransport,
   emitEpicProgress as emitEpicProgressFromTransport,
   emitEpicStarted as emitEpicStartedFromTransport,
   emitEpicUnblocked as emitEpicUnblockedFromTransport,
-  EPIC_PROGRESS_EVENT as EPIC_PROGRESS_EVENT_FROM_TRANSPORT,
 } from './progress-reporter/transport.js';
-import {
-  aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
-  EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
-  parsePhaseTimingsComment as parsePhaseTimingsCommentFromSignals,
-  parseStoryRunProgressComment as parseStoryRunProgressCommentFromSignals,
-  PHASE_TIMINGS_TYPE as PHASE_TIMINGS_TYPE_FROM_SIGNALS,
-  phaseToState as phaseToStateFromSignals,
-  renderPhaseTimingsSection as renderPhaseTimingsSectionFromSignals,
-  STORY_RUN_PROGRESS_TYPE as STORY_RUN_PROGRESS_TYPE_FROM_SIGNALS,
-} from './progress-reporter/signals.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
 // Re-exports — sub-module surfaces are aliased back to the parent path so

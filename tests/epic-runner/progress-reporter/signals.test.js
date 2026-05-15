@@ -11,11 +11,11 @@ import { describe, it } from 'node:test';
 import {
   aggregatePhaseTimings,
   EPIC_RUN_PROGRESS_TYPE,
-  parsePhaseTimingsComment,
-  parseStoryRunProgressComment,
   PHASE_ORDER,
   PHASE_TIMINGS_TYPE,
   PHASE_TO_STATE,
+  parsePhaseTimingsComment,
+  parseStoryRunProgressComment,
   phaseToState,
   renderPhaseTimingsSection,
   STATE_EMOJI,
