@@ -81,7 +81,10 @@ const reportRun = spawnSync(
     ...includeArgs,
     ...excludeArgs,
   ],
-  { cwd: ROOT, stdio: 'inherit', shell: true },
+  // shell:false closes the CWE-78 argv-injection vector that shell:true
+  // opens if external input ever flows into argv. `NPX` carries the
+  // platform-correct .cmd shim already.
+  { cwd: ROOT, stdio: 'inherit', shell: false },
 );
 
 const checkRun = spawnSync(
