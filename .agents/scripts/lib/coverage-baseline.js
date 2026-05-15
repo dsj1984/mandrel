@@ -155,6 +155,29 @@ export function readCoverageFinal(cwd, opts = {}, fsImpl) {
  * pass) from "baseline exists but is empty" (treat every in-scope
  * file as new = fail).
  */
+function isEnvelopeShape(parsed) {
+  return (
+    parsed &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed) &&
+    Array.isArray(parsed.rows) &&
+    typeof parsed.$schema === 'string'
+  );
+}
+
+function projectEnvelopeToFlat(envelope) {
+  const out = {};
+  for (const row of envelope.rows) {
+    if (!row || typeof row.path !== 'string') continue;
+    out[row.path] = {
+      lines: row.lines,
+      branches: row.branches,
+      functions: row.functions,
+    };
+  }
+  return out;
+}
+
 export function readBaseline(cwd, fsImpl = fs) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   if (!fsImpl.existsSync(abs)) return null;
@@ -165,26 +188,31 @@ export function readBaseline(cwd, fsImpl = fs) {
   // functions } }` map, so we project rows back to that shape for
   // backwards-compatible consumers (Story #1892 migrates them off the
   // flat shape).
-  if (
-    parsed &&
-    typeof parsed === 'object' &&
-    !Array.isArray(parsed) &&
-    Array.isArray(parsed.rows) &&
-    typeof parsed.$schema === 'string'
-  ) {
-    const out = {};
-    for (const row of parsed.rows) {
-      if (!row || typeof row.path !== 'string') continue;
-      out[row.path] = {
-        lines: row.lines,
-        branches: row.branches,
-        functions: row.functions,
-      };
-    }
-    return out;
-  }
-  // Legacy shape — pass through.
-  return parsed;
+  return isEnvelopeShape(parsed) ? projectEnvelopeToFlat(parsed) : parsed;
+}
+
+function projectFlatToRows(baseline) {
+  return Object.entries(baseline ?? {}).map(([file, scores]) => {
+    const { denominators: _ignored, ...rest } = scores ?? {};
+    return {
+      path: file,
+      lines: rest.lines ?? 0,
+      branches: rest.branches ?? 0,
+      functions: rest.functions ?? 0,
+    };
+  });
+}
+
+function writeEnvelopeViaFsImpl(abs, envelope, fsImpl) {
+  fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
+  const canonical = {
+    $schema: envelope.$schema,
+    kernelVersion: envelope.kernelVersion,
+    generatedAt: envelope.generatedAt,
+    rollup: envelope.rollup,
+    rows: envelope.rows,
+  };
+  fsImpl.writeFileSync(abs, `${JSON.stringify(canonical, null, 2)}\n`);
 }
 
 export function writeBaseline(cwd, baseline, fsImpl = fs) {
@@ -198,36 +226,16 @@ export function writeBaseline(cwd, baseline, fsImpl = fs) {
   //
   // `denominators` is an in-memory-only runtime signal for the noise-
   // tolerance gate — it never persists, so strip before projection.
-  const rows = Object.entries(baseline ?? {}).map(([file, scores]) => {
-    const { denominators: _ignored, ...rest } = scores ?? {};
-    return {
-      path: file,
-      lines: rest.lines ?? 0,
-      branches: rest.branches ?? 0,
-      functions: rest.functions ?? 0,
-    };
+  const envelope = write({
+    kind: 'coverage',
+    rows: projectFlatToRows(baseline),
   });
-  const envelope = write({ kind: 'coverage', rows });
   // Honour the injected fsImpl seam for tests that pass `memfs` or a
   // spy — fall through to the writer's atomic write when `fsImpl === fs`.
   if (fsImpl === fs) {
     writeFile(abs, envelope);
   } else {
-    fsImpl.mkdirSync(path.dirname(abs), { recursive: true });
-    fsImpl.writeFileSync(
-      abs,
-      `${JSON.stringify(
-        {
-          $schema: envelope.$schema,
-          kernelVersion: envelope.kernelVersion,
-          generatedAt: envelope.generatedAt,
-          rollup: envelope.rollup,
-          rows: envelope.rows,
-        },
-        null,
-        2,
-      )}\n`,
-    );
+    writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
   }
   return abs;
 }
