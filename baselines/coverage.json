@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T16:38:00.009Z",
+  "generatedAt": "2026-05-15T16:50:00Z",
   "rollup": {
     "*": {
       "lines": 96.97,
-      "branches": 86.65,
+      "branches": 86.68,
       "functions": 92.7
     }
   },
@@ -192,8 +192,8 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "lines": 88.79,
-      "branches": 64.29,
+      "lines": 89.66,
+      "branches": 70,
       "functions": 85.71
     },
     {
@@ -235,7 +235,7 @@
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
       "lines": 92.73,
-      "branches": 75,
+      "branches": 76.47,
       "functions": 100
     },
     {
@@ -528,8 +528,8 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "lines": 87.62,
-      "branches": 81.08,
+      "lines": 86.04,
+      "branches": 80.17,
       "functions": 100
     },
     {
@@ -678,8 +678,8 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "lines": 92.33,
-      "branches": 80.95,
+      "lines": 92.95,
+      "branches": 82.35,
       "functions": 100
     },
     {
@@ -1098,9 +1098,9 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "lines": 86.3,
-      "branches": 73.28,
-      "functions": 80
+      "lines": 86.53,
+      "branches": 73.98,
+      "functions": 81.25
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
@@ -1338,8 +1338,8 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "lines": 87.36,
-      "branches": 80.49,
+      "lines": 87.61,
+      "branches": 80.17,
       "functions": 100
     },
     {
@@ -1578,7 +1578,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree-manager.js",
-      "lines": 92.94,
+      "lines": 92.55,
       "branches": 83.33,
       "functions": 70
     },
