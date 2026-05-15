@@ -454,36 +454,6 @@
       "startLine": 229
     },
     {
-      "crap": 6.0163859808830225,
-      "file": ".agents/scripts/hierarchy-gate.js",
-      "method": "classify",
-      "startLine": 47
-    },
-    {
-      "crap": 4,
-      "file": ".agents/scripts/hierarchy-gate.js",
-      "method": "ticketIsComplete",
-      "startLine": 61
-    },
-    {
-      "crap": 3,
-      "file": ".agents/scripts/hierarchy-gate.js",
-      "method": "collectDescendants",
-      "startLine": 79
-    },
-    {
-      "crap": 11.002039818607866,
-      "file": ".agents/scripts/hierarchy-gate.js",
-      "method": "runHierarchyGate",
-      "startLine": 101
-    },
-    {
-      "crap": 2,
-      "file": ".agents/scripts/hierarchy-gate.js",
-      "method": "main",
-      "startLine": 180
-    },
-    {
       "crap": 15.460713385883453,
       "file": ".agents/scripts/lib/CacheLayer.js",
       "method": "createTtlCache",
@@ -790,7 +760,7 @@
       "startLine": 264
     },
     {
-      "crap": 1,
+      "crap": 1.6297376093294462,
       "file": ".agents/scripts/lib/baseline-loader.js",
       "method": "cacheKeyFor",
       "startLine": 42
@@ -802,7 +772,7 @@
       "startLine": 54
     },
     {
-      "crap": 9,
+      "crap": 83.06108792998168,
       "file": ".agents/scripts/lib/baseline-loader.js",
       "method": "readBaselineAtRef",
       "startLine": 75
@@ -904,7 +874,7 @@
       "startLine": 108
     },
     {
-      "crap": 2,
+      "crap": 5.896556916248871,
       "file": ".agents/scripts/lib/bootstrap/ci-workflow-template.js",
       "method": "renderCiWorkflow",
       "startLine": 50
@@ -1486,7 +1456,7 @@
       "startLine": 26
     },
     {
-      "crap": 10,
+      "crap": 103.02586113810602,
       "file": ".agents/scripts/lib/config/github.js",
       "method": "getGitHub",
       "startLine": 84
@@ -1978,55 +1948,55 @@
       "startLine": 98
     },
     {
-      "crap": 7.019915663262714,
+      "crap": 50.7547121881827,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "resolveEscomplexVersion",
       "startLine": 38
     },
     {
-      "crap": 5.5026296018031555,
+      "crap": 20,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "resolveBaselinePath",
       "startLine": 66
     },
     {
-      "crap": 9.847869873046875,
+      "crap": 82.64108276367188,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "getCrapBaseline",
       "startLine": 93
     },
     {
-      "crap": 1.015625,
+      "crap": 2,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "sortRows",
       "startLine": 126
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeRow",
       "startLine": 135
     },
     {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "canonicalizeEnvelope",
       "startLine": 144
     },
     {
-      "crap": 3,
+      "crap": 3.004608,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "buildBaselineEnvelope",
       "startLine": 170
     },
     {
-      "crap": 3,
+      "crap": 9.320987654320987,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "saveCrapBaseline",
       "startLine": 207
     },
     {
-      "crap": 12.405181355587217,
+      "crap": 12.791369835131285,
       "file": ".agents/scripts/lib/crap-utils.js",
       "method": "scanAndScore",
       "startLine": 252
@@ -3478,19 +3448,13 @@
       "startLine": 37
     },
     {
-      "crap": 2,
+      "crap": 5.6365966796875,
       "file": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
       "method": "buildDefaultGitAdapter",
       "startLine": 121
     },
     {
-      "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
-      "method": "defaultGitAdapter",
-      "startLine": 129
-    },
-    {
-      "crap": 1,
+      "crap": 2,
       "file": ".agents/scripts/lib/orchestration/epic-runner/commit-assertion.js",
       "method": "countResolvesOnEpic",
       "startLine": 154
@@ -3640,25 +3604,25 @@
       "startLine": 1025
     },
     {
-      "crap": 5,
+      "crap": 25.84266232444535,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "parsePhaseTimingsComment",
       "startLine": 1072
     },
     {
-      "crap": 7.467679550324179,
+      "crap": 51.6790772741186,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "aggregatePhaseTimings",
       "startLine": 1096
     },
     {
-      "crap": 2,
+      "crap": 6,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "percentile",
       "startLine": 1130
     },
     {
-      "crap": 5,
+      "crap": 5.1157407407407405,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
       "method": "renderPhaseTimingsSection",
       "startLine": 1146
@@ -3676,7 +3640,7 @@
       "startLine": 29
     },
     {
-      "crap": 16.000058037463184,
+      "crap": 18.707795882241985,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "createCrapDriftDetector",
       "startLine": 73
@@ -3694,7 +3658,7 @@
       "startLine": 100
     },
     {
-      "crap": 6,
+      "crap": 6.256030951297223,
       "file": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
       "method": "scoreFile",
       "startLine": 112
@@ -7438,7 +7402,7 @@
       "startLine": 460
     },
     {
-      "crap": 5.002194787379972,
+      "crap": 5.034293552812072,
       "file": ".agents/scripts/providers/github.js",
       "method": "createInlineTicketCache",
       "startLine": 506
@@ -7780,7 +7744,7 @@
       "startLine": 46
     },
     {
-      "crap": 3,
+      "crap": 3.0416666666666665,
       "file": ".agents/scripts/wave-gate.js",
       "method": "fanOut",
       "startLine": 67
