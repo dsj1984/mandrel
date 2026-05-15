@@ -50,7 +50,6 @@
  *      Epic #1179 Tech Spec #1350).
  */
 
-import { execSync as defaultExecSync } from 'node:child_process';
 import { parseBlockedBy, parseBlocks } from '../lib/dependency-parser.js';
 import { gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
@@ -59,69 +58,21 @@ import { Logger } from '../lib/Logger.js';
 import { TYPE_LABELS } from '../lib/label-constants.js';
 import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../lib/util/concurrent-map.js';
+import {
+  __setExecSyncForTests,
+  execSyncHolder,
+  readGhCliToken,
+  resolveToken,
+} from './github/auth.js';
 import * as projects from './github/projects-v2-graphql.js';
 
 // ---------------------------------------------------------------------------
-// Token resolution (inlined from the retired `./github/auth.js`)
-//
-// Hierarchy: GITHUB_TOKEN / GH_TOKEN env → `gh auth token` CLI fallback
-// → throws with an instructive error. `execSync` is indirected through a
-// holder so the (now-deleted) token-memoize test could swap it — the holder
-// + setter stay for back-compat with any external caller that reaches for
-// the test seam. Production always uses the real impl.
+// Token resolution — extracted to `./github/auth.js` in Story #1846.
+// Re-exported here so the public surface (`provider.token`,
+// `__setExecSyncForTests`, `execSyncHolder`, `readGhCliToken`) stays
+// reachable through the canonical `./providers/github.js` import path.
 // ---------------------------------------------------------------------------
-const execSyncHolder = { impl: defaultExecSync };
-
-export function __setExecSyncForTests(fn) {
-  execSyncHolder.impl = fn ?? defaultExecSync;
-}
-
-/* node:coverage ignore next */
-function readGhCliToken() {
-  try {
-    const t = execSyncHolder
-      .impl('gh auth token', {
-        encoding: 'utf8',
-        timeout: 5000,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
-      .trim();
-    return t || null;
-  } catch {
-    // gh CLI not installed or not authenticated.
-    return null;
-  }
-}
-
-const TOKEN_MISSING_ERROR = [
-  '[GitHubProvider] Authentication Failed: No GitHub token found.',
-  '',
-  'To resolve this, choose one of the following:',
-  '  A. (CI/CD / Agent Script) Set the GITHUB_TOKEN or GH_TOKEN environment variable.',
-  '  B. (Local) Run `gh auth login` to authenticate the GitHub CLI.',
-  '',
-  'See .agents/README.md#github-authentication for details.',
-].join('\n');
-
-/* node:coverage ignore next */
-function readEnvToken() {
-  return process.env.GITHUB_TOKEN || process.env.GH_TOKEN || null;
-}
-
-/* node:coverage ignore next */
-function memoizeEnvToken(token) {
-  if (!process.env.GITHUB_TOKEN) process.env.GITHUB_TOKEN = token;
-}
-
-/* node:coverage ignore next */
-function resolveToken() {
-  const envToken = readEnvToken();
-  if (envToken) return envToken;
-  const ghToken = readGhCliToken();
-  if (!ghToken) throw new Error(TOKEN_MISSING_ERROR);
-  memoizeEnvToken(ghToken);
-  return ghToken;
-}
+export { __setExecSyncForTests, execSyncHolder, readGhCliToken };
 
 // ---------------------------------------------------------------------------
 // Error classifier (inlined from the retired `./github/error-classifier.js`)
