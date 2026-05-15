@@ -133,7 +133,10 @@ module.exports = {
     '.agents/scripts/run-audit-suite.js',
     '.agents/scripts/run-tests.js',
     '.agents/scripts/select-audits.js',
-    '.agents/scripts/single-story-close.js',
+    // single-story-close.js — Story #1827 brings this file back in scope.
+    // The orchestration body is exercised through `runSingleStoryClose`
+    // with an injected provider, fake gh runner, and in-memory worktree;
+    // `ensurePullRequest` is exercised through `execFileSync` module mocks.
     '.agents/scripts/single-story-init.js',
     '.agents/scripts/story-close.js',
     '.agents/scripts/story-execute-prepare.js',

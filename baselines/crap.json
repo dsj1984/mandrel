@@ -7636,6 +7636,66 @@
       "startLine": 299
     },
     {
+      "crap": 19.44592258076451,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "runSingleStoryClose",
+      "startLine": 67
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "<anon method-1>",
+      "startLine": 141
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "<anon method-3>",
+      "startLine": 253
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "<anon method-4>",
+      "startLine": 254
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "<anon method-5>",
+      "startLine": 255
+    },
+    {
+      "crap": 1,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "<anon method-6>",
+      "startLine": 272
+    },
+    {
+      "crap": 3,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "ensurePullRequest",
+      "startLine": 305
+    },
+    {
+      "crap": 5,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "parsePrNumber",
+      "startLine": 387
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "enableAutoMerge",
+      "startLine": 407
+    },
+    {
+      "crap": 2,
+      "file": ".agents/scripts/single-story-close.js",
+      "method": "defaultGhAutoMergeRunner",
+      "startLine": 431
+    },
+    {
       "crap": 2,
       "file": ".agents/scripts/sync-claude-commands.js",
       "method": "<anon method-1>",

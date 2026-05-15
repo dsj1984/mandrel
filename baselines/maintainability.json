@@ -648,6 +648,7 @@
   "tests/signals-view.test.js": 101.533,
   "tests/signals-write-barrel.test.js": 134.542,
   "tests/single-story-close-auto-merge.test.js": 115.3,
+  "tests/single-story-close-orchestration.test.js": 97.829,
   "tests/skills/_harness/run-skill-smoke.js": 80.982,
   "tests/skills/_harness/run-skill-smoke.test.js": 114.818,
   "tests/skills/analyze-execution.test.js": 108.31,

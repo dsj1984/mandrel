@@ -240,8 +240,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 90.21,
-    "branches": 82.55,
+    "lines": 90.1,
+    "branches": 82.12,
     "functions": 80.77
   },
   ".agents/scripts/lib/config-gates-schema.js": {
@@ -416,7 +416,7 @@
   },
   ".agents/scripts/lib/git-utils.js": {
     "lines": 95.26,
-    "branches": 82.54,
+    "branches": 81.54,
     "functions": 89.47
   },
   ".agents/scripts/lib/git/cached-fetch.js": {
@@ -675,13 +675,13 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js": {
-    "lines": 99.32,
-    "branches": 83.33,
+    "lines": 99.22,
+    "branches": 84.4,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js": {
-    "lines": 97.83,
-    "branches": 72.41,
+    "lines": 99.03,
+    "branches": 78.65,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js": {
@@ -691,7 +691,7 @@
   },
   ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js": {
     "lines": 97.39,
-    "branches": 80.49,
+    "branches": 80.95,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js": {
@@ -1115,8 +1115,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/worktree-manager.js": {
-    "lines": 92.94,
-    "branches": 85.71,
+    "lines": 92.55,
+    "branches": 83.33,
     "functions": 70
   },
   ".agents/scripts/lib/worktree/bootstrapper.js": {
@@ -1200,9 +1200,9 @@
     "functions": 86.67
   },
   ".agents/scripts/single-story-close.js": {
-    "lines": 29.05,
-    "branches": 73.33,
-    "functions": 40
+    "lines": 94.44,
+    "branches": 61.04,
+    "functions": 50
   },
   ".agents/scripts/sync-claude-commands.js": {
     "lines": 93.41,
