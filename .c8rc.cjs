@@ -75,8 +75,8 @@
  *   Git-manipulation CLIs (rebase + branch sweepers, integration-shaped):
  *     git-rebase-and-resolve.js, git-cleanup-branches.js
  *
- *   Long-lived dev tools (one-shot watchers + analytical CLIs):
- *     quality-watch.js, noise-study.js
+ *   Long-lived dev tools (one-shot watchers):
+ *     quality-watch.js
  *
  *   lib/* carve-outs (data-as-code schemas and orchestration glue over
  *   live git/filesystem state where unit-mocking asserts only the mock
@@ -126,7 +126,6 @@ module.exports = {
     '.agents/scripts/hydrate-context.js',
     '.agents/scripts/lint-baseline.js',
     '.agents/scripts/loc-delta.js',
-    '.agents/scripts/noise-study.js',
     '.agents/scripts/notify.js',
     '.agents/scripts/post-structured-comment.js',
     '.agents/scripts/quality-watch.js',

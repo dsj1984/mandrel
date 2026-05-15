@@ -5,7 +5,7 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 91.72,
+    "lines": 91.32,
     "branches": 62.24,
     "functions": 100
   },
@@ -459,6 +459,11 @@
     "branches": 100,
     "functions": 100
   },
+  ".agents/scripts/lib/install-cmd-parser.js": {
+    "lines": 84.31,
+    "branches": 80,
+    "functions": 50
+  },
   ".agents/scripts/lib/issue-link-parser.js": {
     "lines": 100,
     "branches": 100,
@@ -590,7 +595,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/dispatch-engine.js": {
-    "lines": 92.39,
+    "lines": 82.74,
     "branches": 85.71,
     "functions": 100
   },
@@ -865,8 +870,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
-    "lines": 98.59,
-    "branches": 79.17,
+    "lines": 95.77,
+    "branches": 72.73,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/comment-bodies.js": {
@@ -960,8 +965,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-record-io.js": {
-    "lines": 77.21,
-    "branches": 60,
+    "lines": 76.74,
+    "branches": 50,
     "functions": 80
   },
   ".agents/scripts/lib/orchestration/wave-record-notifications.js": {
@@ -1137,7 +1142,7 @@
   ".agents/scripts/lib/story-init/donor-precheck.js": {
     "lines": 89.86,
     "branches": 78.79,
-    "functions": 100
+    "functions": 85.71
   },
   ".agents/scripts/lib/story-init/hierarchy-tracer.js": {
     "lines": 100,
@@ -1271,7 +1276,7 @@
   },
   ".agents/scripts/lib/worktree/lifecycle/force-drain.js": {
     "lines": 87.68,
-    "branches": 85.25,
+    "branches": 83.61,
     "functions": 60
   },
   ".agents/scripts/lib/worktree/lifecycle/gc.js": {
@@ -1310,8 +1315,8 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 85.38,
-    "branches": 68.32,
+    "lines": 84.84,
+    "branches": 67.09,
     "functions": 82
   },
   ".agents/scripts/providers/github/auth.js": {

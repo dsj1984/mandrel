@@ -36,6 +36,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cleanupRepoTestTempArtifacts } from './cleanup-repo-test-temp.js';
+import { C8_CLI } from './lib/c8-cli-path.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
@@ -43,8 +44,6 @@ const COVERAGE_DIR = path.join(ROOT, 'coverage');
 const require = createRequire(import.meta.url);
 const C8_CONFIG = require('../../.c8rc.cjs');
 const V8_TMP = path.join(COVERAGE_DIR, 'tmp');
-
-const NPX = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
 rmSync(COVERAGE_DIR, { recursive: true, force: true });
 mkdirSync(V8_TMP, { recursive: true });
@@ -70,9 +69,9 @@ const includeArgs = (C8_CONFIG.include ?? []).flatMap((p) => ['--include', p]);
 const excludeArgs = (C8_CONFIG.exclude ?? []).flatMap((p) => ['--exclude', p]);
 
 const reportRun = spawnSync(
-  NPX,
+  process.execPath,
   [
-    'c8',
+    C8_CLI,
     'report',
     '--reporter=json',
     '--reporter=text',
@@ -81,7 +80,7 @@ const reportRun = spawnSync(
     ...includeArgs,
     ...excludeArgs,
   ],
-  { cwd: ROOT, stdio: 'inherit', shell: true },
+  { cwd: ROOT, stdio: 'inherit', shell: false },
 );
 
 const checkRun = spawnSync(
