@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T19:01:41.363Z",
+  "generatedAt": "2026-05-15T19:36:28.752Z",
   "rollup": {
     "*": {
-      "lines": 96.93,
-      "branches": 86.64,
+      "lines": 96.92,
+      "branches": 86.54,
       "functions": 92.63
     }
   },
@@ -96,8 +96,8 @@
     },
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
-      "lines": 100,
-      "branches": 100,
+      "lines": 97.56,
+      "branches": 78.13,
       "functions": 100
     },
     {
@@ -169,7 +169,7 @@
     {
       "path": ".agents/scripts/lib/baselines/components.js",
       "lines": 100,
-      "branches": 80,
+      "branches": 81.08,
       "functions": 100
     },
     {
@@ -918,14 +918,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js",
-      "lines": 99.58,
-      "branches": 76.92,
+      "lines": 99.33,
+      "branches": 77.27,
       "functions": 100
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js",
-      "lines": 100,
-      "branches": 86.67,
+      "lines": 98.91,
+      "branches": 80,
       "functions": 100
     },
     {
@@ -1051,7 +1051,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/planning-context-budget.js",
       "lines": 100,
-      "branches": 88.14,
+      "branches": 88.33,
       "functions": 100
     },
     {
@@ -1584,7 +1584,7 @@
     },
     {
       "path": ".agents/scripts/lib/worktree-manager.js",
-      "lines": 92.55,
+      "lines": 92.94,
       "branches": 83.33,
       "functions": 70
     },
