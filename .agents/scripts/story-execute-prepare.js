@@ -34,11 +34,11 @@
  * task table before the first commit lands.
  */
 
-import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
+import { runInstallCommand } from './lib/install-cmd-parser.js';
 import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
@@ -206,20 +206,10 @@ export async function runStoryExecutePrepare(args) {
   let installResult = null;
   if (installAction === 'install') {
     installCmd = resolveInstallCommand({ override: installCmdOverride });
-    const runner =
-      runInstallOverride ??
-      ((cmd, dir) => {
-        const r = spawnSync(cmd, {
-          cwd: dir,
-          stdio: 'inherit',
-          shell: true,
-        });
-        return {
-          status: r.status ?? 1,
-          stderr: r.stderr ? String(r.stderr) : '',
-        };
-      });
-    installResult = runner(installCmd, workCwd);
+    installResult = (runInstallOverride ?? runInstallCommand)(
+      installCmd,
+      workCwd,
+    );
     if (installResult.status !== 0) {
       throw new Error(
         `runStoryExecutePrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,

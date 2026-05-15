@@ -30,7 +30,6 @@ operator-approved criteria from Story #1702's body:
 | `.agents/scripts/detect-merges.js` | CLI scanner | Pure I/O glue over `git ls-files` |
 | `.agents/scripts/git-cleanup-branches.js` | CLI sweeper | Thin shell over `git for-each-ref` + `git branch -D` |
 | `.agents/scripts/git-rebase-and-resolve.js` | CLI orchestrator | Conflict-resolution heuristics over real git state; testing asserts only mock structure |
-| `.agents/scripts/noise-study.js` | analytical CLI | Reads baselines and prints histograms; no business logic to test |
 | `.agents/scripts/quality-watch.js` | dev-tool watcher | MI 0; long-lived chokidar watcher with no unit-test seam |
 | `.agents/scripts/lib/config-schema.js` | data-as-code | AJV schema declaration; low MI is inherent to large flat schema literals |
 | `.agents/scripts/lib/config-settings-schema.js` | data-as-code | AJV schema declaration; low MI is inherent to large flat schema literals |
@@ -358,7 +357,6 @@ Counts: coverage gaps **48** · MI<70 **1** · CRAP>20 methods **0**
 | `.agents/scripts/story-close.js` | 71.86% (Δ +18.14% to floor) | 63.89% (Δ +21.11% to floor) | 57.14% (Δ +32.86% to floor) |
 | `.agents/scripts/detect-merges.js` | 73.39% (Δ +16.61% to floor) | 88.89% | 80.00% (Δ +10% to floor) |
 | `.agents/scripts/git-pr-quality-gate.js` | 73.53% (Δ +16.47% to floor) | 88.00% | 71.43% (Δ +18.57% to floor) |
-| `.agents/scripts/noise-study.js` | 75.48% (Δ +14.52% to floor) | 88.68% | 61.54% (Δ +28.46% to floor) |
 | `.agents/scripts/validate-docs-freshness.js` | 76.59% (Δ +13.41% to floor) | 94.29% | 66.67% (Δ +23.33% to floor) |
 | `.agents/scripts/check-crap.js` | 80.62% (Δ +9.38% to floor) | 82.07% (Δ +2.93% to floor) | 70.37% (Δ +19.63% to floor) |
 | `.agents/scripts/hydrate-context.js` | 81.01% (Δ +8.99% to floor) | 77.78% (Δ +7.22% to floor) | 60.00% (Δ +30% to floor) |

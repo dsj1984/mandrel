@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { parseInstallCmd } from '../../.agents/scripts/lib/install-cmd-parser.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   deriveInstallAction,
@@ -227,4 +228,36 @@ test('runStoryExecutePrepare: throws if no story-init comment is found', async (
     runStoryExecutePrepare({ storyId: 999, provider }),
     /no story-init comment found/,
   );
+});
+
+test('parseInstallCmd: tokenizes "npm ci" into bin + args', () => {
+  const { bin, args, shell } = parseInstallCmd('npm ci');
+  assert.equal(bin, 'npm');
+  assert.deepEqual(args, ['ci']);
+  // shell:true on Windows is required for .cmd shim spawn under
+  // CVE-2024-27980; POSIX hosts get shell:false.
+  assert.equal(shell, process.platform === 'win32');
+});
+
+test('parseInstallCmd: tokenizes multi-arg pnpm overrides', () => {
+  const { bin, args } = parseInstallCmd('pnpm install --frozen-lockfile');
+  assert.equal(bin, 'pnpm');
+  assert.deepEqual(args, ['install', '--frozen-lockfile']);
+});
+
+test('parseInstallCmd: collapses internal whitespace and trims edges', () => {
+  const { bin, args } = parseInstallCmd('  npm   install   --silent  ');
+  assert.equal(bin, 'npm');
+  assert.deepEqual(args, ['install', '--silent']);
+});
+
+test('parseInstallCmd: preserves absolute paths to non-shimmed binaries', () => {
+  const { bin, args } = parseInstallCmd('/usr/local/bin/custom-installer --ci');
+  assert.equal(bin, '/usr/local/bin/custom-installer');
+  assert.deepEqual(args, ['--ci']);
+});
+
+test('parseInstallCmd: rejects empty input', () => {
+  assert.throws(() => parseInstallCmd(''), /at least one token/);
+  assert.throws(() => parseInstallCmd('   '), /at least one token/);
 });

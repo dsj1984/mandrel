@@ -7,15 +7,8 @@
       "docsRoot": "docs",
       "tempRoot": "temp"
     },
-    "docsContextFiles": [
-      "architecture.md",
-      "data-dictionary.md",
-      "decisions.md",
-      "patterns.md"
-    ],
     "commands": {
       "lintBaseline": "npm run lint",
-      "test": "npm test",
       "typecheck": "node --version"
     }
   },
@@ -48,17 +41,6 @@
           "cmd": ["node", ".agents/scripts/check-baselines.js"]
         }
       ]
-    },
-    "notifications": {
-      "mentionOperator": false,
-      "commentEvents": ["state-transition", "story-merged", "operator-message"],
-      "webhookEvents": [
-        "epic-started",
-        "epic-progress",
-        "epic-blocked",
-        "epic-unblocked",
-        "epic-complete"
-      ]
     }
   },
   "planning": {
@@ -78,14 +60,9 @@
       "progressReportIntervalSec": 300
     },
     "worktreeIsolation": {
-      "enabled": true,
-      "root": ".worktrees",
       "nodeModulesStrategy": "symlink",
       "primeFromPath": ".",
-      "allowSymlinkOnWindows": true,
-      "reapOnSuccess": true,
-      "reapOnCancel": true,
-      "bootstrapFiles": [".env"]
+      "allowSymlinkOnWindows": true
     },
     "quality": {
       "gates": {

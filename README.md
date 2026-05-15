@@ -2,12 +2,6 @@
 
 [![CI / CD](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dsj1984/mandrel/actions/workflows/ci.yml)
 
-<!--
-CI badge targets `dsj1984/mandrel` on GitHub. The `noise-study.yml`
-workflow is `workflow_dispatch` only and intentionally has no badge
-(it would render `no status`).
--->
-
 A structured framework of instructions, personas, skills, and SDLC workflows
 that govern AI coding assistants built on **Epic-Centric GitHub Orchestration**
 — all planning, execution, and state management lives natively in GitHub Issues,
@@ -147,9 +141,7 @@ The user-visible surfaces:
   rename = baseline-refresh). Every workflow that cites a threshold
   links here so the numbers stay in lockstep.
 
-The empirical evidence supporting the re-tuned thresholds lives in
-`docs/noise-study-*.md` (one report per re-run); the threshold values
-themselves live under `agentSettings.quality.codingGuardrails`,
+Threshold values live under `agentSettings.quality.codingGuardrails`,
 `agentSettings.quality.autoRefresh`,
 `agentSettings.quality.maintainability`, and
 `agentSettings.quality.crap` in

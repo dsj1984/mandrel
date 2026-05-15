@@ -21,6 +21,7 @@ overhead rather than help.
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (operator works in the worktree)
   → single-story-close.js          (gates, push, gh pr create → main, agent::done)
+  → CI watch + fix loop            (until all required checks pass + PR is merged)
 ```
 
 **When to use `/single-story-execute` vs. `/story-execute`:**
@@ -172,24 +173,113 @@ behaviour and warrants pre-merge review.
 
 ---
 
-## Step 4 — Merge
+## Step 4 — CI watch + fix loop (**required, not optional**)
 
-With auto-merge enabled (default), no operator action is needed —
-GitHub squash-merges the PR when required checks pass and the
-`Closes #<id>` footer auto-closes the issue.
+The Story is **not done** when `single-story-close.js` returns. Auto-merge
+only fires when every required CI check turns green. Local close-validation
+gates pass on the dev host's environment (Windows, particular Node patch,
+particular concurrency), but CI runs on a different OS and concurrency —
+coverage rounding, platform-conditional branches, and timing-sensitive
+tests routinely drift between the two. The agent owns the green-CI
+outcome, not just the push.
 
-With `--no-auto-merge`, the PR is the merge gate. The operator reviews
-and merges via the GitHub UI; the same `Closes #<id>` auto-close fires
-when the merge lands on `main`.
-
-Optional: watch CI progress from the terminal with
+After `single-story-close.js` succeeds, enter the watch + fix loop:
 
 ```bash
 gh pr checks <prNumber> --watch
 ```
 
-The `prNumber` field is included in the close-script result envelope
-so a wrapper can pipe it straight in.
+When the watch exits:
+
+- **All checks ✓** — auto-merge will fire (or has already). The
+  `Closes #<id>` footer closes the Story issue on merge. Done.
+- **Any check ✗** — diagnose, fix, and push a new commit on
+  `story-<storyId>`, then re-watch. Auto-merge stays enabled across
+  retries; no need to re-arm it.
+
+### Resurrecting the worktree after `reapOnSuccess`
+
+`single-story-close.js` reaps the worktree on success when
+`delivery.worktreeIsolation.reapOnSuccess` is enabled (the default). To
+fix CI you must re-attach a worktree to the existing remote branch:
+
+```bash
+cd <main-repo>
+git fetch origin story-<storyId>
+git worktree add .worktrees/story-<storyId> story-<storyId>
+cd .worktrees/story-<storyId>
+```
+
+Do **not** re-run `single-story-init.js` — it would reset the branch
+state and lose the close commit's structured comment.
+
+### Diagnosing the failure
+
+Pull the failing job log via:
+
+```bash
+gh run view <runId> --repo <owner>/<repo> --log-failed
+```
+
+The `<runId>` is the run number that `gh pr checks` shows in the
+failing row's URL. Read the bottom of the log — the gate that exited
+non-zero is named there (e.g. `[Coverage] ❌ REGRESSION in …`).
+
+### Fixing without re-running close-validation
+
+For coverage / maintainability / CRAP regressions detected only on CI:
+
+1. Update the relevant baseline file (`baselines/coverage.json`,
+   `baselines/maintainability.json`, `baselines/crap.json`) to absorb
+   CI's actual numbers. Edit by hand when CI's numbers are within the
+   tolerance you'd otherwise accept — don't re-run `npm run … :update`
+   locally, because Windows numbers will overwrite CI's Linux numbers
+   and the cycle repeats.
+2. Commit the baseline delta with a `chore(baselines):` message that
+   names the CI run that produced the values.
+3. `git push` to `origin/story-<storyId>` and re-watch.
+
+For genuine test failures (a flaky test, a platform-conditional bug):
+fix the code or test, commit, push, re-watch. Keep iterating until
+the watch exits clean.
+
+### When to stop iterating
+
+- **Three consecutive failures with the same fix shape** — stop and
+  Re-Plan per Anti-Thrashing Protocol. The diagnosis is likely wrong.
+- **Operator-blocking failure** (security scanner, branch-protection
+  rule the agent can't change) — transition the Story to
+  `agent::blocked`, summarize the blocker on the PR, and yield to the
+  operator.
+
+### Idempotence of the loop
+
+- The PR stays open across retries; `gh pr create` is a one-shot at
+  close, the loop only pushes new commits.
+- Auto-merge stays armed across retries — pushing a new commit does
+  not disarm `gh pr merge --auto`.
+- If the operator manually merges or disables auto-merge mid-loop,
+  exit the loop and report.
+
+---
+
+## Step 5 — Merge confirmation
+
+With auto-merge enabled (default), GitHub squash-merges the PR when
+every required check turns green and the `Closes #<id>` footer
+auto-closes the Story issue.
+
+Confirm the merge landed:
+
+```bash
+gh pr view <prNumber> --json state,mergedAt,mergeCommit
+```
+
+Expect `state: "MERGED"`. The Story is now complete.
+
+With `--no-auto-merge`, the PR is the merge gate. The operator reviews
+and merges via the GitHub UI; the same `Closes #<id>` auto-close fires
+when the merge lands on `main`.
 
 ---
 
