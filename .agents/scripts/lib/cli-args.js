@@ -56,6 +56,7 @@ export function parseSprintArgs(args = process.argv) {
       'skip-dashboard': { type: 'boolean', default: false },
       'skip-validation': { type: 'boolean', default: false },
       'no-auto-merge': { type: 'boolean', default: false },
+      'no-full-scope-crap': { type: 'boolean', default: false },
       executor: { type: 'string' },
       cwd: { type: 'string' },
       'recut-of': { type: 'string' },
@@ -75,6 +76,7 @@ export function parseSprintArgs(args = process.argv) {
     skipDashboard: values['skip-dashboard'] ?? false,
     skipValidation: coerceBooleanFlag(values['skip-validation']),
     noAutoMerge: coerceBooleanFlag(values['no-auto-merge']),
+    noFullScopeCrap: coerceBooleanFlag(values['no-full-scope-crap']),
     executor: values.executor ?? null,
     // Resolve worktree cwd from flag or env. Empty string/whitespace → null.
     cwd:

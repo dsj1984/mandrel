@@ -186,10 +186,26 @@ function buildTestGateEntry(agentSettings) {
  * baseline at the Epic-branch HEAD via `git show` rather than via a
  * working-tree fs read.
  *
- * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
+ * Story #1945: by default the CRAP gate runs `--full-scope` at close time,
+ * mirroring CI's post-merge `push` event on main. Diff-scoped close-
+ * validation can miss method-level regressions in untouched files whose
+ * coverage drifts because of shared fixtures, run-order, or
+ * instrumentation paths — those surfaced as red main-branch builds in
+ * incidents like PR #1942 → hotfix #1944. Catching them at close costs a
+ * full-tree CRAP scan (~3s on a ~1400-method repo) but spares the
+ * forced-rebase + hotfix round-trip after auto-merge. Pass
+ * `fullScopeCrap: false` to revert to diff-scope behaviour (exposed to
+ * operators via the `--no-full-scope-crap` flag on
+ * `single-story-close.js`).
+ *
+ * @param {{ agentSettings?: object, epicBranch?: string, fullScopeCrap?: boolean }} [opts]
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
+export function buildDefaultGates({
+  agentSettings,
+  epicBranch,
+  fullScopeCrap = true,
+} = {}) {
   const typecheckCmdString = resolveTypecheckCommand(agentSettings);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
@@ -237,8 +253,14 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
     {
       name: 'check-crap',
       cmd: 'node',
-      args: ['.agents/scripts/check-crap.js', ...epicRefArgs],
-      hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
+      args: [
+        '.agents/scripts/check-crap.js',
+        ...epicRefArgs,
+        ...(fullScopeCrap ? ['--full-scope'] : []),
+      ],
+      hint: fullScopeCrap
+        ? 'Reduce complexity or add coverage on the flagged methods. If the regression is environmental (e.g. Linux vs. Windows coverage drift on an untouched file), run `npm run crap:update -- --full-scope` and commit a `baseline-refresh:` tagged subject + non-empty body. Self-skips when `agentSettings.quality.crap.enabled` is false.'
+        : 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
     },
     ...buildMutationGateEntry(agentSettings),
     {
