@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -7,7 +7,6 @@ import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import {
-  BASELINE_KIND_SCHEMA_FILES,
   BASELINE_SCHEMA_FILES,
   BASELINE_SCHEMAS_DIR,
   buildBaselineSchemaAjv,
