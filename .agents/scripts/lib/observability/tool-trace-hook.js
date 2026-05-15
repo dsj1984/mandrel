@@ -183,6 +183,28 @@ export function resolveActiveStory(env = process.env) {
 }
 
 /**
+ * Story #1768 / Task #1775 — extract the Bash-input hashing into a
+ * helper so `buildDetails` stays under its CRAP baseline. Returns
+ * `{ targetHash, normalizedHash? }` for Bash input, `null` for any
+ * other shape so the caller can fall through to the file_path / pattern
+ * branches unchanged. The `normalizedHash` is omitted when
+ * `normaliseBashCommand` rejects the input (non-string / empty after
+ * normalisation).
+ *
+ * @param {object} toolInput
+ * @returns {{ targetHash: string, normalizedHash?: string } | null}
+ */
+function hashBashInput(toolInput) {
+  if (typeof toolInput?.command !== 'string') return null;
+  const out = { targetHash: hashTarget(toolInput.command) };
+  const normalised = normaliseBashCommand(toolInput.command);
+  if (normalised !== null) {
+    out.normalizedHash = hashTarget(normalised);
+  }
+  return out;
+}
+
+/**
  * Build the canonical `details` block for a trace line. Hashes the
  * Bash command (`tool_input.command`) and any file-path-shaped input
  * (`tool_input.file_path`, `tool_input.path`, `tool_input.pattern`)
@@ -201,21 +223,10 @@ function buildDetails({ tool, toolInput, durationMs }) {
 
   if (toolInput && typeof toolInput === 'object') {
     // Bash: hash `command` so a token-laden string never lands on disk.
-    if (typeof toolInput.command === 'string') {
-      details.targetHash = hashTarget(toolInput.command);
-      // Story #1768 / Task #1775 — additive `normalizedHash` lets the
-      // retry detector collapse paraphrases (`npm test` ≡ `npm run test`,
-      // collapsed whitespace, stripped `--no-color` / `--quiet`) without
-      // ever touching the raw command. Same `sha256:<hex>` shape as
-      // `targetHash`, distinct value (the normalised input is hashed).
-      // Bash-only on purpose: every other tool keeps `targetHash`
-      // semantics unchanged. `normaliseBashCommand` returns `null` for
-      // empty / non-string input, in which case we omit the field.
-      const normalised = normaliseBashCommand(toolInput.command);
-      if (normalised !== null) {
-        details.normalizedHash = hashTarget(normalised);
-      }
-    }
+    // Story #1768 also records `normalizedHash` (paraphrase-collapsed)
+    // for retry detection. See `hashBashInput`.
+    const bash = hashBashInput(toolInput);
+    if (bash) Object.assign(details, bash);
     // Edit / Write / Read: hash `file_path` for the same reason — the
     // operator's local path layout is not interesting to the analyzer.
     if (
