@@ -30,17 +30,12 @@
 import { appendFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
-import { getSignals } from '../../config/limits.js';
 import { AGENT_LABELS } from '../../label-constants.js';
-import { Logger } from '../../Logger.js';
-import {
-  appendEpicSignal,
-  appendSignal,
-} from '../../observability/signals-writer.js';
-import { detectHotspot } from '../../signals/detectors/index.js';
+import { appendSignal } from '../../observability/signals-writer.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../concurrency.js';
 import { parseFencedJsonComment } from '../structured-comment-parser.js';
+import { runHotspotDetection } from './hotspot-detection.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
@@ -1068,84 +1063,11 @@ export async function emitEpicComplete({
   return null;
 }
 
-/**
- * Run the hotspot detector over an Epic's per-Story trace streams and
- * append every returned event to the per-Epic `signals.ndjson` stream
- * (`appendEpicSignal`). Pure orchestration: the detector itself is the
- * pure module at `lib/signals/detectors/hotspot.js`; this helper resolves
- * the operator-tunable `p95Multiplier` via `getSignals(config)` (no direct
- * SIGNALS_DEFAULTS import) and persists each emission.
- *
- * Intended call site: Epic close, *before* `analyze-execution.js --epic`
- * renders the `<!-- structured:epic-perf-report -->` comment. That sequence
- * matters — the aggregator's `SIGNAL_COUNT_KINDS` already includes
- * `'hotspot'`, so emitting before render lets the rolled-up `signalCounts`
- * surface the new detector without renderer changes.
- *
- * **Failure isolation contract** (Story #1770 / Task #1780). A failing
- * detector or per-event append MUST NOT block Epic close. Each failure
- * degrades to a warn and the offending detector contributes 0 to the
- * returned count; the helper always resolves with a `{ hotspot: N }`
- * summary so callers (and tests) see a stable shape. Mirrors the
- * `detectorsPhase` pattern in `lib/orchestration/post-merge-pipeline.js`.
- *
- * @param {{
- *   epicId: number|string,
- *   config?: object,
- *   logger?: object,
- *   detect?: typeof detectHotspot,
- *   append?: typeof appendEpicSignal,
- * }} opts
- * @returns {Promise<{ hotspot: number }>}
- */
-export async function runHotspotDetection(opts = {}) {
-  const {
-    epicId,
-    config,
-    logger = Logger,
-    detect = detectHotspot,
-    append = appendEpicSignal,
-  } = opts;
-  const eid = Number(epicId);
-  if (!Number.isInteger(eid) || eid <= 0) {
-    logger?.warn?.(`[runHotspotDetection] skipped: invalid epicId=${epicId}`);
-    return { hotspot: 0 };
-  }
-
-  let multiplier;
-  try {
-    multiplier = getSignals(config).hotspot.p95Multiplier;
-  } catch (err) {
-    logger?.warn?.(
-      `[runHotspotDetection] getSignals failed (${err?.message ?? err}); skipping`,
-    );
-    return { hotspot: 0 };
-  }
-
-  let count = 0;
-  try {
-    const events = await detect({ epicId: eid, multiplier });
-    for (const evt of events) {
-      try {
-        await append({ epicId: eid, signal: evt, config });
-        count += 1;
-      } catch (err) {
-        logger?.warn?.(
-          `[runHotspotDetection] appendEpicSignal failed (${err?.message ?? err})`,
-        );
-      }
-    }
-  } catch (err) {
-    logger?.warn?.(
-      `[runHotspotDetection] detector threw (${err?.message ?? err})`,
-    );
-  }
-
-  logger?.info?.(
-    `[runHotspotDetection] hotspot=${count} (multiplier=${multiplier})`,
-  );
-  return { hotspot: count };
-}
+// runHotspotDetection lives in `./hotspot-detection.js` so this file
+// stays focused on the periodic-progress + comment-render surface.
+// Re-exported here for backwards compatibility — Epic-close call sites
+// can import either path.
+export { runHotspotDetection };
 
 /**
  * Extract the `{ phases, ... }` payload from a `phase-timings` structured

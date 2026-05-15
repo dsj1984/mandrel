@@ -34,17 +34,16 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setTimeout as sleepPromise } from 'node:timers/promises';
-import { getSignals } from '../config/limits.js';
 import { storyArtifactPath } from '../config/temp-paths.js';
 import { generateAndSaveManifest } from '../../dispatcher.js';
 import { notify } from '../../notify.js';
 import { deleteBranchBoth } from '../git-branch-cleanup.js';
 import { Logger } from '../Logger.js';
 import { appendSignal } from '../observability/signals-writer.js';
-import { detectRetry, detectRework } from '../signals/detectors/index.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
 import { recordPendingCleanup } from '../worktree/lifecycle/pending-cleanup.js';
 import { WorktreeManager } from '../worktree-manager.js';
+import { detectorsPhase } from './detectors-phase.js';
 import { toDone } from './label-transitions.js';
 import { runPhase } from './phase-runner.js';
 import { cascadeCompletion, STATE_LABELS } from './ticketing.js';
@@ -764,127 +763,13 @@ export async function perfSummaryPhase(ctx) {
  * }} ctx
  * @returns {Promise<{ rework: number, retry: number }>}
  */
-export async function detectorsPhase(ctx) {
-  const {
-    epicId,
-    storyId,
-    tasks,
-    config,
-    progress,
-    logger = Logger,
-    detectorsImpl,
-    appendSignalFn = appendSignal,
-  } = ctx;
-  const log = reapPhaseLogger(progress);
-  const reworkFn = detectorsImpl?.detectRework ?? detectRework;
-  const retryFn = detectorsImpl?.detectRetry ?? detectRetry;
-
-  const eid = Number(epicId);
-  const sid = Number(storyId);
-  if (
-    !Number.isInteger(eid) ||
-    eid <= 0 ||
-    !Number.isInteger(sid) ||
-    sid <= 0
-  ) {
-    logger?.warn?.(
-      `[post-merge-pipeline] detectors phase skipped: invalid epicId=${epicId} / storyId=${storyId}`,
-    );
-    return { rework: 0, retry: 0 };
-  }
-
-  const tracesPath = storyArtifactPath(eid, sid, 'traces.ndjson', config);
-
-  // Resolve thresholds via the operator-tunable surface. We never reach
-  // for SIGNALS_DEFAULTS directly — getSignals() merges defaults under
-  // operator overrides per Epic #1720.
-  let signalsCfg;
-  try {
-    signalsCfg = getSignals(config);
-  } catch (err) {
-    logger?.warn?.(
-      `[post-merge-pipeline] detectors phase: getSignals failed (${err?.message ?? err}); using zero counts`,
-    );
-    return { rework: 0, retry: 0 };
-  }
-
-  // Tag every signal with the *last* Task ID (the merge boundary). The
-  // detectors aggregate trace records across the whole Story, so there is
-  // no single Task that owns a given offender; the last-Task tag matches
-  // the Task at whose close-out the detector ran.
-  const taskId = (() => {
-    if (!Array.isArray(tasks) || tasks.length === 0) return null;
-    const last = tasks[tasks.length - 1];
-    const id = Number(last?.id ?? last);
-    return Number.isInteger(id) && id > 0 ? id : null;
-  })();
-
-  let reworkCount = 0;
-  let retryCount = 0;
-
-  // Rework detector — failure-isolated.
-  try {
-    const events = await reworkFn({
-      tracesPath,
-      epicId: eid,
-      storyId: sid,
-      taskId,
-      threshold: signalsCfg.rework.editsPerFile,
-    });
-    for (const evt of events) {
-      try {
-        await appendSignalFn({
-          epicId: eid,
-          storyId: sid,
-          signal: evt,
-          config,
-        });
-        reworkCount += 1;
-      } catch (err) {
-        logger?.warn?.(
-          `[post-merge-pipeline] detectors: rework appendSignal failed (${err?.message ?? err})`,
-        );
-      }
-    }
-  } catch (err) {
-    logger?.warn?.(
-      `[post-merge-pipeline] detectors: rework detector threw (${err?.message ?? err})`,
-    );
-  }
-
-  // Retry detector — failure-isolated.
-  try {
-    const events = await retryFn({
-      tracesPath,
-      epicId: eid,
-      storyId: sid,
-      taskId,
-      threshold: signalsCfg.retry.repeatCount,
-    });
-    for (const evt of events) {
-      try {
-        await appendSignalFn({
-          epicId: eid,
-          storyId: sid,
-          signal: evt,
-          config,
-        });
-        retryCount += 1;
-      } catch (err) {
-        logger?.warn?.(
-          `[post-merge-pipeline] detectors: retry appendSignal failed (${err?.message ?? err})`,
-        );
-      }
-    }
-  } catch (err) {
-    logger?.warn?.(
-      `[post-merge-pipeline] detectors: retry detector threw (${err?.message ?? err})`,
-    );
-  }
-
-  log('DETECTORS', `detectors: rework=${reworkCount} retry=${retryCount}`);
-  return { rework: reworkCount, retry: retryCount };
-}
+// detectorsPhase is the post-merge phase that fires the rework + retry
+// signal detectors against the per-Story `traces.ndjson` and appends each
+// emission to `signals.ndjson` BEFORE the analyzer renders the
+// `<!-- structured:story-perf-summary -->` comment. Implementation lives
+// in `lib/orchestration/detectors-phase.js` so this sequencer stays focused
+// on phase orchestration; re-exported here for backwards compatibility.
+export { detectorsPhase };
 
 export const DEFAULT_POST_MERGE_PHASES = Object.freeze([
   {
