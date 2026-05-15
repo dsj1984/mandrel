@@ -65,6 +65,57 @@ export function rollup(rows, components = []) {
   return out;
 }
 
+/**
+ * Pure compare(head, base) for the coverage kind. Diffs rows by `path`.
+ * Higher percentages are better — a row regresses if any axis (lines,
+ * branches, functions) drops vs base; improves if any axis rises with no
+ * axis dropping; unchanged otherwise. New paths inherit a base of 100%
+ * for each axis (so partial coverage on a new file lands as a
+ * regression); dropped paths inherit a head of 100%.
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+const COV_AXES = ['lines', 'branches', 'functions'];
+
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.path, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.path);
+    const b = baseByKey.get(h.path) ?? perfectCoverageRow(h.path);
+    classifyCoverage(regressions, improvements, unchanged, h.path, h, b);
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.path)) continue;
+    const h = perfectCoverageRow(b.path);
+    classifyCoverage(regressions, improvements, unchanged, b.path, h, b);
+  }
+  return { regressions, improvements, unchanged };
+}
+
+function perfectCoverageRow(path) {
+  return { path, lines: 100, branches: 100, functions: 100 };
+}
+
+function classifyCoverage(regressions, improvements, unchanged, key, head, base) {
+  let down = false;
+  let up = false;
+  for (const axis of COV_AXES) {
+    const delta = (head[axis] ?? 0) - (base[axis] ?? 0);
+    if (delta < 0) down = true;
+    else if (delta > 0) up = true;
+  }
+  if (down) regressions.push({ key, head, base });
+  else if (up) improvements.push({ key, head, base });
+  else unchanged.push({ key, head, base });
+}
+
 function componentMatches(component, path) {
   if (!component || typeof component.includes !== 'string') return false;
   return (

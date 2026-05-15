@@ -68,6 +68,66 @@ export function rollup(rows, components = []) {
   return out;
 }
 
+/**
+ * Pure compare(head, base) for the lighthouse kind. Diffs rows by `route`.
+ *
+ * Higher score = better. A row regresses when any of performance,
+ * accessibility, bestPractices, or seo decreases vs the base. An
+ * improvement requires at least one score to increase and none to
+ * decrease. Otherwise the row is unchanged. New routes inherit a base of
+ * 100 for each axis (so lower scores register as regressions); dropped
+ * routes inherit a head of 100 (so a higher base registers as an
+ * improvement).
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+const LH_AXES = ['performance', 'accessibility', 'bestPractices', 'seo'];
+
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.route, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.route);
+    const b = baseByKey.get(h.route) ?? perfectLighthouseRow(h.route);
+    classify(regressions, improvements, unchanged, h.route, h, b);
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.route)) continue;
+    const h = perfectLighthouseRow(b.route);
+    classify(regressions, improvements, unchanged, b.route, h, b);
+  }
+  return { regressions, improvements, unchanged };
+}
+
+function perfectLighthouseRow(route) {
+  return {
+    route,
+    performance: 100,
+    accessibility: 100,
+    bestPractices: 100,
+    seo: 100,
+  };
+}
+
+function classify(regressions, improvements, unchanged, key, head, base) {
+  let down = false;
+  let up = false;
+  for (const axis of LH_AXES) {
+    const delta = (head[axis] ?? 0) - (base[axis] ?? 0);
+    if (delta < 0) down = true;
+    else if (delta > 0) up = true;
+  }
+  if (down) regressions.push({ key, head, base });
+  else if (up) improvements.push({ key, head, base });
+  else unchanged.push({ key, head, base });
+}
+
 function componentMatchesRoute(component, route) {
   if (!component || typeof component.includes !== 'string') return false;
   return (

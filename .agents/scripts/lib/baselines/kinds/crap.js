@@ -110,6 +110,52 @@ export function rollup(rows, components = []) {
   return out;
 }
 
+/**
+ * Pure compare(head, base) for the CRAP kind. Diffs rows by the
+ * `path::method@startLine` composite identity (per-method granularity).
+ *
+ * Higher CRAP = worse. A row regresses when its crap score increases vs
+ * base; improves when it decreases; unchanged when equal. New methods
+ * with crap > 0 regress; removed methods with crap > 0 improve.
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(crapRowKey(r), r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    const key = crapRowKey(h);
+    seen.add(key);
+    const b = baseByKey.get(key);
+    if (!b) {
+      if ((h.crap ?? 0) > 0) regressions.push({ key, head: h, base: null });
+      else unchanged.push({ key, head: h, base: null });
+      continue;
+    }
+    const delta = (h.crap ?? 0) - (b.crap ?? 0);
+    if (delta > 0) regressions.push({ key, head: h, base: b });
+    else if (delta < 0) improvements.push({ key, head: h, base: b });
+    else unchanged.push({ key, head: h, base: b });
+  }
+  for (const b of baseRows) {
+    const key = crapRowKey(b);
+    if (seen.has(key)) continue;
+    if ((b.crap ?? 0) > 0) improvements.push({ key, head: null, base: b });
+    else unchanged.push({ key, head: null, base: b });
+  }
+  return { regressions, improvements, unchanged };
+}
+
+function crapRowKey(row) {
+  return `${row.path}::${row.method}@${row.startLine}`;
+}
+
 function componentMatches(component, p) {
   if (!component || typeof component.includes !== 'string') return false;
   return p === component.includes || p.startsWith(`${component.includes}/`);
