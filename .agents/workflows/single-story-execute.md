@@ -70,7 +70,7 @@ the Story to `agent::executing`.
 
 Between the fetch and the branch-seed step, the script also runs a
 **merged-`story-*` sweep**: it invokes the same primitive as
-`git-cleanup-branches.js` scoped to `story-*` only, in
+`git-cleanup.js` scoped to `story-*` only, in
 `--execute --remote` mode, with the current run's `story-<id>` branch
 excluded from the candidate list. Local refs, the matching `origin/`
 ref, and stale tracking refs for any merged sibling stories are reaped

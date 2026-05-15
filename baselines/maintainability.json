@@ -163,8 +163,8 @@
       "mi": 82.223
     },
     {
-      "path": ".agents/scripts/git-cleanup-branches.js",
-      "mi": 93.214
+      "path": ".agents/scripts/git-cleanup.js",
+      "mi": 87.66
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -2927,7 +2927,7 @@
       "mi": 108.963
     },
     {
-      "path": "tests/scripts/git-cleanup-branches.test.js",
+      "path": "tests/scripts/git-cleanup.test.js",
       "mi": 107.868
     },
     {
