@@ -91,8 +91,7 @@ export function compare(head, base) {
     if (seen.has(b.path)) continue;
     const delta = 100 - (b.score ?? 0);
     if (delta < 0) regressions.push({ key: b.path, head: null, base: b });
-    else if (delta > 0)
-      improvements.push({ key: b.path, head: null, base: b });
+    else if (delta > 0) improvements.push({ key: b.path, head: null, base: b });
     else unchanged.push({ key: b.path, head: null, base: b });
   }
   return { regressions, improvements, unchanged };

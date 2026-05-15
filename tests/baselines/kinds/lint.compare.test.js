@@ -14,8 +14,12 @@ function envelope(rows) {
 
 describe('kinds/lint.compare()', () => {
   it('classifies higher errorCount as a regression', () => {
-    const head = envelope([{ path: 'src/a.js', errorCount: 3, warningCount: 0 }]);
-    const base = envelope([{ path: 'src/a.js', errorCount: 1, warningCount: 0 }]);
+    const head = envelope([
+      { path: 'src/a.js', errorCount: 3, warningCount: 0 },
+    ]);
+    const base = envelope([
+      { path: 'src/a.js', errorCount: 1, warningCount: 0 },
+    ]);
     const out = compare(head, base);
     assert.equal(out.regressions.length, 1);
     assert.equal(out.regressions[0].key, 'src/a.js');
@@ -24,8 +28,12 @@ describe('kinds/lint.compare()', () => {
   });
 
   it('classifies lower warningCount as an improvement', () => {
-    const head = envelope([{ path: 'src/a.js', errorCount: 0, warningCount: 1 }]);
-    const base = envelope([{ path: 'src/a.js', errorCount: 0, warningCount: 5 }]);
+    const head = envelope([
+      { path: 'src/a.js', errorCount: 0, warningCount: 1 },
+    ]);
+    const base = envelope([
+      { path: 'src/a.js', errorCount: 0, warningCount: 5 },
+    ]);
     const out = compare(head, base);
     assert.equal(out.improvements.length, 1);
     assert.equal(out.improvements[0].key, 'src/a.js');
@@ -33,8 +41,12 @@ describe('kinds/lint.compare()', () => {
   });
 
   it('classifies identical counts as unchanged', () => {
-    const head = envelope([{ path: 'src/a.js', errorCount: 2, warningCount: 1 }]);
-    const base = envelope([{ path: 'src/a.js', errorCount: 2, warningCount: 1 }]);
+    const head = envelope([
+      { path: 'src/a.js', errorCount: 2, warningCount: 1 },
+    ]);
+    const base = envelope([
+      { path: 'src/a.js', errorCount: 2, warningCount: 1 },
+    ]);
     const out = compare(head, base);
     assert.equal(out.unchanged.length, 1);
     assert.equal(out.regressions.length, 0);
@@ -42,7 +54,9 @@ describe('kinds/lint.compare()', () => {
   });
 
   it('treats new files with findings as regressions', () => {
-    const head = envelope([{ path: 'src/new.js', errorCount: 1, warningCount: 0 }]);
+    const head = envelope([
+      { path: 'src/new.js', errorCount: 1, warningCount: 0 },
+    ]);
     const base = envelope([]);
     const out = compare(head, base);
     assert.equal(out.regressions.length, 1);
@@ -51,7 +65,9 @@ describe('kinds/lint.compare()', () => {
 
   it('treats removed files with prior findings as improvements', () => {
     const head = envelope([]);
-    const base = envelope([{ path: 'src/old.js', errorCount: 4, warningCount: 0 }]);
+    const base = envelope([
+      { path: 'src/old.js', errorCount: 4, warningCount: 0 },
+    ]);
     const out = compare(head, base);
     assert.equal(out.improvements.length, 1);
     assert.equal(out.improvements[0].head, null);
