@@ -107,10 +107,21 @@ npm test              # Run framework tests (node --test)
 
 ### Release Checklist
 
-1. Bump version in `package.json`.
-2. Update `.agents/VERSION` to match.
-3. Add entry to `docs/CHANGELOG.md`.
-4. Commit and merge to `main` — CI publishes to `dist`.
+Releases are automated by
+[`googleapis/release-please-action`](https://github.com/googleapis/release-please-action)
+(see [`.github/workflows/release-please.yml`](.github/workflows/release-please.yml)):
+
+1. Land Conventional Commits on `main` (the rules in
+   [`.agents/rules/git-conventions.md`](.agents/rules/git-conventions.md)
+   already enforce the commit-message contract).
+2. release-please opens a `chore(main): release X.Y.Z` PR. Review the
+   auto-generated entry in `docs/CHANGELOG.md` and the bumps to
+   `package.json` and `.agents/VERSION`.
+3. Merge the release PR. The workflow creates the GitHub Release, tags
+   `main` with `vX.Y.Z`, and mirrors a `dist-vX.Y.Z` tag onto the
+   `dist` branch tip so submodule consumers can pin to the release.
+   The existing `dist` sync in `ci.yml` propagates the new
+   `.agents/VERSION` to consumers.
 
 ---
 

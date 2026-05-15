@@ -1,9 +1,9 @@
 # Software Development Life Cycle (SDLC) Workflow
 
-Version 6 uses **Epic-Centric GitHub Orchestration** — GitHub Issues,
+Mandrel uses **Epic-Centric GitHub Orchestration** — GitHub Issues,
 Labels, and Projects V2 are the Single Source of Truth, fronted by a
-declarative `epic.yaml` artifact (v6 Epic D) that makes plans diff-able
-and reconcilable. No per-iteration directories, no JSON state files for
+declarative `epic.yaml` artifact that makes plans diff-able and
+reconcilable. No per-iteration directories, no JSON state files for
 ticket data.
 
 The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
@@ -171,7 +171,7 @@ orchestration engine depends on.
    `agentSettings.quality.prGate.enforceBranchProtection` is `true`
    (default) — creates or merges branch protection on `main` with the
    project's `prGate.checks` as required status checks. This step is
-   load-bearing for the v6 SDL because PR merges to `main` are the sole
+   load-bearing for the SDL because PR merges to `main` are the sole
    promotion gate.
 
 > [!NOTE] Bootstrap runs once per repository. It is safe to re-run — existing
@@ -325,7 +325,7 @@ assembles a self-contained prompt:
 Agents update their state in real-time on GitHub:
 
 - **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
-  intermediate review label is not part of the v6 taxonomy; the
+  intermediate review label is not part of the label taxonomy; the
   PR opened by `/epic-deliver` Phase 6 is the equivalent "ready to merge"
   signal at the Epic level. The `WaveObserver` submodule additionally
   syncs a GitHub Projects v2 Status column on each transition when a
@@ -606,7 +606,7 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
 - **Human review on High/Critical.** If High or Critical findings are detected,
   the workflow halts for human review at the corresponding `/epic-deliver`
   phase. Approval is given by the operator advancing the phase (the
-  auto-approve webhook listener was never wired into CI and was removed in v6).
+  auto-approve webhook listener was never wired into CI and was removed during the rebrand).
 - **Implementation.** Once the operator approves the fixes, the ticket
   transitions to `agent::executing` and `/epic-deliver` dispatches an agent to
   implement and verify them.

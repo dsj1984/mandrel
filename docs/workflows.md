@@ -11,9 +11,9 @@ Every command file lives at `.agents/workflows/<name>.md` and is auto-synced to
 
 ## SDL critical path
 
-The v6 SDL critical path is two commands. `/epic-plan` builds the
+The SDL critical path is two commands. `/epic-plan` builds the
 backlog declaratively — it emits an `epic.yaml` artifact and reconciles
-it against GitHub via `epic-reconcile.js` (v6 Epic D) without creating
+it against GitHub via `epic-reconcile.js` without creating
 the Epic branch at plan time. `/epic-deliver` drives the merged
 wave-loop + close-tail and opens a pull request to `main`. The operator
 merges the PR through the GitHub UI — the workflow never merges to

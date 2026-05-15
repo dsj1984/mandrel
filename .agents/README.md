@@ -34,7 +34,7 @@ Three steps, run once per consuming repo:
 3. **Bootstrap the GitHub repo.** Run the
    [`/agents-bootstrap-github`](workflows/agents-bootstrap-github.md)
    slash command (or `node .agents/scripts/agents-bootstrap-github.js`)
-   to create the framework's v6 label taxonomy and the optional Project
+   to create the framework's label taxonomy and the optional Project
    V2 fields. It is idempotent — safe to re-run.
 
 After step 3 you can run any slash command — `/epic-plan`,

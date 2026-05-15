@@ -2,7 +2,49 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## [1.0.0] — 2026-05-15
+
+**Mandrel 1.0 — rebrand + clean slate.** The framework relaunches under the
+**Mandrel** name with a fresh major-version line. The pre-rebrand version
+history (v1.x – v5.41.x under the old name, plus the transitional `6.0.0`
+cut-over tag) is preserved verbatim in
+[`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md) and is **not
+comparable** to entries under this line — file structure, package name,
+and configuration shapes all changed at the rebrand boundary. New
+adopters target the **`mandrel`** package / **`mandrel.git`** submodule
+from this point forward.
+
+### Added (dispatch hints & parallel tooling)
+
+All optional unless used; untouched consumers behave as before.
+
+- Workflow frontmatter: `recommendedModel` and `dispatchModel` (`haiku` |
+  `sonnet` | `opus`) — dispatcher hints only, no required schema fields.
+- Helper [**parallel-tooling**](../.agents/workflows/helpers/parallel-tooling.md) documenting fan-out tooling in one assistant turn.
+- Skill **`audit-fan-out`** (opt-in `/audit-fan-out`).
+- **`epic-perf-report`**: optional `dispatchModel` on `mostFrictionStories[]`
+  items; omitted when absent. See PRD #1276 / Tech Spec #1277 /
+  Stories #1326–#1329.
+
+### Breaking changes (decomposition & manifest)
+
+Hard cut — no aliases. Update `.agentrc.json` in lockstep; legacy shapes fail
+schema validation.
+
+- **Concurrency**: single **`orchestration.concurrency`** block (`decomposer`,
+  `deliverRunner`, `waveGate`, `commitAssertion`, `progressReporter`).
+  Removes **`runners.decomposer`**, **`runners.concurrency`**, and
+  **`deliverRunner.concurrencyCap`**; use **`resolveConcurrency(orchestration)`**.
+
+- **`sizingProfile`** on dispatch-manifest Tasks that exceed **`agentSettings.planning.taskSizing.softFileCount`** file threshold (profiles: **`mechanical-sweep`**, **`atomic-rewrite`**, **`scaffolding`**).
+
+- **`agentSettings.planning.taskSizing`** — tunable **`maxAcceptance`** /
+  **`maxChanges`** / **`softFileCount`** / **`softAcceptanceCount`** with
+  structured oversized/missing-profile findings consumed by decomposition retry.
+
+- **Dispatch markdown**: one nested Wave → Story → Task flow (TOC anchors,
+  checkboxes, per‑wave decomposition notes, single footer `<details>`). Behavior
+  is locked by **`tests/lib/presentation/manifest-formatter-end-to-end.test.js`**.
 
 ### Changed (Story #1922 — agentrc template rename + role split)
 
@@ -35,43 +77,6 @@ No schema changes. The static schema mirror, AJV runtime schemas, and the
 runtime defaults in code (`LIMITS_DEFAULTS`, `*_GATE_DEFAULTS`,
 `DEFAULT_DELIVER_RUNNER`, etc.) are untouched.
 
-## [6.0.0] — 2026-05-13
-
-**Mandrel rebrand plus v6 breaking cut** (Epic #1184). History for v1.x–v5.41.x
-lives only in [`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md). One-time migration CLIs shipped for Epic #1184 (`docs/migration-v6.md`, `migrate-to-v6*` / `rebrand-to-mandrel*`, tests) are removed from this tree; adopters bump to **`mandrel`** / **`mandrel.git`** on submodule and npm deps.
-
-### Added (Epic #1185 — dispatch hints & parallel tooling)
-
-All optional unless used; untouched consumers behave as before.
-
-- Workflow frontmatter: `recommendedModel` and `dispatchModel` (`haiku` |
-  `sonnet` | `opus`) — dispatcher hints only, no required schema fields.
-- Helper [**parallel-tooling**](../.agents/workflows/helpers/parallel-tooling.md) documenting fan-out tooling in one assistant turn.
-- Skill **`audit-fan-out`** (opt-in `/audit-fan-out`).
-- **`epic-perf-report`**: optional `dispatchModel` on `mostFrictionStories[]`
-  items; omitted when absent. See PRD #1276 / Tech Spec #1277 /
-  Stories #1326–#1329.
-
-### Breaking changes (Epic #1178 — decomposition & manifest)
-
-Hard cut — no aliases. Update `.agentrc.json` in lockstep; legacy shapes fail
-schema validation.
-
-- **Concurrency**: single **`orchestration.concurrency`** block (`decomposer`,
-  `deliverRunner`, `waveGate`, `commitAssertion`, `progressReporter`).
-  Removes **`runners.decomposer`**, **`runners.concurrency`**, and
-  **`deliverRunner.concurrencyCap`**; use **`resolveConcurrency(orchestration)`**.
-
-- **`sizingProfile`** on dispatch-manifest Tasks that exceed **`agentSettings.planning.taskSizing.softFileCount`** file threshold (profiles: **`mechanical-sweep`**, **`atomic-rewrite`**, **`scaffolding`**).
-
-- **`agentSettings.planning.taskSizing`** — tunable **`maxAcceptance`** /
-  **`maxChanges`** / **`softFileCount`** / **`softAcceptanceCount`** with
-  structured oversized/missing-profile findings consumed by decomposition retry.
-
-- **Dispatch markdown**: one nested Wave → Story → Task flow (TOC anchors,
-  checkboxes, per‑wave decomposition notes, single footer `<details>`). Behavior
-  is locked by **`tests/lib/presentation/manifest-formatter-end-to-end.test.js`**.
-
 ### Removed
 
 - Epic #1235 hands-off CI automation: bot approver, auto-fix, triage-PR,
@@ -90,3 +95,8 @@ schema validation.
 - **`epic-complete` webhook** fires after **`gh pr create`** (**`epic-deliver-finalize.js`**).
 - **Maintainability** gate default tolerance **0.001 → 0.5**, overridable via
   **`agentSettings.quality.maintainability.tolerance`** / **`CRAP_TOLERANCE`**.
+
+---
+
+Pre-rebrand history (the old-name v1.x–v5.41.x line and the 6.0.0 cut-over
+tag) is preserved in [`archive/CHANGELOG-pre-v6.md`](archive/CHANGELOG-pre-v6.md).

@@ -1,0 +1,70 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  release-please:
+    name: Run release-please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      # Pinned to an exact release tag rather than a floating major (`@v5`)
+      # or the moving `@main` ref — a third-party action's default branch
+      # is a supply-chain risk vector (CWE-1357). Bump deliberately when a
+      # new release-please-action ships; `npm run audit-security` flags
+      # any reversion to `@main` / `@master`.
+      - name: Run release-please
+        id: release
+        uses: googleapis/release-please-action@v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  tag-dist:
+    # Mirror the release-please tag onto the `dist` branch under a
+    # `dist-` namespace so submodule consumers (who track the `dist`
+    # branch) can pin to a release commit reachable from `dist`'s
+    # history. The main-side `vX.Y.Z` tag points at the release commit
+    # on `main`; the `dist-vX.Y.Z` tag points at the equivalent `dist`
+    # tip after the post-merge CI sync runs. Two namespaces avoids the
+    # "same tag name, two SHAs" conflict that `main` and `dist` would
+    # otherwise create.
+    name: Mirror release tag onto dist branch
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout dist branch
+        uses: actions/checkout@v4
+        with:
+          ref: dist
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag dist tip with `dist-<tag>`
+        env:
+          MAIN_TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          DIST_TAG="dist-${MAIN_TAG}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --tags origin "${DIST_TAG}" >/dev/null 2>&1; then
+            echo "Tag ${DIST_TAG} already exists on origin — skipping."
+            exit 0
+          fi
+          git tag "${DIST_TAG}"
+          git push origin "refs/tags/${DIST_TAG}"

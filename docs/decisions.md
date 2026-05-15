@@ -1,18 +1,18 @@
 # Architecture Decision Records (ADR)
 
-> **v6 ADR cluster.** The post-Epic-A/C/D/G/F reality is fixed by four
-> load-bearing ADRs that subsequent decisions cite:
+> **Rebrand ADR cluster.** The post-Epic-A/C/D/G/F reality is fixed by
+> four load-bearing ADRs that subsequent decisions cite:
 >
 > - [`20260512-coupling-stance`](#adr-20260512-coupling-stance-two-surface-coupling-stance) — Claude Code-first, runtime-pluggable dispatcher (Epic G).
 > - [`20260512-destructive-replan-retired`](#adr-20260512-destructive-replan-retired-epic-1182--retire-delete-epicjs-re-plan--edit-spec--reconcile) — declarative `epic.yaml` + reconciler (Epic D).
 > - [`20260512-loop-adoption`](#adr-20260512-loop-adoption-adopt-built-in-loop-no-homegrown-surface-to-reconcile) — adopt built-in `/loop`; no homegrown surface to reconcile (Epic G).
-> - The v6 absolute quality floors and floor-vs-ratchet policy live in
+> - The absolute quality floors and floor-vs-ratchet policy live in
 >   [`quality-gates.md`](quality-gates.md) (Epic F Story #1602) — they
 >   are tooling commitments rather than architectural ADRs.
 >
 > Older ADRs remain authoritative on the architectural question they
-> answered at the time; cross-cuts that v6 supersedes are flagged in
-> the entries themselves.
+> answered at the time; cross-cuts that the Mandrel rebrand supersedes
+> are flagged in the entries themselves.
 
 ## ADR 20260514-drop-churn-idle: Drop `churn` + `idle` from active perf-signal taxonomy
 
@@ -217,7 +217,7 @@ profiles:
 The framework is — in practice and by design — a **Claude Code-first
 opinionated workflow framework with a runtime-pluggable dispatcher**.
 This ADR makes that coupling stance explicit so subsequent phases of
-the v6 cut and downstream Epics reference a single source of truth
+the Mandrel rebrand and downstream Epics reference a single source of truth
 instead of re-litigating the question per change.
 
 ### Decision
@@ -246,8 +246,8 @@ The wrapper validates the built-in's output against the original
 findings before closing.
 
 The ADR is written with name-neutral phrasing — "the framework" rather
-than a brand name — so the in-flight v6 rebrand epic can supply the
-brand name without rewriting this ADR text.
+than a brand name — so the Mandrel rebrand epic could supply the brand
+name without rewriting this ADR text.
 
 ### Consequences
 
@@ -2570,7 +2570,7 @@ project's configured base branch is honoured.
 
 ### Context
 
-The v6 Epic G phasing (Tech Spec #1545, Phase 2, Story 5) flagged the homegrown `loop` skill as a candidate for one of four reconciliation outcomes against the Claude Code built-in `/loop`: **rebase**, **thin-to-reference**, **delete**, or **document-divergence**. The Tech Spec explicitly noted the homegrown skill's location was "TBD by Story 5 investigation" — the audit was the first deliverable.
+The Epic G phasing (Tech Spec #1545, Phase 2, Story 5) flagged the homegrown `loop` skill as a candidate for one of four reconciliation outcomes against the Claude Code built-in `/loop`: **rebase**, **thin-to-reference**, **delete**, or **document-divergence**. The Tech Spec explicitly noted the homegrown skill's location was "TBD by Story 5 investigation" — the audit was the first deliverable.
 
 ### Decision
 
@@ -2606,11 +2606,11 @@ The Story-level verdict therefore collapses the four candidate outcomes into one
 **Date:** 2026-05-13
 **Epic:** #1184 (v6.0.0 Epic F — Cut-over + Mandrel rebrand)
 **Story:** #1601 (Scripts + commands surface audit; `/mandrel` discoverability)
-**Supporting evidence:** [`docs/audits/v6-scripts-commands.md`](audits/v6-scripts-commands.md) — full reference-count audit of the script + command surface as of 2026-05-12.
+**Supporting evidence:** A full reference-count audit of the script + command surface as of 2026-05-12 (audit report archived post-release with `docs/audits/` in commit `8855ab6c`).
 
 ### Context
 
-The v6 rebrand from Mandrel to Mandrel surfaces a one-way decision about command naming: do every Mandrel-owned slash command name a brand prefix (`/mandrel-epic-deliver`, `/mandrel-audit-clean-code`, etc.), or does the brand stay out of the per-command surface and live in a single discoverability entry?
+The Mandrel rebrand from `agent-protocols` surfaces a one-way decision about command naming: do every Mandrel-owned slash command name a brand prefix (`/mandrel-epic-deliver`, `/mandrel-audit-clean-code`, etc.), or does the brand stay out of the per-command surface and live in a single discoverability entry?
 
 Brand-prefixing every command is reverse-coupling: it makes the consumer's `/` menu cluttered with `mandrel-` repetition, hides the descriptive verb (`epic-deliver` says what it does; `mandrel-epic-deliver` says what it does *and* who owns it, which the operator already knows because they installed the framework), and reverses the same logic that keeps `.agents/` and `.agentrc.json` filenames unchanged through the rebrand (those names describe the artifact, not the brand).
 
@@ -2625,7 +2625,7 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 
 | Item | Decision | Rationale |
 | --- | --- | --- |
-| `agents-bootstrap-*` → `mandrel-bootstrap-*` | **Keep `agents-bootstrap-*`** | The name describes what it bootstraps — the `.agents/` directory, which v6 explicitly preserves as a stable filename. Brand-prefixing where the artifact name is already more self-describing is reverse-coupling. |
+| `agents-bootstrap-*` → `mandrel-bootstrap-*` | **Keep `agents-bootstrap-*`** | The name describes what it bootstraps — the `.agents/` directory, which the rebrand explicitly preserves as a stable filename. Brand-prefixing where the artifact name is already more self-describing is reverse-coupling. |
 | `agents-update` → `mandrel-update` | **Keep `agents-update`** | Updates the `.agents/` submodule pointer; that is what the name says. Same rationale as the bootstrap row. |
 | `delete-epic-*` workflows → scripts-only | **Keep as workflows** | Destructive operations benefit from slash-command discoverability and the workflow-level confirmation step. The scripts are thin, but the operator's entry point and confirmation home is the workflow file. |
 | `epic-plan` / `epic-deliver` → `mandrel-plan` / `mandrel-deliver` | **Keep as `epic-*`** | "Epic" is the domain concept the framework operates on. `mandrel-plan` is strictly less informative ("plan what?"). The noun the workflow acts on is the right primary axis for the name. |
