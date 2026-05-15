@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T19:41:37.071Z",
+  "generatedAt": "2026-05-15T19:53:37.085Z",
   "rollup": {
     "*": {
-      "lines": 96.92,
-      "branches": 86.54,
-      "functions": 92.63
+      "lines": 96.88,
+      "branches": 86.45,
+      "functions": 92.51
     }
   },
   "rows": [
@@ -427,7 +427,7 @@
     {
       "path": ".agents/scripts/lib/config-resolver.js",
       "lines": 100,
-      "branches": 95.45,
+      "branches": 93.62,
       "functions": 100
     },
     {
@@ -499,7 +499,13 @@
     {
       "path": ".agents/scripts/lib/config/validate-orchestration.js",
       "lines": 100,
-      "branches": 96.3,
+      "branches": 92.59,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/config/worktree-isolation.js",
+      "lines": 100,
+      "branches": 76.47,
       "functions": 100
     },
     {
@@ -645,6 +651,12 @@
       "lines": 100,
       "branches": 100,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/install-cmd-parser.js",
+      "lines": 84.31,
+      "branches": 80,
+      "functions": 50
     },
     {
       "path": ".agents/scripts/lib/issue-link-parser.js",
@@ -1063,7 +1075,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/post-merge-pipeline.js",
       "lines": 97.12,
-      "branches": 74.47,
+      "branches": 73.94,
       "functions": 100
     },
     {
@@ -1135,7 +1147,7 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/close-inputs.js",
       "lines": 98.59,
-      "branches": 83.33,
+      "branches": 79.17,
       "functions": 100
     },
     {
@@ -1669,7 +1681,7 @@
     {
       "path": ".agents/scripts/providers/github.js",
       "lines": 85.38,
-      "branches": 68.13,
+      "branches": 68.32,
       "functions": 82
     },
     {
