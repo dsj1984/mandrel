@@ -68,7 +68,8 @@ export const emitEpicStarted = emitEpicStartedFromTransport;
 export const emitEpicBlocked = emitEpicBlockedFromTransport;
 export const emitEpicUnblocked = emitEpicUnblockedFromTransport;
 export const emitEpicComplete = emitEpicCompleteFromTransport;
-export const parseStoryRunProgressComment = parseStoryRunProgressCommentFromSignals;
+export const parseStoryRunProgressComment =
+  parseStoryRunProgressCommentFromSignals;
 export const parsePhaseTimingsComment = parsePhaseTimingsCommentFromSignals;
 export const aggregatePhaseTimings = aggregatePhaseTimingsFromSignals;
 export const renderPhaseTimingsSection = renderPhaseTimingsSectionFromSignals;
@@ -494,4 +495,3 @@ export class ProgressReporter {
     });
   }
 }
-

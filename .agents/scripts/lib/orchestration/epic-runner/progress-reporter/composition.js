@@ -133,15 +133,12 @@ export async function renderNotable({ rows, detectors = [], wave, logger }) {
   const detectorResults = await Promise.all(
     (detectors ?? []).map(async (detector) => {
       try {
-        const fn =
-          typeof detector === 'function' ? detector : detector?.detect;
+        const fn = typeof detector === 'function' ? detector : detector?.detect;
         if (typeof fn !== 'function') return [];
         const out = await fn.call(detector, rows, ctx);
         return Array.isArray(out) ? out : [];
       } catch (err) {
-        logger?.warn?.(
-          `[ProgressReporter] detector failed: ${err.message}`,
-        );
+        logger?.warn?.(`[ProgressReporter] detector failed: ${err.message}`);
         return [];
       }
     }),
