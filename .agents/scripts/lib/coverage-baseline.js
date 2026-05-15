@@ -226,7 +226,29 @@ function dispatchEnvelopeWrite(abs, envelope, fsImpl) {
     : writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
 }
 
-export function writeBaseline(cwd, baseline, fsImpl = fs) {
+/**
+ * Read the prior coverage envelope from disk and return its `rows[]` (or
+ * `null` when absent / malformed). Story #1974 — feeds `applyEpsilon` and
+ * (optionally) `mergeRows` in the writer.
+ */
+function readPriorCoverageRows(absBaselinePath, fsImpl = fs) {
+  let raw;
+  try {
+    raw = fsImpl.readFileSync(absBaselinePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.rows)) return null;
+  return parsed.rows;
+}
+
+export function writeBaseline(cwd, baseline, fsImpl = fs, opts = {}) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
   // Story #1891: route through the shared baseline writer. The writer
   // produces an envelope-shaped JSON (`$schema`, `kernelVersion`,
@@ -237,9 +259,19 @@ export function writeBaseline(cwd, baseline, fsImpl = fs) {
   //
   // `denominators` is an in-memory-only runtime signal for the noise-
   // tolerance gate — it never persists, so strip before projection.
+  //
+  // Story #1974: optional `opts.scope` and `opts.epsilon` thread through
+  // to the writer so manual refreshes can opt in to diff-scoped writes
+  // and epsilon stabilization. When both are absent, behaviour is
+  // identical to the pre-#1974 contract.
+  const prior =
+    opts.prior !== undefined ? opts.prior : readPriorCoverageRows(abs, fsImpl);
   const envelope = write({
     kind: 'coverage',
     rows: projectFlatToRows(baseline),
+    prior: prior ?? undefined,
+    epsilon: prior && opts.epsilon !== undefined ? opts.epsilon : undefined,
+    scope: opts.scope,
   });
   dispatchEnvelopeWrite(abs, envelope, fsImpl);
   return abs;

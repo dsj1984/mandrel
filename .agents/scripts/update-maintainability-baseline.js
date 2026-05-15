@@ -1,5 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
+import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   getBaselines,
   getQuality,
@@ -7,6 +10,49 @@ import {
 } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { calculateAll, scanDirectory } from './lib/maintainability-utils.js';
+
+/**
+ * Story #1974 — read the prior MI rows so the writer can apply
+ * `applyEpsilon` and (optionally) `mergeRows` against them. The MI
+ * baseline ships in two on-disk shapes today:
+ *
+ *   - Envelope (`{$schema, rollup, rows: [{path, mi}, ...]}`) when
+ *     `update-maintainability-baseline.js` has run since #1891.
+ *   - Legacy flat map (`{"<path>": <mi>, ...}`) when the in-PR
+ *     `auto-refresh-runner` (which still uses the legacy
+ *     `saveMaintainabilityBaseline`) wrote last.
+ *
+ * Both shapes round-trip through the same row layout. Returns `null` when
+ * the baseline is absent or malformed.
+ */
+function readPriorMiRows(absBaselinePath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(absBaselinePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  // Envelope shape — rows[] is authoritative when present.
+  if (Array.isArray(parsed.rows)) {
+    return parsed.rows.filter(
+      (r) => r && typeof r.path === 'string' && typeof r.mi === 'number',
+    );
+  }
+  // Legacy flat-map shape.
+  const rows = [];
+  for (const [p, mi] of Object.entries(parsed)) {
+    if (p === '$schema') continue;
+    if (typeof mi === 'number') rows.push({ path: p, mi });
+  }
+  return rows;
+}
 
 /**
  * Script to update the maintainability baseline file.
@@ -35,11 +81,28 @@ async function main() {
   // emitted a flat `{ relPath: mi }` map; the writer assembles an envelope
   // (`$schema`, `kernelVersion`, `generatedAt`, `rollup`, `rows`) and
   // canonicalises every row path (defensive worktree-prefix policy).
+  // Story #1974: epsilon is now applied by default for manual refreshes
+  // so unchanged code with stale env produces a zero-row diff. The optional
+  // `--diff-scope <ref>` narrows writes to files changed since <ref>.
   const rows = Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
-  const envelope = write({ kind: 'maintainability', rows });
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
+  const prior = readPriorMiRows(absBaselinePath);
+  const epsilon = getBaselineEpsilon('maintainability', { agentSettings });
+  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
+  if (diffScope) {
+    Logger.info(
+      `[Maintainability] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope; out-of-scope rows preserved verbatim.`,
+    );
+  }
+  const envelope = write({
+    kind: 'maintainability',
+    rows,
+    prior: prior ?? undefined,
+    epsilon: prior ? epsilon : undefined,
+    scope: diffScope?.scope,
+  });
   writeFile(absBaselinePath, envelope);
 
   Logger.info(

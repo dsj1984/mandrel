@@ -21,6 +21,7 @@
 
 import path from 'node:path';
 
+import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   getQuality,
@@ -137,6 +138,19 @@ export async function refreshMutationBaseline({
 }
 
 async function main() {
+  // Story #1974 — `--diff-scope <ref>` is accepted on this CLI for
+  // consistency with the other manual update-*-baseline scripts, but has
+  // no row-narrowing effect because the mutation baseline is keyed by
+  // workspace (not by file path). Stryker re-runs the full mutation
+  // suite per workspace; selective per-file restoration is not in scope
+  // for #1974. Log the flag for operator visibility so a misconfigured
+  // run does not silently fall back to a full rewrite.
+  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
+  if (diffScope) {
+    Logger.info(
+      `[mutation] --diff-scope ${diffScope.ref}: noted (${diffScope.files.size} file(s)); mutation baseline is workspace-keyed, so the flag is informational only.`,
+    );
+  }
   const result = await refreshMutationBaseline();
   if (result.status !== 0) {
     process.exit(result.status);

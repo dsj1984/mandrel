@@ -1,5 +1,8 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
+import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   getBaselines,
   getQuality,
@@ -43,6 +46,34 @@ function parseCliArgs(argv = process.argv.slice(2)) {
     }
   }
   return out;
+}
+
+/**
+ * Story #1974 — when an existing baseline envelope is on disk, read its
+ * `rows[]` so the writer can apply `applyEpsilon` and (optionally)
+ * `mergeRows` against it. Returns `null` when the file is absent or
+ * malformed; `null` short-circuits the epsilon/scope branch in the
+ * writer (regression-fail-safe). Adapts the legacy `file:` field to
+ * `path:` so the per-kind module's matching keys line up.
+ */
+function readPriorCrapRows(absBaselinePath) {
+  let raw;
+  try {
+    raw = fs.readFileSync(absBaselinePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.rows)) return null;
+  return parsed.rows.map((row) => ({
+    ...row,
+    path: row.path ?? row.file,
+  }));
 }
 
 async function main() {
@@ -92,15 +123,30 @@ async function main() {
   // per-kind schema before persisting. Kept the legacy escomplex /
   // ts-transpiler version logging so existing operator-visible output
   // doesn't churn.
+  // Story #1974: epsilon is now applied by default for manual refreshes
+  // so unchanged code with stale env produces a zero-row diff. The optional
+  // `--diff-scope <ref>` narrows writes to files changed since <ref>; when
+  // absent, behaviour is unchanged from pre-#1974 (full rewrite).
+  const absBaselinePath = path.isAbsolute(baselinePath)
+    ? baselinePath
+    : path.resolve(process.cwd(), baselinePath);
+  const prior = readPriorCrapRows(absBaselinePath);
+  const epsilon = getBaselineEpsilon('crap', { agentSettings });
+  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
+  if (diffScope) {
+    Logger.info(
+      `[CRAP] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope; out-of-scope rows preserved verbatim.`,
+    );
+  }
   const envelope = write({
     kind: 'crap',
     rows: rows.filter(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     ),
+    prior: prior ?? undefined,
+    epsilon: prior ? epsilon : undefined,
+    scope: diffScope?.scope,
   });
-  const absBaselinePath = path.isAbsolute(baselinePath)
-    ? baselinePath
-    : path.resolve(process.cwd(), baselinePath);
   writeFile(absBaselinePath, envelope);
 
   Logger.info(
