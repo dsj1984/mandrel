@@ -15,16 +15,16 @@ import { LIMITS_DEFAULTS } from '../../.agents/scripts/lib/config/limits.js';
 //   - delivery.execution.timeoutMs
 //   - delivery.signals.{hotspot, rework, retry}
 //
-// This guard keeps `.agents/default-agentrc.json` aligned with
-// `LIMITS_DEFAULTS` so consumers who bootstrap from the template inherit
-// the same values the resolver would otherwise compute.
+// This guard keeps `.agents/full-agentrc.json` aligned with
+// `LIMITS_DEFAULTS` so the exhaustive reference template documents the
+// same values the resolver would otherwise compute.
 // ---------------------------------------------------------------------------
 
 const TEMPLATE_PATH = fileURLToPath(
-  new URL('../../.agents/default-agentrc.json', import.meta.url),
+  new URL('../../.agents/full-agentrc.json', import.meta.url),
 );
 
-describe('default-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
+describe('full-agentrc.json ↔ LIMITS_DEFAULTS drift guard', () => {
   const parsed = JSON.parse(readFileSync(TEMPLATE_PATH, 'utf8'));
 
   it('declares planning.maxTickets matching LIMITS_DEFAULTS.maxTickets', () => {

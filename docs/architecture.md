@@ -82,7 +82,8 @@ mandrel/
 │   ├── VERSION               ← Semantic version
 │   ├── SDLC.md               ← End-to-end workflow guide
 │   ├── README.md             ← Consumer documentation
-│   ├── default-agentrc.json  ← Default config template
+│   ├── starter-agentrc.json ← Bootstrap delta-seed (copy to .agentrc.json)
+│   ├── full-agentrc.json    ← Exhaustive editor reference (every schema key)
 │   │
 │   ├── personas/             ← Role-specific behavior files
 │   ├── rules/                ← Domain-agnostic coding standards
@@ -1042,8 +1043,9 @@ Consumer Project/
 └── ...
 ```
 
-Consumers add the submodule, copy `default-agentrc.json` to their project root
-as `.agentrc.json`, and configure their `orchestration` block. Project-specific
+Consumers add the submodule, copy `starter-agentrc.json` to their project
+root as `.agentrc.json`, and configure their `orchestration` block — see
+`full-agentrc.json` for the exhaustive reference. Project-specific
 technology context lives in `docs/architecture.md` under the **Tech Stack**
 section below — not in `.agentrc.json`.
 

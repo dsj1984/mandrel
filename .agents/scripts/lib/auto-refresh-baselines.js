@@ -40,7 +40,7 @@
  *
  *   - `caps = { miDropCap: number, crapJumpCap: number }` carries the
  *     bounded delta thresholds. The defaults (`miDropCap: 1.5`,
- *     `crapJumpCap: 5`) live in `.agents/default-agentrc.json` under
+ *     `crapJumpCap: 5`) live in `.agents/full-agentrc.json` under
  *     `agentSettings.quality.autoRefresh` (Story #1413). Callers always
  *     pass an explicit caps object; the evaluator does not default-fill.
  *
@@ -253,7 +253,7 @@ function buildRefusalReasons({ miOverCap, crapOverCap, caps }) {
  * }} input.baseline    Previously committed rows.
  * @param {{ miDropCap: number, crapJumpCap: number }} input.caps
  *   Bounded delta caps (defaults: miDropCap=1.5, crapJumpCap=5 — see
- *   `.agents/default-agentrc.json` under `agentSettings.quality.autoRefresh`).
+ *   `.agents/full-agentrc.json` under `agentSettings.quality.autoRefresh`).
  * @returns {{
  *   canAutoRefresh: boolean,
  *   miOverCap:   Array<{ path: string, baseline: number, scored: number, delta: number }>,
