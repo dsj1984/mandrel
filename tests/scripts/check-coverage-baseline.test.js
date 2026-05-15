@@ -64,6 +64,19 @@ describe('check-coverage-baseline — floor policy semantics', () => {
     assert.equal(violations.length, 0);
   });
 
+  // Story #1895: canonical envelope rows key on `path` (not `file`). The
+  // floor policy MUST accept either field so a consumer that has already
+  // migrated off the legacy shape keeps working.
+  it('canonical envelope: rows keyed on `path` flow through unchanged', () => {
+    const { violations } = applyFloorPolicy(
+      [{ path: 'lib/x.js', lines: 82, branches: 70, functions: 88 }],
+      floors,
+      'coverage',
+    );
+    const failingFiles = new Set(violations.map((v) => v.file));
+    assert.ok(failingFiles.has('lib/x.js'));
+  });
+
   it('combined: multiple files mixed below and above floor', () => {
     const { violations, passed } = applyFloorPolicy(
       [

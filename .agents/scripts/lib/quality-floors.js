@@ -274,7 +274,10 @@ function applyCoverageFloor(records, floors) {
   const violations = [];
   const passed = [];
   for (const rec of records) {
-    const file = rec?.file ?? '<unknown>';
+    // Story #1895: canonical envelope rows use `path`; legacy gate records
+    // still use `file`. Accept either so a migrating consumer can hand us
+    // raw envelope rows without re-keying.
+    const file = rec?.file ?? rec?.path ?? '<unknown>';
     const recViolations = checkCoverageRecord(rec, floors.coverage, file);
     if (recViolations.length === 0) passed.push({ scope: 'coverage', file });
     else violations.push(...recViolations);
@@ -337,7 +340,10 @@ function applyMaintainabilityFloor(records, floors) {
   const violations = [];
   const passed = [];
   for (const rec of records) {
-    const file = rec?.file ?? '<unknown>';
+    // Story #1895: canonical envelope rows use `path`; legacy gate records
+    // still use `file`. Accept either so a migrating consumer can hand us
+    // raw envelope rows without re-keying.
+    const file = rec?.file ?? rec?.path ?? '<unknown>';
     const observed = rec?.mi;
     if (!Number.isFinite(observed)) {
       violations.push({
@@ -375,7 +381,10 @@ function applyCrapCeiling(records, floors) {
   const violations = [];
   const passed = [];
   for (const rec of records) {
-    const file = rec?.file ?? '<unknown>';
+    // Story #1895: canonical envelope rows use `path`; legacy gate records
+    // still use `file`. Accept either so a migrating consumer can hand us
+    // raw envelope rows without re-keying.
+    const file = rec?.file ?? rec?.path ?? '<unknown>';
     const method = rec?.method;
     const observed = rec?.score;
     if (!Number.isFinite(observed)) {

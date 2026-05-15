@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -39,7 +39,16 @@ const SHIPPED = [
 
 function loadShipped(file) {
   const abs = path.resolve(REPO_ROOT, file);
-  const raw = readFileSync(abs, 'utf8');
+  // Read from `HEAD` rather than the working tree: concurrent test workers
+  // (notably the `update-*-baseline.js` smoke tests under
+  // `tests/baselines/refresh-entry-points-migration.test.js`) can churn the
+  // shipped baselines on disk while this test runs. The committed copy is
+  // the canonical, signed-off shape this contract pins.
+  const raw = execFileSync(
+    'git',
+    ['show', `HEAD:${file.replace(/\\/g, '/')}`],
+    { cwd: REPO_ROOT, encoding: 'utf8' },
+  );
   return { raw, parsed: JSON.parse(raw), abs };
 }
 

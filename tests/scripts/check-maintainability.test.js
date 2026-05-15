@@ -58,6 +58,20 @@ describe('check-maintainability — floor policy semantics', () => {
     assert.equal(passed.length, 1);
   });
 
+  // Story #1895: canonical envelope rows key on `path` (not `file`). The
+  // floor policy MUST accept either field so a consumer that has already
+  // migrated off the legacy shape keeps working.
+  it('canonical envelope: rows keyed on `path` flow through unchanged', () => {
+    const { violations } = applyFloorPolicy(
+      [{ path: 'lib/old.js', mi: 65.0 }],
+      floors,
+      'maintainability',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].file, 'lib/old.js');
+    assert.equal(violations[0].reason, 'below-floor');
+  });
+
   it('combined: mixed file set surfaces every below-floor file', () => {
     const { violations } = applyFloorPolicy(
       [
