@@ -89,29 +89,59 @@ test('story-close script', async (t) => {
 
 test('runCloseValidation', async (t) => {
   await t.test(
-    'DEFAULT_GATES covers typecheck, lint, test, format, maintainability, and crap',
+    'DEFAULT_GATES covers typecheck, lint, format, maintainability, coverage-capture, and crap',
     () => {
+      // Story #1798: when crap.enabled is true (the framework default), the
+      // standalone `test` gate is dropped — coverage-capture carries
+      // test-failure signalling. The default-built gate list therefore
+      // ships with coverage-capture but NOT a separate `test` entry.
       const names = DEFAULT_GATES.map((g) => g.name);
       assert.ok(names.includes('typecheck'));
       assert.ok(names.includes('lint'));
-      assert.ok(names.includes('test'));
       assert.ok(names.includes('format'));
       assert.ok(names.some((n) => n.includes('maintainability')));
+      assert.ok(names.includes('coverage-capture'));
       assert.ok(names.some((n) => n.includes('crap')));
+      assert.ok(
+        !names.includes('test'),
+        'standalone `test` gate must be absent in the default (crap.enabled) gate list',
+      );
     },
   );
 
   await t.test(
-    'DEFAULT_GATES runs typecheck first so it fast-fails before lint/test',
+    'DEFAULT_GATES runs typecheck first so it fast-fails before lint',
     () => {
       assert.equal(DEFAULT_GATES[0].name, 'typecheck');
       const names = DEFAULT_GATES.map((g) => g.name);
       const tcIdx = names.indexOf('typecheck');
       const lintIdx = names.indexOf('lint');
+      assert.ok(tcIdx < lintIdx, 'typecheck must run before lint');
+    },
+  );
+
+  await t.test(
+    'legacy `test` gate is preserved when crap.enabled is false',
+    () => {
+      // Story #1798 / Task #1804: existing-behaviour-preserved leg of the AC.
+      // When a consumer explicitly opts out of the CRAP gate, the standalone
+      // `test` gate stays in the graph so a fresh Story close still runs the
+      // suite via the legacy gate.
+      const gates = buildDefaultGates({
+        agentSettings: { quality: { crap: { enabled: false } } },
+      });
+      const names = gates.map((g) => g.name);
+      assert.ok(
+        names.includes('test'),
+        `\`test\` gate must be preserved when crap.enabled is false; got: ${names.join(', ')}`,
+      );
+      // And ordering: typecheck and lint still precede `test`.
+      const tcIdx = names.indexOf('typecheck');
+      const lintIdx = names.indexOf('lint');
       const testIdx = names.indexOf('test');
       assert.ok(
-        tcIdx < lintIdx && tcIdx < testIdx,
-        'typecheck must run before lint and test',
+        tcIdx < lintIdx && lintIdx < testIdx,
+        'ordering must remain typecheck → lint → test in the legacy two-gate path',
       );
     },
   );

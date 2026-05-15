@@ -22,6 +22,7 @@
  */
 
 import { mkdir, writeFile } from 'node:fs/promises';
+import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation.js';
 import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
 import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
@@ -85,6 +86,7 @@ export async function runPostMergeClose({
   writeFileFn = writeFile,
   mkdirFn = mkdir,
   clearActiveStoryEnv = defaultClearActiveStoryEnv,
+  emitGhSpawnCount = defaultEmitGhSpawnCount,
 }) {
   // Finish the timer up-front so the analyzer phase inside the pipeline
   // can read the summary from disk. None of the pipeline phases
@@ -112,6 +114,18 @@ export async function runPostMergeClose({
       `[story-close] ⚠️ Failed to write phase-timings JSON: ${err.message}`,
     );
   }
+
+  // Throw-away gh-spawn-count emitter (Story #1795). Snapshots the
+  // in-process gh-exec counter to disk so the analyzer child reads it
+  // when authoring the `story-perf-summary` structured comment. Best-
+  // effort: a write failure logs and resolves so the merge result is
+  // never withheld on a measurement-only artifact.
+  await emitGhSpawnCount({
+    epicId,
+    storyId,
+    config,
+    logger,
+  });
 
   // Reap must precede branch cleanup: git refuses to delete a branch that
   // is still checked out by a live worktree. The pipeline runs the phases

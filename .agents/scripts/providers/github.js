@@ -1136,7 +1136,12 @@ export class GitHubProvider extends ITicketingProvider {
    * Exposed via `_updateLabels` because existing unit tests assert on it
    * directly.
    */
-  async _applyLabelMutations(ticketId, labelMutations, hasOtherPatchFields) {
+  async _applyLabelMutations(
+    ticketId,
+    labelMutations,
+    hasOtherPatchFields,
+    ticketSnapshot = null,
+  ) {
     const { add = [], remove = [] } = labelMutations;
 
     if (add.length > 0 && remove.length === 0 && !hasOtherPatchFields) {
@@ -1148,7 +1153,12 @@ export class GitHubProvider extends ITicketingProvider {
       return { skipPatch: true };
     }
 
-    const ticket = await this.getTicket(ticketId);
+    // Story #1795 — when `transitionTicketState` threads a pre-fetched
+    // snapshot via `_ticketSnapshot` we reuse its labels rather than
+    // issuing another `getTicket` for the merge. Snapshot is opt-in;
+    // when absent, fall back to the historical read so legacy call
+    // sites keep their existing behaviour.
+    const ticket = ticketSnapshot ?? (await this.getTicket(ticketId));
     const currentLabels = new Set(ticket.labels ?? []);
     for (const l of remove) currentLabels.delete(l);
     for (const l of add) currentLabels.add(l);
@@ -1175,6 +1185,7 @@ export class GitHubProvider extends ITicketingProvider {
         ticketId,
         mutations.labels,
         hasOtherPatchFields,
+        mutations._ticketSnapshot ?? null,
       );
       if (result.skipPatch) {
         this.invalidateTicket(ticketId);

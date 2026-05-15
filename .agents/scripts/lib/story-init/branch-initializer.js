@@ -19,6 +19,7 @@
 import nodeFs from 'node:fs';
 import nodePath from 'node:path';
 import { resolveWorkingPath } from '../config-resolver.js';
+import { cachedGitFetch } from '../git/cached-fetch.js';
 import {
   branchExistsLocally,
   branchExistsRemotely,
@@ -26,13 +27,14 @@ import {
   ensureEpicBranch,
   ensureEpicBranchRef,
 } from '../git-branch-lifecycle.js';
-import { gitFetchWithRetry, gitSpawn } from '../git-utils.js';
+import { gitSpawn } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import {
   resolveWorkspaceFiles,
   verify as verifyWorkspace,
 } from '../workspace-provisioner.js';
 import { WorktreeManager } from '../worktree-manager.js';
+import { ensureDonorPrimed } from './donor-precheck.js';
 
 function defaultProgress() {
   return () => {};
@@ -118,8 +120,10 @@ export async function bootstrapBranch({
   ensureRepoCoreLongpathsOnWindows({ cwd, progress });
 
   progress('GIT', 'Fetching remote refs...');
-  const fetchResult = await gitFetchWithRetry(cwd, 'origin');
-  if (fetchResult.attempts > 1) {
+  const fetchResult = await cachedGitFetch(cwd, 'origin');
+  if (fetchResult.cached) {
+    progress('GIT', 'Fetch served from (cwd, ref) cache — skipped network.');
+  } else if (fetchResult.attempts > 1) {
     progress(
       'GIT',
       `Fetch completed after ${fetchResult.attempts} attempt(s) — packed-refs contention.`,
@@ -214,7 +218,11 @@ function reportEnsureWarnings(ensured, progress) {
 
 async function fetchMainRefs({ mainCwd, progress }) {
   progress('GIT', 'Fetching remote refs (main checkout)...');
-  const fetchResult = await gitFetchWithRetry(mainCwd, 'origin');
+  const fetchResult = await cachedGitFetch(mainCwd, 'origin');
+  if (fetchResult.cached) {
+    progress('GIT', 'Fetch served from (cwd, ref) cache — skipped network.');
+    return;
+  }
   if (fetchResult.attempts > 1) {
     progress(
       'GIT',
@@ -238,6 +246,17 @@ export async function bootstrapWorktree({
   await fetchMainRefs({ mainCwd, progress });
   ensureEpicBranchRef(epicBranch, baseBranch, mainCwd, { progress });
   ensureStoryBranchSeed({ storyBranch, epicBranch, mainCwd, progress });
+
+  // Symlink-strategy fast path: verify the donor has node_modules before
+  // creating the worktree. A missing donor would otherwise produce a
+  // dangling junction/symlink. Idempotent across concurrent wave
+  // dispatches via a filesystem lock at the donor path.
+  ensureDonorPrimed({
+    strategy: wtConfig?.nodeModulesStrategy,
+    primeFromPath: wtConfig?.primeFromPath,
+    repoRoot: mainCwd,
+    logger: { progress },
+  });
 
   const wm = new WorktreeManager({
     repoRoot: mainCwd,

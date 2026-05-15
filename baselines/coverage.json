@@ -5,8 +5,8 @@
     "functions": 100
   },
   ".agents/scripts/analyze-execution.js": {
-    "lines": 92.82,
-    "branches": 64.71,
+    "lines": 91.72,
+    "branches": 62.24,
     "functions": 100
   },
   ".agents/scripts/check-mutation.js": {
@@ -230,7 +230,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/cli-args.js": {
-    "lines": 98.21,
+    "lines": 98.23,
     "branches": 89.29,
     "functions": 100
   },
@@ -240,9 +240,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/close-validation.js": {
-    "lines": 88.54,
-    "branches": 81.67,
-    "functions": 78.26
+    "lines": 90.21,
+    "branches": 82.55,
+    "functions": 80.77
   },
   ".agents/scripts/lib/config-gates-schema.js": {
     "lines": 100,
@@ -400,9 +400,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/gh-exec.js": {
-    "lines": 97.57,
-    "branches": 92.86,
-    "functions": 80
+    "lines": 97.74,
+    "branches": 93.02,
+    "functions": 81.08
   },
   ".agents/scripts/lib/git-branch-cleanup.js": {
     "lines": 100,
@@ -418,6 +418,11 @@
     "lines": 95.26,
     "branches": 82.54,
     "functions": 89.47
+  },
+  ".agents/scripts/lib/git/cached-fetch.js": {
+    "lines": 94.81,
+    "branches": 95.83,
+    "functions": 63.64
   },
   ".agents/scripts/lib/Graph.js": {
     "lines": 100,
@@ -520,9 +525,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/cascade-grouping.js": {
-    "lines": 96.73,
-    "branches": 95.35,
-    "functions": 75
+    "lines": 97.09,
+    "branches": 95.45,
+    "functions": 83.33
   },
   ".agents/scripts/lib/orchestration/code-review.js": {
     "lines": 96.69,
@@ -585,8 +590,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/checkpointer.js": {
-    "lines": 98.7,
-    "branches": 79.17,
+    "lines": 98.82,
+    "branches": 80.77,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/column-sync.js": {
@@ -615,9 +620,9 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js": {
-    "lines": 91.24,
-    "branches": 58.06,
-    "functions": 66.67
+    "lines": 92.66,
+    "branches": 66.67,
+    "functions": 75
   },
   ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js": {
     "lines": 100,
@@ -725,8 +730,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js": {
-    "lines": 100,
-    "branches": 83.87,
+    "lines": 98.92,
+    "branches": 79.31,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/plan-runner/plan-router.js": {
@@ -750,8 +755,8 @@
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
-    "lines": 97.04,
-    "branches": 73.96,
+    "lines": 96.93,
+    "branches": 74.47,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/reconciler.js": {
@@ -806,7 +811,7 @@
   },
   ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js": {
     "lines": 100,
-    "branches": 75,
+    "branches": 76.32,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
@@ -875,13 +880,13 @@
     "functions": 93.75
   },
   ".agents/scripts/lib/orchestration/ticketing.js": {
-    "lines": 96.46,
-    "branches": 85.22,
-    "functions": 100
+    "lines": 97.24,
+    "branches": 85.07,
+    "functions": 96.15
   },
   ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
-    "lines": 83.95,
-    "branches": 92.31,
+    "lines": 87.35,
+    "branches": 87.5,
     "functions": 100
   },
   ".agents/scripts/lib/orchestration/wave-marker.js": {
@@ -1004,6 +1009,11 @@
     "branches": 74.39,
     "functions": 100
   },
+  ".agents/scripts/lib/story-init/donor-precheck.js": {
+    "lines": 89.86,
+    "branches": 78.79,
+    "functions": 100
+  },
   ".agents/scripts/lib/story-init/hierarchy-tracer.js": {
     "lines": 100,
     "branches": 100,
@@ -1025,7 +1035,7 @@
     "functions": 100
   },
   ".agents/scripts/lib/story-lifecycle.js": {
-    "lines": 98.76,
+    "lines": 98.8,
     "branches": 85.19,
     "functions": 100
   },
@@ -1165,7 +1175,7 @@
     "functions": 100
   },
   ".agents/scripts/providers/github.js": {
-    "lines": 86.25,
+    "lines": 86.35,
     "branches": 73.04,
     "functions": 86.67
   },

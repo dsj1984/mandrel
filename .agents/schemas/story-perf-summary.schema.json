@@ -63,6 +63,11 @@
         "retries": { "type": "integer", "minimum": 0 },
         "uniqueCommands": { "type": "integer", "minimum": 0 }
       }
+    },
+    "ghSpawnCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Throw-away measurement field (Story #1795 / Epic #1788): the in-process `gh` spawn counter snapshot at end of close validation. Used to verify the ≥100 fewer-spawns acceptance criterion against the baseline recorded under `temp/epic-1788/`. Removed in a follow-up cleanup commit before the Story merges to the Epic branch."
     }
   }
 }

@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { runCloseValidation } from '../../../../.agents/scripts/lib/close-validation.js';
+import {
+  buildDefaultGates,
+  runCloseValidation,
+} from '../../../../.agents/scripts/lib/close-validation.js';
 import { runPreMergeGates } from '../../../../.agents/scripts/lib/orchestration/story-close/pre-merge-validation.js';
 
 /**
@@ -408,6 +411,129 @@ describe('runPreMergeGates — worktree thread-through', () => {
         err.message.includes('lint') &&
         err.message.includes('.worktrees/story-1120') &&
         err.message.includes('fix it'),
+    );
+  });
+});
+
+describe('runCloseValidation — coverage-capture test-failure contract (Story #1798)', () => {
+  // Story #1798: when `delivery.quality.gates.crap.enabled === true`, the
+  // standalone `test` gate is dropped from the close-validation graph and
+  // `coverage-capture` becomes the canonical test runner. These tests pin
+  // the failure contract on the gate identifier surfaced when the suite
+  // fails under coverage capture.
+  //
+  // The repo's own `.agentrc.json` ships `crap.enabled: true`, so this is
+  // also the live default for callers that pass `agentSettings: undefined`
+  // / the framework default-agentrc.
+  //
+  // NB: these tests exercise the *failure-report shape* (gate identifier,
+  // non-zero status, no double-`test`-gate appearance). The Task #1804
+  // unit test in `tests/lib/close-validation-gate-helpers.test.js` covers
+  // the gate-list construction (i.e. that `test` is absent when crap is
+  // enabled).
+
+  it('failure report carries gate identifier "coverage-capture" when crap.enabled is true', async () => {
+    const gates = buildDefaultGates({
+      agentSettings: { quality: { crap: { enabled: true } } },
+    });
+
+    const runner = (cmd, args) => {
+      // Simulate coverage-capture exiting non-zero (test suite failed
+      // under c8/Istanbul instrumentation).
+      if (
+        cmd === 'node' &&
+        Array.isArray(args) &&
+        args[0] === '.agents/scripts/coverage-capture.js'
+      ) {
+        return { status: 2 };
+      }
+      return { status: 0 };
+    };
+
+    const result = await runCloseValidation({
+      cwd: '/main/repo',
+      worktreePath: '/main/repo/.worktrees/story-1798',
+      gates,
+      runner,
+      useEvidence: false,
+    });
+
+    assert.equal(
+      result.ok,
+      false,
+      'Story close must exit non-zero on test failure',
+    );
+    assert.equal(
+      result.failed.length,
+      1,
+      'exactly one gate must surface as failed',
+    );
+    assert.equal(
+      result.failed[0].gate.name,
+      'coverage-capture',
+      'failure report must identify the failing gate as `coverage-capture`',
+    );
+    assert.equal(result.failed[0].status, 2);
+  });
+
+  it('no separate `test` gate appears in the failure report when crap.enabled is true', async () => {
+    const gates = buildDefaultGates({
+      agentSettings: { quality: { crap: { enabled: true } } },
+    });
+
+    // Sanity check the gate list itself: the standalone `test` gate is
+    // dropped when crap is enabled, so it cannot appear in `failed[]`.
+    const gateNames = gates.map((g) => g.name);
+    assert.ok(
+      !gateNames.includes('test'),
+      `gate list must not include a standalone \`test\` gate when crap.enabled is true; got: ${gateNames.join(', ')}`,
+    );
+
+    // And — belt-and-braces — confirm the runtime path: with every gate
+    // hard-coded to fail, the failure record still names `coverage-capture`
+    // (the first dependent gate to run after the independents), never `test`.
+    const runner = (cmd, args) => {
+      if (
+        cmd === 'node' &&
+        Array.isArray(args) &&
+        args[0] === '.agents/scripts/coverage-capture.js'
+      ) {
+        return { status: 3 };
+      }
+      return { status: 0 };
+    };
+
+    const result = await runCloseValidation({
+      cwd: '/main/repo',
+      gates,
+      runner,
+      useEvidence: false,
+    });
+
+    assert.equal(result.ok, false);
+    for (const f of result.failed) {
+      assert.notEqual(
+        f.gate.name,
+        'test',
+        '`test` must not appear in the failure report when crap.enabled is true',
+      );
+    }
+  });
+
+  it('legacy two-gate path: `test` gate is present when crap.enabled is false', () => {
+    // Existing-behaviour-preserved leg of the Story #1804 AC. When a
+    // consumer explicitly opts out of the CRAP gate, the standalone
+    // `test` gate stays in the graph so a fresh Story close still runs
+    // the suite (once, via the legacy gate — coverage-capture also runs
+    // unconditionally, but in the crap-disabled path it does not gate
+    // test failure).
+    const gates = buildDefaultGates({
+      agentSettings: { quality: { crap: { enabled: false } } },
+    });
+    const gateNames = gates.map((g) => g.name);
+    assert.ok(
+      gateNames.includes('test'),
+      `\`test\` gate must be preserved when crap.enabled is false; got: ${gateNames.join(', ')}`,
     );
   });
 });

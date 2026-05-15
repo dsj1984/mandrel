@@ -29,9 +29,12 @@ wasn't in the room when it was built.
 
 ### A. Epic Documentation
 
-- **Changelogs:** Maintain `docs/CHANGELOG.md` following Keep a Changelog or the
-  project's established format. Group entries by type (Added, Changed, Fixed,
-  Removed).
+- **Changelogs:** Maintain `docs/CHANGELOG.md` following the project's
+  release-entry contract in
+  [`.agents/rules/changelog-style.md`](../rules/changelog-style.md) — that
+  rule is the SSOT for per-release shape (theme paragraph + user-visible
+  bullets, banned content, line-count ceilings, breaking-change prominence).
+  Read the rule before authoring or editing any release entry.
 - **Release Notes:** Use the `generate-release-notes` workflow to produce
   user-facing release notes. Focus on user impact, not implementation details.
 - **Retrospectives:** Support `lib/orchestration/retro-runner.js`
