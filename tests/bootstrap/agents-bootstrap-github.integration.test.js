@@ -24,6 +24,7 @@ import {
   MIN_GH_VERSION,
   parseGhVersion,
   preflightGh,
+  preflightRuntimeDeps,
   runBootstrap,
 } from '../../.agents/scripts/agents-bootstrap-github.js';
 import {
@@ -35,6 +36,7 @@ import {
   GhAuthError,
   GhNotInstalledError,
   GhVersionError,
+  MissingRuntimeDepsError,
 } from '../../.agents/scripts/lib/errors/index.js';
 
 const PR_GATE = {
@@ -411,6 +413,42 @@ describe('agents-bootstrap-github — gh preflight (Story #1362 / Task #1378)', 
     await assert.rejects(
       () => preflightGh({ runner }),
       (err) => err instanceof GhNotInstalledError,
+    );
+  });
+});
+
+describe('agents-bootstrap-github — runtime-deps preflight (Story #2057)', () => {
+  // The `resolver` seam stands in for `import.meta.resolve`. Production
+  // throws on unresolvable specifiers; the stub mimics that contract so
+  // tests can assert the preflight converts the raw failure into a typed
+  // {@link MissingRuntimeDepsError} that names the missing packages.
+
+  it('resolves cleanly when every required dep is present', async () => {
+    const seen = [];
+    const resolver = (specifier) => {
+      seen.push(specifier);
+      return `file:///fake/${specifier}/index.js`;
+    };
+    await preflightRuntimeDeps({ resolver });
+    assert.ok(seen.includes('ajv'), 'preflight must probe ajv');
+  });
+
+  it('throws MissingRuntimeDepsError naming the unresolvable packages', async () => {
+    const resolver = (specifier) => {
+      if (specifier === 'ajv') {
+        throw new Error(
+          `Cannot find package '${specifier}' imported from /fake/config-settings-schema.js`,
+        );
+      }
+      return `file:///fake/${specifier}/index.js`;
+    };
+    await assert.rejects(
+      () => preflightRuntimeDeps({ resolver }),
+      (err) =>
+        err instanceof MissingRuntimeDepsError &&
+        Array.isArray(err.missing) &&
+        err.missing.includes('ajv') &&
+        /\/agents-bootstrap-project/.test(err.message),
     );
   });
 });

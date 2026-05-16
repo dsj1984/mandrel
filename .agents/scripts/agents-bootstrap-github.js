@@ -30,6 +30,7 @@ import {
   GhAuthError,
   GhNotInstalledError,
   GhVersionError,
+  MissingRuntimeDepsError,
 } from './lib/errors/index.js';
 import { Logger } from './lib/Logger.js';
 import {
@@ -52,6 +53,19 @@ const GH_INSTALL_HINT =
   'Install gh: https://cli.github.com/ — then re-run this command.';
 const GH_AUTH_HINT =
   'Run `gh auth login` (choose GitHub.com → HTTPS → login with a web browser), then re-run this command.';
+
+/**
+ * Framework runtime deps the consumer must have installed in
+ * `node_modules/` before this script reaches the dynamic
+ * `config-resolver` import. `ajv` is the sentinel — if it cannot
+ * resolve, the operator skipped `/agents-bootstrap-project` (or its
+ * Step 2c/2d dependency-install never ran). The list mirrors the floor
+ * in `agents-bootstrap-project.md` Step 2c; keep them in sync.
+ */
+const REQUIRED_RUNTIME_DEPS = Object.freeze(['ajv']);
+
+const RUNTIME_DEPS_HINT =
+  'Run `/agents-bootstrap-project` (or `node .agents/scripts/agents-bootstrap-project.js` when present) to merge the framework runtime dependencies into your package.json and install them, then re-run this command.';
 
 const PROJECTS_DOC_POINTER =
   'See docs/project-board.md for the manual Projects V2 setup checklist.';
@@ -209,6 +223,41 @@ function isApiAccessNotFoundError(err) {
     /\bnot found\b/i.test(stderr) ||
     /could not resolve to a/i.test(stderr)
   );
+}
+
+/**
+ * Preflight the framework's runtime dependencies before dynamic-importing
+ * `config-resolver.js` (which transitively pulls in `ajv` via
+ * `config-settings-schema.js`). A fresh consumer who skipped
+ * `/agents-bootstrap-project` will not have `ajv` installed, and the
+ * raw `ERR_MODULE_NOT_FOUND` from the dynamic import is opaque. This
+ * preflight converts that into a {@link MissingRuntimeDepsError} that
+ * names the missing packages and points the operator at the right
+ * workflow.
+ *
+ * The `resolver` seam lets tests inject a stub without touching the real
+ * module graph; production uses `import.meta.resolve(specifier)`.
+ *
+ * @param {{ resolver?: (specifier: string) => string | Promise<string> }} [opts]
+ * @returns {Promise<void>}
+ */
+export async function preflightRuntimeDeps(opts = {}) {
+  const resolver =
+    opts.resolver ?? ((specifier) => import.meta.resolve(specifier));
+  const missing = [];
+  for (const specifier of REQUIRED_RUNTIME_DEPS) {
+    try {
+      await resolver(specifier);
+    } catch {
+      missing.push(specifier);
+    }
+  }
+  if (missing.length > 0) {
+    throw new MissingRuntimeDepsError(
+      `Framework runtime dependencies missing from node_modules/: ${missing.join(', ')}. ${RUNTIME_DEPS_HINT}`,
+      { missing },
+    );
+  }
 }
 
 async function verifyApiAccess(provider) {
@@ -589,6 +638,19 @@ async function main() {
       err instanceof GhAuthError ||
       err instanceof GhVersionError
     ) {
+      Logger.error(`[bootstrap] ${err.message}`);
+      process.exit(1);
+    }
+    throw err;
+  }
+
+  // Preflight runtime deps before the dynamic config-resolver import so
+  // a green-field consumer who skipped `/agents-bootstrap-project` gets
+  // a workflow hint instead of a raw `ERR_MODULE_NOT_FOUND`.
+  try {
+    await preflightRuntimeDeps();
+  } catch (err) {
+    if (err instanceof MissingRuntimeDepsError) {
       Logger.error(`[bootstrap] ${err.message}`);
       process.exit(1);
     }

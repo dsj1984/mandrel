@@ -16,7 +16,7 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-Three steps, run once per consuming repo:
+Four steps, run once per consuming repo:
 
 1. **Load the system prompt.** Configure your AI tool (`.cursorrules`,
    Custom Instructions, or system-prompt settings) to load
@@ -31,13 +31,21 @@ Three steps, run once per consuming repo:
    Then edit `orchestration.github.{owner,repo}` and any
    project-specific overrides. Every key is documented in
    [`docs/configuration.md`](../docs/configuration.md).
-3. **Bootstrap the GitHub repo.** Run the
+3. **Bootstrap the local harness.** Run the
+   [`/agents-bootstrap-project`](workflows/agents-bootstrap-project.md)
+   slash command. It seeds `package.json`, merges the framework's
+   runtime dependencies (`ajv`, `js-yaml`, …), runs `npm install`,
+   wires the `.claude/commands/` sync hook, and gitignores derived
+   artefacts. Skipping this step causes step 4 to fail with
+   `ERR_MODULE_NOT_FOUND` because the runtime deps the scripts import
+   are not yet installed. Idempotent — safe to re-run.
+4. **Bootstrap the GitHub repo.** Run the
    [`/agents-bootstrap-github`](workflows/agents-bootstrap-github.md)
    slash command (or `node .agents/scripts/agents-bootstrap-github.js`)
    to create the framework's label taxonomy and the optional Project
    V2 fields. It is idempotent — safe to re-run.
 
-After step 3 you can run any slash command — `/epic-plan`,
+After step 4 you can run any slash command — `/epic-plan`,
 `/audit-security`, `/agents-update`, etc. The
 [SDLC guide](SDLC.md) walks an end-to-end Epic.
 
