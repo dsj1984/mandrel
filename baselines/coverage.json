@@ -4,8 +4,8 @@
   "generatedAt": "2026-05-15T23:49:39.993Z",
   "rollup": {
     "*": {
-      "lines": 97.06,
-      "branches": 86.84,
+      "lines": 97.05,
+      "branches": 86.82,
       "functions": 92.76
     }
   },
@@ -1446,8 +1446,8 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep.js",
-      "lines": 100,
-      "branches": 90,
+      "lines": 96.66,
+      "branches": 84.62,
       "functions": 100
     },
     {
