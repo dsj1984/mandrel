@@ -88,9 +88,15 @@ const PATH_OVERRIDE_ENTRY = {
   additionalProperties: false,
 };
 
+/**
+ * Story #2032 / Task #2041: `*` is no longer required. When omitted, the
+ * framework-default floor (e.g. MI ≥ 70 for maintainability) applies
+ * universally and `floors.paths` carries the per-file escape valves.
+ * Operators may still pin a project-wide `*` floor explicitly when they
+ * want a value other than the framework default.
+ */
 const FLOORS_SCHEMA = {
   type: 'object',
-  required: ['*'],
   properties: {
     paths: {
       type: 'object',

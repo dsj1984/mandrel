@@ -270,7 +270,6 @@
     },
     "floors": {
       "type": "object",
-      "required": ["*"],
       "properties": {
         "paths": {
           "type": "object",
