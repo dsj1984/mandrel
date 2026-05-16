@@ -7,13 +7,14 @@
  * (state_reason: 'not_planned') and detached.
  */
 
+import { Logger } from '../Logger.js';
 import {
   ACCEPTANCE_NA,
   AGENT_LABELS,
   CONTEXT_LABELS,
 } from '../label-constants.js';
-import { Logger } from '../Logger.js';
 import { concurrentMap } from '../util/concurrent-map.js';
+
 /**
  * Snapshot of the Epic's planning-artifact state as seen / mutated by
  * {@link PlanningStateManager}. Mirrors the `epic-plan-state` structured
