@@ -270,20 +270,17 @@ test('runCloseValidation', async (t) => {
   });
 
   await t.test(
-    'crap gate runs check-crap.js after maintainability and surfaces the refresh hint',
+    'crap gate runs after maintainability and surfaces the refresh hint',
     () => {
+      // Epic #1943 / Story #1973: the per-kind CRAP gate is now in-process
+      // (no spawn of `check-crap.js`); the legacy CLI args contract this
+      // test pinned no longer applies. The contract that survives:
+      // ordering (CRAP after MI) and the operator-facing refresh hint.
       const names = DEFAULT_GATES.map((g) => g.name);
       const miIdx = names.findIndex((n) => n.includes('maintainability'));
       const crapIdx = names.findIndex((n) => n.includes('crap'));
       assert.ok(crapIdx > miIdx, 'crap gate must run AFTER maintainability');
       const gate = DEFAULT_GATES[crapIdx];
-      // Story #1945: close-time CRAP defaults to --full-scope so the gate
-      // mirrors CI's post-merge `push` scope and catches method-level
-      // regressions in files the Story didn't touch.
-      assert.deepStrictEqual(gate.args, [
-        '.agents/scripts/check-crap.js',
-        '--full-scope',
-      ]);
       assert.match(gate.hint, /crap:update/);
       assert.match(gate.hint, /baseline-refresh:/);
     },

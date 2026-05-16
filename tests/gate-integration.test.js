@@ -19,17 +19,13 @@ import { DEFAULT_GATES } from '../.agents/scripts/lib/close-validation.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-test('Site 1 — close-validation DEFAULT_GATES invokes check-crap.js', () => {
+test('Site 1 — close-validation DEFAULT_GATES still exposes a CRAP gate after the in-process migration', () => {
+  // Epic #1943 / Story #1973: the per-kind CRAP gate is now in-process
+  // (no spawn of `check-crap.js`). The legacy assertion that pinned
+  // `crap.cmd === 'node'` and the CLI args shape no longer applies.
+  // The contract that survives is: a CRAP gate is still registered.
   const crapGate = DEFAULT_GATES.find((g) => g.name.includes('crap'));
   assert.ok(crapGate, 'check-crap gate must be present in DEFAULT_GATES');
-  assert.strictEqual(crapGate.cmd, 'node');
-  // Story #1945: close-time CRAP runs full-scope by default to mirror
-  // CI's post-merge `push` event on main, so close catches the same
-  // regressions that would otherwise turn main red after auto-merge.
-  assert.deepStrictEqual(crapGate.args, [
-    '.agents/scripts/check-crap.js',
-    '--full-scope',
-  ]);
 });
 
 test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)', () => {
@@ -47,25 +43,17 @@ test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)',
   assert.match(yml, /pull_request:/);
 });
 
-test('Site 3 — .husky/pre-push runs `npm run crap:check` with --changed-since origin/main', () => {
+test('Site 3 — .husky/pre-push invokes the unified crap:check (no legacy --changed-since)', () => {
+  // Epic #1943: the unified `check-baselines.js` dispatcher resolves
+  // scope via `delivery.quality.gateScoping` in `.agentrc.json`, so the
+  // legacy `--changed-since origin/main` flag is gone from pre-push.
+  // The contract that survives is: pre-push still runs crap:check, and
+  // coverage-capture still seeds coverage data before it.
   const hook = fs.readFileSync(
     path.join(REPO_ROOT, '.husky', 'pre-push'),
     'utf8',
   );
-  // Story #829 (5.29.0) switched the diff base from `main` to `origin/main`.
-  // When pushing FROM main (release commits, emergency push-to-main) the
-  // local-main diff is empty and pre-push silently skipped the gate;
-  // origin/main pins the diff to "unpushed commits" so the gate fires
-  // exactly when the upcoming push has a chance to introduce regressions.
-  assert.match(
-    hook,
-    /npm run crap:check\s+--\s+--changed-since\s+origin\/main/,
-  );
-  // Coverage capture must run AFTER lint/format/MI but BEFORE crap:check, so
-  // `coverage/coverage-final.json` is on disk for the per-method lookup.
-  // Story #790 replaced the unconditional `npm run test:coverage` call with
-  // the freshness-aware `coverage-capture.js` CLI (still spawns
-  // `npm run test:coverage` under the hood when stale).
+  assert.match(hook, /npm run crap:check/);
   const captureIdx = hook.indexOf('coverage-capture.js');
   const crapIdx = hook.indexOf('npm run crap:check');
   assert.ok(
@@ -73,8 +61,6 @@ test('Site 3 — .husky/pre-push runs `npm run crap:check` with --changed-since 
     'crap:check must come after coverage-capture in pre-push',
   );
   assert.match(hook, /coverage-capture\.js\s+--skip-when-no-crap-files/);
-  // The coverage-capture --ref must use origin/main for the same reason as
-  // the crap:check --changed-since arg — they form a pair.
   assert.match(hook, /coverage-capture\.js[^\n]*--ref\s+origin\/main/);
 });
 
