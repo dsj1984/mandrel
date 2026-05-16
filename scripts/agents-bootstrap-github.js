@@ -186,12 +186,38 @@ export async function preflightGh(opts = {}) {
   return { version };
 }
 
+/**
+ * Detect that an error is a not-found / 404 signal across the surfaces
+ * the provider can emit. The `gh-exec` classifier wraps the CLI's
+ * "could not resolve to a" / "HTTP 404" / "not found" stderr in a
+ * `GhNotFoundError` whose message is the literal string
+ * `gh-exec: resource not found` — the `'404'` substring is absent. The
+ * legacy bespoke-client path produced `failed (404):` messages. Match
+ * both so a legitimate fresh-repo run (issue #1 doesn't exist yet)
+ * doesn't fatal-fail the preflight.
+ */
+function isApiAccessNotFoundError(err) {
+  if (!err) return false;
+  if (err.name === 'GhNotFoundError') return true;
+  const message = err.message ?? '';
+  const stderr = err.stderr ?? '';
+  return (
+    /\b404\b/.test(message) ||
+    /\b404\b/.test(stderr) ||
+    /resource not found/i.test(message) ||
+    /resource not found/i.test(stderr) ||
+    /\bnot found\b/i.test(stderr) ||
+    /could not resolve to a/i.test(stderr)
+  );
+}
+
 async function verifyApiAccess(provider) {
   try {
     await provider.getTicket(1);
   } catch (err) {
-    // A 404 is fine — API reachable, issue #1 doesn't exist. Anything else is fatal.
-    if (!err.message.includes('404')) {
+    // Not-found is fine — API reachable, issue #1 doesn't exist on the
+    // target repo. Anything else (auth, scope, transport) is fatal.
+    if (!isApiAccessNotFoundError(err)) {
       throw new Error(
         `[bootstrap] API access verification failed: ${err.message}`,
       );
@@ -202,11 +228,17 @@ async function verifyApiAccess(provider) {
 async function ensureLabels(provider, log) {
   log(`[bootstrap] Ensuring ${LABEL_TAXONOMY.length} labels...`);
   const labels = await provider.ensureLabels(LABEL_TAXONOMY);
+  const missing = Array.isArray(labels.missing) ? labels.missing : [];
   log(
-    `[bootstrap] Labels — created: ${labels.created.length}, skipped: ${labels.skipped.length}`,
+    `[bootstrap] Labels — created: ${labels.created.length}, skipped: ${labels.skipped.length}, missing: ${missing.length}`,
   );
   if (labels.created.length > 0) {
     log(`[bootstrap]   Created: ${labels.created.join(', ')}`);
+  }
+  if (missing.length > 0) {
+    log(
+      `[bootstrap] ⚠️  ${missing.length} label(s) were reported as created/skipped but are NOT present on the remote: ${missing.join(', ')}. Re-run bootstrap or create them manually with \`gh label create\`.`,
+    );
   }
   return labels;
 }
@@ -607,7 +639,11 @@ async function main() {
   }
 }
 
-// Re-export internal helper for test consumers (no production caller imports it).
-export { ensureMainBranchProtection };
+// Re-export internal helpers for test consumers (no production caller imports them).
+export {
+  ensureMainBranchProtection,
+  isApiAccessNotFoundError,
+  verifyApiAccess,
+};
 
 runAsCli(import.meta.url, main, { source: 'Bootstrap' });
