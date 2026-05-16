@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import { findCoverageEntry } from './coverage-utils.js';
 import { runOnPool } from './cpu-pool.js';
 import { calculateCrapForSource } from './crap-engine.js';
@@ -306,9 +307,14 @@ export async function scanAndScore({
 
   // Build the work-queue first so scopeFile filtering happens before
   // any I/O / IPC. `scannedFiles` is the in-scope count.
+  // Story #2079: route every relPath through path-canon so a scan from
+  // inside `.worktrees/<workspace>/` (with cwd pointing at the main
+  // checkout) cannot leak the worktree prefix into the on-disk baseline's
+  // `file` / `path` keys downstream.
   const queue = [];
   for (const abs of files) {
-    const relPath = path.relative(cwd, abs).replace(/\\/g, '/');
+    const rawRel = path.relative(cwd, abs).replace(/\\/g, '/');
+    const relPath = canonicalisePath(rawRel);
     if (scopeSet && !scopeSet.has(relPath)) continue;
     queue.push({ abs, relPath, requireCoverage });
   }
