@@ -94,7 +94,11 @@ async function runCloseValidationPhase({
   );
   if (!hierarchyGate.ok) return hierarchyGate;
 
-  return { ok: true, waveGate: waveGate.value, hierarchyGate: hierarchyGate.value };
+  return {
+    ok: true,
+    waveGate: waveGate.value,
+    hierarchyGate: hierarchyGate.value,
+  };
 }
 
 /**
