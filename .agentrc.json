@@ -61,7 +61,31 @@
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "floors": { "*": { "maintainability": 0 } },
+          "floors": {
+            "*": { "maintainability": 70 },
+            "paths": {
+              ".agents/scripts/lib/orchestration/epic-cleanup.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/quality-watch.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/lib/config-settings-schema.js": {
+                "maintainability": 46,
+                "follow_up": "#2071"
+              },
+              ".agents/scripts/lib/config-gates-schema.js": {
+                "maintainability": 51,
+                "follow_up": "#2071"
+              }
+            }
+          },
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
