@@ -44,10 +44,14 @@ const DEFAULT_CRAP_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.05 });
 const DEFAULT_MI_TOLERANCE = Object.freeze({ kind: 'absolute', value: 0.5 });
 
 /**
- * Default floors per gate. Mirrors the post-Phase-1 targets that
- * `lib/quality-floors.js` carried as `DEFAULT_FLOORS`. Workspace-keyed so
- * a single-workspace consumer reads `floors["*"]` and a monorepo consumer
- * can override per-workspace.
+ * Default floors per gate. Workspace-keyed so a single-workspace consumer
+ * reads `floors["*"]` and a monorepo consumer can override per-workspace.
+ *
+ * Story #2125: these defaults are now injected by `resolveQuality` into
+ * the resolved `gates.<kind>.floors` block when the consumer omits the
+ * `'*'` workspace key, so `.agentrc.json` can carry `floors: {}` (or
+ * omit the gate entirely) and still get framework-default enforcement
+ * from the unified `check-baselines.js` dispatcher.
  */
 const DEFAULT_COVERAGE_FLOORS = Object.freeze({
   '*': Object.freeze({ lines: 90, branches: 85, functions: 90 }),
@@ -402,6 +406,72 @@ function resolveBaselinesFromGates(gates) {
  *
  * @param {object|undefined} userQuality
  */
+/**
+ * Story #2125: merge a consumer-supplied `floors` bag with the framework
+ * default for that gate. Defaults supply any workspace key the consumer
+ * didn't provide — most commonly the catch-all `'*'`. Consumer entries
+ * always win over defaults at the workspace-key level.
+ *
+ * Returns a fresh plain object so downstream mutations can't poison the
+ * frozen module-level defaults.
+ *
+ * @param {object | undefined | null} userFloors raw `gates.<kind>.floors`
+ * @param {object} defaults frozen framework default (e.g. `DEFAULT_COVERAGE_FLOORS`)
+ * @returns {object} merged workspace-keyed floors
+ */
+function mergeFloorsWithDefaults(userFloors, defaults) {
+  const defaultsCopy = {};
+  for (const [workspace, axes] of Object.entries(defaults)) {
+    defaultsCopy[workspace] = { ...axes };
+  }
+  if (userFloors == null || typeof userFloors !== 'object') {
+    return defaultsCopy;
+  }
+  for (const [workspace, axes] of Object.entries(userFloors)) {
+    if (axes != null && typeof axes === 'object') {
+      defaultsCopy[workspace] = { ...axes };
+    }
+  }
+  return defaultsCopy;
+}
+
+const FLOOR_DEFAULTS_BY_KIND = Object.freeze({
+  coverage: DEFAULT_COVERAGE_FLOORS,
+  crap: DEFAULT_CRAP_FLOORS,
+  maintainability: DEFAULT_MI_FLOORS,
+});
+
+/**
+ * Build the resolved `gates` object that `resolveQuality` returns. For
+ * each kind the consumer declared that has a framework-default floor
+ * (coverage, crap, maintainability), the resolved block carries `floors`
+ * merged with the kind's default — so `check-baselines.js` sees the
+ * framework default at runtime even when `.agentrc.json` omits the
+ * `floors` key.
+ *
+ * Kinds the consumer did NOT declare are passed through untouched —
+ * `check-baselines.js` skips kinds whose gate block is absent, and this
+ * function preserves that contract (synthesising a default block here
+ * would silently enable gates the consumer never asked for).
+ *
+ * Other keys on a declared gate block (e.g. `enabled`, `targetDirs`,
+ * `baselinePath`) are preserved as the consumer supplied them; this
+ * function only injects the floors layer.
+ */
+function resolveGatesWithFloors(gates) {
+  const out = { ...gates };
+  for (const [kind, defaults] of Object.entries(FLOOR_DEFAULTS_BY_KIND)) {
+    if (!Object.hasOwn(gates, kind)) continue;
+    const block = gates[kind];
+    if (block == null || typeof block !== 'object') continue;
+    out[kind] = {
+      ...block,
+      floors: mergeFloorsWithDefaults(block.floors, defaults),
+    };
+  }
+  return out;
+}
+
 export function resolveQuality(userQuality) {
   const block =
     userQuality && typeof userQuality === 'object' ? userQuality : {};
@@ -412,6 +482,7 @@ export function resolveQuality(userQuality) {
     diffRef: block.gateScoping?.diffRef ?? DEFAULT_GATE_SCOPING.diffRef,
   };
   const coverage = resolveCoverageGate(gates.coverage);
+  const resolvedGates = resolveGatesWithFloors(gates);
   return {
     maintainability: resolveMaintainabilityQuality(
       gates.maintainability,
@@ -424,7 +495,7 @@ export function resolveQuality(userQuality) {
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
     baselineEpsilon: resolveBaselineEpsilon(block.baselineEpsilon),
     gateScoping,
-    gates,
+    gates: resolvedGates,
   };
 }
 
