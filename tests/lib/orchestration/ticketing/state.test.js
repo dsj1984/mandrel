@@ -119,8 +119,11 @@ describe('ticketing/state — transitionTicketState', () => {
       // Each call should succeed without throwing the validation error.
       await transitionTicketState(mock, 10, state);
     }
-    // Three updates landed against the same ticket.
-    assert.equal(mock.updates.length, 3);
+    // One update per state in the canonical enum (Story #2004 grew the
+    // enum from 3 → 4 by adding BLOCKED; the assertion tracks the enum
+    // size rather than a hard-coded literal so future additive growth
+    // doesn't re-break this test).
+    assert.equal(mock.updates.length, Object.values(STATE_LABELS).length);
   });
 
   it('flips ticket state to closed when transitioning to agent::done', async () => {
@@ -166,6 +169,55 @@ describe('ticketing/state — transitionTicketState', () => {
     await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING, { notify });
     // Task → executing is low-severity; notify must not fire.
     assert.equal(notifyCalls.length, 0);
+  });
+
+  // Story #2004 — `agent::blocked` is the framework's authoritative HITL
+  // pause point. The transition must be reachable from every non-blocked
+  // state, must end with exactly one `agent::*` label on the ticket, and
+  // the resume path back to `agent::executing` must be symmetric.
+  it('transitions to agent::blocked from every non-blocked state with exactly one agent::* label', async () => {
+    const startStates = [
+      STATE_LABELS.READY,
+      STATE_LABELS.EXECUTING,
+      STATE_LABELS.DONE,
+    ];
+    for (const fromState of startStates) {
+      // Reset the ticket to the source state. For DONE we also flip the
+      // GitHub state to `closed` so the reopen path is exercised.
+      mock.tickets[10].labels = [fromState, 'type::task'];
+      mock.tickets[10].state = fromState === STATE_LABELS.DONE ? 'closed' : 'open';
+
+      await transitionTicketState(mock, 10, STATE_LABELS.BLOCKED);
+
+      const agentLabels = mock.tickets[10].labels.filter((l) =>
+        l.startsWith('agent::'),
+      );
+      assert.deepEqual(
+        agentLabels,
+        [STATE_LABELS.BLOCKED],
+        `from ${fromState} → blocked: expected exactly one agent::* label (blocked), got ${JSON.stringify(agentLabels)}`,
+      );
+      // Blocked is not terminal; the GitHub issue must remain open even
+      // when the source state was DONE (which had closed the issue).
+      assert.equal(
+        mock.tickets[10].state,
+        'open',
+        `from ${fromState} → blocked: ticket should be reopened/remain open`,
+      );
+    }
+  });
+
+  it('resumes from agent::blocked back to agent::executing', async () => {
+    mock.tickets[10].labels = ['agent::blocked', 'type::task'];
+    mock.tickets[10].state = 'open';
+
+    await transitionTicketState(mock, 10, STATE_LABELS.EXECUTING);
+
+    const agentLabels = mock.tickets[10].labels.filter((l) =>
+      l.startsWith('agent::'),
+    );
+    assert.deepEqual(agentLabels, [STATE_LABELS.EXECUTING]);
+    assert.equal(mock.tickets[10].state, 'open');
   });
 });
 
