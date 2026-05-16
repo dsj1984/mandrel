@@ -34,11 +34,14 @@ describe('kinds/mutation.compare()', () => {
     assert.equal(out.unchanged.length, 1);
   });
 
-  it('new files with score < 100 are regressions', () => {
+  it('new files (any score) land in additions, not regressions (Story #2012)', () => {
     const head = { rows: [row('src/new.js', 75)] };
     const base = { rows: [] };
     const out = compare(head, base);
-    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.additions.length, 1);
+    assert.equal(out.additions[0].key, 'src/new.js');
+    assert.equal(out.additions[0].base, null);
   });
 
   it('removed files with score < 100 are improvements', () => {
@@ -58,6 +61,11 @@ describe('kinds/mutation.compare()', () => {
 
   it('tolerates missing rows arrays', () => {
     const out = compare({}, {});
-    assert.deepEqual(out, { regressions: [], improvements: [], unchanged: [] });
+    assert.deepEqual(out, {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [],
+    });
   });
 });

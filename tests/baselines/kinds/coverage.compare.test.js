@@ -45,11 +45,14 @@ describe('kinds/coverage.compare()', () => {
     assert.equal(out.regressions.length, 1);
   });
 
-  it('new files with sub-100% coverage register as regressions', () => {
+  it('new files with sub-100% coverage land in additions, not regressions (Story #2012)', () => {
     const head = { rows: [row('src/new.js', 70)] };
     const base = { rows: [] };
     const out = compare(head, base);
-    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.additions.length, 1);
+    assert.equal(out.additions[0].key, 'src/new.js');
+    assert.equal(out.additions[0].base, null);
   });
 
   it('removed files with sub-100% coverage register as improvements', () => {
@@ -69,6 +72,11 @@ describe('kinds/coverage.compare()', () => {
 
   it('tolerates missing rows arrays', () => {
     const out = compare({}, {});
-    assert.deepEqual(out, { regressions: [], improvements: [], unchanged: [] });
+    assert.deepEqual(out, {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [],
+    });
   });
 });
