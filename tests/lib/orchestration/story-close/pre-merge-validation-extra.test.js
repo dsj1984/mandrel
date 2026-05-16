@@ -276,6 +276,10 @@ describe('emitMaintainabilityProjection', () => {
       projectMaintainabilityRegressions: () => ({ projected: 2 }),
       formatMaintainabilityProjection: () =>
         '[advisory] line 1\n[advisory] line 2',
+      // Story #1973 / Task #1985 — pin the per-kind kernel resolver to the
+      // unknown sentinel so the optional kernel-header log line is
+      // suppressed; this test exercises advisory forwarding only.
+      kindModule: { kernelVersion: () => '0.0.0' },
     });
     const calls = logger.info.mock.calls.map((c) => c.arguments[0]);
     assert.equal(calls.length, 2);

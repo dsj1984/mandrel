@@ -8,6 +8,7 @@ import {
   formatMaintainabilityProjection,
   projectMaintainabilityRegressions,
 } from '../.agents/scripts/lib/close-validation.js';
+import { emitMaintainabilityProjection } from '../.agents/scripts/lib/orchestration/story-close/pre-merge-validation.js';
 
 /**
  * Unit tests for the pre-merge MI ceiling projection helper.
@@ -226,5 +227,91 @@ describe('projections/maintainability re-export (Story #1850 / Task #1874)', () 
     });
     assert.equal(result.skipped, 'no-baseline');
     assert.deepEqual(calls, []); // predicate caught it before any spawn
+  });
+});
+
+describe('emitMaintainabilityProjection — no per-kind CLI spawn (Story #1973 / Task #1985)', () => {
+  it('runs the projection without invoking child_process for the MI per-kind CLI', () => {
+    const logs = [];
+    const logger = {
+      info: (m) => logs.push(`info:${m}`),
+      warn: (m) => logs.push(`warn:${m}`),
+    };
+    let stubInvoked = 0;
+    const projectStub = ({ baselinePath, cwd, epicBranch, storyBranch }) => {
+      stubInvoked += 1;
+      assert.equal(baselinePath, '/repo/baselines/maintainability.json');
+      assert.equal(cwd, '/repo');
+      assert.equal(epicBranch, 'epic/1943');
+      assert.equal(storyBranch, 'story-1973');
+      return {
+        ok: false,
+        regressions: [
+          { file: 'lib/foo.js', projected: 70, baseline: 80, drop: 10 },
+        ],
+      };
+    };
+    // Inject a kindModule stub that returns a real kernel version. The MI
+    // path is meant to use this in-process import — if the helper ever
+    // regresses to spawning `node check-maintainability.js` to learn the
+    // kernel, the test will see no `kernel=` log line because the stub's
+    // return value would be silently discarded.
+    const fakeKindModule = { kernelVersion: () => '1.2.3' };
+    emitMaintainabilityProjection({
+      cwd: '/repo',
+      epicBranch: 'epic/1943',
+      storyBranch: 'story-1973',
+      agentSettings: {
+        quality: {
+          maintainability: { path: '/repo/baselines/maintainability.json' },
+        },
+      },
+      logger,
+      getBaselines: () => ({
+        maintainability: { path: '/repo/baselines/maintainability.json' },
+      }),
+      projectMaintainabilityRegressions: projectStub,
+      formatMaintainabilityProjection: (result) =>
+        `Pre-merge MI projection: ${result.regressions.length} file(s) would breach baseline`,
+      kindModule: fakeKindModule,
+    });
+    assert.equal(stubInvoked, 1);
+    assert.ok(
+      logs.some((l) => l.includes('kernel=1.2.3')),
+      `expected in-process kernel-version label; saw: ${JSON.stringify(logs)}`,
+    );
+    assert.ok(
+      logs.some((l) => l.includes('Pre-merge MI projection')),
+      `expected projection advisory; saw: ${JSON.stringify(logs)}`,
+    );
+  });
+
+  it('skips the kernel header gracefully when the per-kind module returns the unknown sentinel', () => {
+    const logs = [];
+    const logger = { info: (m) => logs.push(m), warn: (m) => logs.push(m) };
+    emitMaintainabilityProjection({
+      cwd: '/repo',
+      epicBranch: 'epic/1943',
+      storyBranch: 'story-1973',
+      agentSettings: {},
+      logger,
+      getBaselines: () => ({
+        maintainability: { path: '/repo/baselines/maintainability.json' },
+      }),
+      projectMaintainabilityRegressions: () => ({
+        ok: false,
+        regressions: [
+          { file: 'lib/x.js', projected: 60, baseline: 80, drop: 20 },
+        ],
+      }),
+      formatMaintainabilityProjection: () => 'advisory body',
+      kindModule: { kernelVersion: () => '0.0.0' },
+    });
+    assert.equal(
+      logs.filter((l) => l.includes('kernel=')).length,
+      0,
+      `expected no kernel-version header for the unknown-sentinel path; saw: ${JSON.stringify(logs)}`,
+    );
+    assert.ok(logs.some((l) => l.includes('advisory body')));
   });
 });
