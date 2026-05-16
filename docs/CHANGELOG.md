@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0](https://github.com/dsj1984/mandrel/compare/v1.8.0...v1.9.0) (2026-05-16)
+
+
+### Fixed
+
+* **epic-plan-decompose:** restore sub-issue link safety net + branch cleanup ([#2067](https://github.com/dsj1984/mandrel/issues/2067)) ([450b159](https://github.com/dsj1984/mandrel/commit/450b159b414cb87603668f3cac1747f6a460c1a7)), closes [#2063](https://github.com/dsj1984/mandrel/issues/2063)
+
 ## [1.8.0](https://github.com/dsj1984/mandrel/compare/v1.7.0...v1.8.0) (2026-05-16)
 
 
