@@ -55,16 +55,19 @@ Create them by hand using the filter strings below.
 
 Gives a single-glance view of every Epic's lifecycle column.
 
-### 2. Current Sprint
+### 2. Active Stories
 
 - **Layout**: Board
 - **Filter**: `label:type::story -status:Done`
 - **Group by**: `Status`
 
-Shows Stories still in flight — useful for a daily standup. (The
-"Sprint" name predates the Epic-#900 terminology rename and is preserved
-for backward-compat with existing consumer boards; bootstrap creates the
-view under this name in [`label-taxonomy.js`](../.agents/scripts/lib/label-taxonomy.js).)
+Shows Stories still in flight — useful for a daily standup.
+
+> **Legacy boards:** earlier bootstrap runs created this view under the
+> name `Current Sprint`. Re-running bootstrap will add `Active Stories`
+> alongside any existing `Current Sprint` view (bootstrap never deletes
+> views). Operators with the legacy view can remove it by hand once the
+> renamed view is verified.
 
 ### 3. My Queue
 
@@ -90,8 +93,8 @@ Use this when bootstrap logs a warning such as
 3. **Add the `Status` field.** Settings → `+ New field` → Single select
    → name `Status` → add the seven options from the table above in
    order.
-4. **Create the three views.** For each of Epic Roadmap, Current
-   Sprint, My Queue: `+ New view` → Board → paste the filter string →
+4. **Create the three views.** For each of Epic Roadmap, Active
+   Stories, My Queue: `+ New view` → Board → paste the filter string →
    set Group by = Status.
 5. **Re-run bootstrap** to verify. It is idempotent — it will skip the
    resources you just created and only add anything still missing.
