@@ -396,3 +396,87 @@ describe('Bootstrap — module exports', () => {
     assert.equal(PROJECT_VIEW_DEFS.length, 3);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Story #2018 (Bug 1) — verifyApiAccess() 404 detection.
+//
+// The original implementation matched on `err.message.includes('404')`,
+// which doesn't fire for `gh-exec`-classified errors (their message is
+// `gh-exec: resource not found`, no `'404'` substring). A fresh-repo
+// bootstrap therefore fatal-failed on the preflight even though issue #1
+// genuinely doesn't exist on a brand-new repo. The fix matches both the
+// typed-error surface (`err.name === 'GhNotFoundError'`) and a richer set
+// of message/stderr patterns.
+// ---------------------------------------------------------------------------
+describe('Bootstrap — verifyApiAccess() (Story #2018, Bug 1)', () => {
+  let isApiAccessNotFoundError;
+  let verifyApiAccess;
+
+  it('loads the helpers', async () => {
+    const mod = await import(
+      pathToFileURL(
+        path.join(ROOT, '.agents', 'scripts', 'agents-bootstrap-github.js'),
+      ).href
+    );
+    isApiAccessNotFoundError = mod.isApiAccessNotFoundError;
+    verifyApiAccess = mod.verifyApiAccess;
+    assert.equal(typeof isApiAccessNotFoundError, 'function');
+    assert.equal(typeof verifyApiAccess, 'function');
+  });
+
+  it('isApiAccessNotFoundError matches GhNotFoundError by name', () => {
+    const err = new Error('gh-exec: resource not found');
+    err.name = 'GhNotFoundError';
+    err.stderr = 'HTTP 404: Not Found';
+    assert.equal(isApiAccessNotFoundError(err), true);
+  });
+
+  it('isApiAccessNotFoundError matches the bare "resource not found" message', () => {
+    const err = new Error('gh-exec: resource not found');
+    assert.equal(isApiAccessNotFoundError(err), true);
+  });
+
+  it('isApiAccessNotFoundError matches legacy "failed (404)" phrasing', () => {
+    const err = new Error('GET /issues/1 failed (404): Not Found');
+    assert.equal(isApiAccessNotFoundError(err), true);
+  });
+
+  it('isApiAccessNotFoundError rejects auth/scope/transport errors', () => {
+    const authErr = new Error('gh-exec: gh is not authenticated');
+    authErr.name = 'GhAuthError';
+    assert.equal(isApiAccessNotFoundError(authErr), false);
+
+    const scopeErr = new Error('gh-exec: gh token is missing a required scope');
+    scopeErr.name = 'GhScopeError';
+    assert.equal(isApiAccessNotFoundError(scopeErr), false);
+
+    const rateErr = new Error('gh-exec: gh API rate limit exceeded');
+    rateErr.name = 'GhRateLimitError';
+    assert.equal(isApiAccessNotFoundError(rateErr), false);
+  });
+
+  it('verifyApiAccess swallows GhNotFoundError', async () => {
+    const provider = {
+      async getTicket() {
+        const err = new Error('gh-exec: resource not found');
+        err.name = 'GhNotFoundError';
+        throw err;
+      },
+    };
+    await verifyApiAccess(provider); // must not throw
+  });
+
+  it('verifyApiAccess rethrows non-not-found errors', async () => {
+    const provider = {
+      async getTicket() {
+        const err = new Error('gh-exec: gh is not authenticated');
+        err.name = 'GhAuthError';
+        throw err;
+      },
+    };
+    await assert.rejects(
+      verifyApiAccess(provider),
+      /API access verification failed/,
+    );
+  });
+});
