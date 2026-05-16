@@ -30,6 +30,7 @@
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
+import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from './acceptance-spec-reconciler.js';
 import { regenerateMainFromTree as defaultRegenerateMainFromTree } from './lib/baseline-snapshot.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
@@ -454,6 +455,7 @@ export async function runEpicDeliverFinalize({
   notifyFn = defaultNotify,
   reconcileBaselinesFn = reconcileBaselinesOnEpicBranch,
   closePlanningArtifactsFn = closePlanningArtifacts,
+  reconcileAcceptanceSpecFn = defaultReconcileAcceptanceSpec,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -636,7 +638,29 @@ export async function runEpicDeliverFinalize({
     }
   }
 
-  // 3b. Close the Epic's planning artifacts (PRD + Tech Spec). The
+  // 3b. Story #2106 / Task #2111 — acceptance-spec close-time
+  // reconciliation. Diff the AC IDs declared in the linked
+  // `context::acceptance-spec` body against `@ac-*` / `@pending` tags in
+  // `tests/features/**`. A non-OK reconciliation throws a clear `Error`
+  // per `.agents/rules/orchestration-error-handling.md`, which propagates
+  // out of `runEpicDeliverFinalize` to abort finalize **before**
+  // `closePlanningArtifacts` fires — so planning artifacts (PRD, Tech
+  // Spec, Acceptance Spec) stay open until the AC coverage gap is fixed.
+  //
+  // Skipped when the Epic carries the `acceptance::n-a` waiver label
+  // (the reconciler returns `status: 'waived'` without scanning features)
+  // or when no acceptance-spec is linked (the start gate in
+  // `runSnapshotPhase` would normally catch the latter, but the
+  // reconciler also defends against direct CLI invocation).
+  await reconcileAcceptanceSpecFn({
+    epicId,
+    cwd: repoCwd,
+    injectedProvider: provider,
+    injectedConfig: config,
+    loggerImpl: logger,
+  });
+
+  // 3c. Close the Epic's planning artifacts (PRD + Tech Spec). The
   // cascade walker does not auto-close them and leaving them open as
   // native sub-issues of the Epic blocks GitHub's `Closes #${epicId}`
   // auto-close path. Best-effort: failures land in the envelope but do

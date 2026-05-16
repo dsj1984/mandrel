@@ -277,6 +277,7 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
       notifyCalls.push({ ticketId, payload, opts });
       return Promise.resolve();
     },
+    reconcileAcceptanceSpecFn: async () => ({ ok: true, status: 'waived' }),
   });
 
   assert.equal(out.ffOk, true);
@@ -390,6 +391,7 @@ test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finali
     },
     upsertCommentFn: async () => ({ commentId: 99 }),
     notifyFn: () => Promise.resolve(),
+    reconcileAcceptanceSpecFn: async () => ({ ok: true, status: 'waived' }),
   });
 
   assert.equal(out.ffOk, true);
@@ -547,6 +549,7 @@ test('runEpicDeliverFinalize: closes planning artifacts after gh pr create succe
     upsertCommentFn: async () => ({ commentId: 1 }),
     notifyFn: () => Promise.resolve(),
     closePlanningArtifactsFn,
+    reconcileAcceptanceSpecFn: async () => ({ ok: true, status: 'waived' }),
   });
 
   assert.equal(planningCalls.length, 1);
@@ -598,6 +601,7 @@ test('runEpicDeliverFinalize: planning-close partial failure does not block fina
     upsertCommentFn: async () => ({ commentId: 1 }),
     notifyFn: () => Promise.resolve(),
     closePlanningArtifactsFn,
+    reconcileAcceptanceSpecFn: async () => ({ ok: true, status: 'waived' }),
   });
 
   assert.equal(out.pushed, true);
@@ -605,4 +609,154 @@ test('runEpicDeliverFinalize: planning-close partial failure does not block fina
   assert.equal(out.postedHandoff, true);
   assert.equal(out.blocker, undefined);
   assert.equal(out.planningClose.techSpec.status, 'failed');
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// Story #2106 / Task #2111 — acceptance-spec reconciliation wiring.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Spin up the minimal stub graph needed to drive `runEpicDeliverFinalize`
+ * past the FF + push + gh stages so the reconciler call site is reachable.
+ */
+function buildReconcilerHarness({ reconcileFn, closeFn }) {
+  const provider = {
+    async getEpic(id) {
+      return { id, linkedIssues: { prd: 9001, techSpec: 9002 } };
+    },
+    async getTicket(id) {
+      return { id, title: 'X' };
+    },
+  };
+  const { fn: gitSpawnFn } = makeGitSpawnFn([
+    { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
+    { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },
+    {
+      matcher: (args) => args[0] === 'rev-list',
+      response: { status: 0, stdout: '1' },
+    },
+    { matcher: (args) => args[0] === 'push', response: { status: 0 } },
+  ]);
+  return {
+    provider,
+    gitSpawnFn,
+    invocation: {
+      epicId: 1942,
+      cwd: '.',
+      injectedProvider: provider,
+      injectedConfig: {
+        agentSettings: { baseBranch: 'main' },
+        orchestration: {},
+      },
+      loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+      gitSpawnFn,
+      ghSpawnFn: () => ({
+        status: 0,
+        stdout: 'https://github.com/me/repo/pull/123\n',
+        stderr: '',
+      }),
+      upsertCommentFn: async () => ({ commentId: 1 }),
+      notifyFn: () => Promise.resolve(),
+      closePlanningArtifactsFn: closeFn,
+      reconcileAcceptanceSpecFn: reconcileFn,
+    },
+  };
+}
+
+test('runEpicDeliverFinalize: aborts when reconciler throws (missing/pending ACs)', async () => {
+  // Task #2111 AC: "Finalize aborts with the reconciler's error message
+  // when missing or pending ACs exist." The reconciler throws an Error
+  // per .agents/rules/orchestration-error-handling.md; that throw must
+  // propagate out of `runEpicDeliverFinalize` (so the `runAsCli` boundary
+  // maps it to exit 1) and `closePlanningArtifacts` MUST NOT be called
+  // (planning artifacts stay open until the AC coverage gap is fixed).
+  let closeCalls = 0;
+  const reconcileFn = async () => {
+    throw new Error(
+      '[acceptance-spec-reconciler] Epic #1942 cannot finalize: missing AC-3',
+    );
+  };
+  const closeFn = async () => {
+    closeCalls += 1;
+    return {
+      prd: { id: 9001, status: 'closed' },
+      techSpec: { id: 9002, status: 'closed' },
+    };
+  };
+  const { invocation } = buildReconcilerHarness({ reconcileFn, closeFn });
+  await assert.rejects(
+    () => runEpicDeliverFinalize(invocation),
+    /Epic #1942 cannot finalize: missing AC-3/,
+  );
+  assert.equal(
+    closeCalls,
+    0,
+    'closePlanningArtifacts must not run when the reconciler throws',
+  );
+});
+
+test('runEpicDeliverFinalize: proceeds normally when reconciler reports ok=true', async () => {
+  // Task #2111 AC: "Finalize proceeds normally when reconciler reports
+  // ok true." A passing reconciliation must let `closePlanningArtifacts`
+  // fire and the result envelope must report a clean finalize.
+  const reconcileCalls = [];
+  let closeCalls = 0;
+  const reconcileFn = async (args) => {
+    reconcileCalls.push(args);
+    return {
+      ok: true,
+      status: 'ok',
+      epicId: 1942,
+      acceptanceSpecId: 9500,
+      acIds: ['AC-1'],
+      satisfied: ['AC-1'],
+      pending: [],
+      missing: [],
+      featureFilesScanned: 1,
+    };
+  };
+  const closeFn = async () => {
+    closeCalls += 1;
+    return {
+      prd: { id: 9001, status: 'closed' },
+      techSpec: { id: 9002, status: 'closed' },
+    };
+  };
+  const { invocation } = buildReconcilerHarness({ reconcileFn, closeFn });
+  const out = await runEpicDeliverFinalize(invocation);
+  assert.equal(reconcileCalls.length, 1);
+  assert.equal(reconcileCalls[0].epicId, 1942);
+  assert.equal(closeCalls, 1);
+  assert.equal(out.pushed, true);
+  assert.equal(out.prUrl, 'https://github.com/me/repo/pull/123');
+  assert.equal(out.blocker, undefined);
+});
+
+test('runEpicDeliverFinalize: reconciler short-circuits with status=waived under acceptance::n-a', async () => {
+  // Task #2111 AC: "Finalize skips reconciler entirely when Epic has
+  // acceptance::n-a label." The skip is enforced **inside** the
+  // reconciler (it returns `status: 'waived'` without scanning features)
+  // rather than at the finalize call site so the wiring stays simple:
+  // finalize always invokes the reconciler and trusts it to no-op on the
+  // waiver. The test asserts that the reconciler is still invoked once
+  // (so the waiver decision is logged/observable) and that
+  // `closePlanningArtifacts` still runs.
+  let reconcileCalls = 0;
+  let closeCalls = 0;
+  const reconcileFn = async () => {
+    reconcileCalls += 1;
+    return { ok: true, status: 'waived' };
+  };
+  const closeFn = async () => {
+    closeCalls += 1;
+    return {
+      prd: { id: 9001, status: 'closed' },
+      techSpec: { id: 9002, status: 'closed' },
+    };
+  };
+  const { invocation } = buildReconcilerHarness({ reconcileFn, closeFn });
+  const out = await runEpicDeliverFinalize(invocation);
+  assert.equal(reconcileCalls, 1);
+  assert.equal(closeCalls, 1);
+  assert.equal(out.blocker, undefined);
 });
