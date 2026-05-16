@@ -378,7 +378,9 @@ function runCompareStage(headBaseline, cmp) {
 function tolerantNumericFields(head, base) {
   if (!head || !base) return [];
   return Object.entries(head)
-    .filter(([key, h]) => typeof h === 'number' && typeof base[key] === 'number')
+    .filter(
+      ([key, h]) => typeof h === 'number' && typeof base[key] === 'number',
+    )
     .map(([key, h]) => ({ key, head: h, base: base[key] }));
 }
 
