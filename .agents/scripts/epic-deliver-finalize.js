@@ -297,7 +297,7 @@ export async function reconcileBaselinesOnEpicBranch({
  *
  * @param {{
  *   epicId: number,
- *   epic: { linkedIssues?: { prd?: number|null, techSpec?: number|null } } | null,
+ *   epic: { linkedIssues?: { prd?: number|null, techSpec?: number|null, acceptanceSpec?: number|null } } | null,
  *   provider: object,
  *   logger?: object,
  *   transitionFn?: typeof transitionTicketState,
@@ -305,6 +305,7 @@ export async function reconcileBaselinesOnEpicBranch({
  * @returns {Promise<{
  *   prd: { id: number|null, status: 'closed'|'skipped'|'failed', detail?: string },
  *   techSpec: { id: number|null, status: 'closed'|'skipped'|'failed', detail?: string },
+ *   acceptanceSpec: { id: number|null, status: 'closed'|'skipped'|'failed', detail?: string },
  * }>}
  */
 export async function closePlanningArtifacts({
@@ -317,13 +318,16 @@ export async function closePlanningArtifacts({
   const result = {
     prd: { id: null, status: 'skipped' },
     techSpec: { id: null, status: 'skipped' },
+    acceptanceSpec: { id: null, status: 'skipped' },
   };
   const prdId = epic?.linkedIssues?.prd ?? null;
   const techSpecId = epic?.linkedIssues?.techSpec ?? null;
+  const acceptanceSpecId = epic?.linkedIssues?.acceptanceSpec ?? null;
 
   for (const [kind, id] of [
     ['prd', prdId],
     ['techSpec', techSpecId],
+    ['acceptanceSpec', acceptanceSpecId],
   ]) {
     if (!Number.isInteger(id) || id <= 0) {
       result[kind] = { id: null, status: 'skipped', detail: 'no-link' };
