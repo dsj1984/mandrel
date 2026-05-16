@@ -49,7 +49,7 @@ import {
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import * as gitUtils from './lib/git-utils.js';
-import { Logger } from './lib/Logger.js';
+import { Logger, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { PlanRunnerContext } from './lib/orchestration/context.js';
 import { buildDocsContext } from './lib/orchestration/doc-reader.js';
@@ -475,11 +475,17 @@ async function main() {
   }
   const provider = createProvider(orchestration);
 
+  const emitContext = values['emit-context'];
+
   try {
     await drainPendingCleanupAtBoot({
       repoRoot: PROJECT_ROOT,
       orchestration,
       provider,
+      // In --emit-context mode stdout is reserved for the JSON envelope;
+      // route every drain/sweep log line through stderr so the captured
+      // file is unconditionally parseable.
+      logger: emitContext ? STDERR_LOGGER : undefined,
     });
   } catch (err) {
     Logger.warn(
@@ -487,7 +493,7 @@ async function main() {
     );
   }
 
-  if (values['emit-context']) {
+  if (emitContext) {
     const ctx = await buildAuthoringContext(epicId, provider, settings, {
       fullContext: values['full-context'],
     });

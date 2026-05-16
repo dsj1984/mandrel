@@ -47,7 +47,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { Logger } from './lib/Logger.js';
+import { Logger, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { PlanRunnerContext } from './lib/orchestration/context.js';
 import {
@@ -904,17 +904,23 @@ async function main() {
   }
   const provider = createProvider(config.orchestration);
 
+  const emitContext = values['emit-context'];
+
   try {
     await drainPendingCleanupAtBoot({
       repoRoot: PROJECT_ROOT,
       orchestration: config.orchestration,
       provider,
+      // In --emit-context mode stdout is reserved for the JSON envelope;
+      // route every drain/sweep log line through stderr so the captured
+      // file is unconditionally parseable.
+      logger: emitContext ? STDERR_LOGGER : undefined,
     });
   } catch (err) {
     Logger.warn(`[epic-plan-decompose] worktree sweep skipped: ${err.message}`);
   }
 
-  if (values['emit-context']) {
+  if (emitContext) {
     const ctx = await buildDecompositionContext(epicId, provider, config, {
       fullContext: values['full-context'],
     });

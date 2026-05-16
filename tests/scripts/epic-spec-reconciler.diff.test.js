@@ -310,3 +310,210 @@ describe('reconciler diff — purity', () => {
     assert.equal(JSON.stringify(fixture.ghState), before);
   });
 });
+
+describe('reconciler diff — Epic protected-label preservation (Story #2056)', () => {
+  // Reproduces the Epic #1994 / 2026-05-16 sequence: `/epic-plan` runs
+  // `epic-plan-decompose.js`, which renders the Epic spec entry from
+  // `{ id, title }` only (labels are not threaded through). The pre-fix
+  // diff engine emitted `labels: [type::epic, risk::medium, ...] → []`
+  // which then propagated to GH and stripped `type::epic` — leaving the
+  // dispatcher unable to resolve the ticket's type. The fix preserves
+  // `type::*` and `risk::*` labels by merging them from the observed
+  // GH state into the Epic's after-set, so the diff is a no-op for
+  // those namespaces no matter what the spec author drops.
+
+  const EPIC_ISSUE = 1994;
+  const STORY_ISSUE = 2000;
+
+  function buildInputs({ obsEpicLabels, specEpicLabels }) {
+    const spec = {
+      epic: { id: EPIC_ISSUE, title: 'Some Epic' },
+      features: [
+        {
+          slug: 'feat-x',
+          title: 'feat x',
+          stories: [
+            {
+              slug: 'story-x',
+              title: 'story x',
+              wave: 0,
+              tasks: [],
+            },
+          ],
+        },
+      ],
+    };
+    if (specEpicLabels !== undefined) {
+      spec.epic.labels = specEpicLabels;
+    }
+    const state = {
+      epicId: EPIC_ISSUE,
+      mapping: {
+        epic: { issueNumber: EPIC_ISSUE, entity: 'epic' },
+        'feat-x': {
+          issueNumber: EPIC_ISSUE + 1,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-x': {
+          issueNumber: STORY_ISSUE,
+          entity: 'story',
+          parentSlug: 'feat-x',
+        },
+      },
+    };
+    const ghState = {
+      [EPIC_ISSUE]: {
+        title: 'Some Epic',
+        body: '',
+        labels: obsEpicLabels,
+      },
+      [EPIC_ISSUE + 1]: {
+        title: 'feat x',
+        body: '',
+        labels: [],
+      },
+      [STORY_ISSUE]: {
+        title: 'story x',
+        body: '',
+        labels: [],
+      },
+    };
+    return { spec, state, ghState };
+  }
+
+  it('does not emit an Epic Update when only protected labels diverge', () => {
+    const { spec, state, ghState } = buildInputs({
+      obsEpicLabels: ['type::epic', 'risk::medium'],
+      // Spec omits Epic labels entirely (the decomposer's current shape).
+      specEpicLabels: undefined,
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.equal(
+      epicUpdate,
+      undefined,
+      'Epic Update should not be emitted when only protected-namespace labels would be stripped',
+    );
+  });
+
+  it('preserves type::epic and risk::* in labels.after when an Update is emitted for the Epic', () => {
+    // Title drift forces an Update op; labels payload should still
+    // protect the type/risk namespaces in the after-set.
+    const { spec, state, ghState } = buildInputs({
+      obsEpicLabels: ['type::epic', 'risk::high', 'agent::review-spec'],
+      specEpicLabels: undefined,
+    });
+    ghState[EPIC_ISSUE].title = 'Stale Title';
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.ok(epicUpdate, 'Epic Update should be emitted when title drifts');
+    // Title drift is recorded.
+    assert.deepEqual(epicUpdate.changes.title, {
+      before: 'Stale Title',
+      after: 'Some Epic',
+    });
+    // Labels diff exists because `agent::review-spec` is still observed
+    // (the wave-runner removes it via setEpicLabel after decompose), but
+    // the after-set MUST carry the protected labels.
+    assert.ok(
+      epicUpdate.changes.labels,
+      'labels change should be present when agent::* differs',
+    );
+    assert.deepEqual(epicUpdate.changes.labels.after.sort(), [
+      'risk::high',
+      'type::epic',
+    ]);
+    assert.deepEqual(epicUpdate.changes.labels.before.sort(), [
+      'agent::review-spec',
+      'risk::high',
+      'type::epic',
+    ]);
+  });
+
+  it('never emits labels: [...] → [] for the Epic when protected labels are observed', () => {
+    // The bug report's exact pre-state.
+    const { spec, state, ghState } = buildInputs({
+      obsEpicLabels: ['agent::review-spec', 'risk::medium', 'type::epic'],
+      specEpicLabels: undefined,
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    if (epicUpdate?.changes.labels) {
+      assert.notDeepEqual(
+        epicUpdate.changes.labels.after,
+        [],
+        'labels.after for the Epic must not be empty when protected labels are observed',
+      );
+    }
+  });
+
+  it('does not protect type::/risk:: namespaces on Feature/Story entities (scope: Epic only)', () => {
+    // Sibling entities go through the existing replace-style diff —
+    // this keeps the fix surgical and aligned with the Story body's
+    // explicit scope ("from parent Epic").
+    const spec = {
+      epic: { id: EPIC_ISSUE, title: 'Some Epic', labels: ['type::epic'] },
+      features: [
+        {
+          slug: 'feat-x',
+          title: 'feat x',
+          stories: [
+            {
+              slug: 'story-x',
+              title: 'story x',
+              wave: 0,
+              tasks: [],
+            },
+          ],
+        },
+      ],
+    };
+    const state = {
+      epicId: EPIC_ISSUE,
+      mapping: {
+        epic: { issueNumber: EPIC_ISSUE, entity: 'epic' },
+        'feat-x': {
+          issueNumber: EPIC_ISSUE + 1,
+          entity: 'feature',
+          parentSlug: 'epic',
+        },
+        'story-x': {
+          issueNumber: STORY_ISSUE,
+          entity: 'story',
+          parentSlug: 'feat-x',
+        },
+      },
+    };
+    const ghState = {
+      [EPIC_ISSUE]: {
+        title: 'Some Epic',
+        body: '',
+        labels: ['type::epic'],
+      },
+      [EPIC_ISSUE + 1]: {
+        title: 'feat x',
+        body: '',
+        labels: ['risk::medium'],
+      },
+      [STORY_ISSUE]: {
+        title: 'story x',
+        body: '',
+        labels: ['type::story'],
+      },
+    };
+    const plan = diff({ spec, state, ghState });
+    const featUpdate = plan.updates.find((op) => op.slug === 'feat-x');
+    const storyUpdate = plan.updates.find((op) => op.slug === 'story-x');
+    assert.ok(
+      featUpdate,
+      'Feature with observed risk:: drift should emit an Update',
+    );
+    assert.deepEqual(featUpdate.changes.labels.after, []);
+    assert.ok(
+      storyUpdate,
+      'Story with observed type:: drift should emit an Update',
+    );
+    assert.deepEqual(storyUpdate.changes.labels.after, []);
+  });
+});
