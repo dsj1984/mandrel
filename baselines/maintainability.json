@@ -5,7 +5,7 @@
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.244,
+      "p50": 103.235,
       "p95": 121.479
     }
   },
@@ -1124,7 +1124,7 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep.js",
-      "mi": 95.083
+      "mi": 90.16
     },
     {
       "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
@@ -2964,7 +2964,7 @@
     },
     {
       "path": "tests/scripts/single-story-sweep.test.js",
-      "mi": 103.478
+      "mi": 101.87
     },
     {
       "path": "tests/scripts/spec-loader.test.js",
