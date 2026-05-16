@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.0](https://github.com/dsj1984/mandrel/compare/v1.6.0...v1.7.0) (2026-05-16)
+
+
+### Fixed
+
+* **bootstrap:** close consumer-side runtime-deps install gap ([#2057](https://github.com/dsj1984/mandrel/issues/2057)) ([#2061](https://github.com/dsj1984/mandrel/issues/2061)) ([4cfc564](https://github.com/dsj1984/mandrel/commit/4cfc564619626ca80e988a20440ea9ba2bdfa2b7))
+* **tests:** stabilize shipped-baselines-idempotency round-trip ([#2017](https://github.com/dsj1984/mandrel/issues/2017)) ([#2026](https://github.com/dsj1984/mandrel/issues/2026)) ([4cc4075](https://github.com/dsj1984/mandrel/commit/4cc4075a906bbca4a1f866334372585586297df5))
+
 ## [1.6.0](https://github.com/dsj1984/mandrel/compare/v1.5.0...v1.6.0) (2026-05-16)
 
 
