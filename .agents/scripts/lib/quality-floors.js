@@ -426,6 +426,49 @@ function wrapSingle(violation) {
   return { violations: [violation], passed: [] };
 }
 
+/**
+ * Resolve the effective per-record floor for the given scope, honouring
+ * Story #2029 path overrides. Returns `{ floor, override }` where
+ * `floor` is the value to compare against and `override` is the
+ * matching PathOverrideRecord (or null when the default workspace
+ * floor was used). The override is returned so the caller can stamp
+ * `followUp` onto any violations it emits.
+ *
+ * Coverage axes are resolved one at a time (an override may relax only
+ * some axes); maintainability and crap each carry a single scalar.
+ *
+ * @param {FloorConfig} floors
+ * @param {object} rec
+ * @param {'coverage'|'maintainability'|'crap'} scope
+ * @param {string} [axis] coverage sub-axis; ignored for other scopes
+ * @returns {{ floor: number | undefined, override: PathOverrideRecord | null }}
+ */
+function resolvePerRecordFloor(floors, rec, scope, axis) {
+  const pathOverrides = floors?.pathOverrides;
+  const key = rec?.file ?? rec?.path;
+  const override =
+    pathOverrides instanceof Map && typeof key === 'string'
+      ? (pathOverrides.get(key) ?? null)
+      : null;
+  if (scope === 'coverage') {
+    if (override && Object.hasOwn(override, axis)) {
+      return { floor: override[axis], override };
+    }
+    return { floor: floors?.coverage?.[axis], override: null };
+  }
+  if (scope === 'maintainability') {
+    if (override && Object.hasOwn(override, 'maintainability')) {
+      return { floor: override.maintainability, override };
+    }
+    return { floor: floors?.maintainability, override: null };
+  }
+  // crap
+  if (override && Object.hasOwn(override, 'crap')) {
+    return { floor: override.crap, override };
+  }
+  return { floor: floors?.crap, override: null };
+}
+
 function applyCoverageFloor(records, floors) {
   const violations = [];
   const passed = [];
@@ -434,18 +477,23 @@ function applyCoverageFloor(records, floors) {
     // still use `file`. Accept either so a migrating consumer can hand us
     // raw envelope rows without re-keying.
     const file = rec?.file ?? rec?.path ?? '<unknown>';
-    const recViolations = checkCoverageRecord(rec, floors.coverage, file);
+    const recViolations = checkCoverageRecord(rec, floors, file);
     if (recViolations.length === 0) passed.push({ scope: 'coverage', file });
     else violations.push(...recViolations);
   }
   return { violations, passed };
 }
 
-function checkCoverageRecord(rec, coverageFloors, file) {
+function checkCoverageRecord(rec, floors, file) {
   const out = [];
   for (const axis of KNOWN_COVERAGE_AXES) {
     const observed = rec?.[axis];
-    const floor = coverageFloors?.[axis];
+    const { floor, override } = resolvePerRecordFloor(
+      floors,
+      rec,
+      'coverage',
+      axis,
+    );
     if (!Number.isFinite(observed)) {
       // Missing axis (e.g. re-export-only file with no functions) passes a
       // floor of 0 — there's nothing to score, and the floor is the minimum
@@ -471,22 +519,24 @@ function checkCoverageRecord(rec, coverageFloors, file) {
       continue;
     }
     if (observed < floor) {
-      out.push({
+      const v = {
         scope: 'coverage',
         axis,
         file,
         observed,
         floor,
         reason: 'below-floor',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      out.push(v);
     }
   }
   return out;
 }
 
 function applyMaintainabilityFloor(records, floors) {
-  const floor = floors.maintainability;
-  if (!Number.isFinite(floor)) {
+  const defaultFloor = floors.maintainability;
+  if (!Number.isFinite(defaultFloor)) {
     return wrapSingle({
       scope: 'maintainability',
       reason: 'invalid-floors',
@@ -501,6 +551,11 @@ function applyMaintainabilityFloor(records, floors) {
     // raw envelope rows without re-keying.
     const file = rec?.file ?? rec?.path ?? '<unknown>';
     const observed = rec?.mi;
+    const { floor, override } = resolvePerRecordFloor(
+      floors,
+      rec,
+      'maintainability',
+    );
     if (!Number.isFinite(observed)) {
       violations.push({
         scope: 'maintainability',
@@ -511,13 +566,15 @@ function applyMaintainabilityFloor(records, floors) {
       continue;
     }
     if (observed < floor) {
-      violations.push({
+      const v = {
         scope: 'maintainability',
         file,
         observed,
         floor,
         reason: 'below-floor',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      violations.push(v);
     } else {
       passed.push({ scope: 'maintainability', file, observed });
     }
@@ -526,8 +583,8 @@ function applyMaintainabilityFloor(records, floors) {
 }
 
 function applyCrapCeiling(records, floors) {
-  const floor = floors.crap;
-  if (!Number.isFinite(floor)) {
+  const defaultFloor = floors.crap;
+  if (!Number.isFinite(defaultFloor)) {
     return wrapSingle({
       scope: 'crap',
       reason: 'invalid-floors',
@@ -543,6 +600,7 @@ function applyCrapCeiling(records, floors) {
     const file = rec?.file ?? rec?.path ?? '<unknown>';
     const method = rec?.method;
     const observed = rec?.score;
+    const { floor, override } = resolvePerRecordFloor(floors, rec, 'crap');
     if (!Number.isFinite(observed)) {
       violations.push({
         scope: 'crap',
@@ -554,14 +612,16 @@ function applyCrapCeiling(records, floors) {
       continue;
     }
     if (observed > floor) {
-      violations.push({
+      const v = {
         scope: 'crap',
         file,
         method,
         observed,
         floor,
         reason: 'above-ceiling',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      violations.push(v);
     } else {
       passed.push({ scope: 'crap', file, method, observed });
     }
@@ -603,14 +663,18 @@ export function parseFloorFlag(argv = process.argv.slice(2)) {
  */
 export function formatViolation(v) {
   if (!v || typeof v !== 'object') return String(v);
+  const overrideSuffix =
+    typeof v.followUp === 'string' && v.followUp.length > 0
+      ? ` (override -> ${v.followUp})`
+      : '';
   if (v.reason === 'below-floor' && v.scope === 'coverage') {
-    return `${v.file}: ${v.axis} ${v.observed.toFixed(2)}% < floor ${v.floor}%`;
+    return `${v.file}: ${v.axis} ${v.observed.toFixed(2)}% < floor ${v.floor}%${overrideSuffix}`;
   }
   if (v.reason === 'below-floor' && v.scope === 'maintainability') {
-    return `${v.file}: MI ${v.observed.toFixed(2)} < floor ${v.floor}`;
+    return `${v.file}: MI ${v.observed.toFixed(2)} < floor ${v.floor}${overrideSuffix}`;
   }
   if (v.reason === 'above-ceiling' && v.scope === 'crap') {
-    return `${v.file}${v.method ? `:${v.method}` : ''}: CRAP ${v.observed.toFixed(2)} > ceiling ${v.floor}`;
+    return `${v.file}${v.method ? `:${v.method}` : ''}: CRAP ${v.observed.toFixed(2)} > ceiling ${v.floor}${overrideSuffix}`;
   }
   return v.message ?? JSON.stringify(v);
 }
