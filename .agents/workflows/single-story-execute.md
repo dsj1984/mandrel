@@ -302,11 +302,53 @@ Confirm the merge landed:
 gh pr view <prNumber> --json state,mergedAt,mergeCommit
 ```
 
-Expect `state: "MERGED"`. The Story is now complete.
+Expect `state: "MERGED"`. With `--no-auto-merge`, the PR is the merge
+gate. The operator reviews and merges via the GitHub UI; the same
+`Closes #<id>` auto-close fires when the merge lands on `main`.
 
-With `--no-auto-merge`, the PR is the merge gate. The operator reviews
-and merges via the GitHub UI; the same `Closes #<id>` auto-close fires
-when the merge lands on `main`.
+---
+
+## Step 6 — Local branch cleanup (**required, not optional**)
+
+GitHub deletes the **remote** branch on auto-merge (via the
+`--delete-branch` flag `single-story-close.js` passes to `gh pr merge`).
+The **local** `story-<storyId>` ref, however, lingers in the main
+checkout until something prunes it — `single-story-init.js` runs a
+merged-sweep at the start of every *subsequent* `/single-story-execute`
+invocation, but that's next-run cleanup, not end-of-run cleanup. Stale
+local refs accumulate between sessions, clutter `git branch`, and shadow
+the lessons the sweep is meant to surface.
+
+After Step 5 confirms `state: "MERGED"`, prune the local ref and
+tracking refs:
+
+```bash
+node .agents/scripts/git-cleanup.js \
+  --execute \
+  --remote \
+  --yes \
+  --branches \
+  --include "story-<storyId>"
+```
+
+What this does:
+
+- **`--branches`** narrows the run to the merged-branch reap phase
+  (skips `--fast-forward-main`, `--prune-remotes`, `--stashes`).
+- **`--include "story-<storyId>"`** scopes the sweep to this Story's
+  ref only — sibling stories in flight are untouched.
+- **`--execute --remote --yes`** actually deletes the local ref, prunes
+  the matching `origin/` tracking ref, and runs non-interactively.
+
+The sweep is idempotent. It is safe to run before `state: "MERGED"`
+confirms (it will skip a not-yet-merged branch), and safe to re-run
+after a successful cleanup (it reports "no merged branches to clean
+up").
+
+Skip Step 6 only when the operator has explicitly opted out via
+`--no-auto-merge` AND has not yet merged the PR — in that case, leave
+the branch in place until the manual merge lands, then run the
+cleanup.
 
 ---
 

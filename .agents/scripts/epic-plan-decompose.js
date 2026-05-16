@@ -769,6 +769,20 @@ export async function runDecomposePhase(
     );
   }
 
+  // 4.5 Sub-issue link safety net — Story #2063. The reconciler's apply
+  //     path persists structural state via `provider.createTicket`,
+  //     which opportunistically calls `addSubIssue` and swallows any
+  //     transient GraphQL failure into a `subIssueLinked: false` flag
+  //     on the return envelope. Walk every child whose body footer
+  //     carries `parent: #N` and re-establish missing native links
+  //     before flipping the Epic to agent::ready. The legacy
+  //     `populateBacklog` path has carried this safety net since the
+  //     decomposer was first written; the spec-flow rewrite (Story
+  //     #1498) accidentally dropped it, which produced silent partial
+  //     backlogs across `/epic-plan` runs (see Epic #1994). `failed > 0`
+  //     is a hard error — the run did not produce a consistent backlog.
+  await reconcileSubIssueLinks(epicId, provider);
+
   const checkpoint = await checkpointer.updateDecompose({
     ticketCount: tickets.length,
     completedAt: new Date().toISOString(),
