@@ -376,16 +376,12 @@ function runCompareStage(headBaseline, cmp) {
  * axis-delta is below N are demoted to `unchanged`.
  */
 function tolerantNumericFields(head, base) {
-  const fields = [];
-  if (!head || !base) return fields;
-  for (const key of Object.keys(head)) {
-    const h = head[key];
-    const b = base[key];
-    if (typeof h === 'number' && typeof b === 'number') {
-      fields.push({ key, head: h, base: b });
-    }
-  }
-  return fields;
+  if (!head || !base) return [];
+  return Object.entries(head)
+    .filter(
+      ([key, h]) => typeof h === 'number' && typeof base[key] === 'number',
+    )
+    .map(([key, h]) => ({ key, head: h, base: base[key] }));
 }
 
 function regressionExceedsTolerance(reg, threshold) {
