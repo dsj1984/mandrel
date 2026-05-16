@@ -293,14 +293,28 @@ comment with the PR URL. Auto-merge enablement failures are non-fatal
 
 ## Phase 7 — Watch-and-iterate until CI is green
 
-The host LLM owns the green-bar loop until the operator merges. Poll
-checks; on failure, pull the log, fix locally, push, loop:
+The host LLM owns the green-bar loop until the operator merges. Use
+the shared watch-and-recover helper, which wraps `gh pr checks --watch`
+and additionally auto-recovers from `mergeStateStatus: BEHIND` by
+calling `gh pr update-branch` once every required check is green
+(branch-protection rules requiring "up to date before merging"
+otherwise park the PR until the operator clicks **Update branch**
+manually):
 
 ```bash
-gh pr checks <prNumber> --watch
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
 ```
 
-Exit 0 → proceed to Phase 7.5. Non-zero → remediate (below) and re-arm.
+`<agentRoot>` resolves from `project.paths.agentRoot` (default
+`.agents`). Pass `--max-updates N` (default 3) to cap update-branch
+calls per session and `--poll-interval-ms MS` (default 10000) to
+override the polling cadence.
+
+Exit 0 → proceed to Phase 7.5. Non-zero → remediate (below) and re-run
+the helper. Auto-merge stays armed across retries; Phase 7.5
+(`epic-deliver-automerge.js`) still re-checks `mergeStateStatus` before
+firing merge, so a second BEHIND that arrives between the helper
+exiting clean and Phase 7.5 starting is also caught.
 
 ### 7.1 Remediation
 
@@ -317,7 +331,8 @@ For each failed required check: fetch the log
   when the diff demonstrably can't be covered.
 - **anything else** → read the log, fix at source.
 
-Push to `epic/<epicId>` and re-run `gh pr checks --watch`.
+Push to `epic/<epicId>` and re-run
+`node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>`.
 
 ### 7.2 When to halt
 

@@ -201,19 +201,32 @@ host-vs-CI drift (platform-conditional code paths, true flakes) still
 escapes close, so the loop below remains the canonical safety net; it is
 no longer the primary detection point for environmental CRAP drift.
 
-After `single-story-close.js` succeeds, enter the watch + fix loop:
+After `single-story-close.js` succeeds, enter the watch + fix loop via
+the shared watch-and-recover helper. The helper wraps `gh pr checks
+--watch` and additionally auto-recovers from `mergeStateStatus: BEHIND`
+by calling `gh pr update-branch` once every required check is green
+(branch-protection rules requiring "up to date before merging" otherwise
+park the PR until the operator clicks **Update branch** manually):
 
 ```bash
-gh pr checks <prNumber> --watch
+node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
 ```
 
-When the watch exits:
+`<agentRoot>` resolves from `project.paths.agentRoot` (default
+`.agents`). Pass `--max-updates N` (default 3) to cap how many times
+the helper will recover from BEHIND in one session, and
+`--poll-interval-ms MS` (default 10000) to override the polling cadence.
 
-- **All checks ✓** — auto-merge will fire (or has already). The
-  `Closes #<id>` footer closes the Story issue on merge. Done.
-- **Any check ✗** — diagnose, fix, and push a new commit on
-  `story-<storyId>`, then re-watch. Auto-merge stays enabled across
-  retries; no need to re-arm it.
+When the helper exits:
+
+- **0 (merged or green+clean)** — auto-merge will fire (or has
+  already). The `Closes #<id>` footer closes the Story issue on merge.
+  Done.
+- **Non-zero (throw)** — the helper throws on terminal check failure,
+  PR closure without merging, or when the update-branch cap is
+  exhausted. Diagnose, fix, and push a new commit on `story-<storyId>`,
+  then re-run the helper. Auto-merge stays enabled across retries; no
+  need to re-arm it.
 
 ### Resurrecting the worktree after `reapOnSuccess`
 
