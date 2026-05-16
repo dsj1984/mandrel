@@ -60,15 +60,12 @@ jobs:
 
       - name: Maintainability Check
         # Epic #1943: scope is resolved by the unified dispatcher via
-        # delivery.quality.gateScoping (.agentrc.json) — diffRef defaults to
-        # main on PR runs; push-to-main runs use --full-scope so untouched
-        # files still surface regressions.
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            npm run maintainability:check
-          else
-            npm run maintainability:check -- --full-scope
-          fi
+        # delivery.quality.gateScoping (.agentrc.json) — diffRef defaults
+        # to main on PR runs; push-to-main runs set BASELINE_SCOPE=full so
+        # untouched files still surface regressions.
+        env:
+          BASELINE_SCOPE: ${{ github.event_name == 'pull_request' && '' || 'full' }}
+        run: npm run maintainability:check
 
       - name: Run Tests with Coverage
         # Capture stderr too — Node's test runner and the coverage-threshold
