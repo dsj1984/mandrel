@@ -43,8 +43,8 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { parseLinkedIssues } from './lib/issue-link-parser.js';
-import { ACCEPTANCE_NA } from './lib/label-constants.js';
 import { Logger } from './lib/Logger.js';
+import { ACCEPTANCE_NA } from './lib/label-constants.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/acceptance-spec-reconciler.js --epic <epicId>
@@ -84,13 +84,14 @@ export function parseAcIds(body) {
   // \b ensures we don't grab `BAC-7`; the AC- prefix may appear inside a
   // table cell, header, or prose so we don't anchor to ^ or |.
   const re = /\bAC-(\d+)\b/gi;
-  let match;
-  while ((match = re.exec(body)) !== null) {
+  let match = re.exec(body);
+  while (match !== null) {
     const id = `AC-${match[1]}`;
     if (!seen.has(id)) {
       seen.add(id);
       out.push(id);
     }
+    match = re.exec(body);
   }
   return out;
 }
