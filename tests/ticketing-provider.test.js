@@ -27,7 +27,18 @@ describe('ITicketingProvider — interface contract', () => {
 
   const setupMethods = [
     ['ensureLabels', [[{ name: 'test', color: '#000', description: '' }]]],
-    ['ensureProjectFields', [[{ name: 'Sprint', type: 'iteration' }]]],
+    [
+      'ensureProjectFields',
+      [
+        [
+          {
+            name: 'Execution',
+            type: 'single_select',
+            options: ['sequential', 'concurrent'],
+          },
+        ],
+      ],
+    ],
   ];
 
   const allMethods = [...readMethods, ...writeMethods, ...setupMethods];

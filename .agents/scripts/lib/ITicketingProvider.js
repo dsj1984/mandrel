@@ -261,7 +261,7 @@ export class ITicketingProvider {
    *
    * @param {Array<{
    *   name: string,
-   *   type: 'iteration'|'single_select',
+   *   type: 'single_select',
    *   options?: string[]
    * }>} fieldDefs
    * @returns {Promise<{ created: string[], skipped: string[] }>}

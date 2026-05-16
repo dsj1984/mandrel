@@ -216,14 +216,8 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
 // Project Field Definitions
 // ---------------------------------------------------------------------------
 describe('Bootstrap — PROJECT_FIELD_DEFS', () => {
-  it('has exactly 2 field definitions', () => {
-    assert.equal(PROJECT_FIELD_DEFS.length, 2);
-  });
-
-  it('defines Sprint as iteration', () => {
-    const sprint = PROJECT_FIELD_DEFS.find((f) => f.name === 'Sprint');
-    assert.ok(sprint);
-    assert.equal(sprint.type, 'iteration');
+  it('has exactly 1 field definition', () => {
+    assert.equal(PROJECT_FIELD_DEFS.length, 1);
   });
 
   it('defines Execution as single_select with correct options', () => {
@@ -255,7 +249,7 @@ describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
 describe('Bootstrap — PROJECT_VIEW_DEFS', () => {
   it('defines the three default Views', () => {
     const names = PROJECT_VIEW_DEFS.map((v) => v.name);
-    assert.deepEqual(names, ['Epic Roadmap', 'Current Sprint', 'My Queue']);
+    assert.deepEqual(names, ['Epic Roadmap', 'Active Stories', 'My Queue']);
   });
 
   it('each View has a filter and groupBy', () => {
@@ -324,7 +318,7 @@ describe('Bootstrap — runBootstrap()', () => {
     const mock = new MockProvider();
     mock._viewsResult = {
       created: [],
-      skipped: ['Epic Roadmap', 'Current Sprint', 'My Queue'],
+      skipped: ['Epic Roadmap', 'Active Stories', 'My Queue'],
       unavailable: true,
     };
     const result = await runBootstrap(orchestration, {
