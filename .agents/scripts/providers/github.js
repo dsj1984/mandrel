@@ -179,16 +179,34 @@ function isNotFoundError(err) {
  *
  * to stderr and exits non-zero; the underlying API surfaces a 422 with
  * `errors[].code === 'already_exists'`. The test mock throws
- * `Error('... code 422')`. Match all three.
+ * `Error('... code 422')`. Match all three — but require the patterns to
+ * be **anchored to the label-create lexicon** so unrelated stderr lines
+ * that happen to mention "already exists" don't get misclassified as
+ * idempotent skips and let real creation failures look successful.
+ *
+ * Story #2018 (Bug 2) tightened the regexes after a fresh-repo bootstrap
+ * counted 23 labels as "skipped" when none were actually created.
  */
 function isLabelAlreadyExistsError(err) {
   if (!err) return false;
   const message = err?.message ?? '';
   const stderr = err?.stderr ?? '';
-  if (/already exists/i.test(stderr) || /already exists/i.test(message)) {
+  // CLI shape: `! Label "<name>" already exists` (with or without the
+  // leading `!`/`Label ` prefix on older gh versions).
+  if (/label\s+["']?[^"']+["']?\s+already exists/i.test(stderr)) return true;
+  if (/label\s+["']?[^"']+["']?\s+already exists/i.test(message)) return true;
+  // REST API shape: 422 + `already_exists` code in the error body.
+  if (/already_exists/i.test(stderr) || /already_exists/i.test(message)) {
     return true;
   }
-  if (/already_exists/i.test(stderr)) return true;
+  // Test-mock legacy shape: `Error('... code 422 ...')` combined with the
+  // word "already exists" anywhere in the message.
+  if (
+    /\bcode\s+422\b/i.test(message) &&
+    /already exists/i.test(message + stderr)
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -986,6 +1004,30 @@ export class GitHubProvider extends ITicketingProvider {
   // =========================================================================
 
   /**
+   * Probe whether `branch` exists on the remote. Returns `true` when the
+   * branch resolves, `false` on 404 (branch not pushed yet — e.g. a
+   * fresh-empty-repo bootstrap before the first commit lands on
+   * `main`), and propagates any other transport error so auth/scope
+   * failures don't masquerade as a missing branch.
+   *
+   * Used by `lib/bootstrap/branch-protection.js` to short-circuit the
+   * protection write on empty repos with a clean "no-base-branch" skip
+   * rather than failing the PUT (Story #2018, Bug 3).
+   *
+   * @field-manifest GET /repos/{owner}/{repo}/branches/{branch}: name
+   */
+  async branchExists(branch) {
+    const endpoint = `/repos/${this.owner}/${this.repo}/branches/${encodeURIComponent(branch)}`;
+    try {
+      await this._gh.api({ method: 'GET', endpoint });
+      return true;
+    } catch (err) {
+      if (isNotFoundError(err)) return false;
+      throw err;
+    }
+  }
+
+  /**
    * Inspect branch-protection state. A 404 means "no protection rule
    * exists"; any other error propagates so the caller can distinguish
    * "intentionally unprotected" from "transport failure." The 404 detect
@@ -1189,8 +1231,15 @@ export class GitHubProvider extends ITicketingProvider {
    * count it as `skipped`. Any other error propagates so transport faults
    * stay loud.
    *
-   * Returns `{ created: string[], skipped: string[] }` — the same shape
-   * `agents-bootstrap-github.js` already reads.
+   * After the per-def loop, **reconcile against the live label set** by
+   * listing the labels actually present on the remote. Anything counted
+   * in `created` or `skipped` that isn't actually present is moved to a
+   * `missing[]` envelope — the bootstrap caller surfaces this loudly so a
+   * silent classification miss (Story #2018, Bug 2) can't pretend success.
+   * Verification failures (rate-limit, scope) are best-effort: they leave
+   * `missing` empty rather than aborting the bootstrap.
+   *
+   * Returns `{ created: string[], skipped: string[], missing: string[] }`.
    */
   async ensureLabels(labelDefs) {
     const created = [];
@@ -1213,7 +1262,71 @@ export class GitHubProvider extends ITicketingProvider {
         throw err;
       }
     }
-    return { created, skipped };
+
+    const missing = await this._reconcileLabelsPresence(labelDefs);
+    if (missing.length === 0) {
+      return { created, skipped, missing };
+    }
+    // Anything we believed we created/skipped that isn't actually on the
+    // remote is by definition a silent failure — drop it from those lists
+    // so the consumer's `created.length + skipped.length` math stays
+    // honest. The full label name survives in `missing[]`.
+    const missingSet = new Set(missing);
+    return {
+      created: created.filter((n) => !missingSet.has(n)),
+      skipped: skipped.filter((n) => !missingSet.has(n)),
+      missing,
+    };
+  }
+
+  /**
+   * Best-effort post-loop reconcile for `ensureLabels`. Lists the live
+   * label set and returns the names from `labelDefs` that are absent.
+   * Internal helper — production callers go through `ensureLabels`.
+   *
+   * Accepts either the real `gh-exec` --json shape (returns an `Array`
+   * directly) or the legacy/test shape (`{stdout: '<json>', ...}`) so
+   * the verification path stays harness-agnostic.
+   */
+  async _reconcileLabelsPresence(labelDefs) {
+    let result;
+    try {
+      result = await this._gh.label.list(['--limit', '500'], ['name']);
+    } catch {
+      return [];
+    }
+    const liveLabels = this._normalizeLabelListResult(result);
+    if (!Array.isArray(liveLabels) || liveLabels.length === 0) {
+      // Listing returned nothing parseable. Treat as "verification
+      // unavailable" rather than "every label is missing" — false
+      // positives on this path would derail an otherwise-clean bootstrap.
+      return [];
+    }
+    const liveNames = new Set();
+    for (const row of liveLabels) {
+      if (row && typeof row.name === 'string') liveNames.add(row.name);
+    }
+    if (liveNames.size === 0) return [];
+    const missing = [];
+    for (const def of labelDefs) {
+      if (def?.name && !liveNames.has(def.name)) missing.push(def.name);
+    }
+    return missing;
+  }
+
+  _normalizeLabelListResult(result) {
+    if (Array.isArray(result)) return result;
+    if (result && typeof result.stdout === 'string') {
+      const trimmed = result.stdout.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
   }
 
   /**

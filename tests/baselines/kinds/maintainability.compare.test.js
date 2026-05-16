@@ -30,11 +30,26 @@ describe('kinds/maintainability.compare()', () => {
     assert.equal(out.unchanged.length, 1);
   });
 
-  it('new files with MI < 100 are regressions', () => {
+  it('new files (any MI) land in additions, not regressions (Story #2012)', () => {
     const head = { rows: [{ path: 'src/new.js', mi: 70 }] };
     const base = { rows: [] };
     const out = compare(head, base);
-    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.additions.length, 1);
+    assert.equal(out.additions[0].key, 'src/new.js');
+    assert.equal(out.additions[0].base, null);
+  });
+
+  it('low-MI new files (e.g. 22 vs implicit 100) are additions, not regressions', () => {
+    // Regression test for the specific Story #2012 scenario: a new file
+    // with an MI well below 100 used to surface as a -78 MI drop and
+    // breached every reasonable miDropCap. With the fix it lands in
+    // `additions` and the regression arm stays empty.
+    const head = { rows: [{ path: 'lib/new.js', mi: 22 }] };
+    const base = { rows: [] };
+    const out = compare(head, base);
+    assert.deepEqual(out.regressions, []);
+    assert.equal(out.additions.length, 1);
   });
 
   it('removed files with MI < 100 are improvements', () => {
@@ -54,6 +69,11 @@ describe('kinds/maintainability.compare()', () => {
 
   it('tolerates missing rows arrays', () => {
     const out = compare({}, {});
-    assert.deepEqual(out, { regressions: [], improvements: [], unchanged: [] });
+    assert.deepEqual(out, {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [],
+    });
   });
 });

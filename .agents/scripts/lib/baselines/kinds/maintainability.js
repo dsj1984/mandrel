@@ -76,10 +76,16 @@ export function rollup(rows, components = []) {
 /**
  * Pure compare(head, base) for the maintainability kind. Diffs rows by
  * `path`. Higher MI = better — a row regresses when its mi drops vs
- * base, improves when it rises, unchanged when equal. New paths inherit
- * a base of 100 (so any lower head registers as a regression); removed
- * paths inherit a head of 100 (so any lower base registers as an
- * improvement).
+ * base, improves when it rises, unchanged when equal. New paths (head
+ * has a row that base lacks) land in the `additions` bucket; absolute-
+ * floor enforcement is the unified `check-baselines` gate's job and runs
+ * independently. Removed paths (base has a row that head dropped) count
+ * as improvements when their MI was non-perfect; the file is gone, so
+ * its prior debt is gone too.
+ *
+ * Story #2012 — new files MUST NOT register as regressions. The prior
+ * behaviour treated missing-in-base as base.mi = 100 and any real-world
+ * MI under 100 (i.e., almost every file) flipped to a regression.
  *
  * No I/O. No process exit. No friction emission.
  */
@@ -92,24 +98,28 @@ export function compare(head, base) {
   const regressions = [];
   const improvements = [];
   const unchanged = [];
+  const additions = [];
   for (const h of headRows) {
     seen.add(h.path);
     const b = baseByKey.get(h.path);
-    const baseMi = b ? (b.mi ?? 0) : 100;
-    const delta = (h.mi ?? 0) - baseMi;
-    if (delta < 0) regressions.push({ key: h.path, head: h, base: b ?? null });
-    else if (delta > 0)
-      improvements.push({ key: h.path, head: h, base: b ?? null });
-    else unchanged.push({ key: h.path, head: h, base: b ?? null });
+    if (!b) {
+      additions.push({ key: h.path, head: h, base: null });
+      continue;
+    }
+    const delta = (h.mi ?? 0) - (b.mi ?? 0);
+    if (delta < 0) regressions.push({ key: h.path, head: h, base: b });
+    else if (delta > 0) improvements.push({ key: h.path, head: h, base: b });
+    else unchanged.push({ key: h.path, head: h, base: b });
   }
   for (const b of baseRows) {
     if (seen.has(b.path)) continue;
-    const delta = 100 - (b.mi ?? 0);
-    if (delta < 0) regressions.push({ key: b.path, head: null, base: b });
-    else if (delta > 0) improvements.push({ key: b.path, head: null, base: b });
-    else unchanged.push({ key: b.path, head: null, base: b });
+    if ((b.mi ?? 0) < 100) {
+      improvements.push({ key: b.path, head: null, base: b });
+    } else {
+      unchanged.push({ key: b.path, head: null, base: b });
+    }
   }
-  return { regressions, improvements, unchanged };
+  return { regressions, improvements, unchanged, additions };
 }
 
 function componentMatches(component, p) {
