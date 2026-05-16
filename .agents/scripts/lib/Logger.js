@@ -81,3 +81,18 @@ export const NOOP_LOGGER = Object.freeze({
   warn() {},
   error() {},
 });
+
+/**
+ * Frozen logger that routes every level to **stderr**. Use this when a
+ * caller's stdout is a structured payload (e.g. `--emit-context` JSON
+ * envelopes from `epic-plan-spec.js` / `epic-plan-decompose.js`) and any
+ * progress/telemetry log must not interleave with the payload. Mirrors the
+ * `{ info, warn, error, debug }` shape that the orchestration helpers
+ * accept via optional `logger` arguments.
+ */
+export const STDERR_LOGGER = Object.freeze({
+  debug: (message) => console.error(message),
+  info: (message) => console.error(message),
+  warn: (message) => console.error(message),
+  error: (message) => console.error(message),
+});
