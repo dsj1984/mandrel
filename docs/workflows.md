@@ -19,10 +19,12 @@ wave-loop + close-tail and opens a pull request to `main`. The operator
 merges the PR through the GitHub UI — the workflow never merges to
 `main` itself.
 
-The framework leans on Claude Code built-ins (`/goal`,
-`/fewer-permission-prompts`, `/insights`, `/loop`) where they replace or
-augment homegrown machinery — see ADR 20260512-coupling-stance and ADR
-20260512-loop-adoption in [`decisions.md`](decisions.md).
+`/agents-update` invokes the Claude Code built-in
+`/fewer-permission-prompts` (Step 3.6) to refresh the harness allowlist
+after a submodule bump. Other built-ins (`/loop`, `/insights`, `/goal`)
+are not wired into any workflow today — see ADR 20260512-coupling-stance
+and ADR 20260512-loop-adoption in [`decisions.md`](decisions.md) for the
+stance on future adoption.
 
 | Command                           | Purpose                                                                                                                                            |
 | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,8 +67,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github`  | Initialize a GitHub repo with the framework label taxonomy, project fields, the default Kanban board, and (when `agentSettings.quality.prGate.enforceBranchProtection` is enabled) main-branch protection. |
-| `/agents-bootstrap-project` | Wire the local harness around the framework: `.claude/commands/` sync, `package.json` scripts, hooks, gitignore, and a host-level git-perf check on Windows. |
+| `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
 | `/agents-update`            | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
 | `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
 | `/run-bdd-suite`            | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper). |
@@ -100,33 +101,22 @@ The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during
 `/epic-deliver` Phase 5 before the PR is opened.
 
-## Convergence via /goal
+## Convergence in multi-phase workflows
 
-Long-running orchestrator workflows that iterate across many turns rely on
-the `/goal` directive to pin a single convergence target for the entire
-run. Without it, Claude can drift between sub-goals or stall waiting for
-operator re-prompting between phases.
+Long-running orchestrator workflows like `/epic-deliver` and
+`/story-execute` converge through their phase machinery, not through a
+sticky-goal directive. Each phase is driven by a CLI script
+(`wave-tick.js`, `epic-execute-record-wave.js`, `story-close.js`, …)
+whose JSON return tells the agent what to do next; terminal states are
+unambiguous (`nextAction.kind === "epic-complete"`, `action: 'noop'`).
+The Anti-Thrashing Protocol in `.agents/instructions.md` and the
+`agent::blocked` HITL gate handle drift and unresolvable blockers.
 
-The pattern is one line, issued before any other phase runs:
-
-```text
-/goal "<scope> <id> acceptance criteria all green"
-```
-
-The two canonical wirings are:
-
-- **`/epic-deliver`** — Phase 0 issues `/goal "epic <epicId> acceptance
-  criteria all green"` before Phase 1 (prepare). The goal stays set
-  across the wave loop, close-validation, code-review, retro, finalize,
-  watch-and-iterate, and auto-merge gate.
-- **`/story-execute`** — Step -1 issues `/goal "story <storyId>
-  acceptance criteria all green"` before Step 0 (`story-init.js`). The
-  goal stays set across init, the implementation loop, and close.
-
-When authoring a new orchestrator workflow that spans multiple phases or
-turns, add an equivalent early step. Phrase the goal in terms of the
-ticket-level acceptance criteria so the convergence target is the same
-contract the closing gates verify.
+Claude Code's `/goal` built-in (a prompt-side directive only the
+operator can type) is not wired into any workflow. When authoring a new
+multi-phase orchestrator, rely on the same pattern: explicit per-phase
+CLI returns, an `agent::blocked` exit, and the anti-thrashing rules
+already documented in the system prompt.
 
 ## Adding a new workflow
 

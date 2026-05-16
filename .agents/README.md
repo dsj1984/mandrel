@@ -16,36 +16,29 @@ cross-directory authoring conventions. The process narrative for
 
 ## Activation
 
-Four steps, run once per consuming repo:
+Two steps, run once per consuming repo:
 
 1. **Load the system prompt.** Configure your AI tool (`.cursorrules`,
    Custom Instructions, or system-prompt settings) to load
    [`instructions.md`](instructions.md) verbatim. Without this, none of
    the protocols are active.
-2. **Copy the config template.** From the host repo root:
+2. **Run the unified bootstrap.** From the host repo root:
 
    ```bash
-   cp .agents/starter-agentrc.json .agentrc.json
+   node .agents/scripts/bootstrap.js
    ```
 
-   Then edit `orchestration.github.{owner,repo}` and any
-   project-specific overrides. Every key is documented in
-   [`docs/configuration.md`](../docs/configuration.md).
-3. **Bootstrap the local harness.** Run the
-   [`/agents-bootstrap-project`](workflows/agents-bootstrap-project.md)
-   slash command. It seeds `package.json`, merges the framework's
-   runtime dependencies (`ajv`, `js-yaml`, …), runs `npm install`,
-   wires the `.claude/commands/` sync hook, and gitignores derived
-   artefacts. Skipping this step causes step 4 to fail with
-   `ERR_MODULE_NOT_FOUND` because the runtime deps the scripts import
-   are not yet installed. Idempotent — safe to re-run.
-4. **Bootstrap the GitHub repo.** Run the
-   [`/agents-bootstrap-github`](workflows/agents-bootstrap-github.md)
-   slash command (or `node .agents/scripts/agents-bootstrap-github.js`)
-   to create the framework's label taxonomy and the optional Project
-   V2 fields. It is idempotent — safe to re-run.
+   The script walks every required value (auto-detecting owner / repo /
+   base branch from `git remote`), seeds `.agentrc.json` from
+   [`starter-agentrc.json`](starter-agentrc.json), merges the
+   framework's runtime dependencies, runs `npm install`, wires the
+   `.claude/commands/` sync hook, gitignores derived artefacts, runs
+   the stabilized-quality-gates installer, then creates the GitHub
+   label taxonomy + Project V2 fields. Idempotent — safe to re-run. Pass
+   `--owner`, `--repo`, and `--assume-yes` for non-interactive (CI)
+   installs; pass `--skip-github` to defer the remote half.
 
-After step 4 you can run any slash command — `/epic-plan`,
+After bootstrap you can run any slash command — `/epic-plan`,
 `/audit-security`, `/agents-update`, etc. The
 [SDLC guide](SDLC.md) walks an end-to-end Epic.
 
@@ -93,7 +86,7 @@ After step 4 you can run any slash command — `/epic-plan`,
 | Orchestration SDK and GitHub authentication | [§ Orchestration SDK](#orchestration-sdk) |
 | Check registry authoring rules | [§ Self-healing checks](#self-healing-checks) |
 | JSON Schema conventions | [§ Schemas](#schemas) |
-| Bootstrap labels + project fields reference | [`workflows/agents-bootstrap-github.md`](workflows/agents-bootstrap-github.md) |
+| Bootstrap script (project + GitHub setup) | [`scripts/bootstrap.js`](scripts/bootstrap.js) |
 
 ---
 

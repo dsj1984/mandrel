@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T02:52:30.768Z",
+  "generatedAt": "2026-05-16T15:45:26.263Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.926,
-      "p95": 121.235
+      "p50": 102.991,
+      "p95": 121.071
     }
   },
   "rows": [
@@ -16,7 +16,7 @@
     },
     {
       "path": ".agents/scripts/agents-bootstrap-github.js",
-      "mi": 91.009
+      "mi": 90.654
     },
     {
       "path": ".agents/scripts/analyze-execution.js",
@@ -31,8 +31,12 @@
       "mi": 97.27
     },
     {
+      "path": ".agents/scripts/bootstrap.js",
+      "mi": 90.765
+    },
+    {
       "path": ".agents/scripts/check-baselines.js",
-      "mi": 93.145
+      "mi": 93.864
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -120,7 +124,7 @@
     },
     {
       "path": ".agents/scripts/epic-plan-decompose.js",
-      "mi": 88.857
+      "mi": 88.72
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -132,7 +136,7 @@
     },
     {
       "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 76.279
+      "mi": 76.119
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -228,7 +232,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "mi": 99.913
+      "mi": 103.156
     },
     {
       "path": ".agents/scripts/lib/baselines/env-overrides.js",
@@ -256,11 +260,11 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "mi": 99.926
+      "mi": 99.089
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 91.897
+      "mi": 92.285
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -272,11 +276,11 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "mi": 99.789
+      "mi": 99.833
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "mi": 98.147
+      "mi": 98.34
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
@@ -304,7 +308,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/branch-protection.js",
-      "mi": 94.023
+      "mi": 91.552
     },
     {
       "path": ".agents/scripts/lib/bootstrap/ci-workflow-template.js",
@@ -317,6 +321,14 @@
     {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "mi": 88.908
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "mi": 88.638
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "mi": 81.839
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
@@ -424,7 +436,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-gates-schema.js",
-      "mi": 54.021
+      "mi": 51.301
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
@@ -552,7 +564,7 @@
     },
     {
       "path": ".agents/scripts/lib/errors/index.js",
-      "mi": 127.593
+      "mi": 126.057
     },
     {
       "path": ".agents/scripts/lib/fs-utils.js",
@@ -568,7 +580,7 @@
     },
     {
       "path": ".agents/scripts/lib/gates/gate-cli.js",
-      "mi": 93.074
+      "mi": 98.19
     },
     {
       "path": ".agents/scripts/lib/gh-exec.js",
@@ -620,11 +632,11 @@
     },
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 97.366
+      "mi": 97.91
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
-      "mi": 89.644
+      "mi": 104.668
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
@@ -728,7 +740,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "mi": 67.92
+      "mi": 94.878
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
@@ -828,11 +840,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js",
-      "mi": 92.343
+      "mi": 92.128
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js",
-      "mi": 88.318
+      "mi": 90.796
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-spec-reconciler-discriminator.js",
@@ -1088,7 +1100,7 @@
     },
     {
       "path": ".agents/scripts/lib/quality-floors.js",
-      "mi": 87.96
+      "mi": 84.592
     },
     {
       "path": ".agents/scripts/lib/retrofit/task-body-retrofit.js",
@@ -1344,7 +1356,7 @@
     },
     {
       "path": ".agents/scripts/providers/github.js",
-      "mi": 92.068
+      "mi": 91.515
     },
     {
       "path": ".agents/scripts/providers/github/auth.js",
@@ -1364,7 +1376,7 @@
     },
     {
       "path": ".agents/scripts/providers/github/projects-v2-graphql.js",
-      "mi": 97.106
+      "mi": 97.138
     },
     {
       "path": ".agents/scripts/quality-preview.js",
@@ -1373,6 +1385,10 @@
     {
       "path": ".agents/scripts/quality-watch.js",
       "mi": 0
+    },
+    {
+      "path": ".agents/scripts/reconcile-sub-issues.js",
+      "mi": 98.89
     },
     {
       "path": ".agents/scripts/render-manifest.js",
@@ -1568,11 +1584,11 @@
     },
     {
       "path": "tests/baselines/kinds/coverage.compare.test.js",
-      "mi": 105.744
+      "mi": 104.588
     },
     {
       "path": "tests/baselines/kinds/crap.compare.test.js",
-      "mi": 106.3
+      "mi": 105.201
     },
     {
       "path": "tests/baselines/kinds/lighthouse.compare.test.js",
@@ -1584,7 +1600,7 @@
     },
     {
       "path": "tests/baselines/kinds/maintainability.compare.test.js",
-      "mi": 106.613
+      "mi": 104.596
     },
     {
       "path": "tests/baselines/kinds/mergeRows.test.js",
@@ -1592,7 +1608,11 @@
     },
     {
       "path": "tests/baselines/kinds/mutation.compare.test.js",
-      "mi": 108.778
+      "mi": 107.349
+    },
+    {
+      "path": "tests/baselines/kinds/path-override-pass-log.test.js",
+      "mi": 109.33
     },
     {
       "path": "tests/baselines/kinds/purity.test.js",
@@ -1616,7 +1636,7 @@
     },
     {
       "path": "tests/baselines/shipped-baselines-idempotency.test.js",
-      "mi": 101.509
+      "mi": 102.063
     },
     {
       "path": "tests/baselines/writer-epsilon.test.js",
@@ -1632,11 +1652,11 @@
     },
     {
       "path": "tests/bootstrap.test.js",
-      "mi": 110.318
+      "mi": 109.117
     },
     {
       "path": "tests/bootstrap/agents-bootstrap-github.integration.test.js",
-      "mi": 102.457
+      "mi": 103.762
     },
     {
       "path": "tests/bootstrap/agents-update-migration.test.js",
@@ -1644,7 +1664,7 @@
     },
     {
       "path": "tests/bootstrap/branch-protection.test.js",
-      "mi": 94.744
+      "mi": 95.987
     },
     {
       "path": "tests/bootstrap/hitl-confirm.test.js",
@@ -1653,6 +1673,14 @@
     {
       "path": "tests/bootstrap/merge-methods.test.js",
       "mi": 106.594
+    },
+    {
+      "path": "tests/bootstrap/project-bootstrap.test.js",
+      "mi": 106.624
+    },
+    {
+      "path": "tests/bootstrap/prompt.test.js",
+      "mi": 120.14
     },
     {
       "path": "tests/bootstrap/quality-bootstrap.test.js",
@@ -1684,7 +1712,7 @@
     },
     {
       "path": "tests/check-crap-epic-ref.test.js",
-      "mi": 116.289
+      "mi": 116.732
     },
     {
       "path": "tests/check-crap-json.test.js",
@@ -1715,10 +1743,6 @@
       "mi": 113.227
     },
     {
-      "path": "tests/close-validation-full-scope-crap.test.js",
-      "mi": 116.28
-    },
-    {
       "path": "tests/close-validation-mi-projection.test.js",
       "mi": 110.031
     },
@@ -1732,11 +1756,11 @@
     },
     {
       "path": "tests/config-schema-mirror-drift.test.js",
-      "mi": 101.563
+      "mi": 100.408
     },
     {
       "path": "tests/config-settings-schema.test.js",
-      "mi": 108.466
+      "mi": 108.284
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",
@@ -2020,7 +2044,7 @@
     },
     {
       "path": "tests/gate-integration.test.js",
-      "mi": 113.801
+      "mi": 116.013
     },
     {
       "path": "tests/gate-json-byte-stability.test.js",
@@ -2041,6 +2065,10 @@
     {
       "path": "tests/hierarchy-gate.test.js",
       "mi": 98.674
+    },
+    {
+      "path": "tests/hook-chain-reflog-invariant.test.js",
+      "mi": 108.553
     },
     {
       "path": "tests/hydrate-context-cli.test.js",
@@ -2068,7 +2096,7 @@
     },
     {
       "path": "tests/lib/baseline-snapshot.test.js",
-      "mi": 106.638
+      "mi": 107.462
     },
     {
       "path": "tests/lib/branch-name-guard.test.js",
@@ -2476,7 +2504,7 @@
     },
     {
       "path": "tests/lib/orchestration/crap-remediation-1641.test.js",
-      "mi": 107.184
+      "mi": 107.372
     },
     {
       "path": "tests/lib/orchestration/detectors-phase.test.js",
@@ -2559,12 +2587,16 @@
       "mi": 119.002
     },
     {
+      "path": "tests/lib/orchestration/story-close/new-file-mi-regression.test.js",
+      "mi": 114.46
+    },
+    {
       "path": "tests/lib/orchestration/story-close/post-merge-close.test.js",
       "mi": 112.463
     },
     {
       "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
-      "mi": 114.385
+      "mi": 115.416
     },
     {
       "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
@@ -2664,11 +2696,11 @@
     },
     {
       "path": "tests/lib/providers/github-projects-extra.test.js",
-      "mi": 106.189
+      "mi": 106.271
     },
     {
       "path": "tests/lib/quality-floors.test.js",
-      "mi": 105.706
+      "mi": 99.812
     },
     {
       "path": "tests/lib/reconciler.test.js",
@@ -2908,7 +2940,7 @@
     },
     {
       "path": "tests/providers-github.test.js",
-      "mi": 97.608
+      "mi": 96.659
     },
     {
       "path": "tests/providers/github/auth.test.js",
@@ -2999,6 +3031,14 @@
       "mi": 115.532
     },
     {
+      "path": "tests/scripts/epic-plan-decompose.sub-issue-safety-net.test.js",
+      "mi": 93.794
+    },
+    {
+      "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
+      "mi": 107.757
+    },
+    {
       "path": "tests/scripts/epic-plan.edit-flow.test.js",
       "mi": 108.552
     },
@@ -3020,7 +3060,7 @@
     },
     {
       "path": "tests/scripts/epic-spec-reconciler.diff.test.js",
-      "mi": 100.468
+      "mi": 97.371
     },
     {
       "path": "tests/scripts/epic-spec-reconciler.discriminator.test.js",
@@ -3152,7 +3192,7 @@
     },
     {
       "path": "tests/story-close.test.js",
-      "mi": 102.969
+      "mi": 103.019
     },
     {
       "path": "tests/story-close/format-autofix.test.js",
@@ -3220,7 +3260,7 @@
     },
     {
       "path": "tests/ticketing-provider.test.js",
-      "mi": 113.446
+      "mi": 113.228
     },
     {
       "path": "tests/update-baseline-flags.test.js",
