@@ -110,6 +110,52 @@ function buildQuestions(defaults) {
   ];
 }
 
+const INFERRED_KEYS = Object.freeze([
+  'owner',
+  'repo',
+  'baseBranch',
+  'operatorHandle',
+]);
+
+const FLAG_BY_KEY = Object.freeze({
+  owner: 'owner',
+  repo: 'repo',
+  baseBranch: 'base-branch',
+  operatorHandle: 'operator-handle',
+});
+
+const ENV_BY_KEY = Object.freeze({
+  owner: 'GH_OWNER',
+  repo: 'GH_REPO',
+  baseBranch: 'GH_BASE_BRANCH',
+  operatorHandle: 'GH_OPERATOR_HANDLE',
+});
+
+/**
+ * Compute the set of keys whose inferred default should be accepted
+ * without prompting. A key qualifies when:
+ *   - `inferDefaults` produced a non-empty value for it; AND
+ *   - no CLI flag was supplied for it; AND
+ *   - no environment variable override was supplied for it.
+ *
+ * Flag / env overrides win, but they take their normal path through
+ * `collectAnswers` rather than this silent-accept set, so the operator
+ * still sees them logged in the per-field resolution.
+ *
+ * Exported for unit testing.
+ */
+export function resolveSilentAccept(defaults, flags, env = process.env) {
+  const out = [];
+  for (const key of INFERRED_KEYS) {
+    const value = defaults?.[key];
+    if (typeof value !== 'string' || value.length === 0) continue;
+    if (typeof flags?.[FLAG_BY_KEY[key]] === 'string') continue;
+    if (typeof env?.[ENV_BY_KEY[key]] === 'string') continue;
+    out.push(key);
+  }
+  return out;
+}
+
 function printSummary(report) {
   Logger.info('\n=== Bootstrap Summary ===');
   Logger.info(
@@ -206,11 +252,22 @@ export async function main(argv = process.argv.slice(2)) {
       return 1;
     }
   }
+  const silentAccept = resolveSilentAccept(defaults, flags);
+  if (interactive && silentAccept.length > 0) {
+    const summary = silentAccept
+      .map((key) => `${key}=${defaults[key]}`)
+      .join(' ');
+    Logger.info(`[bootstrap] Auto-detected from local git: ${summary}`);
+    Logger.info(
+      '[bootstrap] Override any value with --owner / --repo / --base-branch / --operator-handle.',
+    );
+  }
   const { answers, missing } = await collectAnswers({
     questions: buildQuestions(defaults),
     flags,
     interactive,
     assumeYes,
+    silentAccept,
   });
   if (missing.length > 0) {
     Logger.error(`[bootstrap] missing required answers: ${missing.join(', ')}`);
