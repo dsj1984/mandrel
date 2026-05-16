@@ -21,6 +21,7 @@
 
 import path from 'node:path';
 
+import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   getQuality,
@@ -137,10 +138,17 @@ export async function refreshMutationBaseline({
 }
 
 async function main() {
-  const result = await refreshMutationBaseline();
-  if (result.status !== 0) {
-    process.exit(result.status);
+  // Story #1974 — `--diff-scope` accepted for CLI parity with other
+  // update-*-baseline scripts; no row-narrowing effect because mutation
+  // baseline is workspace-keyed (not file-keyed).
+  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
+  if (diffScope) {
+    Logger.info(
+      `[mutation] --diff-scope ${diffScope.ref}: noted (informational only).`,
+    );
   }
+  const result = await refreshMutationBaseline();
+  if (result.status !== 0) process.exit(result.status);
 }
 
 runAsCli(import.meta.url, main, { source: 'update-mutation-baseline' });

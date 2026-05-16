@@ -11,6 +11,7 @@
  */
 
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'lint';
 export const keyField = 'path';
@@ -69,6 +70,58 @@ export function sortRows(rows) {
   return [...rows].sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/**
+ * Pure compare(head, base) for the lint kind. Diffs rows by `path`.
+ *
+ * Classification (per row key):
+ *   - regression: head has more errorCount or warningCount than base
+ *   - improvement: head has fewer errorCount or warningCount than base
+ *   - unchanged: counts match
+ *
+ * A row present in `head` but missing from `base` is treated as a new
+ * row — a regression if it carries any errors/warnings, otherwise
+ * unchanged. A row present in `base` but missing from `head` is treated
+ * as an improvement when it had findings, otherwise unchanged.
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.path, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.path);
+    const b = baseByKey.get(h.path);
+    const headTotal = (h.errorCount ?? 0) + (h.warningCount ?? 0);
+    if (!b) {
+      if (headTotal > 0) regressions.push({ key: h.path, head: h, base: null });
+      else unchanged.push({ key: h.path, head: h, base: null });
+      continue;
+    }
+    const errDelta = (h.errorCount ?? 0) - (b.errorCount ?? 0);
+    const warnDelta = (h.warningCount ?? 0) - (b.warningCount ?? 0);
+    if (errDelta > 0 || warnDelta > 0) {
+      regressions.push({ key: h.path, head: h, base: b });
+    } else if (errDelta < 0 || warnDelta < 0) {
+      improvements.push({ key: h.path, head: h, base: b });
+    } else {
+      unchanged.push({ key: h.path, head: h, base: b });
+    }
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.path)) continue;
+    const baseTotal = (b.errorCount ?? 0) + (b.warningCount ?? 0);
+    if (baseTotal > 0) improvements.push({ key: b.path, head: null, base: b });
+    else unchanged.push({ key: b.path, head: null, base: b });
+  }
+  return { regressions, improvements, unchanged };
+}
+
 function componentMatches(component, path) {
   // Components are exact-prefix matched on a path — the canonical
   // resolver (added in a sibling Story #1902) replaces this stub. For the
@@ -78,4 +131,52 @@ function componentMatches(component, path) {
   return (
     path === component.includes || path.startsWith(`${component.includes}/`)
   );
+}
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). The metric is
+ * the maximum absolute delta across `errorCount` and `warningCount`. The
+ * framework default for lint is epsilon 0 (counts are integer; any change
+ * is meaningful), but the function honours any non-negative epsilon for
+ * operator overrides. Missing-prior rows fall through.
+ *
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} prior
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance on count deltas
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.path, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.path);
+    if (!p) return row;
+    const errDelta = Math.abs((row.errorCount ?? 0) - (p.errorCount ?? 0));
+    const warnDelta = Math.abs((row.warningCount ?? 0) - (p.warningCount ?? 0));
+    return Math.max(errDelta, warnDelta) <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Lint rows
+ * match by `path`. In diff mode, rows whose `path` is OUTSIDE
+ * `scope.files` are preserved from `prior` verbatim; in-scope rows come
+ * from `regenerated`. In full mode (or no scope), regenerated wins
+ * everywhere.
+ *
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} prior
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.path,
+  });
 }

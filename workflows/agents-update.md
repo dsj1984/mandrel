@@ -85,25 +85,35 @@ A no-op run (already up to date) looks like:
 
 A framework bump can add or reshape fields in
 `.agents/full-agentrc.json` (and the underlying schema). Run the
-reconciliation helper so the consumer's `.agentrc.json` tracks the new schema
-without losing any project-specific overrides.
+reconciliation helper to verify the consumer's `.agentrc.json` still
+validates against the new schema, and to surface any project values that
+already match framework defaults (and could therefore be safely deleted):
 
-Follow the procedure in
-[`helpers/agents-sync-config.md`](helpers/agents-sync-config.md). It is a
-schema-driven validate-then-merge:
+```bash
+node .agents/scripts/sync-agentrc.js
+```
 
-- The project config is **validated** against the framework schema first;
-  any failure aborts the run with a diagnostic so the operator can fix the
-  underlying typo / missing required key.
-- Required or template-defaulted keys missing from the project are **added**
-  from the template (operator opt-in to new defaults).
-- Every project value that validates is **preserved unconditionally** —
-  including schema-valid optional keys the template does not declare.
-- The helper emits an `ADDED` change report and never auto-commits.
+The helper (Story #1995) is **default-aware** and **read-only**:
 
-If the helper reports `No changes required`, the config is already in
-sync — carry on. Otherwise, review the change report before the
-commit in Step 4.
+- The project config is **validated** against the framework schema. Any
+  failure aborts the run with a diagnostic so the operator can fix the
+  underlying typo / missing required key before proceeding.
+- Optional keys missing from the project are **never auto-filled**. The
+  runtime layers framework defaults at read time, so writing them into
+  `.agentrc.json` only bloats the consumer's config diff without
+  changing behaviour.
+- Project values that deep-equal the framework default are flagged as
+  `[REDUNDANT]` advisory rows — informational only; the file is never
+  modified.
+
+Full procedure reference:
+[`helpers/agents-sync-config.md`](helpers/agents-sync-config.md).
+
+If the helper prints `No changes required` with no advisories, the config
+is already in sync — carry on. If it lists `[REDUNDANT]` rows, you may
+optionally delete those keys from `.agentrc.json` by hand (commit
+alongside the bump in Step 5) for a leaner config. If it exits non-zero,
+fix the validation error and re-run before proceeding.
 
 ## Step 3.5 — Upgrade the stabilized-quality-gates surface (Epic #1386)
 
