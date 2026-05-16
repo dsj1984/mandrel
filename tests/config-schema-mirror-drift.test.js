@@ -319,6 +319,105 @@ describe('agentrc.schema.json mirror — drift vs runtime AJV schema', () => {
     );
   });
 
+  it('accepts a floors.paths bag with mandatory follow_up (Story #2029)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              coverage: {
+                baselinePath: 'baselines/coverage.json',
+                floors: {
+                  '*': { lines: 90, branches: 85, functions: 90 },
+                  paths: {
+                    'src/example.js': { lines: 80, follow_up: '#1234' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      'floors.paths with follow_up issue ref',
+    );
+  });
+
+  it('accepts a floors.paths follow_up as an HTTPS URL (Story #2029)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              crap: {
+                baselinePath: 'baselines/crap.json',
+                floors: {
+                  '*': { crap: 20 },
+                  paths: {
+                    'src/example.js': {
+                      crap: 30,
+                      follow_up: 'https://example.com/track/1',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      'floors.paths with follow_up URL',
+    );
+  });
+
+  it('rejects a floors.paths entry missing follow_up (Story #2029)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              maintainability: {
+                baselinePath: 'baselines/maintainability.json',
+                floors: {
+                  '*': { maintainability: 70 },
+                  paths: {
+                    'src/example.js': { maintainability: 50 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      'floors.paths entry without follow_up must reject',
+    );
+  });
+
+  it('rejects a floors.paths entry with malformed follow_up (Story #2029)', () => {
+    assertAgree(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              coverage: {
+                baselinePath: 'baselines/coverage.json',
+                floors: {
+                  '*': { lines: 90 },
+                  paths: {
+                    'src/example.js': { lines: 80, follow_up: 'oops' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      'floors.paths follow_up pattern enforcement',
+    );
+  });
+
   it('rejects coveragePath on the CRAP gate (moved to coverage)', () => {
     assertAgree(
       {
