@@ -21,14 +21,6 @@
  * pin behaviour without spawning the close script.
  */
 
-import {
-  buildDefaultGates as defaultBuildDefaultGates,
-  formatMaintainabilityProjection as defaultFormatMaintainabilityProjection,
-  projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions,
-  runCloseValidation as defaultRunCloseValidation,
-} from '../../close-validation.js';
-import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
-import { Logger as DefaultLogger } from '../../Logger.js';
 // Story #1973 / Task #1985 — direct import from the maintainability per-kind
 // module under `.agents/scripts/lib/baselines/kinds/`. Replaces the historical
 // `child_process.spawn(node check-maintainability.js)` arm of this helper:
@@ -37,6 +29,14 @@ import { Logger as DefaultLogger } from '../../Logger.js';
 // no-spawn spy proves the projection path never reaches a per-kind CLI
 // subprocess.
 import * as maintainabilityKind from '../../baselines/kinds/maintainability.js';
+import {
+  buildDefaultGates as defaultBuildDefaultGates,
+  formatMaintainabilityProjection as defaultFormatMaintainabilityProjection,
+  projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions,
+  runCloseValidation as defaultRunCloseValidation,
+} from '../../close-validation.js';
+import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
+import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
  * Run the pre-merge validation gate chain. On failure throws an `Error`

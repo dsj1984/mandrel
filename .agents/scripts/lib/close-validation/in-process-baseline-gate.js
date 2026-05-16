@@ -155,11 +155,7 @@ export function buildInProcessBaselineGate({
   }
   const baselineRel = resolveBaselineRelativePath(kind, agentSettings);
 
-  return async function runInProcessBaselineGate(
-    _cmd,
-    _args,
-    runOpts = {},
-  ) {
+  return async function runInProcessBaselineGate(_cmd, _args, runOpts = {}) {
     const cwd = runOpts.cwd ?? process.cwd();
     const log =
       typeof runOpts.log === 'function'
