@@ -366,12 +366,6 @@ tree; child-reported `--no-ff` recovery, stash dance, or out-of-band
 merge surgery; child closes via `--skipValidation`; force-pushing or
 empty-committing to dodge CI diagnosis.
 
-> **`--skipValidation` carve-out.** While the
-> `baseline-drift-main-checkout` gate remains in the close path, every
-> story closes via the programmatic skip path; treating that as an
-> intervention would prevent auto-merge from ever firing. Tighten the
-> predicate once the underlying gate is fixed.
-
 ---
 
 ## Phase 8 — Local branch cleanup
