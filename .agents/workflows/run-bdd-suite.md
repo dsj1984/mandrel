@@ -113,22 +113,6 @@ If the run was triggered from an Epic-testing context, follow
 [`helpers/epic-testing.md`](helpers/epic-testing.md) for where to attach
 the report and how to transition the ticket.
 
-## Relationship to `run-test-plan.md`
-
-`/run-bdd-suite` **supplements** `/run-test-plan`, it does not replace it.
-
-- `/run-test-plan` remains the end-to-end orchestrator for a Story or Epic's
-  full test plan. It may invoke `/run-bdd-suite` as the acceptance-layer step
-  of a broader plan that also covers unit and contract tiers (per
-  `.agents/rules/testing-standards.md`).
-- `/run-bdd-suite` is the focused, tag-filtered acceptance run. Use it
-  directly when you only need a slice of the suite — a smoke pass, a
-  risk-high regression, or a single domain — without reconstructing the full
-  test plan.
-
-When in doubt, prefer `/run-test-plan` for sprint closure and
-`/run-bdd-suite` for targeted iteration.
-
 ## Constraints
 
 - **Never** embed SQL, HTTP status codes, DOM/CSS/XPath selectors, or other

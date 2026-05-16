@@ -14,9 +14,8 @@ local and `origin/` branches for the Epic and its full hierarchy.
 > **Worktree-only scope.** This workflow does **not** close, label, or
 > otherwise mutate GitHub tickets. It also does not invoke any
 > `ITicketingProvider`. Issue lifecycle (closure, cascade, agent::done
-> labels) is owned by `story-close.js` / `epic-deliver-finalize.js`. If you
-> need to also reset the ticket state, use [`/delete-epic-tickets`](delete-epic-tickets.md)
-> as a separate, explicit step.
+> labels) is owned by `story-close.js` / `epic-deliver-finalize.js` —
+> there is no separate ticket-reset workflow.
 
 The enumeration + deletion logic lives in
 [`delete-epic-branches.js`](../scripts/delete-epic-branches.js) — this
