@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import { loadCrapBaseline, parseArgv } from '../.agents/scripts/check-crap.js';
 import { clearBaselineCache } from '../.agents/scripts/lib/baseline-loader.js';
-import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
+import { loadCrapBaseline } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 
 /**
  * Story #1120 — assert check-crap reads its baseline envelope at the
@@ -21,16 +20,6 @@ const VALID_BASELINE = {
 describe('check-crap — --epic-ref (Story #1120)', () => {
   afterEach(() => {
     clearBaselineCache();
-  });
-
-  it('parseArgv picks up --epic-ref', () => {
-    const out = parseArgv(['--epic-ref', 'epic/1114', '--changed-since']);
-    assert.equal(out.epicRef, 'epic/1114');
-  });
-
-  it('parseArgv leaves epicRef null when --epic-ref is absent', () => {
-    const out = parseArgv([]);
-    assert.equal(out.epicRef, null);
   });
 
   it('loadCrapBaseline calls the fs reader when no epicRef is set (legacy)', () => {
@@ -124,15 +113,8 @@ describe('check-crap — --epic-ref (Story #1120)', () => {
     assert.deepEqual(out, VALID_BASELINE);
   });
 
-  it('buildDefaultGates threads epic ref into the CRAP gate args', () => {
-    const gates = buildDefaultGates({ epicBranch: 'epic/1114' });
-    const crap = gates.find((g) => g.name === 'check-crap');
-    assert.ok(crap);
-    assert.deepEqual(crap.args, [
-      '.agents/scripts/check-crap.js',
-      '--epic-ref',
-      'epic/1114',
-      '--full-scope',
-    ]);
-  });
+  // Epic #1943 / Story #1981: the CLI args contract this test pinned no
+  // longer applies — `buildDefaultGates` migrated to in-process per-kind
+  // gates that import `compare(head, base)` directly. The epic-ref reads
+  // are still validated by the loadCrapBaseline tests above.
 });

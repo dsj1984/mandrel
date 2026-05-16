@@ -683,6 +683,12 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       },
       fsImpl: {
         readFileSync: () => '{}',
+        // Story #1974 (Epic #1943): the rewriteBaselinesWithScopeMerge
+        // path now writes back the merged envelope; the test mock needs
+        // mkdirSync/writeFileSync as no-ops so the code can complete
+        // without touching the real fs.
+        mkdirSync: () => {},
+        writeFileSync: () => {},
       },
       appendSignal: async () => true,
       forEachLine: async () => {},

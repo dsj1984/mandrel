@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T02:27:33.318Z",
+  "generatedAt": "2026-05-16T02:52:30.768Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.218,
-      "p95": 121.479
+      "p50": 102.926,
+      "p95": 121.235
     }
   },
   "rows": [
@@ -32,27 +32,11 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "mi": 87.465
-    },
-    {
-      "path": ".agents/scripts/check-coverage-baseline.js",
-      "mi": 89.836
-    },
-    {
-      "path": ".agents/scripts/check-crap.js",
-      "mi": 86.48
+      "mi": 93.145
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
       "mi": 92.663
-    },
-    {
-      "path": ".agents/scripts/check-maintainability.js",
-      "mi": 94.634
-    },
-    {
-      "path": ".agents/scripts/check-mutation.js",
-      "mi": 84.36
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -243,8 +227,24 @@
       "mi": 92.597
     },
     {
+      "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
+      "mi": 99.913
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/env-overrides.js",
+      "mi": 86.705
+    },
+    {
       "path": ".agents/scripts/lib/baselines/envelope.js",
       "mi": 97.507
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/exit-codes.js",
+      "mi": 102.038
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/git-base.js",
+      "mi": 106.692
     },
     {
       "path": ".agents/scripts/lib/baselines/kernel.js",
@@ -252,43 +252,51 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/bundle-size.js",
-      "mi": 110.793
+      "mi": 95.662
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/coverage.js",
-      "mi": 109.327
+      "mi": 99.926
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 106.519
+      "mi": 91.897
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
-      "mi": 105.05
+      "mi": 97.98
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lint.js",
-      "mi": 110.422
+      "mi": 94.837
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "mi": 115.882
+      "mi": 99.789
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
-      "mi": 110.321
+      "mi": 98.147
     },
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
       "mi": 101.232
     },
     {
+      "path": ".agents/scripts/lib/baselines/preview-gates.js",
+      "mi": 80.899
+    },
+    {
       "path": ".agents/scripts/lib/baselines/reader.js",
       "mi": 94.538
     },
     {
+      "path": ".agents/scripts/lib/baselines/scope.js",
+      "mi": 97.326
+    },
+    {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 98.659
+      "mi": 97.328
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -396,7 +404,11 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 95.307
+      "mi": 94.488
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/in-process-baseline-gate.js",
+      "mi": 95.522
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -428,7 +440,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 48.292
+      "mi": 46.73
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -456,7 +468,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 82.673
+      "mi": 84.005
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
@@ -488,7 +500,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
-      "mi": 98.331
+      "mi": 97.505
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
@@ -912,7 +924,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "mi": 88.008
+      "mi": 87.661
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
@@ -956,7 +968,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
-      "mi": 100.439
+      "mi": 99.746
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-executor.js",
@@ -1356,7 +1368,7 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "mi": 91.369
+      "mi": 95.526
     },
     {
       "path": ".agents/scripts/quality-watch.js",
@@ -1376,7 +1388,7 @@
     },
     {
       "path": ".agents/scripts/run-coverage.js",
-      "mi": 96.35
+      "mi": 96.282
     },
     {
       "path": ".agents/scripts/run-lint.js",
@@ -1436,19 +1448,19 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "mi": 103.966
+      "mi": 97.996
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 91.46
+      "mi": 89.335
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
-      "mi": 110.182
+      "mi": 105.995
     },
     {
       "path": ".agents/scripts/update-mutation-baseline.js",
-      "mi": 91.392
+      "mi": 89.692
     },
     {
       "path": ".agents/scripts/update-self.js",
@@ -1472,7 +1484,11 @@
     },
     {
       "path": "tests/absolute-floor-gate-rejects-subfloor.test.js",
-      "mi": 111.832
+      "mi": 107.622
+    },
+    {
+      "path": "tests/agentrc-required-checks.test.js",
+      "mi": 118.248
     },
     {
       "path": "tests/analyze-execution.test.js",
@@ -1531,8 +1547,56 @@
       "mi": 114.631
     },
     {
+      "path": "tests/baselines/exit-codes.test.js",
+      "mi": 117.111
+    },
+    {
+      "path": "tests/baselines/git-base.test.js",
+      "mi": 108.89
+    },
+    {
       "path": "tests/baselines/kernel.test.js",
       "mi": 120.671
+    },
+    {
+      "path": "tests/baselines/kinds/applyEpsilon.test.js",
+      "mi": 106.879
+    },
+    {
+      "path": "tests/baselines/kinds/bundle-size.compare.test.js",
+      "mi": 107.949
+    },
+    {
+      "path": "tests/baselines/kinds/coverage.compare.test.js",
+      "mi": 105.744
+    },
+    {
+      "path": "tests/baselines/kinds/crap.compare.test.js",
+      "mi": 106.3
+    },
+    {
+      "path": "tests/baselines/kinds/lighthouse.compare.test.js",
+      "mi": 106.937
+    },
+    {
+      "path": "tests/baselines/kinds/lint.compare.test.js",
+      "mi": 100.546
+    },
+    {
+      "path": "tests/baselines/kinds/maintainability.compare.test.js",
+      "mi": 106.613
+    },
+    {
+      "path": "tests/baselines/kinds/mergeRows.test.js",
+      "mi": 103.132
+    },
+    {
+      "path": "tests/baselines/kinds/mutation.compare.test.js",
+      "mi": 108.778
+    },
+    {
+      "path": "tests/baselines/kinds/purity.test.js",
+      "mi": 99.857
     },
     {
       "path": "tests/baselines/path-canon.test.js",
@@ -1547,8 +1611,20 @@
       "mi": 102.675
     },
     {
+      "path": "tests/baselines/scope.test.js",
+      "mi": 106.527
+    },
+    {
       "path": "tests/baselines/shipped-baselines-idempotency.test.js",
       "mi": 101.509
+    },
+    {
+      "path": "tests/baselines/writer-epsilon.test.js",
+      "mi": 108.604
+    },
+    {
+      "path": "tests/baselines/writer-scope.test.js",
+      "mi": 102.491
     },
     {
       "path": "tests/baselines/writer.test.js",
@@ -1584,19 +1660,23 @@
     },
     {
       "path": "tests/check-baselines-branch-protection.test.js",
-      "mi": 117.118
+      "mi": 116.841
     },
     {
-      "path": "tests/check-baselines-cli-read-surface.test.js",
-      "mi": 121.336
+      "path": "tests/check-baselines-dispatch-pipeline.test.js",
+      "mi": 102.296
+    },
+    {
+      "path": "tests/check-baselines-exit-codes.test.js",
+      "mi": 98.684
+    },
+    {
+      "path": "tests/check-baselines-friction.test.js",
+      "mi": 98.03
     },
     {
       "path": "tests/check-baselines-pre-merge-wiring.test.js",
       "mi": 114.195
-    },
-    {
-      "path": "tests/check-crap-changed-since.test.js",
-      "mi": 102.297
     },
     {
       "path": "tests/check-crap-env-overrides.test.js",
@@ -1604,35 +1684,23 @@
     },
     {
       "path": "tests/check-crap-epic-ref.test.js",
-      "mi": 116.196
+      "mi": 116.289
     },
     {
       "path": "tests/check-crap-json.test.js",
       "mi": 87.345
     },
     {
-      "path": "tests/check-crap.test.js",
-      "mi": 89.75
-    },
-    {
       "path": "tests/check-dead-exports.test.js",
       "mi": 93.641
     },
     {
-      "path": "tests/check-maintainability-changed-since.test.js",
-      "mi": 112.589
-    },
-    {
       "path": "tests/check-maintainability-epic-ref.test.js",
-      "mi": 116.954
+      "mi": 116.938
     },
     {
       "path": "tests/check-maintainability-json.test.js",
       "mi": 96.125
-    },
-    {
-      "path": "tests/check-mutation.test.js",
-      "mi": 110.28
     },
     {
       "path": "tests/check-version-sync.test.js",
@@ -1652,7 +1720,7 @@
     },
     {
       "path": "tests/close-validation-mi-projection.test.js",
-      "mi": 110.037
+      "mi": 110.031
     },
     {
       "path": "tests/concurrency-wiring.test.js",
@@ -1679,12 +1747,24 @@
       "mi": 123.149
     },
     {
+      "path": "tests/config/quality-epsilon.test.js",
+      "mi": 120.896
+    },
+    {
       "path": "tests/config/sync-agentrc.test.js",
       "mi": 104.567
     },
     {
       "path": "tests/context-hydrator.test.js",
       "mi": 100.176
+    },
+    {
+      "path": "tests/contract/check-baselines-kernel-mismatch.test.js",
+      "mi": 99.205
+    },
+    {
+      "path": "tests/contract/check-baselines-regression.test.js",
+      "mi": 97.147
     },
     {
       "path": "tests/coverage-baseline-noise-tolerance.test.js",
@@ -1940,7 +2020,7 @@
     },
     {
       "path": "tests/gate-integration.test.js",
-      "mi": 94.244
+      "mi": 113.801
     },
     {
       "path": "tests/gate-json-byte-stability.test.js",
@@ -2104,7 +2184,7 @@
     },
     {
       "path": "tests/lib/close-validation-gate-helpers.test.js",
-      "mi": 117.311
+      "mi": 113.133
     },
     {
       "path": "tests/lib/close-validation-gh-spawn-count.test.js",
@@ -2455,6 +2535,10 @@
       "mi": 91.294
     },
     {
+      "path": "tests/lib/orchestration/story-close/auto-refresh-runner-scope.test.js",
+      "mi": 96.358
+    },
+    {
       "path": "tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js",
       "mi": 98.849
     },
@@ -2480,7 +2564,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
-      "mi": 114.251
+      "mi": 114.385
     },
     {
       "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
@@ -2848,7 +2932,7 @@
     },
     {
       "path": "tests/quality-preview.test.js",
-      "mi": 92.429
+      "mi": 97.062
     },
     {
       "path": "tests/quality-watch.test.js",
@@ -2881,18 +2965,6 @@
     {
       "path": "tests/scripts/check-baselines.test.js",
       "mi": 103.821
-    },
-    {
-      "path": "tests/scripts/check-coverage-baseline.test.js",
-      "mi": 114.878
-    },
-    {
-      "path": "tests/scripts/check-crap.test.js",
-      "mi": 110.884
-    },
-    {
-      "path": "tests/scripts/check-maintainability.test.js",
-      "mi": 115.025
     },
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
@@ -3149,6 +3221,10 @@
     {
       "path": "tests/ticketing-provider.test.js",
       "mi": 113.446
+    },
+    {
+      "path": "tests/update-baseline-flags.test.js",
+      "mi": 101.964
     },
     {
       "path": "tests/validate-docs-freshness.test.js",

@@ -14,6 +14,8 @@
 
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
+import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   buildScopePredicate,
   COVERAGE_BASELINE_PATH,
@@ -42,14 +44,25 @@ function main() {
   }
 
   const c8Config = loadC8Scope(cwd);
-  const scope = buildScopePredicate({
+  const c8Scope = buildScopePredicate({
     include: c8Config.include ?? [],
     exclude: c8Config.exclude ?? [],
   });
-  const scores = scoreCoverageFinal({ raw, cwd, scope });
+  const scores = scoreCoverageFinal({ raw, cwd, scope: c8Scope });
   const fileCount = Object.keys(scores).length;
 
-  const abs = writeBaseline(cwd, scores);
+  // Story #1974: epsilon-by-default + opt-in `--diff-scope <ref>` (out-of-
+  // scope rows preserved verbatim from the prior on-disk envelope).
+  const diffScope = resolveDiffScope({ argv: process.argv.slice(2), cwd });
+  if (diffScope) {
+    Logger.info(
+      `[Coverage] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope.`,
+    );
+  }
+  const abs = writeBaseline(cwd, scores, undefined, {
+    epsilon: getBaselineEpsilon('coverage', null),
+    scope: diffScope?.scope,
+  });
   Logger.info(
     `[Coverage] ✅ Baseline updated: ${fileCount} file(s) recorded at ${COVERAGE_BASELINE_PATH} (${abs}).`,
   );

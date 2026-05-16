@@ -51,12 +51,40 @@ import { assertCanonical } from './path-canon.js';
  * (no disk I/O). Callers feed the result into `writeFile()` when they're
  * ready to persist.
  *
+ * Story #1964 (s-stability-epsilon) added the optional `prior` and
+ * `epsilon` parameters. When both are present, the writer calls the
+ * per-kind `applyEpsilon(prior, regenerated, epsilon)` stabilizer
+ * **after** projection but **before** sort/rollup/serialise. Sub-epsilon
+ * row deltas resolve to the prior bytes, so env variance never rewrites
+ * the on-disk envelope. When either is absent (`undefined`), behaviour is
+ * unchanged from the pre-#1964 contract — this is regression-fail-safe by
+ * design so existing call sites stay untouched.
+ *
+ * Story #1974 (s-diff-scoped-writes) added the optional `scope` parameter.
+ * When `scope` is present *and* `prior` is supplied, the writer calls the
+ * per-kind `mergeRows(prior, projected, scope)` filter **after** projection
+ * but **before** `applyEpsilon`. The composition is intentional: scope-
+ * filter first (preserve out-of-scope prior rows verbatim), then stabilise
+ * the in-scope rows against the same prior under epsilon. The merged result
+ * is sorted, rolled up, and serialised exactly as before. When `scope` is
+ * absent (or `prior` is absent), behaviour is unchanged from the pre-#1974
+ * contract — also regression-fail-safe.
+ *
+ * `prior` MUST be an array of already-canonical rows (typically the
+ * `rows[]` from the previous envelope on disk). Passing raw, un-projected
+ * rows is a programming error: the lookup matches by the canonical key
+ * field, so non-canonical paths simply miss the prior map and fall
+ * through to the regenerated row.
+ *
  * @param {{
  *   kind: string,
  *   rows: Array<object>,
  *   components?: Array<object>,
  *   kernelVersion?: string,
  *   generatedAt?: string,
+ *   prior?: Array<object>,
+ *   epsilon?: number,
+ *   scope?: {mode: 'full'|'diff', files: Set<string>|Iterable<string>}|null,
  * }} params
  * @returns {object}
  */
@@ -66,6 +94,9 @@ export function write({
   components,
   kernelVersion,
   generatedAt,
+  prior,
+  epsilon,
+  scope,
 } = {}) {
   if (typeof kind !== 'string' || kind.length === 0) {
     throw new TypeError('writer.write: kind is required');
@@ -102,7 +133,10 @@ export function write({
     });
   }
 
-  const sortedRows = mod.sortRows(projected);
+  const merged = scopeMergeRows(mod, projected, prior, scope);
+  const stabilised = stabiliseRows(mod, merged, prior, epsilon);
+
+  const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
 
   // The rollup() implementations always seed `*` from `aggregate()`, but
@@ -162,4 +196,42 @@ export function writeFile(absPath, envelope) {
   fs.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
   fs.renameSync(tmpPath, absPath);
   return absPath;
+}
+
+/**
+ * Story #1974 — s-diff-scoped-writes scope-merge dispatch. When `scope` is
+ * present, defer to the per-kind `mergeRows(prior, projected, scope)` to
+ * preserve out-of-scope prior rows verbatim. Returns `projected` unchanged
+ * when `scope` is omitted, when the kind doesn't ship the merger
+ * (forward-compatible), or when `prior` is absent (nothing to preserve).
+ */
+function scopeMergeRows(mod, projected, prior, scope) {
+  if (scope === undefined || scope === null) return projected;
+  if (typeof mod.mergeRows !== 'function') return projected;
+  // mergeRows treats null/undefined/empty prior as "no preservation needed"
+  // and returns projected verbatim — that branch is covered upstream and
+  // here for symmetry.
+  return mod.mergeRows(prior ?? [], projected, scope);
+}
+
+/**
+ * Story #1964 — s-stability-epsilon stabilizer dispatch. When both
+ * `prior` and `epsilon` are present, fold sub-epsilon row deltas back to
+ * the prior bytes via the per-kind `applyEpsilon`. Returns `projected`
+ * unchanged when either is omitted, or when the kind doesn't ship the
+ * stabilizer (forward-compatible).
+ */
+function stabiliseRows(mod, projected, prior, epsilon) {
+  if (prior === undefined || epsilon === undefined) return projected;
+  if (!Array.isArray(prior)) {
+    throw new TypeError('writer.write: prior must be an array when provided');
+  }
+  if (typeof epsilon !== 'number' || !Number.isFinite(epsilon) || epsilon < 0) {
+    throw new TypeError(
+      `writer.write: epsilon must be a non-negative finite number (got ${JSON.stringify(epsilon)})`,
+    );
+  }
+  return typeof mod.applyEpsilon === 'function'
+    ? mod.applyEpsilon(prior, projected, epsilon)
+    : projected;
 }

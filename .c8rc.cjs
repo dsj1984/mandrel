@@ -4,9 +4,10 @@
  * Source of truth for the coverage **scope** (include/exclude) and the
  * c8 reporters. The numeric coverage gate is no longer expressed here —
  * it lives per-file in [`baselines/coverage.json`](./baselines/coverage.json),
- * checked by `.agents/scripts/check-coverage-baseline.js` and updated
- * via `npm run coverage:update`. See [`docs/quality-gates.md`](./docs/quality-gates.md)
- * for the full ratchet workflow.
+ * checked by `.agents/scripts/check-baselines.js` (coverage kind) and
+ * updated via `npm run coverage:update`. See
+ * [`docs/quality-gates.md`](./docs/quality-gates.md) for the full ratchet
+ * workflow.
  *
  * The `exclude` list below removes thin CLI shells whose meaningful
  * logic lives in `lib/` (which the per-file baseline still scores).
@@ -54,11 +55,10 @@
  * surface. Per-file rationale lives in the `node:coverage ignore file`
  * pragma at the top of each source file; aggregate categories:
  *
- *   Top-level CLI gates (lint/coverage/maintainability/crap baseline
- *   gates and `/git-merge-pr` step gates):
- *     audit-orchestrator.js, check-maintainability.js, check-crap.js,
- *     lint-baseline.js, git-pr-quality-gate.js, validate-docs-freshness.js,
- *     detect-merges.js
+ *   Top-level CLI gates (lint/baselines gate and `/git-merge-pr` step
+ *   gates):
+ *     audit-orchestrator.js, lint-baseline.js, git-pr-quality-gate.js,
+ *     validate-docs-freshness.js, detect-merges.js
  *
  *   Top-level orchestration CLIs (already pragma'd; promoted to the c8
  *   exclude list to keep `c8 report` and the per-file baseline in sync):
@@ -106,8 +106,6 @@ module.exports = {
     // Story #1702 — top-level CLI gates and orchestrators.
     '.agents/scripts/assert-branch.js',
     '.agents/scripts/audit-orchestrator.js',
-    '.agents/scripts/check-crap.js',
-    '.agents/scripts/check-maintainability.js',
     '.agents/scripts/detect-merges.js',
     '.agents/scripts/diagnose-friction.js',
     '.agents/scripts/dispatcher.js',

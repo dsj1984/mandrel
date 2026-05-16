@@ -1,15 +1,15 @@
 # `npm run lint` runs biome ci + markdownlint-cli2 in parallel (covers
 # lint + format check + import order).
 npm run lint
-# Diff against origin/main so the scope equals "unpushed commits"
-# regardless of how stale the local main ref is.
-npm run maintainability:check -- --changed-since origin/main
+# Scope is resolved by the unified dispatcher via
+# delivery.quality.gateScoping (.agentrc.json) — diffRef defaults to main.
+npm run maintainability:check
 # CI runs `npm audit --audit-level=high` on every PR and push-to-main.
 # Opt back in locally with `PREPUSH_AUDIT=1` when reviewing advisories.
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
   npm audit --audit-level=high
 fi
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
-npm run crap:check -- --changed-since origin/main
+npm run crap:check
 # CI is the authoritative `--full-scope` floor gate (coverage 90/85/90,
 # MI>=70, CRAP<=20). Local pre-push stays diff-scoped for speed.

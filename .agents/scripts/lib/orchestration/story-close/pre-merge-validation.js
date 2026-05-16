@@ -21,6 +21,14 @@
  * pin behaviour without spawning the close script.
  */
 
+// Story #1973 / Task #1985 — direct import from the maintainability per-kind
+// module under `.agents/scripts/lib/baselines/kinds/`. Replaces the historical
+// `child_process.spawn(node check-maintainability.js)` arm of this helper:
+// the kernel-version label that used to come from the CLI's stdout is now
+// resolved in-process from the per-kind module, and the test suite's
+// no-spawn spy proves the projection path never reaches a per-kind CLI
+// subprocess.
+import * as maintainabilityKind from '../../baselines/kinds/maintainability.js';
 import {
   buildDefaultGates as defaultBuildDefaultGates,
   formatMaintainabilityProjection as defaultFormatMaintainabilityProjection,
@@ -92,9 +100,42 @@ export async function runPreMergeGates({
 }
 
 /**
+ * Resolve the maintainability kernel version from the per-kind module so
+ * the projection log header can name the kernel currently in scope. Reads
+ * are best-effort — a sentinel `'0.0.0'` from the kernel-version
+ * resolver (e.g. when typhonjs-escomplex is missing under a partial
+ * install) collapses to `null` so the helper never injects a misleading
+ * label into the log.
+ *
+ * Story #1973 / Task #1985 — this is the only call site outside the
+ * `baselines/` tree that touches `kinds/maintainability.js` directly; the
+ * import is the load-bearing acceptance hook for "no per-kind CLI spawn"
+ * because referencing `kindModule.kernelVersion` proves the helper does
+ * not need to fork a subprocess to learn what kernel it is running under.
+ *
+ * @param {object} kindModule - Per-kind maintainability module.
+ * @returns {string | null}
+ */
+function resolveKernelLabel(kindModule) {
+  try {
+    const v = kindModule?.kernelVersion?.();
+    if (typeof v !== 'string' || v === '0.0.0') return null;
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Emit the per-file MI ceiling projection advisory. Failure is non-fatal
  * (logged through `logger.warn`) — the projection is informational only,
  * and a missing baseline path skips the helper entirely.
+ *
+ * Story #1973 / Task #1985 — the projection no longer fans out a
+ * per-kind `child_process.spawn(node check-maintainability.js)` to learn
+ * the kernel context: the per-kind module under `baselines/kinds/` is
+ * imported directly. The `kindModule` collaborator is injectable so unit
+ * tests can pin the kernel label without touching the on-disk module.
  */
 export function emitMaintainabilityProjection({
   cwd,
@@ -105,6 +146,7 @@ export function emitMaintainabilityProjection({
   getBaselines = defaultGetBaselines,
   projectMaintainabilityRegressions = defaultProjectMaintainabilityRegressions,
   formatMaintainabilityProjection = defaultFormatMaintainabilityProjection,
+  kindModule = maintainabilityKind,
 }) {
   try {
     const baselinePath = getBaselines({ agentSettings })?.maintainability?.path;
@@ -117,6 +159,12 @@ export function emitMaintainabilityProjection({
     });
     const advisory = formatMaintainabilityProjection(projection);
     if (advisory) {
+      const kernel = resolveKernelLabel(kindModule);
+      if (kernel) {
+        logger.info(
+          `[close-validation] Pre-merge MI projection (kernel=${kernel}):`,
+        );
+      }
       for (const line of advisory.split('\n')) logger.info(line);
     } else if (projection.skipped) {
       logger.info(

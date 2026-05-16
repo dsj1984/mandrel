@@ -6,6 +6,7 @@
  */
 
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'lighthouse';
 export const keyField = 'route';
@@ -68,9 +69,125 @@ export function rollup(rows, components = []) {
   return out;
 }
 
+/**
+ * Pure compare(head, base) for the lighthouse kind. Diffs rows by `route`.
+ *
+ * Higher score = better. A row regresses when any of performance,
+ * accessibility, bestPractices, or seo decreases vs the base. An
+ * improvement requires at least one score to increase and none to
+ * decrease. Otherwise the row is unchanged. New routes inherit a base of
+ * 100 for each axis (so lower scores register as regressions); dropped
+ * routes inherit a head of 100 (so a higher base registers as an
+ * improvement).
+ *
+ * No I/O. No process exit. No friction emission.
+ */
+const LH_AXES = ['performance', 'accessibility', 'bestPractices', 'seo'];
+
+export function compare(head, base) {
+  const headRows = Array.isArray(head?.rows) ? head.rows : [];
+  const baseRows = Array.isArray(base?.rows) ? base.rows : [];
+  const baseByKey = new Map();
+  for (const r of baseRows) baseByKey.set(r.route, r);
+  const seen = new Set();
+  const regressions = [];
+  const improvements = [];
+  const unchanged = [];
+  for (const h of headRows) {
+    seen.add(h.route);
+    const b = baseByKey.get(h.route) ?? perfectLighthouseRow(h.route);
+    classify(regressions, improvements, unchanged, h.route, h, b);
+  }
+  for (const b of baseRows) {
+    if (seen.has(b.route)) continue;
+    const h = perfectLighthouseRow(b.route);
+    classify(regressions, improvements, unchanged, b.route, h, b);
+  }
+  return { regressions, improvements, unchanged };
+}
+
+function perfectLighthouseRow(route) {
+  return {
+    route,
+    performance: 100,
+    accessibility: 100,
+    bestPractices: 100,
+    seo: 100,
+  };
+}
+
+function classify(regressions, improvements, unchanged, key, head, base) {
+  let down = false;
+  let up = false;
+  for (const axis of LH_AXES) {
+    const delta = (head[axis] ?? 0) - (base[axis] ?? 0);
+    if (delta < 0) down = true;
+    else if (delta > 0) up = true;
+  }
+  if (down) regressions.push({ key, head, base });
+  else if (up) improvements.push({ key, head, base });
+  else unchanged.push({ key, head, base });
+}
+
 function componentMatchesRoute(component, route) {
   if (!component || typeof component.includes !== 'string') return false;
   return (
     route === component.includes || route.startsWith(`${component.includes}/`)
   );
+}
+
+/**
+ * Pure stabilizer for s-stability-epsilon (Story #1964). Lighthouse rows
+ * match by `route`. The metric is the maximum absolute delta across the
+ * four scoring axes. Sub-epsilon deltas resolve to the prior bytes;
+ * missing-prior rows fall through.
+ *
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} prior
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} regenerated
+ * @param {number} epsilon non-negative absolute tolerance per axis
+ * @returns {Array<object>}
+ */
+export function applyEpsilon(prior, regenerated, epsilon) {
+  const priorRows = Array.isArray(prior) ? prior : [];
+  const regenRows = Array.isArray(regenerated) ? regenerated : [];
+  const eps = Number.isFinite(epsilon) && epsilon >= 0 ? epsilon : 0;
+  const priorByKey = new Map();
+  for (const r of priorRows) priorByKey.set(r.route, r);
+  return regenRows.map((row) => {
+    const p = priorByKey.get(row.route);
+    if (!p) return row;
+    let maxAxisDelta = 0;
+    for (const axis of LH_AXES) {
+      const d = Math.abs((row[axis] ?? 0) - (p[axis] ?? 0));
+      if (d > maxAxisDelta) maxAxisDelta = d;
+    }
+    return maxAxisDelta <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Lighthouse
+ * rows match by `route`. In diff mode, rows whose `route` is OUTSIDE
+ * `scope.files` are preserved from `prior` verbatim; in-scope rows come
+ * from `regenerated`. In full mode (or no scope), regenerated wins
+ * everywhere.
+ *
+ * Note: lighthouse routes are not file paths, so the scope filter only
+ * narrows naturally when callers seed `scope.files` with route strings.
+ * Auto-refresh callers using a Story file diff will see no in-scope rows
+ * and therefore preserve every prior row — which is the safe default for
+ * a baseline that is not file-derived.
+ *
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} prior
+ * @param {Array<{route: string, performance: number, accessibility: number, bestPractices: number, seo: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.route,
+  });
 }
