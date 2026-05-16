@@ -2,7 +2,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-
+import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
@@ -476,10 +476,14 @@ export async function regenerateMainFromTree({
     // Make scores cwd-relative so the on-disk shape matches the existing
     // baseline. saveBaseline sorts keys for determinism; mirror that here so
     // the byte-equality check below is meaningful.
+    // Story #2079: route every key through path-canon so a worktree-relative
+    // resolution (e.g. cwd = main checkout, scanned files inside a worktree)
+    // cannot leak `.worktrees/<workspace>/` into the on-disk baseline.
     const relScores = Object.create(null);
     for (const key of Object.keys(scores)) {
       const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
-      relScores[rel.split(path.sep).join('/')] = scores[key];
+      const posixRel = rel.split(path.sep).join('/');
+      relScores[canonicalisePath(posixRel)] = scores[key];
     }
     const sortedScores = Object.keys(relScores)
       .sort()

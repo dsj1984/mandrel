@@ -491,18 +491,31 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 
-  it('requires the catch-all key in floors', () => {
-    expectErrors(
-      {
-        ...REQ,
-        delivery: {
-          quality: {
-            gates: { coverage: { floors: { 'packages/web': { lines: 90 } } } },
+  // Story #2032 / Task #2041: `*` is no longer required on `floors`. Operators
+  // may omit it entirely, in which case the framework default (e.g. MI ≥ 70
+  // for the maintainability gate) applies and `floors.paths` carries the
+  // per-file escape valves.
+  it('accepts a floors block without the catch-all `*` key', () => {
+    const doc = {
+      ...REQ,
+      delivery: {
+        quality: {
+          gates: {
+            maintainability: {
+              floors: {
+                paths: {
+                  '.agents/scripts/quality-watch.js': {
+                    maintainability: 0,
+                    follow_up: '#2070',
+                  },
+                },
+              },
+            },
           },
         },
       },
-      /'\*'/,
-    );
+    };
+    assert.equal(validate(doc), true);
   });
 
   it('rejects flat scalar floors (legacy qualityFloors shape)', () => {

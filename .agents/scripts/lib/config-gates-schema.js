@@ -66,10 +66,43 @@ const TOLERANCE_SCHEMA = {
  * to enumerate them. Story #1892 / Task #1894 affirmed this contract:
  * the open-keyset shape is what unblocks the per-rollup floors that
  * land in S6.
+ *
+ * Story #2029 reserves the additional key `paths` for per-path
+ * escape-valve overrides. Each entry under `floors.paths.<repo-path>`
+ * carries a mandatory `follow_up` issue/URL reference plus optional
+ * relaxed values for coverage axes / maintainability / crap. The
+ * runtime loader in `lib/quality-floors.js` treats `paths` as a
+ * reserved key (not a workspace) and emits a per-record override Map.
+ */
+const PATH_OVERRIDE_ENTRY = {
+  type: 'object',
+  required: ['follow_up'],
+  properties: {
+    lines: { type: 'number' },
+    branches: { type: 'number' },
+    functions: { type: 'number' },
+    maintainability: { type: 'number' },
+    crap: { type: 'number' },
+    follow_up: { type: 'string', pattern: '^#\\d+$|^https?://' },
+  },
+  additionalProperties: false,
+};
+
+/**
+ * Story #2032 / Task #2041: `*` is no longer required. When omitted, the
+ * framework-default floor (e.g. MI ≥ 70 for maintainability) applies
+ * universally and `floors.paths` carries the per-file escape valves.
+ * Operators may still pin a project-wide `*` floor explicitly when they
+ * want a value other than the framework default.
  */
 const FLOORS_SCHEMA = {
   type: 'object',
-  required: ['*'],
+  properties: {
+    paths: {
+      type: 'object',
+      additionalProperties: PATH_OVERRIDE_ENTRY,
+    },
+  },
   additionalProperties: {
     type: 'object',
     additionalProperties: { type: 'number' },

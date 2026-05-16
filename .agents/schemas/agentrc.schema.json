@@ -270,7 +270,27 @@
     },
     "floors": {
       "type": "object",
-      "required": ["*"],
+      "properties": {
+        "paths": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["follow_up"],
+            "properties": {
+              "lines": { "type": "number" },
+              "branches": { "type": "number" },
+              "functions": { "type": "number" },
+              "maintainability": { "type": "number" },
+              "crap": { "type": "number" },
+              "follow_up": {
+                "type": "string",
+                "pattern": "^#\\d+$|^https?://"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": { "type": "number" }
@@ -322,7 +342,10 @@
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
         "components": { "$ref": "#/$defs/components" },
-        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" },
+        "targetDirs": {
+          "$ref": "#/$defs/listOrExtenderOfStrings",
+          "description": "Directories whose JS sources the CRAP gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal."
+        },
         "newMethodCeiling": { "type": "integer", "minimum": 1 },
         "requireCoverage": { "type": "boolean" },
         "friction": {
@@ -346,7 +369,10 @@
         "tolerance": { "$ref": "#/$defs/tolerance" },
         "floors": { "$ref": "#/$defs/floors" },
         "components": { "$ref": "#/$defs/components" },
-        "targetDirs": { "$ref": "#/$defs/listOrExtenderOfStrings" }
+        "targetDirs": {
+          "$ref": "#/$defs/listOrExtenderOfStrings",
+          "description": "Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal."
+        }
       },
       "additionalProperties": false
     },
