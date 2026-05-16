@@ -2,7 +2,7 @@
 description: Stage every untracked and modified file, then create a single conventional-commit on the current branch (no push).
 ---
 
-# /commit-all [Message]
+# /git-commit-all [Message]
 
 This is a compatibility alias for [`/git-push --no-push`](git-push.md) — it
 stages and commits all outstanding changes without pushing. See
