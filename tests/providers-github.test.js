@@ -276,7 +276,11 @@ describe('GitHubProvider — getEpic()', () => {
     assert.equal(epic.id, 10);
     assert.equal(epic.title, 'Epic: Build v5');
     assert.deepEqual(epic.labels, ['type::epic']);
-    assert.deepEqual(epic.linkedIssues, { prd: 11, techSpec: 12 });
+    assert.deepEqual(epic.linkedIssues, {
+      prd: 11,
+      techSpec: 12,
+      acceptanceSpec: null,
+    });
   });
 
   it('handles missing linked issues', async () => {
@@ -293,7 +297,11 @@ describe('GitHubProvider — getEpic()', () => {
     });
     const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
-    assert.deepEqual(epic.linkedIssues, { prd: null, techSpec: null });
+    assert.deepEqual(epic.linkedIssues, {
+      prd: null,
+      techSpec: null,
+      acceptanceSpec: null,
+    });
   });
 
   it('handles null body', async () => {
@@ -306,7 +314,11 @@ describe('GitHubProvider — getEpic()', () => {
     const provider = createTestProvider({ gh });
     const epic = await provider.getEpic(10);
     assert.equal(epic.body, '');
-    assert.deepEqual(epic.linkedIssues, { prd: null, techSpec: null });
+    assert.deepEqual(epic.linkedIssues, {
+      prd: null,
+      techSpec: null,
+      acceptanceSpec: null,
+    });
   });
 
   it('throws on API error', async () => {

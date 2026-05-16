@@ -95,7 +95,11 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
     });
     assert.strictEqual(epic.id, 100);
     assert.strictEqual(epic.title, 'Epic title');
-    assert.deepStrictEqual(epic.linkedIssues, { prd: 200, techSpec: 201 });
+    assert.deepStrictEqual(epic.linkedIssues, {
+      prd: 200,
+      techSpec: 201,
+      acceptanceSpec: null,
+    });
   });
 
   it('issueToEpic returns null linkedIssues when body has no PRD/TechSpec refs', () => {
@@ -107,7 +111,11 @@ describe('providers/github/mappers.js — REST payload shapes', () => {
       body: '',
       labels: [],
     });
-    assert.deepStrictEqual(epic.linkedIssues, { prd: null, techSpec: null });
+    assert.deepStrictEqual(epic.linkedIssues, {
+      prd: null,
+      techSpec: null,
+      acceptanceSpec: null,
+    });
   });
 
   it('issueToListItem mirrors issueToTicket without assignees', () => {
