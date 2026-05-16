@@ -185,7 +185,8 @@ describe('ticketing/state — transitionTicketState', () => {
       // Reset the ticket to the source state. For DONE we also flip the
       // GitHub state to `closed` so the reopen path is exercised.
       mock.tickets[10].labels = [fromState, 'type::task'];
-      mock.tickets[10].state = fromState === STATE_LABELS.DONE ? 'closed' : 'open';
+      mock.tickets[10].state =
+        fromState === STATE_LABELS.DONE ? 'closed' : 'open';
 
       await transitionTicketState(mock, 10, STATE_LABELS.BLOCKED);
 
