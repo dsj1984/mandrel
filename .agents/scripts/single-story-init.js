@@ -38,6 +38,7 @@
  * @see .agents/workflows/single-story-execute.md
  */
 
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
@@ -143,9 +144,20 @@ export async function runSingleStoryInit({
     // so stale local + origin refs do not accumulate across runs. The sweep
     // excludes the current run's `storyBranch` and never blocks init: any
     // sweep failure is logged but does not throw.
+    //
+    // Story #2011 hardens this surface in two ways:
+    //   - Per-candidate protection: branches with unpushed work, dirty
+    //     worktrees, or still-open Story tickets are skipped (and listed
+    //     in `sweep.protected` for the operator).
+    //   - Cross-session lock: a single lockfile under `tempRoot` prevents
+    //     two concurrent `/single-story-execute` invocations from racing.
     const sweepFn = injectedSweep ?? sweepMergedStoryBranches;
+    const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
+    const lockPath = path.resolve(cwd, tempRoot, 'single-story-sweep.lock');
+    const lockTimeoutMs =
+      orchestration?.worktreeIsolation?.sweepLockMs ?? 60_000;
     try {
-      const sweep = sweepFn({
+      const sweep = await sweepFn({
         cwd,
         baseBranch,
         currentStoryBranch: storyBranch,
@@ -153,16 +165,47 @@ export async function runSingleStoryInit({
           info: (m) => progress('CLEANUP', m),
           warn: (m) => progress('CLEANUP', `⚠️ ${m}`),
         },
+        protectionCtx: {
+          repoRoot: cwd,
+          gitSpawn,
+          ghRunner: (args, opts) => {
+            const result = spawnSync('gh', args, {
+              cwd: opts?.cwd ?? cwd,
+              encoding: 'utf-8',
+              shell: false,
+            });
+            if (result.status !== 0) {
+              throw new Error(
+                `gh ${args.join(' ')} exit ${result.status}: ${result.stderr ?? ''}`,
+              );
+            }
+            return result.stdout ?? '';
+          },
+          getTicket: (id) => provider.getTicket(id),
+        },
+        lockPath,
+        lockTimeoutMs,
       });
       if (sweep.error) {
         progress(
           'CLEANUP',
           `⚠️ sweep returned error (init continues): ${sweep.error}`,
         );
-      } else if (sweep.candidates > 0) {
+      } else if (sweep.skipped && sweep.reason) {
         progress(
           'CLEANUP',
-          `🧹 reaped ${sweep.localDeleted} local + ${sweep.remoteDeleted} remote story branch(es).`,
+          `⏭ sweep skipped (${sweep.reason}); init continues.`,
+        );
+      } else if (sweep.candidates > 0) {
+        const protectedNote =
+          sweep.protected && sweep.protected.length > 0
+            ? `; protected ${sweep.protected.length} (${sweep.protected
+                .map((p) => `${p.branch}:${p.reason}`)
+                .join(', ')})`
+            : '';
+        progress(
+          'CLEANUP',
+          `🧹 reaped ${sweep.localDeleted} local + ${sweep.remoteDeleted} remote story branch(es)${protectedNote}.`,
         );
       }
     } catch (err) {
