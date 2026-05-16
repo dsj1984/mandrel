@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/coverage.schema.json",
   "kernelVersion": "1.0.0",
-  "generatedAt": "2026-05-15T23:12:19.439Z",
+  "generatedAt": "2026-05-16T01:13:59.360Z",
   "rollup": {
     "*": {
-      "lines": 96.86,
-      "branches": 86.37,
-      "functions": 92.56
+      "lines": 96.81,
+      "branches": 86.39,
+      "functions": 92.44
     }
   },
   "rows": [
@@ -1701,6 +1701,12 @@
       "lines": 100,
       "branches": 100,
       "functions": 100
+    },
+    {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "lines": 82.21,
+      "branches": 91.57,
+      "functions": 55.56
     },
     {
       "path": ".agents/scripts/providers/github.js",
