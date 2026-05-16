@@ -59,7 +59,7 @@ const baseConfig = {
 
 describe('runEpicDeliverPrepare', () => {
   it('snapshots the epic, builds the DAG, initializes the checkpoint, and returns the plan', async () => {
-    const epic = { id: 100, labels: ['type::epic'] };
+    const epic = { id: 100, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
         id: 201,
@@ -130,7 +130,7 @@ describe('runEpicDeliverPrepare', () => {
   });
 
   it('builds the plan for a single-story Epic', async () => {
-    const epic = { id: 101, labels: ['type::epic'] };
+    const epic = { id: 101, labels: ['type::epic', 'acceptance::n-a'] };
     const descendants = [
       {
         id: 301,
@@ -150,7 +150,7 @@ describe('runEpicDeliverPrepare', () => {
   });
 
   it('throws when the Epic has no child stories', async () => {
-    const epic = { id: 102, labels: ['type::epic'] };
+    const epic = { id: 102, labels: ['type::epic', 'acceptance::n-a'] };
     const provider = createFakeProvider({ epic, descendants: [] });
     await assert.rejects(
       runEpicDeliverPrepare({
