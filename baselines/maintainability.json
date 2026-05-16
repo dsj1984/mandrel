@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T13:58:16.473Z",
+  "generatedAt": "2026-05-16T14:00:30.931Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -32,7 +32,7 @@
     },
     {
       "path": ".agents/scripts/check-baselines.js",
-      "mi": 93.799
+      "mi": 93.864
     },
     {
       "path": ".agents/scripts/check-dead-exports.js",
@@ -1740,7 +1740,7 @@
     },
     {
       "path": "tests/config-settings-schema.test.js",
-      "mi": 108.284
+      "mi": 108.466
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",
