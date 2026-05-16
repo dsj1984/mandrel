@@ -233,9 +233,7 @@ export async function planEpic(
   const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
   const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
   const allLinked =
-    hasPrd &&
-    hasTechSpec &&
-    (wantsAcceptanceSpec ? hasAcceptanceSpec : true);
+    hasPrd && hasTechSpec && (wantsAcceptanceSpec ? hasAcceptanceSpec : true);
   if (!force && allLinked) {
     Logger.warn(
       `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
@@ -527,9 +525,7 @@ export async function runSpecPhase(
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
   const acceptanceSummary =
-    acceptanceSpecId !== null
-      ? `, Acceptance Spec #${acceptanceSpecId}`
-      : '';
+    acceptanceSpecId !== null ? `, Acceptance Spec #${acceptanceSpecId}` : '';
   Logger.info(
     `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}${acceptanceSummary}.`,
   );

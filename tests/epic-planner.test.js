@@ -182,7 +182,8 @@ describe('epic-planner orchestration (v5.6+)', () => {
     await planEpic(1, mockProvider, {
       prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
-      acceptanceSpecContent: '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+      acceptanceSpecContent:
+        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
     });
 
     assert.equal(
@@ -197,10 +198,7 @@ describe('epic-planner orchestration (v5.6+)', () => {
       acceptanceCreation.ticketData.title,
       '[Acceptance Spec] Implement V5 Core',
     );
-    assert.match(
-      acceptanceCreation.ticketData.body,
-      /^## Acceptance Criteria/,
-    );
+    assert.match(acceptanceCreation.ticketData.body, /^## Acceptance Criteria/);
     assert.deepEqual(acceptanceCreation.ticketData.labels, [
       'context::acceptance-spec',
     ]);
