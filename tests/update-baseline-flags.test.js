@@ -37,7 +37,12 @@ describe('parseDiffScopeFlag', () => {
   it('parses `--diff-scope <ref>`', () => {
     assert.equal(parseDiffScopeFlag(['--diff-scope', 'main']), 'main');
     assert.equal(
-      parseDiffScopeFlag(['--baseline', 'x', '--diff-scope', 'origin/epic/123']),
+      parseDiffScopeFlag([
+        '--baseline',
+        'x',
+        '--diff-scope',
+        'origin/epic/123',
+      ]),
       'origin/epic/123',
     );
   });
@@ -200,9 +205,7 @@ describe('coverage writeBaseline — scope + epsilon wiring', () => {
       kernelVersion: '1.0.0',
       generatedAt: '2026-05-15T00:00:00Z',
       rollup: { '*': { lines: 0, branches: 0, functions: 0 } },
-      rows: [
-        { path: 'src/a.js', lines: 90, branches: 80, functions: 100 },
-      ],
+      rows: [{ path: 'src/a.js', lines: 90, branches: 80, functions: 100 }],
     };
     const fsImpl = makeFsShim({
       [baselineAbs]: JSON.stringify(priorEnvelope),

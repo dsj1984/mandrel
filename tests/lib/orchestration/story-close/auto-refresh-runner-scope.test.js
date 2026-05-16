@@ -158,13 +158,16 @@ describe('rewriteBaselinesWithScopeMerge — pure', () => {
       fsImpl,
     });
     const written = JSON.parse(fsImpl.store.get(CRAP_PATH));
-    assert.ok(
-      Array.isArray(written.rows),
-      'envelope rows[] must be present',
+    assert.ok(Array.isArray(written.rows), 'envelope rows[] must be present');
+    const byFile = Object.fromEntries(
+      written.rows.map((r) => [r.file, r.crap]),
     );
-    const byFile = Object.fromEntries(written.rows.map((r) => [r.file, r.crap]));
     assert.equal(byFile['a.js'], 12, 'in-scope crap row uses regen value');
-    assert.equal(byFile['b.js'], 8, 'out-of-scope crap row preserved from prior');
+    assert.equal(
+      byFile['b.js'],
+      8,
+      'out-of-scope crap row preserved from prior',
+    );
     // Envelope `$schema` / `kernelVersion` survived the rewrite.
     assert.equal(
       written.$schema,

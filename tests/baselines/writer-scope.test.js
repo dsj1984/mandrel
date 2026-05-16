@@ -44,8 +44,16 @@ describe('writer.write — scope parameter (Story #1974)', () => {
     });
     const byPath = Object.fromEntries(env.rows.map((r) => [r.path, r.mi]));
     assert.equal(byPath['src/a.js'], 90, 'in-scope row should be regenerated');
-    assert.equal(byPath['src/b.js'], 80, 'out-of-scope row preserved from prior');
-    assert.equal(byPath['src/c.js'], 65, 'out-of-scope row preserved from prior');
+    assert.equal(
+      byPath['src/b.js'],
+      80,
+      'out-of-scope row preserved from prior',
+    );
+    assert.equal(
+      byPath['src/c.js'],
+      65,
+      'out-of-scope row preserved from prior',
+    );
   });
 
   it('AC: omitting scope preserves current behaviour (regression-fail-safe)', () => {

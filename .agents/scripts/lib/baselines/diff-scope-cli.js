@@ -74,11 +74,10 @@ export function resolveDiffScopeFiles({
   spawnImpl = spawnSync,
 } = {}) {
   if (typeof ref !== 'string' || ref.length === 0) return new Set();
-  const res = spawnImpl(
-    'git',
-    ['diff', '--name-only', `${ref}...HEAD`],
-    { cwd, encoding: 'utf8' },
-  );
+  const res = spawnImpl('git', ['diff', '--name-only', `${ref}...HEAD`], {
+    cwd,
+    encoding: 'utf8',
+  });
   if (!res || res.status !== 0) return new Set();
   return new Set(
     (res.stdout || '')

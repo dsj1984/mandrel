@@ -276,9 +276,7 @@ export function mergeRowsByScope({
   // diff mode means "no files in scope" — every prior row is preserved
   // and every regen row is dropped (defensive: writer feeds in-scope rows).
   const filesSet =
-    scope.files instanceof Set
-      ? scope.files
-      : new Set(scope.files ?? []);
+    scope.files instanceof Set ? scope.files : new Set(scope.files ?? []);
 
   // In-scope regen rows: keep regen.
   const regenInScope = regenRows.filter((row) => filesSet.has(scopeKey(row)));

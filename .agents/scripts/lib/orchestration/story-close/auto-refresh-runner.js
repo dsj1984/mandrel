@@ -51,9 +51,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-refresh-baselines.js';
+import { regenerateMainFromTree as defaultRegenerateMainFromTree } from '../../baseline-snapshot.js';
 import * as crapKind from '../../baselines/kinds/crap.js';
 import * as miKind from '../../baselines/kinds/maintainability.js';
-import { regenerateMainFromTree as defaultRegenerateMainFromTree } from '../../baseline-snapshot.js';
 import { getBaselineEpsilon as defaultGetBaselineEpsilon } from '../../config/quality.js';
 import {
   getBaselines as defaultGetBaselines,
