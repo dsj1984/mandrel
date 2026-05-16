@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T14:30:43.790Z",
+  "generatedAt": "2026-05-16T15:45:26.263Z",
   "rollup": {
     "*": {
       "min": 0,
       "p50": 102.991,
-      "p95": 121.235
+      "p95": 121.071
     }
   },
   "rows": [
@@ -29,6 +29,10 @@
     {
       "path": ".agents/scripts/audit-orchestrator.js",
       "mi": 97.27
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "mi": 90.765
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -317,6 +321,14 @@
     {
       "path": ".agents/scripts/lib/bootstrap/merge-methods.js",
       "mi": 88.908
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "mi": 88.638
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/prompt.js",
+      "mi": 81.839
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
@@ -1663,6 +1675,14 @@
       "mi": 106.594
     },
     {
+      "path": "tests/bootstrap/project-bootstrap.test.js",
+      "mi": 106.624
+    },
+    {
+      "path": "tests/bootstrap/prompt.test.js",
+      "mi": 120.14
+    },
+    {
       "path": "tests/bootstrap/quality-bootstrap.test.js",
       "mi": 99.581
     },
@@ -2076,7 +2096,7 @@
     },
     {
       "path": "tests/lib/baseline-snapshot.test.js",
-      "mi": 106.638
+      "mi": 107.462
     },
     {
       "path": "tests/lib/branch-name-guard.test.js",
