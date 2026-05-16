@@ -219,11 +219,7 @@ function rewriteBaselinesWithScopeMerge({
     const adaptedPrior = (priorCrap ?? []).map(adapt);
     const adaptedRegen = regenCrap.map(adapt);
     const merged = crapKind.mergeRows(adaptedPrior, adaptedRegen, scope);
-    const stabilised = crapKind.applyEpsilon(
-      adaptedPrior,
-      merged,
-      crapEpsilon,
-    );
+    const stabilised = crapKind.applyEpsilon(adaptedPrior, merged, crapEpsilon);
     emitCrapEnvelope(crapAbs, stabilised, fsImpl);
     out.crapRewritten = true;
   }
