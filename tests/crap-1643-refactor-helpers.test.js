@@ -4,11 +4,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import {
-  printRemovedRows,
-  printSummaryHeader,
-  printViolation,
-} from '../.agents/scripts/check-crap.js';
-import {
   classifyParsedReturn,
   countDoneStories,
   resolveConcurrencyCap,
@@ -17,6 +12,11 @@ import {
   validateResultsReturnsXor,
   validateReturnsEntry,
 } from '../.agents/scripts/epic-execute-record-wave.js';
+import {
+  printRemovedRows,
+  printSummaryHeader,
+  printViolation,
+} from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import {
   hasDegraded,
   hasImproved,

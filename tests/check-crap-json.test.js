@@ -3,7 +3,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import Ajv from 'ajv';
-import { buildCrapReport, compareCrap } from '../.agents/scripts/check-crap.js';
+import {
+  buildCrapReport,
+  compareCrap,
+} from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import { crapFormula } from '../.agents/scripts/lib/crap-engine.js';
 import { KERNEL_VERSION } from '../.agents/scripts/lib/crap-utils.js';
 

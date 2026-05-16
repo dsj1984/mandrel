@@ -1,7 +1,12 @@
 /* node:coverage ignore file -- top-level CLI gate; tested logic lives in lib/maintainability-engine.js + lib/gates/baseline-store.js */
 
 import path from 'node:path';
-import { readBaselineAtRef } from './lib/baseline-loader.js';
+import { resolveMaintainabilityEnvOverrides } from './lib/baselines/env-overrides.js';
+import {
+  buildMaintainabilityReport,
+  enforceMaintainabilityFloor,
+  loadMaintainabilityBaseline,
+} from './lib/baselines/kinds/maintainability.js';
 import { getChangedFiles } from './lib/changed-files.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
@@ -9,21 +14,22 @@ import {
   getQuality,
   resolveConfig,
 } from './lib/config-resolver.js';
-import { loadBaseline, writeBaseline } from './lib/gates/baseline-store.js';
+import { writeBaseline } from './lib/gates/baseline-store.js';
 import { emitFrictionSignal } from './lib/gates/friction.js';
 import { parseGateArgs, resolveScopedRef } from './lib/gates/gate-cli.js';
 import { Logger } from './lib/Logger.js';
-import {
-  calculateAll,
-  getBaseline,
-  scanDirectory,
-} from './lib/maintainability-utils.js';
-import {
-  applyFloorPolicy,
-  formatViolation,
-  loadFloorConfig,
-  parseFloorFlag,
-} from './lib/quality-floors.js';
+import { calculateAll, scanDirectory } from './lib/maintainability-utils.js';
+
+export { resolveMaintainabilityEnvOverrides } from './lib/baselines/env-overrides.js';
+// Story #1981, Task #1989: re-export hoisted helpers so any in-tree
+// consumer still importing from check-maintainability.js keeps working
+// until the CLI itself is deleted in Task #2006.
+export {
+  buildMaintainabilityReport,
+  enforceMaintainabilityFloor,
+  loadMaintainabilityBaseline,
+  MI_REPORT_KERNEL_VERSION,
+} from './lib/baselines/kinds/maintainability.js';
 
 /**
  * CI script to verify that maintainability scores haven't regressed.
@@ -41,70 +47,6 @@ import {
  * minus `fixGuidance`. The MI model is not amenable to the two-axis CRAP
  * decomposition, so per-violation guidance is intentionally absent.
  */
-
-// Framework default MI tolerance. Raised from 0.001 to 0.5 because real-world
-// noise (Node-version churn, escomplex internal updates, typhonjs-escomplex
-// rounding) routinely drifts +/- 0.05 to 0.3 on otherwise-unchanged files —
-// well below the threshold of "actually less maintainable." A 0.5 floor
-// stops the pre-push hook from auto-ratcheting the baseline on noise.
-// (The CI guardrail that mechanically flagged unlabeled baseline edits
-// was removed in 5.42; the floor stays because the underlying noise is
-// real.) Projects that want stricter MI tracking can override via
-// `agentSettings.quality.maintainability.tolerance` in `.agentrc.json`.
-const DEFAULT_TOLERANCE = 0.5;
-
-/**
- * Pure helper: resolve the effective MI tolerance by layering precedence:
- *   1. `CRAP_TOLERANCE` env-var (CI override — the baseline-refresh-
- *      guardrail uses this to force base-branch values on both gates).
- *   2. `agentSettings.quality.maintainability.tolerance` from the config.
- *   3. `DEFAULT_TOLERANCE` (0.5).
- *
- * Malformed env values warn and fall through to the next layer — a typo in
- * CI must never silently relax the gate, but it also must not skip the
- * configured project value.
- *
- * @param {NodeJS.ProcessEnv} env
- * @param {{ tolerance?: number }} [maintainabilityConfig]
- * @returns {{ tolerance: number, overrides: string[] }}
- */
-export function resolveMaintainabilityEnvOverrides(env, maintainabilityConfig) {
-  const overrides = [];
-  let tolerance = DEFAULT_TOLERANCE;
-  // Layer 2: config value (lower precedence than env, higher than default).
-  const configured = maintainabilityConfig?.tolerance;
-  if (
-    typeof configured === 'number' &&
-    Number.isFinite(configured) &&
-    configured >= 0
-  ) {
-    tolerance = configured;
-    overrides.push(
-      `tolerance=${configured} (quality.maintainability.tolerance)`,
-    );
-  }
-  // Layer 1: env override (highest precedence).
-  const raw = env?.CRAP_TOLERANCE;
-  if (raw !== undefined && raw !== '') {
-    const parsed = Number(raw);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      tolerance = parsed;
-      overrides.push(`tolerance=${parsed} (CRAP_TOLERANCE)`);
-    } else {
-      Logger.warn(
-        `[Maintainability] ⚠ ignoring malformed CRAP_TOLERANCE=${raw}; keeping ${tolerance}`,
-      );
-    }
-  }
-  return { tolerance, overrides };
-}
-
-// Envelope version for the --json parity output. Bump when the report shape
-// changes so downstream agent workflows can detect breaks without guessing.
-// 1.1.0 — TypeScript support landed in 5.29.0. Reports may now include rows
-// keyed on `.ts`/`.tsx` paths in addition to `.js`/`.mjs`/`.cjs`. Score
-// values for unchanged JS files are byte-identical across the bump.
-export const MI_REPORT_KERNEL_VERSION = '1.1.0';
 
 function compareScores(scores, baseline, tolerance) {
   let regressions = 0;
@@ -241,53 +183,6 @@ function parseJsonPathArg(argv = process.argv.slice(2)) {
   return parseGateArgs(argv).jsonPath;
 }
 
-/**
- * Build the MI parity envelope. Shape matches the CRAP `--json` output:
- *   { kernelVersion, summary, violations }
- * sans `fixGuidance` (MI scores don't decompose along the two CRAP axes).
- *
- * Story #1394: `summary` now carries `scope` ("diff" | "full") and `diffRef`
- * (the resolved git ref the diff was scoped against, or null for full-scope
- * runs). Downstream tooling (`quality-preview`, the auto-refresh evaluator)
- * needs the scope tag to decide whether the envelope can be merged with a
- * peer envelope from the other gate or whether a full-repo refresh just
- * happened.
- *
- * @param {Record<string, number>} scores current MI scores keyed by file
- * @param {{
- *   regressions: number,
- *   newFiles: number,
- *   improvements: number,
- *   regressedFiles: Array<{file: string, current: number, baseline: number, drop: number}>
- * }} stats
- * @param {{ scope?: 'diff' | 'full', diffRef?: string | null }} [scopeInfo]
- * @returns {{ kernelVersion: string, summary: object, violations: Array<object> }}
- */
-export function buildMaintainabilityReport(scores, stats, scopeInfo) {
-  const total = Object.keys(scores ?? {}).length;
-  const violations = (stats?.regressedFiles ?? []).map((r) => ({
-    file: r.file,
-    current: r.current,
-    baseline: r.baseline,
-    drop: r.drop,
-    kind: 'regression',
-  }));
-  const scope = scopeInfo?.scope === 'full' ? 'full' : 'diff';
-  const diffRef = scope === 'full' ? null : (scopeInfo?.diffRef ?? null);
-  return {
-    kernelVersion: MI_REPORT_KERNEL_VERSION,
-    summary: {
-      total,
-      regressions: stats?.regressions ?? 0,
-      newFiles: stats?.newFiles ?? 0,
-      improvements: stats?.improvements ?? 0,
-      scope,
-      diffRef,
-    },
-    violations,
-  };
-}
-
 async function emitRegressionFriction(storyId, epicId, regressedFiles, config) {
   if (regressedFiles.length === 0) return;
   await emitFrictionSignal({
@@ -321,46 +216,6 @@ function printSummaryReport(scores, stats) {
   Logger.info(`Improvements:        ${improvements}`);
   Logger.info(`New Files:           ${newFiles}`);
   Logger.info('------------------------------\n');
-}
-
-/** Thin wrapper: delegate to baseline-store with MI-specific defaults. */
-export function loadMaintainabilityBaseline({
-  baselinePath,
-  epicRef,
-  readBaseline = getBaseline,
-  readAtRef = readBaselineAtRef,
-  logger = console,
-}) {
-  const parsed = loadBaseline({
-    baselinePath,
-    epicRef,
-    readAtRef,
-    readFromTree: ({ baselinePath: p }) => readBaseline(p),
-    logger,
-    label: 'Maintainability',
-  });
-  // Epic-ref read may return a non-object — coerce to {} so downstream
-  // `Object.entries` / `Object.keys` never throws.
-  if (epicRef && (parsed === null || typeof parsed !== 'object')) return {};
-  // Story #1895: the on-disk baseline switched from the flat
-  // `{ path: mi }` map to the canonical envelope shape. Project envelope
-  // back to the legacy flat shape so downstream comparators keep working.
-  if (
-    parsed &&
-    typeof parsed === 'object' &&
-    !Array.isArray(parsed) &&
-    Array.isArray(parsed.rows) &&
-    typeof parsed.$schema === 'string'
-  ) {
-    const flat = {};
-    for (const row of parsed.rows) {
-      if (row && typeof row.path === 'string' && typeof row.mi === 'number') {
-        flat[row.path] = row.mi;
-      }
-    }
-    return flat;
-  }
-  return parsed;
 }
 
 async function main() {
@@ -413,7 +268,9 @@ async function main() {
     await handleRegression(stats, agentSettings);
   }
 
-  enforceMaintainabilityFloor(scores, process.argv.slice(2));
+  if (enforceMaintainabilityFloor(scores, process.argv.slice(2)) !== 0) {
+    process.exit(1);
+  }
 
   Logger.info('[Maintainability] ✅ Clean Code check passed.');
 }
@@ -516,35 +373,6 @@ function maybeWriteMaintainabilityReport({ scores, stats, resolvedScope }) {
       `[Maintainability] failed to write --json report: ${err?.message ?? err}`,
     );
   }
-}
-
-/**
- * Story #1602 — absolute MI floor (≥70 by default). Runs after the
- * ratchet check so a file that hasn't regressed but is still under
- * floor trips the gate. Opt-out: `--floor=off` for baseline-update runs.
- * Extracted from `main` to keep the orchestrator method's CRAP under the
- * v6 ceiling. Exported for regression tests that prove the floor gate
- * trips on a deliberately sub-floor file (Story #1709, Epic #1653).
- */
-export function enforceMaintainabilityFloor(scores, argv, options = {}) {
-  if (!parseFloorFlag(argv)) {
-    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
-    return;
-  }
-  const floors = options.floors ?? loadFloorConfig();
-  const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
-  const { violations } = applyFloorPolicy(records, floors, 'maintainability');
-  if (violations.length === 0) return;
-  Logger.error(
-    `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
-  );
-  for (const v of violations) {
-    Logger.error(`                ${formatViolation(v)}`);
-  }
-  Logger.error(
-    '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
-  );
-  process.exit(1);
 }
 
 runAsCli(import.meta.url, main, {

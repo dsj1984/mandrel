@@ -1,7 +1,9 @@
 import assert from 'node:assert';
 import { test } from 'node:test';
-import { resolveCrapEnvOverrides } from '../.agents/scripts/check-crap.js';
-import { resolveMaintainabilityEnvOverrides } from '../.agents/scripts/check-maintainability.js';
+import {
+  resolveCrapEnvOverrides,
+  resolveMaintainabilityEnvOverrides,
+} from '../.agents/scripts/lib/baselines/env-overrides.js';
 
 /**
  * Tests for the env-var override helpers. Originally added for the

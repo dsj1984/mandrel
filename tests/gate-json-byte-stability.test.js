@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { buildCrapReport, compareCrap } from '../.agents/scripts/check-crap.js';
-import { buildMaintainabilityReport } from '../.agents/scripts/check-maintainability.js';
+import {
+  buildCrapReport,
+  compareCrap,
+} from '../.agents/scripts/lib/baselines/kinds/crap.js';
+import { buildMaintainabilityReport } from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
 
 /**
  * Story #1476 — snapshot guard that the `--json` envelopes from the

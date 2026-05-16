@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import { loadCrapBaseline, parseArgv } from '../.agents/scripts/check-crap.js';
 import { clearBaselineCache } from '../.agents/scripts/lib/baseline-loader.js';
+import { loadCrapBaseline } from '../.agents/scripts/lib/baselines/kinds/crap.js';
 import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 
 /**
@@ -21,16 +21,6 @@ const VALID_BASELINE = {
 describe('check-crap — --epic-ref (Story #1120)', () => {
   afterEach(() => {
     clearBaselineCache();
-  });
-
-  it('parseArgv picks up --epic-ref', () => {
-    const out = parseArgv(['--epic-ref', 'epic/1114', '--changed-since']);
-    assert.equal(out.epicRef, 'epic/1114');
-  });
-
-  it('parseArgv leaves epicRef null when --epic-ref is absent', () => {
-    const out = parseArgv([]);
-    assert.equal(out.epicRef, null);
   });
 
   it('loadCrapBaseline calls the fs reader when no epicRef is set (legacy)', () => {
