@@ -70,9 +70,15 @@ export function rollup(rows, components = []) {
  * Pure compare(head, base) for the coverage kind. Diffs rows by `path`.
  * Higher percentages are better — a row regresses if any axis (lines,
  * branches, functions) drops vs base; improves if any axis rises with no
- * axis dropping; unchanged otherwise. New paths inherit a base of 100%
- * for each axis (so partial coverage on a new file lands as a
- * regression); dropped paths inherit a head of 100%.
+ * axis dropping; unchanged otherwise. New paths (head has a row that
+ * base lacks) land in the `additions` bucket; absolute-floor enforcement
+ * is the unified `check-baselines` gate's job and runs independently.
+ * Removed paths inherit a head of 100% so any lower base registers as
+ * an improvement.
+ *
+ * Story #2012 — sibling fix to maintainability.compare. The prior
+ * behaviour treated new paths as base=100% on every axis, so any partial
+ * coverage on a new file flipped to a regression.
  *
  * No I/O. No process exit. No friction emission.
  */
@@ -87,9 +93,14 @@ export function compare(head, base) {
   const regressions = [];
   const improvements = [];
   const unchanged = [];
+  const additions = [];
   for (const h of headRows) {
     seen.add(h.path);
-    const b = baseByKey.get(h.path) ?? perfectCoverageRow(h.path);
+    const b = baseByKey.get(h.path);
+    if (!b) {
+      additions.push({ key: h.path, head: h, base: null });
+      continue;
+    }
     classifyCoverage(regressions, improvements, unchanged, h.path, h, b);
   }
   for (const b of baseRows) {
@@ -97,7 +108,7 @@ export function compare(head, base) {
     const h = perfectCoverageRow(b.path);
     classifyCoverage(regressions, improvements, unchanged, b.path, h, b);
   }
-  return { regressions, improvements, unchanged };
+  return { regressions, improvements, unchanged, additions };
 }
 
 function perfectCoverageRow(path) {

@@ -132,7 +132,16 @@ export function rollup(rows, components = []) {
  *
  * Higher CRAP = worse. A row regresses when its crap score increases vs
  * base; improves when it decreases; unchanged when equal. New methods
- * with crap > 0 regress; removed methods with crap > 0 improve.
+ * land in the `additions` bucket; absolute-ceiling enforcement is the
+ * unified `check-baselines` gate's job (the per-method ceiling is a
+ * different concern from regression vs base). Removed methods with
+ * prior crap > 0 count as improvements.
+ *
+ * Story #2012 — sibling fix to maintainability.compare. The prior
+ * behaviour treated any new method with crap > 0 as a regression, which
+ * conflated "new code with a non-zero score" with "existing code that
+ * got worse". New methods are now `additions` so a Story that lands a
+ * new file no longer fails close-validation through the regression arm.
  *
  * No I/O. No process exit. No friction emission.
  */
@@ -145,13 +154,13 @@ export function compare(head, base) {
   const regressions = [];
   const improvements = [];
   const unchanged = [];
+  const additions = [];
   for (const h of headRows) {
     const key = crapRowKey(h);
     seen.add(key);
     const b = baseByKey.get(key);
     if (!b) {
-      if ((h.crap ?? 0) > 0) regressions.push({ key, head: h, base: null });
-      else unchanged.push({ key, head: h, base: null });
+      additions.push({ key, head: h, base: null });
       continue;
     }
     const delta = (h.crap ?? 0) - (b.crap ?? 0);
@@ -165,7 +174,7 @@ export function compare(head, base) {
     if ((b.crap ?? 0) > 0) improvements.push({ key, head: null, base: b });
     else unchanged.push({ key, head: null, base: b });
   }
-  return { regressions, improvements, unchanged };
+  return { regressions, improvements, unchanged, additions };
 }
 
 function crapRowKey(row) {
