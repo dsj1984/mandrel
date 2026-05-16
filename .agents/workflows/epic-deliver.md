@@ -73,24 +73,6 @@ Every other runtime modifier is sourced from the Epic's labels or from
 
 ---
 
-## Phase 0 — Set the convergence goal
-
-Before any other phase runs, issue:
-
-```text
-/goal "epic <epicId> acceptance criteria all green"
-```
-
-This pins the run's convergence target so Claude keeps iterating across
-turns without operator re-prompting. The goal stays set for the entire
-nine-phase flow — the wave loop, close-validation, code-review, retro,
-finalize, watch-and-iterate, and auto-merge gate all converge against
-this single contract. See
-[`docs/workflows.md`](../../docs/workflows.md#convergence-via-goal) for
-the pattern.
-
----
-
 ## Phase 1 — Prepare the Epic run
 
 ```bash
@@ -426,12 +408,6 @@ tree; child-reported `--no-ff` recovery, stash dance, or out-of-band
 merge surgery; child closes via `--skipValidation`; force-pushing or
 empty-committing to dodge CI diagnosis.
 
-> **`--skipValidation` carve-out.** While the
-> `baseline-drift-main-checkout` gate remains in the close path, every
-> story closes via the programmatic skip path; treating that as an
-> intervention would prevent auto-merge from ever firing. Tighten the
-> predicate once the underlying gate is fixed.
-
 ---
 
 ## Phase 8 — Local branch cleanup
@@ -449,8 +425,10 @@ scope (`gh pr merge --delete-branch` handled them). Fall back to
 walks remote `task/*` and `feature/*` refs.
 
 If Phase 7.5 fell back to the operator-merges-button path, **do not**
-run Phase 8 yourself — the operator invokes `/epic-deliver-cleanup`
-(or `/delete-epic-branches`) after they merge.
+run Phase 8 yourself — the operator runs
+`node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>` (or
+`/delete-epic-branches` for the wider scrap-and-reset flow) after they
+merge.
 
 ---
 

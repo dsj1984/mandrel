@@ -25,12 +25,6 @@ import {
 } from '../../crap-utils.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { Logger } from '../../Logger.js';
-import {
-  applyFloorPolicy,
-  formatViolation,
-  loadFloorConfig,
-  parseFloorFlag,
-} from '../../quality-floors.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -577,22 +571,6 @@ export function buildCrapReport({
 }
 
 /**
- * Story #1602 — absolute CRAP ceiling (≤20 per method by default). Pure
- * decision helper: returns either `{ exitCode: 0, skipped: true }`,
- * `{ exitCode: 0 }`, or `{ exitCode: 1, violations, ceiling, messages }`.
- * The CLI wrapper renders the messages via `Logger` and returns the exit
- * code; tests can inspect the structured result without monkey-patching
- * the logger.
- *
- * `options.floors` overrides the `loadFloorConfig()` default — used by
- * tests and by callers that have already loaded the floor config.
- *
- * @param {{rows?: Array<{file: string, method: string, crap: number}>}} scan
- * @param {string[]} argv
- * @param {{floors?: object}} [options]
- * @returns {0 | 1}
- */
-/**
  * Logger-only printers hoisted from `check-crap.js`. Kept here so the
  * CLI shell stays thin and the printers can be exercised in unit tests
  * without spawning the CLI.
@@ -638,56 +616,6 @@ export function printRemovedRows(result) {
   for (const r of result.removedRows) {
     Logger.info(
       `       - ${r.file}::${r.method} (baseline line ${r.startLine})`,
-    );
-  }
-}
-
-export function enforceCrapFloor(scan, argv, options = {}) {
-  if (!parseFloorFlag(argv)) {
-    Logger.info('[CRAP] ⚠️  floor gate skipped (--floor=off)');
-    return 0;
-  }
-  const floors = options.floors ?? loadFloorConfig();
-  const records = (scan?.rows ?? []).map((r) => ({
-    file: r.file,
-    method: r.method,
-    score: r.crap,
-  }));
-  // Story #2029: advertise every CRAP path-override that matched at
-  // least one row in this run. Emitted on pass AND fail so green CI
-  // cannot hide active overrides.
-  logActivePathOverrides(records, floors);
-  const { violations } = applyFloorPolicy(records, floors, 'crap');
-  if (violations.length === 0) return 0;
-  Logger.error(
-    `[CRAP] ❌ Absolute CRAP ceiling violated (${violations.length} method(s); ceiling=${floors.crap}):`,
-  );
-  for (const v of violations) {
-    Logger.error(`                ${formatViolation(v)}`);
-  }
-  Logger.error(
-    '[CRAP] Reduce complexity or add coverage on the flagged methods; the ceiling is non-negotiable. Use `--floor=off` only when running `crap:update`.',
-  );
-  return 1;
-}
-
-/**
- * Story #2029: emit one Logger.info line per CRAP path override that
- * matched at least one row in this run. Quiet when no overrides are
- * configured or none matched.
- *
- * @param {Array<{file: string}>} records
- * @param {import('../../quality-floors.js').FloorConfig} floors
- */
-function logActivePathOverrides(records, floors) {
-  const overrides = floors?.pathOverrides;
-  if (!(overrides instanceof Map) || overrides.size === 0) return;
-  const seenPaths = new Set(records.map((r) => r?.file).filter(Boolean));
-  for (const [pathKey, entry] of overrides) {
-    if (!seenPaths.has(pathKey)) continue;
-    if (!Object.hasOwn(entry, 'crap')) continue;
-    Logger.info(
-      `[CRAP] ${pathKey}: crap floor relaxed to ${entry.crap} per ${entry.follow_up}`,
     );
   }
 }

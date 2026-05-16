@@ -13,14 +13,7 @@
 
 import { readBaselineAtRef } from '../../baseline-loader.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
-import { Logger } from '../../Logger.js';
 import { getBaseline } from '../../maintainability-utils.js';
-import {
-  applyFloorPolicy,
-  formatViolation,
-  loadFloorConfig,
-  parseFloorFlag,
-} from '../../quality-floors.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 import { kernelVersion as crapKernelVersion } from './crap.js';
@@ -259,64 +252,4 @@ export function loadMaintainabilityBaseline({
     return flat;
   }
   return parsed;
-}
-
-/**
- * Story #1602 — absolute MI floor (≥70 by default). Pure decision
- * helper: returns `0` when the gate is skipped or all files clear the
- * floor, `1` when one or more files are below floor. The CLI wrapper
- * translates the return into a `process.exit(1)`; tests can drive the
- * helper directly and assert the return code.
- *
- * `options.floors` overrides the `loadFloorConfig()` default — used by
- * tests and by callers that have already loaded the floor config.
- *
- * Opt-out: pass `--floor=off` in `argv` for baseline-update runs.
- *
- * @returns {0 | 1}
- */
-export function enforceMaintainabilityFloor(scores, argv, options = {}) {
-  if (!parseFloorFlag(argv)) {
-    Logger.info('[Maintainability] ⚠️  floor gate skipped (--floor=off)');
-    return 0;
-  }
-  const floors = options.floors ?? loadFloorConfig();
-  const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
-  // Story #2029: advertise every path-override that matched at least one
-  // scored record. The line is emitted unconditionally on pass AND fail so
-  // active overrides cannot hide behind a green CI run.
-  logActivePathOverrides(records, floors);
-  const { violations } = applyFloorPolicy(records, floors, 'maintainability');
-  if (violations.length === 0) return 0;
-  Logger.error(
-    `[Maintainability] ❌ Absolute MI floor violated (${violations.length} file(s); floor=${floors.maintainability}):`,
-  );
-  for (const v of violations) {
-    Logger.error(`                ${formatViolation(v)}`);
-  }
-  Logger.error(
-    '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
-  );
-  return 1;
-}
-
-/**
- * Story #2029: emit one Logger.info line per maintainability path
- * override that matched at least one record in this run. Quiet when
- * no overrides are configured or none matched.
- *
- * @param {Array<{file: string}>} records
- * @param {import('../../quality-floors.js').FloorConfig} floors
- */
-function logActivePathOverrides(records, floors) {
-  const overrides = floors?.pathOverrides;
-  if (!(overrides instanceof Map) || overrides.size === 0) return;
-  const seenPaths = new Set(records.map((r) => r?.file).filter(Boolean));
-  for (const [pathKey, entry] of overrides) {
-    if (!seenPaths.has(pathKey)) continue;
-    if (!Object.hasOwn(entry, 'maintainability')) continue;
-    Logger.info(
-      `[Maintainability] ${pathKey}: maintainability floor relaxed to ${entry.maintainability} per ${entry.follow_up}`,
-    );
-  }
 }

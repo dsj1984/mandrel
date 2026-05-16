@@ -62,23 +62,6 @@ the parent's permissions but have **no input channel** mid-run.
 
 ---
 
-## Step -1 — Set the convergence goal
-
-Before `story-init.js` runs, issue:
-
-```text
-/goal "story <storyId> acceptance criteria all green"
-```
-
-This pins the run's convergence target so Claude keeps iterating across
-turns without operator re-prompting. The goal stays set for the entire
-Story execution — init, the implementation loop, and close all converge
-against this single contract. See
-[`docs/workflows.md`](../../docs/workflows.md#convergence-via-goal) for
-the pattern.
-
----
-
 ## Step 0 — Initialize (`story-init.js`)
 
 Run from the **main checkout** (the worktree does not exist yet):

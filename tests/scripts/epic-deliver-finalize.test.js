@@ -31,6 +31,16 @@ import {
   runEpicDeliverFinalize,
 } from '../../.agents/scripts/epic-deliver-finalize.js';
 
+// Story #2117: stub reconcileBaselinesFn so the test never invokes the real
+// `regenerateMainFromTree`. Without this, tests that progress past the FF
+// check call into the real `saveBaseline` (cwd-relative) and silently mutate
+// the workspace's `baselines/maintainability.json` under test concurrency.
+const noopReconcile = async () => ({
+  committed: false,
+  didChange: false,
+  reason: 'no-change',
+});
+
 test('classifyFinalizeInvocation: --help returns help intent', () => {
   assert.deepEqual(classifyFinalizeInvocation({ help: true }), {
     kind: 'help',
@@ -215,6 +225,7 @@ test('runEpicDeliverFinalize: halts on FF=main-ahead before pushing', async () =
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: (args) => {
       ghCalls.push(args);
@@ -260,6 +271,7 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: (args) => {
       ghCalls.push(args);
@@ -371,6 +383,7 @@ test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finali
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: () => {
       ghCallIdx += 1;
@@ -429,6 +442,7 @@ test('runEpicDeliverFinalize: epic-complete is NOT fired when FF blocks before P
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
     upsertCommentFn: async () => ({ commentId: 1 }),
@@ -473,6 +487,7 @@ test('runEpicDeliverFinalize: gh failure halts before hand-off', async () => {
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: () => ({ status: 1, stdout: '', stderr: 'gh: forbidden' }),
     upsertCommentFn: async () => {
@@ -540,6 +555,7 @@ test('runEpicDeliverFinalize: closes planning artifacts after gh pr create succe
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: () => ({
       status: 0,
@@ -592,6 +608,7 @@ test('runEpicDeliverFinalize: planning-close partial failure does not block fina
       orchestration: {},
     },
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
+    reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
     ghSpawnFn: () => ({
       status: 0,

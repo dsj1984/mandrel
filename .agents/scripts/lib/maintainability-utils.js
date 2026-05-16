@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import {
+  write as writeBaselineEnvelope,
+  writeFile as writeBaselineFile,
+} from './baselines/writer.js';
 import { runOnPool } from './cpu-pool.js';
 import { Logger } from './Logger.js';
 import { calculateForFile } from './maintainability-engine.js';
@@ -173,7 +177,16 @@ export function getBaseline(baselinePath) {
 
 /**
  * Saves a new maintainability baseline to disk at `baselinePath`.
- * @param {Record<string, number>} baseline
+ *
+ * Accepts the legacy flat `{ path: mi }` shape for backwards compatibility
+ * with existing callers (`regenerateMainFromTree`, refresh helpers). The
+ * map is transformed into the canonical envelope shape (`$schema`,
+ * `kernelVersion`, `generatedAt`, `rollup`, `rows`) via the shared
+ * `lib/baselines/writer.js` pipeline before being persisted, so every
+ * write produces a file that round-trips through `lib/baselines/reader.js`
+ * without schema errors.
+ *
+ * @param {Record<string, number>} baseline  path→MI flat map.
  * @param {string} baselinePath  Required — caller supplies via getBaselines().
  */
 export function saveBaseline(baseline, baselinePath) {
@@ -185,16 +198,13 @@ export function saveBaseline(baseline, baselinePath) {
   const abs = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  // Sort keys for deterministic output
-  const sortedBaseline = Object.keys(baseline)
-    .sort()
-    .reduce((acc, key) => {
-      acc[key] = baseline[key];
-      return acc;
-    }, {});
 
-  fs.mkdirSync(path.dirname(abs), { recursive: true });
-  fs.writeFileSync(abs, `${JSON.stringify(sortedBaseline, null, 2)}\n`);
+  const rows = Object.entries(baseline ?? {}).map(([p, mi]) => ({
+    path: p,
+    mi,
+  }));
+  const envelope = writeBaselineEnvelope({ kind: 'maintainability', rows });
+  writeBaselineFile(abs, envelope);
 }
 
 const IGNORED_DIRS = new Set([
