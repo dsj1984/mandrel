@@ -1,0 +1,505 @@
+#!/usr/bin/env node
+/**
+ * acceptance-spec-reconciler.js — Story #2106 / Task #2113 (Epic #2001).
+ *
+ * Diffs the AC IDs declared in an Epic's linked `context::acceptance-spec`
+ * body against the `@ac-*` / `@pending` tags emitted by scenarios under
+ * `tests/features/**`. Surfaces three categories:
+ *
+ *   - `satisfied[]` — AC IDs covered by at least one non-pending scenario.
+ *   - `pending[]`   — AC IDs covered only by scenarios tagged `@pending`.
+ *   - `missing[]`   — AC IDs declared in the spec with no matching scenario.
+ *
+ * Used by `epic-deliver-finalize.js` (Task #2111) as a close-time gate: a
+ * non-OK result aborts finalize before `closePlanningArtifacts` fires, so
+ * planning artifacts stay open until the AC coverage gap is fixed.
+ *
+ * Per `.agents/rules/orchestration-error-handling.md`, this module
+ * **throws `Error`** for unrecoverable conditions (rather than calling
+ * `Logger.fatal`) so the `runAsCli` boundary maps the throw to
+ * `process.exit(1)` with the message intact, and so an in-process caller
+ * (the finalize orchestrator) can catch and propagate it.
+ *
+ * Usage:
+ *   node .agents/scripts/acceptance-spec-reconciler.js --epic <epicId>
+ *
+ * Stdout: a single JSON envelope:
+ *   {
+ *     "epicId": <number>,
+ *     "acceptanceSpecId": <number|null>,
+ *     "ok": <boolean>,
+ *     "ackIds": ["AC-1", "AC-2", ...],
+ *     "satisfied": ["AC-1", ...],
+ *     "pending":   ["AC-2", ...],
+ *     "missing":   ["AC-3", ...],
+ *     "featureFilesScanned": <number>
+ *   }
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { parseArgs } from 'node:util';
+
+import { runAsCli } from './lib/cli-utils.js';
+import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { parseLinkedIssues } from './lib/issue-link-parser.js';
+import { ACCEPTANCE_NA } from './lib/label-constants.js';
+import { Logger } from './lib/Logger.js';
+import { createProvider } from './lib/provider-factory.js';
+
+const HELP = `Usage: node .agents/scripts/acceptance-spec-reconciler.js --epic <epicId>
+
+Diffs the AC IDs in the Epic's linked acceptance-spec body against the
+@ac-*/@pending tags in tests/features/**. Emits a JSON envelope on stdout.
+Throws (exit 1) when missing or pending ACs are detected, or when the Epic
+has no linked acceptance-spec and the acceptance::n-a waiver label is
+absent.
+
+Options:
+  --epic <id>            Epic ticket id (required)
+  --features-dir <path>  Override features directory (default: tests/features)
+  --skip-when-waived     Exit 0 with status='waived' when acceptance::n-a is
+                         set instead of throwing on the missing spec.
+  -h, --help             Show this message and exit.
+`;
+
+/**
+ * Pure: parse stable AC IDs (AC-<n>) out of an acceptance-spec body. AC
+ * authoring style is "Acceptance Criteria — Markdown table whose first
+ * column is the AC ID" — see ACCEPTANCE_SPEC_SYSTEM_PROMPT in
+ * epic-plan-spec.js. We scan the entire body with a permissive regex
+ * because operators are free to format the body however they wish around
+ * the canonical table.
+ *
+ * Returns IDs **in document order**, deduplicated, normalised to
+ * upper-case (`AC-7`, not `ac-7`).
+ *
+ * @param {string} body
+ * @returns {string[]}
+ */
+export function parseAcIds(body) {
+  if (typeof body !== 'string' || body === '') return [];
+  const seen = new Set();
+  const out = [];
+  // \b ensures we don't grab `BAC-7`; the AC- prefix may appear inside a
+  // table cell, header, or prose so we don't anchor to ^ or |.
+  const re = /\bAC-(\d+)\b/gi;
+  let match;
+  while ((match = re.exec(body)) !== null) {
+    const id = `AC-${match[1]}`;
+    if (!seen.has(id)) {
+      seen.add(id);
+      out.push(id);
+    }
+  }
+  return out;
+}
+
+/**
+ * Pure: tokenize a single Gherkin scenario block into the set of tag
+ * tokens that apply to it. Caller is responsible for slicing the block —
+ * `collectScenarioTagSets` below handles that.
+ *
+ * Tags in Gherkin live on lines preceding `Scenario:` / `Scenario Outline:`
+ * and start with `@`. Multiple tags can appear on one line, space-
+ * separated.
+ *
+ * @param {string} tagBlock raw text containing only the tag lines
+ * @returns {Set<string>} lowercased tag tokens (without the @ prefix)
+ */
+function parseTagBlock(tagBlock) {
+  const tags = new Set();
+  for (const line of tagBlock.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('@')) continue;
+    for (const token of trimmed.split(/\s+/)) {
+      if (token.startsWith('@') && token.length > 1) {
+        tags.add(token.slice(1).toLowerCase());
+      }
+    }
+  }
+  return tags;
+}
+
+/**
+ * Pure: walk a feature-file body and return one tag-set per scenario.
+ * Feature-level tags (those above `Feature:`) are inherited by every
+ * scenario in the file, matching cucumber/playwright-bdd semantics.
+ *
+ * @param {string} content
+ * @returns {Set<string>[]} one set of lower-cased tag tokens per scenario.
+ */
+export function collectScenarioTagSets(content) {
+  if (typeof content !== 'string' || content === '') return [];
+  const lines = content.split(/\r?\n/);
+  let featureTags = new Set();
+  let featureSeen = false;
+  let pendingTagBlock = [];
+  const scenarioSets = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      // Blank line breaks a tag block (so a stray @tag far from anything
+      // doesn't attach to a later scenario). Discard accumulated tags.
+      pendingTagBlock = [];
+      continue;
+    }
+    if (trimmed.startsWith('#')) {
+      // Comment line — Gherkin comments are line-level only.
+      continue;
+    }
+    if (trimmed.startsWith('@')) {
+      pendingTagBlock.push(trimmed);
+      continue;
+    }
+    if (/^Feature\s*:/i.test(trimmed)) {
+      featureTags = parseTagBlock(pendingTagBlock.join('\n'));
+      featureSeen = true;
+      pendingTagBlock = [];
+      continue;
+    }
+    if (/^(Scenario|Scenario Outline|Example|Rule)\s*:/i.test(trimmed)) {
+      // Rule blocks can also carry tags; treat them like scenarios for
+      // tag-coverage purposes — they still emit @ac-N when the operator
+      // wants to mark the whole rule.
+      const scenarioTags = parseTagBlock(pendingTagBlock.join('\n'));
+      const merged = new Set(scenarioTags);
+      if (featureSeen) for (const t of featureTags) merged.add(t);
+      scenarioSets.push(merged);
+      pendingTagBlock = [];
+      continue;
+    }
+    // Any other keyword line (Given/When/Then/And/Background) — clear
+    // the pending tag block so it doesn't bleed across keywords. Tag
+    // blocks only attach to the next Feature/Scenario/Rule.
+    pendingTagBlock = [];
+  }
+  return scenarioSets;
+}
+
+/**
+ * Recursively enumerate `.feature` files under `dir`. Returns absolute
+ * paths. Missing directory is not an error — it returns [] so an Epic that
+ * has not yet authored any features hits the "all missing" branch cleanly.
+ *
+ * @param {string} dir
+ * @returns {string[]}
+ */
+export function enumerateFeatureFiles(dir) {
+  const out = [];
+  if (!fs.existsSync(dir)) return out;
+  const stack = [dir];
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    let entries;
+    try {
+      entries = fs.readdirSync(cur, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const full = path.join(cur, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(full);
+      } else if (entry.isFile() && entry.name.endsWith('.feature')) {
+        out.push(full);
+      }
+    }
+  }
+  return out.sort();
+}
+
+/**
+ * Pure: classify each declared AC ID against the union of scenario tag
+ * sets observed across every feature file.
+ *
+ * Coverage rule:
+ *   - `ac-N` token present on at least one scenario with no `pending` tag
+ *     on the same scenario → satisfied.
+ *   - `ac-N` token present only on scenarios that *also* carry `pending`
+ *     → pending.
+ *   - `ac-N` token absent from every scenario → missing.
+ *
+ * @param {{ acIds: string[], tagSets: Set<string>[] }} args
+ * @returns {{ satisfied: string[], pending: string[], missing: string[] }}
+ */
+export function classifyCoverage({ acIds, tagSets }) {
+  const satisfied = [];
+  const pending = [];
+  const missing = [];
+  for (const acId of acIds) {
+    const tagToken = acId.toLowerCase(); // e.g. "ac-7"
+    let sawSatisfied = false;
+    let sawPending = false;
+    for (const set of tagSets) {
+      if (!set.has(tagToken)) continue;
+      if (set.has('pending')) {
+        sawPending = true;
+      } else {
+        sawSatisfied = true;
+        break; // a single non-pending scenario satisfies the AC
+      }
+    }
+    if (sawSatisfied) {
+      satisfied.push(acId);
+    } else if (sawPending) {
+      pending.push(acId);
+    } else {
+      missing.push(acId);
+    }
+  }
+  return { satisfied, pending, missing };
+}
+
+/**
+ * Pure: render the operator-visible blocker message for a non-OK
+ * reconciliation result. Exported so finalize can surface the same text.
+ */
+export function renderBlockerMessage({
+  epicId,
+  acceptanceSpecId,
+  missing,
+  pending,
+}) {
+  const lines = [
+    `[acceptance-spec-reconciler] Epic #${epicId} cannot finalize:`,
+    `linked acceptance-spec #${acceptanceSpecId ?? '(none)'} has uncovered AC IDs.`,
+  ];
+  if (missing.length > 0) {
+    lines.push(
+      `  Missing (no @ac-* tag in tests/features): ${missing.join(', ')}`,
+    );
+  }
+  if (pending.length > 0) {
+    lines.push(`  Pending (@pending-only coverage): ${pending.join(', ')}`);
+  }
+  lines.push(
+    'Author or de-pend the missing scenarios under tests/features/** so every AC ID is satisfied, then re-run /epic-deliver.',
+  );
+  return lines.join('\n');
+}
+
+/**
+ * End-to-end reconcile. DI-friendly for tests.
+ *
+ * Behaviour:
+ *   - If the Epic carries the `acceptance::n-a` waiver label, returns
+ *     `{ ok: true, status: 'waived', ... }` without scanning features.
+ *   - If no acceptance-spec is linked and the waiver is absent, **throws**
+ *     a clear `Error` — this should never happen in practice because
+ *     `epic-deliver-finalize` runs after `runSnapshotPhase`'s start gate,
+ *     but we defend against direct CLI invocation.
+ *   - If the linked acceptance-spec body declares zero AC IDs, returns
+ *     `{ ok: true, status: 'empty-spec', ... }`.
+ *   - Otherwise classifies coverage and returns `{ ok, status, ... }`.
+ *
+ * @param {{
+ *   epicId: number,
+ *   cwd?: string,
+ *   featuresDir?: string,
+ *   skipWhenWaived?: boolean,
+ *   injectedProvider?: object,
+ *   injectedConfig?: object,
+ *   loggerImpl?: { info?: Function, warn?: Function, error?: Function },
+ *   readFeatureFile?: (path: string) => string,
+ *   listFeatureFiles?: (dir: string) => string[],
+ * }} args
+ * @returns {Promise<{
+ *   epicId: number,
+ *   acceptanceSpecId: number|null,
+ *   status: 'ok'|'waived'|'empty-spec'|'gap',
+ *   ok: boolean,
+ *   acIds: string[],
+ *   satisfied: string[],
+ *   pending: string[],
+ *   missing: string[],
+ *   featureFilesScanned: number,
+ * }>}
+ */
+export async function reconcileAcceptanceSpec({
+  epicId,
+  cwd,
+  featuresDir,
+  injectedProvider,
+  injectedConfig,
+  loggerImpl,
+  readFeatureFile = (p) => fs.readFileSync(p, 'utf8'),
+  listFeatureFiles = enumerateFeatureFiles,
+} = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'reconcileAcceptanceSpec: --epic must be a positive integer',
+    );
+  }
+  const config = injectedConfig ?? resolveConfig({ cwd });
+  const provider = injectedProvider ?? createProvider(config.orchestration);
+  const logger = loggerImpl ?? Logger;
+  const repoCwd = cwd ?? PROJECT_ROOT;
+  const dir = featuresDir
+    ? path.resolve(repoCwd, featuresDir)
+    : path.resolve(repoCwd, 'tests', 'features');
+
+  // 1. Load the Epic; prefer getEpic for the linkedIssues hydration but
+  //    fall back to getTicket + body parsing for providers that don't
+  //    expose the Epic-shaped reader (test doubles, primarily).
+  let epic;
+  if (typeof provider.getEpic === 'function') {
+    epic = await provider.getEpic(epicId);
+  } else if (typeof provider.getTicket === 'function') {
+    epic = await provider.getTicket(epicId);
+  }
+  if (!epic) {
+    throw new Error(`[acceptance-spec-reconciler] Epic #${epicId} not found.`);
+  }
+
+  const labels = epic.labels ?? [];
+  if (labels.includes(ACCEPTANCE_NA)) {
+    logger.info?.(
+      `[acceptance-spec-reconciler] Epic #${epicId} carries acceptance::n-a — skipping reconciliation.`,
+    );
+    return {
+      epicId,
+      acceptanceSpecId: null,
+      status: 'waived',
+      ok: true,
+      acIds: [],
+      satisfied: [],
+      pending: [],
+      missing: [],
+      featureFilesScanned: 0,
+    };
+  }
+
+  const linkedIssues = epic.linkedIssues ?? parseLinkedIssues(epic.body ?? '');
+  const acceptanceSpecId = linkedIssues?.acceptanceSpec ?? null;
+
+  if (!acceptanceSpecId) {
+    // Defence in depth — the start gate would normally catch this.
+    throw new Error(
+      `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /epic-plan Phase 1 or apply the waiver.`,
+    );
+  }
+
+  const spec = await provider.getTicket(acceptanceSpecId);
+  if (!spec) {
+    throw new Error(
+      `[acceptance-spec-reconciler] Linked acceptance-spec #${acceptanceSpecId} not found.`,
+    );
+  }
+
+  const acIds = parseAcIds(spec.body ?? '');
+
+  // 2. Scan feature files.
+  const featureFiles = listFeatureFiles(dir);
+  const tagSets = [];
+  for (const filePath of featureFiles) {
+    let content;
+    try {
+      content = readFeatureFile(filePath);
+    } catch (err) {
+      logger.warn?.(
+        `[acceptance-spec-reconciler] failed to read ${filePath}: ${err?.message ?? err}`,
+      );
+      continue;
+    }
+    for (const set of collectScenarioTagSets(content)) {
+      tagSets.push(set);
+    }
+  }
+
+  if (acIds.length === 0) {
+    logger.warn?.(
+      `[acceptance-spec-reconciler] Acceptance-spec #${acceptanceSpecId} declares zero AC IDs — treating as empty spec.`,
+    );
+    return {
+      epicId,
+      acceptanceSpecId,
+      status: 'empty-spec',
+      ok: true,
+      acIds: [],
+      satisfied: [],
+      pending: [],
+      missing: [],
+      featureFilesScanned: featureFiles.length,
+    };
+  }
+
+  const { satisfied, pending, missing } = classifyCoverage({ acIds, tagSets });
+  const ok = missing.length === 0 && pending.length === 0;
+
+  return {
+    epicId,
+    acceptanceSpecId,
+    status: ok ? 'ok' : 'gap',
+    ok,
+    acIds,
+    satisfied,
+    pending,
+    missing,
+    featureFilesScanned: featureFiles.length,
+  };
+}
+
+/**
+ * Pure: classify parsed CLI values into a runnable intent. Mirrors the
+ * pattern used by `epic-deliver-finalize.classifyFinalizeInvocation` so
+ * the CC of `main` stays trivial.
+ */
+export function classifyReconcilerInvocation(values) {
+  if (values?.help) return { kind: 'help' };
+  const epicId = Number.parseInt(values?.epic ?? '', 10);
+  if (Number.isNaN(epicId) || epicId <= 0) {
+    return {
+      kind: 'usage-error',
+      messages: [
+        '[acceptance-spec-reconciler] ERROR: --epic <epicId> is required.',
+        HELP,
+      ],
+    };
+  }
+  return {
+    kind: 'run',
+    epicId,
+    featuresDir: values['features-dir'] ?? null,
+  };
+}
+
+async function main() {
+  const { values } = parseArgs({
+    options: {
+      epic: { type: 'string' },
+      'features-dir': { type: 'string' },
+      help: { type: 'boolean', short: 'h' },
+    },
+    strict: false,
+  });
+  const intent = classifyReconcilerInvocation(values);
+  if (intent.kind === 'help') {
+    Logger.info(HELP);
+    return;
+  }
+  if (intent.kind === 'usage-error') {
+    for (const m of intent.messages) Logger.error(m);
+    process.exit(2);
+  }
+  const result = await reconcileAcceptanceSpec({
+    epicId: intent.epicId,
+    featuresDir: intent.featuresDir ?? undefined,
+  });
+  // Always emit the structured envelope to stdout, even on non-OK, so a
+  // caller capturing stdout can read the diff payload before reacting to
+  // the thrown error / non-zero exit.
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  if (!result.ok) {
+    throw new Error(
+      renderBlockerMessage({
+        epicId: result.epicId,
+        acceptanceSpecId: result.acceptanceSpecId,
+        missing: result.missing,
+        pending: result.pending,
+      }),
+    );
+  }
+}
+
+runAsCli(import.meta.url, main, { source: 'acceptance-spec-reconciler' });
