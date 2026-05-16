@@ -23,7 +23,7 @@ import { concurrentMap } from '../util/concurrent-map.js';
  *
  * @typedef {object} PlanCheckpointState
  * @property {number} epicId                             Epic ticket id.
- * @property {{ prd: (number | null), techSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
+ * @property {{ prd: (number | null), techSpec: (number | null), acceptanceSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
  * @property {string} body                               Current Epic body (may include a `## Planning Artifacts` section).
  */
 

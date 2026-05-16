@@ -4054,16 +4054,16 @@
       "file": ".agents/scripts/lib/install-cmd-parser.js"
     },
     {
-      "crap": 5,
+      "crap": 6,
+      "file": ".agents/scripts/lib/issue-link-parser.js",
       "method": "parseLinkedIssues",
-      "startLine": 17,
-      "file": ".agents/scripts/lib/issue-link-parser.js"
+      "startLine": 28
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/label-taxonomy.js",
       "method": "buildPersonaLabels",
-      "startLine": 34
+      "startLine": 33,
+      "file": ".agents/scripts/lib/label-taxonomy.js"
     },
     {
       "crap": 1,
