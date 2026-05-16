@@ -58,7 +58,7 @@
         },
         "crap": {
           "floors": {
-            "*": { "crap": 30 },
+            "*": { "crap": 20 },
             "paths": {
               ".agents/scripts/lib/baselines/preview-gates.js": {
                 "crap": 130,
