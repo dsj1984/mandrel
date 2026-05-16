@@ -1,6 +1,8 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import { resolveDiffScope } from './lib/baselines/diff-scope-cli.js';
+import {
+  readPriorBaselineRows,
+  resolveDiffScope,
+} from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
@@ -46,34 +48,6 @@ function parseCliArgs(argv = process.argv.slice(2)) {
     }
   }
   return out;
-}
-
-/**
- * Story #1974 — when an existing baseline envelope is on disk, read its
- * `rows[]` so the writer can apply `applyEpsilon` and (optionally)
- * `mergeRows` against it. Returns `null` when the file is absent or
- * malformed; `null` short-circuits the epsilon/scope branch in the
- * writer (regression-fail-safe). Adapts the legacy `file:` field to
- * `path:` so the per-kind module's matching keys line up.
- */
-function readPriorCrapRows(absBaselinePath) {
-  let raw;
-  try {
-    raw = fs.readFileSync(absBaselinePath, 'utf8');
-  } catch {
-    return null;
-  }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || !Array.isArray(parsed.rows)) return null;
-  return parsed.rows.map((row) => ({
-    ...row,
-    path: row.path ?? row.file,
-  }));
 }
 
 async function main() {
@@ -130,7 +104,7 @@ async function main() {
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  const prior = readPriorCrapRows(absBaselinePath);
+  const prior = readPriorBaselineRows({ kind: 'crap', absBaselinePath });
   const epsilon = getBaselineEpsilon('crap', { agentSettings });
   const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
   if (diffScope) {

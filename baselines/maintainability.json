@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T00:03:39.503Z",
+  "generatedAt": "2026-05-16T00:06:40.409Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.961,
+      "p50": 102.926,
       "p95": 121.336
     }
   },
@@ -244,7 +244,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "mi": 106.32
+      "mi": 101.711
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
@@ -1428,11 +1428,11 @@
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 90.482
+      "mi": 87.643
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
-      "mi": 98.337
+      "mi": 102.393
     },
     {
       "path": ".agents/scripts/update-mutation-baseline.js",

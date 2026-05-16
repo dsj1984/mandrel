@@ -20,6 +20,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 
 /**
  * Parse `--diff-scope <ref>` (and the legacy `--diff-scope=<ref>` form)
@@ -103,4 +104,55 @@ export function resolveDiffScope({ argv, cwd, spawnImpl } = {}) {
   if (ref === null) return null;
   const files = resolveDiffScopeFiles({ ref, cwd, spawnImpl });
   return { ref, files, scope: { mode: 'diff', files } };
+}
+
+/**
+ * Read + parse the prior baseline at `absBaselinePath` and project the
+ * result into the per-row shape expected by the per-kind `mergeRows` /
+ * `applyEpsilon` helpers (Story #1974). Returns `null` when the file is
+ * absent or malformed; the caller treats `null` as "skip the merge"
+ * (regression-fail-safe — equivalent to a fresh write).
+ *
+ * `kind` decides how to interpret the on-disk shape:
+ *
+ *   - `'maintainability'`: handles both the v2 envelope (`rows[]`) and
+ *     the legacy flat `{ "<path>": <mi> }` map.
+ *   - `'crap'`: envelope `rows[]` only; adapts the legacy `file:` field
+ *     to canonical `path:` so the per-kind module's matchers line up.
+ *
+ * Pure-by-design (file I/O through the injected `fsImpl` seam).
+ *
+ * @param {{ kind: 'maintainability' | 'crap', absBaselinePath: string, fsImpl?: typeof fs }} args
+ * @returns {Array<object> | null}
+ */
+export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {
+  let raw;
+  try {
+    raw = fsImpl.readFileSync(absBaselinePath, 'utf8');
+  } catch {
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  if (kind === 'crap') {
+    if (!Array.isArray(parsed.rows)) return null;
+    return parsed.rows.map((row) => ({ ...row, path: row.path ?? row.file }));
+  }
+  // maintainability — envelope first, then legacy flat-map fallback.
+  if (Array.isArray(parsed.rows)) {
+    return parsed.rows.filter(
+      (r) => r && typeof r.path === 'string' && typeof r.mi === 'number',
+    );
+  }
+  const rows = [];
+  for (const [p, mi] of Object.entries(parsed)) {
+    if (p === '$schema') continue;
+    if (typeof mi === 'number') rows.push({ path: p, mi });
+  }
+  return rows;
 }
