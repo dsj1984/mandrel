@@ -64,6 +64,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.12.0](https://github.com/dsj1984/mandrel/compare/v1.11.0...v1.12.0) (2026-05-16)
+
+
+### Added
+
+* **bootstrap:** auto-accept inferred git defaults instead of prompting ([#2122](https://github.com/dsj1984/mandrel/issues/2122)) ([09b1413](https://github.com/dsj1984/mandrel/commit/09b1413d203a4c0f886da7a76bf0322895b598dc)), closes [#2121](https://github.com/dsj1984/mandrel/issues/2121)
+
 ## [1.11.0](https://github.com/dsj1984/mandrel/compare/v1.10.0...v1.11.0) (2026-05-16)
 
 
