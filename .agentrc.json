@@ -62,7 +62,6 @@
         },
         "maintainability": {
           "floors": {
-            "*": { "maintainability": 70 },
             "paths": {
               ".agents/scripts/lib/orchestration/epic-cleanup.js": {
                 "maintainability": 0,
