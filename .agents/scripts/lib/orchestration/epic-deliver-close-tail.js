@@ -84,45 +84,117 @@ async function runCloseValidationPhase({
     `[close-tail] Phase C: close-validation starting for Epic #${epicId}...`,
   );
 
-  let waveGate;
+  const waveGate = await invokeGate(runWaveGateFn, { epicId }, 'wave-gate');
+  if (!waveGate.ok) return waveGate;
+
+  const hierarchyGate = await invokeGate(
+    runHierarchyGateFn,
+    { epicId },
+    'hierarchy-gate',
+  );
+  if (!hierarchyGate.ok) return hierarchyGate;
+
+  return { ok: true, waveGate: waveGate.value, hierarchyGate: hierarchyGate.value };
+}
+
+/**
+ * Run a single gate (wave-gate or hierarchy-gate) and normalize its
+ * outcome into an `{ ok, value? , reason?, detail? }` envelope. Encapsulates
+ * the try/catch + non-zero-exit check that both gates share.
+ */
+async function invokeGate(fn, args, label) {
+  let result;
   try {
-    waveGate = await runWaveGateFn({ epicId });
+    result = await fn(args);
+  } catch (err) {
+    return { ok: false, reason: `${label}-error`, detail: messageOf(err) };
+  }
+  if (result?.exitCode && result.exitCode !== 0) {
+    return {
+      ok: false,
+      reason: `${label}-failed`,
+      detail: result?.message ?? `${label} exit ${result.exitCode}`,
+    };
+  }
+  return { ok: true, value: result };
+}
+
+/**
+ * Extract an error-ish into a flat string. Centralized so every phase
+ * blocker carries an identical shape.
+ */
+function messageOf(err) {
+  return err?.message ?? String(err);
+}
+
+/**
+ * Execute one resumable phase. Encapsulates the skip-on-resume check,
+ * the try/catch around the phase body, the optional `onResult` post-hook
+ * (used by phases that branch on the returned envelope — e.g. code-review
+ * halts on critical findings, finalize halts on its own `blocker` field),
+ * and the checkpoint advance to `nextPhase` on success.
+ *
+ * Returns `{ done: true }` if the phase ran to completion (or was
+ * skipped), `{ done: false, blocker }` if the phase halted.
+ */
+async function runPhase({
+  phase,
+  nextPhase,
+  resumePhase,
+  body,
+  onResult,
+  errorReason,
+  checkpointer,
+  phasesRun,
+  phasesSkipped,
+}) {
+  if (shouldSkipPhase(resumePhase, phase)) {
+    phasesSkipped.push(phase);
+    return { done: true };
+  }
+  let value;
+  try {
+    value = await body();
   } catch (err) {
     return {
-      ok: false,
-      reason: 'wave-gate-error',
-      detail: err?.message ?? String(err),
+      done: false,
+      blocker: { phase, reason: errorReason, detail: messageOf(err) },
     };
   }
-  if (waveGate?.exitCode && waveGate.exitCode !== 0) {
-    return {
-      ok: false,
-      reason: 'wave-gate-failed',
-      detail: waveGate?.message ?? `wave-gate exit ${waveGate.exitCode}`,
-    };
+  if (onResult) {
+    const verdict = onResult(value);
+    if (verdict?.halt) {
+      return {
+        done: false,
+        blocker: { phase, ...verdict.blocker },
+        value,
+      };
+    }
   }
+  phasesRun.push(phase);
+  await checkpointer.setPhase(nextPhase);
+  return { done: true, value };
+}
 
-  let hierarchyGate;
-  try {
-    hierarchyGate = await runHierarchyGateFn({ epicId });
-  } catch (err) {
-    return {
-      ok: false,
-      reason: 'hierarchy-gate-error',
-      detail: err?.message ?? String(err),
-    };
+/**
+ * Assert that the runner has the inputs it needs. Throws TypeError on
+ * any violation. Lifted out of the main function body so the orchestrator
+ * stays close to a linear phase sequence.
+ */
+function assertCloseTailInputs({ epicId, provider, runFinalizeFn }) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'runEpicDeliverCloseTail: epicId is required (positive integer).',
+    );
   }
-  if (hierarchyGate?.exitCode && hierarchyGate.exitCode !== 0) {
-    return {
-      ok: false,
-      reason: 'hierarchy-gate-failed',
-      detail:
-        hierarchyGate?.message ??
-        `hierarchy-gate exit ${hierarchyGate.exitCode}`,
-    };
+  if (!provider) {
+    throw new TypeError('runEpicDeliverCloseTail: provider is required.');
   }
-
-  return { ok: true, waveGate, hierarchyGate };
+  if (typeof runFinalizeFn !== 'function') {
+    throw new TypeError(
+      'runEpicDeliverCloseTail: runFinalizeFn is required (the close-tail does not import the finalize CLI directly).',
+    );
+  }
 }
 
 /**
@@ -172,19 +244,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     runFinalizeFn,
   } = opts;
 
-  if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError(
-      'runEpicDeliverCloseTail: epicId is required (positive integer).',
-    );
-  }
-  if (!provider) {
-    throw new TypeError('runEpicDeliverCloseTail: provider is required.');
-  }
-  if (typeof runFinalizeFn !== 'function') {
-    throw new TypeError(
-      'runEpicDeliverCloseTail: runFinalizeFn is required (the close-tail does not import the finalize CLI directly).',
-    );
-  }
+  assertCloseTailInputs({ epicId, provider, runFinalizeFn });
 
   const checkpointer =
     opts.checkpointer ?? new Checkpointer({ provider, epicId });
@@ -194,127 +254,121 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   // upstream phases own the checkpoint init lifecycle).
   const cpState = (await checkpointer.read()) ?? {};
   const resumePhase = cpState.phase ?? 'close-validation';
-  const resumePhaseIdx = phaseIndex(resumePhase);
-
   logger?.info?.(
-    `[close-tail] Resume point: phase=${resumePhase} (idx=${resumePhaseIdx})`,
+    `[close-tail] Resume point: phase=${resumePhase} (idx=${phaseIndex(resumePhase)})`,
   );
 
   const phasesRun = [];
   const phasesSkipped = [];
   const result = { epicId, completed: false, resumedFrom: resumePhase };
 
+  const phaseCtx = { resumePhase, checkpointer, phasesRun, phasesSkipped };
+
   // ---------- Phase C: close-validation ----------
-  if (shouldSkipPhase(resumePhase, 'close-validation')) {
-    phasesSkipped.push('close-validation');
-  } else {
-    const validation = await runCloseValidationPhase({
-      epicId,
-      runWaveGateFn,
-      runHierarchyGateFn,
-      logger,
-    });
-    if (!validation.ok) {
-      result.blocker = {
-        phase: 'close-validation',
-        reason: validation.reason,
-        detail: validation.detail,
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    phasesRun.push('close-validation');
-    await checkpointer.setPhase('code-review');
+  const c = await runPhase({
+    ...phaseCtx,
+    phase: 'close-validation',
+    nextPhase: 'code-review',
+    errorReason: 'close-validation-error',
+    body: () =>
+      runCloseValidationPhase({
+        epicId,
+        runWaveGateFn,
+        runHierarchyGateFn,
+        logger,
+      }),
+    onResult: (validation) =>
+      validation.ok
+        ? null
+        : {
+            halt: true,
+            blocker: {
+              reason: validation.reason,
+              detail: validation.detail,
+            },
+          },
+  });
+  if (!c.done) {
+    return finishResult(result, c.blocker, phasesRun, phasesSkipped);
   }
 
   // ---------- Phase D: code-review ----------
-  if (shouldSkipPhase(resumePhase, 'code-review')) {
-    phasesSkipped.push('code-review');
-  } else {
-    let review;
-    try {
-      review = await runCodeReviewFn({ epicId, provider, logger });
-    } catch (err) {
-      result.blocker = {
-        phase: 'code-review',
-        reason: 'code-review-error',
-        detail: err?.message ?? String(err),
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    result.review = review;
-    if (review?.halted) {
-      result.blocker = {
-        phase: 'code-review',
-        reason: 'critical-findings',
-        detail: review.blockerReason,
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    phasesRun.push('code-review');
-    await checkpointer.setPhase('retro');
+  const d = await runPhase({
+    ...phaseCtx,
+    phase: 'code-review',
+    nextPhase: 'retro',
+    errorReason: 'code-review-error',
+    body: () => runCodeReviewFn({ epicId, provider, logger }),
+    onResult: (review) => {
+      result.review = review;
+      return review?.halted
+        ? {
+            halt: true,
+            blocker: {
+              reason: 'critical-findings',
+              detail: review.blockerReason,
+            },
+          }
+        : null;
+    },
+  });
+  if (!d.done) {
+    return finishResult(result, d.blocker, phasesRun, phasesSkipped);
   }
 
   // ---------- Phase E: retro ----------
-  if (shouldSkipPhase(resumePhase, 'retro')) {
-    phasesSkipped.push('retro');
-  } else {
-    let retro;
-    try {
-      retro = await runRetroFn({ epicId, provider, logger });
-    } catch (err) {
-      result.blocker = {
-        phase: 'retro',
-        reason: 'retro-error',
-        detail: err?.message ?? String(err),
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    result.retro = retro;
-    phasesRun.push('retro');
-    await checkpointer.setPhase('finalize');
+  const e = await runPhase({
+    ...phaseCtx,
+    phase: 'retro',
+    nextPhase: 'finalize',
+    errorReason: 'retro-error',
+    body: () => runRetroFn({ epicId, provider, logger }),
+    onResult: (retro) => {
+      result.retro = retro;
+      return null;
+    },
+  });
+  if (!e.done) {
+    return finishResult(result, e.blocker, phasesRun, phasesSkipped);
   }
 
   // ---------- Phase F: finalize ----------
-  if (shouldSkipPhase(resumePhase, 'finalize')) {
-    phasesSkipped.push('finalize');
-  } else {
-    let finalize;
-    try {
-      finalize = await runFinalizeFn({ epicId, provider, logger });
-    } catch (err) {
-      result.blocker = {
-        phase: 'finalize',
-        reason: 'finalize-error',
-        detail: err?.message ?? String(err),
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    result.finalize = finalize;
-    if (finalize?.blocker) {
-      result.blocker = {
-        phase: 'finalize',
-        reason: finalize.blocker.reason,
-        detail: finalize.blocker.detail,
-      };
-      result.phasesRun = phasesRun;
-      result.phasesSkipped = phasesSkipped;
-      return result;
-    }
-    phasesRun.push('finalize');
-    await checkpointer.setPhase('done');
+  const f = await runPhase({
+    ...phaseCtx,
+    phase: 'finalize',
+    nextPhase: 'done',
+    errorReason: 'finalize-error',
+    body: () => runFinalizeFn({ epicId, provider, logger }),
+    onResult: (finalize) => {
+      result.finalize = finalize;
+      return finalize?.blocker
+        ? {
+            halt: true,
+            blocker: {
+              reason: finalize.blocker.reason,
+              detail: finalize.blocker.detail,
+            },
+          }
+        : null;
+    },
+  });
+  if (!f.done) {
+    return finishResult(result, f.blocker, phasesRun, phasesSkipped);
   }
 
   result.completed = true;
+  result.phasesRun = phasesRun;
+  result.phasesSkipped = phasesSkipped;
+  return result;
+}
+
+/**
+ * Attach the blocker + phase logs to the result envelope and return it.
+ * Used by every halting branch in `runEpicDeliverCloseTail` so the
+ * shape stays consistent.
+ */
+function finishResult(result, blocker, phasesRun, phasesSkipped) {
+  result.blocker = blocker;
   result.phasesRun = phasesRun;
   result.phasesSkipped = phasesSkipped;
   return result;
