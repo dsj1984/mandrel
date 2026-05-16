@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T00:15:55.249Z",
+  "generatedAt": "2026-05-16T01:43:47.022Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.815,
-      "p95": 121.336
+      "p50": 102.926,
+      "p95": 121.479
     }
   },
   "rows": [
@@ -35,24 +35,8 @@
       "mi": 93.145
     },
     {
-      "path": ".agents/scripts/check-coverage-baseline.js",
-      "mi": 89.836
-    },
-    {
-      "path": ".agents/scripts/check-crap.js",
-      "mi": 86.48
-    },
-    {
       "path": ".agents/scripts/check-dead-exports.js",
       "mi": 92.663
-    },
-    {
-      "path": ".agents/scripts/check-maintainability.js",
-      "mi": 94.634
-    },
-    {
-      "path": ".agents/scripts/check-mutation.js",
-      "mi": 84.36
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -247,6 +231,10 @@
       "mi": 99.913
     },
     {
+      "path": ".agents/scripts/lib/baselines/env-overrides.js",
+      "mi": 86.705
+    },
+    {
       "path": ".agents/scripts/lib/baselines/envelope.js",
       "mi": 97.507
     },
@@ -272,7 +260,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 98.856
+      "mi": 91.897
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -284,7 +272,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/maintainability.js",
-      "mi": 102.064
+      "mi": 99.789
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/mutation.js",
@@ -293,6 +281,10 @@
     {
       "path": ".agents/scripts/lib/baselines/path-canon.js",
       "mi": 101.232
+    },
+    {
+      "path": ".agents/scripts/lib/baselines/preview-gates.js",
+      "mi": 80.899
     },
     {
       "path": ".agents/scripts/lib/baselines/reader.js",
@@ -1352,7 +1344,7 @@
     },
     {
       "path": ".agents/scripts/quality-preview.js",
-      "mi": 91.369
+      "mi": 95.526
     },
     {
       "path": ".agents/scripts/quality-watch.js",
@@ -1464,7 +1456,7 @@
     },
     {
       "path": "tests/absolute-floor-gate-rejects-subfloor.test.js",
-      "mi": 111.832
+      "mi": 107.622
     },
     {
       "path": "tests/analyze-execution.test.js",
@@ -1639,10 +1631,6 @@
       "mi": 117.118
     },
     {
-      "path": "tests/check-baselines-cli-read-surface.test.js",
-      "mi": 121.336
-    },
-    {
       "path": "tests/check-baselines-dispatch-pipeline.test.js",
       "mi": 102.296
     },
@@ -1659,10 +1647,6 @@
       "mi": 114.195
     },
     {
-      "path": "tests/check-crap-changed-since.test.js",
-      "mi": 102.297
-    },
-    {
       "path": "tests/check-crap-env-overrides.test.js",
       "mi": 110.248
     },
@@ -1675,16 +1659,8 @@
       "mi": 87.345
     },
     {
-      "path": "tests/check-crap.test.js",
-      "mi": 89.75
-    },
-    {
       "path": "tests/check-dead-exports.test.js",
       "mi": 93.641
-    },
-    {
-      "path": "tests/check-maintainability-changed-since.test.js",
-      "mi": 112.589
     },
     {
       "path": "tests/check-maintainability-epic-ref.test.js",
@@ -2000,7 +1976,7 @@
     },
     {
       "path": "tests/gate-integration.test.js",
-      "mi": 94.264
+      "mi": 114.202
     },
     {
       "path": "tests/gate-json-byte-stability.test.js",
@@ -2912,7 +2888,7 @@
     },
     {
       "path": "tests/quality-preview.test.js",
-      "mi": 92.429
+      "mi": 97.062
     },
     {
       "path": "tests/quality-watch.test.js",

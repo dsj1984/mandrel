@@ -24,19 +24,6 @@
         { "name": "lint", "cmd": ["npm", "run", "lint"] },
         { "name": "test", "cmd": ["npm", "test"] },
         {
-          "name": "coverage",
-          "cmd": ["node", ".agents/scripts/check-coverage-baseline.js"]
-        },
-        { "name": "crap", "cmd": ["node", ".agents/scripts/check-crap.js"] },
-        {
-          "name": "maintainability",
-          "cmd": ["node", ".agents/scripts/check-maintainability.js"]
-        },
-        {
-          "name": "mutation",
-          "cmd": ["node", ".agents/scripts/check-mutation.js"]
-        },
-        {
           "name": "baselines",
           "cmd": ["node", ".agents/scripts/check-baselines.js"]
         }

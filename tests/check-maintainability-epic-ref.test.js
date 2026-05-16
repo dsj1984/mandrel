@@ -1,10 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import {
-  loadMaintainabilityBaseline,
-  parseEpicRefArg,
-} from '../.agents/scripts/check-maintainability.js';
 import { clearBaselineCache } from '../.agents/scripts/lib/baseline-loader.js';
+import { loadMaintainabilityBaseline } from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 
 /**
@@ -16,29 +13,6 @@ import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 describe('check-maintainability — --epic-ref (Story #1120)', () => {
   afterEach(() => {
     clearBaselineCache();
-  });
-
-  it('parseEpicRefArg picks up the supplied ref', () => {
-    assert.equal(
-      parseEpicRefArg([
-        '--changed-since',
-        'main',
-        '--epic-ref',
-        'epic/1114',
-        '--json',
-        'out.json',
-      ]),
-      'epic/1114',
-    );
-  });
-
-  it('parseEpicRefArg returns null when --epic-ref is absent', () => {
-    assert.equal(parseEpicRefArg(['--changed-since', 'main']), null);
-  });
-
-  it('parseEpicRefArg returns null when --epic-ref has no value', () => {
-    assert.equal(parseEpicRefArg(['--epic-ref']), null);
-    assert.equal(parseEpicRefArg(['--epic-ref', '--json', 'x']), null);
   });
 
   it('loadMaintainabilityBaseline calls the fs reader when no epicRef is set (legacy path)', () => {

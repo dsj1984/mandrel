@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { enforceMaintainabilityFloor } from '../.agents/scripts/check-maintainability.js';
+import { enforceMaintainabilityFloor } from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import {
   applyFloorPolicy,
   DEFAULT_FLOORS,
@@ -26,13 +26,7 @@ import {
  */
 
 describe('absolute-floor gate — pre-push regression', () => {
-  it('enforceMaintainabilityFloor exits non-zero when a file is below the MI floor', () => {
-    const originalExit = process.exit;
-    let exitCode = null;
-    process.exit = (code) => {
-      exitCode = code;
-      throw new Error(`__test_exit__${code}`);
-    };
+  it('enforceMaintainabilityFloor returns 1 when a file is below the MI floor', () => {
     const errors = [];
     const originalError = console.error;
     console.error = (...args) => {
@@ -44,21 +38,19 @@ describe('absolute-floor gate — pre-push regression', () => {
       'lib/healthy.js': DEFAULT_FLOORS.maintainability + 10,
     };
 
+    let result;
     try {
-      assert.throws(
-        () =>
-          enforceMaintainabilityFloor(scores, [], { floors: DEFAULT_FLOORS }),
-        /__test_exit__1/,
-      );
+      result = enforceMaintainabilityFloor(scores, [], {
+        floors: DEFAULT_FLOORS,
+      });
     } finally {
-      process.exit = originalExit;
       console.error = originalError;
     }
 
     assert.equal(
-      exitCode,
+      result,
       1,
-      'sub-floor file must trip process.exit(1) on the pre-push gate',
+      'sub-floor file must return 1 — the CLI wrapper translates this into process.exit(1)',
     );
     const combined = errors.join('\n');
     assert.match(
@@ -73,14 +65,14 @@ describe('absolute-floor gate — pre-push regression', () => {
     );
   });
 
-  it('enforceMaintainabilityFloor passes when every file is above the MI floor', () => {
+  it('enforceMaintainabilityFloor returns 0 when every file is above the MI floor', () => {
     const scores = {
       'lib/a.js': DEFAULT_FLOORS.maintainability + 1,
       'lib/b.js': DEFAULT_FLOORS.maintainability + 20,
     };
-    // Should not throw — no process.exit call.
-    assert.doesNotThrow(() =>
+    assert.equal(
       enforceMaintainabilityFloor(scores, [], { floors: DEFAULT_FLOORS }),
+      0,
     );
   });
 
@@ -88,10 +80,11 @@ describe('absolute-floor gate — pre-push regression', () => {
     const scores = {
       'lib/deliberately-sub-floor.js': DEFAULT_FLOORS.maintainability - 50,
     };
-    assert.doesNotThrow(() =>
+    assert.equal(
       enforceMaintainabilityFloor(scores, ['--floor=off'], {
         floors: DEFAULT_FLOORS,
       }),
+      0,
     );
   });
 

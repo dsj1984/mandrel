@@ -1,16 +1,13 @@
 // tests/check-baselines-branch-protection.test.js
 //
 // Story #1912 / Task #1914 — branch-protection wiring contract.
-//
-// Per the Task body re-scope (2026-05-15), the `baselines` runtime gate
-// is ADDED to `github.branchProtection.requiredChecks` alongside the
-// existing per-kind names (`coverage`, `crap`, `maintainability`,
-// `mutation`). The per-kind names MUST NOT be removed in this Story —
-// Epic #1943 collapses the list to `["baselines"]` later.
+// Story #1981 / Task #2005 (Epic #1943) — collapsed the list to drop
+// the per-kind regression checks once the unified `baselines` gate
+// became authoritative; the per-kind names MUST NOT reappear.
 //
 // This test pins the invariant against the repo's root `.agentrc.json`
-// and the framework's `full-agentrc.json` so a future edit that drops
-// either the unified gate OR any of the per-kind regression checks fails
+// and the framework's `full-agentrc.json` so a future edit that
+// resurrects the per-kind names (or drops the unified gate) fails
 // loudly at CI time.
 
 import assert from 'node:assert/strict';
@@ -41,23 +38,23 @@ describe('branchProtection.requiredChecks — Task #1914 invariant', () => {
     );
   });
 
-  it('root .agentrc.json keeps every per-kind regression check (no removal in #1912)', () => {
+  it('root .agentrc.json drops every per-kind regression check (Story #1981 collapse)', () => {
     const names = requiredCheckNames(readJson('.agentrc.json'));
     for (const kind of ['coverage', 'crap', 'maintainability', 'mutation']) {
       assert.ok(
-        names.includes(kind),
-        `expected "${kind}" still in requiredChecks alongside "baselines"; got ${JSON.stringify(names)}`,
+        !names.includes(kind),
+        `unexpected per-kind requiredCheck "${kind}" in collapsed list; got ${JSON.stringify(names)}`,
       );
     }
   });
 
-  it('full-agentrc.json carries the same combined contract', () => {
+  it('full-agentrc.json carries the same collapsed contract', () => {
     const names = requiredCheckNames(readJson('.agents/full-agentrc.json'));
     assert.ok(names.includes('baselines'));
     for (const kind of ['coverage', 'crap', 'maintainability', 'mutation']) {
       assert.ok(
-        names.includes(kind),
-        `expected "${kind}" in full-agentrc; got ${JSON.stringify(names)}`,
+        !names.includes(kind),
+        `unexpected per-kind requiredCheck "${kind}" in full-agentrc; got ${JSON.stringify(names)}`,
       );
     }
   });

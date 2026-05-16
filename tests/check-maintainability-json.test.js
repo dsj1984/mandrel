@@ -6,7 +6,7 @@ import Ajv from 'ajv';
 import {
   buildMaintainabilityReport,
   MI_REPORT_KERNEL_VERSION,
-} from '../.agents/scripts/check-maintainability.js';
+} from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
 
 /**
  * Schema-conformance for the MI parity envelope. MI is the `fixGuidance`-less

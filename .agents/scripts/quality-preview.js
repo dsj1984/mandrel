@@ -2,9 +2,10 @@
 /**
  * .agents/scripts/quality-preview.js — Per-file MI/CRAP delta preview.
  *
- * Wraps `check-maintainability.js` and `check-crap.js` with `--changed-since
- * HEAD --json` and merges their structured envelopes into a single per-file
- * delta table contributors can read while the diff is still warm. Designed for
+ * Runs the maintainability + CRAP gates in-process via the per-kind
+ * preview runners under `lib/baselines/preview-gates.js`, then merges
+ * their structured envelopes into a single per-file delta table
+ * contributors can read while the diff is still warm. Designed for
  * three callers:
  *
  *   1. `npm run quality:preview`   — interactive operator, pretty table.
@@ -22,11 +23,12 @@
  * unit testing without spawning the gate scripts.
  */
 
-import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import {
+  runCrapPreview,
+  runMaintainabilityPreview,
+} from './lib/baselines/preview-gates.js';
 
 /**
  * Parse `--changed-since <ref>` from argv. Defaults to `HEAD` when the flag is
@@ -60,14 +62,11 @@ export function parseJsonFlag(argv) {
 }
 
 /**
- * Detect `--staged` (pre-commit mode). The flag is forwarded to the underlying
- * `check-maintainability.js` and `check-crap.js` calls so they only score
- * staged changes — used by `.husky/pre-commit` to scope the gate to the
- * about-to-be-committed delta rather than the working tree.
- *
- * The current gate scripts ignore `--staged` (they only support
- * `--changed-since <ref>`), but the flag is forwarded verbatim so that the
- * downstream scripts can grow the option without churn here.
+ * Detect `--staged` (pre-commit mode). Used by `.husky/pre-commit` to
+ * scope the gate to the about-to-be-committed delta rather than the
+ * working tree. The current preview runners do not yet honor this flag
+ * (they only support `--changed-since <ref>`), but the flag is parsed
+ * here verbatim so callers can rely on a stable surface.
  *
  * @param {string[]} argv
  * @returns {boolean}
@@ -77,9 +76,9 @@ export function parseStagedFlag(argv) {
 }
 
 /**
- * Merge an MI envelope (from `check-maintainability.js --json`) and a CRAP
- * envelope (from `check-crap.js --json`) into a per-file delta map. Pure —
- * no I/O, no spawn. Tests pin the math without booting the gates.
+ * Merge an MI envelope (from `runMaintainabilityPreview`) and a CRAP
+ * envelope (from `runCrapPreview`) into a per-file delta map. Pure —
+ * no I/O, no spawn. Tests pin the math without invoking the runners.
  *
  * Output rows are keyed by file (forward-slash relative path) and carry:
  *   - `miDrop`: maintainability score drop from baseline (0 when unchanged or
@@ -231,103 +230,56 @@ export function renderTable(merged) {
 }
 
 /**
- * Read & JSON-parse a gate's `--json` envelope from disk. Returns `null`
- * when the file is missing (the gate exited before writing — usually a
- * runtime error) or unparseable.
- *
- * @param {string} filePath
- * @returns {unknown}
- */
-function readEnvelope(filePath) {
-  try {
-    if (!fs.existsSync(filePath)) return null;
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Spawn a single gate script with the requested CLI arguments and capture
- * its exit code. The gate's stdout is mirrored to this process's stderr so
- * operators see the underlying gate output even when `--json` is set.
- *
- * Exported as a hook for tests that want to short-circuit the spawn.
- *
- * @param {{ scriptPath: string, args: string[], cwd: string, spawn?: typeof spawnSync }} opts
- * @returns {number}
- */
-export function runGate({ scriptPath, args, cwd, spawn = spawnSync }) {
-  const result = spawn(process.execPath, [scriptPath, ...args], {
-    cwd,
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
-  if (result.error) {
-    process.stderr.write(
-      `[quality:preview] gate spawn failed: ${result.error.message}\n`,
-    );
-    return 1;
-  }
-  return typeof result.status === 'number' ? result.status : 1;
-}
-
-/**
- * Top-level CLI entry: spawn both gates with `--json <tmp>` + `--changed-since
- * <ref>`, read the envelopes back, merge, render, and exit with the right
- * code. Exposed as `runCli` so tests can drive the full pipeline through an
- * injected spawn stub.
+ * Top-level CLI entry: invoke both per-kind preview runners, merge, render,
+ * and exit with the right code. Exposed as `runCli` so tests can drive the
+ * full pipeline through injected runner stubs.
  *
  * @param {{
  *   argv?: string[],
  *   cwd?: string,
- *   spawn?: typeof spawnSync,
- *   tmpDir?: string,
  *   stdout?: { write: (s: string) => void },
  *   stderr?: { write: (s: string) => void },
- *   scriptsDir?: string,
+ *   runMi?: typeof runMaintainabilityPreview,
+ *   runCrap?: typeof runCrapPreview,
  * }} [opts]
- * @returns {{ exitCode: number, merged: ReturnType<typeof mergeEnvelopes> }}
+ * @returns {Promise<{ exitCode: number, merged: ReturnType<typeof mergeEnvelopes> }>}
  */
-export function runCli({
+export async function runCli({
   argv = process.argv.slice(2),
   cwd = process.cwd(),
-  spawn = spawnSync,
-  tmpDir,
   stdout = process.stdout,
   stderr = process.stderr,
-  scriptsDir,
+  runMi = runMaintainabilityPreview,
+  runCrap = runCrapPreview,
 } = {}) {
   const ref = parseChangedSinceArg(argv) ?? 'HEAD';
   const json = parseJsonFlag(argv);
   const staged = parseStagedFlag(argv);
-  const baseTmp =
-    tmpDir ?? fs.mkdtempSync(path.join(os.tmpdir(), 'quality-preview-'));
-  fs.mkdirSync(baseTmp, { recursive: true });
-  const miJson = path.join(baseTmp, 'mi.json');
-  const crapJson = path.join(baseTmp, 'crap.json');
 
-  const baseScripts = scriptsDir ?? path.resolve(cwd, '.agents', 'scripts');
-  const miScript = path.join(baseScripts, 'check-maintainability.js');
-  const crapScript = path.join(baseScripts, 'check-crap.js');
+  // Story #1981 (Task #2005): the per-kind CLI shells were retired and
+  // both gate runs now happen in-process via the per-kind preview
+  // runners under `lib/baselines/preview-gates.js`. The `--staged`
+  // flag is parsed for surface stability but not yet plumbed through.
+  void staged;
 
-  const sharedArgs = ['--changed-since', ref];
-  if (staged) sharedArgs.push('--staged');
-
-  const miExit = runGate({
-    scriptPath: miScript,
-    args: [...sharedArgs, '--json', miJson],
-    cwd,
-    spawn,
-  });
-  const crapExit = runGate({
-    scriptPath: crapScript,
-    args: [...sharedArgs, '--json', crapJson],
-    cwd,
-    spawn,
-  });
-
-  const miEnvelope = readEnvelope(miJson);
-  const crapEnvelope = readEnvelope(crapJson);
+  const [miResult, crapResult] = await Promise.all([
+    runMi({ cwd, changedSinceRef: ref }).catch((err) => {
+      stderr.write(
+        `[quality:preview] MI runner failed: ${err?.message ?? err}\n`,
+      );
+      return { exitCode: 1, envelope: null };
+    }),
+    runCrap({ cwd, changedSinceRef: ref }).catch((err) => {
+      stderr.write(
+        `[quality:preview] CRAP runner failed: ${err?.message ?? err}\n`,
+      );
+      return { exitCode: 1, envelope: null };
+    }),
+  ]);
+  const miExit = miResult.exitCode;
+  const crapExit = crapResult.exitCode;
+  const miEnvelope = miResult.envelope;
+  const crapEnvelope = crapResult.envelope;
   const merged = mergeEnvelopes(miEnvelope, crapEnvelope);
 
   if (json) {
@@ -357,7 +309,7 @@ export function runCli({
   return { exitCode: computeExitCode(merged, miExit, crapExit), merged };
 }
 
-// cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; mirrors check-maintainability.js / check-crap.js so the diagnostic surface stays consistent across the gate suite.
+// cli-opt-out: Windows-aware main-guard with leading-slash drive-letter normalisation; mirrors quality-watch.js so the diagnostic surface stays consistent across the gate suite.
 // Only run main when invoked directly — keep the module importable from tests.
 const isDirect = (() => {
   try {
@@ -371,6 +323,7 @@ const isDirect = (() => {
 })();
 
 if (isDirect) {
-  const { exitCode } = runCli();
-  process.exit(exitCode);
+  runCli().then(({ exitCode }) => {
+    process.exit(exitCode);
+  });
 }
