@@ -1,10 +1,10 @@
 ---
 name: epic-plan-spec-author
 description: >-
-  Author the PRD and Tech Spec markdown for an Epic from the planner authoring
-  context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 1 of
-  `/epic-plan` when the host LLM needs to write the two artifacts before
-  `epic-plan-spec.js` persists them.
+  Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the
+  planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use
+  during Phase 1 of `/epic-plan` when the host LLM needs to write the three
+  artifacts before `epic-plan-spec.js` persists them.
 allowed_tools:
   - Read
   - Write
@@ -15,9 +15,10 @@ allowed_tools:
 
 ## Role
 
-Technical Product Manager + Engineering Architect (two personas, one Skill —
-the PRD persona produces the requirements; the Architect persona consumes the
-PRD to produce the Tech Spec).
+Technical Product Manager + Engineering Architect + Acceptance Engineer (three
+personas, one Skill — the PRD persona produces the requirements; the Architect
+persona consumes the PRD to produce the Tech Spec; the Acceptance Engineer
+consumes both to produce the Acceptance Spec).
 
 ## When to use
 
@@ -25,9 +26,9 @@ PRD to produce the Tech Spec).
 writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the PRD" / "Author the Tech Spec" steps from the legacy
 workflow body — the calling workflow dispatches this Skill via the `Skill`
-tool, supplies the Epic ID, and on completion has `temp/epic-<Epic_ID>/prd.md`
-and `temp/epic-<Epic_ID>/techspec.md` ready for the persist half of the
-script.
+tool, supplies the Epic ID, and on completion has `temp/epic-<Epic_ID>/prd.md`,
+`temp/epic-<Epic_ID>/techspec.md`, and `temp/epic-<Epic_ID>/acceptance-spec.md`
+ready for the persist half of the script.
 
 ## Inputs
 
@@ -42,9 +43,17 @@ reads:
   - `docsContext.items[]` — bounded project docs scraped from the configured
     `docsRoot` (start with these for "how does the codebase do X today?"
     context; the validator already capped their size)
-  - `systemPrompts.prd` and `systemPrompts.techSpec` — left in the envelope
-    as a backstop; this Skill's own body below carries the authoritative
-    versions and is the source of truth going forward
+  - `systemPrompts.prd`, `systemPrompts.techSpec`, and
+    `systemPrompts.acceptanceSpec` — left in the envelope as a backstop;
+    this Skill's own body below carries the authoritative versions and is
+    the source of truth going forward
+  - `bddRunner` — BDD runner pending-tag verification result. Shape:
+    `{ runner, pendingTag, supported, fallback, reason? }`. When
+    `supported: true`, render the verified `pendingTag` in the
+    acceptance-spec body so the features-first Story can scaffold
+    `.feature` files with that exact tag. When `fallback: true`, render
+    `"Fallback: dependencies-first ordering"` and omit the pending-tag
+    line — Phase 2 reverts to topological ordering.
 
 ## Outputs
 
@@ -52,11 +61,13 @@ reads:
   (no `<h1>`).
 - `temp/epic-<Epic_ID>/techspec.md` — Tech Spec markdown starting with
   `## Technical Overview` (no `<h1>`).
+- `temp/epic-<Epic_ID>/acceptance-spec.md` — Acceptance Spec markdown
+  starting with `## Acceptance Criteria` (no `<h1>`).
 
-Both files MUST exist on disk before this Skill returns control. The caller
-will invoke `epic-plan-spec.js --epic <Epic_ID> --prd ... --techspec ...`
-next, and the persist half will fail loudly if either file is missing or
-empty.
+All three files MUST exist on disk before this Skill returns control. The
+caller will invoke
+`epic-plan-spec.js --epic <Epic_ID> --prd ... --techspec ... --acceptance-spec ...`
+next, and the persist half will fail loudly if any file is missing or empty.
 
 ## Procedure
 
@@ -127,14 +138,63 @@ CRITICAL REQUIREMENTS:
 - Format architectural decisions clearly with bullet points.
 ```
 
-### Step 4 — Hand back to `/epic-plan`
+### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)
 
-Both files exist; return. The caller will run
+Apply the Acceptance Spec system prompt below to the PRD + Tech Spec just
+written. Write to `temp/epic-<Epic_ID>/acceptance-spec.md`. The Acceptance
+Spec MUST:
+
+- Start with `## Acceptance Criteria` — never a top-level `#` heading.
+- Render the AC table with the canonical column shape documented in Tech
+  Spec #2083: `| AC ID | Outcome | Feature File | Scenario | Disposition |`.
+- Use **stable AC IDs** of the form `AC-1`, `AC-2`, … assigned in document
+  order. On re-plan, reuse the ID for any AC whose Outcome text is
+  materially unchanged; new ACs receive fresh sequential IDs (existing
+  IDs do not shift).
+- Tag every row's `Disposition` with one of the canonical enum values:
+  `new` (first appearance), `updated` (Outcome text or Scenario reshaped
+  vs. prior plan), `unchanged` (carried through verbatim from prior plan).
+- Cite proposed feature files under `tests/features/**` by relative path
+  so the Phase 2 features-first Story can scaffold the matching scenarios.
+- Render a **Runner Verification** line directly under the AC table that
+  records what `bddRunner` from the planner-context envelope reports:
+  - `supported: true` → write
+    `Runner Verification: <runner> supports <pendingTag>` (e.g.
+    `playwright-bdd supports @skip`). The features-first Story will tag
+    pending scenarios with this exact string.
+  - `fallback: true` → write
+    `Runner Verification: Fallback: dependencies-first ordering (reason: <reason>)`.
+    Phase 2 still proceeds; AC reconciliation defers to dependency order.
+
+#### Acceptance Spec system prompt (authoritative)
+
+```text
+You are an expert Acceptance Engineer.
+Your job is to convert a PRD and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
+
+The Acceptance Spec should outline:
+1. Acceptance Criteria — one row per user-visible outcome, expressed as a Markdown table with columns: AC ID | Outcome | Feature File | Scenario | Disposition
+2. Stable AC IDs — assign AC-1, AC-2, ... in document order; reuse the same ID across re-plans when an Outcome is materially unchanged so scenario tags (@ac-N) stay aligned
+3. Disposition — tag each row with one of: new | updated | unchanged
+
+CRITICAL REQUIREMENTS:
+- Respond ONLY with valid Markdown.
+- Do not use top-level <h1> (# ) tags. Start with ## Acceptance Criteria.
+- Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
+- Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
+- Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
+- Cite proposed feature file paths under tests/features/** so Phase 2 can scaffold matching scenarios.
+```
+
+### Step 5 — Hand back to `/epic-plan`
+
+All three files exist; return. The caller will run
 `node .agents/scripts/epic-plan-spec.js --epic <Epic_ID> --prd
-temp/epic-<Epic_ID>/prd.md --techspec temp/epic-<Epic_ID>/techspec.md`,
-which persists the artifacts, appends the `## Planning Artifacts` section to
-the Epic body, flips the Epic to `agent::review-spec`, and cleans up the
-temp files.
+temp/epic-<Epic_ID>/prd.md --techspec temp/epic-<Epic_ID>/techspec.md
+--acceptance-spec temp/epic-<Epic_ID>/acceptance-spec.md`, which persists
+the artifacts, appends the `## Planning Artifacts` section to the Epic
+body, flips the Epic to `agent::review-spec`, and cleans up the temp
+files.
 
 ## Constraints
 
