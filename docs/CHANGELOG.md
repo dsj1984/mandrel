@@ -2,6 +2,69 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed — Epic #1994 finalize: quality-floor restoration
+
+Restored framework-default quality floors across all three governance gates,
+with per-path overrides tracked against follow-up issues. This closes the
+guardrail-drift remediation tracked under Epic #1994.
+
+- **Coverage gate restored** to the framework default
+  (`lines: 90 / branches: 85 / functions: 90`).
+- **CRAP gate restored** to the framework default (`crap: 20`).
+- **Maintainability gate restored** to the framework default
+  (`maintainability: 70`).
+- **targetDirs decision (Task #2054):** kept `crap.targetDirs` and
+  `maintainability.targetDirs` overrides in `.agentrc.json` pointing at
+  `.agents/scripts` (and `tests/` for maintainability). The Mandrel
+  repository's executable code lives there, not under `src/`. Rationale is
+  now captured in `.agents/schemas/agentrc.schema.json` as a description on
+  each `targetDirs` property. Adopted **document-and-keep** rather than the
+  alternate **layout-discovery** path (auto-fall back to `.agents/scripts`
+  when `src/` is absent), because layout-discovery would be a framework
+  change wider in scope than this Epic.
+- **Working artefact removed:** deleted
+  `docs/coverage-gap-inventory-1994.md`, the working spreadsheet used by
+  Story #2031 to plan per-path coverage overrides. The inventory's content
+  is now reflected by the `coverage.floors.paths` block in `.agentrc.json`
+  itself.
+
+#### Active per-path overrides at finalize
+
+Every entry below is a documented, dated deviation from the restored
+framework default, paired with the follow-up issue that owns its eventual
+restoration.
+
+##### coverage.floors.paths (156 entries)
+
+- 153 overrides cite **follow-up #2073** (broad coverage-restoration work).
+- 2 overrides cite **follow-up #2072** (CRAP-restoration work — co-scoped
+  via the cross-gate follow_up agreement):
+  `.agents/scripts/check-dead-exports.js`,
+  `.agents/scripts/lib/baselines/kinds/crap.js`.
+- 1 override cites **follow-up #2071** (maintainability-restoration work —
+  co-scoped via the cross-gate follow_up agreement):
+  `.agents/scripts/lib/config-gates-schema.js`.
+
+##### crap.floors.paths (4 entries, all → follow-up #2072)
+
+- `.agents/scripts/lib/baselines/preview-gates.js` (`crap: 130`)
+- `.agents/scripts/lib/baselines/kinds/crap.js` (`crap: 55`)
+- `.agents/scripts/check-dead-exports.js` (`crap: 30`)
+- `.agents/scripts/lib/gates/gate-cli.js` (`crap: 27`)
+
+##### maintainability.floors.paths (5 entries)
+
+- → follow-up **#2070** (legacy hotspots scheduled for refactor):
+  - `.agents/scripts/lib/orchestration/epic-cleanup.js` (`mi: 0`)
+  - `.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js`
+    (`mi: 0`)
+  - `.agents/scripts/quality-watch.js` (`mi: 0`)
+- → follow-up **#2071** (schema-module maintainability uplift):
+  - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
+  - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+
 ## [1.9.0](https://github.com/dsj1984/mandrel/compare/v1.8.0...v1.9.0) (2026-05-16)
 
 
