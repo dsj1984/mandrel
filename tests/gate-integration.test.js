@@ -23,7 +23,13 @@ test('Site 1 — close-validation DEFAULT_GATES invokes check-crap.js', () => {
   const crapGate = DEFAULT_GATES.find((g) => g.name.includes('crap'));
   assert.ok(crapGate, 'check-crap gate must be present in DEFAULT_GATES');
   assert.strictEqual(crapGate.cmd, 'node');
-  assert.deepStrictEqual(crapGate.args, ['.agents/scripts/check-crap.js']);
+  // Story #1945: close-time CRAP runs full-scope by default to mirror
+  // CI's post-merge `push` event on main, so close catches the same
+  // regressions that would otherwise turn main red after auto-merge.
+  assert.deepStrictEqual(crapGate.args, [
+    '.agents/scripts/check-crap.js',
+    '--full-scope',
+  ]);
 });
 
 test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)', () => {

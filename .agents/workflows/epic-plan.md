@@ -55,12 +55,18 @@ This phase runs **only** when no `<epic#>` argument is supplied, or when
 `--idea "<seed>"` is passed. If an Epic ID was provided, skip directly to
 Phase 0 (Re-Plan Detection).
 
-1. **Invoke the ideation skill**: Use the `Skill` tool with
-   `skill: idea-refinement` and `args` set to the `--idea` value (or a
-   user-supplied seed if no argument was given). The skill drives its own
-   three-phase divergent → convergent → sharpen loop and returns a
-   markdown one-pager with the canonical sections (Problem Statement,
-   Recommended Direction, Key Assumptions, MVP Scope, Not Doing).
+1. **Activate the ideation skill**: Read
+   `<agentRoot>/skills/core/idea-refinement/SKILL.md` via the `Read`
+   tool (resolve `<agentRoot>` from `project.paths.agentRoot` —
+   default `.agents`) and execute its procedure with the `--idea` value
+   (or a user-supplied seed if no argument was given) as the seed. The
+   skill drives its own three-phase divergent → convergent → sharpen
+   loop and returns a markdown one-pager with the canonical sections
+   (Problem Statement, Recommended Direction, Key Assumptions, MVP
+   Scope, Not Doing). This is the canonical pattern for framework
+   skills — they are library-style content read on-demand per
+   `<agentRoot>/instructions.md` section 1.B, not entries in the
+   host's harness-level skill registry.
 
 2. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
    to the operator and **STOP**. Do not proceed to Phase 0b until the
@@ -181,20 +187,22 @@ planned.
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/planner-context.json
    ```
 
-2. **Dispatch the `epic-plan-spec-author` Skill**: Invoke the `Skill` tool
-   with `skill: epic-plan-spec-author` and `args: "[Epic_ID]"`. The Skill
-   reads `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD and
-   Tech Spec markdown against the embedded system prompts, and writes
-   them to `temp/epic-[Epic_ID]/prd.md` and `temp/epic-[Epic_ID]/techspec.md`.
-   The Skill is the authoritative authoring step — do **not** inline the
-   PRD / Tech Spec drafting in the workflow body. The Skill front-matter
+2. **Activate the `epic-plan-spec-author` skill**: Read
+   [`<agentRoot>/skills/core/epic-plan-spec-author/SKILL.md`](../skills/core/epic-plan-spec-author/SKILL.md)
+   via the `Read` tool (resolve `<agentRoot>` from
+   `project.paths.agentRoot` — default `.agents`) and execute its
+   procedure with `[Epic_ID]` as input. The skill reads
+   `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD and Tech
+   Spec markdown against the embedded system prompts, and writes them
+   to `temp/epic-[Epic_ID]/prd.md` and `temp/epic-[Epic_ID]/techspec.md`.
+   The skill is the authoritative authoring step — do **not** inline the
+   PRD / Tech Spec drafting in the workflow body. The skill front-matter
    declares `allowed_tools: [Read, Write, Bash]`; it never calls GitHub.
 
-   The Skill body lives at
-   [`.agents/skills/core/epic-plan-spec-author/SKILL.md`](../skills/core/epic-plan-spec-author/SKILL.md)
-   and carries the authoritative PRD + Tech Spec system prompts. The
-   `systemPrompts` field on the `--emit-context` envelope is a backstop
-   for legacy callers; the Skill body wins when the two surfaces diverge.
+   The skill body carries the authoritative PRD + Tech Spec system
+   prompts. The `systemPrompts` field on the `--emit-context` envelope
+   is a backstop for legacy callers; the skill body wins when the two
+   surfaces diverge.
 
 3. **Persist to GitHub**: Run the spec-phase CLI's persist half. It flips
    the Epic to `agent::review-spec` and writes the `epic-plan-state`
@@ -232,9 +240,11 @@ planned.
    node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context > temp/epic-[Epic_ID]/decomposer-context.json
    ```
 
-2. **Dispatch the `epic-plan-decompose-author` Skill**: Invoke the `Skill`
-   tool with `skill: epic-plan-decompose-author` and
-   `args: "[Epic_ID]"`. The Skill reads
+2. **Activate the `epic-plan-decompose-author` skill**: Read
+   [`<agentRoot>/skills/core/epic-plan-decompose-author/SKILL.md`](../skills/core/epic-plan-decompose-author/SKILL.md)
+   via the `Read` tool (resolve `<agentRoot>` from
+   `project.paths.agentRoot` — default `.agents`) and execute its
+   procedure with `[Epic_ID]` as input. The skill reads
    `temp/epic-[Epic_ID]/decomposer-context.json` (PRD body, Tech Spec
    body, risk heuristics, `maxTickets` cap, `contextMode`), applies its
    embedded decomposer system prompt + ticket schema, and writes the
@@ -245,11 +255,9 @@ planned.
    `.agentrc.json`; framework default in
    `.agents/scripts/lib/config/limits.js`) is the hard ceiling. The
    `epic-plan-decompose.js` script also logs the resolved cap to stderr
-   so a misconfigured key surfaces immediately. The Skill body
-   ([`.agents/skills/core/epic-plan-decompose-author/SKILL.md`](../skills/core/epic-plan-decompose-author/SKILL.md))
-   is the authoritative source of the decomposer prompt; the
-   `systemPrompt` field on the emit envelope is a backstop for legacy
-   callers.
+   so a misconfigured key surfaces immediately. The skill body is the
+   authoritative source of the decomposer prompt; the `systemPrompt`
+   field on the emit envelope is a backstop for legacy callers.
 
 3. **Persist to GitHub**: Run the decompose CLI's persist half. It
    validates the ticket array (`validateAndNormalizeTickets`), creates

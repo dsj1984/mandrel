@@ -70,12 +70,39 @@ the Story to `agent::executing`.
 
 Between the fetch and the branch-seed step, the script also runs a
 **merged-`story-*` sweep**: it invokes the same primitive as
-`git-cleanup-branches.js` scoped to `story-*` only, in
-`--execute --remote` mode, with the current run's `story-<id>` branch
-excluded from the candidate list. Local refs, the matching `origin/`
-ref, and stale tracking refs for any merged sibling stories are reaped
-in one pass. The sweep never blocks init — failures are logged and the
-new story is initialized regardless.
+`<agentRoot>/scripts/git-cleanup.js` (`<agentRoot>` resolves
+from `project.paths.agentRoot`, default `.agents`) scoped to `story-*`
+only, in `--execute --remote` mode, with the current run's
+`story-<id>` branch excluded from the candidate list. Local refs, the
+matching `origin/` ref, and stale tracking refs for any merged sibling
+stories are reaped in one pass. The sweep never blocks init — failures
+are logged and the new story is initialized regardless.
+
+The sweep applies two hardening layers (Story #2011):
+
+- **Per-candidate protection.** Each merged-PR candidate is filtered
+  through three guards before reaching `executeCleanup`:
+  - `unpushed-work` — branch HEAD SHA differs from the PR's
+    `headRefOid`, meaning the operator has commits the merge didn't
+    capture.
+  - `dirty-tree` — the attached worktree (if any) has uncommitted
+    changes.
+  - `ticket-not-done` — the parent Story ticket isn't closed and
+    doesn't carry `agent::done`.
+  Protected candidates are skipped, listed in the sweep result envelope
+  under `protected[]`, and named in the `CLEANUP` log line so the
+  operator can see what was preserved.
+- **Cross-session lock.** The sweep acquires a process-scoped lockfile
+  at `<tempRoot>/single-story-sweep.lock` before planning. On
+  contention (another `/single-story-execute` already in the sweep
+  step), this run's sweep is **skipped** with a warn log; init
+  continues normally. Stale lockfiles (mtime older than the timeout)
+  are treated as expired. The timeout defaults to 60 seconds and is
+  overridable via `delivery.worktreeIsolation.sweepLockMs` in
+  `.agentrc.json`.
+
+Both layers are non-fatal — sweep failure / skip never blocks init, and
+the new story is always created.
 
 Capture `workCwd` from the result envelope. Add `--dry-run` to inspect
 the planned actions without git or ticket mutations (dry-run also skips

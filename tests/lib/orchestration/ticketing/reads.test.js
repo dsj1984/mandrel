@@ -34,11 +34,17 @@ function makeProvider({ existingComments = [] } = {}) {
 }
 
 describe('ticketing/reads — constants and validators', () => {
-  it('exports the canonical agent state label triad', () => {
+  it('exports the canonical agent state label set including BLOCKED', () => {
     assert.equal(STATE_LABELS.READY, 'agent::ready');
     assert.equal(STATE_LABELS.EXECUTING, 'agent::executing');
     assert.equal(STATE_LABELS.DONE, 'agent::done');
-    assert.deepEqual(ALL_STATES.sort(), [
+    // Story #2004 — BLOCKED joined the canonical enum so the HITL pause
+    // contract (.agents/instructions.md §1.J) is reachable via the state
+    // mutator. ALL_STATES.sort() is asserted alphabetically so the
+    // expected array order is insensitive to the source enum order.
+    assert.equal(STATE_LABELS.BLOCKED, 'agent::blocked');
+    assert.deepEqual(ALL_STATES.slice().sort(), [
+      'agent::blocked',
       'agent::done',
       'agent::executing',
       'agent::ready',

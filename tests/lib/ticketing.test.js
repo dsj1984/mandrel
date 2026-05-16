@@ -91,9 +91,12 @@ test('ticketing.js', async (t) => {
   await t.test('transitionTicketState logic', async () => {
     await transitionTicketState(mock, 2, 'agent::ready');
     assert.deepEqual(mock.updates[0].mutations.labels.add, ['agent::ready']);
+    // Order tracks STATE_LABELS enum order (READY excluded as the target).
+    // Story #2004 added BLOCKED at the tail of the enum.
     assert.deepEqual(mock.updates[0].mutations.labels.remove, [
       'agent::executing',
       'agent::done',
+      'agent::blocked',
     ]);
     // Non-done states should reopen the issue
     assert.strictEqual(mock.updates[0].mutations.state, 'open');

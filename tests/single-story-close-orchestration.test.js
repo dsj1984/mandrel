@@ -644,3 +644,110 @@ describe('runSingleStoryClose orchestration', () => {
     assert.equal(result.autoMergeEnabled, true);
   });
 });
+
+describe('runSingleStoryClose story-merged notify dispatch', () => {
+  function happyGhMock(t) {
+    t.mock.module(
+      'node:child_process',
+      childProcessMock((_cmd, args) => {
+        if (args[1] === 'list') return '';
+        if (args[1] === 'create')
+          return 'https://github.com/owner/repo/pull/999\n';
+        if (args[1] === 'merge') return 'ok';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      }),
+    );
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+  }
+
+  async function runWithNotify({ tag, story, fakeNotify, updateThrows }) {
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=${tag}`);
+    return runSingleStoryClose({
+      storyId: story.id,
+      cwd: '/repo',
+      skipValidation: true,
+      injectedProvider: makeFakeProvider({
+        initialStory: story,
+        updateThrows,
+      }),
+      injectedConfig: fakeConfig(),
+      injectedNotify: fakeNotify,
+    });
+  }
+
+  it('fires one story-merged dispatch on the success path', async (t) => {
+    happyGhMock(t);
+    const calls = [];
+    await runWithNotify({
+      tag: 'notify-happy',
+      story: { id: 999, state: 'open', title: 'Notify happy', labels: [] },
+      fakeNotify: async (ticketId, payload) =>
+        calls.push({ ticketId, payload }),
+    });
+
+    assert.equal(calls.length, 1);
+    const [{ ticketId, payload }] = calls;
+    assert.equal(ticketId, 999);
+    assert.equal(payload.event, 'story-merged');
+    assert.equal(payload.level, 'story');
+    assert.equal(payload.severity, 'medium');
+    assert.match(payload.message, /Story #999/);
+    assert.match(payload.message, /agent::done/);
+  });
+
+  it('does not fire when the Story is already closed (noop path)', async (t) => {
+    t.mock.module(
+      'node:child_process',
+      childProcessMock(() => {
+        throw new Error('gh must not run on noop');
+      }),
+    );
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const calls = [];
+    await runWithNotify({
+      tag: 'notify-noop',
+      story: {
+        id: 999,
+        state: 'closed',
+        title: 'Closed',
+        labels: ['agent::done'],
+      },
+      fakeNotify: async (...args) => calls.push(args),
+    });
+
+    assert.equal(calls.length, 0);
+  });
+
+  it('does not fire when the label flip fails', async (t) => {
+    happyGhMock(t);
+    const calls = [];
+    const { success } = await runWithNotify({
+      tag: 'notify-label-fail',
+      story: { id: 1001, state: 'open', title: 'Label fail', labels: [] },
+      updateThrows: true,
+      fakeNotify: async (...args) => calls.push(args),
+    });
+
+    assert.equal(success, true);
+    assert.equal(calls.length, 0);
+  });
+
+  it('swallows notify failures and still returns success', async (t) => {
+    happyGhMock(t);
+    const { success, result } = await runWithNotify({
+      tag: 'notify-throws',
+      story: { id: 1002, state: 'open', title: 'Notify throws', labels: [] },
+      fakeNotify: async () => {
+        throw new Error('webhook offline');
+      },
+    });
+
+    assert.equal(success, true);
+    assert.equal(result.autoMergeEnabled, true);
+  });
+});

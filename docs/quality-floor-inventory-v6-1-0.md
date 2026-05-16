@@ -28,7 +28,7 @@ operator-approved criteria from Story #1702's body:
 | `.agents/scripts/git-pr-quality-gate.js` | CLI gate | Spawns lint/format/test and asserts exit codes; heavy mocking would assert only mock structure |
 | `.agents/scripts/validate-docs-freshness.js` | CLI gate | Pure git-mtime walk with no testable branching beyond filesystem state |
 | `.agents/scripts/detect-merges.js` | CLI scanner | Pure I/O glue over `git ls-files` |
-| `.agents/scripts/git-cleanup-branches.js` | CLI sweeper | Thin shell over `git for-each-ref` + `git branch -D` |
+| `.agents/scripts/git-cleanup.js` | CLI sweeper | Thin shell over `git for-each-ref` + `git branch -D` |
 | `.agents/scripts/git-rebase-and-resolve.js` | CLI orchestrator | Conflict-resolution heuristics over real git state; testing asserts only mock structure |
 | `.agents/scripts/quality-watch.js` | dev-tool watcher | MI 0; long-lived chokidar watcher with no unit-test seam |
 | `.agents/scripts/lib/config-schema.js` | data-as-code | AJV schema declaration; low MI is inherent to large flat schema literals |
@@ -364,7 +364,7 @@ Counts: coverage gaps **48** · MI<70 **1** · CRAP>20 methods **0**
 | `.agents/scripts/epic-deliver-prepare.js` | 81.76% (Δ +8.24% to floor) | 62.50% (Δ +22.5% to floor) | 50.00% (Δ +40% to floor) |
 | `.agents/scripts/select-audits.js` | 82.14% (Δ +7.86% to floor) | 84.21% (Δ +0.79% to floor) | 33.33% (Δ +56.67% to floor) |
 | `.agents/scripts/git-rebase-and-resolve.js` | 82.40% (Δ +7.6% to floor) | 78.38% (Δ +6.62% to floor) | 75.00% (Δ +15% to floor) |
-| `.agents/scripts/git-cleanup-branches.js` | 83.07% (Δ +6.93% to floor) | 90.65% | 88.24% (Δ +1.76% to floor) |
+| `.agents/scripts/git-cleanup.js` | 83.07% (Δ +6.93% to floor) | 90.65% | 88.24% (Δ +1.76% to floor) |
 | `.agents/scripts/story-execute-prepare.js` | 84.74% (Δ +5.26% to floor) | 60.42% (Δ +24.58% to floor) | 62.50% (Δ +27.5% to floor) |
 | `.agents/scripts/epic-reconcile.js` | 86.34% (Δ +3.66% to floor) | 65.33% (Δ +19.67% to floor) | 58.33% (Δ +31.67% to floor) |
 | `.agents/scripts/story-task-progress.js` | 86.35% (Δ +3.65% to floor) | 70.49% (Δ +14.51% to floor) | 60.00% (Δ +30% to floor) |
