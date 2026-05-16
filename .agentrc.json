@@ -21,8 +21,14 @@
     "branchProtection": {
       "enforce": true,
       "requiredChecks": [
-        { "name": "lint", "cmd": ["npm", "run", "lint"] },
-        { "name": "test", "cmd": ["npm", "test"] },
+        {
+          "name": "lint",
+          "cmd": ["npm", "run", "lint"]
+        },
+        {
+          "name": "test",
+          "cmd": ["npm", "test"]
+        },
         {
           "name": "baselines",
           "cmd": ["node", ".agents/scripts/check-baselines.js"]
@@ -54,14 +60,744 @@
     "quality": {
       "gates": {
         "coverage": {
-          "floors": { "*": { "lines": 40, "branches": 40, "functions": 0 } }
+          "floors": {
+            "paths": {
+              ".agents/scripts/analyze-execution.js": {
+                "follow_up": "#2073",
+                "branches": 62
+              },
+              ".agents/scripts/check-baselines.js": {
+                "follow_up": "#2073",
+                "lines": 83,
+                "branches": 65,
+                "functions": 72
+              },
+              ".agents/scripts/check-dead-exports.js": {
+                "follow_up": "#2072",
+                "lines": 89,
+                "branches": 83,
+                "functions": 81
+              },
+              ".agents/scripts/check-mutation.js": {
+                "follow_up": "#2073",
+                "branches": 81,
+                "functions": 85
+              },
+              ".agents/scripts/delete-epic-branches.js": {
+                "follow_up": "#2073",
+                "lines": 86,
+                "functions": 83
+              },
+              ".agents/scripts/diagnose.js": {
+                "follow_up": "#2073",
+                "functions": 71
+              },
+              ".agents/scripts/epic-code-review.js": {
+                "follow_up": "#2073",
+                "functions": 85
+              },
+              ".agents/scripts/epic-plan-edit-flow.js": {
+                "follow_up": "#2073",
+                "branches": 68,
+                "functions": 50
+              },
+              ".agents/scripts/evidence-gate.js": {
+                "follow_up": "#2073",
+                "functions": 80
+              },
+              ".agents/scripts/hierarchy-gate.js": {
+                "follow_up": "#2073",
+                "functions": 80
+              },
+              ".agents/scripts/lib/CacheLayer.js": {
+                "follow_up": "#2073",
+                "functions": 66
+              },
+              ".agents/scripts/lib/ITicketingProvider.js": {
+                "follow_up": "#2073",
+                "functions": 69
+              },
+              ".agents/scripts/lib/audit-suite/findings.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/audit-suite/index.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/baseline-loader.js": {
+                "follow_up": "#2073",
+                "branches": 70
+              },
+              ".agents/scripts/lib/baseline-snapshot.js": {
+                "follow_up": "#2073",
+                "branches": 75,
+                "functions": 85
+              },
+              ".agents/scripts/lib/baselines/components.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/baselines/kinds/bundle-size.js": {
+                "follow_up": "#2073",
+                "lines": 83,
+                "branches": 50
+              },
+              ".agents/scripts/lib/baselines/kinds/coverage.js": {
+                "follow_up": "#2073",
+                "lines": 84,
+                "branches": 56,
+                "functions": 85
+              },
+              ".agents/scripts/lib/baselines/kinds/crap.js": {
+                "follow_up": "#2072",
+                "lines": 89,
+                "branches": 70,
+                "functions": 85
+              },
+              ".agents/scripts/lib/baselines/kinds/lighthouse.js": {
+                "follow_up": "#2073",
+                "lines": 81,
+                "branches": 41,
+                "functions": 85
+              },
+              ".agents/scripts/lib/baselines/kinds/lint.js": {
+                "follow_up": "#2073",
+                "branches": 55
+              },
+              ".agents/scripts/lib/baselines/kinds/maintainability.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 80,
+                "functions": 85
+              },
+              ".agents/scripts/lib/baselines/kinds/mutation.js": {
+                "follow_up": "#2073",
+                "lines": 85,
+                "branches": 42,
+                "functions": 83
+              },
+              ".agents/scripts/lib/baselines/reader.js": {
+                "follow_up": "#2073",
+                "branches": 65
+              },
+              ".agents/scripts/lib/baselines/writer.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/bootstrap/ci-workflow-template.js": {
+                "follow_up": "#2073",
+                "branches": 66
+              },
+              ".agents/scripts/lib/bootstrap/hitl-confirm.js": {
+                "follow_up": "#2073",
+                "branches": 63
+              },
+              ".agents/scripts/lib/checks/baseline-drift-main-checkout.js": {
+                "follow_up": "#2073",
+                "branches": 77
+              },
+              ".agents/scripts/lib/checks/core-bare-clean.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/checks/epic-merge-lock-stale.js": {
+                "follow_up": "#2073",
+                "branches": 71
+              },
+              ".agents/scripts/lib/checks/index.js": {
+                "follow_up": "#2073",
+                "branches": 73
+              },
+              ".agents/scripts/lib/checks/state.js": {
+                "follow_up": "#2073",
+                "functions": 83
+              },
+              ".agents/scripts/lib/checks/subagent-agent-tool-required.js": {
+                "follow_up": "#2073",
+                "branches": 79
+              },
+              ".agents/scripts/lib/checks/worktree-residue-biome.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/close-validation.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 84,
+                "functions": 83
+              },
+              ".agents/scripts/lib/close-validation/projections/maintainability.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/config-gates-schema.js": {
+                "follow_up": "#2071",
+                "functions": 0
+              },
+              ".agents/scripts/lib/config-schema-shared.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/config/baselines.js": {
+                "follow_up": "#2073",
+                "lines": 82,
+                "functions": 66
+              },
+              ".agents/scripts/lib/config/sync-agentrc.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/config/temp-paths.js": {
+                "follow_up": "#2073",
+                "functions": 88
+              },
+              ".agents/scripts/lib/config/worktree-isolation.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/coverage-capture.js": {
+                "follow_up": "#2073",
+                "branches": 83
+              },
+              ".agents/scripts/lib/crap-engine.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/crap-utils.js": {
+                "follow_up": "#2073",
+                "lines": 86,
+                "branches": 80
+              },
+              ".agents/scripts/lib/duplicate-search.js": {
+                "follow_up": "#2073",
+                "branches": 83
+              },
+              ".agents/scripts/lib/epic-merge-lock.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/error-redactor.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/gates/baseline-store.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/gates/friction.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/gh-exec.js": {
+                "follow_up": "#2073",
+                "functions": 81
+              },
+              ".agents/scripts/lib/git-utils.js": {
+                "follow_up": "#2073",
+                "branches": 81,
+                "functions": 89
+              },
+              ".agents/scripts/lib/git/cached-fetch.js": {
+                "follow_up": "#2073",
+                "functions": 63
+              },
+              ".agents/scripts/lib/install-cmd-parser.js": {
+                "follow_up": "#2073",
+                "lines": 84,
+                "branches": 80,
+                "functions": 50
+              },
+              ".agents/scripts/lib/label-constants.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/maintainability-engine.js": {
+                "follow_up": "#2073",
+                "branches": 72
+              },
+              ".agents/scripts/lib/maintainability-utils.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/mutation/stryker-runner.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/observability/perf-aggregator.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/observability/signals-writer.js": {
+                "follow_up": "#2073",
+                "branches": 75,
+                "functions": 83
+              },
+              ".agents/scripts/lib/observability/tool-trace-hook.js": {
+                "follow_up": "#2073",
+                "branches": 77
+              },
+              ".agents/scripts/lib/orchestration/cascade-grouping.js": {
+                "follow_up": "#2073",
+                "functions": 83
+              },
+              ".agents/scripts/lib/orchestration/code-review.js": {
+                "follow_up": "#2073",
+                "branches": 73
+              },
+              ".agents/scripts/lib/orchestration/concurrent-task-resolver.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/context-hydration-engine.js": {
+                "follow_up": "#2073",
+                "branches": 62
+              },
+              ".agents/scripts/lib/orchestration/detectors-phase.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/orchestration/dispatch-engine.js": {
+                "follow_up": "#2073",
+                "lines": 82
+              },
+              ".agents/scripts/lib/orchestration/dispatch-pipeline.js": {
+                "follow_up": "#2073",
+                "branches": 83
+              },
+              ".agents/scripts/lib/orchestration/doc-reader.js": {
+                "follow_up": "#2073",
+                "branches": 83
+              },
+              ".agents/scripts/lib/orchestration/epic-runner.js": {
+                "follow_up": "#2073",
+                "branches": 50
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/blocker-handler.js": {
+                "follow_up": "#2073",
+                "lines": 88,
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/checkpointer.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/column-sync.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/deliver-phases.js": {
+                "follow_up": "#2073",
+                "branches": 71
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/factory.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 50,
+                "functions": 66
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js": {
+                "follow_up": "#2073",
+                "branches": 75
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js": {
+                "follow_up": "#2073",
+                "branches": 66,
+                "functions": 75
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 77
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/transport.js": {
+                "follow_up": "#2073",
+                "branches": 74
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js": {
+                "follow_up": "#2073",
+                "branches": 77
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/progress-signals/maintainability-drift.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/story-launcher.js": {
+                "follow_up": "#2073",
+                "branches": 82,
+                "functions": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/story-run-progress-writer.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/orchestration/epic-runner/wave-observer.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reconciler-apply.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reconciler-diff.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reconciler-format.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reverse-bootstrap.js": {
+                "follow_up": "#2073",
+                "branches": 69
+              },
+              ".agents/scripts/lib/orchestration/error-journal.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/orchestration/manifest-builder.js": {
+                "follow_up": "#2073",
+                "branches": 71
+              },
+              ".agents/scripts/lib/orchestration/parked-follow-ons.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/phase-runner.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js": {
+                "follow_up": "#2073",
+                "branches": 79
+              },
+              ".agents/scripts/lib/orchestration/plan-runner/worktree-sweep.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/orchestration/planning-state-manager.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/orchestration/post-merge-pipeline.js": {
+                "follow_up": "#2073",
+                "branches": 73
+              },
+              ".agents/scripts/lib/orchestration/reconciler.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "functions": 87
+              },
+              ".agents/scripts/lib/orchestration/retro-runner.js": {
+                "follow_up": "#2073",
+                "branches": 70
+              },
+              ".agents/scripts/lib/orchestration/spec-renderer.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js": {
+                "follow_up": "#2073",
+                "branches": 65
+              },
+              ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js": {
+                "follow_up": "#2073",
+                "lines": 86,
+                "branches": 73,
+                "functions": 81
+              },
+              ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js": {
+                "follow_up": "#2073",
+                "branches": 83
+              },
+              ".agents/scripts/lib/orchestration/story-close/baseline-friction-body.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/orchestration/story-close/cleanup-reconciler.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/orchestration/story-close/close-inputs.js": {
+                "follow_up": "#2073",
+                "branches": 72
+              },
+              ".agents/scripts/lib/orchestration/story-close/format-autofix.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/orchestration/story-close/merge-runner.js": {
+                "follow_up": "#2073",
+                "functions": 70
+              },
+              ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js": {
+                "follow_up": "#2073",
+                "functions": 75
+              },
+              ".agents/scripts/lib/orchestration/task-fetcher.js": {
+                "follow_up": "#2073",
+                "branches": 75
+              },
+              ".agents/scripts/lib/orchestration/ticket-validator-sizing.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/orchestration/ticketing.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/orchestration/ticketing/bulk.js": {
+                "follow_up": "#2073",
+                "branches": 82
+              },
+              ".agents/scripts/lib/orchestration/wave-dispatcher.js": {
+                "follow_up": "#2073",
+                "lines": 87
+              },
+              ".agents/scripts/lib/orchestration/wave-record-io.js": {
+                "follow_up": "#2073",
+                "lines": 76,
+                "branches": 50,
+                "functions": 80
+              },
+              ".agents/scripts/lib/plan-phase-cleanup.js": {
+                "follow_up": "#2073",
+                "branches": 76
+              },
+              ".agents/scripts/lib/preflight-runner.js": {
+                "follow_up": "#2073",
+                "branches": 58,
+                "functions": 50
+              },
+              ".agents/scripts/lib/presentation/manifest-formatter.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 83
+              },
+              ".agents/scripts/lib/presentation/manifest-persistence.js": {
+                "follow_up": "#2073",
+                "branches": 79
+              },
+              ".agents/scripts/lib/presentation/manifest-renderer.js": {
+                "follow_up": "#2073",
+                "branches": 84
+              },
+              ".agents/scripts/lib/presentation/manifest-story-views.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/push-epic-retry.js": {
+                "follow_up": "#2073",
+                "branches": 71,
+                "functions": 83
+              },
+              ".agents/scripts/lib/quality-floors.js": {
+                "follow_up": "#2073",
+                "lines": 87,
+                "branches": 80
+              },
+              ".agents/scripts/lib/runtime-context.js": {
+                "follow_up": "#2073",
+                "functions": 25
+              },
+              ".agents/scripts/lib/signals/detectors/index.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/signals/detectors/retry.js": {
+                "follow_up": "#2073",
+                "branches": 73
+              },
+              ".agents/scripts/lib/signals/detectors/rework.js": {
+                "follow_up": "#2073",
+                "branches": 75
+              },
+              ".agents/scripts/lib/signals/index.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/signals/span-tree.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/signals/write.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/single-story/story-merged-notify.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/spec/index.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/story-init/context-resolver.js": {
+                "follow_up": "#2073",
+                "lines": 86,
+                "branches": 72
+              },
+              ".agents/scripts/lib/story-init/dependency-guard.js": {
+                "follow_up": "#2073",
+                "branches": 74
+              },
+              ".agents/scripts/lib/story-init/donor-precheck.js": {
+                "follow_up": "#2073",
+                "lines": 89,
+                "branches": 78,
+                "functions": 85
+              },
+              ".agents/scripts/lib/templates/task-body-renderer.js": {
+                "follow_up": "#2073",
+                "branches": 80
+              },
+              ".agents/scripts/lib/worktree-manager.js": {
+                "follow_up": "#2073",
+                "branches": 83,
+                "functions": 70
+              },
+              ".agents/scripts/lib/worktree/bootstrapper.js": {
+                "follow_up": "#2073",
+                "lines": 87,
+                "branches": 82
+              },
+              ".agents/scripts/lib/worktree/lifecycle-manager.js": {
+                "follow_up": "#2073",
+                "functions": 0
+              },
+              ".agents/scripts/lib/worktree/lifecycle/creation.js": {
+                "follow_up": "#2073",
+                "lines": 84,
+                "branches": 83
+              },
+              ".agents/scripts/lib/worktree/lifecycle/force-drain.js": {
+                "follow_up": "#2073",
+                "lines": 87,
+                "branches": 83,
+                "functions": 60
+              },
+              ".agents/scripts/lib/worktree/lifecycle/gc.js": {
+                "follow_up": "#2073",
+                "branches": 81
+              },
+              ".agents/scripts/lib/worktree/lifecycle/pending-cleanup.js": {
+                "follow_up": "#2073",
+                "branches": 78
+              },
+              ".agents/scripts/lib/worktree/lifecycle/reap.js": {
+                "follow_up": "#2073",
+                "branches": 75
+              },
+              ".agents/scripts/pr-watch-with-update.js": {
+                "follow_up": "#2073",
+                "lines": 82,
+                "functions": 55
+              },
+              ".agents/scripts/providers/github.js": {
+                "follow_up": "#2073",
+                "lines": 84,
+                "branches": 67,
+                "functions": 82
+              },
+              ".agents/scripts/providers/github/projects-v2-graphql.js": {
+                "follow_up": "#2073",
+                "lines": 82,
+                "branches": 82,
+                "functions": 73
+              },
+              ".agents/scripts/quality-preview.js": {
+                "follow_up": "#2073",
+                "branches": 71
+              },
+              ".agents/scripts/render-manifest.js": {
+                "follow_up": "#2073",
+                "lines": 87,
+                "branches": 62,
+                "functions": 75
+              },
+              ".agents/scripts/signals-view.js": {
+                "follow_up": "#2073",
+                "branches": 73,
+                "functions": 86
+              },
+              ".agents/scripts/single-story-close.js": {
+                "follow_up": "#2073",
+                "branches": 61,
+                "functions": 50
+              },
+              ".agents/scripts/sync-claude-commands.js": {
+                "follow_up": "#2073",
+                "branches": 44
+              },
+              ".agents/scripts/update-maintainability-baseline.js": {
+                "follow_up": "#2073",
+                "branches": 75
+              },
+              ".agents/scripts/wave-gate.js": {
+                "follow_up": "#2073",
+                "lines": 87,
+                "branches": 80,
+                "functions": 75
+              }
+            }
+          }
         },
         "crap": {
-          "floors": { "*": { "crap": 30 } },
+          "floors": {
+            "paths": {
+              ".agents/scripts/lib/baselines/preview-gates.js": {
+                "crap": 130,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/lib/baselines/kinds/crap.js": {
+                "crap": 55,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/check-dead-exports.js": {
+                "crap": 30,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/lib/gates/gate-cli.js": {
+                "crap": 27,
+                "follow_up": "#2072"
+              }
+            }
+          },
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "floors": { "*": { "maintainability": 0 } },
+          "floors": {
+            "paths": {
+              ".agents/scripts/lib/orchestration/epic-cleanup.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/quality-watch.js": {
+                "maintainability": 0,
+                "follow_up": "#2070"
+              },
+              ".agents/scripts/lib/config-settings-schema.js": {
+                "maintainability": 46,
+                "follow_up": "#2071"
+              },
+              ".agents/scripts/lib/config-gates-schema.js": {
+                "maintainability": 51,
+                "follow_up": "#2071"
+              }
+            }
+          },
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
