@@ -268,7 +268,9 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
     it('consumer-supplied `*` workspace floor wins over framework default', () => {
       const q = resolveQuality({
         gates: {
-          coverage: { floors: { '*': { lines: 80, branches: 70, functions: 75 } } },
+          coverage: {
+            floors: { '*': { lines: 80, branches: 70, functions: 75 } },
+          },
           crap: { floors: { '*': { crap: 25 } } },
           maintainability: { floors: { '*': { maintainability: 60 } } },
         },
@@ -324,10 +326,7 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
         },
       });
       assert.deepEqual(q.gates.crap.targetDirs, ['src']);
-      assert.deepEqual(q.gates.maintainability.targetDirs, [
-        'src',
-        'tests',
-      ]);
+      assert.deepEqual(q.gates.maintainability.targetDirs, ['src', 'tests']);
       // Floors still get defaults injected.
       assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
       assert.deepEqual(q.gates.maintainability.floors, {
