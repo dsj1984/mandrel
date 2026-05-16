@@ -20,11 +20,7 @@
 import path from 'node:path';
 
 import { getChangedFiles } from '../changed-files.js';
-import {
-  getBaselines,
-  getQuality,
-  resolveConfig,
-} from '../config-resolver.js';
+import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
   KERNEL_VERSION,
@@ -195,8 +191,7 @@ export async function runCrapPreview({
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const requireCoverage = crap.requireCoverage !== false;
-  const coveragePath =
-    crap.coveragePath ?? 'coverage/coverage-final.json';
+  const coveragePath = crap.coveragePath ?? 'coverage/coverage-final.json';
   const coverage = loadCoverage(path.resolve(cwd, coveragePath));
   const { newMethodCeiling, tolerance } = resolveCrapEnvOverrides(
     crap,
@@ -229,7 +224,6 @@ export async function runCrapPreview({
       diffRef: changedSinceRef ?? null,
     },
   });
-  const exitCode =
-    result.regressions > 0 || result.newViolations > 0 ? 1 : 0;
+  const exitCode = result.regressions > 0 || result.newViolations > 0 ? 1 : 0;
   return { exitCode, envelope };
 }
