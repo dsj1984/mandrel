@@ -209,6 +209,15 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.ok(ctx.docsContext);
     assert.ok(['full', 'summary'].includes(ctx.docsContext.mode));
     assert.ok(Array.isArray(ctx.docsContext.items));
+    // Story #2094 Task #2103 — bddRunner is verified at planner-context
+    // build time so the acceptance-spec body can decide between features-
+    // first and dependencies-first ordering.
+    assert.equal(typeof ctx.bddRunner, 'object');
+    assert.ok(ctx.bddRunner);
+    assert.equal(typeof ctx.bddRunner.supported, 'boolean');
+    assert.equal(typeof ctx.bddRunner.fallback, 'boolean');
+    // Exactly one of supported/fallback is true.
+    assert.notEqual(ctx.bddRunner.supported, ctx.bddRunner.fallback);
   });
 
   it('throws when the epic is not found', async () => {

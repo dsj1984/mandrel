@@ -47,6 +47,13 @@ reads:
     `systemPrompts.acceptanceSpec` — left in the envelope as a backstop;
     this Skill's own body below carries the authoritative versions and is
     the source of truth going forward
+  - `bddRunner` — BDD runner pending-tag verification result. Shape:
+    `{ runner, pendingTag, supported, fallback, reason? }`. When
+    `supported: true`, render the verified `pendingTag` in the
+    acceptance-spec body so the features-first Story can scaffold
+    `.feature` files with that exact tag. When `fallback: true`, render
+    `"Fallback: dependencies-first ordering"` and omit the pending-tag
+    line — Phase 2 reverts to topological ordering.
 
 ## Outputs
 
@@ -149,6 +156,15 @@ Spec MUST:
   vs. prior plan), `unchanged` (carried through verbatim from prior plan).
 - Cite proposed feature files under `tests/features/**` by relative path
   so the Phase 2 features-first Story can scaffold the matching scenarios.
+- Render a **Runner Verification** line directly under the AC table that
+  records what `bddRunner` from the planner-context envelope reports:
+  - `supported: true` → write
+    `Runner Verification: <runner> supports <pendingTag>` (e.g.
+    `playwright-bdd supports @skip`). The features-first Story will tag
+    pending scenarios with this exact string.
+  - `fallback: true` → write
+    `Runner Verification: Fallback: dependencies-first ordering (reason: <reason>)`.
+    Phase 2 still proceeds; AC reconciliation defers to dependency order.
 
 #### Acceptance Spec system prompt (authoritative)
 

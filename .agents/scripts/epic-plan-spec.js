@@ -41,6 +41,7 @@ import {
 // for the same reason.
 export { forkAndCommitEpicSnapshot, forkMainToEpic };
 
+import { verifyBddRunnerPendingTag } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   getLimits,
@@ -156,6 +157,12 @@ export async function buildAuthoringContext(
     { fullContext },
   );
 
+  // Story #2094 Task #2103 — verify the project's BDD runner pending-tag
+  // support so the acceptance-spec body can record either the verified tag
+  // (features-first ordering) or "fallback: dependencies-first ordering"
+  // when no supported runner is present.
+  const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
+
   return {
     epic: {
       id: epic.id,
@@ -170,6 +177,7 @@ export async function buildAuthoringContext(
       techSpec: TECH_SPEC_SYSTEM_PROMPT,
       acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
+    bddRunner,
   };
 }
 
