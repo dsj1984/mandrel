@@ -64,6 +64,12 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.10.0](https://github.com/dsj1984/mandrel/compare/v1.9.0...v1.10.0) (2026-05-16)
+
+
+### Added
+
+* **bootstrap:** unified consumer setup script + README cleanup (hard cutover) ([#2075](https://github.com/dsj1984/mandrel/issues/2075)) ([8543677](https://github.com/dsj1984/mandrel/commit/854367748c68c5191fef99d849664f49329db63f)), closes [#2074](https://github.com/dsj1984/mandrel/issues/2074)
 
 ## [1.9.0](https://github.com/dsj1984/mandrel/compare/v1.8.0...v1.9.0) (2026-05-16)
 
