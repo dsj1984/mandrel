@@ -7,15 +7,26 @@ import { fileURLToPath } from 'node:url';
 import { write } from '../../.agents/scripts/lib/baselines/writer.js';
 
 /**
- * shipped-baselines-idempotency.test.js — Story #1895 task #1905.
+ * shipped-baselines-idempotency.test.js — Story #1895 task #1905;
+ * stabilized under Story #2017.
  *
  * Lock in that re-running the shared writer on the shipped baselines is a
- * no-op (modulo the timestamp, which the writer stamps from the input).
+ * structural no-op (modulo the timestamp, which the writer stamps from the
+ * input).
  *
  * Contract:
  *   1. Every shipped baseline parses, schema-validates, and round-trips
- *      through the writer to a byte-identical canonical JSON form when
- *      the original `generatedAt` is pinned.
+ *      through the writer to a STRUCTURALLY identical envelope when the
+ *      original `generatedAt` is pinned. "Structural" intentionally
+ *      ignores object key insertion order in the JSON: prior baselines on
+ *      disk may have rows in the legacy `{ path, crap, method, startLine }`
+ *      key order while the writer's `projectRow` emits the canonical
+ *      `{ path, method, startLine, crap }` order, and the
+ *      stability-epsilon stabilizer (#1964) can leak prior key order
+ *      verbatim on a sub-epsilon match. The values are what we care
+ *      about; byte-identity coupled the assertion to historical JSON
+ *      insertion order and made the test env-variant across Node
+ *      versions, escomplex versions, and OS line endings.
  *   2. No path in any row carries a `.worktrees/<name>/` prefix or a
  *      backslash separator — the canonicaliser must have already done
  *      its job.
@@ -52,20 +63,6 @@ function loadShipped(file) {
   return { raw, parsed: JSON.parse(raw), abs };
 }
 
-function canonicalSerialise(envelope) {
-  // Mirror the on-disk serialisation done by `writer.writeFile`: two-space
-  // indent, canonical top-level key order, trailing newline. We compute
-  // the bytes inline (no disk I/O) so the test never writes anywhere.
-  const canonical = {
-    $schema: envelope.$schema,
-    kernelVersion: envelope.kernelVersion,
-    generatedAt: envelope.generatedAt,
-    rollup: envelope.rollup,
-    rows: envelope.rows,
-  };
-  return `${JSON.stringify(canonical, null, 2)}\n`;
-}
-
 describe('shipped baselines — writer-idempotent and canonical', () => {
   for (const { kind, file } of SHIPPED) {
     describe(`${file}`, () => {
@@ -88,19 +85,24 @@ describe('shipped baselines — writer-idempotent and canonical', () => {
         }
       });
 
-      it.skip('round-trips through the writer byte-identically (generatedAt pinned) — env-variant; tracked by #2017', () => {
-        const { raw, parsed } = loadShipped(file);
+      it('round-trips through the writer structurally (generatedAt pinned)', () => {
+        const { parsed } = loadShipped(file);
         const rebuilt = write({
           kind,
           rows: parsed.rows ?? [],
           kernelVersion: parsed.kernelVersion,
           generatedAt: parsed.generatedAt,
         });
-        const rebuiltBytes = canonicalSerialise(rebuilt);
-        assert.equal(
-          rebuiltBytes,
-          raw,
-          `${file}: writer round-trip produced a different envelope; the shipped baseline is not canonical`,
+        // `deepStrictEqual` compares own-key sets and values, not key
+        // insertion order. That's exactly what we want: the writer must
+        // emit the same envelope shape, same rows, and same rollup that
+        // ships on disk, but it is allowed to reorder object keys (which
+        // both `projectRow` and the prior-row preservation paths in
+        // `applyEpsilon` / `mergeRowsByScope` legitimately do).
+        assert.deepStrictEqual(
+          rebuilt,
+          parsed,
+          `${file}: writer round-trip produced a structurally different envelope`,
         );
       });
     });
