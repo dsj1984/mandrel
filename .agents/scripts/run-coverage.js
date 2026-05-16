@@ -16,7 +16,7 @@
  *      plus the printed text table. Include/exclude scope from `.c8rc.cjs`
  *      is passed explicitly because `c8 report` does not auto-load the
  *      config file.
- *   3. `check-coverage-baseline.js` compares the per-file
+ *   3. `check-baselines.js --gate coverage` compares the per-file
  *      lines/branches/functions percentages in `coverage-final.json`
  *      against the recorded floors in `baselines/coverage.json` and
  *      fails on any regression. Update the baseline with
@@ -85,7 +85,11 @@ const reportRun = spawnSync(
 
 const checkRun = spawnSync(
   process.execPath,
-  [path.join(ROOT, '.agents', 'scripts', 'check-coverage-baseline.js')],
+  [
+    path.join(ROOT, '.agents', 'scripts', 'check-baselines.js'),
+    '--gate',
+    'coverage',
+  ],
   { cwd: ROOT, stdio: 'inherit' },
 );
 

@@ -50,27 +50,19 @@ test('Site 1 — close-validation DEFAULT_GATES invokes check-crap.js', () => {
   assert.deepStrictEqual(crapGate.args, ['.agents/scripts/check-crap.js']);
 });
 
-test('Site 2 — ci.yml runs `npm run crap:check` after test:coverage with PR-scoped diff', () => {
+test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)', () => {
   const yml = fs.readFileSync(
     path.join(REPO_ROOT, '.github', 'workflows', 'ci.yml'),
     'utf8',
   );
-  assert.match(yml, /npm run crap:check/);
-  // Diff-scoped on PRs against the base ref.
-  assert.match(yml, /--changed-since\s+origin\/\$\{\{ github\.base_ref \}\}/);
+  // Story #1981 (Epic #1943): the per-kind CRAP / coverage / MI / mutation
+  // gates were folded into the unified `check-baselines.js` runner exposed
+  // as the dedicated `baselines` job. The PR-scoped diff is enforced
+  // inside `check-baselines.js` against `agentSettings`; the CI workflow
+  // just invokes the runner.
+  assert.match(yml, /node \.agents\/scripts\/check-baselines\.js/);
   // pull_request trigger is what makes github.base_ref meaningful.
   assert.match(yml, /pull_request:/);
-  // CRAP must run AFTER the test-with-coverage step (per Tech Spec) so the
-  // coverage artifact is available for per-method coverage lookup.
-  const coverageIdx = yml.indexOf('Run Tests with Coverage');
-  const crapIdx = yml.indexOf('CRAP Check');
-  assert.ok(
-    coverageIdx > -1 && crapIdx > coverageIdx,
-    'CRAP Check step must come after Run Tests with Coverage',
-  );
-  // JSON artifact is uploaded for agent-workflow consumers.
-  assert.match(yml, /--json\s+temp\/crap-report\.json/);
-  assert.match(yml, /name:\s*crap-report/);
 });
 
 test('Site 3 — .husky/pre-push runs `npm run crap:check` with --changed-since origin/main', () => {

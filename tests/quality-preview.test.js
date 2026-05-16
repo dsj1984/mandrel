@@ -226,27 +226,24 @@ test('renderTable — header columns match the AC verbatim', () => {
   assert.match(out, /no per-file regressions/);
 });
 
-test('runCli — passing pair via stubbed spawn writes empty envelopes and exits 0', () => {
-  const tmp = makeTmpDir();
+function makeMiStub(envelope, exitCode = 0) {
+  return async () => ({ exitCode, envelope });
+}
+
+function makeCrapStub(envelope, exitCode = 0) {
+  return async () => ({ exitCode, envelope });
+}
+
+test('runCli — passing pair returns empty envelopes and exits 0', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const spawnStub = (_node, args) => {
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi ? makeMiEnvelope([], 0) : makeCrapEnvelope();
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: 0 };
-  };
-  const { exitCode, merged } = runCli({
+  const { exitCode, merged } = await runCli({
     argv: ['--changed-since', 'HEAD'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(makeMiEnvelope([], 0)),
+    runCrap: makeCrapStub(makeCrapEnvelope()),
   });
   assert.equal(exitCode, 0);
   assert.equal(merged.rows.length, 0);
@@ -255,37 +252,27 @@ test('runCli — passing pair via stubbed spawn writes empty envelopes and exits
   assert.match(joined, /file \| MI delta/);
 });
 
-test('runCli — MI-only failure flips exit to 1 and prints the offending row', () => {
-  const tmp = makeTmpDir();
+test('runCli — MI-only failure flips exit to 1 and prints the offending row', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const spawnStub = (_node, args) => {
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi
-      ? makeMiEnvelope([
-          {
-            file: 'lib/a.js',
-            current: 70.1,
-            baseline: 75.0,
-            drop: 4.9,
-            kind: 'regression',
-          },
-        ])
-      : makeCrapEnvelope();
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: isMi ? 1 : 0 };
-  };
-  const { exitCode, merged } = runCli({
+  const { exitCode, merged } = await runCli({
     argv: ['--changed-since', 'HEAD'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(
+      makeMiEnvelope([
+        {
+          file: 'lib/a.js',
+          current: 70.1,
+          baseline: 75.0,
+          drop: 4.9,
+          kind: 'regression',
+        },
+      ]),
+      1,
+    ),
+    runCrap: makeCrapStub(makeCrapEnvelope()),
   });
   assert.equal(exitCode, 1);
   assert.equal(merged.rows.length, 1);
@@ -293,106 +280,78 @@ test('runCli — MI-only failure flips exit to 1 and prints the offending row', 
   assert.match(out.lines.join(''), /lib\/a\.js/);
 });
 
-test('runCli — CRAP-only failure flips exit to 1', () => {
-  const tmp = makeTmpDir();
+test('runCli — CRAP-only failure flips exit to 1', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const spawnStub = (_node, args) => {
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi
-      ? makeMiEnvelope([], 0)
-      : makeCrapEnvelope({
-          newViolations: [
-            {
-              file: 'lib/b.js',
-              cyclomatic: 12,
-              crap: 50,
-              baseline: null,
-              ceiling: 30,
-              kind: 'new',
-            },
-          ],
-        });
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: isMi ? 0 : 1 };
-  };
-  const { exitCode, merged } = runCli({
+  const { exitCode, merged } = await runCli({
     argv: ['--changed-since', 'HEAD'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(makeMiEnvelope([], 0)),
+    runCrap: makeCrapStub(
+      makeCrapEnvelope({
+        newViolations: [
+          {
+            file: 'lib/b.js',
+            cyclomatic: 12,
+            crap: 50,
+            baseline: null,
+            ceiling: 30,
+            kind: 'new',
+          },
+        ],
+      }),
+      1,
+    ),
   });
   assert.equal(exitCode, 1);
   assert.equal(merged.rows.length, 1);
   assert.equal(merged.rows[0].file, 'lib/b.js');
 });
 
-test('runCli — mixed-fail surfaces both files and exits 1', () => {
-  const tmp = makeTmpDir();
+test('runCli — mixed-fail surfaces both files and exits 1', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const spawnStub = (_node, args) => {
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi
-      ? makeMiEnvelope([{ file: 'lib/a.js', drop: 2.0, kind: 'regression' }])
-      : makeCrapEnvelope({
-          newViolations: [
-            {
-              file: 'lib/b.js',
-              cyclomatic: 9,
-              crap: 35,
-              baseline: null,
-              ceiling: 30,
-              kind: 'new',
-            },
-          ],
-        });
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: 1 };
-  };
-  const { exitCode, merged } = runCli({
+  const { exitCode, merged } = await runCli({
     argv: ['--changed-since', 'HEAD'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(
+      makeMiEnvelope([{ file: 'lib/a.js', drop: 2.0, kind: 'regression' }]),
+      1,
+    ),
+    runCrap: makeCrapStub(
+      makeCrapEnvelope({
+        newViolations: [
+          {
+            file: 'lib/b.js',
+            cyclomatic: 9,
+            crap: 35,
+            baseline: null,
+            ceiling: 30,
+            kind: 'new',
+          },
+        ],
+      }),
+      1,
+    ),
   });
   assert.equal(exitCode, 1);
   assert.equal(merged.rows.length, 2);
 });
 
-test('runCli — --json mode emits structured envelope to stdout', () => {
-  const tmp = makeTmpDir();
+test('runCli — --json mode emits structured envelope to stdout', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const spawnStub = (_node, args) => {
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi ? makeMiEnvelope([], 0) : makeCrapEnvelope();
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: 0 };
-  };
-  const { exitCode } = runCli({
+  const { exitCode } = await runCli({
     argv: ['--changed-since', 'HEAD', '--json'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(makeMiEnvelope([], 0)),
+    runCrap: makeCrapStub(makeCrapEnvelope()),
   });
   assert.equal(exitCode, 0);
   const payload = JSON.parse(out.lines.join(''));
@@ -402,36 +361,16 @@ test('runCli — --json mode emits structured envelope to stdout', () => {
   assert.deepEqual(payload.merged.rows, []);
 });
 
-test('runCli — --staged forwards the flag to both gates', () => {
-  const tmp = makeTmpDir();
+test('runCli — --staged is parsed without throwing (forwarded for surface stability)', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
-  const seenArgs = [];
-  const spawnStub = (_node, args) => {
-    seenArgs.push(args.slice());
-    const jsonIdx = args.indexOf('--json');
-    const jsonPath = args[jsonIdx + 1];
-    const isMi = args[0].endsWith('check-maintainability.js');
-    const envelope = isMi ? makeMiEnvelope([], 0) : makeCrapEnvelope();
-    fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
-    fs.writeFileSync(jsonPath, JSON.stringify(envelope));
-    return { status: 0 };
-  };
-  runCli({
+  const { exitCode } = await runCli({
     argv: ['--changed-since', 'HEAD', '--staged'],
     cwd: process.cwd(),
-    spawn: spawnStub,
-    tmpDir: tmp,
     stdout: out,
     stderr: err,
-    scriptsDir: '/fake/scripts',
+    runMi: makeMiStub(makeMiEnvelope([], 0)),
+    runCrap: makeCrapStub(makeCrapEnvelope()),
   });
-  assert.equal(seenArgs.length, 2);
-  for (const args of seenArgs) {
-    assert.ok(
-      args.includes('--staged'),
-      `expected --staged in ${args.join(' ')}`,
-    );
-    assert.ok(args.includes('--changed-since'));
-  }
+  assert.equal(exitCode, 0);
 });

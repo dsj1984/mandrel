@@ -87,25 +87,12 @@ jobs:
           name: test-results
           path: test-output.txt
 
-      - name: Coverage Baseline + Floor Check
-        # Story #1602 (Epic #1184): the absolute-floor gate is enabled by
-        # default inside check-coverage-baseline.js (coverage 90/85/90).
-        # On PRs we keep the diff-scoped ratchet (--changed-since base_ref);
-        # on push-to-main we run --full-scope so an in-scope file below
-        # floor cannot ride along with an unrelated PR. The Maintainability
-        # and CRAP floor checks above already cover their gates because
-        # those checkers also enable the floor block by default.
-        run: |
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            npm run coverage:check -- --changed-since origin/${{ github.base_ref }}
-          else
-            npm run coverage:check -- --full-scope
-          fi
-
-      # Persist the istanbul/c8 coverage map so the CRAP gate (below) and
-      # downstream agent workflows can re-read per-method coverage without
-      # re-running the test suite. `if: always()` so a coverage-threshold
-      # failure in a previous step still uploads the artifact for triage.
+      # Story #1981 (Epic #1943): the per-kind coverage / CRAP /
+      # maintainability / mutation gates have been folded into the
+      # unified `check-baselines.js` runner — see the dedicated
+      # `baselines` job below. The c8 coverage map is still uploaded
+      # for downstream agent workflows that re-read per-method
+      # coverage without re-running the suite.
       - name: Upload Coverage Artifact
         uses: actions/upload-artifact@v4
         if: always()
@@ -114,43 +101,13 @@ jobs:
           path: coverage/coverage-final.json
           if-no-files-found: warn
 
-      - name: CRAP Check
-        # Diff-scoped on PRs (--changed-since base_ref) so the gate stays fast
-        # on large incoming diffs; full-repo scan on push-to-main so a
-        # regression in an untouched file cannot ride in alongside an unrelated
-        # PR. Self-skips when `agentSettings.quality.crap.enabled` is
-        # false. The `--json` artifact is uploaded for downstream agent
-        # workflows.
-        #
-        # Story #1394 (Epic #1386): the gate CLI now defaults --changed-since
-        # to `main`. The PR branch keeps an explicit `origin/<base_ref>` so
-        # backport / release-train PRs stay correct; the push-to-main branch
-        # passes --full-scope so the new diff-scoped default doesn't degrade
-        # to a self-diff (= empty file set) on push-to-main commits.
-        run: |
-          mkdir -p temp
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            npm run crap:check -- \
-              --changed-since origin/${{ github.base_ref }} \
-              --json temp/crap-report.json
-          else
-            npm run crap:check -- --full-scope --json temp/crap-report.json
-          fi
-
-      - name: Upload CRAP Report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: crap-report
-          path: temp/crap-report.json
-
   baselines:
     # Story #1912 / Task #1914 — surface the unified floor + tolerance +
-    # schema gate as its own status check named `baselines`. This runs
-    # alongside (not in place of) the per-kind regression gates folded
-    # into the `Validate and Test` job above; the per-kind names stay in
-    # `github.branchProtection.requiredChecks` until Epic #1943 collapses
-    # the contract to `["baselines"]`.
+    # schema gate as its own status check named `baselines`. As of
+    # Epic #1943 (Story #1981) this is the *only* baseline gate: the
+    # per-kind coverage / CRAP / maintainability / mutation gates have
+    # been deleted and `branchProtection.requiredChecks` has been
+    # collapsed to `["lint", "test", "baselines"]`.
     name: baselines
     runs-on: ubuntu-latest
     permissions:
