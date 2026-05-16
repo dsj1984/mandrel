@@ -78,11 +78,6 @@
                 "branches": 83,
                 "functions": 81
               },
-              ".agents/scripts/check-mutation.js": {
-                "follow_up": "#2073",
-                "branches": 81,
-                "functions": 85
-              },
               ".agents/scripts/delete-epic-branches.js": {
                 "follow_up": "#2073",
                 "lines": 86,
