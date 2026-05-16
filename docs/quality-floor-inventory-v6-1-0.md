@@ -401,6 +401,37 @@ Counts: coverage gaps **48** · MI<70 **1** · CRAP>20 methods **0**
 | --- | --- |
 | `.agents/scripts/quality-watch.js` | 0.00 (Δ +70 to floor) |
 
+## Story #2032 Investigation Addendum (Task #2038)
+
+When restoring the MI=70 framework floor (Story #2032), Task #2038 ran the
+`typhonjs-escomplex` kernel directly against every flagged file and
+recorded each parse outcome. The disposition table below drives the
+`floors.paths` overrides written in Task #2039 and the refactor in
+Task #2040.
+
+| File | MI | Disposition | follow_up |
+| --- | --- | --- | --- |
+| `.agents/scripts/lib/orchestration/epic-cleanup.js` | 0 (parse fail) | `floors.paths` override (Task #2039) | #2070 |
+| `.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js` | 0 (parse fail) | `floors.paths` override (Task #2039) | #2070 |
+| `.agents/scripts/quality-watch.js` | 0 (parse fail) | `floors.paths` override (Task #2039) | #2070 |
+| `.agents/scripts/lib/config-settings-schema.js` | 46.73 | `floors.paths` override (Task #2039) | #2071 |
+| `.agents/scripts/lib/config-gates-schema.js` | 51.19 | `floors.paths` override (Task #2039) | #2071 |
+| `.agents/scripts/lib/orchestration/epic-deliver-close-tail.js` | 67.92 | Refactor to ≥70 (Task #2040) | — |
+
+**Root cause for MI=0 entries (#2070):** `typhonjs-escomplex` (last
+published 2020) lacks ESTree traversers for several ES2020+ node types —
+specifically nullish coalescing (`??`), optional chaining (`?.`), and
+optional call (`?.()`). The kernel throws `traveler[node.type] is not a
+function` and `calculateForSource` swallows the throw, returning 0.
+Rewriting `??` to `||` would regress semantics on `0`/`""` operands, so
+the override is intentional pending engine remediation.
+
+**Root cause for low-MI schemas (#2071):** Large declarative JSON-Schema
+exports inflate Halstead operand counts (every property key, every
+literal). With near-zero cyclomatic complexity the MI score reflects
+declarative weight rather than maintenance risk; splitting purely to
+game MI would fragment the schema SSOT.
+
 ## Methodology
 
 - **MI scores** were computed live by invoking
