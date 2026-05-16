@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0](https://github.com/dsj1984/mandrel/compare/v1.7.0...v1.8.0) (2026-05-16)
+
+
+### Fixed
+
+* **epic-plan:** route --emit-context drain logs to stderr ([#2055](https://github.com/dsj1984/mandrel/issues/2055)) ([#2066](https://github.com/dsj1984/mandrel/issues/2066)) ([295bd4b](https://github.com/dsj1984/mandrel/commit/295bd4b0fceb9e9b34c63c8678f7bc15ca02d8e2))
+* **epic-spec-reconciler:** preserve type::* and risk::* labels on Epic persist ([#2064](https://github.com/dsj1984/mandrel/issues/2064)) ([c6aa08f](https://github.com/dsj1984/mandrel/commit/c6aa08f5824b749122317e237a59ebf164d9a01a)), closes [#2056](https://github.com/dsj1984/mandrel/issues/2056)
+
 ## [1.7.0](https://github.com/dsj1984/mandrel/compare/v1.6.0...v1.7.0) (2026-05-16)
 
 
