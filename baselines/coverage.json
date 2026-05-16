@@ -4,9 +4,9 @@
   "generatedAt": "2026-05-16T01:13:59.360Z",
   "rollup": {
     "*": {
-      "lines": 96.81,
-      "branches": 86.39,
-      "functions": 92.44
+      "lines": 96.8,
+      "branches": 86.37,
+      "functions": 92.49
     }
   },
   "rows": [
@@ -1446,8 +1446,20 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep.js",
-      "lines": 100,
+      "lines": 96.66,
       "branches": 90,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/protection.js",
+      "lines": 99.27,
+      "branches": 82.09,
+      "functions": 100
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "lines": 92.31,
+      "branches": 85.19,
       "functions": 100
     },
     {
