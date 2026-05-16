@@ -258,12 +258,15 @@ name without rewriting this ADR text.
   Adding a future adapter is in scope for that adapter's own epic, not
   a precondition the dispatcher must continually carry.
 - **Built-in adoption is in-bounds.** Adopting Claude Code built-ins
-  (`/goal`, `/simplify`, `/security-review`, `/loop`,
-  `/fewer-permission-prompts`, `/insights`, etc.) inside the workflow
-  surface does not violate the framework's coupling contract. Such
-  adoption is encouraged where the built-in's contract matches the
-  framework's artifact expectations or can be wrapped via the hybrid
-  pattern.
+  (`/simplify`, `/security-review`, `/loop`, `/fewer-permission-prompts`,
+  `/insights`, etc.) inside the workflow surface does not violate the
+  framework's coupling contract. Such adoption is encouraged where the
+  built-in's contract matches the framework's artifact expectations or
+  can be wrapped via the hybrid pattern. As of this writing only
+  `/fewer-permission-prompts` is wired in (referenced by `/agents-update`
+  Step 3.6); the others remain candidates. Note that `/goal` is a
+  *prompt-side* directive the operator types — it is not reachable from
+  the agent's tool surface and cannot be invoked from a workflow body.
 - **The overlap matrix is mandatory.** Each overlapping responsibility
   between a Claude Code built-in and a homegrown surface element must
   be recorded in `docs/decisions.md` with: wrapper name, built-in
