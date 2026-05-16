@@ -131,6 +131,7 @@
  *                                           output to a tmp dir.
  */
 
+import { Logger } from '../Logger.js';
 import { writeState as defaultWriteState } from '../spec/loader.js';
 import { buildState } from '../spec/state.js';
 import { concurrentMap } from '../util/concurrent-map.js';
@@ -370,12 +371,30 @@ async function applyCreate(op, provider, opts, slugToIssue) {
   if (created && typeof created.id === 'number') {
     slugToIssue[op.slug] = created.id;
   }
+  // Defence — Story #2063. GitHubProvider.createTicket captures a
+  // failed addSubIssue mutation into `{ subIssueLinked: false,
+  // subIssueError }` rather than throwing, so a transient GraphQL
+  // failure (secondary rate-limit, "Something went wrong" envelope,
+  // etc.) leaves the issue created on GH but with no native sub-issue
+  // link to its parent. The previous behaviour swallowed this
+  // entirely — a partial backlog persisted with no operator-visible
+  // signal. Surface it here at WARN so the breadcrumb is visible; the
+  // canonical repair runs in `runDecomposePhase` via
+  // `reconcileSubIssueLinks(epicId)` after every apply pass.
+  if (created && created.subIssueLinked === false) {
+    const reason =
+      created.subIssueError?.message ?? 'no error message captured';
+    Logger.warn(
+      `[reconciler.apply] sub-issue link failed for child #${created.id} (parent #${parentId ?? epicId}): ${reason}. The runDecomposePhase safety net will retry.`,
+    );
+  }
   return {
     slug: op.slug,
     entity: op.entity,
     kind: OP_KINDS.CREATE,
     issueNumber: created?.id,
     url: created?.url,
+    subIssueLinked: created?.subIssueLinked,
   };
 }
 
