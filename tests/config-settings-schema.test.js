@@ -493,8 +493,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
 
   // Story #2032 / Task #2041: `*` is no longer required on `floors`. Operators
   // may omit it entirely, in which case the framework default (e.g. MI ≥ 70
-  // for the maintainability gate) applies and `floors.paths` carries the
-  // per-file escape valves.
+  // for the maintainability gate) is injected by the resolver (Story #2125).
   it('accepts a floors block without the catch-all `*` key', () => {
     const doc = {
       ...REQ,
@@ -503,12 +502,7 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
           gates: {
             maintainability: {
               floors: {
-                paths: {
-                  '.agents/scripts/quality-watch.js': {
-                    maintainability: 0,
-                    follow_up: '#2070',
-                  },
-                },
+                'team-a': { maintainability: 65 },
               },
             },
           },
@@ -516,6 +510,35 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
       },
     };
     assert.equal(validate(doc), true);
+  });
+
+  // Story #2125: the `paths` escape-valve key was removed along with the
+  // dead per-row enforcement machinery. A floors block carrying `paths`
+  // is now rejected as schema-invalid.
+  it('rejects a floors.paths bag (removed in Story #2125)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: {
+          quality: {
+            gates: {
+              coverage: {
+                baselinePath: 'baselines/coverage.json',
+                floors: {
+                  paths: {
+                    'src/example.js': { lines: 80, follow_up: '#1234' },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      // `paths` is no longer a recognised key under floors; AJV reports
+      // additionalProperties/required violation depending on the
+      // implementation path.
+      /paths|additional/,
+    );
   });
 
   it('rejects flat scalar floors (legacy qualityFloors shape)', () => {

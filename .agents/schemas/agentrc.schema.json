@@ -270,27 +270,6 @@
     },
     "floors": {
       "type": "object",
-      "properties": {
-        "paths": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "object",
-            "required": ["follow_up"],
-            "properties": {
-              "lines": { "type": "number" },
-              "branches": { "type": "number" },
-              "functions": { "type": "number" },
-              "maintainability": { "type": "number" },
-              "crap": { "type": "number" },
-              "follow_up": {
-                "type": "string",
-                "pattern": "^#\\d+$|^https?://"
-              }
-            },
-            "additionalProperties": false
-          }
-        }
-      },
       "additionalProperties": {
         "type": "object",
         "additionalProperties": { "type": "number" }

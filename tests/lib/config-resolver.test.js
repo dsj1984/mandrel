@@ -227,6 +227,114 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
     assert.ok(q.gateScoping);
   });
 
+  describe('resolveQuality floors injection (Story #2125)', () => {
+    it('does NOT synthesise gate blocks the consumer did not declare', () => {
+      // The dispatcher (`selectEnabledGates`) treats a missing gate
+      // block as "kind disabled". Injecting synthetic blocks here would
+      // silently enable gates the consumer never asked for, so the
+      // resolver leaves omitted kinds omitted.
+      const q = resolveQuality(undefined);
+      assert.ok(
+        !Object.hasOwn(q.gates, 'coverage'),
+        'coverage gate should be absent when consumer omits it',
+      );
+      assert.ok(
+        !Object.hasOwn(q.gates, 'crap'),
+        'crap gate should be absent when consumer omits it',
+      );
+      assert.ok(
+        !Object.hasOwn(q.gates, 'maintainability'),
+        'maintainability gate should be absent when consumer omits it',
+      );
+    });
+
+    it('injects framework defaults when consumer supplies empty floors block', () => {
+      const q = resolveQuality({
+        gates: {
+          coverage: { floors: {} },
+          crap: { floors: {} },
+          maintainability: { floors: {} },
+        },
+      });
+      assert.deepEqual(q.gates.coverage.floors, {
+        '*': { lines: 90, branches: 85, functions: 90 },
+      });
+      assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      assert.deepEqual(q.gates.maintainability.floors, {
+        '*': { maintainability: 70 },
+      });
+    });
+
+    it('consumer-supplied `*` workspace floor wins over framework default', () => {
+      const q = resolveQuality({
+        gates: {
+          coverage: {
+            floors: { '*': { lines: 80, branches: 70, functions: 75 } },
+          },
+          crap: { floors: { '*': { crap: 25 } } },
+          maintainability: { floors: { '*': { maintainability: 60 } } },
+        },
+      });
+      assert.deepEqual(q.gates.coverage.floors['*'], {
+        lines: 80,
+        branches: 70,
+        functions: 75,
+      });
+      assert.deepEqual(q.gates.crap.floors['*'], { crap: 25 });
+      assert.deepEqual(q.gates.maintainability.floors['*'], {
+        maintainability: 60,
+      });
+    });
+
+    it('preserves non-* workspaces and injects framework `*` default alongside', () => {
+      const q = resolveQuality({
+        gates: {
+          coverage: {
+            floors: { 'team-a': { lines: 75, branches: 60, functions: 70 } },
+          },
+        },
+      });
+      // Consumer's named workspace is preserved as-is.
+      assert.deepEqual(q.gates.coverage.floors['team-a'], {
+        lines: 75,
+        branches: 60,
+        functions: 70,
+      });
+      // The catch-all `*` from defaults is injected alongside.
+      assert.deepEqual(q.gates.coverage.floors['*'], {
+        lines: 90,
+        branches: 85,
+        functions: 90,
+      });
+    });
+
+    it('returns a fresh floors object that does not alias the frozen default', () => {
+      const input = { gates: { coverage: { floors: {} } } };
+      const q1 = resolveQuality(input);
+      const q2 = resolveQuality(input);
+      // Mutate q1's floor and confirm q2 is unaffected (i.e. defaults
+      // were cloned, not aliased).
+      q1.gates.coverage.floors['*'].lines = 50;
+      assert.equal(q2.gates.coverage.floors['*'].lines, 90);
+    });
+
+    it('preserves non-floors gate fields when injecting defaults', () => {
+      const q = resolveQuality({
+        gates: {
+          crap: { targetDirs: ['src'], floors: {} },
+          maintainability: { targetDirs: ['src', 'tests'], floors: {} },
+        },
+      });
+      assert.deepEqual(q.gates.crap.targetDirs, ['src']);
+      assert.deepEqual(q.gates.maintainability.targetDirs, ['src', 'tests']);
+      // Floors still get defaults injected.
+      assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      assert.deepEqual(q.gates.maintainability.floors, {
+        '*': { maintainability: 70 },
+      });
+    });
+  });
+
   it('resolveMaintainabilityCrap applies gateScoping when crap omits the scope keys', () => {
     const crap = resolveMaintainabilityCrap(
       { enabled: true },

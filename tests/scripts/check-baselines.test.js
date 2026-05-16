@@ -62,6 +62,9 @@ function setupTmpRepo(extraConfig = {}) {
       },
     },
   };
+  if (extraConfig.coverageGate) {
+    agentrc.delivery.quality.gates.coverage = extraConfig.coverageGate;
+  }
   writeJson(path.join(root, '.agentrc.json'), agentrc);
   return root;
 }
@@ -227,6 +230,56 @@ describe('check-baselines — integration (pass / floor-breach / schema-error / 
     });
     assert.equal(res.exitCode, 1);
     assert.ok(res.report.totalBreaches > 0);
+  });
+
+  it('Story #2125: framework-default floors apply when consumer omits floors block', async () => {
+    // Consumer .agentrc.json carries an empty floors bag — the unified
+    // gate must still enforce the framework default (lines:90, branches:85,
+    // functions:90) by virtue of the resolver-side defaults injection.
+    root = setupTmpRepo({
+      coverageGate: {
+        enabled: true,
+        baselinePath: 'baselines/coverage.json',
+        tolerance: { kind: 'absolute', value: 0 },
+        floors: {},
+      },
+    });
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope({
+        rollup: { '*': { lines: 50, branches: 50, functions: 50 } },
+      }),
+    );
+    const res = await runCheckBaselines({
+      argv: ['--no-friction'],
+      cwd: root,
+    });
+    assert.equal(res.exitCode, 1);
+    assert.ok(res.report.totalBreaches > 0);
+  });
+
+  it('Story #2125: framework defaults pass when rollup clears them', async () => {
+    // Same setup but rollup is comfortably above the framework default.
+    root = setupTmpRepo({
+      coverageGate: {
+        enabled: true,
+        baselinePath: 'baselines/coverage.json',
+        tolerance: { kind: 'absolute', value: 0 },
+        floors: {},
+      },
+    });
+    writeJson(
+      path.join(root, 'baselines', 'coverage.json'),
+      coverageEnvelope({
+        rollup: { '*': { lines: 95, branches: 92, functions: 95 } },
+      }),
+    );
+    const res = await runCheckBaselines({
+      argv: ['--no-friction'],
+      cwd: root,
+    });
+    assert.equal(res.exitCode, 0);
+    assert.equal(res.report.totalBreaches, 0);
   });
 
   it('exits 2 on schema validation error', async () => {

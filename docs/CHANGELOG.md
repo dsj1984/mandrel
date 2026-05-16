@@ -4,6 +4,53 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed — Story #2125: framework-default floors actually apply
+
+Closes the absolute-floor gap that Story #2119 surfaced when it drained the
+`floors.paths` overrides Epic #1994 had baked into `.agentrc.json`. The
+framework defaults (coverage `lines: 90 / branches: 85 / functions: 90`,
+maintainability `≥ 70`, CRAP `≤ 20`) were declared in
+`lib/config/quality.js` but never propagated into the `gates.<kind>.floors`
+block that `check-baselines.js` reads — Epic #1994 hid the gap by writing
+explicit `'*'` floors into `.agentrc.json`, and Story #2119 exposed it by
+draining those entries.
+
+- **Resolver fix.** `resolveQuality` now merges framework-default floors
+  into `gates.<kind>.floors` for each declared kind (coverage, crap,
+  maintainability). Consumer `.agentrc.json` can carry `floors: {}` (or
+  omit the key entirely on a declared gate) and still get the framework
+  default at runtime. Kinds the consumer never declared are left absent;
+  the dispatcher's "omitted gate is a disabled gate" contract is preserved.
+- **Consumer override semantics unchanged.** A consumer-supplied
+  `floors: { "*": { lines: 80 } }` still wins; defaults supply any
+  workspace key the consumer didn't override.
+
+### Removed — Story #2125: dead per-row floor machinery
+
+Story #2119 verified that the per-row `floors.paths` enforcement path was
+decorative across all three gates — the unified `check-baselines.js`
+dispatcher (Epic #1943) only enforces project-wide rollup floors, and the
+per-kind CLIs that did honor per-row overrides were retired when the gate
+consolidated. With #2119 having drained every override, the machinery is
+unreachable. This release removes it:
+
+- Deleted `.agents/scripts/lib/quality-floors.js` (689 LOC).
+- Removed `enforceCrapFloor`, `enforceMaintainabilityFloor`, and the
+  associated `logActivePathOverrides` helpers from
+  `.agents/scripts/lib/baselines/kinds/{crap,maintainability}.js`.
+- Removed the `paths` slot and its `PATH_OVERRIDE_ENTRY` schema fragment
+  from the gates floor schema in both `lib/config-gates-schema.js` and
+  `.agents/schemas/agentrc.schema.json`. A consumer config still carrying
+  a `floors.paths` bag will now fail config validation with a clear
+  schema error.
+- Removed three dead test files:
+  `tests/absolute-floor-gate-rejects-subfloor.test.js`,
+  `tests/baselines/kinds/path-override-pass-log.test.js`,
+  `tests/lib/quality-floors.test.js` (~920 LOC).
+
+Net: ~1,610 LOC of source + tests removed; no behavioural change to the
+unified gate (per-row enforcement was never active under #1943).
+
 ### Changed — Epic #1994 finalize: quality-floor restoration
 
 Restored framework-default quality floors across all three governance gates,
