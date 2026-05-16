@@ -65,8 +65,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 
 | Command                    | Purpose                                                                                                          |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `/agents-bootstrap-github`  | Initialize a GitHub repo with the framework label taxonomy, project fields, the default Kanban board, and (when `agentSettings.quality.prGate.enforceBranchProtection` is enabled) main-branch protection. |
-| `/agents-bootstrap-project` | Wire the local harness around the framework: `.claude/commands/` sync, `package.json` scripts, hooks, gitignore, and a host-level git-perf check on Windows. |
+| `node .agents/scripts/bootstrap.js` | One-shot consumer setup: wires the local harness (`.claude/commands/` sync, `package.json` scripts, hooks, gitignore, Windows git-perf check) **and** initializes the GitHub repo (label taxonomy, project fields, default Kanban board, branch protection when enabled). Not a slash command — runs deterministically with interactive prompts on a TTY and flag-driven non-interactive runs in CI. |
 | `/agents-update`            | Bump the `.agents` submodule to its remote HEAD, reconcile `.agentrc.json` against the new defaults, and regenerate `.claude/commands/`. |
 | `/drain-pending-cleanup`    | Reap any orphan `.worktrees/` residue and prune stale story / epic branches in one pass.                        |
 | `/run-bdd-suite`            | Run a tag-filtered BDD acceptance suite and collect a Cucumber report (consumed by the `epic-testing.md` helper). |
