@@ -23,6 +23,13 @@ export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
   DONE: AGENT_LABELS.DONE,
+  // Story #2004 — `agent::blocked` is the framework's single authoritative
+  // HITL pause point (see `.agents/instructions.md` §1.J). Adding it to the
+  // state enum lets `transitionTicketState` (and the
+  // `update-ticket-state.js` CLI) apply the label through the canonical
+  // one-state-at-a-time path; without it the workflow contract that names
+  // `agent::blocked` cannot be honoured by the tooling.
+  BLOCKED: AGENT_LABELS.BLOCKED,
 };
 
 /**

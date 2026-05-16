@@ -2516,7 +2516,7 @@
     },
     {
       "path": "tests/lib/orchestration/ticketing/state.test.js",
-      "mi": 112.807
+      "mi": 111.05
     },
     {
       "path": "tests/lib/orchestration/wave-dispatcher.prime.test.js",
