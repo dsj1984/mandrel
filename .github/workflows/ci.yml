@@ -59,15 +59,13 @@ jobs:
         run: npm run lint
 
       - name: Maintainability Check
-        # Story #1394 (Epic #1386): the gate CLIs now default --changed-since
-        # to a diff-scoped scan against `main`. On PRs we point at the actual
-        # base ref (which may not be `main` for backport / release-train PRs);
-        # on push-to-main we opt out via --full-scope so a regression in an
-        # untouched file still surfaces and a self-comparison doesn't degrade
-        # to "no files in diff".
+        # Epic #1943: scope is resolved by the unified dispatcher via
+        # delivery.quality.gateScoping (.agentrc.json) — diffRef defaults to
+        # main on PR runs; push-to-main runs use --full-scope so untouched
+        # files still surface regressions.
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            npm run maintainability:check -- --changed-since origin/${{ github.base_ref }}
+            npm run maintainability:check
           else
             npm run maintainability:check -- --full-scope
           fi
