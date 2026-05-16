@@ -313,6 +313,109 @@ describe('regenerateMainFromTree', () => {
     assert.equal(crapEntry.reason, 'no-coverage');
     assert.equal(logger.warn.mock.callCount(), 1);
   });
+
+  // Story #2079 — defence-in-depth against worktree-relative path leakage in
+  // the on-disk maintainability baseline. The scoring helper can hand back
+  // keys that are either absolute (file scanner inside a worktree) or
+  // relative-but-prefixed (resolver mismatch produces a `.worktrees/...` key
+  // even when cwd ≠ worktree). Both shapes used to leak verbatim into the
+  // flat-map baseline that ships in `baselines/maintainability.json` and
+  // blocked subsequent close-validation runs on sibling Stories. The fix
+  // routes every key through `path-canon` after the cwd-relative reduction
+  // so the prefix is stripped regardless of upstream resolution accidents.
+  it('canonicalises path-style worktree-prefixed keys before persisting maintainability scores', async () => {
+    const miPath = abs('baselines/maintainability.json');
+    const crapPath = abs('baselines/crap.json');
+    const fsImpl = makeFsShim({
+      [miPath]: '{}\n',
+      [crapPath]: '{}\n',
+    });
+    let captured = null;
+    await regenerateMainFromTree({
+      cwd: FAKE_CWD,
+      resolveConfig: () => ({ agentSettings: {} }),
+      getBaselines: () => BASELINES_RESOLVED,
+      getQuality: () => QUALITY_RESOLVED,
+      logger: silentLogger(),
+      fsImpl,
+      scanDirectoryFn: () => [],
+      calculateAllFn: async () => ({
+        // Relative-but-prefixed shape — bug repro from Story #2029's close,
+        // where the scoring resolver produced keys carrying the worktree
+        // segment even though cwd was the main checkout.
+        '.worktrees/story-2029/.agents/scripts/foo.js': 92,
+        // Clean shape — passes through unchanged.
+        '.agents/scripts/bar.js': 85,
+      }),
+      saveMaintainabilityFn: (scores) => {
+        captured = scores;
+      },
+      scanAndScoreFn: async () => ({ rows: [] }),
+      buildBaselineEnvelopeFn: () => ({ rows: [], escomplexVersion: '0.1.0' }),
+      saveCrapFn: () => {},
+      loadCoverageFn: () => ({}),
+      resolveEscomplexVersionFn: () => '0.1.0',
+      resolveTsTranspilerVersionFn: () => '5.9.3',
+    });
+
+    assert.ok(captured, 'saveMaintainabilityFn must have been invoked');
+    const keys = Object.keys(captured);
+    for (const k of keys) {
+      assert.ok(
+        !k.startsWith('.worktrees/'),
+        `key must not carry .worktrees/ prefix; got "${k}"`,
+      );
+    }
+    // The prefixed input collapses into the canonical key — preserves the score.
+    assert.equal(captured['.agents/scripts/foo.js'], 92);
+    assert.equal(captured['.agents/scripts/bar.js'], 85);
+  });
+
+  it('canonicalises absolute-into-worktree keys produced by an in-worktree file scanner', async () => {
+    const miPath = abs('baselines/maintainability.json');
+    const crapPath = abs('baselines/crap.json');
+    const fsImpl = makeFsShim({
+      [miPath]: '{}\n',
+      [crapPath]: '{}\n',
+    });
+    let captured = null;
+    await regenerateMainFromTree({
+      cwd: FAKE_CWD,
+      resolveConfig: () => ({ agentSettings: {} }),
+      getBaselines: () => BASELINES_RESOLVED,
+      getQuality: () => QUALITY_RESOLVED,
+      logger: silentLogger(),
+      fsImpl,
+      scanDirectoryFn: () => [],
+      calculateAllFn: async () => ({
+        // Absolute path inside a worktree, with cwd as the main checkout —
+        // `path.relative` returns `.worktrees/<workspace>/...`, which must
+        // be stripped before the key reaches the on-disk baseline.
+        [path.resolve(
+          FAKE_CWD,
+          '.worktrees/story-2029/.agents/scripts/baz.js',
+        )]: 77,
+      }),
+      saveMaintainabilityFn: (scores) => {
+        captured = scores;
+      },
+      scanAndScoreFn: async () => ({ rows: [] }),
+      buildBaselineEnvelopeFn: () => ({ rows: [], escomplexVersion: '0.1.0' }),
+      saveCrapFn: () => {},
+      loadCoverageFn: () => ({}),
+      resolveEscomplexVersionFn: () => '0.1.0',
+      resolveTsTranspilerVersionFn: () => '5.9.3',
+    });
+
+    assert.ok(captured, 'saveMaintainabilityFn must have been invoked');
+    for (const k of Object.keys(captured)) {
+      assert.ok(
+        !k.startsWith('.worktrees/'),
+        `key must not carry .worktrees/ prefix; got "${k}"`,
+      );
+    }
+    assert.equal(captured['.agents/scripts/baz.js'], 77);
+  });
 });
 
 /**

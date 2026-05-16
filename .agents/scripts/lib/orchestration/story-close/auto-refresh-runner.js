@@ -54,6 +54,7 @@ import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-re
 import { regenerateMainFromTree as defaultRegenerateMainFromTree } from '../../baseline-snapshot.js';
 import * as crapKind from '../../baselines/kinds/crap.js';
 import * as miKind from '../../baselines/kinds/maintainability.js';
+import { assertCanonical, canonicalise } from '../../baselines/path-canon.js';
 import { getBaselineEpsilon as defaultGetBaselineEpsilon } from '../../config/quality.js';
 import {
   getBaselines as defaultGetBaselines,
@@ -153,10 +154,22 @@ function readBaselineRows({ kind, baselinePath, fsImpl = fs }) {
  * @returns {{ miRewritten: boolean, crapRewritten: boolean }}
  */
 // MI: re-emit the legacy `{path: mi}` flat-map shape with sorted keys.
+// Story #2079: canonicalise every row's path at the write boundary so a
+// regen produced from inside `.worktrees/<workspace>/` cannot leak its
+// worktree prefix into the on-disk baseline. The shared writer in
+// `lib/baselines/writer.js` already canonicalises via path-canon; this
+// emitter bypasses that writer to preserve the legacy flat-map shape, so
+// we apply the same defence inline. `assertCanonical` after canonicalise
+// is the belt-and-braces — if a future change to canonicalise misses a
+// case, the assertion throws rather than silently writing a bad key.
 function emitMiFlatMap(miAbs, stabilised, fsImpl) {
   const flatMap = Object.create(null);
   for (const row of stabilised) {
-    if (row && typeof row.path === 'string') flatMap[row.path] = row.mi;
+    if (row && typeof row.path === 'string') {
+      const canonical = canonicalise(row.path);
+      assertCanonical(canonical);
+      flatMap[canonical] = row.mi;
+    }
   }
   const sorted = Object.keys(flatMap)
     .sort()
@@ -181,10 +194,19 @@ function emitCrapEnvelope(crapAbs, stabilised, fsImpl) {
   const usesFileField = (envelope.rows ?? []).some(
     (r) => r && typeof r.file === 'string' && typeof r.path !== 'string',
   );
+  // Story #2079: canonicalise every row's key field so a regen produced
+  // from inside `.worktrees/<workspace>/` cannot leak its prefix here.
   envelope.rows = crapKind.sortRows(stabilised).map((row) => {
-    if (!usesFileField) return row;
-    const { path: rowPath, ...rest } = row;
-    return { ...rest, file: rowPath };
+    const rawKey = row.path ?? row.file;
+    if (typeof rawKey !== 'string') return row;
+    const canonical = canonicalise(rawKey);
+    assertCanonical(canonical);
+    const rest = { ...row };
+    delete rest.path;
+    delete rest.file;
+    return usesFileField
+      ? { ...rest, file: canonical }
+      : { ...rest, path: canonical };
   });
   fsImpl.mkdirSync(path.dirname(crapAbs), { recursive: true });
   fsImpl.writeFileSync(crapAbs, `${JSON.stringify(envelope, null, 2)}\n`);
