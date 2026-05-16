@@ -340,7 +340,12 @@ function flattenBreaches(findings) {
 }
 
 function runCompareStage(headBaseline, cmp) {
-  const empty = { regressions: [], improvements: [], unchanged: [] };
+  const empty = {
+    regressions: [],
+    improvements: [],
+    unchanged: [],
+    additions: [],
+  };
   if (!cmp.baseRead || !cmp.basePayload || !cmp.kindModule) return empty;
   try {
     const baseRows = Array.isArray(cmp.basePayload.rows)
@@ -354,6 +359,7 @@ function runCompareStage(headBaseline, cmp) {
       regressions: result?.regressions ?? [],
       improvements: result?.improvements ?? [],
       unchanged: result?.unchanged ?? [],
+      additions: result?.additions ?? [],
     };
   } catch {
     // Compare failures are advisory — drop to "no regression" rather
@@ -429,6 +435,7 @@ function buildGateReport({
     regressions: compareOutput.regressions,
     improvements: compareOutput.improvements,
     unchanged: compareOutput.unchanged,
+    additions: compareOutput.additions ?? [],
     regressionCount: compareOutput.regressions.length,
     baseRef: cmp.baseRef ?? null,
     generatedAt: baseline.generatedAt,
