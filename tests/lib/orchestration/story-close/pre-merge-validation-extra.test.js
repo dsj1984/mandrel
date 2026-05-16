@@ -195,14 +195,15 @@ describe('runPreMergeGates — Story #1396 --epic-ref threading', () => {
   });
 });
 
-describe('runPreMergeGates — Story #1394 diff-scoped default', () => {
-  it('forwards the default gate list (no explicit --changed-since) so the new diff-scoped default applies to both gates', async () => {
-    // The Tech Spec for Epic #1386 flips check-{maintainability,crap}.js to
-    // default to diff-scoped (`--changed-since main`). Close-validation must
-    // therefore NOT inject a redundant `--changed-since` argument — the
-    // gate CLI's own resolver applies the layered default. This guard fails
-    // if a future refactor smuggles an opinionated ref back into the gate
-    // args without first updating the precedence story (Tech Spec §4).
+describe('runPreMergeGates — gate scope defaults (Story #1394 + Story #1945)', () => {
+  it('check-maintainability stays on the diff-scoped default (#1394); check-crap defaults to --full-scope (#1945)', async () => {
+    // Story #1394 (Epic #1386) flipped check-{maintainability,crap}.js to
+    // default to diff-scoped (`--changed-since main`) so PR close stays
+    // fast. Story #1945 supersedes that default for the CRAP gate
+    // specifically — close-validation now mirrors CI's post-merge `push`
+    // event by passing `--full-scope` so method-level CRAP regressions in
+    // untouched files are caught at close time, not after auto-merge.
+    // MI keeps the diff-scoped default; only CRAP changed.
     const gates = buildDefaultGates({
       agentSettings: {},
       epicBranch: 'epic/1386',
@@ -214,22 +215,22 @@ describe('runPreMergeGates — Story #1394 diff-scoped default', () => {
     assert.equal(
       mi.args.includes('--changed-since'),
       false,
-      'check-maintainability must rely on the new diff-scoped default — explicit --changed-since defeats the precedence chain documented in Story #1394',
-    );
-    assert.equal(
-      crap.args.includes('--changed-since'),
-      false,
-      'check-crap must rely on the new diff-scoped default — explicit --changed-since defeats the precedence chain documented in Story #1394',
+      'check-maintainability must rely on the diff-scoped default — explicit --changed-since defeats the precedence chain documented in Story #1394',
     );
     assert.equal(
       mi.args.includes('--full-scope'),
       false,
-      'close-validation must not opt out via --full-scope; the diff-scoped default is the documented Story-close behavior',
+      'check-maintainability remains diff-scoped at close time — Story #1945 only flipped the CRAP gate',
+    );
+    assert.equal(
+      crap.args.includes('--changed-since'),
+      false,
+      'check-crap must not inject an explicit --changed-since at close time',
     );
     assert.equal(
       crap.args.includes('--full-scope'),
-      false,
-      'close-validation must not opt out via --full-scope; the diff-scoped default is the documented Story-close behavior',
+      true,
+      'check-crap defaults to --full-scope at close time (Story #1945) so close mirrors CI post-merge scope',
     );
     // Story #1120: --epic-ref still flows through to read the baseline at
     // the Epic-branch HEAD. Co-asserted here because dropping it silently
@@ -239,10 +240,11 @@ describe('runPreMergeGates — Story #1394 diff-scoped default', () => {
       ['--epic-ref', 'epic/1386'],
       'check-maintainability must still receive --epic-ref',
     );
+    // CRAP's --epic-ref now sits before the trailing --full-scope.
     assert.deepEqual(
-      crap.args.slice(-2),
+      crap.args.slice(-3, -1),
       ['--epic-ref', 'epic/1386'],
-      'check-crap must still receive --epic-ref',
+      'check-crap must still receive --epic-ref (now followed by --full-scope)',
     );
   });
 });
