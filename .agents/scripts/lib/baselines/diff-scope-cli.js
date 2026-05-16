@@ -125,25 +125,32 @@ export function resolveDiffScope({ argv, cwd, spawnImpl } = {}) {
  * @param {{ kind: 'maintainability' | 'crap', absBaselinePath: string, fsImpl?: typeof fs }} args
  * @returns {Array<object> | null}
  */
-export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {
+// Read + JSON-parse a baseline file. Returns `null` on any I/O or parse
+// failure (the caller treats "no prior" the same as "unreadable prior").
+function readBaselineJson(absBaselinePath, fsImpl) {
   let raw;
   try {
     raw = fsImpl.readFileSync(absBaselinePath, 'utf8');
   } catch {
     return null;
   }
-  let parsed;
   try {
-    parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null;
   }
-  if (!parsed || typeof parsed !== 'object') return null;
-  if (kind === 'crap') {
-    if (!Array.isArray(parsed.rows)) return null;
-    return parsed.rows.map((row) => ({ ...row, path: row.path ?? row.file }));
-  }
-  // maintainability — envelope first, then legacy flat-map fallback.
+}
+
+// CRAP path: envelope `rows[]` with legacy `file` adapted to canonical `path`.
+function readCrapPriorRows(parsed) {
+  if (!Array.isArray(parsed.rows)) return null;
+  return parsed.rows.map((row) => ({ ...row, path: row.path ?? row.file }));
+}
+
+// Maintainability path: prefer envelope `rows[]`; fall back to the legacy
+// flat-map shape (`{ "<path>": <mi>, ... }`).
+function readMaintainabilityPriorRows(parsed) {
   if (Array.isArray(parsed.rows)) {
     return parsed.rows.filter(
       (r) => r && typeof r.path === 'string' && typeof r.mi === 'number',
@@ -155,6 +162,13 @@ export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {
     if (typeof mi === 'number') rows.push({ path: p, mi });
   }
   return rows;
+}
+
+export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {
+  const parsed = readBaselineJson(absBaselinePath, fsImpl);
+  if (!parsed) return null;
+  if (kind === 'crap') return readCrapPriorRows(parsed);
+  return readMaintainabilityPriorRows(parsed);
 }
 
 /**
