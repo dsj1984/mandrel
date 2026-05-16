@@ -152,6 +152,44 @@ function readBaselineRows({ kind, baselinePath, fsImpl = fs }) {
  * }} args
  * @returns {{ miRewritten: boolean, crapRewritten: boolean }}
  */
+// MI: re-emit the legacy `{path: mi}` flat-map shape with sorted keys.
+function emitMiFlatMap(miAbs, stabilised, fsImpl) {
+  const flatMap = Object.create(null);
+  for (const row of stabilised) {
+    if (row && typeof row.path === 'string') flatMap[row.path] = row.mi;
+  }
+  const sorted = Object.keys(flatMap)
+    .sort()
+    .reduce((acc, k) => {
+      acc[k] = flatMap[k];
+      return acc;
+    }, Object.create(null));
+  fsImpl.mkdirSync(path.dirname(miAbs), { recursive: true });
+  fsImpl.writeFileSync(miAbs, `${JSON.stringify(sorted, null, 2)}\n`);
+}
+
+// CRAP: preserve the existing envelope's metadata + field naming
+// (shipped baselines carry `file`, not `path`).
+function emitCrapEnvelope(crapAbs, stabilised, fsImpl) {
+  let envelope = null;
+  try {
+    envelope = JSON.parse(fsImpl.readFileSync(crapAbs, 'utf8'));
+  } catch {
+    envelope = null;
+  }
+  if (!envelope || typeof envelope !== 'object') envelope = { rows: [] };
+  const usesFileField = (envelope.rows ?? []).some(
+    (r) => r && typeof r.file === 'string' && typeof r.path !== 'string',
+  );
+  envelope.rows = crapKind.sortRows(stabilised).map((row) => {
+    if (!usesFileField) return row;
+    const { path: rowPath, ...rest } = row;
+    return { ...rest, file: rowPath };
+  });
+  fsImpl.mkdirSync(path.dirname(crapAbs), { recursive: true });
+  fsImpl.writeFileSync(crapAbs, `${JSON.stringify(envelope, null, 2)}\n`);
+}
+
 function rewriteBaselinesWithScopeMerge({
   miAbs,
   crapAbs,
@@ -166,70 +204,27 @@ function rewriteBaselinesWithScopeMerge({
 }) {
   const out = { miRewritten: false, crapRewritten: false };
 
-  // ── maintainability (legacy flat-map shape on disk) ─────────────────────
   if (miAbs && Array.isArray(regenMi)) {
     const merged = miKind.mergeRows(priorMi ?? [], regenMi, scope);
     const stabilised = miKind.applyEpsilon(priorMi ?? [], merged, miEpsilon);
-    // Re-emit the legacy `{path: mi}` flat-map — the on-disk reader still
-    // expects this shape; envelope migration is out of scope for #1974.
-    const flatMap = Object.create(null);
-    for (const row of stabilised) {
-      if (row && typeof row.path === 'string') {
-        flatMap[row.path] = row.mi;
-      }
-    }
-    const sorted = Object.keys(flatMap)
-      .sort()
-      .reduce((acc, k) => {
-        acc[k] = flatMap[k];
-        return acc;
-      }, Object.create(null));
-    fsImpl.mkdirSync(path.dirname(miAbs), { recursive: true });
-    fsImpl.writeFileSync(miAbs, `${JSON.stringify(sorted, null, 2)}\n`);
+    emitMiFlatMap(miAbs, stabilised, fsImpl);
     out.miRewritten = true;
   }
 
-  // ── crap (envelope shape on disk) ───────────────────────────────────────
   if (crapAbs && Array.isArray(regenCrap)) {
-    // The on-disk CRAP envelope still ships the legacy `file:` field in
-    // shipped baselines. The per-kind `mergeRows` keys on `path` (the
-    // canonical v2 field). Normalise both sides through `path ?? file`
-    // before merging so the scope filter actually matches, then preserve
-    // whichever field was originally present when re-emitting.
-    const adaptForMerge = (row) => ({ ...row, path: row.path ?? row.file });
-    const adaptedPrior = (priorCrap ?? []).map(adaptForMerge);
-    const adaptedRegen = regenCrap.map(adaptForMerge);
+    // The CRAP envelope ships the legacy `file:` field; the per-kind
+    // mergeRows keys on `path`. Normalise via `path ?? file` so the
+    // scope filter matches, then re-emit with the original field shape.
+    const adapt = (row) => ({ ...row, path: row.path ?? row.file });
+    const adaptedPrior = (priorCrap ?? []).map(adapt);
+    const adaptedRegen = regenCrap.map(adapt);
     const merged = crapKind.mergeRows(adaptedPrior, adaptedRegen, scope);
-    const stabilised = crapKind.applyEpsilon(adaptedPrior, merged, crapEpsilon);
-    // Re-load the existing envelope so we preserve the regen helper's
-    // `$schema`, `escomplexVersion`, `kernelVersion`, and `generatedAt`
-    // stamps (they are dependencies of the gate's reader and we are not
-    // the authoritative writer for them — only the row-shape is ours to
-    // narrow). Falls through to a minimal envelope when the read fails,
-    // which preserves the safe default of "rewrite with merged rows".
-    let envelope = null;
-    try {
-      const raw = fsImpl.readFileSync(crapAbs, 'utf8');
-      envelope = JSON.parse(raw);
-    } catch {
-      envelope = null;
-    }
-    if (!envelope || typeof envelope !== 'object') {
-      envelope = { rows: [] };
-    }
-    // Detect which field the envelope already uses so we re-emit the same
-    // shape — shipped baselines today carry `file`; envelope migration to
-    // `path` is governed by Story #1895/#1892 and is not part of #1974.
-    const usesFileField = (envelope.rows ?? []).some(
-      (r) => r && typeof r.file === 'string' && typeof r.path !== 'string',
+    const stabilised = crapKind.applyEpsilon(
+      adaptedPrior,
+      merged,
+      crapEpsilon,
     );
-    envelope.rows = crapKind.sortRows(stabilised).map((row) => {
-      if (!usesFileField) return row;
-      const { path: rowPath, ...rest } = row;
-      return { ...rest, file: rowPath };
-    });
-    fsImpl.mkdirSync(path.dirname(crapAbs), { recursive: true });
-    fsImpl.writeFileSync(crapAbs, `${JSON.stringify(envelope, null, 2)}\n`);
+    emitCrapEnvelope(crapAbs, stabilised, fsImpl);
     out.crapRewritten = true;
   }
 

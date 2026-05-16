@@ -226,46 +226,25 @@ function dispatchEnvelopeWrite(abs, envelope, fsImpl) {
     : writeEnvelopeViaFsImpl(abs, envelope, fsImpl);
 }
 
-/**
- * Read the prior coverage envelope from disk and return its `rows[]` (or
- * `null` when absent / malformed). Story #1974 — feeds `applyEpsilon` and
- * (optionally) `mergeRows` in the writer.
- */
-function readPriorCoverageRows(absBaselinePath, fsImpl = fs) {
-  let raw;
+// Story #1974 — read prior envelope rows[] for epsilon + scope merge.
+// Returns `null` on read or parse failure (regression-fail-safe).
+function readPriorRows(abs, fsImpl) {
   try {
-    raw = fsImpl.readFileSync(absBaselinePath, 'utf8');
+    const parsed = JSON.parse(fsImpl.readFileSync(abs, 'utf8'));
+    return Array.isArray(parsed?.rows) ? parsed.rows : null;
   } catch {
     return null;
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (!parsed || !Array.isArray(parsed.rows)) return null;
-  return parsed.rows;
 }
 
 export function writeBaseline(cwd, baseline, fsImpl = fs, opts = {}) {
   const abs = path.resolve(cwd, COVERAGE_BASELINE_PATH);
-  // Story #1891: route through the shared baseline writer. The writer
-  // produces an envelope-shaped JSON (`$schema`, `kernelVersion`,
-  // `generatedAt`, `rollup`, `rows`) instead of the legacy flat
-  // `{ file: { lines, branches, functions } }` map. Reader migration
-  // (Story #1892) and on-disk regen (Story #1895) ship in the same Epic,
-  // so this entry point and the reader move in lockstep.
-  //
-  // `denominators` is an in-memory-only runtime signal for the noise-
-  // tolerance gate — it never persists, so strip before projection.
-  //
-  // Story #1974: optional `opts.scope` and `opts.epsilon` thread through
-  // to the writer so manual refreshes can opt in to diff-scoped writes
-  // and epsilon stabilization. When both are absent, behaviour is
-  // identical to the pre-#1974 contract.
+  // Story #1891: route through the shared baseline writer (envelope shape).
+  // Story #1974: optional `opts.scope` / `opts.epsilon` thread through so
+  // manual refreshes can opt in to diff-scoped writes + epsilon
+  // stabilization; absent both, behaviour is identical to pre-#1974.
   const prior =
-    opts.prior !== undefined ? opts.prior : readPriorCoverageRows(abs, fsImpl);
+    opts.prior !== undefined ? opts.prior : readPriorRows(abs, fsImpl);
   const envelope = write({
     kind: 'coverage',
     rows: projectFlatToRows(baseline),

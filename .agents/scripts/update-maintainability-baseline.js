@@ -1,8 +1,5 @@
 import path from 'node:path';
-import {
-  readPriorBaselineRows,
-  resolveDiffScope,
-} from './lib/baselines/diff-scope-cli.js';
+import { buildWriterScopeArgs } from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
@@ -47,24 +44,14 @@ async function main() {
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  const prior = readPriorBaselineRows({
+  const scopeArgs = buildWriterScopeArgs({
     kind: 'maintainability',
     absBaselinePath,
+    epsilon: getBaselineEpsilon('maintainability', { agentSettings }),
+    logger: Logger,
+    logTag: '[Maintainability]',
   });
-  const epsilon = getBaselineEpsilon('maintainability', { agentSettings });
-  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
-  if (diffScope) {
-    Logger.info(
-      `[Maintainability] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope; out-of-scope rows preserved verbatim.`,
-    );
-  }
-  const envelope = write({
-    kind: 'maintainability',
-    rows,
-    prior: prior ?? undefined,
-    epsilon: prior ? epsilon : undefined,
-    scope: diffScope?.scope,
-  });
+  const envelope = write({ kind: 'maintainability', rows, ...scopeArgs });
   writeFile(absBaselinePath, envelope);
 
   Logger.info(

@@ -1,8 +1,5 @@
 import path from 'node:path';
-import {
-  readPriorBaselineRows,
-  resolveDiffScope,
-} from './lib/baselines/diff-scope-cli.js';
+import { buildWriterScopeArgs } from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
@@ -104,22 +101,19 @@ async function main() {
   const absBaselinePath = path.isAbsolute(baselinePath)
     ? baselinePath
     : path.resolve(process.cwd(), baselinePath);
-  const prior = readPriorBaselineRows({ kind: 'crap', absBaselinePath });
-  const epsilon = getBaselineEpsilon('crap', { agentSettings });
-  const diffScope = resolveDiffScope({ argv: process.argv.slice(2) });
-  if (diffScope) {
-    Logger.info(
-      `[CRAP] --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope; out-of-scope rows preserved verbatim.`,
-    );
-  }
+  const scopeArgs = buildWriterScopeArgs({
+    kind: 'crap',
+    absBaselinePath,
+    epsilon: getBaselineEpsilon('crap', { agentSettings }),
+    logger: Logger,
+    logTag: '[CRAP]',
+  });
   const envelope = write({
     kind: 'crap',
     rows: rows.filter(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     ),
-    prior: prior ?? undefined,
-    epsilon: prior ? epsilon : undefined,
-    scope: diffScope?.scope,
+    ...scopeArgs,
   });
   writeFile(absBaselinePath, envelope);
 

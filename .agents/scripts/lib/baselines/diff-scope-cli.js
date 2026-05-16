@@ -156,3 +156,52 @@ export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {
   }
   return rows;
 }
+
+/**
+ * Compose the full Story #1974 write-side payload for a manual baseline
+ * CLI: read prior rows, resolve `--diff-scope`, log the scope decision,
+ * and return the four params (`prior`, `epsilon`, `scope`, plus the
+ * resolved `diffScope` for caller-side logging) that the CLI feeds into
+ * `writer.write({ ..., prior, epsilon, scope })`.
+ *
+ * Returns a flat record so each CLI can spread it into the writer call.
+ *
+ * @param {{
+ *   kind: 'maintainability' | 'crap',
+ *   absBaselinePath: string,
+ *   epsilon: number,
+ *   argv?: string[],
+ *   cwd?: string,
+ *   logger?: { info?: (msg: string) => void },
+ *   logTag: string,
+ * }} args
+ * @returns {{
+ *   prior: Array<object> | undefined,
+ *   epsilon: number | undefined,
+ *   scope: {mode: 'diff', files: Set<string>} | undefined,
+ *   diffScope: {ref: string, files: Set<string>, scope: object} | null,
+ * }}
+ */
+export function buildWriterScopeArgs({
+  kind,
+  absBaselinePath,
+  epsilon,
+  argv = process.argv.slice(2),
+  cwd,
+  logger,
+  logTag,
+}) {
+  const prior = readPriorBaselineRows({ kind, absBaselinePath });
+  const diffScope = resolveDiffScope({ argv, cwd });
+  if (diffScope && logger?.info) {
+    logger.info(
+      `${logTag} --diff-scope ${diffScope.ref}: ${diffScope.files.size} file(s) in scope; out-of-scope rows preserved verbatim.`,
+    );
+  }
+  return {
+    prior: prior ?? undefined,
+    epsilon: prior ? epsilon : undefined,
+    scope: diffScope?.scope,
+    diffScope,
+  };
+}

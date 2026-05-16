@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T00:07:37.969Z",
+  "generatedAt": "2026-05-16T00:12:22.258Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.926,
+      "p50": 102.961,
       "p95": 121.336
     }
   },
@@ -244,7 +244,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/diff-scope-cli.js",
-      "mi": 101.711
+      "mi": 99.913
     },
     {
       "path": ".agents/scripts/lib/baselines/envelope.js",
@@ -496,7 +496,7 @@
     },
     {
       "path": ".agents/scripts/lib/coverage-baseline.js",
-      "mi": 96.85
+      "mi": 97.505
     },
     {
       "path": ".agents/scripts/lib/coverage-capture.js",
@@ -920,7 +920,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "mi": 86.197
+      "mi": 87.661
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
@@ -1424,15 +1424,15 @@
     },
     {
       "path": ".agents/scripts/update-coverage-baseline.js",
-      "mi": 97.477
+      "mi": 97.996
     },
     {
       "path": ".agents/scripts/update-crap-baseline.js",
-      "mi": 87.643
+      "mi": 89.335
     },
     {
       "path": ".agents/scripts/update-maintainability-baseline.js",
-      "mi": 102.393
+      "mi": 105.995
     },
     {
       "path": ".agents/scripts/update-mutation-baseline.js",
