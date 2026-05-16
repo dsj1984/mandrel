@@ -115,10 +115,10 @@ Verify documentation stays synchronized with code:
 ## Step 3 — Maintainability Ratchet
 
 Verify that no file's maintainability score has decreased below the project
-baseline. If the project uses a maintainability ratchet:
+baseline. The unified baselines gate enforces this floor:
 
 ```powershell
-node .agents/scripts/check-maintainability.js
+node .agents/scripts/check-baselines.js --format text
 ```
 
 If this check fails, you MUST refactor the offending files to meet or exceed the

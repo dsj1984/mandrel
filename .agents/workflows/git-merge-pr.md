@@ -157,13 +157,12 @@ Exit code 0 means every check passed. On failure:
 
 ## Step 3.5 — Unified Baselines Gate (`check-baselines`)
 
-Story #1912 / Task #1917 introduced a thin unified floor + tolerance +
-schema gate that runs **in addition to** the per-kind regression checks
-folded into the Step 3 wrapper. The two are deliberately redundant for
-this Epic — the per-kind CLIs own regression comparison (head vs.
-`epic-ref` via `git show`), while `check-baselines.js` owns the absolute
-floor, schema validation, and kernel-mismatch surface. The redundancy
-collapses to a single gate in follow-up Epic #1943.
+`check-baselines.js` is the single canonical floor + tolerance + schema
+gate for every baseline kind (coverage, crap, maintainability, mutation).
+It owns absolute-floor enforcement, schema validation, and kernel-mismatch
+surfacing. The per-kind regression CLIs that previously layered on top of
+this gate were removed in Epic #1943 — `check-baselines.js` is now the
+sole source of truth for baseline regressions at merge time.
 
 ```powershell
 node .agents/scripts/check-baselines.js --format text
@@ -179,9 +178,7 @@ Exit codes:
   baseline through its per-kind update script.
 - `3` — config resolution error (typically a malformed `.agentrc.json`).
 
-Treat any non-zero exit as a hard merge block. The per-kind regression
-checks (Step 3) and this unified gate must **both** pass before
-proceeding to Step 4.
+Treat any non-zero exit as a hard merge block before proceeding to Step 4.
 
 ---
 

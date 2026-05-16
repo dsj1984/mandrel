@@ -16,16 +16,18 @@ threshold.
 
 Run [`npm run quality:preview`](../../../package.json) before
 [`task-commit.js`](../../scripts/task-commit.js) on any Task that touches
-production source. The preview wraps `check-maintainability.js` and
-`check-crap.js` with `--changed-since HEAD` and merges their envelopes into a
-single per-file delta table — same engines the close-validation chain replays
-at merge time, so a clean preview means the commit will not bounce off the
+production source. The preview runs `quality-preview.js` with
+`--changed-since HEAD`, which exercises the same maintainability and CRAP
+engines (`escomplex` + `c8` coverage) that `check-baselines.js` enforces at
+merge time, then merges the results into a single per-file delta table. A
+clean preview means the commit will not bounce off the unified baselines
 gate. The `.husky/pre-commit` hook calls the same script.
 
 ## Cyclomatic ceilings
 
 Cyclomatic complexity (CC) is measured per function by `escomplex` (the same
-engine `check-maintainability.js` runs). Two thresholds, sourced from
+engine the maintainability axis of `check-baselines.js` runs). Two
+thresholds, sourced from
 `delivery.quality.codingGuardrails.cyclomaticFlag` /
 `cyclomaticMustFix`:
 
