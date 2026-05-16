@@ -26,7 +26,13 @@ function buildFakeProvider({ epicId, stories, initialEpicLabels }) {
   const comments = new Map();
   tickets.set(epicId, {
     id: epicId,
-    labels: initialEpicLabels ?? ['type::epic', 'agent::executing'],
+    labels: initialEpicLabels ?? [
+      'type::epic',
+      'agent::executing',
+      // Waive the acceptance-spec start gate (Story #2101) by default; tests
+      // that exercise the gate itself override `initialEpicLabels`.
+      'acceptance::n-a',
+    ],
   });
   for (const s of stories) {
     tickets.set(s.id, {
