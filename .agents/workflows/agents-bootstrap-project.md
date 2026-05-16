@@ -108,6 +108,64 @@ Read `package.json`, then add — only if missing — the following fields:
 Write the merged `package.json` back with 2-space indentation and a trailing
 newline.
 
+### 2c. Merge the framework's runtime dependencies
+
+The orchestration scripts under `.agents/scripts/` import external packages
+(`ajv`, `ajv-formats`, `js-yaml`, `picomatch`, `string-argv`,
+`typhonjs-escomplex`). These MUST be resolvable from the consumer's
+`node_modules/` before any framework script — including
+[`/agents-bootstrap-github`](agents-bootstrap-github.md) — will execute. A
+fresh consumer skipping this merge will hit
+`ERR_MODULE_NOT_FOUND: Cannot find package 'ajv'` on the first bootstrap
+call.
+
+Merge the following into `package.json` under `dependencies`. For each
+key, add it only if absent; **never** downgrade or overwrite an existing
+entry the consumer has pinned:
+
+| Key | Floor version |
+|-----|---------------|
+| `ajv` | `^8.20.0` |
+| `ajv-formats` | `^3.0.1` |
+| `js-yaml` | `^4.1.1` |
+| `picomatch` | `^4.0.4` |
+| `string-argv` | `^0.3.2` |
+| `typhonjs-escomplex` | `^0.1.0` |
+
+The floors above are the framework's known-good versions; if the consumer
+has already declared a compatible newer version, keep theirs. If they
+have declared an older or incompatible version, surface a warning and
+leave it untouched — bumping a pinned dep belongs in a separate operator
+decision, not the bootstrap.
+
+> **Why these six?** They are the runtime imports surfaced by
+> `.agents/scripts/**`. The list MUST stay in sync with the framework's
+> own `dependencies` block in mandrel's `package.json`; treat that block
+> as the source of truth and copy only the runtime entries (skip
+> `typescript`, which is the consumer's peer choice).
+
+### 2d. Install the dependencies
+
+After 2c writes the merged `package.json`, run an install so
+`node_modules/` is populated before subsequent steps (Step 2.5b validates
+`.agentrc.json` via AJV; Step 6 runs the sync; both require the runtime
+deps to resolve).
+
+```bash
+npm install
+```
+
+- Use the consumer's preferred package manager if `pnpm-lock.yaml` or
+  `yarn.lock` is present at `[PROJECT_ROOT]` (`pnpm install` or
+  `yarn install` respectively). Detect by file presence; do not assume
+  npm.
+- Skip the install when `node_modules/ajv/package.json` already exists
+  AND no dependency entry was added in Step 2c. The bootstrap is
+  idempotent: re-running on an already-installed project produces zero
+  network I/O.
+- Install failures are a hard stop — without the runtime deps, the rest
+  of the workflow cannot proceed.
+
 ## Step 2.5 — Seed `.agentrc.json` from `.agents/starter-agentrc.json`
 
 The framework ships a minimal, hand-authored exemplar at
@@ -400,6 +458,8 @@ Emit a compact summary showing what was touched on this run:
 [agents-bootstrap-project]
   package.json        scripts.sync:commands  added | already present
   package.json        scripts.prepare        added | appended | already present
+  package.json        dependencies           <N> added | already present
+  npm install                                ran | skipped (already installed)
   .agentrc.json                              seeded-from-min | already present
   .claude/settings.json  UserPromptSubmit    wired | merged | already present
   .gitignore             .claude/commands/   added | already present
@@ -433,8 +493,9 @@ confirmation line:
   submodule/clone, not by the bootstrap.
 - **Never commit `[COMMANDS_DIR]`.** It is derived and per-clone; the
   gitignore step is what keeps it out of git.
-- **No network I/O.** This workflow is fully local. It does not install
-  dependencies, fetch framework files, or call GitHub APIs — those are the
+- **Limited network I/O.** The only network call this workflow makes is
+  the Step 2d `npm install` (skipped on an already-bootstrapped clone).
+  It does not fetch framework files or call GitHub APIs — those are the
   responsibility of `/agents-bootstrap-github` and the initial framework
   checkout.
 - **Fail loudly.** Step 6 parity failure or Step 1 Node-version failure must
