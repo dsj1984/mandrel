@@ -166,15 +166,21 @@ export function buildInProcessBaselineGate({
         ? runOpts.log
         : (m) => process.stdout.write(`${m}\n`);
 
-    // Stage A — read the head baseline. Schema/read failures fail the
-    // gate so the operator notices a malformed baseline file before the
-    // unified check-baselines gate echoes the same finding.
+    // Stage A — read the head baseline. The in-process gate is the
+    // *regression-compare* arm only; schema and read enforcement is the
+    // unified `check-baselines` gate's job (Epic #1943). Treating a
+    // read/schema failure here as "skip the compare, status 0" keeps the
+    // per-kind gate's semantics narrow — it can't double-report a config
+    // error that check-baselines is about to surface — and matches the
+    // historical behaviour where the per-kind CLI's missing-baseline
+    // path also returned a clean exit when the gate scope did not yet
+    // include the file (e.g. the very first close on a fresh repo).
     let headBaseline;
     try {
       headBaseline = loadHeadBaseline(kind, { cwd });
     } catch (err) {
-      log(`[${kind}] head baseline read failed: ${err?.message ?? err}`);
-      return { status: 1 };
+      log(`[${kind}] head baseline read skipped: ${err?.message ?? err}`);
+      return { status: 0 };
     }
 
     // Stage B — read the base envelope at the Epic ref. Missing base data
