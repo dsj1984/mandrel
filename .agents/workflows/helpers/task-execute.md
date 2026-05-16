@@ -24,11 +24,11 @@ its sequential loop.
    belong in a follow-on ticket.
 
 3. **Run the diff-scoped quality preview before staging.** Invoke
-   [`npm run quality:preview`](../../../package.json) (which wraps
-   `check-maintainability.js` + `check-crap.js` with `--changed-since HEAD`
-   and merges their envelopes) while the change is still warm in working
-   memory. The same engines run at close-validation time, so a clean
-   preview means the merge gate will not bounce. Respond to the output per
+   [`npm run quality:preview`](../../../package.json) (which runs
+   `quality-preview.js --changed-since HEAD` against the same maintainability
+   and CRAP engines that `check-baselines.js` enforces at merge time) while
+   the change is still warm in working memory. A clean preview means the
+   unified baselines gate will not bounce the merge. Respond to the output per
    [`code-quality-guardrails.md`](code-quality-guardrails.md) — flagged
    findings (cyclomatic > 8, MI drop > 1.5pt) get a one-line review note;
    must-fix findings (cyclomatic > 12) get refactored before
