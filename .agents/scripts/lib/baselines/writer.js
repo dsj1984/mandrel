@@ -60,6 +60,16 @@ import { assertCanonical } from './path-canon.js';
  * unchanged from the pre-#1964 contract — this is regression-fail-safe by
  * design so existing call sites stay untouched.
  *
+ * Story #1974 (s-diff-scoped-writes) added the optional `scope` parameter.
+ * When `scope` is present *and* `prior` is supplied, the writer calls the
+ * per-kind `mergeRows(prior, projected, scope)` filter **after** projection
+ * but **before** `applyEpsilon`. The composition is intentional: scope-
+ * filter first (preserve out-of-scope prior rows verbatim), then stabilise
+ * the in-scope rows against the same prior under epsilon. The merged result
+ * is sorted, rolled up, and serialised exactly as before. When `scope` is
+ * absent (or `prior` is absent), behaviour is unchanged from the pre-#1974
+ * contract — also regression-fail-safe.
+ *
  * `prior` MUST be an array of already-canonical rows (typically the
  * `rows[]` from the previous envelope on disk). Passing raw, un-projected
  * rows is a programming error: the lookup matches by the canonical key
@@ -74,6 +84,7 @@ import { assertCanonical } from './path-canon.js';
  *   generatedAt?: string,
  *   prior?: Array<object>,
  *   epsilon?: number,
+ *   scope?: {mode: 'full'|'diff', files: Set<string>|Iterable<string>}|null,
  * }} params
  * @returns {object}
  */
@@ -85,6 +96,7 @@ export function write({
   generatedAt,
   prior,
   epsilon,
+  scope,
 } = {}) {
   if (typeof kind !== 'string' || kind.length === 0) {
     throw new TypeError('writer.write: kind is required');
@@ -121,7 +133,8 @@ export function write({
     });
   }
 
-  const stabilised = stabiliseRows(mod, projected, prior, epsilon);
+  const merged = scopeMergeRows(mod, projected, prior, scope);
+  const stabilised = stabiliseRows(mod, merged, prior, epsilon);
 
   const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
@@ -183,6 +196,22 @@ export function writeFile(absPath, envelope) {
   fs.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
   fs.renameSync(tmpPath, absPath);
   return absPath;
+}
+
+/**
+ * Story #1974 — s-diff-scoped-writes scope-merge dispatch. When `scope` is
+ * present, defer to the per-kind `mergeRows(prior, projected, scope)` to
+ * preserve out-of-scope prior rows verbatim. Returns `projected` unchanged
+ * when `scope` is omitted, when the kind doesn't ship the merger
+ * (forward-compatible), or when `prior` is absent (nothing to preserve).
+ */
+function scopeMergeRows(mod, projected, prior, scope) {
+  if (scope === undefined || scope === null) return projected;
+  if (typeof mod.mergeRows !== 'function') return projected;
+  // mergeRows treats null/undefined/empty prior as "no preservation needed"
+  // and returns projected verbatim — that branch is covered upstream and
+  // here for symmetry.
+  return mod.mergeRows(prior ?? [], projected, scope);
 }
 
 /**

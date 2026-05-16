@@ -5,6 +5,8 @@
  * so they bypass the canonicaliser.
  */
 
+import { mergeRowsByScope } from '../scope.js';
+
 export const name = 'bundle-size';
 export const keyField = 'bundle';
 const KERNEL_VERSION = '1.0.0';
@@ -124,5 +126,32 @@ export function applyEpsilon(prior, regenerated, epsilon) {
     const rawDelta = Math.abs((row.rawKb ?? 0) - (p.rawKb ?? 0));
     const gzDelta = Math.abs((row.gzippedKb ?? 0) - (p.gzippedKb ?? 0));
     return Math.max(rawDelta, gzDelta) <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Bundle
+ * rows match by `bundle`. In diff mode, rows whose `bundle` name is
+ * OUTSIDE `scope.files` are preserved from `prior` verbatim; in-scope
+ * rows come from `regenerated`. In full mode (or no scope), regenerated
+ * wins everywhere.
+ *
+ * Note: bundle names are not file paths. The scope filter only narrows
+ * naturally when callers seed `scope.files` with bundle names. Auto-
+ * refresh callers using a Story file diff will see no in-scope rows and
+ * therefore preserve every prior row — the safe default for a baseline
+ * whose identity is not file-derived.
+ *
+ * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} prior
+ * @param {Array<{bundle: string, rawKb: number, gzippedKb: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.bundle,
   });
 }

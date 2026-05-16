@@ -7,6 +7,7 @@
  */
 
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'mutation';
 export const keyField = 'path';
@@ -122,5 +123,26 @@ export function applyEpsilon(prior, regenerated, epsilon) {
     const p = priorByKey.get(row.path);
     if (!p) return row;
     return Math.abs((row.score ?? 0) - (p.score ?? 0)) <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Mutation
+ * rows match by `path`. In diff mode, rows whose `path` is OUTSIDE
+ * `scope.files` are preserved from `prior` verbatim; in-scope rows come
+ * from `regenerated`. In full mode (or no scope), regenerated wins
+ * everywhere.
+ *
+ * @param {Array<{path: string, score: number, killed: number, survived: number}>} prior
+ * @param {Array<{path: string, score: number, killed: number, survived: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.path,
   });
 }

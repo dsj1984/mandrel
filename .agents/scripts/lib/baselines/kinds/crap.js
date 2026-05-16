@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'crap';
 export const keyField = 'path';
@@ -181,5 +182,28 @@ export function applyEpsilon(prior, regenerated, epsilon) {
     const p = priorByKey.get(crapRowKey(row));
     if (!p) return row;
     return Math.abs((row.crap ?? 0) - (p.crap ?? 0)) <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). CRAP rows
+ * match identity by the composite `path::method@startLine`, but the scope
+ * filter applies on `path` alone (a Story diff identifies files, not
+ * methods). In diff mode, rows whose `path` is OUTSIDE `scope.files` are
+ * preserved from `prior` verbatim — including every method on that file.
+ * In full mode (or no scope), regenerated wins everywhere.
+ *
+ * @param {Array<{path: string, method: string, startLine: number, crap: number}>} prior
+ * @param {Array<{path: string, method: string, startLine: number, crap: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.path,
+    identity: (row) => crapRowKey(row),
   });
 }

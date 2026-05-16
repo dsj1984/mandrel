@@ -11,6 +11,7 @@
  */
 
 import { canonicalise } from '../path-canon.js';
+import { mergeRowsByScope } from '../scope.js';
 
 export const name = 'lint';
 export const keyField = 'path';
@@ -156,5 +157,26 @@ export function applyEpsilon(prior, regenerated, epsilon) {
     const errDelta = Math.abs((row.errorCount ?? 0) - (p.errorCount ?? 0));
     const warnDelta = Math.abs((row.warningCount ?? 0) - (p.warningCount ?? 0));
     return Math.max(errDelta, warnDelta) <= eps ? p : row;
+  });
+}
+
+/**
+ * Pure scope-aware merge for s-diff-scoped-writes (Story #1974). Lint rows
+ * match by `path`. In diff mode, rows whose `path` is OUTSIDE
+ * `scope.files` are preserved from `prior` verbatim; in-scope rows come
+ * from `regenerated`. In full mode (or no scope), regenerated wins
+ * everywhere.
+ *
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} prior
+ * @param {Array<{path: string, errorCount: number, warningCount: number}>} regenerated
+ * @param {{mode: 'full'|'diff', files: Set<string>}|null|undefined} scope
+ * @returns {Array<object>}
+ */
+export function mergeRows(prior, regenerated, scope) {
+  return mergeRowsByScope({
+    prior,
+    regenerated,
+    scope,
+    scopeKey: (row) => row.path,
   });
 }

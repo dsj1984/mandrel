@@ -1,5 +1,7 @@
 import path from 'node:path';
+import { buildWriterScopeArgs } from './lib/baselines/diff-scope-cli.js';
 import { write, writeFile } from './lib/baselines/writer.js';
+import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   getBaselines,
   getQuality,
@@ -92,15 +94,27 @@ async function main() {
   // per-kind schema before persisting. Kept the legacy escomplex /
   // ts-transpiler version logging so existing operator-visible output
   // doesn't churn.
+  // Story #1974: epsilon is now applied by default for manual refreshes
+  // so unchanged code with stale env produces a zero-row diff. The optional
+  // `--diff-scope <ref>` narrows writes to files changed since <ref>; when
+  // absent, behaviour is unchanged from pre-#1974 (full rewrite).
+  const absBaselinePath = path.isAbsolute(baselinePath)
+    ? baselinePath
+    : path.resolve(process.cwd(), baselinePath);
+  const scopeArgs = buildWriterScopeArgs({
+    kind: 'crap',
+    absBaselinePath,
+    epsilon: getBaselineEpsilon('crap', { agentSettings }),
+    logger: Logger,
+    logTag: '[CRAP]',
+  });
   const envelope = write({
     kind: 'crap',
     rows: rows.filter(
       (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
     ),
+    ...scopeArgs,
   });
-  const absBaselinePath = path.isAbsolute(baselinePath)
-    ? baselinePath
-    : path.resolve(process.cwd(), baselinePath);
   writeFile(absBaselinePath, envelope);
 
   Logger.info(
