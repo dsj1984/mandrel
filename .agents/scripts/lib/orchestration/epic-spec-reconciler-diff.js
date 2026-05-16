@@ -109,6 +109,56 @@ function labelsEqual(a, b) {
 }
 
 /**
+ * Label-namespace prefixes that the reconciler must NOT strip from the
+ * Epic on persist. The decomposer renders the Epic spec entry from
+ * `{ id, title }` only — it does not carry `epic.labels` through — so
+ * a naive replace-style label diff would propose removing operator-
+ * managed metadata that lives in these namespaces.
+ *
+ * Why: Story #2056 / Epic #1994 — `/epic-plan` was silently stripping
+ * `type::epic` and `risk::*` from the parent Epic on every decompose,
+ * which then broke `dispatcher.js` (`type "unknown"`). Defence-in-depth
+ * lives here in the diff engine: even if a future spec author drops
+ * these labels, the reconciler will not propose their removal.
+ *
+ * Symmetry with the `agent::*` allow-list (owned by the wave-runner,
+ * defended in `epic-spec-reconciler-discriminator.js`): the diff engine
+ * treats both namespaces as out-of-scope for structural reconciliation,
+ * but via different mechanisms — `agent::*` is rejected at construction
+ * time, while these structural namespaces are merged into the Epic's
+ * after-set so the comparison stays a no-op.
+ */
+const PROTECTED_EPIC_LABEL_NAMESPACES = Object.freeze(['type::', 'risk::']);
+
+/**
+ * @param {unknown} label
+ * @returns {boolean}
+ */
+function isProtectedEpicLabel(label) {
+  if (typeof label !== 'string') return false;
+  return PROTECTED_EPIC_LABEL_NAMESPACES.some((ns) => label.startsWith(ns));
+}
+
+/**
+ * Return the spec's label list for the Epic entity, augmented with any
+ * protected-namespace labels observed on the live GH issue. Stable
+ * across calls (uses a Set to deduplicate). When neither input carries
+ * anything to merge, the original `specLabels` reference is returned
+ * unchanged so callers that compare references stay correct.
+ *
+ * @param {string[]|undefined} specLabels
+ * @param {string[]|undefined} obsLabels
+ * @returns {string[]|undefined}
+ */
+function mergeProtectedEpicLabels(specLabels, obsLabels) {
+  if (!Array.isArray(obsLabels) || obsLabels.length === 0) return specLabels;
+  const preserved = obsLabels.filter(isProtectedEpicLabel);
+  if (preserved.length === 0) return specLabels;
+  const merged = new Set([...(specLabels ?? []), ...preserved]);
+  return [...merged];
+}
+
+/**
  * Treat undefined/null body as the empty string for comparison.
  *
  * @param {string|undefined|null} value
@@ -156,10 +206,14 @@ function fieldChanges(specEntity, obs, mapping) {
   if (specBody !== obsBody) {
     changes.body = { before: obsBody, after: specBody };
   }
-  if (!labelsEqual(specEntity.labels, obs.labels)) {
+  const effectiveAfterLabels =
+    specEntity.entity === ENTITY_KINDS.EPIC
+      ? mergeProtectedEpicLabels(specEntity.labels, obs.labels)
+      : specEntity.labels;
+  if (!labelsEqual(effectiveAfterLabels, obs.labels)) {
     changes.labels = {
       before: [...(obs.labels ?? [])].sort(),
-      after: [...(specEntity.labels ?? [])].sort(),
+      after: [...(effectiveAfterLabels ?? [])].sort(),
     };
   }
   // wave is story-only; only fire when both sides carry an integer and
