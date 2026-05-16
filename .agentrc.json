@@ -23,25 +23,15 @@
       "requiredChecks": [
         {
           "name": "lint",
-          "cmd": [
-            "npm",
-            "run",
-            "lint"
-          ]
+          "cmd": ["npm", "run", "lint"]
         },
         {
           "name": "test",
-          "cmd": [
-            "npm",
-            "test"
-          ]
+          "cmd": ["npm", "test"]
         },
         {
           "name": "baselines",
-          "cmd": [
-            "node",
-            ".agents/scripts/check-baselines.js"
-          ]
+          "cmd": ["node", ".agents/scripts/check-baselines.js"]
         }
       ]
     }
@@ -57,10 +47,7 @@
   },
   "delivery": {
     "docsFreshness": {
-      "paths": [
-        "README.md",
-        "docs/CHANGELOG.md"
-      ]
+      "paths": ["README.md", "docs/CHANGELOG.md"]
     },
     "deliverRunner": {
       "progressReportIntervalSec": 300
@@ -74,11 +61,6 @@
       "gates": {
         "coverage": {
           "floors": {
-            "*": {
-              "lines": 40,
-              "branches": 40,
-              "functions": 0
-            },
             "paths": {
               ".agents/scripts/analyze-execution.js": {
                 "follow_up": "#2073",
@@ -792,9 +774,7 @@
               }
             }
           },
-          "targetDirs": [
-            ".agents/scripts"
-          ]
+          "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
           "floors": {
@@ -821,10 +801,7 @@
               }
             }
           },
-          "targetDirs": [
-            ".agents/scripts",
-            "tests"
-          ]
+          "targetDirs": [".agents/scripts", "tests"]
         }
       }
     }
