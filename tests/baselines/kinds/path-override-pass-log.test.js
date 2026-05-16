@@ -1,8 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
-import { enforceMaintainabilityFloor } from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import { enforceCrapFloor } from '../../../.agents/scripts/lib/baselines/kinds/crap.js';
+import { enforceMaintainabilityFloor } from '../../../.agents/scripts/lib/baselines/kinds/maintainability.js';
 import { DEFAULT_FLOORS } from '../../../.agents/scripts/lib/quality-floors.js';
 
 /**
@@ -34,10 +33,7 @@ describe('path-override pass-log — Story #2029', () => {
     const floors = {
       ...DEFAULT_FLOORS,
       pathOverrides: new Map([
-        [
-          'lib/relaxed.js',
-          { maintainability: 40, follow_up: '#42' },
-        ],
+        ['lib/relaxed.js', { maintainability: 40, follow_up: '#42' }],
       ]),
     };
     const scores = {
@@ -65,7 +61,11 @@ describe('path-override pass-log — Story #2029', () => {
     const scores = { 'lib/very-bad.js': 30 };
     const output = captureConsoleError(() => {
       const code = enforceMaintainabilityFloor(scores, [], { floors });
-      assert.equal(code, 1, 'still fails — observed (30) < override floor (40)');
+      assert.equal(
+        code,
+        1,
+        'still fails — observed (30) < override floor (40)',
+      );
     });
     assert.match(
       output,
@@ -99,9 +99,7 @@ describe('path-override pass-log — Story #2029', () => {
   it('crap gate emits a Logger.info line for a matched override on pass', () => {
     const floors = {
       ...DEFAULT_FLOORS,
-      pathOverrides: new Map([
-        ['lib/messy.js', { crap: 50, follow_up: '#7' }],
-      ]),
+      pathOverrides: new Map([['lib/messy.js', { crap: 50, follow_up: '#7' }]]),
     };
     const scan = {
       rows: [
@@ -113,18 +111,13 @@ describe('path-override pass-log — Story #2029', () => {
       const code = enforceCrapFloor(scan, [], { floors });
       assert.equal(code, 0, 'gate should pass under the override');
     });
-    assert.match(
-      output,
-      /lib\/messy\.js: crap floor relaxed to 50 per #7/,
-    );
+    assert.match(output, /lib\/messy\.js: crap floor relaxed to 50 per #7/);
   });
 
   it('crap gate emits the same line on fail', () => {
     const floors = {
       ...DEFAULT_FLOORS,
-      pathOverrides: new Map([
-        ['lib/messy.js', { crap: 50, follow_up: '#7' }],
-      ]),
+      pathOverrides: new Map([['lib/messy.js', { crap: 50, follow_up: '#7' }]]),
     };
     const scan = {
       rows: [{ file: 'lib/messy.js', method: 'still-bad', crap: 75 }],

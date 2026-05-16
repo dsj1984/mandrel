@@ -225,10 +225,7 @@ describe('quality-floors — loadFloorConfig (path overrides)', () => {
         }),
       ),
     );
-    assert.throws(
-      () => loadFloorConfig(agentrcPath),
-      /invalid follow_up/,
-    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /invalid follow_up/);
   });
 
   it('throws when a path override carries an unknown axis', () => {
