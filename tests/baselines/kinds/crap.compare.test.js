@@ -35,11 +35,14 @@ describe('kinds/crap.compare()', () => {
     assert.equal(out.unchanged.length, 1);
   });
 
-  it('treats new methods with crap > 0 as regressions', () => {
+  it('new methods land in additions, not regressions (Story #2012)', () => {
     const head = { rows: [row('src/new.js', 'bar', 5, 15)] };
     const base = { rows: [] };
     const out = compare(head, base);
-    assert.equal(out.regressions.length, 1);
+    assert.equal(out.regressions.length, 0);
+    assert.equal(out.additions.length, 1);
+    assert.equal(out.additions[0].key, 'src/new.js::bar@5');
+    assert.equal(out.additions[0].base, null);
   });
 
   it('treats removed methods with prior crap as improvements', () => {
@@ -71,6 +74,11 @@ describe('kinds/crap.compare()', () => {
 
   it('tolerates missing rows arrays', () => {
     const out = compare({}, {});
-    assert.deepEqual(out, { regressions: [], improvements: [], unchanged: [] });
+    assert.deepEqual(out, {
+      regressions: [],
+      improvements: [],
+      unchanged: [],
+      additions: [],
+    });
   });
 });

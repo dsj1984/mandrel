@@ -196,4 +196,73 @@ describe('bootstrap/applyBranchProtection', () => {
     assert.equal(result.status, 'failed');
     assert.match(result.reason, /403 Forbidden/);
   });
+
+  // -------------------------------------------------------------------------
+  // Story #2018 (Bug 3) — Empty-repo / missing-base-branch handling.
+  //
+  // On a fresh repo with no commits, the base branch (`main`) hasn't been
+  // pushed yet, so the protection PUT would 404 with a confusing transport
+  // error. `applyBranchProtection` now consults `provider.branchExists()`
+  // first and returns a clean `skipped (no-base-branch)` rather than
+  // making operators discover the `enforce: false` opt-out by reading the
+  // failure message.
+  // -------------------------------------------------------------------------
+  it('Story #2018: missing base branch short-circuits with no-base-branch skip', async () => {
+    const provider = makeProvider({ existing: null });
+    provider.branchExists = async () => false;
+    const result = await applyBranchProtection({
+      provider,
+      settings: { quality: { prGate: PR_GATE } },
+    });
+    assert.equal(result.status, 'skipped');
+    assert.equal(result.reason, 'no-base-branch');
+    assert.equal(provider.calls.setBranchProtection.length, 0);
+    assert.equal(provider.calls.getBranchProtection.length, 0);
+  });
+
+  it('Story #2018: branchExists()=true proceeds to read+write protection', async () => {
+    const provider = makeProvider({ existing: null });
+    let probed = 0;
+    provider.branchExists = async () => {
+      probed += 1;
+      return true;
+    };
+    const result = await applyBranchProtection({
+      provider,
+      settings: { quality: { prGate: PR_GATE } },
+    });
+    assert.equal(probed, 1);
+    assert.equal(result.status, 'created');
+    assert.equal(provider.calls.setBranchProtection.length, 1);
+  });
+
+  it('Story #2018: branchExists() probe failure does not block the write attempt', async () => {
+    // A transient probe failure (network, scope) must not short-circuit
+    // the write — we degrade to the legacy "attempt the PUT and surface
+    // whatever happens" path.
+    const provider = makeProvider({ existing: null });
+    provider.branchExists = async () => {
+      throw new Error('probe transport error');
+    };
+    const result = await applyBranchProtection({
+      provider,
+      settings: { quality: { prGate: PR_GATE } },
+    });
+    assert.equal(result.status, 'created');
+    assert.equal(provider.calls.setBranchProtection.length, 1);
+  });
+
+  it('Story #2018: providers without branchExists() retain legacy behaviour', async () => {
+    // Provider implementations that haven't been upgraded (legacy
+    // adapters, older test fakes) must continue to work without the
+    // existence probe.
+    const provider = makeProvider({ existing: null });
+    // Do NOT attach branchExists.
+    const result = await applyBranchProtection({
+      provider,
+      settings: { quality: { prGate: PR_GATE } },
+    });
+    assert.equal(result.status, 'created');
+    assert.equal(provider.calls.setBranchProtection.length, 1);
+  });
 });

@@ -141,6 +141,28 @@ export async function applyBranchProtection({
     return { status: 'skipped', reason: 'no-checks' };
   }
 
+  // Story #2018 (Bug 3): on a fresh-empty repo with no commits yet, the
+  // base branch hasn't been pushed and the protection PUT would 404 with
+  // a confusing transport error. Probe for existence first so operators
+  // get a clear "no-base-branch" skip rather than discovering the
+  // `enforce: false` opt-out by reading the failure message.
+  if (typeof provider.branchExists === 'function') {
+    let exists = true;
+    try {
+      exists = await provider.branchExists(baseBranch);
+    } catch (err) {
+      log(
+        `[bootstrap] Branch protection on '${baseBranch}': existence probe failed — ${err.message}. Proceeding with the write attempt.`,
+      );
+    }
+    if (!exists) {
+      log(
+        `[bootstrap] Branch protection on '${baseBranch}': skipped (base branch does not exist on the remote — push an initial commit first).`,
+      );
+      return { status: 'skipped', reason: 'no-base-branch' };
+    }
+  }
+
   let current = null;
   try {
     const probe = await provider.getBranchProtection(baseBranch);
