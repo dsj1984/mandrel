@@ -142,6 +142,201 @@ describe('quality-floors — loadFloorConfig (workspace-keyed floors)', () => {
   });
 });
 
+describe('quality-floors — loadFloorConfig (path overrides)', () => {
+  /** @type {string} */
+  let tmpDir;
+  /** @type {string} */
+  let agentrcPath;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-paths-'));
+    agentrcPath = path.join(tmpDir, '.agentrc.json');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function gates(block) {
+    return { delivery: { quality: { gates: block } } };
+  }
+
+  it('seeds an empty pathOverrides Map when no overrides are configured', () => {
+    const cfg = loadFloorConfig(path.join(tmpDir, 'nope.json'));
+    assert.ok(cfg.pathOverrides instanceof Map);
+    assert.equal(cfg.pathOverrides.size, 0);
+  });
+
+  it('parses a coverage path override and returns it in pathOverrides', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { lines: 80, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(cfg.coverage.lines, 90); // workspace untouched
+    assert.equal(cfg.pathOverrides.size, 1);
+    const ov = cfg.pathOverrides.get('src/example.js');
+    assert.ok(ov);
+    assert.equal(ov.lines, 80);
+    assert.equal(ov.follow_up, '#1');
+  });
+
+  it('throws when follow_up is missing on a path override', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: { 'src/example.js': { lines: 80 } },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /follow_up/);
+  });
+
+  it('throws when follow_up is malformed', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { lines: 80, follow_up: 'not-an-issue' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /invalid follow_up/);
+  });
+
+  it('throws when a path override carries an unknown axis', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { statements: 80, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(
+      () => loadFloorConfig(agentrcPath),
+      /unknown axis "statements"/,
+    );
+  });
+
+  it('normalises backslash path keys to forward slashes', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          maintainability: {
+            floors: {
+              '*': { maintainability: 70 },
+              paths: {
+                'src\\foo\\bar.js': { maintainability: 50, follow_up: '#9' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(cfg.pathOverrides.size, 1);
+    assert.ok(cfg.pathOverrides.has('src/foo/bar.js'));
+  });
+
+  it('rejects absolute paths in path-override keys', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          crap: {
+            floors: {
+              '*': { crap: 20 },
+              paths: {
+                '/etc/foo.js': { crap: 30, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /repo-relative/);
+  });
+
+  it('accepts a URL follow_up reference', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          crap: {
+            floors: {
+              '*': { crap: 20 },
+              paths: {
+                'src/foo.js': {
+                  crap: 30,
+                  follow_up: 'https://example.com/track/1',
+                },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(
+      cfg.pathOverrides.get('src/foo.js').follow_up,
+      'https://example.com/track/1',
+    );
+  });
+
+  it('preserves coverage / maintainability / crap fields for existing consumers', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 95 },
+              paths: { 'src/a.js': { lines: 80, follow_up: '#1' } },
+            },
+          },
+        }),
+      ),
+    );
+    const { coverage, maintainability, crap } = loadFloorConfig(agentrcPath);
+    assert.equal(coverage.lines, 95);
+    assert.equal(maintainability, 70);
+    assert.equal(crap, 20);
+  });
+});
+
 describe('quality-floors — applyFloorPolicy coverage', () => {
   const floors = {
     coverage: { lines: 90, branches: 85, functions: 90 },
@@ -253,6 +448,130 @@ describe('quality-floors — applyFloorPolicy crap', () => {
   });
 });
 
+describe('quality-floors — applyFloorPolicy with path overrides', () => {
+  function withOverride(record) {
+    return {
+      coverage: { lines: 90, branches: 85, functions: 90 },
+      maintainability: 70,
+      crap: 20,
+      pathOverrides: new Map([['src/relaxed.js', record]]),
+    };
+  }
+
+  it('honours a coverage axis override per record', () => {
+    const floors = withOverride({ lines: 80, follow_up: '#42' });
+    const { violations, passed } = applyFloorPolicy(
+      [
+        { file: 'src/relaxed.js', lines: 85, branches: 90, functions: 95 },
+        { file: 'src/strict.js', lines: 85, branches: 90, functions: 95 },
+      ],
+      floors,
+      'coverage',
+    );
+    // relaxed.js passes (85 ≥ 80), strict.js fails on lines (85 < 90).
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].file, 'src/strict.js');
+    assert.equal(passed.length, 1);
+    assert.equal(passed[0].file, 'src/relaxed.js');
+  });
+
+  it('stamps followUp on overridden coverage violations', () => {
+    const floors = withOverride({ lines: 80, follow_up: '#42' });
+    const { violations } = applyFloorPolicy(
+      [{ file: 'src/relaxed.js', lines: 70, branches: 90, functions: 95 }],
+      floors,
+      'coverage',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].floor, 80);
+    assert.equal(violations[0].followUp, '#42');
+  });
+
+  it('falls through to the default coverage floor when the override omits the axis', () => {
+    // override only relaxes lines; branches must still use the * floor (85).
+    const floors = withOverride({ lines: 80, follow_up: '#42' });
+    const { violations } = applyFloorPolicy(
+      [{ file: 'src/relaxed.js', lines: 90, branches: 70, functions: 95 }],
+      floors,
+      'coverage',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].axis, 'branches');
+    assert.equal(violations[0].floor, 85);
+    assert.equal(violations[0].followUp, undefined);
+  });
+
+  it('honours a maintainability override per record', () => {
+    const floors = withOverride({ maintainability: 40, follow_up: '#7' });
+    const { violations, passed } = applyFloorPolicy(
+      [
+        { file: 'src/relaxed.js', mi: 45 },
+        { file: 'src/strict.js', mi: 45 },
+      ],
+      floors,
+      'maintainability',
+    );
+    // relaxed.js: 45 ≥ 40 (passes), strict.js: 45 < 70 (fails).
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].file, 'src/strict.js');
+    assert.equal(passed.length, 1);
+    assert.equal(passed[0].file, 'src/relaxed.js');
+  });
+
+  it('stamps followUp on overridden maintainability violations', () => {
+    const floors = withOverride({ maintainability: 40, follow_up: '#7' });
+    const { violations } = applyFloorPolicy(
+      [{ file: 'src/relaxed.js', mi: 30 }],
+      floors,
+      'maintainability',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].floor, 40);
+    assert.equal(violations[0].followUp, '#7');
+  });
+
+  it('honours a crap override per record', () => {
+    const floors = withOverride({ crap: 50, follow_up: '#9' });
+    const { violations, passed } = applyFloorPolicy(
+      [
+        { file: 'src/relaxed.js', method: 'a', score: 35 },
+        { file: 'src/strict.js', method: 'b', score: 35 },
+      ],
+      floors,
+      'crap',
+    );
+    // relaxed.js: 35 ≤ 50 (passes), strict.js: 35 > 20 (fails).
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].file, 'src/strict.js');
+    assert.equal(passed.length, 1);
+    assert.equal(passed[0].file, 'src/relaxed.js');
+  });
+
+  it('stamps followUp on overridden crap violations', () => {
+    const floors = withOverride({ crap: 50, follow_up: '#9' });
+    const { violations } = applyFloorPolicy(
+      [{ file: 'src/relaxed.js', method: 'big', score: 60 }],
+      floors,
+      'crap',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].floor, 50);
+    assert.equal(violations[0].followUp, '#9');
+  });
+
+  it('non-matching records fall through to the * floor without an override stamp', () => {
+    const floors = withOverride({ maintainability: 40, follow_up: '#7' });
+    const { violations } = applyFloorPolicy(
+      [{ file: 'src/other.js', mi: 50 }],
+      floors,
+      'maintainability',
+    );
+    assert.equal(violations.length, 1);
+    assert.equal(violations[0].floor, 70);
+    assert.equal(violations[0].followUp, undefined);
+  });
+});
+
 describe('quality-floors — formatViolation', () => {
   it('formats a coverage violation', () => {
     const s = formatViolation({
@@ -275,6 +594,38 @@ describe('quality-floors — formatViolation', () => {
       floor: 70,
     });
     assert.match(s, /b\.js: MI 65\.10 < floor 70/);
+  });
+
+  it('appends override marker when the violation carries followUp', () => {
+    const cov = formatViolation({
+      scope: 'coverage',
+      reason: 'below-floor',
+      file: 'a.js',
+      axis: 'lines',
+      observed: 70,
+      floor: 80,
+      followUp: '#42',
+    });
+    assert.match(cov, /\(override -> #42\)/);
+    const mi = formatViolation({
+      scope: 'maintainability',
+      reason: 'below-floor',
+      file: 'b.js',
+      observed: 30,
+      floor: 40,
+      followUp: '#7',
+    });
+    assert.match(mi, /\(override -> #7\)/);
+    const crap = formatViolation({
+      scope: 'crap',
+      reason: 'above-ceiling',
+      file: 'c.js',
+      method: 'm',
+      observed: 60,
+      floor: 50,
+      followUp: '#9',
+    });
+    assert.match(crap, /\(override -> #9\)/);
   });
 
   it('formats a CRAP violation', () => {

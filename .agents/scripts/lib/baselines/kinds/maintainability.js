@@ -282,6 +282,10 @@ export function enforceMaintainabilityFloor(scores, argv, options = {}) {
   }
   const floors = options.floors ?? loadFloorConfig();
   const records = Object.entries(scores).map(([file, mi]) => ({ file, mi }));
+  // Story #2029: advertise every path-override that matched at least one
+  // scored record. The line is emitted unconditionally on pass AND fail so
+  // active overrides cannot hide behind a green CI run.
+  logActivePathOverrides(records, floors);
   const { violations } = applyFloorPolicy(records, floors, 'maintainability');
   if (violations.length === 0) return 0;
   Logger.error(
@@ -294,4 +298,25 @@ export function enforceMaintainabilityFloor(scores, argv, options = {}) {
     '[Maintainability] Refactor the flagged file(s); the floor is non-negotiable. Use `--floor=off` only when running `maintainability:update`.',
   );
   return 1;
+}
+
+/**
+ * Story #2029: emit one Logger.info line per maintainability path
+ * override that matched at least one record in this run. Quiet when
+ * no overrides are configured or none matched.
+ *
+ * @param {Array<{file: string}>} records
+ * @param {import('../../quality-floors.js').FloorConfig} floors
+ */
+function logActivePathOverrides(records, floors) {
+  const overrides = floors?.pathOverrides;
+  if (!(overrides instanceof Map) || overrides.size === 0) return;
+  const seenPaths = new Set(records.map((r) => r?.file).filter(Boolean));
+  for (const [pathKey, entry] of overrides) {
+    if (!seenPaths.has(pathKey)) continue;
+    if (!Object.hasOwn(entry, 'maintainability')) continue;
+    Logger.info(
+      `[Maintainability] ${pathKey}: maintainability floor relaxed to ${entry.maintainability} per ${entry.follow_up}`,
+    );
+  }
 }

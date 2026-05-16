@@ -49,6 +49,35 @@ export function parseGateArgs(
   };
 }
 
+// Inspect a named env var for a non-empty string ref. Pure helper.
+function refFromEnvName(env, name) {
+  if (!name) return null;
+  const v = env?.[name];
+  return typeof v === 'string' && v.length > 0 ? v : null;
+}
+
+// Resolve the env-tier of `resolveScopedRef`: walk `primaryEnv` then
+// `secondaryEnv`, returning the first that holds a non-empty ref.
+function resolveScopedRefFromEnv(env, primaryEnv, secondaryEnv) {
+  for (const name of [primaryEnv, secondaryEnv]) {
+    const ref = refFromEnvName(env, name);
+    if (ref) return { ref, scope: 'diff', source: name };
+  }
+  return null;
+}
+
+// Resolve the config-tier of `resolveScopedRef`: prefer
+// `config.defaultScope === 'full'`, then fall back to `config.diffRef`.
+function resolveScopedRefFromConfig(config) {
+  if (config?.defaultScope === 'full') {
+    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
+  }
+  if (typeof config?.diffRef === 'string' && config.diffRef.length > 0) {
+    return { ref: config.diffRef, scope: 'diff', source: 'config.diffRef' };
+  }
+  return null;
+}
+
 /**
  * Resolve the `--changed-since` ref by layering CLI > env > config >
  * framework default ('main'). Shared between CRAP and MI so a project
@@ -67,19 +96,12 @@ export function resolveScopedRef({
     return { ref: null, scope: 'full', source: '--full-scope' };
   }
   const fromArgv = readFlag(argv, '--changed-since', 'main');
-  if (fromArgv)
+  if (fromArgv) {
     return { ref: fromArgv, scope: 'diff', source: '--changed-since' };
-  for (const name of [primaryEnv, secondaryEnv]) {
-    const v = name ? env?.[name] : null;
-    if (typeof v === 'string' && v.length > 0) {
-      return { ref: v, scope: 'diff', source: name };
-    }
   }
-  if (config?.defaultScope === 'full') {
-    return { ref: null, scope: 'full', source: 'config.defaultScope=full' };
-  }
-  if (typeof config?.diffRef === 'string' && config.diffRef.length > 0) {
-    return { ref: config.diffRef, scope: 'diff', source: 'config.diffRef' };
-  }
+  const fromEnv = resolveScopedRefFromEnv(env, primaryEnv, secondaryEnv);
+  if (fromEnv) return fromEnv;
+  const fromConfig = resolveScopedRefFromConfig(config);
+  if (fromConfig) return fromConfig;
   return { ref: 'main', scope: 'diff', source: 'default' };
 }
