@@ -64,6 +64,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.11.0](https://github.com/dsj1984/mandrel/compare/v1.10.0...v1.11.0) (2026-05-16)
+
+
+### Fixed
+
+* **baselines:** maintainability/crap update writes worktree-relative paths instead of repo-relative ([#2079](https://github.com/dsj1984/mandrel/issues/2079)) ([#2080](https://github.com/dsj1984/mandrel/issues/2080)) ([b5f0f24](https://github.com/dsj1984/mandrel/commit/b5f0f245b0b306e984c617efa74b57eceaf2a817))
+
 ## [1.10.0](https://github.com/dsj1984/mandrel/compare/v1.9.0...v1.10.0) (2026-05-16)
 
 
