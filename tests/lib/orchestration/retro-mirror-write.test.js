@@ -118,7 +118,11 @@ test('runRetro: writes local mirror with the same body it posts to GitHub', asyn
   assert.equal(mkdirCalls[0].opts?.recursive, true);
 
   // Happy path emits no warn.
-  assert.equal(warnLines.length, 0, `unexpected warn lines: ${warnLines.join('\n')}`);
+  assert.equal(
+    warnLines.length,
+    0,
+    `unexpected warn lines: ${warnLines.join('\n')}`,
+  );
 });
 
 test('runRetro: warns and resolves normally when writeFileSync throws', async () => {
