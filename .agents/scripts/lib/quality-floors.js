@@ -637,19 +637,28 @@ function applyCrapCeiling(records, floors) {
  * @param {string[]} [argv]
  * @returns {boolean} true when the floor gate should run, false to skip
  */
+// Token → decision map for the single-token forms of `--floor`. `null`
+// means "this argv token doesn't decide; keep walking".
+const FLOOR_TOKEN_DECISIONS = new Map([
+  ['--no-floor', false],
+  ['--floor=off', false],
+  ['--floor=false', false],
+  ['--floor=on', true],
+  ['--floor=true', true],
+]);
+
+// Resolve the two-token `--floor <value>` form. Bare `--floor` (no value or
+// a non-decision next token) means "explicitly on".
+function resolveBareFloor(next) {
+  if (next === 'off' || next === 'false') return false;
+  return true;
+}
+
 export function parseFloorFlag(argv = process.argv.slice(2)) {
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
-    if (a === '--no-floor') return false;
-    if (a === '--floor=off' || a === '--floor=false') return false;
-    if (a === '--floor=on' || a === '--floor=true') return true;
-    if (a === '--floor') {
-      const next = argv[i + 1];
-      if (next === 'off' || next === 'false') return false;
-      if (next === 'on' || next === 'true') return true;
-      // Bare `--floor` means "explicitly on" (no-op vs default but harmless).
-      return true;
-    }
+    if (FLOOR_TOKEN_DECISIONS.has(a)) return FLOOR_TOKEN_DECISIONS.get(a);
+    if (a === '--floor') return resolveBareFloor(argv[i + 1]);
   }
   return true;
 }

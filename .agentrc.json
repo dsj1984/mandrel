@@ -57,7 +57,27 @@
           "floors": { "*": { "lines": 40, "branches": 40, "functions": 0 } }
         },
         "crap": {
-          "floors": { "*": { "crap": 30 } },
+          "floors": {
+            "*": { "crap": 20 },
+            "paths": {
+              ".agents/scripts/lib/baselines/preview-gates.js": {
+                "crap": 130,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/lib/baselines/kinds/crap.js": {
+                "crap": 55,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/check-dead-exports.js": {
+                "crap": 30,
+                "follow_up": "#2072"
+              },
+              ".agents/scripts/lib/gates/gate-cli.js": {
+                "crap": 27,
+                "follow_up": "#2072"
+              }
+            }
+          },
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
