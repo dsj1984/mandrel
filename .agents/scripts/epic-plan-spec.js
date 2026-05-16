@@ -102,6 +102,22 @@ CRITICAL REQUIREMENTS:
 - Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
 - Format architectural decisions clearly with bullet points.`;
 
+export const ACCEPTANCE_SPEC_SYSTEM_PROMPT = `You are an expert Acceptance Engineer.
+Your job is to convert a PRD and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
+
+The Acceptance Spec should outline:
+1. Acceptance Criteria — one row per user-visible outcome, expressed as a Markdown table with columns: AC ID | Outcome | Feature File | Scenario | Disposition
+2. Stable AC IDs — assign AC-1, AC-2, ... in document order; reuse the same ID across re-plans when an Outcome is materially unchanged so scenario tags (@ac-N) stay aligned
+3. Disposition — tag each row with one of: new | updated | unchanged
+
+CRITICAL REQUIREMENTS:
+- Respond ONLY with valid Markdown.
+- Do not use top-level <h1> (# ) tags. Start with ## Acceptance Criteria.
+- Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
+- Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
+- Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
+- Cite proposed feature file paths under tests/features/** so Phase 2 can scaffold matching scenarios.`;
+
 /**
  * Build the authoring context the host LLM (or the
  * `epic-plan-spec-author` Skill) needs to write the PRD and Tech Spec.
@@ -152,6 +168,7 @@ export async function buildAuthoringContext(
     systemPrompts: {
       prd: PRD_SYSTEM_PROMPT,
       techSpec: TECH_SPEC_SYSTEM_PROMPT,
+      acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
   };
 }

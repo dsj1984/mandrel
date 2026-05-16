@@ -6,6 +6,7 @@ import { beforeEach, describe, it } from 'node:test';
 // historical breadcrumb so a reader looking for the original module can
 // still find this file. The exercised behaviour is unchanged.
 import {
+  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
   PRD_SYSTEM_PROMPT,
   planEpic,
@@ -194,6 +195,15 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(ctx.epic.body, 'Epic body text.');
     assert.equal(ctx.systemPrompts.prd, PRD_SYSTEM_PROMPT);
     assert.equal(ctx.systemPrompts.techSpec, TECH_SPEC_SYSTEM_PROMPT);
+    assert.equal(
+      ctx.systemPrompts.acceptanceSpec,
+      ACCEPTANCE_SPEC_SYSTEM_PROMPT,
+    );
+    assert.equal(typeof ctx.systemPrompts.acceptanceSpec, 'string');
+    assert.ok(
+      ctx.systemPrompts.acceptanceSpec.length > 0,
+      'acceptanceSpec system prompt must be non-empty',
+    );
     // docsContext is the planning-context budget envelope (Epic #817 Story 9)
     assert.equal(typeof ctx.docsContext, 'object');
     assert.ok(ctx.docsContext);
