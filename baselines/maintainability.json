@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T01:43:47.022Z",
+  "generatedAt": "2026-05-16T02:27:33.318Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.926,
+      "p50": 103.218,
       "p95": 121.479
     }
   },
@@ -1000,7 +1000,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 105.668
+      "mi": 105.421
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
@@ -1128,7 +1128,19 @@
     },
     {
       "path": ".agents/scripts/lib/single-story-sweep.js",
-      "mi": 95.083
+      "mi": 90.161
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/protection.js",
+      "mi": 92.676
+    },
+    {
+      "path": ".agents/scripts/lib/single-story-sweep/sweep-lock.js",
+      "mi": 101.674
+    },
+    {
+      "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
+      "mi": 106.306
     },
     {
       "path": ".agents/scripts/lib/spec/index.js",
@@ -1319,6 +1331,10 @@
       "mi": 95.152
     },
     {
+      "path": ".agents/scripts/pr-watch-with-update.js",
+      "mi": 85.162
+    },
+    {
       "path": ".agents/scripts/providers/github.js",
       "mi": 92.068
     },
@@ -1388,7 +1404,7 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "mi": 85.832
+      "mi": 87.947
     },
     {
       "path": ".agents/scripts/story-close.js",
@@ -2564,11 +2580,11 @@
     },
     {
       "path": "tests/lib/orchestration/ticketing/reads.test.js",
-      "mi": 116.319
+      "mi": 115.874
     },
     {
       "path": "tests/lib/orchestration/ticketing/state.test.js",
-      "mi": 112.807
+      "mi": 111.049
     },
     {
       "path": "tests/lib/orchestration/wave-dispatcher.prime.test.js",
@@ -2724,7 +2740,7 @@
     },
     {
       "path": "tests/lib/ticketing.test.js",
-      "mi": 94.411
+      "mi": 94.416
     },
     {
       "path": "tests/lib/util/concurrent-map.test.js",
@@ -2999,12 +3015,24 @@
       "mi": 86.998
     },
     {
+      "path": "tests/scripts/pr-watch-with-update.test.js",
+      "mi": 108.531
+    },
+    {
       "path": "tests/scripts/run-tests.test.js",
       "mi": 117.132
     },
     {
+      "path": "tests/scripts/single-story-sweep-lock.test.js",
+      "mi": 108.791
+    },
+    {
+      "path": "tests/scripts/single-story-sweep-protection.test.js",
+      "mi": 101.699
+    },
+    {
       "path": "tests/scripts/single-story-sweep.test.js",
-      "mi": 103.478
+      "mi": 101.867
     },
     {
       "path": "tests/scripts/spec-loader.test.js",
