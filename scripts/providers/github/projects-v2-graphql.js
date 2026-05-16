@@ -254,7 +254,7 @@ export async function ensureProjectFields(ctx, fieldDefs) {
   const created = [],
     skipped = [];
   for (const def of fieldDefs) {
-    if (have.has(def.name) || def.type === 'iteration') {
+    if (have.has(def.name)) {
       skipped.push(def.name);
       continue;
     }

@@ -115,7 +115,6 @@ entirely.
 
 ### Project Board Fields (if `projectNumber` is configured)
 
-- **Sprint** (Iteration)
 - **Execution** (Single Select): `sequential`, `concurrent`
 
 ### Branch protection on `main` (Epic #1142 Story #1157)
