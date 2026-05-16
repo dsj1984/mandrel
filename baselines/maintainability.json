@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-15T21:01:50.417Z",
+  "generatedAt": "2026-05-15T23:36:34.851Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.235,
+      "p50": 103.244,
       "p95": 121.479
     }
   },
@@ -163,8 +163,8 @@
       "mi": 82.223
     },
     {
-      "path": ".agents/scripts/git-cleanup-branches.js",
-      "mi": 93.214
+      "path": ".agents/scripts/git-cleanup.js",
+      "mi": 87.66
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -388,15 +388,15 @@
     },
     {
       "path": ".agents/scripts/lib/cli-args.js",
-      "mi": 89.321
+      "mi": 88.972
     },
     {
       "path": ".agents/scripts/lib/cli-utils.js",
-      "mi": 112.695
+      "mi": 112.427
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 95.351
+      "mi": 95.307
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -439,6 +439,10 @@
       "mi": 110.109
     },
     {
+      "path": ".agents/scripts/lib/config/defaults.js",
+      "mi": 89.437
+    },
+    {
       "path": ".agents/scripts/lib/config/github.js",
       "mi": 81.124
     },
@@ -465,6 +469,10 @@
     {
       "path": ".agents/scripts/lib/config/shared.js",
       "mi": 105.208
+    },
+    {
+      "path": ".agents/scripts/lib/config/sync-agentrc.js",
+      "mi": 92.446
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
@@ -1119,6 +1127,10 @@
       "mi": 95.083
     },
     {
+      "path": ".agents/scripts/lib/single-story/story-merged-notify.js",
+      "mi": 106.306
+    },
+    {
       "path": ".agents/scripts/lib/spec/index.js",
       "mi": 171
     },
@@ -1372,7 +1384,7 @@
     },
     {
       "path": ".agents/scripts/single-story-close.js",
-      "mi": 85.18
+      "mi": 83.302
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -1393,6 +1405,10 @@
     {
       "path": ".agents/scripts/story-task-progress.js",
       "mi": 89.273
+    },
+    {
+      "path": ".agents/scripts/sync-agentrc.js",
+      "mi": 105.583
     },
     {
       "path": ".agents/scripts/sync-claude-commands.js",
@@ -1576,7 +1592,7 @@
     },
     {
       "path": "tests/check-crap-epic-ref.test.js",
-      "mi": 116.19
+      "mi": 116.196
     },
     {
       "path": "tests/check-crap-json.test.js",
@@ -1619,6 +1635,10 @@
       "mi": 113.227
     },
     {
+      "path": "tests/close-validation-full-scope-crap.test.js",
+      "mi": 116.28
+    },
+    {
       "path": "tests/close-validation-mi-projection.test.js",
       "mi": 110.037
     },
@@ -1639,8 +1659,16 @@
       "mi": 108.466
     },
     {
+      "path": "tests/config/agentrc-defaults.test.js",
+      "mi": 114.456
+    },
+    {
       "path": "tests/config/limits-template-drift.test.js",
       "mi": 123.149
+    },
+    {
+      "path": "tests/config/sync-agentrc.test.js",
+      "mi": 104.567
     },
     {
       "path": "tests/context-hydrator.test.js",
@@ -1900,7 +1928,7 @@
     },
     {
       "path": "tests/gate-integration.test.js",
-      "mi": 94.264
+      "mi": 94.244
     },
     {
       "path": "tests/gate-json-byte-stability.test.js",
@@ -2440,7 +2468,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
-      "mi": 114.22
+      "mi": 114.251
     },
     {
       "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
@@ -2923,8 +2951,8 @@
       "mi": 108.963
     },
     {
-      "path": "tests/scripts/git-cleanup-branches.test.js",
-      "mi": 107.868
+      "path": "tests/scripts/git-cleanup.test.js",
+      "mi": 107.403
     },
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",
@@ -2972,7 +3000,7 @@
     },
     {
       "path": "tests/single-story-close-orchestration.test.js",
-      "mi": 97.829
+      "mi": 98.068
     },
     {
       "path": "tests/skills/_harness/run-skill-smoke.js",
@@ -3028,7 +3056,7 @@
     },
     {
       "path": "tests/story-close.test.js",
-      "mi": 102.964
+      "mi": 102.969
     },
     {
       "path": "tests/story-close/format-autofix.test.js",

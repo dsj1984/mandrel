@@ -1,22 +1,30 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  buildAllowlistDecider,
   buildGlobFilter,
   buildJsonEnvelope,
   computeExitCode,
   computeProtectedSet,
   executeCleanup,
+  executeFastForward,
+  executePrune,
+  executeStashes,
   parseCleanupArgs,
   parsePrunedRefs,
+  parseStashList,
   planCleanup,
+  planFastForward,
+  planStashes,
   probeMergedPr,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
   renderPruneLine,
-} from '../../.agents/scripts/git-cleanup-branches.js';
+  stashRefIndex,
+} from '../../.agents/scripts/git-cleanup.js';
 
-describe('git-cleanup-branches.parseCleanupArgs', () => {
+describe('git-cleanup.parseCleanupArgs', () => {
   it('defaults to dry-run with no flags', () => {
     const out = parseCleanupArgs([]);
     assert.equal(out.dryRun, true);
@@ -37,6 +45,41 @@ describe('git-cleanup-branches.parseCleanupArgs', () => {
     const out = parseCleanupArgs(['--execute', '--dry-run']);
     assert.equal(out.dryRun, true);
     assert.equal(out.execute, false);
+  });
+
+  it('defaults all four phases to active when no phase flag is set', () => {
+    const out = parseCleanupArgs([]);
+    assert.deepEqual(out.phases, {
+      fastForwardMain: true,
+      pruneRemotes: true,
+      branches: true,
+      stashes: true,
+    });
+  });
+
+  it('narrows to only the requested phases when phase flags are passed', () => {
+    const out = parseCleanupArgs(['--stashes', '--branches']);
+    assert.deepEqual(out.phases, {
+      fastForwardMain: false,
+      pruneRemotes: false,
+      branches: true,
+      stashes: true,
+    });
+  });
+
+  it('--yes flips the non-interactive flag', () => {
+    const out = parseCleanupArgs(['--yes']);
+    assert.equal(out.yes, true);
+  });
+
+  it('--drop-stashes is repeatable', () => {
+    const out = parseCleanupArgs([
+      '--drop-stashes',
+      'stash@{0}',
+      '--drop-stashes',
+      'stash@{2}',
+    ]);
+    assert.deepEqual(out.dropStashes, ['stash@{0}', 'stash@{2}']);
   });
 
   it('parses --remote, --json, --base, --cwd, repeated --include / --exclude', () => {
@@ -64,7 +107,7 @@ describe('git-cleanup-branches.parseCleanupArgs', () => {
   });
 });
 
-describe('git-cleanup-branches.buildGlobFilter', () => {
+describe('git-cleanup.buildGlobFilter', () => {
   it('allows everything when both lists are empty', () => {
     const f = buildGlobFilter();
     assert.equal(f('any/branch'), true);
@@ -93,7 +136,7 @@ describe('git-cleanup-branches.buildGlobFilter', () => {
   });
 });
 
-describe('git-cleanup-branches.computeProtectedSet', () => {
+describe('git-cleanup.computeProtectedSet', () => {
   it('always includes baseBranch + currentBranch + configured names', () => {
     const set = computeProtectedSet({
       baseBranch: 'main',
@@ -116,7 +159,7 @@ describe('git-cleanup-branches.computeProtectedSet', () => {
   });
 });
 
-describe('git-cleanup-branches.planCleanup', () => {
+describe('git-cleanup.planCleanup', () => {
   const baseCtx = (overrides) => ({
     cwd: '/repo',
     baseBranch: 'main',
@@ -229,7 +272,7 @@ describe('git-cleanup-branches.planCleanup', () => {
   });
 });
 
-describe('git-cleanup-branches.executeCleanup', () => {
+describe('git-cleanup.executeCleanup', () => {
   const baseCand = (overrides) => ({
     branch: 'fix/a',
     prNumber: 1,
@@ -475,7 +518,7 @@ describe('git-cleanup-branches.executeCleanup', () => {
   });
 });
 
-describe('git-cleanup-branches.parsePrunedRefs', () => {
+describe('git-cleanup.parsePrunedRefs', () => {
   it('extracts each `- [deleted] (none) -> <remote>/<ref>` line from `git fetch --prune` stderr', () => {
     const stderr = [
       'From https://github.com/example/repo',
@@ -520,7 +563,7 @@ describe('git-cleanup-branches.parsePrunedRefs', () => {
   });
 });
 
-describe('git-cleanup-branches.computeExitCode', () => {
+describe('git-cleanup.computeExitCode', () => {
   it('returns 2 when no candidates matched', () => {
     assert.equal(computeExitCode({ candidates: [] }, null), 2);
   });
@@ -547,7 +590,7 @@ describe('git-cleanup-branches.computeExitCode', () => {
   });
 });
 
-describe('git-cleanup-branches.buildJsonEnvelope', () => {
+describe('git-cleanup.buildJsonEnvelope', () => {
   const plan = {
     candidates: [{ branch: 'fix/a', prNumber: 1, hasWorktree: false }],
     skipped: [{ branch: 'main', reason: 'protected' }],
@@ -618,7 +661,7 @@ describe('git-cleanup-branches.buildJsonEnvelope', () => {
   });
 });
 
-describe('git-cleanup-branches.probeMergedPr', () => {
+describe('git-cleanup.probeMergedPr', () => {
   it('returns the PR row when gh returns a non-empty merged array', () => {
     const out = probeMergedPr('fix/a', '/repo', () =>
       JSON.stringify([{ number: 42, mergedAt: '2026-05-01T00:00:00Z' }]),
@@ -685,7 +728,7 @@ describe('git-cleanup-branches.probeMergedPr', () => {
   });
 });
 
-describe('git-cleanup-branches renderers', () => {
+describe('git-cleanup renderers', () => {
   it('renderDryRun lists candidates with PR number + worktree note', () => {
     const lines = renderDryRun({
       candidates: [
@@ -802,5 +845,396 @@ describe('git-cleanup-branches renderers', () => {
       failures: [{}, {}],
     });
     assert.match(out, /2 failure\(s\)/);
+  });
+});
+
+describe('git-cleanup.planFastForward', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    isCleanFn: () => true,
+    currentBranchFn: () => 'main',
+    fetchFn: () => ({ ok: true }),
+    canFastForwardFn: () => ({ ok: true, behind: 3 }),
+    ...overrides,
+  });
+
+  it('returns runnable when tree is clean and remote is ahead', () => {
+    const plan = planFastForward(baseCtx());
+    assert.equal(plan.runnable, true);
+    assert.equal(plan.behind, 3);
+    assert.equal(plan.currentBranch, 'main');
+  });
+
+  it('returns dirty-tree when the working tree is not clean', () => {
+    const plan = planFastForward(baseCtx({ isCleanFn: () => false }));
+    assert.equal(plan.runnable, false);
+    assert.equal(plan.reason, 'dirty-tree');
+  });
+
+  it('returns not-fast-forward when local has diverged commits', () => {
+    const plan = planFastForward(
+      baseCtx({
+        canFastForwardFn: () => ({
+          ok: false,
+          behind: 1,
+          reason: 'not-fast-forward',
+        }),
+      }),
+    );
+    assert.equal(plan.runnable, false);
+    assert.equal(plan.reason, 'not-fast-forward');
+  });
+
+  it('returns already-up-to-date when behind=0', () => {
+    const plan = planFastForward(
+      baseCtx({ canFastForwardFn: () => ({ ok: true, behind: 0 }) }),
+    );
+    assert.equal(plan.runnable, false);
+    assert.equal(plan.reason, 'already-up-to-date');
+    assert.equal(plan.behind, 0);
+  });
+
+  it('returns fetch-failed when the remote fetch errors', () => {
+    const plan = planFastForward(
+      baseCtx({ fetchFn: () => ({ ok: false, stderr: 'no remote' }) }),
+    );
+    assert.equal(plan.runnable, false);
+    assert.equal(plan.reason, 'fetch-failed');
+  });
+});
+
+describe('git-cleanup.executeFastForward', () => {
+  const runnablePlan = (overrides) => ({
+    runnable: true,
+    behind: 2,
+    currentBranch: 'main',
+    ...overrides,
+  });
+
+  it('reports skipped without mutating when plan.runnable=false', () => {
+    let merged = false;
+    const res = executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: { runnable: false, reason: 'dirty-tree' },
+      checkoutFn: () => ({ ok: true }),
+      mergeFn: () => {
+        merged = true;
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, true);
+    assert.equal(res.applied, false);
+    assert.equal(res.skipped, true);
+    assert.equal(res.reason, 'dirty-tree');
+    assert.equal(merged, false);
+  });
+
+  it('checks out base when current branch differs, then merges', () => {
+    const order = [];
+    const res = executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: runnablePlan({ currentBranch: 'story-1' }),
+      checkoutFn: (_c, b) => {
+        order.push(`checkout:${b}`);
+        return { ok: true };
+      },
+      mergeFn: (_c, ref) => {
+        order.push(`merge:${ref}`);
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.applied, true);
+    assert.deepEqual(order, ['checkout:main', 'merge:origin/main']);
+  });
+
+  it('skips checkout when already on base branch', () => {
+    let checkoutCalls = 0;
+    executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: runnablePlan({ currentBranch: 'main' }),
+      checkoutFn: () => {
+        checkoutCalls += 1;
+        return { ok: true };
+      },
+      mergeFn: () => ({ ok: true }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(checkoutCalls, 0);
+  });
+
+  it('reports merge-failed and ok=false when --ff-only fails', () => {
+    const res = executeFastForward({
+      cwd: '/repo',
+      baseBranch: 'main',
+      plan: runnablePlan(),
+      checkoutFn: () => ({ ok: true }),
+      mergeFn: () => ({ ok: false, stderr: 'not a fast-forward' }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.reason, 'merge-failed');
+  });
+});
+
+describe('git-cleanup.executePrune', () => {
+  it('returns the pruned refs from the injected pruner', () => {
+    const res = executePrune({
+      cwd: '/repo',
+      pruneFn: () => ({ ok: true, pruned: ['a', 'b'] }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.pruned, ['a', 'b']);
+    assert.equal(res.remote, 'origin');
+    assert.equal(res.attempted, true);
+  });
+
+  it('surfaces pruner failure with stderr', () => {
+    const res = executePrune({
+      cwd: '/repo',
+      pruneFn: () => ({ ok: false, pruned: [], stderr: 'boom' }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.stderr, 'boom');
+  });
+
+  it('respects a non-default remoteName', () => {
+    let capturedRemote = null;
+    executePrune({
+      cwd: '/repo',
+      remoteName: 'upstream',
+      pruneFn: (_c, r) => {
+        capturedRemote = r;
+        return { ok: true, pruned: [] };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(capturedRemote, 'upstream');
+  });
+});
+
+describe('git-cleanup.parseStashList', () => {
+  it('parses ref|createdAt|message rows', () => {
+    const stdout = [
+      'stash@{0}|2026-05-15 10:00:00 -0500|WIP on story-1: abc',
+      'stash@{1}|2026-05-14 09:00:00 -0500|On main: scratch',
+    ].join('\n');
+    const out = parseStashList(stdout);
+    assert.equal(out.length, 2);
+    assert.equal(out[0].ref, 'stash@{0}');
+    assert.equal(out[0].createdAt, '2026-05-15 10:00:00 -0500');
+    assert.equal(out[0].message, 'WIP on story-1: abc');
+  });
+
+  it('skips malformed rows and empty input', () => {
+    assert.deepEqual(parseStashList(''), []);
+    assert.deepEqual(parseStashList(null), []);
+    assert.deepEqual(parseStashList('no-pipes-here'), []);
+  });
+
+  it('handles messages containing pipe characters', () => {
+    const out = parseStashList('stash@{0}|2026-05-15|WIP: a | b | c');
+    assert.equal(out[0].message, 'WIP: a | b | c');
+  });
+});
+
+describe('git-cleanup.stashRefIndex', () => {
+  it('extracts the numeric index from stash@{N}', () => {
+    assert.equal(stashRefIndex('stash@{0}'), 0);
+    assert.equal(stashRefIndex('stash@{42}'), 42);
+  });
+
+  it('returns -1 for unparseable refs', () => {
+    assert.equal(stashRefIndex(''), -1);
+    assert.equal(stashRefIndex(null), -1);
+    assert.equal(stashRefIndex('not-a-stash'), -1);
+  });
+});
+
+describe('git-cleanup.planStashes', () => {
+  it('returns the stash list from the injected lister', () => {
+    const out = planStashes({
+      cwd: '/repo',
+      stashListerFn: () => [{ ref: 'stash@{0}', createdAt: 't', message: 'm' }],
+    });
+    assert.equal(out.stashes.length, 1);
+    assert.equal(out.stashes[0].ref, 'stash@{0}');
+  });
+});
+
+describe('git-cleanup.buildAllowlistDecider', () => {
+  it('drops refs that appear in the allowlist, keeps others', () => {
+    const decide = buildAllowlistDecider(['stash@{0}', 'stash@{2}']);
+    assert.equal(decide({ ref: 'stash@{0}' }), 'drop');
+    assert.equal(decide({ ref: 'stash@{1}' }), 'keep');
+    assert.equal(decide({ ref: 'stash@{2}' }), 'drop');
+  });
+
+  it('keeps everything when the allowlist is empty', () => {
+    const decide = buildAllowlistDecider([]);
+    assert.equal(decide({ ref: 'stash@{0}' }), 'keep');
+  });
+});
+
+describe('git-cleanup.executeStashes', () => {
+  const stashes = [
+    { ref: 'stash@{0}', createdAt: 't0', message: 'm0' },
+    { ref: 'stash@{1}', createdAt: 't1', message: 'm1' },
+    { ref: 'stash@{2}', createdAt: 't2', message: 'm2' },
+  ];
+
+  it('drops stashes high-index-first so indices stay stable', () => {
+    const order = [];
+    executeStashes({
+      cwd: '/repo',
+      stashes,
+      decideFn: () => 'drop',
+      dropFn: (ref) => {
+        order.push(ref);
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.deepEqual(order, ['stash@{2}', 'stash@{1}', 'stash@{0}']);
+  });
+
+  it('honours per-stash keep decisions without calling dropFn', () => {
+    let dropCalls = 0;
+    const res = executeStashes({
+      cwd: '/repo',
+      stashes,
+      decideFn: (s) => (s.ref === 'stash@{1}' ? 'drop' : 'keep'),
+      dropFn: () => {
+        dropCalls += 1;
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(dropCalls, 1);
+    assert.equal(res.actions.filter((a) => a.action === 'drop').length, 1);
+    assert.equal(res.actions.filter((a) => a.action === 'keep').length, 2);
+  });
+
+  it('short-circuits the loop on a quit decision', () => {
+    let dropCalls = 0;
+    const res = executeStashes({
+      cwd: '/repo',
+      stashes,
+      decideFn: (s) => (s.ref === 'stash@{2}' ? 'quit' : 'drop'),
+      dropFn: () => {
+        dropCalls += 1;
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(dropCalls, 0);
+    assert.equal(
+      res.actions.every((a) => a.action === 'quit'),
+      true,
+    );
+  });
+
+  it('records drop failures and flips ok=false', () => {
+    const res = executeStashes({
+      cwd: '/repo',
+      stashes: [stashes[0]],
+      decideFn: () => 'drop',
+      dropFn: () => ({ ok: false, stderr: 'boom' }),
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(res.ok, false);
+    assert.equal(res.failures.length, 1);
+    assert.equal(res.failures[0].ref, 'stash@{0}');
+  });
+
+  it('routes --drop-stashes <ref> through the allowlist decider', () => {
+    const decide = buildAllowlistDecider(['stash@{1}']);
+    let dropped = null;
+    executeStashes({
+      cwd: '/repo',
+      stashes,
+      decideFn: decide,
+      dropFn: (ref) => {
+        dropped = ref;
+        return { ok: true };
+      },
+      logger: { info() {}, warn() {} },
+    });
+    assert.equal(dropped, 'stash@{1}');
+  });
+});
+
+describe('git-cleanup.computeExitCode multi-phase', () => {
+  it('returns 1 when any phase reports a failure', () => {
+    assert.equal(
+      computeExitCode({
+        fastForward: { ok: false },
+        prune: { ok: true, pruned: [] },
+      }),
+      1,
+    );
+    assert.equal(
+      computeExitCode({
+        stashes: { ok: false, actions: [] },
+      }),
+      1,
+    );
+  });
+
+  it('returns 2 when no phase produced work and none failed', () => {
+    const code = computeExitCode({
+      fastForward: { ok: true, applied: false },
+      prune: { ok: true, pruned: [] },
+      branchesPlan: { candidates: [] },
+      stashes: { ok: true, actions: [{ action: 'keep' }] },
+    });
+    assert.equal(code, 2);
+  });
+
+  it('returns 0 when at least one phase produced work', () => {
+    const code = computeExitCode({
+      fastForward: { ok: true, applied: true },
+    });
+    assert.equal(code, 0);
+  });
+
+  it('returns 0 when stashes were dropped', () => {
+    const code = computeExitCode({
+      stashes: {
+        ok: true,
+        actions: [{ action: 'drop', dropped: true }],
+      },
+    });
+    assert.equal(code, 0);
+  });
+
+  it('returns 0 when prune dropped stale refs', () => {
+    const code = computeExitCode({
+      prune: { ok: true, pruned: ['stale'] },
+    });
+    assert.equal(code, 0);
+  });
+});
+
+describe('git-cleanup.buildJsonEnvelope multi-phase', () => {
+  it('surfaces fastForward, prune, and stashes blocks in the envelope', () => {
+    const env = buildJsonEnvelope({
+      dryRun: false,
+      baseBranch: 'main',
+      plan: { candidates: [], skipped: [] },
+      fastForward: { ok: true, applied: true, behind: 2 },
+      prune: { ok: true, attempted: true, remote: 'origin', pruned: ['a'] },
+      stashes: { ok: true, actions: [{ ref: 'stash@{0}', action: 'keep' }] },
+    });
+    assert.equal(env.fastForward.applied, true);
+    assert.equal(env.prune.pruned[0], 'a');
+    assert.equal(env.stashes.actions[0].ref, 'stash@{0}');
   });
 });

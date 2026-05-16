@@ -132,6 +132,7 @@ describe('check-crap — --epic-ref (Story #1120)', () => {
       '.agents/scripts/check-crap.js',
       '--epic-ref',
       'epic/1114',
+      '--full-scope',
     ]);
   });
 });
