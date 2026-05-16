@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-16T00:12:22.258Z",
+  "generatedAt": "2026-05-16T00:15:55.249Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.961,
+      "p50": 102.815,
       "p95": 121.336
     }
   },
@@ -412,7 +412,11 @@
     },
     {
       "path": ".agents/scripts/lib/close-validation.js",
-      "mi": 95.351
+      "mi": 94.488
+    },
+    {
+      "path": ".agents/scripts/lib/close-validation/in-process-baseline-gate.js",
+      "mi": 95.522
     },
     {
       "path": ".agents/scripts/lib/close-validation/projections/head-sha.js",
@@ -964,7 +968,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
-      "mi": 100.439
+      "mi": 99.746
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-executor.js",
@@ -1691,10 +1695,6 @@
       "mi": 96.125
     },
     {
-      "path": "tests/check-mutation.test.js",
-      "mi": 110.28
-    },
-    {
       "path": "tests/check-version-sync.test.js",
       "mi": 93.99
     },
@@ -1737,6 +1737,14 @@
     {
       "path": "tests/context-hydrator.test.js",
       "mi": 100.176
+    },
+    {
+      "path": "tests/contract/check-baselines-kernel-mismatch.test.js",
+      "mi": 99.205
+    },
+    {
+      "path": "tests/contract/check-baselines-regression.test.js",
+      "mi": 97.147
     },
     {
       "path": "tests/coverage-baseline-noise-tolerance.test.js",
@@ -2156,7 +2164,7 @@
     },
     {
       "path": "tests/lib/close-validation-gate-helpers.test.js",
-      "mi": 117.311
+      "mi": 113.133
     },
     {
       "path": "tests/lib/close-validation-gh-spawn-count.test.js",
@@ -2937,18 +2945,6 @@
     {
       "path": "tests/scripts/check-baselines.test.js",
       "mi": 103.821
-    },
-    {
-      "path": "tests/scripts/check-coverage-baseline.test.js",
-      "mi": 114.878
-    },
-    {
-      "path": "tests/scripts/check-crap.test.js",
-      "mi": 110.884
-    },
-    {
-      "path": "tests/scripts/check-maintainability.test.js",
-      "mi": 115.025
     },
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
