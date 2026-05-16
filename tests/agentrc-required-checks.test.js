@@ -19,9 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const repoRoot = path.resolve(path.dirname(__filename), '..');
 
 function readAgentrc() {
-  return JSON.parse(
-    readFileSync(path.join(repoRoot, '.agentrc.json'), 'utf8'),
-  );
+  return JSON.parse(readFileSync(path.join(repoRoot, '.agentrc.json'), 'utf8'));
 }
 
 const EXPECTED_CHECKS = [
@@ -58,8 +56,9 @@ describe('.agentrc.json — collapsed requiredChecks snapshot (Task #1992)', () 
   });
 
   it('requiredChecks does not include any of the four deleted per-kind CLIs', () => {
-    const names = readAgentrc()
-      .github.branchProtection.requiredChecks.map((c) => c.name);
+    const names = readAgentrc().github.branchProtection.requiredChecks.map(
+      (c) => c.name,
+    );
     const leaks = names.filter((n) => FORBIDDEN_NAMES.has(n));
     assert.deepEqual(
       leaks,
