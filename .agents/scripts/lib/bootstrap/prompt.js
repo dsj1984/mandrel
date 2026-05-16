@@ -127,9 +127,12 @@ export function inferDefaults(projectRoot) {
  * Walk the question list and resolve a value for each, in priority order:
  *   1. CLI flag (`flags[question.flag]`).
  *   2. Environment variable (`process.env[question.env]`) when defined.
- *   3. Interactive prompt with the supplied default (only when
+ *   3. Silent-accept default when the question's key is in `silentAccept`
+ *      and `q.default` is non-empty (used to skip prompting for values
+ *      already inferred from local git state).
+ *   4. Interactive prompt with the supplied default (only when
  *      `interactive` is true).
- *   4. The supplied default (only when `assumeYes` is true).
+ *   5. The supplied default (only when `assumeYes` is true).
  *
  * Returns `{ answers, missing }` so the CLI can decide whether to abort
  * (non-TTY with missing required fields and no `--assume-yes`).
@@ -141,6 +144,8 @@ export function inferDefaults(projectRoot) {
  * @param {Record<string, string|boolean>} args.flags
  * @param {boolean} args.interactive
  * @param {boolean} args.assumeYes
+ * @param {Iterable<string>} [args.silentAccept] Keys whose `q.default`
+ *   should be accepted without prompting (when no flag/env overrides).
  * @param {NodeJS.ReadableStream} [args.input=process.stdin]
  * @param {NodeJS.WritableStream} [args.output=process.stdout]
  * @returns {Promise<{ answers: Record<string, string>, missing: string[] }>}
@@ -151,9 +156,11 @@ export async function collectAnswers(args) {
     flags,
     interactive,
     assumeYes,
+    silentAccept,
     input = process.stdin,
     output = process.stdout,
   } = args;
+  const silentSet = new Set(silentAccept ?? []);
   const answers = {};
   const missing = [];
   let rl = null;
@@ -167,6 +174,14 @@ export async function collectAnswers(args) {
       const envValue = q.env ? process.env[q.env] : undefined;
       if (typeof envValue === 'string' && envValue.length > 0) {
         answers[q.key] = envValue;
+        continue;
+      }
+      if (
+        silentSet.has(q.key) &&
+        typeof q.default === 'string' &&
+        q.default.length > 0
+      ) {
+        answers[q.key] = q.default;
         continue;
       }
       if (interactive) {

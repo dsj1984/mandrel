@@ -8,11 +8,28 @@ natively in GitHub Issues, Labels, and Projects V2.
 
 ## Prerequisites
 
+Mandrel is installed **into an existing project** as a Git submodule and
+wires its orchestration into that project's GitHub repository. Before
+you run `bootstrap.js` you need:
+
+- **An existing Git repository** — clone or `cd` into the project you
+  want to add Mandrel to. The framework cannot bootstrap a brand-new,
+  unversioned directory.
+- **A GitHub remote on that repository** — `origin` must point at a
+  GitHub repo that already exists (e.g. `github.com/<owner>/<repo>`).
+  `bootstrap.js` creates labels, Projects V2 fields, and branch
+  protections **on that remote**, so it cannot run against a local-only
+  repo or one whose remote hasn't been created yet. Create the empty
+  GitHub repo first (`gh repo create` or via the web UI) and `git push`
+  at least once so the remote exists.
 - **Node.js** >= 22.22.1 (< 25).
 - **GitHub CLI `gh`** >= 2.40 — run `gh auth login` once so orchestration
   scripts pick up your token from the OS keychain.
 
 ## Get Started
+
+From the root of your existing Git repository (with its GitHub remote
+already configured — see Prerequisites):
 
 ```bash
 git submodule add -b dist https://github.com/dsj1984/mandrel.git .agents
@@ -22,9 +39,14 @@ node .agents/scripts/bootstrap.js
 /epic-deliver <id>  # wave loop -> validation -> review -> retro -> open PR
 ```
 
-`bootstrap.js` is interactive on a TTY (auto-detects owner/repo/base
-branch from `git remote`); pass `--owner`, `--repo`, and `--assume-yes`
-for CI/scripted installs. It is idempotent — safe to re-run anytime.
+`bootstrap.js` is interactive on a TTY and auto-accepts the
+owner/repo/base branch/operator handle it can infer from your local
+`git remote` and `git config user.name` — you only get prompted for
+fields it can't infer (typically the optional Projects V2 number).
+Override anything inferred with `--owner`, `--repo`, `--base-branch`,
+or `--operator-handle`. For CI / scripted installs pass `--assume-yes`
+plus whichever overrides you need. The script is idempotent — safe to
+re-run anytime.
 
 ## Documentation
 
