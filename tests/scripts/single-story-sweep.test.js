@@ -38,13 +38,13 @@ function makeExecuteFake({ failures = [], extraLocalDropped = 0 } = {}) {
 }
 
 describe('sweepMergedStoryBranches', () => {
-  it('reaps every merged story-* candidate the planner surfaces', () => {
+  it('reaps every merged story-* candidate the planner surfaces', async () => {
     const candidates = [
       { branch: 'story-100', detectedBy: 'gh' },
       { branch: 'story-101', detectedBy: 'gh' },
     ];
     const logs = [];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-200',
@@ -59,13 +59,13 @@ describe('sweepMergedStoryBranches', () => {
     assert.deepEqual(result.failures, []);
   });
 
-  it('excludes the current story branch even when merged', () => {
+  it('excludes the current story branch even when merged', async () => {
     // Planner pool includes the run's own branch — the filter must drop it.
     const candidates = [
       { branch: 'story-200', detectedBy: 'gh' }, // current
       { branch: 'story-100', detectedBy: 'gh' },
     ];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-200',
@@ -76,13 +76,13 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(result.localDeleted, 1);
   });
 
-  it('also excludes non-story branches via the include glob', () => {
+  it('also excludes non-story branches via the include glob', async () => {
     const candidates = [
       { branch: 'feat/foo', detectedBy: 'gh' },
       { branch: 'epic/123', detectedBy: 'gh' },
       { branch: 'story-7', detectedBy: 'gh' },
     ];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-9',
@@ -97,9 +97,9 @@ describe('sweepMergedStoryBranches', () => {
     );
   });
 
-  it('returns a zero envelope (no execute call) when there are no candidates', () => {
+  it('returns a zero envelope (no execute call) when there are no candidates', async () => {
     let executeCalled = false;
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-1',
@@ -114,9 +114,9 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(executeCalled, false, 'execute skipped on empty plan');
   });
 
-  it('captures plan-time errors and never throws', () => {
+  it('captures plan-time errors and never throws', async () => {
     const warns = [];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-1',
@@ -132,9 +132,9 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(warns.length, 1);
   });
 
-  it('captures execute-time errors and reports them in the envelope', () => {
+  it('captures execute-time errors and reports them in the envelope', async () => {
     const candidates = [{ branch: 'story-100', detectedBy: 'gh' }];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-200',
@@ -150,12 +150,12 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(result.failures[0].scope, 'execute');
   });
 
-  it('surfaces partial reap failures without throwing', () => {
+  it('surfaces partial reap failures without throwing', async () => {
     const candidates = [
       { branch: 'story-100', detectedBy: 'gh' },
       { branch: 'story-101', detectedBy: 'gh' },
     ];
-    const result = sweepMergedStoryBranches({
+    const result = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       baseBranch: 'main',
       currentStoryBranch: 'story-200',
@@ -171,8 +171,141 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(result.failures.length, 1);
   });
 
-  it('rejects malformed inputs (cwd / baseBranch) without throwing', () => {
-    const noCwd = sweepMergedStoryBranches({
+  it('filters protected candidates out of executeCleanup and surfaces them in result.protected', async () => {
+    const candidates = [
+      {
+        branch: 'story-100',
+        prNumber: 100,
+        hasWorktree: false,
+        detectedBy: 'gh',
+      },
+      {
+        branch: 'story-101',
+        prNumber: 101,
+        hasWorktree: false,
+        detectedBy: 'gh',
+      },
+    ];
+    const executedAgainst = [];
+    const result = await sweepMergedStoryBranches({
+      cwd: '/tmp/repo',
+      baseBranch: 'main',
+      currentStoryBranch: 'story-200',
+      planCleanupFn: makePlanFake(candidates),
+      executeCleanupFn: ({ candidates: c }) => {
+        executedAgainst.push(...c.map((x) => x.branch));
+        return makeExecuteFake()({ candidates: c });
+      },
+      protectionFn: ({ candidate }) =>
+        candidate.branch === 'story-100'
+          ? { protected: true, reason: 'unpushed-work' }
+          : { protected: false },
+      protectionCtx: { repoRoot: '/tmp/repo' },
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.candidates, 2);
+    assert.equal(result.localDeleted, 1);
+    assert.deepEqual(executedAgainst, ['story-101']);
+    assert.equal(result.protected.length, 1);
+    assert.equal(result.protected[0].branch, 'story-100');
+    assert.equal(result.protected[0].reason, 'unpushed-work');
+  });
+
+  it('skips executeCleanup entirely when every candidate is protected', async () => {
+    const candidates = [
+      {
+        branch: 'story-100',
+        prNumber: 100,
+        hasWorktree: false,
+        detectedBy: 'gh',
+      },
+      {
+        branch: 'story-101',
+        prNumber: 101,
+        hasWorktree: false,
+        detectedBy: 'gh',
+      },
+    ];
+    let executeCalled = false;
+    const result = await sweepMergedStoryBranches({
+      cwd: '/tmp/repo',
+      baseBranch: 'main',
+      currentStoryBranch: 'story-200',
+      planCleanupFn: makePlanFake(candidates),
+      executeCleanupFn: () => {
+        executeCalled = true;
+        return { local: [], remote: [], failures: [], ok: true };
+      },
+      protectionFn: () => ({ protected: true, reason: 'ticket-not-done' }),
+      protectionCtx: { repoRoot: '/tmp/repo' },
+    });
+    assert.equal(executeCalled, false, 'execute skipped when nothing reapable');
+    assert.equal(result.ok, true);
+    assert.equal(result.candidates, 2);
+    assert.equal(result.localDeleted, 0);
+    assert.equal(result.protected.length, 2);
+  });
+
+  it('reports lock contention by skipping the sweep and emitting a warn log', async () => {
+    const warns = [];
+    let executeCalled = false;
+    const result = await sweepMergedStoryBranches({
+      cwd: '/tmp/repo',
+      baseBranch: 'main',
+      currentStoryBranch: 'story-200',
+      logger: { warn: (m) => warns.push(m) },
+      planCleanupFn: () => {
+        throw new Error('plan should not run when lock is contended');
+      },
+      executeCleanupFn: () => {
+        executeCalled = true;
+        return { local: [], remote: [], failures: [], ok: true };
+      },
+      acquireLockFn: () => ({ acquired: false, reason: 'contended' }),
+      lockPath: '/tmp/repo/sweep.lock',
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, true);
+    assert.equal(result.reason, 'lock-contended');
+    assert.equal(executeCalled, false);
+    assert.equal(warns.length, 1);
+    assert.match(warns[0], /lock not acquired/);
+  });
+
+  it('releases the lock even when executeCleanup throws', async () => {
+    let released = false;
+    const candidates = [
+      {
+        branch: 'story-100',
+        prNumber: 100,
+        hasWorktree: false,
+        detectedBy: 'gh',
+      },
+    ];
+    const result = await sweepMergedStoryBranches({
+      cwd: '/tmp/repo',
+      baseBranch: 'main',
+      currentStoryBranch: 'story-200',
+      planCleanupFn: makePlanFake(candidates),
+      executeCleanupFn: () => {
+        throw new Error('worktree busy');
+      },
+      acquireLockFn: () => ({
+        acquired: true,
+        release: () => {
+          released = true;
+        },
+        ownerId: 'test',
+      }),
+      lockPath: '/tmp/repo/sweep.lock',
+    });
+    assert.equal(result.ok, false);
+    assert.match(result.error ?? '', /worktree busy/);
+    assert.equal(released, true, 'lock release must run on failure path');
+  });
+
+  it('rejects malformed inputs (cwd / baseBranch) without throwing', async () => {
+    const noCwd = await sweepMergedStoryBranches({
       baseBranch: 'main',
       currentStoryBranch: 'story-1',
     });
@@ -180,7 +313,7 @@ describe('sweepMergedStoryBranches', () => {
     assert.equal(noCwd.skipped, true);
     assert.match(noCwd.error ?? '', /cwd is required/);
 
-    const noBase = sweepMergedStoryBranches({
+    const noBase = await sweepMergedStoryBranches({
       cwd: '/tmp/repo',
       currentStoryBranch: 'story-1',
     });

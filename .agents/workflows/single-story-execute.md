@@ -70,12 +70,39 @@ the Story to `agent::executing`.
 
 Between the fetch and the branch-seed step, the script also runs a
 **merged-`story-*` sweep**: it invokes the same primitive as
-`git-cleanup.js` scoped to `story-*` only, in
-`--execute --remote` mode, with the current run's `story-<id>` branch
-excluded from the candidate list. Local refs, the matching `origin/`
-ref, and stale tracking refs for any merged sibling stories are reaped
-in one pass. The sweep never blocks init — failures are logged and the
-new story is initialized regardless.
+`<agentRoot>/scripts/git-cleanup.js` (`<agentRoot>` resolves
+from `project.paths.agentRoot`, default `.agents`) scoped to `story-*`
+only, in `--execute --remote` mode, with the current run's
+`story-<id>` branch excluded from the candidate list. Local refs, the
+matching `origin/` ref, and stale tracking refs for any merged sibling
+stories are reaped in one pass. The sweep never blocks init — failures
+are logged and the new story is initialized regardless.
+
+The sweep applies two hardening layers (Story #2011):
+
+- **Per-candidate protection.** Each merged-PR candidate is filtered
+  through three guards before reaching `executeCleanup`:
+  - `unpushed-work` — branch HEAD SHA differs from the PR's
+    `headRefOid`, meaning the operator has commits the merge didn't
+    capture.
+  - `dirty-tree` — the attached worktree (if any) has uncommitted
+    changes.
+  - `ticket-not-done` — the parent Story ticket isn't closed and
+    doesn't carry `agent::done`.
+  Protected candidates are skipped, listed in the sweep result envelope
+  under `protected[]`, and named in the `CLEANUP` log line so the
+  operator can see what was preserved.
+- **Cross-session lock.** The sweep acquires a process-scoped lockfile
+  at `<tempRoot>/single-story-sweep.lock` before planning. On
+  contention (another `/single-story-execute` already in the sweep
+  step), this run's sweep is **skipped** with a warn log; init
+  continues normally. Stale lockfiles (mtime older than the timeout)
+  are treated as expired. The timeout defaults to 60 seconds and is
+  overridable via `delivery.worktreeIsolation.sweepLockMs` in
+  `.agentrc.json`.
+
+Both layers are non-fatal — sweep failure / skip never blocks init, and
+the new story is always created.
 
 Capture `workCwd` from the result envelope. Add `--dry-run` to inspect
 the planned actions without git or ticket mutations (dry-run also skips
@@ -171,17 +198,9 @@ close after a fixed gate failure that's already known to pass.
 `--no-auto-merge` disables Step 3a. Use when the PR materially changes
 behaviour and warrants pre-merge review.
 
-`--no-full-scope-crap` disables the close-time full-scope CRAP scan
-(Story #1945) and falls back to the diff-scoped check the framework used
-historically. The full-scope scan adds ~3s to close on a ~1400-method
-repo; the opt-out exists for cases where that cost becomes prohibitive.
-The post-merge CI run still enforces full-scope CRAP either way, so the
-opt-out trades close-time detection for the slower watch-loop round-trip
-described in Step 4.
-
 ---
 
-## Step 4 — CI watch + fix loop (safety net, post Story #1945)
+## Step 4 — CI watch + fix loop (**required, not optional**)
 
 The Story is **not done** when `single-story-close.js` returns. Auto-merge
 only fires when every required CI check turns green. Local close-validation
@@ -191,42 +210,19 @@ coverage rounding, platform-conditional branches, and timing-sensitive
 tests routinely drift between the two. The agent owns the green-CI
 outcome, not just the push.
 
-Story #1945 narrowed the gap by running **full-scope** CRAP and coverage
-gates at close time, mirroring CI's post-merge `push` event on main. The
-common drift mode that motivated this workflow's watch+fix loop — an
-unrelated method's CRAP score regressing on CI Linux after a PR that
-didn't touch the file — is now caught **before** push in the close-
-validation chain rather than after auto-merge in the CI run. Genuine
-host-vs-CI drift (platform-conditional code paths, true flakes) still
-escapes close, so the loop below remains the canonical safety net; it is
-no longer the primary detection point for environmental CRAP drift.
-
-After `single-story-close.js` succeeds, enter the watch + fix loop via
-the shared watch-and-recover helper. The helper wraps `gh pr checks
---watch` and additionally auto-recovers from `mergeStateStatus: BEHIND`
-by calling `gh pr update-branch` once every required check is green
-(branch-protection rules requiring "up to date before merging" otherwise
-park the PR until the operator clicks **Update branch** manually):
+After `single-story-close.js` succeeds, enter the watch + fix loop:
 
 ```bash
-node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
+gh pr checks <prNumber> --watch
 ```
 
-`<agentRoot>` resolves from `project.paths.agentRoot` (default
-`.agents`). Pass `--max-updates N` (default 3) to cap how many times
-the helper will recover from BEHIND in one session, and
-`--poll-interval-ms MS` (default 10000) to override the polling cadence.
+When the watch exits:
 
-When the helper exits:
-
-- **0 (merged or green+clean)** — auto-merge will fire (or has
-  already). The `Closes #<id>` footer closes the Story issue on merge.
-  Done.
-- **Non-zero (throw)** — the helper throws on terminal check failure,
-  PR closure without merging, or when the update-branch cap is
-  exhausted. Diagnose, fix, and push a new commit on `story-<storyId>`,
-  then re-run the helper. Auto-merge stays enabled across retries; no
-  need to re-arm it.
+- **All checks ✓** — auto-merge will fire (or has already). The
+  `Closes #<id>` footer closes the Story issue on merge. Done.
+- **Any check ✗** — diagnose, fix, and push a new commit on
+  `story-<storyId>`, then re-watch. Auto-merge stays enabled across
+  retries; no need to re-arm it.
 
 ### Resurrecting the worktree after `reapOnSuccess`
 
