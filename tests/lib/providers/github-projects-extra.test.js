@@ -369,7 +369,7 @@ describe('ensureProjectFields', () => {
     );
   });
 
-  it('skips existing fields and iteration-typed fields; creates new single_select fields', async () => {
+  it('skips existing fields; creates new single_select fields', async () => {
     let created = 0;
     const { ctx } = buildCtx({
       runGraphqlScript: (_q, _v, i) => {
@@ -389,11 +389,10 @@ describe('ensureProjectFields', () => {
     });
     const result = await ensureProjectFields(ctx, [
       { name: 'Priority', type: 'single_select', options: ['P0', 'P1'] },
-      { name: 'Sprint', type: 'iteration' },
       { name: 'Risk', type: 'single_select', options: ['Low', 'High'] },
     ]);
     assert.deepEqual(result.created, ['Risk']);
-    assert.deepEqual(result.skipped, ['Priority', 'Sprint']);
+    assert.deepEqual(result.skipped, ['Priority']);
     assert.equal(created, 1);
   });
 });

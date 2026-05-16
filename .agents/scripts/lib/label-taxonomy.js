@@ -114,9 +114,8 @@ export const LABEL_TAXONOMY = [
   },
 ];
 
-/** @type {Array<{ name: string, type: 'iteration'|'single_select', options?: string[] }>} */
+/** @type {Array<{ name: string, type: 'single_select', options?: string[] }>} */
 export const PROJECT_FIELD_DEFS = [
-  { name: 'Sprint', type: 'iteration' },
   {
     name: 'Execution',
     type: 'single_select',
@@ -161,7 +160,7 @@ export const PROJECT_VIEW_DEFS = [
     groupBy: 'Status',
   },
   {
-    name: 'Current Sprint',
+    name: 'Active Stories',
     filter: 'label:type::story -status:Done',
     groupBy: 'Status',
   },

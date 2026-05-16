@@ -979,7 +979,11 @@ describe('GitHubProvider — ensureProjectFields()', () => {
   it('returns empty results when projectNumber is null', async () => {
     const provider = createTestProvider({ projectNumber: null });
     const result = await provider.ensureProjectFields([
-      { name: 'Sprint', type: 'iteration' },
+      {
+        name: 'Execution',
+        type: 'single_select',
+        options: ['sequential', 'concurrent'],
+      },
     ]);
     assert.deepEqual(result, { created: [], skipped: [] });
   });
@@ -1297,7 +1301,7 @@ describe('GitHubProvider — ensureProjectViews()', () => {
     const provider = createTestProvider({ projectNumber: 1 });
     const result = await provider.ensureProjectViews([
       { name: 'Epic Roadmap', filter: 'label:type::epic' },
-      { name: 'Current Sprint', filter: 'label:type::story' },
+      { name: 'Active Stories', filter: 'label:type::story' },
     ]);
     assert.equal(result.unavailable, true);
     assert.equal(createCount, 1);
