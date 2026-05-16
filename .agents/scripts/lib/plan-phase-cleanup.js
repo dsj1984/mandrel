@@ -35,7 +35,12 @@ import { PROJECT_ROOT, resolveConfig } from './config-resolver.js';
  * directory prefix is supplied by `epicArtifactPath` at resolution time.
  */
 export const PHASE_TEMP_BASENAMES = Object.freeze({
-  spec: Object.freeze(['planner-context.json', 'prd.md', 'techspec.md']),
+  spec: Object.freeze([
+    'planner-context.json',
+    'prd.md',
+    'techspec.md',
+    'acceptance-spec.md',
+  ]),
   decompose: Object.freeze(['decomposer-context.json', 'tickets.json']),
 });
 

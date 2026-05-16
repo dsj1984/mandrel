@@ -172,6 +172,61 @@ describe('epic-planner orchestration (v5.6+)', () => {
     assert.equal(update.id, 1);
     assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
     assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(
+      !update.mutations.body.includes('Acceptance Spec'),
+      'No acceptance-spec line when not requested',
+    );
+  });
+
+  it('creates a third context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+    await planEpic(1, mockProvider, {
+      prdContent: '## Overview\nAuthored PRD.',
+      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
+      acceptanceSpecContent: '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    });
+
+    assert.equal(
+      mockProvider.createdTickets.length,
+      3,
+      'Should create exactly three tickets',
+    );
+
+    const acceptanceCreation = mockProvider.createdTickets[2];
+    assert.equal(acceptanceCreation.epicId, 1);
+    assert.equal(
+      acceptanceCreation.ticketData.title,
+      '[Acceptance Spec] Implement V5 Core',
+    );
+    assert.match(
+      acceptanceCreation.ticketData.body,
+      /^## Acceptance Criteria/,
+    );
+    assert.deepEqual(acceptanceCreation.ticketData.labels, [
+      'context::acceptance-spec',
+    ]);
+    // Acceptance Spec depends on Tech Spec (ID 101) so it appears after both
+    // upstream artifacts in dependency order.
+    assert.deepEqual(acceptanceCreation.ticketData.dependencies, [101]);
+
+    const update = mockProvider.updatedTickets[0];
+    assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
+    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(
+      update.mutations.body.includes('- [ ] Acceptance Spec: #102'),
+      'Planning Artifacts must include the acceptance-spec link',
+    );
+  });
+
+  it('rejects an empty acceptanceSpecContent string when the flag is supplied', async () => {
+    await assert.rejects(
+      async () =>
+        await planEpic(1, mockProvider, {
+          prdContent: '## Overview\nx',
+          techSpecContent: '## Technical Overview\ny',
+          acceptanceSpecContent: '   ',
+        }),
+      { message: /acceptanceSpecContent.*non-empty/ },
+    );
   });
 });
 

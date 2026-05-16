@@ -193,7 +193,7 @@ export async function buildAuthoringContext(
 export async function planEpic(
   epicId,
   provider,
-  { prdContent, techSpecContent },
+  { prdContent, techSpecContent, acceptanceSpecContent = null },
   _settings = {},
   { force = false } = {},
 ) {
@@ -207,6 +207,15 @@ export async function planEpic(
       '[Epic Planner] techSpecContent is required and must be non-empty.',
     );
   }
+  if (
+    acceptanceSpecContent !== null &&
+    (typeof acceptanceSpecContent !== 'string' ||
+      acceptanceSpecContent.trim() === '')
+  ) {
+    throw new Error(
+      '[Epic Planner] acceptanceSpecContent, when provided, must be a non-empty string.',
+    );
+  }
 
   Logger.info(`[Epic Planner] Fetching Epic #${epicId}...`);
   const epic = await provider.getEpic(epicId);
@@ -218,14 +227,28 @@ export async function planEpic(
   const stateManager = new PlanningStateManager(provider);
   await stateManager.healAndCleanupArtifacts(epic, force);
 
-  // M-8: Resumable planning — if PRD exists but Tech Spec doesn't, resume from PRD.
-  if (!force && epic.linkedIssues?.prd && epic.linkedIssues?.techSpec) {
+  // M-8: Resumable planning — if all artifacts exist, abort to prevent dupes.
+  const wantsAcceptanceSpec = acceptanceSpecContent !== null;
+  const hasPrd = Boolean(epic.linkedIssues?.prd);
+  const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
+  const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
+  const allLinked =
+    hasPrd &&
+    hasTechSpec &&
+    (wantsAcceptanceSpec ? hasAcceptanceSpec : true);
+  if (!force && allLinked) {
     Logger.warn(
-      `[Epic Planner] Epic #${epicId} already has both PRD and Tech Spec. Aborting to prevent duplicates. Use --force to re-plan.`,
+      `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
     );
     return;
   }
   const existingPrdId = force ? null : (epic.linkedIssues?.prd ?? null);
+  const existingTechSpecId = force
+    ? null
+    : (epic.linkedIssues?.techSpec ?? null);
+  const existingAcceptanceSpecId = force
+    ? null
+    : (epic.linkedIssues?.acceptanceSpec ?? null);
 
   let prdId;
   if (existingPrdId) {
@@ -247,25 +270,69 @@ export async function planEpic(
     prdId = prdTicket.id;
   }
 
-  Logger.info(
-    `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
-  );
-  const techSpecTicket = await provider.createTicket(epicId, {
-    title: `[Tech Spec] ${epic.title}`,
-    body: techSpecContent,
-    labels: ['context::tech-spec'],
-    dependencies: [prdId],
-  });
-  Logger.info(
-    `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
-  );
+  let techSpecId;
+  if (existingTechSpecId) {
+    Logger.info(
+      `[Epic Planner] Reusing existing Tech Spec #${existingTechSpecId}. Skipping Tech Spec creation.`,
+    );
+    techSpecId = existingTechSpecId;
+  } else {
+    Logger.info(
+      `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
+    );
+    const techSpecTicket = await provider.createTicket(epicId, {
+      title: `[Tech Spec] ${epic.title}`,
+      body: techSpecContent,
+      labels: ['context::tech-spec'],
+      dependencies: [prdId],
+    });
+    Logger.info(
+      `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
+    );
+    techSpecId = techSpecTicket.id;
+  }
+
+  let acceptanceSpecId = null;
+  if (wantsAcceptanceSpec) {
+    if (existingAcceptanceSpecId) {
+      Logger.info(
+        `[Epic Planner] Reusing existing Acceptance Spec #${existingAcceptanceSpecId}. Skipping Acceptance Spec creation.`,
+      );
+      acceptanceSpecId = existingAcceptanceSpecId;
+    } else {
+      Logger.info(
+        `[Epic Planner] Creating Acceptance Spec issue linking to Tech Spec #${techSpecId}...`,
+      );
+      const acceptanceTicket = await provider.createTicket(epicId, {
+        title: `[Acceptance Spec] ${epic.title}`,
+        body: acceptanceSpecContent,
+        labels: ['context::acceptance-spec'],
+        dependencies: [techSpecId],
+      });
+      Logger.info(
+        `[Epic Planner] Created Acceptance Spec Issue #${acceptanceTicket.id} (${acceptanceTicket.url})`,
+      );
+      acceptanceSpecId = acceptanceTicket.id;
+    }
+  }
 
   Logger.info(
     `[Epic Planner] Updating Epic #${epicId} with linked documents...`,
   );
 
-  // Format exactly so getEpic regex /PRD:\s*#\d+/i still catches it efficiently.
-  const appendBody = `\n\n## Planning Artifacts\n- [ ] PRD: #${prdId}\n- [ ] Tech Spec: #${techSpecTicket.id}\n`;
+  // Format exactly so the issue-link-parser regexes still catch each line.
+  // The parser is the source of truth for which prefixes are accepted; we
+  // emit the canonical "PRD: #N" / "Tech Spec: #N" / "Acceptance Spec: #N"
+  // shape so cascade-close (epic-deliver-finalize) and the Phase 2
+  // decomposer-context picker both see the third link.
+  const artifactLines = [
+    `- [ ] PRD: #${prdId}`,
+    `- [ ] Tech Spec: #${techSpecId}`,
+  ];
+  if (acceptanceSpecId !== null) {
+    artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
+  }
+  const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
   const newBody = epic.body + appendBody;
 
   await provider.updateTicket(epicId, {
@@ -399,7 +466,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
 export async function runSpecPhase(
   epicId,
   provider,
-  { prdContent, techSpecContent },
+  { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
   { force = false } = {},
 ) {
@@ -423,13 +490,20 @@ export async function runSpecPhase(
   await checkpointer.initialize();
   await checkpointer.setPhase(PLAN_PHASES.PLANNING);
 
-  await planEpic(epicId, provider, { prdContent, techSpecContent }, settings, {
-    force,
-  });
+  await planEpic(
+    epicId,
+    provider,
+    { prdContent, techSpecContent, acceptanceSpecContent },
+    settings,
+    {
+      force,
+    },
+  );
 
   const afterPlan = await provider.getEpic(epicId);
   const prdId = afterPlan.linkedIssues?.prd ?? null;
   const techSpecId = afterPlan.linkedIssues?.techSpec ?? null;
+  const acceptanceSpecId = afterPlan.linkedIssues?.acceptanceSpec ?? null;
 
   // Story #1585 (Epic #1471): the baseline-snapshot fork was previously
   // performed here at plan-time. It now runs at first-story-init time
@@ -440,6 +514,7 @@ export async function runSpecPhase(
   const checkpoint = await checkpointer.updateSpec({
     prdId,
     techSpecId,
+    acceptanceSpecId,
     completedAt: new Date().toISOString(),
   });
 
@@ -451,8 +526,12 @@ export async function runSpecPhase(
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
+  const acceptanceSummary =
+    acceptanceSpecId !== null
+      ? `, Acceptance Spec #${acceptanceSpecId}`
+      : '';
   Logger.info(
-    `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}.`,
+    `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}${acceptanceSummary}.`,
   );
   if (cleanup.deleted.length > 0) {
     Logger.info(
@@ -460,7 +539,14 @@ export async function runSpecPhase(
     );
   }
 
-  return { epicId, prdId, techSpecId, checkpoint, cleanup };
+  return {
+    epicId,
+    prdId,
+    techSpecId,
+    acceptanceSpecId,
+    checkpoint,
+    cleanup,
+  };
 }
 
 /* node:coverage ignore next */
@@ -470,6 +556,7 @@ async function main() {
       epic: { type: 'string' },
       prd: { type: 'string' },
       techspec: { type: 'string' },
+      'acceptance-spec': { type: 'string' },
       force: { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
@@ -479,7 +566,7 @@ async function main() {
 
   if (!values.epic) {
     throw new Error(
-      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
+      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file> [--acceptance-spec <file>]) [--force]',
     );
   }
 
@@ -535,15 +622,20 @@ async function main() {
     );
   }
 
-  const [prdContent, techSpecContent] = await Promise.all([
+  const readPromises = [
     readFile(values.prd, 'utf8'),
     readFile(values.techspec, 'utf8'),
-  ]);
+  ];
+  if (values['acceptance-spec']) {
+    readPromises.push(readFile(values['acceptance-spec'], 'utf8'));
+  }
+  const [prdContent, techSpecContent, acceptanceSpecContent = null] =
+    await Promise.all(readPromises);
 
   const result = await runSpecPhase(
     epicId,
     provider,
-    { prdContent, techSpecContent },
+    { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
     { force: values.force },
   );
