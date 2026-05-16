@@ -48,10 +48,7 @@ describe('parseLinkedIssues — Story #2091 contract', () => {
   });
 
   it('extracts prd + techSpec from the canonical two-line shape', () => {
-    const body = planningArtifactsBody([
-      'PRD: #2001',
-      'Tech Spec: #2002',
-    ]);
+    const body = planningArtifactsBody(['PRD: #2001', 'Tech Spec: #2002']);
     const parsed = parseLinkedIssues(body);
     assert.equal(parsed.prd, 2001);
     assert.equal(parsed.techSpec, 2002);
