@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  ACCEPTANCE_LABELS,
   AGENT_LABELS,
   CONTEXT_LABELS,
   LABEL_COLORS,
@@ -111,6 +112,19 @@ export const LABEL_TAXONOMY = [
     name: CONTEXT_LABELS.TECH_SPEC,
     color: LABEL_COLORS.CONTEXT,
     description: 'Technical Specification',
+  },
+  {
+    name: CONTEXT_LABELS.ACCEPTANCE_SPEC,
+    color: LABEL_COLORS.CONTEXT,
+    description: 'Acceptance Specification (Gherkin scenarios)',
+  },
+
+  // Acceptance axis — explicit opt-out signal for Stories/Features that
+  // intentionally have no acceptance-spec coverage.
+  {
+    name: ACCEPTANCE_LABELS.N_A,
+    color: LABEL_COLORS.ACCEPTANCE,
+    description: 'No acceptance specification required',
   },
 ];
 

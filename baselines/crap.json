@@ -4061,9 +4061,9 @@
     },
     {
       "crap": 1,
+      "file": ".agents/scripts/lib/label-taxonomy.js",
       "method": "buildPersonaLabels",
-      "startLine": 33,
-      "file": ".agents/scripts/lib/label-taxonomy.js"
+      "startLine": 34
     },
     {
       "crap": 1,
@@ -6011,63 +6011,63 @@
     },
     {
       "crap": 6,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "sumFriction",
-      "startLine": 48
+      "startLine": 44,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "collectDescendants",
-      "startLine": 62
+      "startLine": 58,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 5.004286694101509,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "gatherRetroSignals",
-      "startLine": 94
+      "startLine": 90,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 9.00104284286499,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "composeRetroBody",
-      "startLine": 203
+      "startLine": 199,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
-      "crap": 7.003331945022907,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
+      "crap": 6.009482627825823,
       "method": "runRetro",
-      "startLine": 365
+      "startLine": 361,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 2.053989849908217,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "collectRetroFindings",
-      "startLine": 470
+      "startLine": 446,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 4,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "appendChecksSection",
-      "startLine": 510
+      "startLine": 486,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "escapeCell",
-      "startLine": 520
+      "startLine": 496,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "renderFindingRow",
-      "startLine": 524
+      "startLine": 500,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 1,
-      "file": ".agents/scripts/lib/orchestration/retro-runner.js",
       "method": "renderFindingsSection",
-      "startLine": 532
+      "startLine": 508,
+      "file": ".agents/scripts/lib/orchestration/retro-runner.js"
     },
     {
       "crap": 3,

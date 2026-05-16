@@ -262,4 +262,181 @@ describe('PlanningStateManager', () => {
     assert.strictEqual(lastUpdate.id, 10);
     assert.ok(lastUpdate.mutations.body.includes('## Planning Artifacts'));
   });
+
+  describe('computeReviewReadiness', () => {
+    function buildProvider({
+      epicLabels = ['type::epic', 'agent::review-spec'],
+      prd,
+      techSpec,
+      acceptanceSpec,
+    } = {}) {
+      const tickets = {
+        10: { id: 10, title: 'Epic', body: '', labels: epicLabels },
+      };
+      if (prd) {
+        tickets[11] = {
+          id: 11,
+          title: 'PRD',
+          labels: ['context::prd'],
+          state: prd,
+        };
+      }
+      if (techSpec) {
+        tickets[12] = {
+          id: 12,
+          title: 'Tech Spec',
+          labels: ['context::tech-spec'],
+          state: techSpec,
+        };
+      }
+      if (acceptanceSpec) {
+        tickets[13] = {
+          id: 13,
+          title: 'Acceptance Spec',
+          labels: ['context::acceptance-spec'],
+          state: acceptanceSpec,
+        };
+      }
+      return new MockProvider({ tickets });
+    }
+
+    it('returns ready=true when PRD, Tech Spec, and Acceptance Spec are all closed', async () => {
+      const provider = buildProvider({
+        prd: 'closed',
+        techSpec: 'closed',
+        acceptanceSpec: 'closed',
+      });
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, true);
+      assert.strictEqual(verdict.reason, 'all-context-closed');
+      assert.deepStrictEqual(verdict.contexts, {
+        prd: 'closed',
+        techSpec: 'closed',
+        acceptanceSpec: 'closed',
+      });
+    });
+
+    it('returns ready=true when acceptance-spec is missing but the Epic carries acceptance::n-a', async () => {
+      const provider = buildProvider({
+        epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
+        prd: 'closed',
+        techSpec: 'closed',
+      });
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, true);
+      assert.strictEqual(verdict.reason, 'acceptance-waived');
+      assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
+    });
+
+    it('returns ready=false with reason "acceptance-spec-missing" when acceptance spec is absent and not waived', async () => {
+      const provider = buildProvider({
+        prd: 'closed',
+        techSpec: 'closed',
+      });
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, false);
+      assert.strictEqual(verdict.reason, 'acceptance-spec-missing');
+    });
+
+    it('returns ready=false with reason "acceptance-spec-open" when acceptance spec is still open', async () => {
+      const provider = buildProvider({
+        prd: 'closed',
+        techSpec: 'closed',
+        acceptanceSpec: 'open',
+      });
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, false);
+      assert.strictEqual(verdict.reason, 'acceptance-spec-open');
+    });
+
+    it('returns ready=false with reason "prd-open" when PRD is still open, regardless of other axes', async () => {
+      const provider = buildProvider({
+        prd: 'open',
+        techSpec: 'closed',
+        acceptanceSpec: 'closed',
+      });
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, false);
+      assert.strictEqual(verdict.reason, 'prd-open');
+    });
+
+    it('returns ready=false with reason "prd-missing" before any context tickets exist', async () => {
+      const provider = buildProvider({});
+      const mgr = new PlanningStateManager(provider);
+      const verdict = await mgr.computeReviewReadiness(10);
+      assert.strictEqual(verdict.ready, false);
+      assert.strictEqual(verdict.reason, 'prd-missing');
+    });
+  });
+
+  describe('flipEpicToReadyIfContextClosed', () => {
+    it('flips the Epic from review-spec to ready when all context tickets are closed', async () => {
+      const provider = new MockProvider({
+        tickets: {
+          10: {
+            id: 10,
+            title: 'Epic',
+            body: '',
+            labels: ['type::epic', 'agent::review-spec'],
+          },
+          11: {
+            id: 11,
+            title: 'PRD',
+            labels: ['context::prd'],
+            state: 'closed',
+          },
+          12: {
+            id: 12,
+            title: 'Tech Spec',
+            labels: ['context::tech-spec'],
+            state: 'closed',
+          },
+          13: {
+            id: 13,
+            title: 'Acceptance Spec',
+            labels: ['context::acceptance-spec'],
+            state: 'closed',
+          },
+        },
+      });
+      const mgr = new PlanningStateManager(provider);
+      const result = await mgr.flipEpicToReadyIfContextClosed(10);
+      assert.strictEqual(result.transitioned, true);
+      assert.strictEqual(result.ready, true);
+      const epic = await provider.getTicket(10);
+      assert.ok(epic.labels.includes('agent::ready'));
+      assert.ok(!epic.labels.includes('agent::review-spec'));
+    });
+
+    it('is a no-op when readiness is not yet satisfied', async () => {
+      const provider = new MockProvider({
+        tickets: {
+          10: {
+            id: 10,
+            title: 'Epic',
+            body: '',
+            labels: ['type::epic', 'agent::review-spec'],
+          },
+          11: {
+            id: 11,
+            title: 'PRD',
+            labels: ['context::prd'],
+            state: 'open',
+          },
+        },
+      });
+      const mgr = new PlanningStateManager(provider);
+      const result = await mgr.flipEpicToReadyIfContextClosed(10);
+      assert.strictEqual(result.transitioned, false);
+      assert.strictEqual(result.ready, false);
+      const epic = await provider.getTicket(10);
+      assert.ok(epic.labels.includes('agent::review-spec'));
+      assert.ok(!epic.labels.includes('agent::ready'));
+    });
+  });
 });
