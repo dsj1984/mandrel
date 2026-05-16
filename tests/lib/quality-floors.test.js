@@ -142,6 +142,204 @@ describe('quality-floors — loadFloorConfig (workspace-keyed floors)', () => {
   });
 });
 
+describe('quality-floors — loadFloorConfig (path overrides)', () => {
+  /** @type {string} */
+  let tmpDir;
+  /** @type {string} */
+  let agentrcPath;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'qf-paths-'));
+    agentrcPath = path.join(tmpDir, '.agentrc.json');
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  function gates(block) {
+    return { delivery: { quality: { gates: block } } };
+  }
+
+  it('seeds an empty pathOverrides Map when no overrides are configured', () => {
+    const cfg = loadFloorConfig(path.join(tmpDir, 'nope.json'));
+    assert.ok(cfg.pathOverrides instanceof Map);
+    assert.equal(cfg.pathOverrides.size, 0);
+  });
+
+  it('parses a coverage path override and returns it in pathOverrides', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { lines: 80, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(cfg.coverage.lines, 90); // workspace untouched
+    assert.equal(cfg.pathOverrides.size, 1);
+    const ov = cfg.pathOverrides.get('src/example.js');
+    assert.ok(ov);
+    assert.equal(ov.lines, 80);
+    assert.equal(ov.follow_up, '#1');
+  });
+
+  it('throws when follow_up is missing on a path override', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: { 'src/example.js': { lines: 80 } },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /follow_up/);
+  });
+
+  it('throws when follow_up is malformed', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { lines: 80, follow_up: 'not-an-issue' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(
+      () => loadFloorConfig(agentrcPath),
+      /invalid follow_up/,
+    );
+  });
+
+  it('throws when a path override carries an unknown axis', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 90 },
+              paths: {
+                'src/example.js': { statements: 80, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(
+      () => loadFloorConfig(agentrcPath),
+      /unknown axis "statements"/,
+    );
+  });
+
+  it('normalises backslash path keys to forward slashes', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          maintainability: {
+            floors: {
+              '*': { maintainability: 70 },
+              paths: {
+                'src\\foo\\bar.js': { maintainability: 50, follow_up: '#9' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(cfg.pathOverrides.size, 1);
+    assert.ok(cfg.pathOverrides.has('src/foo/bar.js'));
+  });
+
+  it('rejects absolute paths in path-override keys', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          crap: {
+            floors: {
+              '*': { crap: 20 },
+              paths: {
+                '/etc/foo.js': { crap: 30, follow_up: '#1' },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    assert.throws(() => loadFloorConfig(agentrcPath), /repo-relative/);
+  });
+
+  it('accepts a URL follow_up reference', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          crap: {
+            floors: {
+              '*': { crap: 20 },
+              paths: {
+                'src/foo.js': {
+                  crap: 30,
+                  follow_up: 'https://example.com/track/1',
+                },
+              },
+            },
+          },
+        }),
+      ),
+    );
+    const cfg = loadFloorConfig(agentrcPath);
+    assert.equal(
+      cfg.pathOverrides.get('src/foo.js').follow_up,
+      'https://example.com/track/1',
+    );
+  });
+
+  it('preserves coverage / maintainability / crap fields for existing consumers', () => {
+    fs.writeFileSync(
+      agentrcPath,
+      JSON.stringify(
+        gates({
+          coverage: {
+            floors: {
+              '*': { lines: 95 },
+              paths: { 'src/a.js': { lines: 80, follow_up: '#1' } },
+            },
+          },
+        }),
+      ),
+    );
+    const { coverage, maintainability, crap } = loadFloorConfig(agentrcPath);
+    assert.equal(coverage.lines, 95);
+    assert.equal(maintainability, 70);
+    assert.equal(crap, 20);
+  });
+});
+
 describe('quality-floors — applyFloorPolicy coverage', () => {
   const floors = {
     coverage: { lines: 90, branches: 85, functions: 90 },
