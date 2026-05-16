@@ -200,6 +200,21 @@ function axisDirection(kind, axis) {
 /**
  * Apply the floor policy across every component in a rollup. Pure.
  *
+ * Scope note (Story #2031 / Task #2051): this function enforces floors
+ * against the project-wide `rollup` keys (`*` and any named components),
+ * not against per-row entries in `baseline.rows`. The reserved
+ * `floors.paths` key — used by `lib/quality-floors.js` to relax
+ * individual files via `applyFloorPolicy` — is **intentionally skipped
+ * here**: per-file enforcement runs through the legacy CLI checkers
+ * (`enforceCrapFloor`, `enforceMaintainabilityFloor`, and the future
+ * coverage equivalent) so the unified gate stays focused on the
+ * aggregate signal. The `paths` key is filtered out below because
+ * `rollup` never carries a component named "paths" — the lookup on
+ * line `const aggregate = rollup?.[component]` returns undefined and
+ * the component is skipped. Path-override entries authored in
+ * `.agentrc.json` therefore remain valid (and the loader still
+ * validates them on every run) but do not affect this gate's outcome.
+ *
  * @param {string} kind
  * @param {object} rollup
  * @param {Record<string, Record<string, number>>} floors
@@ -213,6 +228,9 @@ export function applyFloors(kind, rollup, floors) {
     ...Object.keys(rollup ?? {}),
   ]);
   for (const component of components) {
+    // Skip the reserved `paths` key — it's a sibling overrides bag,
+    // not a workspace/component name. See the scope note above.
+    if (component === 'paths') continue;
     const aggregate = rollup?.[component];
     if (!aggregate || typeof aggregate !== 'object') continue;
     const floor = floors?.[component] ?? floors?.['*'];
