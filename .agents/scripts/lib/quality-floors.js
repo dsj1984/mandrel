@@ -38,7 +38,22 @@ import path from 'node:path';
  */
 
 /** @typedef {{lines: number, branches: number, functions: number}} CoverageFloor */
-/** @typedef {{coverage: CoverageFloor, maintainability: number, crap: number}} FloorConfig */
+/**
+ * @typedef {object} PathOverrideRecord
+ * @property {number} [lines]            Coverage axis override
+ * @property {number} [branches]         Coverage axis override
+ * @property {number} [functions]        Coverage axis override
+ * @property {number} [maintainability]  MI override
+ * @property {number} [crap]             CRAP ceiling override
+ * @property {string} follow_up          Required issue ref ('#123') or URL
+ */
+/**
+ * @typedef {object} FloorConfig
+ * @property {CoverageFloor} coverage
+ * @property {number} maintainability
+ * @property {number} crap
+ * @property {Map<string, PathOverrideRecord>} pathOverrides
+ */
 
 export const DEFAULT_FLOORS = Object.freeze({
   coverage: Object.freeze({ lines: 90, branches: 85, functions: 90 }),
@@ -86,6 +101,121 @@ export function loadFloorConfig(agentrcPath, opts = {}) {
   return out;
 }
 
+const FOLLOW_UP_PATTERN = /^#\d+$|^https?:\/\//;
+
+/**
+ * Normalise a per-path override key. Backslashes are folded to forward
+ * slashes so Windows-authored configs and Linux-authored configs agree
+ * on the Map key. Absolute paths (POSIX `/...` or Windows `C:\\...`)
+ * are rejected — overrides must be repo-relative.
+ *
+ * @param {string} key
+ * @returns {string}
+ */
+function normalizePathOverrideKey(key) {
+  if (typeof key !== 'string' || key.length === 0) {
+    throw new Error(
+      `qualityFloors.paths: path key must be a non-empty string, got ${JSON.stringify(key)}`,
+    );
+  }
+  if (key.startsWith('/') || /^[A-Za-z]:[\\/]/.test(key)) {
+    throw new Error(
+      `qualityFloors.paths: path key "${key}" must be repo-relative, not absolute`,
+    );
+  }
+  return key.replace(/\\/g, '/');
+}
+
+/**
+ * Validate a single per-path override entry from a gate's floors.paths
+ * bag. `tier` names the gate the entry came from (`'coverage'` /
+ * `'maintainability'` / `'crap'`); axis validation reuses the existing
+ * scalar / coverage bag validators so unknown axes raise the same
+ * messages as workspace-keyed floors.
+ *
+ * Returns the validated record (without `follow_up` stripped — callers
+ * carry it through to violations for surface-time display).
+ *
+ * @param {string} tier
+ * @param {string} pathKey
+ * @param {object} entry
+ * @returns {PathOverrideRecord}
+ */
+function validatePathOverrideEntry(tier, pathKey, entry) {
+  if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+    throw new Error(
+      `qualityFloors.paths."${pathKey}": expected an object, got ${Array.isArray(entry) ? 'array' : typeof entry}`,
+    );
+  }
+  const followUp = entry.follow_up;
+  if (typeof followUp !== 'string' || followUp.length === 0) {
+    throw new Error(
+      `qualityFloors.paths."${pathKey}": missing required follow_up`,
+    );
+  }
+  if (!FOLLOW_UP_PATTERN.test(followUp)) {
+    throw new Error(
+      `qualityFloors.paths."${pathKey}": invalid follow_up reference "${followUp}"; expected "#<digits>" or "http(s)://..."`,
+    );
+  }
+  // Drop the follow_up before axis validation so the reused validators
+  // do not see it as an unknown axis. Validate the remaining axes via
+  // the same routines used for workspace-keyed bags.
+  const axes = { ...entry };
+  delete axes.follow_up;
+  const record = { follow_up: followUp };
+  if (tier === 'coverage') {
+    const coverage = { lines: 0, branches: 0, functions: 0 };
+    applyCoverageBag(coverage, axes);
+    for (const axis of KNOWN_COVERAGE_AXES) {
+      if (Object.hasOwn(axes, axis)) record[axis] = coverage[axis];
+    }
+    return record;
+  }
+  // maintainability / crap: tier-named scalar.
+  const scalarOut = { maintainability: 0, crap: 0 };
+  applyScalarBag(scalarOut, tier, axes);
+  if (Object.hasOwn(axes, tier)) record[tier] = scalarOut[tier];
+  return record;
+}
+
+/**
+ * Merge a per-tier path-override bag into `out.pathOverrides`. Each
+ * tier (coverage / maintainability / crap) may declare its own
+ * `floors.paths` bag; if multiple tiers override the same file, the
+ * axes are unioned (no axis collision — coverage carries
+ * lines/branches/functions, maintainability carries `maintainability`,
+ * crap carries `crap`). `follow_up` MUST match across tiers when the
+ * same path appears more than once, else throw.
+ *
+ * @param {Map<string, PathOverrideRecord>} target
+ * @param {string} tier
+ * @param {object} pathsBag
+ */
+function mergePathOverrides(target, tier, pathsBag) {
+  if (pathsBag === undefined || pathsBag === null) return;
+  if (typeof pathsBag !== 'object' || Array.isArray(pathsBag)) {
+    throw new Error(
+      `qualityFloors.${tier}.paths: expected an object, got ${Array.isArray(pathsBag) ? 'array' : typeof pathsBag}`,
+    );
+  }
+  for (const rawKey of Object.keys(pathsBag)) {
+    const key = normalizePathOverrideKey(rawKey);
+    const entry = validatePathOverrideEntry(tier, key, pathsBag[rawKey]);
+    const prior = target.get(key);
+    if (prior === undefined) {
+      target.set(key, entry);
+      continue;
+    }
+    if (prior.follow_up !== entry.follow_up) {
+      throw new Error(
+        `qualityFloors.paths."${key}": follow_up disagrees across gates ("${prior.follow_up}" vs "${entry.follow_up}")`,
+      );
+    }
+    target.set(key, { ...prior, ...entry });
+  }
+}
+
 function resolveAgentrcPath(agentrcPath) {
   if (typeof agentrcPath !== 'string' || agentrcPath.length === 0) {
     return path.resolve(process.cwd(), '.agentrc.json');
@@ -114,20 +244,34 @@ function parseAgentrcJson(target, raw) {
 }
 
 /**
- * Pull the workspace-specific floor bag for a single gate. Story #1737
- * mandates the workspace-keyed shape: `floors: { "*": { ... } }`.
- * Returns the entry under `workspace`, falling back to the catch-all
- * `"*"` when the requested workspace is not declared.
+ * Pull the workspace-specific floor bag for a single gate and any
+ * sibling per-path overrides. Story #1737 mandates the workspace-keyed
+ * shape: `floors: { "*": { ... } }`. Story #2029 (per-path floor
+ * override runtime) reserves the additional key `paths` at the same
+ * level for path-keyed overrides — that key is NOT treated as a
+ * workspace and is peeled off so the workspace lookup below sees only
+ * real workspace keys.
+ *
+ * Returns the workspace-scoped bag under `workspace`, falling back to
+ * the catch-all `"*"` when the requested workspace is not declared,
+ * alongside the raw `paths` bag (or null when none was declared).
+ *
+ * @param {object|null|undefined} floors
+ * @param {string} workspace
+ * @returns {{ workspaceBag: object | null, pathsBag: object | null }}
  */
-function selectWorkspaceFloors(floors, workspace) {
-  if (floors === undefined || floors === null) return null;
+function selectFloorsBag(floors, workspace) {
+  if (floors === undefined || floors === null) {
+    return { workspaceBag: null, pathsBag: null };
+  }
   if (typeof floors !== 'object' || Array.isArray(floors)) {
     throw new Error(
       `qualityFloors: expected an object at gates.<tier>.floors, got ${Array.isArray(floors) ? 'array' : typeof floors}`,
     );
   }
   // Reject the legacy flat shape (e.g. floors: { lines: 90 }) — every
-  // value at the top level MUST be a workspace bag (an object).
+  // value at the top level MUST be a workspace bag or the reserved
+  // `paths` bag (an object).
   for (const key of Object.keys(floors)) {
     if (typeof floors[key] !== 'object' || floors[key] === null) {
       throw new Error(
@@ -135,17 +279,28 @@ function selectWorkspaceFloors(floors, workspace) {
       );
     }
   }
-  return floors[workspace] ?? floors['*'] ?? null;
+  const pathsBag = Object.hasOwn(floors, 'paths') ? floors.paths : null;
+  const workspaceBag = floors[workspace] ?? floors['*'] ?? null;
+  // Edge case: if the resolved workspace bag IS the paths bag (e.g.
+  // someone names a workspace 'paths'), refuse — the key is reserved.
+  if (workspaceBag !== null && workspaceBag === pathsBag) {
+    return { workspaceBag: null, pathsBag };
+  }
+  return { workspaceBag, pathsBag };
 }
 
 function applyGateFloors(out, tier, floors, workspace) {
-  const bag = selectWorkspaceFloors(floors, workspace);
-  if (bag === null) return;
-  if (tier === 'coverage') {
-    applyCoverageBag(out.coverage, bag);
-    return;
+  const { workspaceBag, pathsBag } = selectFloorsBag(floors, workspace);
+  if (workspaceBag !== null) {
+    if (tier === 'coverage') {
+      applyCoverageBag(out.coverage, workspaceBag);
+    } else {
+      applyScalarBag(out, tier, workspaceBag);
+    }
   }
-  applyScalarBag(out, tier, bag);
+  if (pathsBag !== null) {
+    mergePathOverrides(out.pathOverrides, tier, pathsBag);
+  }
 }
 
 function applyCoverageBag(target, bag) {
@@ -199,6 +354,7 @@ function cloneDefaults() {
     coverage: { ...DEFAULT_FLOORS.coverage },
     maintainability: DEFAULT_FLOORS.maintainability,
     crap: DEFAULT_FLOORS.crap,
+    pathOverrides: new Map(),
   };
 }
 
@@ -270,6 +426,49 @@ function wrapSingle(violation) {
   return { violations: [violation], passed: [] };
 }
 
+/**
+ * Resolve the effective per-record floor for the given scope, honouring
+ * Story #2029 path overrides. Returns `{ floor, override }` where
+ * `floor` is the value to compare against and `override` is the
+ * matching PathOverrideRecord (or null when the default workspace
+ * floor was used). The override is returned so the caller can stamp
+ * `followUp` onto any violations it emits.
+ *
+ * Coverage axes are resolved one at a time (an override may relax only
+ * some axes); maintainability and crap each carry a single scalar.
+ *
+ * @param {FloorConfig} floors
+ * @param {object} rec
+ * @param {'coverage'|'maintainability'|'crap'} scope
+ * @param {string} [axis] coverage sub-axis; ignored for other scopes
+ * @returns {{ floor: number | undefined, override: PathOverrideRecord | null }}
+ */
+function resolvePerRecordFloor(floors, rec, scope, axis) {
+  const pathOverrides = floors?.pathOverrides;
+  const key = rec?.file ?? rec?.path;
+  const override =
+    pathOverrides instanceof Map && typeof key === 'string'
+      ? (pathOverrides.get(key) ?? null)
+      : null;
+  if (scope === 'coverage') {
+    if (override && Object.hasOwn(override, axis)) {
+      return { floor: override[axis], override };
+    }
+    return { floor: floors?.coverage?.[axis], override: null };
+  }
+  if (scope === 'maintainability') {
+    if (override && Object.hasOwn(override, 'maintainability')) {
+      return { floor: override.maintainability, override };
+    }
+    return { floor: floors?.maintainability, override: null };
+  }
+  // crap
+  if (override && Object.hasOwn(override, 'crap')) {
+    return { floor: override.crap, override };
+  }
+  return { floor: floors?.crap, override: null };
+}
+
 function applyCoverageFloor(records, floors) {
   const violations = [];
   const passed = [];
@@ -278,18 +477,23 @@ function applyCoverageFloor(records, floors) {
     // still use `file`. Accept either so a migrating consumer can hand us
     // raw envelope rows without re-keying.
     const file = rec?.file ?? rec?.path ?? '<unknown>';
-    const recViolations = checkCoverageRecord(rec, floors.coverage, file);
+    const recViolations = checkCoverageRecord(rec, floors, file);
     if (recViolations.length === 0) passed.push({ scope: 'coverage', file });
     else violations.push(...recViolations);
   }
   return { violations, passed };
 }
 
-function checkCoverageRecord(rec, coverageFloors, file) {
+function checkCoverageRecord(rec, floors, file) {
   const out = [];
   for (const axis of KNOWN_COVERAGE_AXES) {
     const observed = rec?.[axis];
-    const floor = coverageFloors?.[axis];
+    const { floor, override } = resolvePerRecordFloor(
+      floors,
+      rec,
+      'coverage',
+      axis,
+    );
     if (!Number.isFinite(observed)) {
       // Missing axis (e.g. re-export-only file with no functions) passes a
       // floor of 0 — there's nothing to score, and the floor is the minimum
@@ -315,22 +519,24 @@ function checkCoverageRecord(rec, coverageFloors, file) {
       continue;
     }
     if (observed < floor) {
-      out.push({
+      const v = {
         scope: 'coverage',
         axis,
         file,
         observed,
         floor,
         reason: 'below-floor',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      out.push(v);
     }
   }
   return out;
 }
 
 function applyMaintainabilityFloor(records, floors) {
-  const floor = floors.maintainability;
-  if (!Number.isFinite(floor)) {
+  const defaultFloor = floors.maintainability;
+  if (!Number.isFinite(defaultFloor)) {
     return wrapSingle({
       scope: 'maintainability',
       reason: 'invalid-floors',
@@ -345,6 +551,11 @@ function applyMaintainabilityFloor(records, floors) {
     // raw envelope rows without re-keying.
     const file = rec?.file ?? rec?.path ?? '<unknown>';
     const observed = rec?.mi;
+    const { floor, override } = resolvePerRecordFloor(
+      floors,
+      rec,
+      'maintainability',
+    );
     if (!Number.isFinite(observed)) {
       violations.push({
         scope: 'maintainability',
@@ -355,13 +566,15 @@ function applyMaintainabilityFloor(records, floors) {
       continue;
     }
     if (observed < floor) {
-      violations.push({
+      const v = {
         scope: 'maintainability',
         file,
         observed,
         floor,
         reason: 'below-floor',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      violations.push(v);
     } else {
       passed.push({ scope: 'maintainability', file, observed });
     }
@@ -370,8 +583,8 @@ function applyMaintainabilityFloor(records, floors) {
 }
 
 function applyCrapCeiling(records, floors) {
-  const floor = floors.crap;
-  if (!Number.isFinite(floor)) {
+  const defaultFloor = floors.crap;
+  if (!Number.isFinite(defaultFloor)) {
     return wrapSingle({
       scope: 'crap',
       reason: 'invalid-floors',
@@ -387,6 +600,7 @@ function applyCrapCeiling(records, floors) {
     const file = rec?.file ?? rec?.path ?? '<unknown>';
     const method = rec?.method;
     const observed = rec?.score;
+    const { floor, override } = resolvePerRecordFloor(floors, rec, 'crap');
     if (!Number.isFinite(observed)) {
       violations.push({
         scope: 'crap',
@@ -398,14 +612,16 @@ function applyCrapCeiling(records, floors) {
       continue;
     }
     if (observed > floor) {
-      violations.push({
+      const v = {
         scope: 'crap',
         file,
         method,
         observed,
         floor,
         reason: 'above-ceiling',
-      });
+      };
+      if (override) v.followUp = override.follow_up;
+      violations.push(v);
     } else {
       passed.push({ scope: 'crap', file, method, observed });
     }
@@ -447,14 +663,18 @@ export function parseFloorFlag(argv = process.argv.slice(2)) {
  */
 export function formatViolation(v) {
   if (!v || typeof v !== 'object') return String(v);
+  const overrideSuffix =
+    typeof v.followUp === 'string' && v.followUp.length > 0
+      ? ` (override -> ${v.followUp})`
+      : '';
   if (v.reason === 'below-floor' && v.scope === 'coverage') {
-    return `${v.file}: ${v.axis} ${v.observed.toFixed(2)}% < floor ${v.floor}%`;
+    return `${v.file}: ${v.axis} ${v.observed.toFixed(2)}% < floor ${v.floor}%${overrideSuffix}`;
   }
   if (v.reason === 'below-floor' && v.scope === 'maintainability') {
-    return `${v.file}: MI ${v.observed.toFixed(2)} < floor ${v.floor}`;
+    return `${v.file}: MI ${v.observed.toFixed(2)} < floor ${v.floor}${overrideSuffix}`;
   }
   if (v.reason === 'above-ceiling' && v.scope === 'crap') {
-    return `${v.file}${v.method ? `:${v.method}` : ''}: CRAP ${v.observed.toFixed(2)} > ceiling ${v.floor}`;
+    return `${v.file}${v.method ? `:${v.method}` : ''}: CRAP ${v.observed.toFixed(2)} > ceiling ${v.floor}${overrideSuffix}`;
   }
   return v.message ?? JSON.stringify(v);
 }
