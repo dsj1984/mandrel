@@ -12,7 +12,6 @@
 import assert from 'node:assert/strict';
 import { describe, it, mock } from 'node:test';
 
-import { buildDefaultGates } from '../../../../.agents/scripts/lib/close-validation.js';
 import {
   emitMaintainabilityProjection,
   runPreMergeGates,
@@ -174,77 +173,14 @@ describe('runPreMergeGates — failure throw shape', () => {
   });
 });
 
-describe('runPreMergeGates — Story #1396 --epic-ref threading', () => {
-  it('passes --epic-ref epic/<id> exactly once to each baseline gate when an Epic context exists', () => {
-    const gates = buildDefaultGates({
-      agentSettings: {},
-      epicBranch: 'epic/1386',
-    });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    const crap = gates.find((g) => g.name === 'check-crap');
-
-    const miEpicRefHits = mi.args.filter((a) => a === '--epic-ref').length;
-    const crapEpicRefHits = crap.args.filter((a) => a === '--epic-ref').length;
-    assert.equal(
-      miEpicRefHits,
-      1,
-      'check-maintainability gets exactly one --epic-ref',
-    );
-    assert.equal(crapEpicRefHits, 1, 'check-crap gets exactly one --epic-ref');
-
-    // The argument that immediately follows --epic-ref must be the canonical
-    // epic branch name. Story #1396 freezes the format at `epic/<id>`.
-    const miIdx = mi.args.indexOf('--epic-ref');
-    const crapIdx = crap.args.indexOf('--epic-ref');
-    assert.equal(mi.args[miIdx + 1], 'epic/1386');
-    assert.equal(crap.args[crapIdx + 1], 'epic/1386');
-  });
-
-  it('omits --epic-ref entirely for a loose Story (no Epic context)', () => {
-    // No epicBranch supplied → snapshot scheme is inactive and the gate
-    // falls back to the working-tree fs read. Bug guard: ensure the close-
-    // validation chain does not silently inject a stale ref.
-    const gates = buildDefaultGates({ agentSettings: {} });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    const crap = gates.find((g) => g.name === 'check-crap');
-    assert.equal(mi.args.includes('--epic-ref'), false);
-    assert.equal(crap.args.includes('--epic-ref'), false);
-  });
-
-  it('omits --epic-ref when epicBranch is the empty string', () => {
-    // Boundary case: a caller resolving an empty string from agentSettings
-    // must not propagate `--epic-ref ''` into the gate args (gate CLI would
-    // either reject or silently use the wrong ref).
-    const gates = buildDefaultGates({
-      agentSettings: {},
-      epicBranch: '',
-    });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    const crap = gates.find((g) => g.name === 'check-crap');
-    assert.equal(mi.args.includes('--epic-ref'), false);
-    assert.equal(crap.args.includes('--epic-ref'), false);
-  });
-});
-
-describe('runPreMergeGates — gate registration after in-process migration (Epic #1943)', () => {
-  it('buildDefaultGates registers MI and CRAP gates (CLI args contract retired)', () => {
-    // Epic #1943 / Story #1973: the per-kind MI + CRAP gates are now
-    // in-process — they import `compare(head, base)` directly from
-    // `lib/baselines/kinds/*.js` instead of spawning the deleted
-    // `check-maintainability.js` / `check-crap.js` CLIs. The CLI args
-    // shape this test previously pinned no longer applies; scope is now
-    // resolved by the unified dispatcher via `delivery.quality.gateScoping`.
-    // The contract that survives: both gates are still registered.
-    const gates = buildDefaultGates({
-      agentSettings: {},
-      epicBranch: 'epic/1386',
-    });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    const crap = gates.find((g) => g.name === 'check-crap');
-    assert.ok(mi, 'check-maintainability gate must be present');
-    assert.ok(crap, 'check-crap gate must be present');
-  });
-});
+// Story #2210 — the per-kind in-process MI + CRAP + mutation gates were
+// retired. The `--epic-ref` threading test and the gate-registration test
+// that previously lived here were tied 1:1 to those retired gates; their
+// scope is now resolved by the unified `check-baselines` dispatcher via
+// `delivery.quality.gateScoping`. The presence of the unified gate in
+// `DEFAULT_GATES` is covered by `tests/story-close.test.js`, and the
+// retirement guard against reintroduction lives in
+// `tests/lib/close-validation/no-perkind-gate.test.js`.
 
 describe('emitMaintainabilityProjection', () => {
   it('short-circuits when no maintainability baseline path is configured', () => {
