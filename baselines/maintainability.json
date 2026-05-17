@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T12:42:59.283Z",
+  "generatedAt": "2026-05-17T12:33:49.721Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.09,
+      "p50": 102.991,
       "p95": 121.071
     }
   },
@@ -128,11 +128,11 @@
     },
     {
       "path": ".agents/scripts/epic-plan-clarity.js",
-      "mi": 82.121
+      "mi": 81.972
     },
     {
       "path": ".agents/scripts/epic-plan-decompose.js",
-      "mi": 88.72
+      "mi": 88.653
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 71.938
+      "mi": 71.817
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -344,7 +344,7 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/quality-bootstrap.js",
-      "mi": 85.187
+      "mi": 88.561
     },
     {
       "path": ".agents/scripts/lib/branch-name-guard.js",
@@ -508,7 +508,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/sync-agentrc.js",
-      "mi": 89.732
+      "mi": 92.446
     },
     {
       "path": ".agents/scripts/lib/config/temp-paths.js",
@@ -652,7 +652,7 @@
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
-      "mi": 104.668
+      "mi": 111.564
     },
     {
       "path": ".agents/scripts/lib/maintainability-engine.js",
@@ -804,7 +804,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
-      "mi": 112.048
+      "mi": 105.98
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
@@ -1675,12 +1675,8 @@
       "mi": 103.762
     },
     {
-      "path": "tests/bootstrap/agents-update-contract.test.js",
-      "mi": 106.694
-    },
-    {
       "path": "tests/bootstrap/agents-update-migration.test.js",
-      "mi": 92.614
+      "mi": 92.99
     },
     {
       "path": "tests/bootstrap/branch-protection.test.js",
@@ -1704,7 +1700,7 @@
     },
     {
       "path": "tests/bootstrap/quality-bootstrap.test.js",
-      "mi": 100.276
+      "mi": 99.581
     },
     {
       "path": "tests/bootstrap/silent-accept.test.js",
@@ -1800,7 +1796,7 @@
     },
     {
       "path": "tests/config/sync-agentrc.test.js",
-      "mi": 104.356
+      "mi": 104.567
     },
     {
       "path": "tests/context-hydrator.test.js",
@@ -1964,7 +1960,7 @@
     },
     {
       "path": "tests/epic-runner/acceptance-spec-gate.test.js",
-      "mi": 106.014
+      "mi": 107.75
     },
     {
       "path": "tests/epic-runner/blocker-handler.test.js",
@@ -3088,7 +3084,7 @@
     },
     {
       "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
-      "mi": 107.757
+      "mi": 106.737
     },
     {
       "path": "tests/scripts/epic-plan.edit-flow.test.js",
