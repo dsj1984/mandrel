@@ -9,18 +9,21 @@
  *
  * Side effects executed inside `handle()`:
  *   1. Emit `epic.cleanup.start`.
- *   2. Move `temp/epic-<id>/` to `temp/archive/epic-<id>-<ts>/`. The
+ *   2. Emit `epic.cleanup.end`.
+ *   3. Emit `epic.complete` carrying `{ epicId, prUrl }` — the terminal
+ *      event of a successful Epic run. LabelTransitioner flips the
+ *      Epic ticket to `agent::done` on this event (see listener
+ *      README). The emit order is "complete BEFORE archive" so the
+ *      ledger written into `temp/epic-<id>/lifecycle.ndjson` carries
+ *      `epic.complete` as its last record — this is Task #2265's
+ *      acceptance contract.
+ *   4. Move `temp/epic-<id>/` to `temp/archive/epic-<id>-<ts>/`. The
  *      move is atomic on the same filesystem (`fs.renameSync`) so a
  *      crash between rename and ledger flush leaves either the source
  *      or the destination on disk — never both. When the source is
  *      absent (because a prior interrupted run already moved it), the
  *      step short-circuits to the resume contract: no second archive
  *      directory is created (AC-10 Cleaner idempotency).
- *   3. Emit `epic.cleanup.end`.
- *   4. Emit `epic.complete` carrying `{ epicId, prUrl }` — the terminal
- *      event of a successful Epic run. LabelTransitioner flips the
- *      Epic ticket to `agent::done` on this event (see listener
- *      README).
  *
  * Idempotency contract (AC-10): two-layer defence.
  *   1. Per-instance `Set<string>` of `${event}:${seqId}` keys — repeat
@@ -107,7 +110,7 @@ export function findExistingArchive({
   }
   const prefix = `epic-${epicId}-`;
   const matches = entries
-    .filter((e) => e.isDirectory && e.isDirectory() && e.name.startsWith(prefix))
+    .filter((e) => e.isDirectory?.() && e.name.startsWith(prefix))
     .map((e) => e.name)
     .sort();
   if (matches.length === 0) return null;
@@ -206,7 +209,35 @@ export class Cleaner {
     const epicId = this.epicId;
     const epicDir = path.join(this.tempRoot, `epic-${epicId}`);
 
-    // 1. Announce cleanup.start.
+    // 0. Cross-process resume probe — if an archive directory for
+    //    this Epic already exists on disk, a prior run already
+    //    completed the rename. Honour the AC-10 idempotency
+    //    contract: emit the terminal sequence exactly once (so
+    //    LabelTransitioner / downstream listeners stay in sync) but
+    //    do NOT re-archive the just-recreated source directory. The
+    //    `archivedTo` field carries the FIRST archive directory.
+    //
+    //    This probe runs BEFORE the emit chain so the LedgerWriter's
+    //    `_ensureDir` recreation of `temp/epic-<id>/` (lazy on the
+    //    first append) does not mask the resume signal.
+    const existingArchive = findExistingArchive({
+      tempRoot: this.tempRoot,
+      epicId,
+      readdirFn: this.readdirFn,
+    });
+
+    // 1. Emit the terminal sequence FIRST so the ledger inside
+    //    `temp/epic-<id>/lifecycle.ndjson` captures the full
+    //    `epic.cleanup.start` → `epic.cleanup.end` → `epic.complete`
+    //    trail BEFORE the archive rename moves the directory. AC
+    //    contract: "epic.complete is the last event recorded in the
+    //    ledger before archive."
+    //
+    //    Emits that throw are caught and recorded as `failed`; the
+    //    archive step is still attempted afterwards on resume but
+    //    NOT during this same handler invocation, because schema or
+    //    bus-shape errors are signal of a real problem we do not
+    //    want to mask.
     try {
       await this.bus.emit('epic.cleanup.start', { epicId });
     } catch (err) {
@@ -221,19 +252,51 @@ export class Cleaner {
       );
       return;
     }
+    try {
+      await this.bus.emit('epic.cleanup.end', { epicId });
+    } catch (err) {
+      this.classifications.push({
+        event,
+        seqId,
+        outcome: 'failed',
+        reason: `end-emit-failed:${err?.message ?? err}`,
+      });
+      this.logger.warn?.(
+        `[Cleaner] epic.cleanup.end emit failed: ${err?.message ?? err}`,
+      );
+      return;
+    }
+    try {
+      await this.bus.emit('epic.complete', { epicId, prUrl });
+    } catch (err) {
+      this.classifications.push({
+        event,
+        seqId,
+        outcome: 'failed',
+        reason: `complete-emit-failed:${err?.message ?? err}`,
+      });
+      this.logger.warn?.(
+        `[Cleaner] epic.complete emit failed: ${err?.message ?? err}`,
+      );
+      return;
+    }
 
     // 2. Archive. Three states:
-    //    (a) source exists — rename it under `archive/`. Happy path.
-    //    (b) source absent + archive present — resume after a crash
-    //        between rename and the cleanup.end emit. Record the
-    //        existing archive and proceed to emit cleanup.end +
-    //        epic.complete.
-    //    (c) source absent + archive absent — nothing to archive (e.g.
-    //        the ledger writer never created the epic temp dir).
-    //        Proceed to emit cleanup.end + epic.complete anyway.
+    //    (a) prior archive exists — resume contract; short-circuit
+    //        and record `existing-archive` without re-archiving the
+    //        (LedgerWriter-recreated) source directory.
+    //    (b) no prior archive + source exists — rename it under
+    //        `archive/`. Happy path.
+    //    (c) no prior archive + source absent — nothing to archive.
     let archivedTo;
     let outcome;
-    if (this.existsFn(epicDir)) {
+    if (existingArchive) {
+      archivedTo = existingArchive;
+      outcome = 'existing-archive';
+      this.logger.info?.(
+        `[Cleaner] existing archive ${existingArchive} found — resume contract honored; not re-archiving.`,
+      );
+    } else if (this.existsFn(epicDir)) {
       const dest = resolveArchiveDest({
         tempRoot: this.tempRoot,
         epicId,
@@ -257,17 +320,10 @@ export class Cleaner {
       archivedTo = dest;
       outcome = 'archived';
     } else {
-      const existing = findExistingArchive({
-        tempRoot: this.tempRoot,
-        epicId,
-        readdirFn: this.readdirFn,
-      });
-      archivedTo = existing;
-      outcome = existing ? 'existing-archive' : 'no-source';
+      archivedTo = null;
+      outcome = 'no-source';
       this.logger.info?.(
-        existing
-          ? `[Cleaner] source ${epicDir} absent; existing archive ${existing} — resume contract honored.`
-          : `[Cleaner] source ${epicDir} absent and no prior archive — nothing to do.`,
+        `[Cleaner] source ${epicDir} absent and no prior archive — nothing to do.`,
       );
     }
 
@@ -278,25 +334,6 @@ export class Cleaner {
       epicId,
       archivedTo,
     });
-
-    // 3. cleanup.end + epic.complete. Even when there is nothing to
-    //    archive, the terminal events MUST still fire — `epic.complete`
-    //    is what flips the Epic ticket to `agent::done`.
-    try {
-      await this.bus.emit('epic.cleanup.end', { epicId });
-    } catch (err) {
-      this.logger.warn?.(
-        `[Cleaner] epic.cleanup.end emit failed (swallowed): ${err?.message ?? err}`,
-      );
-      return;
-    }
-    try {
-      await this.bus.emit('epic.complete', { epicId, prUrl });
-    } catch (err) {
-      this.logger.warn?.(
-        `[Cleaner] epic.complete emit failed (swallowed): ${err?.message ?? err}`,
-      );
-    }
   }
 
   reset() {

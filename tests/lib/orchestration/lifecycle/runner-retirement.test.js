@@ -82,9 +82,13 @@ function* walkRepo(root) {
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (IGNORE_DIRS.has(entry.name)) continue;
-      if (entry.name.startsWith('.') && entry.name !== '.agents' &&
-        entry.name !== '.github' && entry.name !== '.husky' &&
-        entry.name !== '.claude') {
+      if (
+        entry.name.startsWith('.') &&
+        entry.name !== '.agents' &&
+        entry.name !== '.github' &&
+        entry.name !== '.husky' &&
+        entry.name !== '.claude'
+      ) {
         // Skip dotfile directories we don't author (e.g. .vscode,
         // .changeset). The framework-owned dotfile dirs are
         // explicitly allowed above.

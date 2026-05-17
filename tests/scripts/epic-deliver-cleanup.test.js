@@ -17,13 +17,12 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
-import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   classifyCleanupInvocation,
   parseCleanupArgs,
   runEpicDeliverCleanup,
 } from '../../.agents/scripts/epic-deliver-cleanup.js';
+import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 
 function quietLogger() {
   return { info: () => {}, warn: () => {}, error: () => {} };

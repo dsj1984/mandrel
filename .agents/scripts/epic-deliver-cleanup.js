@@ -98,11 +98,7 @@ export function classifyCleanupInvocation(args) {
  * }} args
  * @returns {Promise<{ epicId: number, seqId: number }>}
  */
-export async function runEpicDeliverCleanup({
-  epicId,
-  bus,
-  loggerImpl,
-} = {}) {
+export async function runEpicDeliverCleanup({ epicId, bus, loggerImpl } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
       'runEpicDeliverCleanup: epicId must be a positive integer',

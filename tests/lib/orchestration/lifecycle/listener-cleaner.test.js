@@ -75,7 +75,7 @@ describe('findExistingArchive', () => {
   it('returns null when archive root is missing', () => {
     assert.equal(
       findExistingArchive({
-        tempRoot: '/nonexistent-' + Math.random().toString(36).slice(2),
+        tempRoot: `/nonexistent-${Math.random().toString(36).slice(2)}`,
         epicId: 1,
       }),
       null,
