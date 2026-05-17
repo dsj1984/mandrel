@@ -3,7 +3,7 @@
 /**
  * single-story-close.js — Close a standalone Story (no parent Epic).
  *
- * Counterpart to `story-close.js` for the `/single-story-execute` workflow.
+ * Counterpart to `story-close.js` for the `/single-story-deliver` workflow.
  * The framework's main `story-close.js` runs pre-merge gates with
  * baseline-attribution wiring, merges into `epic/<id>` --no-ff, pushes the
  * Epic branch, cascades to the parent Feature/Epic, regenerates the
@@ -40,7 +40,7 @@
  *
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/single-story-execute.md
+ * @see .agents/workflows/single-story-deliver.md
  */
 
 import { execFileSync } from 'node:child_process';
@@ -356,7 +356,7 @@ export function ensurePullRequest({
   const body = [
     `Closes #${storyId}`,
     '',
-    `_Auto-opened by \`/single-story-execute\`._`,
+    `_Auto-opened by \`/single-story-deliver\`._`,
   ].join('\n');
   try {
     const url = execFileSync(

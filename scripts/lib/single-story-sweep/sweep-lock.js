@@ -3,7 +3,7 @@
  *
  * Story #2011: best-effort cross-session lock for the
  * `single-story-sweep` step in `single-story-init.js`. Without a lock,
- * two concurrent `/single-story-execute` invocations can each compute
+ * two concurrent `/single-story-deliver` invocations can each compute
  * candidate sets, then each call `executeCleanup` against branches the
  * other was about to act on — producing the "story-2004 toggles in and
  * out of `git worktree list`" pattern observed during Story #2007's

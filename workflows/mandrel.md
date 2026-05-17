@@ -19,7 +19,7 @@ per-command names day-to-day.
 This is the **one** place a brand-prefixed command makes sense — the entry
 point itself, not the per-command names. The naming-discipline rule
 (`docs/decisions.md`) keeps every other command described by what it does
-(`/epic-deliver`, `/audit-clean-code`, `/story-execute`, etc.) rather than
+(`/epic-deliver`, `/audit-clean-code`, `/story-deliver`, etc.) rather than
 forcing `mandrel-` on every entry.
 
 ## Procedure

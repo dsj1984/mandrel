@@ -100,7 +100,7 @@ export function renderBaselineFrictionBody({ rows, epicId, storyId } = {}) {
   const triage = [
     '**Triage:**',
     `1. Open each suspect Story above and run \`npm run maintainability:update\` (or \`npm run crap:update\`) on **its** branch, then commit with a \`baseline-refresh:\` subject and re-close it.`,
-    `2. Re-run \`/story-execute ${storyId}\` once the suspect Story's refresh has merged into \`epic/${epicId}\`.`,
+    `2. Re-run \`/story-deliver ${storyId}\` once the suspect Story's refresh has merged into \`epic/${epicId}\`.`,
     `3. If the suspect column reads \`_unknown_\`, the path has no commit on \`epic/${epicId}\` — investigate the baseline file directly before refreshing.`,
   ];
 

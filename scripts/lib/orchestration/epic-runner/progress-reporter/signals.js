@@ -29,7 +29,7 @@ export const PHASE_TIMINGS_TYPE = 'phase-timings';
 
 /**
  * Structured-comment kind for the per-Story run-progress snapshot that
- * `/story-execute` upserts on every Task transition. Read by
+ * `/story-deliver` upserts on every Task transition. Read by
  * ProgressReporter so the Epic-level table reflects sub-agent state in
  * near-real time instead of label-derived classifications.
  */
@@ -91,7 +91,7 @@ export function phaseToState(phase) {
 }
 
 /**
- * Parse a `story-run-progress` structured comment posted by `/story-execute`.
+ * Parse a `story-run-progress` structured comment posted by `/story-deliver`.
  * Returns `null` for any malformed body — the caller falls back to the
  * ticket-label state derivation in that case.
  *

@@ -444,7 +444,7 @@ confuse:
 
 | File                              | Audience                          | Role                                                                                                                              |
 | --------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-execute` against this repo. Exercises the framework end-to-end. |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself   | Live config used when running `/epic-*`, `/story-deliver` against this repo. Exercises the framework end-to-end. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos         | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys.        |
 | `.agents/full-agentrc.json`       | Operators and reviewers           | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                          |
 
