@@ -16,16 +16,25 @@ import {
 
 describe('markerTypeFor', () => {
   it('returns wave-<n>-start for wave.start with a valid waveIndex', () => {
-    assert.equal(markerTypeFor('wave.start', { waveIndex: 0 }), 'wave-0-start');
-    assert.equal(markerTypeFor('wave.start', { waveIndex: 7 }), 'wave-7-start');
+    assert.equal(
+      markerTypeFor('wave.start', { waveIndex: 0 }),
+      'lifecycle-wave-0-start',
+    );
+    assert.equal(
+      markerTypeFor('wave.start', { waveIndex: 7 }),
+      'lifecycle-wave-7-start',
+    );
   });
   it('returns wave-<n>-end for wave.end with a valid waveIndex', () => {
-    assert.equal(markerTypeFor('wave.end', { waveIndex: 3 }), 'wave-3-end');
+    assert.equal(
+      markerTypeFor('wave.end', { waveIndex: 3 }),
+      'lifecycle-wave-3-end',
+    );
   });
   it('returns epic-blocked for epic.blocked', () => {
     assert.equal(
       markerTypeFor('epic.blocked', { reason: 'r' }),
-      'epic-blocked',
+      'lifecycle-epic-blocked',
     );
   });
   it('returns null for unknown / malformed events', () => {
@@ -72,7 +81,7 @@ describe('StructuredCommentPoster (bus integration)', () => {
 
     await bus.emit('wave.start', { waveIndex: 0, storyIds: [101, 102] });
     assert.equal(upserts.length, 1);
-    assert.equal(upserts[0].type, 'wave-0-start');
+    assert.equal(upserts[0].type, 'lifecycle-wave-0-start');
     assert.equal(upserts[0].ticketId, 555);
 
     // Second invocation with the same seqId — short-circuits.
@@ -101,10 +110,10 @@ describe('StructuredCommentPoster (bus integration)', () => {
 
     const types = upserts.map((u) => u.type);
     assert.deepEqual(types, [
-      'wave-0-start',
-      'wave-0-end',
-      'wave-1-start',
-      'wave-1-end',
+      'lifecycle-wave-0-start',
+      'lifecycle-wave-0-end',
+      'lifecycle-wave-1-start',
+      'lifecycle-wave-1-end',
     ]);
   });
 
@@ -161,6 +170,6 @@ describe('StructuredCommentPoster (bus integration)', () => {
     poster.register(bus);
     await bus.emit('wave.start', { waveIndex: 0, storyIds: [1] });
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /upsert wave-0-start failed/);
+    assert.match(warnings[0], /upsert lifecycle-wave-0-start failed/);
   });
 });

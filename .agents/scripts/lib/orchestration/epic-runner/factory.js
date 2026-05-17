@@ -14,9 +14,9 @@
  */
 
 import { notify } from '../../../notify.js';
-import { appendEpicSignal } from '../../../observability/signals-writer.js';
 import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
+import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
@@ -60,16 +60,17 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
-  // Story #2239 — when the lifecycle bus is wired, the
-  // StructuredCommentPoster listener owns the `wave-<n>-start` /
-  // `wave-<n>-end` markers on the Epic ticket. The legacy wave
-  // observer still runs (for commit-assertion reclassification) but
-  // its comment side effect is suppressed so the two writers don't
-  // double-post diverging bodies for the same marker.
+  // Story #2239 — the lifecycle StructuredCommentPoster listener
+  // writes its own `lifecycle-wave-<n>-start` / `lifecycle-wave-<n>-end`
+  // markers (distinct from the legacy `wave-<n>-start` markers the
+  // observer below writes). Parallel-write is intentional during the
+  // bus-cutover window so the rich observer comments (with
+  // commit-assertion reclassification detail) remain the operator-
+  // facing surface until a follow-up Story removes the legacy writer
+  // wholesale. The two markers coexist without colliding.
   const waveObserver = new WaveObserver({
     ctx,
     commitAssertion,
-    suppressComments: true,
   });
   const resolvedIntervalSec = Number(
     deliverRunner.progressReportIntervalSec ?? 0,

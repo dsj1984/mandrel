@@ -3,15 +3,18 @@
  * StructuredCommentPoster — lifecycle listener that upserts structured
  * comments on the Epic ticket at wave + blocker boundaries.
  *
- * Absorbs the surface previously owned by
- * `epic-runner/wave-observer.js` (`wave-<n>-start` /
- * `wave-<n>-end` markers) and the `epic-blocked` body the BlockerHandler
- * inlined on a halt path.
+ * Writes its own lifecycle-tagged structured comments, coexisting with
+ * the legacy `wave-observer.js` writer during the bus-cutover window:
+ * the observer keeps the rich `wave-<n>-start` / `wave-<n>-end` markers
+ * (with commit-assertion reclassification detail); this listener writes
+ * minimal lifecycle-prefixed markers off the bus. A follow-up Story
+ * removes the legacy writer once the bus surface is the source of
+ * truth for the rich body.
  *
  * Subscribes to (per Story #2239 Task #2242):
- *   - `wave.start`    → upsert `wave-<index>-start` marker.
- *   - `wave.end`      → upsert `wave-<index>-end`   marker.
- *   - `epic.blocked`  → upsert `epic-blocked` marker.
+ *   - `wave.start`    → upsert `lifecycle-wave-<index>-start` marker.
+ *   - `wave.end`      → upsert `lifecycle-wave-<index>-end`   marker.
+ *   - `epic.blocked`  → upsert `lifecycle-epic-blocked`       marker.
  *
  * Idempotency contract (Acceptance Spec AC-10): the listener keeps a
  * per-instance `Set<string>` of `event:seqId` keys it has handled. A
@@ -40,15 +43,15 @@ export function markerTypeFor(event, payload) {
   if (event === 'wave.start') {
     const idx = Number(payload?.waveIndex);
     if (!Number.isInteger(idx) || idx < 0) return null;
-    return `wave-${idx}-start`;
+    return `lifecycle-wave-${idx}-start`;
   }
   if (event === 'wave.end') {
     const idx = Number(payload?.waveIndex);
     if (!Number.isInteger(idx) || idx < 0) return null;
-    return `wave-${idx}-end`;
+    return `lifecycle-wave-${idx}-end`;
   }
   if (event === 'epic.blocked') {
-    return 'epic-blocked';
+    return 'lifecycle-epic-blocked';
   }
   return null;
 }
