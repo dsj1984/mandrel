@@ -28,9 +28,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { parseArgs } from 'node:util';
-
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 import { refreshBaseline as defaultRefreshBaseline } from '../../lib/baselines/refresh-service.js';
 import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from './acceptance-spec-reconciler.js';
