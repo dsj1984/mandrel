@@ -61,9 +61,13 @@ test('classifyFinalizeInvocation: non-positive --epic returns usage-error', () =
 });
 
 test('classifyFinalizeInvocation: valid --epic returns run intent', () => {
+  // Story #2204 (Epic #2173, AC-4): the `run` intent now carries
+  // `fullScope: false` by default — diff-scope is the production default
+  // and `--full-scope` is an explicit operator opt-in.
   assert.deepEqual(classifyFinalizeInvocation({ epic: '1178' }), {
     kind: 'run',
     epicId: 1178,
+    fullScope: false,
   });
 });
 
