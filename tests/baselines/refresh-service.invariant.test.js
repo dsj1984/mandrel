@@ -69,8 +69,11 @@ const FORBIDDEN_PATTERNS = Object.freeze([
 const MIGRATION_ALLOWLIST = Object.freeze(
   new Set([
     // Story #2198 (manual update CLIs → refreshBaseline)
+    // Note: update-maintainability-baseline.js was migrated by Story #2202
+    // (Task #2215) and is intentionally absent from this list — the refresh-
+    // service invariant must catch any regression that reintroduces a direct
+    // kind-internal write to that CLI.
     '.agents/scripts/update-coverage-baseline.js',
-    '.agents/scripts/update-maintainability-baseline.js',
     '.agents/scripts/update-crap-baseline.js',
     '.agents/scripts/update-mutation-baseline.js',
     '.agents/scripts/lint-baseline.js',

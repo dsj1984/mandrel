@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed — Story #2202: `update-maintainability-baseline.js` defaults to diff-scope
+
+The manual maintainability-baseline refresh CLI
+(`.agents/scripts/update-maintainability-baseline.js`) is now a thin wrapper
+around `refreshBaseline({ kind: 'maintainability' })` from
+`lib/baselines/refresh-service.js`, and its **default behaviour changed**.
+Closes #2202 (Epic #2173).
+
+- **`feat(baselines): flag-omission defaults to diff-scope; --full-scope is the opt-out`** —
+  invoking the CLI with no flags previously rewrote the entire baseline
+  envelope from a full target-tree walk. It now narrows the refresh to
+  files changed since `origin/main` (via the service's
+  `baseRef..headRef` diff derivation) and preserves out-of-scope rows
+  byte-for-byte from the prior on-disk baseline. Operators who relied on
+  the legacy "rewrite everything" semantics must pass the new
+  `--full-scope` flag. `--diff-scope <ref>` continues to accept an
+  explicit base ref. The two scope flags are mutually exclusive and the
+  CLI fails fast when both are supplied. This is a deliberate breaking
+  CLI behaviour change — local automations that pipe through the manual
+  CLI should add `--full-scope` if they expect the prior full-rewrite
+  semantics.
+- **`refactor(baselines): make update-maintainability-baseline.js a refreshBaseline wrapper`** —
+  the CLI no longer drives `writer.write` / `writeFile` /
+  `buildWriterScopeArgs` directly; scoring is injected as a scorer
+  function and the service owns scope resolution, envelope assembly,
+  out-of-scope merging, epsilon application, and atomic persistence.
+  The `refresh-service` invariant test (Task #2208) is updated to drop
+  the maintainability CLI from the migration allowlist so any future
+  regression that bypasses the service fails the static guard.
+
 ### Changed — Story #2171: rename `/story-execute` → `/story-deliver` (hard cutover)
 
 Mirror the epic-side naming (`/epic-deliver`) on the story-side workflows.
