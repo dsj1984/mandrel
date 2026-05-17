@@ -155,6 +155,18 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.17.0](https://github.com/dsj1984/mandrel/compare/v1.16.0...v1.17.0) (2026-05-17)
+
+
+### Added
+
+* **story-close:** bounded timeout for biome-format + baseline-refresh spawns ([#2165](https://github.com/dsj1984/mandrel/issues/2165)) ([#2180](https://github.com/dsj1984/mandrel/issues/2180)) ([01a61b3](https://github.com/dsj1984/mandrel/commit/01a61b32488ea6dc9031a5427a2029f56b67a043))
+
+
+### Fixed
+
+* **story-close:** enforce single baseline-refresh commit per close cycle (resolves [#2176](https://github.com/dsj1984/mandrel/issues/2176)) ([#2177](https://github.com/dsj1984/mandrel/issues/2177)) ([a900e4f](https://github.com/dsj1984/mandrel/commit/a900e4f0c8c5c598dbd831feca218636cecb49d5))
+
 ## [1.16.0](https://github.com/dsj1984/mandrel/compare/v1.15.0...v1.16.0) (2026-05-17)
 
 
