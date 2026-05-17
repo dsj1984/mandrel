@@ -334,6 +334,11 @@
         },
         "refreshTag": {
           "allOf": [{ "$ref": "#/$defs/safeString" }, { "minLength": 1 }]
+        },
+        "refreshTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounded timeout (ms) for `npm run crap:update` spawned by the baseline-attribution refresh path. Mirrors `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked`. Default 60000 (Story #2165)."
         }
       },
       "additionalProperties": false
@@ -351,6 +356,11 @@
         "targetDirs": {
           "$ref": "#/$defs/listOrExtenderOfStrings",
           "description": "Directories whose JS sources the maintainability gate scores. Mandrel ships a `src/`-centric default; projects whose executable code lives elsewhere (e.g. this repo's `.agents/scripts/` plus `tests/`) override here. The framework default is intentionally not auto-discovered, so an override is the explicit, auditable signal."
+        },
+        "refreshTimeoutMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Bounded timeout (ms) for `npm run maintainability:update` spawned by the baseline-attribution refresh path. Mirrors `coverage.timeoutMs`: a SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked`. Default 60000 (Story #2165)."
         }
       },
       "additionalProperties": false
@@ -478,11 +488,20 @@
       },
       "additionalProperties": false
     },
+    "formatAutofix": {
+      "type": "object",
+      "description": "Bounded-timeout knob for the close-time `npx biome format --write` spawn (Story #2165). A SIGKILL fired at the budget boundary maps to exit 124 so the close orchestrator can flip the Story to `agent::blocked` with a friction comment.",
+      "properties": {
+        "timeoutMs": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
         "gateScoping": { "$ref": "#/$defs/gateScoping" },
         "gates": { "$ref": "#/$defs/gates" },
+        "formatAutofix": { "$ref": "#/$defs/formatAutofix" },
         "codingGuardrails": { "$ref": "#/$defs/codingGuardrails" },
         "autoRefresh": { "$ref": "#/$defs/autoRefresh" },
         "baselineEpsilon": { "$ref": "#/$defs/baselineEpsilon" }

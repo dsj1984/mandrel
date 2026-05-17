@@ -29,7 +29,10 @@
 import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
-import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
+import {
+  getBaselines as defaultGetBaselines,
+  getQuality as defaultGetQuality,
+} from '../../config-resolver.js';
 import { COVERAGE_TIMEOUT_EXIT_CODE } from '../../coverage-capture.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
@@ -37,6 +40,16 @@ import { upsertStructuredComment as defaultUpsertStructuredComment } from '../ti
 import { classifyBaselineDrift as defaultClassifyBaselineDrift } from './baseline-attribution.js';
 import { renderBaselineFrictionBody as defaultRenderBaselineFrictionBody } from './baseline-friction-body.js';
 import { runPreMergeGates as defaultRunPreMergeGates } from './pre-merge-validation.js';
+
+/**
+ * Story #2165 — exit code surfaced when one of the baseline-refresh spawns
+ * (`npm run maintainability:update` / `npm run crap:update`) is killed by
+ * the bounded-timeout watchdog. Matches `COVERAGE_TIMEOUT_EXIT_CODE` and
+ * the GNU `timeout(1)` convention so the close orchestrator can branch on
+ * "refresh hung" (124) vs. "refresh exited non-zero for some other
+ * reason" without inspecting signal names.
+ */
+export const REFRESH_TIMEOUT_EXIT_CODE = 124;
 
 /**
  * Map gate names → metadata used to project regressions and refresh the
@@ -53,13 +66,49 @@ const DEFAULT_GATE_REGISTRY = {
     refreshCmd: { cmd: 'npm', args: ['run', 'maintainability:update'] },
     refreshSubject: 'baseline-refresh: maintainability',
     baselineHint: 'maintainability',
+    // Story #2165 — selects which resolved `quality.<kind>.refreshTimeoutMs`
+    // bounds the refresh spawn for this gate.
+    timeoutBlockKey: 'maintainability',
   },
   'check-crap': {
     refreshCmd: { cmd: 'npm', args: ['run', 'crap:update'] },
     refreshSubject: 'baseline-refresh: crap',
     baselineHint: 'crap',
+    timeoutBlockKey: 'crap',
   },
 };
+
+/**
+ * Story #2165 — resolve the refresh-spawn timeout for the named gate from
+ * `delivery.quality.<block>.refreshTimeoutMs`. Returns `null` when the
+ * resolver or block is unavailable, which leaves the spawn unbounded
+ * (fail-open) so a misconfigured environment never silently disables
+ * existing close behaviour.
+ *
+ * @param {{
+ *   gateMeta: { timeoutBlockKey?: string },
+ *   agentSettings?: object,
+ *   getQuality?: typeof defaultGetQuality,
+ * }} input
+ * @returns {number | null}
+ */
+function resolveRefreshTimeoutMs({
+  gateMeta,
+  agentSettings,
+  getQuality = defaultGetQuality,
+}) {
+  const key = gateMeta?.timeoutBlockKey;
+  if (!key) return null;
+  try {
+    const value = getQuality({ agentSettings })?.[key]?.refreshTimeoutMs;
+    if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+      return value;
+    }
+  } catch {
+    // resolver failure → fall through to "no timeout"
+  }
+  return null;
+}
 
 /**
  * Compute repo-relative paths the Story branch changed vs `origin/<epicBranch>`.
@@ -201,16 +250,45 @@ export function runRefreshCommit({
   cwd,
   refreshCmd,
   refreshSubject,
+  refreshTimeoutMs,
   cycleState = null,
   spawnSync = defaultSpawnSync,
   gitRunner = { gitSpawn: defaultGitSpawn },
   logger = DefaultLogger,
 }) {
-  const refresh = spawnSync(refreshCmd.cmd, refreshCmd.args, {
+  const spawnOpts = {
     cwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
-  });
+    killSignal: 'SIGKILL',
+  };
+  // Story #2165 — bounded wall-clock for the refresh spawn. When the
+  // watchdog trips, spawnSync returns `{ signal: 'SIGKILL', status: null }`
+  // (or, on some platforms, a non-numeric status). Either signal means the
+  // refresh hung — surface the GNU `timeout(1)` convention exit 124 so the
+  // caller can short-circuit into `blocked-timeout` rather than retrying.
+  if (
+    typeof refreshTimeoutMs === 'number' &&
+    Number.isInteger(refreshTimeoutMs) &&
+    refreshTimeoutMs > 0
+  ) {
+    spawnOpts.timeout = refreshTimeoutMs;
+  }
+  const refresh = spawnSync(refreshCmd.cmd, refreshCmd.args, spawnOpts);
+  if (refresh?.signal === 'SIGKILL') {
+    logger?.warn?.(
+      `[baseline-attribution-wiring] ⏱ \`${refreshCmd.cmd} ${refreshCmd.args.join(' ')}\` ` +
+        `exceeded ${refreshTimeoutMs}ms — killed (SIGKILL). Returning exit ${REFRESH_TIMEOUT_EXIT_CODE}.`,
+    );
+    return {
+      ok: false,
+      timedOut: true,
+      exitCode: REFRESH_TIMEOUT_EXIT_CODE,
+      timeoutMs: refreshTimeoutMs,
+      spawnCmd: `${refreshCmd.cmd} ${refreshCmd.args.join(' ')}`,
+      error: `refresh command "${refreshCmd.cmd} ${refreshCmd.args.join(' ')}" exceeded ${refreshTimeoutMs}ms`,
+    };
+  }
   if ((refresh.status ?? 1) !== 0) {
     return {
       ok: false,
@@ -305,6 +383,7 @@ export async function handleBaselineGateFailure({
   storyBranch,
   storyId,
   epicId,
+  agentSettings,
   provider,
   cycleState = null,
   gateRegistry = DEFAULT_GATE_REGISTRY,
@@ -324,6 +403,7 @@ export async function handleBaselineGateFailure({
   const gitRunner = deps.gitRunner ?? { gitSpawn: defaultGitSpawn };
   const spawnSync = deps.spawnSync ?? defaultSpawnSync;
   const computePaths = deps.computeStoryDiffPaths ?? computeStoryDiffPaths;
+  const getQuality = deps.getQuality ?? defaultGetQuality;
 
   const storyDiffPaths = computePaths({
     cwd,
@@ -360,16 +440,35 @@ export async function handleBaselineGateFailure({
 
   // All attributable → run the gate's refresh + commit on the Story branch.
   if (attributable.length === 0) return { action: 'rethrow' };
+  const refreshTimeoutMs = resolveRefreshTimeoutMs({
+    gateMeta: meta,
+    agentSettings,
+    getQuality,
+  });
   const refresh = runRefreshCommit({
     cwd,
     refreshCmd: meta.refreshCmd,
     refreshSubject: meta.refreshSubject,
+    refreshTimeoutMs,
     cycleState,
     spawnSync,
     gitRunner,
     logger: deps.logger,
   });
   if (!refresh.ok) {
+    // Story #2165 — bounded-timeout trips propagate up as a distinct action
+    // so the orchestrator can short-circuit into `blocked-timeout` (the
+    // same shape coverage-capture uses). All other refresh failures keep
+    // their historical `rethrow` semantics.
+    if (refresh.timedOut) {
+      return {
+        action: 'timed-out',
+        gateName,
+        spawnCmd: refresh.spawnCmd,
+        timeoutMs: refresh.timeoutMs,
+        exitCode: refresh.exitCode ?? REFRESH_TIMEOUT_EXIT_CODE,
+      };
+    }
     return { action: 'rethrow', error: refresh.error };
   }
   return {
@@ -827,9 +926,23 @@ export async function runPreMergeGatesWithAttribution({
         storyBranch,
         storyId,
         epicId,
+        agentSettings,
         provider,
         cycleState,
       });
+      if (outcome.action === 'timed-out') {
+        // Story #2165 — refresh spawn hit the bounded-timeout watchdog.
+        // Surface `blocked-timeout` so the close orchestrator can flip the
+        // Story to `agent::blocked` + post a friction comment naming the
+        // refresh command, mirroring the coverage-capture timeout path.
+        return {
+          status: 'blocked-timeout',
+          gateName: outcome.gateName ?? gateName,
+          exitCode: outcome.exitCode ?? REFRESH_TIMEOUT_EXIT_CODE,
+          spawnCmd: outcome.spawnCmd ?? null,
+          timeoutMs: outcome.timeoutMs ?? null,
+        };
+      }
       if (outcome.action === 'refreshed') {
         const verb = outcome.skipped
           ? 'baseline-refresh skipped (no drift)'

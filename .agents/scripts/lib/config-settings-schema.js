@@ -385,6 +385,21 @@ const BASELINE_EPSILON_SCHEMA = {
  * top-level `crap`, `maintainability`, `qualityFloors`, and `baselines`
  * keys are gone — replaced by the gate-shaped equivalents.
  */
+/**
+ * `delivery.quality.formatAutofix` — bounded-timeout knob for the
+ * close-time `npx biome format --write` spawn (Story #2165). Mirrors
+ * `gates.coverage.timeoutMs` (Story #2142): a SIGKILL fired at the budget
+ * boundary maps to exit 124 so the close orchestrator can flip the Story
+ * to `agent::blocked` with a friction comment.
+ */
+const FORMAT_AUTOFIX_SCHEMA = {
+  type: 'object',
+  properties: {
+    timeoutMs: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const QUALITY_SCHEMA = {
   type: 'object',
   properties: {
@@ -397,6 +412,7 @@ const QUALITY_SCHEMA = {
       additionalProperties: false,
     },
     gates: GATES_SCHEMA,
+    formatAutofix: FORMAT_AUTOFIX_SCHEMA,
     codingGuardrails: CODING_GUARDRAILS_SCHEMA,
     autoRefresh: AUTO_REFRESH_SCHEMA,
     baselineEpsilon: BASELINE_EPSILON_SCHEMA,
