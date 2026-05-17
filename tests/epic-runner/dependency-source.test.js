@@ -27,7 +27,12 @@ function providerFromStories(epicId, stories) {
   let autoId = 1;
   const tickets = new Map();
   const comments = new Map();
-  tickets.set(epicId, { id: epicId, labels: ['type::epic'] });
+  tickets.set(epicId, {
+    id: epicId,
+    // Waive the acceptance-spec start gate (Story #2101); this fixture is
+    // about dependency resolution, not the gate.
+    labels: ['type::epic', 'acceptance::n-a'],
+  });
   for (const s of stories)
     tickets.set(s.id, {
       id: s.id,

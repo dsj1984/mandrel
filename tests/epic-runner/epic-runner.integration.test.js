@@ -24,7 +24,11 @@ function buildFakeProvider({ epicId, stories }) {
 
   tickets.set(epicId, {
     id: epicId,
-    labels: ['type::epic', 'agent::executing'],
+    // Waive the acceptance-spec start gate (Story #2101) by default — these
+    // integration tests are not about the gate, so the waiver keeps them
+    // focused on wave-loop behaviour without seeding an acceptance-spec
+    // ticket per fixture.
+    labels: ['type::epic', 'agent::executing', 'acceptance::n-a'],
   });
   for (const s of stories) {
     tickets.set(s.id, {

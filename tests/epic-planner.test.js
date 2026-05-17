@@ -6,6 +6,7 @@ import { beforeEach, describe, it } from 'node:test';
 // historical breadcrumb so a reader looking for the original module can
 // still find this file. The exercised behaviour is unchanged.
 import {
+  ACCEPTANCE_SPEC_SYSTEM_PROMPT,
   buildAuthoringContext,
   PRD_SYSTEM_PROMPT,
   planEpic,
@@ -171,6 +172,59 @@ describe('epic-planner orchestration (v5.6+)', () => {
     assert.equal(update.id, 1);
     assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
     assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(
+      !update.mutations.body.includes('Acceptance Spec'),
+      'No acceptance-spec line when not requested',
+    );
+  });
+
+  it('creates a third context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+    await planEpic(1, mockProvider, {
+      prdContent: '## Overview\nAuthored PRD.',
+      techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
+      acceptanceSpecContent:
+        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    });
+
+    assert.equal(
+      mockProvider.createdTickets.length,
+      3,
+      'Should create exactly three tickets',
+    );
+
+    const acceptanceCreation = mockProvider.createdTickets[2];
+    assert.equal(acceptanceCreation.epicId, 1);
+    assert.equal(
+      acceptanceCreation.ticketData.title,
+      '[Acceptance Spec] Implement V5 Core',
+    );
+    assert.match(acceptanceCreation.ticketData.body, /^## Acceptance Criteria/);
+    assert.deepEqual(acceptanceCreation.ticketData.labels, [
+      'context::acceptance-spec',
+    ]);
+    // Acceptance Spec depends on Tech Spec (ID 101) so it appears after both
+    // upstream artifacts in dependency order.
+    assert.deepEqual(acceptanceCreation.ticketData.dependencies, [101]);
+
+    const update = mockProvider.updatedTickets[0];
+    assert.ok(update.mutations.body.includes('- [ ] PRD: #100'));
+    assert.ok(update.mutations.body.includes('- [ ] Tech Spec: #101'));
+    assert.ok(
+      update.mutations.body.includes('- [ ] Acceptance Spec: #102'),
+      'Planning Artifacts must include the acceptance-spec link',
+    );
+  });
+
+  it('rejects an empty acceptanceSpecContent string when the flag is supplied', async () => {
+    await assert.rejects(
+      async () =>
+        await planEpic(1, mockProvider, {
+          prdContent: '## Overview\nx',
+          techSpecContent: '## Technical Overview\ny',
+          acceptanceSpecContent: '   ',
+        }),
+      { message: /acceptanceSpecContent.*non-empty/ },
+    );
   });
 });
 
@@ -194,11 +248,29 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(ctx.epic.body, 'Epic body text.');
     assert.equal(ctx.systemPrompts.prd, PRD_SYSTEM_PROMPT);
     assert.equal(ctx.systemPrompts.techSpec, TECH_SPEC_SYSTEM_PROMPT);
+    assert.equal(
+      ctx.systemPrompts.acceptanceSpec,
+      ACCEPTANCE_SPEC_SYSTEM_PROMPT,
+    );
+    assert.equal(typeof ctx.systemPrompts.acceptanceSpec, 'string');
+    assert.ok(
+      ctx.systemPrompts.acceptanceSpec.length > 0,
+      'acceptanceSpec system prompt must be non-empty',
+    );
     // docsContext is the planning-context budget envelope (Epic #817 Story 9)
     assert.equal(typeof ctx.docsContext, 'object');
     assert.ok(ctx.docsContext);
     assert.ok(['full', 'summary'].includes(ctx.docsContext.mode));
     assert.ok(Array.isArray(ctx.docsContext.items));
+    // Story #2094 Task #2103 — bddRunner is verified at planner-context
+    // build time so the acceptance-spec body can decide between features-
+    // first and dependencies-first ordering.
+    assert.equal(typeof ctx.bddRunner, 'object');
+    assert.ok(ctx.bddRunner);
+    assert.equal(typeof ctx.bddRunner.supported, 'boolean');
+    assert.equal(typeof ctx.bddRunner.fallback, 'boolean');
+    // Exactly one of supported/fallback is true.
+    assert.notEqual(ctx.bddRunner.supported, ctx.bddRunner.fallback);
   });
 
   it('throws when the epic is not found', async () => {

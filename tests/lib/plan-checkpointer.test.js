@@ -46,6 +46,7 @@ describe('PlanCheckpointer', () => {
     assert.deepEqual(state.spec, {
       prdId: null,
       techSpecId: null,
+      acceptanceSpecId: null,
       completedAt: null,
     });
     assert.deepEqual(state.decompose, {

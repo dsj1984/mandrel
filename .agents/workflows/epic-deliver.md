@@ -86,6 +86,18 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 `plan[N]` is the Stories assigned to wave `N`. Flip the Epic to
 `agent::executing` (idempotent) after the CLI returns.
 
+> **Acceptance-spec start gate.** Before the wave loop fans out, the
+> snapshot phase
+> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
+> asserts that the Epic either carries the `acceptance::n-a` waiver
+> label **or** has a linked `context::acceptance-spec` ticket whose
+> GitHub state is **closed** (i.e. operator-approved). Neither
+> condition met → the snapshot throws a clear error
+> (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
+> maps it to `process.exit(1)`. Operator remediation: either run
+> `/epic-plan` Phase 1 to author + close the spec, or apply the
+> `acceptance::n-a` label to opt out.
+
 ---
 
 ## Phase 2 — Wave loop
@@ -254,6 +266,15 @@ the compact-path heuristic.
 Retro fires here (before the PR opens) so it stays in the operator's
 local session with full env access (env vars, credentials, MCP).
 
+After the GitHub upsert succeeds, the retro body is also **mirrored
+locally** to the per-Epic temp tree at `temp/epic-<epicId>/retro.md`
+(path resolved via
+[`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)'s
+`epicRetroMirrorPath`, which honours `project.paths.tempRoot`).
+Operators can read the retro without re-fetching from GitHub. GitHub
+remains the source of truth — a mirror-write failure only logs a warn
+and never fails the phase.
+
 ---
 
 ## Phase 6 — Finalize (open PR to main)
@@ -262,14 +283,35 @@ local session with full env access (env vars, credentials, MCP).
 node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
 ```
 
-Pushes `epic/<epicId>`, opens a PR to `main` (title
-`Epic #<epicId>: <title>`, body links run-progress / code-review /
-retro comments), sets required-checks from
-`github.branchProtection.checks`, enables GitHub native auto-merge
-(`gh pr merge --auto --squash --delete-branch`), and posts a hand-off
-comment with the PR URL. Auto-merge enablement failures are non-fatal
-(operator can merge through the UI). Branch cleanup is out-of-band
-(`/delete-epic-branches`).
+Runs three close-time responsibilities in order:
+
+1. **Acceptance-spec reconciliation.** Invokes
+   [`acceptance-spec-reconciler.js`](../scripts/acceptance-spec-reconciler.js)
+   to diff the AC IDs declared in the linked `context::acceptance-spec`
+   body against `@ac-*` / `@pending` tags in `tests/features/**`. A
+   non-OK reconciliation throws (per
+   [`rules/orchestration-error-handling.md`](../rules/orchestration-error-handling.md)),
+   aborting finalize **before** the planning artifacts are closed — so
+   the PRD, Tech Spec, and Acceptance Spec stay open until the AC
+   coverage gap is fixed. The reconciler returns `status: 'waived'`
+   without scanning features when the Epic carries `acceptance::n-a`,
+   and defends against direct CLI invocation by refusing to run when
+   no spec is linked and no waiver is set (the start gate in Phase 1
+   would normally catch that first).
+2. **PR open and auto-merge arm.** Pushes `epic/<epicId>`, opens a PR
+   to `main` (title `Epic #<epicId>: <title>`, body links run-progress
+   / code-review / retro comments), sets required-checks from
+   `github.branchProtection.checks`, and enables GitHub native
+   auto-merge (`gh pr merge --auto --squash --delete-branch`).
+   Auto-merge enablement failures are non-fatal (operator can merge
+   through the UI).
+3. **Planning-artifact close + hand-off.** Closes the three planning
+   context tickets (`context::prd`, `context::tech-spec`,
+   `context::acceptance-spec`) so the Epic's `Closes #<id>` auto-close
+   path is not blocked by open sub-issues, then posts a hand-off
+   structured comment naming the PR URL.
+
+Branch cleanup is out-of-band (`/delete-epic-branches`).
 
 ---
 

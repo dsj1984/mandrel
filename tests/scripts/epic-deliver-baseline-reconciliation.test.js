@@ -259,7 +259,11 @@ describe('runEpicDeliverFinalize — Story #1396 reconciliation wiring', () => {
     }));
 
     const provider = {
-      getTicket: async () => ({ id: 1386, title: 'Epic — Stabilize' }),
+      getTicket: async () => ({
+        id: 1386,
+        title: 'Epic — Stabilize',
+        labels: ['acceptance::n-a'],
+      }),
     };
 
     const upsertCommentFn = mock.fn(async () => ({}));

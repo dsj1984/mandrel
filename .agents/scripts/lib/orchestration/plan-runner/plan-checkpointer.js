@@ -11,7 +11,7 @@
  *   "phase": "review-spec",
  *   "startedAt": "...",
  *   "lastUpdatedAt": "...",
- *   "spec": { "prdId": null, "techSpecId": null, "completedAt": null },
+ *   "spec": { "prdId": null, "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
  *   "decompose": { "ticketCount": null, "completedAt": null },
  *   "manifestCommentId": null
  * }
@@ -123,7 +123,12 @@ export class PlanCheckpointer {
       epicId: this.epicId,
       phase: PLAN_PHASES.PLANNING,
       startedAt: now,
-      spec: { prdId: null, techSpecId: null, completedAt: null },
+      spec: {
+        prdId: null,
+        techSpecId: null,
+        acceptanceSpecId: null,
+        completedAt: null,
+      },
       decompose: { ticketCount: null, completedAt: null },
       manifestCommentId: null,
     };
@@ -150,7 +155,7 @@ export class PlanCheckpointer {
   /**
    * Merge a partial spec-phase result into the checkpoint.
    *
-   * @param {{ prdId?: number|null, techSpecId?: number|null, completedAt?: string|null }} spec
+   * @param {{ prdId?: number|null, techSpecId?: number|null, acceptanceSpecId?: number|null, completedAt?: string|null }} spec
    */
   async updateSpec(spec) {
     const current = (await this.read()) ?? (await this.initialize());
