@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
 import { clearBaselineCache } from '../.agents/scripts/lib/baseline-loader.js';
 import { loadMaintainabilityBaseline } from '../.agents/scripts/lib/baselines/kinds/maintainability.js';
-import { buildDefaultGates } from '../.agents/scripts/lib/close-validation.js';
 
 /**
  * Story #1120 — assert that check-maintainability reads its baseline at
@@ -81,20 +80,12 @@ describe('check-maintainability — --epic-ref (Story #1120)', () => {
     assert.deepEqual(out, { 'foo.js': 80 });
   });
 
-  it('buildDefaultGates threads epic ref into the maintainability gate args', () => {
-    const gates = buildDefaultGates({ epicBranch: 'epic/1114' });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    assert.ok(mi, 'maintainability gate must exist');
-    assert.deepEqual(mi.args, [
-      '.agents/scripts/check-maintainability.js',
-      '--epic-ref',
-      'epic/1114',
-    ]);
-  });
-
-  it('buildDefaultGates omits --epic-ref when no epic branch is supplied (legacy)', () => {
-    const gates = buildDefaultGates({});
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    assert.deepEqual(mi.args, ['.agents/scripts/check-maintainability.js']);
-  });
+  // Story #2210 — the `buildDefaultGates` threading tests for the retired
+  // per-kind `check-maintainability` gate (and its `--epic-ref` argv) were
+  // removed alongside the in-process gate's deletion. The unified
+  // `check-baselines` gate is the only path; coverage for `check-baselines`
+  // gate registration lives in `tests/check-baselines-pre-merge-wiring.test.js`.
+  // The `loadMaintainabilityBaseline` contract above (epic-ref reads, fs
+  // fallback) is preserved because the per-kind module is still imported
+  // by the unified gate's projection helpers.
 });
