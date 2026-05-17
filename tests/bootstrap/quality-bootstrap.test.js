@@ -32,7 +32,6 @@ import {
   ensureQualityConfigDefaults,
   ensureQualityNpmScripts,
   PRE_COMMIT_MARKER,
-  QUALITY_CONFIG_DEFAULTS,
   QUALITY_NPM_SCRIPTS,
 } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
 
@@ -93,15 +92,22 @@ function makeProject(overrides = {}) {
 }
 
 describe('quality-bootstrap — fresh tmp project', () => {
-  it('installs all four artefacts and is idempotent on re-run', () => {
+  it('installs helper/hook/scripts but skips default-equal config seeds (Story #2281)', () => {
     const projectRoot = makeProject();
 
-    // First run: every step mutates.
+    // First run: helper / hook / scripts mutate. The config step is a
+    // no-change because every key the seed would write equals the
+    // framework default — the runtime layers those at read time.
     const first = applyQualityBootstrap({ projectRoot, frameworkRoot });
     assert.equal(first.helper.action, 'copied');
     assert.equal(first.hook.action, 'created');
     assert.equal(first.scripts.action, 'updated');
-    assert.equal(first.config.action, 'updated');
+    assert.equal(first.config.action, 'no-change');
+    // Every quality leaf is reported under skippedKeys so callers can
+    // surface why the seed was a no-op.
+    const skipped = first.config.skippedKeys ?? [];
+    assert.ok(skipped.some((k) => k.endsWith('cyclomaticFlag')));
+    assert.ok(skipped.some((k) => k.endsWith('autoRefresh.enabled')));
 
     // Helper landed where the bootstrap step says it should.
     assert.ok(
@@ -132,16 +138,14 @@ describe('quality-bootstrap — fresh tmp project', () => {
     // Pre-existing scripts preserved.
     assert.equal(pkg.scripts.test, 'echo ok');
 
-    // Config has both keysets seeded with framework defaults under
-    // delivery.quality (post-reshape).
+    // The on-disk config is left at the minimum that validates — no
+    // empty `delivery.quality.*` scaffolding has been written.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
-    assert.deepEqual(
-      cfg.delivery.quality.codingGuardrails,
-      QUALITY_CONFIG_DEFAULTS.codingGuardrails,
-    );
-    assert.deepEqual(
-      cfg.delivery.quality.autoRefresh,
-      QUALITY_CONFIG_DEFAULTS.autoRefresh,
+    assert.ok(
+      cfg.delivery === undefined ||
+        cfg.delivery.quality === undefined ||
+        Object.keys(cfg.delivery.quality).length === 0,
+      'default-equal seeds must not materialise as on-disk keys',
     );
 
     // Second run: every step short-circuits.
@@ -196,7 +200,7 @@ describe('quality-bootstrap — preserves operator overrides', () => {
     );
   });
 
-  it('preserves existing config values when seeding defaults', () => {
+  it('preserves operator overrides and does NOT seed default-equal siblings (Story #2281)', () => {
     const projectRoot = makeProject({
       agentrc: {
         // Post-reshape: quality lives under `delivery.quality.*`.
@@ -204,36 +208,38 @@ describe('quality-bootstrap — preserves operator overrides', () => {
         delivery: {
           quality: {
             codingGuardrails: { cyclomaticFlag: 6 },
-            // autoRefresh entirely absent → seeded from defaults.
+            // autoRefresh entirely absent. Under the Story #2281
+            // contract, absent keys whose intended value equals the
+            // framework default are NOT seeded — the runtime layers
+            // defaults at read time.
           },
         },
       },
     });
 
     const result = ensureQualityConfigDefaults({ projectRoot });
-    assert.equal(result.action, 'updated');
+    assert.equal(result.action, 'no-change');
     // Custom override survives.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
     assert.equal(cfg.delivery.quality.codingGuardrails.cyclomaticFlag, 6);
-    // Sibling defaults filled in.
+    // Default-equal siblings were NOT seeded; the runtime resolves them
+    // at read time.
     assert.equal(
       cfg.delivery.quality.codingGuardrails.cyclomaticMustFix,
-      QUALITY_CONFIG_DEFAULTS.codingGuardrails.cyclomaticMustFix,
+      undefined,
     );
-    // autoRefresh seeded entirely.
-    assert.deepEqual(
-      cfg.delivery.quality.autoRefresh,
-      QUALITY_CONFIG_DEFAULTS.autoRefresh,
-    );
-    // The added-keys list reflects only the seeded keys, not the preserved one.
+    assert.equal(cfg.delivery.quality.autoRefresh, undefined);
+    // Default-equal writes are reported under skippedKeys.
     assert.ok(
-      result.addedKeys.some((k) => k.endsWith('cyclomaticMustFix')),
-      'cyclomaticMustFix should be reported as added',
+      result.skippedKeys.some((k) => k.endsWith('cyclomaticMustFix')),
+      'cyclomaticMustFix should be reported as skipped (matches framework default)',
     );
     assert.ok(
-      !result.addedKeys.some((k) => k.endsWith('cyclomaticFlag')),
-      'cyclomaticFlag should NOT be reported as added (operator override)',
+      result.skippedKeys.some((k) => k.endsWith('autoRefresh.enabled')),
+      'autoRefresh.enabled should be reported as skipped (matches framework default)',
     );
+    // addedKeys stays empty because every would-be write is default-equal.
+    assert.deepEqual(result.addedKeys, []);
   });
 });
 

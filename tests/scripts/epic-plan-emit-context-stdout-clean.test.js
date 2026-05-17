@@ -28,7 +28,12 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import { drainPendingCleanupAtBoot } from '../../.agents/scripts/epic-plan-spec.js';
-import { STDERR_LOGGER } from '../../.agents/scripts/lib/Logger.js';
+import {
+  Logger,
+  routeAllOutputToStderr,
+  STDERR_LOGGER,
+} from '../../.agents/scripts/lib/Logger.js';
+import { scrapeProjectDocs } from '../../.agents/scripts/lib/orchestration/doc-reader.js';
 
 function tmpRepo() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-ctx-stdout-'));
@@ -150,6 +155,90 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
     } finally {
       fs.rmSync(repoRoot, { recursive: true, force: true });
     }
+  });
+
+  // Story #2278 — covers the remaining stdout-leak path that #2055's
+  // injected-logger fix did not reach: the global `Logger.info` calls from
+  // `scrapeProjectDocs` (and any other production module the emit-context
+  // flow transits). These tests assert the new `routeAllOutputToStderr()`
+  // primitive flips those sinks for the rest of the process lifetime.
+  describe('routeAllOutputToStderr() — Story #2278', () => {
+    // The Logger module is process-global. `routeAllOutputToStderr` is a
+    // one-shot flip with no reset — once called, the sink stays flipped
+    // for the rest of the process. These tests therefore run AFTER the
+    // negative-control / STDERR_LOGGER tests above (declaration order
+    // matches execution order in node:test) so they cannot contaminate
+    // earlier assertions.
+    //
+    // We assert with `doesNotMatch` (not `assert.equal(stdout, '')`)
+    // because `captureIO` intercepts every `process.stdout.write` call,
+    // including the V8 binary IPC events node:test emits during execution
+    // — those events would make a strict-empty assertion flake while
+    // having nothing to do with the contract under test (no `[Orchestrator]
+    // ℹ️` log line on stdout).
+    it('Logger.info / Logger.warn route to stderr after routeAllOutputToStderr()', async () => {
+      routeAllOutputToStderr();
+      const { stdout, stderr } = await captureIO(async () => {
+        Logger.info('routed-info-2278');
+        Logger.warn('routed-warn-2278');
+      });
+      assert.doesNotMatch(
+        stdout,
+        /routed-info-2278|routed-warn-2278/,
+        'Logger.info / Logger.warn output must not land on stdout after routing',
+      );
+      assert.match(
+        stderr,
+        /routed-info-2278/,
+        'Logger.info output must land on stderr after routing',
+      );
+      assert.match(
+        stderr,
+        /routed-warn-2278/,
+        'Logger.warn output must land on stderr after routing',
+      );
+    });
+
+    // The production-path probe: `scrapeProjectDocs` calls `Logger.info`
+    // mid-flow (the leak Epic #2172 surfaced) — exercise it and confirm
+    // routing flipped its output. We use the temp directory's basename as
+    // a unique probe substring because the test runner's V8 binary IPC
+    // echoes test names verbatim into our captured stdout buffer; a probe
+    // derived from `fs.mkdtempSync` cannot collide with anything node:test
+    // writes for orchestration.
+    it('production doc-scraper writes its log line to stderr (not stdout) after routing', async () => {
+      // Idempotent re-invocation — the prior test already flipped the sink.
+      routeAllOutputToStderr();
+
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'emit-ctx-docs-'));
+      const probe = path.basename(tmp);
+      const docsDir = path.join(tmp, 'docs');
+      fs.mkdirSync(docsDir, { recursive: true });
+      fs.writeFileSync(path.join(docsDir, 'architecture.md'), '# Arch\n');
+
+      try {
+        const { stdout, stderr } = await captureIO(async () => {
+          await scrapeProjectDocs({
+            paths: { docsRoot: docsDir },
+            docsContextFiles: ['architecture.md'],
+          });
+        });
+        // The scrape log line contains the docsRoot path, which contains
+        // `probe` — a fingerprint unique to this run.
+        assert.doesNotMatch(
+          stdout,
+          new RegExp(probe),
+          `the production scrape log line (with probe ${probe}) must NOT land on stdout under emit-context routing`,
+        );
+        assert.match(
+          stderr,
+          new RegExp(probe),
+          `the production scrape log line must still be visible on stderr (probe ${probe})`,
+        );
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
+    });
   });
 
   it('STDERR_LOGGER preserves the legacy result shape (drained/persistent/remaining)', async () => {

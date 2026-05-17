@@ -164,11 +164,22 @@ export function validateAcFreshness({
     }
   }
   if (misses.length === 0) return;
-  const lines = misses.map((m) => `  - "${m.slug}" → ${m.path}`).join('\n');
+  const lines = misses.map((m) => renderMissLine(m)).join('\n');
   throw new ValidationError(
-    `Cross-Validation Failed: ${misses.length} Task reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nThe planner is referencing stale paths — re-author the affected Task(s) against the current base-branch tree.`,
+    `Cross-Validation Failed: ${misses.length} Task reference(s) name files that do not exist at ${baseBranchRef}:\n${lines}\n\nEither declare the path in body.changes (signals net-new) or correct the reference.`,
     { misses, baseBranchRef },
   );
+}
+
+/**
+ * Render one missing-path line with a remediation hint pointing at the
+ * task's `body.changes`. For `tests/**` paths we suggest the explicit
+ * "add the test file" verb; for everything else we emit a generic hint
+ * since the planner knows whether the path is net-new or a typo.
+ */
+function renderMissLine({ slug, path }) {
+  const verb = path.startsWith('tests/') ? 'add test file' : 'create';
+  return `  - "${slug}" → ${path}\n      hint: if net-new, add '${path}: ${verb}' to body.changes; otherwise fix the typo or stale reference against current main.`;
 }
 
 /**

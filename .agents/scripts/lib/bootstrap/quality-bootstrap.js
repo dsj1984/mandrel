@@ -28,6 +28,11 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  deepEqual,
+  getAgentrcDefaults,
+  lookupPath,
+} from '../config/defaults.js';
 
 /**
  * The exact pre-commit body the framework ships. Kept as a single string so
@@ -251,25 +256,67 @@ export function ensureQualityNpmScripts(ctx) {
 
 /**
  * Deep-merge the requested defaults into an object, only setting keys that
- * are absent. Returns `{ merged, addedKeys[] }` so the caller can report
- * exactly which keys were seeded.
+ * are absent AND whose intended value diverges from the framework default
+ * at that dotted path. The runtime layers `getAgentrcDefaults()`
+ * underneath the project config at read time, so a key whose intended
+ * value equals the framework default would be written redundantly — and
+ * would then be flagged `[REDUNDANT]` by the sync-agentrc helper on the
+ * next /agents-update. Default-aware seeding keeps the two helpers from
+ * contradicting each other.
+ *
+ * Returns `{ merged, addedKeys[] }` so the caller can report exactly
+ * which keys were seeded. Pure-default writes are reported under
+ * `skippedKeys[]` so callers can surface why the seed was a no-op.
+ *
+ * @param {object} target
+ * @param {object} defaults — the values the caller would seed if
+ *   default-blindness were the policy.
+ * @param {object} frameworkDefaults — the framework's resolved defaults
+ *   at the seed root. Compared to each intended write.
+ * @param {string} prefix — dotted path under construction.
  */
-function mergeMissingKeys(target, defaults, prefix = '') {
+function mergeMissingKeys(
+  target,
+  defaults,
+  frameworkDefaults = {},
+  prefix = '',
+) {
   const addedKeys = [];
+  const skippedKeys = [];
   for (const [key, value] of Object.entries(defaults)) {
     const keyPath = prefix ? `${prefix}.${key}` : key;
+    const frameworkValue =
+      frameworkDefaults && typeof frameworkDefaults === 'object'
+        ? frameworkDefaults[key]
+        : undefined;
     if (value && typeof value === 'object' && !Array.isArray(value)) {
       if (!target[key] || typeof target[key] !== 'object') {
         target[key] = {};
       }
-      const nested = mergeMissingKeys(target[key], value, keyPath);
+      const nested = mergeMissingKeys(
+        target[key],
+        value,
+        frameworkValue ?? {},
+        keyPath,
+      );
       addedKeys.push(...nested.addedKeys);
+      skippedKeys.push(...nested.skippedKeys);
+      if (
+        Object.keys(target[key]).length === 0 &&
+        target[key] !== frameworkDefaults?.[key]
+      ) {
+        delete target[key];
+      }
     } else if (target[key] === undefined) {
-      target[key] = value;
-      addedKeys.push(keyPath);
+      if (deepEqual(value, frameworkValue)) {
+        skippedKeys.push(keyPath);
+      } else {
+        target[key] = value;
+        addedKeys.push(keyPath);
+      }
     }
   }
-  return { merged: target, addedKeys };
+  return { merged: target, addedKeys, skippedKeys };
 }
 
 /**
@@ -285,20 +332,40 @@ export function ensureQualityConfigDefaults(ctx) {
   const cfgPath = path.join(ctx.projectRoot, '.agentrc.json');
   const cfg = readJsonIfExists(cfgPath);
   if (!cfg) {
-    return { action: 'missing-config', path: cfgPath, addedKeys: [] };
+    return {
+      action: 'missing-config',
+      path: cfgPath,
+      addedKeys: [],
+      skippedKeys: [],
+    };
   }
+  const frameworkDefaults = getAgentrcDefaults();
+  const frameworkQuality =
+    lookupPath(frameworkDefaults, 'delivery.quality').value ?? {};
+  const hadDelivery = Object.hasOwn(cfg, 'delivery');
+  const hadQuality = hadDelivery && Object.hasOwn(cfg.delivery, 'quality');
   cfg.delivery = cfg.delivery ?? {};
   cfg.delivery.quality = cfg.delivery.quality ?? {};
-  const { addedKeys } = mergeMissingKeys(
+  const { addedKeys, skippedKeys } = mergeMissingKeys(
     cfg.delivery.quality,
     QUALITY_CONFIG_DEFAULTS,
+    frameworkQuality,
     'delivery.quality',
   );
-  if (addedKeys.length > 0) writeJson(cfgPath, cfg);
+  if (addedKeys.length > 0) {
+    writeJson(cfgPath, cfg);
+  } else {
+    // No-op path — undo the scaffolding we inserted so the on-disk file
+    // and the in-memory snapshot agree (defensive; nothing reads cfg
+    // after this).
+    if (!hadQuality) delete cfg.delivery.quality;
+    if (!hadDelivery) delete cfg.delivery;
+  }
   return {
     action: addedKeys.length > 0 ? 'updated' : 'no-change',
     path: cfgPath,
     addedKeys,
+    skippedKeys,
   };
 }
 

@@ -47,7 +47,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { Logger, STDERR_LOGGER } from './lib/Logger.js';
+import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { PlanRunnerContext } from './lib/orchestration/context.js';
 import {
@@ -84,6 +84,46 @@ const TYPE_LABEL_TO_TYPE = {
   [TYPE_LABELS.STORY]: 'story',
   [TYPE_LABELS.TASK]: 'task',
 };
+
+/**
+ * Ensure the supplied Epic body carries a `## Planning Artifacts`
+ * section. If the body already includes one (Phase 7's normal output),
+ * it is returned verbatim — byte-identical, no trailing-whitespace
+ * fixups, no section-rewriting. If the section is absent, it is
+ * appended exactly once using the canonical `- [ ] PRD: #N` /
+ * `Tech Spec: #N` / `Acceptance Spec: #N` prefixes that
+ * `issue-link-parser.js` recognises so cascade-close
+ * (`epic-deliver-finalize.js`) still finds the linked tickets.
+ *
+ * When `linkedIssues` carries no resolved ids the body is returned
+ * unchanged — the decomposer cannot synthesise a section without the
+ * underlying ticket numbers, and any caller that reached this point
+ * should already have a populated `linkedIssues` (the entry guard in
+ * `runDecomposePhase` rejects an Epic missing PRD / Tech Spec).
+ *
+ * Story #2283.
+ *
+ * @param {string} body
+ * @param {{ prd: number|null, techSpec: number|null, acceptanceSpec: number|null } | undefined | null} linkedIssues
+ * @returns {string}
+ */
+export function ensurePlanningArtifacts(body, linkedIssues) {
+  const safeBody = typeof body === 'string' ? body : '';
+  if (safeBody.includes('## Planning Artifacts')) return safeBody;
+  if (!linkedIssues) return safeBody;
+  const lines = [];
+  if (Number.isInteger(linkedIssues.prd)) {
+    lines.push(`- [ ] PRD: #${linkedIssues.prd}`);
+  }
+  if (Number.isInteger(linkedIssues.techSpec)) {
+    lines.push(`- [ ] Tech Spec: #${linkedIssues.techSpec}`);
+  }
+  if (Number.isInteger(linkedIssues.acceptanceSpec)) {
+    lines.push(`- [ ] Acceptance Spec: #${linkedIssues.acceptanceSpec}`);
+  }
+  if (lines.length === 0) return safeBody;
+  return `${safeBody}\n\n## Planning Artifacts\n${lines.join('\n')}\n`;
+}
 
 function resolveParentId(ticket, slugMap, epicId) {
   if (ticket.type === 'feature') return epicId;
@@ -727,12 +767,23 @@ export async function runDecomposePhase(
   validateTaskBodies(validated);
 
   // 2. Render the decomposer array into the structural spec shape.
+  // Story #2283 — pass the Epic's existing body through to the renderer
+  // so the reconciler's diff sees the live body on the spec side and
+  // does not emit a destructive `body: <17KB body> → ""` Update during
+  // persist. `ensurePlanningArtifacts` is defensive: Phase 7 normally
+  // appends the `## Planning Artifacts` section, but operators can
+  // bypass Phase 7 (or it can fail) — in either case the section is
+  // appended exactly once so cascade-close (epic-deliver-finalize)
+  // keeps working.
   Logger.info(
     `[epic-plan-decompose] Rendering spec for Epic #${epicId} (${validated.length} tickets)...`,
   );
-  const spec = renderSpecFn(validated, {
-    epic: { id: epicId, title: epic.title },
-  });
+  const epicBody = ensurePlanningArtifacts(epic.body ?? '', epic.linkedIssues);
+  const epicSpecInput = { id: epicId, title: epic.title };
+  if (epicBody.length > 0) {
+    epicSpecInput.body = epicBody;
+  }
+  const spec = renderSpecFn(validated, { epic: epicSpecInput });
 
   // 3. Persist the spec YAML.
   const specFilePath = writeSpecFn(epicId, spec, { epicsDir: undefined });
@@ -905,6 +956,12 @@ async function main() {
   const provider = createProvider(config.orchestration);
 
   const emitContext = values['emit-context'];
+  // Story #2278 — in --emit-context mode stdout is reserved for the JSON
+  // envelope. Flip every Logger sink that could land on stdout to stderr
+  // *before* any orchestration code runs (drainPendingCleanupAtBoot,
+  // buildDecompositionContext, validators) so a captured file is
+  // unconditionally parseable by `JSON.parse`.
+  if (emitContext) routeAllOutputToStderr();
 
   try {
     await drainPendingCleanupAtBoot({
