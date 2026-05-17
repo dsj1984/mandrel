@@ -17,6 +17,7 @@ import {
   buildResumeMergeCommitMsg,
   describeResumePushFailure,
 } from '../.agents/scripts/lib/orchestration/story-close/comment-bodies.js';
+import { renderCoverageTimeoutFrictionBody } from '../.agents/scripts/story-close.js';
 
 const SCRIPT_PATH = path.resolve('.agents/scripts/story-close.js');
 
@@ -469,4 +470,28 @@ test('drainPendingCleanupAfterClose reports the worktree root and drain summary'
         e.msg.includes('Pending cleanup drain: drained=1'),
     ),
   );
+});
+
+test('renderCoverageTimeoutFrictionBody names the timeout duration and IDs (#2136)', () => {
+  const body = renderCoverageTimeoutFrictionBody({
+    storyId: 2136,
+    epicId: 2129,
+    timeoutMs: 600_000,
+  });
+  assert.match(body, /Coverage capture timed out/);
+  assert.match(body, /Story #2136/);
+  assert.match(body, /Epic #2129/);
+  assert.match(body, /600000ms/);
+  assert.match(body, /Exit code:.*124/);
+  assert.match(body, /agent::blocked/);
+  assert.match(body, /delivery\.quality\.gates\.coverage\.timeoutMs/);
+});
+
+test('renderCoverageTimeoutFrictionBody falls back to "configured budget" when timeoutMs is missing', () => {
+  const body = renderCoverageTimeoutFrictionBody({
+    storyId: 1,
+    epicId: 2,
+    timeoutMs: null,
+  });
+  assert.match(body, /configured budget/);
 });
