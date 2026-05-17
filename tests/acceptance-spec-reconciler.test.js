@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
+import { BDD_RUNNER_TAG_TABLE } from '../.agents/scripts/lib/bdd-runner-detect.js';
 import {
   classifyCoverage,
   classifyReconcilerInvocation,
@@ -151,6 +152,26 @@ describe('classifyCoverage', () => {
     const tagSets = [new Set(['ac-7'])];
     const out = classifyCoverage({ acIds: ['AC-7'], tagSets });
     assert.deepEqual(out, { satisfied: ['AC-7'], pending: [], missing: [] });
+  });
+
+  it('classifies an AC as pending for every pendingTag registered in BDD_RUNNER_TAG_TABLE (contract walk)', () => {
+    // Cross-checked from the reconciler side: every runner's pendingTag
+    // must classify a scenario carrying it as pending, never satisfied.
+    // Tag-block parsing strips the leading `@`, so we normalize here.
+    for (const [runner, pendingTag] of Object.entries(BDD_RUNNER_TAG_TABLE)) {
+      const token = pendingTag.startsWith('@')
+        ? pendingTag.slice(1)
+        : pendingTag;
+      const out = classifyCoverage({
+        acIds: ['AC-1'],
+        tagSets: [new Set(['ac-1', token])],
+      });
+      assert.deepEqual(
+        out,
+        { satisfied: [], pending: ['AC-1'], missing: [] },
+        `runner ${runner} pendingTag ${pendingTag} should classify as pending`,
+      );
+    }
   });
 
   it('mixed matrix: classifies each AC independently', () => {

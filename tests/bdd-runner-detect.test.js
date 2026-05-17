@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   BDD_RUNNER_TAG_TABLE,
+  PENDING_TAGS,
   verifyBddRunnerPendingTag,
 } from '../.agents/scripts/lib/bdd-runner-detect.js';
 
@@ -77,6 +78,20 @@ describe('bdd-runner-detect:verifyBddRunnerPendingTag', () => {
     });
     assert.equal(result.fallback, true);
     assert.match(result.reason, /^package-json-parse-error:/);
+  });
+
+  it('PENDING_TAGS covers every pendingTag in BDD_RUNNER_TAG_TABLE (drift guard)', () => {
+    // Contract: adding a new runner to BDD_RUNNER_TAG_TABLE without
+    // registering its pendingTag in PENDING_TAGS would silently regress
+    // `acceptance-spec-reconciler.classifyCoverage`, which membership-
+    // tests scenario tag sets against PENDING_TAGS. This walk fails the
+    // build instead of letting the gap reach production.
+    for (const [runner, pendingTag] of Object.entries(BDD_RUNNER_TAG_TABLE)) {
+      assert.ok(
+        PENDING_TAGS.has(pendingTag),
+        `PENDING_TAGS missing ${pendingTag} (registered by ${runner} in BDD_RUNNER_TAG_TABLE)`,
+      );
+    }
   });
 
   it('exposes the runner→tag lookup table for downstream callers', () => {
