@@ -134,6 +134,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.14.0](https://github.com/dsj1984/mandrel/compare/v1.13.0...v1.14.0) (2026-05-17)
+
+
+### Added
+
+* **epic-plan:** add Epic Clarity Gate (new Phase 6) and renumber phases to linear 1..11 ([#2128](https://github.com/dsj1984/mandrel/issues/2128)) ([#2163](https://github.com/dsj1984/mandrel/issues/2163)) ([f65a14f](https://github.com/dsj1984/mandrel/commit/f65a14f4fa954242011ccd7bbebd5ade2c981d12))
+
 ## [1.13.0](https://github.com/dsj1984/mandrel/compare/v1.12.0...v1.13.0) (2026-05-16)
 
 
