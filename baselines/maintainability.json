@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T15:51:16.748Z",
+  "generatedAt": "2026-05-17T16:25:08.111Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.132,
+      "p50": 103.156,
       "p95": 121.484
     }
   },
@@ -448,7 +448,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-gates-schema.js",
-      "mi": 53.731
+      "mi": 52.885
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
@@ -492,7 +492,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 83.868
+      "mi": 84.456
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
@@ -572,7 +572,7 @@
     },
     {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
-      "mi": 90.345
+      "mi": 89.57
     },
     {
       "path": ".agents/scripts/lib/error-redactor.js",
@@ -804,7 +804,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
-      "mi": 105.98
+      "mi": 112.048
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
@@ -960,7 +960,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "mi": 84.191
+      "mi": 83.141
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
@@ -988,7 +988,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 99.061
+      "mi": 93.355
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
@@ -1448,7 +1448,7 @@
     },
     {
       "path": ".agents/scripts/story-close.js",
-      "mi": 83.932
+      "mi": 83.175
     },
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
@@ -1823,6 +1823,10 @@
       "mi": 120.896
     },
     {
+      "path": "tests/config/quality.floors.test.js",
+      "mi": 119.271
+    },
+    {
       "path": "tests/config/sync-agentrc.test.js",
       "mi": 104.567
     },
@@ -1841,6 +1845,10 @@
     {
       "path": "tests/contract/maintainability-writer-reader-roundtrip.test.js",
       "mi": 113.531
+    },
+    {
+      "path": "tests/contract/spawn-timeout-hardening.test.js",
+      "mi": 118.048
     },
     {
       "path": "tests/coverage-baseline-noise-tolerance.test.js",
@@ -1984,7 +1992,7 @@
     },
     {
       "path": "tests/epic-runner/acceptance-spec-gate.test.js",
-      "mi": 107.75
+      "mi": 106.014
     },
     {
       "path": "tests/epic-runner/blocker-handler.test.js",
@@ -2651,12 +2659,16 @@
       "mi": 91.294
     },
     {
-      "path": "tests/lib/orchestration/story-close/auto-refresh-runner-scope.test.js",
-      "mi": 100.047
+      "path": "tests/lib/orchestration/story-close/auto-refresh-runner.commit-hygiene.test.js",
+      "mi": 105.104
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/auto-refresh-runner.test.js",
+      "mi": 102.457
     },
     {
       "path": "tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js",
-      "mi": 99.531
+      "mi": 96.986
     },
     {
       "path": "tests/lib/orchestration/story-close/baseline-attribution.test.js",
@@ -2689,6 +2701,10 @@
     {
       "path": "tests/lib/orchestration/story-close/project-crap-regressions.test.js",
       "mi": 109.307
+    },
+    {
+      "path": "tests/lib/orchestration/story-close/single-commit-per-close-cycle.test.js",
+      "mi": 106.331
     },
     {
       "path": "tests/lib/orchestration/story-init.test.js",
@@ -3079,8 +3095,16 @@
       "mi": 103.888
     },
     {
+      "path": "tests/scripts/check-baselines.min-floor.test.js",
+      "mi": 98.242
+    },
+    {
       "path": "tests/scripts/check-baselines.test.js",
       "mi": 101.744
+    },
+    {
+      "path": "tests/scripts/check-baselines.unknown-axis.test.js",
+      "mi": 110.435
     },
     {
       "path": "tests/scripts/cleanup-repo-test-temp.test.js",
@@ -3255,10 +3279,6 @@
       "mi": 103.804
     },
     {
-      "path": "tests/story-close-auto-refresh.test.js",
-      "mi": 99.44
-    },
-    {
       "path": "tests/story-close-branch-restore.test.js",
       "mi": 94.046
     },
@@ -3388,7 +3408,7 @@
     },
     {
       "path": "tests/workflows/epic-plan-ideation.test.js",
-      "mi": 111.497
+      "mi": 110.244
     },
     {
       "path": "tests/workflows/lint-baseline-cli.test.js",
