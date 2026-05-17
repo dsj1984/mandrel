@@ -1,10 +1,12 @@
 /**
- * Unit tests for the acceptance-spec start gate enforced by
- * `runSnapshotPhase` (Story #2101, Task #2108).
+ * Unit tests for the (relaxed) acceptance-spec start gate enforced by
+ * `runSnapshotPhase`.
  *
  * The gate refuses to launch /epic-deliver when an Epic has neither the
- * `acceptance::n-a` waiver label nor an approved (closed)
- * `context::acceptance-spec` ticket.
+ * `acceptance::n-a` waiver label nor a linked `context::acceptance-spec`
+ * ticket. Ticket state is **not** checked — presence is sufficient.
+ * Closure is no longer required as the approval signal; the reviewer's
+ * OK during /epic-plan Phase 7 is the approval contract.
  */
 
 import assert from 'node:assert/strict';
@@ -40,7 +42,7 @@ describe('runSnapshotPhase — acceptance-spec start gate', () => {
     );
   });
 
-  it('throws when the linked acceptance-spec ticket is still open', async () => {
+  it('passes when the linked acceptance-spec ticket is still open (presence is enough)', async () => {
     const provider = buildProvider([
       {
         id: 9002,
@@ -53,13 +55,8 @@ describe('runSnapshotPhase — acceptance-spec start gate', () => {
         state: 'open',
       },
     ]);
-    await assert.rejects(
-      () => runSnapshotPhase({ epicId: 9002, provider }, {}, {}),
-      (err) => {
-        assert.match(err.message, /linked acceptance-spec #9500 is still open/);
-        return true;
-      },
-    );
+    const result = await runSnapshotPhase({ epicId: 9002, provider }, {}, {});
+    assert.equal(result.epic.id, 9002);
   });
 
   it('passes when acceptance::n-a label is present (waiver path)', async () => {
@@ -75,7 +72,7 @@ describe('runSnapshotPhase — acceptance-spec start gate', () => {
     assert.ok(result.epic.labels.includes('acceptance::n-a'));
   });
 
-  it('passes when the linked acceptance-spec ticket is closed (approved)', async () => {
+  it('passes when the linked acceptance-spec ticket is closed', async () => {
     const provider = buildProvider([
       {
         id: 9004,
@@ -102,11 +99,11 @@ describe('runSnapshotPhase — acceptance-spec start gate', () => {
         body: '', // intentionally empty — the parsed body would say "no spec"
         linkedIssues: { prd: null, techSpec: null, acceptanceSpec: 9700 },
       },
-      {
-        id: 9700,
-        labels: ['context::acceptance-spec'],
-        state: 'closed',
-      },
+      // Note: 9700 is not registered with the provider. The gate no longer
+      // calls getTicket(acceptanceSpecId) — presence on the Epic is all
+      // that's checked, so an unreachable spec id is irrelevant for this
+      // gate. (The finalize-time reconciler still validates AC coverage
+      // downstream.)
     ]);
     const result = await runSnapshotPhase({ epicId: 9005, provider }, {}, {});
     assert.equal(result.epic.id, 9005);
