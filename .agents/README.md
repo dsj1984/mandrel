@@ -39,8 +39,11 @@ Two steps, run once per consuming repo:
    installs; pass `--skip-github` to defer the remote half.
 
 After bootstrap you can run any slash command — `/epic-plan`,
-`/audit-security`, `/agents-update`, etc. The
-[SDLC guide](SDLC.md) walks an end-to-end Epic.
+`/single-story-plan`, `/single-story-deliver`, `/audit-security`,
+`/agents-update`, etc. The [SDLC guide](SDLC.md) walks an end-to-end
+Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan.md)
+(idea → drafted Story Issue) with [`/single-story-deliver`](workflows/single-story-deliver.md)
+(Story Issue → merged PR).
 
 ---
 
