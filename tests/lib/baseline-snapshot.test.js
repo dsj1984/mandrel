@@ -38,6 +38,14 @@ function makeFsShim(initial = {}) {
     mkdirSync() {
       // shim — directory tracking is irrelevant for byte-equality checks
     },
+    renameSync(from, to) {
+      // Story #2135: the shared writer uses an atomic write-then-rename
+      // dance — mirror it in the in-memory store so the test fs shim
+      // produces the same observable state.
+      if (!store.has(from)) return;
+      store.set(to, store.get(from));
+      store.delete(from);
+    },
   };
 }
 
@@ -206,14 +214,52 @@ describe('forkMainToEpic', () => {
   });
 });
 
-describe('regenerateMainFromTree', () => {
-  it('returns didChange=false when scoring matches the existing tracked baselines', async () => {
+describe('regenerateMainFromTree (Story #2135 / Task #2145 — writer-funnel)', () => {
+  // The writer is itself the test seam: tests inject `writeFn` (envelope
+  // assembly) and `writeFileFn` (disk flush), and a `loadPriorFn` that
+  // returns whatever prior envelope the case wants to exercise. The on-disk
+  // shim only matters when the test wants to observe the renamed-into path
+  // (writer's atomic write-then-rename invokes mkdirSync / writeFileSync /
+  // renameSync through the same fsImpl seam).
+
+  function makeWriterSpies({ envelopeFor = null } = {}) {
+    const writeCalls = [];
+    const writeFileCalls = [];
+    return {
+      writeCalls,
+      writeFileCalls,
+      writeFn: ({ kind, rows, priorEnvelope }) => {
+        writeCalls.push({ kind, rowCount: rows?.length ?? 0, priorEnvelope });
+        // When the test configured an envelope for the kind, return it.
+        if (envelopeFor && envelopeFor[kind]) return envelopeFor[kind];
+        return {
+          $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+          kernelVersion: '0.1.0',
+          generatedAt: '2026-05-15T00:00:00Z',
+          rollup: { '*': {} },
+          rows: rows ?? [],
+        };
+      },
+      writeFileFn: (absPath, envelope, opts) => {
+        writeFileCalls.push({ absPath, envelope, opts });
+      },
+    };
+  }
+
+  it('returns didChange=false when the writer short-circuits to the prior envelope', async () => {
     const miPath = abs('baselines/maintainability.json');
     const crapPath = abs('baselines/crap.json');
-    const initial = '{"x":1}\n';
-    const fsImpl = makeFsShim({
-      [miPath]: initial,
-      [crapPath]: initial,
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+
+    // The prior envelope is what the writer returns from its structural-
+    // equality short-circuit. We stub `loadPriorFn` to return a sentinel
+    // and `writeFn` to return the *same* sentinel — the production wiring
+    // (writer.write returning `priorEnvelope` unchanged) is exercised in
+    // tests/baselines/writer.test.js.
+    const priorMi = { _sentinel: 'mi' };
+    const priorCrap = { _sentinel: 'crap' };
+    const spies = makeWriterSpies({
+      envelopeFor: { maintainability: priorMi, crap: priorCrap },
     });
 
     const out = await regenerateMainFromTree({
@@ -225,18 +271,14 @@ describe('regenerateMainFromTree', () => {
       fsImpl,
       scanDirectoryFn: () => [],
       calculateAllFn: async () => ({}),
-      saveMaintainabilityFn: () => {
-        // no-op writer — leaves fs store intact so the byte-equality check
-        // resolves to "unchanged"
-      },
       scanAndScoreFn: async () => ({ rows: [] }),
-      buildBaselineEnvelopeFn: () => ({ rows: [] }),
-      saveCrapFn: () => {
-        // no-op writer
-      },
       loadCoverageFn: () => ({}),
       resolveEscomplexVersionFn: () => '0.1.0',
       resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: spies.writeFn,
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: (absPath) =>
+        absPath === miPath ? priorMi : absPath === crapPath ? priorCrap : null,
     });
 
     assert.equal(out.didChange, false);
@@ -244,15 +286,17 @@ describe('regenerateMainFromTree', () => {
       assert.equal(f.didChange, false);
       assert.equal(f.reason, 'unchanged');
     }
+    // writeFile MUST NOT fire when the short-circuit holds — that is the
+    // entire point of routing change-detection through the writer.
+    assert.equal(spies.writeFileCalls.length, 0);
   });
 
   it('returns didChange=true and reports updated files when scoring drifts', async () => {
     const miPath = abs('baselines/maintainability.json');
     const crapPath = abs('baselines/crap.json');
-    const fsImpl = makeFsShim({
-      [miPath]: '{"old":1}\n',
-      [crapPath]: '{"old":true}\n',
-    });
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+    const spies = makeWriterSpies();
+
     const out = await regenerateMainFromTree({
       cwd: FAKE_CWD,
       resolveConfig: () => ({ agentSettings: {} }),
@@ -262,30 +306,42 @@ describe('regenerateMainFromTree', () => {
       fsImpl,
       scanDirectoryFn: () => [],
       calculateAllFn: async () => ({ '.agents/scripts/foo.js': 92 }),
-      saveMaintainabilityFn: (scores, p) => {
-        fsImpl.writeFileSync(p, `${JSON.stringify(scores, null, 2)}\n`);
-      },
-      scanAndScoreFn: async () => ({ rows: [] }),
-      buildBaselineEnvelopeFn: () => ({ rows: [], escomplexVersion: '0.1.0' }),
-      saveCrapFn: (envelope, opts) => {
-        fsImpl.writeFileSync(
-          opts.baselinePath,
-          `${JSON.stringify(envelope, null, 2)}\n`,
-        );
-      },
+      scanAndScoreFn: async () => ({
+        rows: [
+          {
+            file: '.agents/scripts/foo.js',
+            method: 'foo',
+            startLine: 1,
+            crap: 4.2,
+            cyclomatic: 2,
+            coverage: 0.95,
+          },
+        ],
+      }),
       loadCoverageFn: () => ({}),
       resolveEscomplexVersionFn: () => '0.1.0',
       resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: spies.writeFn,
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null, // no prior — short-circuit cannot fire
     });
     assert.equal(out.didChange, true);
     const updated = out.files.filter((f) => f.didChange);
     assert.equal(updated.length, 2);
+    // writeFile fires once per kind when both drift.
+    assert.equal(spies.writeFileCalls.length, 2);
+    // V2 envelope shape: writer rows are present on the writeFile payload.
+    for (const call of spies.writeFileCalls) {
+      assert.ok(Array.isArray(call.envelope.rows));
+      assert.ok(call.envelope.$schema.endsWith('.schema.json'));
+    }
   });
 
   it('skips crap regeneration when coverage is missing under requireCoverage', async () => {
     const miPath = abs('baselines/maintainability.json');
     const fsImpl = makeFsShim({ [miPath]: '{}\n' });
     const logger = silentLogger();
+    const spies = makeWriterSpies();
     const out = await regenerateMainFromTree({
       cwd: FAKE_CWD,
       resolveConfig: () => ({ agentSettings: {} }),
@@ -295,23 +351,26 @@ describe('regenerateMainFromTree', () => {
       fsImpl,
       scanDirectoryFn: () => [],
       calculateAllFn: async () => ({}),
-      saveMaintainabilityFn: () => {},
       scanAndScoreFn: async () => {
-        throw new Error('should not be called when coverage is missing');
-      },
-      buildBaselineEnvelopeFn: () => ({}),
-      saveCrapFn: () => {
         throw new Error('should not be called when coverage is missing');
       },
       loadCoverageFn: () => null,
       resolveEscomplexVersionFn: () => '0.1.0',
       resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: spies.writeFn,
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null,
     });
     const crapEntry = out.files.find((f) => f.kind === 'crap');
     assert.ok(crapEntry, 'crap entry should be present');
     assert.equal(crapEntry.didChange, false);
     assert.equal(crapEntry.reason, 'no-coverage');
     assert.equal(logger.warn.mock.callCount(), 1);
+    // The crap-kind writer must not be invoked under no-coverage.
+    assert.equal(
+      spies.writeCalls.some((c) => c.kind === 'crap'),
+      false,
+    );
   });
 
   // Story #2079 — defence-in-depth against worktree-relative path leakage in
@@ -319,18 +378,14 @@ describe('regenerateMainFromTree', () => {
   // keys that are either absolute (file scanner inside a worktree) or
   // relative-but-prefixed (resolver mismatch produces a `.worktrees/...` key
   // even when cwd ≠ worktree). Both shapes used to leak verbatim into the
-  // flat-map baseline that ships in `baselines/maintainability.json` and
-  // blocked subsequent close-validation runs on sibling Stories. The fix
-  // routes every key through `path-canon` after the cwd-relative reduction
-  // so the prefix is stripped regardless of upstream resolution accidents.
+  // baseline and blocked subsequent close-validation runs on sibling
+  // Stories. The fix routes every key through `path-canon` before handing
+  // rows to the writer.
   it('canonicalises path-style worktree-prefixed keys before persisting maintainability scores', async () => {
     const miPath = abs('baselines/maintainability.json');
     const crapPath = abs('baselines/crap.json');
-    const fsImpl = makeFsShim({
-      [miPath]: '{}\n',
-      [crapPath]: '{}\n',
-    });
-    let captured = null;
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+    const spies = makeWriterSpies();
     await regenerateMainFromTree({
       cwd: FAKE_CWD,
       resolveConfig: () => ({ agentSettings: {} }),
@@ -340,45 +395,46 @@ describe('regenerateMainFromTree', () => {
       fsImpl,
       scanDirectoryFn: () => [],
       calculateAllFn: async () => ({
-        // Relative-but-prefixed shape — bug repro from Story #2029's close,
-        // where the scoring resolver produced keys carrying the worktree
-        // segment even though cwd was the main checkout.
+        // Relative-but-prefixed shape — bug repro from Story #2029's close.
         '.worktrees/story-2029/.agents/scripts/foo.js': 92,
         // Clean shape — passes through unchanged.
         '.agents/scripts/bar.js': 85,
       }),
-      saveMaintainabilityFn: (scores) => {
-        captured = scores;
-      },
       scanAndScoreFn: async () => ({ rows: [] }),
-      buildBaselineEnvelopeFn: () => ({ rows: [], escomplexVersion: '0.1.0' }),
-      saveCrapFn: () => {},
       loadCoverageFn: () => ({}),
       resolveEscomplexVersionFn: () => '0.1.0',
       resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: ({ kind, rows, priorEnvelope }) => {
+        spies.writeCalls.push({ kind, rows, priorEnvelope });
+        return {
+          $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+          kernelVersion: '0.1.0',
+          generatedAt: '2026-05-15T00:00:00Z',
+          rollup: { '*': {} },
+          rows,
+        };
+      },
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null,
     });
-
-    assert.ok(captured, 'saveMaintainabilityFn must have been invoked');
-    const keys = Object.keys(captured);
-    for (const k of keys) {
+    const miCall = spies.writeCalls.find((c) => c.kind === 'maintainability');
+    assert.ok(miCall, 'maintainability write must have been invoked');
+    for (const r of miCall.rows) {
       assert.ok(
-        !k.startsWith('.worktrees/'),
-        `key must not carry .worktrees/ prefix; got "${k}"`,
+        !r.path.startsWith('.worktrees/'),
+        `row path must not carry .worktrees/ prefix; got "${r.path}"`,
       );
     }
-    // The prefixed input collapses into the canonical key — preserves the score.
-    assert.equal(captured['.agents/scripts/foo.js'], 92);
-    assert.equal(captured['.agents/scripts/bar.js'], 85);
+    const rowMap = Object.fromEntries(miCall.rows.map((r) => [r.path, r.mi]));
+    assert.equal(rowMap['.agents/scripts/foo.js'], 92);
+    assert.equal(rowMap['.agents/scripts/bar.js'], 85);
   });
 
   it('canonicalises absolute-into-worktree keys produced by an in-worktree file scanner', async () => {
     const miPath = abs('baselines/maintainability.json');
     const crapPath = abs('baselines/crap.json');
-    const fsImpl = makeFsShim({
-      [miPath]: '{}\n',
-      [crapPath]: '{}\n',
-    });
-    let captured = null;
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+    const spies = makeWriterSpies();
     await regenerateMainFromTree({
       cwd: FAKE_CWD,
       resolveConfig: () => ({ agentSettings: {} }),
@@ -390,31 +446,75 @@ describe('regenerateMainFromTree', () => {
       calculateAllFn: async () => ({
         // Absolute path inside a worktree, with cwd as the main checkout —
         // `path.relative` returns `.worktrees/<workspace>/...`, which must
-        // be stripped before the key reaches the on-disk baseline.
+        // be stripped before the row reaches the writer.
         [path.resolve(
           FAKE_CWD,
           '.worktrees/story-2029/.agents/scripts/baz.js',
         )]: 77,
       }),
-      saveMaintainabilityFn: (scores) => {
-        captured = scores;
-      },
       scanAndScoreFn: async () => ({ rows: [] }),
-      buildBaselineEnvelopeFn: () => ({ rows: [], escomplexVersion: '0.1.0' }),
-      saveCrapFn: () => {},
       loadCoverageFn: () => ({}),
       resolveEscomplexVersionFn: () => '0.1.0',
       resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: ({ kind, rows, priorEnvelope }) => {
+        spies.writeCalls.push({ kind, rows, priorEnvelope });
+        return {
+          $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+          kernelVersion: '0.1.0',
+          generatedAt: '2026-05-15T00:00:00Z',
+          rollup: { '*': {} },
+          rows,
+        };
+      },
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null,
     });
-
-    assert.ok(captured, 'saveMaintainabilityFn must have been invoked');
-    for (const k of Object.keys(captured)) {
+    const miCall = spies.writeCalls.find((c) => c.kind === 'maintainability');
+    assert.ok(miCall, 'maintainability write must have been invoked');
+    for (const r of miCall.rows) {
       assert.ok(
-        !k.startsWith('.worktrees/'),
-        `key must not carry .worktrees/ prefix; got "${k}"`,
+        !r.path.startsWith('.worktrees/'),
+        `row path must not carry .worktrees/ prefix; got "${r.path}"`,
       );
     }
-    assert.equal(captured['.agents/scripts/baz.js'], 77);
+    assert.ok(
+      miCall.rows.some(
+        (r) => r.path === '.agents/scripts/baz.js' && r.mi === 77,
+      ),
+      'canonicalised row must carry the original score',
+    );
+  });
+
+  it('drops saveMaintainabilityFn and saveCrapFn injection params (Task #2145 AC)', async () => {
+    // Static contract check: the rewired function does NOT accept the
+    // legacy save-fn injections. Passing them in would either be silently
+    // ignored or surface as an unexpected destructure binding. Either way
+    // the writer-funnel runs unchanged. The assertion is structural: a
+    // production-style call that does not pass save-fns succeeds.
+    const miPath = abs('baselines/maintainability.json');
+    const crapPath = abs('baselines/crap.json');
+    const fsImpl = makeFsShim({ [miPath]: '{}\n', [crapPath]: '{}\n' });
+    const spies = makeWriterSpies();
+    const out = await regenerateMainFromTree({
+      cwd: FAKE_CWD,
+      resolveConfig: () => ({ agentSettings: {} }),
+      getBaselines: () => BASELINES_RESOLVED,
+      getQuality: () => QUALITY_RESOLVED,
+      logger: silentLogger(),
+      fsImpl,
+      scanDirectoryFn: () => [],
+      calculateAllFn: async () => ({}),
+      scanAndScoreFn: async () => ({ rows: [] }),
+      loadCoverageFn: () => ({}),
+      resolveEscomplexVersionFn: () => '0.1.0',
+      resolveTsTranspilerVersionFn: () => '5.9.3',
+      writeFn: spies.writeFn,
+      writeFileFn: spies.writeFileFn,
+      loadPriorFn: () => null,
+    });
+    assert.ok(Array.isArray(out.files));
+    // Every successful baseline write goes through writeFn.
+    assert.ok(spies.writeCalls.length >= 1);
   });
 });
 

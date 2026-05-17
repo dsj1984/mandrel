@@ -25,6 +25,13 @@
  *     The runner returns `{ status: 'skipped', reason }` without touching
  *     the working tree.
  *
+ * Story #2135 / Task #2147 — every baseline write here now goes through
+ * `lib/baselines/writer.js`. The legacy `emitMiFlatMap` /
+ * `emitCrapEnvelope` / `rewriteBaselinesWithScopeMerge` / `readBaselineRows`
+ * helpers + the CRAP `path ↔ file` adapter are gone. Prior envelopes are
+ * read via `reader.loadFile`; scope-merge + epsilon stabilisation happens
+ * inside `writer.write({prior, scope, epsilon})` by design.
+ *
  * Dedup contract (AC3 — idempotent re-run):
  *   On re-entry after an over-cap refusal, the runner scans the per-Story
  *   `signals.ndjson` for any prior `baseline-refresh-regression` signal
@@ -52,9 +59,11 @@ import path from 'node:path';
 
 import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-refresh-baselines.js';
 import { regenerateMainFromTree as defaultRegenerateMainFromTree } from '../../baseline-snapshot.js';
-import * as crapKind from '../../baselines/kinds/crap.js';
-import * as miKind from '../../baselines/kinds/maintainability.js';
-import { assertCanonical, canonicalise } from '../../baselines/path-canon.js';
+import { loadFile as defaultReaderLoadFile } from '../../baselines/reader.js';
+import {
+  write as defaultWriteBaseline,
+  writeFile as defaultWriteBaselineFile,
+} from '../../baselines/writer.js';
 import { getBaselineEpsilon as defaultGetBaselineEpsilon } from '../../config/quality.js';
 import {
   getBaselines as defaultGetBaselines,
@@ -72,181 +81,43 @@ const RUNNER_SOURCE_TOOL = 'auto-refresh-runner';
 const FRICTION_CATEGORY = 'baseline-refresh-regression';
 
 /**
- * Read one of the tracked baseline JSON files and return the parsed rows
- * shaped for {@link evaluateAutoRefresh}. The MI baseline is a flat
- * `{ "<path>": <mi> }` object; the CRAP baseline is `{ rows: [...] }`.
+ * Read a baseline envelope from disk via the shared reader. Returns null
+ * when the file is missing, unreadable, or fails schema validation — the
+ * caller treats null as "no prior, every regenerated row is new".
  *
- * Returns `null` (not `[]`) when the file is missing or unreadable so the
- * caller can distinguish "no baseline yet" from "baseline empty". A missing
- * file means the Story is the first to commit to that baseline kind, in
- * which case every regenerated row is "new" and the evaluator returns
- * `canAutoRefresh: true` by construction (new rows never breach a cap).
- *
- * @param {{ kind: 'mi' | 'crap', baselinePath: string, fsImpl?: typeof fs }} args
- * @returns {Array<object> | null}
+ * Pure / I/O via injected loader so tests can mock without touching disk.
  */
-function readBaselineRows({ kind, baselinePath, fsImpl = fs }) {
-  if (typeof baselinePath !== 'string' || baselinePath.length === 0) {
-    return null;
-  }
-  let raw;
+function loadPriorEnvelope({ absPath, kind, readerLoadFile }) {
+  if (typeof absPath !== 'string' || absPath.length === 0) return null;
   try {
-    raw = fsImpl.readFileSync(baselinePath, 'utf8');
+    const parsed = readerLoadFile(absPath, { kind });
+    if (!parsed || !Array.isArray(parsed.rows)) return null;
+    return {
+      $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+      kernelVersion: parsed.kernelVersion,
+      generatedAt: parsed.generatedAt,
+      rollup: parsed.rollup,
+      rows: parsed.rows,
+    };
   } catch {
     return null;
   }
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  if (kind === 'mi') {
-    if (!parsed || typeof parsed !== 'object') return [];
-    const rows = [];
-    for (const [p, mi] of Object.entries(parsed)) {
-      if (p === '$schema') continue;
-      if (typeof mi === 'number') rows.push({ path: p, mi });
-    }
-    return rows;
-  }
-  // crap
-  return Array.isArray(parsed?.rows) ? parsed.rows : [];
 }
 
 /**
- * Re-write the on-disk baseline files with scope-merged + epsilon-stabilized
- * content (Story #1974, Task #1983, Epic #1943).
+ * Adapt the writer's CRAP row shape (`{path, method, startLine, crap}`) to
+ * the legacy evaluator's expectation (`{file, method, startLine, crap}`).
+ * The MI evaluator already keys on `path`, so no adapter is required for
+ * MI rows.
  *
- * After `regenerateMainFromTree` writes the FULL regenerated baseline,
- * this helper:
- *
- *   1. Reads the regenerated rows back from disk (the regen helper rewrote
- *      them in legacy native shapes — MI as a flat `{path: mi}` map, CRAP
- *      as the envelope `rows[]`).
- *   2. Calls the per-kind `mergeRows(prior, regenerated, scope)` to
- *      preserve out-of-scope prior rows verbatim and take in-scope rows
- *      from the regenerated set.
- *   3. Calls the per-kind `applyEpsilon(prior, merged, epsilon)` to fold
- *      sub-epsilon row deltas back to the prior bytes (env-variance
- *      stability against the same prior used for the merge).
- *   4. Writes the result back in the SAME native shape the regen helper
- *      produced — MI flat map + CRAP envelope `rows[]` — so the on-disk
- *      contract is unchanged from the existing reader's perspective.
- *
- * Returns whether anything was actually rewritten so the caller can
- * decide whether to re-read scoredMi/scoredCrap for verdict evaluation.
- *
- * Pure-by-design: file I/O happens through the injected `fsImpl` seam.
- *
- * @param {{
- *   miAbs: string|null,
- *   crapAbs: string|null,
- *   priorMi: Array<{path:string, mi:number}>|null,
- *   priorCrap: Array<object>|null,
- *   regenMi: Array<{path:string, mi:number}>|null,
- *   regenCrap: Array<object>|null,
- *   scope: {mode:'full'|'diff', files: Set<string>},
- *   miEpsilon: number,
- *   crapEpsilon: number,
- *   fsImpl: typeof fs,
- * }} args
- * @returns {{ miRewritten: boolean, crapRewritten: boolean }}
+ * Pure.
  */
-// MI: re-emit the legacy `{path: mi}` flat-map shape with sorted keys.
-// Story #2079: canonicalise every row's path at the write boundary so a
-// regen produced from inside `.worktrees/<workspace>/` cannot leak its
-// worktree prefix into the on-disk baseline. The shared writer in
-// `lib/baselines/writer.js` already canonicalises via path-canon; this
-// emitter bypasses that writer to preserve the legacy flat-map shape, so
-// we apply the same defence inline. `assertCanonical` after canonicalise
-// is the belt-and-braces — if a future change to canonicalise misses a
-// case, the assertion throws rather than silently writing a bad key.
-function emitMiFlatMap(miAbs, stabilised, fsImpl) {
-  const flatMap = Object.create(null);
-  for (const row of stabilised) {
-    if (row && typeof row.path === 'string') {
-      const canonical = canonicalise(row.path);
-      assertCanonical(canonical);
-      flatMap[canonical] = row.mi;
-    }
-  }
-  const sorted = Object.keys(flatMap)
-    .sort()
-    .reduce((acc, k) => {
-      acc[k] = flatMap[k];
-      return acc;
-    }, Object.create(null));
-  fsImpl.mkdirSync(path.dirname(miAbs), { recursive: true });
-  fsImpl.writeFileSync(miAbs, `${JSON.stringify(sorted, null, 2)}\n`);
-}
-
-// CRAP: preserve the existing envelope's metadata + field naming
-// (shipped baselines carry `file`, not `path`).
-function emitCrapEnvelope(crapAbs, stabilised, fsImpl) {
-  let envelope = null;
-  try {
-    envelope = JSON.parse(fsImpl.readFileSync(crapAbs, 'utf8'));
-  } catch {
-    envelope = null;
-  }
-  if (!envelope || typeof envelope !== 'object') envelope = { rows: [] };
-  const usesFileField = (envelope.rows ?? []).some(
-    (r) => r && typeof r.file === 'string' && typeof r.path !== 'string',
-  );
-  // Story #2079: canonicalise every row's key field so a regen produced
-  // from inside `.worktrees/<workspace>/` cannot leak its prefix here.
-  envelope.rows = crapKind.sortRows(stabilised).map((row) => {
-    const rawKey = row.path ?? row.file;
-    if (typeof rawKey !== 'string') return row;
-    const canonical = canonicalise(rawKey);
-    assertCanonical(canonical);
-    const rest = { ...row };
-    delete rest.path;
-    delete rest.file;
-    return usesFileField
-      ? { ...rest, file: canonical }
-      : { ...rest, path: canonical };
+function adaptCrapRowsForEvaluator(rows) {
+  return (rows ?? []).map((row) => {
+    if (!row || typeof row !== 'object') return row;
+    const { path: p, ...rest } = row;
+    return typeof p === 'string' ? { ...rest, file: p } : { ...rest };
   });
-  fsImpl.mkdirSync(path.dirname(crapAbs), { recursive: true });
-  fsImpl.writeFileSync(crapAbs, `${JSON.stringify(envelope, null, 2)}\n`);
-}
-
-function rewriteBaselinesWithScopeMerge({
-  miAbs,
-  crapAbs,
-  priorMi,
-  priorCrap,
-  regenMi,
-  regenCrap,
-  scope,
-  miEpsilon,
-  crapEpsilon,
-  fsImpl = fs,
-}) {
-  const out = { miRewritten: false, crapRewritten: false };
-
-  if (miAbs && Array.isArray(regenMi)) {
-    const merged = miKind.mergeRows(priorMi ?? [], regenMi, scope);
-    const stabilised = miKind.applyEpsilon(priorMi ?? [], merged, miEpsilon);
-    emitMiFlatMap(miAbs, stabilised, fsImpl);
-    out.miRewritten = true;
-  }
-
-  if (crapAbs && Array.isArray(regenCrap)) {
-    // The CRAP envelope ships the legacy `file:` field; the per-kind
-    // mergeRows keys on `path`. Normalise via `path ?? file` so the
-    // scope filter matches, then re-emit with the original field shape.
-    const adapt = (row) => ({ ...row, path: row.path ?? row.file });
-    const adaptedPrior = (priorCrap ?? []).map(adapt);
-    const adaptedRegen = regenCrap.map(adapt);
-    const merged = crapKind.mergeRows(adaptedPrior, adaptedRegen, scope);
-    const stabilised = crapKind.applyEpsilon(adaptedPrior, merged, crapEpsilon);
-    emitCrapEnvelope(crapAbs, stabilised, fsImpl);
-    out.crapRewritten = true;
-  }
-
-  return out;
 }
 
 /**
@@ -258,13 +129,6 @@ function rewriteBaselinesWithScopeMerge({
  * Empty `storyDiffPaths` (no diff vs `epic/<id>`) returns the input
  * unchanged so an interactive `story-close --skip-validation` re-run on a
  * branch that already merged still evaluates against every row.
- *
- * @param {{
- *   miRows: Array<{ path: string, mi: number }>,
- *   crapRows: Array<{ file: string, method: string, crap: number, startLine?: number }>,
- *   storyDiffPaths: string[],
- * }} args
- * @returns {{ mi: typeof args.miRows, crap: typeof args.crapRows }}
  */
 function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
   if (!Array.isArray(storyDiffPaths) || storyDiffPaths.length === 0) {
@@ -398,28 +262,6 @@ function buildRefusalSignal({
   };
 }
 
-/**
- * Top-level: run the bounded baseline auto-refresh after pre-merge gates
- * have passed. See module header for the under-cap / over-cap / skipped
- * contracts.
- *
- * @param {object} input
- * @param {string|number} input.storyId
- * @param {string|number} input.epicId
- * @param {string} input.cwd  Worktree path (where regen + amend run).
- * @param {string} input.epicBranch e.g. `epic/1386` (no `origin/` prefix).
- * @param {string} input.storyBranch e.g. `story-1398`.
- * @param {object} input.agentSettings  Resolved agent settings (from
- *   `resolveCloseInputs`); the runner reads
- *   `agentSettings.quality.autoRefresh` for `enabled` + caps.
- * @param {object} [input.deps] Injected seams for tests.
- * @returns {Promise<
- *   | { status: 'skipped', reason: string }
- *   | { status: 'amended', sha: string, files: string[] }
- *   | { status: 'refused', refusalReasons: string[], signalAppended: boolean, dedup: boolean, miOverCap: Array, crapOverCap: Array }
- *   | { status: 'failed', reason: string, detail?: string }
- * >}
- */
 function resolveBaselineAbs(cwd, p) {
   if (typeof p !== 'string' || p.length === 0) return null;
   return path.isAbsolute(p) ? p : path.resolve(cwd, p);
@@ -433,41 +275,38 @@ function resolveBaselineAbsPaths({ cwd, config, getBaselines }) {
   };
 }
 
-function readPairedBaselines({ miAbs, crapAbs, fsImpl }) {
-  return {
-    mi: miAbs
-      ? readBaselineRows({ kind: 'mi', baselinePath: miAbs, fsImpl })
-      : null,
-    crap: crapAbs
-      ? readBaselineRows({ kind: 'crap', baselinePath: crapAbs, fsImpl })
-      : null,
-  };
-}
-
-function scopeRegeneratedRows({
+/**
+ * Story #2135 / Task #2147 — single funnel for the on-disk scope-merged
+ * envelope. The writer assembles the V2 envelope with the merged rows,
+ * applies the per-kind `mergeRows` (preserving out-of-scope prior rows)
+ * and `applyEpsilon` (folding sub-epsilon drift back to prior), and
+ * `writeFile` persists atomically through the same `fsImpl` seam the
+ * legacy emitters used.
+ */
+function writeScopeMergedBaseline({
+  kind,
+  absPath,
+  prior,
+  regen,
   scope,
-  scoredMi,
-  scoredCrap,
-  cwd,
-  epicBranch,
-  storyBranch,
-  gitRunner,
-  computeDiffPaths,
+  epsilon,
+  writeFn,
+  writeFileFn,
+  fsImpl,
 }) {
-  if (scope === 'full') {
-    return { mi: scoredMi ?? [], crap: scoredCrap ?? [] };
-  }
-  const storyDiffPaths = computeDiffPaths({
-    cwd,
-    epicBranch,
-    storyBranch,
-    gitRunner,
+  if (!absPath) return null;
+  const priorRows = Array.isArray(prior?.rows) ? prior.rows : [];
+  const regenRows = Array.isArray(regen?.rows) ? regen.rows : [];
+  const envelope = writeFn({
+    kind,
+    rows: regenRows,
+    prior: priorRows,
+    scope,
+    epsilon,
+    priorEnvelope: prior ?? undefined,
   });
-  return filterToStoryDiff({
-    miRows: scoredMi ?? [],
-    crapRows: scoredCrap ?? [],
-    storyDiffPaths,
-  });
+  writeFileFn(absPath, envelope, { fsImpl });
+  return envelope;
 }
 
 async function probeDedup({ epicId, storyId, forEachLine, logger }) {
@@ -577,8 +416,9 @@ function resolveAutoRefreshDeps(deps) {
     appendSignal: deps.appendSignal ?? defaultAppendSignal,
     forEachLine: deps.forEachLine ?? defaultForEachLine,
     computeDiffPaths: deps.computeStoryDiffPaths ?? computeStoryDiffPaths,
-    rewriteWithScopeMerge:
-      deps.rewriteBaselinesWithScopeMerge ?? rewriteBaselinesWithScopeMerge,
+    writeFn: deps.writeFn ?? defaultWriteBaseline,
+    writeFileFn: deps.writeFileFn ?? defaultWriteBaselineFile,
+    readerLoadFile: deps.readerLoadFile ?? defaultReaderLoadFile,
   };
 }
 
@@ -603,7 +443,9 @@ export async function runAutoRefresh({
     appendSignal,
     forEachLine,
     computeDiffPaths,
-    rewriteWithScopeMerge,
+    writeFn,
+    writeFileFn,
+    readerLoadFile,
   } = resolveAutoRefreshDeps(deps);
   const config = { agentSettings };
 
@@ -622,12 +464,19 @@ export async function runAutoRefresh({
     getBaselines,
   });
 
-  // Capture the on-disk baselines BEFORE regen overwrites them.
-  const { mi: baselineMi, crap: baselineCrap } = readPairedBaselines({
-    miAbs,
-    crapAbs,
-    fsImpl,
-  });
+  // Capture the prior envelopes BEFORE regen overwrites them. Reader-
+  // routed: every read goes through `reader.loadFile`, which schema-
+  // validates the file against the per-kind envelope.
+  const priorMiEnv = miAbs
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
+    : null;
+  const priorCrapEnv = crapAbs
+    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
+    : null;
 
   let regen;
   try {
@@ -643,27 +492,27 @@ export async function runAutoRefresh({
     return { status: 'skipped', reason: 'no-baseline-drift' };
   }
 
-  // Read the FULL regenerated rows that `regenerateMainFromTree` just
-  // wrote to disk. We use these for both (a) the verdict-evaluation
-  // scope filter (existing behaviour) and (b) the new on-disk scope-
-  // merge that narrows the persisted baseline to the Story diff.
-  const { mi: regenMi, crap: regenCrap } = readPairedBaselines({
-    miAbs,
-    crapAbs,
-    fsImpl,
-  });
+  // Read the FULL regenerated envelopes that `regenerateMainFromTree`
+  // just wrote to disk. Same reader-routed seam as the prior reads.
+  const regenMiEnv = miAbs
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
+    : null;
+  const regenCrapEnv = crapAbs
+    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
+    : null;
 
   // Story #1974 — s-diff-scoped-writes. When the configured scope is
   // 'diff' (the default), compute the Story's file footprint and re-
   // write the on-disk baseline files merging in out-of-scope prior rows
-  // verbatim. This collapses cross-Story baseline-JSON merge churn on
-  // real story-close runs (the "two concurrent Stories on disjoint files
-  // merge cleanly into epic/<id>" AC). When scope is explicitly 'full',
-  // we skip the merge — the operator opted into a full rewrite.
+  // verbatim. When scope is explicitly 'full', skip the merge — the
+  // operator opted into a full rewrite.
   const scopeMode = autoRefresh.scope === 'full' ? 'full' : 'diff';
-  let storyDiffPaths = [];
   if (scopeMode === 'diff') {
-    storyDiffPaths = computeDiffPaths({
+    const storyDiffPaths = computeDiffPaths({
       cwd,
       epicBranch,
       storyBranch,
@@ -672,45 +521,79 @@ export async function runAutoRefresh({
     const scopeFiles = new Set(storyDiffPaths);
     const miEpsilon = getBaselineEpsilon('maintainability', config);
     const crapEpsilon = getBaselineEpsilon('crap', config);
-    rewriteWithScopeMerge({
-      miAbs,
-      crapAbs,
-      priorMi: baselineMi,
-      priorCrap: baselineCrap,
-      regenMi,
-      regenCrap,
-      scope: { mode: 'diff', files: scopeFiles },
-      miEpsilon,
-      crapEpsilon,
-      fsImpl,
-    });
+
+    if (miAbs && regenMiEnv) {
+      writeScopeMergedBaseline({
+        kind: 'maintainability',
+        absPath: miAbs,
+        prior: priorMiEnv,
+        regen: regenMiEnv,
+        scope: { mode: 'diff', files: scopeFiles },
+        epsilon: miEpsilon,
+        writeFn,
+        writeFileFn,
+        fsImpl,
+      });
+    }
+    if (crapAbs && regenCrapEnv) {
+      writeScopeMergedBaseline({
+        kind: 'crap',
+        absPath: crapAbs,
+        prior: priorCrapEnv,
+        regen: regenCrapEnv,
+        scope: { mode: 'diff', files: scopeFiles },
+        epsilon: crapEpsilon,
+        writeFn,
+        writeFileFn,
+        fsImpl,
+      });
+    }
     logger.info?.(
       `[auto-refresh-runner] scope-merged baselines (mode=diff, files=${scopeFiles.size}, miEpsilon=${miEpsilon}, crapEpsilon=${crapEpsilon}).`,
     );
   }
 
   // Re-read the (possibly scope-merged) baselines for verdict evaluation.
-  // When scope is 'full', this is identical to `regenMi` / `regenCrap`.
-  const { mi: scoredMi, crap: scoredCrap } = readPairedBaselines({
-    miAbs,
-    crapAbs,
-    fsImpl,
-  });
+  // When scope is 'full', this is identical to `regenMiEnv` / `regenCrapEnv`.
+  const finalMiEnv = miAbs
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
+    : null;
+  const finalCrapEnv = crapAbs
+    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
+    : null;
 
-  const scoped = scopeRegeneratedRows({
-    scope: autoRefresh.scope ?? 'diff',
-    scoredMi,
-    scoredCrap,
-    cwd,
-    epicBranch,
-    storyBranch,
-    gitRunner,
-    computeDiffPaths,
-  });
+  // Adapt the V2 row shape to what the evaluator + filter helpers expect:
+  //   - MI: keep `path` keying (already correct).
+  //   - CRAP: rename `path` → `file` for evaluator compatibility.
+  const finalMiRows = finalMiEnv?.rows ?? [];
+  const finalCrapRows = adaptCrapRowsForEvaluator(finalCrapEnv?.rows ?? []);
+  const priorMiRows = priorMiEnv?.rows ?? [];
+  const priorCrapRows = adaptCrapRowsForEvaluator(priorCrapEnv?.rows ?? []);
+
+  let scoped;
+  if ((autoRefresh.scope ?? 'diff') === 'full') {
+    scoped = { mi: finalMiRows, crap: finalCrapRows };
+  } else {
+    const storyDiffPaths = computeDiffPaths({
+      cwd,
+      epicBranch,
+      storyBranch,
+      gitRunner,
+    });
+    scoped = filterToStoryDiff({
+      miRows: finalMiRows,
+      crapRows: finalCrapRows,
+      storyDiffPaths,
+    });
+  }
 
   const verdict = evaluateAutoRefresh({
     scoredRows: scoped,
-    baseline: { mi: baselineMi ?? [], crap: baselineCrap ?? [] },
+    baseline: { mi: priorMiRows, crap: priorCrapRows },
     caps,
   });
 
@@ -742,13 +625,13 @@ export async function runAutoRefresh({
 }
 
 export {
+  adaptCrapRowsForEvaluator,
   amendBaselinesIntoHead,
   buildRefusalSignal,
   FRICTION_CATEGORY,
-  // exported for unit-test introspection
   filterToStoryDiff,
+  loadPriorEnvelope,
   priorRefusalSignalExists,
   RUNNER_SOURCE_TOOL,
-  readBaselineRows,
-  rewriteBaselinesWithScopeMerge,
+  writeScopeMergedBaseline,
 };
