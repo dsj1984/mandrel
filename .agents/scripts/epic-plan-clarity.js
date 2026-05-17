@@ -33,7 +33,7 @@ import {
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
 import { scoreEpicBody } from './lib/epic-plan-clarity.js';
-import { Logger } from './lib/Logger.js';
+import { Logger, routeAllOutputToStderr } from './lib/Logger.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 
@@ -171,7 +171,12 @@ async function main() {
   }
   const provider = createProvider(orchestration);
 
+  // Story #2278 — in --emit-context mode stdout is reserved for the JSON
+  // envelope. Flip Logger sinks to stderr defensively even though
+  // buildClarityContext does not currently call Logger.info, so future
+  // additions cannot silently corrupt the captured file.
   if (values['emit-context']) {
+    routeAllOutputToStderr();
     const envelope = await buildClarityContext({ epicId, provider });
     const json = values.pretty
       ? JSON.stringify(envelope, null, 2)

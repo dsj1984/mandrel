@@ -30,6 +30,30 @@ const INFO_ENABLED = LEVEL === 'info' || DEBUG_ENABLED;
 const WARN_ENABLED = INFO_ENABLED;
 const ERROR_ENABLED = INFO_ENABLED;
 
+// Mutable sinks for `info` (defaults to stdout via console.log) and the
+// stdout branch of `createProgress` (defaults to console.log). `warn` already
+// uses console.warn which Node routes to stderr, but we expose a sink for it
+// too so a single `routeAllOutputToStderr()` call gives a uniform guarantee
+// to callers that "no Logger output lands on stdout" (Story #2278).
+let infoSink = (msg) => console.log(msg);
+let warnSink = (msg) => console.warn(msg);
+let progressStdoutSink = (msg) => console.log(msg);
+
+/**
+ * Flip every Logger output that can land on stdout (`info`, `warn`, and the
+ * stdout branch of `createProgress`) to stderr for the lifetime of the
+ * process. Idempotent. Use when stdout is reserved for a structured payload
+ * — for example the `--emit-context` JSON envelopes emitted by
+ * `epic-plan-spec.js` and `epic-plan-decompose.js`, where any interleaved
+ * `[Orchestrator] ℹ️ …` log line corrupts the captured file
+ * (Story #2278).
+ */
+export function routeAllOutputToStderr() {
+  infoSink = (msg) => console.error(msg);
+  warnSink = (msg) => console.error(msg);
+  progressStdoutSink = (msg) => console.error(msg);
+}
+
 export const Logger = {
   level: LEVEL,
 
@@ -38,11 +62,11 @@ export const Logger = {
   },
 
   info(message) {
-    if (INFO_ENABLED) console.log(`[Orchestrator] ℹ️ ${message}`);
+    if (INFO_ENABLED) infoSink(`[Orchestrator] ℹ️ ${message}`);
   },
 
   warn(message) {
-    if (WARN_ENABLED) console.warn(`[Orchestrator] ⚠️ ${message}`);
+    if (WARN_ENABLED) warnSink(`[Orchestrator] ⚠️ ${message}`);
   },
 
   error(message) {
@@ -55,9 +79,11 @@ export const Logger = {
   },
 
   createProgress(scriptName, { stderr = true } = {}) {
-    const logFn = stderr ? console.error : console.log;
     return (phase, message) => {
-      if (INFO_ENABLED) logFn(`▶ [${scriptName}] [${phase}] ${message}`);
+      if (!INFO_ENABLED) return;
+      const line = `▶ [${scriptName}] [${phase}] ${message}`;
+      if (stderr) console.error(line);
+      else progressStdoutSink(line);
     };
   },
 };
