@@ -30,9 +30,20 @@
 import { execFileSync } from 'node:child_process';
 
 import { resolveFormatWriteCommand } from '../../close-validation.js';
+import { getQuality } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 const TAG = '[format-autofix]';
+
+/**
+ * Story #2165 — exit code surfaced when the bounded `npx biome format
+ * --write` spawn is killed by the timeout watchdog. Matches the GNU
+ * `timeout(1)` convention so the close orchestrator can branch on "hang"
+ * (124) vs. "formatter exited non-zero" (any other status) without
+ * inspecting signal names. Mirrors `COVERAGE_TIMEOUT_EXIT_CODE` from
+ * `coverage-capture.js` (Story #2142).
+ */
+export const FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE = 124;
 
 /**
  * Run `git status --porcelain` and return the list of changed paths.
@@ -61,19 +72,38 @@ function listDirtyPaths(cwd, run) {
  * the result on the Story branch with a `style:` subject. Returns a
  * structured envelope so callers can log a single line.
  *
+ * Story #2165: the formatter spawn is now bounded by a wall-clock
+ * timeout (resolved from `delivery.quality.formatAutofix.timeoutMs`,
+ * default 60 s). A SIGKILL fired at the budget boundary is translated
+ * to the `timedOut: true` envelope below so the close orchestrator can
+ * flip the Story to `agent::blocked` with a friction comment naming the
+ * spawn, mirroring the coverage-capture pattern from Story #2142.
+ *
  * @param {{
  *   cwd: string,
  *   storyId: number|string,
+ *   agentSettings?: object,
+ *   timeoutMs?: number,
  *   logger?: object,
  *   spawnSync?: typeof execFileSync,
  *   gitSync?: (args: string[], opts: object) => string,
  * }} opts
- * @returns {{ ran: boolean, committed: boolean, sha?: string, dirtyPathsBefore?: string[] }}
+ * @returns {{
+ *   ran: boolean,
+ *   committed: boolean,
+ *   sha?: string,
+ *   dirtyPathsBefore?: string[],
+ *   timedOut?: boolean,
+ *   timeoutMs?: number,
+ *   exitCode?: number,
+ *   writeCmdString?: string,
+ * }}
  */
 export function runFormatAutofix({
   cwd,
   storyId,
   agentSettings,
+  timeoutMs,
   logger = DefaultLogger,
   spawnSync = execFileSync,
   gitSync,
@@ -98,18 +128,49 @@ export function runFormatAutofix({
     return { ran: false, committed: false, dirtyPathsBefore: dirtyBefore };
   }
 
+  // Story #2165 — bounded wall-clock for the formatter spawn. Resolve
+  // through `getQuality` so consumers can tune via
+  // `delivery.quality.formatAutofix.timeoutMs`; an explicit caller-supplied
+  // positive integer wins over both the config and the framework default.
+  // execFileSync's contract: on a SIGKILL trip the thrown error carries
+  // `err.signal === 'SIGKILL'` and `err.status === null`, so we branch on
+  // that to surface the 124 envelope below — same shape coverage-capture
+  // returns to its caller (Story #2142).
+  const resolvedTimeoutMs = resolveFormatTimeoutMs({
+    timeoutMs,
+    agentSettings,
+  });
+  const spawnOpts = {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    encoding: 'utf8',
+    killSignal: 'SIGKILL',
+  };
+  if (Number.isInteger(resolvedTimeoutMs) && resolvedTimeoutMs > 0) {
+    spawnOpts.timeout = resolvedTimeoutMs;
+  }
   // Run the configured formatter in write mode. We tolerate a non-zero exit
   // because the existing format gate downstream is the source of truth for
   // "did formatting succeed" — our job is only to opportunistically heal
   // drift that *would* have failed the gate.
   let writeFailed = false;
   try {
-    spawnSync(writeCmd, writeArgs, {
-      cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      encoding: 'utf8',
-    });
+    spawnSync(writeCmd, writeArgs, spawnOpts);
   } catch (err) {
+    if (err?.signal === 'SIGKILL') {
+      logger.warn?.(
+        `${TAG} ⏱ \`${writeCmdString}\` exceeded ${resolvedTimeoutMs}ms — killed (SIGKILL). ` +
+          `Returning exit ${FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE}; story-close will flip Story #${storyId} to agent::blocked.`,
+      );
+      return {
+        ran: true,
+        committed: false,
+        timedOut: true,
+        timeoutMs: resolvedTimeoutMs,
+        exitCode: FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE,
+        writeCmdString,
+      };
+    }
     writeFailed = true;
     logger.warn?.(
       `${TAG} \`${writeCmdString}\` exited non-zero (${err?.status ?? 'unknown'}); ` +
@@ -146,4 +207,35 @@ export function runFormatAutofix({
       `committed as ${sha} on story branch.`,
   );
   return { ran: true, committed: true, sha };
+}
+
+/**
+ * Story #2165 — resolve the format-autofix spawn timeout. An explicit
+ * caller-supplied positive integer wins over both
+ * `delivery.quality.formatAutofix.timeoutMs` and the framework default
+ * (60 s). Any resolver failure surfaces as `null`; the caller treats that
+ * as "no timeout" and the spawn runs unbounded — same fail-open contract
+ * coverage-capture uses.
+ */
+function resolveFormatTimeoutMs({ timeoutMs, agentSettings }) {
+  if (
+    typeof timeoutMs === 'number' &&
+    Number.isInteger(timeoutMs) &&
+    timeoutMs > 0
+  ) {
+    return timeoutMs;
+  }
+  try {
+    const resolved = getQuality({ agentSettings })?.formatAutofix?.timeoutMs;
+    if (
+      typeof resolved === 'number' &&
+      Number.isInteger(resolved) &&
+      resolved > 0
+    ) {
+      return resolved;
+    }
+  } catch {
+    // resolver failure → fall through to "no timeout"
+  }
+  return null;
 }
