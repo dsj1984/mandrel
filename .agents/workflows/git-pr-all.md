@@ -123,7 +123,7 @@ git add -A
 
 > **Why `-A` and not explicit paths?** `/git-pr-all` is operator-driven
 > (not parallel-agent-driven), so the single-tree assumption that
-> blocks `git add .` inside `/story-execute` does not apply here. See
+> blocks `git add .` inside `/story-deliver` does not apply here. See
 > the parallel-execution warning at the bottom of this file.
 
 Commit:
@@ -267,11 +267,11 @@ notification) is the next watcher.
 ## ⚠️ Parallel Story Execution
 
 Do **not** use this workflow from inside a parallel story-execution
-context (`/story-execute #<storyId>`, `/epic-deliver` wave dispatch).
+context (`/story-deliver #<storyId>`, `/epic-deliver` wave dispatch).
 `git add -A` sweeps any untracked files in the working tree, which in
 a shared working directory may belong to another agent. Use the
 explicit-staging + branch-guard pattern documented in
-`story-execute.md` Step 1 in those contexts.
+`story-deliver.md` Step 1 in those contexts.
 
 The same warning applies to any workflow that calls `git add .` or
 `git add -A`; this is not unique to `/git-pr-all` (see

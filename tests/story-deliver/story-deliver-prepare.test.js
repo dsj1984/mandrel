@@ -5,8 +5,8 @@ import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration
 import {
   deriveInstallAction,
   resolveInstallCommand,
-  runStoryExecutePrepare,
-} from '../../.agents/scripts/story-execute-prepare.js';
+  runStoryDeliverPrepare,
+} from '../../.agents/scripts/story-deliver-prepare.js';
 
 function makeProvider(initialComments = []) {
   const comments = [...initialComments];
@@ -77,7 +77,7 @@ test('resolveInstallCommand: honors override when non-blank', () => {
   assert.equal(resolveInstallCommand({ override: '   ' }), 'npm ci');
 });
 
-test('runStoryExecutePrepare: dependenciesInstalled=true skips install + upserts init snapshot', async () => {
+test('runStoryDeliverPrepare: dependenciesInstalled=true skips install + upserts init snapshot', async () => {
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 42,
@@ -91,7 +91,7 @@ test('runStoryExecutePrepare: dependenciesInstalled=true skips install + upserts
   ]);
   let runInstallCalls = 0;
 
-  const result = await runStoryExecutePrepare({
+  const result = await runStoryDeliverPrepare({
     storyId: 42,
     provider,
     runInstall: () => {
@@ -114,13 +114,13 @@ test('runStoryExecutePrepare: dependenciesInstalled=true skips install + upserts
   );
   assert.ok(upserted, 'expected a story-run-progress comment to be upserted');
   // renderedBody is the same markdown body, surfaced for chat relay by
-  // `/story-execute` so operators see the initial task table before the
+  // `/story-deliver` so operators see the initial task table before the
   // first commit lands.
   assert.ok(result.renderedBody.startsWith('### 📖 Story #42'));
   assert.match(result.renderedBody, /0\/2 tasks done/);
 });
 
-test('runStoryExecutePrepare: dependenciesInstalled=false runs install before upserting', async () => {
+test('runStoryDeliverPrepare: dependenciesInstalled=false runs install before upserting', async () => {
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 50,
@@ -130,7 +130,7 @@ test('runStoryExecutePrepare: dependenciesInstalled=false runs install before up
     }),
   ]);
   const installs = [];
-  const result = await runStoryExecutePrepare({
+  const result = await runStoryDeliverPrepare({
     storyId: 50,
     provider,
     runInstall: (cmd, dir) => {
@@ -145,7 +145,7 @@ test('runStoryExecutePrepare: dependenciesInstalled=false runs install before up
   ]);
 });
 
-test('runStoryExecutePrepare: failed install bubbles up as an Error', async () => {
+test('runStoryDeliverPrepare: failed install bubbles up as an Error', async () => {
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 51,
@@ -155,7 +155,7 @@ test('runStoryExecutePrepare: failed install bubbles up as an Error', async () =
     }),
   ]);
   await assert.rejects(
-    runStoryExecutePrepare({
+    runStoryDeliverPrepare({
       storyId: 51,
       provider,
       runInstall: () => ({ status: 7, stderr: 'npm exited 7' }),
@@ -164,7 +164,7 @@ test('runStoryExecutePrepare: failed install bubbles up as an Error', async () =
   );
 });
 
-test('runStoryExecutePrepare: falls back to provider.getSubTickets when legacy story-init payload omits tasks', async () => {
+test('runStoryDeliverPrepare: falls back to provider.getSubTickets when legacy story-init payload omits tasks', async () => {
   // Pre-5.31.2 story-init comments did not embed `tasks[]`. The prepare CLI
   // must hydrate the task list from the provider so the initial
   // story-run-progress snapshot is non-empty.
@@ -183,7 +183,7 @@ test('runStoryExecutePrepare: falls back to provider.getSubTickets when legacy s
     { number: 93, title: 'unrelated', labels: ['type::feature'] },
   ];
 
-  const result = await runStoryExecutePrepare({
+  const result = await runStoryDeliverPrepare({
     storyId: 60,
     provider,
     runInstall: () => ({ status: 0 }),
@@ -196,7 +196,7 @@ test('runStoryExecutePrepare: falls back to provider.getSubTickets when legacy s
   assert.ok(result.snapshot.tasks.every((t) => t.state === 'pending'));
 });
 
-test('runStoryExecutePrepare: prefers payload.tasks when present (no fallback fetch)', async () => {
+test('runStoryDeliverPrepare: prefers payload.tasks when present (no fallback fetch)', async () => {
   const provider = makeProvider([
     makeStoryInitComment({
       storyId: 61,
@@ -213,7 +213,7 @@ test('runStoryExecutePrepare: prefers payload.tasks when present (no fallback fe
     getSubTicketsCalls++;
     return [];
   };
-  const result = await runStoryExecutePrepare({
+  const result = await runStoryDeliverPrepare({
     storyId: 61,
     provider,
     runInstall: () => ({ status: 0 }),
@@ -222,10 +222,10 @@ test('runStoryExecutePrepare: prefers payload.tasks when present (no fallback fe
   assert.equal(getSubTicketsCalls, 0); // no fallback needed
 });
 
-test('runStoryExecutePrepare: throws if no story-init comment is found', async () => {
+test('runStoryDeliverPrepare: throws if no story-init comment is found', async () => {
   const provider = makeProvider([]);
   await assert.rejects(
-    runStoryExecutePrepare({ storyId: 999, provider }),
+    runStoryDeliverPrepare({ storyId: 999, provider }),
     /no story-init comment found/,
   );
 });

@@ -447,7 +447,7 @@ for the scoring logic.
 3. **Handoff**: Provide the user with the recommended next step:
 
    > "Planning is complete. Run `/epic-deliver #[Epic ID]` to start the wave
-   > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
+   > loop, or pick a single Story from Wave 0 and run `/story-deliver #[Story
    > ID]` to drive it directly."
 
 ## Phase 10: Readiness Health Check

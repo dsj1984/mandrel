@@ -190,7 +190,7 @@ guarantee `agents-update`'s idempotence contract requires.
 A framework bump frequently introduces new helper scripts and `node
 .agents/scripts/<name>.js` invocations the consumer's
 `.claude/settings.json` allowlist has never seen. Left alone, the next
-`/story-execute` or `/epic-deliver` run trips a fresh wave of
+`/story-deliver` or `/epic-deliver` run trips a fresh wave of
 permission prompts that operators answer by hand — and those hand-tuned
 allowlists drift across projects.
 

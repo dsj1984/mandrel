@@ -2,7 +2,7 @@
  * single-story-sweep.js — Sweep merged `story-*` branches at init.
  *
  * Wraps `git-cleanup-branches.js` with a fixed policy tuned for the
- * `/single-story-execute` boot path:
+ * `/single-story-deliver` boot path:
  *
  *   - Scope: `story-*` only (never touches `epic/*`, `story/<id>/*`, etc.).
  *   - Mode:  --execute --remote (delete local + origin + prune trackers).

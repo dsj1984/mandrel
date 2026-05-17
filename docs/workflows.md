@@ -32,7 +32,7 @@ stance on future adoption.
 | `/epic-plan --idea "<seed>"`      | Same ideation entry with a pre-supplied seed.                                                                                                      |
 | `/epic-plan <epicId>`             | Existing-Epic mode — generate PRD + Tech Spec + decomposition for an Epic ticket that has already been opened.                                     |
 | `/epic-deliver <epicId>`          | Six-phase wave-loop + close-validation + code-review + retro + finalize. Terminates with a PR open against `main`; operator merges via GitHub UI.  |
-| `/story-execute <storyId>`        | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. Used directly when re-driving a single Story off-table.   |
+| `/story-deliver <storyId>`        | Init → task loop → close for one Story. Reads `helpers/task-execute.md` inline per Task. Used directly when re-driving a single Story off-table.   |
 
 ## Audit suite
 
@@ -77,7 +77,7 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 Not invoked directly by operators, but referenced from other workflows:
 
 - `helpers/_merge-conflict-template.md` — canonical procedure for resolving a
-  merge conflict, included by reference from `story-execute`, `epic-deliver`,
+  merge conflict, included by reference from `story-deliver`, `epic-deliver`,
   and `git-merge-pr`.
 - `helpers/epic-code-review.md` — comprehensive code-review procedure,
   auto-invoked by `/epic-deliver` Phase 4 (close-tail). Findings persist as
@@ -88,14 +88,14 @@ Not invoked directly by operators, but referenced from other workflows:
 - `helpers/epic-plan-spec.md`, `helpers/epic-plan-decompose.md` —
   phase procedures delegated to by `/epic-plan`.
 - `helpers/task-execute.md` — single-Task implementation procedure read
-  inline by `/story-execute` per Task (not a slash command).
+  inline by `/story-deliver` per Task (not a slash command).
 - `helpers/agents-sync-config.md` — schema-driven validate-then-merge procedure
   for `.agentrc.json`, invoked by `/agents-update` after the submodule pointer
   moves (formerly shipped as `/agents-sync-config`).
 - `helpers/worktree-lifecycle.md` — per-story `git worktree` isolation model,
   including node_modules strategies, Windows notes, and escape hatches. Lives
   under `helpers/` because it is operator and reviewer reference documentation,
-  not an executable workflow; path-included from `story-execute.md`.
+  not an executable workflow; path-included from `story-deliver.md`.
 
 The retro is no longer a separate helper — its logic lives inline at
 `lib/orchestration/retro-runner.js` and fires automatically during
@@ -104,7 +104,7 @@ The retro is no longer a separate helper — its logic lives inline at
 ## Convergence in multi-phase workflows
 
 Long-running orchestrator workflows like `/epic-deliver` and
-`/story-execute` converge through their phase machinery, not through a
+`/story-deliver` converge through their phase machinery, not through a
 sticky-goal directive. Each phase is driven by a CLI script
 (`wave-tick.js`, `epic-execute-record-wave.js`, `story-close.js`, …)
 whose JSON return tells the agent what to do next; terminal states are

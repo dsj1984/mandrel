@@ -32,7 +32,7 @@ import { parseStoryAgentReturn } from './epic-runner/sub-agent-return.js';
 /** Valid wave-level rollup statuses. */
 export const VALID_RESULT_STATUSES = new Set(['complete', 'blocked', 'failed']);
 
-/** Per-Story return statuses we accept off `/story-execute` sub-agents. */
+/** Per-Story return statuses we accept off `/story-deliver` sub-agents. */
 export const VALID_STORY_STATUSES = new Set(['done', 'blocked', 'failed']);
 
 /**

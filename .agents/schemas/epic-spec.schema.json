@@ -138,7 +138,7 @@
         },
         "tasks": {
           "type": "array",
-          "description": "Ordered list of Tasks under this Story. The Story sub-agent walks tasks[] in order during /story-execute; each Task produces exactly one commit on the Story branch via task-commit.js.",
+          "description": "Ordered list of Tasks under this Story. The Story sub-agent walks tasks[] in order during /story-deliver; each Task produces exactly one commit on the Story branch via task-commit.js.",
           "items": { "$ref": "#/$defs/task" }
         }
       }

@@ -61,6 +61,7 @@ function makeCheckpointProvider(initialPhase = null) {
 
   return {
     posted: [],
+    updates: [],
     async getTicketComments(ticketId) {
       return comments.get(ticketId) ?? [];
     },
@@ -77,6 +78,10 @@ function makeCheckpointProvider(initialPhase = null) {
         const next = list.filter((c) => c.id !== id);
         if (next.length !== list.length) comments.set(ticketId, next);
       }
+    },
+    async updateTicket(ticketId, patch) {
+      this.updates.push({ ticketId, patch });
+      return { ok: true };
     },
     async getTicket(id) {
       return { id, title: `Epic ${id}` };
@@ -174,7 +179,66 @@ test('runEpicDeliverCloseTail: happy path runs all four phases and writes phase=
   assert.equal(final.phase, 'done');
 });
 
-test('runEpicDeliverCloseTail: code-review critical halts before retro', async () => {
+test('runEpicDeliverCloseTail: code-review critical throws + marks blocked before retro', async () => {
+  // Story #2167 — Phase D MUST throw (not return an envelope) when the
+  // review reports a critical finding, flip the Epic to agent::blocked,
+  // and post a friction comment summarizing the severity counts. Retro
+  // and finalize must never be invoked.
+  const provider = makeCheckpointProvider('close-validation');
+  let retroCalled = false;
+  let finalizeCalled = false;
+
+  await assert.rejects(
+    () =>
+      runEpicDeliverCloseTail({
+        epicId: 42,
+        provider,
+        runWaveGateFn: async () => ({ exitCode: 0 }),
+        runHierarchyGateFn: async () => ({ exitCode: 0 }),
+        runCodeReviewFn: async () => ({
+          status: 'ok',
+          severity: { critical: 1, high: 0, medium: 0, suggestion: 0 },
+          halted: true,
+          blockerReason: '1 critical finding',
+          posted: true,
+        }),
+        runRetroFn: async () => {
+          retroCalled = true;
+          return {};
+        },
+        runFinalizeFn: async () => {
+          finalizeCalled = true;
+          return {};
+        },
+      }),
+    /code-review reported critical findings/,
+  );
+
+  assert.equal(retroCalled, false, 'retro must not run after critical');
+  assert.equal(finalizeCalled, false, 'finalize must not run after critical');
+
+  const blockedUpdate = provider.updates.find(
+    (u) =>
+      u.ticketId === 42 &&
+      u.patch?.labels?.add?.includes('agent::blocked') &&
+      u.patch?.labels?.remove?.includes('agent::executing'),
+  );
+  assert.ok(
+    blockedUpdate,
+    'Epic must transition to agent::blocked (executing removed)',
+  );
+
+  const friction = provider.posted.find(
+    (c) => c.ticketId === 42 && c.type === 'friction',
+  );
+  assert.ok(friction, 'friction comment must be posted on the Epic');
+  assert.match(friction.body, /critical/i);
+});
+
+test('runEpicDeliverCloseTail: clean code-review proceeds to retro + finalize', async () => {
+  // Story #2167 — a clean review (no criticals) must not trip the new
+  // gate; retro + finalize run normally and no agent::blocked transition
+  // or friction comment is emitted.
   const provider = makeCheckpointProvider('close-validation');
   let retroCalled = false;
   let finalizeCalled = false;
@@ -186,26 +250,43 @@ test('runEpicDeliverCloseTail: code-review critical halts before retro', async (
     runHierarchyGateFn: async () => ({ exitCode: 0 }),
     runCodeReviewFn: async () => ({
       status: 'ok',
-      severity: { critical: 2, high: 0, medium: 0, suggestion: 0 },
-      halted: true,
-      blockerReason: '2 critical findings',
+      severity: { critical: 0, high: 1, medium: 0, suggestion: 0 },
+      halted: false,
+      blockerReason: null,
       posted: true,
     }),
     runRetroFn: async () => {
       retroCalled = true;
-      return {};
+      return { posted: true };
     },
     runFinalizeFn: async () => {
       finalizeCalled = true;
-      return {};
+      return {
+        ffOk: true,
+        pushed: true,
+        prUrl: 'http://x',
+        postedHandoff: true,
+      };
     },
   });
 
-  assert.equal(out.completed, false);
-  assert.equal(out.blocker.phase, 'code-review');
-  assert.equal(out.blocker.reason, 'critical-findings');
-  assert.equal(retroCalled, false, 'retro must not run after critical');
-  assert.equal(finalizeCalled, false, 'finalize must not run after critical');
+  assert.equal(out.completed, true);
+  assert.equal(retroCalled, true);
+  assert.equal(finalizeCalled, true);
+  assert.equal(
+    provider.updates.some((u) =>
+      u.patch?.labels?.add?.includes('agent::blocked'),
+    ),
+    false,
+    'no agent::blocked transition on a clean review',
+  );
+  assert.equal(
+    provider.posted.some(
+      (c) => c.type === 'friction' && /critical/i.test(c.body ?? ''),
+    ),
+    false,
+    'no critical-findings friction comment on a clean review',
+  );
 });
 
 test('runEpicDeliverCloseTail: close-validation halts on wave-gate failure', async () => {

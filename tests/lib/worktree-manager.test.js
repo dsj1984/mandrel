@@ -1186,7 +1186,7 @@ test('copyAgentsFromRoot: recursively copies root .agents into the worktree', ()
     fs.mkdirSync(path.join(rootAgents, 'workflows'), { recursive: true });
     fs.writeFileSync(path.join(rootAgents, 'VERSION'), 'v1\n');
     fs.writeFileSync(
-      path.join(rootAgents, 'workflows', 'story-execute.md'),
+      path.join(rootAgents, 'workflows', 'story-deliver.md'),
       '# run\n',
     );
 
@@ -1214,7 +1214,7 @@ test('copyAgentsFromRoot: recursively copies root .agents into the worktree', ()
     );
     assert.equal(
       fs.readFileSync(
-        path.join(wtAgents, 'workflows', 'story-execute.md'),
+        path.join(wtAgents, 'workflows', 'story-deliver.md'),
         'utf8',
       ),
       '# run\n',
