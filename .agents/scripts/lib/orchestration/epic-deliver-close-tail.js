@@ -203,16 +203,42 @@ function assertCloseTailInputs({ epicId, provider, runFinalizeFn }) {
 }
 
 /**
+ * Best-effort lifecycle emit helper — Story #2250 / #2252.
+ *
+ * Wraps `bus.emit` in a try/catch so the close-tail orchestrator is
+ * never blocked by a misbehaving observability surface. When `bus` is
+ * `null` (legacy tests, unit fixtures), the helper is a no-op.
+ */
+async function emitLifecycleSafe({ bus, event, payload, logger }) {
+  if (!bus || typeof bus.emit !== 'function') return;
+  try {
+    await bus.emit(event, payload);
+  } catch (err) {
+    logger?.warn?.(
+      `[close-tail] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * End-to-end close-tail driver. Runs the four phases in order, writing
  * the checkpoint's `phase` field after each successful phase advance, and
  * resuming from the checkpoint when called against an Epic that crashed
  * mid-tail on a prior invocation.
+ *
+ * Story #2250 / #2252 — when `opts.bus` is supplied the runner emits
+ * the umbrella `epic.close.start` event before Phase C (close-validation)
+ * starts and `epic.close.end` after Phase E (retro) settles. The
+ * umbrella pair brackets the three sub-phase event pairs
+ * (`close-validate.*`, `code-review.*`, `retro.*`) so the lifecycle
+ * ledger shows the full sub-phase ordering with explicit durations.
  *
  * @param {{
  *   epicId: number,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
  *   checkpointer?: Checkpointer,
+ *   bus?: object|null,
  *   runWaveGateFn?: ({ epicId: number }) => Promise<{ exitCode?: number, message?: string }>,
  *   runHierarchyGateFn?: ({ epicId: number }) => Promise<{ exitCode?: number, message?: string }>,
  *   runCodeReviewFn?: typeof runCodeReviewDefault,
@@ -242,6 +268,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     epicId,
     provider,
     logger,
+    bus = null,
     runWaveGateFn,
     runHierarchyGateFn,
     runCodeReviewFn = runCodeReviewDefault,
@@ -270,6 +297,24 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   const phaseCtx = { resumePhase, checkpointer, phasesRun, phasesSkipped };
 
   // ---------- Phase C: close-validation ----------
+  // Story #2250 — emit the umbrella `epic.close.start` immediately
+  // before Phase C runs (when it is NOT being skipped on resume). The
+  // umbrella event brackets the three sub-phase event pairs
+  // (`close-validate.*`, `code-review.*`, `retro.*`). On a resume that
+  // skips past close-validation, the original run's ledger already
+  // carries `epic.close.start`; emitting again here would double-count.
+  const shouldEmitEpicCloseStart = !shouldSkipPhase(
+    resumePhase,
+    'close-validation',
+  );
+  if (shouldEmitEpicCloseStart) {
+    await emitLifecycleSafe({
+      bus,
+      event: 'epic.close.start',
+      payload: { epicId },
+      logger,
+    });
+  }
   const c = await runPhase({
     ...phaseCtx,
     phase: 'close-validation',
@@ -303,7 +348,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     phase: 'code-review',
     nextPhase: 'retro',
     errorReason: 'code-review-error',
-    body: () => runCodeReviewFn({ epicId, provider, logger }),
+    body: () => runCodeReviewFn({ epicId, provider, logger, bus }),
     onResult: (review) => {
       result.review = review;
       return review?.halted
@@ -342,12 +387,13 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   }
 
   // ---------- Phase E: retro ----------
+  const retroRan = !shouldSkipPhase(resumePhase, 'retro');
   const e = await runPhase({
     ...phaseCtx,
     phase: 'retro',
     nextPhase: 'finalize',
     errorReason: 'retro-error',
-    body: () => runRetroFn({ epicId, provider, logger }),
+    body: () => runRetroFn({ epicId, provider, logger, bus }),
     onResult: (retro) => {
       result.retro = retro;
       return null;
@@ -355,6 +401,18 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   });
   if (!e.done) {
     return finishResult(result, e.blocker, phasesRun, phasesSkipped);
+  }
+  // Story #2252 — emit the umbrella `epic.close.end` after Phase E
+  // settles. Symmetric with `epic.close.start`: when retro is skipped on
+  // resume (because the original run finished retro), the umbrella end
+  // is already in the prior run's ledger and we must not re-emit.
+  if (retroRan) {
+    await emitLifecycleSafe({
+      bus,
+      event: 'epic.close.end',
+      payload: { epicId },
+      logger,
+    });
   }
 
   // ---------- Phase F: finalize ----------

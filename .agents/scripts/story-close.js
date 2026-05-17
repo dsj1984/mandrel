@@ -739,6 +739,7 @@ async function runPreMergeValidation({
   noEvidenceFlag,
   phaseTimer,
   provider,
+  bus = null,
 }) {
   // Self-heal format drift carried in from upstream waves before the
   // check-only gate fails the close. Lint-staged misses files outside
@@ -770,6 +771,9 @@ async function runPreMergeValidation({
   }
   // Story #1120: gates spawn in the worktree, not main. Story #1124:
   // baseline-gate failures route through the attribution classifier.
+  // Story #2250: pass `bus` through so the pre-merge gate chain emits
+  // `close-validate.start`/`.end` events and a typed `story.blocked` on
+  // failure (which BlockerHandler cascades to `epic.blocked`).
   const gateOutcome = await runPreMergeGatesWithAttribution({
     cwd,
     worktreePath,
@@ -781,6 +785,7 @@ async function runPreMergeValidation({
     useEvidence: !noEvidenceFlag,
     phaseTimer,
     provider,
+    bus,
   });
   if (gateOutcome?.status === 'blocked') return gateOutcome;
   // Story #2136 — coverage-capture timeout shares the short-circuit so the
@@ -930,6 +935,7 @@ async function runStoryCloseLocked({
       noEvidenceFlag,
       phaseTimer,
       provider,
+      bus,
     });
     if (gateOutcome?.status === 'blocked') {
       return emitBaselineBlockedResult({

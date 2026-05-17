@@ -807,6 +807,7 @@ export async function runPreMergeGatesWithAttribution({
   useEvidence,
   phaseTimer,
   provider,
+  bus = null,
   runPreMergeGates = defaultRunPreMergeGates,
   handleBaselineGateFailureFn = handleBaselineGateFailure,
   projectRegressionsFn = projectRegressionsForGate,
@@ -831,6 +832,7 @@ export async function runPreMergeGatesWithAttribution({
         epicId,
         useEvidence,
         phaseTimer,
+        bus,
         logger,
       });
       return { status: 'ok' };
@@ -901,6 +903,7 @@ export async function runPreMergeGatesWithAttribution({
     epicId,
     useEvidence,
     phaseTimer,
+    bus,
     logger,
   });
   return { status: 'ok' };

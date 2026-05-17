@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/close-validate.end.schema.json",
+  "title": "close-validate.end",
+  "description": "Emitted at the end of the close-validate sub-phase. ok=true => every gate passed; ok=false => failedGate identifies the first failed gate. durationMs is wall-clock time spent in the gate chain. Story #2250.",
+  "type": "object",
+  "required": ["epicId", "storyId", "ok"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "storyId": { "type": "integer", "minimum": 1 },
+    "ok": { "type": "boolean" },
+    "gateCount": { "type": "integer", "minimum": 0 },
+    "failedGate": { "type": "string", "minLength": 1 },
+    "exitCode": { "type": "integer" },
+    "durationMs": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}
