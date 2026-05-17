@@ -28,25 +28,25 @@ const TEMPLATE_PATH = path.resolve(
 
 const ONE_PAGER = `# Refined Idea
 
-## Problem Statement
+## Context
 
 Customers cannot search past invoices.
 
-## Recommended Direction
+## Goal
 
 Add a full-text invoice search endpoint backed by Postgres GIN.
 
-## Key Assumptions to Validate
+## Non-Goals
 
-- Search latency stays under 500ms on representative tenant data.
+- Full-text on attachments — out of MVP.
 
-## MVP Scope
+## Scope
 
 In: invoices owned by the requesting tenant. Out: cross-tenant search.
 
-## Not Doing (and Why)
+## Acceptance Criteria
 
-- Full-text on attachments — out of MVP.
+- [ ] Search latency stays under 500ms on representative tenant data.
 `;
 
 describe('updateEpicFromOnePager', () => {

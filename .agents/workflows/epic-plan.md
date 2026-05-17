@@ -108,10 +108,10 @@ new Epic is genuinely distinct).
    [`.agents/scripts/lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js).
    The `template` argument is the contents of
    [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md),
-   which carries the five canonical sections (Problem, Direction,
-   Assumptions, MVP Scope, Not Doing). Sections missing from the
-   one-pager are rendered as `_(not specified)_` rather than left as
-   raw `{{token}}` placeholders.
+   which carries the five canonical sections (Context, Goal, Non-Goals,
+   Scope, Acceptance Criteria). Sections missing from the one-pager are
+   rendered as `_(not specified)_` rather than left as raw `{{token}}`
+   placeholders.
 
 2. **HITL stop — confirm the body**: Display the rendered body to the
    operator and **STOP**. Do not proceed to Phase 4 until the user
@@ -165,9 +165,13 @@ Runs on every existing-Epic invocation, immediately after Phase 5
 Spec). The gate scores the Epic body against the five canonical
 sections from
 [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md)
-(Problem, Direction, Assumptions, MVP Scope, Not Doing) and either
+(Context, Goal, Non-Goals, Scope, Acceptance Criteria) and either
 skips fast (when the Epic body is already clear) or drops into a
-refinement loop seeded from the current Epic body.
+refinement loop seeded from the current Epic body. The scorer also
+accepts common heading variants for back-compat (e.g. `## Problem`,
+`## Direction`, `## MVP Scope`, `## Not Doing`, `## Out of Scope`) so
+hand-authored Epics that predate the canonical headings continue to
+pass without rewording.
 
 The rubric is deterministic: section-presence against the five
 canonical headings. The threshold is ≥ 4 of 5 sections present →

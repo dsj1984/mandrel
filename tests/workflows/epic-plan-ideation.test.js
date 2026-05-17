@@ -3,7 +3,8 @@
  * Phase 0c/0d helpers used by the s-plan-ideation entry of /epic-plan.
  *
  * Covers:
- *  - parseOnePager extracts the five canonical sections + title
+ *  - parseOnePager extracts the five canonical sections + title from
+ *    both the new canonical heading shape and the legacy ideation shape
  *  - renderEpicBody substitutes template tokens and flags missing
  *    sections
  *  - openEpicFromOnePager calls the injected createIssue port with the
@@ -29,7 +30,33 @@ const TEMPLATE_PATH = path.resolve(
   '../../.agents/templates/epic-from-idea.md',
 );
 
-const SAMPLE_ONE_PAGER = `# Webhook Idempotency Layer
+const CANONICAL_ONE_PAGER = `# Webhook Idempotency Layer
+
+## Context
+
+Duplicate webhook deliveries cause double-charged invoices. We bet
+that replays arrive within 24h.
+
+## Goal
+
+Introduce a fingerprint-keyed dedup store with 24h TTL. The store sits
+in front of the webhook handler and short-circuits replays.
+
+## Non-Goals
+
+- Cross-region replication — single-region MVP is enough.
+
+## Scope
+
+In: Stripe + GitHub webhooks. Out: per-tenant TTL tuning.
+
+## Acceptance Criteria
+
+- [ ] Duplicate Stripe webhook within 24h does not produce a second invoice.
+- [ ] Latency overhead on the happy path stays under 5ms p95.
+`;
+
+const LEGACY_ONE_PAGER = `# Webhook Idempotency Layer
 
 ## Problem Statement
 
@@ -40,11 +67,6 @@ Duplicate webhook deliveries cause double-charged invoices.
 Introduce a fingerprint-keyed dedup store with 24h TTL. The store sits
 in front of the webhook handler and short-circuits replays.
 
-## Key Assumptions to Validate
-
-- [ ] Replays arrive within 24h
-- [ ] Fingerprint hash is stable across providers
-
 ## MVP Scope
 
 In: Stripe + GitHub webhooks. Out: per-tenant TTL tuning.
@@ -52,25 +74,37 @@ In: Stripe + GitHub webhooks. Out: per-tenant TTL tuning.
 ## Not Doing (and Why)
 
 - Cross-region replication — single-region MVP is enough.
+
+## Acceptance Criteria
+
+- [ ] Duplicate Stripe webhook within 24h does not produce a second invoice.
 `;
 
 describe('parseOnePager', () => {
-  it('extracts title and all five canonical sections', () => {
-    const out = parseOnePager(SAMPLE_ONE_PAGER);
+  it('extracts title and all five canonical sections from the canonical shape', () => {
+    const out = parseOnePager(CANONICAL_ONE_PAGER);
     assert.equal(out.title, 'Webhook Idempotency Layer');
-    assert.match(out.problem, /Duplicate webhook deliveries/);
-    assert.match(out.direction, /fingerprint-keyed dedup store/);
-    assert.match(out.assumptions, /Replays arrive within 24h/);
-    assert.match(out.mvpScope, /Stripe \+ GitHub webhooks/);
-    assert.match(out.notDoing, /Cross-region replication/);
+    assert.match(out.context, /Duplicate webhook deliveries/);
+    assert.match(out.goal, /fingerprint-keyed dedup store/);
+    assert.match(out.nonGoals, /Cross-region replication/);
+    assert.match(out.scope, /Stripe \+ GitHub webhooks/);
+    assert.match(out.acceptanceCriteria, /Duplicate Stripe webhook/);
+  });
+
+  it('parses the legacy ideation-shape one-pager (Problem / Direction / MVP Scope / Not Doing)', () => {
+    const out = parseOnePager(LEGACY_ONE_PAGER);
+    assert.equal(out.title, 'Webhook Idempotency Layer');
+    assert.match(out.context, /Duplicate webhook deliveries/);
+    assert.match(out.goal, /fingerprint-keyed dedup store/);
+    assert.match(out.nonGoals, /Cross-region replication/);
+    assert.match(out.scope, /Stripe \+ GitHub webhooks/);
+    assert.match(out.acceptanceCriteria, /Duplicate Stripe webhook/);
   });
 
   it('returns Untitled Epic when no h1 is present', () => {
-    const out = parseOnePager(
-      '## Problem Statement\nthing\n## Recommended Direction\nway',
-    );
+    const out = parseOnePager('## Context\nthing\n## Goal\nway');
     assert.equal(out.title, 'Untitled Epic');
-    assert.match(out.problem, /thing/);
+    assert.match(out.context, /thing/);
   });
 
   it('rejects empty input', () => {
@@ -83,27 +117,27 @@ describe('renderEpicBody', () => {
   it('substitutes all five section tokens against the canonical template', () => {
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
     const { title, body } = renderEpicBody({
-      onePager: SAMPLE_ONE_PAGER,
+      onePager: CANONICAL_ONE_PAGER,
       template,
     });
     assert.equal(title, 'Webhook Idempotency Layer');
     assert.match(body, /^# Webhook Idempotency Layer/m);
-    assert.match(body, /## Problem\n\nDuplicate webhook/);
-    assert.match(body, /## Direction\n\nIntroduce a fingerprint-keyed/);
-    assert.match(body, /## Assumptions\n\n- \[ \] Replays/);
-    assert.match(body, /## MVP Scope\n\nIn: Stripe/);
-    assert.match(body, /## Not Doing\n\n- Cross-region/);
+    assert.match(body, /## Context\n\nDuplicate webhook/);
+    assert.match(body, /## Goal\n\nIntroduce a fingerprint-keyed/);
+    assert.match(body, /## Non-Goals\n\n- Cross-region/);
+    assert.match(body, /## Scope\n\nIn: Stripe/);
+    assert.match(body, /## Acceptance Criteria\n\n- \[ \] Duplicate Stripe/);
     // No leftover {{ tokens
     assert.ok(!body.includes('{{'));
   });
 
   it('flags missing sections instead of leaving raw tokens', () => {
     const template = fs.readFileSync(TEMPLATE_PATH, 'utf8');
-    const minimal =
-      '# Tiny Epic\n\n## Problem Statement\n\nOnly a problem here.\n';
+    const minimal = '# Tiny Epic\n\n## Context\n\nOnly a context here.\n';
     const { body } = renderEpicBody({ onePager: minimal, template });
-    assert.match(body, /## Direction\n\n_\(not specified\)_/);
-    assert.match(body, /## MVP Scope\n\n_\(not specified\)_/);
+    assert.match(body, /## Goal\n\n_\(not specified\)_/);
+    assert.match(body, /## Scope\n\n_\(not specified\)_/);
+    assert.match(body, /## Acceptance Criteria\n\n_\(not specified\)_/);
     assert.ok(!body.includes('{{'));
   });
 });
@@ -118,7 +152,7 @@ describe('openEpicFromOnePager', () => {
     };
 
     const out = await openEpicFromOnePager({
-      onePager: SAMPLE_ONE_PAGER,
+      onePager: CANONICAL_ONE_PAGER,
       template,
       createIssue,
     });
@@ -133,7 +167,7 @@ describe('openEpicFromOnePager', () => {
         `state::* label leaked into payload: ${lbl}`,
       );
     }
-    assert.match(captured.body, /## Problem\n\nDuplicate webhook/);
+    assert.match(captured.body, /## Context\n\nDuplicate webhook/);
 
     // Returned envelope
     assert.equal(out.id, 4242);
@@ -147,7 +181,7 @@ describe('openEpicFromOnePager', () => {
     await assert.rejects(
       () =>
         openEpicFromOnePager({
-          onePager: SAMPLE_ONE_PAGER,
+          onePager: CANONICAL_ONE_PAGER,
           template,
           createIssue: 'not-a-fn',
         }),
@@ -160,7 +194,7 @@ describe('openEpicFromOnePager', () => {
     await assert.rejects(
       () =>
         openEpicFromOnePager({
-          onePager: SAMPLE_ONE_PAGER,
+          onePager: CANONICAL_ONE_PAGER,
           template,
           createIssue: async () => ({ url: 'no-id' }),
         }),

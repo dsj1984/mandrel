@@ -2,27 +2,35 @@
  * epic-plan-clarity.js — Phase 6 Epic Clarity Gate scoring.
  *
  * Pure, deterministic rubric: parse the Epic body for the five canonical
- * sections defined by `.agents/templates/epic-from-idea.md` (Problem,
- * Direction, Assumptions, MVP Scope, Not Doing) and emit a verdict of
+ * sections defined by `.agents/templates/epic-from-idea.md` (Context,
+ * Goal, Non-Goals, Scope, Acceptance Criteria) and emit a verdict of
  * `clear` (≥ 4 of 5 sections present) or `needs-refinement` along with a
  * gap list for the refinement loop seed.
  *
- * Heading variants matched per Story #2128 / Phase 6:
- *   - `## Problem` or `## Problem Statement`
- *   - `## Direction` or `## Recommended Direction`
- *   - `## Assumptions`, `## Key Assumptions`, or `## Key Assumptions to Validate`
- *   - `## MVP Scope`
- *   - `## Not Doing` or `## Not Doing (and Why)`
+ * Heading variants accepted per canonical section (back-compat with the
+ * pre-canonical-headings ideation shape):
+ *   - `## Context`, `## Background`, `## Problem`, `## Problem Statement`,
+ *     `## Context & Problem`
+ *   - `## Goal`, `## Goals`, `## Objective`, `## Objectives`,
+ *     `## Direction`, `## Recommended Direction`
+ *   - `## Non-Goals`, `## Non Goals`, `## Out of Scope`, `## Not Doing`,
+ *     `## Not Doing (and Why)`
+ *   - `## Scope`, `## Scope (...)`, `## MVP Scope`, `## Proposed Scope`,
+ *     `## Work Breakdown`
+ *   - `## Acceptance Criteria`, `## Acceptance`, `## AC`
  *
  * Pure ESM, no I/O.
  */
 
 const SECTION_RE = {
-  problem: /^##\s+Problem(?:\s+Statement)?\s*$/im,
-  direction: /^##\s+(?:Recommended\s+)?Direction\s*$/im,
-  assumptions: /^##\s+(?:Key\s+)?Assumptions(?:\s+to\s+Validate)?\s*$/im,
-  mvpScope: /^##\s+MVP\s+Scope\s*$/im,
-  notDoing: /^##\s+Not\s+Doing(?:\s+\(and\s+Why\))?\s*$/im,
+  context:
+    /^##\s+(?:Context(?:\s+&\s+Problem)?|Background|Problem(?:\s+Statement)?)\s*$/im,
+  goal: /^##\s+(?:Goals?|Objectives?|(?:Recommended\s+)?Direction)\s*$/im,
+  nonGoals:
+    /^##\s+(?:Non[\s-]?Goals|Out\s+of\s+Scope|Not\s+Doing(?:\s+\(and\s+Why\))?)\s*$/im,
+  scope:
+    /^##\s+(?:MVP\s+|Proposed\s+)?Scope(?:\s+\([^)]+\))?\s*$|^##\s+Work\s+Breakdown\s*$/im,
+  acceptanceCriteria: /^##\s+(?:Acceptance(?:\s+Criteria)?|AC)\s*$/im,
 };
 
 /**
@@ -30,11 +38,11 @@ const SECTION_RE = {
  * tests, downstream tooling) can iterate without re-deriving the list.
  */
 export const SECTION_NAMES = Object.freeze([
-  'problem',
-  'direction',
-  'assumptions',
-  'mvpScope',
-  'notDoing',
+  'context',
+  'goal',
+  'nonGoals',
+  'scope',
+  'acceptanceCriteria',
 ]);
 
 const CLEAR_THRESHOLD = 4;
