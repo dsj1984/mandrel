@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed — Story #2171: rename `/story-execute` → `/story-deliver` (hard cutover)
+
+Mirror the epic-side naming (`/epic-deliver`) on the story-side workflows.
+Closes #2171.
+
+- **`refactor: rename story workflows to deliver`** — the user-facing slash
+  commands `/story-execute` and `/single-story-execute` are renamed to
+  `/story-deliver` and `/single-story-deliver`. The backing workflow files
+  move from `.agents/workflows/story-execute.md` and
+  `.agents/workflows/single-story-execute.md` to
+  `story-deliver.md` and `single-story-deliver.md`. The internal helper
+  script `.agents/scripts/story-execute-prepare.js` is renamed to
+  `story-deliver-prepare.js` (exported `runStoryDeliverPrepare`) and the
+  test directory `tests/story-execute/` is renamed to `tests/story-deliver/`.
+  All in-repo cross-references, log strings, and baselines are updated to
+  the new names; `.claude/commands/` is regenerated via `npm run sync:commands`.
+- **No backward-compat aliases.** This is a hard cutover — consumers update
+  on the next `dist` sync. The pre-v6 archive (`docs/archive/CHANGELOG-pre-v6.md`)
+  and the v6.1.0 snapshot doc (`docs/quality-floor-inventory-v6-1-0.md`) are
+  preserved verbatim as historical record.
+
 ### Added — Story #2128: `/epic-plan` Phase 6 Epic Clarity Gate
 
 - **`feat(epic-plan): add Phase 6 Epic Clarity Gate`** — every

@@ -147,7 +147,7 @@ describe('aggregateWaveStatus', () => {
 });
 
 describe('validateResults', () => {
-  it('accepts canonical /story-execute return rows', () => {
+  it('accepts canonical /story-deliver return rows', () => {
     const out = validateResults([
       { storyId: 1, status: 'done', tasksDone: 3, tasksTotal: 3 },
       { storyId: 2, status: 'blocked', blockerCommentId: 'c-99' },

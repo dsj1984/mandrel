@@ -81,7 +81,7 @@ The "STOP and ask the operator" guidance above applies when a human is in
 the loop. When you are running as a **sub-agent** of another skill — most
 commonly a Task executor under
 [`.agents/workflows/helpers/task-execute.md`](../../../workflows/helpers/task-execute.md),
-spawned by `/story-execute` — there is **no input channel** to ask. In that
+spawned by `/story-deliver` — there is **no input channel** to ask. In that
 context:
 
 1. Pick the **narrowest reasonable interpretation** that satisfies the

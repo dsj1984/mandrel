@@ -8,7 +8,7 @@
  * `{ storyId, worktree }` entries. The `/epic-deliver` skill consumes that
  * list (one wave at a time) to format one assistant turn containing N
  * parallel `Agent` tool calls (subagent_type `general-purpose`), each of
- * which drives `/story-execute <storyId>` for one Story.
+ * which drives `/story-deliver <storyId>` for one Story.
  *
  * `launchWave(stories)` is a convenience for callers that already hold a
  * concrete dispatch adapter (tests, future programmatic harnesses). It calls

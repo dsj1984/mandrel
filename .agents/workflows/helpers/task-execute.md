@@ -1,6 +1,6 @@
 # Task Execution — Inline Helper
 
-Procedural module read **inline per Task** by [`/story-execute`](../story-execute.md).
+Procedural module read **inline per Task** by [`/story-deliver`](../story-deliver.md).
 This is **not** a slash command — there is no `/task-execute` registration in
 `.claude/commands/`. The Story skill loads this file once per child Task in
 its sequential loop.
@@ -51,7 +51,7 @@ its sequential loop.
    - The CLI never passes `--no-verify` — commit hooks are intentional
      defense-in-depth and must run.
    - Output is `{ sha, branch, subject }`. Capture `sha` so
-     `/story-execute` can record it on the next `story-run-progress` write.
+     `/story-deliver` can record it on the next `story-run-progress` write.
    - If the CLI exits non-zero (branch drift, hook failure, empty diff),
      **STOP**. Do not retry by skipping hooks. Surface the failure to the
      caller.

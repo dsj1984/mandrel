@@ -6,11 +6,11 @@ description: >-
   `story-close.js` to merge into the Epic branch and reap the worktree.
 ---
 
-# /story-execute #[Story ID]
+# /story-deliver #[Story ID]
 
 ## Overview
 
-`/story-execute` is the **single-Story worker**. It sits below
+`/story-deliver` is the **single-Story worker**. It sits below
 [`/epic-deliver`](epic-execute.md) (which fans out one Story sub-agent per
 slot, per wave) and runs one Story from init to close in one invocation.
 
@@ -18,7 +18,7 @@ slot, per wave) and runs one Story from init to close in one invocation.
 /epic-deliver <epicId>
   → for each wave N:
       Agent tool × concurrencyCap parallel calls (one assistant turn):
-        /story-execute <storyId>
+        /story-deliver <storyId>
           → story-init.js
           → for each Task: read helpers/task-execute.md inline
           → story-close.js
@@ -29,10 +29,10 @@ The argument is always a **Story ID** (`type::story`). Epic IDs go through
 they are implemented by their parent Story's loop.
 
 **Standalone Stories** (no `Epic: #N` in body) use
-[`/single-story-execute`](single-story-execute.md) instead — that workflow
+[`/single-story-deliver`](single-story-deliver.md) instead — that workflow
 branches from `main`, opens its PR directly to `main`, and skips the
 Epic-scoped machinery (cascade, dispatch manifest, dashboard regen).
-`/story-execute` requires a parent Epic and will refuse to initialize a
+`/story-deliver` requires a parent Epic and will refuse to initialize a
 Story that lacks the `Epic: #N` reference.
 
 > **Worktree isolation.** When `delivery.worktreeIsolation.enabled` is
@@ -46,7 +46,7 @@ Story that lacks the `Epic: #N` reference.
 
 ## Non-interactive execution contract
 
-`/story-execute` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
+`/story-deliver` runs as a sub-agent of `/epic-deliver`'s per-wave fan-out
 (common case) or interactively for a single Story. Sub-agent runs share
 the parent's permissions but have **no input channel** mid-run.
 
@@ -114,7 +114,7 @@ Re-read the `story-init` comment, apply the install tri-state, and upsert
 the initial snapshot (every Task pinned to `pending`, `phase: "init"`):
 
 ```bash
-node .agents/scripts/story-execute-prepare.js --story <storyId> --cwd .
+node .agents/scripts/story-deliver-prepare.js --story <storyId> --cwd .
 ```
 
 The CLI runs the install command when `dependenciesInstalled === 'false'`
@@ -140,7 +140,7 @@ For **each child Task** in the order returned by `story-init.js`:
      --story <storyId> --task <taskId> --state executing --phase implementing
    ```
 
-   **Resume-skip.** If a prior `/story-execute` run already closed this Task
+   **Resume-skip.** If a prior `/story-deliver` run already closed this Task
    (commit landed on the Story branch + Task ticket flipped to `agent::done`
    by Step 3 below), the script returns `{ ok: true, skip: true, reason:
    'task-already-complete-and-reachable', ... }` without mutating anything.
@@ -286,7 +286,7 @@ has the latest body relayed during Step 1 / Step 3.
 `story-init.js` re-prints the same `workCwd` without recreating the
 worktree. `story-run-progress` is upserted in place. `story-close.js`
 short-circuits when the Story branch is already merged and deleted. Re-
-running `/story-execute` against an already-closed Story is safe.
+running `/story-deliver` against an already-closed Story is safe.
 
 ---
 

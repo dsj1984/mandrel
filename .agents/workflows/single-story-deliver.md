@@ -5,28 +5,28 @@ description:
   opens a PR directly against main.
 ---
 
-# /single-story-execute #[Story ID]
+# /single-story-deliver #[Story ID]
 
 ## Overview
 
-`/single-story-execute` is the standalone counterpart to
-[`/story-execute`](story-execute.md). Use it for a Story that is **not**
+`/single-story-deliver` is the standalone counterpart to
+[`/story-deliver`](story-deliver.md). Use it for a Story that is **not**
 attached to an Epic — refactors carved out of closed Epics, framework
 maintenance, or any work small enough that the Epic-Centric ceremony
 (PRD + Tech Spec + decomposition + dispatch manifest + cascade) would be
 overhead rather than help.
 
 ```text
-/single-story-execute <storyId>
+/single-story-deliver <storyId>
   → single-story-init.js          (branch from main, worktree, agent::executing)
   → agent implements + commits     (operator works in the worktree)
   → single-story-close.js          (gates, push, gh pr create → main, agent::done)
   → CI watch + fix loop            (until all required checks pass + PR is merged)
 ```
 
-**When to use `/single-story-execute` vs. `/story-execute`:**
+**When to use `/single-story-deliver` vs. `/story-deliver`:**
 
-| Trait                         | `/single-story-execute`                              | `/story-execute`                                        |
+| Trait                         | `/single-story-deliver`                              | `/story-deliver`                                        |
 | ----------------------------- | ---------------------------------------------------- | ------------------------------------------------------- |
 | Parent Epic                   | None (no `Epic: #N` in body)                         | Required (`Epic: #N` in body)                           |
 | Branch base                   | `project.baseBranch` (default `main`)          | `epic/<epicId>`                                         |
@@ -35,7 +35,7 @@ overhead rather than help.
 | Dispatch manifest interaction | None                                                 | Read at init, regenerated at close                      |
 | Child Task ceremony           | None (standalone Story is atomic)                    | Required (per-Task `task-commit.js` loop)               |
 
-If the Story has an `Epic: #N` reference, use `/story-execute`. If it
+If the Story has an `Epic: #N` reference, use `/story-deliver`. If it
 doesn't, use this workflow.
 
 ## Prerequisites
@@ -94,7 +94,7 @@ The sweep applies two hardening layers (Story #2011):
   operator can see what was preserved.
 - **Cross-session lock.** The sweep acquires a process-scoped lockfile
   at `<tempRoot>/single-story-sweep.lock` before planning. On
-  contention (another `/single-story-execute` already in the sweep
+  contention (another `/single-story-deliver` already in the sweep
   step), this run's sweep is **skipped** with a warn log; init
   continues normally. Stale lockfiles (mtime older than the timeout)
   are treated as expired. The timeout defaults to 60 seconds and is
@@ -314,7 +314,7 @@ GitHub deletes the **remote** branch on auto-merge (via the
 `--delete-branch` flag `single-story-close.js` passes to `gh pr merge`).
 The **local** `story-<storyId>` ref, however, lingers in the main
 checkout until something prunes it — `single-story-init.js` runs a
-merged-sweep at the start of every *subsequent* `/single-story-execute`
+merged-sweep at the start of every *subsequent* `/single-story-deliver`
 invocation, but that's next-run cleanup, not end-of-run cleanup. Stale
 local refs accumulate between sessions, clutter `git branch`, and shadow
 the lessons the sweep is meant to surface.
@@ -361,7 +361,7 @@ cleanup.
 - The PR probe (`gh pr list --head <branch> --state open`) reuses an
   existing open PR rather than opening a duplicate.
 
-Re-running `/single-story-execute` against an already-closed Story is
+Re-running `/single-story-deliver` against an already-closed Story is
 safe.
 
 ---
@@ -382,5 +382,5 @@ safe.
 
 ## See also
 
-- [`/story-execute`](story-execute.md) — Epic-attached Story execution.
+- [`/story-deliver`](story-deliver.md) — Epic-attached Story execution.
 - [`/epic-deliver`](epic-deliver.md) — full Epic wave loop.

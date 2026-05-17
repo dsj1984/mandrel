@@ -4,7 +4,7 @@
 /**
  * story-task-progress.js — per-Task transition writer.
  *
- * Each Task transition in `/story-execute` was previously expressed as
+ * Each Task transition in `/story-deliver` was previously expressed as
  * "compose this object literal in your head, splice it into the in-memory
  * tasks list, then call `upsertStoryRunProgress`." That left the workflow
  * markdown carrying procedural JS the sub-agent had to inline-execute on
@@ -32,7 +32,7 @@
  *
  * Stdout: `{ ok: true, taskState, phase, payload, renderedBody }` JSON
  * envelope. `renderedBody` is the markdown body that was upserted onto the
- * Story ticket — `/story-execute` relays it as a chat message after each
+ * Story ticket — `/story-deliver` relays it as a chat message after each
  * transition so operators see the same task-progress table the parent
  * `/epic-deliver` aggregator reads.
  *
@@ -40,9 +40,9 @@
  * that is already `agent::done` AND whose recorded commit is reachable from
  * `HEAD`, the script returns `{ ok: true, skip: true, reason, taskState:
  * 'done', phase, payload: null, renderedBody: null }` without mutating the
- * cache or the GitHub comment. `/story-execute`'s loop reads `skip` and
+ * cache or the GitHub comment. `/story-deliver`'s loop reads `skip` and
  * advances to the next Task — the workflow form of "pick up where the
- * prior run left off" after a kill mid-Story. See `story-execute.md`
+ * prior run left off" after a kill mid-Story. See `story-deliver.md`
  * Step 1 for the consumer side.
  *
  * Per-Task close (state=done): the script also flips the Task ticket to
@@ -327,12 +327,12 @@ export async function runStoryTaskProgress(args) {
   if (!snapshot) {
     throw new Error(
       `runStoryTaskProgress: no story-run-progress snapshot found for story #${storyId}; ` +
-        `run \`story-execute-prepare\` first to create the initial snapshot.`,
+        `run \`story-deliver-prepare\` first to create the initial snapshot.`,
     );
   }
   const branch = snapshot.branch ?? `story-${storyId}`;
 
-  // 1b. Resume-skip path: if `/story-execute` is re-entering the loop on a
+  // 1b. Resume-skip path: if `/story-deliver` is re-entering the loop on a
   // Task that already landed (commit on the Story branch HEAD) AND already
   // closed (`agent::done`) by a prior run's commit-time close, short-circuit
   // before mutating anything. The workflow caller reads `skip: true` and

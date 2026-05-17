@@ -141,7 +141,7 @@ describe('runCloseValidation — worktree-locality (Story #1120)', () => {
 });
 
 describe('runCloseValidation — standalone Story (epicId: null)', () => {
-  // Regression test for the single-story-execute close path. Standalone
+  // Regression test for the single-story-deliver close path. Standalone
   // Stories have no parent Epic to scope `validation-evidence.json`
   // under; `single-story-close.js` must pass `epicId: null` so the
   // evidence layer short-circuits. Prior to the fix it passed

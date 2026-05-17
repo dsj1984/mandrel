@@ -276,7 +276,7 @@ export function renderMalformedReturnsFriction({ epicId, wave, failures }) {
     '',
     `**Reason:** \`malformed-subagent-return\``,
     '',
-    `${failures.length} sub-agent return(s) did not match the /story-execute return contract.`,
+    `${failures.length} sub-agent return(s) did not match the /story-deliver return contract.`,
     'Each Story below was reconciled from GitHub (labels + `story-run-progress`)',
     'and its wave-row downgraded to `failed` unless the live ticket already carried',
     '`agent::done`.',

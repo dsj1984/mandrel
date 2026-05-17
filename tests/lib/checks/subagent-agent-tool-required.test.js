@@ -39,7 +39,7 @@ describe('subagent-agent-tool-required.detect', () => {
 
   it('returns null for sub-agent workflows that flatten fan-out (no Agent in tools list)', () => {
     fixture.write(
-      'story-execute.md',
+      'story-deliver.md',
       [
         '---',
         'description: >-',
@@ -48,7 +48,7 @@ describe('subagent-agent-tool-required.detect', () => {
         'tools: [Bash, Read, Edit, Grep, Glob, Write]',
         '---',
         '',
-        '# /story-execute',
+        '# /story-deliver',
         '',
         'The sub-agent does not dispatch nested Agents.',
       ].join('\n'),
