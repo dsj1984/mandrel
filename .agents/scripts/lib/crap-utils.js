@@ -156,37 +156,9 @@ export function getCrapBaseline(opts = {}) {
   return parsed;
 }
 
-function sortRows(rows) {
-  return [...rows].sort((a, b) => {
-    if (a.file !== b.file) return a.file < b.file ? -1 : 1;
-    if (a.startLine !== b.startLine) return a.startLine - b.startLine;
-    if (a.method !== b.method) return a.method < b.method ? -1 : 1;
-    return 0;
-  });
-}
-
-function canonicalizeRow(row) {
-  return {
-    crap: row.crap,
-    file: row.file,
-    method: row.method,
-    startLine: row.startLine,
-  };
-}
-
-function canonicalizeEnvelope(envelope) {
-  const ordered = {};
-  ordered.$schema = envelope.$schema ?? SCHEMA_REF;
-  ordered.escomplexVersion = envelope.escomplexVersion;
-  ordered.kernelVersion = envelope.kernelVersion;
-  ordered.rows = sortRows(envelope.rows).map(canonicalizeRow);
-  ordered.tsTranspilerVersion = envelope.tsTranspilerVersion ?? '0.0.0';
-  return ordered;
-}
-
 /**
  * Project rich scan rows onto the minimal baseline row shape and assemble an
- * envelope ready for `saveCrapBaseline`.
+ * envelope ready for the shared V2 writer.
  *
  * `tsTranspilerVersion` stamps the resolved `typescript` package version so
  * consumers can detect transpiler drift on TS rows. Defaults to the
@@ -224,27 +196,6 @@ export function buildBaselineEnvelope({
     })),
     tsTranspilerVersion,
   };
-}
-
-/**
- * Serialize an envelope to disk with deterministic ordering.
- *
- * Rows are sorted by `(file, startLine, method)`, top-level and row keys are
- * alphabetized, and the file terminates with a trailing newline — so a
- * re-save of the same logical envelope is byte-identical across runs and
- * platforms.
- *
- * @param {object} envelope
- * @param {{cwd?: string, baselinePath?: string}} [opts]
- */
-export function saveCrapBaseline(envelope, opts = {}) {
-  if (!envelope || typeof envelope !== 'object') {
-    throw new TypeError('saveCrapBaseline: envelope must be an object');
-  }
-  const canonical = canonicalizeEnvelope(envelope);
-  const filePath = resolveBaselinePath(opts);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.writeFileSync(filePath, `${JSON.stringify(canonical, null, 2)}\n`);
 }
 
 /**
