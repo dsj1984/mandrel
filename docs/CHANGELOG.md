@@ -111,6 +111,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.13.0](https://github.com/dsj1984/mandrel/compare/v1.12.0...v1.13.0) (2026-05-16)
+
+
+### Fixed
+
+* **quality:** inject framework-default floors in resolver; delete dead per-row machinery ([#2125](https://github.com/dsj1984/mandrel/issues/2125)) ([#2126](https://github.com/dsj1984/mandrel/issues/2126)) ([4c3d687](https://github.com/dsj1984/mandrel/commit/4c3d6875a7dd61eeb49888330f9711d29a91d1ea))
+
 ## [1.12.0](https://github.com/dsj1984/mandrel/compare/v1.11.0...v1.12.0) (2026-05-16)
 
 
