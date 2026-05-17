@@ -14,7 +14,7 @@
  *      `--full-scope` so a self-diff doesn't degrade to "no files in diff".
  *
  *   2. **Pass `--epic-ref` where the firing site is Epic-aware.** Inside
- *      `/story-execute` the close-validation chain already threads
+ *      `/story-deliver` the close-validation chain already threads
  *      `--epic-ref epic/<id>`; on CI the equivalent surface is the PR's
  *      base branch. The template wires `--epic-ref ${EPIC_REF}` through an
  *      env var the workflow computes from `github.head_ref` (story-N

@@ -445,7 +445,7 @@ renamed, moved, promoted, and bumped key.
 ### Context
 
 The three-level topology — `/epic-execute` → `wave-runner` →
-`/wave-execute` → `/story-execute` — depended on a custom `wave-runner`
+`/wave-execute` → `/story-deliver` — depended on a custom `wave-runner`
 sub-agent type whose frontmatter granted the `Agent` tool to the
 wave-level child. That contract was documented in framework code, but
 **the agent file was never scaffolded into consumer projects** by
@@ -496,7 +496,7 @@ Concrete changes:
 - Per-wave operator re-entry (`/wave-execute <epicId> <waveN>`) is no
   longer a slash command. Manual re-entry is `/epic-execute <id>`
   (resumes from checkpoint, re-fires the next undispatched wave) or
-  `/story-execute <id>` per Story. Strictly fewer escape hatches.
+  `/story-deliver <id>` per Story. Strictly fewer escape hatches.
 - Existing Epics with `wave-run-progress` comments on their tickets are
   unaffected — nothing reads those comments anymore; they remain as
   cosmetic leftovers and do not block resume.
@@ -517,7 +517,7 @@ Concrete changes:
 The orchestration topology described in tech spec #902 assumed three
 levels of in-session sub-agent fan-out: `/epic-execute` dispatches one
 `/wave-execute` per wave through the `Agent` tool, and each
-`/wave-execute` dispatches one `/story-execute` per Story in its plan.
+`/wave-execute` dispatches one `/story-deliver` per Story in its plan.
 The design assumption was that sub-agents inherit their parent's tool
 permissions, so a `/wave-execute` invoked as a `general-purpose`
 sub-agent would itself have the `Agent` tool available for the per-Story
@@ -862,7 +862,7 @@ Six framing questions drove the scope.
 - **Q2.** How does the wave loop fan out Stories — keep `claude -p`
   subprocesses, or use the Agent tool inside the single session?
 - **Q3.** Should `task-execute` be its own slash command, or a path-
-  included helper read inline by `/story-execute`?
+  included helper read inline by `/story-deliver`?
 - **Q4.** What is renamed in the sprint→epic sweep? Slash commands and
   helper `.md` files only, or top-level scripts and config keys too?
   Structured-comment markers? `lib/orchestration/*` paths?
@@ -892,14 +892,14 @@ ADR if the trade-off proves wrong.
 - **Q3 — `task-execute.md` is a helper, not a slash command.** The
   per-Task discipline (`## Instructions` reading, scope guard,
   `assert-branch`, conventional commit) is a procedural module read
-  inline by `/story-execute` — not registered in `.claude/commands/`.
+  inline by `/story-deliver` — not registered in `.claude/commands/`.
   Tasks are not directly executable; they are implemented by the
   parent Story's loop.
 - **Q4 — rename the operator-visible surface; keep internal markers
   and lib paths.**
   - Renamed: slash commands (`/epic-plan`, `/epic-close`), the new
     skill files (`epic-execute.md`, `wave-execute.md`,
-    `story-execute.md`), top-level scripts (`epic-plan*.js`,
+    `story-deliver.md`), top-level scripts (`epic-plan*.js`,
     `story-*.js`, `epic-*.js`), helper `.md` files under
     `workflows/helpers/`, and the config key
     `agentSettings.sprintClose.runRetro` →
@@ -912,7 +912,7 @@ ADR if the trade-off proves wrong.
     `lib/orchestration/*` module paths (internal facade decomposition;
     the public-facing renames already deliver the nomenclature win
     without churning every import path).
-- **Q5 — per-level progress, parents collate.** `/story-execute` writes
+- **Q5 — per-level progress, parents collate.** `/story-deliver` writes
   a `story-run-progress` structured comment per Task transition.
   `/wave-execute` reads child story progress comments and writes a
   wave-level rolled-up `wave-run-progress` comment. `/epic-execute`
@@ -954,7 +954,7 @@ config-key rename ships with a one-release shim so a typical
 
 - **For operators.** The `/sprint-*` muscle memory is gone. New flow:
   `/epic-plan <id>` → `/epic-execute <id>` → `/epic-close <id>`. For
-  a single Story off the dispatch table, run `/story-execute <id>`
+  a single Story off the dispatch table, run `/story-deliver <id>`
   directly. The four-skill split lets you stop or resume at any
   level.
 - **For repos that used the GitHub-trigger path.** That surface is
@@ -2632,14 +2632,14 @@ The seven-row recategorization matrix from the Epic body (#1184) codifies the sp
 | `agents-update` → `mandrel-update` | **Keep `agents-update`** | Updates the `.agents/` submodule pointer; that is what the name says. Same rationale as the bootstrap row. |
 | `delete-epic-*` workflows → scripts-only | **Keep as workflows** | Destructive operations benefit from slash-command discoverability and the workflow-level confirmation step. The scripts are thin, but the operator's entry point and confirmation home is the workflow file. |
 | `epic-plan` / `epic-deliver` → `mandrel-plan` / `mandrel-deliver` | **Keep as `epic-*`** | "Epic" is the domain concept the framework operates on. `mandrel-plan` is strictly less informative ("plan what?"). The noun the workflow acts on is the right primary axis for the name. |
-| `story-execute` → helper | **Keep as command** | Operator-facing for individual story re-runs and debugging. The documented argument is a Story ID; the workflow is intended to be human-invocable, not just a fan-out target. |
-| `worktree-lifecycle` → helper | **Move to `.agents/workflows/helpers/`** | The file self-describes as "operator and reviewer reference" — it is documentation, not an executable workflow. It is already path-included from `story-execute.md`. It should not appear in the `/` menu as runnable. After the move, `sync-claude-commands.js` automatically drops `.claude/commands/worktree-lifecycle.md` because the sync filter excludes the `helpers/` subdirectory. |
+| `story-deliver` → helper | **Keep as command** | Operator-facing for individual story re-runs and debugging. The documented argument is a Story ID; the workflow is intended to be human-invocable, not just a fan-out target. |
+| `worktree-lifecycle` → helper | **Move to `.agents/workflows/helpers/`** | The file self-describes as "operator and reviewer reference" — it is documentation, not an executable workflow. It is already path-included from `story-deliver.md`. It should not appear in the `/` menu as runnable. After the move, `sync-claude-commands.js` automatically drops `.claude/commands/worktree-lifecycle.md` because the sync filter excludes the `helpers/` subdirectory. |
 | `drain-pending-cleanup` → helper | **Keep as command** | Operator-facing escalation tool for Windows EBUSY. Automatic callers exist, but the manual path is load-bearing — an operator hitting a wedged worktree types `/drain-pending-cleanup` directly. |
 
 ### Consequences
 
 - **`/mandrel` becomes the canonical discoverability entry.** A new workflow at `.agents/workflows/mandrel.md` (landed by the companion Task #1619) prints the catalog auto-generated from the on-disk workflow set. The catalog is never stored on disk — generation happens at invocation time, so adding or renaming a workflow is reflected without a sync step.
-- **`worktree-lifecycle` is removed from the runnable `/` menu.** The file moves to `.agents/workflows/helpers/worktree-lifecycle.md`; `story-execute.md`'s path-include is updated to the new location; the next `npm run sync:commands` drops the orphan slash-command file.
+- **`worktree-lifecycle` is removed from the runnable `/` menu.** The file moves to `.agents/workflows/helpers/worktree-lifecycle.md`; `story-deliver.md`'s path-include is updated to the new location; the next `npm run sync:commands` drops the orphan slash-command file.
 - **Future commands inherit the rule.** When introducing a new workflow, the contributor picks the descriptive noun-verb pair and skips the brand prefix unless ambiguity is real. The one place ambiguity is real is the entry point itself, and that slot is now claimed by `/mandrel`.
 - **Adopters reading `docs/decisions.md`** can resolve "why isn't this `mandrel-*`?" without reopening the matrix. The seven rows are the load-bearing precedents.
 

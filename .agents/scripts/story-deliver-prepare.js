@@ -2,11 +2,11 @@
 /* node:coverage ignore file */
 
 /**
- * story-execute-prepare.js — post-init / pre-implementation prep step.
+ * story-deliver-prepare.js — post-init / pre-implementation prep step.
  *
  * After `story-init.js` has prepared the worktree and the operator (or
  * sub-agent) has `cd`'d into the workCwd, this CLI consolidates the three
- * things `/story-execute` Step 0.5/0.6 used to express in English prose:
+ * things `/story-deliver` Step 0.5/0.6 used to express in English prose:
  *
  *   1. Read the `story-init` structured comment off the Story ticket via
  *      `findStructuredComment`. The comment carries `workCwd`, the install
@@ -29,7 +29,7 @@
  * Stdout: a single JSON envelope `{ workCwd, dependenciesInstalled,
  * installAction, snapshot, renderedBody }` so the caller can decide what to
  * do next without re-reading the comment. `renderedBody` is the markdown
- * body that was upserted onto the Story ticket — `/story-execute` relays it
+ * body that was upserted onto the Story ticket — `/story-deliver` relays it
  * as a chat message at the start of each Story so operators see the initial
  * task table before the first commit lands.
  */
@@ -49,7 +49,7 @@ import { createProvider } from './lib/provider-factory.js';
 import { fetchChildTasks } from './lib/story-lifecycle.js';
 import { notify } from './notify.js';
 
-const HELP = `Usage: node .agents/scripts/story-execute-prepare.js \\
+const HELP = `Usage: node .agents/scripts/story-deliver-prepare.js \\
   --story <id> [--cwd <workCwd>] [--skip-install] [--install-cmd "<cmd>"]
 
 Reads the story-init structured comment off Story #<id>, runs the install
@@ -157,7 +157,7 @@ export async function readStoryInitComment({ provider, storyId }) {
  *   renderedBody: string,
  * }>}
  */
-export async function runStoryExecutePrepare(args) {
+export async function runStoryDeliverPrepare(args) {
   const {
     storyId,
     cwd: cwdOverride,
@@ -170,7 +170,7 @@ export async function runStoryExecutePrepare(args) {
 
   if (!Number.isInteger(storyId) || storyId <= 0) {
     throw new TypeError(
-      'runStoryExecutePrepare: --story must be a positive integer',
+      'runStoryDeliverPrepare: --story must be a positive integer',
     );
   }
 
@@ -189,7 +189,7 @@ export async function runStoryExecutePrepare(args) {
   const initPayload = await readStoryInitComment({ provider, storyId });
   if (!initPayload) {
     throw new Error(
-      `runStoryExecutePrepare: no story-init comment found on #${storyId}; ` +
+      `runStoryDeliverPrepare: no story-init comment found on #${storyId}; ` +
         `run \`node .agents/scripts/story-init.js --story ${storyId}\` first.`,
     );
   }
@@ -212,7 +212,7 @@ export async function runStoryExecutePrepare(args) {
     );
     if (installResult.status !== 0) {
       throw new Error(
-        `runStoryExecutePrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,
+        `runStoryDeliverPrepare: install command \`${installCmd}\` failed with status ${installResult.status}: ${installResult.stderr ?? ''}`,
       );
     }
   }
@@ -288,11 +288,11 @@ export async function main(argv = process.argv.slice(2)) {
     process.stdout.write(HELP);
     return;
   }
-  const envelope = await runStoryExecutePrepare(parsed);
+  const envelope = await runStoryDeliverPrepare(parsed);
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
 }
 
 // Re-export for symmetry with the other prepare-suite CLIs.
 export { STORY_RUN_PROGRESS_TYPE };
 
-runAsCli(import.meta.url, main, { source: 'story-execute-prepare' });
+runAsCli(import.meta.url, main, { source: 'story-deliver-prepare' });

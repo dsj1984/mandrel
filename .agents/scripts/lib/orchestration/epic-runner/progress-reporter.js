@@ -298,7 +298,7 @@ export class ProgressReporter {
         allIds,
         async (id) => {
           // Prefer the `story-run-progress` structured comment (post-#908,
-          // each /story-execute sub-agent updates this on every Task
+          // each /story-deliver sub-agent updates this on every Task
           // transition). When no comment exists yet — or it is malformed —
           // fall back to the legacy ticket-label state derivation so we
           // continue to render meaningful state during the rollout window
@@ -394,7 +394,7 @@ export class ProgressReporter {
    * Caches both terminal-phase parses and absent-comment results: a Story
    * either eventually publishes a comment (then transitions through phases
    * to `done`/`blocked` once and stays there) or never does (legacy stories
-   * closed before /story-execute existed). Either outcome is stable for the
+   * closed before /story-deliver existed). Either outcome is stable for the
    * remainder of the epic run.
    */
   async #tryReadStoryProgress(storyId) {

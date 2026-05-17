@@ -229,7 +229,7 @@ test('renderStoryInitCommentBody handles skipped install', () => {
 });
 
 test('renderStoryInitCommentBody embeds tasks[] in the fenced payload', () => {
-  // The downstream `story-execute-prepare.js` consumer reads
+  // The downstream `story-deliver-prepare.js` consumer reads
   // `initPayload.tasks` to seed the initial `story-run-progress` snapshot.
   // Without this, the snapshot was empty and every later `story-task-progress`
   // call failed with "task not found".

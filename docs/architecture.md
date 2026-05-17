@@ -161,7 +161,7 @@ The orchestration engine is the **runtime brain** — a set of JavaScript ESM
 scripts that automate the entire SDLC from planning through integration. The
 operator-facing surface is two slash commands on the SDL critical
 path — `/epic-plan` (with optional ideation entry) and `/epic-deliver` —
-plus `/story-execute` for single-Story drives off the dispatch table.
+plus `/story-deliver` for single-Story drives off the dispatch table.
 Planning is **git-state-free**: `/epic-plan` produces a declarative
 `epic.yaml` artifact (Epic #1182) that is diff-able, replayable,
 and reconcilable against GitHub via `epic-reconcile.js`; the Epic branch
@@ -594,7 +594,7 @@ tool.
 | Module              | Role                                                                                                |
 | ------------------- | --------------------------------------------------------------------------------------------------- |
 | `wave-scheduler`    | Iterates waves from `Graph.computeWaves()`; never spawns workers.                                   |
-| `story-launcher`    | Fans out up to `concurrencyCap` `/story-execute <storyId>` Agent-tool sub-agents in one message.    |
+| `story-launcher`    | Fans out up to `concurrencyCap` `/story-deliver <storyId>` Agent-tool sub-agents in one message.    |
 | `checkpointer`      | Upserts the `epic-run-state` structured comment; handles phase-granular resume across the six phases. |
 | `blocker-handler`   | The sole runtime pause point; halts on `agent::blocked`, waits to resume.                           |
 | `notification-hook` | Fire-and-forget webhook; never blocks execution.                                                    |
@@ -737,7 +737,7 @@ and escape hatches.
 
 ### Execution-model modes
 
-The two-skill execution surface (`/epic-deliver` and `/story-execute`) runs
+The two-skill execution surface (`/epic-deliver` and `/story-deliver`) runs
 in two execution-model modes that share one codepath and differ only in
 whether worktrees are created. The `resolveWorktreeEnabled` function in
 `lib/config-resolver.js` selects the mode at startup based on
@@ -774,11 +774,11 @@ whether worktrees are created. The `resolveWorktreeEnabled` function in
 
 Both modes share:
 
-- The same `/story-execute` Agent-tool sub-agent contract and the same
+- The same `/story-deliver` Agent-tool sub-agent contract and the same
   parent-driven dispatch logic out of `/epic-deliver`'s wave loop.
 - The launch-time dependency guard (`runDispatchManifestGuard`) that refuses
   a story with unmerged blockers.
-- Deterministic, operator-driven story assignment — `/story-execute` always
+- Deterministic, operator-driven story assignment — `/story-deliver` always
   takes an explicit Story id. There is no per-launch label race.
 - The bounded retry on the epic-branch push (`lib/push-epic-retry.js`,
   configured by `orchestration.runners.storyMergeRetry`) so concurrent closes from

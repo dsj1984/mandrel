@@ -169,7 +169,7 @@ taxonomy.
 | `epic-run-state`           | Structured comment  | HTML-marker-scoped JSON checkpoint on the Epic; single SSOT for wave progress and resume across all six `/epic-deliver` phases.    |
 | `wave-<N>-start`           | Structured comment  | Per-wave start marker with wave manifest and start timestamp.                                                                       |
 | `wave-<N>-end`             | Structured comment  | Per-wave end marker with story outcomes and duration.                                                                               |
-| `concurrencyCap`           | Config (integer)    | `orchestration.runners.deliverRunner.concurrencyCap`; max parallel `/story-execute <storyId>` sub-agents per wave.                  |
+| `concurrencyCap`           | Config (integer)    | `orchestration.runners.deliverRunner.concurrencyCap`; max parallel `/story-deliver <storyId>` sub-agents per wave.                  |
 | Blocker-escalation         | Flow state          | Runtime pause driven by `agent::blocked`; the sole HITL touchpoint during a run.                                                    |
 | Status (Projects v2)       | Project field       | Single-select custom field driven by `ColumnSync` from `agent::` labels.                                                            |
 
@@ -193,7 +193,7 @@ any prior comment of the same type.
 | `dispatch-manifest` | `/epic-plan` / dispatcher                           | Frozen Story manifest for the wave-gate.                                 |
 | `parked-follow-ons` | dispatcher                                          | Out-of-manifest Stories surfaced at the deliver-tail gate (recuts + parked). |
 | `story-init`        | `story-init.js`                                     | Initial Story metadata snapshot.                                         |
-| `story-run-progress`| `/story-execute`                                    | Per-Task transitions inside one Story.                                   |
+| `story-run-progress`| `/story-deliver`                                    | Per-Task transitions inside one Story.                                   |
 | `epic-run-progress` | `/epic-deliver` (`epic-execute-record-wave.js`)     | Cross-wave Story-level rollup, grouped by wave. Single comment, upserted in place after each wave. |
 | `code-review`       | `lib/orchestration/code-review.js` (Phase 4)        | Findings report posted on the Epic.                                      |
 | `retro`             | `lib/orchestration/retro-runner.js` (Phase 5)       | Final retrospective body with the `retro-complete` marker.               |

@@ -14,7 +14,7 @@
  * Usage: `node story-close.js --story <ID> [--epic <ID>]`. Exit codes:
  * 0 ok; 1 error; 2 prior-state (pass --resume / --restart).
  *
- * @see .agents/workflows/story-execute.md
+ * @see .agents/workflows/story-deliver.md
  */
 
 import { runAsCli } from './lib/cli-utils.js';

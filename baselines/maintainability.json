@@ -1451,7 +1451,7 @@
       "mi": 89.067
     },
     {
-      "path": ".agents/scripts/story-execute-prepare.js",
+      "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 93.255
     },
     {
@@ -3239,15 +3239,15 @@
       "mi": 100.79
     },
     {
-      "path": "tests/story-execute/story-execute-prepare.test.js",
+      "path": "tests/story-deliver/story-deliver-prepare.test.js",
       "mi": 106.035
     },
     {
-      "path": "tests/story-execute/story-task-progress.test.js",
+      "path": "tests/story-deliver/story-task-progress.test.js",
       "mi": 89.526
     },
     {
-      "path": "tests/story-execute/task-commit.test.js",
+      "path": "tests/story-deliver/task-commit.test.js",
       "mi": 107.92
     },
     {
