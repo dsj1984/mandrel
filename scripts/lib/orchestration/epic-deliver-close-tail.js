@@ -31,6 +31,7 @@
  * surface, not a separate orchestrator.
  */
 
+import { AGENT_LABELS } from '../label-constants.js';
 import { runCodeReview as runCodeReviewDefault } from './code-review.js';
 import {
   Checkpointer,
@@ -317,6 +318,26 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     },
   });
   if (!d.done) {
+    // Critical code-review findings are the single gating signal between
+    // Phase D and Phase E: per Story #2167, the runner MUST mark the Epic
+    // `agent::blocked`, post a friction comment summarizing the criticals,
+    // and throw before retro starts (the throw replaces the previous
+    // envelope-return so callers cannot silently advance past a halted
+    // review per `orchestration-error-handling.md`).
+    if (d.blocker?.reason === 'critical-findings') {
+      await markEpicBlockedForCriticalReview({
+        provider,
+        epicId,
+        review: result.review,
+        detail: d.blocker.detail,
+        logger,
+      });
+      throw new Error(
+        `[close-tail] Phase D halted: code-review reported critical findings — ${
+          d.blocker.detail ?? 'critical-findings'
+        }`,
+      );
+    }
     return finishResult(result, d.blocker, phasesRun, phasesSkipped);
   }
 
@@ -364,6 +385,51 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   result.phasesRun = phasesRun;
   result.phasesSkipped = phasesSkipped;
   return result;
+}
+
+/**
+ * Mark an Epic blocked because Phase D code-review surfaced critical
+ * findings. Flips `agent::executing` → `agent::blocked` and posts a
+ * structured friction comment summarizing the severity counts. Both
+ * side effects are best-effort — a provider failure is logged and
+ * swallowed so the caller's `throw` is the operator-visible signal.
+ */
+async function markEpicBlockedForCriticalReview({
+  provider,
+  epicId,
+  review,
+  detail,
+  logger,
+}) {
+  try {
+    await provider.updateTicket(epicId, {
+      labels: {
+        add: [AGENT_LABELS.BLOCKED],
+        remove: [AGENT_LABELS.EXECUTING],
+      },
+    });
+  } catch (err) {
+    logger?.warn?.(
+      `[close-tail] could not flip Epic #${epicId} → agent::blocked: ${messageOf(err)}`,
+    );
+  }
+
+  const severity = review?.severity ?? {};
+  const summary =
+    `### 🚧 Epic blocked: critical code-review findings\n\n` +
+    `Phase D (code-review) reported ${severity.critical ?? 0} critical, ` +
+    `${severity.high ?? 0} high, ${severity.medium ?? 0} medium, ` +
+    `${severity.suggestion ?? 0} suggestion finding(s).\n\n` +
+    `Retro (Phase E) and finalize (Phase F) are halted until the criticals are remediated.` +
+    (detail ? `\n\nDetail: ${detail}` : '');
+
+  try {
+    await provider.postComment(epicId, { type: 'friction', body: summary });
+  } catch (err) {
+    logger?.warn?.(
+      `[close-tail] could not post friction comment on Epic #${epicId}: ${messageOf(err)}`,
+    );
+  }
 }
 
 /**
