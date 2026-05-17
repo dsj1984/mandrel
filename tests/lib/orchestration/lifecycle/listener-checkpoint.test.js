@@ -92,7 +92,10 @@ describe('SUBSCRIBED_END_EVENTS taxonomy alignment', () => {
   });
 
   it('does NOT include `checkpoint.written` (self-emit must not loop)', () => {
-    assert.equal(SUBSCRIBED_END_EVENTS.includes(CHECKPOINT_WRITTEN_EVENT), false);
+    assert.equal(
+      SUBSCRIBED_END_EVENTS.includes(CHECKPOINT_WRITTEN_EVENT),
+      false,
+    );
   });
 });
 

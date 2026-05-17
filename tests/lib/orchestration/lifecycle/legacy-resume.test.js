@@ -213,7 +213,12 @@ describe('synthesizePrefix', () => {
   });
 
   it('produces an empty wave loop when phase=prepare and currentWave=0', () => {
-    const snap = { ...SAMPLE_LEGACY_SNAPSHOT, phase: 'prepare', currentWave: 0, waves: [] };
+    const snap = {
+      ...SAMPLE_LEGACY_SNAPSHOT,
+      phase: 'prepare',
+      currentWave: 0,
+      waves: [],
+    };
     const records = synthesizePrefix({ snapshot: snap });
     // Prepare phase has not produced ANY phase-end events yet, so
     // the prefix is empty.
@@ -286,7 +291,10 @@ describe('synthesizePrefix', () => {
   it('every synthesized record validates against ledger-record.schema.json', () => {
     const ajv = loadAjvForLedger();
     const recordSchema = JSON.parse(
-      fs.readFileSync(path.join(SCHEMA_DIR, 'ledger-record.schema.json'), 'utf8'),
+      fs.readFileSync(
+        path.join(SCHEMA_DIR, 'ledger-record.schema.json'),
+        'utf8',
+      ),
     );
     const validate = ajv.compile(recordSchema);
     const records = synthesizePrefix({ snapshot: SAMPLE_LEGACY_SNAPSHOT });
@@ -337,12 +345,19 @@ describe('apply — adapter entry point', () => {
     assert.equal(second.recordsAppended, 0);
 
     const ledgerAfter = fs.readFileSync(first.ledgerPath, 'utf8');
-    assert.equal(ledgerAfter, ledgerBefore, 'ledger must not be mutated on re-apply');
+    assert.equal(
+      ledgerAfter,
+      ledgerBefore,
+      'ledger must not be mutated on re-apply',
+    );
   });
 
   it('skips synthesis when the marker file already exists (even if ledger absent)', () => {
     // Lay down the marker without writing a ledger.
-    const epicDir = path.join(tempRoot, `epic-${SAMPLE_LEGACY_SNAPSHOT.epicId}`);
+    const epicDir = path.join(
+      tempRoot,
+      `epic-${SAMPLE_LEGACY_SNAPSHOT.epicId}`,
+    );
     fs.mkdirSync(epicDir, { recursive: true });
     fs.writeFileSync(
       path.join(epicDir, 'legacy-resume.synthesized'),

@@ -66,7 +66,9 @@ const SYNTHESIS_EPOCH_MS = Date.parse('2026-01-01T00:00:00.000Z');
  */
 export function resolveLedgerPath({ tempRoot, epicId }) {
   if (typeof tempRoot !== 'string' || tempRoot.length === 0) {
-    throw new TypeError('resolveLedgerPath: tempRoot must be a non-empty string');
+    throw new TypeError(
+      'resolveLedgerPath: tempRoot must be a non-empty string',
+    );
   }
   if (!Number.isInteger(epicId) || epicId < 1) {
     throw new TypeError('resolveLedgerPath: epicId must be a positive integer');
@@ -215,7 +217,9 @@ export function deriveWavesFromSnapshot(snapshot) {
   }
   return snapshot.waves.map((wave) => {
     if (Array.isArray(wave?.storyIds)) {
-      const ints = wave.storyIds.filter((id) => Number.isInteger(id) && id >= 1);
+      const ints = wave.storyIds.filter(
+        (id) => Number.isInteger(id) && id >= 1,
+      );
       return ints.length > 0 ? ints : [snapshot.epicId];
     }
     return [snapshot.epicId];
@@ -291,7 +295,10 @@ export function synthesizePrefix({ snapshot, epoch = SYNTHESIS_EPOCH_MS }) {
     ? snapshot.currentWave
     : 0;
   for (let waveIndex = 0; waveIndex < currentWave; waveIndex += 1) {
-    emit('wave.end', buildSyntheticPayload({ event: 'wave.end', snapshot, waveIndex }));
+    emit(
+      'wave.end',
+      buildSyntheticPayload({ event: 'wave.end', snapshot, waveIndex }),
+    );
   }
 
   // Phase 3 — close-tail boundaries (close-validate / code-review /

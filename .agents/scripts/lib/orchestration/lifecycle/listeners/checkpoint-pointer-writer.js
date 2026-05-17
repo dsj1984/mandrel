@@ -92,10 +92,14 @@ export const SUBSCRIBED_END_EVENTS = Object.freeze([
  */
 export function resolvePointerPath({ tempRoot, epicId }) {
   if (typeof tempRoot !== 'string' || tempRoot.length === 0) {
-    throw new TypeError('resolvePointerPath: tempRoot must be a non-empty string');
+    throw new TypeError(
+      'resolvePointerPath: tempRoot must be a non-empty string',
+    );
   }
   if (!Number.isInteger(epicId) || epicId < 1) {
-    throw new TypeError('resolvePointerPath: epicId must be a positive integer');
+    throw new TypeError(
+      'resolvePointerPath: epicId must be a positive integer',
+    );
   }
   return path.join(tempRoot, `epic-${epicId}`, POINTER_FILENAME);
 }
