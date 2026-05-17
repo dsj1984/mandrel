@@ -400,6 +400,26 @@ const FORMAT_AUTOFIX_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.lifecycle` — knobs consumed by the lifecycle event bus
+ * (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds)
+ * used by Story 11's `TimeoutWatchdog` listener; missing entries fall back
+ * to in-listener defaults. `heartbeatWarnSeconds` is the no-progress
+ * threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the
+ * keys; consumers land in later stories.
+ */
+const LIFECYCLE_SCHEMA = {
+  type: 'object',
+  properties: {
+    timeouts: {
+      type: 'object',
+      additionalProperties: { type: 'integer', minimum: 1 },
+    },
+    heartbeatWarnSeconds: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const QUALITY_SCHEMA = {
   type: 'object',
   properties: {
@@ -430,6 +450,7 @@ const DELIVERY_SCHEMA = {
     worktreeIsolation: WORKTREE_ISOLATION_SCHEMA,
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
+    lifecycle: LIFECYCLE_SCHEMA,
   },
   additionalProperties: false,
 };
