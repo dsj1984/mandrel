@@ -33,10 +33,24 @@ describe('getRunners', () => {
       },
     };
     const r = getRunners(config);
-    assert.deepEqual(r.deliverRunner, {
-      concurrencyCap: 5,
-      progressReportIntervalSec: 60,
+    assert.equal(r.deliverRunner.concurrencyCap, 5);
+    assert.equal(r.deliverRunner.progressReportIntervalSec, 60);
+    assert.equal(r.deliverRunner.concurrencyCapSource, 'config');
+    assert.equal(r.deliverRunner.progressReportIntervalSecSource, 'config');
+  });
+
+  it('marks both deliver-runner values as default-sourced when config is absent', () => {
+    const r = getRunners({});
+    assert.equal(r.deliverRunner.concurrencyCapSource, 'default');
+    assert.equal(r.deliverRunner.progressReportIntervalSecSource, 'default');
+  });
+
+  it('marks one field as default and the other as config when only one is overridden', () => {
+    const r = getRunners({
+      delivery: { deliverRunner: { progressReportIntervalSec: 30 } },
     });
+    assert.equal(r.deliverRunner.concurrencyCapSource, 'default');
+    assert.equal(r.deliverRunner.progressReportIntervalSecSource, 'config');
   });
 
   it('still reads legacy orchestration.runners.deliverRunner during the transition', () => {

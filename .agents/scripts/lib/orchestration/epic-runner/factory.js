@@ -47,10 +47,16 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
   const waveObserver = new WaveObserver({ ctx, commitAssertion });
+  const resolvedIntervalSec = Number(
+    deliverRunner.progressReportIntervalSec ?? 0,
+  );
+  logger?.info?.(
+    `[ProgressReporter] interval=${resolvedIntervalSec}s source=${deliverRunner.progressReportIntervalSecSource ?? 'default'}`,
+  );
   const progressReporter = new ProgressReporter({
     provider,
     epicId: ctx.epicId,
-    intervalSec: Number(deliverRunner.progressReportIntervalSec ?? 0),
+    intervalSec: resolvedIntervalSec,
     logger,
     concurrency: ctx.concurrency?.progressReporter,
     cwd: ctx.cwd,
