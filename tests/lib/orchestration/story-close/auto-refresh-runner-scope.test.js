@@ -1,5 +1,6 @@
 /**
  * auto-refresh-runner-scope.test.js — Story #1974 / Task #1983, Epic #1943.
+ * Migrated to V2 envelopes + writer funnel for Story #2135 / Task #2147.
  *
  * `auto-refresh-runner.js` is the only in-PR baseline-write path. With the
  * new scope-aware merge it MUST never persist rows for files outside the
@@ -20,8 +21,9 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
-  rewriteBaselinesWithScopeMerge,
+  adaptCrapRowsForEvaluator,
   runAutoRefresh,
+  writeScopeMergedBaseline,
 } from '../../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 
 const REPO = path.resolve('/tmp/repo-1974');
@@ -63,6 +65,11 @@ function makeFsShim(initial = {}) {
       return store.has(p);
     },
     mkdirSync() {},
+    renameSync(from, to) {
+      if (!store.has(from)) return;
+      store.set(to, store.get(from));
+      store.delete(from);
+    },
   };
 }
 
@@ -89,8 +96,6 @@ function stubAccessors() {
     getQuality: () => ({ ...AGENT_SETTINGS.quality }),
     getBaselines: () => ({ ...AGENT_SETTINGS.quality.baselines }),
     getBaselineEpsilon: (kind) => {
-      // Use small epsilons so the test's intentional row drift is not
-      // absorbed by the stabilizer.
       if (kind === 'maintainability') return 0.001;
       if (kind === 'crap') return 0.001;
       return 0;
@@ -99,107 +104,92 @@ function stubAccessors() {
 }
 
 // ---------------------------------------------------------------------------
-// Pure helper — rewriteBaselinesWithScopeMerge (covers the unit boundary)
+// Pure helpers
 // ---------------------------------------------------------------------------
 
-describe('rewriteBaselinesWithScopeMerge — pure', () => {
-  it('preserves out-of-scope prior MI rows verbatim', () => {
-    const fsImpl = makeFsShim({});
-    rewriteBaselinesWithScopeMerge({
-      miAbs: MI_PATH,
-      crapAbs: null,
-      priorMi: [
-        { path: 'a.js', mi: 70 },
-        { path: 'b.js', mi: 80 },
-      ],
-      priorCrap: null,
-      regenMi: [
-        { path: 'a.js', mi: 90 },
-        { path: 'b.js', mi: 10 },
-      ],
-      regenCrap: null,
-      scope: { mode: 'diff', files: new Set(['a.js']) },
-      miEpsilon: 0,
-      crapEpsilon: 0,
-      fsImpl,
-    });
-    const written = JSON.parse(fsImpl.store.get(MI_PATH));
-    assert.equal(written['a.js'], 90, 'in-scope row uses regenerated value');
-    assert.equal(written['b.js'], 80, 'out-of-scope row preserved from prior');
+describe('adaptCrapRowsForEvaluator (Story #2135 / Task #2147)', () => {
+  it('renames `path` → `file` so legacy evaluator can index by file', () => {
+    const out = adaptCrapRowsForEvaluator([
+      { path: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+    ]);
+    assert.deepEqual(out, [
+      { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+    ]);
   });
 
-  it('preserves out-of-scope prior CRAP rows verbatim (legacy `file` field)', () => {
-    const fsImpl = makeFsShim({
-      [CRAP_PATH]: JSON.stringify({
-        $schema: '.agents/schemas/crap-baseline.schema.json',
-        kernelVersion: '1.1.0',
-        rows: [
-          { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
-          { file: 'b.js', method: 'gn', startLine: 1, crap: 8 },
-        ],
-      }),
-    });
-    rewriteBaselinesWithScopeMerge({
-      miAbs: null,
-      crapAbs: CRAP_PATH,
-      priorMi: null,
-      priorCrap: [
-        { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
-        { file: 'b.js', method: 'gn', startLine: 1, crap: 8 },
-      ],
-      regenMi: null,
-      regenCrap: [
-        { file: 'a.js', method: 'fn', startLine: 1, crap: 12 },
-        { file: 'b.js', method: 'gn', startLine: 1, crap: 99 },
-      ],
-      scope: { mode: 'diff', files: new Set(['a.js']) },
-      miEpsilon: 0,
-      crapEpsilon: 0,
-      fsImpl,
-    });
-    const written = JSON.parse(fsImpl.store.get(CRAP_PATH));
-    assert.ok(Array.isArray(written.rows), 'envelope rows[] must be present');
-    const byFile = Object.fromEntries(
-      written.rows.map((r) => [r.file, r.crap]),
-    );
-    assert.equal(byFile['a.js'], 12, 'in-scope crap row uses regen value');
-    assert.equal(
-      byFile['b.js'],
-      8,
-      'out-of-scope crap row preserved from prior',
-    );
-    // Envelope `$schema` / `kernelVersion` survived the rewrite.
-    assert.equal(
-      written.$schema,
-      '.agents/schemas/crap-baseline.schema.json',
-      'envelope metadata preserved',
-    );
-    assert.equal(written.kernelVersion, '1.1.0');
+  it('returns rows unchanged when no path field is present', () => {
+    const out = adaptCrapRowsForEvaluator([
+      { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+    ]);
+    assert.deepEqual(out, [
+      { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+    ]);
   });
 
-  it('full mode: regen wins everywhere (no scope-merge applied)', () => {
-    const fsImpl = makeFsShim({});
-    rewriteBaselinesWithScopeMerge({
-      miAbs: MI_PATH,
-      crapAbs: null,
-      priorMi: [
-        { path: 'a.js', mi: 70 },
-        { path: 'b.js', mi: 80 },
-      ],
-      priorCrap: null,
-      regenMi: [
-        { path: 'a.js', mi: 90 },
-        { path: 'b.js', mi: 10 },
-      ],
-      regenCrap: null,
-      scope: { mode: 'full', files: new Set() },
-      miEpsilon: 0,
-      crapEpsilon: 0,
-      fsImpl,
+  it('handles null/undefined input', () => {
+    assert.deepEqual(adaptCrapRowsForEvaluator(null), []);
+    assert.deepEqual(adaptCrapRowsForEvaluator(undefined), []);
+  });
+});
+
+describe('writeScopeMergedBaseline — writer funnel', () => {
+  it('returns null when absPath is null (kind not configured)', () => {
+    const result = writeScopeMergedBaseline({
+      kind: 'maintainability',
+      absPath: null,
+      prior: { rows: [] },
+      regen: { rows: [] },
+      scope: { mode: 'diff', files: new Set() },
+      epsilon: 0,
+      writeFn: () => {
+        throw new Error('writeFn should not be invoked when absPath is null');
+      },
+      writeFileFn: () => {
+        throw new Error(
+          'writeFileFn should not be invoked when absPath is null',
+        );
+      },
+      fsImpl: makeFsShim(),
     });
-    const written = JSON.parse(fsImpl.store.get(MI_PATH));
-    assert.equal(written['a.js'], 90);
-    assert.equal(written['b.js'], 10);
+    assert.equal(result, null);
+  });
+
+  it('delegates assembly to writeFn and persistence to writeFileFn', () => {
+    const writeCalls = [];
+    const writeFileCalls = [];
+    const fakeEnvelope = {
+      $schema: '.agents/schemas/baselines/maintainability.schema.json',
+      kernelVersion: '0.1.0',
+      generatedAt: '2026-05-15T00:00:00Z',
+      rollup: { '*': {} },
+      rows: [{ path: 'a.js', mi: 90 }],
+    };
+    const result = writeScopeMergedBaseline({
+      kind: 'maintainability',
+      absPath: MI_PATH,
+      prior: { rows: [{ path: 'a.js', mi: 70 }] },
+      regen: { rows: [{ path: 'a.js', mi: 90 }] },
+      scope: { mode: 'diff', files: new Set(['a.js']) },
+      epsilon: 0,
+      writeFn: (args) => {
+        writeCalls.push(args);
+        return fakeEnvelope;
+      },
+      writeFileFn: (absPath, env, opts) => {
+        writeFileCalls.push({ absPath, env, opts });
+      },
+      fsImpl: makeFsShim(),
+    });
+    assert.equal(result, fakeEnvelope);
+    assert.equal(writeCalls.length, 1);
+    assert.equal(writeCalls[0].kind, 'maintainability');
+    assert.deepEqual(writeCalls[0].rows, [{ path: 'a.js', mi: 90 }]);
+    assert.deepEqual(writeCalls[0].prior, [{ path: 'a.js', mi: 70 }]);
+    assert.equal(writeCalls[0].scope.mode, 'diff');
+    assert.equal(writeCalls[0].epsilon, 0);
+    assert.equal(writeFileCalls.length, 1);
+    assert.equal(writeFileCalls[0].absPath, MI_PATH);
+    assert.equal(writeFileCalls[0].env, fakeEnvelope);
   });
 });
 
@@ -207,26 +197,95 @@ describe('rewriteBaselinesWithScopeMerge — pure', () => {
 // Two concurrent stories on disjoint files — non-overlapping baseline diffs
 // ---------------------------------------------------------------------------
 
-describe('runAutoRefresh — concurrent stories on disjoint files', () => {
-  // Shared starting baseline that both Stories see.
-  const PRIOR_MI = { 'a.js': 70, 'b.js': 80, 'c.js': 65 };
-  const PRIOR_CRAP_ROWS = [
-    { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
-    { file: 'b.js', method: 'gn', startLine: 1, crap: 6 },
-    { file: 'c.js', method: 'hn', startLine: 1, crap: 7 },
-  ];
+describe('runAutoRefresh — concurrent stories on disjoint files (V2 funnel)', () => {
+  // Shared starting baseline that both Stories see (V2 envelope shape).
+  const PRIOR_MI_ENV = {
+    $schema: '.agents/schemas/baselines/maintainability.schema.json',
+    kernelVersion: '0.1.0',
+    generatedAt: '2026-04-01T00:00:00Z',
+    rollup: { '*': {} },
+    rows: [
+      { path: 'a.js', mi: 70 },
+      { path: 'b.js', mi: 80 },
+      { path: 'c.js', mi: 65 },
+    ],
+  };
+  const PRIOR_CRAP_ENV = {
+    $schema: '.agents/schemas/baselines/crap.schema.json',
+    kernelVersion: '1.1.0',
+    generatedAt: '2026-04-01T00:00:00Z',
+    rollup: { '*': {} },
+    rows: [
+      { path: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+      { path: 'b.js', method: 'gn', startLine: 1, crap: 6 },
+      { path: 'c.js', method: 'hn', startLine: 1, crap: 7 },
+    ],
+  };
+
+  // Stub readerLoadFile to return whatever envelope the in-memory shim
+  // last persisted (or the prior on the very first read). The shim
+  // stores the raw JSON; the reader stub parses it directly.
+  function makeReaderForFs(fsImpl) {
+    return (absPath, _opts) => {
+      const bytes = fsImpl.store.get(absPath);
+      if (!bytes) return null;
+      const parsed = JSON.parse(bytes);
+      return {
+        rollup: parsed.rollup ?? { '*': {} },
+        rows: parsed.rows ?? [],
+        kernelVersion: parsed.kernelVersion,
+        generatedAt: parsed.generatedAt,
+      };
+    };
+  }
+
+  // Stub the writer: when scope filters rows, emulate the production
+  // per-kind mergeRows behaviour at test scope. The test does not need
+  // to exercise the real writer — that's covered in
+  // tests/baselines/writer.test.js — but it does need to honour the
+  // scope contract so the disjoint-drift assertions pass.
+  function makeWriterStub() {
+    return ({ kind, rows, prior, scope }) => {
+      const priorRows = Array.isArray(prior) ? prior : [];
+      const regenRows = Array.isArray(rows) ? rows : [];
+      // CRAP rows here arrive keyed by `path` from the writer's projection.
+      // The test fixtures pre-key by `path` to mirror the real per-kind
+      // module output.
+      const scopeFiles = scope?.files instanceof Set ? scope.files : new Set();
+      let mergedRows;
+      if (scope?.mode === 'diff') {
+        const regenInScope = regenRows.filter((row) =>
+          scopeFiles.has(row.path),
+        );
+        const priorOutOfScope = priorRows.filter(
+          (row) => !scopeFiles.has(row.path),
+        );
+        mergedRows = regenInScope.concat(priorOutOfScope);
+      } else {
+        mergedRows = regenRows;
+      }
+      // Sort by path so disjoint-drift assertions are order-stable.
+      mergedRows.sort((a, b) => a.path.localeCompare(b.path));
+      return {
+        $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+        kernelVersion: '0.1.0',
+        generatedAt: '2026-05-15T00:00:00Z',
+        rollup: { '*': {} },
+        rows: mergedRows,
+      };
+    };
+  }
+
+  function makeWriteFileStub() {
+    return (absPath, envelope, opts) => {
+      opts.fsImpl.writeFileSync(absPath, JSON.stringify(envelope));
+    };
+  }
 
   function setUpStoryFs() {
     const fsImpl = makeFsShim({});
-    fsImpl.writeFileSync(MI_PATH, JSON.stringify(PRIOR_MI));
-    fsImpl.writeFileSync(
-      CRAP_PATH,
-      JSON.stringify({
-        $schema: '.agents/schemas/crap-baseline.schema.json',
-        kernelVersion: '1.1.0',
-        rows: PRIOR_CRAP_ROWS,
-      }),
-    );
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(PRIOR_MI_ENV));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(PRIOR_CRAP_ENV));
     return fsImpl;
   }
 
@@ -238,17 +297,23 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
       // a.js drifts; b.js / c.js drift but should be reverted by the merge.
       fsA.writeFileSync(
         MI_PATH,
-        JSON.stringify({ 'a.js': 90, 'b.js': 100, 'c.js': 100 }),
+        JSON.stringify({
+          ...PRIOR_MI_ENV,
+          rows: [
+            { path: 'a.js', mi: 90 },
+            { path: 'b.js', mi: 100 },
+            { path: 'c.js', mi: 100 },
+          ],
+        }),
       );
       fsA.writeFileSync(
         CRAP_PATH,
         JSON.stringify({
-          $schema: '.agents/schemas/crap-baseline.schema.json',
-          kernelVersion: '1.1.0',
+          ...PRIOR_CRAP_ENV,
           rows: [
-            { file: 'a.js', method: 'fn', startLine: 1, crap: 9 },
-            { file: 'b.js', method: 'gn', startLine: 1, crap: 99 },
-            { file: 'c.js', method: 'hn', startLine: 1, crap: 99 },
+            { path: 'a.js', method: 'fn', startLine: 1, crap: 9 },
+            { path: 'b.js', method: 'gn', startLine: 1, crap: 99 },
+            { path: 'c.js', method: 'hn', startLine: 1, crap: 99 },
           ],
         }),
       );
@@ -282,6 +347,9 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
         appendSignal: async () => true,
         forEachLine: async () => ({ linesRead: 0, missing: true }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsA),
       },
     });
     assert.equal(resultA.status, 'amended', 'Story A should amend under-cap');
@@ -293,17 +361,23 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
     const regenB = async () => {
       fsB.writeFileSync(
         MI_PATH,
-        JSON.stringify({ 'a.js': 100, 'b.js': 95, 'c.js': 100 }),
+        JSON.stringify({
+          ...PRIOR_MI_ENV,
+          rows: [
+            { path: 'a.js', mi: 100 },
+            { path: 'b.js', mi: 95 },
+            { path: 'c.js', mi: 100 },
+          ],
+        }),
       );
       fsB.writeFileSync(
         CRAP_PATH,
         JSON.stringify({
-          $schema: '.agents/schemas/crap-baseline.schema.json',
-          kernelVersion: '1.1.0',
+          ...PRIOR_CRAP_ENV,
           rows: [
-            { file: 'a.js', method: 'fn', startLine: 1, crap: 99 },
-            { file: 'b.js', method: 'gn', startLine: 1, crap: 8 },
-            { file: 'c.js', method: 'hn', startLine: 1, crap: 99 },
+            { path: 'a.js', method: 'fn', startLine: 1, crap: 99 },
+            { path: 'b.js', method: 'gn', startLine: 1, crap: 8 },
+            { path: 'c.js', method: 'hn', startLine: 1, crap: 99 },
           ],
         }),
       );
@@ -336,6 +410,9 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
         appendSignal: async () => true,
         forEachLine: async () => ({ linesRead: 0, missing: true }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsB),
       },
     });
     assert.equal(resultB.status, 'amended', 'Story B should amend under-cap');
@@ -343,19 +420,28 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
     const persistedBCrap = JSON.parse(fsB.store.get(CRAP_PATH));
 
     // ── AC: Story A drifts only a.js; Story B drifts only b.js ────────────
-    assert.equal(persistedA['a.js'], 90, 'Story A: a.js drifts to regen value');
-    assert.equal(persistedA['b.js'], 80, 'Story A: b.js preserved from prior');
-    assert.equal(persistedA['c.js'], 65, 'Story A: c.js preserved from prior');
+    const aMiByPath = Object.fromEntries(
+      persistedA.rows.map((r) => [r.path, r.mi]),
+    );
+    const bMiByPath = Object.fromEntries(
+      persistedB.rows.map((r) => [r.path, r.mi]),
+    );
+    assert.equal(aMiByPath['a.js'], 90, 'Story A: a.js drifts to regen value');
+    assert.equal(aMiByPath['b.js'], 80, 'Story A: b.js preserved from prior');
+    assert.equal(aMiByPath['c.js'], 65, 'Story A: c.js preserved from prior');
 
-    assert.equal(persistedB['a.js'], 70, 'Story B: a.js preserved from prior');
-    assert.equal(persistedB['b.js'], 95, 'Story B: b.js drifts to regen value');
-    assert.equal(persistedB['c.js'], 65, 'Story B: c.js preserved from prior');
+    assert.equal(bMiByPath['a.js'], 70, 'Story B: a.js preserved from prior');
+    assert.equal(bMiByPath['b.js'], 95, 'Story B: b.js drifts to regen value');
+    assert.equal(bMiByPath['c.js'], 65, 'Story B: c.js preserved from prior');
 
     // ── AC: drifted row sets are disjoint (zero merge conflicts) ──────────
-    const driftedA = Object.entries(persistedA)
+    const PRIOR_MI = Object.fromEntries(
+      PRIOR_MI_ENV.rows.map((r) => [r.path, r.mi]),
+    );
+    const driftedA = Object.entries(aMiByPath)
       .filter(([k, v]) => PRIOR_MI[k] !== v)
       .map(([k]) => k);
-    const driftedB = Object.entries(persistedB)
+    const driftedB = Object.entries(bMiByPath)
       .filter(([k, v]) => PRIOR_MI[k] !== v)
       .map(([k]) => k);
     assert.deepEqual(driftedA, ['a.js']);
@@ -367,17 +453,17 @@ describe('runAutoRefresh — concurrent stories on disjoint files', () => {
     );
 
     // CRAP: same shape — Story A drifts a.js's row, Story B drifts b.js's.
-    const aCrapByFile = Object.fromEntries(
-      persistedACrap.rows.map((r) => [r.file, r.crap]),
+    const aCrapByPath = Object.fromEntries(
+      persistedACrap.rows.map((r) => [r.path, r.crap]),
     );
-    const bCrapByFile = Object.fromEntries(
-      persistedBCrap.rows.map((r) => [r.file, r.crap]),
+    const bCrapByPath = Object.fromEntries(
+      persistedBCrap.rows.map((r) => [r.path, r.crap]),
     );
-    assert.equal(aCrapByFile['a.js'], 9);
-    assert.equal(aCrapByFile['b.js'], 6);
-    assert.equal(aCrapByFile['c.js'], 7);
-    assert.equal(bCrapByFile['a.js'], 5);
-    assert.equal(bCrapByFile['b.js'], 8);
-    assert.equal(bCrapByFile['c.js'], 7);
+    assert.equal(aCrapByPath['a.js'], 9);
+    assert.equal(aCrapByPath['b.js'], 6);
+    assert.equal(aCrapByPath['c.js'], 7);
+    assert.equal(bCrapByPath['a.js'], 5);
+    assert.equal(bCrapByPath['b.js'], 8);
+    assert.equal(bCrapByPath['c.js'], 7);
   });
 });

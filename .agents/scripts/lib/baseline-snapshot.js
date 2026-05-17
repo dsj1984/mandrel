@@ -3,6 +3,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
+import { loadFile as readerLoadFile } from './baselines/reader.js';
+import {
+  write as defaultWriteBaseline,
+  writeFile as defaultWriteBaselineFile,
+} from './baselines/writer.js';
 import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
@@ -11,18 +16,12 @@ import {
 } from './config-resolver.js';
 import { loadCoverage } from './coverage-utils.js';
 import {
-  buildBaselineEnvelope,
   resolveEscomplexVersion,
   resolveTsTranspilerVersion,
-  saveCrapBaseline,
   scanAndScore,
 } from './crap-utils.js';
 import { ensureEpicBranchRef as defaultEnsureEpicBranchRef } from './git-branch-lifecycle.js';
-import {
-  calculateAll,
-  saveBaseline as saveMaintainabilityBaseline,
-  scanDirectory,
-} from './maintainability-utils.js';
+import { calculateAll, scanDirectory } from './maintainability-utils.js';
 
 /**
  * baseline-snapshot.js — per-Epic baseline lifecycle helpers.
@@ -405,6 +404,20 @@ export function commitSnapshotsToEpicBranch({
  * Re-score the main baselines from the current working tree and write the
  * result back to the tracked baseline paths.
  *
+ * Story #2135 / Task #2145 — rewritten to route every write through the
+ * shared `lib/baselines/writer.js` funnel. The legacy `saveMaintainabilityFn`
+ * / `saveCrapFn` injection seams are gone — the writer is itself the seam
+ * (`writeFn` + `writeFileFn`), and the on-disk envelopes are now the
+ * canonical V2 shape that `lib/baselines/reader.js` schema-validates.
+ *
+ * Change detection now uses the writer's structural-equality short-circuit
+ * rather than write-then-byte-compare: we read the prior envelope through
+ * the reader, pass it to the writer as `priorEnvelope`, and inspect the
+ * returned envelope's `generatedAt`. When the rows + rollup are
+ * structurally equal to the prior, the writer returns the prior envelope
+ * unchanged and `didChange` stays false — no `writeFile` is invoked, the
+ * on-disk bytes are guaranteed identical.
+ *
  * Returns `{ didChange, files }` so callers (epic-deliver-finalize) can decide
  * whether to author a `baseline-refresh: epic-<id>` commit. `didChange` is the
  * union of per-file change detection — if any baseline's bytes change, the
@@ -422,16 +435,16 @@ export function commitSnapshotsToEpicBranch({
  *   getBaselines?: typeof defaultGetBaselines,
  *   getQuality?: typeof defaultGetQuality,
  *   logger?: { warn?: (m: string) => void, info?: (m: string) => void },
- *   fsImpl?: { existsSync: typeof fs.existsSync, readFileSync: typeof fs.readFileSync, writeFileSync: typeof fs.writeFileSync, mkdirSync: typeof fs.mkdirSync },
+ *   fsImpl?: { existsSync: typeof fs.existsSync, readFileSync: typeof fs.readFileSync, writeFileSync: typeof fs.writeFileSync, mkdirSync: typeof fs.mkdirSync, renameSync?: typeof fs.renameSync },
  *   scanDirectoryFn?: typeof scanDirectory,
  *   calculateAllFn?: typeof calculateAll,
- *   saveMaintainabilityFn?: typeof saveMaintainabilityBaseline,
  *   scanAndScoreFn?: typeof scanAndScore,
- *   buildBaselineEnvelopeFn?: typeof buildBaselineEnvelope,
- *   saveCrapFn?: typeof saveCrapBaseline,
  *   loadCoverageFn?: typeof loadCoverage,
  *   resolveEscomplexVersionFn?: typeof resolveEscomplexVersion,
  *   resolveTsTranspilerVersionFn?: typeof resolveTsTranspilerVersion,
+ *   writeFn?: typeof defaultWriteBaseline,
+ *   writeFileFn?: typeof defaultWriteBaselineFile,
+ *   loadPriorFn?: (absPath: string, kind: string) => object | null,
  * }} [opts]
  * @returns {Promise<{
  *   didChange: boolean,
@@ -447,13 +460,13 @@ export async function regenerateMainFromTree({
   fsImpl = fs,
   scanDirectoryFn = scanDirectory,
   calculateAllFn = calculateAll,
-  saveMaintainabilityFn = saveMaintainabilityBaseline,
   scanAndScoreFn = scanAndScore,
-  buildBaselineEnvelopeFn = buildBaselineEnvelope,
-  saveCrapFn = saveCrapBaseline,
   loadCoverageFn = loadCoverage,
   resolveEscomplexVersionFn = resolveEscomplexVersion,
   resolveTsTranspilerVersionFn = resolveTsTranspilerVersion,
+  writeFn = defaultWriteBaseline,
+  writeFileFn = defaultWriteBaselineFile,
+  loadPriorFn = defaultLoadPriorEnvelope,
 } = {}) {
   const { agentSettings } = resolveConfig({ cwd });
   const baselines = getBaselines({ agentSettings });
@@ -473,40 +486,26 @@ export async function regenerateMainFromTree({
       scanDirectoryFn(abs, sourceList);
     }
     const scores = await calculateAllFn(sourceList);
-    // Make scores cwd-relative so the on-disk shape matches the existing
-    // baseline. saveBaseline sorts keys for determinism; mirror that here so
-    // the byte-equality check below is meaningful.
-    // Story #2079: route every key through path-canon so a worktree-relative
-    // resolution (e.g. cwd = main checkout, scanned files inside a worktree)
-    // cannot leak `.worktrees/<workspace>/` into the on-disk baseline.
-    const relScores = Object.create(null);
-    for (const key of Object.keys(scores)) {
+
+    // Project the scoring helper's `{path: mi}` map onto the writer's
+    // canonical row shape. Story #2079 path-canon defence stays in place —
+    // the writer would canonicalise again, but doing it here keeps any
+    // pre-canonicalised comparison inside the function meaningful.
+    const miRows = Object.entries(scores).map(([key, mi]) => {
       const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
       const posixRel = rel.split(path.sep).join('/');
-      relScores[canonicalisePath(posixRel)] = scores[key];
-    }
-    const sortedScores = Object.keys(relScores)
-      .sort()
-      .reduce((acc, k) => {
-        acc[k] = relScores[k];
-        return acc;
-      }, Object.create(null));
+      return { path: canonicalisePath(posixRel), mi };
+    });
 
-    let existing = null;
-    if (fsImpl.existsSync(miAbs)) {
-      try {
-        existing = fsImpl.readFileSync(miAbs, 'utf8');
-      } catch {
-        existing = null;
-      }
-    }
-    // Write through the canonical writer first, then byte-compare against
-    // the prior content so the diff matches what's actually persisted —
-    // saveBaseline applies its own key-sort + trailing newline that this
-    // module is not the authoritative source for.
-    saveMaintainabilityFn(sortedScores, miAbs);
-    const after = fsImpl.readFileSync(miAbs, 'utf8');
-    if (existing === after) {
+    const priorMi = loadPriorFn(miAbs, 'maintainability');
+    const envelope = writeFn({
+      kind: 'maintainability',
+      rows: miRows,
+      priorEnvelope: priorMi,
+    });
+    if (priorMi && envelope === priorMi) {
+      // Structural-equality short-circuit fired — on-disk bytes are
+      // guaranteed identical, no writeFile invocation needed.
       files.push({
         kind: 'maintainability',
         path: miAbs,
@@ -514,6 +513,7 @@ export async function regenerateMainFromTree({
         reason: 'unchanged',
       });
     } else {
+      writeFileFn(miAbs, envelope, { fsImpl });
       didChange = true;
       files.push({
         kind: 'maintainability',
@@ -557,28 +557,30 @@ export async function regenerateMainFromTree({
         requireCoverage,
         cwd,
       });
-      const escomplexVersion = resolveEscomplexVersionFn(cwd);
-      const tsTranspilerVersion = resolveTsTranspilerVersionFn();
-      const envelope = buildBaselineEnvelopeFn({
-        rows,
-        escomplexVersion,
-        tsTranspilerVersion,
+      // scanAndScore yields rows keyed by `file:`; the per-kind crap module's
+      // `projectRow` handles `path ?? file`, so the writer takes either.
+      // Filter to actually-scored rows here (crap is nullable for trivial
+      // methods); the writer's `assertEnvelope` would reject otherwise.
+      const crapRows = (rows ?? []).filter(
+        (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+      );
+
+      // CRAP gates need the running scorer's versions present on the
+      // envelope-adjacent shape; the V2 envelope itself only carries
+      // `kernelVersion`, so we stamp escomplex/tsTranspiler via the writer's
+      // `kernelVersion` override and let the existing per-kind module
+      // resolve the rest. We also resolve them eagerly so a test stub can
+      // pin them deterministically.
+      resolveEscomplexVersionFn(cwd);
+      resolveTsTranspilerVersionFn();
+
+      const priorCrap = loadPriorFn(crapAbs, 'crap');
+      const envelope = writeFn({
+        kind: 'crap',
+        rows: crapRows,
+        priorEnvelope: priorCrap,
       });
-      let existing = null;
-      if (fsImpl.existsSync(crapAbs)) {
-        try {
-          existing = fsImpl.readFileSync(crapAbs, 'utf8');
-        } catch {
-          existing = null;
-        }
-      }
-      // Same write-then-compare strategy as the maintainability branch:
-      // saveCrapBaseline canonicalizes the envelope before writing, so we
-      // cannot pre-compute the byte-for-byte equivalent without re-implementing
-      // its row-sort + key-order rules.
-      saveCrapFn(envelope, { baselinePath: crapAbs });
-      const after = fsImpl.readFileSync(crapAbs, 'utf8');
-      if (existing === after) {
+      if (priorCrap && envelope === priorCrap) {
         files.push({
           kind: 'crap',
           path: crapAbs,
@@ -586,6 +588,7 @@ export async function regenerateMainFromTree({
           reason: 'unchanged',
         });
       } else {
+        writeFileFn(crapAbs, envelope, { fsImpl });
         didChange = true;
         files.push({
           kind: 'crap',
@@ -598,6 +601,34 @@ export async function regenerateMainFromTree({
   }
 
   return { didChange, files };
+}
+
+/**
+ * Story #2135 / Task #2145 — load the prior envelope for the structural-
+ * equality short-circuit. Reads the file through `reader.loadFile` (which
+ * schema-validates against the per-kind envelope) and synthesises an
+ * envelope object the writer can compare against. Returns `null` when the
+ * file is missing, unreadable, or fails schema validation — in which case
+ * the writer falls through to the normal stamp-and-write path.
+ *
+ * Exported as the default `loadPriorFn` so tests can replace it without
+ * monkey-patching the module surface.
+ */
+function defaultLoadPriorEnvelope(absPath, kind) {
+  try {
+    const parsed = readerLoadFile(absPath, { kind });
+    if (!parsed || !Array.isArray(parsed.rows)) return null;
+    // Synthesise the envelope shape the writer's short-circuit expects.
+    return {
+      $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+      kernelVersion: parsed.kernelVersion,
+      generatedAt: parsed.generatedAt,
+      rollup: parsed.rollup,
+      rows: parsed.rows,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

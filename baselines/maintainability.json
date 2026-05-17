@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T01:47:15.828Z",
+  "generatedAt": "2026-05-17T01:58:36.513Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -228,7 +228,7 @@
     },
     {
       "path": ".agents/scripts/lib/baseline-snapshot.js",
-      "mi": 78.211
+      "mi": 80.867
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
@@ -304,7 +304,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 97.328
+      "mi": 89.971
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -540,7 +540,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "mi": 90.364
+      "mi": 88.027
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -944,7 +944,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "mi": 87.215
+      "mi": 84.798
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
@@ -1648,7 +1648,7 @@
     },
     {
       "path": "tests/baselines/writer.test.js",
-      "mi": 105.809
+      "mi": 103.474
     },
     {
       "path": "tests/bdd-runner-detect.test.js",
@@ -2116,7 +2116,7 @@
     },
     {
       "path": "tests/lib/baseline-snapshot.test.js",
-      "mi": 107.462
+      "mi": 106.036
     },
     {
       "path": "tests/lib/branch-name-guard.test.js",
@@ -2316,7 +2316,7 @@
     },
     {
       "path": "tests/lib/crap-utils.test.js",
-      "mi": 91.471
+      "mi": 93.509
     },
     {
       "path": "tests/lib/dependency-analyzer.test.js",
@@ -2592,7 +2592,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/auto-refresh-runner-scope.test.js",
-      "mi": 96.358
+      "mi": 100.047
     },
     {
       "path": "tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js",
@@ -3196,7 +3196,7 @@
     },
     {
       "path": "tests/story-close-auto-refresh.test.js",
-      "mi": 99.049
+      "mi": 99.44
     },
     {
       "path": "tests/story-close-cd-out-guard.test.js",

@@ -9,7 +9,6 @@ import {
   getCrapBaseline,
   KERNEL_VERSION,
   resolveEscomplexVersion,
-  saveCrapBaseline,
   scanAndScore,
 } from '../../.agents/scripts/lib/crap-utils.js';
 
@@ -140,110 +139,25 @@ test('getCrapBaseline — surfaces kernel-version mismatch without silent rescor
   const cwd = mkTmpCwd();
   try {
     const envelope = {
+      $schema: '.agents/schemas/crap-baseline.schema.json',
       kernelVersion: '9.9.9',
       escomplexVersion: '1.2.3',
+      tsTranspilerVersion: '0.0.0',
       rows: [{ file: 'a.js', method: 'foo', startLine: 1, crap: 2 }],
     };
-    saveCrapBaseline(envelope, { cwd, baselinePath: TEST_BASELINE_PATH });
+    fs.mkdirSync(path.dirname(path.join(cwd, TEST_BASELINE_PATH)), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(cwd, TEST_BASELINE_PATH),
+      `${JSON.stringify(envelope, null, 2)}\n`,
+    );
     const loaded = getCrapBaseline({ cwd, baselinePath: TEST_BASELINE_PATH });
     assert.ok(loaded);
     assert.strictEqual(loaded.kernelVersion, '9.9.9');
     assert.notStrictEqual(loaded.kernelVersion, KERNEL_VERSION);
     // Rows are returned verbatim — no re-scoring, no stripping.
     assert.deepStrictEqual(loaded.rows, envelope.rows);
-  } finally {
-    rmTmp(cwd);
-  }
-});
-
-test('saveCrapBaseline — round-trip writes and reads the same envelope', () => {
-  const cwd = mkTmpCwd();
-  try {
-    const envelope = buildBaselineEnvelope({
-      rows: [
-        { file: 'z.js', method: 'foo', startLine: 10, crap: 12.5 },
-        { file: 'a.js', method: 'bar', startLine: 3, crap: 4 },
-      ],
-      escomplexVersion: '1.2.3',
-    });
-    saveCrapBaseline(envelope, { cwd, baselinePath: TEST_BASELINE_PATH });
-    const loaded = getCrapBaseline({ cwd, baselinePath: TEST_BASELINE_PATH });
-    assert.strictEqual(loaded.kernelVersion, KERNEL_VERSION);
-    assert.strictEqual(loaded.escomplexVersion, '1.2.3');
-    assert.strictEqual(loaded.rows.length, 2);
-    // Sorted by (file, startLine, method).
-    assert.strictEqual(loaded.rows[0].file, 'a.js');
-    assert.strictEqual(loaded.rows[1].file, 'z.js');
-  } finally {
-    rmTmp(cwd);
-  }
-});
-
-test('saveCrapBaseline — byte-identical output on repeated save (determinism)', () => {
-  const cwd = mkTmpCwd();
-  try {
-    const envelope = buildBaselineEnvelope({
-      rows: [
-        { file: 'b.js', method: 'two', startLine: 20, crap: 8 },
-        { file: 'a.js', method: 'one', startLine: 5, crap: 2 },
-        { file: 'a.js', method: 'three', startLine: 15, crap: 6 },
-      ],
-      escomplexVersion: '7.3.2',
-    });
-    saveCrapBaseline(envelope, { cwd, baselinePath: TEST_BASELINE_PATH });
-    const firstBytes = fs.readFileSync(path.join(cwd, TEST_BASELINE_PATH));
-    saveCrapBaseline(envelope, { cwd, baselinePath: TEST_BASELINE_PATH });
-    const secondBytes = fs.readFileSync(path.join(cwd, TEST_BASELINE_PATH));
-    assert.ok(
-      firstBytes.equals(secondBytes),
-      'repeated save must produce byte-identical bytes',
-    );
-    // Trailing newline for POSIX compatibility.
-    assert.strictEqual(
-      firstBytes.at(-1),
-      0x0a,
-      'baseline must end with a trailing newline',
-    );
-  } finally {
-    rmTmp(cwd);
-  }
-});
-
-test('saveCrapBaseline — shuffled input produces the same bytes as sorted input', () => {
-  const cwdA = mkTmpCwd();
-  const cwdB = mkTmpCwd();
-  try {
-    const sortedRows = [
-      { file: 'a.js', method: 'one', startLine: 5, crap: 2 },
-      { file: 'a.js', method: 'three', startLine: 15, crap: 6 },
-      { file: 'b.js', method: 'two', startLine: 20, crap: 8 },
-    ];
-    const shuffledRows = [sortedRows[2], sortedRows[0], sortedRows[1]];
-    saveCrapBaseline(
-      buildBaselineEnvelope({ rows: sortedRows, escomplexVersion: '1.0.0' }),
-      { cwd: cwdA, baselinePath: TEST_BASELINE_PATH },
-    );
-    saveCrapBaseline(
-      buildBaselineEnvelope({
-        rows: shuffledRows,
-        escomplexVersion: '1.0.0',
-      }),
-      { cwd: cwdB, baselinePath: TEST_BASELINE_PATH },
-    );
-    const a = fs.readFileSync(path.join(cwdA, TEST_BASELINE_PATH));
-    const b = fs.readFileSync(path.join(cwdB, TEST_BASELINE_PATH));
-    assert.ok(a.equals(b), 'row order must not affect the serialized bytes');
-  } finally {
-    rmTmp(cwdA);
-    rmTmp(cwdB);
-  }
-});
-
-test('saveCrapBaseline — rejects non-object envelopes', () => {
-  const cwd = mkTmpCwd();
-  try {
-    assert.throws(() => saveCrapBaseline(null, { cwd }), /envelope/);
-    assert.throws(() => saveCrapBaseline('string', { cwd }), /envelope/);
   } finally {
     rmTmp(cwd);
   }
