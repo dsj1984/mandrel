@@ -79,6 +79,10 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // surface (Epic #1030).
   'story-perf-summary',
   'epic-perf-report',
+  // Story #2128 — Phase 6 Epic Clarity Gate. `epic-plan-clarity.js` upserts
+  // a `clarity-gate-update` comment on the Epic when the operator approves
+  // a sharpened body rewrite, recording the persistence event for audit.
+  'clarity-gate-update',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

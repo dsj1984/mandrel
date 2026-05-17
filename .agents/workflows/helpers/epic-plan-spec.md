@@ -1,13 +1,13 @@
 ---
 description: >-
-  Phase 1 of sprint planning — generate the PRD and Tech Spec for an Epic,
+  Phase 7 of sprint planning — generate the PRD and Tech Spec for an Epic,
   persist them as linked GitHub issues, and flip the Epic to
   `agent::review-spec`. Host-LLM authored; no external API calls.
 ---
 
 # Sprint Plan — Spec Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 1).
+> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 7).
 > To run the spec phase interactively, use `/epic-plan [Epic_ID]` — it
 > delegates here.
 
@@ -28,7 +28,7 @@ The PRD and Tech Spec are authored **directly by you, the host LLM**.
 context you need and (b) persists the artifacts and transitions the Epic
 lifecycle state.
 
-The complementary Phase 2 helper is
+The complementary Phase 8 helper is
 [`epic-plan-decompose.md`](epic-plan-decompose.md). The `/epic-plan`
 wrapper chains both helpers with a confirmation gate in between.
 

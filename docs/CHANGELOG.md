@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added — Story #2128: `/epic-plan` Phase 6 Epic Clarity Gate
+
+- **`feat(epic-plan): add Phase 6 Epic Clarity Gate`** — every
+  existing-Epic `/epic-plan` invocation now scores the Epic body against
+  the five canonical sections from
+  `.agents/templates/epic-from-idea.md` (Problem, Direction, Assumptions,
+  MVP Scope, Not Doing). Rubric threshold is **4 of 5 sections present
+  → `clear`**; below that, the gate seeds the `core/idea-refinement`
+  skill from the current Epic body, surfaces a HITL diff, and on
+  approval persists the sharpened body via `gh issue edit` before
+  Phase 7 PRD / Tech Spec / Acceptance Spec authoring begins. Scoring
+  lives in `.agents/scripts/lib/epic-plan-clarity.js` (pure rubric);
+  the CLI is `.agents/scripts/epic-plan-clarity.js` (two modes:
+  `--emit-context` read-only, and `--updated-body` idempotent persist
+  with a `clarity-gate-update` audit comment).
+- **`refactor(epic-plan): renumber phases to linear 1..11`** — the
+  ideation block (`0a/0b/0c/0d`), the always-on Phase `0`, and the
+  PRD/Decompose/Roadmap/Healthcheck/Notify phases (`1..5`) are
+  renumbered into a single linear sequence so the new clarity gate fits
+  as Phase 6 without fractional suffixes. No CLI flag carries a phase
+  number — only docs, log lines, and inline comments change. Operator
+  muscle memory is the only break; the workflow contract is unchanged.
+
 ### Fixed — Story #2125: framework-default floors actually apply
 
 Closes the absolute-floor gap that Story #2119 surfaced when it drained the

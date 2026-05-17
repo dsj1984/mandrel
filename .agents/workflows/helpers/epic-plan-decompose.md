@@ -1,13 +1,13 @@
 ---
 description: >-
-  Phase 2 of sprint planning — decompose an Epic's PRD and Tech Spec into a
+  Phase 8 of sprint planning — decompose an Epic's PRD and Tech Spec into a
   Feature/Story/Task hierarchy, persist the backlog, and flip the Epic to
   `agent::ready`. Host-LLM authored; no external API calls.
 ---
 
 # Sprint Plan — Decompose Phase (helper)
 
-> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 2).
+> **Helper module.** Not a slash command. Invoked by `/epic-plan` (Phase 8).
 > To run the decompose phase interactively, use `/epic-plan [Epic_ID]` — it
 > delegates here after the spec phase.
 
@@ -87,7 +87,7 @@ On success the script:
 
 Delegate the structural invariants (hierarchy completeness, dependency DAG
 acyclicity, missing complexity labels) to `epic-plan-healthcheck.js`. It is
-the single source of truth for post-decompose validation — the Phase 4 run
+the single source of truth for post-decompose validation — the Phase 10 run
 inside `/epic-plan` calls the same script, so local and remote flows agree.
 
 ```bash

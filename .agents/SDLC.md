@@ -220,6 +220,19 @@ Epic id.
 
 The framework reads the Epic and autonomously builds the entire work breakdown.
 
+> **Epic Clarity Gate (`/epic-plan` Phase 6).** Before PRD / Tech Spec /
+> Acceptance Spec authoring kicks off, `/epic-plan` scores the Epic body
+> against the five canonical sections from
+> [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Problem,
+> Direction, Assumptions, MVP Scope, Not Doing). The rubric is
+> deterministic (section-presence; threshold ≥ 4 of 5). A `clear` verdict
+> skips fast with no prompt; a `needs-refinement` verdict drops into the
+> `idea-refinement` skill seeded from the current Epic body, surfaces a
+> HITL diff, and on approval persists the sharpened body via
+> `gh issue edit` before Phase 7 authoring begins. The gate honours the
+> "do not modify existing issues without permission" Constraint — every
+> body rewrite is operator-confirmed.
+
 1. **Epic Planner** (`epic-plan-spec.js`):
    - Synthesizes the Epic body with project documentation.
    - Generates a **PRD** (`context::prd`), **Tech Spec**
@@ -271,7 +284,7 @@ respected by both runtime gates:
   finalize step proceeds.
 
 The waiver is binary — there is no partial opt-out. If an Epic later
-warrants spec coverage, remove the label and run `/epic-plan` Phase 1
+warrants spec coverage, remove the label and run `/epic-plan` Phase 7
 to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
@@ -317,7 +330,7 @@ worktree isolation, and cascade closure.
 > asserts that the Epic either (a) carries the `acceptance::n-a` waiver
 > label, or (b) has a linked `context::acceptance-spec` ticket whose
 > GitHub state is **closed** (i.e. the operator has approved the spec
-> after `/epic-plan` Phase 1). Neither condition met → the snapshot
+> after `/epic-plan` Phase 7). Neither condition met → the snapshot
 > throws a clear error naming the missing precondition and `runAsCli`
 > maps it to `process.exit(1)`. This refuses to launch Epics that
 > skipped acceptance-spec authoring, surfacing the gap at delivery time

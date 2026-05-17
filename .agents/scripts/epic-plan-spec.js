@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-plan-spec.js — Phase 1 (spec) entry point for the split planning flow.
+ * epic-plan-spec.js — Phase 7 (spec) entry point for the split planning flow.
  *
  * Two idempotent modes and a single-purpose label lifecycle:
  *
@@ -117,7 +117,7 @@ CRITICAL REQUIREMENTS:
 - Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
 - Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
 - Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
-- Cite proposed feature file paths under tests/features/** so Phase 2 can scaffold matching scenarios.`;
+- Cite proposed feature file paths under tests/features/** so Phase 8 can scaffold matching scenarios.`;
 
 /**
  * Build the authoring context the host LLM (or the
