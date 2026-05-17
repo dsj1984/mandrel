@@ -20,6 +20,7 @@ import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
+import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
@@ -129,6 +130,22 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     });
   traceLogger.register(bus);
 
+  // Story #2266 / Task #2268 — register the CheckpointPointerWriter
+  // EARLY, before any downstream named listener subscribes to a
+  // `*.end` event. The pointer write is the resume cursor; advancing
+  // it before the rest of the named-listener chain runs means a throw
+  // from a later listener still leaves the pointer at the most
+  // recently completed phase boundary. The bus mediator runs named
+  // listeners in registration order, so this `.register()` MUST
+  // remain before `registerIterateWavesListeners` / the side-effect
+  // trio below.
+  const checkpointPointerWriter = registerCheckpointPointerWriter({
+    bus,
+    epicId: ctx.epicId,
+    tempRoot,
+    logger,
+  });
+
   // Phase-scoped listener registration. Snapshot + plan phases use the
   // privileged ledger seam for canonical persistence; named listeners
   // here are reserved for downstream side effects (column sync,
@@ -209,7 +226,36 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ledgerWriter,
     traceLogger,
     lifecycleProgressReporter,
+    checkpointPointerWriter,
   };
+}
+
+/**
+ * Construct and register the CheckpointPointerWriter listener
+ * (Story #2266 / Task #2268). The writer subscribes to every `*.end`
+ * event, persists `{ lastCompletedSeqId, phase }` to
+ * `temp/epic-<id>/checkpoint.json`, and self-emits `checkpoint.written`
+ * exactly once per observed `*.end`. Returns the instance so tests can
+ * introspect the pointer path; returns `null` for unit fixtures that
+ * supply an unbusable collaborators bag.
+ */
+function registerCheckpointPointerWriter({ bus, epicId, tempRoot, logger }) {
+  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
+    return null;
+  }
+  if (!Number.isInteger(epicId) || epicId < 1) return null;
+  if (typeof tempRoot !== 'string' || tempRoot.length === 0) return null;
+  const writer = new CheckpointPointerWriter({
+    bus,
+    epicId,
+    tempRoot,
+    logger,
+  });
+  writer.register();
+  logger?.debug?.(
+    '[lifecycle] checkpoint-pointer-writer registered (every *.end → temp/epic-<id>/checkpoint.json)',
+  );
+  return writer;
 }
 
 /**
