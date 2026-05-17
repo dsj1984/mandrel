@@ -24,7 +24,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { getAgentrcValidator } from '../config-schema.js';
+import { AGENTRC_SCHEMA, getAgentrcValidator } from '../config-schema.js';
 import {
   deepEqual,
   getAgentrcDefaults,
@@ -117,16 +117,26 @@ export function syncAgentrc(opts) {
 /**
  * Walk every default leaf path. When the project carries the same path
  * with a deep-equal value, emit a `[REDUNDANT]` advisory. Skip identity
- * placeholder paths (those have no usable default).
+ * placeholder paths (those have no usable default) and skip leaves the
+ * schema requires at their immediate parent (deleting them would
+ * invalidate the config).
  *
  * @param {object} project
  * @param {object} defaults
+ * @param {object} [schema] — schema to consult for `required` arrays.
+ *   Defaults to the runtime AJV schema. Tests can inject a synthetic
+ *   schema to exercise the walk in isolation.
  * @returns {SyncChange[]}
  */
-export function collectRedundantAdvisories(project, defaults) {
+export function collectRedundantAdvisories(
+  project,
+  defaults,
+  schema = AGENTRC_SCHEMA,
+) {
   const out = [];
   for (const [dotted, defValue] of iterDefaultLeaves(defaults)) {
     if (IDENTITY_SET.has(dotted)) continue;
+    if (!isLeafSchemaRemovable(schema, dotted)) continue;
     const found = lookupPath(project, dotted);
     if (!found.present) continue;
     if (deepEqual(found.value, defValue)) {
@@ -138,6 +148,51 @@ export function collectRedundantAdvisories(project, defaults) {
     }
   }
   return out;
+}
+
+/**
+ * Walk a (pre-resolved, $ref-free) JSON Schema along a dotted path and
+ * report whether the leaf can be removed without invalidating its
+ * immediate parent. A leaf is schema-removable when it does NOT appear
+ * in its immediate-parent object's `required[]`.
+ *
+ * Only the leaf segment's membership in its parent's `required[]`
+ * matters. An ancestor being listed as required at a higher level
+ * (e.g. root requires `project`) does NOT prevent removing a
+ * non-required descendant (e.g. `project.baseBranch`) — the ancestor
+ * stays present, only the optional leaf disappears.
+ *
+ * The runtime AJV schema (`AGENTRC_SCHEMA`) is already fully inlined —
+ * no `$ref` indirection — so a simple `properties[key]` descent
+ * suffices. When the walk falls off the schema (the path isn't covered
+ * by any `properties` entry), the leaf is treated as removable: the
+ * advisory layer is purely informational and would-be advisories for
+ * keys the schema doesn't constrain are harmless.
+ *
+ * @param {object} rootSchema
+ * @param {string} dottedPath
+ * @returns {boolean}
+ */
+export function isLeafSchemaRemovable(rootSchema, dottedPath) {
+  if (!rootSchema || typeof rootSchema !== 'object') return true;
+  const parts = dottedPath.split('.');
+  let cursor = rootSchema;
+  for (let i = 0; i < parts.length; i += 1) {
+    const key = parts[i];
+    if (!cursor || typeof cursor !== 'object') return true;
+    const props = cursor.properties;
+    if (!props || !Object.hasOwn(props, key)) return true;
+    const isLeafSegment = i === parts.length - 1;
+    if (
+      isLeafSegment &&
+      Array.isArray(cursor.required) &&
+      cursor.required.includes(key)
+    ) {
+      return false;
+    }
+    cursor = props[key];
+  }
+  return true;
 }
 
 /**
