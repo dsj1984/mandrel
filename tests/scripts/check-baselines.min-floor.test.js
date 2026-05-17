@@ -85,11 +85,7 @@ describe('check-baselines — maintainability min floor (Story #2193 AC-5)', () 
       argv: ['--no-friction', '--gate', 'maintainability'],
       cwd: root,
     });
-    assert.equal(
-      res.exitCode,
-      1,
-      'EXIT_FLOOR (1) on min < default floor',
-    );
+    assert.equal(res.exitCode, 1, 'EXIT_FLOOR (1) on min < default floor');
     assert.equal(res.report.totalBreaches, 1);
     const gate = res.report.gates[0];
     assert.equal(gate.kind, 'maintainability');
