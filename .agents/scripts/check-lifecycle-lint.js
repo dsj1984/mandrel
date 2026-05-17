@@ -2,8 +2,8 @@
 /* node:coverage ignore file */
 
 /**
- * check-lifecycle-lint.js — enforce the two Tech Spec lint rules for the
- * lifecycle bus surface that biome's stock ruleset cannot express.
+ * check-lifecycle-lint.js — enforce the three Tech Spec lint rules for
+ * the lifecycle bus surface that biome's stock ruleset cannot express.
  *
  * Rule 1 — "No Promise.all over listener arrays".
  *   Files under `.agents/scripts/lib/orchestration/lifecycle/**` (the bus
@@ -19,6 +19,25 @@
  *   The static blocklist is small (the modules that mutate GitHub state,
  *   the worktree, or write outside `temp/epic-<id>/`); we match by module
  *   specifier suffix to keep the rule simple and stable.
+ *
+ * Rule 3 — "Auto-merge lockout" (Story #2253 / Task #2255, Epic #2172
+ *   review High-1).
+ *   String literals containing the substring `gh pr merge` MUST NOT
+ *   appear in any file under `.agents/scripts/**` EXCEPT
+ *   `.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js`
+ *   (Wave 7, Story #2256). The original safety hole was an
+ *   unconditional `gh pr merge <pr> --auto --squash --delete-branch`
+ *   call in `epic-deliver-finalize.js` that armed GitHub's native
+ *   auto-merge BEFORE the framework's automerge predicate evaluated
+ *   blocker / review state; the lockout backstops the deletion so a
+ *   future refactor cannot quietly re-add it outside the armer.
+ *
+ *   The rule scans STRING LITERALS only (single-quoted, double-quoted,
+ *   or back-ticked) — comments are exempt because the deletion site
+ *   needs prose explaining what was removed and why.
+ *
+ *   The exempt path is matched by suffix so it bites even before the
+ *   armer file lands (Wave 7); pre-existence is not required.
  *
  * Exit codes:
  *   0 — clean.
@@ -47,6 +66,52 @@ const LIFECYCLE_DIR = path.join(
   'lifecycle',
 );
 const LISTENERS_SUBDIR = path.join(LIFECYCLE_DIR, 'listeners');
+const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
+
+/**
+ * Files exempt from the merge-lockout rule. The path is matched by
+ * suffix against the absolute file path so the entry bites even before
+ * the file lands (Wave 7, Story #2256 / Task 8-3 adds
+ * `automerge-armer.js`; the rule still has to be in place beforehand
+ * so the lockout is enforced from the moment the deletion ships).
+ *
+ * Maintainers: do NOT widen this list without an architectural review
+ * — every additional exempt path is a new place an unauthorized
+ * auto-merge call could re-enter the codebase.
+ */
+const MERGE_LOCKOUT_ALLOWED_SUFFIXES = Object.freeze([
+  // Wave 7 / Story #2256 — the predicate-gated AutomergeArmer listener.
+  // Pre-existence is NOT required; the suffix match still bites the
+  // file once it lands.
+  path.join(
+    'lib',
+    'orchestration',
+    'lifecycle',
+    'listeners',
+    'automerge-armer.js',
+  ),
+  // Legacy predicate-gated automerge CLI. This script is the
+  // historical carrier of `gh pr merge` — it implements the
+  // SAFE auto-merge path (predicate evaluates blocker / review
+  // state BEFORE calling the CLI). Story #2256 / Task 8-3 lifts
+  // this logic into the `AutomergeArmer` listener; until then the
+  // CLI remains the production code path and must be exempted.
+  //
+  // Maintainers: when Wave 7 ships and the CLI is deleted,
+  // remove this entry too.
+  path.join('.agents', 'scripts', 'epic-deliver-automerge.js'),
+]);
+
+/**
+ * Files exempt from the merge-lockout rule because they ARE the rule
+ * (fixtures + the lint runner itself necessarily carry the literal so
+ * they can match against it). Maintainers: do NOT add production code
+ * here — see `MERGE_LOCKOUT_ALLOWED_SUFFIXES`.
+ */
+const MERGE_LOCKOUT_INFRASTRUCTURE_SUFFIXES = Object.freeze([
+  // The lint script itself (this file).
+  path.join('.agents', 'scripts', 'check-lifecycle-lint.js'),
+]);
 
 /**
  * Static blocklist of modules that mutate state under orchestration.
@@ -165,17 +230,150 @@ export function findWildcardObserverFirewallViolations(
   return violations;
 }
 
+/**
+ * Strip block (`/* … *​/`) and line (`// …`) comments from a source
+ * string. Pure — exported for tests so the comment-stripping contract
+ * is explicit. Defends against the corner case where the literal
+ * `'gh pr merge'` appears INSIDE a justification comment at the
+ * deletion site (Story #2253 deliberately leaves a prose explanation
+ * referencing the removed CLI call).
+ *
+ * The implementation is a tiny state machine rather than a regex so it
+ * correctly handles the (legal) case of a string literal containing
+ * `//` or `/​*` characters.
+ *
+ * @param {string} src
+ * @returns {string} source with comments replaced by spaces (line
+ *   numbers preserved so violations report the original line).
+ */
+export function stripComments(src) {
+  let out = '';
+  let i = 0;
+  const n = src.length;
+  while (i < n) {
+    const ch = src[i];
+    const nx = src[i + 1];
+    // line comment
+    if (ch === '/' && nx === '/') {
+      while (i < n && src[i] !== '\n') {
+        i += 1;
+      }
+      continue;
+    }
+    // block comment
+    if (ch === '/' && nx === '*') {
+      i += 2;
+      while (i < n && !(src[i] === '*' && src[i + 1] === '/')) {
+        // preserve newlines so line numbers in violation reports stay
+        // aligned with the original file.
+        if (src[i] === '\n') out += '\n';
+        i += 1;
+      }
+      i += 2; // skip closing */
+      continue;
+    }
+    // string literal — copy through unchanged (we WANT to keep these
+    // so Rule 3 can flag them).
+    if (ch === '"' || ch === "'" || ch === '`') {
+      const quote = ch;
+      out += ch;
+      i += 1;
+      while (i < n) {
+        const c = src[i];
+        out += c;
+        if (c === '\\' && i + 1 < n) {
+          out += src[i + 1];
+          i += 2;
+          continue;
+        }
+        i += 1;
+        if (c === quote) break;
+      }
+      continue;
+    }
+    out += ch;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * Rule 3 enforcement (Story #2253 / Task #2255, Epic #2172 review
+ * High-1). Returns an array of `{ file, line, hint }` violations for
+ * any file under `rootDir` (recursively) whose source — with comments
+ * stripped — contains a string literal carrying the substring
+ * `gh pr merge`. The allow-list (`automerge-armer.js`) and the
+ * infrastructure list (the lint script + fixtures it owns) are
+ * matched by absolute-path suffix.
+ *
+ * Exposed for unit tests so the lockout contract can be exercised
+ * against synthetic fixture trees without polluting the live source.
+ */
+export function findMergeLockoutViolations(
+  rootDir,
+  {
+    read = readFileSync,
+    allowSuffixes = MERGE_LOCKOUT_ALLOWED_SUFFIXES,
+    infrastructureSuffixes = MERGE_LOCKOUT_INFRASTRUCTURE_SUFFIXES,
+  } = {},
+) {
+  const violations = [];
+  // The literal we forbid. Kept in a constant so we can refer to it in
+  // the violation `hint` without the literal appearing as a string in
+  // arbitrary positions. The space matters — `gh-pr-merge` is not the
+  // CLI, only the space-delimited form is.
+  const FORBIDDEN = 'gh pr merge';
+  const lineRe = /(['"`])((?:\\.|(?!\1).)*)\1/g;
+  for (const file of walkJs(rootDir)) {
+    // Skip the armer (intentional carrier) and the lint infrastructure.
+    const allExempt = [...allowSuffixes, ...infrastructureSuffixes];
+    if (allExempt.some((suffix) => file.endsWith(suffix))) continue;
+
+    const raw = read(file, 'utf8');
+    const rawLines = raw.split('\n');
+    const stripped = stripComments(raw);
+    const lines = stripped.split('\n');
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i];
+      // Honour the opt-out marker; it lives in a comment (and is
+      // therefore stripped above), so consult the RAW line for the
+      // marker check. Kept consistent with Rule 1.
+      const rawLine = rawLines[i] ?? '';
+      if (rawLine.includes('lint-lifecycle-disable')) continue;
+      // Find every string literal on the (comment-stripped) line and
+      // inspect its body.
+      lineRe.lastIndex = 0;
+      let match = lineRe.exec(line);
+      while (match !== null) {
+        const literalBody = match[2];
+        if (literalBody.includes(FORBIDDEN)) {
+          violations.push({
+            file,
+            line: i + 1,
+            hint: `String literal containing '${FORBIDDEN}' is forbidden outside automerge-armer.js (Story #2253 review High-1). Auto-merge enablement must flow through the AutomergeArmer listener so blocker/review predicates gate the call.`,
+          });
+          break; // one violation per line is enough
+        }
+        match = lineRe.exec(line);
+      }
+    }
+  }
+  return violations;
+}
+
 async function main() {
   // Per-rule discovery.
   const v1 = findPromiseAllViolations(LIFECYCLE_DIR);
   const v2 = findWildcardObserverFirewallViolations(LISTENERS_SUBDIR);
+  const v3 = findMergeLockoutViolations(SCRIPTS_DIR);
   const all = [
     ...v1.map((v) => ({ rule: 'no-promise-all-listeners', ...v })),
     ...v2.map((v) => ({ rule: 'wildcard-observer-firewall', ...v })),
+    ...v3.map((v) => ({ rule: 'merge-lockout', ...v })),
   ];
   if (all.length === 0) {
     process.stdout.write(
-      '[lifecycle-lint] clean: no Promise.all over listeners; no wildcard-firewall breaches.\n',
+      '[lifecycle-lint] clean: no Promise.all over listeners; no wildcard-firewall breaches; no merge-lockout violations.\n',
     );
     return 0;
   }
