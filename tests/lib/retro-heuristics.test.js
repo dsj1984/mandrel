@@ -21,9 +21,23 @@ test('isCleanManifest - no arguments returns true (all dimensions default to 0)'
 });
 
 test('isCleanManifest - each single non-zero signal returns false', () => {
-  const dimensions = ['friction', 'parked', 'recuts', 'hotfixes', 'hitl'];
+  const dimensions = [
+    'friction',
+    'parked',
+    'recuts',
+    'hotfixes',
+    'hitl',
+    'interventions',
+  ];
   for (const dim of dimensions) {
-    const counts = { friction: 0, parked: 0, recuts: 0, hotfixes: 0, hitl: 0 };
+    const counts = {
+      friction: 0,
+      parked: 0,
+      recuts: 0,
+      hotfixes: 0,
+      hitl: 0,
+      interventions: 0,
+    };
     counts[dim] = 1;
     assert.strictEqual(
       isCleanManifest(counts),
@@ -97,4 +111,21 @@ test('isCleanManifest - hitl reflects agent::blocked event count (fixture replay
   // tally, so the heuristic falls back to the compact retro.
   fixture.hitl = 0;
   assert.strictEqual(isCleanManifest(fixture), true);
+});
+
+// Story #2289 — interventions count now feeds the predicate so the retro
+// shape agrees with the auto-merge gate on what "clean" means.
+test('isCleanManifest - interventions > 0 disqualifies the compact path', () => {
+  assert.strictEqual(
+    isCleanManifest({
+      friction: 0,
+      parked: 0,
+      recuts: 0,
+      hotfixes: 0,
+      hitl: 0,
+      interventions: 5,
+    }),
+    false,
+    'recorded manual interventions should route to the full retro',
+  );
 });

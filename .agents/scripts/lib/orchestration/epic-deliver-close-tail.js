@@ -342,12 +342,29 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   }
 
   // ---------- Phase E: retro ----------
+  // Re-read the checkpoint so the retro scorecard reflects the latest
+  // `manualInterventions` count. Out-of-band recovery (`epic-deliver-note-
+  // intervention.js`) can append entries between the close-tail's prior
+  // crash and this resume — Story #2289 makes that count visible in the
+  // retro instead of silently dropping it. A read failure degrades to 0
+  // so retro never blocks on checkpoint corruption.
   const e = await runPhase({
     ...phaseCtx,
     phase: 'retro',
     nextPhase: 'finalize',
     errorReason: 'retro-error',
-    body: () => runRetroFn({ epicId, provider, logger }),
+    body: async () => {
+      const interventionCount = await readInterventionCount(
+        checkpointer,
+        logger,
+      );
+      return runRetroFn({
+        epicId,
+        provider,
+        logger,
+        manualInterventions: interventionCount,
+      });
+    },
     onResult: (retro) => {
       result.retro = retro;
       return null;
@@ -442,6 +459,25 @@ function finishResult(result, blocker, phasesRun, phasesSkipped) {
   result.phasesRun = phasesRun;
   result.phasesSkipped = phasesSkipped;
   return result;
+}
+
+/**
+ * Read the checkpoint's `manualInterventions` array length, used by
+ * Phase E to inflate the retro scorecard. A missing or corrupt checkpoint
+ * collapses to 0 — the retro must never fail closed on observability data.
+ */
+async function readInterventionCount(checkpointer, logger) {
+  try {
+    const state = (await checkpointer.read()) ?? {};
+    return Array.isArray(state.manualInterventions)
+      ? state.manualInterventions.length
+      : 0;
+  } catch (err) {
+    logger?.warn?.(
+      `[close-tail] could not read manualInterventions for retro scorecard: ${messageOf(err)}`,
+    );
+    return 0;
+  }
 }
 
 // Re-export phase list so consumers (the contract test, the slash-command
