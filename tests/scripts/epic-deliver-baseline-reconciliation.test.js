@@ -52,7 +52,15 @@ function makeRouter(routes) {
   return { fn, calls };
 }
 
-describe('reconcileBaselinesOnEpicBranch — Story #1396 contract', () => {
+describe.skip('reconcileBaselinesOnEpicBranch — Story #1396 contract (LEGACY, replaced by #2204)', () => {
+  // Story #2204 migrated `reconcileBaselinesOnEpicBranch` to use
+  // `refreshBaseline()` from the unified service; the legacy
+  // `regenerateMainFromTree`-injection contract these tests pin is gone.
+  // The new behaviour is covered by:
+  //   - tests/scripts/epic-deliver-finalize.refresh.test.js
+  //   - tests/scripts/epic-deliver-finalize.row-preservation.test.js
+  //   - tests/scripts/epic-deliver-finalize.test.js
+  // Kept (skipped) for git-blame archaeology; remove once #2204 lands on main.
   it('produces exactly one `baseline-refresh: epic-<id>` commit when scoring drifts', async () => {
     const regenerate = mock.fn(async () => ({
       didChange: true,
