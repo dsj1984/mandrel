@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T12:41:13.714Z",
+  "generatedAt": "2026-05-17T12:57:15.662Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.133,
+      "p50": 103.132,
       "p95": 121.484
     }
   },
@@ -448,7 +448,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-gates-schema.js",
-      "mi": 52.885
+      "mi": 53.731
     },
     {
       "path": ".agents/scripts/lib/config-resolver.js",
@@ -464,7 +464,7 @@
     },
     {
       "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 46.26
+      "mi": 46.73
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -492,7 +492,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 84.441
+      "mi": 83.868
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
@@ -572,7 +572,7 @@
     },
     {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
-      "mi": 89.57
+      "mi": 90.345
     },
     {
       "path": ".agents/scripts/lib/error-redactor.js",
@@ -804,7 +804,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
-      "mi": 112.048
+      "mi": 105.98
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
@@ -960,7 +960,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
-      "mi": 80.656
+      "mi": 84.191
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution.js",
@@ -988,7 +988,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/format-autofix.js",
-      "mi": 93.355
+      "mi": 99.061
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/merge-runner.js",
@@ -1448,7 +1448,7 @@
     },
     {
       "path": ".agents/scripts/story-close.js",
-      "mi": 83.196
+      "mi": 83.932
     },
     {
       "path": ".agents/scripts/story-deliver-prepare.js",
@@ -1823,10 +1823,6 @@
       "mi": 113.531
     },
     {
-      "path": "tests/contract/spawn-timeout-hardening.test.js",
-      "mi": 110.567
-    },
-    {
       "path": "tests/coverage-baseline-noise-tolerance.test.js",
       "mi": 102.825
     },
@@ -1948,7 +1944,7 @@
     },
     {
       "path": "tests/epic-plan-clarity.test.js",
-      "mi": 112
+      "mi": 112.367
     },
     {
       "path": "tests/epic-plan-spec-drain.test.js",
@@ -1968,7 +1964,7 @@
     },
     {
       "path": "tests/epic-runner/acceptance-spec-gate.test.js",
-      "mi": 106.014
+      "mi": 107.75
     },
     {
       "path": "tests/epic-runner/blocker-handler.test.js",
@@ -2640,7 +2636,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js",
-      "mi": 97.037
+      "mi": 99.531
     },
     {
       "path": "tests/lib/orchestration/story-close/baseline-attribution.test.js",
@@ -3372,7 +3368,7 @@
     },
     {
       "path": "tests/workflows/epic-plan-ideation.test.js",
-      "mi": 110.244
+      "mi": 111.497
     },
     {
       "path": "tests/workflows/lint-baseline-cli.test.js",
