@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T15:51:16.748Z",
+  "generatedAt": "2026-05-17T16:10:38.325Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.132,
+      "p50": 103.133,
       "p95": 121.484
     }
   },
@@ -108,7 +108,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-finalize.js",
-      "mi": 80.79
+      "mi": 83
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -3105,6 +3105,14 @@
     {
       "path": "tests/scripts/epic-deliver-cleanup.test.js",
       "mi": 109.413
+    },
+    {
+      "path": "tests/scripts/epic-deliver-finalize.refresh.test.js",
+      "mi": 109.708
+    },
+    {
+      "path": "tests/scripts/epic-deliver-finalize.row-preservation.test.js",
+      "mi": 108.751
     },
     {
       "path": "tests/scripts/epic-deliver-finalize.test.js",

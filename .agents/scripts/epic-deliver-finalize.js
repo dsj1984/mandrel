@@ -30,12 +30,29 @@
 import { spawnSync } from 'node:child_process';
 import { parseArgs } from 'node:util';
 
+import path from 'node:path';
+
+import { refreshBaseline as defaultRefreshBaseline } from '../../lib/baselines/refresh-service.js';
 import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from './acceptance-spec-reconciler.js';
-import { regenerateMainFromTree as defaultRegenerateMainFromTree } from './lib/baseline-snapshot.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import {
+  getBaselines as defaultGetBaselines,
+  getQuality as defaultGetQuality,
+  PROJECT_ROOT,
+  resolveConfig,
+} from './lib/config-resolver.js';
+import { loadCoverage as defaultLoadCoverage } from './lib/coverage-utils.js';
+import {
+  resolveEscomplexVersion as defaultResolveEscomplexVersion,
+  resolveTsTranspilerVersion as defaultResolveTsTranspilerVersion,
+  scanAndScore as defaultScanAndScore,
+} from './lib/crap-utils.js';
 import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import {
+  calculateAll as defaultCalculateAll,
+  scanDirectory as defaultScanDirectory,
+} from './lib/maintainability-utils.js';
 import {
   emitEpicComplete,
   runHotspotDetection,
@@ -48,10 +65,19 @@ import {
 import { createProvider } from './lib/provider-factory.js';
 import { notify as defaultNotify } from './notify.js';
 
-const HELP = `Usage: node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
+const HELP = `Usage: node .agents/scripts/epic-deliver-finalize.js --epic <epicId> [--full-scope]
 
 Verifies epic/<id> fast-forwards main, pushes the epic branch, opens a PR
 to main with gh, and posts a hand-off comment on the Epic.
+
+Options:
+  --epic <epicId>   Epic ID (required, positive integer).
+  --full-scope      Reconcile baselines via a full regeneration instead of
+                    the default diff-scope. Use this only when an operator
+                    audit needs every row re-scored (rare); diff-scope is
+                    the default so finalize never rewrites rows outside the
+                    Epic diff (Epic #2173, AC-4).
+  --help, -h        Show this message.
 `;
 
 /**
@@ -179,21 +205,168 @@ export function checkEpicFastForward({
 }
 
 /**
- * Story #1396: post-merge baseline reconciliation. Regenerate the tracked
- * `baselines/{maintainability,crap}.json` against the Epic branch's merged
- * working tree and, when at least one baseline file's bytes drift,
- * stage + commit them as `baseline-refresh: epic-<id>` directly on the
- * Epic branch.
+ * Build a maintainability scorer adapter for `refreshBaseline()`.
+ *
+ * The unified refresh service (Story #2197) treats scoring as an external
+ * concern: the service drives scope resolution and writer composition; the
+ * scorer owns the directory walk + score computation. Story #2204 wires
+ * the production maintainability scorer (`calculateAll` + `scanDirectory`
+ * over `quality.maintainability.targetDirs`) as an adapter so finalize
+ * reconciliation can flow through `refreshBaseline()` without the kind
+ * registry's default scorers being live yet (Stories 3/4/5 of Epic #2173
+ * will populate those defaults; until then, callers inject).
+ *
+ * Diff-scope contract:
+ *
+ * - When `opts.fullScope === false` (the production finalize default),
+ *   the service hands the scorer a `files` array derived from
+ *   `git diff --name-only baseRef..headRef`. The adapter restricts the
+ *   scoring set to those files that fall under the configured target
+ *   dirs — files outside the target dirs are silently dropped because
+ *   the maintainability baseline only covers those directories.
+ * - When `opts.fullScope === true`, the adapter falls back to the legacy
+ *   directory walk (every file under the target dirs is scored). The
+ *   `files` array is empty in that case by service contract.
+ *
+ * Out-of-scope rows are preserved by the writer's scope-merge layer —
+ * the adapter does not need to load the prior envelope itself.
+ */
+function buildMaintainabilityScorer({
+  cwd,
+  targetDirs,
+  scanDirectoryFn,
+  calculateAllFn,
+}) {
+  return async (files, opts) => {
+    const fullScope = opts?.fullScope === true;
+    const absTargetDirs = targetDirs.map((dir) =>
+      path.isAbsolute(dir) ? dir : path.resolve(cwd, dir),
+    );
+
+    let sourceList;
+    if (fullScope) {
+      sourceList = [];
+      for (const abs of absTargetDirs) {
+        scanDirectoryFn(abs, sourceList);
+      }
+    } else {
+      // Diff-scope: restrict to files that (a) the service handed us via
+      // `git diff` and (b) live under a configured target dir. The full
+      // walk is skipped because the writer's scope-merge preserves out-of-
+      // scope rows verbatim — see refresh-service.row-preservation tests.
+      sourceList = [];
+      for (const f of files ?? []) {
+        const abs = path.isAbsolute(f) ? f : path.resolve(cwd, f);
+        if (absTargetDirs.some((dir) => abs === dir || abs.startsWith(`${dir}${path.sep}`))) {
+          sourceList.push(abs);
+        }
+      }
+    }
+
+    const scores = await calculateAllFn(sourceList);
+
+    // Project the scoring helper's `{ path: mi }` map onto the writer's
+    // canonical row shape. The refresh service runs every row through
+    // `canonicalizeBaselinePath()` before persisting, so we only need
+    // POSIX-relative keys here.
+    return Object.entries(scores).map(([key, mi]) => {
+      const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+      const posixRel = rel.split(path.sep).join('/');
+      return { path: posixRel, mi };
+    });
+  };
+}
+
+/**
+ * Build a crap scorer adapter for `refreshBaseline()`. Mirror of the
+ * maintainability builder above with the kind-specific scoring path
+ * (`scanAndScore` over `quality.crap.targetDirs`).
+ *
+ * Coverage handling: `scanAndScore` reads coverage data eagerly; when no
+ * coverage report exists and `requireCoverage !== false`, the function
+ * returns no scored rows. The adapter surfaces that as "no in-scope rows",
+ * which lets the writer's structural-equality short-circuit fire — i.e.
+ * no spurious crap refresh commit on coverage-less runs.
+ */
+function buildCrapScorer({
+  cwd,
+  crapCfg,
+  coveragePath,
+  loadCoverageFn,
+  scanAndScoreFn,
+  resolveEscomplexVersionFn,
+  resolveTsTranspilerVersionFn,
+}) {
+  return async (_files, _opts) => {
+    const requireCoverage = crapCfg.requireCoverage !== false;
+    const coverageAbs = path.isAbsolute(coveragePath)
+      ? coveragePath
+      : path.resolve(cwd, coveragePath);
+    const coverage = loadCoverageFn(coverageAbs);
+    if (!coverage && requireCoverage) {
+      // No coverage report → no rows to merge. The writer keeps the prior
+      // envelope intact via the structural-equality short-circuit.
+      return [];
+    }
+
+    const crapTargetDirs = Array.isArray(crapCfg.targetDirs)
+      ? crapCfg.targetDirs
+      : [];
+
+    // scanAndScore drives its own directory walk; we do not pre-filter by
+    // diff-scope because the writer's scope-merge layer (when scope is
+    // present) preserves out-of-scope prior rows regardless. Honouring the
+    // diff-scope here would require a kind-specific pre-filter step that
+    // duplicates the writer's responsibility — keep responsibilities thin.
+    const { rows } = await scanAndScoreFn({
+      targetDirs: crapTargetDirs,
+      coverage,
+      requireCoverage,
+      cwd,
+    });
+
+    // CRAP gates need the running scorer's escomplex/ts-transpiler versions
+    // resolved eagerly so a test stub can pin them deterministically. The
+    // writer reads the values via per-kind module hooks.
+    resolveEscomplexVersionFn(cwd);
+    resolveTsTranspilerVersionFn();
+
+    // Filter to actually-scored rows (crap is nullable for trivial methods);
+    // the writer's `assertEnvelope` would reject otherwise.
+    return (rows ?? []).filter(
+      (r) => typeof r?.crap === 'number' && Number.isFinite(r.crap),
+    );
+  };
+}
+
+/**
+ * Story #1396 → Story #2204 (Epic #2173, AC-4): post-merge baseline
+ * reconciliation. Re-score the tracked `baselines/{maintainability,crap}.json`
+ * against the Epic branch's merged working tree via the unified
+ * `refreshBaseline()` service (Story #2197). When at least one baseline
+ * file's bytes drift, stage + commit them as `baseline-refresh: epic-<id>`
+ * directly on the Epic branch.
+ *
+ * **Diff-scope is the default** (`fullScope: false`). Finalize only refreshes
+ * rows for files that actually differ between `origin/main` and
+ * `epic/<id>` — out-of-scope rows (including their timestamps) are
+ * preserved byte-for-byte by the writer's scope-merge layer. This is the
+ * load-bearing behaviour for Epic #2173 AC-4.
+ *
+ * **`fullScope: true`** is the operator-driven opt-in surfaced through the
+ * CLI `--full-scope` flag for the rare cases (audit, initial baseline
+ * creation, deterministic re-score) that need every row regenerated.
  *
  * Idempotency contract:
- *   - When the merge produced no baseline impact, `regenerateMainFromTree`
- *     returns `didChange: false` and this helper returns `committed: false`.
+ *   - When the merge produced no in-scope drift, both refresh calls hit
+ *     the writer's structural-equality short-circuit, `wrote === false`,
+ *     and this helper returns `committed: false`.
  *   - On a partial /epic-deliver re-run, the previous refresh commit is
  *     already in the Epic-branch tree, so the re-scoring lands the same
- *     bytes — `didChange: false` again, no duplicate commit.
+ *     bytes — no duplicate commit.
  *
- * Failure modes are non-fatal: a thrown regeneration step is caught,
- * surfaced via `logger.warn`, and the helper returns
+ * Failure modes are non-fatal: a thrown refresh step is caught, surfaced
+ * via `logger.warn`, and the helper returns
  * `{ committed: false, reason: 'error' }`. The finalize pipeline must keep
  * going (push + PR open) even when reconciliation cannot run — drift is
  * caught by the pre-merge gates regardless.
@@ -201,41 +374,146 @@ export function checkEpicFastForward({
  * @param {{
  *   epicId: number,
  *   cwd: string,
+ *   fullScope?: boolean,
+ *   baseRef?: string,
+ *   headRef?: string,
  *   logger?: object,
- *   regenerateMainFromTree?: typeof defaultRegenerateMainFromTree,
+ *   refreshBaselineFn?: typeof defaultRefreshBaseline,
+ *   resolveConfigFn?: typeof resolveConfig,
+ *   getBaselinesFn?: typeof defaultGetBaselines,
+ *   getQualityFn?: typeof defaultGetQuality,
+ *   scanDirectoryFn?: typeof defaultScanDirectory,
+ *   calculateAllFn?: typeof defaultCalculateAll,
+ *   scanAndScoreFn?: typeof defaultScanAndScore,
+ *   loadCoverageFn?: typeof defaultLoadCoverage,
+ *   resolveEscomplexVersionFn?: typeof defaultResolveEscomplexVersion,
+ *   resolveTsTranspilerVersionFn?: typeof defaultResolveTsTranspilerVersion,
  *   gitSpawnFn?: typeof gitSpawn,
  * }} args
- * @returns {Promise<{ committed: boolean, sha?: string, didChange?: boolean, reason?: 'no-change'|'error'|'commit-failed', detail?: string }>}
+ * @returns {Promise<{ committed: boolean, sha?: string, didChange?: boolean, reason?: 'no-change'|'error'|'commit-failed', detail?: string, fullScope?: boolean, refreshes?: Array<{ kind: string, wrote: boolean, scopeMode: string }> }>}
  */
 export async function reconcileBaselinesOnEpicBranch({
   epicId,
   cwd,
+  fullScope = false,
+  baseRef,
+  headRef = 'HEAD',
   logger = Logger,
-  regenerateMainFromTree = defaultRegenerateMainFromTree,
+  refreshBaselineFn = defaultRefreshBaseline,
+  resolveConfigFn = resolveConfig,
+  getBaselinesFn = defaultGetBaselines,
+  getQualityFn = defaultGetQuality,
+  scanDirectoryFn = defaultScanDirectory,
+  calculateAllFn = defaultCalculateAll,
+  scanAndScoreFn = defaultScanAndScore,
+  loadCoverageFn = defaultLoadCoverage,
+  resolveEscomplexVersionFn = defaultResolveEscomplexVersion,
+  resolveTsTranspilerVersionFn = defaultResolveTsTranspilerVersion,
   gitSpawnFn = gitSpawn,
 } = {}) {
-  let regen;
+  const refreshes = [];
   try {
-    regen = await regenerateMainFromTree({ cwd, logger });
+    const { agentSettings, project } = resolveConfigFn({ cwd });
+    const baselines = getBaselinesFn({ agentSettings });
+    const quality = getQualityFn({ agentSettings });
+    const resolvedBaseRef =
+      baseRef ?? `origin/${project?.baseBranch ?? agentSettings?.baseBranch ?? 'main'}`;
+
+    // ── maintainability ────────────────────────────────────────────────────
+    const miPath = baselines?.maintainability?.path;
+    const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
+    if (typeof miPath === 'string' && miPath.length > 0) {
+      const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
+      const miScorer = buildMaintainabilityScorer({
+        cwd,
+        targetDirs: miTargetDirs,
+        scanDirectoryFn,
+        calculateAllFn,
+      });
+      const miResult = await refreshBaselineFn({
+        kind: 'maintainability',
+        baseRef: resolvedBaseRef,
+        headRef,
+        fullScope,
+        writePath: miAbs,
+        scorer: miScorer,
+        cwd,
+      });
+      refreshes.push({
+        kind: 'maintainability',
+        wrote: miResult.wrote === true,
+        scopeMode: miResult.scope?.mode ?? 'unknown',
+      });
+    }
+
+    // ── crap ───────────────────────────────────────────────────────────────
+    const crapPath = baselines?.crap?.path;
+    const crapCfg = quality?.crap ?? {};
+    if (typeof crapPath === 'string' && crapPath.length > 0) {
+      const crapAbs = path.isAbsolute(crapPath)
+        ? crapPath
+        : path.resolve(cwd, crapPath);
+      const coveragePath =
+        crapCfg.coveragePath ?? 'coverage/coverage-final.json';
+      const crapScorer = buildCrapScorer({
+        cwd,
+        crapCfg,
+        coveragePath,
+        loadCoverageFn,
+        scanAndScoreFn,
+        resolveEscomplexVersionFn,
+        resolveTsTranspilerVersionFn,
+      });
+      const crapResult = await refreshBaselineFn({
+        kind: 'crap',
+        baseRef: resolvedBaseRef,
+        headRef,
+        fullScope,
+        writePath: crapAbs,
+        scorer: crapScorer,
+        cwd,
+      });
+      refreshes.push({
+        kind: 'crap',
+        wrote: crapResult.wrote === true,
+        scopeMode: crapResult.scope?.mode ?? 'unknown',
+      });
+    }
   } catch (err) {
     logger.warn?.(
-      `[epic-deliver-finalize] baseline reconciliation skipped (regenerate threw): ${err?.message ?? err}`,
+      `[epic-deliver-finalize] baseline reconciliation skipped (refreshBaseline threw): ${err?.message ?? err}`,
     );
-    return { committed: false, reason: 'error', detail: String(err) };
+    return { committed: false, reason: 'error', detail: String(err), fullScope };
   }
-  if (!regen.didChange) {
+
+  const anyWrote = refreshes.some((r) => r.wrote);
+  if (!anyWrote) {
     logger.info?.(
-      `[epic-deliver-finalize] baseline reconciliation: no drift on epic-${epicId}, skipping refresh commit.`,
+      `[epic-deliver-finalize] baseline reconciliation: no drift on epic-${epicId} (scope=${fullScope ? 'full' : 'diff'}), skipping refresh commit.`,
     );
-    return { committed: false, didChange: false, reason: 'no-change' };
+    return {
+      committed: false,
+      didChange: false,
+      reason: 'no-change',
+      fullScope,
+      refreshes,
+    };
   }
 
   // Stage only the baseline files that were updated. Avoid `git add -A` so
   // an unrelated dirty file in the working tree never lands in the refresh
-  // commit by accident.
-  const updatedPaths = regen.files
-    .filter((f) => f.didChange && typeof f.path === 'string')
-    .map((f) => f.path);
+  // commit by accident. We re-derive the absolute paths from config rather
+  // than reading them back off the refresh result to keep this step pure.
+  const { agentSettings } = resolveConfigFn({ cwd });
+  const baselines = getBaselinesFn({ agentSettings });
+  const updatedPaths = refreshes
+    .filter((r) => r.wrote)
+    .map((r) => {
+      const cfg = baselines?.[r.kind]?.path;
+      if (typeof cfg !== 'string') return null;
+      return path.isAbsolute(cfg) ? cfg : path.resolve(cwd, cfg);
+    })
+    .filter((p) => typeof p === 'string');
   for (const p of updatedPaths) {
     const addRes = gitSpawnFn(cwd, 'add', '--', p);
     if (addRes.status !== 0) {
@@ -246,6 +524,8 @@ export async function reconcileBaselinesOnEpicBranch({
         committed: false,
         reason: 'commit-failed',
         detail: addRes.stderr,
+        fullScope,
+        refreshes,
       };
     }
   }
@@ -264,21 +544,33 @@ export async function reconcileBaselinesOnEpicBranch({
     // git considered the diff already applied.
     const stderr = commitRes.stderr || commitRes.stdout || '';
     if (/nothing to commit|no changes added/i.test(stderr)) {
-      return { committed: false, didChange: false, reason: 'no-change' };
+      return {
+        committed: false,
+        didChange: false,
+        reason: 'no-change',
+        fullScope,
+        refreshes,
+      };
     }
     logger.warn?.(
       `[epic-deliver-finalize] baseline-refresh commit failed: ${stderr}`,
     );
-    return { committed: false, reason: 'commit-failed', detail: stderr };
+    return {
+      committed: false,
+      reason: 'commit-failed',
+      detail: stderr,
+      fullScope,
+      refreshes,
+    };
   }
 
   // Resolve the new HEAD sha for the return envelope.
   const head = gitSpawnFn(cwd, 'rev-parse', 'HEAD');
   const sha = head.status === 0 ? head.stdout.trim() : undefined;
   logger.info?.(
-    `[epic-deliver-finalize] baseline-refresh: epic-${epicId} committed (${sha ? sha.slice(0, 7) : '?'}).`,
+    `[epic-deliver-finalize] baseline-refresh: epic-${epicId} committed (${sha ? sha.slice(0, 7) : '?'}, scope=${fullScope ? 'full' : 'diff'}).`,
   );
-  return { committed: true, didChange: true, sha };
+  return { committed: true, didChange: true, sha, fullScope, refreshes };
 }
 
 /**
@@ -446,6 +738,7 @@ export async function verifyAndRecoverEpicClose({
 export async function runEpicDeliverFinalize({
   epicId,
   cwd,
+  fullScope = false,
   injectedProvider,
   injectedConfig,
   loggerImpl,
@@ -520,6 +813,9 @@ export async function runEpicDeliverFinalize({
   const reconcile = await reconcileBaselinesFn({
     epicId,
     cwd: repoCwd,
+    fullScope,
+    baseRef,
+    headRef: epicBranch,
     logger,
     gitSpawnFn,
   });
@@ -721,6 +1017,12 @@ export async function runEpicDeliverFinalize({
  * Pure: classify parsed CLI values into a runnable intent. Extracting this
  * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
  * lets unit tests cover every branch directly.
+ *
+ * Story #2204 (Epic #2173, AC-4): the `--full-scope` flag is surfaced
+ * here as `fullScope: boolean` on the `run` intent so the CLI wrapper can
+ * plumb it through to `runEpicDeliverFinalize`. Diff-scope (the absence
+ * of the flag) is the default — finalize never rewrites rows outside the
+ * Epic diff unless the operator opts in.
  */
 export function classifyFinalizeInvocation(values) {
   if (values?.help) return { kind: 'help' };
@@ -734,13 +1036,14 @@ export function classifyFinalizeInvocation(values) {
       ],
     };
   }
-  return { kind: 'run', epicId };
+  return { kind: 'run', epicId, fullScope: values?.['full-scope'] === true };
 }
 
 async function main() {
   const { values } = parseArgs({
     options: {
       epic: { type: 'string' },
+      'full-scope': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
@@ -754,7 +1057,10 @@ async function main() {
     for (const m of intent.messages) Logger.error(m);
     process.exit(2);
   }
-  const out = await runEpicDeliverFinalize({ epicId: intent.epicId });
+  const out = await runEpicDeliverFinalize({
+    epicId: intent.epicId,
+    fullScope: intent.fullScope === true,
+  });
   Logger.info(JSON.stringify(out, null, 2));
   if (out.blocker) process.exit(1);
 }
