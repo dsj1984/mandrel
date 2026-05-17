@@ -141,6 +141,18 @@ describe('classifyCoverage', () => {
     assert.deepEqual(out, { satisfied: [], pending: [], missing: ['AC-3'] });
   });
 
+  it('marks an AC pending when only @skip scenarios carry the tag (BDD runner pending tag)', () => {
+    const tagSets = [new Set(['ac-7', 'skip'])];
+    const out = classifyCoverage({ acIds: ['AC-7'], tagSets });
+    assert.deepEqual(out, { satisfied: [], pending: ['AC-7'], missing: [] });
+  });
+
+  it('marks an AC satisfied when an untagged scenario carries the AC token (no @skip / @pending)', () => {
+    const tagSets = [new Set(['ac-7'])];
+    const out = classifyCoverage({ acIds: ['AC-7'], tagSets });
+    assert.deepEqual(out, { satisfied: ['AC-7'], pending: [], missing: [] });
+  });
+
   it('mixed matrix: classifies each AC independently', () => {
     const tagSets = [
       new Set(['ac-1']), // AC-1 satisfied

@@ -40,6 +40,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { PENDING_TAGS } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { parseLinkedIssues } from './lib/issue-link-parser.js';
@@ -234,7 +235,7 @@ export function classifyCoverage({ acIds, tagSets }) {
     let sawPending = false;
     for (const set of tagSets) {
       if (!set.has(tagToken)) continue;
-      if (set.has('pending')) {
+      if ([...set].some((t) => PENDING_TAGS.has(t))) {
         sawPending = true;
       } else {
         sawSatisfied = true;
