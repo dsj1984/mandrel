@@ -101,7 +101,11 @@ describe('AutomergePredicate (bus integration)', () => {
       bus: new Bus(),
       epicId: 2172,
       provider: fakeProvider,
-      evaluatePredicateFn: async () => ({ clean: true, reasons: [], signals: {} }),
+      evaluatePredicateFn: async () => ({
+        clean: true,
+        reasons: [],
+        signals: {},
+      }),
       logger: quietLogger(),
     });
     assert.deepEqual([...predicate.events], ['epic.watch.end']);

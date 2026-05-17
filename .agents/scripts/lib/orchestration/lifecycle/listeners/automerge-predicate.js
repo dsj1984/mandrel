@@ -40,8 +40,8 @@
  * `epic.merge.blocked`) own those side effects.
  */
 
-import { Checkpointer } from '../../epic-runner/checkpointer.js';
 import { evaluateAutoMergePredicate as defaultEvaluateAutoMergePredicate } from '../../automerge-predicate.js';
+import { Checkpointer } from '../../epic-runner/checkpointer.js';
 
 /**
  * Outcomes that count as "this required check did not block the merge".
@@ -74,9 +74,7 @@ export function listFailingChecks(checkOutcomes) {
  * string for the `epic.merge.blocked` emit. Pure — exported for tests.
  */
 export function formatCheckFailureReason(failures) {
-  const parts = failures
-    .slice(0, 5)
-    .map((f) => `${f.name}=${f.outcome}`);
+  const parts = failures.slice(0, 5).map((f) => `${f.name}=${f.outcome}`);
   const suffix = failures.length > 5 ? `; +${failures.length - 5} more` : '';
   return `required checks not green: ${parts.join(', ')}${suffix}`;
 }
