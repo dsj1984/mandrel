@@ -10,11 +10,20 @@ import {
 } from '../.agents/scripts/story-close.js';
 
 test('describeAutoRefreshOutcome pure helper', async (t) => {
-  await t.test('amended → progress envelope with SHA', () => {
+  await t.test('amended (legacy) → progress envelope with SHA', () => {
     const e = describeAutoRefreshOutcome({ status: 'amended', sha: 'abc1234' });
     assert.strictEqual(e.channel, 'progress');
     assert.strictEqual(e.label, 'AUTO-REFRESH');
     assert.match(e.message, /abc1234/);
+  });
+  await t.test('committed (Story #2205) → progress envelope with SHA', () => {
+    const e = describeAutoRefreshOutcome({
+      status: 'committed',
+      sha: 'def5678',
+    });
+    assert.strictEqual(e.channel, 'progress');
+    assert.strictEqual(e.label, 'AUTO-REFRESH');
+    assert.match(e.message, /def5678/);
   });
   await t.test(
     'refused with dedup → progress envelope marks already present',
