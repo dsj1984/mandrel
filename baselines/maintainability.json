@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T12:57:15.662Z",
+  "generatedAt": "2026-05-17T15:51:16.748Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -1649,6 +1649,26 @@
     {
       "path": "tests/baselines/refresh-entry-points-migration.test.js",
       "mi": 102.675
+    },
+    {
+      "path": "tests/baselines/refresh-service.api.test.js",
+      "mi": 110.49
+    },
+    {
+      "path": "tests/baselines/refresh-service.determinism.test.js",
+      "mi": 98.979
+    },
+    {
+      "path": "tests/baselines/refresh-service.diff-scope.test.js",
+      "mi": 106.653
+    },
+    {
+      "path": "tests/baselines/refresh-service.invariant.test.js",
+      "mi": 100.295
+    },
+    {
+      "path": "tests/baselines/refresh-service.row-preservation.test.js",
+      "mi": 101.09
     },
     {
       "path": "tests/baselines/scope.test.js",
