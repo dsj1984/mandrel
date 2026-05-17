@@ -554,6 +554,16 @@ operator's session, with Story sub-agents launched through the Agent
 tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
 wrapper; the slash command supplants it entirely.
 
+The bus is the **single canonical runner model** under Epic #2172:
+every phase transition, ticket-state flip, structured-comment upsert,
+and webhook fan-out is emitted as a typed event that fixed-roster
+listeners consume. The append-only NDJSON ledger at
+`temp/epic-<id>/lifecycle.ndjson` is the resume contract. See
+[`LIFECYCLE.md`](LIFECYCLE.md) for the bus contract, event taxonomy,
+ledger format, and listener model — that document is the canonical
+reference for the lifecycle bus, and the older "phase boundaries
+inline-emit comments" framing is retired.
+
 ### State machine (Epic labels)
 
 ```text

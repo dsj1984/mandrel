@@ -327,7 +327,16 @@ points share the same primitives — DAG computation, context hydration,
 worktree isolation, and cascade closure. The slash command supplants the
 legacy deliver-runner CLI (retired in Story #2259, Epic #2172); the
 lifecycle bus listener chain inside the session owns wave fan-out,
-finalize, automerge, and cleanup.
+finalize, automerge, and cleanup. See
+[`docs/LIFECYCLE.md`](../docs/LIFECYCLE.md) for the bus contract,
+event taxonomy, ledger format, and listener model — every phase
+transition, ticket-state flip, and webhook fan-out now flows through
+that bus, and the on-disk ledger at `temp/epic-<id>/lifecycle.ndjson`
+is the canonical resume target. Safety gates (auto-merge arming,
+acceptance-spec reconciliation, blocker handling) are listener
+side-effects rather than inline calls at phase boundaries; the
+"merge-lockout" lint rule keeps `gh pr merge` confined to the
+`AutomergeArmer` listener.
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s snapshot phase

@@ -3,7 +3,9 @@
 
 /**
  * epic-deliver-automerge.js — Phase 7.5 of `/epic-deliver`, thin emit
- * shim (Story #2256 / Task #2262 / Epic #2172).
+ * shim (Story #2256 / Task #2262 / Epic #2172). See
+ * [`docs/LIFECYCLE.md`](../../../docs/LIFECYCLE.md) for the canonical
+ * bus contract, event taxonomy, and listener model.
  *
  * Pre-Wave-7 this CLI armed GitHub's native auto-merge directly by
  * calling `gh pr merge --auto --squash --delete-branch` after the

@@ -70,6 +70,16 @@ Every other runtime modifier is sourced from the Epic's labels or from
 - **Operator-merges-PR exit.** Phase 6 opens the PR; the workflow
   never merges to `main` itself. Phase 7.5 may fire auto-merge when
   every signal is clean.
+- **Lifecycle bus is the runner model.** Phase transitions, ticket
+  state flips, structured comments, and notifications are emitted as
+  typed events on the in-session lifecycle bus; a fixed roster of
+  listeners performs the side effects. The CLIs called below
+  (`epic-deliver-finalize.js`, `epic-deliver-automerge.js`,
+  `epic-deliver-cleanup.js`) are thin emit shims for the matching
+  listener chain. The append-only NDJSON ledger at
+  `temp/epic-<id>/lifecycle.ndjson` is the resume target. See
+  [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
+  contract, event taxonomy, ledger format, and listener model.
 
 ---
 
