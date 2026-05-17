@@ -3,13 +3,14 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
+  adaptCrapRowsForEvaluator,
   amendBaselinesIntoHead,
   buildRefusalSignal,
   FRICTION_CATEGORY,
   filterToStoryDiff,
+  loadPriorEnvelope,
   priorRefusalSignalExists,
   RUNNER_SOURCE_TOOL,
-  readBaselineRows,
   runAutoRefresh,
 } from '../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';
 
@@ -22,7 +23,8 @@ const CRAP_PATH = path.resolve(REPO, 'baselines/crap.json');
 
 /**
  * Story #1398 (Epic #1386). Wiring tests for the bounded baseline
- * auto-refresh at story-close. Covers the four AC paths:
+ * auto-refresh at story-close. Migrated to V2 envelopes + writer funnel
+ * for Story #2135 / Task #2147. Covers the four AC paths:
  *
  *   - under-cap amend         → status 'amended' + baseline files staged + amend SHA
  *   - over-cap refusal (MI)   → status 'refused' + friction signal appended
@@ -67,6 +69,11 @@ function makeFsShim(initial = {}) {
       return store.has(p);
     },
     mkdirSync() {},
+    renameSync(from, to) {
+      if (!store.has(from)) return;
+      store.set(to, store.get(from));
+      store.delete(from);
+    },
   };
 }
 
@@ -107,66 +114,122 @@ function stubAccessors() {
   };
 }
 
+// Stub readerLoadFile to parse whatever the fs shim is currently holding.
+// The real reader runs AJV — tests skip the schema check by parsing
+// directly. This still exercises the runner's I/O wiring without coupling
+// the test to the per-kind schemas.
+function makeReaderForFs(fsImpl) {
+  return (absPath, _opts) => {
+    const bytes = fsImpl.store.get(absPath);
+    if (!bytes) {
+      throw new Error(`reader stub: missing ${absPath}`);
+    }
+    const parsed = JSON.parse(bytes);
+    return {
+      rollup: parsed.rollup ?? { '*': {} },
+      rows: parsed.rows ?? [],
+      kernelVersion: parsed.kernelVersion ?? '0.0.0',
+      generatedAt: parsed.generatedAt ?? '2026-05-15T00:00:00Z',
+    };
+  };
+}
+
+// Stub the writer: forward the rows verbatim into the envelope. The real
+// writer (Story #1891) applies per-kind sort + epsilon + rollup; that
+// behaviour is covered exhaustively in tests/baselines/writer.test.js.
+// Here we only care that the runner calls writeFn with the right shape
+// and that writeFile lands on the right path.
+function makeWriterStub() {
+  return ({ kind, rows, prior, scope }) => {
+    const priorRows = Array.isArray(prior) ? prior : [];
+    const regenRows = Array.isArray(rows) ? rows : [];
+    const scopeFiles = scope?.files instanceof Set ? scope.files : new Set();
+    let mergedRows;
+    if (scope?.mode === 'diff') {
+      const regenInScope = regenRows.filter((r) => scopeFiles.has(r.path));
+      const priorOutOfScope = priorRows.filter((r) => !scopeFiles.has(r.path));
+      mergedRows = regenInScope.concat(priorOutOfScope);
+    } else {
+      mergedRows = regenRows;
+    }
+    return {
+      $schema: `.agents/schemas/baselines/${kind}.schema.json`,
+      kernelVersion: '0.0.0',
+      generatedAt: '2026-05-15T00:00:00Z',
+      rollup: { '*': {} },
+      rows: mergedRows,
+    };
+  };
+}
+
+function makeWriteFileStub() {
+  return (absPath, envelope, opts) => {
+    opts.fsImpl.writeFileSync(absPath, JSON.stringify(envelope));
+  };
+}
+
+// Build a fresh V2 envelope (MI) seeded with the given path→mi entries.
+function miEnvelope(entries) {
+  return {
+    $schema: '.agents/schemas/baselines/maintainability.schema.json',
+    kernelVersion: '0.1.0',
+    generatedAt: '2026-04-01T00:00:00Z',
+    rollup: { '*': {} },
+    rows: entries.map(([p, mi]) => ({ path: p, mi })),
+  };
+}
+
+// Build a fresh V2 envelope (CRAP) — rows are keyed by `path` (writer
+// projection) rather than the legacy `file` field.
+function crapEnvelope(rows) {
+  return {
+    $schema: '.agents/schemas/baselines/crap.schema.json',
+    kernelVersion: '1.1.0',
+    generatedAt: '2026-04-01T00:00:00Z',
+    rollup: { '*': {} },
+    rows: rows.map((r) => ({ ...r })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pure helpers
 // ---------------------------------------------------------------------------
 
-describe('readBaselineRows', () => {
-  it('parses the MI baseline shape ({ "<path>": <mi> }) into rows', () => {
-    const fsImpl = makeFsShim({
-      'baselines/maintainability.json': JSON.stringify({
-        $schema: 'x',
-        'a.js': 90,
-        'b.js': 80,
-      }),
-    });
-    const rows = readBaselineRows({
-      kind: 'mi',
-      baselinePath: 'baselines/maintainability.json',
-      fsImpl,
-    });
-    assert.deepEqual(
-      rows.sort((x, y) => x.path.localeCompare(y.path)),
-      [
-        { path: 'a.js', mi: 90 },
-        { path: 'b.js', mi: 80 },
-      ],
-    );
-  });
-
-  it('parses the CRAP baseline shape ({ rows: [...] }) into rows', () => {
-    const fsImpl = makeFsShim({
-      'baselines/crap.json': JSON.stringify({
-        rows: [{ file: 'foo.js', method: 'fn', startLine: 1, crap: 7 }],
-      }),
-    });
-    const rows = readBaselineRows({
-      kind: 'crap',
-      baselinePath: 'baselines/crap.json',
-      fsImpl,
-    });
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0].file, 'foo.js');
-  });
-
-  it('returns null for missing baseline file', () => {
+describe('loadPriorEnvelope (Story #2135 / Task #2147 — reader-routed)', () => {
+  it('returns the envelope object when the reader returns a valid parse', () => {
     const fsImpl = makeFsShim({});
-    const rows = readBaselineRows({
-      kind: 'mi',
-      baselinePath: 'baselines/missing.json',
-      fsImpl,
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['a.js', 90]])));
+    const env = loadPriorEnvelope({
+      absPath: MI_PATH,
+      kind: 'maintainability',
+      readerLoadFile: makeReaderForFs(fsImpl),
     });
-    assert.equal(rows, null);
+    assert.ok(env);
+    assert.equal(env.rows.length, 1);
+    assert.equal(env.rows[0].path, 'a.js');
+    assert.equal(env.rows[0].mi, 90);
   });
 
-  it('returns null for malformed JSON', () => {
-    const fsImpl = makeFsShim({ 'baselines/x.json': '{bad' });
-    const rows = readBaselineRows({
-      kind: 'mi',
-      baselinePath: 'baselines/x.json',
-      fsImpl,
+  it('returns null when absPath is empty', () => {
+    const env = loadPriorEnvelope({
+      absPath: '',
+      kind: 'maintainability',
+      readerLoadFile: () => {
+        throw new Error('should not be called');
+      },
     });
-    assert.equal(rows, null);
+    assert.equal(env, null);
+  });
+
+  it('returns null when the reader throws (missing / malformed file)', () => {
+    const env = loadPriorEnvelope({
+      absPath: '/missing',
+      kind: 'maintainability',
+      readerLoadFile: () => {
+        throw new Error('ENOENT');
+      },
+    });
+    assert.equal(env, null);
   });
 });
 
@@ -315,22 +378,16 @@ describe('runAutoRefresh — AC1 under-cap amend path', () => {
     // (drop 0.5 — under cap 1.5). The regen helper writes the new value
     // to disk; the runner then reads it back, evaluates, and amends.
     const fsImpl = makeFsShim({});
-    const baselineMiPath = MI_PATH;
-    const baselineCrapPath = CRAP_PATH;
-    // Pre-regen: previous baseline rows
-    let miBytes = JSON.stringify({ 'a.js': 90 });
-    const crapBytes = JSON.stringify({ rows: [] });
-    fsImpl.writeFileSync(baselineMiPath, miBytes);
-    fsImpl.writeFileSync(baselineCrapPath, crapBytes);
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['a.js', 90]])));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
 
     const regenerateMainFromTree = async () => {
       // Simulate the regen helper writing the new (under-cap) values.
-      miBytes = JSON.stringify({ 'a.js': 89.5 });
-      fsImpl.writeFileSync(baselineMiPath, miBytes);
+      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['a.js', 89.5]])));
       return {
         didChange: true,
         files: [
-          { kind: 'maintainability', path: baselineMiPath, didChange: true },
+          { kind: 'maintainability', path: MI_PATH, didChange: true },
         ],
       };
     };
@@ -364,6 +421,9 @@ describe('runAutoRefresh — AC1 under-cap amend path', () => {
           missing: true,
         }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
     assert.equal(result.status, 'amended');
@@ -384,17 +444,15 @@ describe('runAutoRefresh — AC1 under-cap amend path', () => {
 describe('runAutoRefresh — AC2 over-cap refusal path', () => {
   it('refuses to amend, leaves HEAD untouched, and appends baseline-refresh-regression friction', async () => {
     const fsImpl = makeFsShim({});
-    const miPath = MI_PATH;
-    const crapPath = CRAP_PATH;
-    fsImpl.writeFileSync(miPath, JSON.stringify({ 'big.js': 90 }));
-    fsImpl.writeFileSync(crapPath, JSON.stringify({ rows: [] }));
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 90]])));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
 
     const regenerateMainFromTree = async () => {
       // Simulate regen writing a 10-point MI drop — well over cap 1.5.
-      fsImpl.writeFileSync(miPath, JSON.stringify({ 'big.js': 80 }));
+      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 80]])));
       return {
         didChange: true,
-        files: [{ kind: 'maintainability', path: miPath, didChange: true }],
+        files: [{ kind: 'maintainability', path: MI_PATH, didChange: true }],
       };
     };
 
@@ -431,6 +489,9 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
           missing: true,
         }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
 
@@ -456,30 +517,34 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
 
   it('mixed-file refusal — names every offending row across MI and CRAP', async () => {
     const fsImpl = makeFsShim({});
-    const miPath = MI_PATH;
-    const crapPath = CRAP_PATH;
-    fsImpl.writeFileSync(miPath, JSON.stringify({ 'a.js': 90, 'b.js': 80 }));
     fsImpl.writeFileSync(
-      crapPath,
-      JSON.stringify({
-        rows: [
-          { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
-          { file: 'c.js', method: 'churn', startLine: 1, crap: 8 },
-        ],
-      }),
+      MI_PATH,
+      JSON.stringify(miEnvelope([['a.js', 90], ['b.js', 80]])),
+    );
+    fsImpl.writeFileSync(
+      CRAP_PATH,
+      JSON.stringify(
+        crapEnvelope([
+          { path: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+          { path: 'c.js', method: 'churn', startLine: 1, crap: 8 },
+        ]),
+      ),
     );
 
     const regenerateMainFromTree = async () => {
       // Both files breach: a.js MI drop 10, c.js CRAP jump 12.
-      fsImpl.writeFileSync(miPath, JSON.stringify({ 'a.js': 80, 'b.js': 80 }));
       fsImpl.writeFileSync(
-        crapPath,
-        JSON.stringify({
-          rows: [
-            { file: 'a.js', method: 'fn', startLine: 1, crap: 5 },
-            { file: 'c.js', method: 'churn', startLine: 1, crap: 20 },
-          ],
-        }),
+        MI_PATH,
+        JSON.stringify(miEnvelope([['a.js', 80], ['b.js', 80]])),
+      );
+      fsImpl.writeFileSync(
+        CRAP_PATH,
+        JSON.stringify(
+          crapEnvelope([
+            { path: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+            { path: 'c.js', method: 'churn', startLine: 1, crap: 20 },
+          ]),
+        ),
       );
       return { didChange: true, files: [] };
     };
@@ -517,6 +582,9 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
           missing: true,
         }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
 
@@ -534,13 +602,11 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
 describe('runAutoRefresh — AC3 idempotent re-run', () => {
   it('does NOT duplicate the friction signal on a second over-cap run', async () => {
     const fsImpl = makeFsShim({});
-    const miPath = MI_PATH;
-    const crapPath = CRAP_PATH;
-    fsImpl.writeFileSync(miPath, JSON.stringify({ 'big.js': 90 }));
-    fsImpl.writeFileSync(crapPath, JSON.stringify({ rows: [] }));
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 90]])));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
 
     const regenerateMainFromTree = async () => {
-      fsImpl.writeFileSync(miPath, JSON.stringify({ 'big.js': 80 }));
+      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 80]])));
       return { didChange: true, files: [] };
     };
 
@@ -583,6 +649,9 @@ describe('runAutoRefresh — AC3 idempotent re-run', () => {
         appendSignal,
         forEachLine,
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
 
@@ -624,6 +693,9 @@ describe('runAutoRefresh — skip paths', () => {
   });
 
   it("returns status 'skipped' with reason 'no-baseline-drift' when regen reports didChange:false", async () => {
+    const fsImpl = makeFsShim({});
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([])));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
     const result = await runAutoRefresh({
       storyId: 1398,
       epicId: 1386,
@@ -634,7 +706,7 @@ describe('runAutoRefresh — skip paths', () => {
       deps: {
         ...stubAccessors(),
         regenerateMainFromTree: async () => ({ didChange: false, files: [] }),
-        fsImpl: makeFsShim({}),
+        fsImpl,
         appendSignal: async () => true,
         forEachLine: async () => ({
           linesRead: 0,
@@ -642,6 +714,9 @@ describe('runAutoRefresh — skip paths', () => {
           missing: true,
         }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
     assert.equal(result.status, 'skipped');
@@ -649,6 +724,9 @@ describe('runAutoRefresh — skip paths', () => {
   });
 
   it("returns status 'failed' when regen throws", async () => {
+    const fsImpl = makeFsShim({});
+    fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([])));
+    fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
     const result = await runAutoRefresh({
       storyId: 1398,
       epicId: 1386,
@@ -661,7 +739,7 @@ describe('runAutoRefresh — skip paths', () => {
         regenerateMainFromTree: async () => {
           throw new Error('boom');
         },
-        fsImpl: makeFsShim({}),
+        fsImpl,
         appendSignal: async () => true,
         forEachLine: async () => ({
           linesRead: 0,
@@ -669,10 +747,23 @@ describe('runAutoRefresh — skip paths', () => {
           missing: true,
         }),
         logger: silentLogger(),
+        writeFn: makeWriterStub(),
+        writeFileFn: makeWriteFileStub(),
+        readerLoadFile: makeReaderForFs(fsImpl),
       },
     });
     assert.equal(result.status, 'failed');
     assert.equal(result.reason, 'regen-threw');
     assert.match(result.detail, /boom/);
+  });
+});
+
+describe('adaptCrapRowsForEvaluator (sanity)', () => {
+  it('renames path → file for the legacy evaluator surface', () => {
+    const out = adaptCrapRowsForEvaluator([
+      { path: 'a.js', method: 'fn', startLine: 1, crap: 5 },
+    ]);
+    assert.equal(out[0].file, 'a.js');
+    assert.equal(out[0].path, undefined);
   });
 });
