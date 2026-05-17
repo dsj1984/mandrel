@@ -20,6 +20,8 @@ coverage/
 .claude/commands/
 # Personal Claude Code overrides (team-shared config lives in .claude/settings.json)
 .claude/settings.local.json
+# Runtime lock files (per-process mutexes carrying sessionId/pid/timestamp)
+.claude/*.lock
 
 .mcp.json
 
