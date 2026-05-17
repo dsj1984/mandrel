@@ -134,6 +134,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.15.0](https://github.com/dsj1984/mandrel/compare/v1.14.0...v1.15.0) (2026-05-17)
+
+
+### Added
+
+* **epic-deliver:** enforce code-review halted flag before retro phase (resolves [#2167](https://github.com/dsj1984/mandrel/issues/2167)) ([#2168](https://github.com/dsj1984/mandrel/issues/2168)) ([d41634c](https://github.com/dsj1984/mandrel/commit/d41634c606c540abfc0a06d49b8a3120c69c3197))
+
 ## [1.14.0](https://github.com/dsj1984/mandrel/compare/v1.13.0...v1.14.0) (2026-05-17)
 
 
