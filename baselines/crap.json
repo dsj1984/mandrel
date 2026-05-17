@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T03:05:23.198Z",
+  "generatedAt": "2026-05-17T03:06:53.148Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3756,6 +3756,18 @@
       "crap": 3.140625
     },
     {
+      "path": ".agents/scripts/lib/epic-plan-clarity.js",
+      "method": "classify",
+      "startLine": 50,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/epic-plan-clarity.js",
+      "method": "scoreEpicBody",
+      "startLine": 68,
+      "crap": 7
+    },
+    {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
       "method": "parseOnePager",
       "startLine": 42,
@@ -3772,6 +3784,12 @@
       "method": "openEpicFromOnePager",
       "startLine": 121,
       "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/epic-plan-ideation.js",
+      "method": "updateEpicFromOnePager",
+      "startLine": 166,
+      "crap": 6
     },
     {
       "path": ".agents/scripts/lib/error-redactor.js",
@@ -5307,7 +5325,19 @@
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "createEpicRunnerCollaborators",
       "startLine": 26,
-      "crap": 2.0139132370537327
+      "crap": 2.009112115468727
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
+      "method": "<anon method-2>",
+      "startLine": 71,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
+      "method": "<anon method-3>",
+      "startLine": 72,
+      "crap": 1.2962962962962963
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -5416,6 +5446,18 @@
       "method": "upsertEpicRunProgress",
       "startLine": 241,
       "crap": 15
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/fire-escalation.js",
+      "method": "escalateFireFailure",
+      "startLine": 26,
+      "crap": 2.0240420736288502
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/fire-escalation.js",
+      "method": "<anon method-1>",
+      "startLine": 34,
+      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
@@ -7318,6 +7360,54 @@
       "method": "<anon method-11>",
       "startLine": 466,
       "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "isValidStructuredCommentType",
+      "startLine": 111,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "assertValidStructuredCommentType",
+      "startLine": 127,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "structuredCommentMarker",
+      "startLine": 153,
+      "crap": 5
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "getProviderCommentCache",
+      "startLine": 195,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "structuredCommentCacheKey",
+      "startLine": 214,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "_resetStructuredCommentCache",
+      "startLine": 238,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "_peekStructuredCommentCache",
+      "startLine": 252,
+      "crap": 3.0416666666666665
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
+      "method": "findStructuredComment",
+      "startLine": 281,
+      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",

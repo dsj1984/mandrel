@@ -377,6 +377,22 @@ export async function reconcileAcceptanceSpec({
   const acceptanceSpecId = linkedIssues?.acceptanceSpec ?? null;
 
   if (!acceptanceSpecId) {
+    if (skipWhenWaived) {
+      logger.info?.(
+        `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket; --skip-when-waived set, returning status='waived'.`,
+      );
+      return {
+        epicId,
+        acceptanceSpecId: null,
+        status: 'waived',
+        ok: true,
+        acIds: [],
+        satisfied: [],
+        pending: [],
+        missing: [],
+        featureFilesScanned: 0,
+      };
+    }
     // Defence in depth — the start gate would normally catch this.
     throw new Error(
       `[acceptance-spec-reconciler] Epic #${epicId} has no linked context::acceptance-spec ticket and no acceptance::n-a waiver label. Re-run /epic-plan Phase 7 or apply the waiver.`,
