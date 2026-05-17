@@ -41,7 +41,7 @@ function makeProvider(epicId, storyId, taskId) {
     [storyId, [{ id: taskId, number: taskId, labels: ['type::task'] }]],
   ]);
   return {
-    async getSubIssues(id) {
+    async getSubTickets(id) {
       return subIssuesByParent.get(id) ?? [];
     },
     async getTicketComments() {
