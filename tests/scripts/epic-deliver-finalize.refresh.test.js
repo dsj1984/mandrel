@@ -18,8 +18,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   classifyFinalizeInvocation,
@@ -241,7 +241,7 @@ test('runEpicDeliverFinalize plumbs fullScope through to reconcileBaselinesFn', 
     reconcileCalls.push(args);
     return { committed: false, didChange: false, reason: 'no-change' };
   };
-  const git = (function () {
+  const git = (() => {
     const routes = [
       { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
       { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },
