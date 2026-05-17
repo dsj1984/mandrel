@@ -131,28 +131,28 @@ async function main() {
 
   const scorer = buildMaintainabilityScorer({ targetDirs, logger: Logger });
 
-  // Task #2215 cut: preserve the pre-migration default — no flag = full
-  // regenerate. Task #2214 flips that default to diff-scope and keeps
-  // `--full-scope` as the opt-out.
+  // Task #2214 (Epic #2173, AC-2): flag-omission now defaults to
+  // diff-scope. The pre-migration default was a full regenerate; operators
+  // wanting that behaviour must now pass `--full-scope` explicitly. This is
+  // a deliberate breaking CLI behaviour change — see docs/CHANGELOG.md.
   const refreshOpts = {
     kind: 'maintainability',
     writePath: absBaselinePath,
     epsilon,
     scorer,
   };
-  if (diffScopeRef) {
+  if (fullScope) {
+    refreshOpts.fullScope = true;
+  } else if (diffScopeRef) {
     // The CLI's documented `--diff-scope <ref>` semantics are
     // `<ref>...HEAD` (three-dot). The service derives via two-dot
     // `baseRef..headRef`; pass the ref as `baseRef` so the service's
     // diff-derivation does the heavy lifting through the same execFile
     // seam that auto-refresh uses.
     refreshOpts.baseRef = diffScopeRef;
-  } else {
-    refreshOpts.fullScope = true;
   }
-  if (fullScope) {
-    refreshOpts.fullScope = true;
-  }
+  // No flag → scopeFiles=null + fullScope=false → service derives the
+  // diff via `origin/main..HEAD` (its default baseRef/headRef).
 
   const result = await refreshBaseline(refreshOpts);
 

@@ -166,7 +166,13 @@ describe('update-maintainability-baseline.js — end-to-end smoke', () => {
     );
     // The CLI inherits cwd, MANDREL_BASELINE_GENERATED_AT pin makes the
     // output deterministic so we can assert the timestamp.
-    execFileSync(process.execPath, [cliPath], {
+    // Story #2202 / Task #2214 flipped the CLI's flag-omission default to
+    // diff-scope (it derives the file list from `git diff --name-only
+    // origin/main..HEAD`). The synthetic fixture here is not a git repo,
+    // so we pass `--full-scope` to keep this smoke exercising the legacy
+    // full-rewrite path — the diff-scope path is covered hermetically by
+    // `tests/baselines/refresh-service.diff-scope.test.js`.
+    execFileSync(process.execPath, [cliPath, '--full-scope'], {
       cwd: workDir,
       env: {
         ...process.env,
