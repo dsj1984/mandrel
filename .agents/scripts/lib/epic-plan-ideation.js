@@ -15,15 +15,25 @@
 
 import { TYPE_LABELS } from './label-constants.js';
 
+// Canonical section keys match the rendered template at
+// `.agents/templates/epic-from-idea.md`. The regex accepts both the
+// new canonical headings and the pre-canonical-headings ideation shape
+// so an in-flight one-pager parses cleanly during the transition. The
+// older `assumptions` key is accepted as input but is no longer a
+// canonical rendered section — it lands implicitly in `context` if the
+// one-pager carries one.
 const SECTION_RE = {
-  problem: /^##\s+Problem\s+Statement\s*$/im,
-  direction: /^##\s+Recommended\s+Direction\s*$/im,
-  assumptions: /^##\s+Key\s+Assumptions(?:\s+to\s+Validate)?\s*$/im,
-  mvpScope: /^##\s+MVP\s+Scope\s*$/im,
-  notDoing: /^##\s+Not\s+Doing(?:\s+\(and\s+Why\))?\s*$/im,
+  context:
+    /^##\s+(?:Context(?:\s+&\s+Problem)?|Background|Problem(?:\s+Statement)?)\s*$/im,
+  goal: /^##\s+(?:Goals?|Objectives?|(?:Recommended\s+)?Direction)\s*$/im,
+  nonGoals:
+    /^##\s+(?:Non[\s-]?Goals|Out\s+of\s+Scope|Not\s+Doing(?:\s+\(and\s+Why\))?)\s*$/im,
+  scope:
+    /^##\s+(?:MVP\s+|Proposed\s+)?Scope(?:\s+\([^)]+\))?\s*$|^##\s+Work\s+Breakdown\s*$/im,
+  acceptanceCriteria: /^##\s+(?:Acceptance(?:\s+Criteria)?|AC)\s*$/im,
 };
 
-const ORDER = ['problem', 'direction', 'assumptions', 'mvpScope', 'notDoing'];
+const ORDER = ['context', 'goal', 'nonGoals', 'scope', 'acceptanceCriteria'];
 
 /**
  * Extract the five canonical sections from an idea-refinement one-pager.
@@ -32,11 +42,11 @@ const ORDER = ['problem', 'direction', 'assumptions', 'mvpScope', 'notDoing'];
  *   `idea-refinement` skill.
  * @returns {{
  *   title: string,
- *   problem: string,
- *   direction: string,
- *   assumptions: string,
- *   mvpScope: string,
- *   notDoing: string,
+ *   context: string,
+ *   goal: string,
+ *   nonGoals: string,
+ *   scope: string,
+ *   acceptanceCriteria: string,
  * }}
  */
 export function parseOnePager(onePager) {
@@ -58,18 +68,27 @@ export function parseOnePager(onePager) {
   positions.sort((a, b) => a.start - b.start);
 
   const sections = {
-    problem: '',
-    direction: '',
-    assumptions: '',
-    mvpScope: '',
-    notDoing: '',
+    context: '',
+    goal: '',
+    nonGoals: '',
+    scope: '',
+    acceptanceCriteria: '',
   };
 
+  // Generic next-heading regex — slice up to the next `## ` heading,
+  // not just the next canonical one, so non-canonical sections the
+  // author included (e.g. "Open Questions") don't get folded into the
+  // preceding canonical section.
+  const NEXT_HEADING_RE = /^##\s+/m;
   for (let i = 0; i < positions.length; i += 1) {
     const cur = positions[i];
-    const next = positions[i + 1];
     const sliceStart = cur.start + cur.headingLength;
-    const sliceEnd = next ? next.start : onePager.length;
+    const rest = onePager.slice(sliceStart);
+    const nextMatch = rest.match(NEXT_HEADING_RE);
+    const sliceEnd =
+      nextMatch && typeof nextMatch.index === 'number'
+        ? sliceStart + nextMatch.index
+        : onePager.length;
     sections[cur.key] = onePager.slice(sliceStart, sliceEnd).trim();
   }
 
