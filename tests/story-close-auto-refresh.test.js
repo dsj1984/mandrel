@@ -383,12 +383,13 @@ describe('runAutoRefresh — AC1 under-cap amend path', () => {
 
     const regenerateMainFromTree = async () => {
       // Simulate the regen helper writing the new (under-cap) values.
-      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['a.js', 89.5]])));
+      fsImpl.writeFileSync(
+        MI_PATH,
+        JSON.stringify(miEnvelope([['a.js', 89.5]])),
+      );
       return {
         didChange: true,
-        files: [
-          { kind: 'maintainability', path: MI_PATH, didChange: true },
-        ],
+        files: [{ kind: 'maintainability', path: MI_PATH, didChange: true }],
       };
     };
 
@@ -449,7 +450,10 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
 
     const regenerateMainFromTree = async () => {
       // Simulate regen writing a 10-point MI drop — well over cap 1.5.
-      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 80]])));
+      fsImpl.writeFileSync(
+        MI_PATH,
+        JSON.stringify(miEnvelope([['big.js', 80]])),
+      );
       return {
         didChange: true,
         files: [{ kind: 'maintainability', path: MI_PATH, didChange: true }],
@@ -519,7 +523,12 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
     const fsImpl = makeFsShim({});
     fsImpl.writeFileSync(
       MI_PATH,
-      JSON.stringify(miEnvelope([['a.js', 90], ['b.js', 80]])),
+      JSON.stringify(
+        miEnvelope([
+          ['a.js', 90],
+          ['b.js', 80],
+        ]),
+      ),
     );
     fsImpl.writeFileSync(
       CRAP_PATH,
@@ -535,7 +544,12 @@ describe('runAutoRefresh — AC2 over-cap refusal path', () => {
       // Both files breach: a.js MI drop 10, c.js CRAP jump 12.
       fsImpl.writeFileSync(
         MI_PATH,
-        JSON.stringify(miEnvelope([['a.js', 80], ['b.js', 80]])),
+        JSON.stringify(
+          miEnvelope([
+            ['a.js', 80],
+            ['b.js', 80],
+          ]),
+        ),
       );
       fsImpl.writeFileSync(
         CRAP_PATH,
@@ -606,7 +620,10 @@ describe('runAutoRefresh — AC3 idempotent re-run', () => {
     fsImpl.writeFileSync(CRAP_PATH, JSON.stringify(crapEnvelope([])));
 
     const regenerateMainFromTree = async () => {
-      fsImpl.writeFileSync(MI_PATH, JSON.stringify(miEnvelope([['big.js', 80]])));
+      fsImpl.writeFileSync(
+        MI_PATH,
+        JSON.stringify(miEnvelope([['big.js', 80]])),
+      );
       return { didChange: true, files: [] };
     };
 

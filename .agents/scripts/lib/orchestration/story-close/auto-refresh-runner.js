@@ -468,7 +468,11 @@ export async function runAutoRefresh({
   // routed: every read goes through `reader.loadFile`, which schema-
   // validates the file against the per-kind envelope.
   const priorMiEnv = miAbs
-    ? loadPriorEnvelope({ absPath: miAbs, kind: 'maintainability', readerLoadFile })
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
     : null;
   const priorCrapEnv = crapAbs
     ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
@@ -491,7 +495,11 @@ export async function runAutoRefresh({
   // Read the FULL regenerated envelopes that `regenerateMainFromTree`
   // just wrote to disk. Same reader-routed seam as the prior reads.
   const regenMiEnv = miAbs
-    ? loadPriorEnvelope({ absPath: miAbs, kind: 'maintainability', readerLoadFile })
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
     : null;
   const regenCrapEnv = crapAbs
     ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
@@ -548,7 +556,11 @@ export async function runAutoRefresh({
   // Re-read the (possibly scope-merged) baselines for verdict evaluation.
   // When scope is 'full', this is identical to `regenMiEnv` / `regenCrapEnv`.
   const finalMiEnv = miAbs
-    ? loadPriorEnvelope({ absPath: miAbs, kind: 'maintainability', readerLoadFile })
+    ? loadPriorEnvelope({
+        absPath: miAbs,
+        kind: 'maintainability',
+        readerLoadFile,
+      })
     : null;
   const finalCrapEnv = crapAbs
     ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
