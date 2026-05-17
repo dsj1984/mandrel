@@ -50,8 +50,12 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const resolvedIntervalSec = Number(
     deliverRunner.progressReportIntervalSec ?? 0,
   );
+  const userInterval =
+    config?.delivery?.deliverRunner?.progressReportIntervalSec ??
+    config?.deliverRunner?.progressReportIntervalSec ??
+    config?.orchestration?.runners?.deliverRunner?.progressReportIntervalSec;
   logger?.info?.(
-    `[ProgressReporter] interval=${resolvedIntervalSec}s source=${deliverRunner.progressReportIntervalSecSource ?? 'default'}`,
+    `[ProgressReporter] interval=${resolvedIntervalSec}s source=${userInterval == null ? 'default' : 'config'}`,
   );
   const progressReporter = new ProgressReporter({
     provider,

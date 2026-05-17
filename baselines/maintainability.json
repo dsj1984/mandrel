@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T01:55:51.178Z",
+  "generatedAt": "2026-05-17T01:56:02.224Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.961,
+      "p50": 102.991,
       "p95": 121.071
     }
   },
@@ -496,7 +496,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
-      "mi": 101.215
+      "mi": 104.754
     },
     {
       "path": ".agents/scripts/lib/config/runtime.js",
@@ -788,7 +788,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 96.313
+      "mi": 95.419
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -808,11 +808,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "mi": 93.117
+      "mi": 94.437
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "mi": 98.706
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/fire-escalation.js",
+      "mi": 105.102
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
@@ -2284,7 +2288,7 @@
     },
     {
       "path": "tests/lib/config-runners.test.js",
-      "mi": 110.747
+      "mi": 112.579
     },
     {
       "path": "tests/lib/config/github.test.js",

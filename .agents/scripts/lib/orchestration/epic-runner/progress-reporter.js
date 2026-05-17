@@ -53,6 +53,7 @@ import {
   emitEpicStarted as emitEpicStartedFromTransport,
   emitEpicUnblocked as emitEpicUnblockedFromTransport,
 } from './progress-reporter/transport.js';
+import { escalateFireFailure } from './progress-reporter/fire-escalation.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
 // Re-exports — sub-module surfaces are aliased back to the parent path so
@@ -451,58 +452,15 @@ export class ProgressReporter {
         `[ProgressReporter] fire() failed (${this.consecutiveFireFailures}/${this.fireEscalationThreshold}): ${err?.message ?? err}`,
       );
       if (this.consecutiveFireFailures === this.fireEscalationThreshold) {
-        try {
-          await this.#escalateFireFailure(err);
-        } catch (escErr) {
-          this.logger.warn?.(
-            `[ProgressReporter] escalation failed: ${escErr?.message ?? escErr}`,
-          );
-        }
+        await escalateFireFailure({
+          provider: this.provider,
+          epicId: this.epicId,
+          config: this.config,
+          threshold: this.fireEscalationThreshold,
+          err,
+          logger: this.logger,
+        });
       }
-    }
-  }
-
-  /**
-   * Fire after `fireEscalationThreshold` consecutive `fire()` failures. Emits
-   * a `friction` signal against the Epic and transitions the Epic ticket to
-   * `agent::blocked`. Both operations are best-effort — a failure inside the
-   * escalation path logs a warn but never throws (the interval handler keeps
-   * the reporter alive so recovery can still reset the counter).
-   */
-  async #escalateFireFailure(err) {
-    try {
-      await appendSignal({
-        epicId: Number(this.epicId),
-        storyId: Number(this.epicId),
-        signal: {
-          kind: 'friction',
-          timestamp: new Date().toISOString(),
-          epicId: Number(this.epicId),
-          category: 'progress-reporter-fire-failure',
-          source: { tool: 'epic-runner/progress-reporter.js' },
-          details: `${this.fireEscalationThreshold} consecutive fire() failures; last error: ${String(err?.message ?? err).slice(0, 400)}`,
-        },
-        config: this.config,
-      });
-    } catch (signalErr) {
-      this.logger.warn?.(
-        `[ProgressReporter] escalation friction append failed: ${signalErr?.message ?? signalErr}`,
-      );
-    }
-
-    try {
-      const epic = await this.provider.getTicket(this.epicId);
-      const labels = (epic?.labels || [])
-        .filter((l) => !l.startsWith('agent::'))
-        .concat(AGENT_LABELS.BLOCKED);
-      await this.provider.updateTicket(this.epicId, { labels });
-      this.logger.warn?.(
-        `[ProgressReporter] Epic #${this.epicId} → ${AGENT_LABELS.BLOCKED} after ${this.fireEscalationThreshold} consecutive fire() failures`,
-      );
-    } catch (labelErr) {
-      this.logger.warn?.(
-        `[ProgressReporter] escalation label transition failed: ${labelErr?.message ?? labelErr}`,
-      );
     }
   }
 

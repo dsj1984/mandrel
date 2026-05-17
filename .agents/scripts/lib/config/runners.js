@@ -59,15 +59,9 @@ export function getRunners(config) {
       concurrencyCap:
         deliverRunnerUser.concurrencyCap ??
         DEFAULT_DELIVER_RUNNER.concurrencyCap,
-      concurrencyCapSource:
-        deliverRunnerUser.concurrencyCap == null ? 'default' : 'config',
       progressReportIntervalSec:
         deliverRunnerUser.progressReportIntervalSec ??
         DEFAULT_DELIVER_RUNNER.progressReportIntervalSec,
-      progressReportIntervalSecSource:
-        deliverRunnerUser.progressReportIntervalSec == null
-          ? 'default'
-          : 'config',
     },
     planRunner: {},
     concurrency: {},
