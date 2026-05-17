@@ -330,14 +330,19 @@ worktree isolation, and cascade closure.
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s snapshot phase
 > ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
-> asserts that the Epic either (a) carries the `acceptance::n-a` waiver
-> label, or (b) has a linked `context::acceptance-spec` ticket whose
-> GitHub state is **closed** (i.e. the operator has approved the spec
-> after `/epic-plan` Phase 7). Neither condition met → the snapshot
-> throws a clear error naming the missing precondition and `runAsCli`
-> maps it to `process.exit(1)`. This refuses to launch Epics that
-> skipped acceptance-spec authoring, surfacing the gap at delivery time
-> rather than letting Story dispatch race ahead.
+> asserts that the Epic either (a) carries the `acceptance::n-a`
+> waiver label, or (b) has a linked `context::acceptance-spec`
+> ticket. The ticket's GitHub state (open / closed) is not checked
+> — presence is sufficient, matching the PRD and Tech Spec contract.
+> The reviewer's OK during `/epic-plan` Phase 7 is the approval
+> signal, not a manual ticket-close action; the three planning
+> context tickets are closed automatically by
+> `epic-deliver-finalize.js` once the Epic PR opens. Neither
+> condition met → the snapshot throws a clear error naming the
+> missing precondition and `runAsCli` maps it to `process.exit(1)`.
+> This refuses to launch Epics that skipped acceptance-spec
+> authoring, surfacing the gap at delivery time rather than letting
+> Story dispatch race ahead.
 
 ### Invocation modes
 
