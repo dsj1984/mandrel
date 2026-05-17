@@ -30,6 +30,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
 import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
+import { COVERAGE_TIMEOUT_EXIT_CODE } from '../../coverage-capture.js';
 import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../ticketing.js';
@@ -667,6 +668,25 @@ export async function runPreMergeGatesWithAttribution({
       });
       return { status: 'ok' };
     } catch (err) {
+      // Story #2136 / Task #2143 — short-circuit when coverage-capture
+      // tripped the bounded-timeout watchdog (exit 124). The hang is
+      // recoverable: surface it as a `blocked-timeout` outcome so the
+      // close orchestrator can flip the Story to `agent::blocked` and
+      // post a friction comment, rather than rerunning the attribution
+      // refresh flow (which assumes a baseline-drift failure, not a
+      // runaway runner).
+      const errGateName = err?.gateName ?? null;
+      const errExitCode = err?.exitCode ?? null;
+      if (
+        errGateName === 'coverage-capture' &&
+        errExitCode === COVERAGE_TIMEOUT_EXIT_CODE
+      ) {
+        return {
+          status: 'blocked-timeout',
+          gateName: errGateName,
+          exitCode: errExitCode,
+        };
+      }
       const m = /failed at "([^"]+)"/.exec(err?.message ?? '');
       const gateName = m ? m[1] : null;
       const regressions = projectRegressionsFn({
