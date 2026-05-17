@@ -90,12 +90,15 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 > snapshot phase
 > ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either carries the `acceptance::n-a` waiver
-> label **or** has a linked `context::acceptance-spec` ticket whose
-> GitHub state is **closed** (i.e. operator-approved). Neither
-> condition met → the snapshot throws a clear error
+> label **or** has a linked `context::acceptance-spec` ticket. The
+> ticket's GitHub state (open / closed) is **not** checked —
+> presence is sufficient, matching the PRD and Tech Spec contract.
+> The reviewer's OK during `/epic-plan` Phase 7 is the approval
+> signal, not a manual ticket-close action. Neither condition met →
+> the snapshot throws a clear error
 > (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
 > maps it to `process.exit(1)`. Operator remediation: either run
-> `/epic-plan` Phase 7 to author + close the spec, or apply the
+> `/epic-plan` Phase 7 to author the spec, or apply the
 > `acceptance::n-a` label to opt out.
 
 ---

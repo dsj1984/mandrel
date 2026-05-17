@@ -336,11 +336,14 @@ for the scoring logic.
      Acceptance Specification have been posted as linked issues under
      the Epic.
    - **STOP**: Ask the USER to review the generated PRD, Tech Spec, and
-     Acceptance Spec on GitHub. Operator approval is recorded by closing
-     the Acceptance Spec ticket — `/epic-deliver`'s start gate refuses
-     to launch until that ticket is closed (or the `acceptance::n-a`
-     waiver is on the Epic). Do NOT proceed to decomposition until the
-     user confirms the plan is accurate.
+     Acceptance Spec on GitHub. Approval is the user's verbal OK in this
+     session — the three context tickets stay **open** through delivery
+     and are closed automatically by `epic-deliver-finalize.js` once the
+     Epic PR opens. `/epic-deliver`'s start gate only requires that the
+     Acceptance Spec is linked (or that the Epic carries the
+     `acceptance::n-a` waiver); it does not require manual closure. Do
+     NOT proceed to decomposition until the user confirms the plan is
+     accurate.
 
 5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
