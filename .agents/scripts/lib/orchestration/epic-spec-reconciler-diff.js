@@ -201,10 +201,21 @@ function fieldChanges(specEntity, obs, mapping) {
   if (specEntity.title !== obs.title) {
     changes.title = { before: obs.title, after: specEntity.title };
   }
-  const specBody = normaliseBody(specEntity.body);
-  const obsBody = normaliseBody(obs.body);
-  if (specBody !== obsBody) {
-    changes.body = { before: obsBody, after: specBody };
+  // Schema contract (epic-spec.schema.json §epic.body and the parallel
+  // feature/story/task body fields): "When omitted, the GH issue body
+  // is left untouched". Pre-Story-#2283 the engine treated `undefined`
+  // as `""`, which emitted a destructive `body: <existing> → ""` Update
+  // on every `/epic-plan` Phase 8 because the decomposer's renderer
+  // projects the Epic spec entry from `{ id, title }` only. Skip the
+  // body diff entirely when the spec did not carry a body string. An
+  // explicit `body: ""` in the spec still produces a clear-op when the
+  // GH side is non-empty (operator-authored intent to blank the body).
+  if (typeof specEntity.body === 'string') {
+    const specBody = specEntity.body;
+    const obsBody = normaliseBody(obs.body);
+    if (specBody !== obsBody) {
+      changes.body = { before: obsBody, after: specBody };
+    }
   }
   const effectiveAfterLabels =
     specEntity.entity === ENTITY_KINDS.EPIC

@@ -517,3 +517,118 @@ describe('reconciler diff — Epic protected-label preservation (Story #2056)', 
     assert.deepEqual(storyUpdate.changes.labels.after, []);
   });
 });
+
+describe('reconciler diff — Epic body preservation when spec omits body (Story #2283)', () => {
+  // Reproduces the Epic #2173 / 2026-05-17 sequence: `/epic-plan` Phase
+  // 8 ran `epic-plan-decompose.js`, which (pre-fix) rendered the Epic
+  // spec entry from `{ id, title }` only. The diff engine's
+  // `fieldChanges` previously normalised an undefined `specEntity.body`
+  // to `""` and emitted `body: <17KB body> → ""`, which the apply phase
+  // then propagated to GitHub. The schema documents the opposite
+  // contract — "Optional Epic body. When present, the reconciler
+  // updates the GH issue body to match. When omitted, the GH issue
+  // body is left untouched." — so the fix lives in the diff engine.
+
+  const EPIC_ISSUE = 2173;
+  const NON_TRIVIAL_BODY =
+    '## Context\n\n' +
+    'A non-trivial Epic body that is greater than one kilobyte so the '
+      .repeat(20)
+      .trim() +
+    '\n\n## Planning Artifacts\n- [ ] PRD: #2185\n- [ ] Tech Spec: #2186\n- [ ] Acceptance Spec: #2187\n';
+
+  function buildInputs({ specBody, obsBody }) {
+    const spec = {
+      epic: { id: EPIC_ISSUE, title: 'Some Epic' },
+      features: [],
+    };
+    if (specBody !== undefined) spec.epic.body = specBody;
+    const state = {
+      epicId: EPIC_ISSUE,
+      mapping: {
+        epic: { issueNumber: EPIC_ISSUE, entity: 'epic' },
+      },
+    };
+    const ghState = {
+      [EPIC_ISSUE]: {
+        title: 'Some Epic',
+        body: obsBody,
+        labels: ['type::epic'],
+      },
+    };
+    return { spec, state, ghState };
+  }
+
+  it('does not emit a body change when the spec omits body and GH carries a non-trivial body', () => {
+    assert.ok(
+      NON_TRIVIAL_BODY.length > 1024,
+      'fixture body must exceed 1KB to mirror the bug report',
+    );
+    const { spec, state, ghState } = buildInputs({
+      specBody: undefined,
+      obsBody: NON_TRIVIAL_BODY,
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    // No body field in any update for the Epic.
+    if (epicUpdate) {
+      assert.equal(
+        epicUpdate.changes.body,
+        undefined,
+        'changes.body must NOT be present when the spec omits body — schema contract is "leave GH body untouched"',
+      );
+    }
+    // And no destructive `body: <existing> → ""` Update lurks in the
+    // plan output at all (the bug-report reproducer's exact assertion).
+    const hasBlankingOp =
+      plan.updates.some(
+        (op) => op.changes?.body?.before && op.changes.body.after === '',
+      ) ||
+      plan.creates.some(
+        (op) => op.entity === 'epic' && (op.body === '' || op.body == null),
+      );
+    assert.equal(
+      hasBlankingOp,
+      false,
+      'plan must not include a `body: <old> → ""` operation when the Epic body is non-empty going in',
+    );
+  });
+
+  it('emits a body change when the spec carries an explicit body that differs from GH', () => {
+    const { spec, state, ghState } = buildInputs({
+      specBody: 'new body',
+      obsBody: 'old body',
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.ok(epicUpdate);
+    assert.deepEqual(epicUpdate.changes.body, {
+      before: 'old body',
+      after: 'new body',
+    });
+  });
+
+  it('emits a body clear-op when the spec carries an explicit empty body (operator intent)', () => {
+    const { spec, state, ghState } = buildInputs({
+      specBody: '',
+      obsBody: 'something',
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.ok(epicUpdate);
+    assert.deepEqual(epicUpdate.changes.body, {
+      before: 'something',
+      after: '',
+    });
+  });
+
+  it('does not emit a body change when both sides agree the body is empty', () => {
+    const { spec, state, ghState } = buildInputs({
+      specBody: undefined,
+      obsBody: '',
+    });
+    const plan = diff({ spec, state, ghState });
+    const epicUpdate = plan.updates.find((op) => op.slug === 'epic');
+    assert.equal(epicUpdate, undefined);
+  });
+});
