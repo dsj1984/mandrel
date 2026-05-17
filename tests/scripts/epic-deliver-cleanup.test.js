@@ -1,25 +1,48 @@
+// tests/scripts/epic-deliver-cleanup.test.js
+/**
+ * Unit tests for the post-Wave-8 thin-emit-shim `epic-deliver-cleanup`
+ * CLI (Story #2259 / Task #2265, Epic #2172).
+ *
+ * Pre-Wave-8 this CLI reaped branches + worktrees directly. After
+ * Wave 8 the responsibility belongs to the `Cleaner` lifecycle
+ * listener; the CLI is now a telemetry shim that emits
+ * `epic.cleanup.start` onto a per-invocation bus and exits.
+ *
+ * The contract here matches `epic-deliver-automerge.test.js`:
+ *   - argv parsing produces a typed `epicId` or `null`;
+ *   - classifyCleanupInvocation distinguishes help / usage-error / run;
+ *   - runEpicDeliverCleanup emits exactly one `epic.cleanup.start`
+ *     event onto the injected bus and returns the seqId.
+ */
+
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
 import {
   classifyCleanupInvocation,
   parseCleanupArgs,
-  renderCleanupOutput,
-  renderSummaryLines,
   runEpicDeliverCleanup,
 } from '../../.agents/scripts/epic-deliver-cleanup.js';
+import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 
-describe('renderCleanupOutput', () => {
-  const minimalEnvelope = { ok: true, reaped: [], failures: [] };
-  it('returns JSON string when json=true', () => {
-    const r = renderCleanupOutput(minimalEnvelope, true);
-    assert.equal(r.length, 1);
-    assert.match(r[0], /"ok":\s*true/);
+function quietLogger() {
+  return { info: () => {}, warn: () => {}, error: () => {} };
+}
+
+describe('parseCleanupArgs', () => {
+  it('parses --epic', () => {
+    const out = parseCleanupArgs(['--epic', '1178']);
+    assert.equal(out.epicId, 1178);
+    assert.equal(out.help, false);
   });
-  it('returns human-rendered lines when json=false', () => {
-    const r = renderCleanupOutput(minimalEnvelope, false);
-    assert.ok(Array.isArray(r));
-    assert.ok(r.length >= 1);
+
+  it('returns help=true on --help', () => {
+    const out = parseCleanupArgs(['--help']);
+    assert.equal(out.help, true);
+  });
+
+  it('rejects non-positive epic ids', () => {
+    assert.equal(parseCleanupArgs(['--epic', '0']).epicId, null);
+    assert.equal(parseCleanupArgs([]).epicId, null);
   });
 });
 
@@ -29,125 +52,38 @@ describe('classifyCleanupInvocation', () => {
       kind: 'help',
     });
   });
+
   it('returns usage-error when --epic is missing', () => {
-    const r = classifyCleanupInvocation({
-      help: false,
-      epicId: null,
-      dryRun: false,
-      json: false,
-    });
+    const r = classifyCleanupInvocation({ help: false, epicId: null });
     assert.equal(r.kind, 'usage-error');
     assert.ok(r.messages.some((m) => /required/.test(m)));
   });
+
   it('returns run intent when --epic is provided', () => {
-    const r = classifyCleanupInvocation({
-      help: false,
-      epicId: 1178,
-      dryRun: true,
-      json: true,
-    });
-    assert.deepEqual(r, {
-      kind: 'run',
-      epicId: 1178,
-      dryRun: true,
-      json: true,
-    });
-  });
-});
-
-describe('parseCleanupArgs', () => {
-  it('parses --epic / --dry-run / --json', () => {
-    const out = parseCleanupArgs(['--epic', '1178', '--dry-run', '--json']);
-    assert.deepEqual(out, {
-      epicId: 1178,
-      dryRun: true,
-      json: true,
-      help: false,
-    });
-  });
-
-  it('defaults flags to false', () => {
-    const out = parseCleanupArgs(['--epic', '5']);
-    assert.equal(out.dryRun, false);
-    assert.equal(out.json, false);
-  });
-
-  it('rejects bad epic ids', () => {
-    assert.equal(parseCleanupArgs(['--epic', '0']).epicId, null);
-    assert.equal(parseCleanupArgs([]).epicId, null);
+    const r = classifyCleanupInvocation({ help: false, epicId: 1178 });
+    assert.deepEqual(r, { kind: 'run', epicId: 1178 });
   });
 });
 
 describe('runEpicDeliverCleanup', () => {
-  it('returns ok=true with no work when checkpoint is missing', async () => {
-    const out = await runEpicDeliverCleanup({
-      epicId: 1178,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({ read: async () => null }),
-      gitSpawnFn: () => ({ status: 0, stdout: '', stderr: '' }),
+  it('emits exactly one epic.cleanup.start event with epicId payload', async () => {
+    const bus = new Bus();
+    const emits = [];
+    bus.on('epic.cleanup.start', async (ctx) => {
+      emits.push({ event: ctx.event, payload: ctx.payload });
     });
-    assert.equal(out.ok, true);
-    assert.equal(out.stateFound, false);
-    assert.equal(out.reaped.length, 0);
-  });
 
-  it('dry-run lists branches without invoking git delete', async () => {
-    let deleteCalled = false;
-    const gitSpawnFn = (_cwd, ...args) => {
-      if (args[0] === 'branch' && args[1] === '-D') {
-        deleteCalled = true;
-      }
-      return { status: 0, stdout: '', stderr: '' };
-    };
     const out = await runEpicDeliverCleanup({
-      epicId: 1178,
-      dryRun: true,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({
-        read: async () => ({
-          epicId: 1178,
-          waves: [{ stories: [{ id: 1 }, { id: 2 }] }],
-        }),
-      }),
-      gitSpawnFn,
+      epicId: 2172,
+      bus,
+      loggerImpl: quietLogger(),
     });
-    assert.equal(out.dryRun, true);
-    assert.equal(deleteCalled, false);
-    assert.equal(out.branches.epicBranch, 'epic/1178');
-    assert.deepEqual(out.branches.storyBranches, ['story-1', 'story-2']);
-  });
 
-  it('reaps story + epic branches when checkpoint enumerates them', async () => {
-    const calls = [];
-    const gitSpawnFn = (_cwd, ...args) => {
-      calls.push(args.join(' '));
-      if (args[0] === 'worktree' && args[1] === 'list') {
-        return { status: 0, stdout: '', stderr: '' };
-      }
-      return { status: 0, stdout: '', stderr: '' };
-    };
-    const out = await runEpicDeliverCleanup({
-      epicId: 100,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({
-        read: async () => ({
-          epicId: 100,
-          waves: [{ stories: [{ id: 1 }] }],
-        }),
-      }),
-      gitSpawnFn,
-    });
-    assert.equal(out.ok, true);
-    assert.equal(out.reaped.length, 2);
-    assert.deepEqual(
-      out.reaped.map((r) => r.branch),
-      ['story-1', 'epic/100'],
-    );
-    assert.ok(calls.some((c) => c === 'branch -D story-1'));
-    assert.ok(calls.some((c) => c === 'branch -D epic/100'));
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.cleanup.start');
+    assert.deepEqual(emits[0].payload, { epicId: 2172 });
+    assert.equal(Number.isInteger(out.seqId), true);
+    assert.equal(out.epicId, 2172);
   });
 
   it('rejects bad epicId', async () => {
@@ -155,73 +91,9 @@ describe('runEpicDeliverCleanup', () => {
       () => runEpicDeliverCleanup({ epicId: 0 }),
       /must be a positive integer/,
     );
-  });
-});
-
-describe('renderSummaryLines', () => {
-  it('renders the header + one line per reaped branch', () => {
-    const lines = renderSummaryLines({
-      dryRun: false,
-      reaped: [
-        { branch: 'story-1', method: 'worktree-remove', branchDeleted: true },
-        {
-          branch: 'epic/100',
-          method: 'no-worktree',
-          branchDeleted: false,
-          stderr: 'still checked out',
-        },
-      ],
-      failures: [
-        {
-          branch: 'epic/100',
-          method: 'no-worktree',
-          branchDeleted: false,
-          stderr: 'still checked out',
-        },
-      ],
-    });
-    assert.equal(lines.length, 3);
-    assert.match(lines[0], /reaped=2 failures=1/);
-    assert.match(lines[1], /story-1.*wt=worktree-remove.*branch=deleted/);
-    assert.match(lines[2], /epic\/100.*branch=kept.*stderr=still checked out/);
-  });
-
-  it('prefixes (dry-run) in the header when dry', () => {
-    const [header] = renderSummaryLines({
-      dryRun: true,
-      reaped: [],
-      failures: [],
-    });
-    assert.match(header, /\(dry-run\)/);
-  });
-
-  it('renders the post-reap summary lines when present', () => {
-    const lines = renderSummaryLines({
-      dryRun: false,
-      reaped: [],
-      failures: [],
-      switched: { switched: true, from: 'epic/200', to: 'main' },
-      pruned: { pruned: ['origin/epic/200', 'origin/story-1'] },
-      wtBranch: { deleted: true, present: true },
-    });
-    assert.equal(lines.length, 4);
-    assert.match(lines[1], /switched main checkout epic\/200 → main/);
-    assert.match(
-      lines[2],
-      /pruned tracking refs: origin\/epic\/200, origin\/story-1/,
+    await assert.rejects(
+      () => runEpicDeliverCleanup({ epicId: -5 }),
+      /must be a positive integer/,
     );
-    assert.match(lines[3], /deleted stale wt-branch ref/);
-  });
-
-  it('omits post-reap lines when their fields are absent / negative', () => {
-    const lines = renderSummaryLines({
-      dryRun: false,
-      reaped: [],
-      failures: [],
-      switched: { switched: false, from: 'main', to: null },
-      pruned: { pruned: [] },
-      wtBranch: { deleted: false, present: false },
-    });
-    assert.equal(lines.length, 1);
   });
 });

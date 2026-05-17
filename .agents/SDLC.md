@@ -321,11 +321,13 @@ consumes in Phase 1.
 
 ## Phase 3: Delivery (Agentic)
 
-Delivery is driven by the **Epic Deliver Runner**
-(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) for whole-Epic
+Delivery is driven by the **`/epic-deliver`** slash command for whole-Epic
 flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
-worktree isolation, and cascade closure.
+worktree isolation, and cascade closure. The slash command supplants the
+legacy deliver-runner CLI (retired in Story #2259, Epic #2172); the
+lifecycle bus listener chain inside the session owns wave fan-out,
+finalize, automerge, and cleanup.
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s snapshot phase
@@ -567,11 +569,10 @@ fires. This is the entirety of the operator interface mid-run.
 ## Epic Deliver Runner internals
 
 `/epic-deliver` drives the long-running coordinator inside the operator's
-Claude session. The runner
-(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) composes the
-submodules listed below; `/story-deliver` is launched as an Agent-tool
-sub-agent of `/epic-deliver`'s wave loop — no `child_process.spawn`, no
-GitHub Actions runner.
+Claude session. The slash command composes the submodules listed below;
+`/story-deliver` is launched as an Agent-tool sub-agent of
+`/epic-deliver`'s wave loop — no `child_process.spawn`, no GitHub Actions
+runner.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |

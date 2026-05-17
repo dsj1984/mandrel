@@ -104,7 +104,6 @@ export class LedgerWriter {
     this._epicDir = path.join(this._tempRoot, `epic-${this._epicId}`);
     this._ledgerPath = path.join(this._epicDir, 'lifecycle.ndjson');
     this._now = typeof opts.now === 'function' ? opts.now : Date.now;
-    this._ensured = false;
   }
 
   /**
@@ -123,13 +122,20 @@ export class LedgerWriter {
   }
 
   /**
-   * Lazy-create the epic-scoped temp directory the first time a record
-   * lands. Idempotent; later writes are no-ops.
+   * Ensure the epic-scoped temp directory exists before every append.
+   *
+   * The naive optimization (cache "ensured" after the first call) is
+   * unsound when a listener moves the ledger directory mid-handler —
+   * which is exactly what the Cleaner does on Wave 8 (Story #2259):
+   * it renames `temp/epic-<id>/` under `archive/` between the listener
+   * body and the bus's `onCompleted` hook fire-time, and the next
+   * append (the `completed` record for the outer event) would land
+   * in a vanished directory. `mkdirSync({recursive: true})` is
+   * idempotent and cheap (microseconds), so we call it every time and
+   * keep the writer robust to its own directory being moved.
    */
   _ensureDir() {
-    if (this._ensured) return;
     mkdirSync(this._epicDir, { recursive: true });
-    this._ensured = true;
   }
 
   /**

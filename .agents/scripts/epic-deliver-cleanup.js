@@ -2,196 +2,72 @@
 /* node:coverage ignore file */
 
 /**
- * epic-deliver-cleanup.js — Phase 8 of `/epic-deliver`.
+ * epic-deliver-cleanup.js — Phase 8 of `/epic-deliver`, thin emit shim
+ * (Story #2259 / Task #2265 / Epic #2172).
  *
- * Post-merge local-branch + worktree reap. Reads the `epic-run-state`
- * checkpoint to enumerate the Epic's branches, removes any still-registered
- * worktrees with the Windows-lock fallback recipe, and drops the local
- * refs.
+ * Pre-Wave-8 this CLI reaped local worktrees + branches directly by
+ * reading the `epic-run-state` checkpoint and shelling out to
+ * `git worktree remove` / `git branch -D`. The Wave 8 refactor moved
+ * that responsibility into the lifecycle bus listener chain:
  *
- * Remote branches are out of scope — `gh pr merge --delete-branch` already
- * handles `origin/epic/<id>` and story branches are deleted at story-close
- * time. For the "scrap and reset" flow, use `/delete-epic-branches`
- * instead.
+ *   1. `AutomergeArmer` (subscribes to `epic.merge.ready`) arms
+ *      GitHub's native auto-merge, emits `epic.merge.armed`.
+ *   2. `Cleaner` (subscribes to `epic.merge.armed`) archives
+ *      `temp/epic-<id>/` under `temp/archive/`, emits
+ *      `epic.cleanup.start`, `epic.cleanup.end`, and the terminal
+ *      `epic.complete`.
+ *
+ * This CLI is now a telemetry shim: it emits `epic.cleanup.start`
+ * onto a per-invocation bus and exits. The actual archive + branch
+ * reaping runs inside the `/epic-deliver` runner where the listener
+ * chain is wired. Direct invocations no longer reap branches —
+ * operators should run `/epic-deliver` (or use
+ * `/delete-epic-branches` for the "scrap and reset" flow) instead.
  *
  * Usage:
- *   node .agents/scripts/epic-deliver-cleanup.js --epic <epicId> [--dry-run] [--json]
+ *   node .agents/scripts/epic-deliver-cleanup.js --epic <id>
  *
- * Output (default): a human-readable summary on stderr-style log lines.
- * Output (--json): a single JSON envelope on stdout.
+ * Exit codes:
+ *   0 — `epic.cleanup.start` emitted (or `--help`).
+ *   2 — usage error (missing --epic).
  */
 
-import fs from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
-import { gitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
-import {
-  listEpicBranchesFromState,
-  reapEpicBranches,
-} from './lib/orchestration/epic-cleanup.js';
-import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
-import { createProvider } from './lib/provider-factory.js';
+import { Bus } from './lib/orchestration/lifecycle/bus.js';
 
-const HELP = `Usage: node .agents/scripts/epic-deliver-cleanup.js --epic <epicId> [--dry-run] [--json]
+const HELP = `Usage: node .agents/scripts/epic-deliver-cleanup.js --epic <id>
 
-Reaps local worktrees + branches for an Epic after its PR has merged.
-Reads the Epic's run-state checkpoint to enumerate Story branches.
+Emits an \`epic.cleanup.start\` lifecycle event for the given Epic and
+exits. The actual temp/epic-<id>/ archive + branch reap is owned by the
+\`Cleaner\` lifecycle listener inside the \`/epic-deliver\` runner —
+this CLI does NOT mutate the filesystem.
 `;
 
 /**
- * Pure: parse argv into the option bag. Exported for tests.
+ * Pure: parse argv. Exported for tests.
  */
 export function parseCleanupArgs(argv) {
   const { values } = parseArgs({
     args: argv,
     options: {
       epic: { type: 'string' },
-      'dry-run': { type: 'boolean', default: false },
-      json: { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
   });
-  const parsed = Number.parseInt(values.epic ?? '', 10);
+  const epicId = Number.parseInt(values.epic ?? '', 10);
   return {
-    epicId: Number.isNaN(parsed) || parsed <= 0 ? null : parsed,
-    dryRun: values['dry-run'] === true,
-    json: values.json === true,
+    epicId: Number.isNaN(epicId) || epicId <= 0 ? null : epicId,
     help: values.help === true,
   };
 }
 
 /**
- * Runner-shaped entry. DI-friendly.
- *
- * @param {{
- *   epicId: number,
- *   dryRun?: boolean,
- *   cwd?: string,
- *   injectedConfig?: object,
- *   injectedProvider?: object,
- *   checkpointerFactory?: (deps: { provider: object, epicId: number }) => { read: () => Promise<object|null> },
- *   gitSpawnFn?: typeof gitSpawn,
- *   rmSyncFn?: typeof fs.rmSync,
- *   loggerImpl?: { info?: Function, warn?: Function },
- * }} args
- */
-export async function runEpicDeliverCleanup({
-  epicId,
-  dryRun = false,
-  cwd,
-  injectedConfig,
-  injectedProvider,
-  checkpointerFactory,
-  gitSpawnFn = gitSpawn,
-  rmSyncFn = fs.rmSync,
-  loggerImpl,
-} = {}) {
-  if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError(
-      'runEpicDeliverCleanup: --epic must be a positive integer',
-    );
-  }
-  const logger = loggerImpl ?? Logger;
-  const config = injectedConfig ?? resolveConfig({ cwd });
-  const provider = injectedProvider ?? createProvider(config.orchestration);
-  const factory = checkpointerFactory ?? ((deps) => new Checkpointer(deps));
-  const checkpointer = factory({ provider, epicId });
-  const state = await checkpointer.read();
-  const repoCwd = cwd ?? PROJECT_ROOT;
-
-  if (!state) {
-    logger.warn?.(
-      `[epic-deliver-cleanup] No epic-run-state checkpoint found on Epic #${epicId}; nothing to enumerate.`,
-    );
-    return {
-      epicId,
-      dryRun,
-      branches: { epicBranch: null, storyBranches: [] },
-      reaped: [],
-      failures: [],
-      ok: true,
-      stateFound: false,
-    };
-  }
-
-  const branches = listEpicBranchesFromState(state);
-  logger.info?.(
-    `[epic-deliver-cleanup] Epic #${epicId}: ${branches.storyBranches.length} story branch(es) + ${branches.epicBranch}.`,
-  );
-
-  if (dryRun) {
-    return {
-      epicId,
-      dryRun: true,
-      branches,
-      reaped: [],
-      failures: [],
-      ok: true,
-      stateFound: true,
-    };
-  }
-
-  const baseBranch = config?.baseBranch ?? 'main';
-  const result = reapEpicBranches({
-    state,
-    cwd: repoCwd,
-    gitSpawn: gitSpawnFn,
-    rmSyncFn,
-    baseBranch,
-    logger,
-  });
-
-  return {
-    epicId,
-    dryRun: false,
-    branches,
-    reaped: result.reaped,
-    failures: result.failures,
-    switched: result.switched,
-    pruned: result.pruned,
-    wtBranch: result.wtBranch,
-    ok: result.ok,
-    stateFound: true,
-  };
-}
-
-/**
- * Pure: render the non-JSON summary lines. Exported for tests.
- * @param {object} out — runEpicDeliverCleanup envelope.
- * @returns {string[]}
- */
-export function renderSummaryLines(out) {
-  const lines = [
-    `[epic-deliver-cleanup] ${out.dryRun ? '(dry-run) ' : ''}reaped=${out.reaped.length} failures=${out.failures.length}`,
-  ];
-  for (const r of out.reaped) {
-    const tail = r.stderr ? ` stderr=${r.stderr}` : '';
-    lines.push(
-      `  ${r.branch} → wt=${r.method} branch=${r.branchDeleted ? 'deleted' : 'kept'}${tail}`,
-    );
-  }
-  if (out.switched?.switched) {
-    lines.push(
-      `  switched main checkout ${out.switched.from} → ${out.switched.to}`,
-    );
-  }
-  if (out.pruned?.pruned?.length > 0) {
-    lines.push(`  pruned tracking refs: ${out.pruned.pruned.join(', ')}`);
-  }
-  if (out.wtBranch?.deleted) {
-    lines.push('  deleted stale wt-branch ref');
-  }
-  return lines;
-}
-
-/**
- * Pure: classify parsed CLI args into a runnable intent. Extracting this
- * decision out of `main` keeps the side-effecting wrapper at CC ≤ 2 and
- * lets unit tests cover every branch directly.
+ * Pure: classify parsed CLI args into a runnable intent. Carved out
+ * so the side-effecting wrapper stays at CC ≤ 2.
  */
 export function classifyCleanupInvocation(args) {
   if (args?.help) return { kind: 'help' };
@@ -199,7 +75,7 @@ export function classifyCleanupInvocation(args) {
     return {
       kind: 'usage-error',
       messages: [
-        '[epic-deliver-cleanup] ERROR: --epic <epicId> is required.',
+        '[epic-deliver-cleanup] ERROR: --epic <id> is required.',
         HELP,
       ],
     };
@@ -207,19 +83,34 @@ export function classifyCleanupInvocation(args) {
   return {
     kind: 'run',
     epicId: args.epicId,
-    dryRun: args.dryRun,
-    json: args.json,
   };
 }
 
 /**
- * Pure: select between JSON and human output. Extracted so `main` keeps
- * CC ≤ 4 and CRAP ≤ 20 even when every branch sits behind the CLI's
- * coverage-ignore wall.
+ * Runner-shaped entry. Emits `epic.cleanup.start` onto the supplied
+ * bus (or a freshly-constructed one when invoked standalone). Returns
+ * the seqId of the emit for observability.
+ *
+ * @param {{
+ *   epicId: number,
+ *   bus?: object,
+ *   loggerImpl?: { info?: Function, warn?: Function, error?: Function },
+ * }} args
+ * @returns {Promise<{ epicId: number, seqId: number }>}
  */
-export function renderCleanupOutput(out, json) {
-  if (json) return [JSON.stringify(out, null, 2)];
-  return renderSummaryLines(out);
+export async function runEpicDeliverCleanup({ epicId, bus, loggerImpl } = {}) {
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'runEpicDeliverCleanup: epicId must be a positive integer',
+    );
+  }
+  const logger = loggerImpl ?? Logger;
+  const localBus = bus ?? new Bus();
+  logger.info?.(
+    `[epic-deliver-cleanup] Emitting epic.cleanup.start for Epic #${epicId}.`,
+  );
+  const { seqId } = await localBus.emit('epic.cleanup.start', { epicId });
+  return { epicId, seqId };
 }
 
 async function main() {
@@ -234,12 +125,8 @@ async function main() {
     for (const m of intent.messages) Logger.error(m);
     process.exit(2);
   }
-  const out = await runEpicDeliverCleanup({
-    epicId: intent.epicId,
-    dryRun: intent.dryRun,
-  });
-  for (const line of renderCleanupOutput(out, intent.json)) Logger.info(line);
-  if (!out.ok) process.exit(1);
+  const out = await runEpicDeliverCleanup({ epicId: intent.epicId });
+  Logger.info(JSON.stringify(out, null, 2));
 }
 
 runAsCli(import.meta.url, main, { source: 'epic-deliver-cleanup' });
