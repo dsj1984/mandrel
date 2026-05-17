@@ -21,6 +21,7 @@ import {
   reconcileAcceptanceSpec,
   renderBlockerMessage,
 } from '../.agents/scripts/acceptance-spec-reconciler.js';
+import { makeMockProvider } from './helpers/make-mock-provider.js';
 
 function buildProvider(tickets) {
   const byId = new Map(tickets.map((t) => [t.id, t]));
@@ -218,13 +219,12 @@ describe('reconcileAcceptanceSpec', () => {
   });
 
   it('returns waived status when acceptance::n-a label is present', async () => {
-    const provider = buildProvider([
-      {
-        id: 7000,
-        labels: ['type::epic', 'acceptance::n-a'],
-        body: '',
-      },
-    ]);
+    // The reconciler reads `epic.labels` via provider.getEpic() (preferred)
+    // or provider.getTicket() (fallback). makeMockProvider's default
+    // `labels: ['acceptance::n-a']` is the load-bearing waiver — if it
+    // were ever removed from the helper, this test would flip to a
+    // status::missing-spec throw instead of `waived`.
+    const provider = makeMockProvider();
     const out = await reconcileAcceptanceSpec({
       epicId: 7000,
       cwd: process.cwd(),
