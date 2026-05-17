@@ -13,7 +13,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { BDD_RUNNER_TAG_TABLE } from '../.agents/scripts/lib/bdd-runner-detect.js';
 import {
   classifyCoverage,
   classifyReconcilerInvocation,
@@ -22,6 +21,7 @@ import {
   reconcileAcceptanceSpec,
   renderBlockerMessage,
 } from '../.agents/scripts/acceptance-spec-reconciler.js';
+import { BDD_RUNNER_TAG_TABLE } from '../.agents/scripts/lib/bdd-runner-detect.js';
 
 function buildProvider(tickets) {
   const byId = new Map(tickets.map((t) => [t.id, t]));
@@ -216,6 +216,7 @@ describe('classifyReconcilerInvocation', () => {
       kind: 'run',
       epicId: 2001,
       featuresDir: null,
+      skipWhenWaived: false,
     });
   });
   it('passes --features-dir through', () => {
@@ -224,6 +225,17 @@ describe('classifyReconcilerInvocation', () => {
       'features-dir': 'custom/feats',
     });
     assert.equal(r.featuresDir, 'custom/feats');
+  });
+  it('passes --skip-when-waived through as skipWhenWaived flag', () => {
+    const r = classifyReconcilerInvocation({
+      epic: '7',
+      'skip-when-waived': true,
+    });
+    assert.equal(r.skipWhenWaived, true);
+  });
+  it('skipWhenWaived defaults to false when the flag is absent', () => {
+    const r = classifyReconcilerInvocation({ epic: '7' });
+    assert.equal(r.skipWhenWaived, false);
   });
 });
 
@@ -268,6 +280,45 @@ describe('reconcileAcceptanceSpec', () => {
     });
     assert.equal(out.status, 'waived');
     assert.equal(out.ok, true);
+  });
+
+  it('returns waived (status=waived, ok=true) with --skip-when-waived threaded through on an acceptance::n-a Epic', async () => {
+    const provider = buildProvider([
+      {
+        id: 7050,
+        labels: ['type::epic', 'acceptance::n-a'],
+        body: '',
+      },
+    ]);
+    const out = await reconcileAcceptanceSpec({
+      epicId: 7050,
+      cwd: process.cwd(),
+      skipWhenWaived: true,
+      injectedProvider: provider,
+      injectedConfig: { agentSettings: {}, orchestration: {} },
+      loggerImpl: SILENT_LOGGER,
+      listFeatureFiles: () => [],
+    });
+    assert.equal(out.status, 'waived');
+    assert.equal(out.ok, true);
+  });
+
+  it('without --skip-when-waived, missing spec on a non-waived Epic still throws (no regression)', async () => {
+    const provider = buildProvider([
+      { id: 7051, labels: ['type::epic'], body: '', linkedIssues: null },
+    ]);
+    await assert.rejects(
+      () =>
+        reconcileAcceptanceSpec({
+          epicId: 7051,
+          cwd: process.cwd(),
+          injectedProvider: provider,
+          injectedConfig: { agentSettings: {}, orchestration: {} },
+          loggerImpl: SILENT_LOGGER,
+          listFeatureFiles: () => [],
+        }),
+      /no linked context::acceptance-spec/,
+    );
   });
 
   it('throws when no acceptance-spec linked and waiver absent', async () => {

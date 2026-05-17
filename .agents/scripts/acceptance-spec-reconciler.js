@@ -322,6 +322,7 @@ export async function reconcileAcceptanceSpec({
   epicId,
   cwd,
   featuresDir,
+  skipWhenWaived = false,
   injectedProvider,
   injectedConfig,
   loggerImpl,
@@ -463,6 +464,7 @@ export function classifyReconcilerInvocation(values) {
     kind: 'run',
     epicId,
     featuresDir: values['features-dir'] ?? null,
+    skipWhenWaived: values['skip-when-waived'] === true,
   };
 }
 
@@ -471,6 +473,7 @@ async function main() {
     options: {
       epic: { type: 'string' },
       'features-dir': { type: 'string' },
+      'skip-when-waived': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
@@ -487,6 +490,7 @@ async function main() {
   const result = await reconcileAcceptanceSpec({
     epicId: intent.epicId,
     featuresDir: intent.featuresDir ?? undefined,
+    skipWhenWaived: intent.skipWhenWaived,
   });
   // Always emit the structured envelope to stdout, even on non-OK, so a
   // caller capturing stdout can read the diff payload before reacting to
