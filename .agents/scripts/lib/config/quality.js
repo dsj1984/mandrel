@@ -74,6 +74,11 @@ export const CRAP_GATE_DEFAULTS = Object.freeze({
   requireCoverage: true,
   friction: Object.freeze({ markerKey: 'crap-baseline-regression' }),
   refreshTag: 'baseline-refresh:',
+  // Story #2165 — bounded timeout (ms) for `npm run crap:update` spawned by
+  // the baseline-attribution refresh path. Defaults to 60 s; mirrors
+  // `gates.coverage.timeoutMs` (Story #2142) for shape and SIGKILL → 124
+  // semantics.
+  refreshTimeoutMs: 60_000,
 });
 
 /** Framework defaults for the coverage gate. */
@@ -96,6 +101,18 @@ export const MAINTAINABILITY_GATE_DEFAULTS = Object.freeze({
   tolerance: DEFAULT_MI_TOLERANCE,
   floors: DEFAULT_MI_FLOORS,
   targetDirs: Object.freeze([]),
+  // Story #2165 — bounded timeout (ms) for `npm run maintainability:update`
+  // spawned by the baseline-attribution refresh path. Defaults to 60 s.
+  refreshTimeoutMs: 60_000,
+});
+
+/**
+ * Story #2165 — framework defaults for the close-time `npx biome format
+ * --write` autofix spawn. The SIGKILL → exit 124 mapping mirrors
+ * `gates.coverage.timeoutMs` (Story #2142).
+ */
+export const FORMAT_AUTOFIX_DEFAULTS = Object.freeze({
+  timeoutMs: 60_000,
 });
 
 /**
@@ -135,6 +152,7 @@ const CRAP_GATE_KEYS = new Set([
   'requireCoverage',
   'friction',
   'refreshTag',
+  'refreshTimeoutMs',
 ]);
 
 const COVERAGE_GATE_KEYS = new Set([
@@ -152,6 +170,7 @@ const MI_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'targetDirs',
+  'refreshTimeoutMs',
 ]);
 
 /**
@@ -217,6 +236,7 @@ export function resolveMaintainabilityCrap(
       requireCoverage: defaults.requireCoverage,
       friction: { ...defaults.friction },
       refreshTag: defaults.refreshTag,
+      refreshTimeoutMs: defaults.refreshTimeoutMs,
       defaultScope: scoping.defaultScope,
       diffRef: scoping.diffRef,
     };
@@ -236,6 +256,10 @@ export function resolveMaintainabilityCrap(
     requireCoverage: userCrap.requireCoverage ?? defaults.requireCoverage,
     friction: { ...defaults.friction, ...(userCrap.friction ?? {}) },
     refreshTag: userCrap.refreshTag ?? defaults.refreshTag,
+    refreshTimeoutMs: resolvePositiveIntegerMs(
+      userCrap.refreshTimeoutMs,
+      defaults.refreshTimeoutMs,
+    ),
     defaultScope: scoping.defaultScope,
     diffRef: scoping.diffRef,
   };
@@ -255,6 +279,7 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
   if (userBlock == null || typeof userBlock !== 'object') {
     return {
       targetDirs: [...defaults.targetDirs],
+      refreshTimeoutMs: defaults.refreshTimeoutMs,
       defaultScope: scoping.defaultScope,
       diffRef: scoping.diffRef,
     };
@@ -262,6 +287,10 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
   warnUnknownKeys(userBlock, MI_GATE_KEYS, 'quality.gates.maintainability');
   const out = {
     targetDirs: resolveListValue(defaults.targetDirs, userBlock.targetDirs),
+    refreshTimeoutMs: resolvePositiveIntegerMs(
+      userBlock.refreshTimeoutMs,
+      defaults.refreshTimeoutMs,
+    ),
     defaultScope: scoping.defaultScope,
     diffRef: scoping.diffRef,
   };
@@ -272,6 +301,45 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
     );
   }
   return out;
+}
+
+/**
+ * Story #2165 — accept a user-supplied positive-integer ms budget, falling
+ * back to `defaultMs` when the value is missing, non-integer, or non-positive.
+ * Mirrors the inlined guard in `resolveCoverageGate`.
+ *
+ * @param {*} value
+ * @param {number} defaultMs
+ * @returns {number}
+ */
+function resolvePositiveIntegerMs(value, defaultMs) {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  return defaultMs;
+}
+
+/**
+ * Story #2165 — resolve `delivery.quality.formatAutofix`. Owns the bounded
+ * timeout for the close-time `npx biome format --write` spawn.
+ *
+ * @param {object | undefined} userBlock
+ * @returns {{ timeoutMs: number }}
+ */
+const FORMAT_AUTOFIX_KEYS = new Set(['timeoutMs']);
+
+export function resolveFormatAutofix(userBlock) {
+  const defaults = FORMAT_AUTOFIX_DEFAULTS;
+  if (userBlock == null || typeof userBlock !== 'object') {
+    return { timeoutMs: defaults.timeoutMs };
+  }
+  warnUnknownKeys(userBlock, FORMAT_AUTOFIX_KEYS, 'quality.formatAutofix');
+  return {
+    timeoutMs: resolvePositiveIntegerMs(
+      userBlock.timeoutMs,
+      defaults.timeoutMs,
+    ),
+  };
 }
 
 /** Resolve the coverage gate. Owns `coveragePath` and `timeoutMs`. */
@@ -506,6 +574,9 @@ export function resolveQuality(userQuality) {
     codingGuardrails: resolveCodingGuardrails(block.codingGuardrails),
     autoRefresh: resolveAutoRefresh(block.autoRefresh),
     baselineEpsilon: resolveBaselineEpsilon(block.baselineEpsilon),
+    // Story #2165 — `delivery.quality.formatAutofix.timeoutMs` for the
+    // close-time `npx biome format --write` spawn.
+    formatAutofix: resolveFormatAutofix(block.formatAutofix),
     gateScoping,
     gates: resolvedGates,
   };

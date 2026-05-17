@@ -84,71 +84,194 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
 }
 
 /**
- * Render the friction-comment body posted on the Story ticket when
- * `coverage-capture` trips the bounded-timeout watchdog (exit 124).
- *
- * Names the timeout duration (resolved via `delivery.quality.gates.coverage.timeoutMs`)
- * and the gate that fired so an operator can decide between bumping the
- * budget, investigating a runaway test, or rerunning. Story #2136 / Task #2143.
+ * Story #2165 — known spawn-timeout dispatch table. Each entry names the
+ * spawn whose bounded-timeout watchdog tripped and the `.agentrc.json`
+ * config key the operator tunes to raise the budget. The friction body
+ * and progress log line both quote `displayName` + `configKey` so the
+ * operator sees the same nomenclature wherever the timeout surfaces.
  */
-export function renderCoverageTimeoutFrictionBody({
+const SPAWN_TIMEOUT_DESCRIPTORS = Object.freeze({
+  'coverage-capture': Object.freeze({
+    displayName: 'Coverage capture',
+    defaultCmd: 'npm run test:coverage',
+    configKey: 'delivery.quality.gates.coverage.timeoutMs',
+    summary: 'The `coverage-capture` pre-merge gate',
+  }),
+  'check-maintainability': Object.freeze({
+    displayName: 'Maintainability baseline refresh',
+    defaultCmd: 'npm run maintainability:update',
+    configKey: 'delivery.quality.gates.maintainability.refreshTimeoutMs',
+    summary: 'The `check-maintainability` baseline-refresh path',
+  }),
+  'check-crap': Object.freeze({
+    displayName: 'CRAP baseline refresh',
+    defaultCmd: 'npm run crap:update',
+    configKey: 'delivery.quality.gates.crap.refreshTimeoutMs',
+    summary: 'The `check-crap` baseline-refresh path',
+  }),
+  'format-autofix': Object.freeze({
+    displayName: 'Format autofix',
+    defaultCmd: 'npx biome format --write .',
+    configKey: 'delivery.quality.formatAutofix.timeoutMs',
+    summary: 'The pre-gate `format-autofix` step',
+  }),
+});
+
+const DEFAULT_TIMEOUT_DESCRIPTOR = Object.freeze({
+  displayName: 'Close-time spawn',
+  defaultCmd: '<unknown>',
+  configKey: 'delivery.quality.<gate>.timeoutMs',
+  summary: 'A close-time spawn',
+});
+
+function resolveSpawnTimeoutDescriptor(spawnName) {
+  return SPAWN_TIMEOUT_DESCRIPTORS[spawnName] ?? DEFAULT_TIMEOUT_DESCRIPTOR;
+}
+
+/**
+ * Render the friction-comment body posted on the Story ticket when one of
+ * the close-time spawns (`coverage-capture`, baseline-refresh, or
+ * `format-autofix`) trips the bounded-timeout watchdog (exit 124).
+ *
+ * Story #2165 generalised the helper to take a `spawnName` so both the
+ * pre-existing coverage path and the new format-autofix + baseline-refresh
+ * paths share one body shape. The body names which spawn fired, the
+ * configured budget, and the config key the operator tunes to raise it.
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   epicId?: number|string|null,
+ *   timeoutMs?: number|null,
+ *   spawnName?: keyof typeof SPAWN_TIMEOUT_DESCRIPTORS | string,
+ *   spawnCmd?: string,
+ * }} input
+ */
+export function renderSpawnTimeoutFrictionBody({
   storyId,
   epicId,
   timeoutMs,
+  spawnName = 'coverage-capture',
+  spawnCmd,
 }) {
+  const descriptor = resolveSpawnTimeoutDescriptor(spawnName);
+  const cmd = spawnCmd || descriptor.defaultCmd;
   const seconds = Math.round((timeoutMs ?? 0) / 1000);
   const minutes = Math.round((seconds / 60) * 10) / 10;
   const budget = timeoutMs
     ? `${timeoutMs}ms (~${minutes} min)`
     : 'configured budget';
   return [
-    `### Coverage capture timed out`,
+    `### ${descriptor.displayName} timed out`,
     '',
-    `The \`coverage-capture\` pre-merge gate spawned \`npm run test:coverage\` for Story #${storyId} (Epic #${epicId ?? 'unknown'}) and the bounded watchdog killed the child after ${budget}.`,
+    `${descriptor.summary} spawned \`${cmd}\` for Story #${storyId} (Epic #${epicId ?? 'unknown'}) and the bounded watchdog killed the child after ${budget}.`,
     '',
-    `**Exit code:** 124 (GNU \`timeout(1)\` convention — surfaced by \`runCapture\` when \`spawnSync\` returns with \`signal: 'SIGKILL'\`).`,
+    `**Exit code:** 124 (GNU \`timeout(1)\` convention — surfaced when \`spawnSync\` returns with \`signal: 'SIGKILL'\`).`,
     '',
     `**Next actions:**`,
-    `- Re-run \`npm run test:coverage\` locally inside the Story worktree to confirm the hang.`,
-    `- If the suite is honestly slow, raise \`delivery.quality.gates.coverage.timeoutMs\` in \`.agentrc.json\` and re-close.`,
-    `- If a specific test hangs, isolate it (\`--test-name-pattern\`) and either fix the deadlock or fence it behind a faster mock.`,
+    `- Re-run \`${cmd}\` locally inside the Story worktree to confirm the hang.`,
+    `- If the command is honestly slow, raise \`${descriptor.configKey}\` in \`.agentrc.json\` and re-close.`,
+    `- If a deadlock or runaway loop is the cause, isolate the offending input and fix the underlying hang.`,
     '',
     `Story label has been flipped to \`agent::blocked\`. Resume by transitioning back to \`agent::executing\` after the underlying issue is fixed.`,
   ].join('\n');
 }
 
 /**
- * Apply the `agent::blocked` transition + friction comment when
- * `coverage-capture` exits 124. Best-effort: failures here are logged but
+ * Backwards-compatible wrapper for the coverage-capture timeout body
+ * (Story #2136 / Task #2143). New call sites should use
+ * `renderSpawnTimeoutFrictionBody` directly with the appropriate
+ * `spawnName`.
+ */
+export function renderCoverageTimeoutFrictionBody({
+  storyId,
+  epicId,
+  timeoutMs,
+}) {
+  return renderSpawnTimeoutFrictionBody({
+    storyId,
+    epicId,
+    timeoutMs,
+    spawnName: 'coverage-capture',
+  });
+}
+
+/**
+ * Story #2165 — resolve the timeout (ms) the upstream watchdog enforced
+ * for the named spawn so the friction body + log line can quote it.
+ * Best-effort: a missing/invalid resolver returns `null` and downstream
+ * formatting prints "configured budget".
+ *
+ * The dispatch table mirrors `SPAWN_TIMEOUT_DESCRIPTORS` — adding a new
+ * timeout-capable spawn means appending here and there in lockstep.
+ */
+function resolveSpawnTimeoutMs(spawnName, agentSettings) {
+  try {
+    const quality = getQuality({ agentSettings });
+    switch (spawnName) {
+      case 'coverage-capture':
+        return quality?.coverage?.timeoutMs ?? null;
+      case 'check-maintainability':
+        return quality?.maintainability?.refreshTimeoutMs ?? null;
+      case 'check-crap':
+        return quality?.crap?.refreshTimeoutMs ?? null;
+      case 'format-autofix':
+        return quality?.formatAutofix?.timeoutMs ?? null;
+      default:
+        return null;
+    }
+  } catch {
+    // resolveConfig failures here are diagnostic-only; the close envelope
+    // still surfaces the timeout outcome.
+    return null;
+  }
+}
+
+/**
+ * Apply the `agent::blocked` transition + friction comment when one of the
+ * close-time spawns exits 124. Best-effort: failures here are logged but
  * do not interrupt the close-result envelope — the operator must see the
  * timeout outcome regardless of whether the upsert/transition writes
  * succeeded.
  *
- * Story #2136 / Task #2143.
+ * Story #2136 / Task #2143 introduced this for `coverage-capture`; Story
+ * #2165 generalised it to cover the format-autofix + baseline-refresh
+ * spawns. The `spawnName` selects the friction-body descriptor and the
+ * config key the body suggests bumping.
+ *
+ * @param {{
+ *   storyId: number|string,
+ *   epicId?: number|string|null,
+ *   spawnName: string,
+ *   spawnCmd?: string|null,
+ *   timeoutMs?: number|null,
+ *   exitCode?: number|null,
+ *   agentSettings?: object,
+ *   provider: object,
+ *   progress: (tag: string, msg: string) => void,
+ *   reason?: string,
+ * }} input
  */
-async function emitCoverageTimeoutBlockedResult({
+async function emitSpawnTimeoutBlockedResult({
   storyId,
   epicId,
-  gateOutcome,
+  spawnName,
+  spawnCmd = null,
+  timeoutMs: providedTimeoutMs = null,
+  exitCode = 124,
   agentSettings,
   provider,
   progress: log,
+  reason,
 }) {
-  // Resolve the configured timeout so the friction body can name the
-  // budget the operator just blew through. Defaults flow through
-  // `getQuality` — a missing block resolves to the framework 600000ms.
-  let timeoutMs = null;
-  try {
-    timeoutMs = getQuality({ agentSettings })?.coverage?.timeoutMs ?? null;
-  } catch {
-    // resolveConfig failures here are diagnostic-only; the close envelope
-    // still surfaces the timeout outcome.
-  }
+  const timeoutMs =
+    providedTimeoutMs ?? resolveSpawnTimeoutMs(spawnName, agentSettings);
 
-  const body = renderCoverageTimeoutFrictionBody({
+  const body = renderSpawnTimeoutFrictionBody({
     storyId,
     epicId,
     timeoutMs,
+    spawnName,
+    spawnCmd,
   });
 
   let commentId = null;
@@ -162,7 +285,7 @@ async function emitCoverageTimeoutBlockedResult({
     commentId = res?.commentId ?? null;
   } catch (err) {
     Logger.warn?.(
-      `[story-close] failed to upsert coverage-timeout friction comment on #${storyId}: ${err?.message ?? err}`,
+      `[story-close] failed to upsert ${spawnName}-timeout friction comment on #${storyId}: ${err?.message ?? err}`,
     );
   }
 
@@ -176,13 +299,14 @@ async function emitCoverageTimeoutBlockedResult({
     );
   }
 
+  const descriptor = resolveSpawnTimeoutDescriptor(spawnName);
   const result = {
     success: false,
     status: 'blocked',
     phase: 'closing',
-    reason: 'coverage-capture-timeout',
-    gateName: gateOutcome?.gateName ?? 'coverage-capture',
-    exitCode: gateOutcome?.exitCode ?? 124,
+    reason: reason ?? `${spawnName}-timeout`,
+    gateName: spawnName,
+    exitCode: exitCode ?? 124,
     timeoutMs,
     commentId,
   };
@@ -191,7 +315,7 @@ async function emitCoverageTimeoutBlockedResult({
   );
   log(
     'BLOCKED',
-    `Story #${storyId} blocked: \`npm run test:coverage\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
+    `Story #${storyId} blocked: \`${spawnCmd || descriptor.defaultCmd}\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
   );
   return result;
 }
@@ -541,7 +665,29 @@ async function runPreMergeValidation({
   // its glob (notably JSON), so a JSON edit in wave N can fail every
   // wave N+1 close until an operator runs `biome format --write` and
   // commits the result.
-  runFormatAutofix({ cwd, storyId, agentSettings, logger: Logger });
+  //
+  // Story #2165 — `runFormatAutofix` now applies a bounded wall-clock to
+  // the formatter spawn (default 60 s, tuned via
+  // `delivery.quality.formatAutofix.timeoutMs`). On SIGKILL it returns a
+  // `timedOut` envelope rather than throwing; we surface that as the
+  // same `{ status: 'blocked-timeout' }` shape the coverage-capture
+  // watchdog uses, so the outer dispatch handles every close-time
+  // spawn timeout through one path.
+  const formatAutofixOutcome = runFormatAutofix({
+    cwd,
+    storyId,
+    agentSettings,
+    logger: Logger,
+  });
+  if (formatAutofixOutcome?.timedOut) {
+    return {
+      status: 'blocked-timeout',
+      gateName: 'format-autofix',
+      exitCode: formatAutofixOutcome.exitCode ?? 124,
+      spawnCmd: formatAutofixOutcome.writeCmdString ?? null,
+      timeoutMs: formatAutofixOutcome.timeoutMs ?? null,
+    };
+  }
   // Story #1120: gates spawn in the worktree, not main. Story #1124:
   // baseline-gate failures route through the attribution classifier.
   const gateOutcome = await runPreMergeGatesWithAttribution({
@@ -706,11 +852,19 @@ async function runStoryCloseLocked({
     // short-circuit the close. The hang is recoverable (operator either
     // bumps the budget or fixes the runaway test), so we do not fall
     // through to merge.
+    //
+    // Story #2165 — the same `blocked-timeout` shape now covers
+    // `format-autofix` and the baseline-refresh spawns; dispatch through
+    // the generalised emitter so each spawn gets its own descriptor +
+    // config-key hint in the friction body.
     if (gateOutcome?.status === 'blocked-timeout') {
-      return emitCoverageTimeoutBlockedResult({
+      return emitSpawnTimeoutBlockedResult({
         storyId,
         epicId,
-        gateOutcome,
+        spawnName: gateOutcome.gateName ?? 'coverage-capture',
+        spawnCmd: gateOutcome.spawnCmd ?? null,
+        timeoutMs: gateOutcome.timeoutMs ?? null,
+        exitCode: gateOutcome.exitCode ?? 124,
         agentSettings,
         provider,
         progress,
