@@ -83,7 +83,11 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       gitDiff,
       scorer,
     });
-    assert.equal(gitDiff.calls.length, 1, 'git diff must be invoked exactly once');
+    assert.equal(
+      gitDiff.calls.length,
+      1,
+      'git diff must be invoked exactly once',
+    );
     assert.deepEqual(gitDiff.calls[0], {
       baseRef: 'origin/main',
       headRef: 'HEAD',
@@ -97,9 +101,7 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
 
   it('AC: fullScope=true bypasses diff and regenerates every row', async () => {
     const gitDiff = makeRecordingGitDiff(['should/not/be/seen.js']);
-    const scorer = makeRecordingScorer([
-      { path: 'src/everything.js', mi: 95 },
-    ]);
+    const scorer = makeRecordingScorer([{ path: 'src/everything.js', mi: 95 }]);
     const writePath = path.join(workDir, 'maintainability.json');
     const result = await refreshBaseline({
       kind: 'maintainability',
@@ -109,7 +111,11 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       gitDiff,
       scorer,
     });
-    assert.equal(gitDiff.calls.length, 0, 'git diff MUST NOT be invoked when fullScope=true');
+    assert.equal(
+      gitDiff.calls.length,
+      0,
+      'git diff MUST NOT be invoked when fullScope=true',
+    );
     assert.equal(result.scope.mode, 'full');
     assert.deepEqual(result.scope.files, []);
     // The scorer should still receive an empty file list (full-scope owns
@@ -135,7 +141,11 @@ describe('refreshBaseline — diff-scope default (Task #2207)', () => {
       gitDiff,
       scorer,
     });
-    assert.equal(gitDiff.calls.length, 0, 'git diff MUST NOT be invoked with explicit scopeFiles');
+    assert.equal(
+      gitDiff.calls.length,
+      0,
+      'git diff MUST NOT be invoked with explicit scopeFiles',
+    );
     assert.equal(result.scope.mode, 'explicit');
     assert.deepEqual(result.scope.files, ['lib/x.js', 'lib/y.js']);
     assert.deepEqual(scorer.calls[0].files, ['lib/x.js', 'lib/y.js']);

@@ -79,7 +79,11 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
 
   it('AC: 10 rows, scope of 3, the 7 out-of-scope rows are byte-identical pre/post', async () => {
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    const priorEnvelope = seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+    const priorEnvelope = seedPriorBaseline(
+      writePath,
+      TEN_ROW_PRIOR_ROWS,
+      FIXED_PRIOR,
+    );
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     // Scorer produces NEW scores for the 3 in-scope files only. The
@@ -103,7 +107,15 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     const byPath = new Map(parsed.rows.map((r) => [r.path, r]));
 
     // 7 out-of-scope rows preserved verbatim (deep-equal to prior).
-    for (const p of ['src/d.js', 'src/e.js', 'src/f.js', 'src/g.js', 'src/h.js', 'src/i.js', 'src/j.js']) {
+    for (const p of [
+      'src/d.js',
+      'src/e.js',
+      'src/f.js',
+      'src/g.js',
+      'src/h.js',
+      'src/i.js',
+      'src/j.js',
+    ]) {
       assert.deepEqual(
         byPath.get(p),
         priorByPath.get(p),
@@ -134,13 +146,18 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     // 10 rows in, 10 rows out — scorer only emitted 1 but service kept 9.
     assert.equal(parsed.rows.length, 10);
     const paths = parsed.rows.map((r) => r.path);
-    assert.deepEqual(
-      paths,
-      [
-        'src/a.js', 'src/b.js', 'src/c.js', 'src/d.js', 'src/e.js',
-        'src/f.js', 'src/g.js', 'src/h.js', 'src/i.js', 'src/j.js',
-      ],
-    );
+    assert.deepEqual(paths, [
+      'src/a.js',
+      'src/b.js',
+      'src/c.js',
+      'src/d.js',
+      'src/e.js',
+      'src/f.js',
+      'src/g.js',
+      'src/h.js',
+      'src/i.js',
+      'src/j.js',
+    ]);
   });
 
   it('AC: when no in-scope row changed value, the envelope generatedAt is preserved byte-for-byte', async () => {
@@ -199,9 +216,7 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
       writePath,
       fullScope: true,
       generatedAt: FIXED_NOW,
-      scorer: makeScorer([
-        { path: 'src/only-this-one.js', mi: 42 },
-      ]),
+      scorer: makeScorer([{ path: 'src/only-this-one.js', mi: 42 }]),
     });
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
     assert.equal(parsed.rows.length, 1);
@@ -214,7 +229,11 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
     // service feeds gitDiff-derived files into the scope and the writer
     // merges them with the prior.
     const writePath = path.join(workDir, 'baselines', 'maintainability.json');
-    const priorEnvelope = seedPriorBaseline(writePath, TEN_ROW_PRIOR_ROWS, FIXED_PRIOR);
+    const priorEnvelope = seedPriorBaseline(
+      writePath,
+      TEN_ROW_PRIOR_ROWS,
+      FIXED_PRIOR,
+    );
     const priorByPath = new Map(priorEnvelope.rows.map((r) => [r.path, r]));
 
     await refreshBaseline({
@@ -231,7 +250,17 @@ describe('refreshBaseline — out-of-scope row preservation (Task #2209, AC-4)',
 
     const parsed = JSON.parse(readFileSync(writePath, 'utf8'));
     const byPath = new Map(parsed.rows.map((r) => [r.path, r]));
-    for (const p of ['src/b.js', 'src/c.js', 'src/d.js', 'src/e.js', 'src/f.js', 'src/g.js', 'src/h.js', 'src/i.js', 'src/j.js']) {
+    for (const p of [
+      'src/b.js',
+      'src/c.js',
+      'src/d.js',
+      'src/e.js',
+      'src/f.js',
+      'src/g.js',
+      'src/h.js',
+      'src/i.js',
+      'src/j.js',
+    ]) {
       assert.deepEqual(byPath.get(p), priorByPath.get(p));
     }
     assert.equal(byPath.get('src/a.js').mi, 99);

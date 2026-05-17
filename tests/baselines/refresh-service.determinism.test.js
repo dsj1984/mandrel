@@ -80,7 +80,11 @@ describe('refreshBaseline — determinism (Task #2206)', () => {
 
     const bytesA = readFileSync(writePathA);
     const bytesB = readFileSync(writePathB);
-    assert.equal(bytesA.equals(bytesB), true, 'two sequential invocations must produce byte-identical baselines');
+    assert.equal(
+      bytesA.equals(bytesB),
+      true,
+      'two sequential invocations must produce byte-identical baselines',
+    );
   });
 
   it('AC: output contains no ISO timestamp not already present in the fixture', async () => {

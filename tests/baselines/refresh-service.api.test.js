@@ -226,8 +226,16 @@ describe('refreshBaseline — path canonicalization (AC-7)', () => {
       'src/windows.js',
     ]);
     for (const p of paths) {
-      assert.equal(p.includes('\\'), false, `path "${p}" must not contain backslashes`);
-      assert.equal(p.startsWith('./'), false, `path "${p}" must not start with ./`);
+      assert.equal(
+        p.includes('\\'),
+        false,
+        `path "${p}" must not contain backslashes`,
+      );
+      assert.equal(
+        p.startsWith('./'),
+        false,
+        `path "${p}" must not start with ./`,
+      );
     }
   });
 });
