@@ -18,7 +18,7 @@
  */
 
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT } from './lib/config-resolver.js';
+import { getQuality, PROJECT_ROOT } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { runAutoRefresh } from './lib/orchestration/story-close/auto-refresh-runner.js';
 import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
@@ -33,6 +33,11 @@ import {
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
 import { emitMaintainabilityProjection } from './lib/orchestration/story-close/pre-merge-validation.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+  upsertStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import {
   PREFLIGHT_REFUSED_EXIT_CODE,
   runPreflight,
@@ -73,6 +78,119 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
   log(
     'BLOCKED',
     `Story #${storyId} blocked: baseline drift on ${result.nonAttributable.length} path(s) not attributable to this Story.`,
+  );
+  return result;
+}
+
+/**
+ * Render the friction-comment body posted on the Story ticket when
+ * `coverage-capture` trips the bounded-timeout watchdog (exit 124).
+ *
+ * Names the timeout duration (resolved via `delivery.quality.gates.coverage.timeoutMs`)
+ * and the gate that fired so an operator can decide between bumping the
+ * budget, investigating a runaway test, or rerunning. Story #2136 / Task #2143.
+ */
+export function renderCoverageTimeoutFrictionBody({
+  storyId,
+  epicId,
+  timeoutMs,
+}) {
+  const seconds = Math.round((timeoutMs ?? 0) / 1000);
+  const minutes = Math.round((seconds / 60) * 10) / 10;
+  const budget = timeoutMs
+    ? `${timeoutMs}ms (~${minutes} min)`
+    : 'configured budget';
+  return [
+    `### Coverage capture timed out`,
+    '',
+    `The \`coverage-capture\` pre-merge gate spawned \`npm run test:coverage\` for Story #${storyId} (Epic #${epicId ?? 'unknown'}) and the bounded watchdog killed the child after ${budget}.`,
+    '',
+    `**Exit code:** 124 (GNU \`timeout(1)\` convention — surfaced by \`runCapture\` when \`spawnSync\` returns with \`signal: 'SIGKILL'\`).`,
+    '',
+    `**Next actions:**`,
+    `- Re-run \`npm run test:coverage\` locally inside the Story worktree to confirm the hang.`,
+    `- If the suite is honestly slow, raise \`delivery.quality.gates.coverage.timeoutMs\` in \`.agentrc.json\` and re-close.`,
+    `- If a specific test hangs, isolate it (\`--test-name-pattern\`) and either fix the deadlock or fence it behind a faster mock.`,
+    '',
+    `Story label has been flipped to \`agent::blocked\`. Resume by transitioning back to \`agent::executing\` after the underlying issue is fixed.`,
+  ].join('\n');
+}
+
+/**
+ * Apply the `agent::blocked` transition + friction comment when
+ * `coverage-capture` exits 124. Best-effort: failures here are logged but
+ * do not interrupt the close-result envelope — the operator must see the
+ * timeout outcome regardless of whether the upsert/transition writes
+ * succeeded.
+ *
+ * Story #2136 / Task #2143.
+ */
+async function emitCoverageTimeoutBlockedResult({
+  storyId,
+  epicId,
+  gateOutcome,
+  agentSettings,
+  provider,
+  progress: log,
+}) {
+  // Resolve the configured timeout so the friction body can name the
+  // budget the operator just blew through. Defaults flow through
+  // `getQuality` — a missing block resolves to the framework 600000ms.
+  let timeoutMs = null;
+  try {
+    timeoutMs = getQuality({ agentSettings })?.coverage?.timeoutMs ?? null;
+  } catch {
+    // resolveConfig failures here are diagnostic-only; the close envelope
+    // still surfaces the timeout outcome.
+  }
+
+  const body = renderCoverageTimeoutFrictionBody({
+    storyId,
+    epicId,
+    timeoutMs,
+  });
+
+  let commentId = null;
+  try {
+    const res = await upsertStructuredComment(
+      provider,
+      storyId,
+      'friction',
+      body,
+    );
+    commentId = res?.commentId ?? null;
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to upsert coverage-timeout friction comment on #${storyId}: ${err?.message ?? err}`,
+    );
+  }
+
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {
+      cascade: false,
+    });
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to transition Story #${storyId} → ${STATE_LABELS.BLOCKED}: ${err?.message ?? err}`,
+    );
+  }
+
+  const result = {
+    success: false,
+    status: 'blocked',
+    phase: 'closing',
+    reason: 'coverage-capture-timeout',
+    gateName: gateOutcome?.gateName ?? 'coverage-capture',
+    exitCode: gateOutcome?.exitCode ?? 124,
+    timeoutMs,
+    commentId,
+  };
+  Logger.info(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  log(
+    'BLOCKED',
+    `Story #${storyId} blocked: \`npm run test:coverage\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
   );
   return result;
 }
@@ -291,6 +409,9 @@ async function runPreMergeValidation({
     provider,
   });
   if (gateOutcome?.status === 'blocked') return gateOutcome;
+  // Story #2136 — coverage-capture timeout shares the short-circuit so the
+  // MI projection (which spawns more reads) does not pile on a hang.
+  if (gateOutcome?.status === 'blocked-timeout') return gateOutcome;
   emitMaintainabilityProjection({
     cwd,
     epicBranch,
@@ -430,6 +551,22 @@ async function runStoryCloseLocked({
     });
     if (gateOutcome?.status === 'blocked') {
       return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
+    }
+    // Story #2136 / Task #2143 — coverage-capture exit 124 is a bounded-
+    // timeout trip, not a test-suite failure. Flip the Story to
+    // `agent::blocked` + post a friction comment naming the timeout, then
+    // short-circuit the close. The hang is recoverable (operator either
+    // bumps the budget or fixes the runaway test), so we do not fall
+    // through to merge.
+    if (gateOutcome?.status === 'blocked-timeout') {
+      return emitCoverageTimeoutBlockedResult({
+        storyId,
+        epicId,
+        gateOutcome,
+        agentSettings,
+        provider,
+        progress,
+      });
     }
     await runAutoRefreshSafely({
       storyId,

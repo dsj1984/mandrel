@@ -91,10 +91,21 @@ export async function runPreMergeGates({
   if (!validation.ok) {
     const [first] = validation.failed;
     const { gate, status, cwd: gateCwd } = first;
-    throw new Error(
+    // Story #2136 / Task #2143 — surface the structured failure metadata
+    // as typed properties on the Error so callers (notably
+    // `runPreMergeGatesWithAttribution`) can pattern-match exit codes
+    // without parsing the human message. The message format is preserved
+    // byte-for-byte so the existing regex consumers in the wiring layer
+    // keep matching.
+    const err = new Error(
       `Pre-merge validation failed at "${gate.name}" (exit ${status})${gateCwd ? ` in ${gateCwd}` : ''}.` +
         (gate.hint ? ` ${gate.hint}` : ''),
     );
+    err.code = 'PRE_MERGE_GATE_FAILED';
+    err.gateName = gate.name;
+    err.exitCode = status;
+    err.gateCwd = gateCwd ?? null;
+    throw err;
   }
   return validation;
 }

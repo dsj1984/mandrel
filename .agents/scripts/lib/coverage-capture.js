@@ -133,20 +133,63 @@ export function anyChangedUnderTargets(changedFiles, targetDirs) {
 }
 
 /**
- * Spawn `npm run test:coverage` in `cwd`. Inherits stdio so the operator sees
- * the raw test output. Returns the exit status; a non-zero exit means the
- * caller should propagate the failure (a broken test suite cannot be papered
- * over by the CRAP gate).
+ * Exit code surfaced when the bounded `npm run test:coverage` spawn was
+ * killed by the timeout watchdog. Matches the GNU `timeout(1)` convention so
+ * the close-validation caller can branch on "hang" (124) vs. "tests failed"
+ * (any other non-zero status). Story #2136 / Task #2142.
+ */
+export const COVERAGE_TIMEOUT_EXIT_CODE = 124;
+
+/**
+ * Spawn `npm run test:coverage` in `cwd` with a bounded wall clock. Inherits
+ * stdio so the operator sees the raw test output. Returns the exit status; a
+ * non-zero exit means the caller should propagate the failure (a broken test
+ * suite cannot be papered over by the CRAP gate).
  *
- * @param {{ cwd: string, runner?: typeof spawnSync, log?: (m: string) => void }} opts
+ * The `timeoutMs` budget is enforced by `spawnSync` with `killSignal:
+ * 'SIGKILL'` — Node fires the signal at the budget boundary and the result
+ * surfaces with `signal: 'SIGKILL'`. We translate that into the GNU
+ * `timeout(1)` convention exit code 124 so callers can pattern-match a
+ * runaway runner without inspecting signal names.
+ *
+ * @param {{
+ *   cwd: string,
+ *   timeoutMs?: number,
+ *   runner?: typeof spawnSync,
+ *   log?: (m: string) => void,
+ * }} opts
  * @returns {number}
  */
-export function runCapture({ cwd, runner = spawnSync, log = () => {} } = {}) {
+export function runCapture({
+  cwd,
+  timeoutMs,
+  runner = spawnSync,
+  log = () => {},
+} = {}) {
   log('[coverage-capture] ▶ npm run test:coverage');
-  const res = runner('npm', ['run', 'test:coverage'], {
+  const spawnOpts = {
     cwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
-  });
+    killSignal: 'SIGKILL',
+  };
+  if (
+    typeof timeoutMs === 'number' &&
+    Number.isFinite(timeoutMs) &&
+    timeoutMs > 0
+  ) {
+    spawnOpts.timeout = timeoutMs;
+  }
+  const res = runner('npm', ['run', 'test:coverage'], spawnOpts);
+  // A timeout-induced kill surfaces as `signal: 'SIGKILL'` (or, on some
+  // platforms, as a non-numeric status). Either signal indicates the
+  // watchdog tripped — surface the GNU `timeout` convention 124 so the
+  // caller can distinguish a hang from a normal test-suite failure.
+  if (res?.signal === 'SIGKILL') {
+    log(
+      `[coverage-capture] ⏱ npm run test:coverage exceeded ${timeoutMs}ms — killed (SIGKILL). Returning exit ${COVERAGE_TIMEOUT_EXIT_CODE}.`,
+    );
+    return COVERAGE_TIMEOUT_EXIT_CODE;
+  }
   return res.status ?? 1;
 }

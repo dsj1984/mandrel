@@ -380,6 +380,80 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
     assert.equal(result.commentId, 42);
   });
 
+  it('returns blocked-timeout when coverage-capture exits 124 (no retry, no attribution work)', async () => {
+    // Story #2136 / Task #2143 — a coverage hang must short-circuit before
+    // the attribution refresh flow (which assumes baseline drift, not a
+    // runaway runner). `handleBaselineGateFailureFn` and
+    // `projectRegressionsFn` MUST NOT be called.
+    let preMergeAttempts = 0;
+    let handleCalled = false;
+    let projectCalled = false;
+    const runPreMergeGates = () => {
+      preMergeAttempts += 1;
+      const err = new Error(
+        'Pre-merge validation failed at "coverage-capture" (exit 124) in /repo.',
+      );
+      err.code = 'PRE_MERGE_GATE_FAILED';
+      err.gateName = 'coverage-capture';
+      err.exitCode = 124;
+      throw err;
+    };
+    const result = await runPreMergeGatesWithAttribution({
+      cwd: '/repo',
+      worktreePath: '/repo/.worktrees/story-2136',
+      epicBranch: 'epic/2129',
+      storyBranch: 'story-2136',
+      agentSettings: {},
+      storyId: 2136,
+      epicId: 2129,
+      useEvidence: false,
+      provider: {},
+      runPreMergeGates,
+      handleBaselineGateFailureFn: async () => {
+        handleCalled = true;
+        return { action: 'rethrow' };
+      },
+      projectRegressionsFn: () => {
+        projectCalled = true;
+        return [];
+      },
+    });
+    assert.equal(result.status, 'blocked-timeout');
+    assert.equal(result.gateName, 'coverage-capture');
+    assert.equal(result.exitCode, 124);
+    assert.equal(preMergeAttempts, 1);
+    assert.equal(handleCalled, false, 'attribution refresh must not fire');
+    assert.equal(projectCalled, false, 'regression projection must not fire');
+  });
+
+  it('does NOT short-circuit when coverage-capture exits non-124 (e.g. failing tests stay loud)', async () => {
+    const runPreMergeGates = () => {
+      const err = new Error(
+        'Pre-merge validation failed at "coverage-capture" (exit 1) in /repo.',
+      );
+      err.gateName = 'coverage-capture';
+      err.exitCode = 1;
+      throw err;
+    };
+    await assert.rejects(
+      runPreMergeGatesWithAttribution({
+        cwd: '/repo',
+        worktreePath: '/repo/.worktrees/story-2136',
+        epicBranch: 'epic/2129',
+        storyBranch: 'story-2136',
+        agentSettings: {},
+        storyId: 2136,
+        epicId: 2129,
+        useEvidence: false,
+        provider: {},
+        runPreMergeGates,
+        handleBaselineGateFailureFn: async () => ({ action: 'rethrow' }),
+        projectRegressionsFn: () => [],
+      }),
+      /failed at "coverage-capture" \(exit 1\)/,
+    );
+  });
+
   it('rethrows the original gate error on action: rethrow (non-baseline failures stay loud)', async () => {
     const runPreMergeGates = () => {
       throw new Error(

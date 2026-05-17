@@ -412,15 +412,15 @@
       "file": ".agents/scripts/coverage-capture.js"
     },
     {
+      "crap": 16.50852894007873,
       "method": "main",
       "startLine": 48,
-      "crap": 18.82797208433808,
       "file": ".agents/scripts/coverage-capture.js"
     },
     {
+      "crap": 1,
       "method": "<anon method-1>",
-      "startLine": 93,
-      "crap": 2,
+      "startLine": 96,
       "file": ".agents/scripts/coverage-capture.js"
     },
     {
@@ -2832,79 +2832,91 @@
     {
       "crap": 5,
       "method": "toleranceScalar",
-      "startLine": 157,
+      "startLine": 166,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 2.0932944606413995,
       "method": "warnUnknownKeys",
-      "startLine": 169,
+      "startLine": 178,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 3,
       "method": "resolveMaintainabilityCrap",
-      "startLine": 187,
+      "startLine": 196,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 4.101610526850582,
       "method": "resolveMaintainabilityQuality",
-      "startLine": 240,
+      "startLine": 249,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
-      "crap": 3,
+      "crap": 6.0016399416909625,
       "method": "resolveCoverageGate",
-      "startLine": 269,
+      "startLine": 278,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 4,
       "method": "resolveCodingGuardrails",
-      "startLine": 305,
+      "startLine": 321,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 12,
       "method": "resolveAutoRefresh",
-      "startLine": 337,
+      "startLine": 353,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 1,
       "method": "resolveBaselinesFromGates",
-      "startLine": 382,
+      "startLine": 398,
+      "file": ".agents/scripts/lib/config/quality.js"
+    },
+    {
+      "crap": 5,
+      "method": "mergeFloorsWithDefaults",
+      "startLine": 434,
+      "file": ".agents/scripts/lib/config/quality.js"
+    },
+    {
+      "crap": 4,
+      "method": "resolveGatesWithFloors",
+      "startLine": 473,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 5,
       "method": "resolveQuality",
-      "startLine": 405,
+      "startLine": 487,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 4,
       "method": "assertEpsilonValue",
-      "startLine": 461,
+      "startLine": 544,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 4,
       "method": "resolveBaselineEpsilon",
-      "startLine": 472,
+      "startLine": 555,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 2,
       "method": "getBaselineEpsilon",
-      "startLine": 497,
+      "startLine": 580,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
       "crap": 1,
       "method": "getQuality",
-      "startLine": 518,
+      "startLine": 601,
       "file": ".agents/scripts/lib/config/quality.js"
     },
     {
@@ -3238,9 +3250,9 @@
       "file": ".agents/scripts/lib/coverage-capture.js"
     },
     {
-      "crap": 1,
+      "crap": 5,
       "method": "runCapture",
-      "startLine": 144,
+      "startLine": 163,
       "file": ".agents/scripts/lib/coverage-capture.js"
     },
     {
@@ -6522,97 +6534,97 @@
     {
       "crap": 6,
       "method": "computeStoryDiffPaths",
-      "startLine": 69,
+      "startLine": 70,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 11.768429609307525,
       "method": "runRefreshCommit",
-      "startLine": 102,
+      "startLine": 103,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 7.088151244743648,
       "method": "handleBaselineGateFailure",
-      "startLine": 188,
+      "startLine": 189,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 6,
       "method": "projectMaintainabilityForGate",
-      "startLine": 277,
+      "startLine": 278,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 3,
       "method": "coerceScopeSet",
-      "startLine": 335,
+      "startLine": 336,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 4,
       "method": "rowFileKey",
-      "startLine": 344,
+      "startLine": 345,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 4,
       "method": "indexCrapBaselineByMethod",
-      "startLine": 351,
+      "startLine": 352,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 3,
       "method": "pickClosestUnseen",
-      "startLine": 363,
+      "startLine": 364,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 3,
       "method": "isValidHeadRow",
-      "startLine": 379,
+      "startLine": 380,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 3,
       "method": "buildCrapRegression",
-      "startLine": 383,
+      "startLine": 384,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 10,
       "method": "diffCrapBaselines",
-      "startLine": 401,
+      "startLine": 402,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 6.0056857441809965,
       "method": "projectCrapRegressions",
-      "startLine": 465,
+      "startLine": 466,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 4,
       "method": "validateProjectionContext",
-      "startLine": 527,
+      "startLine": 528,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 6,
       "method": "projectCrapForGate",
-      "startLine": 534,
+      "startLine": 535,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
       "crap": 5.429499999999999,
       "method": "projectRegressionsForGate",
-      "startLine": 585,
+      "startLine": 586,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
-      "crap": 6.135506172839506,
+      "crap": 8.135607774034403,
       "method": "runPreMergeGatesWithAttribution",
-      "startLine": 631,
+      "startLine": 632,
       "file": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js"
     },
     {
@@ -6864,13 +6876,13 @@
     {
       "crap": 3.0987654320987654,
       "method": "resolveKernelLabel",
-      "startLine": 119,
+      "startLine": 130,
       "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js"
     },
     {
       "crap": 5,
       "method": "emitMaintainabilityProjection",
-      "startLine": 140,
+      "startLine": 151,
       "file": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js"
     },
     {
@@ -7024,93 +7036,87 @@
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
-      "crap": 4,
-      "method": "collectTaskChangesPaths",
-      "startLine": 79,
-      "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
-    },
-    {
       "crap": 2,
       "method": "defaultGitRunner",
-      "startLine": 98,
+      "startLine": 76,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
-      "crap": 7,
+      "crap": 6,
       "method": "validateAcFreshness",
-      "startLine": 125,
+      "startLine": 103,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 6,
       "method": "indexTicketsBySlug",
-      "startLine": 204,
+      "startLine": 170,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 4,
       "method": "assertEachTypePresent",
-      "startLine": 227,
+      "startLine": 193,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 7,
       "method": "assertHierarchy",
-      "startLine": 242,
+      "startLine": 208,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 1,
       "method": "countTasksByStory",
-      "startLine": 268,
+      "startLine": 234,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 2,
       "method": "assertEveryStoryHasTasks",
-      "startLine": 279,
+      "startLine": 245,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 3,
       "method": "assertNoUnknownDeps",
-      "startLine": 290,
+      "startLine": 256,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 5,
       "method": "liftDepToStory",
-      "startLine": 308,
+      "startLine": 274,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 7.073142857142857,
       "method": "processCrossStoryTaskDeps",
-      "startLine": 324,
+      "startLine": 290,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 2,
       "method": "logLiftedDeps",
-      "startLine": 360,
+      "startLine": 326,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 2,
       "method": "assertAcyclic",
-      "startLine": 372,
+      "startLine": 338,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 1,
       "method": "attachFindingsAndErrors",
-      "startLine": 381,
+      "startLine": 347,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
       "crap": 2,
       "method": "validateAndNormalizeTickets",
-      "startLine": 396,
+      "startLine": 362,
       "file": ".agents/scripts/lib/orchestration/ticket-validator.js"
     },
     {
