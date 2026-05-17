@@ -47,7 +47,9 @@ export async function escalateFireFailure({
       config,
     });
   } catch (signalErr) {
-    warn(`escalation friction append failed: ${signalErr?.message ?? signalErr}`);
+    warn(
+      `escalation friction append failed: ${signalErr?.message ?? signalErr}`,
+    );
   }
 
   try {
@@ -60,6 +62,8 @@ export async function escalateFireFailure({
       `Epic #${epicId} → ${AGENT_LABELS.BLOCKED} after ${threshold} consecutive fire() failures`,
     );
   } catch (labelErr) {
-    warn(`escalation label transition failed: ${labelErr?.message ?? labelErr}`);
+    warn(
+      `escalation label transition failed: ${labelErr?.message ?? labelErr}`,
+    );
   }
 }
