@@ -155,6 +155,21 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.18.0](https://github.com/dsj1984/mandrel/compare/v1.17.0...v1.18.0) (2026-05-17)
+
+
+### Fixed
+
+* **bootstrap:** sync-agentrc and quality-bootstrap contradict each other on default-key writes ([#2281](https://github.com/dsj1984/mandrel/issues/2281)) ([#2285](https://github.com/dsj1984/mandrel/issues/2285)) ([c6626f3](https://github.com/dsj1984/mandrel/commit/c6626f3723f1a772e90f3eb030402d0a4af6388f))
+* **emit-context:** route Logger output to stderr to keep stdout pure JSON ([#2287](https://github.com/dsj1984/mandrel/issues/2287)) ([5622bd6](https://github.com/dsj1984/mandrel/commit/5622bd6cf63645778a8e108626e5176883ba6b44)), closes [#2278](https://github.com/dsj1984/mandrel/issues/2278)
+* **epic-plan-decompose:** preserve Epic body through reconciler persist ([#2286](https://github.com/dsj1984/mandrel/issues/2286)) ([07e50e5](https://github.com/dsj1984/mandrel/commit/07e50e59e355040115c38586fdf5fdfba8e541c6)), closes [#2283](https://github.com/dsj1984/mandrel/issues/2283)
+
+
+### Changed
+
+* **epic-deliver:** drop close-as-approval gate for context::acceptance-spec ([#2280](https://github.com/dsj1984/mandrel/issues/2280)) ([328f4a5](https://github.com/dsj1984/mandrel/commit/328f4a539a4748a7b2b3aeb914899320d1ebb452))
+* **epic-plan:** unify Epic canonical headings (Context/Goal/Non-Goals/Scope/AC) ([#2183](https://github.com/dsj1984/mandrel/issues/2183)) ([2abc8f3](https://github.com/dsj1984/mandrel/commit/2abc8f3ea5f245c2370595955b89b71946b00e2e))
+
 ## [1.17.0](https://github.com/dsj1984/mandrel/compare/v1.16.0...v1.17.0) (2026-05-17)
 
 
