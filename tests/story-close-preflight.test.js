@@ -149,7 +149,7 @@ describe('story-close.js preflight position (source-level invariant)', () => {
     const preflightIdx = src.indexOf(
       'runStoryClosePreflight({ storyId, cwd })',
     );
-    const lockIdx = src.indexOf('withEpicMergeLock(\n    epicId');
+    const lockIdx = src.search(/withEpicMergeLock\(\n\s+epicId/);
     assert.ok(
       preflightIdx > 0,
       'preflight call site must exist in story-close.js',

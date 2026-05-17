@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T02:07:51.606Z",
+  "generatedAt": "2026-05-17T02:15:55.892Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -308,7 +308,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
-      "mi": 94.469
+      "mi": 96.575
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -1436,7 +1436,7 @@
     },
     {
       "path": ".agents/scripts/story-close.js",
-      "mi": 87.077
+      "mi": 84.395
     },
     {
       "path": ".agents/scripts/story-execute-prepare.js",
@@ -1652,7 +1652,7 @@
     },
     {
       "path": "tests/bdd-runner-detect.test.js",
-      "mi": 116.714
+      "mi": 115.563
     },
     {
       "path": "tests/bootstrap.test.js",
@@ -3201,6 +3201,10 @@
     {
       "path": "tests/story-close-auto-refresh.test.js",
       "mi": 99.44
+    },
+    {
+      "path": "tests/story-close-branch-restore.test.js",
+      "mi": 94.046
     },
     {
       "path": "tests/story-close-cd-out-guard.test.js",

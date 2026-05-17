@@ -184,6 +184,7 @@ describe('classifyReconcilerInvocation', () => {
       kind: 'run',
       epicId: 2001,
       featuresDir: null,
+      skipWhenWaived: false,
     });
   });
   it('passes --features-dir through', () => {
