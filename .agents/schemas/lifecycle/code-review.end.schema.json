@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/code-review.end.schema.json",
+  "title": "code-review.end",
+  "description": "Emitted at the end of the code-review sub-phase. Carries a review-finding severity summary so the lifecycle ledger surfaces critical/high/medium/suggestion counts directly. The payload MUST NOT carry any secret-key-denylist fields (token, password, secret, apiKey, webhookUrl) — the LedgerWriter enforces this, but the schema's `additionalProperties: false` keeps the surface tight. Story #2252.",
+  "type": "object",
+  "required": ["epicId", "status"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "no-changes", "invalid"]
+    },
+    "severity": {
+      "type": "object",
+      "required": ["critical", "high", "medium", "suggestion"],
+      "properties": {
+        "critical": { "type": "integer", "minimum": 0 },
+        "high": { "type": "integer", "minimum": 0 },
+        "medium": { "type": "integer", "minimum": 0 },
+        "suggestion": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "halted": { "type": "boolean" },
+    "posted": { "type": "boolean" },
+    "durationMs": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

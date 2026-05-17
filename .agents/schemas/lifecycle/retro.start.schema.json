@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/retro.start.schema.json",
+  "title": "retro.start",
+  "description": "Emitted at the start of the retro sub-phase (Phase E of the close-tail). Story #2252.",
+  "type": "object",
+  "required": ["epicId"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}
