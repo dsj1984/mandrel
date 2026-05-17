@@ -201,8 +201,8 @@ describe('lifecycle/phase-iterate-waves', () => {
     assert.equal(result.completionState, 'completed');
     const records = readNdjson(writer.ledgerPath);
     const emitted = records.filter((r) => r.kind === 'emitted');
-    const waveEvents = emitted.filter((r) =>
-      r.event === 'wave.start' || r.event === 'wave.end',
+    const waveEvents = emitted.filter(
+      (r) => r.event === 'wave.start' || r.event === 'wave.end',
     );
     assert.equal(
       waveEvents.length,

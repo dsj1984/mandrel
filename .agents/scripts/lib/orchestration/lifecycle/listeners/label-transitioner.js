@@ -148,7 +148,9 @@ export class LabelTransitioner {
    */
   register(bus) {
     if (!bus || typeof bus.on !== 'function') {
-      throw new TypeError('LabelTransitioner.register requires a bus with on()');
+      throw new TypeError(
+        'LabelTransitioner.register requires a bus with on()',
+      );
     }
     return this.events.map((event) =>
       bus.on(event, async (ctx) => this.handle(ctx)),

@@ -64,9 +64,7 @@ export class SignalsAppender {
 
   register(bus) {
     if (!bus || typeof bus.on !== 'function') {
-      throw new TypeError(
-        'SignalsAppender.register requires a bus with on()',
-      );
+      throw new TypeError('SignalsAppender.register requires a bus with on()');
     }
     return this.events.map((event) =>
       bus.on(event, async (ctx) => this.handle(ctx)),

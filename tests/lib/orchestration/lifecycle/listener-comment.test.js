@@ -23,7 +23,10 @@ describe('markerTypeFor', () => {
     assert.equal(markerTypeFor('wave.end', { waveIndex: 3 }), 'wave-3-end');
   });
   it('returns epic-blocked for epic.blocked', () => {
-    assert.equal(markerTypeFor('epic.blocked', { reason: 'r' }), 'epic-blocked');
+    assert.equal(
+      markerTypeFor('epic.blocked', { reason: 'r' }),
+      'epic-blocked',
+    );
   });
   it('returns null for unknown / malformed events', () => {
     assert.equal(markerTypeFor('wave.start', {}), null);

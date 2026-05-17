@@ -86,9 +86,7 @@ export function renderBody(event, payload) {
     const okCount = entries.filter(([, v]) => v === 'done').length;
     const skippedCount = entries.filter(([, v]) => v === 'skipped').length;
     const bad = entries.length - okCount - skippedCount;
-    lines.push(
-      `### 🏁 Wave ${idx + 1} ${bad === 0 ? 'completed' : 'halted'}`,
-    );
+    lines.push(`### 🏁 Wave ${idx + 1} ${bad === 0 ? 'completed' : 'halted'}`);
     lines.push('');
     lines.push(
       `Outcomes: ${okCount} done · ${skippedCount} skipped · ${bad} failed/blocked`,
@@ -132,9 +130,7 @@ export class StructuredCommentPoster {
       throw new TypeError('StructuredCommentPoster requires a provider');
     }
     if (!Number.isInteger(opts.epicId) || opts.epicId < 1) {
-      throw new TypeError(
-        'StructuredCommentPoster requires a numeric epicId',
-      );
+      throw new TypeError('StructuredCommentPoster requires a numeric epicId');
     }
     if (typeof opts.upsertStructuredComment !== 'function') {
       throw new TypeError(

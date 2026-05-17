@@ -40,9 +40,7 @@ function extractStoryIds(stories) {
   const out = [];
   for (const s of stories) {
     const raw =
-      typeof s === 'object' && s !== null
-        ? (s.id ?? s.storyId ?? s.number)
-        : s;
+      typeof s === 'object' && s !== null ? (s.id ?? s.storyId ?? s.number) : s;
     const id = Number(raw);
     if (Number.isInteger(id) && id > 0) out.push(id);
   }

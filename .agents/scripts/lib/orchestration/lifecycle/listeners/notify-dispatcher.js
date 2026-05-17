@@ -92,9 +92,7 @@ export class NotifyDispatcher {
 
   register(bus) {
     if (!bus || typeof bus.on !== 'function') {
-      throw new TypeError(
-        'NotifyDispatcher.register requires a bus with on()',
-      );
+      throw new TypeError('NotifyDispatcher.register requires a bus with on()');
     }
     return this.events.map((event) =>
       bus.on(event, async (ctx) => this.handle(ctx)),

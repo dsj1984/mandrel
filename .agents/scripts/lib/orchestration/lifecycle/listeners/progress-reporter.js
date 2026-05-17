@@ -52,9 +52,7 @@ export class ProgressReporter {
 
   register(bus) {
     if (!bus || typeof bus.on !== 'function') {
-      throw new TypeError(
-        'ProgressReporter.register requires a bus with on()',
-      );
+      throw new TypeError('ProgressReporter.register requires a bus with on()');
     }
     return this.events.map((event) =>
       bus.on(event, async (ctx) => this.handle(ctx)),

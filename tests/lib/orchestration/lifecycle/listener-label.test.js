@@ -16,7 +16,11 @@ import { STATE_LABELS } from '../../../../.agents/scripts/lib/orchestration/tick
 
 describe('resolveTransition', () => {
   it('maps story.merged → DONE on the storyId', () => {
-    const out = resolveTransition('story.merged', { storyId: 42, sha: 'abc1234' }, 7);
+    const out = resolveTransition(
+      'story.merged',
+      { storyId: 42, sha: 'abc1234' },
+      7,
+    );
     assert.deepEqual(out, { ticketId: 42, state: STATE_LABELS.DONE });
   });
 
