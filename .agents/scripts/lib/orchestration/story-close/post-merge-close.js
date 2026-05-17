@@ -24,12 +24,92 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { emitGhSpawnCount as defaultEmitGhSpawnCount } from '../../close-validation.js';
 import { storyArtifactPath, storyTempDir } from '../../config/temp-paths.js';
+import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { clearActiveStoryEnv as defaultClearActiveStoryEnv } from '../../observability/active-story-env.js';
+import {
+  checkHeadAncestor,
+  hasMergeCommitForStory,
+} from '../../worktree/lifecycle/merge-reachability.js';
 import { runPostMergePipeline as defaultRunPostMergePipeline } from '../post-merge-pipeline.js';
 import {
   drainPendingCleanupAfterClose as defaultDrainPendingCleanupAfterClose,
   reconcileCleanupState as defaultReconcileCleanupState,
 } from './cleanup-reconciler.js';
+
+/**
+ * Assert that the Story branch was actually merged into the Epic branch
+ * before allowing the post-merge pipeline to flip Story / Tasks to
+ * `agent::done`. The contract: by the time `runPostMergeClose` is called,
+ * `runFinalizeMerge` (or `runResumeMerge`) has already executed the
+ * `git merge --no-ff` + push; this is a defensive readback that catches
+ * the (rare) case where the merge runner returned but the merge commit is
+ * not actually reachable from `epic/<id>` — e.g. a force-push from a
+ * sibling process clobbered the tip between our merge and our push, and
+ * the push's retry logic logged success while the remote silently dropped
+ * us.
+ *
+ * Two-phase check mirrors `worktree/lifecycle/merge-reachability.js`:
+ *   1. `git merge-base --is-ancestor` on the Story branch HEAD.
+ *   2. Fallback `git log --grep=resolves #<storyId>` on the Epic branch
+ *      (the `--no-ff` merge commit's subject is the durable proof).
+ *
+ * Throws when neither check passes — the caller's `try/finally` keeps the
+ * Story at `agent::closing` so a `/story-execute --resume` can re-enter
+ * the post-merge phase rather than re-running preflight.
+ *
+ * Story #2144 / Task #2155.
+ *
+ * @param {object} args
+ * @param {string} args.cwd        Main-repo working directory.
+ * @param {string} args.storyBranch
+ * @param {string} args.epicBranch
+ * @param {string|number} args.storyId
+ * @param {typeof defaultGitSpawn} [args.gitSpawn]
+ * @returns {{ reachable: true, reason: string }}
+ * @throws {Error} when the merge is not reachable from `epicBranch`.
+ */
+export function assertMergeReachable({
+  cwd,
+  storyBranch,
+  epicBranch,
+  storyId,
+  gitSpawn = defaultGitSpawn,
+}) {
+  const ctx = { repoRoot: cwd, git: { gitSpawn } };
+  // Resolve the story branch's tip locally. The Story branch ref still
+  // exists at this point — branch-cleanup phase (which deletes it) runs
+  // after ticket-closure inside the post-merge pipeline.
+  const headRes = gitSpawn(cwd, 'rev-parse', storyBranch);
+  if (headRes.status !== 0) {
+    // Branch ref already gone (e.g. a prior partial close deleted it) →
+    // fall straight to the merge-commit grep, which is the durable proof
+    // path.
+    if (hasMergeCommitForStory(ctx, storyBranch, epicBranch)) {
+      return { reachable: true, reason: 'merge-commit-reachable' };
+    }
+    throw new Error(
+      `story-close: merge verification failed for #${storyId} — ` +
+        `branch ref \`${storyBranch}\` not resolvable and no \`(resolves #${storyId})\` merge commit on \`${epicBranch}\`. ` +
+        `Story remains at \`agent::closing\`; re-run with \`--resume\` once the merge is on \`${epicBranch}\`.`,
+    );
+  }
+  const headSha = headRes.stdout.trim();
+  const ancestor = checkHeadAncestor(ctx, headSha, epicBranch);
+  if (ancestor.outcome === 'ancestor') {
+    return { reachable: true, reason: 'head-reachable-from-epic' };
+  }
+  if (hasMergeCommitForStory(ctx, storyBranch, epicBranch)) {
+    return { reachable: true, reason: 'merge-commit-reachable' };
+  }
+  const headShort = headSha.slice(0, 7) || 'HEAD';
+  throw new Error(
+    `story-close: merge verification failed for #${storyId} — ` +
+      `\`${storyBranch}\` head=${headShort} is not reachable from \`${epicBranch}\` ` +
+      `and no \`(resolves #${storyId})\` merge commit found on \`${epicBranch}\` ` +
+      `(ancestor=${ancestor.outcome}). Story remains at \`agent::closing\`; ` +
+      `re-run with \`--resume\` once the merge is on \`${epicBranch}\`.`,
+  );
+}
 
 /**
  * @param {{
@@ -87,7 +167,27 @@ export async function runPostMergeClose({
   mkdirFn = mkdir,
   clearActiveStoryEnv = defaultClearActiveStoryEnv,
   emitGhSpawnCount = defaultEmitGhSpawnCount,
+  assertMergeReachableFn = assertMergeReachable,
 }) {
+  // Story #2144 / Task #2155 — gate the post-merge pipeline behind a
+  // merge-reachability assertion. The Story is at `agent::closing` at
+  // this point; the assertion throws (and the Story stays at
+  // `agent::closing`) when the merge runner returned without leaving a
+  // reachable merge commit on `epic/<id>`. The `ticketClosurePhase` is
+  // the single writer for the `agent::done` transition; gating its
+  // pipeline entry is the cheapest way to guarantee the label sequence
+  // is exactly `executing → closing → done` on a successful close and
+  // `executing → closing` (sticky) on a killed close.
+  const reachable = assertMergeReachableFn({
+    cwd,
+    storyBranch,
+    epicBranch,
+    storyId,
+  });
+  progress?.(
+    'MERGE-CHECK',
+    `Story #${storyId} merge verified (${reachable.reason})`,
+  );
   // Finish the timer up-front so the analyzer phase inside the pipeline
   // can read the summary from disk. None of the pipeline phases
   // (worktree-reap, branch-cleanup, ticket-closure, …) are tracked by

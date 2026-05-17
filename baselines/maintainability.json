@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T02:15:55.892Z",
+  "generatedAt": "2026-05-17T02:52:57.495Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -636,11 +636,11 @@
     },
     {
       "path": ".agents/scripts/lib/label-constants.js",
-      "mi": 91.249
+      "mi": 88.248
     },
     {
       "path": ".agents/scripts/lib/label-taxonomy.js",
-      "mi": 96.183
+      "mi": 95.341
     },
     {
       "path": ".agents/scripts/lib/Logger.js",
@@ -984,7 +984,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
-      "mi": 72.688
+      "mi": 72.378
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/pre-merge-validation.js",
@@ -1028,7 +1028,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 105.421
+      "mi": 105.177
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
@@ -1436,7 +1436,7 @@
     },
     {
       "path": ".agents/scripts/story-close.js",
-      "mi": 84.395
+      "mi": 83.932
     },
     {
       "path": ".agents/scripts/story-execute-prepare.js",
@@ -1504,7 +1504,7 @@
     },
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
-      "mi": 106.832
+      "mi": 106.791
     },
     {
       "path": "tests/agentrc-required-checks.test.js",
@@ -2424,7 +2424,7 @@
     },
     {
       "path": "tests/lib/label-constants.test.js",
-      "mi": 129.782
+      "mi": 121.484
     },
     {
       "path": "tests/lib/logger-levels.test.js",
@@ -2624,7 +2624,7 @@
     },
     {
       "path": "tests/lib/orchestration/story-close/post-merge-close.test.js",
-      "mi": 112.463
+      "mi": 112.567
     },
     {
       "path": "tests/lib/orchestration/story-close/pre-merge-validation-extra.test.js",
@@ -2672,7 +2672,7 @@
     },
     {
       "path": "tests/lib/orchestration/ticketing/reads.test.js",
-      "mi": 115.874
+      "mi": 115.601
     },
     {
       "path": "tests/lib/orchestration/ticketing/state.test.js",
@@ -2828,7 +2828,7 @@
     },
     {
       "path": "tests/lib/ticketing.test.js",
-      "mi": 94.416
+      "mi": 94.421
     },
     {
       "path": "tests/lib/util/concurrent-map.test.js",
@@ -3216,11 +3216,15 @@
     },
     {
       "path": "tests/story-close-preflight.test.js",
-      "mi": 107.181
+      "mi": 107.209
     },
     {
       "path": "tests/story-close-recovery.test.js",
       "mi": 101.607
+    },
+    {
+      "path": "tests/story-close-state-machine.test.js",
+      "mi": 112.079
     },
     {
       "path": "tests/story-close.test.js",

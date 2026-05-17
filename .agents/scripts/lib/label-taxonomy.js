@@ -87,6 +87,11 @@ export const LABEL_TAXONOMY = [
     description: 'Agent is working on this',
   },
   {
+    name: AGENT_LABELS.CLOSING,
+    color: LABEL_COLORS.AGENT,
+    description: 'Close preflight passed; awaiting merge into the Epic branch',
+  },
+  {
     name: AGENT_LABELS.DONE,
     color: LABEL_COLORS.AGENT,
     description: 'Agent work completed',
