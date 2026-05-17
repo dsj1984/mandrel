@@ -15,6 +15,10 @@
 
 import { notify } from '../../../notify.js';
 import { getRunners } from '../../config/runners.js';
+import { tempRootFrom } from '../../config/temp-paths.js';
+import { createBus } from '../lifecycle/bus.js';
+import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
+import { createTraceLogger } from '../lifecycle/trace-logger.js';
 import { BlockerHandler } from './blocker-handler.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
@@ -68,6 +72,47 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   });
   const columnSync = new ColumnSync({ ctx });
 
+  // Lifecycle bus wiring (Story #2233 — snapshot + plan phase conversions).
+  // The bus runs in parallel with the legacy code path: phases still mutate
+  // runner state directly, but they also emit through the bus so the
+  // NDJSON ledger and companion markdown reflect the same run. Later
+  // Stories cut iterate-waves over and remove the legacy duplications.
+  //
+  // Construction is gated on `ctx.epicId` being a positive integer (which
+  // `EpicRunnerContext.validate()` enforces, but tests that bypass the
+  // context construction by feeding `runSnapshotPhase` a hand-rolled `{}`
+  // never reach this code path — they pass `{}` as collaborators directly).
+  // We construct unconditionally here so the production runner always has
+  // the bus available; phases skip emits when no `bus` is on collaborators.
+  const bus = ctx.bus ?? createBus();
+  const tempRoot = tempRootFrom(config);
+  const ledgerWriter =
+    ctx.ledgerWriter ??
+    createLedgerWriter({
+      epicId: ctx.epicId,
+      tempRoot,
+    });
+  ledgerWriter.register(bus);
+  const traceLogger =
+    ctx.traceLogger ??
+    createTraceLogger({
+      ledgerPath: ledgerWriter.ledgerPath,
+      epicId: ctx.epicId,
+    });
+  traceLogger.register(bus);
+
+  // Phase-scoped listener registration. Snapshot + plan phases use the
+  // privileged ledger seam for canonical persistence; named listeners
+  // here are reserved for downstream side effects (column sync,
+  // progress reporter mirrors, etc.). The Story #2233 cutover wires
+  // the canonical persistence only — additional snapshot/plan-specific
+  // named listeners will be added in follow-up Stories as more code
+  // paths migrate off the legacy runner state. Keeping the registration
+  // block here (rather than inline in each phase) is the single seam
+  // future contributors edit when adding listeners.
+  registerSnapshotListeners({ bus, logger });
+  registerPlanListeners({ bus, logger });
+
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const syncColumn = async (id, labels) => {
     try {
@@ -97,5 +142,38 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     columnSync,
     syncColumn,
     journal,
+    bus,
+    ledgerWriter,
+    traceLogger,
   };
+}
+
+/**
+ * Register snapshot-phase listeners on the bus. The LedgerWriter is
+ * already wired via the privileged hook seam, so this function is the
+ * seam for future named listeners that need to react to snapshot events
+ * (e.g. story-dispatch precomputation, manifest mirrors). For Story
+ * #2233 the named-listener slot is intentionally empty — the
+ * verification surface is the on-disk ledger that the writer hook
+ * persists. The function exists (and the logger ping fires) so the
+ * registration site is easy to grep for ("registerSnapshotListeners")
+ * when later Stories add real listeners.
+ */
+function registerSnapshotListeners({ bus, logger }) {
+  if (!bus || typeof bus.on !== 'function') return;
+  logger?.debug?.(
+    '[lifecycle] snapshot listeners registered (writer-only; named slot reserved)',
+  );
+}
+
+/**
+ * Register plan-phase listeners on the bus. See
+ * `registerSnapshotListeners` for the rationale; same pattern, same
+ * deferred-listener policy.
+ */
+function registerPlanListeners({ bus, logger }) {
+  if (!bus || typeof bus.on !== 'function') return;
+  logger?.debug?.(
+    '[lifecycle] plan listeners registered (writer-only; named slot reserved)',
+  );
 }
