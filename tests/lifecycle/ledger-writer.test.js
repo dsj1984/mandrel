@@ -51,13 +51,10 @@ describe('lifecycle/ledger-writer', () => {
   });
 
   it('SECRET_KEY_DENY_LIST is the canonical static list', () => {
-    assert.deepEqual([...SECRET_KEY_DENY_LIST], [
-      'token',
-      'password',
-      'secret',
-      'apikey',
-      'webhookurl',
-    ]);
+    assert.deepEqual(
+      [...SECRET_KEY_DENY_LIST],
+      ['token', 'password', 'secret', 'apikey', 'webhookurl'],
+    );
   });
 
   it('LedgerWriter emits exactly one emitted + one completed per successful emit, in order', async () => {
@@ -107,10 +104,9 @@ describe('lifecycle/ledger-writer', () => {
       err.listener = 'TestListener';
       throw err;
     });
-    await assert.rejects(
-      () => bus.emit('epic.snapshot.start', { epicId: 7 }),
-      { message: 'boom' },
-    );
+    await assert.rejects(() => bus.emit('epic.snapshot.start', { epicId: 7 }), {
+      message: 'boom',
+    });
     const records = readNdjson(writer.ledgerPath);
     assert.equal(records.length, 2);
     assert.equal(records[0].kind, 'emitted');
@@ -149,7 +145,10 @@ describe('lifecycle/ledger-writer', () => {
   });
 
   it('rejects invalid constructor opts', () => {
-    assert.throws(() => new LedgerWriter({ epicId: 0, tempRoot: 'x' }), TypeError);
+    assert.throws(
+      () => new LedgerWriter({ epicId: 0, tempRoot: 'x' }),
+      TypeError,
+    );
     assert.throws(() => new LedgerWriter({ epicId: 1 }), TypeError);
     assert.throws(() => new LedgerWriter({ tempRoot: 'x' }), TypeError);
   });

@@ -90,10 +90,14 @@ export class LedgerWriter {
    */
   constructor(opts) {
     if (!opts || !Number.isInteger(opts.epicId) || opts.epicId <= 0) {
-      throw new TypeError('LedgerWriter: opts.epicId must be a positive integer');
+      throw new TypeError(
+        'LedgerWriter: opts.epicId must be a positive integer',
+      );
     }
     if (typeof opts.tempRoot !== 'string' || opts.tempRoot.length === 0) {
-      throw new TypeError('LedgerWriter: opts.tempRoot must be a non-empty string');
+      throw new TypeError(
+        'LedgerWriter: opts.tempRoot must be a non-empty string',
+      );
     }
     this._epicId = opts.epicId;
     this._tempRoot = opts.tempRoot;
@@ -162,10 +166,10 @@ export class LedgerWriter {
 
   buildFailed({ event, seqId, listener, error }) {
     const errorRecord = {
-      name: error && error.name ? String(error.name) : 'Error',
-      message: error && error.message ? String(error.message) : String(error),
+      name: error?.name ? String(error.name) : 'Error',
+      message: error?.message ? String(error.message) : String(error),
     };
-    if (error && typeof error.stack === 'string' && error.stack.length > 0) {
+    if (typeof error?.stack === 'string' && error.stack.length > 0) {
       errorRecord.stack = error.stack;
     }
     return {

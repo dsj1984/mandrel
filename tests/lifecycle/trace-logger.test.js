@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { describe, it } from 'node:test';
 
 import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';

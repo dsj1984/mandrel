@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { Bus, createBus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
+import {
+  Bus,
+  createBus,
+} from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 
 /**
  * The bus is the contract surface for every downstream listener. These
@@ -64,7 +67,11 @@ describe('lifecycle/bus', () => {
     await assert.rejects(() => bus.emit('epic.snapshot.start', { epicId: 1 }), {
       message: 'listener-1-boom',
     });
-    assert.equal(secondRan, false, 'second listener must not run after a throw');
+    assert.equal(
+      secondRan,
+      false,
+      'second listener must not run after a throw',
+    );
   });
 
   it('wildcard observers run AFTER named listeners, sequentially', async () => {
@@ -83,12 +90,7 @@ describe('lifecycle/bus', () => {
       order.push('wildcard-2');
     });
     await bus.emit('epic.snapshot.start', { epicId: 1 });
-    assert.deepEqual(order, [
-      'named-1',
-      'named-2',
-      'wildcard-1',
-      'wildcard-2',
-    ]);
+    assert.deepEqual(order, ['named-1', 'named-2', 'wildcard-1', 'wildcard-2']);
   });
 
   it('emit() assigns a monotonic per-run seqId starting at 1', async () => {

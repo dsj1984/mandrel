@@ -1,0 +1,268 @@
+#!/usr/bin/env node
+/* node:coverage ignore file */
+
+/**
+ * lifecycle-diff.js — structural diff between two lifecycle ledger
+ * files, and assertion modes for the repeatability invariants.
+ *
+ * Usage:
+ *   node .agents/scripts/lifecycle-diff.js <ledgerA> <ledgerB>
+ *       — exits 0 when ledgers are structurally identical (modulo `ts`
+ *         and reassigned seqIds); exits 1 with a unified-style diff on
+ *         stderr otherwise.
+ *
+ *   node .agents/scripts/lifecycle-diff.js --assert <mode> <ledger>
+ *       — `mode` is one of:
+ *           merge-gate-ordering   — epic.merge.armed must be preceded
+ *                                   by epic.merge.ready (same seqId
+ *                                   chain; armed.seqId > ready.seqId).
+ *           reconcile-ordering    — pr.created must be preceded by
+ *                                   acceptance.reconcile.ok.
+ *           wave-completeness     — every wave.end.outcomes set ===
+ *                                   wave.start.storyIds set.
+ *       — exits 0 on pass; exits 1 with a structured message on fail.
+ *
+ * Invariants are derived from Tech Spec #2189 § Repeatability Acceptance
+ * Criteria. Story 11 will land `--assert timeout-budget`; Story 4 will
+ * land `--assert no-silent-skip`.
+ */
+
+import { readFileSync } from 'node:fs';
+import { parseArgs } from 'node:util';
+
+import { runAsCli } from './lib/cli-utils.js';
+
+/**
+ * Parse an NDJSON lifecycle ledger into an array of records. Blank
+ * lines tolerated; malformed JSON throws with line number. Duplicated
+ * from `lib/orchestration/lifecycle/trace-logger.js` to avoid coupling
+ * the CLI to the listener surface.
+ */
+export function parseLedgerText(text) {
+  const out = [];
+  const lines = String(text || '').split('\n');
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (line.length === 0) continue;
+    try {
+      out.push(JSON.parse(line));
+    } catch (_err) {
+      throw new Error(
+        `lifecycle-diff: malformed JSON in ledger on line ${i + 1}: ${line.slice(0, 80)}`,
+      );
+    }
+  }
+  return out;
+}
+
+/**
+ * Project a single record into a comparison key. `ts` and `seqId` are
+ * intentionally elided; the rest of the record is included so that the
+ * structural shape (event order, payload contents, listener attribution
+ * on failed records) is the diff surface.
+ *
+ * Exported for unit tests that pin the diff contract.
+ */
+export function projectRecord(rec) {
+  if (!rec || typeof rec !== 'object') return rec;
+  const { ts: _ts, seqId: _seqId, ...rest } = rec;
+  return rest;
+}
+
+/**
+ * Structural diff of two ledger arrays. Returns an array of mismatch
+ * descriptors (empty when identical modulo `ts`/`seqId`).
+ */
+export function diff(ledgerA, ledgerB) {
+  const a = ledgerA.map(projectRecord);
+  const b = ledgerB.map(projectRecord);
+  const out = [];
+  const max = Math.max(a.length, b.length);
+  for (let i = 0; i < max; i += 1) {
+    const left = a[i];
+    const right = b[i];
+    const leftJson = JSON.stringify(left);
+    const rightJson = JSON.stringify(right);
+    if (leftJson !== rightJson) {
+      out.push({ index: i, left: left ?? null, right: right ?? null });
+    }
+  }
+  return out;
+}
+
+/**
+ * Assert: epic.merge.armed must be preceded by epic.merge.ready
+ * (same run). Returns `{ ok: true }` or `{ ok: false, reason }`.
+ */
+export function assertMergeGateOrdering(records) {
+  let sawReady = false;
+  let sawReadySeq = null;
+  for (const rec of records) {
+    if (rec.kind !== 'emitted') continue;
+    if (rec.event === 'epic.merge.ready') {
+      sawReady = true;
+      sawReadySeq = rec.seqId;
+    } else if (rec.event === 'epic.merge.armed') {
+      if (!sawReady) {
+        return {
+          ok: false,
+          reason: `epic.merge.armed at seqId=${rec.seqId} without preceding epic.merge.ready`,
+        };
+      }
+      if (sawReadySeq != null && rec.seqId <= sawReadySeq) {
+        return {
+          ok: false,
+          reason: `epic.merge.armed seqId=${rec.seqId} must be > epic.merge.ready seqId=${sawReadySeq}`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Assert: pr.created must be preceded by acceptance.reconcile.ok in the
+ * same run. A reconcile.failed or reconcile.skipped before pr.created
+ * is also a violation (skipped only legal under waiver; the bus-level
+ * waiver path emits skipped before finalize.start, never before
+ * pr.created itself — Finalizer subscribes only to reconcile.ok).
+ */
+export function assertReconcileOrdering(records) {
+  let sawReconcileOk = false;
+  let sawReconcileOkSeq = null;
+  for (const rec of records) {
+    if (rec.kind !== 'emitted') continue;
+    if (rec.event === 'acceptance.reconcile.ok') {
+      sawReconcileOk = true;
+      sawReconcileOkSeq = rec.seqId;
+    } else if (rec.event === 'pr.created') {
+      if (!sawReconcileOk) {
+        return {
+          ok: false,
+          reason: `pr.created at seqId=${rec.seqId} without preceding acceptance.reconcile.ok`,
+        };
+      }
+      if (sawReconcileOkSeq != null && rec.seqId <= sawReconcileOkSeq) {
+        return {
+          ok: false,
+          reason: `pr.created seqId=${rec.seqId} must be > acceptance.reconcile.ok seqId=${sawReconcileOkSeq}`,
+        };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * Assert: every wave.end.outcomes set === wave.start.storyIds set.
+ */
+export function assertWaveCompleteness(records) {
+  const startsByWave = new Map();
+  for (const rec of records) {
+    if (rec.kind !== 'emitted') continue;
+    if (rec.event === 'wave.start') {
+      startsByWave.set(rec.payload.waveIndex, rec.payload.storyIds || []);
+    } else if (rec.event === 'wave.end') {
+      const startIds = startsByWave.get(rec.payload.waveIndex);
+      if (!startIds) {
+        return {
+          ok: false,
+          reason: `wave.end waveIndex=${rec.payload.waveIndex} without preceding wave.start`,
+        };
+      }
+      const outcomeIds = Object.keys(rec.payload.outcomes || {}).map((k) =>
+        Number(k),
+      );
+      const startSet = new Set(startIds);
+      const outcomeSet = new Set(outcomeIds);
+      if (startSet.size !== outcomeSet.size) {
+        return {
+          ok: false,
+          reason: `wave waveIndex=${rec.payload.waveIndex}: storyIds count (${startSet.size}) != outcomes count (${outcomeSet.size})`,
+        };
+      }
+      for (const id of startSet) {
+        if (!outcomeSet.has(id)) {
+          return {
+            ok: false,
+            reason: `wave waveIndex=${rec.payload.waveIndex}: storyId ${id} in wave.start but not in wave.end.outcomes`,
+          };
+        }
+      }
+    }
+  }
+  return { ok: true };
+}
+
+const ASSERTIONS = new Map([
+  ['merge-gate-ordering', assertMergeGateOrdering],
+  ['reconcile-ordering', assertReconcileOrdering],
+  ['wave-completeness', assertWaveCompleteness],
+]);
+
+function loadLedger(p) {
+  return parseLedgerText(readFileSync(p, 'utf8'));
+}
+
+async function main() {
+  const { values, positionals } = parseArgs({
+    options: {
+      assert: { type: 'string' },
+    },
+    allowPositionals: true,
+    args: process.argv.slice(2),
+  });
+
+  // --assert <mode> <ledger>
+  if (values.assert) {
+    if (positionals.length !== 1) {
+      process.stderr.write(
+        'lifecycle-diff --assert <mode> requires exactly one positional ledger path\n',
+      );
+      return 2;
+    }
+    const assertion = ASSERTIONS.get(values.assert);
+    if (!assertion) {
+      process.stderr.write(
+        `lifecycle-diff: unknown --assert mode "${values.assert}". Valid: ${[...ASSERTIONS.keys()].join(', ')}\n`,
+      );
+      return 2;
+    }
+    const records = loadLedger(positionals[0]);
+    const result = assertion(records);
+    if (result.ok) {
+      process.stdout.write(`[lifecycle-diff] PASS ${values.assert}\n`);
+      return 0;
+    }
+    process.stderr.write(
+      `[lifecycle-diff] FAIL ${values.assert}: ${result.reason}\n`,
+    );
+    return 1;
+  }
+
+  // diff <ledgerA> <ledgerB>
+  if (positionals.length !== 2) {
+    process.stderr.write(
+      'Usage: lifecycle-diff <ledgerA> <ledgerB> [--assert <mode> <ledger>]\n',
+    );
+    return 2;
+  }
+  const a = loadLedger(positionals[0]);
+  const b = loadLedger(positionals[1]);
+  const mismatches = diff(a, b);
+  if (mismatches.length === 0) {
+    process.stdout.write('[lifecycle-diff] identical (modulo ts/seqId)\n');
+    return 0;
+  }
+  for (const m of mismatches) {
+    process.stderr.write(`@@ index ${m.index}\n`);
+    process.stderr.write(`-A: ${JSON.stringify(m.left)}\n`);
+    process.stderr.write(`+B: ${JSON.stringify(m.right)}\n`);
+  }
+  return 1;
+}
+
+await runAsCli(import.meta.url, main, {
+  source: 'lifecycle-diff',
+  propagateExitCode: true,
+});

@@ -84,7 +84,11 @@ function summarizePayload(payload) {
   const parts = [];
   for (const [k, v] of Object.entries(payload)) {
     if (v == null) continue;
-    if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
+    if (
+      typeof v === 'string' ||
+      typeof v === 'number' ||
+      typeof v === 'boolean'
+    ) {
       parts.push(`${k}=${v}`);
     } else if (Array.isArray(v)) {
       parts.push(`${k}=[${v.length}]`);
@@ -160,21 +164,21 @@ export function render(ledger, opts = {}) {
     if (terminal) {
       const start = new Date(emit.ts).getTime();
       const end = new Date(terminal.ts).getTime();
-      if (
-        Number.isFinite(start) &&
-        Number.isFinite(end) &&
-        end >= start
-      ) {
+      if (Number.isFinite(start) && Number.isFinite(end) && end >= start) {
         durationMs = `(${end - start}ms)`;
       }
     } else {
       durationMs = '(pending)';
     }
     const summary = summarizePayload(emit.payload);
-    const failedMarker = terminal && terminal.kind === 'failed' ? ' ⚠️ FAILED' : '';
-    const parts = [formatClock(emit.ts), emit.event, durationMs, summary].filter(
-      Boolean,
-    );
+    const failedMarker =
+      terminal && terminal.kind === 'failed' ? ' ⚠️ FAILED' : '';
+    const parts = [
+      formatClock(emit.ts),
+      emit.event,
+      durationMs,
+      summary,
+    ].filter(Boolean);
     phaseLines.get(phase).push(parts.join('  ') + failedMarker);
   }
 
@@ -251,7 +255,11 @@ export class TraceLogger {
    * @param {number} [opts.epicId] - included in the companion header.
    */
   constructor(opts) {
-    if (!opts || typeof opts.ledgerPath !== 'string' || opts.ledgerPath.length === 0) {
+    if (
+      !opts ||
+      typeof opts.ledgerPath !== 'string' ||
+      opts.ledgerPath.length === 0
+    ) {
       throw new TypeError('TraceLogger: opts.ledgerPath is required');
     }
     this._ledgerPath = opts.ledgerPath;
