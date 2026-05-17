@@ -231,7 +231,7 @@ describe('regenerateMainFromTree (Story #2135 / Task #2145 — writer-funnel)', 
       writeFn: ({ kind, rows, priorEnvelope }) => {
         writeCalls.push({ kind, rowCount: rows?.length ?? 0, priorEnvelope });
         // When the test configured an envelope for the kind, return it.
-        if (envelopeFor && envelopeFor[kind]) return envelopeFor[kind];
+        if (envelopeFor?.[kind]) return envelopeFor[kind];
         return {
           $schema: `.agents/schemas/baselines/${kind}.schema.json`,
           kernelVersion: '0.1.0',

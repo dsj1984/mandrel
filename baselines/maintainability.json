@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T03:05:20.561Z",
+  "generatedAt": "2026-05-17T03:12:16.139Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -80,7 +80,7 @@
     },
     {
       "path": ".agents/scripts/diagnose.js",
-      "mi": 99.106
+      "mi": 99.168
     },
     {
       "path": ".agents/scripts/dispatcher.js",
@@ -160,7 +160,7 @@
     },
     {
       "path": ".agents/scripts/git-cleanup.js",
-      "mi": 87.66
+      "mi": 87.668
     },
     {
       "path": ".agents/scripts/git-pr-quality-gate.js",
@@ -308,7 +308,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",
-      "mi": 89.971
+      "mi": 90.013
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
@@ -2136,7 +2136,7 @@
     },
     {
       "path": "tests/lib/baseline-snapshot.test.js",
-      "mi": 106.036
+      "mi": 106.045
     },
     {
       "path": "tests/lib/branch-name-guard.test.js",
@@ -2312,7 +2312,7 @@
     },
     {
       "path": "tests/lib/coverage-capture.test.js",
-      "mi": 104.606
+      "mi": 104.645
     },
     {
       "path": "tests/lib/coverage-utils.bench.test.js",
@@ -2496,7 +2496,7 @@
     },
     {
       "path": "tests/lib/mutation/stryker-runner.test.js",
-      "mi": 100.627
+      "mi": 100.669
     },
     {
       "path": "tests/lib/notifications/notifier.test.js",

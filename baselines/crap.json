@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T03:06:53.148Z",
+  "generatedAt": "2026-05-17T03:12:21.522Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -597,7 +597,7 @@
       "path": ".agents/scripts/diagnose.js",
       "method": "validateDiagnoseArgs",
       "startLine": 187,
-      "crap": 5
+      "crap": 4
     },
     {
       "path": ".agents/scripts/diagnose.js",
@@ -2019,7 +2019,7 @@
       "path": ".agents/scripts/lib/baselines/writer.js",
       "method": "writeFile",
       "startLine": 278,
-      "crap": 5
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/baselines/writer.js",

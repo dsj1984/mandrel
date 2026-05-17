@@ -285,7 +285,7 @@ export function writeFile(absPath, envelope, opts = {}) {
   // `write()` and `writeFile()`.
   assertEnvelope(envelope);
 
-  const fsImpl = opts && opts.fsImpl ? opts.fsImpl : fs;
+  const fsImpl = opts?.fsImpl ? opts.fsImpl : fs;
 
   // Canonical key order on the top-level envelope keeps diffs stable
   // across runs and platforms. Per-kind row keys retain their natural

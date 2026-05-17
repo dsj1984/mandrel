@@ -228,7 +228,7 @@ describe('runCapture', () => {
 
   it('omits the `timeout` option when timeoutMs is missing or non-positive', () => {
     const calls = [];
-    const runner = (cmd, args, opts) => {
+    const runner = (_cmd, _args, opts) => {
       calls.push(opts);
       return { status: 0 };
     };

@@ -285,7 +285,7 @@ describe('mutation/stryker-runner — runStryker', () => {
 
   it('honours a per-gate timeoutMs override over the default', async () => {
     const captured = [];
-    const spawnFn = (cmd, args, opts) => {
+    const spawnFn = (_cmd, _args, opts) => {
       captured.push(opts);
       return {
         status: 0,
@@ -311,7 +311,7 @@ describe('mutation/stryker-runner — runStryker', () => {
 
   it('falls back to DEFAULT_TIMEOUT_MS when not supplied', async () => {
     const captured = [];
-    const spawnFn = (cmd, args, opts) => {
+    const spawnFn = (_cmd, _args, opts) => {
       captured.push(opts);
       return {
         status: 0,
