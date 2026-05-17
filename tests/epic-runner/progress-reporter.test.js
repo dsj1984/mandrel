@@ -639,6 +639,116 @@ describe('ProgressReporter', () => {
     const [comment] = await provider.listComments();
     assert.ok(comment.body.includes('Progress — Wave 1/1'));
   });
+
+  describe('consecutive fire() failure escalation', () => {
+    function buildFlakyProvider({ failuresBeforeRecover, epicLabels = [] }) {
+      let remaining = failuresBeforeRecover;
+      const updateCalls = [];
+      return {
+        updateCalls,
+        async getTicket(id) {
+          if (id === 999) {
+            return {
+              number: 999,
+              title: 'Epic',
+              state: 'OPEN',
+              labels: epicLabels,
+            };
+          }
+          if (remaining > 0) {
+            remaining -= 1;
+            throw new Error(
+              `provider down (${remaining} more failures queued)`,
+            );
+          }
+          return { number: id, title: `s${id}`, state: 'OPEN', labels: [] };
+        },
+        async getTicketComments() {
+          return [];
+        },
+        async listComments() {
+          return [];
+        },
+        async postComment() {
+          return { id: 'c1' };
+        },
+        async updateComment() {
+          return { id: 'c1' };
+        },
+        async updateTicket(id, patch) {
+          updateCalls.push({ id, patch });
+          return { id, ...patch };
+        },
+      };
+    }
+
+    function newReporter(provider, overrides = {}) {
+      const reporter = new ProgressReporter({
+        provider,
+        epicId: 999,
+        intervalSec: 60,
+        logger: silentLogger(),
+        concurrency: 1,
+        setInterval: () => ({ ref: () => {}, unref: () => {} }),
+        ...overrides,
+      });
+      reporter.setWave({ index: 0, totalWaves: 1, stories: [1] });
+      return reporter;
+    }
+
+    it('one transient failure does not escalate', async () => {
+      const provider = buildFlakyProvider({ failuresBeforeRecover: 1 });
+      const reporter = newReporter(provider);
+      await reporter.tick();
+      assert.equal(reporter.consecutiveFireFailures, 1);
+      assert.equal(provider.updateCalls.length, 0);
+    });
+
+    it('three consecutive failures escalate exactly once with agent::blocked', async () => {
+      const provider = buildFlakyProvider({
+        failuresBeforeRecover: 10,
+        epicLabels: ['type::epic', 'agent::executing'],
+      });
+      const reporter = newReporter(provider);
+      await reporter.tick();
+      await reporter.tick();
+      assert.equal(
+        provider.updateCalls.length,
+        0,
+        'no escalation before 3 strikes',
+      );
+      await reporter.tick();
+      assert.equal(reporter.consecutiveFireFailures, 3);
+      assert.equal(provider.updateCalls.length, 1, 'escalated exactly once');
+      assert.ok(
+        provider.updateCalls[0].patch.labels.includes('agent::blocked'),
+        'Epic transitioned to agent::blocked',
+      );
+      assert.ok(
+        !provider.updateCalls[0].patch.labels.includes('agent::executing'),
+        'previous agent:: label was stripped',
+      );
+      // Subsequent failure increments but does NOT re-escalate at the same boundary.
+      await reporter.tick();
+      assert.equal(reporter.consecutiveFireFailures, 4);
+      assert.equal(provider.updateCalls.length, 1, 'no duplicate escalation');
+    });
+
+    it('recovery after two failures clears the counter', async () => {
+      const provider = buildFlakyProvider({ failuresBeforeRecover: 2 });
+      const reporter = newReporter(provider);
+      await reporter.tick();
+      await reporter.tick();
+      assert.equal(reporter.consecutiveFireFailures, 2);
+      await reporter.tick();
+      assert.equal(
+        reporter.consecutiveFireFailures,
+        0,
+        'counter reset on success',
+      );
+      assert.equal(provider.updateCalls.length, 0, 'no escalation');
+    });
+  });
 });
 
 describe('runHotspotDetection', () => {

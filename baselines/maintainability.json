@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T01:44:36.758Z",
+  "generatedAt": "2026-05-17T01:56:02.224Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -232,7 +232,7 @@
     },
     {
       "path": ".agents/scripts/lib/baseline-snapshot.js",
-      "mi": 78.211
+      "mi": 78.303
     },
     {
       "path": ".agents/scripts/lib/baselines/components.js",
@@ -272,7 +272,7 @@
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/crap.js",
-      "mi": 92.04
+      "mi": 92.285
     },
     {
       "path": ".agents/scripts/lib/baselines/kinds/lighthouse.js",
@@ -492,7 +492,7 @@
     },
     {
       "path": ".agents/scripts/lib/config/quality.js",
-      "mi": 84.342
+      "mi": 84.005
     },
     {
       "path": ".agents/scripts/lib/config/runners.js",
@@ -544,7 +544,7 @@
     },
     {
       "path": ".agents/scripts/lib/crap-utils.js",
-      "mi": 90.364
+      "mi": 90.47
     },
     {
       "path": ".agents/scripts/lib/degraded-mode.js",
@@ -660,7 +660,7 @@
     },
     {
       "path": ".agents/scripts/lib/maintainability-utils.js",
-      "mi": 96.962
+      "mi": 96.945
     },
     {
       "path": ".agents/scripts/lib/mandrel-catalog.js",
@@ -788,7 +788,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 96.908
+      "mi": 95.419
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -808,11 +808,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "mi": 95.237
+      "mi": 94.437
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "mi": 98.706
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/fire-escalation.js",
+      "mi": 105.102
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
@@ -904,7 +908,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js",
-      "mi": 100.865
+      "mi": 101.052
     },
     {
       "path": ".agents/scripts/lib/orchestration/plan-runner/plan-router.js",
@@ -952,7 +956,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js",
-      "mi": 87.215
+      "mi": 87.661
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js",
@@ -1068,7 +1072,7 @@
     },
     {
       "path": ".agents/scripts/lib/plan-phase-cleanup.js",
-      "mi": 97.856
+      "mi": 97.866
     },
     {
       "path": ".agents/scripts/lib/preflight-runner.js",
@@ -1440,7 +1444,7 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "mi": 87.947
+      "mi": 88.724
     },
     {
       "path": ".agents/scripts/story-close.js",
@@ -1776,7 +1780,7 @@
     },
     {
       "path": "tests/config-settings-schema.test.js",
-      "mi": 108.151
+      "mi": 108.284
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",
@@ -1924,7 +1928,7 @@
     },
     {
       "path": "tests/epic-execute/epic-deliver-prepare.test.js",
-      "mi": 99.144
+      "mi": 99.183
     },
     {
       "path": "tests/epic-execute/epic-execute-record-wave.test.js",
@@ -1976,7 +1980,7 @@
     },
     {
       "path": "tests/epic-runner/dependency-source.test.js",
-      "mi": 100.675
+      "mi": 100.668
     },
     {
       "path": "tests/epic-runner/drift-detectors-extra.test.js",
@@ -1988,7 +1992,7 @@
     },
     {
       "path": "tests/epic-runner/epic-runner.integration.test.js",
-      "mi": 97.186
+      "mi": 97.175
     },
     {
       "path": "tests/epic-runner/maintainability-drift.test.js",
@@ -1996,7 +2000,7 @@
     },
     {
       "path": "tests/epic-runner/parity.test.js",
-      "mi": 98.319
+      "mi": 98.312
     },
     {
       "path": "tests/epic-runner/progress-reporter-fanout.test.js",
@@ -2704,7 +2708,7 @@
     },
     {
       "path": "tests/lib/plan-checkpointer.test.js",
-      "mi": 99.854
+      "mi": 99.95
     },
     {
       "path": "tests/lib/plan-router.test.js",
@@ -2976,7 +2980,7 @@
     },
     {
       "path": "tests/providers-github.test.js",
-      "mi": 96.621
+      "mi": 96.659
     },
     {
       "path": "tests/providers/github/auth.test.js",
@@ -2992,7 +2996,7 @@
     },
     {
       "path": "tests/providers/github/mappers.test.js",
-      "mi": 99.475
+      "mi": 99.681
     },
     {
       "path": "tests/push-epic-retry.test.js",
@@ -3052,7 +3056,7 @@
     },
     {
       "path": "tests/scripts/epic-deliver-baseline-reconciliation.test.js",
-      "mi": 106.749
+      "mi": 106.786
     },
     {
       "path": "tests/scripts/epic-deliver-cleanup.test.js",
@@ -3324,7 +3328,7 @@
     },
     {
       "path": "tests/workflows/epic-deliver.test.js",
-      "mi": 105.25
+      "mi": 104.975
     },
     {
       "path": "tests/workflows/epic-execute-record-wave-cli.test.js",
