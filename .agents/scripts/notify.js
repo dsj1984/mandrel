@@ -5,7 +5,20 @@
  * notify.js
  *
  * Single dispatch entry point for orchestration notifications across two
- * independent channels:
+ * independent channels.
+ *
+ * Lifecycle-bus integration (Epic #2172): under the Wave-7+ runtime,
+ * `notify()` is invoked from the `NotifyDispatcher` listener
+ * (`lib/orchestration/lifecycle/listeners/notify-dispatcher.js`),
+ * which subscribes to lifecycle events and maps `event.severity` →
+ * `notify()` payload. Direct inline calls at phase boundaries are no
+ * longer the canonical path — listeners on the bus are. See
+ * [`docs/LIFECYCLE.md`](../docs/LIFECYCLE.md) for the bus contract,
+ * event taxonomy, and the dispatcher's wiring. Direct CLI / library
+ * invocations remain supported for one-shot operator commands and the
+ * structured-comment back-channel.
+ *
+ * Channels:
  *
  *   1. GITHUB COMMENT — gated by `notifications.commentEvents` (event
  *      allowlist). Only dispatches whose `event` name appears in the

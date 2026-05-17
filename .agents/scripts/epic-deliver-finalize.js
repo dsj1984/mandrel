@@ -4,9 +4,20 @@
 /**
  * epic-deliver-finalize.js — Phase F of the merged `/epic-deliver` flow.
  *
- * Story #1155 (Epic #1142, 5.40.0). Replaces the v5.39.x finalize CLI
- * (renamed; see `docs/CHANGELOG.md` 5.40.0 for the rename history). Three
- * responsibilities:
+ * Lifecycle-bus integration (Epic #2172): the Wave-7 refit removed the
+ * unconditional `gh pr merge --auto --squash --delete-branch` call that
+ * historically lived in this CLI (Story #2253 / Task #2254). Auto-merge
+ * arming is now owned by the `Finalizer` and `AutomergeArmer` listeners
+ * on the lifecycle bus — this CLI no longer touches `gh pr merge`. See
+ * [`docs/LIFECYCLE.md`](../../../docs/LIFECYCLE.md) for the canonical
+ * bus contract, event taxonomy (`epic.finalize.start` →
+ * `epic.finalize.end` → `epic.merge.ready` → `epic.merge.armed`), and
+ * listener model. The `check-lifecycle-lint` "merge-lockout" rule
+ * prevents the `gh pr merge` literal from being re-added here.
+ *
+ * Story #1155 (Epic #1142, 5.40.0) carved this CLI out of the legacy
+ * v5.39.x finalize entry point (see `docs/CHANGELOG.md` 5.40.0 for the
+ * rename history). Three responsibilities remain in-process:
  *
  *   1. Verify `epic/<id>` fast-forward-merges the current `main`. If
  *      `main` has advanced beyond the fork-point, fetch + rebase + re-push
@@ -18,7 +29,8 @@
  *      adjacent hand-off comment on the Epic linking the PR.
  *
  * No state-flip on the Epic. The PR's existence is the operator's signal
- * to merge.
+ * to merge (or the bus's signal to `AutomergeArmer`, when the predicate
+ * chain runs clean).
  *
  * Stdout: a single JSON envelope with `{ epicId, ffOk, pushed, prUrl,
  * postedHandoff }`.

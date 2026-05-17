@@ -3,7 +3,9 @@
 
 /**
  * epic-deliver-cleanup.js — Phase 8 of `/epic-deliver`, thin emit shim
- * (Story #2259 / Task #2265 / Epic #2172).
+ * (Story #2259 / Task #2265 / Epic #2172). See
+ * [`docs/LIFECYCLE.md`](../../../docs/LIFECYCLE.md) for the canonical
+ * bus contract, event taxonomy, and listener model.
  *
  * Pre-Wave-8 this CLI reaped local worktrees + branches directly by
  * reading the `epic-run-state` checkpoint and shelling out to
