@@ -4,6 +4,50 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed — Story #2171: rename `/story-execute` → `/story-deliver` (hard cutover)
+
+Mirror the epic-side naming (`/epic-deliver`) on the story-side workflows.
+Closes #2171.
+
+- **`refactor: rename story workflows to deliver`** — the user-facing slash
+  commands `/story-execute` and `/single-story-execute` are renamed to
+  `/story-deliver` and `/single-story-deliver`. The backing workflow files
+  move from `.agents/workflows/story-execute.md` and
+  `.agents/workflows/single-story-execute.md` to
+  `story-deliver.md` and `single-story-deliver.md`. The internal helper
+  script `.agents/scripts/story-execute-prepare.js` is renamed to
+  `story-deliver-prepare.js` (exported `runStoryDeliverPrepare`) and the
+  test directory `tests/story-execute/` is renamed to `tests/story-deliver/`.
+  All in-repo cross-references, log strings, and baselines are updated to
+  the new names; `.claude/commands/` is regenerated via `npm run sync:commands`.
+- **No backward-compat aliases.** This is a hard cutover — consumers update
+  on the next `dist` sync. The pre-v6 archive (`docs/archive/CHANGELOG-pre-v6.md`)
+  and the v6.1.0 snapshot doc (`docs/quality-floor-inventory-v6-1-0.md`) are
+  preserved verbatim as historical record.
+
+### Added — Story #2128: `/epic-plan` Phase 6 Epic Clarity Gate
+
+- **`feat(epic-plan): add Phase 6 Epic Clarity Gate`** — every
+  existing-Epic `/epic-plan` invocation now scores the Epic body against
+  the five canonical sections from
+  `.agents/templates/epic-from-idea.md` (Problem, Direction, Assumptions,
+  MVP Scope, Not Doing). Rubric threshold is **4 of 5 sections present
+  → `clear`**; below that, the gate seeds the `core/idea-refinement`
+  skill from the current Epic body, surfaces a HITL diff, and on
+  approval persists the sharpened body via `gh issue edit` before
+  Phase 7 PRD / Tech Spec / Acceptance Spec authoring begins. Scoring
+  lives in `.agents/scripts/lib/epic-plan-clarity.js` (pure rubric);
+  the CLI is `.agents/scripts/epic-plan-clarity.js` (two modes:
+  `--emit-context` read-only, and `--updated-body` idempotent persist
+  with a `clarity-gate-update` audit comment).
+- **`refactor(epic-plan): renumber phases to linear 1..11`** — the
+  ideation block (`0a/0b/0c/0d`), the always-on Phase `0`, and the
+  PRD/Decompose/Roadmap/Healthcheck/Notify phases (`1..5`) are
+  renumbered into a single linear sequence so the new clarity gate fits
+  as Phase 6 without fractional suffixes. No CLI flag carries a phase
+  number — only docs, log lines, and inline comments change. Operator
+  muscle memory is the only break; the workflow contract is unchanged.
+
 ### Fixed — Story #2125: framework-default floors actually apply
 
 Closes the absolute-floor gap that Story #2119 surfaced when it drained the
@@ -111,6 +155,27 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.16.0](https://github.com/dsj1984/mandrel/compare/v1.15.0...v1.16.0) (2026-05-17)
+
+
+### Changed
+
+* rename /story-execute to /story-deliver (hard cutover) ([#2174](https://github.com/dsj1984/mandrel/issues/2174)) ([a40e385](https://github.com/dsj1984/mandrel/commit/a40e3854ee6bb3e3bf15f096a4186bd0df6c6822)), closes [#2171](https://github.com/dsj1984/mandrel/issues/2171)
+
+## [1.15.0](https://github.com/dsj1984/mandrel/compare/v1.14.0...v1.15.0) (2026-05-17)
+
+
+### Added
+
+* **epic-deliver:** enforce code-review halted flag before retro phase (resolves [#2167](https://github.com/dsj1984/mandrel/issues/2167)) ([#2168](https://github.com/dsj1984/mandrel/issues/2168)) ([d41634c](https://github.com/dsj1984/mandrel/commit/d41634c606c540abfc0a06d49b8a3120c69c3197))
+
+## [1.14.0](https://github.com/dsj1984/mandrel/compare/v1.13.0...v1.14.0) (2026-05-17)
+
+
+### Added
+
+* **epic-plan:** add Epic Clarity Gate (new Phase 6) and renumber phases to linear 1..11 ([#2128](https://github.com/dsj1984/mandrel/issues/2128)) ([#2163](https://github.com/dsj1984/mandrel/issues/2163)) ([f65a14f](https://github.com/dsj1984/mandrel/commit/f65a14f4fa954242011ccd7bbebd5ade2c981d12))
+
 ## [1.13.0](https://github.com/dsj1984/mandrel/compare/v1.12.0...v1.13.0) (2026-05-16)
 
 

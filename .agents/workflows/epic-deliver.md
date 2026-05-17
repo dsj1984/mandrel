@@ -34,7 +34,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
-[`/story-execute`](story-execute.md); Tasks are not directly executable.
+[`/story-deliver`](story-deliver.md); Tasks are not directly executable.
 Story dispatch is in-session via the Agent tool — no subprocess is
 spawned.
 
@@ -47,7 +47,7 @@ spawned.
 ```
 
 - `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
-  to use `/story-execute <id>` or open the parent Epic.
+  to use `/story-deliver <id>` or open the parent Epic.
 - `--skip-code-review` — skip Phase 4 (log the override).
 - `--skip-retro` — skip Phase 5 (use sparingly).
 - `--full-retro` — force the six-section retro regardless of manifest
@@ -95,7 +95,7 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 > condition met → the snapshot throws a clear error
 > (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
 > maps it to `process.exit(1)`. Operator remediation: either run
-> `/epic-plan` Phase 1 to author + close the spec, or apply the
+> `/epic-plan` Phase 7 to author + close the spec, or apply the
 > `acceptance::n-a` label to opt out.
 
 ---
@@ -138,10 +138,10 @@ The CLI emits `wave-tick` (every call) plus `wave-start` /
 ### 2b. Dispatch — fan out per-Story Agent calls
 
 *You* (the LLM running this skill) are the wave dispatcher; you never
-invoke `/story-execute` yourself. Emit **one `Agent` tool call per
+invoke `/story-deliver` yourself. Emit **one `Agent` tool call per
 Story** in `nextAction.stories` (even when `length === 1` — the
 parent-child boundary keeps the return-parser uniform). The *children*
-run `/story-execute`. Use `subagent_type: general-purpose`.
+run `/story-deliver`. Use `subagent_type: general-purpose`.
 
 Emit **one assistant turn** with **N parallel `Agent` calls** where
 `N === min(nextAction.stories.length, concurrencyCap)`. When the wave
@@ -151,7 +151,7 @@ as background calls (`run_in_background: true`) and refill from
 the cap, never wait for a whole batch before refilling.
 
 Each Agent call's prompt must (1) name the Story + Epic ids, (2)
-instruct the child to invoke `/story-execute <storyId>`, (3) state the
+instruct the child to invoke `/story-deliver <storyId>`, (3) state the
 **return contract** below, (4) remind the child of the
 **non-interactive contract** (no clarifying questions; transition to
 `agent::blocked` and exit if stuck), and (5) ask the child to suppress
@@ -435,7 +435,7 @@ merge.
 ## Idempotence and resume
 
 Re-runs pick up at the next undispatched wave (in-flight Stories finish
-via `/story-execute`'s own checkpointing). The PR from Phase 6 is
+via `/story-deliver`'s own checkpointing). The PR from Phase 6 is
 updated in place on subsequent runs. The authoritative live view is
 the `epic-run-progress` structured comment.
 
@@ -447,7 +447,7 @@ the `epic-run-progress` structured comment.
 - **Never** dispatch more than one wave at a time; concurrency lives
   inside a single wave's fan-out, capped at `concurrencyCap`.
 - **Never** flip Story-level labels from this skill; **never** invoke
-  `/story-execute` yourself (children run it via Agent fan-out, even
+  `/story-deliver` yourself (children run it via Agent fan-out, even
   for single-Story waves); **never** spawn a subprocess for dispatch.
 - **Always** checkpoint via `epic-deliver-prepare.js` /
   `epic-execute-record-wave.js`; never write run state elsewhere.

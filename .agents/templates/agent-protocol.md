@@ -40,7 +40,7 @@ When your implementation is complete and verified:
    `{{TEST_CMD}}`) here. The close script's lint/test/format/maintainability
    chain is the authoritative gate, run at Story closure (`story-close.js`).
    Exception: you may run them interactively while iterating on a fix.
-3. The Story branch is auto-merged into the Epic branch by `/story-execute`
+3. The Story branch is auto-merged into the Epic branch by `/story-deliver`
    (via `story-close.js`) after all Tasks are done — do **not** merge manually.
 4. Transition the task label to `agent::done` via `update-ticket-state.js`
    once `task-commit.js` confirms the commit landed. The Story-level

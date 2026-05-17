@@ -36,7 +36,7 @@ From zero to shipped:
 
    1. **Phase 1 — prepare** — snapshot the Epic, build the wave DAG,
       initialise the `epic-run-state` checkpoint.
-   2. **Phase 2 — wave loop** — fan one `/story-execute` Agent-tool
+   2. **Phase 2 — wave loop** — fan one `/story-deliver` Agent-tool
       sub-agent out per Story per wave (capped at `concurrencyCap`).
       Stories run in parallel inside the operator's Claude session
       against your Max subscription quota; no subprocess spawn, no
@@ -62,8 +62,8 @@ From zero to shipped:
       transition that flips the Epic to `agent::done`.
 
    For a single Story off the dispatch table (re-driving a hotfix,
-   resuming after a halt), run `/story-execute <storyId>` directly. The
-   two-skill split (`/epic-deliver` and `/story-execute`, plus the
+   resuming after a halt), run `/story-deliver <storyId>` directly. The
+   two-skill split (`/epic-deliver` and `/story-deliver`, plus the
    inline `task-execute.md` helper) lets the operator stop or resume at
    any level of the hierarchy.
 
@@ -85,7 +85,7 @@ default flow requires adjustment.
   the GitHub UI.
 - **Hierarchy-aligned skills.** Execution is split along the ticket hierarchy:
   `/epic-plan` builds the backlog (with optional ideation entry),
-  `/epic-deliver` owns the merged wave-loop + close-tail, `/story-execute`
+  `/epic-deliver` owns the merged wave-loop + close-tail, `/story-deliver`
   runs init → task loop → close for one Story, and the inline
   `task-execute.md` helper documents per-Task discipline. All four share the
   same primitives (`Graph.computeWaves`, `cascadeCompletion`, `ticketing.js`,
@@ -134,7 +134,7 @@ graph LR
     subgraph Phase3 ["Phase 3: Delivery"]
         direction TB
         E["👤 /epic-deliver &lt;epicId&gt;"]:::manual
-        F["🤖 wave loop (one /story-execute sub-agent per Story per wave)"]:::agentic
+        F["🤖 wave loop (one /story-deliver sub-agent per Story per wave)"]:::agentic
         G["🤖 close-validation → code-review → retro → open PR"]:::agentic
         E --> F --> G
         G -.-> G_Art["📄 PR open against main"]:::artifact
@@ -220,6 +220,19 @@ Epic id.
 
 The framework reads the Epic and autonomously builds the entire work breakdown.
 
+> **Epic Clarity Gate (`/epic-plan` Phase 6).** Before PRD / Tech Spec /
+> Acceptance Spec authoring kicks off, `/epic-plan` scores the Epic body
+> against the five canonical sections from
+> [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Problem,
+> Direction, Assumptions, MVP Scope, Not Doing). The rubric is
+> deterministic (section-presence; threshold ≥ 4 of 5). A `clear` verdict
+> skips fast with no prompt; a `needs-refinement` verdict drops into the
+> `idea-refinement` skill seeded from the current Epic body, surfaces a
+> HITL diff, and on approval persists the sharpened body via
+> `gh issue edit` before Phase 7 authoring begins. The gate honours the
+> "do not modify existing issues without permission" Constraint — every
+> body rewrite is operator-confirmed.
+
 1. **Epic Planner** (`epic-plan-spec.js`):
    - Synthesizes the Epic body with project documentation.
    - Generates a **PRD** (`context::prd`), **Tech Spec**
@@ -271,7 +284,7 @@ respected by both runtime gates:
   finalize step proceeds.
 
 The waiver is binary — there is no partial opt-out. If an Epic later
-warrants spec coverage, remove the label and run `/epic-plan` Phase 1
+warrants spec coverage, remove the label and run `/epic-plan` Phase 7
 to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
@@ -317,7 +330,7 @@ worktree isolation, and cascade closure.
 > asserts that the Epic either (a) carries the `acceptance::n-a` waiver
 > label, or (b) has a linked `context::acceptance-spec` ticket whose
 > GitHub state is **closed** (i.e. the operator has approved the spec
-> after `/epic-plan` Phase 1). Neither condition met → the snapshot
+> after `/epic-plan` Phase 7). Neither condition met → the snapshot
 > throws a clear error naming the missing precondition and `runAsCli`
 > maps it to `process.exit(1)`. This refuses to launch Epics that
 > skipped acceptance-spec authoring, surfacing the gap at delivery time
@@ -328,7 +341,7 @@ worktree isolation, and cascade closure.
 | Mode             | Entry point                     | When to use                                                                                  |
 | ---------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
 | **Whole Epic**   | `/epic-deliver <epicId>`        | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
-| **Single Story** | `/story-execute <storyId>`      | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.              |
+| **Single Story** | `/story-deliver <storyId>`      | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.              |
 
 The two-skill split (plus the inline `task-execute.md` helper) mirrors how
 the engine already decomposes work; promoting them to slash commands lets
@@ -363,7 +376,7 @@ Whether the Story is launched directly by the operator or fanned out by
 
 ### Context hydration
 
-When a sub-agent runs `/story-execute <storyId>`, the Context Hydrator
+When a sub-agent runs `/story-deliver <storyId>`, the Context Hydrator
 assembles a self-contained prompt:
 
 1. `agent-protocol.md` (universal rules).
@@ -399,7 +412,7 @@ dispatches any newly-unblocked Tasks. This continues until all waves complete.
 
 ### Story assignment (deterministic)
 
-`/story-execute` requires an explicit Story id. The parent `/epic-deliver`
+`/story-deliver` requires an explicit Story id. The parent `/epic-deliver`
 wave loop picks Story ids off the frozen dispatch manifest deterministically
 and launches one Agent-tool sub-agent per id per wave; sibling sub-agents
 never race on the same Story. Operators driving Stories by hand pick ids
@@ -548,7 +561,7 @@ fires. This is the entirety of the operator interface mid-run.
 `/epic-deliver` drives the long-running coordinator inside the operator's
 Claude session. The runner
 (`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) composes the
-submodules listed below; `/story-execute` is launched as an Agent-tool
+submodules listed below; `/story-deliver` is launched as an Agent-tool
 sub-agent of `/epic-deliver`'s wave loop — no `child_process.spawn`, no
 GitHub Actions runner.
 
@@ -623,7 +636,7 @@ branch.
 
 ## Testing strategy
 
-Tests are **pyramid-aware**. Every test written during `/story-execute`
+Tests are **pyramid-aware**. Every test written during `/story-deliver`
 belongs to exactly one tier — **unit**, **contract**, or **e2e / acceptance** —
 and each tier has distinct scope, dependency, and assertion rules. The canonical
 tier definitions, assertion-placement rules, and coverage thresholds live in
@@ -782,8 +795,8 @@ failures never block execution.
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
 | `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main`. Operator merges via the GitHub UI.                                         |
-| `/story-execute <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
-| _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-execute` per Task; not a slash command.                                                                                                                |
+| `/story-deliver <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
+| _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
 | _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 4; not a slash command.                                                                                                                 |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |

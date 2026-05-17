@@ -1,7 +1,7 @@
 /**
  * duplicate-search.js — Cross-Epic Duplicate Detection
  *
- * Used by `/epic-plan` Phase 0b (s-plan-ideation) to surface open Epics
+ * Used by `/epic-plan` Phase 2 (s-plan-ideation) to surface open Epics
  * whose scope overlaps with a sharpened one-pager before a new Epic is
  * created. Returns ranked candidates with an overlap score and URL so
  * the host LLM can pause for HITL confirmation.

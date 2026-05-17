@@ -1,11 +1,11 @@
 ---
 description:
-  Orchestrates end-to-end Epic planning (PRD, Tech Spec, and Work Breakdown)
-  for a GitHub Epic.
+  Orchestrates end-to-end Epic planning (PRD, Tech Spec, Acceptance Spec, and
+  Work Breakdown) for a GitHub Epic.
 recommendedModel: opus
 ---
 
-<!-- recommendedModel rationale: planning orchestrator composes PRD + Tech Spec + WBS — reasoning-heavy, advisory hint for operators. -->
+<!-- recommendedModel rationale: planning orchestrator composes PRD + Tech Spec + Acceptance Spec + WBS — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-plan [Epic ID]
 
@@ -34,8 +34,8 @@ artifacts you author.
 ## Constraint
 
 - Do not modify existing issues without explicit permission.
-- Wait for user validation before migrating to Phase 2.
-- Delegate Phase 1 and Phase 2 to the
+- Wait for user validation before migrating to Phase 8.
+- Delegate Phase 7 and Phase 8 to the
   [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
   [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
   procedures respectively — they own the Epic lifecycle label transitions and
@@ -45,15 +45,15 @@ artifacts you author.
 ## Prerequisites
 
 1. **GitHub Epic**: An existing GitHub Issue with the `type/epic` label.
-   Skipped when entering via Phase 0a / `--idea` (the Epic does not exist
-   yet — Phases 0a–0d will create it).
+   Skipped when entering via Phase 1 / `--idea` (the Epic does not exist
+   yet — Phases 1–4 will create it).
 2. **API Keys**: `GITHUB_TOKEN` must be set in the `.env` file.
 
-## Phase 0a: Idea Refinement (s-plan-ideation entry)
+## Phase 1: Idea Refinement (s-plan-ideation entry)
 
 This phase runs **only** when no `<epic#>` argument is supplied, or when
 `--idea "<seed>"` is passed. If an Epic ID was provided, skip directly to
-Phase 0 (Re-Plan Detection).
+Phase 5 (Re-Plan Detection).
 
 1. **Activate the ideation skill**: Read
    `<agentRoot>/skills/core/idea-refinement/SKILL.md` via the `Read`
@@ -69,14 +69,14 @@ Phase 0 (Re-Plan Detection).
    host's harness-level skill registry.
 
 2. **HITL stop — confirm the sharpened one-pager**: Display the one-pager
-   to the operator and **STOP**. Do not proceed to Phase 0b until the
+   to the operator and **STOP**. Do not proceed to Phase 2 until the
    user explicitly confirms the direction. This is the same gate the
    skill's own Phase 3 enforces; surfacing it here makes the wait
    contract visible to `/epic-plan` callers.
 
-## Phase 0b: Cross-Epic Duplicate Search
+## Phase 2: Cross-Epic Duplicate Search
 
-Runs immediately after Phase 0a (and only on the s-plan-ideation path).
+Runs immediately after Phase 1 (and only on the s-plan-ideation path).
 Its job is to surface open Epics whose scope already overlaps with the
 sharpened one-pager so the operator can fold the work in rather than
 opening a duplicate.
@@ -86,21 +86,21 @@ opening a duplicate.
    [`.agents/scripts/lib/duplicate-search.js`](../scripts/lib/duplicate-search.js).
    The `provider` is the resolved ticketing provider
    (`provider-factory.js`), and `onePager` is the markdown returned by
-   Phase 0a.
+   Phase 1.
 
 2. **HITL pause on match**: If the module returns a non-empty ranked
    list, render the candidates (id, title, score, URL) and **STOP**. Do
-   not proceed to Phase 0c until the user either (a) confirms the new
+   not proceed to Phase 3 until the user either (a) confirms the new
    Epic is genuinely distinct or (b) chooses to fold the idea into one of
    the existing Epics, in which case `/epic-plan` exits and the operator
    resumes work on the existing Epic ID.
 
 3. **No-match fast path**: If the module returns `[]`, proceed
-   immediately to Phase 0c — no operator intervention required.
+   immediately to Phase 3 — no operator intervention required.
 
-## Phase 0c: Render Epic Body from One-Pager
+## Phase 3: Render Epic Body from One-Pager
 
-Runs after Phase 0b clears (no duplicates, or operator confirmed the
+Runs after Phase 2 clears (no duplicates, or operator confirmed the
 new Epic is genuinely distinct).
 
 1. **Render the body**: Call
@@ -114,11 +114,11 @@ new Epic is genuinely distinct).
    raw `{{token}}` placeholders.
 
 2. **HITL stop — confirm the body**: Display the rendered body to the
-   operator and **STOP**. Do not proceed to Phase 0d until the user
+   operator and **STOP**. Do not proceed to Phase 4 until the user
    explicitly confirms the body is correct. This is the last chance to
    tweak wording before the GitHub Issue is opened.
 
-## Phase 0d: Open the GitHub Issue (`type::epic` only)
+## Phase 4: Open the GitHub Issue (`type::epic` only)
 
 1. **Open the Epic Issue**: Call
    `openEpicFromOnePager({ onePager, template, createIssue })` from the
@@ -129,17 +129,18 @@ new Epic is genuinely distinct).
 2. **Label discipline**: The Issue is opened with **only** the
    `type::epic` label. **Do not** add any `state::*` label at creation
    time — the Epic carries only `type::epic` until PRD authoring
-   advances it to `agent::review-spec` in Phase 1. The
+   advances it to `agent::review-spec` in Phase 7. The
    `openEpicFromOnePager` helper already enforces this; the workflow
    prose codifies the intent so future label-set tweaks don't silently
    widen it.
 
-3. **Continue to Phase 0**: The captured Epic ID becomes the new
+3. **Continue to Phase 5**: The captured Epic ID becomes the new
    `[Epic_ID]` for the rest of the planning pipeline. Re-Plan Detection
-   (the original Phase 0) will short-circuit because no PRD/Tech Spec
-   is linked yet, so the run flows naturally into Phase 1.
+   (Phase 5) will short-circuit because no PRD/Tech Spec is linked yet,
+   so the run flows naturally into Phase 6 (Epic Clarity Gate) and then
+   Phase 7.
 
-## Phase 0: Re-Plan Detection
+## Phase 5: Re-Plan Detection
 
 Before generating any artifacts, check whether the Epic has already been
 planned.
@@ -157,7 +158,81 @@ planned.
    invocations.
 4. **If user declines**: Abort gracefully.
 
-## Phase 1: Epic Planning (PRD, Tech Spec & Acceptance Spec)
+## Phase 6: Epic Clarity Gate
+
+Runs on every existing-Epic invocation, immediately after Phase 5
+(Re-Plan Detection) and before Phase 7 (PRD, Tech Spec & Acceptance
+Spec). The gate scores the Epic body against the five canonical
+sections from
+[`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md)
+(Problem, Direction, Assumptions, MVP Scope, Not Doing) and either
+skips fast (when the Epic body is already clear) or drops into a
+refinement loop seeded from the current Epic body.
+
+The rubric is deterministic: section-presence against the five
+canonical headings. The threshold is ≥ 4 of 5 sections present →
+`clear`. See
+[`lib/epic-plan-clarity.js`](../scripts/lib/epic-plan-clarity.js)
+for the scoring logic.
+
+1. **Score the body**: Run the clarity-check CLI in context-emission
+   mode.
+
+   ```bash
+   node .agents/scripts/epic-plan-clarity.js --epic [Epic_ID] --emit-context \
+     > temp/epic-[Epic_ID]/clarity-context.json
+   ```
+
+   The envelope carries
+   `{ epicId, epicBody, verdict, sections, missingOrPlaceholder }`.
+
+2. **Clear fast path**: When `verdict === 'clear'`, print
+   `Epic clarity: clear — proceeding to Phase 7.` and continue. No
+   HITL, no prompt.
+
+3. **Needs-refinement path**: When `verdict === 'needs-refinement'`,
+   activate the
+   [`core/idea-refinement`](../skills/core/idea-refinement/SKILL.md)
+   skill **seeded from the current Epic body** (not a blank seed),
+   with `missingOrPlaceholder` as the convergence target. The skill
+   runs its three-phase divergent → convergent → sharpen loop and
+   returns a sharpened one-pager.
+
+4. **Re-render the body**: Call
+   `renderEpicBody({ onePager, template })` from
+   [`lib/epic-plan-ideation.js`](../scripts/lib/epic-plan-ideation.js)
+   (the same helper Phase 3 uses), passing the contents of
+   [`.agents/templates/epic-from-idea.md`](../templates/epic-from-idea.md).
+   Write the result to `temp/epic-[Epic_ID]/clarity-update.md`.
+
+5. **HITL stop — confirm the diff**: Display the diff between the
+   current Epic body and the sharpened body and **STOP**. Operator
+   approves, edits, or aborts. Flag the blast radius in the
+   confirmation prompt: an approved body change feeds **three**
+   downstream artifacts (PRD, Tech Spec, Acceptance Spec) — treat
+   this gate as a one-shot rewrite, not an iterative draft. The
+   Constraint ("Do not modify existing issues without explicit
+   permission") is honored — no `gh issue edit` call until the
+   operator confirms.
+
+6. **Persist**: On approval, run the persist mode:
+
+   ```bash
+   node .agents/scripts/epic-plan-clarity.js --epic [Epic_ID] \
+     --updated-body temp/epic-[Epic_ID]/clarity-update.md
+   ```
+
+   The CLI persists the new body via `provider.updateTicket` and
+   posts a `clarity-gate-update` audit comment recording the change.
+   Idempotent: no-op when the file content matches the current body.
+
+7. **Re-verify**: Re-run the `--emit-context` step once to confirm
+   the verdict flipped to `clear`. If it still reads
+   `needs-refinement`, abort with a non-zero exit and surface a
+   remediation hint to the operator. Do not loop — one refinement
+   pass per invocation, matching the `--force` re-plan pattern.
+
+## Phase 7: Epic Planning (PRD, Tech Spec & Acceptance Spec)
 
 > **Three context tickets, not two.** Every Epic carries three planning
 > artifacts as linked GitHub sub-issues: PRD (`context::prd`), Tech Spec
@@ -263,12 +338,12 @@ planned.
      waiver is on the Epic). Do NOT proceed to decomposition until the
      user confirms the plan is accurate.
 
-5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 1
+5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
 
-## Phase 2: Work Breakdown Decomposition
+## Phase 8: Work Breakdown Decomposition
 
 1. **Gather Decomposition Context**:
 
@@ -345,11 +420,11 @@ planned.
      issue was created.
 
 6. **Cleanup**: The wrapper script (`epic-plan-decompose.js`) deletes the
-   Phase 2 temp files automatically on success — no operator action required.
+   Phase 8 temp files automatically on success — no operator action required.
    The cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
 
-## Phase 3: Execution Roadmap (Story Dispatch)
+## Phase 9: Execution Roadmap (Story Dispatch)
 
 1. **Generate Roadmap**: Automatically invoke the dispatcher in dry-run mode to
    calculate execution waves and model recommendations:
@@ -372,10 +447,10 @@ planned.
 3. **Handoff**: Provide the user with the recommended next step:
 
    > "Planning is complete. Run `/epic-deliver #[Epic ID]` to start the wave
-   > loop, or pick a single Story from Wave 0 and run `/story-execute #[Story
+   > loop, or pick a single Story from Wave 0 and run `/story-deliver #[Story
    > ID]` to drive it directly."
 
-## Phase 4: Readiness Health Check
+## Phase 10: Readiness Health Check
 
 Run the post-plan health check to validate the backlog before handing off to
 `/epic-deliver`. The default `--fast` mode runs only the cheap checks
@@ -415,7 +490,7 @@ If `ok` is `false`, review the entries in `checks[]` before starting
 execution. Individual non-`ok` entries are advisory unless the operator
 chooses to gate on them.
 
-## Phase 5: Notification & Handoff
+## Phase 11: Notification & Handoff
 
 1. **Notify Operator (INFO)**:
    - Post a summary comment on the Epic issue with work breakdown stats.

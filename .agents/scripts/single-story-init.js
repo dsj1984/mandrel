@@ -4,7 +4,7 @@
 /**
  * single-story-init.js — Initialize a standalone Story (no parent Epic).
  *
- * Counterpart to `story-init.js` for the `/single-story-execute` workflow.
+ * Counterpart to `story-init.js` for the `/single-story-deliver` workflow.
  * The framework's main `story-init.js` requires an `Epic: #N` reference in
  * the Story body to trace hierarchy, seed the Story branch from
  * `epic/<id>`, and gate execution on the epic's dispatch manifest. None of
@@ -35,10 +35,11 @@
  * Usage: `node single-story-init.js --story <STORY_ID> [--dry-run]`
  * Exit codes: 0 ok, 1 error.
  *
- * @see .agents/workflows/single-story-execute.md
+ * @see .agents/workflows/single-story-deliver.md
  */
 
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { parseSprintArgs } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
@@ -62,8 +63,33 @@ import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
-import { sweepMergedStoryBranches } from './lib/single-story-sweep.js';
+// `sweepMergedStoryBranches` is imported dynamically below — its transitive
+// graph reaches `picomatch` (via `git-cleanup.js`). Loading it statically
+// would crash module resolution before `assertDepsInstalled()` can emit a
+// friendly "run npm install" message.
 import { WorktreeManager } from './lib/worktree-manager.js';
+
+/**
+ * Fail fast with a clear, actionable message when project deps are missing.
+ * Uses only Node builtins so it stays loadable when `node_modules/` is empty.
+ *
+ * Why: a wiped `node_modules/` previously surfaced as
+ * `ERR_MODULE_NOT_FOUND: Cannot find package 'picomatch'` from deep inside
+ * the sweep graph — opaque for operators. This guard probes a representative
+ * runtime dep (declared in `REQUIRED_RUNTIME_DEPS`) and tells the operator
+ * exactly what to run.
+ */
+function assertDepsInstalled(projectRoot) {
+  const probe = path.join(projectRoot, 'node_modules', 'picomatch');
+  if (!existsSync(probe)) {
+    throw new Error(
+      [
+        'Project dependencies are not installed (missing node_modules/picomatch).',
+        `Run \`npm install\` from ${projectRoot} before invoking this script.`,
+      ].join(' '),
+    );
+  }
+}
 
 const progress = Logger.createProgress('single-story-init', { stderr: true });
 
@@ -95,6 +121,8 @@ export async function runSingleStoryInit({
     );
   }
 
+  assertDepsInstalled(cwd);
+
   const config = injectedConfig || resolveConfig({ cwd });
   const { agentSettings, orchestration } = config;
   const provider = injectedProvider || createProvider(orchestration);
@@ -114,7 +142,7 @@ export async function runSingleStoryInit({
   const story = await provider.getTicket(storyId);
   if (!story.labels.includes(TYPE_LABELS.STORY)) {
     throw new Error(
-      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /story-execute or /epic-deliver for Epic-attached work.`,
+      `Issue #${storyId} is not a Story (labels: ${story.labels.join(', ')}). Use /story-deliver or /epic-deliver for Epic-attached work.`,
     );
   }
   if (story.state === 'closed') {
@@ -150,8 +178,10 @@ export async function runSingleStoryInit({
     //     worktrees, or still-open Story tickets are skipped (and listed
     //     in `sweep.protected` for the operator).
     //   - Cross-session lock: a single lockfile under `tempRoot` prevents
-    //     two concurrent `/single-story-execute` invocations from racing.
-    const sweepFn = injectedSweep ?? sweepMergedStoryBranches;
+    //     two concurrent `/single-story-deliver` invocations from racing.
+    const sweepFn =
+      injectedSweep ??
+      (await import('./lib/single-story-sweep.js')).sweepMergedStoryBranches;
     const tempRoot = config?.project?.paths?.tempRoot ?? 'temp';
     const lockPath = path.resolve(cwd, tempRoot, 'single-story-sweep.lock');
     const lockTimeoutMs =

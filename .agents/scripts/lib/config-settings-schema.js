@@ -228,7 +228,7 @@ const PLANNING_SCHEMA = {
 };
 
 // ---------------------------------------------------------------------------
-// delivery.* — /epic-deliver + story-execute consume
+// delivery.* — /epic-deliver + story-deliver consume
 // ---------------------------------------------------------------------------
 
 const EXECUTION_SCHEMA = {

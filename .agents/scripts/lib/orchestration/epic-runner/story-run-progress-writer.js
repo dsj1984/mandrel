@@ -1,7 +1,7 @@
 /**
  * story-run-progress-writer — render and upsert the per-story progress comment.
  *
- * `/story-execute` calls this once per Task transition (`pending → executing`,
+ * `/story-deliver` calls this once per Task transition (`pending → executing`,
  * `executing → done|blocked`) and once per phase transition
  * (`init → implementing → closing → done|blocked`). The comment is upserted on
  * the Story ticket (not on the Epic) so the wave aggregator and the

@@ -278,7 +278,7 @@ prompted.
 ### C. History Hygiene
 
 Prioritize a clean `epic/[EPIC_ID]` branch. Story branches are merged into
-the Epic branch automatically by `/story-execute` (via `story-close.js`);
+the Epic branch automatically by `/story-deliver` (via `story-close.js`);
 the Epic branch reaches `main` via the pull request that `/epic-deliver`
 opens at the end of its run — the operator merges through the GitHub UI.
 There is no in-script merge to `main`.

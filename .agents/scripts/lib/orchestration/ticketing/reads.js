@@ -76,7 +76,7 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // downstream workflow steps don't have to infer install state from
   // node_modules presence.
   'story-init',
-  // Story #908 — /story-execute upserts a `story-run-progress` snapshot
+  // Story #908 — /story-deliver upserts a `story-run-progress` snapshot
   // on each Story per Task transition. The /epic-deliver aggregator and
   // the epic-runner progress reporter both read this comment to derive
   // Story-level state without re-fetching ticket labels.
@@ -88,6 +88,10 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // surface (Epic #1030).
   'story-perf-summary',
   'epic-perf-report',
+  // Story #2128 — Phase 6 Epic Clarity Gate. `epic-plan-clarity.js` upserts
+  // a `clarity-gate-update` comment on the Epic when the operator approves
+  // a sharpened body rewrite, recording the persistence event for audit.
+  'clarity-gate-update',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

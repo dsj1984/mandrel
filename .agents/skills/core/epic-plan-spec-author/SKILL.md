@@ -3,7 +3,7 @@ name: epic-plan-spec-author
 description: >-
   Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the
   planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use
-  during Phase 1 of `/epic-plan` when the host LLM needs to write the three
+  during Phase 7 of `/epic-plan` when the host LLM needs to write the three
   artifacts before `epic-plan-spec.js` persists them.
 allowed_tools:
   - Read
@@ -22,7 +22,7 @@ consumes both to produce the Acceptance Spec).
 
 ## When to use
 
-`/epic-plan` Phase 1, immediately after `epic-plan-spec.js --emit-context`
+`/epic-plan` Phase 7, immediately after `epic-plan-spec.js --emit-context`
 writes `temp/epic-<Epic_ID>/planner-context.json`. This Skill replaces the
 inline "Author the PRD" / "Author the Tech Spec" steps from the legacy
 workflow body — the calling workflow dispatches this Skill via the `Skill`
@@ -53,7 +53,7 @@ reads:
     acceptance-spec body so the features-first Story can scaffold
     `.feature` files with that exact tag. When `fallback: true`, render
     `"Fallback: dependencies-first ordering"` and omit the pending-tag
-    line — Phase 2 reverts to topological ordering.
+    line — Phase 8 reverts to topological ordering.
 
 ## Outputs
 
@@ -155,7 +155,7 @@ Spec MUST:
   `new` (first appearance), `updated` (Outcome text or Scenario reshaped
   vs. prior plan), `unchanged` (carried through verbatim from prior plan).
 - Cite proposed feature files under `tests/features/**` by relative path
-  so the Phase 2 features-first Story can scaffold the matching scenarios.
+  so the Phase 8 features-first Story can scaffold the matching scenarios.
 - Render a **Runner Verification** line directly under the AC table that
   records what `bddRunner` from the planner-context envelope reports:
   - `supported: true` → write
@@ -164,7 +164,7 @@ Spec MUST:
     pending scenarios with this exact string.
   - `fallback: true` → write
     `Runner Verification: Fallback: dependencies-first ordering (reason: <reason>)`.
-    Phase 2 still proceeds; AC reconciliation defers to dependency order.
+    Phase 8 still proceeds; AC reconciliation defers to dependency order.
 
 #### Acceptance Spec system prompt (authoritative)
 
@@ -183,7 +183,7 @@ CRITICAL REQUIREMENTS:
 - Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
 - Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
 - Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
-- Cite proposed feature file paths under tests/features/** so Phase 2 can scaffold matching scenarios.
+- Cite proposed feature file paths under tests/features/** so Phase 8 can scaffold matching scenarios.
 ```
 
 ### Step 5 — Hand back to `/epic-plan`

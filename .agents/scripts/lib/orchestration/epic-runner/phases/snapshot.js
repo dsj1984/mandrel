@@ -9,7 +9,7 @@
  * delivered when *either* the operator has explicitly waived the
  * acceptance-spec requirement via the `acceptance::n-a` label, *or* a
  * `context::acceptance-spec` ticket exists and is closed (i.e. approved).
- * This refuses to launch Epics that skipped the /epic-plan Phase 1
+ * This refuses to launch Epics that skipped the /epic-plan Phase 7
  * acceptance-spec authoring step, surfacing the precondition at delivery
  * time rather than letting Story dispatch race ahead without an approved
  * spec.
@@ -44,7 +44,7 @@ async function assertAcceptanceSpecGate({ epic, epicId, provider }) {
   if (!acceptanceSpecId) {
     throw new Error(
       `[epic-deliver] Epic #${epicId} cannot launch: no context::acceptance-spec is linked and the acceptance::n-a waiver label is absent. ` +
-        'Run /epic-plan Phase 1 to author and approve an acceptance-spec, or apply the acceptance::n-a label to the Epic to opt out.',
+        'Run /epic-plan Phase 7 to author and approve an acceptance-spec, or apply the acceptance::n-a label to the Epic to opt out.',
     );
   }
 

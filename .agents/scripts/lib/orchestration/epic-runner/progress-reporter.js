@@ -35,6 +35,7 @@ import {
   truncate as truncateFromComposition,
   upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
 } from './progress-reporter/composition.js';
+import { escalateFireFailure } from './progress-reporter/fire-escalation.js';
 import {
   aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
   EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
@@ -145,6 +146,17 @@ export class ProgressReporter {
 
     this.timer = null;
     this.emitting = false;
+    // Counter for consecutive `fire()` failures. Resets to 0 on the first
+    // successful fire. When it hits `fireEscalationThreshold`, the reporter
+    // emits a friction signal and transitions the Epic to `agent::blocked`
+    // so a persistent provider/auth/rate-limit failure stops masquerading
+    // as a slow run. See `#escalateFireFailure()` below.
+    this.consecutiveFireFailures = 0;
+    this.fireEscalationThreshold = Number.isInteger(
+      opts.fireEscalationThreshold,
+    )
+      ? opts.fireEscalationThreshold
+      : 3;
     // Cache of per-story phase-timing summaries keyed by storyId. Stories
     // that have posted a `phase-timings` comment hold a parsed summary;
     // stories that are done but posted no summary hold the sentinel
@@ -230,12 +242,12 @@ export class ProgressReporter {
       // The reporter is non-fatal by design — a failed read or upsert must
       // not crash the runner — but a silent .catch(() => {}) here masks
       // exactly the kind of degradation operators need to see (rate-limit,
-      // network blip, schema drift). Surface to the same logger that
-      // appendToLogFile uses so the failure mode is visible in the log
-      // tail rather than hidden inside the interval handler.
-      this.fire().catch((err) => {
+      // network blip, schema drift). `tick()` owns the fire-outcome
+      // bookkeeping (consecutive-failure counter, 3-strikes escalation) and
+      // is exposed for tests to invoke directly without the timer.
+      this.tick().catch((tickErr) => {
         this.logger.warn?.(
-          `[ProgressReporter] fire() failed: ${err?.message ?? err}`,
+          `[ProgressReporter] tick() unexpected failure: ${tickErr?.message ?? tickErr}`,
         );
       });
     }, this.intervalSec * 1000);
@@ -286,7 +298,7 @@ export class ProgressReporter {
         allIds,
         async (id) => {
           // Prefer the `story-run-progress` structured comment (post-#908,
-          // each /story-execute sub-agent updates this on every Task
+          // each /story-deliver sub-agent updates this on every Task
           // transition). When no comment exists yet — or it is malformed —
           // fall back to the legacy ticket-label state derivation so we
           // continue to render meaningful state during the rollout window
@@ -382,7 +394,7 @@ export class ProgressReporter {
    * Caches both terminal-phase parses and absent-comment results: a Story
    * either eventually publishes a comment (then transitions through phases
    * to `done`/`blocked` once and stays there) or never does (legacy stories
-   * closed before /story-execute existed). Either outcome is stable for the
+   * closed before /story-deliver existed). Either outcome is stable for the
    * remainder of the epic run.
    */
   async #tryReadStoryProgress(storyId) {
@@ -419,6 +431,37 @@ export class ProgressReporter {
       this.logFileReady = true;
     }
     await this._appendFile(this.logFile, chunk, 'utf8');
+  }
+
+  /**
+   * One reporter tick: invoke `fire()` and update the consecutive-failure
+   * counter. On `fireEscalationThreshold` consecutive failures, trigger the
+   * escalation path exactly once at the threshold boundary (further failures
+   * increment but do not re-escalate until a successful fire resets the
+   * counter). Exposed for tests to drive deterministically without timers.
+   */
+  async tick() {
+    try {
+      await this.fire();
+      if (this.consecutiveFireFailures > 0) {
+        this.consecutiveFireFailures = 0;
+      }
+    } catch (err) {
+      this.consecutiveFireFailures += 1;
+      this.logger.warn?.(
+        `[ProgressReporter] fire() failed (${this.consecutiveFireFailures}/${this.fireEscalationThreshold}): ${err?.message ?? err}`,
+      );
+      if (this.consecutiveFireFailures === this.fireEscalationThreshold) {
+        await escalateFireFailure({
+          provider: this.provider,
+          epicId: this.epicId,
+          config: this.config,
+          threshold: this.fireEscalationThreshold,
+          err,
+          logger: this.logger,
+        });
+      }
+    }
   }
 
   async #emitFetchFailureFriction(storyId, err) {

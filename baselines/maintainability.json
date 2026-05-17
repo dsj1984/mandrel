@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T02:52:57.495Z",
+  "generatedAt": "2026-05-17T03:05:20.561Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.926,
+      "p50": 102.991,
       "p95": 121.071
     }
   },
@@ -125,6 +125,10 @@
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
       "mi": 86.415
+    },
+    {
+      "path": ".agents/scripts/epic-plan-clarity.js",
+      "mi": 82.121
     },
     {
       "path": ".agents/scripts/epic-plan-decompose.js",
@@ -563,8 +567,12 @@
       "mi": 99.737
     },
     {
+      "path": ".agents/scripts/lib/epic-plan-clarity.js",
+      "mi": 104.244
+    },
+    {
       "path": ".agents/scripts/lib/epic-plan-ideation.js",
-      "mi": 93.441
+      "mi": 90.345
     },
     {
       "path": ".agents/scripts/lib/error-redactor.js",
@@ -748,7 +756,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "mi": 94.878
+      "mi": 93.214
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
@@ -780,7 +788,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 96.908
+      "mi": 95.419
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -800,11 +808,15 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter.js",
-      "mi": 95.237
+      "mi": 94.437
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/composition.js",
       "mi": 98.706
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/fire-escalation.js",
+      "mi": 105.102
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/progress-reporter/signals.js",
@@ -1028,7 +1040,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 105.177
+      "mi": 105.176
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
@@ -1432,14 +1444,14 @@
     },
     {
       "path": ".agents/scripts/single-story-init.js",
-      "mi": 87.947
+      "mi": 88.724
     },
     {
       "path": ".agents/scripts/story-close.js",
       "mi": 83.932
     },
     {
-      "path": ".agents/scripts/story-execute-prepare.js",
+      "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 93.255
     },
     {
@@ -1923,6 +1935,10 @@
       "mi": 100.065
     },
     {
+      "path": "tests/epic-plan-clarity.test.js",
+      "mi": 112.367
+    },
+    {
       "path": "tests/epic-plan-spec-drain.test.js",
       "mi": 102.552
     },
@@ -1992,7 +2008,7 @@
     },
     {
       "path": "tests/epic-runner/progress-reporter.test.js",
-      "mi": 96.494
+      "mi": 96.112
     },
     {
       "path": "tests/epic-runner/progress-reporter/signals.test.js",
@@ -3235,15 +3251,15 @@
       "mi": 100.79
     },
     {
-      "path": "tests/story-execute/story-execute-prepare.test.js",
+      "path": "tests/story-deliver/story-deliver-prepare.test.js",
       "mi": 106.035
     },
     {
-      "path": "tests/story-execute/story-task-progress.test.js",
+      "path": "tests/story-deliver/story-task-progress.test.js",
       "mi": 89.526
     },
     {
-      "path": "tests/story-execute/task-commit.test.js",
+      "path": "tests/story-deliver/task-commit.test.js",
       "mi": 107.92
     },
     {
@@ -3303,6 +3319,10 @@
       "mi": 101.964
     },
     {
+      "path": "tests/update-epic-from-one-pager.test.js",
+      "mi": 111.168
+    },
+    {
       "path": "tests/validate-docs-freshness.test.js",
       "mi": 114.688
     },
@@ -3320,7 +3340,7 @@
     },
     {
       "path": "tests/workflows/epic-deliver.test.js",
-      "mi": 104.975
+      "mi": 105.25
     },
     {
       "path": "tests/workflows/epic-execute-record-wave-cli.test.js",

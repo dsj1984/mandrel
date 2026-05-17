@@ -312,7 +312,7 @@ Added in Epic #817 Story 9.
 
 ### `orchestration.worktreeIsolation`
 
-Story-level worktree isolation. When `enabled: true`, `/story-execute` runs
+Story-level worktree isolation. When `enabled: true`, `/story-deliver` runs
 each Story inside `.worktrees/story-<id>/` instead of moving the main
 checkout's HEAD.
 
@@ -385,7 +385,7 @@ number of keys.
 
 | File                              | Audience                            | Role                                                                                                                                |
 | --------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-execute` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
+| `.agentrc.json` (repo root)       | The framework dogfooding itself     | Live config used when running `/epic-*` and `/story-deliver` workflows against this repo. Exercises the framework end-to-end on its own source tree. |
 | `.agents/starter-agentrc.json`    | Downstream consumer repos           | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys only.      |
 | `.agents/full-agentrc.json`       | Operators and reviewers             | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                             |
 

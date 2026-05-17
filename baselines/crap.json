@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T02:15:59.107Z",
+  "generatedAt": "2026-05-17T03:05:23.198Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -2032,6 +2032,12 @@
       "method": "stabiliseRows",
       "startLine": 331,
       "crap": 8
+    },
+    {
+      "path": ".agents/scripts/lib/bdd-runner-detect.js",
+      "method": "verifyBddRunnerPendingTag",
+      "startLine": 97,
+      "crap": 4.002
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -4392,6 +4398,12 @@
       "crap": 6
     },
     {
+      "path": ".agents/scripts/lib/label-constants.js",
+      "method": "isValidTransition",
+      "startLine": 69,
+      "crap": 4
+    },
+    {
       "path": ".agents/scripts/lib/label-taxonomy.js",
       "method": "buildPersonaLabels",
       "startLine": 34,
@@ -5295,19 +5307,7 @@
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
       "method": "createEpicRunnerCollaborators",
       "startLine": 26,
-      "crap": 1.0034783092634332
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-2>",
-      "startLine": 61,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "method": "<anon method-3>",
-      "startLine": 62,
-      "crap": 1.2962962962962963
+      "crap": 2.0139132370537327
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -6955,8 +6955,14 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
+      "method": "assertMergeReachable",
+      "startLine": 71,
+      "crap": 6.839650145772595
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/story-close/post-merge-close.js",
       "method": "runPostMergeClose",
-      "startLine": 65,
+      "startLine": 145,
       "crap": 4
     },
     {
@@ -7312,54 +7318,6 @@
       "method": "<anon method-11>",
       "startLine": 466,
       "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "isValidStructuredCommentType",
-      "startLine": 98,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "assertValidStructuredCommentType",
-      "startLine": 114,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentMarker",
-      "startLine": 140,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "getProviderCommentCache",
-      "startLine": 182,
-      "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "structuredCommentCacheKey",
-      "startLine": 201,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_resetStructuredCommentCache",
-      "startLine": 225,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "_peekStructuredCommentCache",
-      "startLine": 239,
-      "crap": 3.0416666666666665
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "method": "findStructuredComment",
-      "startLine": 268,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",

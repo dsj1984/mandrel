@@ -3,7 +3,7 @@
 
 /**
  * pr-watch-with-update.js — shared watch-and-recover helper for long-lived
- * PR loops in `/single-story-execute` Step 4 and `/epic-deliver` Phase 7.
+ * PR loops in `/single-story-deliver` Step 4 and `/epic-deliver` Phase 7.
  *
  * Wraps the equivalent of `gh pr checks <pr> --watch` but recovers from
  * `mergeStateStatus: "BEHIND"` automatically: when every required check
