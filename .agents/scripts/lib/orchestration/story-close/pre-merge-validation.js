@@ -39,6 +39,27 @@ import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
+ * Best-effort lifecycle emit helper — Story #2250.
+ *
+ * `runPreMergeGates` runs in two callers: a real story-close path (where a
+ * lifecycle bus is wired) and unit fixtures that pass none at all. Every
+ * emit therefore goes through this wrapper so a missing/broken bus never
+ * blocks the gate chain. The bus is the only authorized surface for typed
+ * events, but the gate is the canonical close-validate boundary regardless
+ * of whether observability is wired this run.
+ */
+async function emitLifecycleSafe({ bus, event, payload, logger }) {
+  if (!bus || typeof bus.emit !== 'function') return;
+  try {
+    await bus.emit(event, payload);
+  } catch (err) {
+    logger?.warn?.(
+      `[close-validation] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
  * whose message embeds the first failed gate's name, exit code, hint, and
  * the working directory the gate ran in — the `runAsCli` boundary in
@@ -53,6 +74,18 @@ import { Logger as DefaultLogger } from '../../Logger.js';
  * checkout) — the legacy single-tree path remains intact.
  *
  * `phaseTimer` may be omitted; when present, lint/test starts are timed.
+ *
+ * Story #2250 — the gate chain is the canonical close-validate sub-phase
+ * of the close-tail; this helper emits `close-validate.start` /
+ * `close-validate.end` events on the supplied lifecycle bus so the
+ * lifecycle ledger captures the sub-phase boundary with non-zero
+ * `durationMs`. On gate failure the helper also emits `story.blocked`
+ * with a typed `close-validate-failed:<gateName>` reason BEFORE throwing
+ * — the existing BlockerHandler listener (Story #2241 / Task #2246)
+ * cascades that to `epic.blocked`, so a failed validator routes through
+ * the lifecycle cascade rather than being silently swallowed by the
+ * caller's try/catch. The throw shape is preserved byte-for-byte so the
+ * regex consumers in `runPreMergeGatesWithAttribution` keep matching.
  */
 export async function runPreMergeGates({
   cwd,
@@ -63,6 +96,8 @@ export async function runPreMergeGates({
   epicId,
   useEvidence = true,
   phaseTimer,
+  bus = null,
+  now = Date.now,
   logger = DefaultLogger,
   buildDefaultGates = defaultBuildDefaultGates,
   runCloseValidation = defaultRunCloseValidation,
@@ -70,27 +105,112 @@ export async function runPreMergeGates({
   logger.info?.(
     `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability, crap, baselines)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
-  const validation = await runCloseValidation({
-    cwd,
-    worktreePath,
-    gates: buildDefaultGates({ agentSettings, epicBranch }),
-    log: (m) => logger.info(m),
-    onGateStart: (gate) => {
-      // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
-      // (`typecheck`, `format`, `check-maintainability`) share the
-      // currently-open phase's wall clock — a deliberate choice so the
-      // `phase-timings` schema stays stable against future gate churn.
-      if (phaseTimer && (gate.name === 'lint' || gate.name === 'test')) {
-        phaseTimer.mark(gate.name);
-      }
-    },
-    storyId,
-    epicId,
-    useEvidence,
-  });
+  const gates = buildDefaultGates({ agentSettings, epicBranch });
+  const gateCount = Array.isArray(gates) ? gates.length : 0;
+  // Story #2250 — emit `close-validate.start` only when both an epicId
+  // and a storyId are present; the schema requires both, and unit
+  // fixtures that drive the helper with `storyId: null` (legacy resume
+  // tests) must continue to operate without lifecycle observability.
+  const emitsActive =
+    Number.isInteger(epicId) &&
+    epicId > 0 &&
+    Number.isInteger(storyId) &&
+    storyId > 0 &&
+    !!bus;
+  const startedAt = typeof now === 'function' ? now() : Date.now();
+  if (emitsActive) {
+    await emitLifecycleSafe({
+      bus,
+      event: 'close-validate.start',
+      payload: { epicId, storyId },
+      logger,
+    });
+  }
+  let validation;
+  try {
+    validation = await runCloseValidation({
+      cwd,
+      worktreePath,
+      gates,
+      log: (m) => logger.info(m),
+      onGateStart: (gate) => {
+        // Only the canonical phase-enum gates drive `mark()`. Non-enum gates
+        // (`typecheck`, `format`, `check-maintainability`) share the
+        // currently-open phase's wall clock — a deliberate choice so the
+        // `phase-timings` schema stays stable against future gate churn.
+        if (phaseTimer && (gate.name === 'lint' || gate.name === 'test')) {
+          phaseTimer.mark(gate.name);
+        }
+      },
+      storyId,
+      epicId,
+      useEvidence,
+    });
+  } catch (err) {
+    // Reach this branch only when `runCloseValidation` itself throws
+    // (spawn-level catastrophe — the per-gate failures route through
+    // `validation.failed` below). Emit the matching `close-validate.end`
+    // with `ok:false` so the ledger always carries the boundary, then
+    // re-throw.
+    if (emitsActive) {
+      const endedAt = typeof now === 'function' ? now() : Date.now();
+      await emitLifecycleSafe({
+        bus,
+        event: 'close-validate.end',
+        payload: {
+          epicId,
+          storyId,
+          ok: false,
+          gateCount,
+          failedGate: 'runner-error',
+          durationMs: Math.max(0, endedAt - startedAt),
+        },
+        logger,
+      });
+      await emitLifecycleSafe({
+        bus,
+        event: 'story.blocked',
+        payload: { storyId, reason: 'close-validate-failed:runner-error' },
+        logger,
+      });
+    }
+    throw err;
+  }
   if (!validation.ok) {
     const [first] = validation.failed;
     const { gate, status, cwd: gateCwd } = first;
+    // Story #2250 — emit `close-validate.end` with `ok:false` BEFORE
+    // throwing so the lifecycle ledger captures the boundary even when
+    // the caller's try/catch swallows the throw. Then emit
+    // `story.blocked` with the typed `close-validate-failed:<gate>`
+    // reason so the BlockerHandler listener cascades to `epic.blocked`
+    // — failed validators MUST route through the lifecycle cascade.
+    if (emitsActive) {
+      const endedAt = typeof now === 'function' ? now() : Date.now();
+      await emitLifecycleSafe({
+        bus,
+        event: 'close-validate.end',
+        payload: {
+          epicId,
+          storyId,
+          ok: false,
+          gateCount,
+          failedGate: gate.name,
+          exitCode: status,
+          durationMs: Math.max(0, endedAt - startedAt),
+        },
+        logger,
+      });
+      await emitLifecycleSafe({
+        bus,
+        event: 'story.blocked',
+        payload: {
+          storyId,
+          reason: `close-validate-failed:${gate.name}`,
+        },
+        logger,
+      });
+    }
     // Story #2136 / Task #2143 — surface the structured failure metadata
     // as typed properties on the Error so callers (notably
     // `runPreMergeGatesWithAttribution`) can pattern-match exit codes
@@ -106,6 +226,21 @@ export async function runPreMergeGates({
     err.exitCode = status;
     err.gateCwd = gateCwd ?? null;
     throw err;
+  }
+  if (emitsActive) {
+    const endedAt = typeof now === 'function' ? now() : Date.now();
+    await emitLifecycleSafe({
+      bus,
+      event: 'close-validate.end',
+      payload: {
+        epicId,
+        storyId,
+        ok: true,
+        gateCount,
+        durationMs: Math.max(0, endedAt - startedAt),
+      },
+      logger,
+    });
   }
   return validation;
 }
