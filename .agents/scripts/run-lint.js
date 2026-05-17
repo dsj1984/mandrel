@@ -47,8 +47,13 @@ const tasks = [
     //      listener modules that register on `'*'`.
     // Both rules are mandated by Tech Spec #2189 and have no biome
     // equivalent.
+    //
+    // Use bare `node` (PATH-resolved) rather than `process.execPath`:
+    // `process.execPath` on Windows often expands to `C:\Program
+    // Files\nodejs\node.exe`, and spawn(..., { shell: true }) does not
+    // quote the executable, so the space breaks invocation.
     name: 'lifecycle-lint',
-    cmd: process.execPath,
+    cmd: 'node',
     args: ['.agents/scripts/check-lifecycle-lint.js'],
   },
 ];
