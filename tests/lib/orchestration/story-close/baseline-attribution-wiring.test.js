@@ -71,10 +71,12 @@ describe('runRefreshCommit — Story branch refresh path', () => {
     assert.equal(spawnCalls.length, 1);
     assert.equal(spawnCalls[0].cmd, 'npm');
     assert.deepEqual(spawnCalls[0].args, ['run', 'maintainability:update']);
-    // Verified ordering: add, status, commit, rev-parse.
+    // Verified ordering: add, status, log (prior-refresh probe added by
+    // Story #2176), commit, rev-parse. The probe returns an empty subject
+    // by default so the "fresh commit" path runs unchanged.
     assert.deepEqual(
       calls.map((c) => c.args[0]),
-      ['add', 'status', 'commit', 'rev-parse'],
+      ['add', 'status', 'log', 'commit', 'rev-parse'],
     );
   });
 
@@ -404,6 +406,211 @@ describe('runPreMergeGatesWithAttribution — bounded retry contract', () => {
       }),
       /failed at "lint"/,
     );
+  });
+});
+
+describe('runRefreshCommit — Story #2176 single-commit invariant', () => {
+  it('skips with no-baseline-drift when staged tree matches prior refresh commit', () => {
+    const cycleState = { priorRefreshSha: 'abc1234' };
+    const spawnSync = () => ({ status: 0 });
+    const { gitRunner, calls } = makeRecordingGit({
+      'add -u': { status: 0 },
+      'status --porcelain': {
+        status: 0,
+        stdout: ' M baselines/maintainability.json',
+      },
+      // Staged tree byte-for-byte matches the prior commit's tree.
+      'diff --cached abc1234': { status: 0, stdout: '' },
+      'reset HEAD --': { status: 0 },
+    });
+    const result = runRefreshCommit({
+      cwd: '/repo',
+      refreshCmd: { cmd: 'npm', args: ['run', 'maintainability:update'] },
+      refreshSubject: 'baseline-refresh: maintainability',
+      cycleState,
+      spawnSync,
+      gitRunner,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.skipped, true);
+    assert.equal(result.reason, 'no-baseline-drift');
+    assert.equal(result.sha, 'abc1234');
+    // Critical: no `commit` call landed.
+    assert.ok(
+      !calls.some((c) => c.args[0] === 'commit'),
+      'no commit should be emitted when staged tree matches prior refresh',
+    );
+  });
+
+  it('amends prior refresh commit when staged tree differs (no sibling commit)', () => {
+    const cycleState = { priorRefreshSha: 'abc1234' };
+    const spawnSync = () => ({ status: 0 });
+    const { gitRunner, calls } = makeRecordingGit({
+      'add -u': { status: 0 },
+      'status --porcelain': {
+        status: 0,
+        stdout: ' M baselines/maintainability.json',
+      },
+      'diff --cached abc1234': { status: 0, stdout: 'drift\n' },
+      'commit --amend --no-edit': { status: 0 },
+      'rev-parse --short HEAD': { status: 0, stdout: 'def5678' },
+    });
+    const result = runRefreshCommit({
+      cwd: '/repo',
+      refreshCmd: { cmd: 'npm', args: ['run', 'maintainability:update'] },
+      refreshSubject: 'baseline-refresh: maintainability',
+      cycleState,
+      spawnSync,
+      gitRunner,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.amended, true);
+    assert.equal(result.sha, 'def5678');
+    assert.equal(cycleState.priorRefreshSha, 'def5678');
+    // Critical: amend ran, no `commit -m` sibling was emitted.
+    const commitCalls = calls.filter((c) => c.args[0] === 'commit');
+    assert.equal(commitCalls.length, 1);
+    assert.deepEqual(commitCalls[0].args, ['commit', '--amend', '--no-edit']);
+  });
+
+  it('detects prior refresh at HEAD when cycleState is absent (multi-invocation safety)', () => {
+    const spawnSync = () => ({ status: 0 });
+    const { gitRunner, calls } = makeRecordingGit({
+      'add -u': { status: 0 },
+      'status --porcelain': {
+        status: 0,
+        stdout: ' M baselines/maintainability.json',
+      },
+      'log -1 --format=%s HEAD': {
+        status: 0,
+        stdout: 'baseline-refresh: maintainability',
+      },
+      'rev-parse HEAD': { status: 0, stdout: 'cafe9999' },
+      'diff --cached cafe9999': { status: 0, stdout: 'drift\n' },
+      'commit --amend --no-edit': { status: 0 },
+      'rev-parse --short HEAD': { status: 0, stdout: 'beef1111' },
+    });
+    const result = runRefreshCommit({
+      cwd: '/repo',
+      refreshCmd: { cmd: 'npm', args: ['run', 'maintainability:update'] },
+      refreshSubject: 'baseline-refresh: maintainability',
+      // No cycleState — second story-close invocation; HEAD inspection
+      // still folds the new refresh into the prior commit.
+      spawnSync,
+      gitRunner,
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.amended, true);
+    assert.equal(result.sha, 'beef1111');
+    const commitCalls = calls.filter((c) => c.args[0] === 'commit');
+    assert.equal(commitCalls.length, 1);
+    assert.deepEqual(commitCalls[0].args, ['commit', '--amend', '--no-edit']);
+  });
+});
+
+describe('runPreMergeGatesWithAttribution — single-commit invariant across retries (Story #2176)', () => {
+  it('synthetic 3-attempt retry (fail, fail, pass) lands ≤1 baseline-refresh commit', async () => {
+    // Drives the real runRefreshCommit via the real handleBaselineGateFailure
+    // (with a stub classifier that returns all-attributable) so we can count
+    // actual git commit invocations across the retry loop.
+    let preMergeAttempts = 0;
+    const runPreMergeGates = () => {
+      preMergeAttempts += 1;
+      if (preMergeAttempts < 3) {
+        throw new Error(
+          'Pre-merge validation failed at "check-maintainability" (exit 1) in /repo.',
+        );
+      }
+      // Attempt 3 succeeds.
+    };
+
+    // Record every gitSpawn call across all attempts.
+    const allCalls = [];
+    let attemptIndex = 0;
+    const gitSpawn = (cwd, ...args) => {
+      allCalls.push({ attemptIndex, cwd, args });
+      const key = args.join(' ');
+      // Story-diff (attribution classifier) — empty diff so classifier
+      // treats every regression as touched-only (attributable).
+      if (key === 'diff --name-only origin/epic/2129...story-2176') {
+        return { status: 0, stdout: 'lib/touched.js\n', stderr: '' };
+      }
+      if (key === 'add -u') return { status: 0 };
+      if (key === 'status --porcelain') {
+        return { status: 0, stdout: ' M baselines/maintainability.json' };
+      }
+      // First attempt: no prior refresh.
+      if (key === 'log -1 --format=%s HEAD' && attemptIndex === 1) {
+        return { status: 0, stdout: 'feat(x): unrelated' };
+      }
+      // First attempt commit: fresh.
+      if (key === 'commit -m baseline-refresh: maintainability') {
+        return { status: 0 };
+      }
+      if (key === 'rev-parse --short HEAD') {
+        return { status: 0, stdout: `sha${attemptIndex}` };
+      }
+      // Subsequent attempts: prior refresh present via cycleState; staged
+      // tree differs → amend.
+      if (key.startsWith('diff --cached ')) {
+        return { status: 0, stdout: 'drift\n' };
+      }
+      if (key === 'commit --amend --no-edit') return { status: 0 };
+      return { status: 0, stdout: '', stderr: '' };
+    };
+
+    const handleBaselineGateFailureFn = async (input) => {
+      attemptIndex += 1;
+      return handleBaselineGateFailure({
+        ...input,
+        deps: { gitRunner: { gitSpawn }, spawnSync: () => ({ status: 0 }) },
+      });
+    };
+
+    const result = await runPreMergeGatesWithAttribution({
+      cwd: '/repo',
+      worktreePath: '/repo',
+      epicBranch: 'epic/2129',
+      storyBranch: 'story-2176',
+      agentSettings: {},
+      storyId: 2176,
+      epicId: 2129,
+      useEvidence: false,
+      provider: {},
+      runPreMergeGates,
+      handleBaselineGateFailureFn,
+      projectRegressionsFn: ({ gateName }) =>
+        gateName === 'check-maintainability'
+          ? [{ path: 'lib/touched.js' }]
+          : [],
+      maxAttempts: 3,
+    });
+
+    assert.equal(result.status, 'ok');
+    assert.equal(preMergeAttempts, 3);
+
+    // AC #1: at most one `commit -m baseline-refresh:` invocation lands.
+    const freshCommits = allCalls.filter(
+      (c) =>
+        c.args[0] === 'commit' &&
+        c.args[1] === '-m' &&
+        typeof c.args[2] === 'string' &&
+        c.args[2].startsWith('baseline-refresh:'),
+    );
+    assert.equal(
+      freshCommits.length,
+      1,
+      'exactly one fresh baseline-refresh commit lands across the retry sequence',
+    );
+
+    // Subsequent retry MUST have used amend, not a fresh sibling.
+    const amends = allCalls.filter(
+      (c) =>
+        c.args[0] === 'commit' &&
+        c.args[1] === '--amend' &&
+        c.args[2] === '--no-edit',
+    );
+    assert.equal(amends.length, 1, 'second retry folded via amend');
   });
 });
 
