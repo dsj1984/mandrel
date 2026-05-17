@@ -509,7 +509,10 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       // listener clears its active-cascade tracker and the downstream
       // LabelTransitioner / NotifyDispatcher / StructuredCommentPoster
       // listeners produce the resume side effects.
-      if (blockerHandler && typeof blockerHandler.emitUnblocked === 'function') {
+      if (
+        blockerHandler &&
+        typeof blockerHandler.emitUnblocked === 'function'
+      ) {
         try {
           await blockerHandler.emitUnblocked();
         } catch (err) {

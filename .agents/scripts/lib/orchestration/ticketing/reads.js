@@ -111,8 +111,7 @@ export const CLAIM_TYPE_PATTERN = /^claim-([0-9]{1,9})$/;
  * `lifecycle-epic-unblocked`). Treated as a generic prefix so future
  * listener-owned events can mint new markers without touching this enum.
  */
-export const LIFECYCLE_TYPE_PATTERN =
-  /^lifecycle-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const LIFECYCLE_TYPE_PATTERN = /^lifecycle-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * @param {string} type

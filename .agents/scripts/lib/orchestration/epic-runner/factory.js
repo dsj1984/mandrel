@@ -165,7 +165,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // Pre-bound wait-for-resume closure — pulls labels via the provider
   // and journals failures into the shared `journal` so iterate-waves
   // does not need to know about pollUntil internals.
-  const blockerWait = (info, signal) =>
+  const blockerWait = (_info, signal) =>
     waitForEpicUnblock({
       epicId: ctx.epicId,
       labelFetcher: async (id) => (await provider.getTicket(id)).labels ?? [],

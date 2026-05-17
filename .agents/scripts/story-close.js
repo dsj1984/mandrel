@@ -18,10 +18,10 @@
  */
 
 import { runAsCli } from './lib/cli-utils.js';
+import { tempRootFrom } from './lib/config/temp-paths.js';
 import { getQuality, PROJECT_ROOT } from './lib/config-resolver.js';
 import { gitSpawn as defaultGitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
-import { tempRootFrom } from './lib/config/temp-paths.js';
 import { createBus } from './lib/orchestration/lifecycle/bus.js';
 import { createLedgerWriter } from './lib/orchestration/lifecycle/ledger-writer.js';
 import { runAutoRefresh } from './lib/orchestration/story-close/auto-refresh-runner.js';
@@ -164,7 +164,9 @@ const SPAWN_TIMEOUT_REASONS = Object.freeze({
 });
 
 export function resolveSpawnTimeoutReason(spawnName) {
-  return SPAWN_TIMEOUT_REASONS[spawnName] ?? `timeout:${spawnName ?? 'unknown'}`;
+  return (
+    SPAWN_TIMEOUT_REASONS[spawnName] ?? `timeout:${spawnName ?? 'unknown'}`
+  );
 }
 
 /**

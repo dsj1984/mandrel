@@ -96,7 +96,11 @@ export class BlockerHandler {
    *   Optional logger; defaults to `console`.
    */
   constructor(opts = {}) {
-    if (!opts.bus || typeof opts.bus.on !== 'function' || typeof opts.bus.emit !== 'function') {
+    if (
+      !opts.bus ||
+      typeof opts.bus.on !== 'function' ||
+      typeof opts.bus.emit !== 'function'
+    ) {
       throw new TypeError('BlockerHandler requires a bus with on() and emit()');
     }
     if (!Number.isInteger(opts.epicId) || opts.epicId < 1) {
