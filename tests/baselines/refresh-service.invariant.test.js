@@ -86,8 +86,9 @@ const MIGRATION_ALLOWLIST = Object.freeze(
     // Story #2199 (story-close auto-refresh → refreshBaseline)
     '.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js',
 
-    // Story #2200 (finalize → refreshBaseline)
-    '.agents/scripts/epic-deliver-finalize.js',
+    // Story #2204 (finalize → refreshBaseline) — MIGRATED. Removed from
+    // allowlist; finalize now routes through refreshBaseline() and no
+    // longer calls regenerateMainFromTree directly.
   ]),
 );
 
@@ -286,9 +287,14 @@ describe('refresh-service invariant — repository scan', () => {
       ),
       'Story #2199 (auto-refresh migration) allowlist entry must be present until that Story merges',
     );
+    // Story #2204 (finalize migration) — MIGRATED. epic-deliver-finalize.js
+    // no longer carries any forbidden direct calls. The repo-scan above is
+    // the load-bearing guard now: any regression that re-introduces
+    // regenerateMainFromTree() in finalize will fail without an explicit
+    // allowlist re-add.
     assert.ok(
-      MIGRATION_ALLOWLIST.has('.agents/scripts/epic-deliver-finalize.js'),
-      'Story #2200 (finalize migration) allowlist entry must be present until that Story merges',
+      !MIGRATION_ALLOWLIST.has('.agents/scripts/epic-deliver-finalize.js'),
+      'Story #2204 has migrated finalize; the allowlist entry MUST be removed',
     );
   });
 });
