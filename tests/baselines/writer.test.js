@@ -246,3 +246,141 @@ describe('writeFile()', () => {
     assert.ok(readFileSync(filePath, 'utf8').length > 0);
   });
 });
+
+describe('writeFile() — fsImpl seam (Story #2135 / Task #2146)', () => {
+  function makeRecorder() {
+    const calls = { mkdirSync: [], writeFileSync: [], renameSync: [] };
+    return {
+      calls,
+      impl: {
+        mkdirSync: (...args) => {
+          calls.mkdirSync.push(args);
+        },
+        writeFileSync: (...args) => {
+          calls.writeFileSync.push(args);
+        },
+        renameSync: (...args) => {
+          calls.renameSync.push(args);
+        },
+      },
+    };
+  }
+
+  it('routes mkdirSync/writeFileSync/renameSync through fsImpl when provided', () => {
+    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    const target = path.join(
+      tmpdir(),
+      'mandrel-fsimpl-never-touched',
+      'lint.json',
+    );
+    const { calls, impl } = makeRecorder();
+    writeFile(target, env, { fsImpl: impl });
+    assert.equal(calls.mkdirSync.length, 1);
+    assert.equal(calls.mkdirSync[0][0], path.dirname(target));
+    assert.deepEqual(calls.mkdirSync[0][1], { recursive: true });
+    assert.equal(calls.writeFileSync.length, 1);
+    assert.equal(calls.writeFileSync[0][0], `${target}.tmp`);
+    assert.ok(calls.writeFileSync[0][1].includes('"$schema"'));
+    assert.ok(calls.writeFileSync[0][1].endsWith('\n'));
+    assert.equal(calls.renameSync.length, 1);
+    assert.equal(calls.renameSync[0][0], `${target}.tmp`);
+    assert.equal(calls.renameSync[0][1], target);
+  });
+
+  it('does not touch disk when fsImpl is supplied', () => {
+    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    // A path that demonstrably does not exist; writing to it via real fs
+    // would fail (ENOENT on the parent). With the seam, the test passes.
+    const target = path.join(
+      tmpdir(),
+      'mandrel-fsimpl-no-disk',
+      'deep',
+      'never',
+      'lint.json',
+    );
+    const { impl } = makeRecorder();
+    assert.doesNotThrow(() => writeFile(target, env, { fsImpl: impl }));
+  });
+
+  it('treats a two-argument call as the default (real fs) path', () => {
+    const env = write({ ...FIXTURES.lint, generatedAt: FIXED_TIMESTAMP });
+    const workDir = mkdtempSync(path.join(tmpdir(), 'mandrel-writer-bc-'));
+    try {
+      const target = path.join(workDir, 'lint.json');
+      assert.doesNotThrow(() => writeFile(target, env));
+      assert.ok(readFileSync(target, 'utf8').length > 0);
+    } finally {
+      rmSync(workDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('write() — structural-equality short-circuit (Story #2135 / Task #2146)', () => {
+  it('returns the prior envelope unchanged when rows+rollup are structurally equal', () => {
+    const firstAt = '2026-01-01T00:00:00Z';
+    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
+    const laterAt = '2026-12-31T23:59:59Z';
+    const result = write({
+      ...FIXTURES.maintainability,
+      generatedAt: laterAt,
+      priorEnvelope: prior,
+    });
+    // Same envelope object: callers who serialise will produce the exact
+    // same bytes the prior was written with.
+    assert.equal(result, prior);
+    assert.equal(result.generatedAt, firstAt);
+  });
+
+  it('row order in the input does not defeat the short-circuit', () => {
+    const firstAt = '2026-01-01T00:00:00Z';
+    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
+    const laterAt = '2026-12-31T23:59:59Z';
+    const result = write({
+      kind: 'maintainability',
+      rows: [...FIXTURES.maintainability.rows].reverse(),
+      generatedAt: laterAt,
+      priorEnvelope: prior,
+    });
+    assert.equal(result, prior);
+  });
+
+  it('stamps a fresh envelope when rows actually drift', () => {
+    const firstAt = '2026-01-01T00:00:00Z';
+    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
+    const laterAt = '2026-12-31T23:59:59Z';
+    const drifted = {
+      ...FIXTURES.maintainability,
+      rows: FIXTURES.maintainability.rows.map((r, i) =>
+        i === 0 ? { ...r, mi: r.mi - 5 } : r,
+      ),
+    };
+    const result = write({
+      ...drifted,
+      generatedAt: laterAt,
+      priorEnvelope: prior,
+    });
+    assert.notEqual(result, prior);
+    assert.equal(result.generatedAt, laterAt);
+  });
+
+  it('accepts the prior as a full envelope passed via `prior`', () => {
+    // Backwards-compat path: some callers do not (yet) thread a separate
+    // `priorEnvelope` and instead pass the whole prior envelope object
+    // through the existing `prior` argument. The writer recognises an
+    // envelope shape there and uses it for the short-circuit only.
+    const firstAt = '2026-01-01T00:00:00Z';
+    const prior = write({ ...FIXTURES.maintainability, generatedAt: firstAt });
+    const result = write({
+      ...FIXTURES.maintainability,
+      generatedAt: '2026-12-31T23:59:59Z',
+      prior,
+    });
+    assert.equal(result, prior);
+  });
+
+  it('produces a fresh envelope when no prior is supplied (regression-safe default)', () => {
+    const generatedAt = '2026-06-01T00:00:00Z';
+    const result = write({ ...FIXTURES.maintainability, generatedAt });
+    assert.equal(result.generatedAt, generatedAt);
+  });
+});
