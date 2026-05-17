@@ -37,6 +37,14 @@ export class WaveObserver {
     this.epicId = epicId;
     this.logger = opts.logger ?? ctx?.logger ?? console;
     this.commitAssertion = opts.commitAssertion ?? ctx?.commitAssertion ?? null;
+    // Story #2239 Task #2242 — when the StructuredCommentPoster listener
+    // owns the `wave-<n>-start` / `wave-<n>-end` markers (i.e. the
+    // lifecycle bus is wired), the legacy comment-upsert side effect of
+    // this observer is suppressed so the two writers don't double-post
+    // the same marker with diverging bodies. The commit-assertion
+    // reclassification on `waveEnd` stays — it's the observer's
+    // non-comment responsibility and the wave loop still consumes it.
+    this.suppressComments = opts.suppressComments === true;
   }
 
   /**
@@ -66,7 +74,9 @@ export class WaveObserver {
       ),
       '```',
     ].join('\n');
-    await this.#upsert(WAVE_START_TYPE(wave.index), body);
+    if (!this.suppressComments) {
+      await this.#upsert(WAVE_START_TYPE(wave.index), body);
+    }
     return { startedAt };
   }
 
@@ -114,7 +124,9 @@ export class WaveObserver {
       ),
       '```',
     ].join('\n');
-    await this.#upsert(WAVE_END_TYPE(wave.index), body);
+    if (!this.suppressComments) {
+      await this.#upsert(WAVE_END_TYPE(wave.index), body);
+    }
     return { completedAt, durationMs, stories };
   }
 

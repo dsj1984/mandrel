@@ -18,7 +18,13 @@ import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
+import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
+import { StructuredCommentPoster } from '../lifecycle/listeners/structured-comment-poster.js';
 import { createTraceLogger } from '../lifecycle/trace-logger.js';
+import {
+  transitionTicketState,
+  upsertStructuredComment,
+} from '../ticketing.js';
 import { BlockerHandler } from './blocker-handler.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
@@ -50,7 +56,17 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
-  const waveObserver = new WaveObserver({ ctx, commitAssertion });
+  // Story #2239 — when the lifecycle bus is wired, the
+  // StructuredCommentPoster listener owns the `wave-<n>-start` /
+  // `wave-<n>-end` markers on the Epic ticket. The legacy wave
+  // observer still runs (for commit-assertion reclassification) but
+  // its comment side effect is suppressed so the two writers don't
+  // double-post diverging bodies for the same marker.
+  const waveObserver = new WaveObserver({
+    ctx,
+    commitAssertion,
+    suppressComments: true,
+  });
   const resolvedIntervalSec = Number(
     deliverRunner.progressReportIntervalSec ?? 0,
   );
@@ -112,6 +128,12 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // future contributors edit when adding listeners.
   registerSnapshotListeners({ bus, logger });
   registerPlanListeners({ bus, logger });
+  registerIterateWavesListeners({
+    bus,
+    provider,
+    epicId: ctx.epicId,
+    logger,
+  });
 
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const syncColumn = async (id, labels) => {
@@ -175,5 +197,38 @@ function registerPlanListeners({ bus, logger }) {
   if (!bus || typeof bus.on !== 'function') return;
   logger?.debug?.(
     '[lifecycle] plan listeners registered (writer-only; named slot reserved)',
+  );
+}
+
+/**
+ * Register iterate-waves listeners on the bus (Story #2239 Task #2242):
+ * LabelTransitioner and StructuredCommentPoster. Each listener owns
+ * exactly one side effect (label flips / structured-comment upserts)
+ * and is idempotent on `(event, seqId)` per the listeners/README.md
+ * contract.
+ *
+ * Listeners are constructed only when both `bus` and `provider` are
+ * present so unit fixtures that hand a minimal collaborators bag
+ * (`{}`) continue to operate without listeners.
+ */
+function registerIterateWavesListeners({ bus, provider, epicId, logger }) {
+  if (!bus || typeof bus.on !== 'function') return;
+  if (!provider || !Number.isInteger(epicId)) return;
+  const labelTransitioner = new LabelTransitioner({
+    provider,
+    epicId,
+    transitionTicketState,
+    logger,
+  });
+  labelTransitioner.register(bus);
+  const commentPoster = new StructuredCommentPoster({
+    provider,
+    epicId,
+    upsertStructuredComment,
+    logger,
+  });
+  commentPoster.register(bus);
+  logger?.debug?.(
+    '[lifecycle] iterate-waves listeners registered (label-transitioner, structured-comment-poster)',
   );
 }
