@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T00:36:26.825Z",
+  "generatedAt": "2026-05-17T01:44:36.758Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -756,7 +756,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "mi": 94.878
+      "mi": 93.214
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
@@ -1036,7 +1036,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 105.42
+      "mi": 105.421
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
@@ -3324,7 +3324,7 @@
     },
     {
       "path": "tests/workflows/epic-deliver.test.js",
-      "mi": 104.975
+      "mi": 105.25
     },
     {
       "path": "tests/workflows/epic-execute-record-wave-cli.test.js",
