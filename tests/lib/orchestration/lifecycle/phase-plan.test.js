@@ -25,10 +25,9 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { runBuildWaveDagPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
-import { runBuildWaveDagPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
 
 function readNdjson(p) {
   return readFileSync(p, 'utf8')
@@ -133,11 +132,7 @@ describe('lifecycle/phase-plan', () => {
     const provider = buildProvider([
       { id: 7100, labels: ['type::story'], body: '' },
     ]);
-    const result = await runBuildWaveDagPhase(
-      { epicId, provider },
-      {},
-      {},
-    );
+    const result = await runBuildWaveDagPhase({ epicId, provider }, {}, {});
     assert.ok(Array.isArray(result.waves));
     // No throw, no ledger to inspect (no bus → no writer wired here).
   });

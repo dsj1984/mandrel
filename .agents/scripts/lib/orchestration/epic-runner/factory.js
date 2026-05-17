@@ -14,8 +14,8 @@
  */
 
 import { notify } from '../../../notify.js';
-import { tempRootFrom } from '../../config/temp-paths.js';
 import { getRunners } from '../../config/runners.js';
+import { tempRootFrom } from '../../config/temp-paths.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { createTraceLogger } from '../lifecycle/trace-logger.js';
@@ -86,15 +86,19 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // the bus available; phases skip emits when no `bus` is on collaborators.
   const bus = ctx.bus ?? createBus();
   const tempRoot = tempRootFrom(config);
-  const ledgerWriter = ctx.ledgerWriter ?? createLedgerWriter({
-    epicId: ctx.epicId,
-    tempRoot,
-  });
+  const ledgerWriter =
+    ctx.ledgerWriter ??
+    createLedgerWriter({
+      epicId: ctx.epicId,
+      tempRoot,
+    });
   ledgerWriter.register(bus);
-  const traceLogger = ctx.traceLogger ?? createTraceLogger({
-    ledgerPath: ledgerWriter.ledgerPath,
-    epicId: ctx.epicId,
-  });
+  const traceLogger =
+    ctx.traceLogger ??
+    createTraceLogger({
+      ledgerPath: ledgerWriter.ledgerPath,
+      epicId: ctx.epicId,
+    });
   traceLogger.register(bus);
 
   // Phase-scoped listener registration. Snapshot + plan phases use the

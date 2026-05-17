@@ -21,10 +21,9 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { runSnapshotPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
-import { runSnapshotPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js';
 
 function readNdjson(p) {
   return readFileSync(p, 'utf8')
@@ -78,11 +77,7 @@ describe('lifecycle/phase-snapshot', () => {
     const writer = new LedgerWriter({ epicId, tempRoot });
     writer.register(bus);
 
-    const result = await runSnapshotPhase(
-      { epicId, provider },
-      { bus },
-      {},
-    );
+    const result = await runSnapshotPhase({ epicId, provider }, { bus }, {});
 
     assert.equal(result.epic.id, epicId);
     const records = readNdjson(writer.ledgerPath);

@@ -31,11 +31,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { runBuildWaveDagPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
+import { runSnapshotPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
-import { runSnapshotPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js';
-import { runBuildWaveDagPhase } from '../../../../.agents/scripts/lib/orchestration/epic-runner/phases/build-wave-dag.js';
 
 /** Read NDJSON ledger into an array of typed records. */
 function readNdjson(p) {
