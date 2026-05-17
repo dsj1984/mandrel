@@ -95,7 +95,7 @@ and upserts the `epic-run-state` checkpoint. Treat the printed JSON as
 > condition met → the snapshot throws a clear error
 > (`[epic-deliver] Epic #<id> cannot launch: …`) and `runAsCli`
 > maps it to `process.exit(1)`. Operator remediation: either run
-> `/epic-plan` Phase 1 to author + close the spec, or apply the
+> `/epic-plan` Phase 7 to author + close the spec, or apply the
 > `acceptance::n-a` label to opt out.
 
 ---

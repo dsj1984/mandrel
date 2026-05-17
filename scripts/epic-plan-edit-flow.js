@@ -3,7 +3,7 @@
 // has no main() because it has no CLI surface of its own.
 
 /**
- * epic-plan-edit-flow.js — Phase 2.5 edit-in-place flow for `/epic-plan`.
+ * epic-plan-edit-flow.js — Phase 8.5 edit-in-place flow for `/epic-plan`.
  *
  * Story #1499 (Epic #1182). Extracted from `epic-plan.js` so the
  * top-level wrapper remains a thin chainer over the author-then-

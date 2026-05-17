@@ -1,9 +1,9 @@
 /**
- * epic-plan-ideation.js — Phase 0c/0d helpers for /epic-plan
+ * epic-plan-ideation.js — Phase 3/4 helpers for /epic-plan
  *
- * Phase 0c: render an Epic body from a sharpened ideation one-pager
+ * Phase 3: render an Epic body from a sharpened ideation one-pager
  * using the canonical template at `.agents/templates/epic-from-idea.md`.
- * Phase 0d: open the GitHub Issue via an injected provider with the
+ * Phase 4: open the GitHub Issue via an injected provider with the
  * `type::epic` label only — no `state::draft` (the Epic carries only
  * `type::epic` until PRD authoring writes `agent::review-spec`).
  *
@@ -80,7 +80,7 @@ export function parseOnePager(onePager) {
  * Render the Epic body from a parsed one-pager and a template string.
  * Substitutes `{{key}}` tokens for the matching section. Missing
  * sections are rendered as `_(not specified)_` so the operator can spot
- * gaps during the HITL review (Phase 0c).
+ * gaps during the HITL review (Phase 3).
  *
  * @param {{
  *   onePager: string,
@@ -136,6 +136,58 @@ export async function openEpicFromOnePager({
     );
   }
   return { id: created.id, title, body, labels, url: created.url, payload };
+}
+
+/**
+ * Update an existing Epic Issue's body from a sharpened one-pager. The
+ * single persistence path used by the Phase 6 Epic Clarity Gate.
+ *
+ * The `editIssue` port matches the shape
+ * `({ epicId, body }) => Promise<void|object>` so unit tests can pass an
+ * in-memory mock. Idempotent: when `currentBody` exactly matches the
+ * freshly rendered body, the port is **not** called and the function
+ * returns `{ changed: false }`.
+ *
+ * @param {{
+ *   epicId: number,
+ *   onePager: string,
+ *   template: string,
+ *   editIssue: (payload: { epicId: number, body: string }) => Promise<unknown>,
+ *   currentBody?: string|null,
+ * }} args
+ * @returns {Promise<{
+ *   epicId: number,
+ *   title: string,
+ *   body: string,
+ *   changed: boolean,
+ *   payload?: { epicId: number, body: string },
+ * }>}
+ */
+export async function updateEpicFromOnePager({
+  epicId,
+  onePager,
+  template,
+  editIssue,
+  currentBody = null,
+}) {
+  if (typeof editIssue !== 'function') {
+    throw new Error('updateEpicFromOnePager: editIssue must be a function');
+  }
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new Error(
+      'updateEpicFromOnePager: epicId must be a positive integer',
+    );
+  }
+
+  const { title, body } = renderEpicBody({ onePager, template });
+
+  if (typeof currentBody === 'string' && currentBody === body) {
+    return { epicId, title, body, changed: false };
+  }
+
+  const payload = { epicId, body };
+  await editIssue(payload);
+  return { epicId, title, body, changed: true, payload };
 }
 
 export const __test = { ORDER, SECTION_RE };

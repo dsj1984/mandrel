@@ -13,7 +13,7 @@
  * The verification is **static**: we inspect `package.json` for a known BDD
  * runner dependency, and consult a small lookup table of which runners
  * support which pending/skip tag. We do not boot the runner. This keeps
- * `/epic-plan` Phase 1 hermetic and offline.
+ * `/epic-plan` Phase 7 hermetic and offline.
  *
  * Output shape (returned to the planner-context envelope):
  *
@@ -43,7 +43,7 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
 
 /**
  * Result returned when no supported BDD runner is detected. The acceptance
- * spec body will print "Fallback: dependencies-first ordering" and Phase 2
+ * spec body will print "Fallback: dependencies-first ordering" and Phase 8
  * decomposer ordering reverts to topological dependency order.
  */
 const FALLBACK = Object.freeze({

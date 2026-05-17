@@ -20,6 +20,15 @@ structured divergent and convergent thinking.
 3.  **Sharpen & Ship:** Produce a concrete markdown one-pager moving work
     forward.
 
+## Activation
+
+Called from `/epic-plan` Phase 1 (ideation entry, when no `<epic#>` is
+supplied or `--idea "<seed>"` is passed) and Phase 6 (Epic Clarity Gate,
+when an existing Epic body fails the section-presence rubric). In Phase 6
+the skill is seeded from the **current Epic body** — not a blank seed —
+with the rubric gap list (`missingOrPlaceholder`) as the convergence
+target.
+
 ## Usage
 
 This skill is primarily an interactive dialogue. Invoke it with an idea, and the

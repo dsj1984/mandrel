@@ -3,7 +3,7 @@ name: epic-plan-decompose-author
 description: >-
   Author the Feature/Story/Task ticket JSON for an Epic from the decomposer
   authoring context emitted by `epic-plan-decompose.js --emit-context`. Use
-  during Phase 2 of `/epic-plan` when the host LLM needs to write the ticket
+  during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket
   array before `epic-plan-decompose.js` validates and persists it.
 allowed_tools:
   - Read
@@ -21,7 +21,7 @@ a Tech Spec and emit a highly-granular three-level ticket hierarchy
 
 ## When to use
 
-`/epic-plan` Phase 2, immediately after
+`/epic-plan` Phase 8, immediately after
 `epic-plan-decompose.js --emit-context` writes
 `temp/epic-<Epic_ID>/decomposer-context.json`. The Skill replaces the
 inline "Author the Ticket Array" step in the legacy workflow body —
