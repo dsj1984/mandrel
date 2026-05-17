@@ -48,12 +48,13 @@
  *
  * --- Story #1702 (Epic #1653) bounded-sweep additions ---
  *
- * The block below carves out top-30 floor-gap offenders from
- * `docs/quality-floor-inventory-v6-1-0.md`. Each entry meets one of the
- * operator-approved criteria from Story #1702's body: thin CLI shell,
- * pure I/O glue, deprecation/one-shot script, or unit-mock-only test
- * surface. Per-file rationale lives in the `node:coverage ignore file`
- * pragma at the top of each source file; aggregate categories:
+ * The block below carves out top-30 floor-gap offenders from Story #1702
+ * (see git history under `epic/1653` for the full inventory table). Each
+ * entry meets one of the operator-approved criteria from Story #1702's
+ * body: thin CLI shell, pure I/O glue, deprecation/one-shot script, or
+ * unit-mock-only test surface. Per-file rationale lives in the
+ * `node:coverage ignore file` pragma at the top of each source file;
+ * aggregate categories:
  *
  *   Top-level CLI gates (lint/baselines gate and `/git-merge-pr` step
  *   gates):
