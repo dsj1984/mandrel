@@ -35,6 +35,7 @@ import {
   truncate as truncateFromComposition,
   upsertEpicRunProgress as upsertEpicRunProgressFromComposition,
 } from './progress-reporter/composition.js';
+import { escalateFireFailure } from './progress-reporter/fire-escalation.js';
 import {
   aggregatePhaseTimings as aggregatePhaseTimingsFromSignals,
   EPIC_RUN_PROGRESS_TYPE as EPIC_RUN_PROGRESS_TYPE_FROM_SIGNALS,
@@ -53,7 +54,6 @@ import {
   emitEpicStarted as emitEpicStartedFromTransport,
   emitEpicUnblocked as emitEpicUnblockedFromTransport,
 } from './progress-reporter/transport.js';
-import { escalateFireFailure } from './progress-reporter/fire-escalation.js';
 import { createStalledWorktreeDetector } from './progress-signals/stalled-worktree.js';
 
 // Re-exports — sub-module surfaces are aliased back to the parent path so
