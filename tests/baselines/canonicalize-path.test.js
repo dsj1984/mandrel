@@ -25,17 +25,26 @@ describe('canonicalizeBaselinePath()', () => {
     });
 
     it('accepts a lower-case drive letter', () => {
-      assert.equal(canonicalizeBaselinePath('d:\\proj\\src\\index.js'), 'proj/src/index.js');
+      assert.equal(
+        canonicalizeBaselinePath('d:\\proj\\src\\index.js'),
+        'proj/src/index.js',
+      );
     });
   });
 
   describe('mixed separator normalisation', () => {
     it("rewrites every '\\\\' to '/'", () => {
-      assert.equal(canonicalizeBaselinePath('src\\baselines\\foo.js'), 'src/baselines/foo.js');
+      assert.equal(
+        canonicalizeBaselinePath('src\\baselines\\foo.js'),
+        'src/baselines/foo.js',
+      );
     });
 
     it('normalises a mixed-separator path', () => {
-      assert.equal(canonicalizeBaselinePath('src/baselines\\foo.js'), 'src/baselines/foo.js');
+      assert.equal(
+        canonicalizeBaselinePath('src/baselines\\foo.js'),
+        'src/baselines/foo.js',
+      );
     });
   });
 
@@ -69,7 +78,10 @@ describe('canonicalizeBaselinePath()', () => {
     });
 
     it('strips a leading POSIX absolute slash', () => {
-      assert.equal(canonicalizeBaselinePath('/abs/path/foo.js'), 'abs/path/foo.js');
+      assert.equal(
+        canonicalizeBaselinePath('/abs/path/foo.js'),
+        'abs/path/foo.js',
+      );
     });
   });
 
