@@ -41,6 +41,7 @@ import {
 // for the same reason.
 export { forkAndCommitEpicSnapshot, forkMainToEpic };
 
+import { verifyBddRunnerPendingTag } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   getLimits,
@@ -102,6 +103,22 @@ CRITICAL REQUIREMENTS:
 - Do not use top-level <h1> (# ) tags. Start with ## Technical Overview.
 - Format architectural decisions clearly with bullet points.`;
 
+export const ACCEPTANCE_SPEC_SYSTEM_PROMPT = `You are an expert Acceptance Engineer.
+Your job is to convert a PRD and a Tech Spec into a structured Acceptance Specification that drives features-first BDD authoring.
+
+The Acceptance Spec should outline:
+1. Acceptance Criteria — one row per user-visible outcome, expressed as a Markdown table with columns: AC ID | Outcome | Feature File | Scenario | Disposition
+2. Stable AC IDs — assign AC-1, AC-2, ... in document order; reuse the same ID across re-plans when an Outcome is materially unchanged so scenario tags (@ac-N) stay aligned
+3. Disposition — tag each row with one of: new | updated | unchanged
+
+CRITICAL REQUIREMENTS:
+- Respond ONLY with valid Markdown.
+- Do not use top-level <h1> (# ) tags. Start with ## Acceptance Criteria.
+- Every AC row MUST have a stable AC ID of the form AC-<n> (AC-1, AC-2, ...) — do not reorder IDs across re-plans; new ACs get fresh sequential IDs.
+- Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
+- Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
+- Cite proposed feature file paths under tests/features/** so Phase 2 can scaffold matching scenarios.`;
+
 /**
  * Build the authoring context the host LLM (or the
  * `epic-plan-spec-author` Skill) needs to write the PRD and Tech Spec.
@@ -140,6 +157,12 @@ export async function buildAuthoringContext(
     { fullContext },
   );
 
+  // Story #2094 Task #2103 — verify the project's BDD runner pending-tag
+  // support so the acceptance-spec body can record either the verified tag
+  // (features-first ordering) or "fallback: dependencies-first ordering"
+  // when no supported runner is present.
+  const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
+
   return {
     epic: {
       id: epic.id,
@@ -152,7 +175,9 @@ export async function buildAuthoringContext(
     systemPrompts: {
       prd: PRD_SYSTEM_PROMPT,
       techSpec: TECH_SPEC_SYSTEM_PROMPT,
+      acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
+    bddRunner,
   };
 }
 
@@ -168,7 +193,7 @@ export async function buildAuthoringContext(
 export async function planEpic(
   epicId,
   provider,
-  { prdContent, techSpecContent },
+  { prdContent, techSpecContent, acceptanceSpecContent = null },
   _settings = {},
   { force = false } = {},
 ) {
@@ -182,6 +207,15 @@ export async function planEpic(
       '[Epic Planner] techSpecContent is required and must be non-empty.',
     );
   }
+  if (
+    acceptanceSpecContent !== null &&
+    (typeof acceptanceSpecContent !== 'string' ||
+      acceptanceSpecContent.trim() === '')
+  ) {
+    throw new Error(
+      '[Epic Planner] acceptanceSpecContent, when provided, must be a non-empty string.',
+    );
+  }
 
   Logger.info(`[Epic Planner] Fetching Epic #${epicId}...`);
   const epic = await provider.getEpic(epicId);
@@ -193,14 +227,26 @@ export async function planEpic(
   const stateManager = new PlanningStateManager(provider);
   await stateManager.healAndCleanupArtifacts(epic, force);
 
-  // M-8: Resumable planning — if PRD exists but Tech Spec doesn't, resume from PRD.
-  if (!force && epic.linkedIssues?.prd && epic.linkedIssues?.techSpec) {
+  // M-8: Resumable planning — if all artifacts exist, abort to prevent dupes.
+  const wantsAcceptanceSpec = acceptanceSpecContent !== null;
+  const hasPrd = Boolean(epic.linkedIssues?.prd);
+  const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
+  const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
+  const allLinked =
+    hasPrd && hasTechSpec && (wantsAcceptanceSpec ? hasAcceptanceSpec : true);
+  if (!force && allLinked) {
     Logger.warn(
-      `[Epic Planner] Epic #${epicId} already has both PRD and Tech Spec. Aborting to prevent duplicates. Use --force to re-plan.`,
+      `[Epic Planner] Epic #${epicId} already has all requested planning artifacts. Aborting to prevent duplicates. Use --force to re-plan.`,
     );
     return;
   }
   const existingPrdId = force ? null : (epic.linkedIssues?.prd ?? null);
+  const existingTechSpecId = force
+    ? null
+    : (epic.linkedIssues?.techSpec ?? null);
+  const existingAcceptanceSpecId = force
+    ? null
+    : (epic.linkedIssues?.acceptanceSpec ?? null);
 
   let prdId;
   if (existingPrdId) {
@@ -222,25 +268,69 @@ export async function planEpic(
     prdId = prdTicket.id;
   }
 
-  Logger.info(
-    `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
-  );
-  const techSpecTicket = await provider.createTicket(epicId, {
-    title: `[Tech Spec] ${epic.title}`,
-    body: techSpecContent,
-    labels: ['context::tech-spec'],
-    dependencies: [prdId],
-  });
-  Logger.info(
-    `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
-  );
+  let techSpecId;
+  if (existingTechSpecId) {
+    Logger.info(
+      `[Epic Planner] Reusing existing Tech Spec #${existingTechSpecId}. Skipping Tech Spec creation.`,
+    );
+    techSpecId = existingTechSpecId;
+  } else {
+    Logger.info(
+      `[Epic Planner] Creating Tech Spec issue linking to PRD #${prdId}...`,
+    );
+    const techSpecTicket = await provider.createTicket(epicId, {
+      title: `[Tech Spec] ${epic.title}`,
+      body: techSpecContent,
+      labels: ['context::tech-spec'],
+      dependencies: [prdId],
+    });
+    Logger.info(
+      `[Epic Planner] Created Tech Spec Issue #${techSpecTicket.id} (${techSpecTicket.url})`,
+    );
+    techSpecId = techSpecTicket.id;
+  }
+
+  let acceptanceSpecId = null;
+  if (wantsAcceptanceSpec) {
+    if (existingAcceptanceSpecId) {
+      Logger.info(
+        `[Epic Planner] Reusing existing Acceptance Spec #${existingAcceptanceSpecId}. Skipping Acceptance Spec creation.`,
+      );
+      acceptanceSpecId = existingAcceptanceSpecId;
+    } else {
+      Logger.info(
+        `[Epic Planner] Creating Acceptance Spec issue linking to Tech Spec #${techSpecId}...`,
+      );
+      const acceptanceTicket = await provider.createTicket(epicId, {
+        title: `[Acceptance Spec] ${epic.title}`,
+        body: acceptanceSpecContent,
+        labels: ['context::acceptance-spec'],
+        dependencies: [techSpecId],
+      });
+      Logger.info(
+        `[Epic Planner] Created Acceptance Spec Issue #${acceptanceTicket.id} (${acceptanceTicket.url})`,
+      );
+      acceptanceSpecId = acceptanceTicket.id;
+    }
+  }
 
   Logger.info(
     `[Epic Planner] Updating Epic #${epicId} with linked documents...`,
   );
 
-  // Format exactly so getEpic regex /PRD:\s*#\d+/i still catches it efficiently.
-  const appendBody = `\n\n## Planning Artifacts\n- [ ] PRD: #${prdId}\n- [ ] Tech Spec: #${techSpecTicket.id}\n`;
+  // Format exactly so the issue-link-parser regexes still catch each line.
+  // The parser is the source of truth for which prefixes are accepted; we
+  // emit the canonical "PRD: #N" / "Tech Spec: #N" / "Acceptance Spec: #N"
+  // shape so cascade-close (epic-deliver-finalize) and the Phase 2
+  // decomposer-context picker both see the third link.
+  const artifactLines = [
+    `- [ ] PRD: #${prdId}`,
+    `- [ ] Tech Spec: #${techSpecId}`,
+  ];
+  if (acceptanceSpecId !== null) {
+    artifactLines.push(`- [ ] Acceptance Spec: #${acceptanceSpecId}`);
+  }
+  const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
   const newBody = epic.body + appendBody;
 
   await provider.updateTicket(epicId, {
@@ -374,7 +464,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
 export async function runSpecPhase(
   epicId,
   provider,
-  { prdContent, techSpecContent },
+  { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
   { force = false } = {},
 ) {
@@ -398,13 +488,20 @@ export async function runSpecPhase(
   await checkpointer.initialize();
   await checkpointer.setPhase(PLAN_PHASES.PLANNING);
 
-  await planEpic(epicId, provider, { prdContent, techSpecContent }, settings, {
-    force,
-  });
+  await planEpic(
+    epicId,
+    provider,
+    { prdContent, techSpecContent, acceptanceSpecContent },
+    settings,
+    {
+      force,
+    },
+  );
 
   const afterPlan = await provider.getEpic(epicId);
   const prdId = afterPlan.linkedIssues?.prd ?? null;
   const techSpecId = afterPlan.linkedIssues?.techSpec ?? null;
+  const acceptanceSpecId = afterPlan.linkedIssues?.acceptanceSpec ?? null;
 
   // Story #1585 (Epic #1471): the baseline-snapshot fork was previously
   // performed here at plan-time. It now runs at first-story-init time
@@ -415,6 +512,7 @@ export async function runSpecPhase(
   const checkpoint = await checkpointer.updateSpec({
     prdId,
     techSpecId,
+    acceptanceSpecId,
     completedAt: new Date().toISOString(),
   });
 
@@ -426,8 +524,10 @@ export async function runSpecPhase(
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
+  const acceptanceSummary =
+    acceptanceSpecId !== null ? `, Acceptance Spec #${acceptanceSpecId}` : '';
   Logger.info(
-    `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}.`,
+    `[epic-plan-spec] ✅ Spec phase complete for Epic #${epicId}. PRD #${prdId}, Tech Spec #${techSpecId}${acceptanceSummary}.`,
   );
   if (cleanup.deleted.length > 0) {
     Logger.info(
@@ -435,7 +535,14 @@ export async function runSpecPhase(
     );
   }
 
-  return { epicId, prdId, techSpecId, checkpoint, cleanup };
+  return {
+    epicId,
+    prdId,
+    techSpecId,
+    acceptanceSpecId,
+    checkpoint,
+    cleanup,
+  };
 }
 
 /* node:coverage ignore next */
@@ -445,6 +552,7 @@ async function main() {
       epic: { type: 'string' },
       prd: { type: 'string' },
       techspec: { type: 'string' },
+      'acceptance-spec': { type: 'string' },
       force: { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
@@ -454,7 +562,7 @@ async function main() {
 
   if (!values.epic) {
     throw new Error(
-      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file>) [--force]',
+      'Usage: epic-plan-spec.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --prd <file> --techspec <file> [--acceptance-spec <file>]) [--force]',
     );
   }
 
@@ -510,15 +618,20 @@ async function main() {
     );
   }
 
-  const [prdContent, techSpecContent] = await Promise.all([
+  const readPromises = [
     readFile(values.prd, 'utf8'),
     readFile(values.techspec, 'utf8'),
-  ]);
+  ];
+  if (values['acceptance-spec']) {
+    readPromises.push(readFile(values['acceptance-spec'], 'utf8'));
+  }
+  const [prdContent, techSpecContent, acceptanceSpecContent = null] =
+    await Promise.all(readPromises);
 
   const result = await runSpecPhase(
     epicId,
     provider,
-    { prdContent, techSpecContent },
+    { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
     { force: values.force },
   );

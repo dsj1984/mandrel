@@ -8,7 +8,13 @@
  */
 
 import { Logger } from '../Logger.js';
+import {
+  ACCEPTANCE_NA,
+  AGENT_LABELS,
+  CONTEXT_LABELS,
+} from '../label-constants.js';
 import { concurrentMap } from '../util/concurrent-map.js';
+
 /**
  * Snapshot of the Epic's planning-artifact state as seen / mutated by
  * {@link PlanningStateManager}. Mirrors the `epic-plan-state` structured
@@ -17,7 +23,7 @@ import { concurrentMap } from '../util/concurrent-map.js';
  *
  * @typedef {object} PlanCheckpointState
  * @property {number} epicId                             Epic ticket id.
- * @property {{ prd: (number | null), techSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
+ * @property {{ prd: (number | null), techSpec: (number | null), acceptanceSpec: (number | null) }} linkedIssues  Canonical planning-artifact references persisted on the Epic.
  * @property {string} body                               Current Epic body (may include a `## Planning Artifacts` section).
  */
 
@@ -66,10 +72,13 @@ export class PlanningStateManager {
     // Collect ALL planning artifacts — open AND closed — so stale
     // sub-issue links get cleaned up regardless of issue state.
     const allPrds = relatedTickets.filter((t) =>
-      t.labels.includes('context::prd'),
+      t.labels.includes(CONTEXT_LABELS.PRD),
     );
     const allSpecs = relatedTickets.filter((t) =>
-      t.labels.includes('context::tech-spec'),
+      t.labels.includes(CONTEXT_LABELS.TECH_SPEC),
+    );
+    const allAcceptanceSpecs = relatedTickets.filter((t) =>
+      t.labels.includes(CONTEXT_LABELS.ACCEPTANCE_SPEC),
     );
 
     // Canonical artifact = first open one; fallback to first overall.
@@ -77,6 +86,10 @@ export class PlanningStateManager {
       allPrds.find((t) => t.state === 'open') ?? allPrds[0] ?? null;
     const canonicalSpec =
       allSpecs.find((t) => t.state === 'open') ?? allSpecs[0] ?? null;
+    const canonicalAcceptanceSpec =
+      allAcceptanceSpecs.find((t) => t.state === 'open') ??
+      allAcceptanceSpecs[0] ??
+      null;
 
     // Heal linkedIssues if empty but tickets exist
     if (!epic.linkedIssues.prd && canonicalPrd?.state === 'open') {
@@ -91,14 +104,26 @@ export class PlanningStateManager {
         `[Epic Planner] Healed dangling Tech Spec reference: #${epic.linkedIssues.techSpec}`,
       );
     }
+    if (
+      !epic.linkedIssues.acceptanceSpec &&
+      canonicalAcceptanceSpec?.state === 'open'
+    ) {
+      epic.linkedIssues.acceptanceSpec = canonicalAcceptanceSpec.id;
+      Logger.info(
+        `[Epic Planner] Healed dangling Acceptance Spec reference: #${epic.linkedIssues.acceptanceSpec}`,
+      );
+    }
 
     // Identify redundant artifacts: everything that is NOT the canonical one.
     const canonicalPrdId = epic.linkedIssues.prd ?? canonicalPrd?.id;
     const canonicalSpecId = epic.linkedIssues.techSpec ?? canonicalSpec?.id;
+    const canonicalAcceptanceSpecId =
+      epic.linkedIssues.acceptanceSpec ?? canonicalAcceptanceSpec?.id;
 
     const redundant = [
       ...allPrds.filter((t) => t.id !== canonicalPrdId),
       ...allSpecs.filter((t) => t.id !== canonicalSpecId),
+      ...allAcceptanceSpecs.filter((t) => t.id !== canonicalAcceptanceSpecId),
     ];
 
     // Bound the close+detach mutation burst at 3 so wide redundancy
@@ -106,9 +131,14 @@ export class PlanningStateManager {
     await concurrentMap(
       redundant,
       async (t) => {
-        const successorId = t.labels.includes('context::prd')
-          ? canonicalPrdId
-          : canonicalSpecId;
+        let successorId;
+        if (t.labels.includes(CONTEXT_LABELS.PRD)) {
+          successorId = canonicalPrdId;
+        } else if (t.labels.includes(CONTEXT_LABELS.ACCEPTANCE_SPEC)) {
+          successorId = canonicalAcceptanceSpecId;
+        } else {
+          successorId = canonicalSpecId;
+        }
         Logger.info(
           `[Epic Planner] Cleaning up redundant artifact #${t.id} (superseded by #${successorId})...`,
         );
@@ -165,9 +195,13 @@ export class PlanningStateManager {
     // Force re-plan: close ALL old planning artifacts and strip body
     if (force) {
       const idsToClose = new Set(
-        [epic.linkedIssues.prd, epic.linkedIssues.techSpec].filter(Boolean),
+        [
+          epic.linkedIssues.prd,
+          epic.linkedIssues.techSpec,
+          epic.linkedIssues.acceptanceSpec,
+        ].filter(Boolean),
       );
-      for (const t of [...allPrds, ...allSpecs]) {
+      for (const t of [...allPrds, ...allSpecs, ...allAcceptanceSpecs]) {
         idsToClose.add(t.id);
       }
 
@@ -221,6 +255,113 @@ export class PlanningStateManager {
 
       epic.linkedIssues.prd = null;
       epic.linkedIssues.techSpec = null;
+      epic.linkedIssues.acceptanceSpec = null;
     }
+  }
+
+  /**
+   * Compute whether an Epic is ready to transition from `agent::review-spec`
+   * to `agent::ready` by inspecting the state of its context tickets.
+   *
+   * An Epic is ready when **all three** context tickets — PRD, Tech Spec, and
+   * Acceptance Spec — exist and are closed. The acceptance-spec requirement
+   * can be waived by attaching the `acceptance::n-a` label to the Epic, in
+   * which case acceptance-spec presence and state are ignored. Missing PRD
+   * or Tech Spec is never waivable through this method.
+   *
+   * This predicate is **pure** with respect to the world: it reads tickets
+   * via the provider and computes a verdict. Callers (e.g. the planning
+   * runner) are responsible for actually flipping the label when
+   * `ready === true`.
+   *
+   * @param {number} epicId  Epic ticket id.
+   * @returns {Promise<{ ready: boolean, reason: string, contexts: { prd: ('open' | 'closed' | 'missing'), techSpec: ('open' | 'closed' | 'missing'), acceptanceSpec: ('open' | 'closed' | 'missing' | 'waived') } }>}
+   *   `ready` is `true` when the Epic satisfies the readiness gate.
+   *   `reason` is a machine-readable code suitable for logging / metrics
+   *   (`all-context-closed`, `acceptance-waived`, `prd-missing`,
+   *   `prd-open`, `tech-spec-missing`, `tech-spec-open`,
+   *   `acceptance-spec-missing`, `acceptance-spec-open`).
+   *   `contexts` is per-axis status for callers that want to render the
+   *   verdict alongside ticket links.
+   */
+  async computeReviewReadiness(epicId) {
+    const epic = await this.provider.getTicket(epicId);
+    const relatedTickets = await this.provider.getTickets(epicId);
+    this.provider.primeTicketCache(relatedTickets);
+
+    const epicLabels = epic?.labels ?? [];
+    const acceptanceWaived = epicLabels.includes(ACCEPTANCE_NA);
+
+    const findByLabel = (label) =>
+      relatedTickets.find((t) => (t.labels ?? []).includes(label)) ?? null;
+
+    const prd = findByLabel(CONTEXT_LABELS.PRD);
+    const techSpec = findByLabel(CONTEXT_LABELS.TECH_SPEC);
+    const acceptanceSpec = findByLabel(CONTEXT_LABELS.ACCEPTANCE_SPEC);
+
+    const axisStatus = (ticket) => {
+      if (!ticket) return 'missing';
+      return ticket.state === 'closed' ? 'closed' : 'open';
+    };
+
+    const contexts = {
+      prd: axisStatus(prd),
+      techSpec: axisStatus(techSpec),
+      acceptanceSpec: acceptanceWaived ? 'waived' : axisStatus(acceptanceSpec),
+    };
+
+    if (contexts.prd === 'missing') {
+      return { ready: false, reason: 'prd-missing', contexts };
+    }
+    if (contexts.prd === 'open') {
+      return { ready: false, reason: 'prd-open', contexts };
+    }
+    if (contexts.techSpec === 'missing') {
+      return { ready: false, reason: 'tech-spec-missing', contexts };
+    }
+    if (contexts.techSpec === 'open') {
+      return { ready: false, reason: 'tech-spec-open', contexts };
+    }
+    if (!acceptanceWaived) {
+      if (contexts.acceptanceSpec === 'missing') {
+        return { ready: false, reason: 'acceptance-spec-missing', contexts };
+      }
+      if (contexts.acceptanceSpec === 'open') {
+        return { ready: false, reason: 'acceptance-spec-open', contexts };
+      }
+    }
+
+    return {
+      ready: true,
+      reason: acceptanceWaived ? 'acceptance-waived' : 'all-context-closed',
+      contexts,
+    };
+  }
+
+  /**
+   * If the Epic satisfies {@link computeReviewReadiness}, flip it from
+   * `agent::review-spec` to `agent::ready`. Returns the verdict plus the
+   * label transition that was applied (if any). No-ops when readiness is
+   * not yet satisfied — callers are expected to retry on the next planning
+   * tick rather than block.
+   *
+   * @param {number} epicId
+   * @returns {Promise<{ ready: boolean, reason: string, contexts: object, transitioned: boolean }>}
+   */
+  async flipEpicToReadyIfContextClosed(epicId) {
+    const verdict = await this.computeReviewReadiness(epicId);
+    if (!verdict.ready) {
+      return { ...verdict, transitioned: false };
+    }
+    await this.provider.updateTicket(epicId, {
+      labels: {
+        add: [AGENT_LABELS.READY],
+        remove: [AGENT_LABELS.REVIEW_SPEC],
+      },
+    });
+    Logger.info(
+      `[Epic Planner] Epic #${epicId} → ${AGENT_LABELS.READY} (${verdict.reason}).`,
+    );
+    return { ...verdict, transitioned: true };
   }
 }

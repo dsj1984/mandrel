@@ -157,7 +157,25 @@ planned.
    invocations.
 4. **If user declines**: Abort gracefully.
 
-## Phase 1: Epic Planning (PRD & Tech Spec)
+## Phase 1: Epic Planning (PRD, Tech Spec & Acceptance Spec)
+
+> **Three context tickets, not two.** Every Epic carries three planning
+> artifacts as linked GitHub sub-issues: PRD (`context::prd`), Tech Spec
+> (`context::tech-spec`), and Acceptance Spec
+> (`context::acceptance-spec`). The Acceptance Spec captures the
+> stable-ID acceptance criteria table (`| AC ID | Outcome | Feature
+> File | Scenario | Disposition |`) that drives close-time
+> reconciliation during `/epic-deliver` Phase 6. Operators may opt out
+> for refactor-only or docs-only Epics by applying the
+> `acceptance::n-a` label to the Epic ticket — when present, the
+> `epic-plan-spec-author` skill skips the Acceptance Spec output and
+> the runtime gates (start gate, finalize reconciler) honour the
+> waiver — the spec ticket itself need not be authored or approved when
+> the waiver is set. See [SDLC § Acceptance Spec — the third planning
+> context ticket](../SDLC.md#acceptance-spec--the-third-planning-context-ticket)
+> for the full lifecycle.
+
+<!-- separator: adjacent blockquotes -->
 
 > **Parallel-safe file naming (per-Epic tree).** Multiple Epics may be
 > planned or decomposed concurrently. Every temp file written in this
@@ -192,40 +210,58 @@ planned.
    via the `Read` tool (resolve `<agentRoot>` from
    `project.paths.agentRoot` — default `.agents`) and execute its
    procedure with `[Epic_ID]` as input. The skill reads
-   `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD and Tech
-   Spec markdown against the embedded system prompts, and writes them
-   to `temp/epic-[Epic_ID]/prd.md` and `temp/epic-[Epic_ID]/techspec.md`.
-   The skill is the authoritative authoring step — do **not** inline the
-   PRD / Tech Spec drafting in the workflow body. The skill front-matter
-   declares `allowed_tools: [Read, Write, Bash]`; it never calls GitHub.
+   `temp/epic-[Epic_ID]/planner-context.json`, authors the PRD, Tech
+   Spec, **and Acceptance Spec** markdown against the embedded system
+   prompts, and writes them to `temp/epic-[Epic_ID]/prd.md`,
+   `temp/epic-[Epic_ID]/techspec.md`, and
+   `temp/epic-[Epic_ID]/acceptance-spec.md`. The skill is the
+   authoritative authoring step — do **not** inline the PRD / Tech
+   Spec / Acceptance Spec drafting in the workflow body. The skill
+   front-matter declares `allowed_tools: [Read, Write, Bash]`; it
+   never calls GitHub.
 
-   The skill body carries the authoritative PRD + Tech Spec system
-   prompts. The `systemPrompts` field on the `--emit-context` envelope
-   is a backstop for legacy callers; the skill body wins when the two
-   surfaces diverge.
+   The skill body carries the authoritative PRD, Tech Spec, and
+   Acceptance Spec system prompts. The `systemPrompts` field on the
+   `--emit-context` envelope is a backstop for legacy callers; the
+   skill body wins when the two surfaces diverge.
 
 3. **Persist to GitHub**: Run the spec-phase CLI's persist half. It flips
    the Epic to `agent::review-spec` and writes the `epic-plan-state`
-   checkpoint.
+   checkpoint. The `--acceptance-spec` flag persists the third planning
+   ticket (`context::acceptance-spec`) alongside the PRD and Tech Spec;
+   the persist half fails loudly if the markdown file is missing or
+   empty. Omit `--acceptance-spec` only when the Epic carries the
+   `acceptance::n-a` waiver label.
 
    ```bash
-   # Normal planning
+   # Normal planning (three context tickets)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
-     --techspec temp/epic-[Epic_ID]/techspec.md
+     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md
 
    # Re-planning (force regeneration)
    node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
      --prd temp/epic-[Epic_ID]/prd.md \
-     --techspec temp/epic-[Epic_ID]/techspec.md --force
+     --techspec temp/epic-[Epic_ID]/techspec.md \
+     --acceptance-spec temp/epic-[Epic_ID]/acceptance-spec.md --force
+
+   # Waived (acceptance::n-a label on Epic — no spec authored)
+   node .agents/scripts/epic-plan-spec.js --epic [Epic_ID] \
+     --prd temp/epic-[Epic_ID]/prd.md \
+     --techspec temp/epic-[Epic_ID]/techspec.md
    ```
 
 4. **Verification**:
-   - Verify that the PRD and Technical Specification have been posted as linked
-     issues under the Epic.
-   - **STOP**: Ask the USER to review the generated PRD and Tech Spec on GitHub.
-     Do NOT proceed to decomposition until the user confirms the plan is
-     accurate.
+   - Verify that the PRD, Technical Specification, and (when not waived)
+     Acceptance Specification have been posted as linked issues under
+     the Epic.
+   - **STOP**: Ask the USER to review the generated PRD, Tech Spec, and
+     Acceptance Spec on GitHub. Operator approval is recorded by closing
+     the Acceptance Spec ticket — `/epic-deliver`'s start gate refuses
+     to launch until that ticket is closed (or the `acceptance::n-a`
+     waiver is on the Epic). Do NOT proceed to decomposition until the
+     user confirms the plan is accurate.
 
 5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 1
    temp files automatically on success — no operator action required. The

@@ -29,8 +29,12 @@
  *     archive; the webhook must not see the retro body.
  */
 
+import nodeFs from 'node:fs';
+import path from 'node:path';
+
 import { runChecks } from '../checks/index.js';
 import { assembleState } from '../checks/state.js';
+import { epicRetroMirrorPath } from '../config/temp-paths.js';
 import { CONTEXT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { isCleanManifest } from './retro-heuristics.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
@@ -371,6 +375,7 @@ export async function runRetro(opts = {}) {
     runChecksFn = runChecks,
     assembleStateFn = assembleState,
     cwd,
+    fsImpl = nodeFs,
   } = opts;
 
   if (!Number.isInteger(epicId) || epicId <= 0) {
@@ -426,6 +431,25 @@ export async function runRetro(opts = {}) {
     `[retro-runner] Posting ${compact ? 'compact' : 'full'} retro on Epic #${epicId}${findings.length > 0 ? ` (${findings.length} finding(s))` : ''}...`,
   );
   const result = await upsertFn(provider, epicId, 'retro', bodyWithChecks);
+
+  // Story #2089: also mirror the retro body to the per-Epic temp dir so
+  // operators can read it locally without re-fetching from GitHub. GitHub
+  // remains SSOT — a write failure logs a warn and does not fail the
+  // phase. The path is resolved relative to `cwd` when supplied so that
+  // worktree-scoped invocations land under the worktree's temp tree.
+  try {
+    const rel = epicRetroMirrorPath(epicId);
+    const absPath = path.isAbsolute(rel)
+      ? rel
+      : path.join(cwd ?? process.cwd(), rel);
+    fsImpl.mkdirSync(path.dirname(absPath), { recursive: true });
+    fsImpl.writeFileSync(absPath, bodyWithChecks, 'utf8');
+    logger?.info?.(`[retro-runner] Mirrored retro to ${absPath}`);
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] Failed to write retro mirror (retro.md) for Epic #${epicId} (continuing — GitHub upsert succeeded): ${err?.message ?? err}`,
+    );
+  }
 
   return {
     posted: true,

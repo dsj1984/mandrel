@@ -222,14 +222,57 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 
 1. **Epic Planner** (`epic-plan-spec.js`):
    - Synthesizes the Epic body with project documentation.
-   - Generates a **PRD** (`context::prd`) and **Tech Spec**
-     (`context::tech-spec`) as linked GitHub Issues.
+   - Generates a **PRD** (`context::prd`), **Tech Spec**
+     (`context::tech-spec`), and **Acceptance Spec**
+     (`context::acceptance-spec`) as linked GitHub Issues.
 
 > [!TIP] **PRD authoring — acceptance criteria phrasing.** Write acceptance
 > criteria in Gherkin-compatible `Given / When / Then` form so the QA
 > acceptance suite can lift them directly into executable `.feature` files. See
 > [`rules/gherkin-standards.md`](rules/gherkin-standards.md) for the canonical
 > clause grammar, tag taxonomy, and forbidden patterns.
+
+### Acceptance Spec — the third planning context ticket
+
+Every Epic carries **three** planning context tickets, not two:
+
+| Label                       | Artifact         | Authored by                                         | Drives                                                   |
+| --------------------------- | ---------------- | --------------------------------------------------- | -------------------------------------------------------- |
+| `context::prd`              | PRD              | `epic-plan-spec-author` skill (PRD persona)         | What we're shipping and why.                             |
+| `context::tech-spec`        | Tech Spec        | `epic-plan-spec-author` skill (Architect persona)   | How we're shipping it.                                   |
+| `context::acceptance-spec`  | Acceptance Spec  | `epic-plan-spec-author` skill (Acceptance Engineer) | The AC ID table that gates close-time reconciliation.    |
+
+The Acceptance Spec body is a single Markdown table —
+`| AC ID | Outcome | Feature File | Scenario | Disposition |` — with
+stable `AC-<n>` IDs assigned in document order. IDs are reused across
+re-plans when an Outcome is materially unchanged so scenario tags
+(`@ac-N`) stay aligned with the spec. Each row's `Disposition` is one
+of `new | updated | unchanged`. The skill also renders a **Runner
+Verification** line directly under the table that records the verified
+BDD runner + pending-tag (e.g. `playwright-bdd supports @skip`) for the
+features-first Story to consume.
+
+The spec is persisted by
+`epic-plan-spec.js --epic [Epic_ID] --prd ... --techspec ... --acceptance-spec ...`
+— the persist half writes all three artifacts in one atomic step and
+fails loudly if any is missing or empty.
+
+#### Opting out — the `acceptance::n-a` waiver
+
+Not every Epic warrants a formal Acceptance Spec (pure refactors,
+framework maintenance, docs-only churn). For those, the operator applies
+the **`acceptance::n-a`** label to the Epic ticket. The waiver is
+respected by both runtime gates:
+
+- The `/epic-deliver` **start gate** (Phase 1 snapshot) skips the
+  acceptance-spec presence check when the label is set.
+- The finalize-time **acceptance-spec reconciler** returns
+  `status: 'waived'` without scanning `tests/features/**` and the
+  finalize step proceeds.
+
+The waiver is binary — there is no partial opt-out. If an Epic later
+warrants spec coverage, remove the label and run `/epic-plan` Phase 1
+to author the spec.
 
 1. **Ticket Decomposer** (`epic-plan-decompose.js`):
    - Recursively decomposes specs into a 4-tier hierarchy:
@@ -267,6 +310,18 @@ Delivery is driven by the **Epic Deliver Runner**
 flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
 worktree isolation, and cascade closure.
+
+> **Acceptance-spec start gate.** Before a single wave fans out,
+> `/epic-deliver`'s snapshot phase
+> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
+> asserts that the Epic either (a) carries the `acceptance::n-a` waiver
+> label, or (b) has a linked `context::acceptance-spec` ticket whose
+> GitHub state is **closed** (i.e. the operator has approved the spec
+> after `/epic-plan` Phase 1). Neither condition met → the snapshot
+> throws a clear error naming the missing precondition and `runAsCli`
+> maps it to `process.exit(1)`. This refuses to launch Epics that
+> skipped acceptance-spec authoring, surfacing the gap at delivery time
+> rather than letting Story dispatch race ahead.
 
 ### Invocation modes
 
@@ -402,16 +457,39 @@ phases against the Epic branch before opening the PR:
    Epic. The retro fires **before** the PR opens — this keeps it inside
    the operator's local session with full env access (env vars,
    credentials, MCP servers); pushing it after PR-open would deny it
-   that access.
-4. **Finalize.** `epic-deliver-finalize.js` verifies `epic/<id>`
-   fast-forward-merges the current `main`, pushes the Epic branch to
-   `origin`, and runs `gh pr create --base main --head epic/<id>` with a
-   title and body sourced from the Epic's PRD summary. The PR's
-   required-checks expectation is set from
-   `agentSettings.quality.prGate.checks` so the GitHub branch-protection
-   gate matches the Epic-level validation that just ran. The Epic stays
-   at `agent::executing`; a hand-off structured comment names the PR
-   URL.
+   that access. After the GitHub upsert succeeds, the retro body is
+   also **mirrored locally** to the per-Epic temp tree at
+   `temp/epic-<id>/retro.md` (path resolved via
+   [`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)'s
+   `epicRetroMirrorPath`) so operators can read the retro without
+   re-fetching from GitHub. GitHub remains the source of truth; the
+   mirror write is best-effort and a failure only logs a warn.
+4. **Finalize.** `epic-deliver-finalize.js` runs three close-time
+   responsibilities in order:
+   1. **Acceptance-spec reconciliation.** Invokes
+      `acceptance-spec-reconciler.js` to diff the AC IDs declared in
+      the linked `context::acceptance-spec` body against `@ac-*` /
+      `@pending` tags in `tests/features/**`. A non-OK reconciliation
+      throws (per `.agents/rules/orchestration-error-handling.md`),
+      aborting finalize **before** the planning artifacts are closed —
+      so the PRD / Tech Spec / Acceptance Spec stay open until the AC
+      coverage gap is fixed. Skipped (`status: 'waived'`) when the Epic
+      carries `acceptance::n-a`.
+   2. **PR open and auto-merge arm.** Verifies `epic/<id>`
+      fast-forward-merges the current `main`, pushes the Epic branch to
+      `origin`, runs `gh pr create --base main --head epic/<id>` with a
+      title and body sourced from the Epic's PRD summary, and arms
+      GitHub native auto-merge via `gh pr merge --auto --squash
+      --delete-branch`. The PR's required-checks expectation is set
+      from `github.branchProtection.checks` so the
+      branch-protection gate matches the Epic-level validation that
+      just ran.
+   3. **Planning-artifact close + hand-off.** Closes the three
+      planning context tickets (`context::prd`, `context::tech-spec`,
+      `context::acceptance-spec`) so the Epic's `Closes #<id>`
+      auto-close path is not blocked by open sub-issues, then posts a
+      hand-off structured comment naming the PR URL. The Epic stays
+      at `agent::executing` until the PR merges.
 
 `/epic-deliver` exits cleanly without merging. The operator merges through
 the GitHub UI.

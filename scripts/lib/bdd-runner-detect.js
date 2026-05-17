@@ -1,0 +1,106 @@
+/**
+ * BDD runner detection + pending-tag verification (Epic #2001 Story #2094
+ * Task #2103).
+ *
+ * Used by `epic-plan-spec.js#buildAuthoringContext` to decide whether the
+ * acceptance-spec body should plan **features-first** Story ordering (a real
+ * pending-tag is available, so the features-first Story can ship `.feature`
+ * files marked `@pending` / `@skip` ahead of the implementation Stories) or
+ * fall back to **dependencies-first** ordering (no pending tag → cannot
+ * suspend an unimplemented scenario without a permanent red, so Stories run
+ * in dependency order and the AC reconciler defers).
+ *
+ * The verification is **static**: we inspect `package.json` for a known BDD
+ * runner dependency, and consult a small lookup table of which runners
+ * support which pending/skip tag. We do not boot the runner. This keeps
+ * `/epic-plan` Phase 1 hermetic and offline.
+ *
+ * Output shape (returned to the planner-context envelope):
+ *
+ *   { runner: 'cucumber-js',         pendingTag: '@skip',     supported: true,  fallback: false }
+ *   { runner: 'playwright-bdd',      pendingTag: '@skip',     supported: true,  fallback: false }
+ *   { runner: '@cucumber/cucumber',  pendingTag: '@skip',     supported: true,  fallback: false }
+ *   { runner: null,                  pendingTag: null,        supported: false, fallback: true,
+ *     reason: 'no-bdd-runner-detected' }
+ */
+
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+
+/**
+ * Known BDD runner package names → pending-tag string the runner honours.
+ *
+ * Keys MUST match the literal npm package name as it appears in
+ * `dependencies` or `devDependencies`. Order is preferred-first: if multiple
+ * runners are present (rare), the first match wins.
+ */
+export const BDD_RUNNER_TAG_TABLE = Object.freeze({
+  'playwright-bdd': '@skip',
+  '@cucumber/cucumber': '@skip',
+  'cucumber-js': '@skip',
+  cucumber: '@skip',
+});
+
+/**
+ * Result returned when no supported BDD runner is detected. The acceptance
+ * spec body will print "Fallback: dependencies-first ordering" and Phase 2
+ * decomposer ordering reverts to topological dependency order.
+ */
+const FALLBACK = Object.freeze({
+  runner: null,
+  pendingTag: null,
+  supported: false,
+  fallback: true,
+  reason: 'no-bdd-runner-detected',
+});
+
+/**
+ * Verify which BDD runner (if any) the project ships and whether it
+ * supports a pending/skip tag. Pure — only reads `package.json` from disk.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.cwd] - Project root holding `package.json`.
+ * @param {(p: string) => Promise<string>} [opts.readPkg] - Override for
+ *   tests; receives the resolved absolute path to `package.json`.
+ * @returns {Promise<{ runner: string|null, pendingTag: string|null, supported: boolean, fallback: boolean, reason?: string }>}
+ */
+export async function verifyBddRunnerPendingTag(opts = {}) {
+  const cwd = opts.cwd ?? process.cwd();
+  const readPkg = opts.readPkg ?? ((p) => readFile(p, 'utf8'));
+  const pkgPath = path.join(cwd, 'package.json');
+
+  let raw;
+  try {
+    raw = await readPkg(pkgPath);
+  } catch (err) {
+    if (err && err.code === 'ENOENT') {
+      return { ...FALLBACK, reason: 'package-json-missing' };
+    }
+    throw err;
+  }
+
+  let pkg;
+  try {
+    pkg = JSON.parse(raw);
+  } catch (err) {
+    return { ...FALLBACK, reason: `package-json-parse-error:${err.message}` };
+  }
+
+  const deps = {
+    ...(pkg.dependencies ?? {}),
+    ...(pkg.devDependencies ?? {}),
+  };
+
+  for (const [runner, pendingTag] of Object.entries(BDD_RUNNER_TAG_TABLE)) {
+    if (Object.hasOwn(deps, runner)) {
+      return {
+        runner,
+        pendingTag,
+        supported: true,
+        fallback: false,
+      };
+    }
+  }
+
+  return { ...FALLBACK };
+}
