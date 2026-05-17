@@ -62,7 +62,7 @@ describe('syncAgentrc — starter shape', () => {
     assert.deepEqual(JSON.parse(readFileSync(p, 'utf8')), starter);
   });
 
-  it('emits REDUNDANT advisories for default-equal values', () => {
+  it('emits REDUNDANT advisories for default-equal optional values', () => {
     const starter = {
       $schema: './.agents/schemas/agentrc.schema.json',
       project: {
@@ -76,10 +76,30 @@ describe('syncAgentrc — starter shape', () => {
     const paths = result.changes
       .filter((c) => c.op === 'REDUNDANT')
       .map((c) => c.path);
+    // Optional leaves that equal the default are advisory.
     assert.ok(paths.includes('project.baseBranch'));
-    assert.ok(paths.includes('project.paths.agentRoot'));
-    assert.ok(paths.includes('project.paths.docsRoot'));
-    assert.ok(paths.includes('project.paths.tempRoot'));
+  });
+
+  it('never flags schema-required leaves as redundant, even when default-equal', () => {
+    // The schema requires `project.paths.{agentRoot,docsRoot,tempRoot}`
+    // with `additionalProperties: false`. A consumer that carries the
+    // canonical layout cannot remove these keys without invalidating
+    // the config, so the [REDUNDANT] advisory must skip them.
+    const starter = {
+      $schema: './.agents/schemas/agentrc.schema.json',
+      project: {
+        paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
+      },
+      github: { owner: 'acme', repo: 'demo', operatorHandle: '@octocat' },
+    };
+    writeConfig(root, starter);
+    const result = syncAgentrc({ projectRoot: root });
+    const paths = result.changes
+      .filter((c) => c.op === 'REDUNDANT')
+      .map((c) => c.path);
+    assert.ok(!paths.includes('project.paths.agentRoot'));
+    assert.ok(!paths.includes('project.paths.docsRoot'));
+    assert.ok(!paths.includes('project.paths.tempRoot'));
   });
 });
 
