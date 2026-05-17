@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T01:58:36.513Z",
+  "generatedAt": "2026-05-17T02:07:51.606Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -308,7 +308,7 @@
     },
     {
       "path": ".agents/scripts/lib/bdd-runner-detect.js",
-      "mi": 96.575
+      "mi": 94.469
     },
     {
       "path": ".agents/scripts/lib/bootstrap/baselines-layout-migration.js",
@@ -1504,7 +1504,7 @@
     },
     {
       "path": "tests/acceptance-spec-reconciler.test.js",
-      "mi": 104.956
+      "mi": 106.832
     },
     {
       "path": "tests/agentrc-required-checks.test.js",
@@ -1652,7 +1652,7 @@
     },
     {
       "path": "tests/bdd-runner-detect.test.js",
-      "mi": 115.563
+      "mi": 116.714
     },
     {
       "path": "tests/bootstrap.test.js",
@@ -2077,6 +2077,10 @@
     {
       "path": "tests/graphql/query-builder.test.js",
       "mi": 107.678
+    },
+    {
+      "path": "tests/helpers/make-mock-provider.js",
+      "mi": 116.261
     },
     {
       "path": "tests/hierarchy-gate.test.js",
@@ -3040,7 +3044,7 @@
     },
     {
       "path": "tests/scripts/epic-deliver-baseline-reconciliation.test.js",
-      "mi": 106.749
+      "mi": 106.422
     },
     {
       "path": "tests/scripts/epic-deliver-cleanup.test.js",
