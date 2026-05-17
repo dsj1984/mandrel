@@ -53,6 +53,12 @@ export function markerTypeFor(event, payload) {
   if (event === 'epic.blocked') {
     return 'lifecycle-epic-blocked';
   }
+  if (event === 'epic.unblocked') {
+    // Story #2241 / Task #2246 — operator-resume marker. The marker
+    // type is stable per Epic (not seqId-scoped) so re-emits during
+    // recovery cycles upsert the same comment instead of fanning out.
+    return 'lifecycle-epic-unblocked';
+  }
   return null;
 }
 
@@ -109,6 +115,13 @@ export function renderBody(event, payload) {
     if (Number.isInteger(payload?.sourceStoryId)) {
       lines.push(`Source: #${payload.sourceStoryId}`);
     }
+  } else if (event === 'epic.unblocked') {
+    lines.push('### ✅ Epic unblocked');
+    lines.push('');
+    lines.push(`Reason: \`${payload?.reason ?? 'unknown'}\``);
+    if (Number.isInteger(payload?.sourceStoryId)) {
+      lines.push(`Source: #${payload.sourceStoryId}`);
+    }
   }
   lines.push('');
   lines.push('```json');
@@ -146,7 +159,12 @@ export class StructuredCommentPoster {
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` keys we've handled. */
     this._seen = new Set();
-    this.events = Object.freeze(['wave.start', 'wave.end', 'epic.blocked']);
+    this.events = Object.freeze([
+      'wave.start',
+      'wave.end',
+      'epic.blocked',
+      'epic.unblocked',
+    ]);
   }
 
   register(bus) {

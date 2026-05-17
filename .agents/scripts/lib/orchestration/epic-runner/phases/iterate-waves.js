@@ -128,6 +128,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     notify: notifyFn,
     checkpointer,
     blockerHandler,
+    blockerWait,
     launcher,
     waveObserver,
     progressReporter,
@@ -447,13 +448,41 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         detail: firstFailure.detail,
       };
       await syncColumn(epicId, [AGENT_LABELS.BLOCKED]);
-      // Post-blocked progress refresh: BlockerHandler.halt fires the
-      // `epic-blocked` notify itself; we follow up with an `epic-progress`
-      // snapshot carrying the open blocker so a Slack consumer sees the
-      // current state alongside the action-required ping. The progress
-      // fire still runs on the no-resume path so the snapshot survives the
-      // halted bail-out.
-      const halt = await blockerHandler.halt(blockerInfo);
+      // Story #2241 / Task #2246 — emit `story.blocked` on the bus. The
+      // lifecycle BlockerHandler listener (registered by the factory)
+      // classifies it and cascades to `epic.blocked`; the
+      // LabelTransitioner / StructuredCommentPoster / NotifyDispatcher
+      // listeners then own the label flip, structured comment, and
+      // webhook side effects. The cascade is best-effort; a bus failure
+      // must not abort the wait loop because the operator still needs
+      // to resume the Epic.
+      if (bus && Number.isInteger(blockerInfo.storyId)) {
+        try {
+          await bus.emit('story.blocked', {
+            storyId: Number(blockerInfo.storyId),
+            reason: blockerInfo.reason,
+          });
+        } catch (err) {
+          logger.warn?.(
+            `[EpicRunner] story.blocked emit failed (swallowed): ${err?.message ?? err}${journalSuffix()}`,
+          );
+          await journal?.record({
+            module: 'EpicRunner',
+            op: 'bus.emit(story.blocked)',
+            error: err,
+            recovery: 'swallowed',
+          });
+        }
+      }
+      // Post-blocked progress refresh: the lifecycle NotifyDispatcher
+      // listener fires `epic-blocked` from the bus cascade; we follow
+      // up with an `epic-progress` snapshot carrying the open blocker
+      // so a Slack consumer sees the current state alongside the
+      // action-required ping. The progress fire still runs on the
+      // no-resume path so the snapshot survives the halted bail-out.
+      const halt = blockerWait
+        ? await blockerWait(blockerInfo)
+        : { resumed: false, reasonToStop: 'no-wait-helper' };
       await emitEpicProgress({
         notify: notifyFn,
         epicId,
@@ -475,9 +504,23 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         };
       }
       await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
-      // Post-unblocked: explicit `epic-unblocked` fire + an
-      // `epic-progress` snapshot showing the cleared blocker list so the
-      // consumer can drop the "🚧 open blocker" badge.
+      // Story #2241 / Task #2246 — emit `epic.unblocked` once the
+      // operator's resume is observed. The lifecycle BlockerHandler
+      // listener clears its active-cascade tracker and the downstream
+      // LabelTransitioner / NotifyDispatcher / StructuredCommentPoster
+      // listeners produce the resume side effects.
+      if (blockerHandler && typeof blockerHandler.emitUnblocked === 'function') {
+        try {
+          await blockerHandler.emitUnblocked();
+        } catch (err) {
+          logger.warn?.(
+            `[EpicRunner] emitUnblocked failed (swallowed): ${err?.message ?? err}${journalSuffix()}`,
+          );
+        }
+      }
+      // Legacy notify fire — kept during the bus-cutover window for
+      // operators whose webhook consumers still parse the original
+      // `epic-unblocked` envelope. Removed in a follow-up Story.
       await emitEpicUnblocked({
         notify: notifyFn,
         epicId,

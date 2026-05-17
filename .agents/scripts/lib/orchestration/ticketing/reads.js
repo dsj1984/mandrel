@@ -105,6 +105,16 @@ export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
 export const CLAIM_TYPE_PATTERN = /^claim-([0-9]{1,9})$/;
 
 /**
+ * Lifecycle-listener marker pattern (Story #2239 / #2241 / #2242). The
+ * lifecycle StructuredCommentPoster writes minimal markers prefixed with
+ * `lifecycle-` (e.g. `lifecycle-wave-0-start`, `lifecycle-epic-blocked`,
+ * `lifecycle-epic-unblocked`). Treated as a generic prefix so future
+ * listener-owned events can mint new markers without touching this enum.
+ */
+export const LIFECYCLE_TYPE_PATTERN =
+  /^lifecycle-[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
  * @param {string} type
  * @returns {boolean}
  */
@@ -113,7 +123,8 @@ export function isValidStructuredCommentType(type) {
   return (
     STRUCTURED_COMMENT_TYPES.includes(type) ||
     WAVE_TYPE_PATTERN.test(type) ||
-    CLAIM_TYPE_PATTERN.test(type)
+    CLAIM_TYPE_PATTERN.test(type) ||
+    LIFECYCLE_TYPE_PATTERN.test(type)
   );
 }
 
@@ -128,7 +139,7 @@ export function assertValidStructuredCommentType(type) {
   if (isValidStructuredCommentType(type)) return;
   throw new Error(
     `Invalid structured-comment type: ${JSON.stringify(type)}. ` +
-      `Accepted: ${STRUCTURED_COMMENT_TYPES.join(', ')} or patterns ${WAVE_TYPE_PATTERN}, ${CLAIM_TYPE_PATTERN}.`,
+      `Accepted: ${STRUCTURED_COMMENT_TYPES.join(', ')} or patterns ${WAVE_TYPE_PATTERN}, ${CLAIM_TYPE_PATTERN}, ${LIFECYCLE_TYPE_PATTERN}.`,
   );
 }
 

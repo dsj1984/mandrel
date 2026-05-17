@@ -19,6 +19,7 @@ import { tempRootFrom } from '../../config/temp-paths.js';
 import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
+import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
@@ -29,7 +30,7 @@ import {
   transitionTicketState,
   upsertStructuredComment,
 } from '../ticketing.js';
-import { BlockerHandler } from './blocker-handler.js';
+import { waitForEpicUnblock } from './blocker-wait.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
@@ -50,11 +51,17 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ((ticketId, payload, opts = {}) =>
       notify(ticketId, payload, { orchestration: config, provider, ...opts }));
   const checkpointer = new Checkpointer({ ctx });
-  const blockerHandler = new BlockerHandler({
-    ctx,
-    notify: notifyFn,
-    errorJournal: journal,
-  });
+  // Story #2241 / Task #2246 — the legacy BlockerHandler (label flip +
+  // friction comment + notify + wait loop) is replaced by:
+  //   * the lifecycle BlockerHandler listener (classifies story.blocked
+  //     and cascades to epic.blocked / emits epic.unblocked),
+  //   * the existing LabelTransitioner / StructuredCommentPoster /
+  //     NotifyDispatcher listeners (own the side effects),
+  //   * the `waitForEpicUnblock` helper (owns the wait loop).
+  // The collaborator bag exposes `blockerWait` as a thin closure so
+  // iterate-waves can poll without re-importing the helper, and
+  // `blockerHandler` is the lifecycle listener instance so iterate-waves
+  // can call `emitUnblocked` after the operator resumes.
   const launcher = new StoryLauncher({ ctx });
   const gitAdapter =
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
@@ -146,6 +153,27 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
   });
+  // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
+  // listener. The instance is exposed on the collaborator bag so
+  // iterate-waves can call `emitUnblocked()` after the wait loop
+  // observes the operator's resume.
+  const blockerHandler = registerBlockerHandler({
+    bus,
+    epicId: ctx.epicId,
+    logger,
+  });
+  // Pre-bound wait-for-resume closure — pulls labels via the provider
+  // and journals failures into the shared `journal` so iterate-waves
+  // does not need to know about pollUntil internals.
+  const blockerWait = (info, signal) =>
+    waitForEpicUnblock({
+      epicId: ctx.epicId,
+      labelFetcher: async (id) => (await provider.getTicket(id)).labels ?? [],
+      pollIntervalMs: 30_000,
+      logger,
+      errorJournal: journal,
+      signal,
+    });
 
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const syncColumn = async (id, labels) => {
@@ -168,6 +196,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     notify: notifyFn,
     checkpointer,
     blockerHandler,
+    blockerWait,
     launcher,
     gitAdapter,
     commitAssertion,
@@ -181,6 +210,25 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     traceLogger,
     lifecycleProgressReporter,
   };
+}
+
+/**
+ * Construct and register the lifecycle BlockerHandler listener
+ * (Story #2241 / Task #2246). The listener owns story.blocked →
+ * epic.blocked cascade plus the matching epic.unblocked emit. Returns
+ * the instance so iterate-waves can drive `emitUnblocked()` after the
+ * wait loop observes the operator's resume. Returns `null` for unit
+ * fixtures that supply an unbusable collaborators bag.
+ */
+function registerBlockerHandler({ bus, epicId, logger }) {
+  if (!bus || typeof bus.on !== 'function') return null;
+  if (!Number.isInteger(epicId) || epicId < 1) return null;
+  const listener = new LifecycleBlockerHandler({ bus, epicId, logger });
+  listener.register();
+  logger?.debug?.(
+    '[lifecycle] blocker-handler listener registered (story.blocked → epic.blocked / .unblocked)',
+  );
+  return listener;
 }
 
 /**
