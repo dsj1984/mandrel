@@ -104,7 +104,7 @@ function makeProvider(graph) {
   return {
     posted: postedComments,
     deleted: deletedCommentIds,
-    async getSubIssues(id) {
+    async getSubTickets(id) {
       return subIssuesByParent.get(id) ?? [];
     },
     async getTicketComments(id) {
@@ -289,4 +289,175 @@ test('gatherRetroSignals: aggregates friction across stories', async () => {
   const signals = await gatherRetroSignals({ epicId: 110, provider });
   assert.equal(signals.counts.friction, 7);
   assert.equal(signals.storyPerfSummaries.length, 2);
+});
+
+// --- Story #2289 regression coverage ---
+
+test('runRetro: throws when provider is missing getSubTickets (no silent compact)', async () => {
+  // Pre-#2289, retro-runner called `provider.getSubIssues?.()` with an
+  // optional-chain — a provider that only implemented `getSubTickets`
+  // (per the ITicketingProvider contract) silently produced an empty
+  // descendant set. Now the call is unconditional, so the missing method
+  // throws and surfaces the contract drift instead of producing a wrong
+  // compact retro.
+  const provider = {
+    async getTicket() {
+      return { id: 500, title: 'Epic missing getSubTickets', body: '' };
+    },
+    async getTicketComments() {
+      return [];
+    },
+  };
+  await assert.rejects(() =>
+    runRetro({
+      epicId: 500,
+      provider,
+      timestamp: '2026-05-17T00:00:00.000Z',
+    }),
+  );
+});
+
+test('gatherRetroSignals: warns when descendants empty but Epic body references children', async () => {
+  // Defensive guard: if the walker returns zero descendants under an Epic
+  // whose body references child issues (`#123` planning refs), emit a
+  // warn so the silent failure surfaces. The guard is logger-only — it
+  // never throws and never blocks retro composition.
+  const provider = {
+    async getSubTickets() {
+      return [];
+    },
+    async getTicketComments() {
+      return [];
+    },
+    async getTicket(id) {
+      if (id === 600) {
+        return {
+          id: 600,
+          title: 'Populated Epic',
+          body: 'Children: #601 #602 #603',
+        };
+      }
+      return null;
+    },
+  };
+  const warns = [];
+  const signals = await gatherRetroSignals({
+    epicId: 600,
+    provider,
+    logger: { warn: (msg) => warns.push(msg) },
+  });
+  assert.equal(signals.tasks.length, 0);
+  assert.ok(
+    warns.some((line) => /under-report|contract drift|WARNING/i.test(line)),
+    `expected a warn line about the empty descendant walk, got: ${warns.join('\n') || '<none>'}`,
+  );
+});
+
+test('gatherRetroSignals: no warn when descendants empty and Epic body has no child refs', async () => {
+  // A truly empty / no-op Epic (body has no `#NNN` refs) should not
+  // trigger the guard — otherwise every legitimately-empty Epic would
+  // generate noise on every retro.
+  const provider = {
+    async getSubTickets() {
+      return [];
+    },
+    async getTicketComments() {
+      return [];
+    },
+    async getTicket(id) {
+      if (id === 601) {
+        return {
+          id: 601,
+          title: 'Empty Epic',
+          body: 'No child references in this body.',
+        };
+      }
+      return null;
+    },
+  };
+  const warns = [];
+  await gatherRetroSignals({
+    epicId: 601,
+    provider,
+    logger: { warn: (msg) => warns.push(msg) },
+  });
+  assert.equal(
+    warns.length,
+    0,
+    `expected no warns for genuinely empty Epic, got: ${warns.join('\n')}`,
+  );
+});
+
+test('composeRetroBody: interventions > 0 routes to full retro and shows scorecard row', async () => {
+  const { body, compact, scorecard } = composeRetroBody({
+    epicId: 700,
+    epicTitle: 'Intervention Epic',
+    counts: {
+      friction: 0,
+      parked: 0,
+      recuts: 0,
+      hotfixes: 0,
+      hitl: 0,
+      interventions: 5,
+    },
+    tasksTotal: 4,
+    tasksFirstTry: 4,
+    timestamp: '2026-05-17T01:00:00.000Z',
+  });
+  assert.equal(compact, false, 'expected full retro when interventions > 0');
+  assert.equal(scorecard.interventions, 5);
+  assert.match(body, /Manual Interventions {9}\| 5/);
+  assert.match(body, /What Went Well/);
+});
+
+test('runRetro: surfaces manualInterventions count in scorecard', async () => {
+  const provider = makeProvider({
+    epic: { id: 800, title: 'Intervention Epic' },
+    stories: [
+      {
+        id: 810,
+        labels: ['type::story'],
+        perfSummary: {
+          kind: 'story-perf-summary',
+          frictionByCategory: {},
+        },
+      },
+    ],
+    tasks: [{ id: 820, parentStoryId: 810, labels: ['type::task'] }],
+  });
+  const out = await runRetro({
+    epicId: 800,
+    provider,
+    manualInterventions: 3,
+    timestamp: '2026-05-17T02:00:00.000Z',
+  });
+  assert.equal(out.scorecard.interventions, 3);
+  // Five recorded interventions otherwise clean must still render full.
+  assert.equal(out.compact, false);
+  assert.match(provider.posted[0].body, /Manual Interventions {9}\| 3/);
+});
+
+test('runRetro: ignores non-finite manualInterventions (defensive)', async () => {
+  const provider = makeProvider({
+    epic: { id: 900, title: 'Defensive Epic' },
+    stories: [
+      {
+        id: 910,
+        labels: ['type::story'],
+        perfSummary: {
+          kind: 'story-perf-summary',
+          frictionByCategory: {},
+        },
+      },
+    ],
+    tasks: [{ id: 920, parentStoryId: 910, labels: ['type::task'] }],
+  });
+  const out = await runRetro({
+    epicId: 900,
+    provider,
+    manualInterventions: Number.NaN,
+    timestamp: '2026-05-17T03:00:00.000Z',
+  });
+  assert.equal(out.scorecard.interventions, 0);
+  assert.equal(out.compact, true);
 });

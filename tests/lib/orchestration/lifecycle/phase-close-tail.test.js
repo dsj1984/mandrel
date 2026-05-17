@@ -235,12 +235,12 @@ describe('lifecycle/phase-close-tail — retro.start/.end', () => {
     const writer = new LedgerWriter({ epicId, tempRoot });
     writer.register(bus);
 
-    // Stub the provider: getTicket for Epic title, getSubIssues empty.
+    // Stub the provider: getTicket for Epic title, getSubTickets empty.
     const provider = {
       async getTicket() {
         return { id: epicId, title: 'Test Epic' };
       },
-      async getSubIssues() {
+      async getSubTickets() {
         return [];
       },
       async postComment() {

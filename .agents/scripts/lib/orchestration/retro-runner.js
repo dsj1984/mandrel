@@ -60,6 +60,10 @@ function sumFriction(byCategory) {
  * Walk every descendant ticket of `epicId` once. Returns the flat list with
  * each ticket's labels + body + state — the consumer derives its own
  * counts from this snapshot. Pure with respect to the provider injection.
+ *
+ * `provider.getSubTickets` is part of the `ITicketingProvider` contract;
+ * the call is **not** optional-chained so a missing method (or a typo'd
+ * test stub) surfaces as a thrown error rather than a silent empty graph.
  */
 async function collectDescendants(provider, epicId) {
   const visited = new Set([epicId]);
@@ -67,7 +71,7 @@ async function collectDescendants(provider, epicId) {
   const queue = [epicId];
   while (queue.length > 0) {
     const id = queue.shift();
-    const subs = (await provider.getSubIssues?.(id)) ?? [];
+    const subs = (await provider.getSubTickets(id)) ?? [];
     for (const sub of subs) {
       const subId = Number(sub?.id ?? sub?.number);
       if (!Number.isInteger(subId) || visited.has(subId)) continue;
@@ -79,10 +83,51 @@ async function collectDescendants(provider, epicId) {
   return out;
 }
 
+// Detects #NNN issue references in an Epic body — any match means the Epic
+// likely has child Stories enumerated in the planning artifact, so a
+// zero-descendant walk is suspicious.
+const EPIC_BODY_REFERENCE = /#\d+/;
+
+/**
+ * Defensive guard: when the descendant walker returned zero, probe the
+ * Epic ticket itself. If the Epic exists and its body references child
+ * issues (e.g., `#123` planning refs), the empty walk is almost certainly
+ * a contract drift in the underlying provider — emit a loud warn so the
+ * silent failure surfaces. Probe errors degrade silently (the guard is
+ * best-effort observability, not a correctness gate).
+ */
+async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
+  let epic;
+  try {
+    epic = await provider.getTicket?.(epicId);
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] guard: getTicket(#${epicId}) failed (continuing): ${err?.message ?? err}`,
+    );
+    return;
+  }
+  if (!epic) return;
+  const body = typeof epic.body === 'string' ? epic.body : '';
+  if (!EPIC_BODY_REFERENCE.test(body)) return;
+  logger?.warn?.(
+    `[retro-runner] WARNING: Epic #${epicId} body references child issues, ` +
+      'but the descendant walker returned zero — retro will under-report ' +
+      'friction. Possible provider contract drift in getSubTickets.',
+  );
+}
+
 /**
  * Read raw retro signals from the GitHub graph. Pure with respect to the
  * provider injection — exported so tests can drive the predicate end-to-end
  * with a stub provider.
+ *
+ * When `descendants.length === 0`, the function probes `provider.getTicket`
+ * to distinguish "Epic legitimately empty" from "the descendant walker
+ * silently returned nothing under a populated Epic" (the failure mode the
+ * pre-Story #2289 `getSubIssues` contract drift produced). A populated
+ * Epic with zero walked descendants emits a loud warn via the supplied
+ * `logger` so the silent failure becomes visible. Probe failure degrades
+ * gracefully — the function never throws on the guard alone.
  *
  * @returns {Promise<{
  *   stories: Array<{ id: number, body?: string, labels?: string[] }>,
@@ -93,8 +138,11 @@ async function collectDescendants(provider, epicId) {
  *   parkedFollowOns: { recuts: object[], parked: object[], present: boolean },
  * }>}
  */
-export async function gatherRetroSignals({ epicId, provider }) {
+export async function gatherRetroSignals({ epicId, provider, logger }) {
   const descendants = await collectDescendants(provider, epicId);
+  if (descendants.length === 0) {
+    await warnIfEpicLooksPopulated({ epicId, provider, logger });
+  }
   const stories = descendants.filter((t) =>
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
   );
@@ -185,13 +233,31 @@ export async function gatherRetroSignals({ epicId, provider }) {
 }
 
 /**
+ * Pure: clamp a candidate count to a non-negative integer. Used to
+ * normalize the `manualInterventions` count plumbed in from the
+ * checkpointer state before it lands in the scorecard. Non-finite,
+ * negative, or non-numeric values collapse to 0.
+ */
+function normalizeInterventionCount(value) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.trunc(value);
+}
+
+/**
  * Pure: compose the retro markdown body. Exported for tests so they can
  * verify the body shape without round-tripping through a stub provider.
+ *
+ * Story #2289 adds `counts.interventions` — sourced from the checkpointer's
+ * `manualInterventions` array (the same list that disqualifies an Epic
+ * from auto-merge). Non-zero interventions route to the full retro shape
+ * via `isCleanManifest`.
  *
  * @param {{
  *   epicId: number,
  *   epicTitle?: string,
- *   counts: { friction: number, parked: number, recuts: number, hotfixes: number, hitl: number },
+ *   counts: { friction: number, parked: number, recuts: number, hotfixes: number, hitl: number, interventions?: number },
  *   storyPerfSummaries?: object[],
  *   epicPerfReport?: object|null,
  *   parkedFollowOns?: { recuts: object[], parked: object[] },
@@ -215,7 +281,8 @@ export function composeRetroBody(input) {
     forceFull = false,
   } = input;
 
-  const compact = !forceFull && isCleanManifest(counts);
+  const interventions = normalizeInterventionCount(counts?.interventions);
+  const compact = !forceFull && isCleanManifest({ ...counts, interventions });
   const heading = `## 🪞 Sprint Retrospective — Epic #${epicId}: ${epicTitle}`;
   const generatedLine = `_Generated ${timestamp}_`;
   const scorecardRows = [
@@ -223,6 +290,7 @@ export function composeRetroBody(input) {
     `| Tasks Completed First Try    | ${tasksFirstTry} |`,
     `| Tasks Requiring Hotfix       | ${counts.hotfixes} |`,
     `| agent::blocked Events Raised | ${counts.hitl} |`,
+    `| Manual Interventions         | ${interventions} |`,
     `| Friction Events              | ${counts.friction} |`,
   ];
   const scorecard = {
@@ -233,6 +301,7 @@ export function composeRetroBody(input) {
     friction: counts.friction,
     parked: counts.parked,
     recuts: counts.recuts,
+    interventions,
   };
   const completeMarker = `<!-- retro-complete: ${timestamp} -->`;
 
@@ -242,7 +311,7 @@ export function composeRetroBody(input) {
       '',
       generatedLine,
       '',
-      '🟢 Clean sprint — zero friction, zero parked follow-ons, zero recuts, zero hotfixes, zero agent::blocked events.',
+      '🟢 Clean sprint — zero friction, zero parked follow-ons, zero recuts, zero hotfixes, zero agent::blocked events, zero manual interventions.',
       '',
       '### Sprint Scorecard',
       '',
@@ -372,6 +441,7 @@ async function emitLifecycleSafe({ bus, event, payload, logger }) {
  *   timestamp?: string,
  *   bus?: object|null,
  *   now?: () => number,
+ *   manualInterventions?: number,
  *   gatherFn?: typeof gatherRetroSignals,
  *   composeFn?: typeof composeRetroBody,
  *   upsertFn?: typeof upsertStructuredComment,
@@ -397,6 +467,7 @@ export async function runRetro(opts = {}) {
     timestamp,
     bus = null,
     now = Date.now,
+    manualInterventions = 0,
     gatherFn = gatherRetroSignals,
     composeFn = composeRetroBody,
     upsertFn = upsertStructuredComment,
@@ -431,6 +502,7 @@ export async function runRetro(opts = {}) {
       timestamp,
       bus,
       now,
+      manualInterventions,
       gatherFn,
       composeFn,
       upsertFn,
@@ -476,6 +548,7 @@ async function composeAndPostRetro({
   timestamp,
   bus,
   now,
+  manualInterventions,
   gatherFn,
   composeFn,
   upsertFn,
@@ -486,7 +559,7 @@ async function composeAndPostRetro({
   startedAt,
   onMirrorWritten,
 }) {
-  const signals = await gatherFn({ epicId, provider });
+  const signals = await gatherFn({ epicId, provider, logger });
 
   // Best-effort fetch of the Epic title for the heading.
   let epicTitle;
@@ -506,10 +579,11 @@ async function composeAndPostRetro({
   const hotfixCount = signals.counts.hotfixes;
   const tasksFirstTry = Math.max(0, tasksTotal - hotfixCount);
 
+  const interventions = normalizeInterventionCount(manualInterventions);
   const { body, compact, scorecard } = composeFn({
     epicId,
     epicTitle,
-    counts: signals.counts,
+    counts: { ...signals.counts, interventions },
     storyPerfSummaries: signals.storyPerfSummaries,
     epicPerfReport: signals.epicPerfReport,
     parkedFollowOns: signals.parkedFollowOns,
