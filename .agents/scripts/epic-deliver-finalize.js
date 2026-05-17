@@ -910,40 +910,19 @@ export async function runEpicDeliverFinalize({
     };
   }
 
-  // 3a. Enable GitHub native auto-merge so the PR squash-merges itself
-  // when all required checks pass. Independent of the framework's
-  // Phase 7.5 predicate — that predicate now fires only as a post-merge
-  // audit / informational signal. Enabling at PR-open time is a no-op
-  // when checks are already green (GitHub merges immediately) and an
-  // explicit operator-pacing signal when checks have not yet run. We
-  // do NOT block finalize on auto-merge enablement failures — a missing
-  // auto-merge feature on the repo or a token without
-  // `pull_request:write` is non-fatal, and the operator retains the
-  // manual merge path through the GitHub UI.
-  let autoMergeEnabled = false;
-  if (prNumber) {
-    const autoMergeResult = ghSpawnFn(
-      [
-        'pr',
-        'merge',
-        String(prNumber),
-        '--auto',
-        '--squash',
-        '--delete-branch',
-      ],
-      repoCwd,
-    );
-    if (autoMergeResult.status === 0) {
-      autoMergeEnabled = true;
-      logger.info?.(
-        `[epic-deliver-finalize] auto-merge enabled on PR #${prNumber} (squash, delete-branch).`,
-      );
-    } else {
-      logger.warn?.(
-        `[epic-deliver-finalize] gh pr merge --auto exit ${autoMergeResult.status}: ${autoMergeResult.stderr} — operator can merge manually.`,
-      );
-    }
-  }
+  // 3a. Story #2253 / Task #2254 (review High-1, Epic #2172) — the
+  // unconditional `gh pr merge <pr> --auto --squash --delete-branch`
+  // call was REMOVED from this CLI. Calling it here armed GitHub's
+  // native auto-merge before the framework's automerge predicate had
+  // a chance to evaluate blocker / review state, which was the
+  // load-bearing safety hole the lifecycle bus refit closes.
+  //
+  // The automerge surface now lives in the `AutomergeArmer` listener
+  // (Wave 7, Story #2256) which subscribes to `epic.merge.armed` and
+  // only arms after `epic.merge.ready` confirms predicates. The
+  // `check-lifecycle-lint` "merge-lockout" rule prevents this string
+  // from being re-added to any orchestration module outside the
+  // armer.
 
   // 3b. Story #2106 / Task #2111 — acceptance-spec close-time
   // reconciliation. Diff the AC IDs declared in the linked
@@ -1009,7 +988,7 @@ export async function runEpicDeliverFinalize({
   });
 
   logger.info?.(
-    `[epic-deliver-finalize] complete — pr=${prUrl ?? '(none)'} handoff=${postedHandoff} autoMerge=${autoMergeEnabled}`,
+    `[epic-deliver-finalize] complete — pr=${prUrl ?? '(none)'} handoff=${postedHandoff}`,
   );
   return {
     epicId,
@@ -1018,7 +997,12 @@ export async function runEpicDeliverFinalize({
     prUrl,
     prNumber,
     postedHandoff,
-    autoMergeEnabled,
+    // `autoMergeEnabled` is intentionally omitted from the envelope as
+    // of Story #2253 (review High-1, Epic #2172): the unconditional
+    // `gh pr merge --auto` call was the safety hole this Story closes.
+    // Auto-merge enablement now lives on the lifecycle bus
+    // (`AutomergeArmer`, Story #2256) which fires only after blocker /
+    // review predicates clear.
     reconcile,
     planningClose,
   };
