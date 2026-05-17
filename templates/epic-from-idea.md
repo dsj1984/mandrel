@@ -1,21 +1,21 @@
 # {{title}}
 
-## Problem
+## Context
 
-{{problem}}
+{{context}}
 
-## Direction
+## Goal
 
-{{direction}}
+{{goal}}
 
-## Assumptions
+## Non-Goals
 
-{{assumptions}}
+{{nonGoals}}
 
-## MVP Scope
+## Scope
 
-{{mvpScope}}
+{{scope}}
 
-## Not Doing
+## Acceptance Criteria
 
-{{notDoing}}
+{{acceptanceCriteria}}

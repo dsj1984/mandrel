@@ -191,8 +191,8 @@ mode:
 
 1. **Sharpen the idea.** The `idea-refinement` skill drives a divergent →
    convergent → sharpen loop and emits a markdown one-pager with the
-   canonical sections (Problem Statement, Recommended Direction, Key
-   Assumptions, MVP Scope, Not Doing).
+   five canonical Epic sections (Context, Goal, Non-Goals, Scope,
+   Acceptance Criteria).
 2. **Cross-Epic duplicate search.** `lib/duplicate-search.js` queries the
    open Epics in the repo, scores by title + body keyword overlap, and
    surfaces matches above a threshold. The operator either confirms the
@@ -223,9 +223,12 @@ The framework reads the Epic and autonomously builds the entire work breakdown.
 > **Epic Clarity Gate (`/epic-plan` Phase 6).** Before PRD / Tech Spec /
 > Acceptance Spec authoring kicks off, `/epic-plan` scores the Epic body
 > against the five canonical sections from
-> [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Problem,
-> Direction, Assumptions, MVP Scope, Not Doing). The rubric is
-> deterministic (section-presence; threshold ≥ 4 of 5). A `clear` verdict
+> [`templates/epic-from-idea.md`](templates/epic-from-idea.md) (Context,
+> Goal, Non-Goals, Scope, Acceptance Criteria). Common legacy heading
+> variants (`Problem`, `Direction`, `MVP Scope`, `Not Doing`,
+> `Out of Scope`) are accepted by the scorer's regex for back-compat.
+> The rubric is deterministic (section-presence; threshold ≥ 4 of 5). A
+> `clear` verdict
 > skips fast with no prompt; a `needs-refinement` verdict drops into the
 > `idea-refinement` skill seeded from the current Epic body, surfaces a
 > HITL diff, and on approval persists the sharpened body via

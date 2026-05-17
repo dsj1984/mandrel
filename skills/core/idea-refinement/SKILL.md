@@ -50,13 +50,17 @@ bash /mnt/skills/user/idea-refine/scripts/idea-refine.sh
 ## Output
 
 The final output is a markdown one-pager saved to `docs/ideas/[idea-name].md`
-(after user confirmation), containing:
+(after user confirmation), containing the five canonical Epic sections:
 
-- Problem Statement
-- Recommended Direction
-- Key Assumptions
-- MVP Scope
-- Not Doing list
+- Context (problem framing + current state)
+- Goal (desired outcome)
+- Non-Goals (explicit exclusions)
+- Scope (the in-scope MVP and how it tests the core assumption)
+- Acceptance Criteria (how we'll know it worked)
+
+Assumptions and open questions are recorded in the body of the relevant
+section (typically under Context or Scope) rather than carved into their
+own headings — the canonical five drive the `/epic-plan` clarity gate.
 
 ## Detailed Instructions
 
@@ -177,9 +181,10 @@ lands in the Phase 3 one-pager.
 
 5. **Stop condition.** Phase 2 ends when no branches remain unresolved.
    Resolutions feed directly into the Phase 3 one-pager: confirmed bets
-   become "Key Assumptions" with their validation strategy; rejected
-   branches become "Not Doing" entries with the reason; chosen scope
-   becomes "MVP Scope".
+   land in the **Context** section with their validation strategy
+   inline; rejected branches become **Non-Goals** entries with the
+   reason; chosen scope becomes the **Scope** section; verifiable
+   outcomes from the resolved decisions become **Acceptance Criteria**.
 
 **Be honest, not supportive.** If an idea is weak, say so with kindness. A
 good ideation partner is not a yes-machine. Push back on complexity,
@@ -193,41 +198,50 @@ it inside the grill loop, not after the one-pager is already written.
 
 #### Phase 3: Sharpen & Ship
 
-Produce a concrete artifact — a markdown one-pager that moves work forward:
+Produce a concrete artifact — a markdown one-pager that moves work forward.
+The five canonical headings below match `.agents/templates/epic-from-idea.md`
+and the `/epic-plan` clarity gate; emit them verbatim so the renderer can
+substitute the body into a new Epic without translation.
 
 ```markdown
 # [Idea Name]
 
-## Problem Statement
+## Context
 
-[One-sentence "How Might We" framing]
+[One-sentence "How Might We" framing followed by the current-state pain
+or motivation in 1-2 short paragraphs. Surface the key assumptions you
+are betting on inline — assumptions live here, not in a separate
+heading.]
 
-## Recommended Direction
+## Goal
 
-[The chosen direction and why — 2-3 paragraphs max]
+[The chosen direction and the outcome it produces — 2-3 paragraphs max.
+Frame in terms of the end-state the user reaches, not the implementation
+path.]
 
-## Key Assumptions to Validate
-
-- [ ] [Assumption 1 — how to test it]
-- [ ] [Assumption 2 — how to test it]
-- [ ] [Assumption 3 — how to test it]
-
-## MVP Scope
-
-[The minimum version that tests the core assumption. What's in, what's out.]
-
-## Not Doing (and Why)
+## Non-Goals
 
 - [Thing 1] — [reason]
 - [Thing 2] — [reason]
 - [Thing 3] — [reason]
+
+## Scope
+
+[The minimum version that tests the core assumption. What's in, what's
+out, and how it sequences into stories.]
+
+## Acceptance Criteria
+
+- [ ] [Verifiable outcome 1 — phrased so a reviewer can check it]
+- [ ] [Verifiable outcome 2]
+- [ ] [Verifiable outcome 3]
 
 ## Open Questions
 
 - [Question that needs answering before building]
 ```
 
-**The "Not Doing" list is arguably the most valuable part.** Focus is about
+**The "Non-Goals" list is arguably the most valuable part.** Focus is about
 saying no to good ideas. Make the trade-offs explicit.
 
 Ask the user if they'd like to save this to `docs/ideas/[idea-name].md` (or a
@@ -265,7 +279,7 @@ sessions look like.
 - Skipping the "who is this for" question
 - No assumptions surfaced before committing to a direction
 - Yes-machining weak ideas instead of pushing back with specificity
-- Producing a plan without a "Not Doing" list
+- Producing a plan without a "Non-Goals" list
 - Ignoring existing codebase constraints when ideating inside a project
 - Jumping straight to Phase 3 output without running Phases 1 and 2
 - Batching grill-loop questions (asking 3+ at once) instead of one at a time
@@ -284,7 +298,7 @@ After completing an ideation session:
 - [ ] Hidden assumptions are explicitly listed with validation strategies
 - [ ] Every open decision branch was either resolved in the grill loop or
       consciously deferred (with the deferral reason recorded)
-- [ ] A "Not Doing" list makes trade-offs explicit
+- [ ] A "Non-Goals" list makes trade-offs explicit
 - [ ] The output is a concrete artifact (markdown one-pager), not just
       conversation
 - [ ] The user confirmed the final direction before any implementation work
