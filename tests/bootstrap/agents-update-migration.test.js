@@ -34,7 +34,6 @@ import { migrateBaselinesLayout } from '../../.agents/scripts/lib/bootstrap/base
 import {
   applyQualityBootstrap,
   PRE_COMMIT_MARKER,
-  QUALITY_CONFIG_DEFAULTS,
   QUALITY_NPM_SCRIPTS,
 } from '../../.agents/scripts/lib/bootstrap/quality-bootstrap.js';
 
@@ -84,7 +83,9 @@ describe('agents-update — fresh-upgrade path', () => {
     assert.equal(first.helper.action, 'copied');
     assert.equal(first.hook.action, 'created');
     assert.equal(first.scripts.action, 'updated');
-    assert.equal(first.config.action, 'updated');
+    // Story #2281: default-equal config seeds are skipped to avoid
+    // contradicting sync-agentrc's [REDUNDANT] advisories on next run.
+    assert.equal(first.config.action, 'no-change');
 
     // Operator's existing lint script survived.
     const pkg = readJson(path.join(projectRoot, 'package.json'));
@@ -94,11 +95,14 @@ describe('agents-update — fresh-upgrade path', () => {
       QUALITY_NPM_SCRIPTS['quality:preview'],
     );
 
-    // Config seeded with framework defaults under delivery.quality.
+    // Config stays at the minimum that validates — no default-equal
+    // scaffolding has been written under delivery.quality.
     const cfg = readJson(path.join(projectRoot, '.agentrc.json'));
-    assert.deepEqual(
-      cfg.delivery.quality.codingGuardrails,
-      QUALITY_CONFIG_DEFAULTS.codingGuardrails,
+    assert.ok(
+      cfg.delivery === undefined ||
+        cfg.delivery.quality === undefined ||
+        Object.keys(cfg.delivery.quality).length === 0,
+      'default-equal seeds must not materialise as on-disk keys',
     );
 
     // Re-run is a no-op everywhere.
@@ -139,7 +143,8 @@ describe('agents-update — custom-hook-skip path', () => {
     // The other three install paths still ran.
     assert.equal(result.helper.action, 'copied');
     assert.equal(result.scripts.action, 'updated');
-    assert.equal(result.config.action, 'updated');
+    // Story #2281: default-equal config seeds are skipped.
+    assert.equal(result.config.action, 'no-change');
 
     // Re-run after the operator merges in the snippet manually
     // produces `already-present` (the marker is the detection key).
