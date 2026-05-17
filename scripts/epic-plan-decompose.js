@@ -47,7 +47,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
-import { Logger, STDERR_LOGGER } from './lib/Logger.js';
+import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
 import { PlanRunnerContext } from './lib/orchestration/context.js';
 import {
@@ -956,6 +956,12 @@ async function main() {
   const provider = createProvider(config.orchestration);
 
   const emitContext = values['emit-context'];
+  // Story #2278 — in --emit-context mode stdout is reserved for the JSON
+  // envelope. Flip every Logger sink that could land on stdout to stderr
+  // *before* any orchestration code runs (drainPendingCleanupAtBoot,
+  // buildDecompositionContext, validators) so a captured file is
+  // unconditionally parseable by `JSON.parse`.
+  if (emitContext) routeAllOutputToStderr();
 
   try {
     await drainPendingCleanupAtBoot({
