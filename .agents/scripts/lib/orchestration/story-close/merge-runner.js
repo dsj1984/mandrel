@@ -63,6 +63,39 @@ export function lockPathDisplay(cwd, epicId) {
 }
 
 /**
+ * Best-effort `story.blocked` lifecycle emit (Story #2241 / Task #2247).
+ * Used by the merge runner's failure paths to surface a typed `reason`
+ * on the bus before re-throwing. The bus is optional — every legacy
+ * caller and the existing unit fixtures pass `null` — and emit failures
+ * are swallowed so the original throw (which the operator must see)
+ * always reaches `runAsCli`.
+ *
+ * Exported so the wider story-close path (and the spawn-timeout helper
+ * in `story-close.js`) can use the same low-friction wrapper.
+ *
+ * @param {{
+ *   bus?: object|null,
+ *   storyId: number|string,
+ *   reason: string,
+ *   logger?: { warn?: Function },
+ * }} args
+ * @returns {Promise<void>}
+ */
+export async function emitStoryBlockedSafe({ bus, storyId, reason, logger }) {
+  if (!bus) return;
+  try {
+    await bus.emit('story.blocked', {
+      storyId: Number(storyId),
+      reason: String(reason),
+    });
+  } catch (err) {
+    logger?.warn?.(
+      `[story-close] ⚠️ story.blocked emit failed for #${storyId} (swallowed): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Acquire the per-Epic filesystem merge lock, run `fn(handle)` inside a
  * try/finally, and always release. Logs `🔒 Acquired ...` at acquire and
  * `🔓 Released epic-merge lock` on release via the supplied `log` sink.
@@ -334,6 +367,7 @@ export async function runFinalizeMerge({
   epicId: _epicId,
   cwd,
   orchestration,
+  bus = null,
   log = () => {},
   logger = DefaultLogger,
   gitSync = defaultGitSync,
@@ -361,18 +395,44 @@ export async function runFinalizeMerge({
     { message: buildMergeMessage(storyTitle, storyId) },
   );
 
-  throwOnMajorConflict({ result, epicBranch });
+  // Story #2241 / Task #2247 — surface a `story.blocked` lifecycle emit
+  // on the typed merge-failure paths before re-throwing so the bus
+  // ledger (and any subscribed BlockerHandler listener) sees the
+  // typed reason. The emit is best-effort; the throw is the canonical
+  // signal that the close was halted.
+  try {
+    throwOnMajorConflict({ result, epicBranch });
+  } catch (err) {
+    await emitStoryBlockedSafe({
+      bus,
+      storyId,
+      reason: 'merge-conflict:major',
+      logger,
+    });
+    throw err;
+  }
   logMergeOutcome({ result, log });
 
   log('GIT', `Pushing ${epicBranch}...`);
-  const pushOutcome = await pushEpicAndHandleConflicts({
-    cwd,
-    epicBranch,
-    storyBranch,
-    orchestration,
-    log: (msg) => log('GIT', msg),
-    mode: 'finalize',
-  });
+  let pushOutcome;
+  try {
+    pushOutcome = await pushEpicAndHandleConflicts({
+      cwd,
+      epicBranch,
+      storyBranch,
+      orchestration,
+      log: (msg) => log('GIT', msg),
+      mode: 'finalize',
+    });
+  } catch (err) {
+    await emitStoryBlockedSafe({
+      bus,
+      storyId,
+      reason: 'push-failed:finalize',
+      logger,
+    });
+    throw err;
+  }
   if (pushOutcome.attempts > 1) {
     log(
       'GIT',
@@ -440,25 +500,47 @@ export async function runResumeMerge({
   storyId,
   epicId: _epicId,
   orchestration,
+  bus = null,
+  logger = DefaultLogger,
   log = () => {},
   gitSpawn = defaultGitSpawn,
 }) {
-  finalizeMergeIfPending({
-    cwd,
-    epicBranch,
-    storyBranch,
-    storyTitle,
-    storyId,
-    log,
-    gitSpawn,
-  });
+  try {
+    finalizeMergeIfPending({
+      cwd,
+      epicBranch,
+      storyBranch,
+      storyTitle,
+      storyId,
+      log,
+      gitSpawn,
+    });
+  } catch (err) {
+    await emitStoryBlockedSafe({
+      bus,
+      storyId,
+      reason: 'merge-finalize-failed:resume',
+      logger,
+    });
+    throw err;
+  }
   log('GIT', `Pushing ${epicBranch}...`);
-  await pushEpicAndHandleConflicts({
-    cwd,
-    epicBranch,
-    storyBranch,
-    orchestration,
-    log: (msg) => log('GIT', msg),
-    mode: 'resume',
-  });
+  try {
+    await pushEpicAndHandleConflicts({
+      cwd,
+      epicBranch,
+      storyBranch,
+      orchestration,
+      log: (msg) => log('GIT', msg),
+      mode: 'resume',
+    });
+  } catch (err) {
+    await emitStoryBlockedSafe({
+      bus,
+      storyId,
+      reason: 'push-failed:resume',
+      logger,
+    });
+    throw err;
+  }
 }

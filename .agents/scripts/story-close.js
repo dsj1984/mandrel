@@ -18,15 +18,19 @@
  */
 
 import { runAsCli } from './lib/cli-utils.js';
+import { tempRootFrom } from './lib/config/temp-paths.js';
 import { getQuality, PROJECT_ROOT } from './lib/config-resolver.js';
 import { gitSpawn as defaultGitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { createBus } from './lib/orchestration/lifecycle/bus.js';
+import { createLedgerWriter } from './lib/orchestration/lifecycle/ledger-writer.js';
 import { runAutoRefresh } from './lib/orchestration/story-close/auto-refresh-runner.js';
 import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
 import { checkCdOutGuard } from './lib/orchestration/story-close/cd-out-guard.js';
 import { resolveCloseInputs } from './lib/orchestration/story-close/close-inputs.js';
 import { runFormatAutofix } from './lib/orchestration/story-close/format-autofix.js';
 import {
+  emitStoryBlockedSafe,
   runFinalizeMerge,
   runResumeMerge,
   withEpicMergeLock,
@@ -64,7 +68,12 @@ const progressLog = (tag, msg) => progress(tag, msg);
  * + console marker that `runStoryCloseLocked` returns when baseline drift
  * is not attributable to the running Story (Story #1124).
  */
-function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
+async function emitBaselineBlockedResult({
+  storyId,
+  gateOutcome,
+  progress: log,
+  bus = null,
+}) {
   const result = {
     success: false,
     status: 'blocked',
@@ -73,6 +82,14 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
     nonAttributable: gateOutcome.nonAttributable ?? [],
     commentId: gateOutcome.commentId ?? null,
   };
+  // Story #2241 / Task #2247 — mirror the blocked envelope on the
+  // lifecycle bus so the BlockerHandler listener sees a typed reason.
+  await emitStoryBlockedSafe({
+    bus,
+    storyId,
+    reason: 'baseline-drift-not-attributable',
+    logger: Logger,
+  });
   Logger.info(
     `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
   );
@@ -126,6 +143,30 @@ const DEFAULT_TIMEOUT_DESCRIPTOR = Object.freeze({
 
 function resolveSpawnTimeoutDescriptor(spawnName) {
   return SPAWN_TIMEOUT_DESCRIPTORS[spawnName] ?? DEFAULT_TIMEOUT_DESCRIPTOR;
+}
+
+/**
+ * Story #2241 / Task #2247 — map a spawn-timeout name to the canonical
+ * `story.blocked.reason` token the lifecycle bus emits. Operators (and the
+ * BlockerHandler listener) classify on this token; the friction-comment
+ * body still uses the human descriptor above.
+ *
+ * The dispatch table preserves the Tech-Spec contract: `format-autofix`
+ * → `timeout:biome-format`, both baseline-refresh spawns →
+ * `timeout:baseline-refresh`, coverage stays under its own token so a
+ * separate cap-tuning surface stays addressable.
+ */
+const SPAWN_TIMEOUT_REASONS = Object.freeze({
+  'coverage-capture': 'timeout:coverage-capture',
+  'check-maintainability': 'timeout:baseline-refresh',
+  'check-crap': 'timeout:baseline-refresh',
+  'format-autofix': 'timeout:biome-format',
+});
+
+export function resolveSpawnTimeoutReason(spawnName) {
+  return (
+    SPAWN_TIMEOUT_REASONS[spawnName] ?? `timeout:${spawnName ?? 'unknown'}`
+  );
 }
 
 /**
@@ -262,6 +303,7 @@ async function emitSpawnTimeoutBlockedResult({
   provider,
   progress: log,
   reason,
+  bus = null,
 }) {
   const timeoutMs =
     providedTimeoutMs ?? resolveSpawnTimeoutMs(spawnName, agentSettings);
@@ -298,6 +340,19 @@ async function emitSpawnTimeoutBlockedResult({
       `[story-close] failed to transition Story #${storyId} → ${STATE_LABELS.BLOCKED}: ${err?.message ?? err}`,
     );
   }
+
+  // Story #2241 / Task #2247 — emit `story.blocked` so the lifecycle
+  // bus carries a typed reason token (`timeout:biome-format`,
+  // `timeout:baseline-refresh`, `timeout:coverage-capture`). The
+  // BlockerHandler listener (Task #2246) subscribes to this and
+  // cascades to `epic.blocked` with `sourceStoryId`. Best-effort —
+  // the emit must not withhold the close-result envelope.
+  await emitStoryBlockedSafe({
+    bus,
+    storyId,
+    reason: resolveSpawnTimeoutReason(spawnName),
+    logger: Logger,
+  });
 
   const descriptor = resolveSpawnTimeoutDescriptor(spawnName);
   const result = {
@@ -541,6 +596,30 @@ export async function runStoryClose({
   const notifyFn = (ticketId, payload, opts = {}) =>
     notify(ticketId, payload, { orchestration, provider, ...opts });
 
+  // Story #2241 / Task #2247 — wire a lifecycle bus + ledger writer for
+  // the close path. The writer points at the same Epic-scoped NDJSON
+  // ledger the wave loop populates (`temp/epic-<id>/lifecycle.ndjson`),
+  // so a sub-agent's `story.merged` / `story.blocked` emits land
+  // alongside the parent runner's `wave.*` / `story.dispatch.*` records.
+  // Best-effort: a wiring failure (bad schemaDir, missing temp root)
+  // logs and falls through with `bus = null` — the close result must
+  // never depend on lifecycle observability.
+  let bus = null;
+  try {
+    const lifecycleBus = createBus();
+    const tempRoot = tempRootFrom({ agentSettings, orchestration });
+    const ledger = createLedgerWriter({
+      epicId: Number(epicId),
+      tempRoot,
+    });
+    ledger.register(lifecycleBus);
+    bus = lifecycleBus;
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] ⚠️ lifecycle bus init failed (continuing without emits): ${err?.message ?? err}`,
+    );
+  }
+
   progress('INIT', `Closing Story #${storyId}...`);
 
   // Preflight guard (Story #1289): assemble state, run the registry,
@@ -627,6 +706,7 @@ export async function runStoryClose({
           epicBranch,
           storyBranch,
           notifyFn,
+          bus,
         }),
     );
   } finally {
@@ -800,6 +880,7 @@ async function runStoryCloseLocked({
   epicBranch,
   storyBranch,
   notifyFn,
+  bus = null,
 }) {
   // Prior-state detection + --resume / --restart dispatch.
   const { resumeFromConflict, resumeFromMerge, resumeFromPostMerge } =
@@ -851,7 +932,12 @@ async function runStoryCloseLocked({
       provider,
     });
     if (gateOutcome?.status === 'blocked') {
-      return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
+      return emitBaselineBlockedResult({
+        storyId,
+        gateOutcome,
+        progress,
+        bus,
+      });
     }
     // Story #2136 / Task #2143 — coverage-capture exit 124 is a bounded-
     // timeout trip, not a test-suite failure. Flip the Story to
@@ -875,6 +961,7 @@ async function runStoryCloseLocked({
         agentSettings,
         provider,
         progress,
+        bus,
       });
     }
     await runAutoRefreshSafely({
@@ -904,6 +991,7 @@ async function runStoryCloseLocked({
       storyId,
       epicId,
       orchestration,
+      bus,
       log: progressLog,
     };
     await (resumeFromConflict ? runResumeMerge : runFinalizeMerge)(mergeArgs);
@@ -932,6 +1020,7 @@ async function runStoryCloseLocked({
     logger: Logger,
     phaseTimer,
     clearPhaseTimerState,
+    bus,
   });
 
   Logger.info(

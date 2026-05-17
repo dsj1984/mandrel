@@ -112,6 +112,55 @@ export function assertMergeReachable({
 }
 
 /**
+ * Resolve the actual squash/no-ff merge commit sha that landed on
+ * `epicBranch` for the named Story. The story-close path uses
+ * `git merge --no-ff` with a `(resolves #<id>)` subject; we grep the
+ * Epic branch log for that subject and return the matching short sha.
+ *
+ * Falls back to the Story branch tip if the grep yields no hits (which
+ * shouldn't happen on a successful merge, but the lifecycle emit must
+ * never crash the close on a measurement-only failure). Returns `null`
+ * if both lookups fail — the caller treats `null` as "skip the emit".
+ *
+ * Story #2241 / Task #2247.
+ *
+ * @param {{ cwd: string, epicBranch: string, storyBranch: string, storyId: number|string, gitSpawn?: typeof defaultGitSpawn }} args
+ * @returns {string|null}
+ */
+export function resolveMergeSha({
+  cwd,
+  epicBranch,
+  storyBranch,
+  storyId,
+  gitSpawn = defaultGitSpawn,
+}) {
+  // Use the durable `(resolves #N)` marker on the merge-commit subject.
+  // `--all-match` is unnecessary because we grep a single literal string.
+  const grep = gitSpawn(
+    cwd,
+    'log',
+    '-n',
+    '1',
+    '--format=%H',
+    `--grep=resolves #${storyId}`,
+    epicBranch,
+  );
+  if (grep.status === 0) {
+    const sha = (grep.stdout || '').trim();
+    if (sha.length >= 7) return sha;
+  }
+  // Fallback: Story branch tip. The branch ref still exists when we're
+  // called from `runPostMergeClose` because branch cleanup is part of the
+  // downstream pipeline that hasn't run yet.
+  const tip = gitSpawn(cwd, 'rev-parse', storyBranch);
+  if (tip.status === 0) {
+    const sha = (tip.stdout || '').trim();
+    if (sha.length >= 7) return sha;
+  }
+  return null;
+}
+
+/**
  * @param {{
  *   orchestration: object,
  *   storyId: number|string,
@@ -130,6 +179,7 @@ export function assertMergeReachable({
  *   logger: object,
  *   phaseTimer: object,
  *   clearPhaseTimerState: Function,
+ *   bus?: object|null,
  *   runPostMergePipeline?: typeof defaultRunPostMergePipeline,
  *   drainPendingCleanupAfterClose?: typeof defaultDrainPendingCleanupAfterClose,
  *   reconcileCleanupState?: typeof defaultReconcileCleanupState,
@@ -140,6 +190,10 @@ export function assertMergeReachable({
  *   bare `agentSettings`) used by downstream temp-paths helpers + signal
  *   writers so per-story artifacts honor the configured `tempRoot` instead
  *   of leaking under the framework `projectRoot` / `process.cwd()`.
+ *   `bus`: optional lifecycle bus. When provided, the helper emits
+ *   `story.merged` after the merge-reachability assertion clears (Story
+ *   #2241 / Task #2247). Emit failures are swallowed — measurement-only
+ *   artifacts must not withhold the close result.
  * @returns {Promise<object>} the final close result object.
  */
 export async function runPostMergeClose({
@@ -160,6 +214,7 @@ export async function runPostMergeClose({
   logger,
   phaseTimer,
   clearPhaseTimerState,
+  bus = null,
   runPostMergePipeline = defaultRunPostMergePipeline,
   drainPendingCleanupAfterClose = defaultDrainPendingCleanupAfterClose,
   reconcileCleanupState = defaultReconcileCleanupState,
@@ -168,6 +223,7 @@ export async function runPostMergeClose({
   clearActiveStoryEnv = defaultClearActiveStoryEnv,
   emitGhSpawnCount = defaultEmitGhSpawnCount,
   assertMergeReachableFn = assertMergeReachable,
+  resolveMergeShaFn = resolveMergeSha,
 }) {
   // Story #2144 / Task #2155 — gate the post-merge pipeline behind a
   // merge-reachability assertion. The Story is at `agent::closing` at
@@ -188,6 +244,39 @@ export async function runPostMergeClose({
     'MERGE-CHECK',
     `Story #${storyId} merge verified (${reachable.reason})`,
   );
+
+  // Story #2241 / Task #2247 — emit `story.merged` once the merge is
+  // verified reachable. The bus is optional (legacy in-process callers
+  // and unit fixtures pass `null`); when present the LedgerWriter has
+  // already been wired by the caller so this emit lands in the same
+  // epic-scoped NDJSON ledger the wave loop populates. The emit is
+  // best-effort: a measurement-only failure (schema mismatch in a
+  // future refactor, ledger I/O blip) must not withhold the merged
+  // close result.
+  if (bus) {
+    try {
+      const sha = resolveMergeShaFn({
+        cwd,
+        epicBranch,
+        storyBranch,
+        storyId,
+      });
+      if (sha) {
+        await bus.emit('story.merged', {
+          storyId: Number(storyId),
+          sha,
+        });
+      } else {
+        logger.warn?.(
+          `[story-close] ⚠️ Could not resolve merge sha for #${storyId}; skipping story.merged emit.`,
+        );
+      }
+    } catch (err) {
+      logger.warn?.(
+        `[story-close] ⚠️ story.merged emit failed for #${storyId} (swallowed): ${err?.message ?? err}`,
+      );
+    }
+  }
   // Finish the timer up-front so the analyzer phase inside the pipeline
   // can read the summary from disk. None of the pipeline phases
   // (worktree-reap, branch-cleanup, ticket-closure, …) are tracked by
