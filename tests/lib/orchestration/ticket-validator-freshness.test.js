@@ -234,6 +234,54 @@ test('validateAcFreshness: error names every offending Task slug + path', () => 
   assert.equal(caught.misses.length, 2);
 });
 
+test('validateAcFreshness: error message carries per-path remediation hint pointing at body.changes', () => {
+  // Regression for Story #2279. A Task declares a brand-new test file in
+  // `verify` but forgets to list it in `body.changes`; the gate trips
+  // and the operator-visible error MUST hint at the actual fix
+  // (declare the path in `body.changes`) rather than just calling the
+  // reference stale.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Add a regression test for the freshness gate.',
+      changes: [],
+      acceptance: ['regression test exercises the gate'],
+      verify: ['node --test tests/lib/orchestration/new-fresh.test.js'],
+    }),
+    makeTask('T2', {
+      goal: 'Touch .agents/scripts/missing-helper.js to do thing.',
+      changes: [],
+      acceptance: [],
+      verify: [],
+    }),
+  ];
+  let caught;
+  try {
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+    });
+  } catch (err) {
+    caught = err;
+  }
+  assert.ok(caught instanceof ValidationError);
+  // Per-path hint must name body.changes as the remediation target.
+  assert.match(caught.message, /body\.changes/);
+  // Tests/** paths get the explicit "add test file" verb shape.
+  assert.match(
+    caught.message,
+    /tests\/lib\/orchestration\/new-fresh\.test\.js: add test file/,
+  );
+  // Non-test paths get the generic "create" verb shape.
+  assert.match(
+    caught.message,
+    /\.agents\/scripts\/missing-helper\.js: create/,
+  );
+  // Trailing prose points at both branches (declare vs. correct).
+  assert.match(caught.message, /Either declare the path in body\.changes/);
+  assert.match(caught.message, /correct the reference/);
+});
+
 test('validateAcFreshness: requires baseBranchRef', () => {
   assert.throws(
     () => validateAcFreshness({ tickets: [], baseBranchRef: '' }),
