@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/ledger-record.schema.json",
+  "title": "Lifecycle ledger record (emitted | completed | failed)",
+  "description": "Append-only NDJSON record shape for temp/epic-<id>/lifecycle.ndjson. Three discriminated kinds; consumers (LedgerWriter, lifecycle-diff CLI, TraceLogger) discriminate on `kind`.",
+  "oneOf": [
+    { "$ref": "#/$defs/emitted" },
+    { "$ref": "#/$defs/completed" },
+    { "$ref": "#/$defs/failed" }
+  ],
+  "$defs": {
+    "emitted": {
+      "type": "object",
+      "required": ["kind", "seqId", "ts", "event", "payload"],
+      "properties": {
+        "kind": { "const": "emitted" },
+        "seqId": { "type": "integer", "minimum": 1 },
+        "ts": { "type": "string", "format": "date-time" },
+        "event": { "type": "string", "minLength": 1 },
+        "payload": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "completed": {
+      "type": "object",
+      "required": ["kind", "seqId", "ts", "event"],
+      "properties": {
+        "kind": { "const": "completed" },
+        "seqId": { "type": "integer", "minimum": 1 },
+        "ts": { "type": "string", "format": "date-time" },
+        "event": { "type": "string", "minLength": 1 },
+        "listener": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "failed": {
+      "type": "object",
+      "required": ["kind", "seqId", "ts", "event", "listener", "error"],
+      "properties": {
+        "kind": { "const": "failed" },
+        "seqId": { "type": "integer", "minimum": 1 },
+        "ts": { "type": "string", "format": "date-time" },
+        "event": { "type": "string", "minLength": 1 },
+        "listener": { "type": "string", "minLength": 1 },
+        "error": {
+          "type": "object",
+          "required": ["name", "message"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "message": { "type": "string" },
+            "stack": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

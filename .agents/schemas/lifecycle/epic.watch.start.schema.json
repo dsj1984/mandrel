@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.watch.start.schema.json",
+  "title": "epic.watch.start",
+  "description": "Emitted by Watcher when required-check polling begins. Required-check names are resolved from GitHub at runtime via gh pr checks, not from .agentrc.json.",
+  "type": "object",
+  "required": ["prUrl", "requiredChecks"],
+  "properties": {
+    "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
+    "requiredChecks": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "additionalProperties": false
+}

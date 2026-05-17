@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.merge.ready.schema.json",
+  "title": "epic.merge.ready",
+  "description": "Emitted by AutomergePredicate when the Epic is safe to auto-merge. The ONLY event AutomergeArmer subscribes to.",
+  "type": "object",
+  "required": ["prUrl"],
+  "properties": {
+    "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
+    "reason": { "type": "string" }
+  },
+  "additionalProperties": false
+}

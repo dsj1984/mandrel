@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.automerge.start.schema.json",
+  "title": "epic.automerge.start",
+  "description": "Emitted at the start of the automerge phase wrapper. Distinct from epic.merge.ready (predicate outcome) and epic.merge.armed (arm outcome).",
+  "type": "object",
+  "required": ["prUrl"],
+  "properties": {
+    "prUrl": { "type": "string", "format": "uri", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

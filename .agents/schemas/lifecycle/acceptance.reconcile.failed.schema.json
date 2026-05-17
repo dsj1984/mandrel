@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/acceptance.reconcile.failed.schema.json",
+  "title": "acceptance.reconcile.failed",
+  "description": "Emitted by AcceptanceReconciler when reconciliation fails. Routes to epic.blocked; no PR is created.",
+  "type": "object",
+  "required": ["baseRead", "reason"],
+  "properties": {
+    "baseRead": { "type": "boolean" },
+    "reason": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}
