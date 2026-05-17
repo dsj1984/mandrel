@@ -76,6 +76,16 @@ import { assertCanonical } from './path-canon.js';
  * field, so non-canonical paths simply miss the prior map and fall
  * through to the regenerated row.
  *
+ * Story #2135 (Task #2146) added the structural-equality short-circuit on
+ * top of `prior`. When a `prior` envelope (or `priorEnvelope`) is supplied
+ * and the projected `rows + rollup` deep-equal the prior's `rows + rollup`,
+ * the writer returns the prior envelope unchanged — same `generatedAt`,
+ * same kernelVersion, same byte payload. Without this guard every
+ * auto-refresh that ran on a no-op Story would stamp a fresh
+ * `generatedAt` and surface a spurious one-line diff. The short-circuit
+ * is the semantic replacement for the legacy byte-equality compare that
+ * lived in `baseline-snapshot.js`.
+ *
  * @param {{
  *   kind: string,
  *   rows: Array<object>,
@@ -83,6 +93,7 @@ import { assertCanonical } from './path-canon.js';
  *   kernelVersion?: string,
  *   generatedAt?: string,
  *   prior?: Array<object>,
+ *   priorEnvelope?: object,
  *   epsilon?: number,
  *   scope?: {mode: 'full'|'diff', files: Set<string>|Iterable<string>}|null,
  * }} params
@@ -95,6 +106,7 @@ export function write({
   kernelVersion,
   generatedAt,
   prior,
+  priorEnvelope,
   epsilon,
   scope,
 } = {}) {
@@ -148,6 +160,25 @@ export function write({
     );
   }
 
+  // Story #2135 / Task #2146 — structural-equality short-circuit. When the
+  // caller supplies a `priorEnvelope` (or, for backwards-compatibility, the
+  // bare `prior` array is itself a full envelope object), and the projected
+  // rows + rollup deep-equal what's on the prior, return the prior envelope
+  // unchanged. This is the semantic replacement for the byte-equality
+  // compare in `baseline-snapshot.js` and is what makes a no-op auto-refresh
+  // produce a zero-byte baseline diff.
+  const priorEnv = resolvePriorEnvelope(priorEnvelope, prior);
+  if (
+    priorEnv &&
+    deepEqual(sortedRows, priorEnv.rows) &&
+    deepEqual(rollup, priorEnv.rollup)
+  ) {
+    // Re-validate defensively before returning so a caller cannot smuggle
+    // an invalid envelope through the short-circuit.
+    assertEnvelope(priorEnv);
+    return priorEnv;
+  }
+
   const envelope = buildEnvelope({
     kind,
     rows: sortedRows,
@@ -160,17 +191,91 @@ export function write({
 }
 
 /**
+ * Resolve the prior envelope used by the structural-equality short-circuit.
+ * Accepts either an explicit `priorEnvelope` (preferred) or, for backwards
+ * compatibility, recognises when `prior` is itself a full envelope object
+ * carrying `rows` + `rollup` rather than a bare rows array. Returns null
+ * when neither yields a usable envelope — the short-circuit is opt-in by
+ * design.
+ */
+function resolvePriorEnvelope(priorEnvelope, prior) {
+  if (
+    priorEnvelope &&
+    typeof priorEnvelope === 'object' &&
+    !Array.isArray(priorEnvelope) &&
+    Array.isArray(priorEnvelope.rows) &&
+    priorEnvelope.rollup &&
+    typeof priorEnvelope.rollup === 'object'
+  ) {
+    return priorEnvelope;
+  }
+  if (
+    prior &&
+    typeof prior === 'object' &&
+    !Array.isArray(prior) &&
+    Array.isArray(prior.rows) &&
+    prior.rollup &&
+    typeof prior.rollup === 'object'
+  ) {
+    return prior;
+  }
+  return null;
+}
+
+/**
+ * Structural deep-equality for JSON-shaped data (numbers, strings, booleans,
+ * null, arrays, plain objects). The writer only ever compares values it
+ * just produced (or that came from disk via JSON.parse), so we do not need
+ * to handle Dates, Maps, Sets, or class instances. Object key order is
+ * ignored — the per-kind `sortRows` already pinned row order, and rollup
+ * key order is irrelevant for equality.
+ */
+function deepEqual(a, b) {
+  if (a === b) return true;
+  if (typeof a !== typeof b) return false;
+  if (a === null || b === null) return a === b;
+  if (Array.isArray(a)) {
+    if (!Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqual(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (Array.isArray(b)) return false;
+  if (typeof a !== 'object') return false;
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+  for (const k of keysA) {
+    if (!Object.hasOwn(b, k)) return false;
+    if (!deepEqual(a[k], b[k])) return false;
+  }
+  return true;
+}
+
+/**
  * Serialise an envelope to `absPath`. Deterministic: two-space indent,
  * trailing newline, sorted keys for the top-level envelope keys (rows are
  * already sorted by the per-kind module's `sortRows`). Atomic: writes to
  * `<absPath>.tmp` then `rename`s onto the destination so a crash mid-write
  * never leaves a half-flushed envelope on disk.
  *
+ * Story #2135 / Task #2146 — the optional `fsImpl` seam lets tests inject
+ * a virtual filesystem (or an in-memory recorder) the way the legacy
+ * saver helpers allowed. Production callers omit it and fall through to
+ * `node:fs`. The seam covers `mkdirSync`, `writeFileSync`, and
+ * `renameSync` — the three calls this function actually makes — so a mock
+ * that exposes a subset of `fs` works without leaking real disk I/O.
+ *
+ * Backwards-compatible: two-argument callers (`writeFile(abs, env)`)
+ * continue to work unchanged.
+ *
  * @param {string} absPath
  * @param {object} envelope
+ * @param {{ fsImpl?: { mkdirSync: typeof fs.mkdirSync, writeFileSync: typeof fs.writeFileSync, renameSync: typeof fs.renameSync } }} [opts]
  * @returns {string}  The absolute path written.
  */
-export function writeFile(absPath, envelope) {
+export function writeFile(absPath, envelope, opts = {}) {
   if (typeof absPath !== 'string' || !path.isAbsolute(absPath)) {
     throw new TypeError(
       `writer.writeFile: absPath must be an absolute path (got ${JSON.stringify(absPath)})`,
@@ -179,6 +284,8 @@ export function writeFile(absPath, envelope) {
   // Re-validate at the seam — a caller might mutate the envelope between
   // `write()` and `writeFile()`.
   assertEnvelope(envelope);
+
+  const fsImpl = opts?.fsImpl ? opts.fsImpl : fs;
 
   // Canonical key order on the top-level envelope keeps diffs stable
   // across runs and platforms. Per-kind row keys retain their natural
@@ -192,9 +299,9 @@ export function writeFile(absPath, envelope) {
   };
 
   const tmpPath = `${absPath}.tmp`;
-  fs.mkdirSync(path.dirname(absPath), { recursive: true });
-  fs.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
-  fs.renameSync(tmpPath, absPath);
+  fsImpl.mkdirSync(path.dirname(absPath), { recursive: true });
+  fsImpl.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
+  fsImpl.renameSync(tmpPath, absPath);
   return absPath;
 }
 

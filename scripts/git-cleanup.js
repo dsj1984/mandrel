@@ -916,7 +916,7 @@ export function computeExitCode(ctx, legacyResult) {
   if (anyFailure) return 1;
   const anyWork =
     (branchesPlan && branchesPlan.candidates.length > 0) ||
-    (fastForward && fastForward.applied) ||
+    fastForward?.applied ||
     (prune && (prune.pruned?.length ?? 0) > 0) ||
     (stashes &&
       (stashes.actions ?? []).some((a) => a.action === 'drop' && a.dropped));

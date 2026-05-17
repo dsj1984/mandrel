@@ -48,7 +48,7 @@ function parseArgs(argv) {
 function main() {
   const args = parseArgs(process.argv);
   const { agentSettings } = resolveConfig({ cwd: args.cwd });
-  const { crap } = getQuality({ agentSettings });
+  const { crap, coverage } = getQuality({ agentSettings });
 
   if (crap.enabled === false) {
     Logger.info('[coverage-capture] CRAP gate disabled — skipping capture.');
@@ -90,7 +90,11 @@ function main() {
   Logger.info(
     `[coverage-capture] Coverage at ${crap.coveragePath} is ${freshness.reason}; running npm run test:coverage…`,
   );
-  const code = runCapture({ cwd: args.cwd, log: (m) => Logger.info(m) });
+  const code = runCapture({
+    cwd: args.cwd,
+    timeoutMs: coverage?.timeoutMs,
+    log: (m) => Logger.info(m),
+  });
   if (code !== 0) {
     Logger.error(
       `[coverage-capture] ✖ npm run test:coverage exited ${code}. Fix failing tests or coverage-threshold breaches before re-running the CRAP gate.`,

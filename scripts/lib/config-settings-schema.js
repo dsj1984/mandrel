@@ -9,7 +9,7 @@ const SAFE_STRING = {
   not: { pattern: SHELL_INJECTION_PATTERN_STRING },
 };
 
-const NULLABLE_SAFE_STRING = {
+const _NULLABLE_SAFE_STRING = {
   type: ['string', 'null'],
   not: { type: 'string', pattern: SHELL_INJECTION_PATTERN_STRING },
 };
