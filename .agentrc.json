@@ -71,6 +71,14 @@
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
+    },
+    "lifecycle": {
+      "timeouts": {
+        "acceptance.reconcile": 600,
+        "epic.finalize": 600,
+        "epic.watch": 1800
+      },
+      "heartbeatWarnSeconds": 60
     }
   }
 }
