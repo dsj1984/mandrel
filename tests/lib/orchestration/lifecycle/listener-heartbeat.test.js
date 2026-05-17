@@ -19,14 +19,13 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-
-import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
+import { fileURLToPath } from 'node:url';
 import {
   findWildcardObserverFirewallViolations,
   stripComments,
 } from '../../../../.agents/scripts/check-lifecycle-lint.js';
+import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   createHeartbeatMonitor,
   DEFAULT_HEARTBEAT_WARN_SECONDS,

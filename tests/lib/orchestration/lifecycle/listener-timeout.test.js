@@ -22,13 +22,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-
+import { fileURLToPath } from 'node:url';
+import { findWildcardObserverFirewallViolations } from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
-import {
-  findWildcardObserverFirewallViolations,
-} from '../../../../.agents/scripts/check-lifecycle-lint.js';
 import {
   createTimeoutWatchdog,
   parsePhaseEvent,
@@ -323,13 +320,21 @@ describe('TimeoutWatchdog — paired-timer ordering (spawn vs lifecycle)', () =>
       epicId: 99,
       prUrl: 'https://github.com/o/r/pull/1',
     });
-    assert.equal(emits.length, 0, 'watchdog must NOT fire when spawn handled it');
+    assert.equal(
+      emits.length,
+      0,
+      'watchdog must NOT fire when spawn handled it',
+    );
     // Second phase: spawn dies silently, no *.end ever arrives, watchdog
     // fires as the backstop.
     await bus.emit('epic.finalize.start', { epicId: 99 });
     timers.tick(3000);
     await new Promise((resolve) => setImmediate(resolve));
-    assert.equal(emits.length, 1, 'watchdog must fire when spawn signal is lost');
+    assert.equal(
+      emits.length,
+      1,
+      'watchdog must fire when spawn signal is lost',
+    );
     assert.equal(emits[0].payload.reason, 'timeout:epic.finalize');
   });
 });

@@ -97,9 +97,8 @@ export class TimeoutWatchdog {
    *   tests (must mirror Node's `clearTimeout(handle)` signature).
    */
   constructor(opts = {}) {
-    this.timeouts = opts.timeouts && typeof opts.timeouts === 'object'
-      ? opts.timeouts
-      : {};
+    this.timeouts =
+      opts.timeouts && typeof opts.timeouts === 'object' ? opts.timeouts : {};
     this.logger = opts.logger ?? console;
     this._setTimeoutFn = opts.setTimeoutFn ?? setTimeout;
     this._clearTimeoutFn = opts.clearTimeoutFn ?? clearTimeout;
@@ -140,7 +139,11 @@ export class TimeoutWatchdog {
    * provides so callers can detach in tests.
    */
   register(bus) {
-    if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
+    if (
+      !bus ||
+      typeof bus.on !== 'function' ||
+      typeof bus.emit !== 'function'
+    ) {
       throw new TypeError(
         'TimeoutWatchdog.register: bus must expose .on() and .emit()',
       );
