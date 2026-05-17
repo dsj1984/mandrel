@@ -155,6 +155,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.16.0](https://github.com/dsj1984/mandrel/compare/v1.15.0...v1.16.0) (2026-05-17)
+
+
+### Changed
+
+* rename /story-execute to /story-deliver (hard cutover) ([#2174](https://github.com/dsj1984/mandrel/issues/2174)) ([a40e385](https://github.com/dsj1984/mandrel/commit/a40e3854ee6bb3e3bf15f096a4186bd0df6c6822)), closes [#2171](https://github.com/dsj1984/mandrel/issues/2171)
+
 ## [1.15.0](https://github.com/dsj1984/mandrel/compare/v1.14.0...v1.15.0) (2026-05-17)
 
 
