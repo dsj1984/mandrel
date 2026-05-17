@@ -38,6 +38,24 @@ const tasks = [
       '!.worktrees/**',
     ],
   },
+  {
+    // Custom Node-based lint for the lifecycle bus surface (Story #2227).
+    // Enforces:
+    //   1. No `Promise.all` over listener arrays under
+    //      `.agents/scripts/lib/orchestration/lifecycle/**`.
+    //   2. Wildcard-observer firewall: no state-mutating imports in
+    //      listener modules that register on `'*'`.
+    // Both rules are mandated by Tech Spec #2189 and have no biome
+    // equivalent.
+    //
+    // Use bare `node` (PATH-resolved) rather than `process.execPath`:
+    // `process.execPath` on Windows often expands to `C:\Program
+    // Files\nodejs\node.exe`, and spawn(..., { shell: true }) does not
+    // quote the executable, so the space breaks invocation.
+    name: 'lifecycle-lint',
+    cmd: 'node',
+    args: ['.agents/scripts/check-lifecycle-lint.js'],
+  },
 ];
 
 function runTask({ name, cmd, args }) {

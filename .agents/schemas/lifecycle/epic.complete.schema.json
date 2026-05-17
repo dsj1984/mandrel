@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.complete.schema.json",
+  "title": "epic.complete",
+  "description": "Terminal event for a successful Epic run. LabelTransitioner subscribes to this event to flip the Epic to agent::done.",
+  "type": "object",
+  "required": ["epicId", "prUrl"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "prUrl": { "type": "string", "format": "uri", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

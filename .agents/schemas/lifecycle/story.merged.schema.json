@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.merged.schema.json",
+  "title": "story.merged",
+  "description": "Emitted from the story-close path after a Story branch successfully merges into epic/<id>.",
+  "type": "object",
+  "required": ["storyId", "sha"],
+  "properties": {
+    "storyId": { "type": "integer", "minimum": 1 },
+    "sha": { "type": "string", "minLength": 7 }
+  },
+  "additionalProperties": false
+}

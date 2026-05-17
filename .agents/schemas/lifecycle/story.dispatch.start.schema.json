@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.dispatch.start.schema.json",
+  "title": "story.dispatch.start",
+  "description": "Emitted by wave-session when a story is handed to the host-LLM for Agent-tool fanout.",
+  "type": "object",
+  "required": ["storyId", "waveIndex"],
+  "properties": {
+    "storyId": { "type": "integer", "minimum": 1 },
+    "waveIndex": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

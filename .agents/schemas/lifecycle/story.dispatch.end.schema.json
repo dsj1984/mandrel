@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/story.dispatch.end.schema.json",
+  "title": "story.dispatch.end",
+  "description": "Emitted by wave-session when a child story sub-agent returns. Sibling ordering within a wave is not guaranteed; ordering between waves is.",
+  "type": "object",
+  "required": ["storyId", "outcome", "durationMs"],
+  "properties": {
+    "storyId": { "type": "integer", "minimum": 1 },
+    "outcome": {
+      "type": "string",
+      "enum": ["done", "blocked", "failed", "skipped"]
+    },
+    "durationMs": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}
