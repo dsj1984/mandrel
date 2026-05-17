@@ -89,6 +89,94 @@ export function computeStoryDiffPaths({
 }
 
 /**
+ * Resolve a "prior" `baseline-refresh:` commit SHA the current refresh
+ * should fold into rather than emit a sibling for. `cycleState` (mutable,
+ * passed by the retry loop) wins when populated; otherwise we look at
+ * HEAD's subject — a refresh commit at the tip is fair game to amend.
+ *
+ * Returns the SHA (short or long — either works with `git show`/`git
+ * diff --cached`) or `null` when no prior refresh is in scope.
+ *
+ * @param {{
+ *   cwd: string,
+ *   cycleState?: { priorRefreshSha?: string|null } | null,
+ *   gitRunner: { gitSpawn: typeof defaultGitSpawn },
+ * }} input
+ * @returns {string|null}
+ */
+function resolvePriorRefreshSha({ cwd, cycleState, gitRunner }) {
+  if (cycleState?.priorRefreshSha) return cycleState.priorRefreshSha;
+  const subjRes = gitRunner.gitSpawn(cwd, 'log', '-1', '--format=%s', 'HEAD');
+  if (subjRes.status !== 0) return null;
+  const subject = (subjRes.stdout || '').trim();
+  if (!subject.startsWith('baseline-refresh:')) return null;
+  const shaRes = gitRunner.gitSpawn(cwd, 'rev-parse', 'HEAD');
+  if (shaRes.status !== 0) return null;
+  return (shaRes.stdout || '').trim() || null;
+}
+
+/**
+ * Story #2176 — preserve the single-commit-per-close-cycle invariant when
+ * a prior `baseline-refresh:` commit is in scope. The staged tree is
+ * compared against that prior commit's tree via `git diff --cached
+ * <priorSha>`:
+ *
+ *   - empty diff → the new refresh reproduces the prior baseline exactly;
+ *     unstage and return `{ skipped: true, reason: 'no-baseline-drift' }`
+ *     so no commit lands.
+ *   - non-empty diff → drift differs from the prior commit; amend the
+ *     prior with `git commit --amend --no-edit` instead of emitting a
+ *     sibling `baseline-refresh:` commit.
+ *
+ * The caller has already run the refresh command, staged with
+ * `git add -u`, and confirmed `git status --porcelain` is non-empty.
+ *
+ * @returns {{ ok: true, sha: string, skipped?: boolean, amended?: boolean, reason?: string }
+ *   | { ok: false, error: string }}
+ */
+function foldIntoPriorRefresh({
+  cwd,
+  priorSha,
+  cycleState,
+  gitRunner,
+  logger,
+}) {
+  const driftRes = gitRunner.gitSpawn(cwd, 'diff', '--cached', priorSha);
+  if (driftRes.status !== 0) {
+    return {
+      ok: false,
+      error: `git diff --cached ${priorSha} failed: ${driftRes.stderr || driftRes.stdout}`,
+    };
+  }
+  if ((driftRes.stdout || '').length === 0) {
+    gitRunner.gitSpawn(cwd, 'reset', 'HEAD', '--');
+    logger?.info?.(
+      `[baseline-attribution-wiring] no-baseline-drift (prior=${priorSha}); skipping refresh commit.`,
+    );
+    return {
+      ok: true,
+      sha: priorSha,
+      skipped: true,
+      reason: 'no-baseline-drift',
+    };
+  }
+  const amendRes = gitRunner.gitSpawn(cwd, 'commit', '--amend', '--no-edit');
+  if (amendRes.status !== 0) {
+    return {
+      ok: false,
+      error: `git commit --amend failed: ${amendRes.stderr || amendRes.stdout}`,
+    };
+  }
+  const headRes = gitRunner.gitSpawn(cwd, 'rev-parse', '--short', 'HEAD');
+  const newSha = headRes.status === 0 ? (headRes.stdout || '').trim() : '';
+  if (cycleState) cycleState.priorRefreshSha = newSha;
+  logger?.info?.(
+    `[baseline-attribution-wiring] amended prior baseline-refresh commit → ${newSha}; single-commit invariant preserved.`,
+  );
+  return { ok: true, sha: newSha, amended: true };
+}
+
+/**
  * Run the gate's refresh command (`npm run maintainability:update`, etc.)
  * inside the supplied worktree, stage the resulting baseline drift, and
  * commit on the Story branch with the canonical `baseline-refresh: ...`
@@ -98,14 +186,25 @@ export function computeStoryDiffPaths({
  * Story branch — this helper does NOT re-check the branch. story-close.js
  * holds that invariant via `withEpicMergeLock`.
  *
- * @returns {{ ok: true, sha: string } | { ok: false, error: string }}
+ * Story #2176: enforces a single `baseline-refresh:` commit per close
+ * cycle. When `cycleState.priorRefreshSha` is populated, or HEAD itself
+ * carries a `baseline-refresh:` subject, the staged drift is folded into
+ * that prior commit via `git commit --amend --no-edit` (or skipped
+ * entirely when the staged tree matches the prior commit's tree). This
+ * prevents the per-retry cascade where 7+ sibling `baseline-refresh:`
+ * commits would otherwise accumulate.
+ *
+ * @returns {{ ok: true, sha: string, amended?: boolean, skipped?: boolean, reason?: string }
+ *   | { ok: false, error: string }}
  */
 export function runRefreshCommit({
   cwd,
   refreshCmd,
   refreshSubject,
+  cycleState = null,
   spawnSync = defaultSpawnSync,
   gitRunner = { gitSpawn: defaultGitSpawn },
+  logger = DefaultLogger,
 }) {
   const refresh = spawnSync(refreshCmd.cmd, refreshCmd.args, {
     cwd,
@@ -141,6 +240,19 @@ export function runRefreshCommit({
     };
   }
 
+  // Story #2176: fold subsequent refreshes into the prior `baseline-refresh:`
+  // commit rather than emitting siblings.
+  const priorSha = resolvePriorRefreshSha({ cwd, cycleState, gitRunner });
+  if (priorSha) {
+    return foldIntoPriorRefresh({
+      cwd,
+      priorSha,
+      cycleState,
+      gitRunner,
+      logger,
+    });
+  }
+
   const commitRes = gitRunner.gitSpawn(cwd, 'commit', '-m', refreshSubject);
   if (commitRes.status !== 0) {
     return {
@@ -149,10 +261,9 @@ export function runRefreshCommit({
     };
   }
   const headRes = gitRunner.gitSpawn(cwd, 'rev-parse', '--short', 'HEAD');
-  return {
-    ok: true,
-    sha: headRes.status === 0 ? (headRes.stdout || '').trim() : '',
-  };
+  const sha = headRes.status === 0 ? (headRes.stdout || '').trim() : '';
+  if (cycleState) cycleState.priorRefreshSha = sha;
+  return { ok: true, sha };
 }
 
 /**
@@ -195,6 +306,7 @@ export async function handleBaselineGateFailure({
   storyId,
   epicId,
   provider,
+  cycleState = null,
   gateRegistry = DEFAULT_GATE_REGISTRY,
   deps = {},
 } = {}) {
@@ -252,13 +364,20 @@ export async function handleBaselineGateFailure({
     cwd,
     refreshCmd: meta.refreshCmd,
     refreshSubject: meta.refreshSubject,
+    cycleState,
     spawnSync,
     gitRunner,
+    logger: deps.logger,
   });
   if (!refresh.ok) {
     return { action: 'rethrow', error: refresh.error };
   }
-  return { action: 'refreshed', sha: refresh.sha };
+  return {
+    action: 'refreshed',
+    sha: refresh.sha,
+    skipped: refresh.skipped === true,
+    amended: refresh.amended === true,
+  };
 }
 
 export { DEFAULT_GATE_REGISTRY };
@@ -652,6 +771,10 @@ export async function runPreMergeGatesWithAttribution({
   // commits land. When worktree isolation is off, the helper still
   // works against the main checkout via `cwd`.
   const gateCwd = worktreePath || cwd;
+  // Story #2176: a single mutable cycle state object threads through every
+  // retry iteration so subsequent baseline-refresh attempts fold into the
+  // first commit (amend or skip) rather than emitting siblings.
+  const cycleState = { priorRefreshSha: null };
   while (attempt < maxAttempts) {
     attempt += 1;
     try {
@@ -705,10 +828,16 @@ export async function runPreMergeGatesWithAttribution({
         storyId,
         epicId,
         provider,
+        cycleState,
       });
       if (outcome.action === 'refreshed') {
+        const verb = outcome.skipped
+          ? 'baseline-refresh skipped (no drift)'
+          : outcome.amended
+            ? 'baseline-refresh amended into prior'
+            : 'baseline-refresh committed';
         logger.info?.(
-          `[baseline-attribution-wiring] baseline-refresh committed (${outcome.sha}); re-running pre-merge gates.`,
+          `[baseline-attribution-wiring] ${verb} (${outcome.sha}); re-running pre-merge gates.`,
         );
         continue;
       }
