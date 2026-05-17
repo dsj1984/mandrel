@@ -16,9 +16,19 @@
 import { notify } from '../../../notify.js';
 import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
+import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
+import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
+import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
+import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
+import { SignalsAppender } from '../lifecycle/listeners/signals-appender.js';
+import { StructuredCommentPoster } from '../lifecycle/listeners/structured-comment-poster.js';
 import { createTraceLogger } from '../lifecycle/trace-logger.js';
+import {
+  transitionTicketState,
+  upsertStructuredComment,
+} from '../ticketing.js';
 import { BlockerHandler } from './blocker-handler.js';
 import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
@@ -50,7 +60,18 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
-  const waveObserver = new WaveObserver({ ctx, commitAssertion });
+  // Story #2239 — the lifecycle StructuredCommentPoster listener
+  // writes its own `lifecycle-wave-<n>-start` / `lifecycle-wave-<n>-end`
+  // markers (distinct from the legacy `wave-<n>-start` markers the
+  // observer below writes). Parallel-write is intentional during the
+  // bus-cutover window so the rich observer comments (with
+  // commit-assertion reclassification detail) remain the operator-
+  // facing surface until a follow-up Story removes the legacy writer
+  // wholesale. The two markers coexist without colliding.
+  const waveObserver = new WaveObserver({
+    ctx,
+    commitAssertion,
+  });
   const resolvedIntervalSec = Number(
     deliverRunner.progressReportIntervalSec ?? 0,
   );
@@ -112,6 +133,19 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // future contributors edit when adding listeners.
   registerSnapshotListeners({ bus, logger });
   registerPlanListeners({ bus, logger });
+  registerIterateWavesListeners({
+    bus,
+    provider,
+    epicId: ctx.epicId,
+    logger,
+  });
+  const lifecycleProgressReporter = registerLifecycleSideEffectListeners({
+    bus,
+    epicId: ctx.epicId,
+    notify: notifyFn,
+    config,
+    logger,
+  });
 
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const syncColumn = async (id, labels) => {
@@ -145,6 +179,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     bus,
     ledgerWriter,
     traceLogger,
+    lifecycleProgressReporter,
   };
 }
 
@@ -175,5 +210,83 @@ function registerPlanListeners({ bus, logger }) {
   if (!bus || typeof bus.on !== 'function') return;
   logger?.debug?.(
     '[lifecycle] plan listeners registered (writer-only; named slot reserved)',
+  );
+}
+
+/**
+ * Register iterate-waves listeners on the bus (Story #2239 Task #2242):
+ * LabelTransitioner and StructuredCommentPoster. Each listener owns
+ * exactly one side effect (label flips / structured-comment upserts)
+ * and is idempotent on `(event, seqId)` per the listeners/README.md
+ * contract.
+ *
+ * Listeners are constructed only when both `bus` and `provider` are
+ * present so unit fixtures that hand a minimal collaborators bag
+ * (`{}`) continue to operate without listeners.
+ */
+/**
+ * Register the side-effect listener trio for the iterate-waves phase
+ * (Story #2239 Task #2244): LifecycleProgressReporter, SignalsAppender,
+ * NotifyDispatcher. Returns the constructed
+ * `LifecycleProgressReporter` so the runner (or tests) can read its
+ * snapshot without re-scanning the ledger.
+ *
+ * Listeners are constructed only when both `bus` and a usable `notify`
+ * function are present. The signals-writer and notify exports are
+ * imported up-top — no late wiring beyond the bus surface.
+ */
+function registerLifecycleSideEffectListeners({
+  bus,
+  epicId,
+  notify: notifyFn,
+  config,
+  logger,
+}) {
+  if (!bus || typeof bus.on !== 'function') return null;
+  if (!Number.isInteger(epicId)) return null;
+  const reporter = new LifecycleProgressReporter({ logger });
+  reporter.register(bus);
+  const signalsAppender = new SignalsAppender({
+    epicId,
+    appendEpicSignal,
+    config,
+    logger,
+  });
+  signalsAppender.register(bus);
+  if (typeof notifyFn === 'function') {
+    const notifyDispatcher = new NotifyDispatcher({
+      epicId,
+      notify: notifyFn,
+      appendEpicSignal,
+      config,
+      logger,
+    });
+    notifyDispatcher.register(bus);
+  }
+  logger?.debug?.(
+    '[lifecycle] side-effect listeners registered (progress-reporter, signals-appender, notify-dispatcher)',
+  );
+  return reporter;
+}
+
+function registerIterateWavesListeners({ bus, provider, epicId, logger }) {
+  if (!bus || typeof bus.on !== 'function') return;
+  if (!provider || !Number.isInteger(epicId)) return;
+  const labelTransitioner = new LabelTransitioner({
+    provider,
+    epicId,
+    transitionTicketState,
+    logger,
+  });
+  labelTransitioner.register(bus);
+  const commentPoster = new StructuredCommentPoster({
+    provider,
+    epicId,
+    upsertStructuredComment,
+    logger,
+  });
+  commentPoster.register(bus);
+  logger?.debug?.(
+    '[lifecycle] iterate-waves listeners registered (label-transitioner, structured-comment-poster)',
   );
 }
