@@ -136,7 +136,9 @@ describe('Bootstrap — LABEL_TAXONOMY', () => {
   });
 
   it('label count = non-persona taxonomy + one per persona file', () => {
-    const nonPersonaBase = 13;
+    // Story #2144 — added `agent::closing` to the taxonomy as the
+    // intermediate state between executing and done.
+    const nonPersonaBase = 14;
     assert.equal(LABEL_TAXONOMY.length, nonPersonaBase + PERSONA_NAMES.length);
   });
 

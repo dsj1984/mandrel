@@ -62,6 +62,14 @@ const baseInputs = () => ({
   })),
   writeFileFn: mock.fn(async () => {}),
   mkdirFn: mock.fn(async () => {}),
+  // Story #2144 — runPostMergeClose now gates the pipeline behind a
+  // merge-reachability assertion. These tests don't drive a real git
+  // tree, so stub the assertion to a pass-through. Tests that want to
+  // exercise the failure path override this with a throwing stub.
+  assertMergeReachableFn: mock.fn(() => ({
+    reachable: true,
+    reason: 'head-reachable-from-epic',
+  })),
 });
 
 describe('runPostMergeClose — happy path', () => {

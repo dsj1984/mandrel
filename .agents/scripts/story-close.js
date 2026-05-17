@@ -440,6 +440,26 @@ export async function runStoryClose({
     };
   }
 
+  // Story #2144 — flip the Story to `agent::closing` once preflight has
+  // passed and before we acquire the per-Epic merge lock. `agent::closing`
+  // is the intermediate state that distinguishes a hung close (preflight
+  // passed but merge never landed) from finished work (`agent::done`,
+  // applied only after the post-merge pipeline confirms the merge is
+  // reachable from `epic/<id>`). Best-effort: a transition failure here
+  // does not abort the close — the merge can still land, and the
+  // post-merge ticket-closure phase will surface the inconsistency.
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.CLOSING, {
+      cascade: false,
+      notify: notifyFn,
+    });
+    progress('STATE', `Story #${storyId} → ${STATE_LABELS.CLOSING}`);
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to flip Story #${storyId} → ${STATE_LABELS.CLOSING}: ${err?.message ?? err}`,
+    );
+  }
+
   // Capture the main-repo's starting branch *before* we enter the merge
   // lock so any throw inside `runStoryCloseLocked` (rebase failure, push
   // rejection, transient git/network errors) leaves the operator's shell

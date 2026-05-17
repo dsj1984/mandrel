@@ -93,8 +93,10 @@ test('ticketing.js', async (t) => {
     assert.deepEqual(mock.updates[0].mutations.labels.add, ['agent::ready']);
     // Order tracks STATE_LABELS enum order (READY excluded as the target).
     // Story #2004 added BLOCKED at the tail of the enum.
+    // Story #2144 inserted CLOSING between EXECUTING and DONE.
     assert.deepEqual(mock.updates[0].mutations.labels.remove, [
       'agent::executing',
+      'agent::closing',
       'agent::done',
       'agent::blocked',
     ]);

@@ -50,12 +50,18 @@ test('AGENT_LABELS.CLOSING equals "agent::closing"', () => {
 });
 
 test('VALID_TRANSITIONS permits executing → closing → done', () => {
-  assert.ok(VALID_TRANSITIONS[AGENT_LABELS.EXECUTING].includes(AGENT_LABELS.CLOSING));
-  assert.ok(VALID_TRANSITIONS[AGENT_LABELS.CLOSING].includes(AGENT_LABELS.DONE));
+  assert.ok(
+    VALID_TRANSITIONS[AGENT_LABELS.EXECUTING].includes(AGENT_LABELS.CLOSING),
+  );
+  assert.ok(
+    VALID_TRANSITIONS[AGENT_LABELS.CLOSING].includes(AGENT_LABELS.DONE),
+  );
 });
 
 test('VALID_TRANSITIONS permits closing → blocked', () => {
-  assert.ok(VALID_TRANSITIONS[AGENT_LABELS.CLOSING].includes(AGENT_LABELS.BLOCKED));
+  assert.ok(
+    VALID_TRANSITIONS[AGENT_LABELS.CLOSING].includes(AGENT_LABELS.BLOCKED),
+  );
 });
 
 test('isValidTransition allows executing → closing and closing → done', () => {
@@ -113,10 +119,7 @@ test('isValidTransition still allows executing → blocked', () => {
 });
 
 test('isValidTransition rejects unknown source states', () => {
-  assert.equal(
-    isValidTransition('agent::unknown', AGENT_LABELS.DONE),
-    false,
-  );
+  assert.equal(isValidTransition('agent::unknown', AGENT_LABELS.DONE), false);
 });
 
 test('isValidTransition treats null fromState as initial entry and accepts any known label', () => {
