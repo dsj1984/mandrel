@@ -660,7 +660,15 @@ describe('crap-drift helpers', () => {
 // auto-refresh-runner.runAutoRefresh
 // ---------------------------------------------------------------------------
 
-describe('auto-refresh-runner.runAutoRefresh', () => {
+describe('auto-refresh-runner.runAutoRefresh — Story #2205 contract', () => {
+  // Story #2205 — `runAutoRefresh` now routes every baseline write through
+  // `refreshBaseline()` and emits `chore(baselines): refresh <kind> for
+  // story-<id>` commits (no `--amend`, no `--allow-empty`). Tests pin the
+  // status-string contract for the four terminal outcomes:
+  //
+  //   skipped/disabled, skipped/no-baseline-drift,
+  //   refused (with friction + dedup),
+  //   committed (with sha).
   function baseDeps(overrides = {}) {
     return {
       logger: { info: () => {}, warn: () => {} },
@@ -677,22 +685,50 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
         crapOverCap: [],
         refusalReasons: [],
       }),
-      regenerateMainFromTree: async () => ({ didChange: true }),
+      // Stub the refresh-service: claim every kind wrote successfully.
+      refreshBaseline: async (opts) => ({
+        kind: opts.kind,
+        writePath: opts.writePath,
+        wrote: true,
+      }),
+      // Stub the scorer builder — the scorer itself is never invoked
+      // because refreshBaseline is stubbed.
+      scorerBuilder: () => () => async () => [],
       gitRunner: {
-        gitSpawn: () => ({ status: 0, stdout: 'abc1234', stderr: '' }),
+        gitSpawn: (_cwd, ...args) => {
+          // Default plan: every git op succeeds.
+          //   - `diff --cached --exit-code` returns 1 (drift present), so
+          //     the runner emits a commit.
+          //   - `rev-parse --short HEAD` returns abc1234.
+          if (
+            args[0] === 'diff' &&
+            args.includes('--cached') &&
+            args.includes('--exit-code')
+          ) {
+            return { status: 1, stdout: 'drift\n' };
+          }
+          if (args[0] === 'rev-parse') {
+            return { status: 0, stdout: 'abc1234' };
+          }
+          return { status: 0, stdout: '', stderr: '' };
+        },
       },
       fsImpl: {
         readFileSync: () => '{}',
-        // Story #1974 (Epic #1943): the rewriteBaselinesWithScopeMerge
-        // path now writes back the merged envelope; the test mock needs
-        // mkdirSync/writeFileSync as no-ops so the code can complete
-        // without touching the real fs.
         mkdirSync: () => {},
         writeFileSync: () => {},
       },
       appendSignal: async () => true,
       forEachLine: async () => {},
       computeStoryDiffPaths: () => [],
+      // Reader returns minimally-valid envelopes so the cap evaluator
+      // has something to iterate over.
+      readerLoadFile: () => ({
+        rollup: { '*': {} },
+        rows: [],
+        kernelVersion: '0.1.0',
+        generatedAt: '2026-05-15T00:00:00Z',
+      }),
       ...overrides,
     };
   }
@@ -712,7 +748,7 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
     assert.deepEqual(out, { status: 'skipped', reason: 'disabled' });
   });
 
-  it('returns "skipped/no-baseline-drift" when regen reports no change', async () => {
+  it('returns "skipped/no-baseline-drift" when every refreshBaseline reports wrote:false', async () => {
     const out = await runAutoRefresh({
       storyId: 1,
       epicId: 1,
@@ -721,13 +757,17 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       storyBranch: 'story-1',
       agentSettings: {},
       deps: baseDeps({
-        regenerateMainFromTree: async () => ({ didChange: false }),
+        refreshBaseline: async (opts) => ({
+          kind: opts.kind,
+          writePath: opts.writePath,
+          wrote: false,
+        }),
       }),
     });
     assert.deepEqual(out, { status: 'skipped', reason: 'no-baseline-drift' });
   });
 
-  it('returns "failed/regen-threw" when regen rejects', async () => {
+  it('returns "failed/refresh-service-threw" when refreshBaseline rejects', async () => {
     const out = await runAutoRefresh({
       storyId: 1,
       epicId: 1,
@@ -736,17 +776,17 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       storyBranch: 'story-1',
       agentSettings: {},
       deps: baseDeps({
-        regenerateMainFromTree: async () => {
+        refreshBaseline: async () => {
           throw new Error('boom');
         },
       }),
     });
     assert.equal(out.status, 'failed');
-    assert.equal(out.reason, 'regen-threw');
+    assert.equal(out.reason, 'refresh-service-threw');
     assert.equal(out.detail, 'boom');
   });
 
-  it('happy path under cap → status=amended', async () => {
+  it('happy path under cap → status=committed with sha', async () => {
     const out = await runAutoRefresh({
       storyId: 1,
       epicId: 1,
@@ -756,7 +796,7 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       agentSettings: {},
       deps: baseDeps(),
     });
-    assert.equal(out.status, 'amended');
+    assert.equal(out.status, 'committed');
     assert.equal(out.sha, 'abc1234');
   });
 
@@ -840,11 +880,10 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       }),
     });
     assert.equal(diffCalled, 0);
-    assert.equal(out.status, 'amended');
+    assert.equal(out.status, 'committed');
   });
 
-  it('returns "failed/amend-failed" when amend git call fails', async () => {
-    let firstAdd = true;
+  it('returns "failed/commit-failed" when git commit itself fails', async () => {
     const out = await runAutoRefresh({
       storyId: 1,
       epicId: 1,
@@ -855,9 +894,15 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       deps: baseDeps({
         gitRunner: {
           gitSpawn: (_cwd, ...args) => {
-            if (args[0] === 'add' && firstAdd) {
-              firstAdd = false;
-              return { status: 1, stdout: '', stderr: 'add failed' };
+            if (
+              args[0] === 'diff' &&
+              args.includes('--cached') &&
+              args.includes('--exit-code')
+            ) {
+              return { status: 1, stdout: 'drift\n' };
+            }
+            if (args[0] === 'commit') {
+              return { status: 1, stdout: '', stderr: 'commit failed' };
             }
             return { status: 0, stdout: '', stderr: '' };
           },
@@ -865,7 +910,7 @@ describe('auto-refresh-runner.runAutoRefresh', () => {
       }),
     });
     assert.equal(out.status, 'failed');
-    assert.equal(out.reason, 'amend-failed');
+    assert.equal(out.reason, 'commit-failed');
   });
 });
 

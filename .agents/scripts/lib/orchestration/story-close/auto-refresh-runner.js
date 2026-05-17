@@ -316,7 +316,6 @@ async function runRefreshForKind({
   cwd,
   epicBranch,
   storyBranch,
-  agentSettings,
   writePath,
   refreshBaseline,
   scorer,
@@ -382,9 +381,7 @@ function commitRefreshedBaselines({
     const sha = headRes.status === 0 ? (headRes.stdout || '').trim() : '';
     lastSha = sha;
     committed.push({ kind, sha });
-    logger?.info?.(
-      `[auto-refresh-runner] committed ${subject} (${sha}).`,
-    );
+    logger?.info?.(`[auto-refresh-runner] committed ${subject} (${sha}).`);
   }
   return { ok: true, committed, lastSha };
 }
@@ -477,7 +474,6 @@ export async function runAutoRefresh({
         cwd,
         epicBranch,
         storyBranch,
-        agentSettings,
         writePath: miAbs,
         refreshBaseline,
         scorer,
@@ -491,7 +487,6 @@ export async function runAutoRefresh({
         cwd,
         epicBranch,
         storyBranch,
-        agentSettings,
         writePath: crapAbs,
         refreshBaseline,
         scorer,
@@ -506,8 +501,7 @@ export async function runAutoRefresh({
     };
   }
 
-  const anyWrote =
-    (miRefreshed && miRefreshed.wrote) || (crapRefreshed && crapRefreshed.wrote);
+  const anyWrote = miRefreshed?.wrote === true || crapRefreshed?.wrote === true;
   if (!anyWrote) {
     return { status: 'skipped', reason: 'no-baseline-drift' };
   }
@@ -574,12 +568,10 @@ export async function runAutoRefresh({
   // kind that actually drifted. Empty diff → no commit. No `--amend`,
   // no `--allow-empty`.
   const refreshed = [
-    miRefreshed && miRefreshed.wrote
+    miRefreshed?.wrote === true
       ? { kind: 'maintainability', writePath: miAbs }
       : null,
-    crapRefreshed && crapRefreshed.wrote
-      ? { kind: 'crap', writePath: crapAbs }
-      : null,
+    crapRefreshed?.wrote === true ? { kind: 'crap', writePath: crapAbs } : null,
   ].filter(Boolean);
   const commit = commitRefreshedBaselines({
     cwd,

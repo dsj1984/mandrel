@@ -35,25 +35,25 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { refreshBaseline as defaultRefreshBaseline } from '../../../../../lib/baselines/refresh-service.js';
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
+import { canonicalise as canonicalisePath } from '../../baselines/path-canon.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
 import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
 } from '../../config-resolver.js';
 import { COVERAGE_TIMEOUT_EXIT_CODE } from '../../coverage-capture.js';
-import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { loadCoverage as defaultLoadCoverage } from '../../coverage-utils.js';
 import {
   resolveEscomplexVersion as defaultResolveEscomplexVersion,
-  scanAndScore as defaultScanAndScore,
   resolveTsTranspilerVersion as defaultResolveTsTranspilerVersion,
+  scanAndScore as defaultScanAndScore,
 } from '../../crap-utils.js';
+import { gitSpawn as defaultGitSpawn } from '../../git-utils.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 import {
   calculateAll as defaultCalculateAll,
   scanDirectory as defaultScanDirectory,
 } from '../../maintainability-utils.js';
-import { canonicalise as canonicalisePath } from '../../baselines/path-canon.js';
 import { upsertStructuredComment as defaultUpsertStructuredComment } from '../ticketing.js';
 import { classifyBaselineDrift as defaultClassifyBaselineDrift } from './baseline-attribution.js';
 import { renderBaselineFrictionBody as defaultRenderBaselineFrictionBody } from './baseline-friction-body.js';

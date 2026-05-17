@@ -77,8 +77,7 @@ describe('AC-9 single-baseline-refresh-commit-per-close-cycle invariant', () => 
       if (key === 'add baselines/maintainability.json') return { status: 0 };
       // diff --cached --exit-code → drift on the first refresh attempt.
       if (
-        key ===
-        'diff --cached --exit-code -- baselines/maintainability.json'
+        key === 'diff --cached --exit-code -- baselines/maintainability.json'
       ) {
         return { status: 1, stdout: 'drift\n' };
       }
