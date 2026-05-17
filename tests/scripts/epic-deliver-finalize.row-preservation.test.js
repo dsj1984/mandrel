@@ -118,10 +118,7 @@ function makeCalculateAllStub({ workDir, freshScores }) {
   return async (absPaths) => {
     const scores = {};
     for (const abs of absPaths) {
-      const rel = path
-        .relative(workDir, abs)
-        .split(path.sep)
-        .join('/');
+      const rel = path.relative(workDir, abs).split(path.sep).join('/');
       if (rel in freshScores) {
         scores[abs] = freshScores[rel];
       }
@@ -206,9 +203,15 @@ test('AC-4: finalize preserves 7 out-of-scope rows byte-for-byte when in-scope r
         reconcileResult.refreshes.length >= 1,
       'reconciliation should report per-kind refresh results',
     );
-    const mi = reconcileResult.refreshes.find((r) => r.kind === 'maintainability');
+    const mi = reconcileResult.refreshes.find(
+      (r) => r.kind === 'maintainability',
+    );
     assert.ok(mi, 'maintainability refresh result must be present');
-    assert.equal(mi.scopeMode, 'diff', 'maintainability must run in diff-scope mode');
+    assert.equal(
+      mi.scopeMode,
+      'diff',
+      'maintainability must run in diff-scope mode',
+    );
 
     // Read the on-disk envelope post-refresh.
     const onDisk = JSON.parse(readFileSync(miPath, 'utf8'));
@@ -218,11 +221,23 @@ test('AC-4: finalize preserves 7 out-of-scope rows byte-for-byte when in-scope r
     for (const [pth, expectedMi] of Object.entries(freshScores)) {
       const row = rowsByPath.get(pth);
       assert.ok(row, `in-scope row ${pth} must exist post-refresh`);
-      assert.equal(row.mi, expectedMi, `in-scope row ${pth} should reflect fresh score`);
+      assert.equal(
+        row.mi,
+        expectedMi,
+        `in-scope row ${pth} should reflect fresh score`,
+      );
     }
 
     // 2. The 7 out-of-scope rows are byte-identical to their prior shape.
-    const outOfScope = ['src/d.js', 'src/e.js', 'src/f.js', 'src/g.js', 'src/h.js', 'src/i.js', 'src/j.js'];
+    const outOfScope = [
+      'src/d.js',
+      'src/e.js',
+      'src/f.js',
+      'src/g.js',
+      'src/h.js',
+      'src/i.js',
+      'src/j.js',
+    ];
     assert.equal(outOfScope.length, 7);
     for (const pth of outOfScope) {
       const row = rowsByPath.get(pth);
@@ -364,7 +379,10 @@ test('AC-4: --full-scope still preserves out-of-scope rows when scorer only retu
     const rowsByPath = new Map(onDisk.rows.map((r) => [r.path, r]));
     for (const r of TEN_ROW_PRIOR) {
       const got = rowsByPath.get(r.path);
-      assert.ok(got, `full-scope must include every scored row (missing ${r.path})`);
+      assert.ok(
+        got,
+        `full-scope must include every scored row (missing ${r.path})`,
+      );
       assert.equal(got.mi, r.mi);
     }
   } finally {

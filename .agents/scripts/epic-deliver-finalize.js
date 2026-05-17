@@ -28,9 +28,8 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { parseArgs } from 'node:util';
-
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 
 import { refreshBaseline as defaultRefreshBaseline } from '../../lib/baselines/refresh-service.js';
 import { reconcileAcceptanceSpec as defaultReconcileAcceptanceSpec } from './acceptance-spec-reconciler.js';
@@ -257,7 +256,11 @@ function buildMaintainabilityScorer({
       sourceList = [];
       for (const f of files ?? []) {
         const abs = path.isAbsolute(f) ? f : path.resolve(cwd, f);
-        if (absTargetDirs.some((dir) => abs === dir || abs.startsWith(`${dir}${path.sep}`))) {
+        if (
+          absTargetDirs.some(
+            (dir) => abs === dir || abs.startsWith(`${dir}${path.sep}`),
+          )
+        ) {
           sourceList.push(abs);
         }
       }
@@ -417,13 +420,16 @@ export async function reconcileBaselinesOnEpicBranch({
     const baselines = getBaselinesFn({ agentSettings });
     const quality = getQualityFn({ agentSettings });
     const resolvedBaseRef =
-      baseRef ?? `origin/${project?.baseBranch ?? agentSettings?.baseBranch ?? 'main'}`;
+      baseRef ??
+      `origin/${project?.baseBranch ?? agentSettings?.baseBranch ?? 'main'}`;
 
     // ── maintainability ────────────────────────────────────────────────────
     const miPath = baselines?.maintainability?.path;
     const miTargetDirs = quality?.maintainability?.targetDirs ?? [];
     if (typeof miPath === 'string' && miPath.length > 0) {
-      const miAbs = path.isAbsolute(miPath) ? miPath : path.resolve(cwd, miPath);
+      const miAbs = path.isAbsolute(miPath)
+        ? miPath
+        : path.resolve(cwd, miPath);
       const miScorer = buildMaintainabilityScorer({
         cwd,
         targetDirs: miTargetDirs,
@@ -483,7 +489,12 @@ export async function reconcileBaselinesOnEpicBranch({
     logger.warn?.(
       `[epic-deliver-finalize] baseline reconciliation skipped (refreshBaseline threw): ${err?.message ?? err}`,
     );
-    return { committed: false, reason: 'error', detail: String(err), fullScope };
+    return {
+      committed: false,
+      reason: 'error',
+      detail: String(err),
+      fullScope,
+    };
   }
 
   const anyWrote = refreshes.some((r) => r.wrote);

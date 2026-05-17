@@ -18,8 +18,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import {
   classifyFinalizeInvocation,
@@ -79,9 +79,14 @@ function makeGitSpawnFn() {
 }
 
 const stubResolveConfig = (config) => () => config;
-const stubGetBaselines = () => ({ agentSettings }) =>
-  agentSettings.quality.baselines;
-const stubGetQuality = () => ({ agentSettings }) => agentSettings.quality;
+const stubGetBaselines =
+  () =>
+  ({ agentSettings }) =>
+    agentSettings.quality.baselines;
+const stubGetQuality =
+  () =>
+  ({ agentSettings }) =>
+    agentSettings.quality;
 
 test('reconcileBaselinesOnEpicBranch defaults to diff-scope (fullScope=false)', async () => {
   const config = makeInjectedConfig();
@@ -111,9 +116,17 @@ test('reconcileBaselinesOnEpicBranch defaults to diff-scope (fullScope=false)', 
       false,
       `${call.kind} refresh must default to diff-scope (fullScope=false)`,
     );
-    assert.equal(call.baseRef, 'origin/main', 'baseRef defaults to origin/main');
+    assert.equal(
+      call.baseRef,
+      'origin/main',
+      'baseRef defaults to origin/main',
+    );
     assert.equal(call.headRef, 'HEAD', 'headRef defaults to HEAD');
-    assert.equal(typeof call.scorer, 'function', 'scorer adapter must be injected');
+    assert.equal(
+      typeof call.scorer,
+      'function',
+      'scorer adapter must be injected',
+    );
   }
 
   // No drift → no commit.
@@ -228,7 +241,7 @@ test('runEpicDeliverFinalize plumbs fullScope through to reconcileBaselinesFn', 
     reconcileCalls.push(args);
     return { committed: false, didChange: false, reason: 'no-change' };
   };
-  const git = (function () {
+  const git = (() => {
     const routes = [
       { matcher: (args) => args[0] === 'fetch', response: { status: 0 } },
       { matcher: (args) => args[0] === 'merge-base', response: { status: 0 } },

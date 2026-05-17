@@ -723,11 +723,18 @@ async function runPreMergeValidation({
  * stays at CC ≤ 2.
  */
 export function describeAutoRefreshOutcome(refreshResult) {
-  if (refreshResult?.status === 'amended') {
+  // Story #2205 — `committed` is the new under-cap outcome (one
+  // `chore(baselines): refresh <kind> for story-<id>` commit per kind
+  // that actually drifted). `amended` is the legacy alias retained for
+  // any in-flight callers that still inspect the historical status name.
+  if (
+    refreshResult?.status === 'committed' ||
+    refreshResult?.status === 'amended'
+  ) {
     return {
       channel: 'progress',
       label: 'AUTO-REFRESH',
-      message: `Amended bounded baseline drift into HEAD (${refreshResult.sha}).`,
+      message: `Committed bounded baseline drift on Story branch (${refreshResult.sha}).`,
     };
   }
   if (refreshResult?.status === 'refused') {
