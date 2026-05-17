@@ -145,7 +145,9 @@ describe('writeScopeMergedBaseline — writer funnel', () => {
         throw new Error('writeFn should not be invoked when absPath is null');
       },
       writeFileFn: () => {
-        throw new Error('writeFileFn should not be invoked when absPath is null');
+        throw new Error(
+          'writeFileFn should not be invoked when absPath is null',
+        );
       },
       fsImpl: makeFsShim(),
     });

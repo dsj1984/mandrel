@@ -478,7 +478,9 @@ describe('regenerateMainFromTree (Story #2135 / Task #2145 — writer-funnel)', 
       );
     }
     assert.ok(
-      miCall.rows.some((r) => r.path === '.agents/scripts/baz.js' && r.mi === 77),
+      miCall.rows.some(
+        (r) => r.path === '.agents/scripts/baz.js' && r.mi === 77,
+      ),
       'canonicalised row must carry the original score',
     );
   });
