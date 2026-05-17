@@ -17,10 +17,8 @@
 
 import { spawn } from 'node:child_process';
 import { writeFile as defaultWriteFile } from 'node:fs/promises';
-import { buildInProcessBaselineGate } from './close-validation/in-process-baseline-gate.js';
 import { defaultGetHeadSha } from './close-validation/projections/head-sha.js';
 import { getCommands } from './config/commands.js';
-import { getQuality } from './config/quality.js';
 import { storyArtifactPath } from './config/temp-paths.js';
 import { getSpawnCount as defaultGetSpawnCount } from './gh-exec.js';
 import {
@@ -179,23 +177,30 @@ function buildTestGateEntry(agentSettings) {
  * Build the canonical close-validation gate list.
  *
  * Ordering (cheapest fast-fail first): typecheck → lint → [test] →
- * format → check-maintainability → coverage-capture → check-crap →
- * [check-mutation]. The standalone `test` gate is dropped when
- * `crap.enabled === true` (Story #1798) because coverage-capture carries
- * test-failure signalling under c8 in that mode.
+ * format → coverage-capture → check-baselines. The standalone `test`
+ * gate is dropped when `crap.enabled === true` (Story #1798) because
+ * coverage-capture carries test-failure signalling under c8 in that
+ * mode.
  *
  * `typecheck` is mandatory; consumers may customise the command via
  * `agentSettings.commands.typecheck` (default `npm run typecheck`).
  *
- * Story #1120: when `epicBranch` is supplied, the maintainability and CRAP
- * gates receive `--epic-ref <epicBranch>` so they read their committed
- * baseline at the Epic-branch HEAD via `git show` rather than via a
- * working-tree fs read.
+ * Story #2210 retired the legacy per-kind in-process regression gates
+ * (`check-maintainability`, `check-crap`, `check-mutation`) and their
+ * shared `buildInProcessBaselineGate` runner. The unified
+ * `check-baselines` gate is now the single source of truth for per-kind
+ * regression enforcement (attribution-wired floor + tolerance + schema).
+ * The `epicBranch` parameter is retained on the signature for callers
+ * that still pass it; it is currently unused by `buildDefaultGates`
+ * itself but is forwarded by callers for downstream wiring.
  *
  * @param {{ agentSettings?: object, epicBranch?: string }} [opts]
  * @returns {Gate[]}
  */
-export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
+export function buildDefaultGates({
+  agentSettings,
+  epicBranch: _epicBranch,
+} = {}) {
   const typecheckCmdString = resolveTypecheckCommand(agentSettings);
   const [typecheckCmd, ...typecheckArgs] = typecheckCmdString
     .split(/\s+/)
@@ -205,10 +210,6 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
     .split(/\s+/)
     .filter(Boolean);
   const formatWriteString = resolveFormatWriteCommand(agentSettings);
-  const epicRefArgs =
-    typeof epicBranch === 'string' && epicBranch.length > 0
-      ? ['--epic-ref', epicBranch]
-      : [];
   return [
     {
       name: 'typecheck',
@@ -229,95 +230,27 @@ export function buildDefaultGates({ agentSettings, epicBranch } = {}) {
       hint: buildFormatHint(formatWriteString),
     },
     {
-      // Story #1973 / Task #1984 — in-process gate. The legacy
-      // `check-maintainability.js` CLI was the regression-compare arm for
-      // the maintainability baseline; that compare now runs in-process via
-      // the per-kind module's `compare(head, base)` import. The cmd/args
-      // are retained as a no-op shape so the evidence config-hash and any
-      // call site introspecting `gate.cmd`/`gate.args` keep working —
-      // `runCloseValidation` prefers `gate.run` when present and never
-      // spawns the CLI for this gate.
-      name: 'check-maintainability',
-      cmd: 'node',
-      args: ['.agents/scripts/check-maintainability.js', ...epicRefArgs],
-      run: buildInProcessBaselineGate({
-        kind: 'maintainability',
-        epicBranch,
-        agentSettings,
-      }),
-      hint: 'Run `npm run maintainability:update` to refresh the baseline — the refreshed baseline MUST be committed on the story branch.',
-    },
-    {
       name: 'coverage-capture',
       cmd: 'node',
       args: ['.agents/scripts/coverage-capture.js'],
       hint: 'Coverage capture failed — `npm run test:coverage` exited non-zero. Fix failing tests or coverage-threshold breaches, then re-run close.',
     },
     {
-      // Story #1973 / Task #1984 — in-process gate (see check-maintainability
-      // above for the rationale).
-      name: 'check-crap',
-      cmd: 'node',
-      args: ['.agents/scripts/check-crap.js', ...epicRefArgs],
-      run: buildInProcessBaselineGate({
-        kind: 'crap',
-        epicBranch,
-        agentSettings,
-      }),
-      hint: 'Reduce complexity or add coverage on the flagged methods, or run `npm run crap:update` and commit with a `baseline-refresh:` tagged subject + non-empty body if the drift is justified. Self-skips when `agentSettings.quality.crap.enabled` is false.',
-    },
-    ...buildMutationGateEntry(agentSettings, epicBranch),
-    {
-      // Story #1912 / Task #1917 — unified floor + tolerance + schema gate.
-      // Runs IN ADDITION to the per-kind regression checks above; the
-      // redundancy is intentional for this Epic and collapses to a single
-      // gate in follow-up Epic #1943. `check-baselines.js` self-skips
-      // gates whose `enabled === false` is configured, so this is safe to
-      // register unconditionally.
+      // Story #2210 — unified `check-baselines` gate is the only path for
+      // per-kind regression enforcement. The legacy per-kind in-process
+      // gates (`check-maintainability`, `check-crap`, `check-mutation`)
+      // were retired with `buildInProcessBaselineGate` because their
+      // regression-compare semantics are fully subsumed by this gate's
+      // attribution-wired floor + tolerance + schema enforcement, and
+      // running both paths in series was redundant and conflict-prone.
+      //
+      // `check-baselines.js` self-skips per-kind gates whose
+      // `enabled === false` is configured, so registering it
+      // unconditionally is safe.
       name: 'check-baselines',
       cmd: 'node',
       args: ['.agents/scripts/check-baselines.js', '--format', 'text'],
       hint: 'Unified baselines gate breached. Inspect the JSON report (`node .agents/scripts/check-baselines.js`) to see which kind/component/axis fell below floor; remediate the underlying file(s) or — when the regression is intentional — refresh the relevant baseline through its per-kind update script and commit with a `baseline-refresh:` tagged subject.',
-    },
-  ];
-}
-
-/**
- * Conditionally include the mutation gate (Story #1736) when
- * `delivery.quality.gates.mutation.enabled` is true. The script
- * self-skips when no Stryker config is detected, so the gate is safe to
- * register unconditionally — but we keep the registration gated on the
- * `enabled` flag so consumers who explicitly opt out don't pay the
- * spawn-and-detect cost on every close.
- *
- * @param {object|undefined} agentSettings
- * @param {string|undefined} epicBranch
- * @returns {Gate[]}
- */
-function buildMutationGateEntry(agentSettings, epicBranch) {
-  try {
-    const quality = getQuality({ agentSettings });
-    const mutation = quality.gates?.mutation;
-    if (!mutation || mutation.enabled === false) return [];
-  } catch {
-    // Malformed settings — registering the gate is harmless because the
-    // script itself self-skips when prerequisites are missing.
-  }
-  return [
-    {
-      // Story #1973 / Task #1984 — in-process gate. See `check-maintainability`
-      // in `buildDefaultGates` for the migration rationale; the cmd/args
-      // legacy shape is preserved so existing call sites that introspect
-      // `gate.cmd` / `gate.args` keep working unchanged.
-      name: 'check-mutation',
-      cmd: 'node',
-      args: ['.agents/scripts/check-mutation.js'],
-      run: buildInProcessBaselineGate({
-        kind: 'mutation',
-        epicBranch,
-        agentSettings,
-      }),
-      hint: 'Mutation gate breached. Add tests that kill the surviving mutants, or — when the regression is intentional and justified — refresh the baseline with `node .agents/scripts/update-mutation-baseline.js` and commit it on the story branch with a `baseline-refresh:` tagged subject. Self-skips when no Stryker config is detected (`npx stryker init`).',
     },
   ];
 }
@@ -343,7 +276,7 @@ export const INDEPENDENT_GATE_NAMES = new Set(['lint', 'format', 'typecheck']);
 /**
  * Partition a gate list into the parallel-safe set and the order-sensitive
  * remainder. Order is preserved within each bucket so the serial walk stays
- * cheapest-fast-fail-first (test → check-maintainability → coverage → crap).
+ * cheapest-fast-fail-first (test → coverage-capture → check-baselines).
  *
  * @param {Gate[]} gates
  * @returns {{ independent: Gate[], serial: Gate[] }}

@@ -1,36 +1,46 @@
 /**
  * auto-refresh-runner.js — bounded baseline auto-refresh at story-close
- * (Story #1398, Epic #1386).
+ * (Story #1398, Epic #1386; rerouted to `refreshBaseline()` by Story
+ * #2205, Epic #2173).
  *
  * Runs *after* `runPreMergeGatesWithAttribution` returns `{ status: 'ok' }`
- * and *before* the merge into `epic/<id>`. Regenerates the baseline rows
- * scoped to the Story diff, evaluates them against the bounded delta caps
- * via {@link evaluateAutoRefresh}, and either:
+ * and *before* the merge into `epic/<id>`. For each baseline kind
+ * (maintainability, crap) the runner:
  *
- *   - **Under-cap path** — writes the regenerated rows to the on-disk
- *     baseline files, stages them, and amends them into HEAD on the Story
- *     branch (no separate `baseline-refresh:` commit). The merge commit
- *     subsumes the refresh; the Story PR's diff carries one fewer noisy
- *     `baseline-refresh:` row.
+ *   1. Snapshots the prior on-disk envelope (so cap evaluation can compare
+ *      regenerated rows against the pre-refresh baseline).
+ *   2. Calls `refreshBaseline({ kind, baseRef, headRef, fullScope: false,
+ *      ... })` — the unified service walks the story-diff scope, scores
+ *      the in-scope files, scope-merges with out-of-scope prior rows, and
+ *      writes the envelope atomically.
+ *   3. Re-reads the (now scope-merged) envelope and evaluates the rows
+ *      against the configured caps via `evaluateAutoRefresh`.
  *
- *   - **Over-cap path** — leaves the working tree alone (no baseline write,
- *     no commit) and appends a single `baseline-refresh-regression`
- *     friction signal to the per-Story NDJSON. The signal carries the
- *     offending file/method/delta rows so the operator can route the
- *     refresh to the right Story (or accept the regression manually).
+ *   - **Under-cap path** — stages the baseline file, runs
+ *     `git diff --cached --exit-code`, and either:
+ *       · empty diff → logs "no baseline drift to fold in" and skips the
+ *         commit entirely; OR
+ *       · non-empty diff → emits one canonical commit
+ *         `chore(baselines): refresh <kind> for story-<id>`. NO `--amend`,
+ *         NO `--allow-empty`.
  *
- *   - **Skipped paths** — `enabled: false` in `quality.autoRefresh`, no
- *     baseline-relevant changes in the Story diff (regen produces no rows),
- *     or every regenerated row matches the on-disk baseline byte-for-byte.
- *     The runner returns `{ status: 'skipped', reason }` without touching
- *     the working tree.
+ *   - **Over-cap path** — restores the baseline files to HEAD (the staged
+ *     drift is unstaged + working-tree-reverted) and appends a single
+ *     `baseline-refresh-regression` friction signal to the per-Story
+ *     NDJSON. The runner returns `{ status: 'refused', ... }`.
  *
- * Story #2135 / Task #2147 — every baseline write here now goes through
- * `lib/baselines/writer.js`. The legacy `emitMiFlatMap` /
- * `emitCrapEnvelope` / `rewriteBaselinesWithScopeMerge` / `readBaselineRows`
- * helpers + the CRAP `path ↔ file` adapter are gone. Prior envelopes are
- * read via `reader.loadFile`; scope-merge + epsilon stabilisation happens
- * inside `writer.write({prior, scope, epsilon})` by design.
+ *   - **Skipped paths** — `enabled: false` in `quality.autoRefresh`,
+ *     `refreshBaseline()` reports `wrote: false` for every configured
+ *     kind, or staging produced an empty diff. The runner returns
+ *     `{ status: 'skipped', reason }` without touching the branch tip.
+ *
+ * Story #2205 — every baseline write goes through `refreshBaseline()` in
+ * `lib/baselines/refresh-service.js`. The legacy
+ * `regenerateMainFromTree` + `writeScopeMergedBaseline` +
+ * `loadPriorEnvelope` + `amendBaselinesIntoHead` chain is gone. The
+ * `--amend` / `--allow-empty` shortcut is gone. The commit subject is
+ * `chore(baselines): refresh <kind> for story-<id>` per the new
+ * commit-hygiene contract (AC-8).
  *
  * Dedup contract (AC3 — idempotent re-run):
  *   On re-entry after an over-cap refusal, the runner scans the per-Story
@@ -46,25 +56,20 @@
  *   (story, refusal-cause) regardless of how many times story-close runs.
  *
  * The runner is dependency-injection-friendly: every git invocation, every
- * fs touch, the regen function, the evaluator, and the signal writer are
- * injectable seams. Production callers omit the seams; tests inject mocks.
+ * fs touch, the refresh-service handle, the evaluator, and the signal
+ * writer are injectable seams. Production callers omit the seams; tests
+ * inject mocks.
  *
+ * @see lib/baselines/refresh-service.js (the unified write funnel)
  * @see .agents/scripts/lib/auto-refresh-baselines.js (evaluator)
- * @see .agents/scripts/lib/baseline-snapshot.js (regenerateMainFromTree —
- *   the regen helper this runner adapts to the Story-diff scope)
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { refreshBaseline as defaultRefreshBaseline } from '../../../../../lib/baselines/refresh-service.js';
 import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-refresh-baselines.js';
-import { regenerateMainFromTree as defaultRegenerateMainFromTree } from '../../baseline-snapshot.js';
 import { loadFile as defaultReaderLoadFile } from '../../baselines/reader.js';
-import {
-  write as defaultWriteBaseline,
-  writeFile as defaultWriteBaselineFile,
-} from '../../baselines/writer.js';
-import { getBaselineEpsilon as defaultGetBaselineEpsilon } from '../../config/quality.js';
 import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
@@ -75,19 +80,22 @@ import {
   appendSignal as defaultAppendSignal,
   forEachLine as defaultForEachLine,
 } from '../../observability/signals-writer.js';
-import { computeStoryDiffPaths } from './baseline-attribution-wiring.js';
+import {
+  buildKindScorer,
+  computeStoryDiffPaths,
+  stageAndCheckBaselineDrift,
+} from './baseline-attribution-wiring.js';
 
 const RUNNER_SOURCE_TOOL = 'auto-refresh-runner';
 const FRICTION_CATEGORY = 'baseline-refresh-regression';
 
 /**
- * Read a baseline envelope from disk via the shared reader. Returns null
- * when the file is missing, unreadable, or fails schema validation — the
- * caller treats null as "no prior, every regenerated row is new".
- *
- * Pure / I/O via injected loader so tests can mock without touching disk.
+ * Load + parse the baseline envelope at `absPath` via the injected
+ * reader. Returns `null` when the file is missing, unreadable, or fails
+ * schema validation — the caller treats null as "no prior, every row is
+ * new" (the cap evaluator handles missing-prior gracefully).
  */
-function loadPriorEnvelope({ absPath, kind, readerLoadFile }) {
+function readEnvelope({ absPath, kind, readerLoadFile }) {
   if (typeof absPath !== 'string' || absPath.length === 0) return null;
   try {
     const parsed = readerLoadFile(absPath, { kind });
@@ -106,13 +114,12 @@ function loadPriorEnvelope({ absPath, kind, readerLoadFile }) {
 
 /**
  * Adapt the writer's CRAP row shape (`{path, method, startLine, crap}`) to
- * the legacy evaluator's expectation (`{file, method, startLine, crap}`).
- * The MI evaluator already keys on `path`, so no adapter is required for
- * MI rows.
+ * the evaluator's expectation (`{file, method, startLine, crap}`). The MI
+ * evaluator already keys on `path`, so no adapter is required for MI rows.
  *
  * Pure.
  */
-function adaptCrapRowsForEvaluator(rows) {
+export function adaptCrapRowsForEvaluator(rows) {
   return (rows ?? []).map((row) => {
     if (!row || typeof row !== 'object') return row;
     const { path: p, ...rest } = row;
@@ -121,14 +128,10 @@ function adaptCrapRowsForEvaluator(rows) {
 }
 
 /**
- * Filter regenerated baseline rows to the Story's diff footprint. The MI
- * baseline file always carries the *full* projection (the regen helper
- * always rewrites the whole file), so we filter by file path against the
- * Story diff set. The CRAP baseline is filtered by the row's `file` field.
- *
- * Empty `storyDiffPaths` (no diff vs `epic/<id>`) returns the input
- * unchanged so an interactive `story-close --skip-validation` re-run on a
- * branch that already merged still evaluates against every row.
+ * Filter rows to those whose path/file is in the Story's diff footprint.
+ * Empty `storyDiffPaths` returns the input unchanged so interactive
+ * re-runs (`story-close --skip-validation`) on already-merged branches
+ * still evaluate every row.
  */
 function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
   if (!Array.isArray(storyDiffPaths) || storyDiffPaths.length === 0) {
@@ -141,79 +144,9 @@ function filterToStoryDiff({ miRows, crapRows, storyDiffPaths }) {
 }
 
 /**
- * Stage the on-disk baseline files (whichever the regen produced) and
- * `git commit --amend --no-edit` to fold them into HEAD on the Story
- * branch. Returns the post-amend SHA.
- *
- * Why amend rather than a fresh `baseline-refresh:` commit:
- *   - The Story PR's diff already shows every other Task commit on its own
- *     line; an amend keeps the close PR's commit graph clean.
- *   - The merge commit (`feat: ... (resolves #N)`) carries the refresh as
- *     part of the Story's payload — the close-validation gate sees the
- *     refresh on the Epic branch immediately, no `baseline-refresh:` row
- *     to filter out of `git log`.
- *
- * Pre-conditions enforced by the caller:
- *   - HEAD is the Story branch (story-close holds `withEpicMergeLock` and
- *     `merge-runner.js` already asserted branch identity at gate time).
- *   - At least one baseline file changed on disk (the runner's "skipped:
- *     idempotent" branch returns before this is invoked).
- *
- * Returns `{ ok: true, sha }` on success or `{ ok: false, error }` on the
- * first failed git invocation. The runner translates `ok: false` into
- * `status: 'failed'` so story-close surfaces the failure rather than
- * silently merging stale baselines.
- */
-function amendBaselinesIntoHead({ cwd, baselineFiles, gitRunner }) {
-  // Stage every baseline file the regen wrote. We add by name (not `-u`)
-  // so an unrelated dirty file doesn't sneak into the amend. Paths are
-  // POSIX-normalized — git expects forward slashes regardless of platform.
-  for (const filePath of baselineFiles) {
-    const rel = path.isAbsolute(filePath)
-      ? path.relative(cwd, filePath)
-      : filePath;
-    const posixRel = rel.split(path.sep).join('/');
-    const addRes = gitRunner.gitSpawn(cwd, 'add', posixRel);
-    if (addRes.status !== 0) {
-      return {
-        ok: false,
-        error: `git add ${rel} failed: ${addRes.stderr || addRes.stdout}`,
-      };
-    }
-  }
-
-  // `--amend --no-edit` keeps the Task commit's subject + body untouched
-  // and folds the staged baseline drift into its tree. The Story's last
-  // commit subject (e.g. `feat(scope): … (resolves #task)`) is preserved.
-  const amendRes = gitRunner.gitSpawn(
-    cwd,
-    'commit',
-    '--amend',
-    '--no-edit',
-    '--allow-empty',
-  );
-  if (amendRes.status !== 0) {
-    return {
-      ok: false,
-      error: `git commit --amend failed: ${amendRes.stderr || amendRes.stdout}`,
-    };
-  }
-
-  const headRes = gitRunner.gitSpawn(cwd, 'rev-parse', '--short', 'HEAD');
-  return {
-    ok: true,
-    sha: headRes.status === 0 ? (headRes.stdout || '').trim() : '',
-  };
-}
-
-/**
  * Check whether a `baseline-refresh-regression` signal tagged with the
  * runner's `source.tool === 'auto-refresh-runner'` already exists in the
  * Story's signals stream. Backs the AC3 idempotent-re-run contract.
- *
- * Best-effort: a missing signals file or a stream read error returns
- * `false` (no prior signal) so the runner falls through to appending —
- * a duplicate signal is preferable to silently dropping the refusal.
  */
 async function priorRefusalSignalExists({
   epicId,
@@ -275,40 +208,6 @@ function resolveBaselineAbsPaths({ cwd, config, getBaselines }) {
   };
 }
 
-/**
- * Story #2135 / Task #2147 — single funnel for the on-disk scope-merged
- * envelope. The writer assembles the V2 envelope with the merged rows,
- * applies the per-kind `mergeRows` (preserving out-of-scope prior rows)
- * and `applyEpsilon` (folding sub-epsilon drift back to prior), and
- * `writeFile` persists atomically through the same `fsImpl` seam the
- * legacy emitters used.
- */
-function writeScopeMergedBaseline({
-  kind,
-  absPath,
-  prior,
-  regen,
-  scope,
-  epsilon,
-  writeFn,
-  writeFileFn,
-  fsImpl,
-}) {
-  if (!absPath) return null;
-  const priorRows = Array.isArray(prior?.rows) ? prior.rows : [];
-  const regenRows = Array.isArray(regen?.rows) ? regen.rows : [];
-  const envelope = writeFn({
-    kind,
-    rows: regenRows,
-    prior: priorRows,
-    scope,
-    epsilon,
-    priorEnvelope: prior ?? undefined,
-  });
-  writeFileFn(absPath, envelope, { fsImpl });
-  return envelope;
-}
-
 async function probeDedup({ epicId, storyId, forEachLine, logger }) {
   try {
     return await priorRefusalSignalExists({ epicId, storyId, forEachLine });
@@ -349,6 +248,11 @@ async function maybeAppendRefusalSignal({
   }
 }
 
+/**
+ * Restore the baseline files to HEAD's content. Used on over-cap
+ * refusal to drop the refresh's write so the merge consumes the
+ * pre-refresh baseline unchanged.
+ */
 function rollbackBaselineFiles({ cwd, baselineFiles, gitRunner, logger }) {
   for (const filePath of baselineFiles) {
     const rel = path.isAbsolute(filePath)
@@ -402,22 +306,99 @@ async function handleRefusal({
   };
 }
 
+/**
+ * Run `refreshBaseline()` for a single kind. Returns the resolved write
+ * path and a flag noting whether the service actually persisted bytes.
+ * Throws on a service error (the caller surfaces it as a `failed` status).
+ */
+async function runRefreshForKind({
+  kind,
+  cwd,
+  epicBranch,
+  storyBranch,
+  writePath,
+  refreshBaseline,
+  scorer,
+  fsImpl,
+}) {
+  if (!writePath) return { writePath: null, wrote: false };
+  const baseRef = epicBranch ? `origin/${epicBranch}` : 'origin/main';
+  const headRef = storyBranch ?? 'HEAD';
+  const result = await refreshBaseline({
+    kind,
+    baseRef,
+    headRef,
+    scopeFiles: null,
+    fullScope: false,
+    writePath,
+    scorer,
+    fs: fsImpl,
+    cwd,
+  });
+  return { writePath, wrote: result?.wrote === true };
+}
+
+/**
+ * Commit hygiene (AC-8): stage every refreshed baseline file, ask
+ * `git diff --cached --exit-code` whether any drift survived. Drift →
+ * emit one canonical commit per kind. No drift → log + skip. No
+ * `--amend`, no `--allow-empty`.
+ */
+function commitRefreshedBaselines({
+  cwd,
+  storyId,
+  refreshed,
+  gitRunner,
+  logger,
+}) {
+  const committed = [];
+  let lastSha = '';
+  for (const { kind, writePath } of refreshed) {
+    if (!writePath) continue;
+    const drift = stageAndCheckBaselineDrift({
+      cwd,
+      baselineFile: writePath,
+      gitRunner,
+    });
+    if (drift.error) {
+      return { ok: false, error: drift.error };
+    }
+    if (!drift.hasDrift) {
+      logger?.info?.(
+        `[auto-refresh-runner] no baseline drift to fold in for kind=${kind} (story-${storyId}).`,
+      );
+      continue;
+    }
+    const subject = `chore(baselines): refresh ${kind} for story-${storyId}`;
+    const commitRes = gitRunner.gitSpawn(cwd, 'commit', '-m', subject);
+    if (commitRes.status !== 0) {
+      return {
+        ok: false,
+        error: `git commit failed for kind=${kind}: ${commitRes.stderr || commitRes.stdout}`,
+      };
+    }
+    const headRes = gitRunner.gitSpawn(cwd, 'rev-parse', '--short', 'HEAD');
+    const sha = headRes.status === 0 ? (headRes.stdout || '').trim() : '';
+    lastSha = sha;
+    committed.push({ kind, sha });
+    logger?.info?.(`[auto-refresh-runner] committed ${subject} (${sha}).`);
+  }
+  return { ok: true, committed, lastSha };
+}
+
 function resolveAutoRefreshDeps(deps) {
   return {
     logger: deps.logger ?? DefaultLogger,
     getQuality: deps.getQuality ?? defaultGetQuality,
     getBaselines: deps.getBaselines ?? defaultGetBaselines,
-    getBaselineEpsilon: deps.getBaselineEpsilon ?? defaultGetBaselineEpsilon,
     evaluateAutoRefresh: deps.evaluateAutoRefresh ?? defaultEvaluateAutoRefresh,
-    regenerateMainFromTree:
-      deps.regenerateMainFromTree ?? defaultRegenerateMainFromTree,
+    refreshBaseline: deps.refreshBaseline ?? defaultRefreshBaseline,
+    scorerBuilder: deps.scorerBuilder ?? buildKindScorer,
     gitRunner: deps.gitRunner ?? { gitSpawn: defaultGitSpawn },
     fsImpl: deps.fsImpl ?? fs,
     appendSignal: deps.appendSignal ?? defaultAppendSignal,
     forEachLine: deps.forEachLine ?? defaultForEachLine,
     computeDiffPaths: deps.computeStoryDiffPaths ?? computeStoryDiffPaths,
-    writeFn: deps.writeFn ?? defaultWriteBaseline,
-    writeFileFn: deps.writeFileFn ?? defaultWriteBaselineFile,
     readerLoadFile: deps.readerLoadFile ?? defaultReaderLoadFile,
   };
 }
@@ -435,16 +416,14 @@ export async function runAutoRefresh({
     logger,
     getQuality,
     getBaselines,
-    getBaselineEpsilon,
     evaluateAutoRefresh,
-    regenerateMainFromTree,
+    refreshBaseline,
+    scorerBuilder,
     gitRunner,
     fsImpl,
     appendSignal,
     forEachLine,
     computeDiffPaths,
-    writeFn,
-    writeFileFn,
     readerLoadFile,
   } = resolveAutoRefreshDeps(deps);
   const config = { agentSettings };
@@ -464,111 +443,81 @@ export async function runAutoRefresh({
     getBaselines,
   });
 
-  // Capture the prior envelopes BEFORE regen overwrites them. Reader-
-  // routed: every read goes through `reader.loadFile`, which schema-
-  // validates the file against the per-kind envelope.
+  // Snapshot the prior envelopes BEFORE refreshBaseline overwrites them.
+  // Reader-routed: every read goes through `reader.loadFile`, which schema-
+  // validates against the per-kind envelope.
   const priorMiEnv = miAbs
-    ? loadPriorEnvelope({
+    ? readEnvelope({
         absPath: miAbs,
         kind: 'maintainability',
         readerLoadFile,
       })
     : null;
   const priorCrapEnv = crapAbs
-    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
+    ? readEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
     : null;
 
-  let regen;
+  // Dispatch one refreshBaseline() call per configured kind. The service
+  // handles diff-scope derivation, scope-merge with out-of-scope prior
+  // rows (Task #2209), and atomic envelope persistence.
+  let miRefreshed;
+  let crapRefreshed;
   try {
-    regen = await regenerateMainFromTree({ cwd });
+    if (miAbs) {
+      const scorer = scorerBuilder({
+        kind: 'maintainability',
+        cwd,
+        agentSettings,
+      });
+      miRefreshed = await runRefreshForKind({
+        kind: 'maintainability',
+        cwd,
+        epicBranch,
+        storyBranch,
+        writePath: miAbs,
+        refreshBaseline,
+        scorer,
+        fsImpl,
+      });
+    }
+    if (crapAbs) {
+      const scorer = scorerBuilder({ kind: 'crap', cwd, agentSettings });
+      crapRefreshed = await runRefreshForKind({
+        kind: 'crap',
+        cwd,
+        epicBranch,
+        storyBranch,
+        writePath: crapAbs,
+        refreshBaseline,
+        scorer,
+        fsImpl,
+      });
+    }
   } catch (err) {
     return {
       status: 'failed',
-      reason: 'regen-threw',
+      reason: 'refresh-service-threw',
       detail: err?.message ?? String(err),
     };
   }
-  if (!regen?.didChange) {
+
+  const anyWrote = miRefreshed?.wrote === true || crapRefreshed?.wrote === true;
+  if (!anyWrote) {
     return { status: 'skipped', reason: 'no-baseline-drift' };
   }
 
-  // Read the FULL regenerated envelopes that `regenerateMainFromTree`
-  // just wrote to disk. Same reader-routed seam as the prior reads.
-  const regenMiEnv = miAbs
-    ? loadPriorEnvelope({
-        absPath: miAbs,
-        kind: 'maintainability',
-        readerLoadFile,
-      })
-    : null;
-  const regenCrapEnv = crapAbs
-    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
-    : null;
-
-  // Story #1974 — s-diff-scoped-writes. When the configured scope is
-  // 'diff' (the default), compute the Story's file footprint and re-
-  // write the on-disk baseline files merging in out-of-scope prior rows
-  // verbatim. When scope is explicitly 'full', skip the merge — the
-  // operator opted into a full rewrite.
-  const scopeMode = autoRefresh.scope === 'full' ? 'full' : 'diff';
-  if (scopeMode === 'diff') {
-    const storyDiffPaths = computeDiffPaths({
-      cwd,
-      epicBranch,
-      storyBranch,
-      gitRunner,
-    });
-    const scopeFiles = new Set(storyDiffPaths);
-    const miEpsilon = getBaselineEpsilon('maintainability', config);
-    const crapEpsilon = getBaselineEpsilon('crap', config);
-
-    if (miAbs && regenMiEnv) {
-      writeScopeMergedBaseline({
-        kind: 'maintainability',
-        absPath: miAbs,
-        prior: priorMiEnv,
-        regen: regenMiEnv,
-        scope: { mode: 'diff', files: scopeFiles },
-        epsilon: miEpsilon,
-        writeFn,
-        writeFileFn,
-        fsImpl,
-      });
-    }
-    if (crapAbs && regenCrapEnv) {
-      writeScopeMergedBaseline({
-        kind: 'crap',
-        absPath: crapAbs,
-        prior: priorCrapEnv,
-        regen: regenCrapEnv,
-        scope: { mode: 'diff', files: scopeFiles },
-        epsilon: crapEpsilon,
-        writeFn,
-        writeFileFn,
-        fsImpl,
-      });
-    }
-    logger.info?.(
-      `[auto-refresh-runner] scope-merged baselines (mode=diff, files=${scopeFiles.size}, miEpsilon=${miEpsilon}, crapEpsilon=${crapEpsilon}).`,
-    );
-  }
-
-  // Re-read the (possibly scope-merged) baselines for verdict evaluation.
-  // When scope is 'full', this is identical to `regenMiEnv` / `regenCrapEnv`.
+  // Re-read the (scope-merged) envelopes for verdict evaluation.
   const finalMiEnv = miAbs
-    ? loadPriorEnvelope({
+    ? readEnvelope({
         absPath: miAbs,
         kind: 'maintainability',
         readerLoadFile,
       })
     : null;
   const finalCrapEnv = crapAbs
-    ? loadPriorEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
+    ? readEnvelope({ absPath: crapAbs, kind: 'crap', readerLoadFile })
     : null;
 
-  // Adapt the V2 row shape to what the evaluator + filter helpers expect:
-  //   - MI: keep `path` keying (already correct).
-  //   - CRAP: rename `path` → `file` for evaluator compatibility.
   const finalMiRows = finalMiEnv?.rows ?? [];
   const finalCrapRows = adaptCrapRowsForEvaluator(finalCrapEnv?.rows ?? []);
   const priorMiRows = priorMiEnv?.rows ?? [];
@@ -614,24 +563,41 @@ export async function runAutoRefresh({
     });
   }
 
-  const amend = amendBaselinesIntoHead({ cwd, baselineFiles, gitRunner });
-  if (!amend.ok) {
-    return { status: 'failed', reason: 'amend-failed', detail: amend.error };
+  // AC-8 commit hygiene: stage each refreshed baseline file, run
+  // `git diff --cached --exit-code`, and emit one canonical commit per
+  // kind that actually drifted. Empty diff → no commit. No `--amend`,
+  // no `--allow-empty`.
+  const refreshed = [
+    miRefreshed?.wrote === true
+      ? { kind: 'maintainability', writePath: miAbs }
+      : null,
+    crapRefreshed?.wrote === true ? { kind: 'crap', writePath: crapAbs } : null,
+  ].filter(Boolean);
+  const commit = commitRefreshedBaselines({
+    cwd,
+    storyId,
+    refreshed,
+    gitRunner,
+    logger,
+  });
+  if (!commit.ok) {
+    return { status: 'failed', reason: 'commit-failed', detail: commit.error };
   }
-  logger.info?.(
-    `[auto-refresh-runner] amended baseline drift into HEAD (${amend.sha}); no separate baseline-refresh: commit.`,
-  );
-  return { status: 'amended', sha: amend.sha, files: baselineFiles };
+  if (commit.committed.length === 0) {
+    return { status: 'skipped', reason: 'no-baseline-drift' };
+  }
+  return {
+    status: 'committed',
+    sha: commit.lastSha,
+    files: baselineFiles,
+    committed: commit.committed,
+  };
 }
 
 export {
-  adaptCrapRowsForEvaluator,
-  amendBaselinesIntoHead,
   buildRefusalSignal,
   FRICTION_CATEGORY,
   filterToStoryDiff,
-  loadPriorEnvelope,
   priorRefusalSignalExists,
   RUNNER_SOURCE_TOOL,
-  writeScopeMergedBaseline,
 };
