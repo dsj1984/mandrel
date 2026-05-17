@@ -18,7 +18,8 @@
  */
 
 import { runAsCli } from './lib/cli-utils.js';
-import { PROJECT_ROOT } from './lib/config-resolver.js';
+import { getQuality, PROJECT_ROOT } from './lib/config-resolver.js';
+import { gitSpawn as defaultGitSpawn } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { runAutoRefresh } from './lib/orchestration/story-close/auto-refresh-runner.js';
 import { runPreMergeGatesWithAttribution } from './lib/orchestration/story-close/baseline-attribution-wiring.js';
@@ -33,6 +34,11 @@ import {
 import { runPostMergeClose } from './lib/orchestration/story-close/post-merge-close.js';
 import { emitMaintainabilityProjection } from './lib/orchestration/story-close/pre-merge-validation.js';
 import { dispatchRecovery } from './lib/orchestration/story-close-recovery.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+  upsertStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import {
   PREFLIGHT_REFUSED_EXIT_CODE,
   runPreflight,
@@ -73,6 +79,119 @@ function emitBaselineBlockedResult({ storyId, gateOutcome, progress: log }) {
   log(
     'BLOCKED',
     `Story #${storyId} blocked: baseline drift on ${result.nonAttributable.length} path(s) not attributable to this Story.`,
+  );
+  return result;
+}
+
+/**
+ * Render the friction-comment body posted on the Story ticket when
+ * `coverage-capture` trips the bounded-timeout watchdog (exit 124).
+ *
+ * Names the timeout duration (resolved via `delivery.quality.gates.coverage.timeoutMs`)
+ * and the gate that fired so an operator can decide between bumping the
+ * budget, investigating a runaway test, or rerunning. Story #2136 / Task #2143.
+ */
+export function renderCoverageTimeoutFrictionBody({
+  storyId,
+  epicId,
+  timeoutMs,
+}) {
+  const seconds = Math.round((timeoutMs ?? 0) / 1000);
+  const minutes = Math.round((seconds / 60) * 10) / 10;
+  const budget = timeoutMs
+    ? `${timeoutMs}ms (~${minutes} min)`
+    : 'configured budget';
+  return [
+    `### Coverage capture timed out`,
+    '',
+    `The \`coverage-capture\` pre-merge gate spawned \`npm run test:coverage\` for Story #${storyId} (Epic #${epicId ?? 'unknown'}) and the bounded watchdog killed the child after ${budget}.`,
+    '',
+    `**Exit code:** 124 (GNU \`timeout(1)\` convention — surfaced by \`runCapture\` when \`spawnSync\` returns with \`signal: 'SIGKILL'\`).`,
+    '',
+    `**Next actions:**`,
+    `- Re-run \`npm run test:coverage\` locally inside the Story worktree to confirm the hang.`,
+    `- If the suite is honestly slow, raise \`delivery.quality.gates.coverage.timeoutMs\` in \`.agentrc.json\` and re-close.`,
+    `- If a specific test hangs, isolate it (\`--test-name-pattern\`) and either fix the deadlock or fence it behind a faster mock.`,
+    '',
+    `Story label has been flipped to \`agent::blocked\`. Resume by transitioning back to \`agent::executing\` after the underlying issue is fixed.`,
+  ].join('\n');
+}
+
+/**
+ * Apply the `agent::blocked` transition + friction comment when
+ * `coverage-capture` exits 124. Best-effort: failures here are logged but
+ * do not interrupt the close-result envelope — the operator must see the
+ * timeout outcome regardless of whether the upsert/transition writes
+ * succeeded.
+ *
+ * Story #2136 / Task #2143.
+ */
+async function emitCoverageTimeoutBlockedResult({
+  storyId,
+  epicId,
+  gateOutcome,
+  agentSettings,
+  provider,
+  progress: log,
+}) {
+  // Resolve the configured timeout so the friction body can name the
+  // budget the operator just blew through. Defaults flow through
+  // `getQuality` — a missing block resolves to the framework 600000ms.
+  let timeoutMs = null;
+  try {
+    timeoutMs = getQuality({ agentSettings })?.coverage?.timeoutMs ?? null;
+  } catch {
+    // resolveConfig failures here are diagnostic-only; the close envelope
+    // still surfaces the timeout outcome.
+  }
+
+  const body = renderCoverageTimeoutFrictionBody({
+    storyId,
+    epicId,
+    timeoutMs,
+  });
+
+  let commentId = null;
+  try {
+    const res = await upsertStructuredComment(
+      provider,
+      storyId,
+      'friction',
+      body,
+    );
+    commentId = res?.commentId ?? null;
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to upsert coverage-timeout friction comment on #${storyId}: ${err?.message ?? err}`,
+    );
+  }
+
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.BLOCKED, {
+      cascade: false,
+    });
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to transition Story #${storyId} → ${STATE_LABELS.BLOCKED}: ${err?.message ?? err}`,
+    );
+  }
+
+  const result = {
+    success: false,
+    status: 'blocked',
+    phase: 'closing',
+    reason: 'coverage-capture-timeout',
+    gateName: gateOutcome?.gateName ?? 'coverage-capture',
+    exitCode: gateOutcome?.exitCode ?? 124,
+    timeoutMs,
+    commentId,
+  };
+  Logger.info(
+    `\n--- STORY CLOSE RESULT ---\n${JSON.stringify(result, null, 2)}\n--- END RESULT ---\n`,
+  );
+  log(
+    'BLOCKED',
+    `Story #${storyId} blocked: \`npm run test:coverage\` exceeded ${timeoutMs ?? 'configured'}ms — flipped to ${STATE_LABELS.BLOCKED}.`,
   );
   return result;
 }
@@ -148,6 +267,115 @@ function emitPreflightBlockedResult({ storyId, preflight }) {
   return result;
 }
 
+/**
+ * Capture the main-repo's current branch name before `runStoryCloseLocked`
+ * runs. Returns `{ ok: true, branch }` on success, `{ ok: false, reason }`
+ * when HEAD is detached or `git rev-parse` fails. The result feeds
+ * `restoreStartingBranch` in the surrounding `finally` block so any throw
+ * inside the orchestrator does not leave the operator's shell on a
+ * mid-merge branch (e.g. `epic/<id>` after a failed merge attempt).
+ *
+ * Story #2138 / Task #2141.
+ *
+ * @param {string} cwd - Main-repo working directory (already resolved via
+ *   `resolveCloseInputs`; never the worktree path).
+ * @param {{ gitSpawn?: typeof defaultGitSpawn }} [deps] - DI seam for tests.
+ * @returns {{ ok: true, branch: string } | { ok: false, reason: string }}
+ */
+export function captureStartingBranch(cwd, deps = {}) {
+  const gitSpawn = deps.gitSpawn ?? defaultGitSpawn;
+  const res = gitSpawn(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
+  if (res.status !== 0) {
+    return {
+      ok: false,
+      reason: `rev-parse-failed: ${res.stderr || 'unknown'}`,
+    };
+  }
+  const branch = (res.stdout || '').trim();
+  if (!branch || branch === 'HEAD') {
+    return { ok: false, reason: 'detached-head' };
+  }
+  return { ok: true, branch };
+}
+
+/**
+ * Restore the main-repo to `startingBranch` via `git switch`. Refuses the
+ * switch when the destination tree is dirty (`git status --porcelain` is
+ * non-empty) — clobbering uncommitted edits via a forced checkout would
+ * destroy work, so the operator is left on the current branch with a
+ * clear stderr message instead. Never invokes `git reset --hard` or
+ * `git checkout --force`.
+ *
+ * Returns a structured envelope so callers (and tests) can assert which
+ * branch they end up on and why. Failure to switch is logged but does
+ * not throw — the caller is already unwinding an outer error.
+ *
+ * Story #2138 / Task #2141.
+ *
+ * @param {object} opts
+ * @param {string} opts.cwd
+ * @param {{ ok: boolean, branch?: string, reason?: string }} opts.captured
+ *   The envelope returned by `captureStartingBranch`. A failed capture
+ *   short-circuits with `{ skipped: true, reason: 'no-starting-branch' }`.
+ * @param {{ gitSpawn?: typeof defaultGitSpawn }} [deps]
+ * @returns {{ restored: boolean, branch?: string, reason?: string, skipped?: boolean }}
+ */
+export function restoreStartingBranch({ cwd, captured }, deps = {}) {
+  const gitSpawn = deps.gitSpawn ?? defaultGitSpawn;
+  const log = deps.logger ?? Logger;
+  if (!captured || captured.ok !== true) {
+    return {
+      restored: false,
+      skipped: true,
+      reason: captured?.reason
+        ? `no-starting-branch: ${captured.reason}`
+        : 'no-starting-branch',
+    };
+  }
+  const { branch } = captured;
+  // Cheap no-op when we are already on the captured branch — avoids a
+  // pointless `git switch` (and the dirty-tree guard it would trip when
+  // the close itself produced legitimate edits the operator wants to keep).
+  const currentRes = gitSpawn(cwd, 'rev-parse', '--abbrev-ref', 'HEAD');
+  if (currentRes.status === 0 && currentRes.stdout.trim() === branch) {
+    return { restored: true, branch, reason: 'already-on-branch' };
+  }
+  // Refuse the switch on a dirty destination tree. `git switch` would
+  // itself refuse most dirty-tree cases, but checking explicitly lets us
+  // surface a stable, machine-readable reason and avoid any chance of a
+  // partially-applied switch.
+  const statusRes = gitSpawn(cwd, 'status', '--porcelain');
+  if (statusRes.status !== 0) {
+    log.warn?.(
+      `[story-close] branch-restore: \`git status --porcelain\` failed in ${cwd}: ${statusRes.stderr || 'unknown'}`,
+    );
+    return {
+      restored: false,
+      branch,
+      reason: `status-failed: ${statusRes.stderr || 'unknown'}`,
+    };
+  }
+  if (statusRes.stdout.length > 0) {
+    log.error?.(
+      `[story-close] branch-restore: refusing to switch to \`${branch}\` — working tree is dirty in ${cwd}. ` +
+        `Resolve the local changes manually, then \`git switch ${branch}\`.`,
+    );
+    return { restored: false, branch, reason: 'dirty-tree' };
+  }
+  const switchRes = gitSpawn(cwd, 'switch', branch);
+  if (switchRes.status !== 0) {
+    log.warn?.(
+      `[story-close] branch-restore: \`git switch ${branch}\` failed: ${switchRes.stderr || 'unknown'}`,
+    );
+    return {
+      restored: false,
+      branch,
+      reason: `switch-failed: ${switchRes.stderr || 'unknown'}`,
+    };
+  }
+  return { restored: true, branch };
+}
+
 /** Orchestrate the Story closure. Exported for testing. */
 export async function runStoryClose({
   storyId: storyIdParam,
@@ -212,6 +440,40 @@ export async function runStoryClose({
     };
   }
 
+  // Story #2144 — flip the Story to `agent::closing` once preflight has
+  // passed and before we acquire the per-Epic merge lock. `agent::closing`
+  // is the intermediate state that distinguishes a hung close (preflight
+  // passed but merge never landed) from finished work (`agent::done`,
+  // applied only after the post-merge pipeline confirms the merge is
+  // reachable from `epic/<id>`). Best-effort: a transition failure here
+  // does not abort the close — the merge can still land, and the
+  // post-merge ticket-closure phase will surface the inconsistency.
+  try {
+    await transitionTicketState(provider, storyId, STATE_LABELS.CLOSING, {
+      cascade: false,
+      notify: notifyFn,
+    });
+    progress('STATE', `Story #${storyId} → ${STATE_LABELS.CLOSING}`);
+  } catch (err) {
+    Logger.warn?.(
+      `[story-close] failed to flip Story #${storyId} → ${STATE_LABELS.CLOSING}: ${err?.message ?? err}`,
+    );
+  }
+
+  // Capture the main-repo's starting branch *before* we enter the merge
+  // lock so any throw inside `runStoryCloseLocked` (rebase failure, push
+  // rejection, transient git/network errors) leaves the operator's shell
+  // on the branch they came in on instead of stranded on `epic/<id>` or
+  // mid-rebase. The matching restore in the `finally` block refuses to
+  // switch when the destination tree is dirty — see
+  // `restoreStartingBranch` for the safety contract. Story #2138 / #2141.
+  const startingBranch = captureStartingBranch(cwd);
+  if (!startingBranch.ok) {
+    Logger.warn?.(
+      `[story-close] branch-restore: could not capture starting branch (${startingBranch.reason}); finally-block restore will be skipped.`,
+    );
+  }
+
   // Hold the per-Epic merge lock across the entire close flow — pre-merge
   // gates, dispatchRecovery, merge, and post-merge pipeline. The narrower
   // lock that previously wrapped only the merge+push step let two concurrent
@@ -219,29 +481,33 @@ export async function runStoryClose({
   // `origin/<epic>` tip, producing the `merged:true`-but-HEAD-stale failure
   // mode that mimics a push-hook cascade. Serializing per Epic at script
   // entry costs wave-close parallelism but eliminates the race outright.
-  return withEpicMergeLock(
-    epicId,
-    { repoRoot: cwd, timeoutMs: 60_000, log: progressLog },
-    () =>
-      runStoryCloseLocked({
-        storyId,
-        epicId,
-        cwd,
-        worktreePath,
-        skipDashboard,
-        skipValidationParam: skipValidationResolved,
-        resumeFlag,
-        restartFlag,
-        noEvidenceFlag,
-        orchestration,
-        agentSettings,
-        provider,
-        story,
-        epicBranch,
-        storyBranch,
-        notifyFn,
-      }),
-  );
+  try {
+    return await withEpicMergeLock(
+      epicId,
+      { repoRoot: cwd, timeoutMs: 60_000, log: progressLog },
+      () =>
+        runStoryCloseLocked({
+          storyId,
+          epicId,
+          cwd,
+          worktreePath,
+          skipDashboard,
+          skipValidationParam: skipValidationResolved,
+          resumeFlag,
+          restartFlag,
+          noEvidenceFlag,
+          orchestration,
+          agentSettings,
+          provider,
+          story,
+          epicBranch,
+          storyBranch,
+          notifyFn,
+        }),
+    );
+  } finally {
+    restoreStartingBranch({ cwd, captured: startingBranch });
+  }
 }
 
 function shouldSkipValidation({
@@ -291,6 +557,9 @@ async function runPreMergeValidation({
     provider,
   });
   if (gateOutcome?.status === 'blocked') return gateOutcome;
+  // Story #2136 — coverage-capture timeout shares the short-circuit so the
+  // MI projection (which spawns more reads) does not pile on a hang.
+  if (gateOutcome?.status === 'blocked-timeout') return gateOutcome;
   emitMaintainabilityProjection({
     cwd,
     epicBranch,
@@ -430,6 +699,22 @@ async function runStoryCloseLocked({
     });
     if (gateOutcome?.status === 'blocked') {
       return emitBaselineBlockedResult({ storyId, gateOutcome, progress });
+    }
+    // Story #2136 / Task #2143 — coverage-capture exit 124 is a bounded-
+    // timeout trip, not a test-suite failure. Flip the Story to
+    // `agent::blocked` + post a friction comment naming the timeout, then
+    // short-circuit the close. The hang is recoverable (operator either
+    // bumps the budget or fixes the runaway test), so we do not fall
+    // through to merge.
+    if (gateOutcome?.status === 'blocked-timeout') {
+      return emitCoverageTimeoutBlockedResult({
+        storyId,
+        epicId,
+        gateOutcome,
+        agentSettings,
+        provider,
+        progress,
+      });
     }
     await runAutoRefreshSafely({
       storyId,

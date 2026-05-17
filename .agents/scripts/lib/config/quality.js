@@ -83,6 +83,10 @@ export const COVERAGE_GATE_DEFAULTS = Object.freeze({
   tolerance: Object.freeze({ kind: 'absolute', value: 0 }),
   floors: DEFAULT_COVERAGE_FLOORS,
   coveragePath: 'coverage/coverage-final.json',
+  // Story #2136 — 10 minute wall clock on `npm run test:coverage`. Trips
+  // `runCapture` to return exit 124 (GNU `timeout` convention) so the
+  // close-validation caller can branch on hang-vs-failure.
+  timeoutMs: 600_000,
 });
 
 /** Framework defaults for the maintainability gate. */
@@ -139,6 +143,7 @@ const COVERAGE_GATE_KEYS = new Set([
   'tolerance',
   'floors',
   'coveragePath',
+  'timeoutMs',
 ]);
 
 const MI_GATE_KEYS = new Set([
@@ -269,7 +274,7 @@ export function resolveMaintainabilityQuality(userBlock, gateScoping) {
   return out;
 }
 
-/** Resolve the coverage gate. Owns `coveragePath`. */
+/** Resolve the coverage gate. Owns `coveragePath` and `timeoutMs`. */
 export function resolveCoverageGate(userBlock) {
   const defaults = COVERAGE_GATE_DEFAULTS;
   if (userBlock == null || typeof userBlock !== 'object') {
@@ -278,6 +283,7 @@ export function resolveCoverageGate(userBlock) {
       baselinePath: defaults.baselinePath,
       coveragePath: defaults.coveragePath,
       tolerance: toleranceScalar(defaults.tolerance, 0),
+      timeoutMs: defaults.timeoutMs,
     };
   }
   warnUnknownKeys(userBlock, COVERAGE_GATE_KEYS, 'quality.gates.coverage');
@@ -289,6 +295,12 @@ export function resolveCoverageGate(userBlock) {
       userBlock.tolerance,
       toleranceScalar(defaults.tolerance, 0),
     ),
+    timeoutMs:
+      typeof userBlock.timeoutMs === 'number' &&
+      Number.isInteger(userBlock.timeoutMs) &&
+      userBlock.timeoutMs > 0
+        ? userBlock.timeoutMs
+        : defaults.timeoutMs,
   };
 }
 

@@ -52,11 +52,14 @@ test('validateAcFreshness: passes when every referenced path exists at baseBranc
   );
 });
 
-test('validateAcFreshness: throws when a Task references a deleted path', () => {
+test('validateAcFreshness: throws when a verify path is absent from main AND not declared in body.changes', () => {
+  // The planner claims to verify against an aggregator script, but never
+  // declared it in body.changes — so the path is a stale reference, not a
+  // net-new file. The freshness gate must still fail.
   const tickets = [
     makeTask('T1', {
       goal: 'Aggregate phase timings.',
-      changes: ['.agents/scripts/aggregate-phase-timings.js: read NDJSON'],
+      changes: ['.agents/scripts/some-other-tool.js: edit unrelated'],
       acceptance: ['aggregator emits totals'],
       verify: ['node .agents/scripts/aggregate-phase-timings.js'],
     }),
@@ -67,7 +70,9 @@ test('validateAcFreshness: throws when a Task references a deleted path', () => 
         tickets,
         baseBranchRef: 'main',
         gitRunner: fakeGitRunner([
-          // intentionally empty: the aggregator path is "deleted"
+          // The path declared in `changes` exists; the verify-only path
+          // does not — and is not in `changes`, so it must trip the gate.
+          '.agents/scripts/some-other-tool.js',
         ]),
       }),
     (err) => {
@@ -77,6 +82,64 @@ test('validateAcFreshness: throws when a Task references a deleted path', () => 
       assert.match(err.message, /main/);
       return true;
     },
+  );
+});
+
+test('validateAcFreshness: verify path that IS declared in body.changes and absent from main still passes', () => {
+  // Net-new test file: declared in `changes`, referenced in `verify`, and
+  // absent from the base branch tree. The freshness gate must accept it
+  // — the planner is creating the file, not hallucinating it.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Add freshness regression test.',
+      changes: [
+        'tests/unit/foo.test.js: cover regression',
+        '.agents/scripts/lib/orchestration/ticket-validator.js: tweak gate',
+      ],
+      acceptance: ['regression test exercises the gate'],
+      verify: ['node --test tests/unit/foo.test.js'],
+    }),
+  ];
+  assert.doesNotThrow(() =>
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      // gitRunner returns true only for the existing validator path —
+      // the brand-new test file is absent. The expected-new short-circuit
+      // is what makes this scenario pass.
+      gitRunner: fakeGitRunner([
+        '.agents/scripts/lib/orchestration/ticket-validator.js',
+      ]),
+    }),
+  );
+});
+
+test('validateAcFreshness: net-new path in body.changes skips the git probe entirely', () => {
+  // Defensive variant: even when the runner would throw if invoked for
+  // the net-new path, the freshness gate must short-circuit on the
+  // expected-new set. Proves the skip is path-set membership, not a
+  // probe-then-tolerate.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Author a brand-new helper plus its test.',
+      changes: [
+        '.agents/scripts/lib/freshly-authored.js: new helper',
+        'tests/lib/freshly-authored.test.js: new coverage',
+      ],
+      acceptance: ['helper exported', 'tests cover happy path'],
+      verify: ['node --test tests/lib/freshly-authored.test.js'],
+    }),
+  ];
+  assert.doesNotThrow(() =>
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: ({ path }) => {
+        throw new Error(
+          `gitRunner should not be called for expected-new path: ${path}`,
+        );
+      },
+    }),
   );
 });
 
@@ -136,16 +199,18 @@ test('validateAcFreshness: Tasks with no file references pass unchanged', () => 
 });
 
 test('validateAcFreshness: error names every offending Task slug + path', () => {
+  // Paths must be referenced OUTSIDE `body.changes` to trip the gate —
+  // anything declared in `changes` is treated as net-new and skipped.
   const tickets = [
     makeTask('T1', {
-      goal: 'Goal',
-      changes: ['.agents/scripts/missing-one.js: do thing'],
+      goal: 'Edit .agents/scripts/missing-one.js to do thing.',
+      changes: [],
       acceptance: [],
       verify: [],
     }),
     makeTask('T2', {
-      goal: 'Goal',
-      changes: ['lib/dropped.js: do other thing'],
+      goal: 'Touch lib/dropped.js to do other thing.',
+      changes: [],
       acceptance: [],
       verify: [],
     }),
@@ -177,12 +242,15 @@ test('validateAcFreshness: requires baseBranchRef', () => {
 });
 
 test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchRef', () => {
+  // The stale-path reference lives in `goal`, not `changes`, so the
+  // expected-new short-circuit doesn't apply and the freshness clause
+  // throws when the runner reports the path missing.
   const tickets = [
     { slug: 'F1', type: 'feature', title: 'F' },
     { slug: 'S1', type: 'story', title: 'S', parent_slug: 'F1' },
     makeTask('T1', {
-      goal: 'g',
-      changes: ['.agents/scripts/missing.js: x'],
+      goal: 'Touch .agents/scripts/missing.js to do x.',
+      changes: [],
       acceptance: ['a'],
       verify: ['v'],
     }),

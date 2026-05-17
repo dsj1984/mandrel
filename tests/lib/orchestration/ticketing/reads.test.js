@@ -43,8 +43,13 @@ describe('ticketing/reads — constants and validators', () => {
     // mutator. ALL_STATES.sort() is asserted alphabetically so the
     // expected array order is insensitive to the source enum order.
     assert.equal(STATE_LABELS.BLOCKED, 'agent::blocked');
+    // Story #2144 — CLOSING joined the enum so the intermediate
+    // story-close state (between executing and done) is reachable via
+    // the canonical state mutator.
+    assert.equal(STATE_LABELS.CLOSING, 'agent::closing');
     assert.deepEqual(ALL_STATES.slice().sort(), [
       'agent::blocked',
+      'agent::closing',
       'agent::done',
       'agent::executing',
       'agent::ready',

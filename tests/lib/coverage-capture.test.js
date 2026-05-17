@@ -3,6 +3,7 @@ import path from 'node:path';
 import { describe, it } from 'node:test';
 import {
   anyChangedUnderTargets,
+  COVERAGE_TIMEOUT_EXIT_CODE,
   isCoverageFresh,
   newestSourceMtime,
   runCapture,
@@ -211,5 +212,54 @@ describe('runCapture', () => {
   it('coerces an undefined status to 1 so callers fail closed', () => {
     const runner = () => ({ status: undefined });
     assert.equal(runCapture({ cwd: '/repo', runner }), 1);
+  });
+
+  it('threads a positive timeoutMs as `timeout` + killSignal: SIGKILL', () => {
+    const calls = [];
+    const runner = (cmd, args, opts) => {
+      calls.push({ cmd, args, opts });
+      return { status: 0 };
+    };
+    runCapture({ cwd: '/repo', timeoutMs: 600_000, runner });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].opts.timeout, 600_000);
+    assert.equal(calls[0].opts.killSignal, 'SIGKILL');
+  });
+
+  it('omits the `timeout` option when timeoutMs is missing or non-positive', () => {
+    const calls = [];
+    const runner = (_cmd, _args, opts) => {
+      calls.push(opts);
+      return { status: 0 };
+    };
+    runCapture({ cwd: '/repo', runner });
+    runCapture({ cwd: '/repo', timeoutMs: 0, runner });
+    runCapture({ cwd: '/repo', timeoutMs: -1, runner });
+    runCapture({ cwd: '/repo', timeoutMs: 'nope', runner });
+    for (const opts of calls) {
+      assert.equal(
+        Object.hasOwn(opts, 'timeout'),
+        false,
+        'timeout must not be set when timeoutMs is unset/invalid',
+      );
+      assert.equal(opts.killSignal, 'SIGKILL');
+    }
+  });
+
+  it('returns 124 when the runner reports SIGKILL (simulating a timeout)', () => {
+    const runner = () => ({ status: null, signal: 'SIGKILL' });
+    const logs = [];
+    const code = runCapture({
+      cwd: '/repo',
+      timeoutMs: 100,
+      runner,
+      log: (m) => logs.push(m),
+    });
+    assert.equal(code, COVERAGE_TIMEOUT_EXIT_CODE);
+    assert.equal(code, 124);
+    assert.ok(
+      logs.some((m) => /exceeded 100ms/.test(m)),
+      'expected a timeout-trip log entry',
+    );
   });
 });

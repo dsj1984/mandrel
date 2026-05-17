@@ -65,7 +65,7 @@ function makeStreamCapture() {
   };
 }
 
-function makeTmpDir() {
+function _makeTmpDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'quality-preview-test-'));
 }
 

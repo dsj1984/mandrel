@@ -22,6 +22,15 @@ import { WAVE_MARKER_RE } from '../wave-marker.js';
 export const STATE_LABELS = {
   READY: AGENT_LABELS.READY,
   EXECUTING: AGENT_LABELS.EXECUTING,
+  // Story #2144 — intermediate state held by a Story between successful
+  // close-preflight and a confirmed merge into `epic/<id>`. Included in
+  // the state enum so `transitionTicketState` can apply the label via
+  // the canonical one-state-at-a-time path (which removes every other
+  // `agent::*` label in the same call) and so the read-side `ALL_STATES`
+  // export — consumed by `state.js`'s `fromState` lookup — recognises
+  // `agent::closing` as a valid prior state when a `--resume` flip back
+  // to `done` fires post-merge.
+  CLOSING: AGENT_LABELS.CLOSING,
   DONE: AGENT_LABELS.DONE,
   // Story #2004 — `agent::blocked` is the framework's single authoritative
   // HITL pause point (see `.agents/instructions.md` §1.J). Adding it to the

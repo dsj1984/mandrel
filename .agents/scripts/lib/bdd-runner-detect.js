@@ -42,6 +42,36 @@ export const BDD_RUNNER_TAG_TABLE = Object.freeze({
 });
 
 /**
+ * Shared set of tag tokens that mean "this scenario does not yet satisfy
+ * its AC — treat coverage as pending, not satisfied." Sourced from every
+ * `pendingTag` value in `BDD_RUNNER_TAG_TABLE` plus the historical
+ * `@pending` literal for backward compatibility with feature files
+ * authored before runner-aware detection.
+ *
+ * Both the prefixed (`@skip`) and the unprefixed (`skip`) form of each
+ * tag are included so consumers can look up either the raw tag string
+ * (as it appears in a `.feature` file) or the normalized token form
+ * produced by tag-block parsers that strip the leading `@`.
+ *
+ * Consumers:
+ *   - `acceptance-spec-reconciler.classifyCoverage` — membership check
+ *     against parsed scenario tag sets.
+ *   - Contract tests that walk `BDD_RUNNER_TAG_TABLE` and assert each
+ *     `pendingTag` is registered here, guarding against drift when a
+ *     new runner is added.
+ */
+export const PENDING_TAGS = Object.freeze(
+  new Set([
+    ...Object.values(BDD_RUNNER_TAG_TABLE).flatMap((tag) => [
+      tag,
+      tag.startsWith('@') ? tag.slice(1) : `@${tag}`,
+    ]),
+    '@pending',
+    'pending',
+  ]),
+);
+
+/**
  * Result returned when no supported BDD runner is detected. The acceptance
  * spec body will print "Fallback: dependencies-first ordering" and Phase 8
  * decomposer ordering reverts to topological dependency order.

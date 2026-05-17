@@ -200,7 +200,7 @@ export function validateDiagnoseArgs(err) {
       ].join('\n'),
     };
   }
-  const message = err && err.message ? err.message : String(err);
+  const message = err?.message ? err.message : String(err);
   return { kind: 'error', text: `[diagnose] ${message}\n`, exitCode: 1 };
 }
 

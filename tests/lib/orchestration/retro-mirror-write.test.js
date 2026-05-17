@@ -61,7 +61,7 @@ test('runRetro: writes local mirror with the same body it posts to GitHub', asyn
   const provider = makeProvider(epicId, storyId, taskId);
 
   let postedBody = null;
-  let postedCommentId = 99;
+  const postedCommentId = 99;
   const upsertFn = async (_provider, _ticketId, _type, body) => {
     postedBody = body;
     return { commentId: postedCommentId };

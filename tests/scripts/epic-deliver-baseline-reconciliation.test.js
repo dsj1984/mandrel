@@ -24,6 +24,7 @@ import {
   reconcileBaselinesOnEpicBranch,
   runEpicDeliverFinalize,
 } from '../../.agents/scripts/epic-deliver-finalize.js';
+import { makeMockProvider } from '../helpers/make-mock-provider.js';
 
 function silentLogger() {
   return {
@@ -258,13 +259,7 @@ describe('runEpicDeliverFinalize — Story #1396 reconciliation wiring', () => {
       stderr: '',
     }));
 
-    const provider = {
-      getTicket: async () => ({
-        id: 1386,
-        title: 'Epic — Stabilize',
-        labels: ['acceptance::n-a'],
-      }),
-    };
+    const provider = makeMockProvider({ title: 'Epic — Stabilize' });
 
     const upsertCommentFn = mock.fn(async () => ({}));
     const notifyFn = mock.fn(async () => ({}));

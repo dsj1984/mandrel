@@ -119,6 +119,37 @@ describe('runPreMergeGates — failure throw shape', () => {
     );
   });
 
+  it('attaches typed metadata (gateName, exitCode, code) to the thrown Error', async () => {
+    // Story #2136 / Task #2143 — callers in the wiring layer must be able
+    // to pattern-match exit codes without parsing the human message.
+    let caught;
+    try {
+      await runPreMergeGates({
+        cwd: '/repo',
+        agentSettings: {},
+        logger: silentLogger(),
+        buildDefaultGates: () => [{ name: 'coverage-capture' }],
+        runCloseValidation: async () => ({
+          ok: false,
+          failed: [
+            {
+              gate: { name: 'coverage-capture' },
+              status: 124,
+              cwd: '/worktree',
+            },
+          ],
+        }),
+      });
+    } catch (err) {
+      caught = err;
+    }
+    assert.ok(caught, 'expected runPreMergeGates to throw');
+    assert.equal(caught.code, 'PRE_MERGE_GATE_FAILED');
+    assert.equal(caught.gateName, 'coverage-capture');
+    assert.equal(caught.exitCode, 124);
+    assert.equal(caught.gateCwd, '/worktree');
+  });
+
   it('elides cwd suffix when gate provides none', async () => {
     await assert.rejects(
       () =>
