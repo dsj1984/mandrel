@@ -260,8 +260,11 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
         '*': { lines: 90, branches: 85, functions: 90 },
       });
       assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      // Story #2193: default MI floor targets the rollup `min` axis (the
+      // legacy `maintainability` key silently no-oped because the rollup
+      // exposes `min` / `p50` / `p95`, not `maintainability`).
       assert.deepEqual(q.gates.maintainability.floors, {
-        '*': { maintainability: 70 },
+        '*': { min: 70 },
       });
     });
 
@@ -329,8 +332,9 @@ describe('resolveQuality / resolveMaintainabilityCrap / resolveCodingGuardrails'
       assert.deepEqual(q.gates.maintainability.targetDirs, ['src', 'tests']);
       // Floors still get defaults injected.
       assert.deepEqual(q.gates.crap.floors, { '*': { crap: 20 } });
+      // Story #2193: maintainability default targets rollup `min` axis.
       assert.deepEqual(q.gates.maintainability.floors, {
-        '*': { maintainability: 70 },
+        '*': { min: 70 },
       });
     });
   });
