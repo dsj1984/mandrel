@@ -301,12 +301,18 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
   assert.equal(out.prUrl, 'https://github.com/me/repo/pull/55');
   assert.equal(out.prNumber, 55);
   assert.equal(out.postedHandoff, true);
-  assert.equal(out.autoMergeEnabled, true);
+  // Story #2253 (Epic #2172 review High-1): `autoMergeEnabled` is no
+  // longer on the envelope. Auto-merge enablement lives on the
+  // lifecycle bus (`AutomergeArmer`, Story #2256). Pin its absence so
+  // a future regression that re-adds the field gets flagged.
+  assert.equal(out.autoMergeEnabled, undefined);
   assert.equal(ticketCalls[0], 1142);
 
-  // gh should have been invoked twice: once to create the PR, then again
-  // to enable native auto-merge with --auto --squash --delete-branch.
-  assert.equal(ghCalls.length, 2);
+  // gh should have been invoked EXACTLY ONCE: to create the PR. The
+  // legacy second call (`gh pr merge --auto --squash --delete-branch`)
+  // was deleted in Story #2253 — armed auto-merge is now the
+  // AutomergeArmer listener's job, gated on predicate pass.
+  assert.equal(ghCalls.length, 1);
   const ghArgs = ghCalls[0];
   assert.equal(ghArgs[0], 'pr');
   assert.equal(ghArgs[1], 'create');
@@ -314,17 +320,6 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
   assert.equal(ghArgs[baseIdx + 1], 'main');
   const headIdx = ghArgs.indexOf('--head');
   assert.equal(ghArgs[headIdx + 1], 'epic/1142');
-
-  // The second call enables native auto-merge on the PR just opened.
-  const autoMergeArgs = ghCalls[1];
-  assert.deepEqual(autoMergeArgs, [
-    'pr',
-    'merge',
-    '55',
-    '--auto',
-    '--squash',
-    '--delete-branch',
-  ]);
 
   // The hand-off comment must carry the PR URL.
   assert.equal(upsertCalls.length, 1);
@@ -358,11 +353,13 @@ test('runEpicDeliverFinalize: happy path runs FF + push + gh + hand-off + epic-c
   );
 });
 
-test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finalize still succeeds)', async () => {
-  // `gh pr merge --auto` may fail for benign reasons — repo without
-  // auto-merge enabled, token missing scope, etc. The finalize result
-  // must still report success and post the hand-off so the operator can
-  // merge through the GitHub UI; only autoMergeEnabled flips to false.
+test('runEpicDeliverFinalize: does NOT invoke `gh pr merge` (auto-merge lockout, Story #2253 review High-1)', async () => {
+  // Regression guard for Epic #2172 Story #2253: the unconditional
+  // `gh pr merge <pr> --auto --squash --delete-branch` call was the
+  // safety hole this Story closes. Auto-merge enablement now flows
+  // through the lifecycle bus (`AutomergeArmer`, Story #2256) only
+  // after blocker / review predicates pass. Pin the deletion by
+  // counting gh invocations and rejecting any `pr merge` argv.
   const provider = {
     async getTicket(id) {
       return { id, title: 'X' };
@@ -377,7 +374,7 @@ test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finali
     },
     { matcher: (args) => args[0] === 'push', response: { status: 0 } },
   ]);
-  let ghCallIdx = 0;
+  const ghArgvLog = [];
   const out = await runEpicDeliverFinalize({
     epicId: 1142,
     cwd: '.',
@@ -389,21 +386,13 @@ test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finali
     loggerImpl: { info: () => {}, warn: () => {}, error: () => {} },
     reconcileBaselinesFn: noopReconcile,
     gitSpawnFn,
-    ghSpawnFn: () => {
-      ghCallIdx += 1;
-      if (ghCallIdx === 1) {
-        // pr create succeeds
-        return {
-          status: 0,
-          stdout: 'https://github.com/me/repo/pull/55\n',
-          stderr: '',
-        };
-      }
-      // pr merge --auto fails
+    ghSpawnFn: (args) => {
+      ghArgvLog.push(args);
+      // pr create succeeds.
       return {
-        status: 1,
-        stdout: '',
-        stderr: 'Pull request is not in a mergeable state.',
+        status: 0,
+        stdout: 'https://github.com/me/repo/pull/55\n',
+        stderr: '',
       };
     },
     upsertCommentFn: async () => ({ commentId: 99 }),
@@ -415,11 +404,18 @@ test('runEpicDeliverFinalize: auto-merge enablement failure is non-fatal (finali
   assert.equal(out.pushed, true);
   assert.equal(out.prUrl, 'https://github.com/me/repo/pull/55');
   assert.equal(out.postedHandoff, true);
-  assert.equal(
-    out.autoMergeEnabled,
-    false,
-    'auto-merge enablement failure should surface as autoMergeEnabled:false but not block finalize',
-  );
+  // The envelope no longer carries `autoMergeEnabled` (the field is
+  // gone with the deletion).
+  assert.equal(out.autoMergeEnabled, undefined);
+  // gh CLI invoked exactly once and ONLY for `pr create`.
+  assert.equal(ghArgvLog.length, 1);
+  assert.equal(ghArgvLog[0][1], 'create');
+  for (const argv of ghArgvLog) {
+    assert.ok(
+      !(argv[0] === 'pr' && argv[1] === 'merge'),
+      `auto-merge call must not be invoked: saw ${JSON.stringify(argv)}`,
+    );
+  }
 });
 
 test('runEpicDeliverFinalize: epic-complete is NOT fired when FF blocks before PR open', async () => {
