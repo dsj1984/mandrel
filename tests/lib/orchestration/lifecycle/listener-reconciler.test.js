@@ -144,10 +144,7 @@ describe('AcceptanceReconciler (bus integration)', () => {
     const blockedIdx = ordered.indexOf('epic.blocked');
     assert.notEqual(failedIdx, -1, 'reconcile.failed was emitted');
     assert.notEqual(blockedIdx, -1, 'epic.blocked was emitted');
-    assert.ok(
-      failedIdx < blockedIdx,
-      'reconcile.failed precedes epic.blocked',
-    );
+    assert.ok(failedIdx < blockedIdx, 'reconcile.failed precedes epic.blocked');
     assert.ok(
       !ordered.includes('acceptance.reconcile.ok'),
       'no .ok emitted on failure',
@@ -212,7 +209,11 @@ describe('AcceptanceReconciler (bus integration)', () => {
     reconciler.register();
 
     // Drive `handle` twice with the same ctx (simulating a replay).
-    const ctx = { event: 'epic.close.end', seqId: 42, payload: { epicId: 2172 } };
+    const ctx = {
+      event: 'epic.close.end',
+      seqId: 42,
+      payload: { epicId: 2172 },
+    };
     await reconciler.handle(ctx);
     await reconciler.handle(ctx);
 

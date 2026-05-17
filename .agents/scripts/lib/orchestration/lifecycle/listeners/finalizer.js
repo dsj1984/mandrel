@@ -132,8 +132,7 @@ export class Finalizer {
     this.epicId = opts.epicId;
     this.cwd = opts.cwd ?? process.cwd();
     this.fullScope = opts.fullScope === true;
-    this.runFinalizeFn =
-      opts.runFinalizeFn ?? defaultRunEpicDeliverFinalize;
+    this.runFinalizeFn = opts.runFinalizeFn ?? defaultRunEpicDeliverFinalize;
     this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
@@ -154,7 +153,7 @@ export class Finalizer {
     );
   }
 
-  async handle({ event, seqId, payload }) {
+  async handle({ event, seqId, payload: _payload }) {
     const key = `${event}:${seqId}`;
     if (this._seen.has(key)) {
       this.classifications.push({
@@ -163,9 +162,7 @@ export class Finalizer {
         outcome: 'skipped',
         reason: 'duplicate-seqId',
       });
-      this.logger.debug?.(
-        `[Finalizer] skip duplicate ${key} (idempotent)`,
-      );
+      this.logger.debug?.(`[Finalizer] skip duplicate ${key} (idempotent)`);
       return;
     }
     this._seen.add(key);
