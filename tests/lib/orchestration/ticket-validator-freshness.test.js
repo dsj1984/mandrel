@@ -273,10 +273,7 @@ test('validateAcFreshness: error message carries per-path remediation hint point
     /tests\/lib\/orchestration\/new-fresh\.test\.js: add test file/,
   );
   // Non-test paths get the generic "create" verb shape.
-  assert.match(
-    caught.message,
-    /\.agents\/scripts\/missing-helper\.js: create/,
-  );
+  assert.match(caught.message, /\.agents\/scripts\/missing-helper\.js: create/);
   // Trailing prose points at both branches (declare vs. correct).
   assert.match(caught.message, /Either declare the path in body\.changes/);
   assert.match(caught.message, /correct the reference/);
