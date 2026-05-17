@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T03:12:16.139Z",
+  "generatedAt": "2026-05-17T12:57:15.662Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 102.991,
-      "p95": 121.071
+      "p50": 103.132,
+      "p95": 121.484
     }
   },
   "rows": [
@@ -1571,6 +1571,14 @@
       "mi": 86.955
     },
     {
+      "path": "tests/baselines/canonicalize-path-fixture.test.js",
+      "mi": 109.096
+    },
+    {
+      "path": "tests/baselines/canonicalize-path.test.js",
+      "mi": 128.969
+    },
+    {
       "path": "tests/baselines/components.test.js",
       "mi": 113.376
     },
@@ -2053,6 +2061,18 @@
     {
       "path": "tests/execution-adapter.test.js",
       "mi": 108.311
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/deep/nested/module-c.js",
+      "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/module-a.js",
+      "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/baselines/cross-platform/nested/module-b.js",
+      "mi": 159.877
     },
     {
       "path": "tests/fixtures/mock-adapter.js",
