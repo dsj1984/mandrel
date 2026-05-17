@@ -85,6 +85,80 @@ export class Bus {
     /** @type {Map<string, Function>} cached AJV validators. */
     this._validators = new Map();
     this._nextSeqId = 1;
+    /**
+     * Hooks that run AFTER schema validation + seqId assignment but
+     * BEFORE any listener. LedgerWriter installs an `onEmitted` hook
+     * here so its `emitted` ledger line lands on disk before downstream
+     * listeners execute (the resume contract depends on this).
+     *
+     * Hooks are NOT regular listeners and intentionally not exposed via
+     * `bus.on()` — they are a privileged seam used by the ledger writer
+     * and (later) the resume coordinator. Each hook receives the same
+     * `{ event, seqId, payload }` context shape a listener sees.
+     *
+     * Hooks run sequentially with await, in registration order. A throw
+     * from a hook is treated like a thrown listener — it propagates to
+     * the caller and short-circuits everything after it.
+     *
+     * @type {Array<(ctx: {event: string, seqId: number, payload: object}) => unknown | Promise<unknown>>}
+     */
+    this._onEmittedHooks = [];
+    /**
+     * Hooks that run AFTER every listener resolves successfully — the
+     * `completed` boundary. LedgerWriter installs an `onCompleted` hook
+     * to write its `completed` ledger line. Same execution contract as
+     * `_onEmittedHooks` (sequential, awaited, registration order).
+     *
+     * @type {Array<(ctx: {event: string, seqId: number, payload: object}) => unknown | Promise<unknown>>}
+     */
+    this._onCompletedHooks = [];
+    /**
+     * Hooks that run when a listener throws — the `failed` boundary.
+     * They receive the same context PLUS the error and the inferred
+     * listener name (best-effort; `bus` does not currently annotate
+     * which listener threw, but the LedgerWriter hook tags `unknown`
+     * when no annotation is present).
+     *
+     * @type {Array<(ctx: {event: string, seqId: number, payload: object, listener: string, error: Error}) => unknown | Promise<unknown>>}
+     */
+    this._onFailedHooks = [];
+  }
+
+  /**
+   * Privileged seam — install a hook that runs after schema validation
+   * and seqId assignment but BEFORE any listener for the event. Used by
+   * LedgerWriter to land the `emitted` ledger record on disk before any
+   * downstream side effect runs (resume contract).
+   */
+  onEmitted(fn) {
+    if (typeof fn !== 'function') {
+      throw new TypeError('Bus.onEmitted: hook must be a function');
+    }
+    this._onEmittedHooks.push(fn);
+  }
+
+  /**
+   * Privileged seam — install a hook that runs AFTER every listener for
+   * the event resolves. Used by LedgerWriter to land the `completed`
+   * ledger record.
+   */
+  onCompleted(fn) {
+    if (typeof fn !== 'function') {
+      throw new TypeError('Bus.onCompleted: hook must be a function');
+    }
+    this._onCompletedHooks.push(fn);
+  }
+
+  /**
+   * Privileged seam — install a hook that runs when a listener throws.
+   * Used by LedgerWriter to land the `failed` ledger record before
+   * re-propagating.
+   */
+  onFailed(fn) {
+    if (typeof fn !== 'function') {
+      throw new TypeError('Bus.onFailed: hook must be a function');
+    }
+    this._onFailedHooks.push(fn);
   }
 
   /**
@@ -169,12 +243,50 @@ export class Bus {
     const seqId = this._nextSeqId;
     this._nextSeqId += 1;
     const context = { event, seqId, payload };
-    const named = this._listeners.get(event) ?? [];
-    for (const record of named) {
-      await record.fn(context);
+    // Privileged onEmitted hooks run BEFORE any listener — gives
+    // LedgerWriter the seam to land the `emitted` line on disk before
+    // any downstream side effect (resume contract).
+    for (const hook of this._onEmittedHooks) {
+      await hook(context);
     }
-    for (const record of this._wildcards) {
-      await record.fn(context);
+    const named = this._listeners.get(event) ?? [];
+    try {
+      for (const record of named) {
+        await record.fn(context);
+      }
+      for (const record of this._wildcards) {
+        await record.fn(context);
+      }
+    } catch (err) {
+      // Failed boundary — let writers/observers persist before we
+      // propagate. Listener name annotation is best-effort: when the
+      // error carries `.listener`, we honor it; otherwise we tag
+      // 'unknown' so the ledger record still validates against
+      // `ledger-record.schema.json` (which requires a `listener` field
+      // on failed records).
+      const listener =
+        (err && typeof err.listener === 'string' && err.listener) || 'unknown';
+      const failedCtx = { ...context, listener, error: err };
+      for (const hook of this._onFailedHooks) {
+        // Hook errors are intentionally swallowed here so we don't
+        // mask the originating listener error. The runner only sees the
+        // original throw.
+        try {
+          await hook(failedCtx);
+        } catch (hookErr) {
+          // Surface to stderr so a misbehaving writer doesn't go silent,
+          // but do not propagate — original error wins.
+          process.stderr.write(
+            `[Bus.onFailed] hook threw while recording failure for "${event}" (seqId=${seqId}): ${hookErr.message}\n`,
+          );
+        }
+      }
+      throw err;
+    }
+    // Completed boundary — writers persist `completed` after every
+    // listener resolves.
+    for (const hook of this._onCompletedHooks) {
+      await hook(context);
     }
     return { seqId };
   }
