@@ -35,8 +35,8 @@ import {
   Checkpointer,
 } from '../../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
-import { BlockerHandler } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
+import { BlockerHandler } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js';
 import { runPreMergeGates } from '../../../../.agents/scripts/lib/orchestration/story-close/pre-merge-validation.js';
 
 function readNdjson(p) {
@@ -134,10 +134,7 @@ describe('lifecycle/phase-close-validate — runPreMergeGates emits', () => {
     assert.equal(emitted.length, 2, 'two emitted records');
     assert.equal(emitted[0].event, 'close-validate.start');
     assert.equal(emitted[1].event, 'close-validate.end');
-    assert.ok(
-      emitted[0].seqId < emitted[1].seqId,
-      'start.seqId < end.seqId',
-    );
+    assert.ok(emitted[0].seqId < emitted[1].seqId, 'start.seqId < end.seqId');
     assert.equal(emitted[0].payload.epicId, epicId);
     assert.equal(emitted[0].payload.storyId, storyId);
     assert.equal(emitted[1].payload.ok, true);
@@ -353,13 +350,19 @@ describe('lifecycle/phase-close-validate — runEpicDeliverCloseTail epic.close.
       logger: quietLogger(),
       // These should never be called — they correspond to skipped phases.
       runWaveGateFn: async () => {
-        throw new Error('runWaveGateFn must not be called on resume past phase C');
+        throw new Error(
+          'runWaveGateFn must not be called on resume past phase C',
+        );
       },
       runHierarchyGateFn: async () => {
-        throw new Error('runHierarchyGateFn must not be called on resume past phase C');
+        throw new Error(
+          'runHierarchyGateFn must not be called on resume past phase C',
+        );
       },
       runCodeReviewFn: async () => {
-        throw new Error('runCodeReviewFn must not be called on resume past phase D');
+        throw new Error(
+          'runCodeReviewFn must not be called on resume past phase D',
+        );
       },
       runRetroFn: async () => ({
         posted: true,
