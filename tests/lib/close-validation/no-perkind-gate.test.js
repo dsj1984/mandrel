@@ -1,9 +1,9 @@
 // tests/lib/close-validation/no-perkind-gate.test.js
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 // ---------------------------------------------------------------------------
 // Story #2210 — Regression test: in-process per-kind regression gate retired.
@@ -75,8 +75,7 @@ function walkJsFiles(dir) {
 const FORBIDDEN_PATTERNS = [
   {
     pattern: /buildInProcessBaselineGate/,
-    description:
-      'reference to the retired `buildInProcessBaselineGate` helper',
+    description: 'reference to the retired `buildInProcessBaselineGate` helper',
   },
   {
     pattern: /in-process-baseline-gate/,
@@ -84,6 +83,21 @@ const FORBIDDEN_PATTERNS = [
       'import of the retired `close-validation/in-process-baseline-gate` module',
   },
 ];
+
+/**
+ * Strip JS line and block comments from a source file so the forbidden-
+ * pattern scan only sees executable code. Retirement narrative in
+ * doc-comments is legitimate (and informative) and must not trigger the
+ * guard. The stripper is intentionally simple: it ignores comment
+ * delimiters inside string literals, which is good enough for the
+ * deterministic source files under `lib/close-validation/`.
+ */
+function stripJsComments(source) {
+  // Block comments first — `/* ... */` (non-greedy, dotall via [\s\S]).
+  const noBlockComments = source.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Then line comments — `// ... <EOL>`. Drop the comment, keep the newline.
+  return noBlockComments.replace(/\/\/[^\n]*/g, '');
+}
 
 describe('close-validation — no in-process per-kind regression gate (Story #2210)', () => {
   it('the retired `in-process-baseline-gate.js` module is absent from the close-validation directory', () => {
@@ -98,10 +112,10 @@ describe('close-validation — no in-process per-kind regression gate (Story #22
     );
   });
 
-  it('no source under `lib/close-validation/` references the retired gate', () => {
+  it('no executable source under `lib/close-validation/` references the retired gate', () => {
     const offenders = [];
     for (const file of walkJsFiles(CLOSE_VALIDATION_DIR)) {
-      const body = readFileSync(file, 'utf8');
+      const body = stripJsComments(readFileSync(file, 'utf8'));
       for (const { pattern, description } of FORBIDDEN_PATTERNS) {
         if (pattern.test(body)) {
           offenders.push(
@@ -118,7 +132,9 @@ describe('close-validation — no in-process per-kind regression gate (Story #22
   });
 
   it('the close-validation aggregator (`close-validation.js`) does not import or reference the retired gate', () => {
-    const body = readFileSync(CLOSE_VALIDATION_AGGREGATOR, 'utf8');
+    const body = stripJsComments(
+      readFileSync(CLOSE_VALIDATION_AGGREGATOR, 'utf8'),
+    );
     const offenders = [];
     for (const { pattern, description } of FORBIDDEN_PATTERNS) {
       if (pattern.test(body)) {

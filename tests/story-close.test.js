@@ -90,19 +90,23 @@ test('story-close script', async (t) => {
 
 test('runCloseValidation', async (t) => {
   await t.test(
-    'DEFAULT_GATES covers typecheck, lint, format, maintainability, coverage-capture, and crap',
+    'DEFAULT_GATES covers typecheck, lint, format, coverage-capture, and check-baselines',
     () => {
       // Story #1798: when crap.enabled is true (the framework default), the
       // standalone `test` gate is dropped — coverage-capture carries
       // test-failure signalling. The default-built gate list therefore
       // ships with coverage-capture but NOT a separate `test` entry.
+      //
+      // Story #2210: the per-kind in-process gates
+      // (`check-maintainability` / `check-crap` / `check-mutation`) were
+      // retired; the unified `check-baselines` gate is the single source
+      // of truth for per-kind regression enforcement.
       const names = DEFAULT_GATES.map((g) => g.name);
       assert.ok(names.includes('typecheck'));
       assert.ok(names.includes('lint'));
       assert.ok(names.includes('format'));
-      assert.ok(names.some((n) => n.includes('maintainability')));
       assert.ok(names.includes('coverage-capture'));
-      assert.ok(names.some((n) => n.includes('crap')));
+      assert.ok(names.includes('check-baselines'));
       assert.ok(
         !names.includes('test'),
         'standalone `test` gate must be absent in the default (crap.enabled) gate list',
@@ -214,12 +218,12 @@ test('runCloseValidation', async (t) => {
       assert.equal(result.failed[0].gate.name, 'typecheck');
       // Independent gates (typecheck/lint/format) start in parallel — the
       // typecheck failure aborts the wave before the serial phase begins,
-      // so test / maintainability / coverage / crap must not have run.
+      // so the serial gates (test / coverage-capture / check-baselines)
+      // must not have run.
       const serialNames = new Set([
         'test',
-        'check-maintainability',
         'coverage-capture',
-        'check-crap',
+        'check-baselines',
       ]);
       const serialCalls = calls.filter((c) => {
         const matched = gates.find(
@@ -230,7 +234,7 @@ test('runCloseValidation', async (t) => {
       assert.equal(
         serialCalls.length,
         0,
-        'should halt before running any serial gate (test/MI/coverage/crap)',
+        'should halt before running any serial gate (test/coverage/baselines)',
       );
       assert.ok(logs.some((m) => /TypeScript regression/.test(m)));
     },
@@ -264,26 +268,40 @@ test('runCloseValidation', async (t) => {
     },
   );
 
-  await t.test('maintainability gate surfaces the update-baseline hint', () => {
-    const gate = DEFAULT_GATES.find((g) => g.name.includes('maintainability'));
-    assert.match(gate.hint, /maintainability:update/);
-    assert.match(gate.hint, /commit/i);
-  });
+  // Story #2210 — the legacy `check-maintainability` and `check-crap` per-kind
+  // in-process regression gates were retired. The unified `check-baselines`
+  // gate is the single source of truth for per-kind regression enforcement,
+  // and its hint references `baseline-refresh:` so the operator-facing
+  // remediation contract is preserved.
+  await t.test(
+    'unified check-baselines gate is registered and surfaces the baseline-refresh hint',
+    () => {
+      const gate = DEFAULT_GATES.find((g) => g.name === 'check-baselines');
+      assert.ok(
+        gate,
+        'unified `check-baselines` gate must be present in DEFAULT_GATES',
+      );
+      assert.equal(gate.cmd, 'node');
+      assert.deepStrictEqual(gate.args, [
+        '.agents/scripts/check-baselines.js',
+        '--format',
+        'text',
+      ]);
+      assert.match(gate.hint, /baseline-refresh:/);
+    },
+  );
 
   await t.test(
-    'crap gate runs after maintainability and surfaces the refresh hint',
+    'retired per-kind in-process gates are absent from DEFAULT_GATES (Story #2210)',
     () => {
-      // Epic #1943 / Story #1973: the per-kind CRAP gate is now in-process
-      // (no spawn of `check-crap.js`); the legacy CLI args contract this
-      // test pinned no longer applies. The contract that survives:
-      // ordering (CRAP after MI) and the operator-facing refresh hint.
       const names = DEFAULT_GATES.map((g) => g.name);
-      const miIdx = names.findIndex((n) => n.includes('maintainability'));
-      const crapIdx = names.findIndex((n) => n.includes('crap'));
-      assert.ok(crapIdx > miIdx, 'crap gate must run AFTER maintainability');
-      const gate = DEFAULT_GATES[crapIdx];
-      assert.match(gate.hint, /crap:update/);
-      assert.match(gate.hint, /baseline-refresh:/);
+      const retired = ['check-maintainability', 'check-crap', 'check-mutation'];
+      for (const name of retired) {
+        assert.ok(
+          !names.includes(name),
+          `Retired gate \`${name}\` must not be registered in DEFAULT_GATES; got: ${names.join(', ')}`,
+        );
+      }
     },
   );
 
