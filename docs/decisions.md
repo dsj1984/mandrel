@@ -350,13 +350,15 @@ retro-detected concern can be fixed on the Epic branch before the
 human merge gate is reached.
 
 The runtime engine renames in lockstep: `epic-runner.js` (top-level
-CLI) → `epic-deliver-runner.js`; `epic-execute-prepare.js` →
-`epic-deliver-prepare.js`; `epic-finalize.js` →
-`epic-deliver-finalize.js`.  `epic-close.js` is deleted entirely;
-the close-tail logic is folded into the deliver runner alongside two
-new in-process modules (`lib/orchestration/code-review.js` extracted
-from the helper, and `lib/orchestration/retro-runner.js` extracted
-from the now-deleted retro helper).
+CLI) → the `/epic-deliver` slash command (which supplanted the
+short-lived deliver-runner CLI wrapper retired in Epic #2172);
+`epic-execute-prepare.js` → `epic-deliver-prepare.js`;
+`epic-finalize.js` → `epic-deliver-finalize.js`.  `epic-close.js` is
+deleted entirely; the close-tail logic is folded into the deliver
+runner alongside two new in-process modules
+(`lib/orchestration/code-review.js` extracted from the helper, and
+`lib/orchestration/retro-runner.js` extracted from the now-deleted
+retro helper).
 
 The supporting deletions land atomically:
 

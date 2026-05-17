@@ -2,9 +2,11 @@
  * lib/orchestration/retro-runner.js — In-process Retro module.
  *
  * Story #1155 (Epic #1142, 5.40.0) — extracts the helper-driven
- * `epic-retro` invocation into a callable module so the renamed
- * `epic-deliver-runner.js` can fire Phase E without a separate LLM
- * helper turn. The retro fires before `/epic-deliver`'s finalize step
+ * `epic-retro` invocation into a callable module so the
+ * `/epic-deliver` runner can fire Phase E without a separate LLM
+ * helper turn. (Story #2259, Epic #2172: the legacy deliver-runner
+ * CLI was retired once delivery moved entirely into the slash
+ * command.) The retro fires before `/epic-deliver`'s finalize step
  * opens the PR — the operator's PR-merge is the final human gate, not
  * the retro itself.
  *

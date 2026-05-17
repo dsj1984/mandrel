@@ -186,7 +186,6 @@ graph TB
         TD["epic-plan-decompose.js"]:::script
         DI["dispatcher.js"]:::script
         EDP["epic-deliver-prepare.js"]:::script
-        ER["epic-deliver-runner.js"]:::script
         EDF["epic-deliver-finalize.js"]:::script
         SI["story-init.js"]:::script
         SC["story-close.js"]:::script
@@ -234,7 +233,6 @@ graph TB
 | `epic-plan-decompose.js`     | Authoring wrapper for the 4-tier ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                              |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
-| `epic-deliver-runner.js`     | Coordinates all six `/epic-deliver` phases (prepare → wave loop → close-validation → code-review → retro → finalize) with phase-granular checkpointed resume.                                  |
 | `epic-deliver-finalize.js`   | Phase 6: pushes `epic/<id>`, opens a PR to `main`, sets the required-checks expectation, posts the hand-off comment. Epic stays at `agent::executing` until the operator's PR merge flips it to `agent::done`. Never merges `main` itself. |
 | `story-init.js`              | Initialises a Story worktree, transitions Tasks to `agent::executing`.                                                                                                                        |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
@@ -520,7 +518,7 @@ sequenceDiagram
     participant EP as epic-plan-spec.js
     participant TD as epic-plan-decompose.js
     participant D as /epic-deliver
-    participant EDR as epic-deliver-runner.js
+    participant EDR as /epic-deliver (in-session)
     participant CH as context-hydrator.js
     participant A as Agent (IDE)
     participant GH as GitHub
@@ -547,13 +545,14 @@ sequenceDiagram
 
 ## Epic Deliver Runner
 
-The epic deliver runner
-(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) composes the
-orchestration primitives into a six-phase execution coordinator. Invoked
-via `/epic-deliver <epicId>` inside the operator's Claude session. There
-is no remote-trigger surface — the runner only ever runs locally, in the
+The `/epic-deliver <epicId>` slash command is the sole entry point for
+Epic delivery. It runs end-to-end inside the operator's Claude session,
+composing the orchestration primitives into a six-phase execution
+coordinator with the lifecycle bus chain at its core. There is no
+remote-trigger surface — delivery only ever runs locally, in the
 operator's session, with Story sub-agents launched through the Agent
-tool.
+tool. Story #2259 (Epic #2172) retired the legacy deliver-runner CLI
+wrapper; the slash command supplants it entirely.
 
 ### State machine (Epic labels)
 

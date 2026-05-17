@@ -119,10 +119,6 @@
       "mi": 96.333
     },
     {
-      "path": ".agents/scripts/epic-deliver-runner.js",
-      "mi": 94.617
-    },
-    {
       "path": ".agents/scripts/epic-execute-record-wave.js",
       "mi": 86.415
     },

@@ -50,7 +50,7 @@ Stories. Story #1702 brings the `.c8rc.cjs` exclude list into sync so
 `assert-branch.js`, `diagnose-friction.js`, `dispatcher.js`,
 `epic-close.js`, `epic-deliver-automerge.js`, `epic-deliver-cleanup.js`,
 `epic-deliver-finalize.js`, `epic-deliver-note-intervention.js`,
-`epic-deliver-prepare.js`, `epic-deliver-runner.js`,
+`epic-deliver-prepare.js`,
 `epic-execute-record-wave.js`, `epic-reconcile.js`,
 `hydrate-context.js`, `loc-delta.js`, `notify.js`,
 `post-structured-comment.js`, `run-audit-suite.js`, `run-tests.js`,
@@ -347,7 +347,6 @@ Counts: coverage gaps **48** · MI<70 **1** · CRAP>20 methods **0**
 
 | File | Lines % | Branches % | Functions % |
 | --- | --- | --- | --- |
-| `.agents/scripts/epic-deliver-runner.js` | 42.76% (Δ +47.24% to floor) | 42.86% (Δ +42.14% to floor) | 50.00% (Δ +40% to floor) |
 | `.agents/scripts/audit-orchestrator.js` | 56.02% (Δ +33.98% to floor) | 93.94% | 71.43% (Δ +18.57% to floor) |
 | `.agents/scripts/post-structured-comment.js` | 64.57% (Δ +25.43% to floor) | 100.00% | 50.00% (Δ +40% to floor) |
 | `.agents/scripts/run-audit-suite.js` | 67.01% (Δ +22.99% to floor) | 100.00% | 0.00% (Δ +90% to floor) |

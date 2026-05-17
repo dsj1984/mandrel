@@ -2,9 +2,11 @@
  * lib/orchestration/code-review.js — In-process Code Review module.
  *
  * Story #1155 (Epic #1142, 5.40.0) — extracts the helper-driven
- * `epic-code-review` invocation into a callable module so the renamed
- * `epic-deliver-runner.js` can run Phase D without spawning a child
- * process or routing through an LLM-driven helper.
+ * `epic-code-review` invocation into a callable module so the
+ * `/epic-deliver` runner can run Phase D without spawning a child
+ * process or routing through an LLM-driven helper. (Story #2259,
+ * Epic #2172: the legacy deliver-runner CLI was retired once delivery
+ * moved entirely into the slash command.)
  *
  * Public API:
  *   - `runCodeReview({ epicId, provider, logger })` →
