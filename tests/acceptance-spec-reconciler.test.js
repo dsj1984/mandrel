@@ -21,6 +21,7 @@ import {
   reconcileAcceptanceSpec,
   renderBlockerMessage,
 } from '../.agents/scripts/acceptance-spec-reconciler.js';
+import { BDD_RUNNER_TAG_TABLE } from '../.agents/scripts/lib/bdd-runner-detect.js';
 
 function buildProvider(tickets) {
   const byId = new Map(tickets.map((t) => [t.id, t]));
@@ -141,6 +142,38 @@ describe('classifyCoverage', () => {
     assert.deepEqual(out, { satisfied: [], pending: [], missing: ['AC-3'] });
   });
 
+  it('marks an AC pending when only @skip scenarios carry the tag (BDD runner pending tag)', () => {
+    const tagSets = [new Set(['ac-7', 'skip'])];
+    const out = classifyCoverage({ acIds: ['AC-7'], tagSets });
+    assert.deepEqual(out, { satisfied: [], pending: ['AC-7'], missing: [] });
+  });
+
+  it('marks an AC satisfied when an untagged scenario carries the AC token (no @skip / @pending)', () => {
+    const tagSets = [new Set(['ac-7'])];
+    const out = classifyCoverage({ acIds: ['AC-7'], tagSets });
+    assert.deepEqual(out, { satisfied: ['AC-7'], pending: [], missing: [] });
+  });
+
+  it('classifies an AC as pending for every pendingTag registered in BDD_RUNNER_TAG_TABLE (contract walk)', () => {
+    // Cross-checked from the reconciler side: every runner's pendingTag
+    // must classify a scenario carrying it as pending, never satisfied.
+    // Tag-block parsing strips the leading `@`, so we normalize here.
+    for (const [runner, pendingTag] of Object.entries(BDD_RUNNER_TAG_TABLE)) {
+      const token = pendingTag.startsWith('@')
+        ? pendingTag.slice(1)
+        : pendingTag;
+      const out = classifyCoverage({
+        acIds: ['AC-1'],
+        tagSets: [new Set(['ac-1', token])],
+      });
+      assert.deepEqual(
+        out,
+        { satisfied: [], pending: ['AC-1'], missing: [] },
+        `runner ${runner} pendingTag ${pendingTag} should classify as pending`,
+      );
+    }
+  });
+
   it('mixed matrix: classifies each AC independently', () => {
     const tagSets = [
       new Set(['ac-1']), // AC-1 satisfied
@@ -183,6 +216,7 @@ describe('classifyReconcilerInvocation', () => {
       kind: 'run',
       epicId: 2001,
       featuresDir: null,
+      skipWhenWaived: false,
     });
   });
   it('passes --features-dir through', () => {
@@ -191,6 +225,17 @@ describe('classifyReconcilerInvocation', () => {
       'features-dir': 'custom/feats',
     });
     assert.equal(r.featuresDir, 'custom/feats');
+  });
+  it('passes --skip-when-waived through as skipWhenWaived flag', () => {
+    const r = classifyReconcilerInvocation({
+      epic: '7',
+      'skip-when-waived': true,
+    });
+    assert.equal(r.skipWhenWaived, true);
+  });
+  it('skipWhenWaived defaults to false when the flag is absent', () => {
+    const r = classifyReconcilerInvocation({ epic: '7' });
+    assert.equal(r.skipWhenWaived, false);
   });
 });
 
@@ -235,6 +280,45 @@ describe('reconcileAcceptanceSpec', () => {
     });
     assert.equal(out.status, 'waived');
     assert.equal(out.ok, true);
+  });
+
+  it('returns waived (status=waived, ok=true) with --skip-when-waived threaded through on an acceptance::n-a Epic', async () => {
+    const provider = buildProvider([
+      {
+        id: 7050,
+        labels: ['type::epic', 'acceptance::n-a'],
+        body: '',
+      },
+    ]);
+    const out = await reconcileAcceptanceSpec({
+      epicId: 7050,
+      cwd: process.cwd(),
+      skipWhenWaived: true,
+      injectedProvider: provider,
+      injectedConfig: { agentSettings: {}, orchestration: {} },
+      loggerImpl: SILENT_LOGGER,
+      listFeatureFiles: () => [],
+    });
+    assert.equal(out.status, 'waived');
+    assert.equal(out.ok, true);
+  });
+
+  it('without --skip-when-waived, missing spec on a non-waived Epic still throws (no regression)', async () => {
+    const provider = buildProvider([
+      { id: 7051, labels: ['type::epic'], body: '', linkedIssues: null },
+    ]);
+    await assert.rejects(
+      () =>
+        reconcileAcceptanceSpec({
+          epicId: 7051,
+          cwd: process.cwd(),
+          injectedProvider: provider,
+          injectedConfig: { agentSettings: {}, orchestration: {} },
+          loggerImpl: SILENT_LOGGER,
+          listFeatureFiles: () => [],
+        }),
+      /no linked context::acceptance-spec/,
+    );
   });
 
   it('throws when no acceptance-spec linked and waiver absent', async () => {

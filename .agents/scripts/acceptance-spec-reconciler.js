@@ -40,6 +40,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 
+import { PENDING_TAGS } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
 import { parseLinkedIssues } from './lib/issue-link-parser.js';
@@ -234,7 +235,7 @@ export function classifyCoverage({ acIds, tagSets }) {
     let sawPending = false;
     for (const set of tagSets) {
       if (!set.has(tagToken)) continue;
-      if (set.has('pending')) {
+      if ([...set].some((t) => PENDING_TAGS.has(t))) {
         sawPending = true;
       } else {
         sawSatisfied = true;
@@ -321,6 +322,7 @@ export async function reconcileAcceptanceSpec({
   epicId,
   cwd,
   featuresDir,
+  skipWhenWaived = false,
   injectedProvider,
   injectedConfig,
   loggerImpl,
@@ -462,6 +464,7 @@ export function classifyReconcilerInvocation(values) {
     kind: 'run',
     epicId,
     featuresDir: values['features-dir'] ?? null,
+    skipWhenWaived: values['skip-when-waived'] === true,
   };
 }
 
@@ -470,6 +473,7 @@ async function main() {
     options: {
       epic: { type: 'string' },
       'features-dir': { type: 'string' },
+      'skip-when-waived': { type: 'boolean' },
       help: { type: 'boolean', short: 'h' },
     },
     strict: false,
@@ -486,6 +490,7 @@ async function main() {
   const result = await reconcileAcceptanceSpec({
     epicId: intent.epicId,
     featuresDir: intent.featuresDir ?? undefined,
+    skipWhenWaived: intent.skipWhenWaived,
   });
   // Always emit the structured envelope to stdout, even on non-OK, so a
   // caller capturing stdout can read the diff payload before reacting to
