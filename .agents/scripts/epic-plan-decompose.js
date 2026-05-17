@@ -2,7 +2,7 @@
 /* node:coverage ignore file */
 
 /**
- * epic-plan-decompose.js — Phase 2 (decompose) entry point for the split
+ * epic-plan-decompose.js — Phase 8 (decompose) entry point for the split
  * planning flow.
  *
  * Owns the deterministic decomposer engine (inlined from the retired
@@ -634,7 +634,7 @@ async function setEpicLabel(provider, epicId, targetLabel) {
  *      runs the structural reconciler in apply mode (Story #1496). The
  *      reconciler writes `state.json` and creates / updates / closes the
  *      GH issues to match the spec.
- *   4. Phase 2 still flips the Epic to `agent::ready` **after** the
+ *   4. Phase 8 still flips the Epic to `agent::ready` **after** the
  *      reconciler's apply path succeeds (preserving the prior label
  *      contract operators rely on).
  *   5. The pre-existing temp-file cleanup contract from
@@ -741,7 +741,7 @@ export async function runDecomposePhase(
   // 4. Invoke the structural reconciler in apply mode. We surface stdout /
   //    stderr to the parent stream so operators see the formatted plan
   //    inline with the planning log. `--yes` short-circuits the
-  //    interactive confirmation gate (Phase 2 is a non-interactive
+  //    interactive confirmation gate (Phase 8 is a non-interactive
   //    pipeline by design).
   Logger.info(
     `[epic-plan-decompose] Spawning epic-reconcile.js --apply --yes for Epic #${epicId}...`,
@@ -788,7 +788,7 @@ export async function runDecomposePhase(
     completedAt: new Date().toISOString(),
   });
 
-  // 5. Phase 2 still flips the Epic to agent::ready — the reconciler
+  // 5. Phase 8 still flips the Epic to agent::ready — the reconciler
   //    handles structural state only, the planning lifecycle label is
   //    owned by this entry point.
   Logger.info(

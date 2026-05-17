@@ -82,7 +82,7 @@ export async function runSprintPlan({
   runEdit = runEditFlow,
   detectSpec = detectExistingSpec,
 }) {
-  // Phase 2.5 edit-in-place detection (Story #1499 / Task #1527).
+  // Phase 8.5 edit-in-place detection (Story #1499 / Task #1527).
   // `--force` is the operator escape hatch: it re-runs the author path
   // even when a spec is present, matching the behaviour the spec phase
   // already documents for PRD/Tech Spec regeneration.

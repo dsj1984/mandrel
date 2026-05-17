@@ -37,7 +37,7 @@ import {
  *     source content produces the same destination bytes (no fs churn). When
  *     the source baseline is missing, emits a warn through the injected
  *     logger and returns `{ written: false, reason: 'source-missing' }` for
- *     that file — callers (e.g. /epic-plan Phase 1) treat the absence as
+ *     that file — callers (e.g. /epic-plan Phase 7) treat the absence as
  *     non-fatal and stay in `--full-scope` mode.
  *
  *   - regenerateMainFromTree({ cwd }) — re-scores maintainability + crap
