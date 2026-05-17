@@ -66,6 +66,28 @@ function collectTaskPathReferences(task) {
 }
 
 /**
+ * Collect every code-asset path a Task declares it will *create or modify*
+ * via its `body.changes` array. These paths are net-new (or about to be
+ * touched) from the planner's perspective, so the freshness gate must
+ * accept them even when they're absent from `baseBranchRef`.
+ *
+ * Only `body.changes` is consulted — `body.goal`, `body.acceptance`, and
+ * `body.verify` are deliberately excluded so the gate continues to flag a
+ * planner that hallucinates a fictitious file in narrative copy without
+ * declaring it in the changes contract.
+ */
+function collectTaskChangesPaths(task) {
+  const paths = new Set();
+  const body = task.body;
+  if (body === null || typeof body !== 'object') return paths;
+  if (!Array.isArray(body.changes)) return paths;
+  for (const item of body.changes) {
+    collectPathsFromText(String(item ?? ''), paths);
+  }
+  return paths;
+}
+
+/**
  * Default git probe: returns true when `path` exists at `ref` in the cwd repo.
  * Uses `git cat-file -e <ref>:<path>` which is the standard low-cost existence
  * check (no blob materialisation, no tree walk in node).
@@ -112,6 +134,17 @@ export function validateAcFreshness({
     );
   }
   const tasks = (tickets ?? []).filter((t) => t.type === 'task');
+  // Union every Task's `body.changes` paths into an expected-new set. Any
+  // path the planner has declared in `changes` is considered intentional
+  // (net-new or about-to-be-modified) and the git probe is skipped for it
+  // — otherwise the freshness gate would reject the very test/source file
+  // a Task is meant to create, even when the Task is well-formed.
+  const expectedNewPaths = new Set();
+  for (const task of tasks) {
+    for (const path of collectTaskChangesPaths(task)) {
+      expectedNewPaths.add(path);
+    }
+  }
   const misses = [];
   // Cache per-path probe results — sibling Tasks frequently cite the same
   // helper module; avoid re-spawning git for each repeat.
@@ -119,6 +152,7 @@ export function validateAcFreshness({
   for (const task of tasks) {
     const refs = collectTaskPathReferences(task);
     for (const path of refs) {
+      if (expectedNewPaths.has(path)) continue;
       let exists = probeCache.get(path);
       if (exists === undefined) {
         exists = gitRunner({ baseBranchRef, path, cwd });
