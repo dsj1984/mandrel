@@ -448,3 +448,63 @@ test('runEpicDeliverCloseTail: rejects missing args', async () => {
     /runFinalizeFn is required/,
   );
 });
+
+// Story #2289 — Phase E reads the checkpoint's manualInterventions count
+// at retro entry (post-resume, not at close-tail start) and passes the
+// length to runRetro so the scorecard reflects out-of-band intervention
+// records the host LLM appended via epic-deliver-note-intervention.js.
+test('runEpicDeliverCloseTail: passes manualInterventions count from checkpoint to runRetro', async () => {
+  const provider = makeCheckpointProvider();
+  const checkpointer = new Checkpointer({ provider, epicId: 42 });
+  // Seed the checkpoint with two recorded interventions before the
+  // close-tail runs Phase E.
+  await checkpointer.write({
+    epicId: 42,
+    phase: 'retro',
+    manualInterventions: [
+      {
+        reason: 'manual git reset',
+        source: 'host-llm',
+        ts: '2026-05-17T00:00:00.000Z',
+      },
+      {
+        reason: 'AskUserQuestion override',
+        source: 'host-llm',
+        ts: '2026-05-17T00:01:00.000Z',
+      },
+    ],
+  });
+
+  let retroArgs = null;
+  await runEpicDeliverCloseTail({
+    epicId: 42,
+    provider,
+    runWaveGateFn: async () => ({ exitCode: 0 }),
+    runHierarchyGateFn: async () => ({ exitCode: 0 }),
+    runCodeReviewFn: async () => ({
+      status: 'ok',
+      severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+      halted: false,
+      blockerReason: null,
+      posted: true,
+    }),
+    runRetroFn: async (args) => {
+      retroArgs = args;
+      return { posted: true, compact: false, scorecard: {}, body: '' };
+    },
+    runFinalizeFn: async () => ({
+      epicId: 42,
+      ffOk: true,
+      pushed: true,
+      prUrl: 'https://x/pull/1',
+      postedHandoff: true,
+    }),
+  });
+
+  assert.ok(retroArgs, 'expected runRetroFn to be invoked');
+  assert.equal(
+    retroArgs.manualInterventions,
+    2,
+    'expected the close-tail to forward the checkpoint count to runRetro',
+  );
+});
