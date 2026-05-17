@@ -32,10 +32,9 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import {
-  REFRESH_TIMEOUT_EXIT_CODE,
-  runRefreshCommit,
-} from '../../.agents/scripts/lib/orchestration/story-close/baseline-attribution-wiring.js';
+// Story #2205 — `runRefreshCommit` no longer spawns `npm run <kind>:update`,
+// so the baseline-refresh timeout fixture is gone. `REFRESH_TIMEOUT_EXIT_CODE`
+// stays exported as a historical constant; we no longer import it here.
 import {
   FORMAT_AUTOFIX_TIMEOUT_EXIT_CODE,
   runFormatAutofix,
@@ -101,75 +100,13 @@ describe('format-autofix bounded timeout (Story #2165)', () => {
   });
 });
 
-describe('baseline-refresh bounded timeout (Story #2165)', () => {
-  it('threads a positive refreshTimeoutMs as `timeout` + killSignal: SIGKILL', () => {
-    const calls = [];
-    const spawn = (cmd, args, opts) => {
-      calls.push({ cmd, args, opts });
-      return { status: 0 };
-    };
-    // `runRefreshCommit` checks `git status --porcelain` after the
-    // refresh; return non-empty to skip the "no-diff" failure branch.
-    const gitRunner = {
-      gitSpawn: (_cwd, ...args) => {
-        if (args[0] === 'status') {
-          return { status: 0, stdout: ' M baselines/maintainability.json\n' };
-        }
-        if (args[0] === 'log') {
-          return { status: 0, stdout: 'feat: previous commit\n' };
-        }
-        if (args[0] === 'rev-parse') {
-          return { status: 0, stdout: 'abcdef1\n' };
-        }
-        return { status: 0, stdout: '' };
-      },
-    };
-    const result = runRefreshCommit({
-      cwd: '/tmp/repo',
-      refreshCmd: { cmd: 'npm', args: ['run', 'maintainability:update'] },
-      refreshSubject: 'baseline-refresh: maintainability',
-      refreshTimeoutMs: 60_000,
-      spawnSync: spawn,
-      gitRunner,
-    });
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].cmd, 'npm');
-    assert.deepEqual(calls[0].args, ['run', 'maintainability:update']);
-    assert.equal(calls[0].opts.timeout, 60_000);
-    assert.equal(calls[0].opts.killSignal, 'SIGKILL');
-    assert.equal(result.ok, true);
-  });
-
-  it('returns the 124 envelope when the refresh spawn is killed by SIGKILL', () => {
-    // node:child_process.spawnSync returns `{ status: null, signal:
-    // 'SIGKILL', ... }` when the timeout watchdog kills the child. The
-    // refresh helper inspects `result.signal` directly (no throw
-    // contract), so we replay that shape via the injected runner.
-    const synthHangSpawn = () => ({
-      status: null,
-      signal: 'SIGKILL',
-      stdout: '',
-      stderr: '',
-    });
-    const warns = [];
-    const result = runRefreshCommit({
-      cwd: '/tmp/repo',
-      refreshCmd: { cmd: 'npm', args: ['run', 'crap:update'] },
-      refreshSubject: 'baseline-refresh: crap',
-      refreshTimeoutMs: 200,
-      spawnSync: synthHangSpawn,
-      gitRunner: { gitSpawn: () => ({ status: 0, stdout: '' }) },
-      logger: { info: () => {}, warn: (m) => warns.push(m) },
-    });
-    assert.equal(result.ok, false);
-    assert.equal(result.timedOut, true);
-    assert.equal(result.exitCode, REFRESH_TIMEOUT_EXIT_CODE);
-    assert.equal(REFRESH_TIMEOUT_EXIT_CODE, 124);
-    assert.equal(result.timeoutMs, 200);
-    assert.equal(result.spawnCmd, 'npm run crap:update');
-    assert.ok(
-      warns.some((m) => /exceeded 200ms/.test(m)),
-      'expected a timeout-trip warn log',
-    );
-  });
-});
+// Story #2205 — the `baseline-refresh bounded timeout (Story #2165)`
+// tests have been retired. `runRefreshCommit` no longer spawns
+// `npm run <kind>:update`; the refresh runs in-process through
+// `refreshBaseline()` (lib/baselines/refresh-service.js). The
+// `REFRESH_TIMEOUT_EXIT_CODE` constant is still exported for callers
+// (and tests) that referenced the historical contract, but the
+// bounded-timeout wall no longer fires from this code path.
+//
+// The coverage-capture timeout test above retains its full Story #2136
+// fixture coverage — that path still spawns and still tripwires on 124.

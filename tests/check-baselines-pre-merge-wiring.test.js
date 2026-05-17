@@ -1,8 +1,14 @@
 // tests/check-baselines-pre-merge-wiring.test.js
 //
 // Story #1912 / Task #1917 — `check-baselines` is wired into the pre-merge
-// gate chain alongside (NOT in place of) the existing per-kind regression
-// gates. Pins the contract until Epic #1943 collapses the list.
+// gate chain as the unified baselines gate.
+//
+// Story #2210 retired the in-process per-kind regression gates
+// (`check-maintainability`, `check-crap`, `check-mutation`). The
+// `check-baselines` gate is now the single source of truth for per-kind
+// regression enforcement — the chain no longer carries the per-kind
+// arms alongside it, and the order-sensitivity that previously pinned
+// `check-baselines` AFTER the per-kind gates is moot.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -21,27 +27,19 @@ describe('pre-merge gate chain — Task #1917 contract', () => {
     );
   });
 
-  it('check-baselines runs AFTER the per-kind regression gates (still order-sensitive)', () => {
+  it('per-kind in-process regression gates are absent (Story #2210 retirement)', () => {
     const gates = buildDefaultGates({
       agentSettings: { quality: { crap: { enabled: true } } },
     });
     const names = gates.map((g) => g.name);
-    const idxBaselines = names.indexOf('check-baselines');
-    const idxMaintain = names.indexOf('check-maintainability');
-    const idxCrap = names.indexOf('check-crap');
-    assert.ok(idxBaselines > idxMaintain);
-    assert.ok(idxBaselines > idxCrap);
-  });
-
-  it('per-kind regression gates remain in the chain (no removal in #1912)', () => {
-    const gates = buildDefaultGates({
-      agentSettings: { quality: { crap: { enabled: true } } },
-    });
-    const names = gates.map((g) => g.name);
-    for (const kind of ['check-maintainability', 'check-crap']) {
+    for (const kind of [
+      'check-maintainability',
+      'check-crap',
+      'check-mutation',
+    ]) {
       assert.ok(
-        names.includes(kind),
-        `expected ${kind} alongside check-baselines; got ${names.join(', ')}`,
+        !names.includes(kind),
+        `retired per-kind gate \`${kind}\` must not appear in the chain; got: ${names.join(', ')}`,
       );
     }
   });

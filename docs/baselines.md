@@ -203,6 +203,43 @@ Behaviour:
   breached component in their bullet so a `*` rollup is not falsely
   implicated when only a component-scoped floor was crossed.
 
+#### Floor axes must match rollup axes
+
+A configured floor axis is only enforced when the rollup actually exposes
+that axis — `check-baselines.js#compareToFloor` skips axes whose value is
+missing from the rollup. As of Story #2193, the unified dispatcher
+**fails closed** when a configured floor axis is absent from the rollup:
+the gate exits non-zero with an actionable error naming the missing axis
+and listing the available rollup keys (so a typo like
+`{ maintainability: 70 }` against the maintainability rollup — which
+exposes `min` / `p50` / `p95` — surfaces immediately instead of silently
+passing).
+
+Match the floor axis names to the rollup axes documented in the [Per-Kind
+Shapes](#per-kind-shapes) table above. For maintainability specifically:
+
+```json
+{
+  "delivery": {
+    "quality": {
+      "gates": {
+        "maintainability": {
+          "floors": {
+            "*": { "min": 70 }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The maintainability rollup exposes `min` (lowest per-file `mi`), `p50`
+(median), and `p95` (95th percentile); a floor on `min` is the framework
+default and enforces a hard lower bound on individual files. Floors keyed
+on the legacy `maintainability` axis (which never appears in the rollup)
+are rejected with an explanatory error.
+
 For the full configuration surface (every gate-level key with defaults
 and types) see [`docs/configuration.md`](configuration.md) and the
 `agentSettings.quality.*` section.

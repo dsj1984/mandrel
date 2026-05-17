@@ -10,9 +10,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   attachGateAbortHandler,
-  buildDefaultGates,
   gateExitCode,
-  runCloseValidation,
 } from '../../.agents/scripts/lib/close-validation.js';
 
 describe('gateExitCode', () => {
@@ -88,120 +86,10 @@ describe('attachGateAbortHandler', () => {
   });
 });
 
-describe('buildDefaultGates per-kind in-process gates (Story #1973 / Task #1984)', () => {
-  const PER_KIND_GATE_NAMES = ['check-maintainability', 'check-crap'];
-
-  it('attaches an in-process `run` callable to each per-kind baseline gate', () => {
-    const gates = buildDefaultGates({ epicBranch: 'epic/1943' });
-    for (const name of PER_KIND_GATE_NAMES) {
-      const gate = gates.find((g) => g.name === name);
-      assert.ok(gate, `expected ${name} gate to be present`);
-      assert.equal(
-        typeof gate.run,
-        'function',
-        `${name} gate must carry an in-process run() callable`,
-      );
-    }
-  });
-
-  it('preserves the legacy cmd/args shape so introspecting call sites keep working', () => {
-    const gates = buildDefaultGates({ epicBranch: 'epic/1943' });
-    const mi = gates.find((g) => g.name === 'check-maintainability');
-    assert.equal(mi.cmd, 'node');
-    assert.deepStrictEqual(mi.args, [
-      '.agents/scripts/check-maintainability.js',
-      '--epic-ref',
-      'epic/1943',
-    ]);
-    const crap = gates.find((g) => g.name === 'check-crap');
-    assert.equal(crap.cmd, 'node');
-    assert.deepStrictEqual(crap.args, [
-      '.agents/scripts/check-crap.js',
-      '--epic-ref',
-      'epic/1943',
-    ]);
-  });
-
-  it('runs the per-kind baseline gates without invoking child_process spawn for the per-kind CLI', async () => {
-    const spawnLog = [];
-    const spyRunner = (cmd, args, _opts) => {
-      // The default runner spawns; this spy records each invocation so we
-      // can assert that the per-kind CLIs were NEVER reached. Returning
-      // status 0 keeps the wave moving in case any non-target gate slips
-      // through.
-      spawnLog.push({ cmd, args });
-      return { status: 0 };
-    };
-    // Stub kindModule so the in-process gate path does not try to read a
-    // real baseline file from disk during the test. Each `run` callable
-    // returns `{ status: 0 }` and never delegates to the spy runner.
-    const fakeKind = { compare: () => ({ regressions: [] }) };
-    const gates = [
-      {
-        name: 'check-maintainability',
-        cmd: 'node',
-        args: ['.agents/scripts/check-maintainability.js'],
-        run: async () => ({ status: 0 }),
-      },
-      {
-        name: 'check-crap',
-        cmd: 'node',
-        args: ['.agents/scripts/check-crap.js'],
-        run: async () => ({ status: 0 }),
-      },
-    ];
-    void fakeKind;
-    const result = await runCloseValidation({
-      cwd: '.',
-      gates,
-      runner: spyRunner,
-      log: () => {},
-      useEvidence: false,
-    });
-    assert.equal(result.ok, true);
-    // The spy runner must NOT have observed either per-kind CLI argv.
-    const cliInvocations = spawnLog.filter((c) =>
-      c.args.some(
-        (arg) =>
-          arg === '.agents/scripts/check-maintainability.js' ||
-          arg === '.agents/scripts/check-crap.js' ||
-          arg === '.agents/scripts/check-mutation.js',
-      ),
-    );
-    assert.equal(
-      cliInvocations.length,
-      0,
-      `expected zero child_process spawns of per-kind CLIs; observed: ${JSON.stringify(cliInvocations)}`,
-    );
-  });
-
-  it('flags a regression returned by the per-kind compare as a non-zero gate exit', async () => {
-    let dispatched = 0;
-    const gates = [
-      {
-        name: 'check-maintainability',
-        cmd: 'node',
-        args: [],
-        run: async (_cmd, _args, opts) => {
-          dispatched += 1;
-          opts?.log?.('[maintainability] 1 regression(s) detected:');
-          return { status: 1 };
-        },
-      },
-    ];
-    const result = await runCloseValidation({
-      cwd: '.',
-      gates,
-      runner: () => {
-        throw new Error('default runner must not be reached');
-      },
-      log: () => {},
-      useEvidence: false,
-    });
-    assert.equal(dispatched, 1);
-    assert.equal(result.ok, false);
-    assert.equal(result.failed.length, 1);
-    assert.equal(result.failed[0].gate.name, 'check-maintainability');
-    assert.equal(result.failed[0].status, 1);
-  });
-});
+// Story #2210 — the `describe('buildDefaultGates per-kind in-process gates')`
+// block was deleted with the retirement of the in-process per-kind regression
+// gate. The unified `check-baselines` gate is the only path; coverage for
+// that gate lives in `tests/check-baselines-pre-merge-wiring.test.js` and
+// the attribution-wiring tests under
+// `tests/lib/orchestration/story-close/baseline-attribution-wiring.test.js`.
+// The pure helpers above (`gateExitCode`, `attachGateAbortHandler`) remain.

@@ -19,13 +19,22 @@ import { DEFAULT_GATES } from '../.agents/scripts/lib/close-validation.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-test('Site 1 — close-validation DEFAULT_GATES still exposes a CRAP gate after the in-process migration', () => {
-  // Epic #1943 / Story #1973: the per-kind CRAP gate is now in-process
-  // (no spawn of `check-crap.js`). The legacy assertion that pinned
-  // `crap.cmd === 'node'` and the CLI args shape no longer applies.
-  // The contract that survives is: a CRAP gate is still registered.
-  const crapGate = DEFAULT_GATES.find((g) => g.name.includes('crap'));
-  assert.ok(crapGate, 'check-crap gate must be present in DEFAULT_GATES');
+test('Site 1 — close-validation DEFAULT_GATES routes CRAP enforcement through the unified check-baselines gate (Story #2210)', () => {
+  // Story #2210 retired the per-kind in-process CRAP gate. CRAP regression
+  // enforcement is now performed by the unified `check-baselines` gate
+  // (attribution-wired floor + tolerance + schema). The contract that
+  // survives is: the unified gate is still registered in DEFAULT_GATES,
+  // and the standalone `check-crap` gate is gone.
+  const baselinesGate = DEFAULT_GATES.find((g) => g.name === 'check-baselines');
+  assert.ok(
+    baselinesGate,
+    'unified `check-baselines` gate must be present in DEFAULT_GATES',
+  );
+  const crapGate = DEFAULT_GATES.find((g) => g.name === 'check-crap');
+  assert.ok(
+    !crapGate,
+    'retired per-kind `check-crap` gate must not be registered in DEFAULT_GATES',
+  );
 });
 
 test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)', () => {

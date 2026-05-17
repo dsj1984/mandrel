@@ -63,11 +63,11 @@
           "floors": {}
         },
         "crap": {
-          "floors": {},
+          "floors": { "*": { "max": 999 } },
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "floors": {},
+          "floors": { "*": { "min": 0 } },
           "targetDirs": [".agents/scripts", "tests"]
         }
       }

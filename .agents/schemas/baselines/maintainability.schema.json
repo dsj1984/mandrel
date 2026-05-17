@@ -2,21 +2,31 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://mandrel/.agents/schemas/baselines/maintainability.schema.json",
   "title": "MaintainabilityBaseline",
-  "description": "Per-kind baseline schema for the Maintainability Index (MI) gate. Extends the shared baseline-envelope contract.",
+  "description": "Per-kind baseline schema for the Maintainability Index (MI) gate. Extends the shared baseline-envelope contract. Story #2193: the row axis stays `mi`; rollups expose `min` / `p50` / `p95` axes, and configured floors under `delivery.quality.gates.maintainability.floors[*]` target those rollup axes (the framework default is `{ min: 70 }`).",
   "allOf": [{ "$ref": "baseline-envelope.schema.json" }],
   "type": "object",
   "properties": {
     "rollup": {
       "type": "object",
+      "description": "Per-component rollup keyed by component name. The catch-all `*` is required. Each component exposes `min` / `p50` / `p95` of the per-row `mi` values — the same axes that configured floors compare against in `check-baselines.js`.",
       "required": ["*"],
       "additionalProperties": {
         "type": "object",
         "required": ["min", "p50", "p95"],
         "additionalProperties": false,
         "properties": {
-          "min": { "type": "number" },
-          "p50": { "type": "number" },
-          "p95": { "type": "number" }
+          "min": {
+            "type": "number",
+            "description": "Lowest `mi` value across the component's rows. Targeted by the framework-default 70-MI floor."
+          },
+          "p50": {
+            "type": "number",
+            "description": "Median (50th percentile) of the component's `mi` values."
+          },
+          "p95": {
+            "type": "number",
+            "description": "95th-percentile of the component's `mi` values."
+          }
         }
       },
       "properties": {
@@ -25,22 +35,35 @@
           "required": ["min", "p50", "p95"],
           "additionalProperties": false,
           "properties": {
-            "min": { "type": "number" },
-            "p50": { "type": "number" },
-            "p95": { "type": "number" }
+            "min": {
+              "type": "number",
+              "description": "Whole-repo minimum `mi`. The framework-default floor `{ min: 70 }` enforces against this value."
+            },
+            "p50": {
+              "type": "number",
+              "description": "Whole-repo median `mi`."
+            },
+            "p95": {
+              "type": "number",
+              "description": "Whole-repo 95th-percentile `mi`."
+            }
           }
         }
       }
     },
     "rows": {
       "type": "array",
+      "description": "Per-file rows. The row axis stays `mi` (unchanged by Story #2193 — only the documented floor axis moved to the rollup `min` key).",
       "items": {
         "type": "object",
         "required": ["path", "mi"],
         "additionalProperties": false,
         "properties": {
           "path": { "type": "string" },
-          "mi": { "type": "number" }
+          "mi": {
+            "type": "number",
+            "description": "Maintainability Index for the file at `path`. Rollup `min` / `p50` / `p95` axes are computed from these per-row `mi` values."
+          }
         }
       }
     }

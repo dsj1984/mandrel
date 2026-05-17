@@ -59,8 +59,16 @@ const DEFAULT_COVERAGE_FLOORS = Object.freeze({
 const DEFAULT_CRAP_FLOORS = Object.freeze({
   '*': Object.freeze({ crap: 20 }),
 });
+/**
+ * Story #2193 — maintainability rollups expose the `min` / `p50` / `p95`
+ * axes (see `.agents/schemas/baselines/maintainability.schema.json`). The
+ * default floor therefore targets `min`, not the row-axis `maintainability`
+ * name. The pre-#2193 default keyed on `maintainability` silently no-oped
+ * inside `check-baselines.js#compareToFloor` because the rollup never
+ * exposed that axis.
+ */
 const DEFAULT_MI_FLOORS = Object.freeze({
-  '*': Object.freeze({ maintainability: 70 }),
+  '*': Object.freeze({ min: 70 }),
 });
 
 /** Framework defaults for the CRAP gate (post-1737 uniform shape). */
