@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.snapshot.start.schema.json",
+  "title": "epic.snapshot.start",
+  "description": "Emitted when the runner enters the snapshot phase for an Epic.",
+  "type": "object",
+  "required": ["epicId"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

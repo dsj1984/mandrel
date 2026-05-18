@@ -193,11 +193,13 @@ with actionable errors. Follow the migration block at the bottom.
   fires the retro, and opens a pull request to `main` in one continuous
   flow. The operator merges the PR through the GitHub UI; the workflow
   never executes `git merge` against `main` itself.
-- **`epic-runner.js` (top-level CLI).** Renamed to
-  `epic-deliver-runner.js` (see Renamed). The library at
+- **`epic-runner.js` (top-level CLI).** Renamed to the deliver-runner
+  CLI wrapper (see Renamed). The library at
   `lib/orchestration/epic-runner.js` and the `lib/orchestration/epic-runner/`
   submodule directory are preserved — only the operator-facing entry
-  point moved.
+  point moved. _(The deliver-runner CLI wrapper was itself retired in
+  Story #2259 / Epic #2172; `/epic-deliver` is now the sole entry
+  point.)_
 - **`epic-execute-prepare.js`.** Renamed to `epic-deliver-prepare.js`.
 - **`epic-finalize.js`.** Renamed to `epic-deliver-finalize.js` with a
   new responsibility: open a PR to `main` instead of merging.
@@ -253,7 +255,7 @@ with actionable errors. Follow the migration block at the bottom.
 | Before                                                         | After                                                              | Notes                                                                                              |
 | -------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | `/epic-execute` + `/epic-close` slash commands                 | `/epic-deliver`                                                    | Single SDL execution command. PR-open exit; operator merges via GitHub UI.                         |
-| `.agents/scripts/epic-runner.js`                               | `.agents/scripts/epic-deliver-runner.js`                           | Top-level CLI only; the library at `lib/orchestration/epic-runner.js` is unchanged.                |
+| `.agents/scripts/epic-runner.js`                               | deliver-runner CLI wrapper (later retired in Epic #2172)           | Top-level CLI only; the library at `lib/orchestration/epic-runner.js` is unchanged.                |
 | `.agents/scripts/epic-execute-prepare.js`                      | `.agents/scripts/epic-deliver-prepare.js`                          | Same JSON envelope contract for the slash-command parser.                                          |
 | `.agents/scripts/epic-finalize.js`                             | `.agents/scripts/epic-deliver-finalize.js`                         | New responsibility: open PR to `main` instead of merging.                                          |
 | `.agents/workflows/epic-execute.md`                            | `.agents/workflows/epic-deliver.md`                                | Six-phase merged execute + close workflow.                                                         |
@@ -294,11 +296,11 @@ with actionable errors. Follow the migration block at the bottom.
   candidates above a threshold. Returns `[]` when nothing significant
   matches.
 - **`lib/orchestration/code-review.js`.** In-process module callable
-  from `epic-deliver-runner.js` Phase 4. Halts the runner on critical
+  from the deliver runner Phase 4. Halts the runner on critical
   findings (sets `agent::blocked`, posts structured friction comment,
   exits non-zero).
 - **`lib/orchestration/retro-runner.js`.** In-process module callable
-  from `epic-deliver-runner.js` Phase 5. Aggregates perf signals,
+  from the deliver runner Phase 5. Aggregates perf signals,
   friction counts, hotfix counts, recut counts, parked counts, and
   HITL count using `retro-heuristics.js`.
 - **`agentSettings.quality.prGate.enforceBranchProtection`.** Boolean,

@@ -12,8 +12,12 @@ import { computeWaves } from '../../../Graph.js';
 import { TYPE_LABELS } from '../../../label-constants.js';
 import { WaveScheduler } from '../wave-scheduler.js';
 
-export async function runBuildWaveDagPhase(ctx, _collaborators, state) {
+export async function runBuildWaveDagPhase(ctx, collaborators, state) {
   const { epicId, provider } = ctx;
+  const bus = collaborators?.bus ?? null;
+  if (bus) {
+    await bus.emit('epic.plan.start', { epicId });
+  }
   const descendants = await provider.getSubTickets(epicId);
   const stories = (descendants ?? []).filter((t) =>
     (t.labels ?? []).includes(TYPE_LABELS.STORY),
@@ -24,7 +28,42 @@ export async function runBuildWaveDagPhase(ctx, _collaborators, state) {
   const { adjacency, taskMap } = buildStoryDag(stories);
   const waves = computeWaves(adjacency, taskMap);
   const scheduler = new WaveScheduler(waves);
+  if (bus) {
+    // epic.plan.end carries the computed waves as the array-of-arrays
+    // shape declared by the schema. Each inner array is the storyIds
+    // dispatched together in that wave. `computeWaves` may return
+    // entries that are objects (when fed `taskMap`); we normalize to a
+    // simple numeric matrix here so the payload validates and replays
+    // off the ledger without coupling readers to internal types.
+    await bus.emit('epic.plan.end', {
+      waves: normalizeWavesForEmit(waves),
+    });
+  }
   return { ...state, stories, waves, scheduler };
+}
+
+/**
+ * Normalize the runner's wave representation into the
+ * `Array<Array<integer>>` shape declared by
+ * `.agents/schemas/lifecycle/epic.plan.end.schema.json`. `computeWaves`
+ * returns waves of `taskMap` entries (objects with `id`); the ledger
+ * needs only the IDs. Defensive number coercion mirrors the same id
+ * extraction used in `buildStoryDag` above so emit and DAG stay
+ * structurally aligned.
+ */
+function normalizeWavesForEmit(waves) {
+  if (!Array.isArray(waves)) return [];
+  return waves.map((wave) => {
+    if (!Array.isArray(wave)) return [];
+    return wave
+      .map((entry) => {
+        if (entry == null) return null;
+        if (typeof entry === 'number') return entry;
+        const id = entry.id ?? entry.number ?? entry.storyId;
+        return id == null ? null : Number(id);
+      })
+      .filter((n) => Number.isInteger(n) && n > 0);
+  });
 }
 
 /**

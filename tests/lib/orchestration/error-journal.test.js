@@ -147,40 +147,46 @@ test('ErrorJournal: no mask emitted for mundane values', async () => {
   assert.equal(lines.filter((l) => l.startsWith('::add-mask::')).length, 0);
 });
 
-test('ErrorJournal: integration — simulated BlockerHandler failure produces expected entry', async () => {
-  const { BlockerHandler } = await import(
-    '../../../.agents/scripts/lib/orchestration/epic-runner/blocker-handler.js'
+test('ErrorJournal: integration — blocker-wait labelFetcher failure produces expected entry', async () => {
+  // Story #2241 / Task #2246 — the legacy BlockerHandler was split into a
+  // lifecycle listener (classification + cascade emit) and a thin
+  // wait-for-resume helper. The error-journal integration now lives in
+  // the wait helper, which records labelFetcher failures as
+  // `module: 'BlockerWait'` so the operator can trace a hung resume to
+  // a provider blip without grepping through the lifecycle ledger.
+  const { waitForEpicUnblock } = await import(
+    '../../../.agents/scripts/lib/orchestration/epic-runner/blocker-wait.js'
   );
   const dir = await makeTmp();
   const journal = new ErrorJournal({ epicId: 99, logDir: dir });
-  const provider = {
-    getTicket: async () => ({ labels: ['agent::executing'] }),
-    updateTicket: async () => {
+  let polls = 0;
+  const labelFetcher = async () => {
+    polls += 1;
+    if (polls === 1) {
       throw new Error('rate-limited');
-    },
-    postComment: async () => {},
+    }
+    // Second poll observes the operator's flip back to executing so the
+    // wait helper resolves immediately after the journaled failure.
+    return ['agent::executing'];
   };
-  const handler = new BlockerHandler({
-    provider,
+  await waitForEpicUnblock({
     epicId: 99,
-    errorJournal: journal,
+    labelFetcher,
     pollIntervalMs: 1,
-    labelFetcher: async () => ['agent::executing'],
-    logger: { info: () => {}, warn: () => {}, error: () => {} },
+    errorJournal: journal,
+    logger: { info: () => {}, warn: () => {}, debug: () => {} },
   });
-  await handler.halt({ reason: 'story_failed', storyId: 123, detail: 'x' });
   await journal.finalize();
 
   const lines = await readJournal(journal.path);
   const entry = lines.find(
-    (l) =>
-      l.op === 'provider.updateTicket(labels)' && l.module === 'BlockerHandler',
+    (l) => l.op === 'labelFetcher' && l.module === 'BlockerWait',
   );
   assert.ok(
     entry,
-    `expected BlockerHandler entry; got:\n${JSON.stringify(lines, null, 2)}`,
+    `expected BlockerWait entry; got:\n${JSON.stringify(lines, null, 2)}`,
   );
   assert.equal(entry.error.message, 'rate-limited');
-  assert.equal(entry.recovery, 'swallowed');
+  assert.equal(entry.recovery, 'returned-empty');
   assert.equal(entry.epicId, 99);
 });

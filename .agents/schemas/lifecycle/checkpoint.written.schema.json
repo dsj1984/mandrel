@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/checkpoint.written.schema.json",
+  "title": "checkpoint.written",
+  "description": "Self-emitted by CheckpointPointerWriter after the pointer file is updated. Carries the phase header for tracing and the last-completed seqId for the resume contract.",
+  "type": "object",
+  "required": ["phase", "lastCompletedSeqId"],
+  "properties": {
+    "phase": { "type": "string", "minLength": 1 },
+    "lastCompletedSeqId": { "type": "integer", "minimum": 0 }
+  },
+  "additionalProperties": false
+}

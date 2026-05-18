@@ -1,12 +1,27 @@
+// tests/scripts/epic-deliver-automerge.test.js
+/**
+ * Unit tests for the thin-shim `epic-deliver-automerge.js`
+ * (Story #2256 / Task #2262 / Epic #2172).
+ *
+ * Pre-Wave-7 the CLI armed `gh pr merge --auto` directly. Wave 7
+ * collapsed that responsibility into the `AutomergeArmer` lifecycle
+ * listener; this CLI is now a telemetry shim that emits
+ * `epic.automerge.start` and exits. The legacy `buildGhMergeArgs`
+ * helper has been deleted because the literal `gh pr merge` is now
+ * confined to `lib/orchestration/lifecycle/listeners/automerge-armer.js`
+ * (the merge-lockout lint rule's sole allow-list entry).
+ */
+
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  buildGhMergeArgs,
+  buildPrUrl,
   classifyAutomergeInvocation,
   parseAutomergeArgs,
   runEpicDeliverAutomerge,
 } from '../../.agents/scripts/epic-deliver-automerge.js';
+import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 
 describe('classifyAutomergeInvocation', () => {
   it('returns help when --help is set', () => {
@@ -19,8 +34,6 @@ describe('classifyAutomergeInvocation', () => {
       help: false,
       epicId: null,
       prNumber: 7,
-      strategy: 'squash',
-      dryRun: false,
     });
     assert.equal(r.kind, 'usage-error');
     assert.ok(r.messages.some((m) => /required/.test(m)));
@@ -30,66 +43,23 @@ describe('classifyAutomergeInvocation', () => {
       help: false,
       epicId: 1,
       prNumber: 2,
-      strategy: 'squash',
-      dryRun: true,
     });
     assert.deepEqual(r, {
       kind: 'run',
       epicId: 1,
       prNumber: 2,
-      strategy: 'squash',
-      dryRun: true,
     });
   });
 });
 
-const cleanVerdict = {
-  clean: true,
-  reasons: [],
-  signals: { manualInterventions: 0 },
-};
-
-const dirtyVerdict = {
-  clean: false,
-  reasons: ['manual interventions recorded (1): discarded drift'],
-  signals: { manualInterventions: 1 },
-};
-
 describe('parseAutomergeArgs', () => {
-  it('parses --epic / --pr / --strategy / --dry-run', () => {
-    const out = parseAutomergeArgs([
-      '--epic',
-      '1178',
-      '--pr',
-      '1272',
-      '--strategy',
-      'squash',
-      '--dry-run',
-    ]);
+  it('parses --epic / --pr', () => {
+    const out = parseAutomergeArgs(['--epic', '1178', '--pr', '1272']);
     assert.deepEqual(out, {
       epicId: 1178,
       prNumber: 1272,
-      strategy: 'squash',
-      dryRun: true,
       help: false,
     });
-  });
-
-  it('defaults strategy to squash', () => {
-    const out = parseAutomergeArgs(['--epic', '1', '--pr', '2']);
-    assert.equal(out.strategy, 'squash');
-  });
-
-  it('rejects invalid strategy values (falls back to squash)', () => {
-    const out = parseAutomergeArgs([
-      '--epic',
-      '1',
-      '--pr',
-      '2',
-      '--strategy',
-      'bogus',
-    ]);
-    assert.equal(out.strategy, 'squash');
   });
 
   it('rejects bad ids', () => {
@@ -101,147 +71,43 @@ describe('parseAutomergeArgs', () => {
   });
 });
 
-describe('buildGhMergeArgs', () => {
-  it('default squash + delete-branch', () => {
-    assert.deepEqual(buildGhMergeArgs({ prNumber: 1272 }), [
-      'pr',
-      'merge',
-      '1272',
-      '--squash',
-      '--delete-branch',
-    ]);
-  });
-
-  it('honors --merge / --rebase', () => {
-    assert.deepEqual(buildGhMergeArgs({ prNumber: 7, strategy: 'merge' }), [
-      'pr',
-      'merge',
-      '7',
-      '--merge',
-      '--delete-branch',
-    ]);
-    assert.deepEqual(buildGhMergeArgs({ prNumber: 7, strategy: 'rebase' }), [
-      'pr',
-      'merge',
-      '7',
-      '--rebase',
-      '--delete-branch',
-    ]);
+describe('buildPrUrl', () => {
+  it('builds a non-empty URI string for schema validation', () => {
+    const url = buildPrUrl(1272);
+    assert.match(url, /^https:\/\//);
+    assert.match(url, /1272/);
   });
 });
 
-describe('runEpicDeliverAutomerge', () => {
-  it('fires gh pr merge when verdict is clean', async () => {
-    const ghCalls = [];
-    const ghSpawnFn = (args, cwd) => {
-      ghCalls.push({ args, cwd });
-      return { status: 0, stdout: '', stderr: '' };
-    };
+describe('runEpicDeliverAutomerge (thin shim)', () => {
+  it('emits epic.automerge.start onto the supplied bus and returns the seqId', async () => {
+    const bus = new Bus();
+    const emits = [];
+    bus.on('epic.automerge.start', async (ctx) =>
+      emits.push({ event: ctx.event, payload: ctx.payload }),
+    );
     const out = await runEpicDeliverAutomerge({
       epicId: 1178,
       prNumber: 1272,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({ read: async () => ({}) }),
-      evaluatePredicateFn: async () => cleanVerdict,
-      ghSpawnFn,
+      bus,
+      loggerImpl: { info: () => {} },
     });
-    assert.equal(out.merged, true);
-    assert.equal(out.verdict.clean, true);
-    assert.equal(ghCalls.length, 1);
-    assert.deepEqual(ghCalls[0].args, [
-      'pr',
-      'merge',
-      '1272',
-      '--squash',
-      '--delete-branch',
-    ]);
-  });
-
-  it('skips gh pr merge when verdict is dirty', async () => {
-    let ghCalled = false;
-    const out = await runEpicDeliverAutomerge({
-      epicId: 1,
-      prNumber: 2,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({ read: async () => ({}) }),
-      evaluatePredicateFn: async () => dirtyVerdict,
-      ghSpawnFn: () => {
-        ghCalled = true;
-        return { status: 0, stdout: '', stderr: '' };
-      },
-    });
-    assert.equal(out.merged, false);
-    assert.equal(out.verdict.clean, false);
-    assert.equal(ghCalled, false, 'gh pr merge must not run when dirty');
-  });
-
-  it('dry-run does not invoke gh pr merge even when clean', async () => {
-    let ghCalled = false;
-    const out = await runEpicDeliverAutomerge({
-      epicId: 1,
-      prNumber: 2,
-      dryRun: true,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({ read: async () => ({}) }),
-      evaluatePredicateFn: async () => cleanVerdict,
-      ghSpawnFn: () => {
-        ghCalled = true;
-        return { status: 0, stdout: '', stderr: '' };
-      },
-    });
-    assert.equal(out.merged, false);
-    assert.equal(out.dryRun, true);
-    assert.equal(ghCalled, false);
-  });
-
-  it('captures gh stderr when the merge call fails', async () => {
-    const out = await runEpicDeliverAutomerge({
-      epicId: 1,
-      prNumber: 2,
-      injectedConfig: { orchestration: { provider: 'fake' } },
-      injectedProvider: {},
-      checkpointerFactory: () => ({ read: async () => ({}) }),
-      evaluatePredicateFn: async () => cleanVerdict,
-      ghSpawnFn: () => ({ status: 1, stdout: '', stderr: 'merge conflict' }),
-    });
-    assert.equal(out.merged, false);
-    assert.match(out.ghStderr, /merge conflict/);
+    assert.equal(emits.length, 1);
+    assert.equal(emits[0].event, 'epic.automerge.start');
+    assert.match(emits[0].payload.prUrl, /1272/);
+    assert.equal(out.epicId, 1178);
+    assert.equal(out.prNumber, 1272);
+    assert.equal(typeof out.seqId, 'number');
   });
 
   it('rejects invalid arguments', async () => {
     await assert.rejects(
-      () =>
-        runEpicDeliverAutomerge({
-          epicId: 0,
-          prNumber: 1,
-          injectedConfig: { orchestration: { provider: 'fake' } },
-          injectedProvider: {},
-        }),
+      () => runEpicDeliverAutomerge({ epicId: 0, prNumber: 1 }),
       /epicId must be a positive integer/,
     );
     await assert.rejects(
-      () =>
-        runEpicDeliverAutomerge({
-          epicId: 1,
-          prNumber: 0,
-          injectedConfig: { orchestration: { provider: 'fake' } },
-          injectedProvider: {},
-        }),
+      () => runEpicDeliverAutomerge({ epicId: 1, prNumber: 0 }),
       /prNumber must be a positive integer/,
-    );
-    await assert.rejects(
-      () =>
-        runEpicDeliverAutomerge({
-          epicId: 1,
-          prNumber: 2,
-          strategy: 'bogus',
-          injectedConfig: { orchestration: { provider: 'fake' } },
-          injectedProvider: {},
-        }),
-      /strategy must be one of/,
     );
   });
 });

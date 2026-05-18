@@ -10,11 +10,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 
 const SCRIPTS = [
-  {
-    name: 'epic-deliver-runner',
-    relPath: '.agents/scripts/epic-deliver-runner.js',
-    args: ['--epic', '1'],
-  },
+  // Story #2259 / Task #2264 (Epic #2172) — the legacy
+  // deliver-runner CLI wrapper was retired with the listener-chain
+  // conversion. The remaining launcher-shaped CLIs continue to enforce
+  // the same orchestration schema contract.
   {
     name: 'epic-plan',
     relPath: '.agents/scripts/epic-plan.js',

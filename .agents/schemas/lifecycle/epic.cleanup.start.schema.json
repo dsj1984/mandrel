@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.cleanup.start.schema.json",
+  "title": "epic.cleanup.start",
+  "description": "Emitted by Cleaner at the start of branch cleanup + temp archive.",
+  "type": "object",
+  "required": ["epicId"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

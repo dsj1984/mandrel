@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.close.end.schema.json",
+  "title": "epic.close.end",
+  "description": "Emitted when the close-tail phase finishes; AcceptanceReconciler subscribes to this event to gate finalize.",
+  "type": "object",
+  "required": ["epicId"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

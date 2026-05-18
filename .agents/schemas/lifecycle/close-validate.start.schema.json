@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/close-validate.start.schema.json",
+  "title": "close-validate.start",
+  "description": "Emitted at the start of the close-validate sub-phase (pre-merge gate chain typecheck/lint/test/format/maintainability/crap). Story #2250.",
+  "type": "object",
+  "required": ["epicId", "storyId"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "storyId": { "type": "integer", "minimum": 1 }
+  },
+  "additionalProperties": false
+}

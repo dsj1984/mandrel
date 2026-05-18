@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/epic.plan.end.schema.json",
+  "title": "epic.plan.end",
+  "description": "Emitted when the runner finishes building the wave DAG.",
+  "type": "object",
+  "required": ["waves"],
+  "properties": {
+    "waves": {
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": { "type": "integer", "minimum": 1 }
+      }
+    }
+  },
+  "additionalProperties": false
+}

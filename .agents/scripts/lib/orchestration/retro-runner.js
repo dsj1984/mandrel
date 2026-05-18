@@ -2,9 +2,11 @@
  * lib/orchestration/retro-runner.js — In-process Retro module.
  *
  * Story #1155 (Epic #1142, 5.40.0) — extracts the helper-driven
- * `epic-retro` invocation into a callable module so the renamed
- * `epic-deliver-runner.js` can fire Phase E without a separate LLM
- * helper turn. The retro fires before `/epic-deliver`'s finalize step
+ * `epic-retro` invocation into a callable module so the
+ * `/epic-deliver` runner can fire Phase E without a separate LLM
+ * helper turn. (Story #2259, Epic #2172: the legacy deliver-runner
+ * CLI was retired once delivery moved entirely into the slash
+ * command.) The retro fires before `/epic-deliver`'s finalize step
  * opens the PR — the operator's PR-merge is the final human gate, not
  * the retro itself.
  *
@@ -399,6 +401,22 @@ export function composeRetroBody(input) {
 }
 
 /**
+ * Story #2252 — best-effort lifecycle emit helper. Wraps `bus.emit` in a
+ * try/catch so a misbehaving observability surface never blocks the
+ * retro phase. `bus: null` short-circuits to a no-op.
+ */
+async function emitLifecycleSafe({ bus, event, payload, logger }) {
+  if (!bus || typeof bus.emit !== 'function') return;
+  try {
+    await bus.emit(event, payload);
+  } catch (err) {
+    logger?.warn?.(
+      `[retro-runner] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
  * Public: compose and post the retro structured comment on the Epic.
  *
  * Story #1290 (Epic #1143) — at /epic-deliver Phase 5, the runner invokes
@@ -409,12 +427,20 @@ export function composeRetroBody(input) {
  * retro body via `appendChecksSection`, which suppresses the section when
  * findings are empty so the compact "🟢 Clean sprint" shape is preserved.
  *
+ * Story #2252 — when `opts.bus` is supplied the runner emits
+ * `retro.start` immediately on entry and `retro.end` immediately before
+ * returning the envelope. On throw the helper emits `retro.end` with
+ * `posted: false` before re-throwing so the ledger always carries the
+ * closing boundary.
+ *
  * @param {{
  *   epicId: number,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function },
  *   forceFull?: boolean,
  *   timestamp?: string,
+ *   bus?: object|null,
+ *   now?: () => number,
  *   manualInterventions?: number,
  *   gatherFn?: typeof gatherRetroSignals,
  *   composeFn?: typeof composeRetroBody,
@@ -439,6 +465,8 @@ export async function runRetro(opts = {}) {
     logger,
     forceFull = false,
     timestamp,
+    bus = null,
+    now = Date.now,
     manualInterventions = 0,
     gatherFn = gatherRetroSignals,
     composeFn = composeRetroBody,
@@ -457,6 +485,80 @@ export async function runRetro(opts = {}) {
   }
 
   logger?.info?.(`[retro-runner] Composing retro for Epic #${epicId}...`);
+  const startedAt = typeof now === 'function' ? now() : Date.now();
+  await emitLifecycleSafe({
+    bus,
+    event: 'retro.start',
+    payload: { epicId },
+    logger,
+  });
+  let retroPathWritten = null;
+  try {
+    return await composeAndPostRetro({
+      epicId,
+      provider,
+      logger,
+      forceFull,
+      timestamp,
+      bus,
+      now,
+      manualInterventions,
+      gatherFn,
+      composeFn,
+      upsertFn,
+      runChecksFn,
+      assembleStateFn,
+      cwd,
+      fsImpl,
+      startedAt,
+      onMirrorWritten: (p) => {
+        retroPathWritten = p;
+      },
+    });
+  } catch (err) {
+    // Surface the closing boundary even on throw — the ledger must
+    // always show a matched start/end pair.
+    const endedAt = typeof now === 'function' ? now() : Date.now();
+    const payload = {
+      epicId,
+      posted: false,
+      durationMs: Math.max(0, Math.floor(endedAt - startedAt)),
+    };
+    if (retroPathWritten) payload.retroPath = retroPathWritten;
+    await emitLifecycleSafe({
+      bus,
+      event: 'retro.end',
+      payload,
+      logger,
+    });
+    throw err;
+  }
+}
+
+/**
+ * Inner compose-and-post helper. Extracted so `runRetro` can wrap the
+ * full body in a try/catch for the `retro.end` boundary emit without
+ * cluttering the happy-path read.
+ */
+async function composeAndPostRetro({
+  epicId,
+  provider,
+  logger,
+  forceFull,
+  timestamp,
+  bus,
+  now,
+  manualInterventions,
+  gatherFn,
+  composeFn,
+  upsertFn,
+  runChecksFn,
+  assembleStateFn,
+  cwd,
+  fsImpl,
+  startedAt,
+  onMirrorWritten,
+}) {
   const signals = await gatherFn({ epicId, provider, logger });
 
   // Best-effort fetch of the Epic title for the heading.
@@ -509,6 +611,7 @@ export async function runRetro(opts = {}) {
   // remains SSOT — a write failure logs a warn and does not fail the
   // phase. The path is resolved relative to `cwd` when supplied so that
   // worktree-scoped invocations land under the worktree's temp tree.
+  let mirrorAbsPath = null;
   try {
     const rel = epicRetroMirrorPath(epicId);
     const absPath = path.isAbsolute(rel)
@@ -516,12 +619,32 @@ export async function runRetro(opts = {}) {
       : path.join(cwd ?? process.cwd(), rel);
     fsImpl.mkdirSync(path.dirname(absPath), { recursive: true });
     fsImpl.writeFileSync(absPath, bodyWithChecks, 'utf8');
+    mirrorAbsPath = absPath;
+    onMirrorWritten?.(absPath);
     logger?.info?.(`[retro-runner] Mirrored retro to ${absPath}`);
   } catch (err) {
     logger?.warn?.(
       `[retro-runner] Failed to write retro mirror (retro.md) for Epic #${epicId} (continuing — GitHub upsert succeeded): ${err?.message ?? err}`,
     );
   }
+
+  // Story #2252 — emit `retro.end` after the upsert + mirror settle so
+  // the lifecycle ledger captures the closing boundary with the
+  // posted/compact flags AND the resolved mirror path (when present).
+  const endedAt = typeof now === 'function' ? now() : Date.now();
+  const retroEndPayload = {
+    epicId,
+    posted: true,
+    compact: Boolean(compact),
+    durationMs: Math.max(0, Math.floor(endedAt - startedAt)),
+  };
+  if (mirrorAbsPath) retroEndPayload.retroPath = mirrorAbsPath;
+  await emitLifecycleSafe({
+    bus,
+    event: 'retro.end',
+    payload: retroEndPayload,
+    logger,
+  });
 
   return {
     posted: true,

@@ -496,6 +496,18 @@
       },
       "additionalProperties": false
     },
+    "lifecycle": {
+      "type": "object",
+      "description": "Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a per-event budget map (eventName → seconds) used by `TimeoutWatchdog`; missing entries fall back to in-listener defaults. `heartbeatWarnSeconds` is the no-progress threshold consumed by `HeartbeatMonitor`. Story #2227 lays down the keys; consumers land in later stories.",
+      "properties": {
+        "timeouts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "heartbeatWarnSeconds": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    },
     "quality": {
       "type": "object",
       "properties": {
@@ -517,7 +529,8 @@
         "deliverRunner": { "$ref": "#/$defs/deliverRunner" },
         "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
         "signals": { "$ref": "#/$defs/signals" },
-        "quality": { "$ref": "#/$defs/quality" }
+        "quality": { "$ref": "#/$defs/quality" },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
       },
       "additionalProperties": false
     }
