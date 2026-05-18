@@ -168,9 +168,8 @@ Resume is ledger-driven. The resume helper reads
 `temp/epic-<id>/lifecycle.ndjson`, finds the highest seqId with a
 terminal record (`completed` or `failed`), and replays the bus from that
 point. Idempotent listeners (`Set<seqId>` guard) make the replay safe.
-See
-[`lib/orchestration/lifecycle/legacy-resume.js`](../.agents/scripts/lib/orchestration/lifecycle/legacy-resume.js)
-for the compatibility shim that bridges pre-bus checkpoints.
+The pre-cutover compatibility shim (`legacy-resume.js`) was retired in
+Epic #2307 once every live Epic produced a native ledger.
 
 ---
 
