@@ -9,8 +9,8 @@ import {
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
-import { Checkpointer } from '../../fixtures/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
+import { Checkpointer } from '../../fixtures/epic-run-state-store.js';
 
 function createFakeProvider() {
   let autoId = 1;

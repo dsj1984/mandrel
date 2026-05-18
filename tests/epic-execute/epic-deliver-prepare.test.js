@@ -2,11 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepare.js';
+import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
 } from '../fixtures/epic-run-state-store.js';
-import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 /**
  * Build a minimal in-memory provider matching the surface the prepare runner

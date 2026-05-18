@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
+import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import {
   EPIC_PLAN_STATE_TYPE,
   PLAN_CHECKPOINT_SCHEMA_VERSION,
   PLAN_PHASES,
   PlanCheckpointer,
 } from '../fixtures/epic-plan-state-store.js';
-import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function createFakeProvider() {
   let autoId = 1;
