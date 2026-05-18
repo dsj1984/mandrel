@@ -62,7 +62,6 @@ Filesystem roots the framework reads from. `agentRoot`, `docsRoot`, and
 | `agentRoot`      | Yes      | (none — must be set)     | Path to the framework submodule (e.g. `.agents`). |
 | `docsRoot`       | Yes      | (none — must be set)     | Path to project documentation (e.g. `docs`).      |
 | `tempRoot`       | Yes      | (none — must be set)     | Path for ephemeral artefacts (e.g. `temp`).       |
-| `auditOutputDir` | No       | `temp`                   | Override for audit-orchestrator output.           |
 | `scriptsRoot`    | No       | `.agents/scripts`        | Path to the framework's CLI scripts.              |
 | `workflowsRoot`  | No       | `.agents/workflows`      | Path to slash-command workflow definitions.       |
 | `personasRoot`   | No       | `.agents/personas`       | Path to persona behaviour packs.                  |
@@ -73,6 +72,11 @@ Filesystem roots the framework reads from. `agentRoot`, `docsRoot`, and
 
 The seven `*Root` directories carry framework defaults; consumers only need to
 override them when the bundle lives somewhere other than `.agents/<subdir>`.
+
+`auditOutputDir` is derived (not configurable) — it resolves to
+`${tempRoot}/audits` and is the canonical destination for every
+`audit-*` workflow's result reports **and** the audit-suite's prompt
+artifacts. Override `tempRoot` to relocate audit output.
 
 ### `agentSettings.commands`
 

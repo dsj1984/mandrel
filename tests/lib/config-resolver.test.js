@@ -143,7 +143,7 @@ describe('helper accessors against the post-reshape shape', () => {
     const paths = getPaths({ project: REQ.project });
     assert.equal(paths.scriptsRoot, '.agents/scripts');
     assert.equal(paths.workflowsRoot, '.agents/workflows');
-    assert.equal(paths.auditOutputDir, 'temp/audit');
+    assert.equal(paths.auditOutputDir, 'temp/audits');
   });
 
   it('getLimits exposes the surviving budget + signals surface', () => {
