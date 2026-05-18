@@ -20,7 +20,7 @@ import { getRunners } from '../../../config/runners.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../../concurrency.js';
-import { STATE_LABELS, transitionTicketState } from '../../ticketing.js';
+import { STATE_LABELS } from '../../ticketing.js';
 import { createWaveSession } from '../../wave-session.js';
 import {
   emitEpicProgress,
@@ -142,19 +142,15 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
 
   progressReporter.setPlan({ waves });
 
-  await transitionTicketState(provider, epicId, STATE_LABELS.EXECUTING, {
-    notify: notifyFn,
-  }).catch(async (err) => {
-    logger.warn?.(
-      `[EpicRunner] label flip failed: ${err.message}${journalSuffix()}`,
-    );
-    await journal?.record({
-      module: 'EpicRunner',
-      op: `transitionTicketState(#${epicId}, EXECUTING)`,
-      error: err,
-      recovery: 'swallowed',
-    });
-  });
+  // Epic-level `agent::executing` flip is owned by the LabelTransitioner
+  // lifecycle listener (subscribes to `epic.unblocked` on resume) and by
+  // the upstream dispatch surface that flips the Epic before runIterate-
+  // WavesPhase is reached on a cold start. The previous inline
+  // `transitionTicketState` call competed with that listener; removing it
+  // makes the listener the sole label mutator from the iterate-waves
+  // boundary (Epic #2306 AC: `phases/iterate-waves.js` contains zero
+  // `transitionTicketState` calls). The column-board sync below remains
+  // here because it is a runner-state mirror, not a label mutation.
   await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
 
   await checkpointer.initialize({
