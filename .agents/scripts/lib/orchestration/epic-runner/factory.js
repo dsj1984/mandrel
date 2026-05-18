@@ -68,9 +68,12 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // imports it from this factory anymore.
   const epicRunStateStore = {
     initialize: (opts) =>
-      epicRunStateStoreModule.initialize({ provider, epicId: ctx.epicId, ...opts }),
-    read: () =>
-      epicRunStateStoreModule.read({ provider, epicId: ctx.epicId }),
+      epicRunStateStoreModule.initialize({
+        provider,
+        epicId: ctx.epicId,
+        ...opts,
+      }),
+    read: () => epicRunStateStoreModule.read({ provider, epicId: ctx.epicId }),
     write: (state) =>
       epicRunStateStoreModule.write({ provider, epicId: ctx.epicId, state }),
     setPhase: (nextPhase) =>

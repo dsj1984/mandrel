@@ -73,10 +73,9 @@ export async function tick(args = {}) {
   // does not supply a collaborator shim, we read the `epic-run-state`
   // structured comment directly via the function-based store, mirroring
   // the pre-migration `.read()` shape exactly.
-  const epicRunStateStore =
-    collabStore ?? {
-      read: () => epicRunStateStoreModule.read({ provider, epicId }),
-    };
+  const epicRunStateStore = collabStore ?? {
+    read: () => epicRunStateStoreModule.read({ provider, epicId }),
+  };
   const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
 
   let state;
