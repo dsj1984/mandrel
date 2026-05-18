@@ -23,18 +23,18 @@
  *   operator needs to know *before* the next CLI invocation breaks.
  */
 
+import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 
 const FAILURE_HINT =
-  "If this test fails, `node_modules/ajv` was pruned between dispatcher " +
+  'If this test fails, `node_modules/ajv` was pruned between dispatcher ' +
   'runs — the exact regression Epic #2501 (Story #2505) was opened to ' +
   'eliminate. Verify `delivery.worktreeIsolation.nodeModulesStrategy` in ' +
   '`.agentrc.json` is set to `pnpm-store` (not `symlink`) and re-run the ' +
