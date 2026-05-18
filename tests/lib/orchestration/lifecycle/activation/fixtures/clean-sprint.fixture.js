@@ -47,8 +47,7 @@ import { createEpicRunnerCollaborators } from '../../../../../../.agents/scripts
  * Default canonical PR URL the fixture threads through every listener.
  * Tests that need a different URL can pass `prUrl` in opts.
  */
-export const DEFAULT_PR_URL =
-  'https://github.com/dsj1984/mandrel/pull/99999';
+export const DEFAULT_PR_URL = 'https://github.com/dsj1984/mandrel/pull/99999';
 
 /**
  * Default Epic id. Pinned so the temp directory under tempRoot is
@@ -253,7 +252,8 @@ function applyCleanSprintStubs(collaborators, { prUrl }) {
     { status: 0, stdout: '{"autoMergeRequest":null}', stderr: '' },
     {
       status: 0,
-      stdout: '{"autoMergeRequest":{"mergeMethod":"SQUASH","enabledBy":{"login":"mandrel-bot"}}}',
+      stdout:
+        '{"autoMergeRequest":{"mergeMethod":"SQUASH","enabledBy":{"login":"mandrel-bot"}}}',
       stderr: '',
     },
   ];

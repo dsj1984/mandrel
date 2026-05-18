@@ -37,15 +37,12 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
-
+import { parseAutoMergeArmed } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 import {
   assertMergeGateOrdering,
   assertReconcileOrdering,
   parseLedgerText,
 } from '../../../../../.agents/scripts/lifecycle-diff.js';
-import {
-  parseAutoMergeArmed,
-} from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 import {
   buildCleanSprintFixture,
   DEFAULT_PR_URL,
@@ -99,7 +96,9 @@ describe('clean-sprint activation — full close-tail ledger ordering', () => {
   it('records the canonical close-tail emit sequence with no extra events between', () => {
     const ledger = readLedger(fixture.ledgerPath);
     const emittedEvents = ledger
-      .filter((r) => r.kind === 'emitted' && CLOSE_TAIL_EVENTS.includes(r.event))
+      .filter(
+        (r) => r.kind === 'emitted' && CLOSE_TAIL_EVENTS.includes(r.event),
+      )
       .map((r) => r.event);
 
     // The expected order pins the actual production emit order. The
@@ -233,6 +232,10 @@ describe('clean-sprint activation — full close-tail ledger ordering', () => {
   it('satisfies lifecycle-diff --assert merge-gate-ordering against the ledger', () => {
     const ledger = readLedger(fixture.ledgerPath);
     const result = assertMergeGateOrdering(ledger);
-    assert.equal(result.ok, true, result.reason ?? 'merge-gate-ordering passes');
+    assert.equal(
+      result.ok,
+      true,
+      result.reason ?? 'merge-gate-ordering passes',
+    );
   });
 });

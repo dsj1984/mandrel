@@ -32,9 +32,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
-
-import { parseLedgerText } from '../../../../../.agents/scripts/lifecycle-diff.js';
 import { extractPrUrl } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
+import { parseLedgerText } from '../../../../../.agents/scripts/lifecycle-diff.js';
 import { buildReconcileFailureFixture } from './fixtures/reconcile-failure.fixture.js';
 
 function readLedger(p) {
