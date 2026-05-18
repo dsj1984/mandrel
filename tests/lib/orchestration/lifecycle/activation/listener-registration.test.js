@@ -36,6 +36,7 @@ import {
   HeartbeatMonitor,
 } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js';
 import { TimeoutWatchdog } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/timeout-watchdog.js';
+import { Watcher } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const FACTORY_PATH = path.resolve(
@@ -339,5 +340,52 @@ describe('factory close-tail registrar — Finalizer activation', () => {
       1,
       'finalizer.js must be imported exactly once',
     );
+  });
+});
+
+/**
+ * Story #2327 / Task #2331 — Watcher activation census.
+ *
+ * What this describe block pins:
+ *   1. `createEpicRunnerCollaborators` exposes `watcher` on the
+ *      collaborator bag, instantiated from the production listener
+ *      class.
+ *   2. The bus on the same bag has at least one listener subscribed to
+ *      `pr.created` (Watcher's sole event).
+ *   3. Source-of-truth grep: `watcher.js` is imported exactly once in
+ *      `factory.js`. Prevents accidental double-registration when
+ *      future close-tail listeners are added.
+ */
+describe('factory close-tail registrar — Watcher activation', () => {
+  it('exposes watcher on the collaborator bag', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.ok(collaborators.watcher, 'collaborators.watcher must be present');
+    assert.ok(
+      collaborators.watcher instanceof Watcher,
+      'collaborators.watcher must be a Watcher',
+    );
+  });
+
+  it('subscribes Watcher to pr.created on the production bus', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    const prCreatedListeners =
+      collaborators.bus._listeners.get('pr.created') ?? [];
+    assert.ok(
+      prCreatedListeners.length >= 1,
+      'at least one listener subscribed to pr.created',
+    );
+    assert.ok(
+      collaborators.watcher.events.includes('pr.created'),
+      'Watcher.events advertises pr.created',
+    );
+  });
+
+  it('imports watcher.js exactly once in factory.js', () => {
+    const factorySource = readFileSync(FACTORY_PATH, 'utf8');
+    const matches = factorySource.match(
+      /from\s+['"][^'"]*listeners\/watcher\.js['"]/g,
+    );
+    assert.ok(matches, 'factory.js must import watcher.js');
+    assert.equal(matches.length, 1, 'watcher.js must be imported exactly once');
   });
 });
