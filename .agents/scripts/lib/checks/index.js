@@ -32,9 +32,13 @@
  *      makes new fix implementations harmless until their author also
  *      opts in.
  *
- *   3. Checks are serialized (no `Promise.all`). They share a single
- *      `state` object and may mutate the worktree via `fix()`; running
- *      them in parallel would race those mutations and scramble logs.
+ *   3. Phase split: `detect()` invocations fan out concurrently via
+ *      `Promise.all` (Story #2463 — preflight subprocess batching), while
+ *      `fix()` invocations remain strictly serial. `detect()` is
+ *      read-only against the frozen `assembleState` object, so concurrent
+ *      reads cannot race it; `fix()` may mutate the worktree, so its
+ *      ordering is preserved by walking the registry-ordered findings
+ *      array sequentially.
  *
  * Discovery happens once per process via `loadRegistry()`. The result is
  * cached; `clearRegistryCache()` is exported for tests that want to
@@ -200,12 +204,29 @@ export async function runChecks({
   const filtered = scope
     ? checks.filter((c) => Array.isArray(c.scope) && c.scope.includes(scope))
     : checks;
+
+  // Phase 1 (read-only fan-out, Story #2463): run every `detect()` in
+  // parallel via Promise.all. `state` is the frozen object returned by
+  // `assembleState()`, so concurrent reads are race-free. Promise.all
+  // preserves input order in its resolved array, so the
+  // findings-by-registry-order contract that downstream consumers rely on
+  // is upheld even though the detects themselves overlap in flight.
+  const detected = await Promise.all(
+    filtered.map((check) => Promise.resolve(check.detect(state))),
+  );
+
   /** @type {Finding[]} */
   const findings = [];
   /** @type {Array<Finding & { fixResult: FixResult }>} */
   const fixed = [];
-  for (const check of filtered) {
-    const finding = await check.detect(state);
+
+  // Phase 2 (mutation-bearing serial pass): walk the registry-ordered
+  // detection results and apply fix() one at a time. fix() may mutate the
+  // worktree (delete branches, rewrite refs), so running it concurrently
+  // would race those mutations and scramble logs.
+  for (let i = 0; i < filtered.length; i += 1) {
+    const check = filtered[i];
+    const finding = detected[i];
     if (!finding) continue;
     // Invariant #2: refuse-and-print is hard-refusal — never invoke fix(),
     // regardless of whether the author defined one. The flag is the gate.
