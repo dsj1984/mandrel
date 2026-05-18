@@ -27,6 +27,7 @@ import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-point
 import { Cleaner } from '../lifecycle/listeners/cleaner.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
+import { InterventionRecorder } from '../lifecycle/listeners/intervention-recorder.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
@@ -197,6 +198,18 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
   });
+  // Story #2410 / Task #2416 — register the InterventionRecorder
+  // listener. Subscribes to `intervention.recorded` and persists the
+  // payload to the `epic-run-state` comment via
+  // `epic-run-state-store.appendIntervention`. The persisted
+  // `manualInterventions` array is what the auto-merge predicate reads
+  // to disqualify Epics that hit a manual recovery during delivery.
+  const interventionRecorder = registerInterventionRecorder({
+    bus,
+    provider,
+    epicId: ctx.epicId,
+    logger,
+  });
   // Story #2315 / Task #2322 — register the close-tail chain
   // (AcceptanceReconciler → Finalizer → …) AFTER the observer +
   // mutator listener stack and BEFORE the BlockerHandler.
@@ -286,6 +299,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ledgerWriter,
     traceLogger,
     lifecycleProgressReporter,
+    interventionRecorder,
     checkpointPointerWriter,
     reliabilityObservers,
     acceptanceReconciler,
@@ -549,6 +563,36 @@ function registerBlockerHandler({ bus, epicId, logger }) {
   listener.register();
   logger?.debug?.(
     '[lifecycle] blocker-handler listener registered (story.blocked → epic.blocked / .unblocked)',
+  );
+  return listener;
+}
+
+/**
+ * Construct and register the InterventionRecorder listener
+ * (Story #2410 / Task #2416). Subscribes to `intervention.recorded` and
+ * persists the payload to the epic-run-state structured comment via
+ * `epic-run-state-store.appendIntervention`. Returns the constructed
+ * instance so tests can introspect the seqId guard; returns `null` for
+ * unit fixtures that supply an unbusable collaborators bag, an absent
+ * provider, or a non-numeric epicId.
+ */
+export function registerInterventionRecorder({
+  bus,
+  provider,
+  epicId,
+  logger,
+}) {
+  if (!bus || typeof bus.on !== 'function') return null;
+  if (!provider) return null;
+  if (!Number.isInteger(epicId) || epicId < 1) return null;
+  const listener = new InterventionRecorder({
+    provider,
+    epicId,
+    logger,
+  });
+  listener.register(bus);
+  logger?.debug?.(
+    '[lifecycle] intervention-recorder listener registered (intervention.recorded → epic-run-state-store.appendIntervention)',
   );
   return listener;
 }
