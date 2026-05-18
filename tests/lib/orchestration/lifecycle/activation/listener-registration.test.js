@@ -30,6 +30,7 @@ import {
 } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { AcceptanceReconciler } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
+import { AutomergePredicate } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { Finalizer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 import {
   DEFAULT_HEARTBEAT_WARN_SECONDS,
@@ -387,5 +388,75 @@ describe('factory close-tail registrar — Watcher activation', () => {
     );
     assert.ok(matches, 'factory.js must import watcher.js');
     assert.equal(matches.length, 1, 'watcher.js must be imported exactly once');
+  });
+});
+
+/**
+ * Story #2333 / Task #2337 — AutomergePredicate activation census.
+ *
+ * What this describe block pins:
+ *   1. `createEpicRunnerCollaborators` exposes `automergePredicate` on
+ *      the collaborator bag, instantiated from the production listener
+ *      class.
+ *   2. The bus on the same bag has at least one listener subscribed to
+ *      `epic.watch.end` (AutomergePredicate's sole event).
+ *   3. Source-of-truth grep: the **listener** at
+ *      `lifecycle/listeners/automerge-predicate.js` is imported exactly
+ *      once in `factory.js`, and the legacy module at
+ *      `lib/orchestration/automerge-predicate.js` (sibling of the
+ *      lifecycle directory) is NOT imported from factory.js — that
+ *      module stays as dead code reachable only via the listener's
+ *      internal wrapper. Prevents accidental dual-registration when the
+ *      legacy module is eventually deleted.
+ */
+describe('factory close-tail registrar — AutomergePredicate activation', () => {
+  it('exposes automergePredicate on the collaborator bag', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.ok(
+      collaborators.automergePredicate,
+      'collaborators.automergePredicate must be present',
+    );
+    assert.ok(
+      collaborators.automergePredicate instanceof AutomergePredicate,
+      'collaborators.automergePredicate must be an AutomergePredicate',
+    );
+  });
+
+  it('subscribes AutomergePredicate to epic.watch.end on the production bus', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    const watchEndListeners =
+      collaborators.bus._listeners.get('epic.watch.end') ?? [];
+    assert.ok(
+      watchEndListeners.length >= 1,
+      'at least one listener subscribed to epic.watch.end',
+    );
+    assert.ok(
+      collaborators.automergePredicate.events.includes('epic.watch.end'),
+      'AutomergePredicate.events advertises epic.watch.end',
+    );
+  });
+
+  it('imports the lifecycle automerge-predicate.js listener exactly once and does not import the legacy module', () => {
+    const factorySource = readFileSync(FACTORY_PATH, 'utf8');
+    const listenerMatches = factorySource.match(
+      /from\s+['"][^'"]*lifecycle\/listeners\/automerge-predicate\.js['"]/g,
+    );
+    assert.ok(
+      listenerMatches,
+      'factory.js must import the lifecycle AutomergePredicate listener',
+    );
+    assert.equal(
+      listenerMatches.length,
+      1,
+      'lifecycle/listeners/automerge-predicate.js must be imported exactly once',
+    );
+    const legacyMatches = factorySource.match(
+      /from\s+['"][^'"]*orchestration\/automerge-predicate\.js['"]/g,
+    );
+    assert.equal(
+      legacyMatches,
+      null,
+      'factory.js must NOT import the legacy lib/orchestration/automerge-predicate.js module — that path stays as dead code reachable only via the listener wrapper',
+    );
   });
 });
