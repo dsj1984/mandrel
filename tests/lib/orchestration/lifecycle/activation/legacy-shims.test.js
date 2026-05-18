@@ -2,14 +2,20 @@
 /**
  * Legacy close-tail CLI shim invariants — Story #2319 / Task #2329.
  *
- * The Epic #2306 acceptance pins each close-tail legacy script to a
+ * The Epic #2306 acceptance pinned each close-tail legacy script to a
  * "pure emit shim" shape: <50 source lines, exactly one `bus.emit`
  * call site, no leakage of removed helpers. This test file is the
- * load-bearing check that pins those invariants in tree.
+ * load-bearing check that pins those invariants in tree for the shims
+ * that still exist.
  *
  * Currently exercised:
- *   - `epic-deliver-finalize.js`     (Story #2319 / Task #2329)
  *   - `pr-watch-with-update.js`      (Story #2327 / Task #2332)
+ *
+ * Historical entries that were deleted with their backing scripts in
+ * Epic #2307 (Story #2432 / Task #2442) once the `/epic-deliver`
+ * workflow markdown was rewritten (Story #2425) to invoke
+ * `lifecycle-emit.js` directly instead of the shim CLIs:
+ *   - `epic-deliver-finalize.js`     (Story #2319 / Task #2329)
  *   - `epic-deliver-automerge.js`    (Story #2336 / Task #2340)
  *   - `epic-deliver-cleanup.js`      (Story #2338 / Task #2342)
  *
@@ -37,25 +43,6 @@ const SCRIPTS_DIR = path.resolve(
 
 const SHIM_INVARIANTS = [
   {
-    label: 'epic-deliver-finalize.js',
-    file: path.join(SCRIPTS_DIR, 'epic-deliver-finalize.js'),
-    event: 'epic.close.end',
-    forbiddenIdentifiers: [
-      // The line-953 inline call site lifted out by Task #2329.
-      'reconcileAcceptanceSpec',
-      // Legacy helper exports that must not survive the neutering.
-      'buildPrCreateArgs',
-      'buildPrTitle',
-      'buildPrBody',
-      'buildHandoffBody',
-      'checkEpicFastForward',
-      'classifyFinalizeInvocation',
-      'reconcileBaselinesOnEpicBranch',
-      'closePlanningArtifacts',
-      'verifyAndRecoverEpicClose',
-    ],
-  },
-  {
     // Story #2327 / Task #2332 — collapsed from 371 lines to a thin
     // emit shim. The Watcher listener owns the required-check poll
     // loop AND the mergeStateStatus: BEHIND auto-recovery.
@@ -77,49 +64,6 @@ const SHIM_INVARIANTS = [
       'DEFAULT_POLL_INTERVAL_MS',
       // Side-effect surface that must not survive the neutering.
       'update-branch',
-    ],
-  },
-  {
-    // Story #2336 / Task #2340 — collapsed from 191 lines to a thin
-    // emit shim. The AutomergeArmer listener owns the
-    // `gh pr view --json autoMergeRequest` idempotency probe AND the
-    // `gh pr merge --auto --squash --delete-branch` arm; this CLI no
-    // longer carries any `gh pr merge` literal (merge-lockout
-    // invariant). The shim emits `epic.automerge.start` as telemetry
-    // for direct invocations; the wired listener chain inside
-    // `/epic-deliver` is the real auto-merge code path.
-    label: 'epic-deliver-automerge.js',
-    file: path.join(SCRIPTS_DIR, 'epic-deliver-automerge.js'),
-    event: 'epic.automerge.start',
-    forbiddenIdentifiers: [
-      // Legacy helper exports lifted into the listener chain.
-      'parseAutomergeArgs',
-      'classifyAutomergeInvocation',
-      'buildPrUrl',
-      'buildGhMergeArgs',
-      // The merge-lockout literal MUST NOT appear in the shim.
-      'gh pr merge',
-    ],
-  },
-  {
-    // Story #2338 / Task #2342 — collapsed from 134 lines to a thin
-    // emit shim. The Cleaner listener (subscribes to
-    // `epic.merge.armed`) owns the `temp/epic-<id>/` archive AND the
-    // terminal `epic.cleanup.start` → `epic.cleanup.end` →
-    // `epic.complete` emit sequence. The shim emits
-    // `epic.merge.armed` to kick the Cleaner for direct invocations;
-    // the wired listener chain inside `/epic-deliver` is the real
-    // cleanup code path.
-    label: 'epic-deliver-cleanup.js',
-    file: path.join(SCRIPTS_DIR, 'epic-deliver-cleanup.js'),
-    event: 'epic.merge.armed',
-    forbiddenIdentifiers: [
-      // Legacy helper exports lifted into the listener chain.
-      'parseCleanupArgs',
-      'classifyCleanupInvocation',
-      // The pre-Wave-8 direct filesystem mutators MUST NOT appear.
-      'git worktree remove',
-      'git branch -D',
     ],
   },
 ];
