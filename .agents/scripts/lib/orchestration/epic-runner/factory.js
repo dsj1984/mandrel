@@ -17,6 +17,7 @@ import { notify } from '../../../notify.js';
 import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
 import { appendEpicSignal } from '../../observability/signals-writer.js';
+import * as epicRunStateStoreModule from '../epic-run-state-store.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { AcceptanceReconciler } from '../lifecycle/listeners/acceptance-reconciler.js';
@@ -39,7 +40,6 @@ import {
   transitionTicketState,
   upsertStructuredComment,
 } from '../ticketing.js';
-import * as epicRunStateStoreModule from '../epic-run-state-store.js';
 import { waitForEpicUnblock } from './blocker-wait.js';
 import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
