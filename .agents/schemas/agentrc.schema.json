@@ -178,7 +178,9 @@
       "properties": {
         "riskHeuristics": { "$ref": "#/$defs/listOrExtenderOfStrings" },
         "maxTickets": { "type": "integer", "minimum": 1 },
-        "context": { "$ref": "#/$defs/planningContext" }
+        "context": { "$ref": "#/$defs/planningContext" },
+        "failOnSharedEditors": { "type": "boolean" },
+        "requireExplicitCrossStoryDeps": { "type": "boolean" }
       },
       "additionalProperties": false
     },

@@ -4,6 +4,10 @@ import { gitSpawn } from '../git-utils.js';
 
 import { Logger } from '../Logger.js';
 import {
+  computeConflictFindings,
+  renderHardConflictError,
+} from './ticket-validator-conflicts.js';
+import {
   computeSizingFindings,
   DEFAULT_TASK_SIZING,
   renderHardFindingError,
@@ -202,7 +206,10 @@ function renderMissLine({ slug, path }) {
  * @param {Function}                   [opts.gitRunner]     - Optional git probe override.
  * @param {string}                     [opts.cwd]           - Repo cwd (forwarded to the freshness gate).
  * @param {object}                     [opts.taskSizing]    - Override the three-layer sizing thresholds. Defaults to `DEFAULT_TASK_SIZING`.
- * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing findings.
+ * @param {object}                     [opts.conflictPolicy] - Severity controls for cross-Story conflict findings.
+ * @param {boolean}                    [opts.conflictPolicy.failOnSharedEditors=false]          - Upgrade `shared-editor` findings to `hard`.
+ * @param {boolean}                    [opts.conflictPolicy.requireExplicitCrossStoryDeps=false] - Upgrade `implicit-cross-story-dep` findings to `hard`.
+ * @returns {object[] & { findings: object[], errors: string[] }} Validated tickets with normalized dependencies and attached sizing + conflict findings.
  */
 /**
  * Internal helpers extracted from `validateAndNormalizeTickets` so each
@@ -437,15 +444,30 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
     });
   }
 
-  const findings = computeSizingFindings({
+  const sizingFindings = computeSizingFindings({
     tasks,
     stories,
     taskCountByStory,
     sizing: opts.taskSizing,
   });
+  // Cross-Story path-conflict pass runs after Task→Story dep lifting so it
+  // observes the final story-level depends_on graph. Findings are appended
+  // to the same `findings` array consumed by the decompose-loop's hard-
+  // finding gate; severity is controlled by `opts.conflictPolicy`.
+  const conflictFindings = computeConflictFindings({
+    tasks,
+    stories,
+    policy: opts.conflictPolicy,
+  });
+  const findings = [...sizingFindings, ...conflictFindings];
   const errors = findings
     .filter((f) => f.severity === 'hard')
-    .map(renderHardFindingError);
+    .map((f) => {
+      if (f.kind === 'shared-editor' || f.kind === 'implicit-cross-story-dep') {
+        return renderHardConflictError(f);
+      }
+      return renderHardFindingError(f);
+    });
 
   attachFindingsAndErrors(tickets, findings, errors);
   return tickets;
