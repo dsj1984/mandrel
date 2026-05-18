@@ -71,7 +71,7 @@ describe('NotifyDispatcher', () => {
     const notifyCalls = [];
     const dispatcher = new NotifyDispatcher({
       epicId: 99,
-      notify: async (ticketId, payload) => {
+      notify: async (_ticketId, payload) => {
         notifyCalls.push(payload.event);
       },
       logger: { debug() {}, warn() {} },

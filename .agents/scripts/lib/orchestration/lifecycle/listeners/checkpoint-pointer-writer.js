@@ -199,7 +199,7 @@ export class CheckpointPointerWriter {
    * `checkpoint.written` exactly once after the pointer write
    * succeeds.
    */
-  async handle({ event, seqId, payload }) {
+  async handle({ event, seqId, payload: _payload }) {
     const key = `${event}:${seqId}`;
     if (this._seen.has(key)) {
       this.logger.debug?.(

@@ -66,7 +66,7 @@ describe('StructuredCommentPoster (bus integration)', () => {
     return new StructuredCommentPoster({
       provider: { tag: 'p' },
       epicId: 555,
-      upsertStructuredComment: async (provider, ticketId, type, body) => {
+      upsertStructuredComment: async (_provider, ticketId, type, body) => {
         upserts.push({ ticketId, type, body });
       },
       logger: { warn() {}, debug() {} },
