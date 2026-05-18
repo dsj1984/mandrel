@@ -641,7 +641,9 @@ PR through the GitHub UI.
      reviewer-trail and required-checks history;
    - the standard label-transition pathway flips the Epic to
      `agent::done`;
-   - branch cleanup runs out-of-band via `/delete-epic-branches`.
+   - branch cleanup runs out-of-band: Phase 8 of `/epic-deliver` reaps
+     local refs after the merge; the rare "scrap and reset" case for an
+     unmerged Epic is handled manually.
 
 If the operator chooses not to merge (rolling back, deferring, re-scoping),
 `/epic-deliver` has not poisoned `main`. The Epic branch can be amended
@@ -818,5 +820,4 @@ failures never block execution.
 | _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 4; not a slash command.                                                                                                                 |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
-| `/delete-epic-branches <epicId>`                 | Hard reset — delete all Epic-scoped branches                                                                                                                                 |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |

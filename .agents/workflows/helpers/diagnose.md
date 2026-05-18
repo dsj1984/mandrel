@@ -1,25 +1,32 @@
 ---
 description: >-
-  Run the self-healing checks registry in read-only mode and print findings.
-  A thin reader over `lib/checks/` — no remote writes, no auto-fixes.
+  Helper doc for the diagnose.js ad-hoc viewer. Runs the self-healing checks
+  registry in read-only mode and prints findings. Not a slash command —
+  invoke the script directly when needed.
 ---
 
-# /diagnose [--scope <scope>] [--fail-on-blocker] [--json]
+# diagnose viewer (helper)
+
+> **Helper, not a slash command.** Files under `workflows/helpers/` are not
+> synced to `.claude/commands/`. The same `lib/checks/` registry runs
+> automatically as preflight inside `/epic-deliver`, `/story-close`, and
+> `npm test` — this viewer exists only for ad-hoc inspection. Invoke the
+> backing script directly: `node .agents/scripts/diagnose.js [args]`.
 
 ## Overview
 
-`/diagnose` runs the checks registry assembled under
+`diagnose.js` runs the checks registry assembled under
 `.agents/scripts/lib/checks/` in read-only mode and surfaces every
 finding declared on the requested scope. It is the operator-facing read
 of the same registry that preflight guards (`epic-deliver`,
 `story-close`), the retro hook, and `npm test` consult — but with
 `autoFix: false` always, no remote GitHub writes, and no commits.
 
-It is distinct from `/diagnose-friction` (the per-Task signal capture
-that wraps a shell command); this slash command is a stateless probe.
+It is distinct from `diagnose-friction.js` (the per-Task signal capture
+that wraps a shell command); this viewer is a stateless probe.
 
 ```text
-/diagnose [--scope <scope>] [--fail-on-blocker] [--json]
+node .agents/scripts/diagnose.js [--scope <scope>] [--fail-on-blocker] [--json]
   → assembleState({ scope })
   → runChecks({ scope, autoFix: false, state })
   → render table (default) OR single-line JSON (--json)
@@ -91,9 +98,9 @@ pipelines and CI-step parsing.
 
 ## Constraints
 
-- **Never** auto-fixes. `/diagnose` calls `runChecks({ autoFix: false })`
-  unconditionally; even checks with `autoCorrect: 'auto'` print their
-  `fixCommand` rather than execute it.
+- **Never** auto-fixes. `diagnose.js` calls
+  `runChecks({ autoFix: false })` unconditionally; even checks with
+  `autoCorrect: 'auto'` print their `fixCommand` rather than execute it.
 - **Never** writes to GitHub state (no label transitions, no comments).
   The registry's `refuse-and-print` and retro read-only invariants are
   preserved.
@@ -102,9 +109,9 @@ pipelines and CI-step parsing.
 
 ## See also
 
-- [`.agents/README.md` § Self-Healing Checks](../README.md#self-healing-checks)
+- [`.agents/README.md` § Self-Healing Checks](../../README.md#self-healing-checks)
   — the canonical contract every check module must satisfy.
-- [`.agents/scripts/diagnose.js`](../scripts/diagnose.js) — the CLI
-  implementation backing this slash command.
-- [`tests/diagnose-output.test.js`](../../tests/diagnose-output.test.js)
+- [`.agents/scripts/diagnose.js`](../../scripts/diagnose.js) — the CLI
+  implementation backing this helper.
+- [`tests/diagnose-output.test.js`](../../../tests/diagnose-output.test.js)
   — pinned output and exit-code contracts.
