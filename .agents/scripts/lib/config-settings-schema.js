@@ -223,6 +223,13 @@ const PLANNING_SCHEMA = {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
+    // Cross-Story conflict-finding severity gates. Off by default so
+    // existing repos keep advisory-only behaviour; flipping either to
+    // `true` upgrades the matching finding class to `'hard'`, which routes
+    // it through the validator's `errors[]` channel and trips the bounded
+    // decompose loop's re-prompt gate.
+    failOnSharedEditors: { type: 'boolean' },
+    requireExplicitCrossStoryDeps: { type: 'boolean' },
   },
   additionalProperties: false,
 };

@@ -61,7 +61,6 @@ invoked manually or automatically at `gate1`–`gate4` by the audit orchestrator
 | `/git-commit-all`         | Commit all outstanding changes to the current branch.                         |
 | `/git-push`               | Commit all outstanding changes and push to the remote.                        |
 | `/git-merge-pr`           | Analyze, validate, resolve conflicts, and merge a given pull request.         |
-| `/delete-epic-branches`   | Hard reset — delete all branches associated with an Epic and its children.    |
 
 ## Setup & meta
 

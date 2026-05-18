@@ -240,8 +240,8 @@ listener chain is wired:
   inline calls at phase boundaries.
 
 Direct invocations of the shims remain supported for operator one-shots
-(emergency `/delete-epic-branches` flows, structured-comment
-back-channel) but no longer mutate Epic state at phase boundaries.
+(structured-comment back-channel and similar emergency flows) but no
+longer mutate Epic state at phase boundaries.
 
 ---
 

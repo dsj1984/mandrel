@@ -125,6 +125,22 @@ export function ensurePlanningArtifacts(body, linkedIssues) {
   return `${safeBody}\n\n## Planning Artifacts\n${lines.join('\n')}\n`;
 }
 
+/**
+ * Resolve the cross-Story conflict-finding policy from `_config.planning`.
+ * Both flags default to `false` so existing repos keep the advisory-only
+ * behaviour; setting either to `true` upgrades the matching finding class
+ * to `'hard'`, which routes it through the validator's `errors[]` channel
+ * and (when called inside the bounded decompose loop) triggers a re-prompt.
+ */
+function resolveConflictPolicy(cfg) {
+  const planning = cfg?.planning;
+  return {
+    failOnSharedEditors: planning?.failOnSharedEditors === true,
+    requireExplicitCrossStoryDeps:
+      planning?.requireExplicitCrossStoryDeps === true,
+  };
+}
+
 function resolveParentId(ticket, slugMap, epicId) {
   if (ticket.type === 'feature') return epicId;
   if (!ticket.parent_slug) {
@@ -440,7 +456,11 @@ export async function decomposeEpic(
   // referenced by a Task body or AC. Defaults to 'main' when the loaded
   // config omits the field — matching ZERO_CONFIG_DEFAULTS in the resolver.
   const baseBranchRef = _config?.baseBranch ?? 'main';
-  const validated = validateAndNormalizeTickets(tickets, { baseBranchRef });
+  const conflictPolicy = resolveConflictPolicy(_config);
+  const validated = validateAndNormalizeTickets(tickets, {
+    baseBranchRef,
+    conflictPolicy,
+  });
   validateTaskBodies(validated);
 
   // Pre-pass cross-type collision check: a planned Story sharing a title with
@@ -763,7 +783,11 @@ export async function runDecomposePhase(
     `[epic-plan-decompose] Running cross-validation on ${tickets.length} tickets...`,
   );
   const baseBranchRef = config?.baseBranch ?? 'main';
-  const validated = validateAndNormalizeTickets(tickets, { baseBranchRef });
+  const conflictPolicy = resolveConflictPolicy(config);
+  const validated = validateAndNormalizeTickets(tickets, {
+    baseBranchRef,
+    conflictPolicy,
+  });
   validateTaskBodies(validated);
 
   // 2. Render the decomposer array into the structural spec shape.

@@ -46,8 +46,7 @@ into shape; the vague-flag exists so the catalog catches regressions.
 ## What `/mandrel` is not
 
 - **Not a writer.** No GitHub I/O, no commit creation, no label transitions,
-  no file mutations. Pure read-of-disk + stdout, like `/signals` and
-  `/diagnose`.
+  no file mutations. Pure read-of-disk + stdout.
 - **Not a sync.** `sync-claude-commands.js` is still the only writer of
   `.claude/commands/`. `/mandrel` reads the workflow set; it doesn't reshape
   the slash-command catalog Claude Code surfaces in its `/` menu.
@@ -69,8 +68,7 @@ slash-command surface is a non-goal.
   rendered artifact is stored. Drift between an on-disk cache and the live
   workflow set would defeat the purpose.
 - **Never** mutate GitHub state. `/mandrel` is read-only — no labels, no
-  comments, no issue updates. Same operator-affordance contract as `/signals`
-  and `/diagnose`.
+  comments, no issue updates.
 - **Never** include the `helpers/` subdirectory. Helpers are path-included
   modules, not runnable workflows; surfacing them in the catalog would
   mislead operators into typing them as slash commands.
