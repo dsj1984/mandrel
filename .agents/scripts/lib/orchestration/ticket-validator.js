@@ -176,6 +176,116 @@ export function validateAcFreshness({
 }
 
 /**
+ * Allowed leading Conventional-Commits types. Mirrors the `changelog-sections`
+ * keys in `release-please-config.json` and the `type-enum` list in
+ * `commitlint.config.js`. When a planner LLM prescribes a commit subject in a
+ * Task acceptance item via the "Commit subject begins with '<prefix>:'" form,
+ * the captured prefix must reduce to one of these types (optionally followed
+ * by a `(scope)` qualifier) — anything else fails commitlint locally and
+ * release-please's changelog parser on `main`, so the decompose is rejected
+ * before the Story branch is ever cut.
+ *
+ * Epic #2501 introduced this guard after the legacy `baseline-refresh`
+ * leading-token prescription created a wave of commit-msg hook failures
+ * across story-deliver sub-agents. See
+ * `.agents/skills/core/baseline-refresh/SKILL.md` for the canonical refresh
+ * shape (Conventional-Commits subject + `baseline-refresh: true` body
+ * trailer).
+ */
+const ALLOWED_COMMIT_TYPES = new Set([
+  'feat',
+  'fix',
+  'chore',
+  'refactor',
+  'perf',
+  'docs',
+  'style',
+  'test',
+  'build',
+  'ci',
+  'revert',
+]);
+
+/**
+ * Regex matching the canonical "Commit subject begins with '<prefix>:'"
+ * prescription shape the planner emits in `body.acceptance[]` entries.
+ * The leading quote is captured loosely (single, double, or backtick) so the
+ * three quoting styles the decomposer LLM has historically emitted all
+ * match. The captured group is the prefix token *without* the trailing
+ * colon — callers normalize by stripping an optional `(scope)` qualifier
+ * before comparing against the allowed-types set.
+ */
+const SUBJECT_PREFIX_RE = /Commit subject begins with ['"`]([^'"`]+):['"`]/g;
+
+/**
+ * Scan every Task's `body.acceptance[]` for "Commit subject begins with
+ * '<prefix>:'" prescriptions and reject the decompose when any captured
+ * prefix is not a valid Conventional-Commits type.
+ *
+ * A captured prefix of the form `chore(baselines)` is accepted — the
+ * leading `chore` is in the allowed-types set, and the `(scope)` qualifier
+ * is the standard Conventional-Commits scope shape. A captured prefix of
+ * the form `baseline-refresh` is rejected because no Conventional-Commits
+ * type starts with that token.
+ *
+ * Only `body.acceptance[]` is scanned; `body.goal` / `body.verify` /
+ * `body.changes` are not commit-subject prescriptions by convention and
+ * scanning them would surface false positives from prose that happens to
+ * quote a forbidden prefix while explaining why it's forbidden.
+ *
+ * @param {object}   opts
+ * @param {object[]} opts.tickets - Validated ticket hierarchy.
+ * @throws {ValidationError} when one or more Task acceptance items
+ *   prescribe a forbidden subject prefix. The error carries
+ *   `code: 'forbidden-subject-prefix'` and a `violations[]` payload
+ *   listing each `{ slug, prefix, line }` so the decompose loop can
+ *   surface the exact offending text to the operator.
+ */
+export function validateAcceptanceSubjectPrefix({ tickets }) {
+  const violations = [];
+  const tasks = (tickets ?? []).filter((t) => t.type === 'task');
+  for (const task of tasks) {
+    const body = task.body;
+    if (body === null || typeof body !== 'object') continue;
+    if (!Array.isArray(body.acceptance)) continue;
+    for (const item of body.acceptance) {
+      const line = String(item ?? '');
+      // Reset the global regex between iterations.
+      SUBJECT_PREFIX_RE.lastIndex = 0;
+      let match = SUBJECT_PREFIX_RE.exec(line);
+      while (match !== null) {
+        const rawPrefix = match[1];
+        // Strip an optional `(scope)` qualifier — `chore(baselines)` reduces
+        // to `chore` for the allowed-types check.
+        const type = rawPrefix.replace(/\(.*\)$/, '').trim();
+        if (!ALLOWED_COMMIT_TYPES.has(type)) {
+          violations.push({
+            slug: task.slug ?? '<unknown>',
+            prefix: rawPrefix,
+            line,
+          });
+        }
+        match = SUBJECT_PREFIX_RE.exec(line);
+      }
+    }
+  }
+  if (violations.length === 0) return;
+  const allowed = [...ALLOWED_COMMIT_TYPES].join('|');
+  const lines = violations
+    .map(
+      (v) =>
+        `  - "${v.slug}" → forbidden subject prefix "${v.prefix}:" in acceptance item: ${v.line}`,
+    )
+    .join('\n');
+  const err = new ValidationError(
+    `Cross-Validation Failed: ${violations.length} Task acceptance item(s) prescribe a non-Conventional-Commits subject prefix:\n${lines}\n\nAllowed leading types: ${allowed}. Use a Conventional-Commits subject (e.g. "chore(baselines): refresh ...") and a body trailer (e.g. "baseline-refresh: true") for machine-readable markers. See Epic #2501.`,
+    { violations },
+  );
+  err.code = 'forbidden-subject-prefix';
+  throw err;
+}
+
+/**
  * Render one missing-path line with a remediation hint pointing at the
  * task's `body.changes`. For `tests/**` paths we suggest the explicit
  * "add the test file" verb; for everything else we emit a generic hint
@@ -430,6 +540,12 @@ export function validateAndNormalizeTickets(tickets, opts = {}) {
   logLiftedDeps(crossStoryLifted);
 
   assertAcyclic(slugAdjacency);
+
+  // Reject any Task acceptance item that prescribes a non-Conventional-Commits
+  // subject prefix (e.g. legacy "Commit subject begins with 'baseline-refresh:'"
+  // from pre-Epic-#2501 planner output). Runs before the freshness gate so
+  // the failure mode is reported up-front rather than after a git probe.
+  validateAcceptanceSubjectPrefix({ tickets });
 
   // Refuse to decompose when any Task body or AC names a code-asset path
   // missing from the Epic's base branch tree. Skipped when the caller

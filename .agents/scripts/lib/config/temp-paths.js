@@ -210,6 +210,22 @@ export const epicRetroMirrorPath = (eid, config) =>
 export const epicPerfReportPath = (eid, config) =>
   epicArtifactPath(eid, 'perf-report.md', config);
 
+/**
+ * `temp/epic-<eid>/lifecycle.ndjson` — append-only lifecycle bus ledger
+ * (Story #2510). The LedgerWriter persists every emitted/completed/failed
+ * record here; the TraceLogger renders the companion markdown from it.
+ *
+ * The path is also the canonical input the standalone `lifecycle-emit`
+ * CLI feeds to `buildDefaultListenerChain` when assembling the default
+ * listener roster for an out-of-runner emit.
+ *
+ * @param {number} eid
+ * @param {object} [config]
+ * @returns {string}
+ */
+export const epicLedgerPath = (eid, config) =>
+  epicArtifactPath(eid, 'lifecycle.ndjson', config);
+
 // --- Canonical Story-level filenames ---
 
 export const storyManifestPath = (eid, sid, config) =>

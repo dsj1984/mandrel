@@ -53,7 +53,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { runAsCli } from './lib/cli-utils.js';
+import { epicLedgerPath } from './lib/config/temp-paths.js';
 import { createBus } from './lib/orchestration/lifecycle/bus.js';
+import { buildDefaultListenerChain } from './lib/orchestration/lifecycle/listeners/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SCHEMA_DIR = path.resolve(
@@ -142,17 +144,36 @@ export function buildPayload(parsed) {
  * Programmatic entry point. Tests inject `bus` to assert payload
  * shape without triggering real schema validation.
  *
+ * When the caller does NOT supply a `bus`, the helper constructs a
+ * default bus AND subscribes the canonical listener chain via
+ * `buildDefaultListenerChain` so the standalone CLI surface fires every
+ * documented downstream side effect (acceptance reconcile, finalize,
+ * automerge, cleanup). Callers that inject a bus retain full control —
+ * they are responsible for wiring whatever listeners they want.
+ *
+ * The listener chain only requires `epicId` (decoded from the payload)
+ * and a `repoRoot` (defaulted from `process.cwd()`). Listeners that
+ * require collaborators not available outside the runner (provider,
+ * checkpointer) are skipped cleanly; the standalone CLI is not the
+ * production runner and the skipped listeners are the same ones the
+ * `epic-runner` factory skips when a unit fixture omits them.
+ *
  * @param {object} opts
  * @param {string} opts.event lifecycle event name (matches schema file)
  * @param {object} opts.payload assembled emit payload
  * @param {object} [opts.bus] override bus (defaults to `createBus()`)
  * @param {string} [opts.schemaDir] override schema dir for existence check
+ * @param {string} [opts.repoRoot] override repo root for shell-out
+ *   listeners (defaults to `process.cwd()`)
+ * @param {object} [opts.logger] optional logger forwarded to the chain
  */
 export async function runLifecycleEmit({
   event,
   payload,
   bus,
   schemaDir = DEFAULT_SCHEMA_DIR,
+  repoRoot,
+  logger,
 } = {}) {
   if (typeof event !== 'string' || event.length === 0) {
     throw new Error('lifecycle-emit: --event is required');
@@ -163,7 +184,22 @@ export async function runLifecycleEmit({
       `lifecycle-emit: unknown event "${event}" — no schema at ${schemaPath}`,
     );
   }
+  const callerSuppliedBus = Boolean(bus);
   const targetBus = bus ?? createBus({ schemaDir });
+  // Wire the default listener chain only when we constructed the bus
+  // ourselves. Callers that inject a bus own its listener wiring.
+  if (!callerSuppliedBus) {
+    const epicId = Number(payload?.epicId);
+    if (Number.isInteger(epicId) && epicId > 0) {
+      const ledgerPath = epicLedgerPath(epicId);
+      await buildDefaultListenerChain({
+        bus: targetBus,
+        ledgerPath,
+        repoRoot: repoRoot ?? process.cwd(),
+        logger,
+      });
+    }
+  }
   const { seqId } = await targetBus.emit(event, payload ?? {});
   return { event, payload: payload ?? {}, seqId };
 }
