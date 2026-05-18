@@ -131,6 +131,7 @@ const PAYLOAD_BY_EVENT = Object.freeze({
     prUrl: 'https://example.test/pr/1',
     requiredChecks: [],
   },
+  'intervention.recorded': { epicId: 9999, reason: 'fixture' },
   'notification.emitted': {
     event: 'wave.end',
     channel: 'webhook',

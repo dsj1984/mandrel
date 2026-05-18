@@ -235,8 +235,8 @@ export async function gatherRetroSignals({ epicId, provider, logger }) {
 /**
  * Pure: clamp a candidate count to a non-negative integer. Used to
  * normalize the `manualInterventions` count plumbed in from the
- * checkpointer state before it lands in the scorecard. Non-finite,
- * negative, or non-numeric values collapse to 0.
+ * epic-run-state-store snapshot before it lands in the scorecard.
+ * Non-finite, negative, or non-numeric values collapse to 0.
  */
 function normalizeInterventionCount(value) {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
@@ -249,10 +249,10 @@ function normalizeInterventionCount(value) {
  * Pure: compose the retro markdown body. Exported for tests so they can
  * verify the body shape without round-tripping through a stub provider.
  *
- * Story #2289 adds `counts.interventions` — sourced from the checkpointer's
- * `manualInterventions` array (the same list that disqualifies an Epic
- * from auto-merge). Non-zero interventions route to the full retro shape
- * via `isCleanManifest`.
+ * Story #2289 adds `counts.interventions` — sourced from the
+ * `manualInterventions` array on the `epic-run-state` snapshot (the
+ * same list that disqualifies an Epic from auto-merge). Non-zero
+ * interventions route to the full retro shape via `isCleanManifest`.
  *
  * @param {{
  *   epicId: number,

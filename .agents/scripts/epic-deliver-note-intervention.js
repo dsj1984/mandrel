@@ -13,9 +13,19 @@
  *   - manual `--no-ff` recovery merge
  *   - per-Story close that needed `--skipValidation`
  *
- * The auto-merge predicate (see `lib/orchestration/automerge-predicate.js`)
- * reads `state.manualInterventions[]` and refuses to fire when the array is
+ * The auto-merge predicate (see
+ * `lib/orchestration/lifecycle/listeners/automerge-predicate.js`) reads
+ * `state.manualInterventions[]` and refuses to fire when the array is
  * non-empty.
+ *
+ * Story #2413 / Task #2426 — the CLI no longer writes the structured
+ * comment directly. It builds an `intervention.recorded` payload, emits
+ * it through a one-shot lifecycle bus, and lets the
+ * `InterventionRecorder` listener (registered against the same bus)
+ * persist the record via the epic-run-state-store. This collapses the
+ * legacy script-level checkpoint consumer to a single bus emit, matching
+ * the canonical pattern for state mutations described in the lifecycle
+ * listeners README.
  *
  * Usage:
  *   node .agents/scripts/epic-deliver-note-intervention.js \
@@ -29,14 +39,20 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
+import { read as readEpicRunState } from './lib/orchestration/epic-run-state-store.js';
+import { createBus } from './lib/orchestration/lifecycle/bus.js';
+import {
+  INTERVENTION_RECORDED_EVENT,
+  InterventionRecorder,
+} from './lib/orchestration/lifecycle/listeners/intervention-recorder.js';
 import { createProvider } from './lib/provider-factory.js';
 
 const HELP = `Usage: node .agents/scripts/epic-deliver-note-intervention.js \\
   --epic <epicId> --reason "<text>" [--source <text>]
 
-Appends a manual-intervention record to the epic-run-state checkpoint on
-Epic #<epicId>. Disqualifies the Epic from auto-merge.
+Emits an \`intervention.recorded\` lifecycle event for Epic #<epicId>. The
+InterventionRecorder listener appends the payload to the epic-run-state
+structured comment, disqualifying the Epic from auto-merge.
 `;
 
 /**
@@ -68,8 +84,15 @@ export function parseNoteArgs(argv) {
 }
 
 /**
- * Runner-shaped entry point. DI-friendly so tests can stub the provider and
- * checkpointer factories without touching disk or the GitHub API.
+ * Runner-shaped entry point. DI-friendly so tests can stub the provider
+ * and bus without touching disk or the GitHub API.
+ *
+ * The bus emit drives the InterventionRecorder listener, which grows
+ * the `manualInterventions` array on the epic-run-state structured
+ * comment via the function-based store. After the emit settles, we
+ * read the comment back so the CLI's stdout envelope can report
+ * `{ intervention, total }` exactly as before the script-level
+ * checkpoint cut-over.
  *
  * @param {{
  *   epicId: number,
@@ -77,7 +100,10 @@ export function parseNoteArgs(argv) {
  *   source?: string,
  *   injectedConfig?: object,
  *   injectedProvider?: object,
- *   checkpointerFactory?: (deps: { provider: object, epicId: number }) => Checkpointer,
+ *   busFactory?: () => { emit: Function, on: Function },
+ *   listenerFactory?: (deps: { provider: object, epicId: number, bus: object }) => { register: Function },
+ *   readEpicRunState?: (deps: { provider: object, epicId: number }) => Promise<object|null>,
+ *   now?: () => string,
  * }} args
  * @returns {Promise<{ epicId: number, intervention: object, total: number }>}
  */
@@ -87,7 +113,10 @@ export async function runNoteIntervention({
   source,
   injectedConfig,
   injectedProvider,
-  checkpointerFactory,
+  busFactory,
+  listenerFactory,
+  readEpicRunState: readEpicRunStateFn,
+  now,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -97,14 +126,34 @@ export async function runNoteIntervention({
   if (typeof reason !== 'string' || reason.length === 0) {
     throw new TypeError('runNoteIntervention: reason is required');
   }
+
   const config = injectedConfig ?? resolveConfig();
   const provider = injectedProvider ?? createProvider(config.orchestration);
-  const factory = checkpointerFactory ?? ((deps) => new Checkpointer(deps));
-  const checkpointer = factory({ provider, epicId });
-  const state = await checkpointer.appendIntervention({
+  const bus = busFactory ? busFactory() : createBus();
+  const buildListener =
+    listenerFactory ?? ((deps) => new InterventionRecorder(deps));
+  const listener = buildListener({ provider, epicId, bus });
+  if (typeof listener.register === 'function') {
+    listener.register(bus);
+  }
+
+  const ts = typeof now === 'function' ? now() : new Date().toISOString();
+  const resolvedSource =
+    typeof source === 'string' && source.length > 0 ? source : 'host-llm';
+  const payload = {
+    epicId,
     reason,
-    source: source ?? 'host-llm',
-  });
+    source: resolvedSource,
+    ts,
+  };
+  await bus.emit(INTERVENTION_RECORDED_EVENT, payload);
+
+  // Read the state back so the stdout envelope reports the canonical
+  // `{ intervention, total }` shape. The listener has already persisted
+  // the record by the time `emit` resolves (sequential awaited mediator);
+  // a missing comment collapses to `total: 0` defensively.
+  const readFn = readEpicRunStateFn ?? readEpicRunState;
+  const state = (await readFn({ provider, epicId })) ?? {};
   const list = Array.isArray(state.manualInterventions)
     ? state.manualInterventions
     : [];

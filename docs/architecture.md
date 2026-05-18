@@ -186,7 +186,7 @@ graph TB
         TD["epic-plan-decompose.js"]:::script
         DI["dispatcher.js"]:::script
         EDP["epic-deliver-prepare.js"]:::script
-        EDF["epic-deliver-finalize.js"]:::script
+        LE["lifecycle-emit.js"]:::script
         SI["story-init.js"]:::script
         SC["story-close.js"]:::script
         CH["context-hydrator.js"]:::script
@@ -233,7 +233,7 @@ graph TB
 | `epic-plan-decompose.js`     | Authoring wrapper for the 4-tier ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                              |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
-| `epic-deliver-finalize.js`   | Phase 6: pushes `epic/<id>`, opens a PR to `main`, sets the required-checks expectation, posts the hand-off comment. Epic stays at `agent::executing` until the operator's PR merge flips it to `agent::done`. Never merges `main` itself. |
+| `lifecycle-emit.js`          | Generic argv-driven emit helper. `/epic-deliver` Phase 6 / 7.5 / 8 fire `epic.close.end` / `epic.automerge.start` / `epic.merge.armed` through this CLI; the matching listener chain (`Finalizer`, `AutomergePredicate` + `AutomergeArmer`, `Cleaner`) runs the PR open, auto-merge arm, and branch reap. |
 | `story-init.js`              | Initialises a Story worktree, transitions Tasks to `agent::executing`.                                                                                                                        |
 | `story-close.js`             | Validates, merges, reaps, and cascades on Story completion. Thin CLI shell over `lib/orchestration/story-close/{merge-runner,cleanup-reconciler,comment-bodies}`. |
 | `context-hydrator.js`        | Assembles self-contained prompts (protocol + persona + skills + hierarchy + task).                                                                                                            |

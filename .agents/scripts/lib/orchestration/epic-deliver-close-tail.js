@@ -13,10 +13,11 @@
  *   - Phase F `finalize`         — `runEpicDeliverFinalize`.
  *
  * Every phase reads / writes the `epic-run-state` checkpoint via
- * `Checkpointer.setPhase`. On entry the runner reads the checkpoint and
- * skips any phase whose index is below the recorded `phase` field — so a
- * mid-run crash during code-review resumes at code-review on the next
- * `/epic-deliver` invocation, not at the start of the wave loop.
+ * `epic-run-state-store.setPhase`. On entry the runner reads the
+ * checkpoint and skips any phase whose index is below the recorded
+ * `phase` field — so a mid-run crash during code-review resumes at
+ * code-review on the next `/epic-deliver` invocation, not at the start
+ * of the wave loop.
  *
  * The runner halts and surfaces a clear error envelope when:
  *   - close-validation reports any non-zero exit (manifest stories open
@@ -34,10 +35,11 @@
 import { AGENT_LABELS } from '../label-constants.js';
 import { runCodeReview as runCodeReviewDefault } from './code-review.js';
 import {
-  Checkpointer,
   DELIVER_PHASES,
   phaseIndex,
-} from './epic-runner/checkpointer.js';
+  read as readEpicRunState,
+  setPhase as setEpicRunStatePhase,
+} from './epic-run-state-store.js';
 import { runRetro as runRetroDefault } from './retro-runner.js';
 
 /**
@@ -237,7 +239,7 @@ async function emitLifecycleSafe({ bus, event, payload, logger }) {
  *   epicId: number,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function },
- *   checkpointer?: Checkpointer,
+ *   epicRunStateStore?: { read: () => Promise<object|null>, setPhase: (nextPhase: string) => Promise<object> },
  *   bus?: object|null,
  *   runWaveGateFn?: ({ epicId: number }) => Promise<{ exitCode?: number, message?: string }>,
  *   runHierarchyGateFn?: ({ epicId: number }) => Promise<{ exitCode?: number, message?: string }>,
@@ -278,8 +280,18 @@ export async function runEpicDeliverCloseTail(opts = {}) {
 
   assertCloseTailInputs({ epicId, provider, runFinalizeFn });
 
-  const checkpointer =
-    opts.checkpointer ?? new Checkpointer({ provider, epicId });
+  // Story #2413 — the legacy class-based checkpoint surface is replaced
+  // by the function-based `epic-run-state-store` module. The collaborator
+  // slot exposes a provider/epicId-pre-bound bag so the inner `runPhase`
+  // helper keeps the `checkpointer.setPhase(nextPhase)` call shape
+  // unchanged. Tests inject a fake bag via `opts.epicRunStateStore`.
+  // Story #2423 retired the `opts.checkpointer` cutover alias along with
+  // the `Checkpointer` class itself.
+  const checkpointer = opts.epicRunStateStore ?? {
+    read: () => readEpicRunState({ provider, epicId }),
+    setPhase: (nextPhase) =>
+      setEpicRunStatePhase({ provider, epicId, nextPhase }),
+  };
 
   // Read the checkpoint to determine the resume point. A missing
   // checkpoint means "start at close-validation" (the prepare + wave-loop

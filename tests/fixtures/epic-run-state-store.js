@@ -1,31 +1,44 @@
 /**
- * Checkpointer — reads and writes the `epic-run-state` structured comment.
+ * Test-only fixture adapter exposing the legacy Checkpointer-shaped
+ * API backed by an in-memory record.
  *
- * The comment is identified by a stable HTML marker so it can be overwritten
- * idempotently across orchestrator restarts. The body is a fenced JSON block
- * following the schema in tech spec #323.
+ * Story #2423 (Epic #2307) — the production `Checkpointer` class
+ * (`.agents/scripts/lib/orchestration/epic-runner/checkpointer.js`) was
+ * deleted after every production caller was migrated to the stateless
+ * `epic-run-state-store` module. The resume-suite tests under
+ * `tests/epic-runner/`, `tests/epic-execute/`, `tests/workflows/`, and
+ * `tests/lib/orchestration/lifecycle/` still validate the legacy
+ * class-based read/write/initialize/setPhase/appendIntervention surface
+ * because that is the behavioural contract the new stateless functions
+ * inherit (byte-identical comment body, marker-scoped upsert
+ * idempotence, manual-intervention append semantics).
+ *
+ * The bodies below are lifted verbatim from the deleted production
+ * class so the structured-comment shape stays byte-for-byte equivalent.
+ * No production module imports from this file — it is consumed by
+ * tests only.
  */
 
-import { parseFencedJsonComment } from '../structured-comment-parser.js';
+import { assertValidDeliverPhase } from '../../.agents/scripts/lib/orchestration/epic-runner/deliver-phases.js';
+import { parseFencedJsonComment } from '../../.agents/scripts/lib/orchestration/structured-comment-parser.js';
 import {
   findStructuredComment,
   upsertStructuredComment,
-} from '../ticketing.js';
-import { assertValidDeliverPhase } from './deliver-phases.js';
+} from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 export const EPIC_RUN_STATE_TYPE = 'epic-run-state';
 export const CHECKPOINT_SCHEMA_VERSION = 1;
 
-// Re-export the phase enum + index helper so downstream importers
-// continue to use `checkpointer.js` as a single import target.
+// Re-export the phase enum + index helper so importers using this
+// fixture as a single import target keep working unchanged.
 export {
   DELIVER_PHASES,
   phaseIndex,
-} from './deliver-phases.js';
+} from '../../.agents/scripts/lib/orchestration/epic-runner/deliver-phases.js';
 
 export class Checkpointer {
   /**
-   * @param {{ provider: import('../../ITicketingProvider.js').ITicketingProvider, epicId: number }} opts
+   * @param {{ provider: object, epicId: number }} opts
    */
   constructor(opts = {}) {
     const ctx = opts.ctx;
@@ -83,9 +96,7 @@ export class Checkpointer {
    * persisted values, refresh those fields in place — preserving
    * `currentWave`, `waves[]`, `blockerHistory`, `manualInterventions`,
    * `startedAt`, and any other already-persisted fields (e.g., `plan`,
-   * `phase`). The `plan` field is owned by the prepare caller, which
-   * overwrites it on every prepare run, so it does not need a delta check
-   * here.
+   * `phase`).
    *
    * @param {{ totalWaves: number, concurrencyCap: number }} opts
    */
@@ -114,12 +125,7 @@ export class Checkpointer {
   }
 
   /**
-   * Append a manual-intervention record to the checkpoint. Out-of-band
-   * recovery steps the host LLM performs during a delivery — `AskUserQuestion`
-   * calls, `git restore`/`git reset` against the working tree, manual `--no-ff`
-   * recovery merges, story-close `--skipValidation` overrides — disqualify the
-   * Epic from auto-merge. The auto-merge predicate reads this array and only
-   * fires when it is empty.
+   * Append a manual-intervention record to the checkpoint.
    *
    * @param {{ reason: string, source?: string, ts?: string }} entry
    * @returns {Promise<object>} the persisted state
@@ -151,13 +157,7 @@ export class Checkpointer {
 
   /**
    * Advance the checkpoint's `phase` field to the next `/epic-deliver`
-   * phase. Reads the current state first so the caller does not need to
-   * keep an in-memory copy. Other state fields are preserved verbatim.
-   *
-   * Story #1155 / Epic #1142 — phase-granular resume. The runner writes
-   * the **next phase to run** here, not the phase that just finished, so
-   * a resume can match `phase === 'code-review'` to mean "Phase D is the
-   * next thing to do."
+   * phase. Reads the current state first; other state fields are preserved.
    *
    * @param {string} nextPhase - One of `DELIVER_PHASES` or `'done'`.
    */
