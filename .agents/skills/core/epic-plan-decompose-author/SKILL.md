@@ -193,6 +193,46 @@ When a "docs update" / "runbook" / "README" Task appears downstream of an earlie
 "Scope verification note: this task's deliverable may already be satisfied by Story #<slug-or-id>'s AC — before implementing, `git diff main -- <path>` against the upstream Story branch and confirm whether a substantive edit is still required, or whether only a cross-reference remains."
 This prevents the executing agent from redoing work the upstream Story already merged.
 
+### CROSS-CUTTING CONFIG FILE EDITS (shared root files across Stories):
+
+If two or more Stories in the same decomposition declare Tasks that edit any
+of the shared configuration files enumerated below, you MUST either:
+
+1. Add explicit `depends_on` links chaining the affected Stories so they
+   merge sequentially (preferred when the Stories share thematic scope and
+   the second Story's edits build on the first), OR
+2. Split the cross-cutting edits into a single dedicated late-wave "wiring"
+   Story that runs after the dependents land (preferred when the dependent
+   Stories are otherwise unrelated and would only collide at the wiring
+   point).
+
+Trade-offs: option (1) keeps each Story end-to-end coherent but serializes
+their delivery; option (2) keeps the dependents parallel but introduces a
+narrow extra Story whose AC is purely integration. Pick (1) when the shared
+file edit is small and thematically owned by one of the Stories; pick (2)
+when several otherwise-independent Stories all need to register themselves
+in the same manifest.
+
+Shared configuration files (non-exhaustive):
+
+- `.github/workflows/*.yml` — any single workflow file edited by multiple
+  Stories
+- `package.json` at the repo root (dependency or script edits)
+- `pnpm-workspace.yaml`, `turbo.json`, `nx.json`, `lerna.json` — monorepo
+  manifests
+- `tsconfig.base.json`, `tsconfig.json` at the repo root
+- `.gitignore`, `.npmrc`, `.nvmrc` at the repo root
+- Any single file under a `schemas/` directory if it is the only producer
+  of a contract consumed by other Stories — those consumers MUST
+  `depends_on` the producer
+
+Within-Story carve-out: two Tasks inside the **same** Story may edit a
+shared file freely — they merge together on the same Story branch and
+never collide across waves. The constraint applies only across Story
+boundaries. Do NOT silently allow two Stories to write the same root
+configuration file in the same wave; parallel dispatch would produce a
+merge conflict on every Story-to-Epic close after the first.
+
 CRITICAL: Dependencies should follow execution blockers. For hierarchical grouping, strongly strictly use 'parent_slug' (Story parent MUST be a Feature, Task parent MUST be a Story). Features should have no 'parent_slug' (they attach to Epic).
 IMPORTANT DEPENDENCY RULE: A Task's `depends_on` MUST only reference other Tasks within the SAME Story (same parent_slug). Cross-story task dependencies are FORBIDDEN. If two Stories have a logical ordering requirement, add the dependency at the STORY level (one Story depends_on the other Story's slug), NOT between their child Tasks.
 WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTickets} tickets in total. Combine atomic tasks into larger, cohesive tasks. Do NOT cut off the JSON array prematurely!
