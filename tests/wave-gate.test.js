@@ -345,7 +345,10 @@ describe('wave-gate — ticket-cache prime (Story #2465)', () => {
       ],
       cacheOnPrime: true,
     });
-    const result = await runWaveGate({ epicId: 42, injectedProvider: provider });
+    const result = await runWaveGate({
+      epicId: 42,
+      injectedProvider: provider,
+    });
     assert.equal(result.success, true);
     assert.equal(provider.getTicketsCalls.length, 1);
     assert.equal(provider.getTicketsCalls[0], 42);

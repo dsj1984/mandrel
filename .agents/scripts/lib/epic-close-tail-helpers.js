@@ -84,7 +84,10 @@ export async function closePlanningArtifacts({
   const settled = await Promise.all(
     entries.map(async ([kind, id]) => {
       if (!Number.isInteger(id) || id <= 0) {
-        return { kind, value: { id: null, status: 'skipped', detail: 'no-link' } };
+        return {
+          kind,
+          value: { id: null, status: 'skipped', detail: 'no-link' },
+        };
       }
       try {
         await transitionFn(provider, id, STATE_LABELS.DONE, { cascade: false });

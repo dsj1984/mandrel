@@ -130,7 +130,11 @@ describe('closePlanningArtifacts', () => {
     for (const release of releasers) release();
     const result = await pending;
     // Preserve canonical key order in the returned envelope.
-    assert.deepEqual(Object.keys(result), ['prd', 'techSpec', 'acceptanceSpec']);
+    assert.deepEqual(Object.keys(result), [
+      'prd',
+      'techSpec',
+      'acceptanceSpec',
+    ]);
     assert.equal(result.prd.status, 'closed');
     assert.equal(result.techSpec.status, 'closed');
     assert.equal(result.acceptanceSpec.status, 'closed');
