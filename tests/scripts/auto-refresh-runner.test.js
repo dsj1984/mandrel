@@ -183,10 +183,10 @@ describe('stageRefreshArtifacts — Task #2469 (step 1 of pipeline)', () => {
     assert.equal(stage.crapRefreshed.wrote, false);
     // Snapshot was taken — the prior envelope is captured under priorMiEnv.
     assert.ok(stage.priorMiEnv?.rows?.length === 1);
-    assert.deepEqual(
-      calls.map((c) => c.kind).sort(),
-      ['crap', 'maintainability'],
-    );
+    assert.deepEqual(calls.map((c) => c.kind).sort(), [
+      'crap',
+      'maintainability',
+    ]);
   });
 
   it('returns ok=false with reason=refresh-service-threw when refreshBaseline throws', async () => {

@@ -153,8 +153,8 @@ describe('parseStandardCliArgs — required-field enforcement', () => {
   it('throws MISSING_REQUIRED_FLAG for a missing required string flag', () => {
     assert.throws(
       () => parseStandardCliArgs([], { 'changed-since': { required: true } }),
-      (err) => err.code === 'MISSING_REQUIRED_FLAG' &&
-        err.flag === 'changed-since',
+      (err) =>
+        err.code === 'MISSING_REQUIRED_FLAG' && err.flag === 'changed-since',
     );
   });
 
