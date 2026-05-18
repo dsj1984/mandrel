@@ -52,6 +52,10 @@ import {
   buildResumeMergeCommitMsg,
   describeResumePushFailure,
 } from './comment-bodies.js';
+import {
+  buildMergeMessageWithCap,
+  loadHeaderMaxLength,
+} from './merge-subject.js';
 
 /**
  * Render the lock-file path for a given main-repo `cwd` + `epicId`. Pure;
@@ -319,8 +323,16 @@ export function rebaseStoryOnEpic({
  *   gitSpawn?: typeof defaultGitSpawn,
  * }} opts
  */
-function buildMergeMessage(storyTitle, storyId) {
-  return `feat: ${storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1)} (resolves #${storyId})`;
+async function buildMergeMessage(storyTitle, storyId, { cwd, logger }) {
+  const headerMaxLength = await loadHeaderMaxLength(cwd, { logger });
+  const { message } = buildMergeMessageWithCap({
+    type: 'feat',
+    title: storyTitle,
+    storyId,
+    headerMaxLength,
+    logger,
+  });
+  return message;
 }
 
 function buildVerboseMergeLogger(logger) {
@@ -388,11 +400,15 @@ export async function runFinalizeMerge({
   gitSpawn(cwd, 'pull', '--rebase', 'origin', epicBranch);
 
   log('GIT', `Merging ${storyBranch} into ${epicBranch} (--no-ff)...`);
+  const mergeMessage = await buildMergeMessage(storyTitle, storyId, {
+    cwd,
+    logger,
+  });
   const result = mergeFeatureBranch(
     cwd,
     storyBranch,
     buildVerboseMergeLogger(logger),
-    { message: buildMergeMessage(storyTitle, storyId) },
+    { message: mergeMessage },
   );
 
   // Story #2241 / Task #2247 — surface a `story.blocked` lifecycle emit
@@ -450,17 +466,27 @@ function isMergePending(cwd) {
   return fs.existsSync(path.join(cwd, '.git', 'MERGE_HEAD'));
 }
 
-function commitPendingMerge({ cwd, storyTitle, storyId, gitSpawn }) {
+function commitPendingMerge({
+  cwd,
+  storyTitle,
+  storyId,
+  gitSpawn,
+  headerMaxLength,
+  logger,
+}) {
   return gitSpawn(
     cwd,
     'commit',
     '--no-verify',
     '-m',
-    buildResumeMergeCommitMsg(storyTitle, storyId),
+    buildResumeMergeCommitMsg(storyTitle, storyId, {
+      headerMaxLength,
+      logger,
+    }),
   );
 }
 
-export function finalizeMergeIfPending({
+export async function finalizeMergeIfPending({
   cwd,
   epicBranch,
   storyBranch,
@@ -468,6 +494,7 @@ export function finalizeMergeIfPending({
   storyId,
   log = () => {},
   gitSpawn = defaultGitSpawn,
+  logger = DefaultLogger,
 }) {
   if (!isMergePending(cwd)) {
     log(
@@ -477,7 +504,15 @@ export function finalizeMergeIfPending({
     return;
   }
   log('GIT', 'Finalizing in-progress merge (git commit --no-verify)');
-  const commit = commitPendingMerge({ cwd, storyTitle, storyId, gitSpawn });
+  const headerMaxLength = await loadHeaderMaxLength(cwd, { logger });
+  const commit = commitPendingMerge({
+    cwd,
+    storyTitle,
+    storyId,
+    gitSpawn,
+    headerMaxLength,
+    logger,
+  });
   if (commit.status !== 0) {
     throw new Error(
       `Failed to finalize merge commit: ${commit.stderr || commit.stdout || 'unknown'}. ` +
@@ -506,7 +541,7 @@ export async function runResumeMerge({
   gitSpawn = defaultGitSpawn,
 }) {
   try {
-    finalizeMergeIfPending({
+    await finalizeMergeIfPending({
       cwd,
       epicBranch,
       storyBranch,
@@ -514,6 +549,7 @@ export async function runResumeMerge({
       storyId,
       log,
       gitSpawn,
+      logger,
     });
   } catch (err) {
     await emitStoryBlockedSafe({
