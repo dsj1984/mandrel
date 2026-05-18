@@ -57,6 +57,9 @@
  * @module lib/signals/schema
  */
 
+import { isObject } from '../json-utils.js';
+import { isPositiveInt } from './detectors/common.js';
+
 /**
  * Frozen enumeration of every event kind currently emitted by
  * `signals-writer.appendSignal` / `appendTrace`, plus the
@@ -116,10 +119,6 @@ export const FIELDS = Object.freeze({
   PHASE: 'phase',
 });
 
-function isObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
-
 /**
  * Return true when `v` is a non-empty ISO-8601-ish timestamp string.
  * We don't fully validate format here — the schema's contract is "looks
@@ -130,17 +129,6 @@ function isObject(v) {
  */
 function isTimestamp(v) {
   return typeof v === 'string' && v.length > 0;
-}
-
-/**
- * Return true when `v` is a positive integer (writers always assert this
- * before calling `signalsFile()`).
- *
- * @param {unknown} v
- * @returns {boolean}
- */
-function isPositiveInt(v) {
-  return Number.isInteger(v) && v > 0;
 }
 
 /**

@@ -2,6 +2,7 @@ import { spawnSync as defaultSpawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { filterExcludedRows } from './baselines/kinds/maintainability.js';
 import { canonicalise as canonicalisePath } from './baselines/path-canon.js';
 import { loadFile as readerLoadFile } from './baselines/reader.js';
 import {
@@ -491,11 +492,13 @@ export async function regenerateMainFromTree({
     // canonical row shape. Story #2079 path-canon defence stays in place —
     // the writer would canonicalise again, but doing it here keeps any
     // pre-canonicalised comparison inside the function meaningful.
-    const miRows = Object.entries(scores).map(([key, mi]) => {
-      const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
-      const posixRel = rel.split(path.sep).join('/');
-      return { path: canonicalisePath(posixRel), mi };
-    });
+    const miRows = filterExcludedRows(
+      Object.entries(scores).map(([key, mi]) => {
+        const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+        const posixRel = rel.split(path.sep).join('/');
+        return { path: canonicalisePath(posixRel), mi };
+      }),
+    );
 
     const priorMi = loadPriorFn(miAbs, 'maintainability');
     const envelope = writeFn({

@@ -52,6 +52,8 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
+import { extractTool, isPositiveInt } from './common.js';
+
 /**
  * Tools that mutate files. Only these contribute to the per-target edit
  * count. Anything outside this set is ignored.
@@ -61,28 +63,6 @@ import { createInterface } from 'node:readline';
 const FILE_MUTATING_TOOLS = Object.freeze(
   new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']),
 );
-
-function isPositiveInt(v) {
-  return Number.isInteger(v) && v > 0;
-}
-
-/**
- * Pull the tool name from a trace record. The hook writes the tool name
- * into `source.tool` and (defensively) into `details.tool` — we accept
- * either so older traces still classify correctly.
- *
- * @param {object} rec
- * @returns {string|null}
- */
-function extractTool(rec) {
-  if (typeof rec?.source?.tool === 'string' && rec.source.tool.length > 0) {
-    return rec.source.tool;
-  }
-  if (typeof rec?.details?.tool === 'string' && rec.details.tool.length > 0) {
-    return rec.details.tool;
-  }
-  return null;
-}
 
 /**
  * Stream `tracesPath` line-by-line and accumulate per-targetHash edit

@@ -362,6 +362,157 @@ export function checkWindowsGitPerf(ctx) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// BOOTSTRAP_PHASES (Story #2459 / Task #2473)
+//
+// The previous `applyProjectBootstrap` was an 11-step inline pipeline with
+// three fatal-abort branches (`nodeCheck`, `validation`, `parity`). Each
+// phase is now a declarative `{ name, run, isFatal?, formatError? }`
+// entry. The single-pass driver `runPhases` reads the array, calls each
+// `run(ctx, report)`, accumulates the result onto `report[phase.name]`,
+// and routes fatal phases through `throwIfFatal` so the abort message
+// remains operator-visible.
+//
+// `applyProjectBootstrap` collapses to two lines: instantiate an empty
+// report, hand it to `runPhases`, return it.
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {object} BootstrapPhase
+ * @property {string} name       — key used to land the result on the report.
+ * @property {(ctx: object, report: object) => any|Promise<any>} run
+ *                                 — executes the phase. May read prior
+ *                                   phases via `report.<name>`.
+ * @property {boolean} [isFatal]  — when `true`, the driver passes the
+ *                                   result through `formatError`; if the
+ *                                   formatter returns a non-empty string,
+ *                                   the driver throws with that message.
+ * @property {(result: any) => string|null} [formatError]
+ *                                 — produces the error message when the
+ *                                   phase result indicates a fatal abort.
+ */
+
+const fatalNodeCheck = (result) =>
+  result.ok
+    ? null
+    : `[bootstrap] Node ${result.version} is below required ${result.required}.x. Upgrade Node and re-run.`;
+
+const fatalValidation = (result) =>
+  result.ok
+    ? null
+    : `[bootstrap] .agentrc.json failed schema validation: ${JSON.stringify(
+        result.errors,
+        null,
+        2,
+      )}`;
+
+const fatalParity = (result) =>
+  result.ok
+    ? null
+    : `[bootstrap] Parity check failed — workflows missing commands: ${
+        result.missingCommand.join(', ') || '(none)'
+      }; orphan commands: ${result.orphanCommand.join(', ') || '(none)'}`;
+
+/**
+ * Pipeline definition — the order, the helpers, and the fatal-abort
+ * branches. Exported so tests can assert phase ordering, the fatal flag,
+ * and the report-shape parity guarantee without driving the whole
+ * bootstrap.
+ */
+export const BOOTSTRAP_PHASES = Object.freeze([
+  {
+    name: 'nodeCheck',
+    run: () => checkNodeVersion(),
+    isFatal: true,
+    formatError: fatalNodeCheck,
+  },
+  {
+    name: 'pkg',
+    run: (ctx) => ensurePackageJson(ctx),
+  },
+  {
+    name: 'install',
+    run: (ctx, report) => ensureDependenciesInstalled(ctx, report.pkg),
+  },
+  {
+    name: 'agentrc',
+    run: (ctx) => ensureAgentrc(ctx),
+  },
+  {
+    name: 'validation',
+    run: async (ctx) => validateAgentrc(ctx),
+    isFatal: true,
+    formatError: fatalValidation,
+  },
+  {
+    name: 'claudeSettings',
+    run: (ctx) => ensureClaudeSettings(ctx),
+  },
+  {
+    name: 'gitignore',
+    run: (ctx) => ensureGitignore(ctx),
+  },
+  {
+    name: 'sync',
+    run: (ctx) => runSyncCommands(ctx),
+  },
+  {
+    name: 'parity',
+    run: (ctx) => checkParity(ctx),
+    isFatal: true,
+    formatError: fatalParity,
+  },
+  {
+    name: 'quality',
+    run: (ctx) =>
+      ctx.skipQuality
+        ? { skipped: true }
+        : applyQualityBootstrap({ projectRoot: ctx.projectRoot }),
+  },
+  {
+    name: 'winPerf',
+    run: (ctx) => checkWindowsGitPerf(ctx),
+  },
+]);
+
+/**
+ * Throw with the formatted message when the phase is marked fatal and
+ * the result indicates an abort. Pure helper so the driver stays a
+ * single-branch loop.
+ *
+ * Exported for tests.
+ *
+ * @param {BootstrapPhase} phase
+ * @param {any} result
+ */
+export function throwIfFatal(phase, result) {
+  if (!phase.isFatal) return;
+  const msg = phase.formatError?.(result);
+  if (typeof msg === 'string' && msg.length > 0) throw new Error(msg);
+}
+
+/**
+ * Iterate `phases` in order; await each phase's `run(ctx, report)`, land
+ * the result on `report[phase.name]`, then route fatal phases through
+ * `throwIfFatal`. Returns the accumulated report.
+ *
+ * Exported for tests so phase ordering and fatal behaviour can be
+ * asserted without spawning a full bootstrap.
+ *
+ * @param {ReadonlyArray<BootstrapPhase>} phases
+ * @param {object} ctx
+ * @returns {Promise<object>}
+ */
+export async function runPhases(phases, ctx) {
+  const report = {};
+  for (const phase of phases) {
+    const result = await phase.run(ctx, report);
+    report[phase.name] = result;
+    throwIfFatal(phase, result);
+  }
+  return report;
+}
+
 /**
  * Compose every step in order. Each returned key is the outcome of one
  * step so the CLI can render a structured summary.
@@ -377,51 +528,5 @@ export function checkWindowsGitPerf(ctx) {
  * @returns {Promise<object>}
  */
 export async function applyProjectBootstrap(ctx) {
-  const nodeCheck = checkNodeVersion();
-  if (!nodeCheck.ok) {
-    throw new Error(
-      `[bootstrap] Node ${nodeCheck.version} is below required ${nodeCheck.required}.x. Upgrade Node and re-run.`,
-    );
-  }
-  const pkg = ensurePackageJson(ctx);
-  const install = ensureDependenciesInstalled(ctx, pkg);
-  const agentrc = ensureAgentrc(ctx);
-  const validation = await validateAgentrc(ctx);
-  if (!validation.ok) {
-    throw new Error(
-      `[bootstrap] .agentrc.json failed schema validation: ${JSON.stringify(
-        validation.errors,
-        null,
-        2,
-      )}`,
-    );
-  }
-  const claudeSettings = ensureClaudeSettings(ctx);
-  const gitignore = ensureGitignore(ctx);
-  const sync = runSyncCommands(ctx);
-  const parity = checkParity(ctx);
-  if (!parity.ok) {
-    throw new Error(
-      `[bootstrap] Parity check failed — workflows missing commands: ${
-        parity.missingCommand.join(', ') || '(none)'
-      }; orphan commands: ${parity.orphanCommand.join(', ') || '(none)'}`,
-    );
-  }
-  const quality = ctx.skipQuality
-    ? { skipped: true }
-    : applyQualityBootstrap({ projectRoot: ctx.projectRoot });
-  const winPerf = checkWindowsGitPerf(ctx);
-  return {
-    nodeCheck,
-    pkg,
-    install,
-    agentrc,
-    validation,
-    claudeSettings,
-    gitignore,
-    sync,
-    parity,
-    quality,
-    winPerf,
-  };
+  return runPhases(BOOTSTRAP_PHASES, ctx);
 }

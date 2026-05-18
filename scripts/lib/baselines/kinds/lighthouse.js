@@ -5,6 +5,7 @@
  * still passes the path-canon checks for absolute / `..` rejection).
  */
 
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -61,9 +62,7 @@ function aggregate(rows) {
 export function rollup(rows, components = []) {
   const out = { '*': aggregate(rows) };
   for (const c of components ?? []) {
-    const matched = (rows ?? []).filter((r) =>
-      componentMatchesRoute(c, r.route),
-    );
+    const matched = (rows ?? []).filter((r) => componentMatches(c, r.route));
     out[c.name] = aggregate(matched);
   }
   return out;
@@ -127,13 +126,6 @@ function classify(regressions, improvements, unchanged, key, head, base) {
   if (down) regressions.push({ key, head, base });
   else if (up) improvements.push({ key, head, base });
   else unchanged.push({ key, head, base });
-}
-
-function componentMatchesRoute(component, route) {
-  if (!component || typeof component.includes !== 'string') return false;
-  return (
-    route === component.includes || route.startsWith(`${component.includes}/`)
-  );
 }
 
 /**

@@ -123,16 +123,153 @@ export function inferDefaults(projectRoot) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Resolver chain (Story #2459 / Task #2470)
+//
+// `collectAnswers` used to be a 60-line for-loop with seven `continue`
+// branches — flag, env, silent-accept, interactive (with re-ask), assume-yes,
+// missing-required. The branches all had the same shape: "try to produce a
+// value; if you have one, record it and move on". Each branch is now a
+// dedicated `resolveFrom*` helper that returns one of three outcomes:
+//
+//   { kind: 'value',   value }  — accepted this answer; stop trying resolvers.
+//   { kind: 'missing' }         — required-but-empty; record on `missing[]`.
+//   { kind: 'skip' }            — this resolver doesn't apply; try the next.
+//
+// `collectAnswers` becomes a two-level loop: for each question, walk the
+// `RESOLVERS` array in priority order. Each resolver is testable in
+// isolation and measures CC < 8 independently.
+// ---------------------------------------------------------------------------
+
 /**
- * Walk the question list and resolve a value for each, in priority order:
- *   1. CLI flag (`flags[question.flag]`).
- *   2. Environment variable (`process.env[question.env]`) when defined.
- *   3. Silent-accept default when the question's key is in `silentAccept`
- *      and `q.default` is non-empty (used to skip prompting for values
- *      already inferred from local git state).
- *   4. Interactive prompt with the supplied default (only when
- *      `interactive` is true).
- *   5. The supplied default (only when `assumeYes` is true).
+ * @typedef {object} ResolverContext
+ * @property {object} q                — The question definition.
+ * @property {Record<string, string|boolean>} flags
+ * @property {NodeJS.ProcessEnv} env
+ * @property {Set<string>} silentSet   — Keys whose default should be
+ *                                       accepted without prompting.
+ * @property {boolean} interactive
+ * @property {boolean} assumeYes
+ * @property {() => Promise<readline.Interface>} getRl — Lazy readline factory
+ *                                       that returns the same instance across
+ *                                       calls within one collectAnswers run.
+ * @property {NodeJS.WritableStream} output
+ */
+
+/**
+ * Resolver 1 — CLI flag wins outright.
+ * @param {ResolverContext} ctx
+ * @returns {{ kind: 'value'|'skip', value?: string }}
+ */
+export function resolveFromFlag(ctx) {
+  const flagValue = ctx.flags[ctx.q.flag];
+  if (typeof flagValue === 'string' && flagValue.length > 0) {
+    return { kind: 'value', value: flagValue };
+  }
+  return { kind: 'skip' };
+}
+
+/**
+ * Resolver 2 — env var override.
+ * @param {ResolverContext} ctx
+ * @returns {{ kind: 'value'|'skip', value?: string }}
+ */
+export function resolveFromEnv(ctx) {
+  const envName = ctx.q.env;
+  if (!envName) return { kind: 'skip' };
+  const envValue = ctx.env[envName];
+  if (typeof envValue === 'string' && envValue.length > 0) {
+    return { kind: 'value', value: envValue };
+  }
+  return { kind: 'skip' };
+}
+
+/**
+ * Resolver 3 — silent-accept default (key was inferred from local git state
+ * and no operator override was supplied).
+ * @param {ResolverContext} ctx
+ * @returns {{ kind: 'value'|'skip', value?: string }}
+ */
+export function resolveFromSilent(ctx) {
+  if (!ctx.silentSet.has(ctx.q.key)) return { kind: 'skip' };
+  const def = ctx.q.default;
+  if (typeof def !== 'string' || def.length === 0) return { kind: 'skip' };
+  return { kind: 'value', value: def };
+}
+
+/**
+ * Prompt once with the question's default label, applying the default when
+ * the operator pressed Enter on an empty line. Pure I/O; exported so
+ * `resolveInteractive` can be unit-tested with a mocked readline.
+ *
+ * @param {readline.Interface} rl
+ * @param {object} q
+ * @returns {Promise<string>}
+ */
+async function askOnce(rl, q) {
+  const defaultLabel = q.default ? ` [${q.default}]` : '';
+  const raw = await rl.question(`${q.message}${defaultLabel}: `);
+  const trimmed = raw.trim();
+  if (trimmed.length === 0 && q.default) return q.default;
+  return trimmed;
+}
+
+/**
+ * Resolver 4 — interactive prompt. Asks once; if `q.validate` rejects, the
+ * helper re-asks once more before declaring the answer missing.
+ *
+ * @param {ResolverContext} ctx
+ * @returns {Promise<{ kind: 'value'|'missing'|'skip', value?: string }>}
+ */
+export async function resolveInteractive(ctx) {
+  if (!ctx.interactive) return { kind: 'skip' };
+  const rl = await ctx.getRl();
+  const q = ctx.q;
+  let answer = await askOnce(rl, q);
+  const firstErr = q.validate ? q.validate(answer) : null;
+  if (firstErr) {
+    ctx.output.write(`  ! ${firstErr}\n`);
+    answer = await askOnce(rl, q);
+    if (q.validate?.(answer)) return { kind: 'missing' };
+  }
+  if (answer.length === 0 && q.required) return { kind: 'missing' };
+  return { kind: 'value', value: answer };
+}
+
+/**
+ * Resolver 5 — non-interactive `--assume-yes` fallback. Accepts the
+ * question's default verbatim; emits `missing` for required questions that
+ * lack a default.
+ *
+ * @param {ResolverContext} ctx
+ * @returns {{ kind: 'value'|'missing'|'skip', value?: string }}
+ */
+export function resolveAssumeYes(ctx) {
+  if (!ctx.assumeYes) return { kind: 'skip' };
+  if (ctx.q.default) return { kind: 'value', value: ctx.q.default };
+  if (ctx.q.required) return { kind: 'missing' };
+  return { kind: 'skip' };
+}
+
+/**
+ * Priority-ordered list of resolvers. Each is tried in turn until one
+ * returns a non-`skip` outcome. Exported for testing.
+ */
+export const RESOLVERS = Object.freeze([
+  resolveFromFlag,
+  resolveFromEnv,
+  resolveFromSilent,
+  resolveInteractive,
+  resolveAssumeYes,
+]);
+
+/**
+ * Walk the question list and resolve a value for each. Each question is
+ * routed through the `RESOLVERS` chain in priority order; the first
+ * resolver to return `{ kind: 'value' }` wins, `{ kind: 'missing' }` adds
+ * the key to `missing[]`, and `{ kind: 'skip' }` continues the chain. If
+ * every resolver skips a *required* question, the key is recorded as
+ * missing so callers can decide whether to abort.
  *
  * Returns `{ answers, missing }` so the CLI can decide whether to abort
  * (non-TTY with missing required fields and no `--assume-yes`).
@@ -164,56 +301,36 @@ export async function collectAnswers(args) {
   const answers = {};
   const missing = [];
   let rl = null;
+  const getRl = async () => {
+    rl ??= readline.createInterface({ input, output });
+    return rl;
+  };
   try {
     for (const q of questions) {
-      const flagValue = flags[q.flag];
-      if (typeof flagValue === 'string' && flagValue.length > 0) {
-        answers[q.key] = flagValue;
+      const ctx = {
+        q,
+        flags,
+        env: process.env,
+        silentSet,
+        interactive,
+        assumeYes,
+        getRl,
+        output,
+      };
+      let outcome = { kind: 'skip' };
+      for (const resolver of RESOLVERS) {
+        outcome = await resolver(ctx);
+        if (outcome.kind !== 'skip') break;
+      }
+      if (outcome.kind === 'value') {
+        answers[q.key] = outcome.value;
         continue;
       }
-      const envValue = q.env ? process.env[q.env] : undefined;
-      if (typeof envValue === 'string' && envValue.length > 0) {
-        answers[q.key] = envValue;
+      if (outcome.kind === 'missing') {
+        missing.push(q.key);
         continue;
       }
-      if (
-        silentSet.has(q.key) &&
-        typeof q.default === 'string' &&
-        q.default.length > 0
-      ) {
-        answers[q.key] = q.default;
-        continue;
-      }
-      if (interactive) {
-        rl ??= readline.createInterface({ input, output });
-        const defaultLabel = q.default ? ` [${q.default}]` : '';
-        let answer = (
-          await rl.question(`${q.message}${defaultLabel}: `)
-        ).trim();
-        if (answer.length === 0 && q.default) answer = q.default;
-        const err = q.validate ? q.validate(answer) : null;
-        if (err) {
-          output.write(`  ! ${err}\n`);
-          // re-ask once; on second failure record as missing
-          answer = (await rl.question(`${q.message}${defaultLabel}: `)).trim();
-          if (answer.length === 0 && q.default) answer = q.default;
-          if (q.validate?.(answer)) {
-            missing.push(q.key);
-            continue;
-          }
-        }
-        if (answer.length === 0 && q.required) {
-          missing.push(q.key);
-          continue;
-        }
-        answers[q.key] = answer;
-        continue;
-      }
-      // Non-interactive: fall back to default when --assume-yes is set.
-      if (assumeYes && q.default) {
-        answers[q.key] = q.default;
-        continue;
-      }
+      // Every resolver skipped — record as missing only if required.
       if (q.required) missing.push(q.key);
     }
   } finally {
