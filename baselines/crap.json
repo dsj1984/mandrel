@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T16:12:36.947Z",
+  "generatedAt": "2026-05-18T16:26:44.719Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12,
-      "max": 127.22424651851853,
-      "methodsAbove20": 11
+      "max": 56,
+      "methodsAbove20": 10
     }
   },
   "rows": [
@@ -105,7 +105,37 @@
       "path": ".agents/scripts/bootstrap.js",
       "method": "buildQuestions",
       "startLine": 55,
-      "crap": 6
+      "crap": 2.001382341665182
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "<anon method-1>",
+      "startLine": 64,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "<anon method-2>",
+      "startLine": 74,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "<anon method-3>",
+      "startLine": 84,
+      "crap": 4.125
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "<anon method-4>",
+      "startLine": 96,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "<anon method-5>",
+      "startLine": 105,
+      "crap": 4.125
     },
     {
       "path": ".agents/scripts/bootstrap.js",
@@ -127,9 +157,45 @@
     },
     {
       "path": ".agents/scripts/bootstrap.js",
+      "method": "parseAndValidate",
+      "startLine": 268,
+      "crap": 6
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "prepareContext",
+      "startLine": 305,
+      "crap": 3.49757045675413
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "collectAndValidateAnswers",
+      "startLine": 341,
+      "crap": 3
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "executeBootstrap",
+      "startLine": 380,
+      "crap": 1.7702546296296295
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "executeGithubBootstrap",
+      "startLine": 406,
+      "crap": 3.6875
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
+      "method": "runPipeline",
+      "startLine": 430,
+      "crap": 2.0054869684499312
+    },
+    {
+      "path": ".agents/scripts/bootstrap.js",
       "method": "main",
-      "startLine": 227,
-      "crap": 127.22424651851853
+      "startLine": 440,
+      "crap": 2.049157942649067
     },
     {
       "path": ".agents/scripts/check-baselines.js",
@@ -2127,13 +2193,13 @@
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
       "method": "runGit",
       "startLine": 93,
-      "crap": 6
+      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
       "method": "inferDefaults",
       "startLine": 107,
-      "crap": 17.478737997256516
+      "crap": 4
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",

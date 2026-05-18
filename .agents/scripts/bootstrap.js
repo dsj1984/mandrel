@@ -224,36 +224,92 @@ async function runGithubBootstrap(answers, opts) {
   });
 }
 
-export async function main(argv = process.argv.slice(2)) {
+// ---------------------------------------------------------------------------
+// Phase helpers (Story #2459 / Task #2471)
+//
+// `main()` was a 75-line procedural pipeline that mixed flag parsing,
+// non-TTY validation, defaults inference, answer collection, the project-
+// side mutation, and the GitHub-side bootstrap into a single function
+// with seven decision points. Each phase below is now a small helper that
+// returns either `{ ok: true, payload? }` (the pipeline advances) or
+// `{ ok: false, exit: <code> }` (the pipeline short-circuits with the
+// supplied exit code). `main` becomes a five-line pipeline driver.
+//
+// The helpers are exported so the sibling test file can exercise each
+// phase in isolation without spawning a child process.
+// ---------------------------------------------------------------------------
+
+/**
+ * @typedef {object} PhaseHalt
+ * @property {false} ok        — pipeline must stop here.
+ * @property {number} exit     — process exit code to return.
+ *
+ * @typedef {object} PhaseAdvance
+ * @property {true} ok         — pipeline advances to the next phase.
+ * @property {object} [payload] — values the next phase needs.
+ *
+ * @typedef {PhaseHalt | PhaseAdvance} PhaseResult
+ */
+
+/**
+ * Phase 1 — Parse argv, short-circuit on `--help`, and enforce the
+ * non-TTY contract (`--assume-yes` plus `--owner`/`--repo` or their env
+ * equivalents).
+ *
+ * Exported for tests.
+ *
+ * @param {string[]} argv
+ * @param {object} [opts]
+ * @param {NodeJS.WritableStream} [opts.stdout]
+ * @param {NodeJS.ProcessEnv} [opts.env]
+ * @param {{ isTTY?: boolean }} [opts.stdin]
+ * @returns {PhaseResult}
+ */
+export function parseAndValidate(argv, opts = {}) {
+  const stdout = opts.stdout ?? process.stdout;
+  const env = opts.env ?? process.env;
+  const stdin = opts.stdin ?? process.stdin;
   const flags = parseFlags(argv);
   if (flags.help) {
-    process.stdout.write(HELP);
-    return 0;
+    stdout.write(HELP);
+    return { ok: false, exit: 0 };
   }
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const projectRoot = process.cwd();
-  const agentRoot = path.resolve(here, '..');
-  const defaults = inferDefaults(projectRoot);
-  const interactive = Boolean(process.stdin.isTTY) && !flags['assume-yes'];
+  const interactive = Boolean(stdin.isTTY) && !flags['assume-yes'];
   const assumeYes = Boolean(flags['assume-yes']);
   if (!interactive && !assumeYes) {
-    // Allow flag-only non-interactive runs only when the operator has
-    // pinned every required field via flag/env.
     const required = ['owner', 'repo'];
     const missing = required.filter(
       (k) =>
         typeof flags[k] !== 'string' &&
-        typeof process.env[`GH_${k.toUpperCase()}`] !== 'string',
+        typeof env[`GH_${k.toUpperCase()}`] !== 'string',
     );
     if (missing.length > 0) {
       Logger.error(
         `[bootstrap] non-TTY run requires --owner and --repo (or GH_OWNER / GH_REPO) and --assume-yes. Missing: ${missing.join(', ')}`,
       );
-      return 1;
+      return { ok: false, exit: 1 };
     }
   }
-  const silentAccept = resolveSilentAccept(defaults, flags);
-  if (interactive && silentAccept.length > 0) {
+  return { ok: true, payload: { flags, interactive, assumeYes } };
+}
+
+/**
+ * Phase 2 — Resolve project paths, infer defaults from git, and compute
+ * which inferred keys can be silently accepted. Pure I/O against the
+ * local filesystem (no network calls).
+ *
+ * @param {{ flags: Record<string, string|boolean>, interactive: boolean }} state
+ * @param {{ scriptUrl?: string, projectRoot?: string }} [opts]
+ * @returns {PhaseAdvance}
+ */
+export function prepareContext(state, opts = {}) {
+  const scriptUrl = opts.scriptUrl ?? import.meta.url;
+  const here = path.dirname(fileURLToPath(scriptUrl));
+  const projectRoot = opts.projectRoot ?? process.cwd();
+  const agentRoot = path.resolve(here, '..');
+  const defaults = inferDefaults(projectRoot);
+  const silentAccept = resolveSilentAccept(defaults, state.flags);
+  if (state.interactive && silentAccept.length > 0) {
     const summary = silentAccept
       .map((key) => `${key}=${defaults[key]}`)
       .join(' ');
@@ -262,40 +318,135 @@ export async function main(argv = process.argv.slice(2)) {
       '[bootstrap] Override any value with --owner / --repo / --base-branch / --operator-handle.',
     );
   }
+  return {
+    ok: true,
+    payload: { projectRoot, agentRoot, defaults, silentAccept },
+  };
+}
+
+/**
+ * Phase 3 — Collect answers via the `RESOLVERS` chain and bail when any
+ * required answer is missing. Also short-circuits the `--dry-run` plan
+ * print so the operator can preview without mutating.
+ *
+ * @param {{
+ *   flags: Record<string, string|boolean>,
+ *   interactive: boolean,
+ *   assumeYes: boolean,
+ *   defaults: object,
+ *   silentAccept: string[],
+ * }} state
+ * @returns {Promise<PhaseResult>}
+ */
+export async function collectAndValidateAnswers(state) {
   const { answers, missing } = await collectAnswers({
-    questions: buildQuestions(defaults),
-    flags,
-    interactive,
-    assumeYes,
-    silentAccept,
+    questions: buildQuestions(state.defaults),
+    flags: state.flags,
+    interactive: state.interactive,
+    assumeYes: state.assumeYes,
+    silentAccept: state.silentAccept,
   });
   if (missing.length > 0) {
     Logger.error(`[bootstrap] missing required answers: ${missing.join(', ')}`);
-    return 1;
+    return { ok: false, exit: 1 };
   }
-  if (flags['dry-run']) {
+  if (state.flags['dry-run']) {
     Logger.info('[bootstrap] dry-run plan:');
-    Logger.info(JSON.stringify({ answers, defaults, flags }, null, 2));
-    return 0;
+    Logger.info(
+      JSON.stringify(
+        { answers, defaults: state.defaults, flags: state.flags },
+        null,
+        2,
+      ),
+    );
+    return { ok: false, exit: 0 };
   }
+  return { ok: true, payload: { answers } };
+}
+
+/**
+ * Phase 4 — Execute the project-side bootstrap and return the structured
+ * report. Logs the start banner so operator-visible output is unchanged
+ * from the pre-refactor inline pipeline.
+ *
+ * @param {{
+ *   answers: object,
+ *   projectRoot: string,
+ *   agentRoot: string,
+ *   flags: Record<string, string|boolean>,
+ * }} state
+ * @returns {Promise<PhaseAdvance>}
+ */
+export async function executeBootstrap(state) {
   Logger.info(
-    `[bootstrap] Starting project bootstrap at ${projectRoot} (owner=${answers.owner} repo=${answers.repo} base=${answers.baseBranch})`,
+    `[bootstrap] Starting project bootstrap at ${state.projectRoot} (owner=${state.answers.owner} repo=${state.answers.repo} base=${state.answers.baseBranch})`,
   );
   const report = await applyProjectBootstrap({
-    projectRoot,
-    agentRoot,
-    answers,
-    skipQuality: Boolean(flags['skip-quality']),
+    projectRoot: state.projectRoot,
+    agentRoot: state.agentRoot,
+    answers: state.answers,
+    skipQuality: Boolean(state.flags['skip-quality']),
   });
-  if (!flags['skip-github']) {
-    try {
-      report.github = await runGithubBootstrap(answers, { assumeYes });
-    } catch (err) {
-      Logger.error(`[bootstrap] GitHub bootstrap failed: ${err.message}`);
-      report.github = { error: err.message };
-    }
+  return { ok: true, payload: { report } };
+}
+
+/**
+ * Phase 5 — GitHub-side bootstrap. Honours `--skip-github`; on failure
+ * the error is captured on the report rather than thrown so the summary
+ * still prints. Always advances the pipeline so `printSummary` runs.
+ *
+ * @param {{
+ *   report: object,
+ *   answers: object,
+ *   flags: Record<string, string|boolean>,
+ *   assumeYes: boolean,
+ * }} state
+ * @returns {Promise<PhaseAdvance>}
+ */
+export async function executeGithubBootstrap(state) {
+  if (state.flags['skip-github']) return { ok: true, payload: {} };
+  try {
+    state.report.github = await runGithubBootstrap(state.answers, {
+      assumeYes: state.assumeYes,
+    });
+  } catch (err) {
+    Logger.error(`[bootstrap] GitHub bootstrap failed: ${err.message}`);
+    state.report.github = { error: err.message };
   }
-  printSummary(report);
+  return { ok: true, payload: {} };
+}
+
+/**
+ * Pipeline driver — chains a sequence of phase helpers, threading the
+ * accumulated state through each call. The first helper to return
+ * `{ ok: false }` short-circuits and the driver returns `result.exit`.
+ *
+ * Exported for tests so the contract is asserted without spawning a
+ * child process.
+ *
+ * @param {Array<(state: object) => Promise<object>|object>} phases
+ * @returns {Promise<{ ok: boolean, exit?: number, state: object }>}
+ */
+export async function runPipeline(phases) {
+  let state = {};
+  for (const phase of phases) {
+    const result = await phase(state);
+    if (!result.ok) return { ok: false, exit: result.exit, state };
+    state = { ...state, ...(result.payload ?? {}) };
+  }
+  return { ok: true, state };
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const result = await runPipeline([
+    () => parseAndValidate(argv),
+    (s) => prepareContext(s),
+    (s) => collectAndValidateAnswers(s),
+    (s) => executeBootstrap(s),
+    (s) => executeGithubBootstrap(s),
+  ]);
+  if (!result.ok) return result.exit;
+  printSummary(result.state.report);
   Logger.info('\n[bootstrap] Done.');
   return 0;
 }
