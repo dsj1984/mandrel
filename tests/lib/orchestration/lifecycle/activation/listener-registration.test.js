@@ -32,6 +32,7 @@ import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/
 import { AcceptanceReconciler } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
 import { AutomergeArmer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 import { AutomergePredicate } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
+import { Cleaner } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/cleaner.js';
 import { Finalizer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 import {
   DEFAULT_HEARTBEAT_WARN_SECONDS,
@@ -546,5 +547,59 @@ describe('factory close-tail registrar — AutomergeArmer activation', () => {
       1,
       'automerge-armer.js must be imported exactly once',
     );
+  });
+});
+
+/**
+ * Story #2338 / Task #2345 — Cleaner activation census.
+ *
+ * What this describe block pins:
+ *   1. `createEpicRunnerCollaborators` exposes `cleaner` on the
+ *      collaborator bag, instantiated from the production listener
+ *      class.
+ *   2. The bus on the same bag has at least one listener subscribed to
+ *      `epic.merge.armed` (Cleaner's sole event). The advertised
+ *      `events` tuple is the single-element `['epic.merge.armed']`.
+ *   3. Source-of-truth grep: `cleaner.js` is imported exactly once in
+ *      `factory.js`. Prevents accidental double-registration when
+ *      future close-tail listeners are added.
+ *
+ * This is the runtime closure of the AC for Story #2338: without the
+ * listener wired into the production factory, the AutomergeArmer's
+ * `epic.merge.armed` emission has no consumer — the temp tree never
+ * archives and the terminal `epic.complete` never fires.
+ */
+describe('factory close-tail registrar — Cleaner activation', () => {
+  it('exposes cleaner on the collaborator bag', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.ok(collaborators.cleaner, 'collaborators.cleaner must be present');
+    assert.ok(
+      collaborators.cleaner instanceof Cleaner,
+      'collaborators.cleaner must be a Cleaner',
+    );
+  });
+
+  it('subscribes Cleaner to epic.merge.armed on the production bus', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    const armedListeners =
+      collaborators.bus._listeners.get('epic.merge.armed') ?? [];
+    assert.ok(
+      armedListeners.length >= 1,
+      'at least one listener subscribed to epic.merge.armed',
+    );
+    assert.deepEqual(
+      [...collaborators.cleaner.events],
+      ['epic.merge.armed'],
+      'Cleaner.events must advertise epic.merge.armed and ONLY epic.merge.armed',
+    );
+  });
+
+  it('imports cleaner.js exactly once in factory.js', () => {
+    const factorySource = readFileSync(FACTORY_PATH, 'utf8');
+    const matches = factorySource.match(
+      /from\s+['"][^'"]*lifecycle\/listeners\/cleaner\.js['"]/g,
+    );
+    assert.ok(matches, 'factory.js must import cleaner.js');
+    assert.equal(matches.length, 1, 'cleaner.js must be imported exactly once');
   });
 });

@@ -24,6 +24,7 @@ import { AutomergeArmer } from '../lifecycle/listeners/automerge-armer.js';
 import { AutomergePredicate } from '../lifecycle/listeners/automerge-predicate.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
+import { Cleaner } from '../lifecycle/listeners/cleaner.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
@@ -219,6 +220,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     watcher,
     automergePredicate,
     automergeArmer,
+    cleaner,
   } = registerCloseTailChain({
     bus,
     epicId: ctx.epicId,
@@ -226,6 +228,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     provider,
     config,
     logger,
+    tempRoot,
   });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
@@ -290,6 +293,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     watcher,
     automergePredicate,
     automergeArmer,
+    cleaner,
   };
 }
 
@@ -372,14 +376,22 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      issues `gh pr merge --auto --squash --delete-branch` exactly
  *      once per PR. Emits `epic.merge.armed`. Wired AFTER
  *      AutomergePredicate so the bus delivers the freshly-emitted
- *      `epic.merge.ready` in chain order, and BEFORE the (future)
- *      Cleaner which subscribes to `epic.merge.armed`. This is the
- *      runtime closure of High-1 from the Epic #2172 review:
- *      auto-merge can no longer fire before the predicate's verdict.
+ *      `epic.merge.ready` in chain order, and BEFORE the Cleaner
+ *      which subscribes to `epic.merge.armed`. This is the runtime
+ *      closure of High-1 from the Epic #2172 review: auto-merge can
+ *      no longer fire before the predicate's verdict.
+ *   6. `Cleaner` — subscribes to `epic.merge.armed` (and ONLY that
+ *      event). Archives `temp/epic-<id>/` under
+ *      `temp/archive/epic-<id>-<ts>/` and emits the terminal sequence
+ *      `epic.cleanup.start → epic.cleanup.end → epic.complete`.
+ *      Registered LAST in the close-tail chain so every observer and
+ *      mutator already wired on the bus sees the terminal events.
+ *      Requires a non-empty `tempRoot`; the slot stays `null` for unit
+ *      fixtures that omit it.
  *
  * The "close-tail chain" name is deliberately umbrella-shaped: future
- * close-time listeners (Cleaner) register here in the same canonical
- * slot — after observers and mutators, before BlockerHandler.
+ * close-time listeners register here in the same canonical slot —
+ * after observers and mutators, before BlockerHandler.
  *
  * Returns the constructed listener bag so the collaborator bag can
  * expose each to tests. Returns the bag with `null` slots when the bus
@@ -393,6 +405,7 @@ function registerCloseTailChain({
   provider,
   config,
   logger,
+  tempRoot,
 }) {
   if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
     return {
@@ -401,6 +414,7 @@ function registerCloseTailChain({
       watcher: null,
       automergePredicate: null,
       automergeArmer: null,
+      cleaner: null,
     };
   }
   if (!Number.isInteger(epicId) || epicId < 1) {
@@ -410,6 +424,7 @@ function registerCloseTailChain({
       watcher: null,
       automergePredicate: null,
       automergeArmer: null,
+      cleaner: null,
     };
   }
   const acceptanceReconciler = new AcceptanceReconciler({
@@ -460,8 +475,26 @@ function registerCloseTailChain({
     logger,
   });
   automergeArmer.register();
+  // Story #2338 / Task #2345 — Cleaner subscribes to `epic.merge.armed`
+  // (and ONLY that event). Registered LAST in the close-tail chain so
+  // every observer / mutator already on the bus sees the terminal
+  // `epic.cleanup.start → epic.cleanup.end → epic.complete` emit
+  // sequence. The listener requires a non-empty `tempRoot`; production
+  // always threads the resolved value through (see `tempRootFrom` in
+  // the collaborator factory), but the slot stays `null` for unit
+  // fixtures that omit it so the rest of the chain wires cleanly.
+  let cleaner = null;
+  if (typeof tempRoot === 'string' && tempRoot.length > 0) {
+    cleaner = new Cleaner({
+      bus,
+      epicId,
+      tempRoot,
+      logger,
+    });
+    cleaner.register();
+  }
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; cleaner → epic.merge.armed)',
   );
   return {
     acceptanceReconciler,
@@ -469,6 +502,7 @@ function registerCloseTailChain({
     watcher,
     automergePredicate,
     automergeArmer,
+    cleaner,
   };
 }
 
