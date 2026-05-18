@@ -278,15 +278,17 @@ export async function evaluateAutoMergePredicate({
     );
   }
 
-  const [state, codeReview, retro] = await Promise.all([
-    readRunStateFn({ provider, epicId }),
-    findCommentFn(provider, epicId, 'code-review'),
-    (async () => {
-      const primary = await findCommentFn(provider, epicId, 'retro');
-      if (primary) return primary;
-      return findCommentFn(provider, epicId, 'retro-partial');
-    })(),
-  ]);
+  // Sequential awaits (not Promise.all) — the lifecycle lint surface forbids
+  // Promise.all under `lib/orchestration/lifecycle/**` because parallelizing
+  // listener invocations breaks bus repeatability. This evaluator is read-
+  // only IO, but the rule is directory-scoped; sequencing here is a
+  // cheap concession for living inside the listener tree.
+  const state = await readRunStateFn({ provider, epicId });
+  const codeReview = await findCommentFn(provider, epicId, 'code-review');
+  let retro = await findCommentFn(provider, epicId, 'retro');
+  if (!retro) {
+    retro = await findCommentFn(provider, epicId, 'retro-partial');
+  }
 
   return deriveAutoMergeVerdict({ state, codeReview, retro });
 }
