@@ -52,6 +52,30 @@ const SHIM_INVARIANTS = [
       'verifyAndRecoverEpicClose',
     ],
   },
+  {
+    // Story #2327 / Task #2332 — collapsed from 371 lines to a thin
+    // emit shim. The Watcher listener owns the required-check poll
+    // loop AND the mergeStateStatus: BEHIND auto-recovery.
+    label: 'pr-watch-with-update.js',
+    file: path.join(SCRIPTS_DIR, 'pr-watch-with-update.js'),
+    event: 'pr.created',
+    forbiddenIdentifiers: [
+      // Legacy helper exports that lived in the watch-and-recover CLI.
+      'runPrWatchWithUpdate',
+      'parsePrWatchArgs',
+      'classifyPrWatchInvocation',
+      'classifyPollResult',
+      'normalizeCheckResult',
+      'BEHIND_MERGE_STATE',
+      'CLEAN_MERGE_STATES',
+      'GREEN_RESULTS',
+      'FAILURE_RESULTS',
+      'DEFAULT_MAX_UPDATES',
+      'DEFAULT_POLL_INTERVAL_MS',
+      // Side-effect surface that must not survive the neutering.
+      'update-branch',
+    ],
+  },
 ];
 
 describe('close-tail legacy CLI shim invariants', () => {
