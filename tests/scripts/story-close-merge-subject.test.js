@@ -59,7 +59,10 @@ describe('story-close merge-subject — truncation boundary fixtures', () => {
 
     assert.equal(shaped.truncated, false);
     assert.equal(shaped.bodyTrailer, null);
-    assert.equal(shaped.subject, `feat: short title that fits (resolves #${storyId})`);
+    assert.equal(
+      shaped.subject,
+      `feat: short title that fits (resolves #${storyId})`,
+    );
     assert.ok(
       Buffer.byteLength(shaped.subject, 'utf8') <= COMMITLINT_DEFAULT_CAP,
     );
@@ -100,13 +103,16 @@ describe('story-close merge-subject — truncation boundary fixtures', () => {
     const storyId = 2466;
     // Twelve 10-char tokens separated by single spaces → 12*10 + 11 = 131 chars.
     // Truncation budget after `feat: ` (6) and ` (resolves #2466)` (17) = 77 bytes.
-    const title = Array.from({ length: 12 }, (_, i) =>
-      `token${String(i).padStart(2, '0')}xx`,
+    const title = Array.from(
+      { length: 12 },
+      (_, i) => `token${String(i).padStart(2, '0')}xx`,
     ).join(' ');
     // Spirit of the Story's "120-char" fixture: assert the over-cap precondition explicitly.
-    assert.ok(title.length >= 100, `title fixture must be at least 100 chars (got ${title.length})`);
-    const original =
-      `feat: ${title.charAt(0).toLowerCase() + title.slice(1)} (resolves #${storyId})`;
+    assert.ok(
+      title.length >= 100,
+      `title fixture must be at least 100 chars (got ${title.length})`,
+    );
+    const original = `feat: ${title.charAt(0).toLowerCase() + title.slice(1)} (resolves #${storyId})`;
     assert.ok(
       Buffer.byteLength(original, 'utf8') > COMMITLINT_DEFAULT_CAP,
       'fixture must exceed the cap before truncation',
