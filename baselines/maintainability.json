@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-17T16:10:38.325Z",
+  "generatedAt": "2026-05-18T03:45:54.359Z",
   "rollup": {
     "*": {
       "min": 0,
-      "p50": 103.133,
+      "p50": 103.156,
       "p95": 121.484
     }
   },
@@ -45,6 +45,10 @@
     {
       "path": ".agents/scripts/check-dead-exports.js",
       "mi": 92.663
+    },
+    {
+      "path": ".agents/scripts/check-lifecycle-lint.js",
+      "mi": 0
     },
     {
       "path": ".agents/scripts/check-windows-git-perf.js",
@@ -100,7 +104,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-automerge.js",
-      "mi": 87.149
+      "mi": 93.039
     },
     {
       "path": ".agents/scripts/epic-deliver-cleanup.js",
@@ -784,7 +788,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 95.419
+      "mi": 84.161
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -2615,6 +2619,18 @@
       "mi": 111.346
     },
     {
+      "path": "tests/lib/orchestration/lifecycle/activation/automerge-armer-activation.test.js",
+      "mi": 107.667
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/legacy-shims.test.js",
+      "mi": 111.304
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/listener-registration.test.js",
+      "mi": 109.312
+    },
+    {
       "path": "tests/lib/orchestration/lint-baseline-service.test.js",
       "mi": 109.205
     },
@@ -3092,7 +3108,7 @@
     },
     {
       "path": "tests/scripts/epic-deliver-automerge.test.js",
-      "mi": 113.219
+      "mi": 118.65
     },
     {
       "path": "tests/scripts/epic-deliver-baseline-reconciliation.test.js",
