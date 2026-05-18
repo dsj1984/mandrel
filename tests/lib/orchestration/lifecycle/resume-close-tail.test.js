@@ -40,7 +40,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { runEpicDeliverCloseTail } from '../../../../.agents/scripts/lib/orchestration/epic-deliver-close-tail.js';
-import { CHECKPOINT_SCHEMA_VERSION } from '../../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { CHECKPOINT_SCHEMA_VERSION } from '../../../fixtures/epic-run-state-store.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
 

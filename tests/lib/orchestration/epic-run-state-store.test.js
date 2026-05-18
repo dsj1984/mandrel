@@ -9,7 +9,7 @@ import {
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
-import { Checkpointer } from '../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { Checkpointer } from '../../fixtures/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function createFakeProvider() {

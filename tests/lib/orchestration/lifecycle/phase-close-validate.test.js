@@ -33,7 +33,7 @@ import { runEpicDeliverCloseTail } from '../../../../.agents/scripts/lib/orchest
 import {
   CHECKPOINT_SCHEMA_VERSION,
   Checkpointer,
-} from '../../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+} from '../../../fixtures/epic-run-state-store.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/lifecycle/ledger-writer.js';
 import { BlockerHandler } from '../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/blocker-handler.js';

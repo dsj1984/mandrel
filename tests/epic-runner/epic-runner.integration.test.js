@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { EPIC_RUN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { EPIC_RUN_STATE_TYPE } from '../fixtures/epic-run-state-store.js';
 import { runEpic } from '../../.agents/scripts/lib/orchestration/epic-runner.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import { buildCtx } from './_build-ctx.js';

@@ -32,7 +32,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import { runCodeReview } from '../../../../.agents/scripts/lib/orchestration/code-review.js';
 import { runEpicDeliverCloseTail } from '../../../../.agents/scripts/lib/orchestration/epic-deliver-close-tail.js';
-import { CHECKPOINT_SCHEMA_VERSION } from '../../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { CHECKPOINT_SCHEMA_VERSION } from '../../../fixtures/epic-run-state-store.js';
 import { Bus } from '../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import {
   LedgerWriter,

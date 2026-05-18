@@ -5,7 +5,7 @@ import { runEpicDeliverPrepare } from '../../.agents/scripts/epic-deliver-prepar
 import {
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+} from '../fixtures/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 /**

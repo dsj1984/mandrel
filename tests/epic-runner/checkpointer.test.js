@@ -5,7 +5,7 @@ import {
   CHECKPOINT_SCHEMA_VERSION,
   Checkpointer,
   EPIC_RUN_STATE_TYPE,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+} from '../fixtures/epic-run-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function createFakeProvider() {

@@ -5,7 +5,7 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { EPIC_RUN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { EPIC_RUN_STATE_TYPE } from '../fixtures/epic-run-state-store.js';
 import {
   waveEndMarker,
   waveStartMarker,
