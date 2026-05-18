@@ -77,7 +77,10 @@ import {
   issueToTicket,
   subIssueNodeToTicket,
 } from './github/mappers.js';
+import { MergeMethodsGateway } from './github/merge-methods.js';
+import { ProjectBoardGateway } from './github/project-board.js';
 import * as projects from './github/projects-v2-graphql.js';
+import { PullRequestGateway } from './github/prs.js';
 import { SubIssueGateway } from './github/sub-issues.js';
 import { TicketGateway } from './github/tickets.js';
 
@@ -129,21 +132,6 @@ function parseApiJson(result) {
   if (!stdout.trim()) return null;
   return JSON.parse(stdout);
 }
-
-/**
- * Fields the merge-method bootstrap reads/writes. Held in a constant so
- * `getMergeMethods` and `setMergeMethods` cannot drift on which keys they
- * mirror. Anything the upstream API exposes outside this list is
- * deliberately ignored — operators may have tuned other repo flags and
- * we do not want to surface them through this narrow interface.
- */
-const MERGE_METHOD_FIELDS = [
-  'allow_squash_merge',
-  'allow_rebase_merge',
-  'allow_merge_commit',
-  'allow_auto_merge',
-  'delete_branch_on_merge',
-];
 
 /**
  * Paginate a REST list endpoint by appending `page=N&per_page=100` until a
@@ -280,6 +268,27 @@ export class GitHubProvider extends ITicketingProvider {
       repo: this.repo,
     });
 
+    // MergeMethodsGateway is a pure gh-exec consumer (the narrow
+    // /repos/{owner}/{repo} surface).
+    this.mergeMethods = new MergeMethodsGateway({
+      gh: this._gh,
+      owner: this.owner,
+      repo: this.repo,
+    });
+
+    // PullRequestGateway opens PRs through `gh pr create` + `gh pr view`
+    // and threads the same TicketGateway lookup + project-add hook the
+    // ticket surface uses.
+    this.pullRequests = new PullRequestGateway({
+      gh: this._gh,
+      hooks: {
+        getTicket: (id) => provider.getTicket(id),
+        addItemToProject: (nodeId) =>
+          projects.addItemToProject(provider._ctx, nodeId),
+        getProjectNumber: () => provider.projectNumber,
+      },
+    });
+
     // ctx is the shared object the projects-v2-graphql shim reads from.
     // `projectNumber` gets a live getter/setter so `resolveOrCreateProject`
     // can mutate it on demand; `cache` is a live getter so tests that
@@ -314,6 +323,12 @@ export class GitHubProvider extends ITicketingProvider {
           projects.addItemToProject(this._ctx, nodeId),
       },
     };
+
+    // ProjectBoardGateway threads the shared `_ctx` into every projects-v2
+    // shim call so `resolveOrCreateProject` / `ensureStatusField` /
+    // `ensureProjectViews` / `ensureProjectFields` keep their established
+    // shape on the provider's public surface.
+    this.projectBoard = new ProjectBoardGateway({ ctx: this._ctx });
   }
 
   get token() {
@@ -670,42 +685,11 @@ export class GitHubProvider extends ITicketingProvider {
    */
   /* node:coverage ignore next */
   async createPullRequest(branchName, ticketId, baseBranch = 'main') {
-    const ticket = await this.getTicket(ticketId);
-
-    const createResult = await this._gh.pr.create([
-      '--title',
-      ticket.title,
-      '--body',
-      `Closes #${ticketId}`,
-      '--base',
-      baseBranch,
-      '--head',
+    return this.pullRequests.createPullRequest(
       branchName,
-    ]);
-    const htmlUrl = (createResult?.stdout ?? '').trim();
-
-    // `gh pr view <url> --json number,url,id` returns the canonical
-    // numeric id, api url, and node id we need for the {number, url,
-    // nodeId} envelope and for the Project V2 link below.
-    const viewResult = await this._gh.pr.view(htmlUrl, ['number', 'url', 'id']);
-    const view = JSON.parse(viewResult?.stdout ?? '{}');
-
-    try {
-      if (this.projectNumber && view.id) {
-        await this._ctx.hooks.addItemToProject(view.id);
-      }
-    } catch (err) {
-      Logger.warn(
-        `[GitHubProvider] Failed to add PR #${view.number} to project: ${err.message}`,
-      );
-    }
-
-    return {
-      number: view.number,
-      url: view.url,
-      htmlUrl,
-      nodeId: view.id,
-    };
+      ticketId,
+      baseBranch,
+    );
   }
 
   // =========================================================================
@@ -734,47 +718,12 @@ export class GitHubProvider extends ITicketingProvider {
     return this.labels._normalizeLabelListResult(result);
   }
 
-  /**
-   * Read the repo's current merge-method-related settings. Returns only
-   * the fields the bootstrap cares about so the diff layer can compare
-   * apples to apples regardless of what other knobs the repo exposes.
-   *
-   * @field-manifest GET /repos/{owner}/{repo}: allow_squash_merge,
-   *                 allow_rebase_merge, allow_merge_commit,
-   *                 allow_auto_merge, delete_branch_on_merge
-   */
   async getMergeMethods() {
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}`,
-    });
-    const raw = parseApiJson(result) ?? {};
-    const out = {};
-    for (const field of MERGE_METHOD_FIELDS) {
-      if (Object.hasOwn(raw, field)) out[field] = raw[field];
-    }
-    return out;
+    return this.mergeMethods.getMergeMethods();
   }
 
-  /**
-   * PATCH the repo with the supplied merge-method settings. Sparse body —
-   * only the supplied fields are sent / touched.
-   *
-   * @field-manifest PATCH /repos/{owner}/{repo}: allow_squash_merge,
-   *                 allow_rebase_merge, allow_merge_commit,
-   *                 allow_auto_merge, delete_branch_on_merge
-   */
   async setMergeMethods(settings) {
-    const body = {};
-    for (const field of MERGE_METHOD_FIELDS) {
-      if (Object.hasOwn(settings, field)) body[field] = settings[field];
-    }
-    await this._gh.api({
-      method: 'PATCH',
-      endpoint: `/repos/${this.owner}/${this.repo}`,
-      body,
-    });
-    return { patched: Object.keys(body) };
+    return this.mergeMethods.setMergeMethods(settings);
   }
 
   static isInsufficientScopes(err) {
@@ -782,20 +731,20 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   async resolveOrCreateProject(opts = {}) {
-    return projects.resolveOrCreateProject(this._ctx, opts);
+    return this.projectBoard.resolveOrCreateProject(opts);
   }
 
   async ensureStatusField(optionNames) {
-    return projects.ensureStatusField(this._ctx, optionNames);
+    return this.projectBoard.ensureStatusField(optionNames);
   }
 
   async ensureProjectViews(viewDefs) {
-    return projects.ensureProjectViews(this._ctx, viewDefs);
+    return this.projectBoard.ensureProjectViews(viewDefs);
   }
 
   /* node:coverage ignore next */
   async ensureProjectFields(fieldDefs) {
-    return projects.ensureProjectFields(this._ctx, fieldDefs);
+    return this.projectBoard.ensureProjectFields(fieldDefs);
   }
 
   // Underscore-prefixed wrapper preserves the surface that
