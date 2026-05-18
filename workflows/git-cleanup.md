@@ -18,7 +18,11 @@ confirmation:
 3. **reap merged local branches** — the existing squash-aware
    `gh pr list --state merged` + `git branch --merged <base>` sweep,
    with attached worktrees removed first. Optionally also deletes the
-   `origin/<branch>` ref when `--remote` is passed.
+   `origin/<branch>` ref when `--remote` is passed. With `--remote`,
+   the planner additionally enumerates `refs/remotes/origin/*` and
+   reaps any **remote-only** merged branches — branches whose local
+   ref is already gone (or never existed) but whose `origin/<branch>`
+   still points at a merged PR.
 4. **triage `git stash` entries** — list every stash and prompt for
    `drop / keep / quit` per entry (or pass `--drop-stashes <ref>` for
    non-interactive use).
@@ -206,6 +210,24 @@ The merged-branch sweep semantics:
   (force if dirty) **before** `git branch -D`, mirroring the pattern in
   [`worktree-lifecycle.md`](helpers/worktree-lifecycle.md).
 - `--remote` is required on top of `--execute` to touch `origin/`.
+
+The skip taxonomy distinguishes two unreapable cases:
+
+- `reason: 'protected'` — the base branch or a name in
+  `git config branch.protectedBranches`. Not reapable; ignore.
+- `reason: 'current-head'` — the current branch. Reapable after
+  `git checkout <base>`. The dry-run output surfaces a remediation
+  hint so the operator sees the recovery path without having to look
+  in the JSON envelope.
+
+The `--remote` flag also opts the planner into a **remote-only
+enumeration pass**: in addition to walking `refs/heads/*`, the planner
+also walks `refs/remotes/origin/*` and emits candidates for any branch
+that exists on `origin` with a merged PR but has no local ref. These
+candidates carry `detectedBy: 'remote-only'` and `localExists: false`,
+and the executor runs only the `git push --delete origin/<branch>`
+path for them (no local `git branch -D` is attempted — there is no
+local branch to delete).
 
 ### stashes
 
