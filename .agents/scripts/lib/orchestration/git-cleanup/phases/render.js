@@ -26,9 +26,8 @@ export function renderDryRun(plan, opts = {}) {
       lines.push(`  • ${c.branch} — ${pr}${wt}${remoteOnly}`);
     }
   }
-  const currentHeadSkip = (plan.skipped ?? []).find(
-    (s) => s.reason === 'current-head',
-  );
+  const skipped = plan.skipped ?? [];
+  const currentHeadSkip = skipped.find((s) => s.reason === 'current-head');
   if (currentHeadSkip) {
     const hint = baseBranch
       ? `checkout ${baseBranch} first to include this branch`
@@ -37,7 +36,40 @@ export function renderDryRun(plan, opts = {}) {
       `${TAG} ⓘ ${currentHeadSkip.branch} skipped — current HEAD (${hint})`,
     );
   }
+  for (const skip of skipped) {
+    const line = renderLatestPrSkipLine(skip);
+    if (line) lines.push(line);
+  }
   return lines;
+}
+
+/**
+ * Pure: render a single latest-PR-state skip line. Returns null when the
+ * skip reason is not one of the latest-PR family — `renderDryRun` filters
+ * by truthy return value so unrelated skip reasons (`protected`,
+ * `current-head`, `filtered`, `not-merged`) stay quiet.
+ *
+ * @param {{ branch: string, reason: string, prNumber?: number, tipSha?: string, mergedSha?: string }} skip
+ * @returns {string | null}
+ */
+export function renderLatestPrSkipLine(skip) {
+  if (!skip) return null;
+  const prRef = skip.prNumber ? `PR #${skip.prNumber}` : 'latest PR';
+  if (skip.reason === 'latest-pr-closed-not-merged') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} was closed without merging`;
+  }
+  if (skip.reason === 'latest-pr-open') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} is still open`;
+  }
+  if (skip.reason === 'tip-diverged-from-merge') {
+    const tip = skip.tipSha ? skip.tipSha.slice(0, 7) : '<unknown>';
+    const merged = skip.mergedSha ? skip.mergedSha.slice(0, 7) : '<unknown>';
+    return `${TAG} ⏭️  ${skip.branch} skipped — tip ${tip} diverges from ${prRef}'s merged ${merged} (post-merge force-push)`;
+  }
+  if (skip.reason === 'latest-pr-unknown-state') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} has an unrecognized state`;
+  }
+  return null;
 }
 
 /** Pure: render a per-branch execution line. */

@@ -18,17 +18,27 @@ import {
 } from './branches-reap.js';
 import { computeProtectedReason } from './filters.js';
 import {
+  branchTipSha,
+  classifyLatestPr,
   currentBranch as defaultCurrentBranch,
   listLocalBranches,
   listMergedBranches,
   listRemoteBranches,
-  probeMergedPr,
+  probeLatestPr,
   pruneRemoteTracking,
   readProtectedConfig,
   removeWorktree,
   worktreesByBranch,
 } from './git-probes.js';
 import { parsePrunedRefs } from './prune.js';
+
+function skipEntryFromVerdict(branch, verdict) {
+  const entry = { branch, reason: verdict.reason };
+  if (verdict.prNumber != null) entry.prNumber = verdict.prNumber;
+  if (verdict.tipSha) entry.tipSha = verdict.tipSha;
+  if (verdict.mergedSha) entry.mergedSha = verdict.mergedSha;
+  return entry;
+}
 
 function evaluateLocalBranch({
   branch,
@@ -38,21 +48,40 @@ function evaluateLocalBranch({
   prProbe,
   cwd,
   wtMap,
+  remoteName,
+  branchTipShaFn,
 }) {
   const protectedReason = classify(branch);
   if (protectedReason) return { skip: { branch, reason: protectedReason } };
   if (!filter(branch)) return { skip: { branch, reason: 'filtered' } };
   const prInfo = prProbe(branch, cwd);
+  const verdict = classifyLatestPr({
+    prInfo,
+    branch,
+    cwd,
+    remoteName,
+    localExists: true,
+    branchTipShaFn,
+  });
+  if (verdict.kind === 'skip') {
+    return { skip: skipEntryFromVerdict(branch, verdict) };
+  }
   let detectedBy = null;
-  if (prInfo) detectedBy = 'gh';
-  else if (mergedByGit.has(branch)) detectedBy = 'git-merged';
-  else return { skip: { branch, reason: 'not-merged' } };
+  let resolvedPrInfo = null;
+  if (verdict.kind === 'candidate') {
+    detectedBy = 'gh';
+    resolvedPrInfo = verdict.prInfo;
+  } else if (mergedByGit.has(branch)) {
+    detectedBy = 'git-merged';
+  } else {
+    return { skip: { branch, reason: 'not-merged' } };
+  }
   const wt = wtMap.get(branch);
   return {
     candidate: {
       branch,
-      prNumber: prInfo?.number ?? null,
-      mergedAt: prInfo?.mergedAt ?? null,
+      prNumber: resolvedPrInfo?.number ?? null,
+      mergedAt: resolvedPrInfo?.mergedAt ?? null,
       hasWorktree: !!wt,
       worktreePath: wt?.path ?? null,
       detectedBy,
@@ -69,6 +98,8 @@ function collectRemoteOnlyCandidates({
   classify,
   filter,
   prProbe,
+  branchTipShaFn,
+  skipped,
 }) {
   const out = [];
   for (const branch of remoteLister(cwd, remoteName)) {
@@ -76,11 +107,23 @@ function collectRemoteOnlyCandidates({
     if (classify(branch)) continue;
     if (!filter(branch)) continue;
     const prInfo = prProbe(branch, cwd);
-    if (!prInfo) continue;
+    const verdict = classifyLatestPr({
+      prInfo,
+      branch,
+      cwd,
+      remoteName,
+      localExists: false,
+      branchTipShaFn,
+    });
+    if (verdict.kind === 'no-pr') continue;
+    if (verdict.kind === 'skip') {
+      skipped.push(skipEntryFromVerdict(branch, verdict));
+      continue;
+    }
     out.push({
       branch,
-      prNumber: prInfo.number ?? null,
-      mergedAt: prInfo.mergedAt ?? null,
+      prNumber: verdict.prInfo.number ?? null,
+      mergedAt: verdict.prInfo.mergedAt ?? null,
       hasWorktree: false,
       worktreePath: null,
       detectedBy: 'remote-only',
@@ -90,7 +133,18 @@ function collectRemoteOnlyCandidates({
   return out;
 }
 
-/** Pure-ish: enumerate merged-branch candidates. */
+/**
+ * Pure-ish: enumerate merged-branch candidates.
+ *
+ * The PR probe defaults to {@link probeLatestPr} so the planner classifies
+ * each candidate by the **latest** PR on the head ref rather than any
+ * historical merge. Branches whose latest PR is OPEN or CLOSED-not-merged
+ * are skipped with `reason: 'latest-pr-open'` /
+ * `reason: 'latest-pr-closed-not-merged'`. When the latest PR is MERGED
+ * but the branch tip has diverged from the PR's `headRefOid` (post-merge
+ * force-push), the branch is skipped with
+ * `reason: 'tip-diverged-from-merge'`.
+ */
 export function planCleanup(ctx) {
   const {
     cwd,
@@ -100,7 +154,8 @@ export function planCleanup(ctx) {
     currentBranchFn = defaultCurrentBranch,
     protectedConfigFn = readProtectedConfig,
     worktreesFn = worktreesByBranch,
-    prProbe = (b, c) => probeMergedPr(b, c),
+    prProbe = (b, c) => probeLatestPr(b, c),
+    branchTipShaFn = branchTipSha,
     filter = () => true,
     includeRemoteOnly = false,
     remoteLister = listRemoteBranches,
@@ -130,6 +185,8 @@ export function planCleanup(ctx) {
       prProbe,
       cwd,
       wtMap,
+      remoteName,
+      branchTipShaFn,
     });
     if (out.skip) skipped.push(out.skip);
     else candidates.push(out.candidate);
@@ -144,6 +201,8 @@ export function planCleanup(ctx) {
         classify,
         filter,
         prProbe,
+        branchTipShaFn,
+        skipped,
       }),
     );
   }

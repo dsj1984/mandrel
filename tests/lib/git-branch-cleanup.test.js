@@ -143,6 +143,34 @@ describe('deleteBranchRemote', () => {
       /Unsafe remote name/,
     );
   });
+
+  /**
+   * Regression guard for the false-positive observed on 2026-05-18 during a
+   * `/git-cleanup --execute --remote --yes` run: a child of the pre-push
+   * hook (`run-lint.js`) emits Node's DEP0190 `shell: true` deprecation
+   * warning to stderr, which bubbles up through `git push --delete`'s
+   * stderr. The DEP0190 banner is informational only — when git exits 0
+   * the delete succeeded, regardless of what other processes wrote to
+   * stderr. Asserting `deleted: true` here pins the contract so a future
+   * refactor cannot re-introduce the bug by gating success on a
+   * non-empty stderr.
+   */
+  it('returns deleted when status=0 even if stderr carries a Node DEP0190 warning', () => {
+    installScriptedSpawn([
+      {
+        status: 0,
+        stdout: '',
+        stderr:
+          '(node:65804) [DEP0190] DeprecationWarning: Passing args to a ' +
+          'child process with shell option true can lead to security ' +
+          'vulnerabilities, as the arguments are not escaped, only ' +
+          'concatenated.\n(Use `node --trace-deprecation ...` to show ' +
+          'where the warning was created)',
+      },
+    ]);
+    const result = deleteBranchRemote('story-1', { cwd: '/repo' });
+    assert.deepEqual(result, { deleted: true, reason: 'deleted' });
+  });
 });
 
 describe('deleteBranchBoth', () => {
