@@ -1,0 +1,83 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)",
+    ":semanticCommitScope(deps)",
+    ":dependencyDashboard",
+    ":maintainLockFilesWeekly",
+    ":prHourlyLimit2",
+    ":prConcurrentLimit10"
+  ],
+  "baseBranches": ["main"],
+  "timezone": "America/New_York",
+  "schedule": ["before 6am on saturday"],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on saturday"]
+  },
+  "rangeStrategy": "bump",
+  "labels": ["dependencies"],
+  "rebaseWhen": "behind-base-branch",
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["dependencies", "security"],
+    "schedule": ["at any time"]
+  },
+  "packageRules": [
+    {
+      "description": "Auto-merge patch and minor devDependency updates after CI passes",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true
+    },
+    {
+      "description": "Group Biome packages (toolchain moves in lockstep)",
+      "matchPackageNames": ["@biomejs/biome", "@biomejs/**"],
+      "groupName": "biome"
+    },
+    {
+      "description": "Group commitlint packages",
+      "matchPackageNames": ["@commitlint/**"],
+      "groupName": "commitlint"
+    },
+    {
+      "description": "Group lint-staged + husky (commit hook toolchain)",
+      "matchPackageNames": ["lint-staged", "husky"],
+      "groupName": "commit hooks"
+    },
+    {
+      "description": "TypeScript is a peerDependency declared as >=5.0.0; do not bump the range",
+      "matchPackageNames": ["typescript"],
+      "enabled": false
+    },
+    {
+      "description": "Do not touch the Node engines constraint; it is hand-managed",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "enabled": false
+    },
+    {
+      "description": "Major updates always need manual review",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dependencies", "major-update"]
+    },
+    {
+      "description": "GitHub Actions: group all workflow action bumps into one PR",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions",
+      "pinDigests": true
+    }
+  ],
+  "npm": {
+    "minimumReleaseAge": "3 days"
+  },
+  "github-actions": {
+    "enabled": true
+  },
+  "ignorePaths": ["**/node_modules/**", ".worktrees/**", "temp/**"]
+}
