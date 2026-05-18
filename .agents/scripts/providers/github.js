@@ -54,6 +54,7 @@ import {
   resolveToken,
 } from './github/auth.js';
 import { createInlineTicketCache } from './github/cache.js';
+import { CommentGateway } from './github/comments.js';
 import {
   ADD_SUB_ISSUE_MUTATION,
   classifyGithubError,
@@ -72,6 +73,7 @@ import {
   subIssueNodeToTicket,
 } from './github/mappers.js';
 import * as projects from './github/projects-v2-graphql.js';
+import { SubIssueGateway } from './github/sub-issues.js';
 import { TicketGateway } from './github/tickets.js';
 
 // ---------------------------------------------------------------------------
@@ -105,30 +107,11 @@ export {
 };
 
 // ---------------------------------------------------------------------------
-// Concurrency + retry budgets — preserved from the old `./github/issues.js`
-// so dispatch fan-out and sub-issue reconciliation keep the same shape.
+// Concurrency budget for the `getSubTickets` fan-out — preserved from the
+// old `./github/issues.js`. Per-strategy sub-issue retry/concurrency budgets
+// live on the SubIssueGateway now (Story #2462 / Task #2480).
 // ---------------------------------------------------------------------------
 const SUBTICKET_HYDRATION_CONCURRENCY = 8;
-const SUB_ISSUE_RECONCILE_CONCURRENCY = 4;
-const SUB_ISSUE_RETRY_MAX_ATTEMPTS = 6;
-const SUB_ISSUE_RETRY_BASE_DELAY_MS = 1000;
-const SUB_ISSUE_RETRY_MAX_DELAY_MS = 30000;
-const SUB_ISSUE_RETRY_JITTER_MS = 500;
-
-// ---------------------------------------------------------------------------
-// Structured-comment badge — preserved verbatim from the old
-// `./github/comments.js`. `upsertStructuredComment` in
-// `lib/orchestration/ticketing.js` prepends the `<!-- ap:structured-comment
-// ... -->` marker before the body reaches `postComment`; this badge is the
-// visible header consumers (Slack notifier, dashboard) grep for. Keeping the
-// emoji + bold marker stable is what makes the round-trip with structured-
-// comment detection work across the rewrite.
-// ---------------------------------------------------------------------------
-const TYPE_BADGES = {
-  progress: '🔄 **Progress**',
-  friction: '⚠️ **Friction**',
-  notification: '📢 **Notification**',
-};
 
 /**
  * Parse a `gh api ...` stdout payload into JSON. `gh-exec.exec` returns
@@ -315,6 +298,35 @@ export class GitHubProvider extends ITicketingProvider {
       },
     });
 
+    // SubIssueGateway owns the native sub-issue GraphQL surface plus the
+    // reconciler that walks `parent: #N` footers. It threads the parent's
+    // `_ghGraphql` shim and the shared cache so native-walk priming hits
+    // the same Map every other reader observes.
+    this.subIssues = new SubIssueGateway({
+      ghGraphql: (query, variables, opts) =>
+        provider._ghGraphql(query, variables, opts),
+      cache: this._cache,
+      classifyGithubError,
+      hooks: {
+        getTicket: (id, opts) => provider.getTicket(id, opts),
+        getTickets: (parentId) => provider.getTickets(parentId),
+        primeTicketCache: (tickets) => provider.primeTicketCache(tickets),
+        invalidateTicket: (id) => provider.invalidateTicket(id),
+      },
+    });
+
+    // CommentGateway owns issue-comment CRUD. The structured-comment
+    // marker prepended by `lib/orchestration/ticketing.js` arrives on the
+    // payload body unchanged.
+    this.comments = new CommentGateway({
+      gh: this._gh,
+      owner: this.owner,
+      repo: this.repo,
+      hooks: {
+        invalidateTicket: (id) => provider.invalidateTicket(id),
+      },
+    });
+
     // ctx is the shared object the projects-v2-graphql shim reads from.
     // `projectNumber` gets a live getter/setter so `resolveOrCreateProject`
     // can mutate it on demand; `cache` is a live getter so tests that
@@ -472,38 +484,7 @@ export class GitHubProvider extends ITicketingProvider {
    * on this repo.
    */
   async _getNativeSubIssues(parentNodeId, parentId) {
-    const childIds = [];
-    let cursor = null;
-    try {
-      while (true) {
-        const data = await this._ghGraphql(
-          SUB_ISSUES_QUERY,
-          { id: parentNodeId, cursor },
-          { headers: { 'GraphQL-Features': 'sub_issues' } },
-        );
-        const page = data.node?.subIssues;
-        const nodes = page?.nodes ?? [];
-        for (const node of nodes) {
-          childIds.push(node.number);
-          this._cache.primeIfAbsent(subIssueNodeToTicket(node));
-        }
-        if (!page?.pageInfo?.hasNextPage) break;
-        cursor = page.pageInfo.endCursor;
-      }
-    } catch (err) {
-      const category = classifyGithubError(err);
-      if (category === 'feature-disabled') {
-        Logger.warn(
-          `[GitHubProvider] sub-issues GraphQL unavailable (parent #${parentId}); using checklist fallback`,
-        );
-        return [];
-      }
-      Logger.error(
-        `[GitHubProvider] sub-issues GraphQL failed (parent #${parentId}, category=${category}): ${err.message}`,
-      );
-      throw err;
-    }
-    return childIds;
+    return this.subIssues.getNativeSubIssues(parentNodeId, parentId);
   }
 
   /** Strategy 2 — Markdown checklist links `- [ ] #N` / `- [x] #N`. */
@@ -611,58 +592,11 @@ export class GitHubProvider extends ITicketingProvider {
     childNodeId,
     opts = { replaceParent: false },
   ) {
-    const parentTicket = await this.getTicket(parentNumber);
-    let lastErr;
-    for (let attempt = 0; attempt < SUB_ISSUE_RETRY_MAX_ATTEMPTS; attempt++) {
-      try {
-        const result = await this._ghGraphql(
-          ADD_SUB_ISSUE_MUTATION,
-          {
-            parentId: parentTicket.nodeId,
-            subIssueId: childNodeId,
-            replaceParent: opts.replaceParent,
-          },
-          { headers: { 'GraphQL-Features': 'sub_issues' } },
-        );
-        // Sub-issue link mutates the parent's sub-issue list (which
-        // `getSubTickets` derives partly via the GraphQL `subIssues` field on
-        // the parent node). Invalidate so the next `getTicket(parentNumber)`
-        // re-fetches a coherent view.
-        this.invalidateTicket(parentNumber);
-        return result;
-      } catch (err) {
-        lastErr = err;
-        const category = classifyGithubError(err);
-        const isFinalAttempt = attempt === SUB_ISSUE_RETRY_MAX_ATTEMPTS - 1;
-        if (category !== 'transient' || isFinalAttempt) throw err;
-        const base = Math.min(
-          SUB_ISSUE_RETRY_MAX_DELAY_MS,
-          SUB_ISSUE_RETRY_BASE_DELAY_MS * 2 ** attempt,
-        );
-        const delay =
-          base + Math.floor(Math.random() * SUB_ISSUE_RETRY_JITTER_MS);
-        Logger.warn(
-          `[GitHubProvider] sub-issue link transient error for parent #${parentNumber} (attempt ${attempt + 1}/${SUB_ISSUE_RETRY_MAX_ATTEMPTS}); retrying in ${delay}ms: ${err.message}`,
-        );
-        await new Promise((r) => setTimeout(r, delay));
-      }
-    }
-    throw lastErr;
+    return this.subIssues.addSubIssue(parentNumber, childNodeId, opts);
   }
 
   async removeSubIssue(parentNumber, subIssueNumber) {
-    const parentTicket = await this.getTicket(parentNumber);
-    const childTicket = await this.getTicket(subIssueNumber);
-    const result = await this._ghGraphql(
-      REMOVE_SUB_ISSUE_MUTATION,
-      { parentId: parentTicket.nodeId, subIssueId: childTicket.nodeId },
-      { headers: { 'GraphQL-Features': 'sub_issues' } },
-    );
-    // Sub-issue unlink mutates the parent's sub-issue list. Invalidate both
-    // ends so subsequent reads see the post-mutation shape.
-    this.invalidateTicket(parentNumber);
-    this.invalidateTicket(subIssueNumber);
-    return result;
+    return this.subIssues.removeSubIssue(parentNumber, subIssueNumber);
   }
 
   /**
@@ -671,102 +605,7 @@ export class GitHubProvider extends ITicketingProvider {
    * via `addSubIssue` (which retries internally). Idempotent.
    */
   async reconcileSubIssueLinks(epicId) {
-    const PARENT_RE = /(?:^|\n)parent:\s*#(\d+)/;
-    const allChildren = await this.getTickets(epicId);
-    const parentByChild = new Map();
-    for (const child of allChildren) {
-      const match = (child.body ?? '').match(PARENT_RE);
-      if (!match) continue;
-      parentByChild.set(child.id, Number.parseInt(match[1], 10));
-    }
-
-    const childrenByParent = new Map();
-    for (const [childId, parentId] of parentByChild) {
-      if (!childrenByParent.has(parentId)) childrenByParent.set(parentId, []);
-      childrenByParent.get(parentId).push(childId);
-    }
-
-    let alreadyLinked = 0;
-    let reconciled = 0;
-    let failed = 0;
-    const failures = [];
-
-    const parentEntries = Array.from(childrenByParent.entries());
-
-    await concurrentMap(
-      parentEntries,
-      async ([parentId, childIds]) => {
-        let parent;
-        try {
-          parent = await this.getTicket(parentId);
-        } catch (err) {
-          for (const childId of childIds) {
-            failures.push({ parentId, childId, reason: err.message });
-          }
-          failed += childIds.length;
-          return;
-        }
-        if (!parent?.nodeId) {
-          for (const childId of childIds) {
-            failures.push({
-              parentId,
-              childId,
-              reason: 'parent missing nodeId',
-            });
-          }
-          failed += childIds.length;
-          return;
-        }
-
-        const linked = new Set(
-          await this._getNativeSubIssues(parent.nodeId, parentId),
-        );
-
-        await concurrentMap(
-          childIds,
-          async (childId) => {
-            if (linked.has(childId)) {
-              alreadyLinked++;
-              return;
-            }
-            let childTicket;
-            try {
-              childTicket = await this.getTicket(childId);
-            } catch (err) {
-              failures.push({ parentId, childId, reason: err.message });
-              failed++;
-              return;
-            }
-            if (!childTicket?.nodeId) {
-              failures.push({
-                parentId,
-                childId,
-                reason: 'child missing nodeId',
-              });
-              failed++;
-              return;
-            }
-            try {
-              await this.addSubIssue(parentId, childTicket.nodeId);
-              reconciled++;
-            } catch (err) {
-              failures.push({ parentId, childId, reason: err.message });
-              failed++;
-            }
-          },
-          { concurrency: SUB_ISSUE_RECONCILE_CONCURRENCY },
-        );
-      },
-      { concurrency: SUB_ISSUE_RECONCILE_CONCURRENCY },
-    );
-
-    return {
-      totalExpected: parentByChild.size,
-      alreadyLinked,
-      reconciled,
-      failed,
-      failures,
-    };
+    return this.subIssues.reconcileSubIssueLinks(epicId);
   }
 
   /**
@@ -803,84 +642,23 @@ export class GitHubProvider extends ITicketingProvider {
   }
 
   // =========================================================================
-  // COMMENT SURFACE — rewritten on gh-exec (Task #1372)
+  // COMMENT SURFACE — delegated to CommentGateway (Story #2462 / Task #2480)
   // =========================================================================
 
-  /**
-   * Recent comments across all issues in the repo (sorted newest first).
-   * Used by reconcilers that look for state changes (e.g. structured-comment
-   * sweeps) without paginating each ticket individually.
-   *
-   * @field-manifest /repos/{owner}/{repo}/issues/comments?sort=created:
-   *                 id, body, created_at, user, issue_url
-   */
   async getRecentComments(limit = 100) {
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments?sort=created&direction=desc&per_page=${limit}`,
-    });
-    return parseApiJson(result) ?? [];
+    return this.comments.getRecentComments(limit);
   }
 
-  /**
-   * All comments on a single ticket. Used by `findStructuredComment` in
-   * `lib/orchestration/ticketing.js`, which greps each comment body for the
-   * `<!-- ap:structured-comment type="..." -->` marker — so the per-comment
-   * `body` field must round-trip verbatim.
-   *
-   * @field-manifest /repos/{owner}/{repo}/issues/{n}/comments:
-   *                 id, body, created_at, user
-   */
   async getTicketComments(ticketId) {
-    return paginateRest(
-      this._gh,
-      `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
-    );
+    return this.comments.getTicketComments(ticketId);
   }
 
-  /**
-   * Delete a comment by id. Called by `upsertStructuredComment` before
-   * posting the replacement, so the in-place semantics hold even though the
-   * underlying GitHub API has no native upsert.
-   */
   async deleteComment(commentId) {
-    await this._gh.api({
-      method: 'DELETE',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments/${commentId}`,
-    });
+    return this.comments.deleteComment(commentId);
   }
 
-  /**
-   * Post a comment on an issue. When `payload.type` matches a known
-   * structured-comment kind, prepend the visible type-badge so operators see
-   * the same header the old client produced. The
-   * `<!-- ap:structured-comment ... -->` marker is added by the caller
-   * (`upsertStructuredComment` in `lib/orchestration/ticketing.js`) — this
-   * method does not double-emit it.
-   *
-   * Accepts either `{ body, type }` (canonical) or a bare string (legacy
-   * shape exercised by `tests/lib/github-provider.test.js` and a handful of
-   * direct callers under `notify.js`).
-   *
-   * @field-manifest POST /repos/{owner}/{repo}/issues/{n}/comments:
-   *                 id (returned for the caller's `commentId`)
-   */
   async postComment(ticketId, payload) {
-    const normalized =
-      typeof payload === 'string' ? { body: payload } : (payload ?? {});
-    const badge = TYPE_BADGES[normalized.type] ?? '';
-    const body = badge ? `${badge}\n\n${normalized.body}` : normalized.body;
-
-    const result = await this._gh.api({
-      method: 'POST',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}/comments`,
-      body: { body },
-    });
-    const comment = parseApiJson(result);
-    // Posting a comment mutates the ticket's comment thread. Invalidate so
-    // the next `getTicketComments` / `getTicket` reflects the new comment.
-    this.invalidateTicket(ticketId);
-    return { commentId: comment.id };
+    return this.comments.postComment(ticketId, payload);
   }
 
   // =========================================================================
