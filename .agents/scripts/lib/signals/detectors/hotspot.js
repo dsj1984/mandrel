@@ -73,6 +73,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline';
 
 import { epicTempDir } from '../../config/temp-paths.js';
+import { extractTool, isPositiveInt } from './common.js';
 
 /**
  * Tools that mutate files. Only these contribute to the per-target edit
@@ -87,30 +88,8 @@ const FILE_MUTATING_TOOLS = Object.freeze(
 /** Story directories follow `story-<positive-int>`. */
 const STORY_DIR_RE = /^story-(\d+)$/;
 
-function isPositiveInt(v) {
-  return Number.isInteger(v) && v > 0;
-}
-
 function isPositiveNumber(v) {
   return typeof v === 'number' && Number.isFinite(v) && v > 0;
-}
-
-/**
- * Pull the tool name from a trace record. The hook writes the tool name
- * into `source.tool` and (defensively) into `details.tool` — we accept
- * either so older traces still classify correctly.
- *
- * @param {object} rec
- * @returns {string|null}
- */
-function extractTool(rec) {
-  if (typeof rec?.source?.tool === 'string' && rec.source.tool.length > 0) {
-    return rec.source.tool;
-  }
-  if (typeof rec?.details?.tool === 'string' && rec.details.tool.length > 0) {
-    return rec.details.tool;
-  }
-  return null;
 }
 
 /**
