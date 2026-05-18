@@ -18,7 +18,7 @@ import { concurrentMap } from '../util/concurrent-map.js';
 /**
  * Snapshot of the Epic's planning-artifact state as seen / mutated by
  * {@link PlanningStateManager}. Mirrors the `epic-plan-state` structured
- * comment schema owned by `plan-checkpointer.js`, narrowed to the fields
+ * comment schema owned by `epic-plan-state-store.js`, narrowed to the fields
  * this manager reads and rewrites.
  *
  * @typedef {object} PlanCheckpointState
