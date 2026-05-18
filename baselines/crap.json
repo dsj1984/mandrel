@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T16:43:37.105Z",
+  "generatedAt": "2026-05-18T16:49:15.606Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12,
-      "max": 53.06080799666805,
-      "methodsAbove20": 9
+      "max": 52.326590131323854,
+      "methodsAbove20": 8
     }
   },
   "rows": [
@@ -2251,9 +2251,105 @@
     },
     {
       "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-8>",
+      "startLine": 395,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-9>",
+      "startLine": 400,
+      "crap": 2
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-10>",
+      "startLine": 409,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-11>",
+      "startLine": 425,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-12>",
+      "startLine": 431,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-13>",
+      "startLine": 435,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-14>",
+      "startLine": 439,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-15>",
+      "startLine": 443,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-16>",
+      "startLine": 449,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-17>",
+      "startLine": 453,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-18>",
+      "startLine": 457,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-19>",
+      "startLine": 461,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-20>",
+      "startLine": 467,
+      "crap": 2.5
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "<anon method-21>",
+      "startLine": 474,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "throwIfFatal",
+      "startLine": 488,
+      "crap": 4
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
+      "method": "runPhases",
+      "startLine": 506,
+      "crap": 1
+    },
+    {
+      "path": ".agents/scripts/lib/bootstrap/project-bootstrap.js",
       "method": "applyProjectBootstrap",
-      "startLine": 379,
-      "crap": 53.06080799666805
+      "startLine": 530,
+      "crap": 1.2962962962962963
     },
     {
       "path": ".agents/scripts/lib/bootstrap/prompt.js",
