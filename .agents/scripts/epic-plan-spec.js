@@ -52,12 +52,14 @@ import {
 import * as gitUtils from './lib/git-utils.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
-import { PlanRunnerContext } from './lib/orchestration/context.js';
 import { buildDocsContext } from './lib/orchestration/doc-reader.js';
 import {
+  initialize as initializePlanState,
   PLAN_PHASES,
-  PlanCheckpointer,
-} from './lib/orchestration/plan-runner/plan-checkpointer.js';
+  read as readPlanState,
+  setPhase as setPlanPhase,
+  write as writePlanState,
+} from './lib/orchestration/epic-plan-state-store.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
 import { PlanningStateManager } from './lib/orchestration/planning-state-manager.js';
@@ -478,15 +480,12 @@ export async function runSpecPhase(
     );
   }
 
-  const ctx = new PlanRunnerContext({
-    epicId,
+  await initializePlanState({ provider, epicId });
+  await setPlanPhase({
     provider,
-    config: settings ?? {},
-    phase: PLAN_PHASES.PLANNING,
+    epicId,
+    nextPhase: PLAN_PHASES.PLANNING,
   });
-  const checkpointer = new PlanCheckpointer({ ctx });
-  await checkpointer.initialize();
-  await checkpointer.setPhase(PLAN_PHASES.PLANNING);
 
   await planEpic(
     epicId,
@@ -509,18 +508,33 @@ export async function runSpecPhase(
   // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
   // `forkMainToEpic` remain exported for that caller.
 
-  const checkpoint = await checkpointer.updateSpec({
-    prdId,
-    techSpecId,
-    acceptanceSpecId,
-    completedAt: new Date().toISOString(),
+  const currentState =
+    (await readPlanState({ provider, epicId })) ??
+    (await initializePlanState({ provider, epicId }));
+  const checkpoint = await writePlanState({
+    provider,
+    epicId,
+    state: {
+      ...currentState,
+      spec: {
+        ...currentState.spec,
+        prdId,
+        techSpecId,
+        acceptanceSpecId,
+        completedAt: new Date().toISOString(),
+      },
+    },
   });
 
   Logger.info(
     `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.REVIEW_SPEC);
-  await checkpointer.setPhase(PLAN_PHASES.REVIEW_SPEC);
+  await setPlanPhase({
+    provider,
+    epicId,
+    nextPhase: PLAN_PHASES.REVIEW_SPEC,
+  });
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'spec', epicId });
 
