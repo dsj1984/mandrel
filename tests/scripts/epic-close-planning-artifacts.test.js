@@ -14,7 +14,7 @@ import { runEpicCloseTail } from '../../.agents/scripts/epic-close.js';
 import {
   closePlanningArtifacts,
   verifyAndRecoverEpicClose,
-} from '../../.agents/scripts/epic-deliver-finalize.js';
+} from '../../.agents/scripts/lib/epic-close-tail-helpers.js';
 import {
   __resetParentCascadeLocks,
   __setCascadeRetryDelays,
