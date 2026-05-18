@@ -19,6 +19,7 @@ import { tempRootFrom } from '../../config/temp-paths.js';
 import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
+import { AcceptanceReconciler } from '../lifecycle/listeners/acceptance-reconciler.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
@@ -191,6 +192,23 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
   });
+  // Story #2315 / Task #2322 — register the close-tail chain
+  // (currently: AcceptanceReconciler) AFTER the observer + mutator
+  // listener stack and BEFORE the BlockerHandler. AcceptanceReconciler
+  // subscribes to `epic.close.end` and may emit `epic.blocked` on a
+  // gap; placing its registration ahead of BlockerHandler ensures the
+  // blocker cascade listener is already on the bus when the reconciler
+  // fires its failure path. Wiring the AcceptanceReconciler here
+  // closes the High-2 finding from Epic #2306 (the listener existed
+  // but was never instantiated by the production factory).
+  const acceptanceReconciler = registerCloseTailChain({
+    bus,
+    epicId: ctx.epicId,
+    cwd: ctx.cwd,
+    provider,
+    config,
+    logger,
+  });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
   // iterate-waves can call `emitUnblocked()` after the wait loop
@@ -249,6 +267,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     lifecycleProgressReporter,
     checkpointPointerWriter,
     reliabilityObservers,
+    acceptanceReconciler,
   };
 }
 
@@ -295,6 +314,47 @@ export function registerReliabilityObservers({ bus, config, logger }) {
     '[lifecycle] reliability observers registered (timeout-watchdog, heartbeat-monitor wildcards)',
   );
   return { timeoutWatchdog, heartbeatMonitor };
+}
+
+/**
+ * Construct and register the close-tail listener chain (Story #2315 /
+ * Task #2322). Currently registers the `AcceptanceReconciler`, which
+ * subscribes to `epic.close.end` and emits one of
+ * `acceptance.reconcile.{ok,skipped,failed}` plus `epic.blocked` on a
+ * gap. The "close-tail chain" name is deliberately umbrella-shaped:
+ * future close-time listeners (e.g. release-note assemblers, blocker
+ * post-mortems) register here in the same canonical slot — after
+ * observers and mutators, before BlockerHandler.
+ *
+ * Returns the listener instance so the collaborator bag can expose it
+ * to tests; returns `null` when the bus or epicId is unusable so unit
+ * fixtures continue to operate without a live bus.
+ */
+function registerCloseTailChain({
+  bus,
+  epicId,
+  cwd,
+  provider,
+  config,
+  logger,
+}) {
+  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
+    return null;
+  }
+  if (!Number.isInteger(epicId) || epicId < 1) return null;
+  const listener = new AcceptanceReconciler({
+    bus,
+    epicId,
+    cwd: cwd ?? process.cwd(),
+    provider: provider ?? null,
+    config: config ?? null,
+    logger,
+  });
+  listener.register();
+  logger?.debug?.(
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end)',
+  );
+  return listener;
 }
 
 /**
