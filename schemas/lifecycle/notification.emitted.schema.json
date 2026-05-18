@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/notification.emitted.schema.json",
+  "title": "notification.emitted",
+  "description": "Self-emitted by NotifyDispatcher after each webhook/comment dispatch. Carries the upstream event name, the channel, the severity, and the ok flag for trace fidelity.",
+  "type": "object",
+  "required": ["event", "channel", "severity", "ok"],
+  "properties": {
+    "event": { "type": "string", "minLength": 1 },
+    "channel": { "type": "string", "enum": ["webhook", "comment"] },
+    "severity": {
+      "type": "string",
+      "enum": ["info", "warn", "error", "critical"]
+    },
+    "ok": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

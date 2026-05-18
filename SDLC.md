@@ -321,11 +321,22 @@ consumes in Phase 1.
 
 ## Phase 3: Delivery (Agentic)
 
-Delivery is driven by the **Epic Deliver Runner**
-(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) for whole-Epic
+Delivery is driven by the **`/epic-deliver`** slash command for whole-Epic
 flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
-worktree isolation, and cascade closure.
+worktree isolation, and cascade closure. The slash command supplants the
+legacy deliver-runner CLI (retired in Story #2259, Epic #2172); the
+lifecycle bus listener chain inside the session owns wave fan-out,
+finalize, automerge, and cleanup. See
+[`docs/LIFECYCLE.md`](../docs/LIFECYCLE.md) for the bus contract,
+event taxonomy, ledger format, and listener model — every phase
+transition, ticket-state flip, and webhook fan-out now flows through
+that bus, and the on-disk ledger at `temp/epic-<id>/lifecycle.ndjson`
+is the canonical resume target. Safety gates (auto-merge arming,
+acceptance-spec reconciliation, blocker handling) are listener
+side-effects rather than inline calls at phase boundaries; the
+"merge-lockout" lint rule keeps `gh pr merge` confined to the
+`AutomergeArmer` listener.
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s snapshot phase
@@ -567,11 +578,10 @@ fires. This is the entirety of the operator interface mid-run.
 ## Epic Deliver Runner internals
 
 `/epic-deliver` drives the long-running coordinator inside the operator's
-Claude session. The runner
-(`.agents/scripts/lib/orchestration/epic-deliver-runner.js`) composes the
-submodules listed below; `/story-deliver` is launched as an Agent-tool
-sub-agent of `/epic-deliver`'s wave loop — no `child_process.spawn`, no
-GitHub Actions runner.
+Claude session. The slash command composes the submodules listed below;
+`/story-deliver` is launched as an Agent-tool sub-agent of
+`/epic-deliver`'s wave loop — no `child_process.spawn`, no GitHub Actions
+runner.
 
 | Submodule           | Role                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------- |

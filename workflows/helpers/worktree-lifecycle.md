@@ -89,7 +89,7 @@ set of callers is:
 | Story merge (`/story-deliver` close)                                  | `story-close.js` (`drainPendingCleanupAfterClose`) | ❌ No       | ❌ No    | ✅ Yes       | Runs after the post-merge pipeline when worktree isolation is enabled.                              |
 | Story close                                                           | `epic-deliver runner` (invoked by `story-close.js`)    | ✅ Yes      | ✅ Yes   | ✅ Yes       | Runs before branch deletion so reaping cannot collide with `git branch -D`.                         |
 | Story init (`/story-deliver <storyId>`)                               | `story-init.js`                                    | ❌ No       | ❌ No    | ❌ No        | Story execution relies on the dispatch/close pair to clean up; it only creates its own worktree.    |
-| Epic deliver runner wave loop                                         | `epic-deliver-runner.js` and `lib/orchestration/epic-runner/*`    | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
+| Epic deliver wave loop (`/epic-deliver`)                              | `/epic-deliver` slash command + `lib/orchestration/epic-runner/*` | ❌ No       | ❌ No    | ❌ No        | Does not call `sweepStaleLocks` or `gc` directly; cleanup still flows through dispatch + close.     |
 | `/drain-pending-cleanup` (operator-driven)                            | `drain-pending-cleanup.js`                                | n/a         | n/a      | ✅ Yes       | Standalone helper; same drain + Windows escalation as the `/epic-plan` and `/epic-deliver` paths.     |
 
 Operator takeaway: if you need to force a sweep/GC without closing a story,

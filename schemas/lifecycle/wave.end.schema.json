@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/wave.end.schema.json",
+  "title": "wave.end",
+  "description": "Emitted by iterate-waves when a wave settles. The outcomes object must carry exactly the story IDs from the matching wave.start (Repeatability AC #5 — wave completeness invariant).",
+  "type": "object",
+  "required": ["waveIndex", "outcomes"],
+  "properties": {
+    "waveIndex": { "type": "integer", "minimum": 0 },
+    "outcomes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": ["done", "blocked", "failed", "skipped"]
+      }
+    }
+  },
+  "additionalProperties": false
+}

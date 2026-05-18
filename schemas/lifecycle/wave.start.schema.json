@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/wave.start.schema.json",
+  "title": "wave.start",
+  "description": "Emitted by iterate-waves when a wave begins; lists story IDs dispatched in this wave.",
+  "type": "object",
+  "required": ["waveIndex", "storyIds"],
+  "properties": {
+    "waveIndex": { "type": "integer", "minimum": 0 },
+    "storyIds": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1 }
+    }
+  },
+  "additionalProperties": false
+}

@@ -259,7 +259,7 @@ them automatically; agents commit on the execution branch only.
 | Purpose          | Format                       | Owner                  | Notes                                                                                         |
 | ---------------- | ---------------------------- | ---------------------- | --------------------------------------------------------------------------------------------- |
 | Story execution  | `story-<storyId>`            | `story-init.js` | Per-Story worktree at `.worktrees/story-<storyId>/`. All Task commits land here.              |
-| Epic integration | `epic/<epicId>`              | `epic-deliver-runner.js` | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
+| Epic integration | `epic/<epicId>`              | `/epic-deliver` slash command | Story branches merge into this branch with `--no-ff`. Pushed per wave.                       |
 
 - **Verification**: After `story-init.js` returns, confirm
   `git branch --show-current` reports `story-<storyId>` before making any
