@@ -49,11 +49,13 @@ import {
 } from './lib/config-resolver.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
-import { PlanRunnerContext } from './lib/orchestration/context.js';
 import {
+  initialize as initializePlanState,
   PLAN_PHASES,
-  PlanCheckpointer,
-} from './lib/orchestration/plan-runner/plan-checkpointer.js';
+  read as readPlanState,
+  setPhase as setPlanPhase,
+  write as writePlanState,
+} from './lib/orchestration/epic-plan-state-store.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
 import { renderSpec } from './lib/orchestration/spec-renderer.js';
 import { validateTaskBodies } from './lib/orchestration/task-body-validator.js';
@@ -758,21 +760,22 @@ export async function runDecomposePhase(
     );
   }
 
-  const ctx = new PlanRunnerContext({
-    epicId,
+  await initializePlanState({
     provider,
-    config: config ?? {},
-    phase: PLAN_PHASES.DECOMPOSING,
-  });
-  const checkpointer = new PlanCheckpointer({ ctx });
-  await checkpointer.initialize({
-    spec: {
-      prdId: epic.linkedIssues.prd,
-      techSpecId: epic.linkedIssues.techSpec,
-      completedAt: null,
+    epicId,
+    seed: {
+      spec: {
+        prdId: epic.linkedIssues.prd,
+        techSpecId: epic.linkedIssues.techSpec,
+        completedAt: null,
+      },
     },
   });
-  await checkpointer.setPhase(PLAN_PHASES.DECOMPOSING);
+  await setPlanPhase({
+    provider,
+    epicId,
+    nextPhase: PLAN_PHASES.DECOMPOSING,
+  });
 
   // 1. Validate + normalise the ticket array using the same gates the
   //    legacy `decomposeEpic` path enforced; the renderer's own schema
@@ -858,9 +861,20 @@ export async function runDecomposePhase(
   //     is a hard error — the run did not produce a consistent backlog.
   await reconcileSubIssueLinks(epicId, provider);
 
-  const checkpoint = await checkpointer.updateDecompose({
-    ticketCount: tickets.length,
-    completedAt: new Date().toISOString(),
+  const currentState =
+    (await readPlanState({ provider, epicId })) ??
+    (await initializePlanState({ provider, epicId }));
+  const checkpoint = await writePlanState({
+    provider,
+    epicId,
+    state: {
+      ...currentState,
+      decompose: {
+        ...currentState.decompose,
+        ticketCount: tickets.length,
+        completedAt: new Date().toISOString(),
+      },
+    },
   });
 
   // 5. Phase 8 still flips the Epic to agent::ready — the reconciler
@@ -870,7 +884,11 @@ export async function runDecomposePhase(
     `[epic-plan-decompose] Flipping Epic #${epicId} to ${AGENT_LABELS.READY}...`,
   );
   await setEpicLabel(provider, epicId, AGENT_LABELS.READY);
-  await checkpointer.setPhase(PLAN_PHASES.READY);
+  await setPlanPhase({
+    provider,
+    epicId,
+    nextPhase: PLAN_PHASES.READY,
+  });
 
   const cleanup = await cleanupPhaseTempFiles({ phase: 'decompose', epicId });
 

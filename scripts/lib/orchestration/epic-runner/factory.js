@@ -7,7 +7,7 @@
  * tests continue to pass unchanged.
  *
  * Returned object:
- *   notify, checkpointer, blockerHandler, launcher, gitAdapter,
+ *   notify, epicRunStateStore, blockerHandler, launcher, gitAdapter,
  *   commitAssertion, waveObserver, progressReporter, columnSync,
  *   syncColumn (closure wrapping columnSync.sync with error-journal
  *   logging).
@@ -17,6 +17,7 @@ import { notify } from '../../../notify.js';
 import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
 import { appendEpicSignal } from '../../observability/signals-writer.js';
+import * as epicRunStateStoreModule from '../epic-run-state-store.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { AcceptanceReconciler } from '../lifecycle/listeners/acceptance-reconciler.js';
@@ -28,6 +29,7 @@ import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-point
 import { Cleaner } from '../lifecycle/listeners/cleaner.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
 import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
+import { InterventionRecorder } from '../lifecycle/listeners/intervention-recorder.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
@@ -41,7 +43,6 @@ import {
   upsertStructuredComment,
 } from '../ticketing.js';
 import { waitForEpicUnblock } from './blocker-wait.js';
-import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
 import { ProgressReporter } from './progress-reporter.js';
@@ -60,7 +61,36 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.notify ??
     ((ticketId, payload, opts = {}) =>
       notify(ticketId, payload, { orchestration: config, provider, ...opts }));
-  const checkpointer = new Checkpointer({ ctx });
+  // Story #2409 — the legacy class-based checkpoint surface is replaced
+  // by the function-based `epic-run-state-store` module. The collaborator
+  // slot exposes a bag of provider/epicId-pre-bound functions so
+  // iterate-waves keeps its `store.initialize({ totalWaves,
+  // concurrencyCap })` call shape unchanged. The legacy class file under
+  // `./checkpointer.js` is removed in a later Story (#2423); nothing
+  // imports it from this factory anymore.
+  const epicRunStateStore = {
+    initialize: (opts) =>
+      epicRunStateStoreModule.initialize({
+        provider,
+        epicId: ctx.epicId,
+        ...opts,
+      }),
+    read: () => epicRunStateStoreModule.read({ provider, epicId: ctx.epicId }),
+    write: (state) =>
+      epicRunStateStoreModule.write({ provider, epicId: ctx.epicId, state }),
+    setPhase: (nextPhase) =>
+      epicRunStateStoreModule.setPhase({
+        provider,
+        epicId: ctx.epicId,
+        nextPhase,
+      }),
+    appendIntervention: (entry) =>
+      epicRunStateStoreModule.appendIntervention({
+        provider,
+        epicId: ctx.epicId,
+        entry,
+      }),
+  };
   // Story #2241 / Task #2246 — the legacy BlockerHandler (label flip +
   // friction comment + notify + wait loop) is replaced by:
   //   * the lifecycle BlockerHandler listener (classifies story.blocked
@@ -198,6 +228,18 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
   });
+  // Story #2410 / Task #2416 — register the InterventionRecorder
+  // listener. Subscribes to `intervention.recorded` and persists the
+  // payload to the `epic-run-state` comment via
+  // `epic-run-state-store.appendIntervention`. The persisted
+  // `manualInterventions` array is what the auto-merge predicate reads
+  // to disqualify Epics that hit a manual recovery during delivery.
+  const interventionRecorder = registerInterventionRecorder({
+    bus,
+    provider,
+    epicId: ctx.epicId,
+    logger,
+  });
   // Story #2315 / Task #2322 — register the close-tail chain
   // (AcceptanceReconciler → Finalizer → …) AFTER the observer +
   // mutator listener stack and BEFORE the BlockerHandler.
@@ -231,7 +273,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
     tempRoot,
-    checkpointer,
+    checkpointer: epicRunStateStore,
   });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
@@ -274,7 +316,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
 
   return {
     notify: notifyFn,
-    checkpointer,
+    epicRunStateStore,
     blockerHandler,
     blockerWait,
     launcher,
@@ -289,6 +331,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ledgerWriter,
     traceLogger,
     lifecycleProgressReporter,
+    interventionRecorder,
     checkpointPointerWriter,
     reliabilityObservers,
     acceptanceReconciler,
@@ -369,12 +412,11 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      `epic.merge.{ready,blocked}`. Wired AFTER Watcher so the bus
  *      delivers the freshly-emitted `epic.watch.end` in chain order,
  *      and BEFORE the AutomergeArmer which subscribes to
- *      `epic.merge.ready`. The listener wraps the legacy
- *      `evaluateAutoMergePredicate` from
- *      `lib/orchestration/automerge-predicate.js`; the legacy module
- *      itself stays unimported here — only the listener under
+ *      `epic.merge.ready`. The listener at
  *      `lib/orchestration/lifecycle/listeners/automerge-predicate.js`
- *      is wired.
+ *      now owns `evaluateAutoMergePredicate` directly; the legacy
+ *      `lib/orchestration/automerge-predicate.js` module was deleted
+ *      in Story #2415 (Epic #2307).
  *   5. `AutomergeArmer` — subscribes to `epic.merge.ready` (and ONLY
  *      that event); probes `gh pr view --json autoMergeRequest` and
  *      issues `gh pr merge --auto --squash --delete-branch` exactly
@@ -588,6 +630,36 @@ function registerBlockerHandler({ bus, epicId, logger }) {
   listener.register();
   logger?.debug?.(
     '[lifecycle] blocker-handler listener registered (story.blocked → epic.blocked / .unblocked)',
+  );
+  return listener;
+}
+
+/**
+ * Construct and register the InterventionRecorder listener
+ * (Story #2410 / Task #2416). Subscribes to `intervention.recorded` and
+ * persists the payload to the epic-run-state structured comment via
+ * `epic-run-state-store.appendIntervention`. Returns the constructed
+ * instance so tests can introspect the seqId guard; returns `null` for
+ * unit fixtures that supply an unbusable collaborators bag, an absent
+ * provider, or a non-numeric epicId.
+ */
+export function registerInterventionRecorder({
+  bus,
+  provider,
+  epicId,
+  logger,
+}) {
+  if (!bus || typeof bus.on !== 'function') return null;
+  if (!provider) return null;
+  if (!Number.isInteger(epicId) || epicId < 1) return null;
+  const listener = new InterventionRecorder({
+    provider,
+    epicId,
+    logger,
+  });
+  listener.register(bus);
+  logger?.debug?.(
+    '[lifecycle] intervention-recorder listener registered (intervention.recorded → epic-run-state-store.appendIntervention)',
   );
   return listener;
 }

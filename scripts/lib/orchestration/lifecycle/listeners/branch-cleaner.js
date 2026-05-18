@@ -82,9 +82,9 @@ export class BranchCleaner {
    * @param {number} opts.epicId
    * @param {{ read: () => Promise<object|null> }} opts.checkpointer
    *   Object exposing `read()` returning the `epic-run-state` checkpoint
-   *   shape (epicId + waves[].stories[].id). Production passes a
-   *   `Checkpointer` instance from `epic-runner/checkpointer.js`; tests
-   *   pass a fake.
+   *   shape (epicId + waves[].stories[].id). Production passes the
+   *   stateless `epic-run-state-store` module bound to `{provider, epicId}`;
+   *   tests pass a fake.
    * @param {string} opts.cwd - Absolute path to the **main** checkout
    *   (not a worktree). `reapEpicBranches()` runs `git checkout`,
    *   `git branch -D`, and `git remote prune` against this directory.

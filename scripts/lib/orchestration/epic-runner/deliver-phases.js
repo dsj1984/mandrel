@@ -1,11 +1,13 @@
 /**
  * deliver-phases.js — phase enum and ordering utility for `/epic-deliver`.
  *
- * Story #1155 (Epic #1142, 5.40.0). Extracted from `checkpointer.js` so
- * the Checkpointer class stays focused on the structured-comment
- * read/write surface and the close-tail phase semantics live in a
- * dedicated module that downstream tooling (the contract test) can import
- * without dragging the provider-coupled Checkpointer along.
+ * Story #1155 (Epic #1142, 5.40.0). Originally extracted from the
+ * legacy class-based checkpoint module so the phase enum and close-tail
+ * semantics live in a dedicated module that downstream tooling (the
+ * contract test) can import without dragging the provider-coupled
+ * checkpoint surface along. Story #2409 routes the runtime checkpoint
+ * read/write surface through `../epic-run-state-store.js`; this file
+ * remains the canonical home for the phase enum + validator.
  */
 
 /**
@@ -36,7 +38,7 @@ export function phaseIndex(phase) {
 /**
  * Pure: validate that `nextPhase` is a known phase tag (or the terminal
  * `'done'` sentinel). Throws on invalid input — exported so the
- * Checkpointer's `setPhase` and downstream callers share one failure mode.
+ * `setPhase` store function and downstream callers share one failure mode.
  */
 export function assertValidDeliverPhase(nextPhase) {
   if (nextPhase === 'done') return;

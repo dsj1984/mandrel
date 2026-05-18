@@ -15,7 +15,7 @@
  *     ├─ manifest.md          (dispatch manifest)
  *     ├─ retro.md             (mirror of GitHub retro at Epic close)
  *     ├─ perf-report.md       (analyzer output, Epic-level)
- *     ├─ checkpoints/...      (epic-runner checkpointer)
+ *     ├─ checkpoints/...      (epic-runner state store)
  *     ├─ <name>               (epicArtifactPath escape hatch)
  *     └─ story-<sid>/
  *        ├─ manifest.md       (story dispatch manifest)
