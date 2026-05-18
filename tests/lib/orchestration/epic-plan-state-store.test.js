@@ -10,8 +10,8 @@ import {
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
-import { PlanCheckpointer } from '../../../.agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
+import { PlanCheckpointer } from '../../fixtures/epic-plan-state-store.js';
 
 function createFakeProvider() {
   let autoId = 1;

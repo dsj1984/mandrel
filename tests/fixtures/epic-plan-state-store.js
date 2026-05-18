@@ -1,31 +1,26 @@
 /**
- * PlanCheckpointer — reads and writes the `epic-plan-state` structured
- * comment on the Epic issue.
+ * Test-only fixture adapter exposing the legacy PlanCheckpointer-shaped
+ * API backed by an in-memory record.
  *
- * Schema (see Tech Spec #351):
+ * Story #2423 (Epic #2307) — the production `PlanCheckpointer` class
+ * (`.agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js`)
+ * was deleted after every production caller was migrated to the stateless
+ * `epic-plan-state-store` module. The two resume-suite tests that
+ * exercise the class API (`tests/lib/plan-checkpointer.test.js` and
+ * `tests/lib/orchestration/epic-plan-state-store.test.js`) import from
+ * this fixture so the byte-identical comment-body parity coverage
+ * survives the production-code deletion.
  *
- * ```json
- * {
- *   "version": 1,
- *   "epicId": 349,
- *   "phase": "review-spec",
- *   "startedAt": "...",
- *   "lastUpdatedAt": "...",
- *   "spec": { "prdId": null, "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
- *   "decompose": { "ticketCount": null, "completedAt": null },
- *   "manifestCommentId": null
- * }
- * ```
- *
- * The comment is identified by the marker emitted by `structuredCommentMarker`
- * for type `epic-plan-state`, matching the `epic-run-state` pattern used by
- * the epic runner's `Checkpointer`.
+ * The body below is lifted verbatim from the deleted production class so
+ * the structured-comment shape stays byte-for-byte equivalent. No
+ * production module imports from this file — it is consumed by tests
+ * only.
  */
 
 import {
   findStructuredComment,
   upsertStructuredComment,
-} from '../ticketing.js';
+} from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
 export const PLAN_CHECKPOINT_SCHEMA_VERSION = 1;
@@ -49,7 +44,7 @@ const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 export class PlanCheckpointer {
   /**
-   * @param {{ provider: import('../../ITicketingProvider.js').ITicketingProvider, epicId: number }} opts
+   * @param {{ provider: object, epicId: number }} opts
    */
   constructor(opts = {}) {
     const ctx = opts.ctx;
@@ -66,8 +61,6 @@ export class PlanCheckpointer {
   /**
    * Read and parse the checkpoint. Returns null if the comment is missing or
    * unparseable (callers treat null as "start fresh").
-   *
-   * @returns {Promise<object | null>}
    */
   async read() {
     const comment = await findStructuredComment(
@@ -87,8 +80,6 @@ export class PlanCheckpointer {
 
   /**
    * Overwrite the checkpoint with the supplied merged state.
-   *
-   * @param {object} state
    */
   async write(state) {
     const payload = {
@@ -108,12 +99,7 @@ export class PlanCheckpointer {
 
   /**
    * Initialize the checkpoint. Idempotent — returns the existing state if one
-   * is present, otherwise writes a fresh skeleton. Overrides from `seed` are
-   * merged into a freshly-written skeleton; an already-present checkpoint is
-   * returned unchanged.
-   *
-   * @param {object} [seed] Partial state used only when writing fresh.
-   * @returns {Promise<object>}
+   * is present, otherwise writes a fresh skeleton.
    */
   async initialize(seed = {}) {
     const existing = await this.read();
@@ -137,8 +123,6 @@ export class PlanCheckpointer {
 
   /**
    * Update only the `phase` field. Creates the checkpoint first if absent.
-   *
-   * @param {string} phase One of PLAN_PHASES values.
    */
   async setPhase(phase) {
     if (!Object.values(PLAN_PHASES).includes(phase)) {
@@ -154,8 +138,6 @@ export class PlanCheckpointer {
 
   /**
    * Merge a partial spec-phase result into the checkpoint.
-   *
-   * @param {{ prdId?: number|null, techSpecId?: number|null, acceptanceSpecId?: number|null, completedAt?: string|null }} spec
    */
   async updateSpec(spec) {
     const current = (await this.read()) ?? (await this.initialize());
@@ -167,8 +149,6 @@ export class PlanCheckpointer {
 
   /**
    * Merge a partial decompose-phase result into the checkpoint.
-   *
-   * @param {{ ticketCount?: number|null, completedAt?: string|null }} decompose
    */
   async updateDecompose(decompose) {
     const current = (await this.read()) ?? (await this.initialize());
@@ -179,10 +159,7 @@ export class PlanCheckpointer {
   }
 
   /**
-   * Record the dispatch manifest comment ID so downstream tooling (notifier,
-   * external dashboards) can deep-link to it.
-   *
-   * @param {number} manifestCommentId
+   * Record the dispatch manifest comment ID so downstream tooling can deep-link to it.
    */
   async setManifestCommentId(manifestCommentId) {
     const current = (await this.read()) ?? (await this.initialize());

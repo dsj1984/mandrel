@@ -8,7 +8,7 @@ import {
   runEpicExecuteRecordWave,
   validateResults,
 } from '../../.agents/scripts/epic-execute-record-wave.js';
-import { Checkpointer } from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+import { Checkpointer } from '../fixtures/epic-run-state-store.js';
 
 function createFakeProvider({ ticketsById } = {}) {
   let autoId = 1;

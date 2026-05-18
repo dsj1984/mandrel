@@ -284,14 +284,14 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   // by the function-based `epic-run-state-store` module. The collaborator
   // slot exposes a provider/epicId-pre-bound bag so the inner `runPhase`
   // helper keeps the `checkpointer.setPhase(nextPhase)` call shape
-  // unchanged. Tests may inject a fake bag via `opts.epicRunStateStore`
-  // (or the legacy `opts.checkpointer` name during the cutover window).
-  const checkpointer = opts.epicRunStateStore ??
-    opts.checkpointer ?? {
-      read: () => readEpicRunState({ provider, epicId }),
-      setPhase: (nextPhase) =>
-        setEpicRunStatePhase({ provider, epicId, nextPhase }),
-    };
+  // unchanged. Tests inject a fake bag via `opts.epicRunStateStore`.
+  // Story #2423 retired the `opts.checkpointer` cutover alias along with
+  // the `Checkpointer` class itself.
+  const checkpointer = opts.epicRunStateStore ?? {
+    read: () => readEpicRunState({ provider, epicId }),
+    setPhase: (nextPhase) =>
+      setEpicRunStatePhase({ provider, epicId, nextPhase }),
+  };
 
   // Read the checkpoint to determine the resume point. A missing
   // checkpoint means "start at close-validation" (the prepare + wave-loop

@@ -2,11 +2,13 @@
  * epic-run-state-store — stateless functions for reading and writing the
  * `epic-run-state` structured comment used by `/epic-deliver`.
  *
- * This module is the function-based replacement for `Checkpointer`
- * (`./epic-runner/checkpointer.js`). Bodies are lifted verbatim from the
+ * This module is the function-based replacement for the legacy
+ * `Checkpointer` class that previously lived at
+ * `./epic-runner/checkpointer.js`. Bodies were lifted verbatim from the
  * corresponding `Checkpointer` methods so the structured-comment shape is
- * preserved byte-for-byte. The `Checkpointer` class remains importable in
- * this Story; it is removed by `story-delete-state-classes`.
+ * preserved byte-for-byte. Story #2423 (Epic #2307) deleted the class
+ * file; the class API survives as a tests-only fixture at
+ * `tests/fixtures/epic-run-state-store.js`.
  *
  * The comment is identified by a stable HTML marker so it can be overwritten
  * idempotently across orchestrator restarts. The body is a fenced JSON block

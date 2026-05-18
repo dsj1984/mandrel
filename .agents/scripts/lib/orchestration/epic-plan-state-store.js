@@ -2,11 +2,13 @@
  * epic-plan-state-store — stateless functions for reading and writing the
  * `epic-plan-state` structured comment on the Epic issue.
  *
- * This module is the function-based replacement for `PlanCheckpointer`
- * (`./plan-runner/plan-checkpointer.js`). Bodies are lifted verbatim from
+ * This module is the function-based replacement for the legacy
+ * `PlanCheckpointer` class that previously lived at
+ * `./plan-runner/plan-checkpointer.js`. Bodies were lifted verbatim from
  * the corresponding `PlanCheckpointer` methods so the structured-comment
- * shape is preserved byte-for-byte. The `PlanCheckpointer` class remains
- * importable in this Story; it is removed by `story-delete-state-classes`.
+ * shape is preserved byte-for-byte. Story #2423 (Epic #2307) deleted
+ * the class file; the class API survives as a tests-only fixture at
+ * `tests/fixtures/epic-plan-state-store.js`.
  *
  * Schema (see Tech Spec #351):
  *
