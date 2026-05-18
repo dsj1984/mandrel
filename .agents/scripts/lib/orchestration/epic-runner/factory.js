@@ -21,6 +21,7 @@ import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
+import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
@@ -253,9 +254,9 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
 
 /**
  * Construct and register the reliability observers
- * (Story #2314): `TimeoutWatchdog`. Both subscribers attach as
- * wildcard observers (`bus.on('*', …)`) so the firewall lint rule's
- * coverage of every observer remains intact.
+ * (Story #2314): `TimeoutWatchdog` and `HeartbeatMonitor`. Both
+ * subscribers attach as wildcard observers (`bus.on('*', …)`) so the
+ * firewall lint rule's coverage of every observer remains intact.
  *
  * Budgets and warn thresholds are resolved from
  * `config.delivery.lifecycle.timeouts` and
@@ -280,10 +281,20 @@ export function registerReliabilityObservers({ bus, config, logger }) {
       : {};
   const timeoutWatchdog = new TimeoutWatchdog({ timeouts, logger });
   timeoutWatchdog.register(bus);
+  // HeartbeatMonitor only consumes a positive-integer warn threshold.
+  // Defer to the listener's documented default when no override is
+  // configured — the constructor enforces the positivity guard so a
+  // missing or invalid value never produces a non-functional monitor.
+  const heartbeatOpts = { logger };
+  if (Number.isInteger(lifecycle.heartbeatWarnSeconds)) {
+    heartbeatOpts.warnSeconds = lifecycle.heartbeatWarnSeconds;
+  }
+  const heartbeatMonitor = new HeartbeatMonitor(heartbeatOpts);
+  heartbeatMonitor.register(bus);
   logger?.debug?.(
-    '[lifecycle] reliability observers registered (timeout-watchdog wildcard)',
+    '[lifecycle] reliability observers registered (timeout-watchdog, heartbeat-monitor wildcards)',
   );
-  return { timeoutWatchdog };
+  return { timeoutWatchdog, heartbeatMonitor };
 }
 
 /**

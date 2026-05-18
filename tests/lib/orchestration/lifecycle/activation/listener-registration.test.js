@@ -22,6 +22,10 @@ import { describe, it } from 'node:test';
 
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { registerReliabilityObservers } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
+import {
+  DEFAULT_HEARTBEAT_WARN_SECONDS,
+  HeartbeatMonitor,
+} from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/heartbeat-monitor.js';
 import { TimeoutWatchdog } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/timeout-watchdog.js';
 
 function quietLogger() {
@@ -39,7 +43,7 @@ function wildcardCount(bus) {
 }
 
 describe('registerReliabilityObservers — boot-time listener census', () => {
-  it('registers TimeoutWatchdog as a wildcard subscriber', () => {
+  it('registers TimeoutWatchdog and HeartbeatMonitor as wildcard subscribers', () => {
     const bus = new Bus();
     const before = wildcardCount(bus);
     const observers = registerReliabilityObservers({
@@ -48,6 +52,7 @@ describe('registerReliabilityObservers — boot-time listener census', () => {
         delivery: {
           lifecycle: {
             timeouts: { 'acceptance.reconcile': 600, 'epic.finalize': 600 },
+            heartbeatWarnSeconds: 60,
           },
         },
       },
@@ -58,10 +63,44 @@ describe('registerReliabilityObservers — boot-time listener census', () => {
       observers.timeoutWatchdog instanceof TimeoutWatchdog,
       'expected a TimeoutWatchdog instance',
     );
+    assert.ok(
+      observers.heartbeatMonitor instanceof HeartbeatMonitor,
+      'expected a HeartbeatMonitor instance',
+    );
     assert.equal(
       wildcardCount(bus) - before,
-      1,
-      'TimeoutWatchdog should add exactly one wildcard subscriber',
+      2,
+      'both reliability observers should attach as wildcard subscribers',
+    );
+  });
+
+  it('threads delivery.lifecycle.heartbeatWarnSeconds into the monitor', () => {
+    const bus = new Bus();
+    const observers = registerReliabilityObservers({
+      bus,
+      config: {
+        delivery: {
+          lifecycle: {
+            timeouts: {},
+            heartbeatWarnSeconds: 30,
+          },
+        },
+      },
+      logger: quietLogger(),
+    });
+    assert.equal(observers.heartbeatMonitor.warnSeconds, 30);
+  });
+
+  it('falls back to the documented HeartbeatMonitor default when not configured', () => {
+    const bus = new Bus();
+    const observers = registerReliabilityObservers({
+      bus,
+      config: { delivery: { lifecycle: {} } },
+      logger: quietLogger(),
+    });
+    assert.equal(
+      observers.heartbeatMonitor.warnSeconds,
+      DEFAULT_HEARTBEAT_WARN_SECONDS,
     );
   });
 
@@ -103,7 +142,8 @@ describe('registerReliabilityObservers — boot-time listener census', () => {
     });
     assert.ok(observers, 'should still register when config is bare');
     assert.ok(observers.timeoutWatchdog instanceof TimeoutWatchdog);
-    assert.equal(wildcardCount(bus), 1);
+    assert.ok(observers.heartbeatMonitor instanceof HeartbeatMonitor);
+    assert.equal(wildcardCount(bus), 2);
   });
 
   it('returns null for an unbusable bus argument', () => {
