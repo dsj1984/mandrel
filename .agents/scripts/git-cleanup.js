@@ -15,7 +15,17 @@
  *      `gh pr list --state merged` + `git branch --merged <base>` and
  *      reap them (with attached worktrees first). Optional `--remote`
  *      also reaps `origin/<branch>` and runs a follow-up prune to drop
- *      trailing tracking refs left by `push --delete`.
+ *      trailing tracking refs left by `push --delete`. With `--remote`,
+ *      the planner also enumerates `refs/remotes/origin/*` and emits
+ *      remote-only candidates (no local ref) for any origin branch with
+ *      a merged PR — these are reaped on the remote alone via
+ *      `gh pr list --state merged`.
+ *
+ *      Skip taxonomy: the current HEAD branch is reported with
+ *      `reason: 'current-head'` (operator can reap it after
+ *      `git checkout <base>`); the base branch and any
+ *      `branch.protectedBranches` entries are reported with
+ *      `reason: 'protected'` (not reapable).
  *   4. stashes:          enumerate `git stash list` and offer to drop
  *      each entry (interactive y/N per stash, or `--drop-stashes <ref>`
  *      in JSON / non-interactive mode).
@@ -163,6 +173,37 @@ export function computeProtectedSet({ baseBranch, currentBranch, configured }) {
   return set;
 }
 
+/**
+ * Pure: classify why a branch is protected, with the distinction the dry-run
+ * renderer needs to surface to the operator. Returns `null` when the branch
+ * is NOT protected.
+ *
+ * Precedence (highest → lowest):
+ *   - `'protected'` — branch is the base branch, OR appears in the
+ *     `branch.protectedBranches` git config. Operator cannot reap it.
+ *   - `'current-head'` — branch is the current HEAD (and not also base /
+ *     configured). Operator can reap it after `git checkout <base>`.
+ *
+ * The `'current-head'` reason is split out so `renderDryRun` can emit a
+ * remediation hint distinct from the generic `'protected'` line.
+ *
+ * @param {{ baseBranch: string, currentBranch: string|null, configured: string[], branch: string }} opts
+ * @returns {'protected' | 'current-head' | null}
+ */
+export function computeProtectedReason({
+  baseBranch,
+  currentBranch,
+  configured,
+  branch,
+}) {
+  if (!branch) return null;
+  if (baseBranch && branch === baseBranch) return 'protected';
+  if (Array.isArray(configured) && configured.includes(branch))
+    return 'protected';
+  if (currentBranch && branch === currentBranch) return 'current-head';
+  return null;
+}
+
 /* node:coverage ignore next */
 function listLocalBranches(cwd) {
   const res = gitSpawn(
@@ -176,6 +217,24 @@ function listLocalBranches(cwd) {
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean);
+}
+
+/* node:coverage ignore next */
+function listRemoteBranches(cwd, remoteName = 'origin') {
+  const res = gitSpawn(
+    cwd,
+    'for-each-ref',
+    '--format=%(refname:short)',
+    `refs/remotes/${remoteName}/`,
+  );
+  if (res.status !== 0) return [];
+  const prefix = `${remoteName}/`;
+  return res.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((l) => (l.startsWith(prefix) ? l.slice(prefix.length) : l))
+    .filter((b) => b && b !== 'HEAD');
 }
 
 /* node:coverage ignore next */
@@ -271,6 +330,12 @@ function defaultGhRunner(args, { cwd }) {
 
 /**
  * Pure-ish: enumerate merged-branch candidates given the injected accessors.
+ *
+ * When `includeRemoteOnly` is `true`, also walks `refs/remotes/<remoteName>/*`
+ * and emits candidates for branches that exist on the remote with a merged
+ * PR but have no local ref. These remote-only candidates carry
+ * `localExists: false` so `executeCleanup` knows to skip the
+ * `deleteBranchLocal` call and run only the remote deletion path.
  */
 export function planCleanup(ctx) {
   const {
@@ -283,23 +348,33 @@ export function planCleanup(ctx) {
     worktreesFn = worktreesByBranch,
     prProbe = (b, c) => probeMergedPr(b, c),
     filter = () => true,
+    includeRemoteOnly = false,
+    remoteLister = listRemoteBranches,
+    remoteName = 'origin',
   } = ctx;
 
-  const protectedSet = computeProtectedSet({
-    baseBranch,
-    currentBranch: currentBranchFn(cwd),
-    configured: protectedConfigFn(cwd),
-  });
+  const resolvedCurrent = currentBranchFn(cwd);
+  const resolvedConfigured = protectedConfigFn(cwd);
+  const classify = (branch) =>
+    computeProtectedReason({
+      baseBranch,
+      currentBranch: resolvedCurrent,
+      configured: resolvedConfigured,
+      branch,
+    });
+
   const wtMap = worktreesFn(cwd);
   const mergedByGit = new Set(mergedLister(cwd, baseBranch));
   const localBranches = localLister(cwd);
+  const localSet = new Set(localBranches);
 
   const candidates = [];
   const skipped = [];
 
   for (const branch of localBranches) {
-    if (protectedSet.has(branch)) {
-      skipped.push({ branch, reason: 'protected' });
+    const protectedReason = classify(branch);
+    if (protectedReason) {
+      skipped.push({ branch, reason: protectedReason });
       continue;
     }
     if (!filter(branch)) {
@@ -307,9 +382,8 @@ export function planCleanup(ctx) {
       continue;
     }
 
-    let prInfo = null;
+    const prInfo = prProbe(branch, cwd);
     let detectedBy = null;
-    prInfo = prProbe(branch, cwd);
     if (prInfo) {
       detectedBy = 'gh';
     } else if (mergedByGit.has(branch)) {
@@ -327,7 +401,30 @@ export function planCleanup(ctx) {
       hasWorktree: !!wt,
       worktreePath: wt?.path ?? null,
       detectedBy,
+      localExists: true,
     });
+  }
+
+  if (includeRemoteOnly) {
+    const remoteBranches = remoteLister(cwd, remoteName);
+    for (const branch of remoteBranches) {
+      if (localSet.has(branch)) continue;
+      if (classify(branch)) continue;
+      if (!filter(branch)) continue;
+
+      const prInfo = prProbe(branch, cwd);
+      if (!prInfo) continue;
+
+      candidates.push({
+        branch,
+        prNumber: prInfo.number ?? null,
+        mergedAt: prInfo.mergedAt ?? null,
+        hasWorktree: false,
+        worktreePath: null,
+        detectedBy: 'remote-only',
+        localExists: false,
+      });
+    }
   }
 
   return { candidates, skipped };
@@ -376,22 +473,27 @@ export function executeCleanup(ctx) {
       }
     }
 
-    const localRes = deleteLocalFn(cand.branch, cwd);
-    local.push({
-      branch: cand.branch,
-      ok: localRes.deleted,
-      reason: localRes.reason,
-      alreadyGone: localRes.reason === 'not-found',
-      stderr: localRes.stderr,
-    });
-    if (!localRes.deleted) {
-      failures.push({
+    // Remote-only candidates have no local ref, so the deleteLocalFn call
+    // would fail with `not-found`. Skip it and proceed to the remote
+    // deletion path.
+    if (cand.localExists !== false) {
+      const localRes = deleteLocalFn(cand.branch, cwd);
+      local.push({
         branch: cand.branch,
-        scope: 'local',
+        ok: localRes.deleted,
         reason: localRes.reason,
+        alreadyGone: localRes.reason === 'not-found',
         stderr: localRes.stderr,
       });
-      continue;
+      if (!localRes.deleted) {
+        failures.push({
+          branch: cand.branch,
+          scope: 'local',
+          reason: localRes.reason,
+          stderr: localRes.stderr,
+        });
+        continue;
+      }
     }
 
     if (remote) {
@@ -795,18 +897,31 @@ function removeWorktree(worktreePath, cwd) {
 }
 
 /** Pure: render the dry-run plan as the operator-facing text block. */
-export function renderDryRun(plan) {
+export function renderDryRun(plan, opts = {}) {
+  const { baseBranch = null } = opts;
   const lines = [
     `${TAG} DRY RUN (nothing deleted) — ${plan.candidates.length} candidate(s)`,
   ];
   if (plan.candidates.length === 0) {
     lines.push('  (no merged branches to clean up)');
-    return lines;
+  } else {
+    for (const c of plan.candidates) {
+      const pr = c.prNumber ? `PR #${c.prNumber}` : c.detectedBy;
+      const wt = c.hasWorktree ? ` (worktree: ${c.worktreePath})` : '';
+      const remoteOnly = c.localExists === false ? ' (remote-only)' : '';
+      lines.push(`  • ${c.branch} — ${pr}${wt}${remoteOnly}`);
+    }
   }
-  for (const c of plan.candidates) {
-    const pr = c.prNumber ? `PR #${c.prNumber}` : c.detectedBy;
-    const wt = c.hasWorktree ? ` (worktree: ${c.worktreePath})` : '';
-    lines.push(`  • ${c.branch} — ${pr}${wt}`);
+  const currentHeadSkip = (plan.skipped ?? []).find(
+    (s) => s.reason === 'current-head',
+  );
+  if (currentHeadSkip) {
+    const hint = baseBranch
+      ? `checkout ${baseBranch} first to include this branch`
+      : 'checkout the base branch first to include this branch';
+    lines.push(
+      `${TAG} ⓘ ${currentHeadSkip.branch} skipped — current HEAD (${hint})`,
+    );
   }
   return lines;
 }
@@ -925,8 +1040,8 @@ export function computeExitCode(ctx, legacyResult) {
 }
 
 /* node:coverage ignore next */
-function emitDryRunHuman(plan) {
-  for (const line of renderDryRun(plan)) Logger.info(line);
+function emitDryRunHuman(plan, baseBranch) {
+  for (const line of renderDryRun(plan, { baseBranch })) Logger.info(line);
 }
 
 /* node:coverage ignore next */
@@ -1065,8 +1180,13 @@ async function runBranchPhase(opts, cwd, baseBranch) {
     include: opts.include,
     exclude: opts.exclude,
   });
-  const plan = planCleanup({ cwd, baseBranch, filter });
-  emitDryRunHuman(plan);
+  const plan = planCleanup({
+    cwd,
+    baseBranch,
+    filter,
+    includeRemoteOnly: opts.remote === true,
+  });
+  emitDryRunHuman(plan, baseBranch);
   if (opts.dryRun || plan.candidates.length === 0) {
     return { plan, result: null };
   }
