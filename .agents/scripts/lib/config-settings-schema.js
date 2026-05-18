@@ -451,6 +451,13 @@ const DELIVERY_SCHEMA = {
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
     lifecycle: LIFECYCLE_SCHEMA,
+    // Cross-Story concurrency-hazard gate (Story #2297). When true,
+    // `epic-deliver-prepare` refuses to flip the Epic to
+    // `agent::executing` if the upcoming waves still carry any conflict
+    // finding (Story #2296). Off by default; operators using the gate
+    // also need to wire findings into prepare via the runtime injection
+    // surface.
+    failOnConcurrencyHazards: { type: 'boolean' },
   },
   additionalProperties: false,
 };

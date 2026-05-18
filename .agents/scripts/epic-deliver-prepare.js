@@ -30,15 +30,28 @@ import { runAsCli } from './lib/cli-utils.js';
 import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
 import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
+import {
+  collectPendingStoryKeys,
+  evaluateConcurrencyGate,
+  filterFindingsToPending,
+  renderGateErrorMessage,
+} from './lib/orchestration/epic-runner/concurrency-gate.js';
 import { runBuildWaveDagPhase } from './lib/orchestration/epic-runner/phases/build-wave-dag.js';
 import { runSnapshotPhase } from './lib/orchestration/epic-runner/phases/snapshot.js';
 import { StoryLauncher } from './lib/orchestration/epic-runner/story-launcher.js';
 import { createProvider } from './lib/provider-factory.js';
 
-const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
+const HELP = `Usage: node .agents/scripts/epic-deliver-prepare.js --epic <epicId> [--ignore-concurrency-hazards]
 
 Snapshots Epic #<id>, builds the wave DAG, initializes the epic-run-state
 checkpoint, and prints the per-wave dispatch plan as JSON.
+
+Options:
+  --ignore-concurrency-hazards   Bypass the cross-Story concurrency-hazard
+                                 gate (Story #2297). The flag's use is
+                                 recorded on the Epic checkpoint so retro
+                                 tooling can flag a run that shipped
+                                 despite an outstanding hazard.
 `;
 
 /**
@@ -64,6 +77,8 @@ export async function runEpicDeliverPrepare({
   cwd,
   injectedProvider,
   injectedConfig,
+  injectedFindings,
+  ignoreConcurrencyHazards = false,
 } = {}) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
@@ -86,6 +101,35 @@ export async function runEpicDeliverPrepare({
   state = await runSnapshotPhase(ctx, {}, state);
   state = await runBuildWaveDagPhase(ctx, {}, state);
 
+  // Cross-Story concurrency-hazard gate (Story #2297). Findings come in
+  // via DI; no default loader is wired yet — production callers will
+  // either pass findings derived from the persisted manifest or rely on
+  // the empty default (gate trivially passes).
+  const findings = Array.isArray(injectedFindings) ? injectedFindings : [];
+  const pendingKeys = collectPendingStoryKeys(state.waves);
+  const pendingFindings = filterFindingsToPending(findings, pendingKeys);
+  const concurrencyPolicy = {
+    failOnConcurrencyHazards:
+      config?.delivery?.failOnConcurrencyHazards === true,
+  };
+  const gate = evaluateConcurrencyGate({
+    findings: pendingFindings,
+    policy: concurrencyPolicy,
+    ignore: ignoreConcurrencyHazards === true,
+  });
+  if (gate.tripped && !gate.bypassed) {
+    const ownerRepo =
+      config?.github?.owner && config?.github?.repo
+        ? `${config.github.owner}/${config.github.repo}`
+        : undefined;
+    throw new Error(renderGateErrorMessage(gate.findings, ownerRepo));
+  }
+  if (gate.tripped && gate.bypassed) {
+    Logger.warn(
+      `[epic-deliver-prepare] ⚠️  Concurrency-hazard gate bypassed via --ignore-concurrency-hazards (reason=${gate.reason}, count=${gate.findings.length}).`,
+    );
+  }
+
   const totalWaves = state.waves.length;
   const checkpointer = new Checkpointer({ provider, epicId });
   const checkpointState = await checkpointer.initialize({
@@ -107,7 +151,14 @@ export async function runEpicDeliverPrepare({
   // resolve the next wave's stories. Without this write the tick reports
   // every wave as `wave-complete: empty` and the delivery stalls.
   const tickPlan = plan.map((wave) => wave.stories);
-  await checkpointer.write({ ...checkpointState, plan: tickPlan });
+  // Persist the `--ignore-concurrency-hazards` flag on the checkpoint
+  // so retro tooling can flag a run that shipped despite an outstanding
+  // hazard (the warning above is one-shot; the checkpoint is durable).
+  const checkpointPayload = { ...checkpointState, plan: tickPlan };
+  if (gate.bypassed) {
+    checkpointPayload.ignoreConcurrencyHazards = true;
+  }
+  await checkpointer.write(checkpointPayload);
 
   return {
     epicId,
@@ -118,6 +169,7 @@ export async function runEpicDeliverPrepare({
       checkpointState.startedAt ??
       checkpointState.lastUpdatedAt ??
       new Date().toISOString(),
+    concurrencyHazardsBypassed: gate.bypassed,
   };
 }
 
@@ -126,6 +178,7 @@ async function main() {
     options: {
       epic: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
+      'ignore-concurrency-hazards': { type: 'boolean', default: false },
     },
     strict: false,
   });
@@ -141,7 +194,10 @@ async function main() {
     process.exit(2);
   }
 
-  const result = await runEpicDeliverPrepare({ epicId });
+  const result = await runEpicDeliverPrepare({
+    epicId,
+    ignoreConcurrencyHazards: values['ignore-concurrency-hazards'] === true,
+  });
   Logger.info(JSON.stringify(result, null, 2));
 }
 

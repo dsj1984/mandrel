@@ -172,4 +172,166 @@ describe('runEpicDeliverPrepare', () => {
       /must be a positive integer/,
     );
   });
+
+  // ---------------------------------------------------------------------
+  // Concurrency-hazard gate (Story #2297)
+  // ---------------------------------------------------------------------
+
+  it('proceeds when injected findings are advisory-only (severity soft)', async () => {
+    const epic = { id: 110, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 401,
+        number: 401,
+        title: 'Story',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    const out = await runEpicDeliverPrepare({
+      epicId: 110,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+      injectedFindings: [
+        { kind: 'shared-editor', storySlugs: ['401'], severity: 'soft' },
+      ],
+    });
+    assert.equal(out.concurrencyHazardsBypassed, false);
+  });
+
+  it('throws when a hard-severity finding touches a pending Story', async () => {
+    const epic = { id: 111, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 501,
+        number: 501,
+        title: 'Story',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    await assert.rejects(
+      runEpicDeliverPrepare({
+        epicId: 111,
+        injectedProvider: provider,
+        injectedConfig: baseConfig,
+        injectedFindings: [
+          {
+            kind: 'shared-editor',
+            path: '.github/workflows/quality.yml',
+            storySlugs: ['501'],
+            severity: 'hard',
+          },
+        ],
+      }),
+      /Refusing to flip Epic/,
+    );
+  });
+
+  it('proceeds when --ignore-concurrency-hazards bypasses a hard-severity finding', async () => {
+    const epic = { id: 112, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 601,
+        number: 601,
+        title: 'Story',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    const out = await runEpicDeliverPrepare({
+      epicId: 112,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+      injectedFindings: [
+        {
+          kind: 'shared-editor',
+          path: '.github/workflows/quality.yml',
+          storySlugs: ['601'],
+          severity: 'hard',
+        },
+      ],
+      ignoreConcurrencyHazards: true,
+    });
+    assert.equal(out.concurrencyHazardsBypassed, true);
+
+    // The bypass MUST be persisted on the checkpoint so retro tooling can
+    // flag a run that shipped despite an outstanding hazard.
+    const epicComments = provider._comments.get(112) ?? [];
+    const fenced = epicComments[0].body.match(/```json\n([\s\S]+?)\n```/);
+    const persisted = JSON.parse(fenced[1]);
+    assert.equal(persisted.ignoreConcurrencyHazards, true);
+  });
+
+  it('drops findings whose Stories are all agent::done before gating', async () => {
+    const epic = { id: 113, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 701,
+        number: 701,
+        title: 'Already finished',
+        labels: ['type::story', 'agent::done'],
+        body: '',
+      },
+      {
+        id: 702,
+        number: 702,
+        title: 'Pending',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    // Finding references only the already-done Story — should be filtered.
+    const out = await runEpicDeliverPrepare({
+      epicId: 113,
+      injectedProvider: provider,
+      injectedConfig: baseConfig,
+      injectedFindings: [
+        {
+          kind: 'shared-editor',
+          path: '.github/workflows/quality.yml',
+          storySlugs: ['701'],
+          severity: 'hard',
+        },
+      ],
+    });
+    assert.equal(out.concurrencyHazardsBypassed, false);
+  });
+
+  it('trips on advisory findings when delivery.failOnConcurrencyHazards is true', async () => {
+    const epic = { id: 114, labels: ['type::epic', 'acceptance::n-a'] };
+    const descendants = [
+      {
+        id: 801,
+        number: 801,
+        title: 'Story',
+        labels: ['type::story'],
+        body: '',
+      },
+    ];
+    const provider = createFakeProvider({ epic, descendants });
+    await assert.rejects(
+      runEpicDeliverPrepare({
+        epicId: 114,
+        injectedProvider: provider,
+        injectedConfig: {
+          ...baseConfig,
+          delivery: { failOnConcurrencyHazards: true },
+        },
+        injectedFindings: [
+          {
+            kind: 'shared-editor',
+            path: '.github/workflows/quality.yml',
+            storySlugs: ['801'],
+            severity: 'soft',
+          },
+        ],
+      }),
+      /Refusing to flip Epic/,
+    );
+  });
 });

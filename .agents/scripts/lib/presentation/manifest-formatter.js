@@ -35,7 +35,10 @@ import {
   waveHeadingText,
 } from './manifest-helpers.js';
 import { renderProceduresAndLegendDetails } from './manifest-procedures.js';
-import { renderNestedWaveSections } from './manifest-render-waves.js';
+import {
+  renderConcurrencyHazards,
+  renderNestedWaveSections,
+} from './manifest-render-waves.js';
 import {
   formatStoryManifestMarkdown,
   printStoryDispatchTable,
@@ -52,6 +55,7 @@ export {
   deriveWaveStatus,
   formatStoryManifestMarkdown,
   printStoryDispatchTable,
+  renderConcurrencyHazards,
   renderNestedWaveSections,
   renderProceduresAndLegendDetails,
   renderProgressBar,
@@ -163,6 +167,15 @@ function renderManifestBody(manifest) {
   if (storyManifest && storyManifest.length > 0) {
     const nestedBlock = renderNestedWaveSections(storyManifest);
     if (nestedBlock) lines.push(nestedBlock);
+  }
+  // Cross-Story concurrency hazards block — only emitted when the caller
+  // attaches `concurrencyFindings` to the manifest (i.e. `/epic-plan`
+  // Phase 9 dispatcher dry-run forwards the validator's findings array).
+  // Absent for live progress-reporter manifests where the block would
+  // duplicate Story-level state already shown above.
+  if (manifest.concurrencyFindings !== undefined) {
+    const hazardsBlock = renderConcurrencyHazards(manifest.concurrencyFindings);
+    if (hazardsBlock) lines.push(hazardsBlock);
   }
   return lines;
 }

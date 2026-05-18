@@ -530,7 +530,8 @@
         "worktreeIsolation": { "$ref": "#/$defs/worktreeIsolation" },
         "signals": { "$ref": "#/$defs/signals" },
         "quality": { "$ref": "#/$defs/quality" },
-        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+        "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "failOnConcurrencyHazards": { "type": "boolean" }
       },
       "additionalProperties": false
     }
