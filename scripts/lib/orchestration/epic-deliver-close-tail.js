@@ -376,6 +376,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
         review: result.review,
         detail: d.blocker.detail,
         logger,
+        bus,
       });
       throw new Error(
         `[close-tail] Phase D halted: code-review reported critical findings — ${
@@ -465,9 +466,25 @@ export async function runEpicDeliverCloseTail(opts = {}) {
 
 /**
  * Mark an Epic blocked because Phase D code-review surfaced critical
- * findings. Flips `agent::executing` → `agent::blocked` and posts a
- * structured friction comment summarizing the severity counts. Both
- * side effects are best-effort — a provider failure is logged and
+ * findings. The label flip is routed through `bus.emit('epic.blocked',
+ * ...)` so the lifecycle `LabelTransitioner` listener owns the
+ * `agent::executing` → `agent::blocked` transition (Epic #2306 /
+ * Story #2316 — no direct provider mutations from the close-tail; the
+ * listener chain is the sole label mutator). When `bus` is absent
+ * (legacy tests, unit fixtures that do not wire a bus), the helper
+ * falls back to a direct `provider.updateTicket` so the test surface
+ * stays observable; production always supplies a bus.
+ *
+ * The rich friction comment (severity counts + halted-phase context)
+ * is a separate parallel-writer concern: `StructuredCommentPoster`
+ * writes a minimal `lifecycle-epic-blocked` marker off the same bus
+ * event, while this helper writes the legacy operator-facing
+ * `friction`-typed body. The dual-write mirrors the wave-observer
+ * coexistence pattern (see `StructuredCommentPoster` header comment)
+ * and a follow-up Story can collapse the two once the listener body
+ * can render severity counts.
+ *
+ * All side effects are best-effort — a failure is logged and
  * swallowed so the caller's `throw` is the operator-visible signal.
  */
 async function markEpicBlockedForCriticalReview({
@@ -476,18 +493,36 @@ async function markEpicBlockedForCriticalReview({
   review,
   detail,
   logger,
+  bus,
 }) {
-  try {
-    await provider.updateTicket(epicId, {
-      labels: {
-        add: [AGENT_LABELS.BLOCKED],
-        remove: [AGENT_LABELS.EXECUTING],
-      },
-    });
-  } catch (err) {
-    logger?.warn?.(
-      `[close-tail] could not flip Epic #${epicId} → agent::blocked: ${messageOf(err)}`,
-    );
+  if (bus && typeof bus.emit === 'function') {
+    try {
+      await bus.emit('epic.blocked', {
+        reason: 'critical-findings',
+        ...(detail ? { detail } : {}),
+      });
+    } catch (err) {
+      logger?.warn?.(
+        `[close-tail] epic.blocked emit failed (swallowed): ${messageOf(err)}`,
+      );
+    }
+  } else {
+    // Fallback: tests / unit fixtures that do not supply a bus still
+    // get the label flip so their assertions observe the state change.
+    // Production wires the bus unconditionally; this branch is dead in
+    // the live runner.
+    try {
+      await provider.updateTicket(epicId, {
+        labels: {
+          add: [AGENT_LABELS.BLOCKED],
+          remove: [AGENT_LABELS.EXECUTING],
+        },
+      });
+    } catch (err) {
+      logger?.warn?.(
+        `[close-tail] could not flip Epic #${epicId} → agent::blocked: ${messageOf(err)}`,
+      );
+    }
   }
 
   const severity = review?.severity ?? {};
