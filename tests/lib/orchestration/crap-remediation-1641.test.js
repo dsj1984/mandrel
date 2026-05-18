@@ -22,7 +22,7 @@ import { describe, it } from 'node:test';
 import {
   CLEAN_SPRINT_MARKER,
   deriveAutoMergeVerdict,
-} from '../../../.agents/scripts/lib/orchestration/automerge-predicate.js';
+} from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { phaseToState } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import {
   coverageKeyMatches,

@@ -6,7 +6,7 @@ import {
   deriveAutoMergeVerdict,
   evaluateAutoMergePredicate,
   parseSeverityCounts,
-} from '../../../.agents/scripts/lib/orchestration/automerge-predicate.js';
+} from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 
 const cleanState = {
   epicId: 1178,
@@ -227,18 +227,16 @@ describe('evaluateAutoMergePredicate', () => {
       if (type === 'retro-partial') return null;
       return null;
     };
-    const checkpointerFactory = ({ provider, epicId }) => ({
-      read: async () => {
-        assert.equal(provider, fakeProvider);
-        assert.equal(epicId, 1178);
-        return cleanState;
-      },
-    });
+    const readRunStateFn = async ({ provider, epicId }) => {
+      assert.equal(provider, fakeProvider);
+      assert.equal(epicId, 1178);
+      return cleanState;
+    };
     const out = await evaluateAutoMergePredicate({
       provider: fakeProvider,
       epicId: 1178,
       findCommentFn,
-      checkpointerFactory,
+      readRunStateFn,
     });
     assert.equal(out.clean, true);
     assert.deepEqual(out.reasons, []);
@@ -254,12 +252,12 @@ describe('evaluateAutoMergePredicate', () => {
       if (type === 'retro-partial') return cleanRetro;
       return null;
     };
-    const checkpointerFactory = () => ({ read: async () => cleanState });
+    const readRunStateFn = async () => cleanState;
     const out = await evaluateAutoMergePredicate({
       provider: fakeProvider,
       epicId: 1178,
       findCommentFn,
-      checkpointerFactory,
+      readRunStateFn,
     });
     assert.equal(out.clean, true);
   });
@@ -270,7 +268,7 @@ describe('evaluateAutoMergePredicate', () => {
         evaluateAutoMergePredicate({
           provider: null,
           epicId: 1,
-          checkpointerFactory: () => ({ read: async () => null }),
+          readRunStateFn: async () => null,
         }),
       /provider required/,
     );
@@ -279,13 +277,9 @@ describe('evaluateAutoMergePredicate', () => {
         evaluateAutoMergePredicate({
           provider: {},
           epicId: 0,
-          checkpointerFactory: () => ({ read: async () => null }),
+          readRunStateFn: async () => null,
         }),
       /positive integer/,
-    );
-    await assert.rejects(
-      () => evaluateAutoMergePredicate({ provider: {}, epicId: 1 }),
-      /checkpointerFactory/,
     );
   });
 });

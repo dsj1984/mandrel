@@ -13,8 +13,9 @@
  *   - manual `--no-ff` recovery merge
  *   - per-Story close that needed `--skipValidation`
  *
- * The auto-merge predicate (see `lib/orchestration/automerge-predicate.js`)
- * reads `state.manualInterventions[]` and refuses to fire when the array is
+ * The auto-merge predicate (see
+ * `lib/orchestration/lifecycle/listeners/automerge-predicate.js`) reads
+ * `state.manualInterventions[]` and refuses to fire when the array is
  * non-empty.
  *
  * Usage:

@@ -2,9 +2,8 @@
 /**
  * AutomergePredicate — lifecycle listener that decides whether the Epic
  * PR is safe to auto-merge after the required-check watch settles.
- * Story #2256 / Task #2260 (Epic #2172); inlined from the legacy
- * `lib/orchestration/automerge-predicate.js` module in Story #2415
- * (Epic #2307).
+ * Story #2256 / Task #2260 (Epic #2172); inlined from the now-deleted
+ * legacy `automerge-predicate` module in Story #2415 (Epic #2307).
  *
  * Subscribes to:
  *   - `epic.watch.end` → evaluate the verdict. If every required
@@ -16,9 +15,8 @@
  *
  * Critical contract:
  *   - The verdict for any given input set is byte-identical to the
- *     legacy `lib/orchestration/automerge-predicate.js` module — this
- *     file is its replacement (the legacy module is deleted by the
- *     sibling Task in this Story). The merge-gate-ordering invariant
+ *     pre-inlining legacy module's output — this file is its
+ *     replacement. The merge-gate-ordering invariant
  *     (`epic.merge.armed` preceded by `epic.merge.ready`) depends on
  *     this listener being the sole emitter of `epic.merge.ready`.
  *

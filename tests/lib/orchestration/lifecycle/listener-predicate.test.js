@@ -5,11 +5,11 @@
  *
  * Acceptance contract:
  *   - Subscribes to `epic.watch.end` (and ONLY that event).
- *   - Verdict for clean inputs is IDENTICAL to the legacy
- *     `lib/orchestration/automerge-predicate.js` `evaluateAutoMergePredicate`
- *     — the listener wraps it.
+ *   - Verdict for clean inputs is IDENTICAL to the pre-inlining legacy
+ *     `evaluateAutoMergePredicate` output — the listener now owns that
+ *     evaluator directly (inlined under Story #2415).
  *   - Required-check failures short-circuit to `epic.merge.blocked`
- *     BEFORE the legacy evaluator is consulted.
+ *     BEFORE the structured-signal evaluator is consulted.
  *   - `epic.merge.blocked` always carries a non-empty `reason`.
  */
 
