@@ -1,3 +1,5 @@
+import { buildMergeMessageWithCap } from './merge-subject.js';
+
 /**
  * comment-bodies.js — pure renderers for story-close GitHub comment payloads
  * and operator-facing fatal-message envelopes.
@@ -24,11 +26,24 @@
 
 /**
  * Pure: build the conventional-commit subject the resume path uses to
- * finalize a partial-merge commit. Exported for tests.
+ * finalize a partial-merge commit. When `headerMaxLength` is provided
+ * and the assembled subject would exceed it, the title is truncated on
+ * a word boundary (Conventional-Commits prefix and `(resolves #N)` suffix
+ * preserved verbatim) and a `truncated-from: <original>` body trailer is
+ * appended. Exported for tests.
+ *
+ * @param {string} storyTitle
+ * @param {number|string} storyId
+ * @param {{ headerMaxLength?: number, logger?: { warn?: Function } }} [opts]
  */
-export function buildResumeMergeCommitMsg(storyTitle, storyId) {
-  const lc = storyTitle.charAt(0).toLowerCase() + storyTitle.slice(1);
-  return `feat: ${lc} (resolves #${storyId})`;
+export function buildResumeMergeCommitMsg(storyTitle, storyId, opts = {}) {
+  return buildMergeMessageWithCap({
+    type: 'feat',
+    title: storyTitle,
+    storyId,
+    headerMaxLength: opts.headerMaxLength,
+    logger: opts.logger,
+  }).message;
 }
 
 /**

@@ -225,7 +225,7 @@ describe('finalizeMergeIfPending — pending merge path', () => {
       fs.writeFileSync(path.join(dir, '.git', 'MERGE_HEAD'), 'deadbeef');
       const stub = gitStub();
       const logs = [];
-      finalizeMergeIfPending({
+      await finalizeMergeIfPending({
         cwd: dir,
         epicBranch: 'epic/1',
         storyBranch: 'story-1',
@@ -256,7 +256,7 @@ describe('finalizeMergeIfPending — pending merge path', () => {
           return { status: 0, stdout: '', stderr: '' };
         },
       };
-      assert.throws(
+      await assert.rejects(
         () =>
           finalizeMergeIfPending({
             cwd: dir,
@@ -281,7 +281,7 @@ describe('finalizeMergeIfPending — pending merge path', () => {
       fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
       fs.writeFileSync(path.join(dir, '.git', 'MERGE_HEAD'), 'deadbeef');
       // stderr empty, stdout populated → stdout is used.
-      assert.throws(
+      await assert.rejects(
         () =>
           finalizeMergeIfPending({
             cwd: dir,
@@ -299,7 +299,7 @@ describe('finalizeMergeIfPending — pending merge path', () => {
         /stdout-detail/,
       );
       // both empty → "unknown" sentinel.
-      assert.throws(
+      await assert.rejects(
         () =>
           finalizeMergeIfPending({
             cwd: dir,

@@ -395,10 +395,10 @@ describe('merge-runner.rebaseStoryOnEpic', () => {
 });
 
 describe('merge-runner.finalizeMergeIfPending', () => {
-  it('no-ops when MERGE_HEAD is absent', () => {
+  it('no-ops when MERGE_HEAD is absent', async () => {
     const stub = gitStub();
     const logs = [];
-    finalizeMergeIfPending({
+    await finalizeMergeIfPending({
       cwd: process.cwd(), // MERGE_HEAD will not exist
       epicBranch: 'epic/1',
       storyBranch: 'story-1',
