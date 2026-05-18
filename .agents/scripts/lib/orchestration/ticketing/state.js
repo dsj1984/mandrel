@@ -33,6 +33,7 @@ import {
   assertValidStructuredCommentType,
   findStructuredComment,
   getProviderCommentCache,
+  invalidateRawCommentsCache,
   STATE_LABELS,
   structuredCommentCacheKey,
   structuredCommentMarker,
@@ -309,6 +310,10 @@ export async function postStructuredComment(provider, ticketId, type, payload) {
     type,
     body: payload,
   });
+  // Story #2465 — evict the raw-comments cache entry so the next
+  // `findStructuredComment` against this ticket re-fetches and sees the
+  // freshly-posted comment.
+  invalidateRawCommentsCache(provider, ticketId);
 }
 
 /**
@@ -349,6 +354,9 @@ export async function upsertStructuredComment(
       // Story #1795 — evict before the repost so a postComment failure
       // doesn't leave the cache pointing at a deleted comment id.
       cache.delete(cacheKey);
+      // Story #2465 — the raw-comments array still holds the
+      // just-deleted comment; drop it so subsequent reads re-fetch.
+      invalidateRawCommentsCache(provider, ticketId);
     } catch (err) {
       Logger.warn(
         `[Ticketing] Failed to delete prior ${type} comment #${existing.id}: ${err.message}`,
@@ -361,6 +369,10 @@ export async function upsertStructuredComment(
     type,
     body: annotated,
   });
+  // Story #2465 — evict the raw-comments cache so a follow-up
+  // `findStructuredComment` for a different type on the same ticket
+  // re-fetches and observes the new comment.
+  invalidateRawCommentsCache(provider, ticketId);
   // Story #1795 — refresh the cache to the freshly-posted comment so the
   // next upsert short-circuits the `getTicketComments` list call. The
   // post result carries the new comment id; we synthesise a minimal

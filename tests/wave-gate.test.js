@@ -46,13 +46,28 @@ function trapExit() {
  * will release all at once.
  */
 class TimingProvider {
-  constructor({ tickets, throwFor = new Set(), comments = [] }) {
+  constructor({
+    tickets,
+    throwFor = new Set(),
+    comments = [],
+    getTicketsThrows = false,
+    cacheOnPrime = false,
+  }) {
     this.tickets = tickets;
     this.throwFor = throwFor;
     this.comments = comments;
     this.calls = [];
     this.startedCount = 0;
     this._barrier = null;
+    // Story #2465 — track prime-cache wiring. `cacheOnPrime` opts in to
+    // actually serving cached tickets from `getTicket`; existing
+    // concurrency-witness tests leave it false so their barrier-based
+    // assertions on `getTicket` invocation counts still hold.
+    this._cache = new Map();
+    this.getTicketsCalls = [];
+    this.primeCalls = [];
+    this.getTicketsThrows = getTicketsThrows;
+    this.cacheOnPrime = cacheOnPrime;
   }
 
   setBarrier(expected) {
@@ -67,7 +82,30 @@ class TimingProvider {
     return this.comments;
   }
 
+  async getTickets(epicId, _filters = {}) {
+    this.getTicketsCalls.push(epicId);
+    if (this.getTicketsThrows) {
+      throw new Error('getTickets failed');
+    }
+    return Object.values(this.tickets).map((t) => ({ ...t }));
+  }
+
+  primeTicketCache(tickets) {
+    this.primeCalls.push(tickets.length);
+    if (!this.cacheOnPrime) return;
+    for (const t of tickets) {
+      if (t && Number.isFinite(t.id)) {
+        this._cache.set(t.id, { ...t });
+      }
+    }
+  }
+
   async getTicket(id) {
+    // Story #2465 — when the cache is primed, serve from it without
+    // recording a wire call. This mirrors the GitHubProvider behaviour.
+    if (this._cache.has(id)) {
+      return { ...this._cache.get(id) };
+    }
     const call = { id, startAt: performance.now(), endAt: null };
     this.calls.push(call);
     this.startedCount += 1;
@@ -289,5 +327,87 @@ describe('wave-gate — pass/fail/fetch-error contract', () => {
     assert.equal(result.total, 1);
     assert.equal(result.recuts, 1);
     assert.equal(result.parked, 1);
+  });
+});
+
+describe('wave-gate — ticket-cache prime (Story #2465)', () => {
+  it('calls provider.getTickets exactly once per runWaveGate invocation', async () => {
+    const provider = new TimingProvider({
+      tickets: {
+        10: { id: 10, state: 'closed' },
+        11: { id: 11, state: 'closed' },
+      },
+      comments: [
+        manifestComment([
+          { storyId: 10, title: 'a', wave: 1 },
+          { storyId: 11, title: 'b', wave: 1 },
+        ]),
+      ],
+      cacheOnPrime: true,
+    });
+    const result = await runWaveGate({
+      epicId: 42,
+      injectedProvider: provider,
+    });
+    assert.equal(result.success, true);
+    assert.equal(provider.getTicketsCalls.length, 1);
+    assert.equal(provider.getTicketsCalls[0], 42);
+    assert.equal(provider.primeCalls.length, 1);
+    assert.equal(provider.primeCalls[0], 2);
+  });
+
+  it('serves per-Story getTicket reads from the primed cache (zero wire calls)', async () => {
+    const manifestIds = [101, 102, 103];
+    const recutIds = [201];
+    const parkedIds = [301];
+    const allIds = [...manifestIds, ...recutIds, ...parkedIds];
+    const tickets = Object.fromEntries(
+      allIds.map((id) => [id, { id, state: 'closed' }]),
+    );
+    const provider = new TimingProvider({
+      tickets,
+      comments: [
+        manifestComment(
+          manifestIds.map((id) => ({ storyId: id, title: `S${id}`, wave: 1 })),
+        ),
+        parkedComment(
+          recutIds.map((id) => ({ storyId: id, parentId: id - 100 })),
+          parkedIds.map((id) => ({ storyId: id })),
+        ),
+      ],
+      cacheOnPrime: true,
+    });
+    const result = await runWaveGate({ epicId: 7, injectedProvider: provider });
+    assert.equal(result.success, true);
+    // Witness: zero `getTicket` wire calls — every read across the three
+    // Promise.all blocks was served from the inline cache.
+    assert.equal(
+      provider.calls.length,
+      0,
+      `expected zero wire getTicket calls when prime is warm, got ${provider.calls.length}`,
+    );
+    assert.equal(provider.getTicketsCalls.length, 1);
+  });
+
+  it('falls back to per-Story fetches when primeTicketCache prime throws', async () => {
+    const provider = new TimingProvider({
+      tickets: {
+        10: { id: 10, state: 'closed' },
+        11: { id: 11, state: 'closed' },
+      },
+      comments: [
+        manifestComment([
+          { storyId: 10, title: 'a', wave: 1 },
+          { storyId: 11, title: 'b', wave: 1 },
+        ]),
+      ],
+      getTicketsThrows: true,
+    });
+    const result = await runWaveGate({ epicId: 1, injectedProvider: provider });
+    assert.equal(result.success, true);
+    // Prime failed → fell back to per-Story getTicket fetches.
+    assert.equal(provider.calls.length, 2);
+    assert.equal(provider.getTicketsCalls.length, 1);
+    assert.equal(provider.primeCalls.length, 0);
   });
 });
