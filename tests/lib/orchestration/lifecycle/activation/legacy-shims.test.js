@@ -7,11 +7,14 @@
  * call site, no leakage of removed helpers. This test file is the
  * load-bearing check that pins those invariants in tree.
  *
- * Currently exercised: `.agents/scripts/epic-deliver-finalize.js`
- * (collapsed in Story #2319). Follow-up Stories collapse
- * `epic-deliver-automerge.js`, `epic-deliver-cleanup.js`, and
- * `pr-watch-with-update.js` — each addition appends an entry to the
- * `SHIM_INVARIANTS` table below so the same assertions guard them.
+ * Currently exercised:
+ *   - `epic-deliver-finalize.js`     (Story #2319 / Task #2329)
+ *   - `pr-watch-with-update.js`      (Story #2327 / Task #2332)
+ *   - `epic-deliver-automerge.js`    (Story #2336 / Task #2340)
+ *
+ * Follow-up Stories collapse `epic-deliver-cleanup.js`; each addition
+ * appends an entry to the `SHIM_INVARIANTS` table below so the same
+ * assertions guard them.
  */
 
 import assert from 'node:assert/strict';
@@ -74,6 +77,28 @@ const SHIM_INVARIANTS = [
       'DEFAULT_POLL_INTERVAL_MS',
       // Side-effect surface that must not survive the neutering.
       'update-branch',
+    ],
+  },
+  {
+    // Story #2336 / Task #2340 — collapsed from 191 lines to a thin
+    // emit shim. The AutomergeArmer listener owns the
+    // `gh pr view --json autoMergeRequest` idempotency probe AND the
+    // `gh pr merge --auto --squash --delete-branch` arm; this CLI no
+    // longer carries any `gh pr merge` literal (merge-lockout
+    // invariant). The shim emits `epic.automerge.start` as telemetry
+    // for direct invocations; the wired listener chain inside
+    // `/epic-deliver` is the real auto-merge code path.
+    label: 'epic-deliver-automerge.js',
+    file: path.join(SCRIPTS_DIR, 'epic-deliver-automerge.js'),
+    event: 'epic.automerge.start',
+    forbiddenIdentifiers: [
+      // Legacy helper exports lifted into the listener chain.
+      'parseAutomergeArgs',
+      'classifyAutomergeInvocation',
+      'buildPrUrl',
+      'buildGhMergeArgs',
+      // The merge-lockout literal MUST NOT appear in the shim.
+      'gh pr merge',
     ],
   },
 ];

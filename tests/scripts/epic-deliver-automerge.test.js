@@ -1,83 +1,20 @@
 // tests/scripts/epic-deliver-automerge.test.js
 /**
  * Unit tests for the thin-shim `epic-deliver-automerge.js`
- * (Story #2256 / Task #2262 / Epic #2172).
+ * (Story #2336 / Task #2340 / Epic #2306).
  *
- * Pre-Wave-7 the CLI armed `gh pr merge --auto` directly. Wave 7
- * collapsed that responsibility into the `AutomergeArmer` lifecycle
- * listener; this CLI is now a telemetry shim that emits
- * `epic.automerge.start` and exits. The legacy `buildGhMergeArgs`
- * helper has been deleted because the literal `gh pr merge` is now
- * confined to `lib/orchestration/lifecycle/listeners/automerge-armer.js`
- * (the merge-lockout lint rule's sole allow-list entry).
+ * After Task #2340 collapsed the CLI to a pure emit shim, only
+ * `runEpicDeliverAutomerge` is exported. The merge-lockout invariant
+ * (zero `gh pr merge` literals outside `automerge-armer.js`) is
+ * enforced by the lifecycle lint rule and pinned at the contract tier
+ * by `tests/lib/orchestration/lifecycle/merge-gate-ordering.test.js`.
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  buildPrUrl,
-  classifyAutomergeInvocation,
-  parseAutomergeArgs,
-  runEpicDeliverAutomerge,
-} from '../../.agents/scripts/epic-deliver-automerge.js';
+import { runEpicDeliverAutomerge } from '../../.agents/scripts/epic-deliver-automerge.js';
 import { Bus } from '../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
-
-describe('classifyAutomergeInvocation', () => {
-  it('returns help when --help is set', () => {
-    assert.deepEqual(classifyAutomergeInvocation({ help: true }), {
-      kind: 'help',
-    });
-  });
-  it('returns usage-error when --epic or --pr is missing', () => {
-    const r = classifyAutomergeInvocation({
-      help: false,
-      epicId: null,
-      prNumber: 7,
-    });
-    assert.equal(r.kind, 'usage-error');
-    assert.ok(r.messages.some((m) => /required/.test(m)));
-  });
-  it('returns run intent when all required args present', () => {
-    const r = classifyAutomergeInvocation({
-      help: false,
-      epicId: 1,
-      prNumber: 2,
-    });
-    assert.deepEqual(r, {
-      kind: 'run',
-      epicId: 1,
-      prNumber: 2,
-    });
-  });
-});
-
-describe('parseAutomergeArgs', () => {
-  it('parses --epic / --pr', () => {
-    const out = parseAutomergeArgs(['--epic', '1178', '--pr', '1272']);
-    assert.deepEqual(out, {
-      epicId: 1178,
-      prNumber: 1272,
-      help: false,
-    });
-  });
-
-  it('rejects bad ids', () => {
-    assert.equal(parseAutomergeArgs(['--epic', '0', '--pr', '0']).epicId, null);
-    assert.equal(
-      parseAutomergeArgs(['--epic', '0', '--pr', '0']).prNumber,
-      null,
-    );
-  });
-});
-
-describe('buildPrUrl', () => {
-  it('builds a non-empty URI string for schema validation', () => {
-    const url = buildPrUrl(1272);
-    assert.match(url, /^https:\/\//);
-    assert.match(url, /1272/);
-  });
-});
 
 describe('runEpicDeliverAutomerge (thin shim)', () => {
   it('emits epic.automerge.start onto the supplied bus and returns the seqId', async () => {
@@ -90,7 +27,6 @@ describe('runEpicDeliverAutomerge (thin shim)', () => {
       epicId: 1178,
       prNumber: 1272,
       bus,
-      loggerImpl: { info: () => {} },
     });
     assert.equal(emits.length, 1);
     assert.equal(emits[0].event, 'epic.automerge.start');
