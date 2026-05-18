@@ -247,6 +247,13 @@ export function buildManifestFromSpec(spec, opts = {}) {
     storyManifest,
     dispatched: [],
     agentTelemetry: opts.agentTelemetry ?? null,
+    // Cross-Story conflict findings forwarded by the validator (Story
+    // #2296). The formatter only emits the hazards block when this key
+    // is *defined* — undefined means the caller didn't compute findings
+    // for this manifest (e.g. live progress reporter ticks), so the
+    // section is suppressed rather than showing a misleading "no
+    // hazards" line.
+    concurrencyFindings: opts.concurrencyFindings,
   };
 }
 

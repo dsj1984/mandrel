@@ -225,6 +225,76 @@ export function renderNestedWaveSections(storyManifest) {
   return lines.join('\n');
 }
 
+/**
+ * Render the "Concurrency hazards" block that sits at the foot of the
+ * dispatch manifest. Consumes the structured findings array emitted by
+ * `computeConflictFindings` (Story #2296):
+ *
+ *   - `shared-editor` findings — one bullet per path with the conflicting
+ *     Story identifiers and a `depends_on` remediation hint.
+ *   - `implicit-cross-story-dep` findings — one bullet per missing dep
+ *     with the producer/consumer pair and a `depends_on` remediation hint.
+ *
+ * When `findings` is empty the renderer emits a single-line confirmation
+ * (`✓ No concurrency hazards detected.`) so absence is explicit in the
+ * dry-run log rather than silently dropped.
+ *
+ * Story identifiers are rendered verbatim — the validator carries planning
+ * slugs (e.g. `s-foo`) while persisted findings carry GitHub issue numbers
+ * (e.g. `201`). The renderer is agnostic; whichever identifier the caller
+ * passes is what shows up.
+ *
+ * @param {object[]} findings
+ * @returns {string} Markdown block, or empty string when `findings` is
+ *                   neither an array nor undefined (defensive no-op).
+ */
+export function renderConcurrencyHazards(findings) {
+  if (findings === undefined || findings === null) return '';
+  if (!Array.isArray(findings)) return '';
+  const lines = ['## ⚠️ Concurrency Hazards', ''];
+  if (findings.length === 0) {
+    lines.push('✓ No concurrency hazards detected.');
+    lines.push('');
+    return lines.join('\n');
+  }
+  const sharedEditors = findings.filter((f) => f?.kind === 'shared-editor');
+  const implicit = findings.filter(
+    (f) => f?.kind === 'implicit-cross-story-dep',
+  );
+  for (const f of sharedEditors.sort((a, b) =>
+    (a.path ?? '').localeCompare(b.path ?? ''),
+  )) {
+    lines.push(...renderSharedEditorBullet(f));
+  }
+  for (const f of implicit.sort((a, b) =>
+    (a.path ?? '').localeCompare(b.path ?? ''),
+  )) {
+    lines.push(...renderImplicitDepBullet(f));
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
+function renderSharedEditorBullet(finding) {
+  const stories = Array.isArray(finding.storySlugs) ? finding.storySlugs : [];
+  const storyList = stories.map((s) => `\`${s}\``).join(', ');
+  const sev = finding.severity === 'hard' ? ' **(blocking)**' : '';
+  return [
+    `- **\`${finding.path}\`** — written by ${stories.length} concurrent Stories: ${storyList}${sev}`,
+    '  - Recommend serializing via `depends_on` chains or a dedicated late-wave "wiring" Story.',
+  ];
+}
+
+function renderImplicitDepBullet(finding) {
+  const producer = finding.producer ?? {};
+  const consumer = finding.consumer ?? {};
+  const sev = finding.severity === 'hard' ? ' **(blocking)**' : '';
+  return [
+    `- **\`${finding.path}\`** — produced by Story \`${producer.storySlug ?? '?'}\` (Task \`${producer.taskSlug ?? '?'}\`), consumed by Story \`${consumer.storySlug ?? '?'}\` (Task \`${consumer.taskSlug ?? '?'}\`, \`body.${consumer.sourceField ?? '?'}\`)${sev}`,
+    `  - Recommend: add \`depends_on: ["${producer.storySlug ?? '?'}"]\` to the consumer Story.`,
+  ];
+}
+
 // Test-only: surface the private predicate so the sibling unit test can
 // exercise each branch without going through the full renderer.
 export const __testables = { validateWaveSection };
