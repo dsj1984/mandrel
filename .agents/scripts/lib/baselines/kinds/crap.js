@@ -25,6 +25,7 @@ import {
 } from '../../crap-utils.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { Logger } from '../../Logger.js';
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -173,11 +174,6 @@ export function compare(head, base) {
 
 function crapRowKey(row) {
   return `${row.path}::${row.method}@${row.startLine}`;
-}
-
-function componentMatches(component, p) {
-  if (!component || typeof component.includes !== 'string') return false;
-  return p === component.includes || p.startsWith(`${component.includes}/`);
 }
 
 /**

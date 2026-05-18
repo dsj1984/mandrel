@@ -25,8 +25,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { AGENTRC_SCHEMA, getAgentrcValidator } from '../config-schema.js';
+import { deepEqual } from '../json-utils.js';
 import {
-  deepEqual,
   getAgentrcDefaults,
   IDENTITY_PLACEHOLDER_PATHS,
   iterDefaultLeaves,

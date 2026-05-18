@@ -82,6 +82,8 @@ import { createReadStream } from 'node:fs';
 import fs from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
+import { extractTool, isPositiveInt } from './common.js';
+
 /**
  * Documented argv-normalisation rules — emitted verbatim onto every
  * retry signal so the downstream renderer can show the operator which
@@ -99,27 +101,6 @@ export const NORMALIZATION_RULES = Object.freeze([
   'strip-benign-flags:--no-color,--quiet',
   'npm-test-equiv-npm-run-test',
 ]);
-
-function isPositiveInt(v) {
-  return Number.isInteger(v) && v > 0;
-}
-
-/**
- * Pull the tool name from a trace record. Mirrors the rework detector:
- * prefer `source.tool`, fall back to `details.tool` for older traces.
- *
- * @param {object} rec
- * @returns {string|null}
- */
-function extractTool(rec) {
-  if (typeof rec?.source?.tool === 'string' && rec.source.tool.length > 0) {
-    return rec.source.tool;
-  }
-  if (typeof rec?.details?.tool === 'string' && rec.details.tool.length > 0) {
-    return rec.details.tool;
-  }
-  return null;
-}
 
 /**
  * Resolve the identity key used to group a Bash trace record. Prefers

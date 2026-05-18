@@ -14,6 +14,7 @@
 import { readBaselineAtRef } from '../../baseline-loader.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { getBaseline } from '../../maintainability-utils.js';
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 import { kernelVersion as crapKernelVersion } from './crap.js';
@@ -113,11 +114,6 @@ export function compare(head, base) {
     }
   }
   return { regressions, improvements, unchanged, additions };
-}
-
-function componentMatches(component, p) {
-  if (!component || typeof component.includes !== 'string') return false;
-  return p === component.includes || p.startsWith(`${component.includes}/`);
 }
 
 /**

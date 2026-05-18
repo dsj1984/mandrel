@@ -28,11 +28,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  deepEqual,
-  getAgentrcDefaults,
-  lookupPath,
-} from '../config/defaults.js';
+import { getAgentrcDefaults, lookupPath } from '../config/defaults.js';
+import { deepEqual } from '../json-utils.js';
 
 /**
  * The exact pre-commit body the framework ships. Kept as a single string so
