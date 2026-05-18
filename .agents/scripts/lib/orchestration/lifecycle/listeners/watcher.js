@@ -131,6 +131,88 @@ export function ghPrChecks({ prUrl, cwd, spawnFn = spawnSync }) {
 }
 
 /**
+ * Default `gh pr view` spawn — probes `mergeStateStatus` so the Watcher
+ * can detect the BEHIND condition (PR head is behind its base branch)
+ * AFTER every required check is green. Exported so tests can stub.
+ */
+export function ghPrView({ prUrl, cwd, spawnFn = spawnSync }) {
+  const result = spawnFn(
+    'gh',
+    ['pr', 'view', prUrl, '--json', 'mergeStateStatus'],
+    { cwd, encoding: 'utf-8', shell: false },
+  );
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+/**
+ * Parse the `mergeStateStatus` field out of a `gh pr view --json
+ * mergeStateStatus` payload. Returns the empty string for malformed
+ * input so callers can treat unknown / unparseable states as "not
+ * BEHIND" (the conservative recovery branch). Pure — exported for
+ * tests.
+ */
+export function parseMergeStateStatus(stdout) {
+  const trimmed = String(stdout ?? '').trim();
+  if (trimmed.length === 0) return '';
+  try {
+    const parsed = JSON.parse(trimmed);
+    return typeof parsed?.mergeStateStatus === 'string'
+      ? parsed.mergeStateStatus
+      : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Default `gh pr update-branch` spawn — invoked by the BEHIND recovery
+ * loop to fast-forward the PR head with its base branch. Exported so
+ * tests can stub and assert call counts.
+ */
+export function ghPrUpdateBranch({ prUrl, cwd, spawnFn = spawnSync }) {
+  const result = spawnFn('gh', ['pr', 'update-branch', prUrl], {
+    cwd,
+    encoding: 'utf-8',
+    shell: false,
+  });
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+/**
+ * Outcomes that count as "this required check did not block the
+ * merge". Mirrors `automerge-predicate.NON_FAILING_CHECK_OUTCOMES` so
+ * the BEHIND-recovery gate ("are all required checks passing?") uses
+ * the same definition as the downstream predicate. Pure — exported
+ * for tests.
+ */
+export const GREEN_CHECK_OUTCOMES = Object.freeze(
+  new Set(['success', 'neutral', 'skipped']),
+);
+
+/**
+ * All outcomes are non-failing. Used as the gate before issuing a
+ * `gh pr update-branch` recovery call — a red check is a hard block
+ * regardless of mergeStateStatus, so we never auto-recover into a
+ * failing PR.
+ */
+export function allGreen(outcomes) {
+  const values = Object.values(outcomes);
+  if (values.length === 0) return false;
+  for (const v of values) {
+    if (!GREEN_CHECK_OUTCOMES.has(v)) return false;
+  }
+  return true;
+}
+
+/**
  * Parse the JSON array produced by `gh pr checks --json name,state,…`.
  * Returns `[]` for any malformed input. Pure — exported for tests.
  *
@@ -216,7 +298,15 @@ export class Watcher {
    * @param {number} [opts.pollIntervalMs] default 10_000.
    * @param {number} [opts.maxPolls] safety cap on iterations; default
    *   180 (≈30 min @ 10s).
+   * @param {number} [opts.maxUpdates] cap on `gh pr update-branch`
+   *   recovery calls per `pr.created` event; default 3. Mirrors the
+   *   legacy `pr-watch-with-update` cap so a racing base branch
+   *   can't induce an infinite update-branch ping-pong.
    * @param {Function} [opts.ghPrChecksFn] override for tests.
+   * @param {Function} [opts.ghPrViewFn] override for tests; resolves
+   *   `mergeStateStatus` for the BEHIND-recovery gate.
+   * @param {Function} [opts.ghPrUpdateBranchFn] override for tests;
+   *   issues the fast-forward update on the PR.
    * @param {Function} [opts.sleepFn] override for tests.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
@@ -234,7 +324,13 @@ export class Watcher {
       ? opts.pollIntervalMs
       : 10_000;
     this.maxPolls = Number.isInteger(opts.maxPolls) ? opts.maxPolls : 180;
+    this.maxUpdates =
+      Number.isInteger(opts.maxUpdates) && opts.maxUpdates >= 0
+        ? opts.maxUpdates
+        : 3;
     this.ghPrChecksFn = opts.ghPrChecksFn ?? ghPrChecks;
+    this.ghPrViewFn = opts.ghPrViewFn ?? ghPrView;
+    this.ghPrUpdateBranchFn = opts.ghPrUpdateBranchFn ?? ghPrUpdateBranch;
     this.sleepFn = opts.sleepFn ?? defaultSleep;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
@@ -318,24 +414,65 @@ export class Watcher {
 
     // Poll loop. The first probe already produced entries; reduce them
     // for the initial outcome map, then iterate until every required
-    // check is terminal or the iteration cap fires.
+    // check is terminal or the iteration cap fires. After the checks
+    // converge, the BEHIND-recovery loop (legacy pr-watch parity) may
+    // re-enter this poll loop AFTER issuing `gh pr update-branch`.
     let outcomes = reduceOutcomes(firstEntries);
     let polls = 0;
-    while (!allTerminal(outcomes) && polls < this.maxPolls) {
-      await this.sleepFn(this.pollIntervalMs);
-      polls += 1;
-      const probe = this.ghPrChecksFn({ prUrl, cwd: this.cwd });
-      const entries = parseGhPrChecks(probe.stdout);
-      if (entries.length === 0 && probe.status !== 0 && probe.status !== 8) {
-        // Transient `gh` failure — log and continue. The outer
-        // iteration cap eventually short-circuits if `gh` is
-        // unrecoverably broken.
-        this.logger.warn?.(
-          `[Watcher] gh pr checks transient failure (status=${probe.status}): ${probe.stderr}`,
-        );
-        continue;
+    let updatesApplied = 0;
+    while (polls < this.maxPolls) {
+      while (!allTerminal(outcomes) && polls < this.maxPolls) {
+        await this.sleepFn(this.pollIntervalMs);
+        polls += 1;
+        const probe = this.ghPrChecksFn({ prUrl, cwd: this.cwd });
+        const entries = parseGhPrChecks(probe.stdout);
+        if (entries.length === 0 && probe.status !== 0 && probe.status !== 8) {
+          // Transient `gh` failure — log and continue. The outer
+          // iteration cap eventually short-circuits if `gh` is
+          // unrecoverably broken.
+          this.logger.warn?.(
+            `[Watcher] gh pr checks transient failure (status=${probe.status}): ${probe.stderr}`,
+          );
+          continue;
+        }
+        outcomes = reduceOutcomes(entries);
       }
-      outcomes = reduceOutcomes(entries);
+      // Checks have either all gone terminal or we hit the iteration
+      // cap. BEHIND-recovery (legacy pr-watch parity, Story #2327):
+      // when every required check is green AND the PR is BEHIND its
+      // base, issue ONE `gh pr update-branch` call and re-poll the
+      // checks against the freshly-rebased commit. A red check is a
+      // hard block — the predicate stops here regardless of merge
+      // state. Bounded by `maxUpdates` so a racing base branch can't
+      // ping-pong indefinitely.
+      if (!allTerminal(outcomes) || !allGreen(outcomes)) break;
+      if (updatesApplied >= this.maxUpdates) break;
+      const view = this.ghPrViewFn({ prUrl, cwd: this.cwd });
+      if (view.status !== 0) {
+        this.logger.warn?.(
+          `[Watcher] gh pr view failed (status=${view.status}): ${view.stderr}`,
+        );
+        break;
+      }
+      const mergeStateStatus = parseMergeStateStatus(view.stdout);
+      if (mergeStateStatus !== 'BEHIND') break;
+      const update = this.ghPrUpdateBranchFn({ prUrl, cwd: this.cwd });
+      if (update.status !== 0) {
+        this.logger.warn?.(
+          `[Watcher] gh pr update-branch failed (status=${update.status}): ${update.stderr}`,
+        );
+        break;
+      }
+      updatesApplied += 1;
+      this.logger.info?.(
+        `[Watcher] PR BEHIND base — issued gh pr update-branch (#${updatesApplied}/${this.maxUpdates}); re-polling required checks.`,
+      );
+      await this.sleepFn(this.pollIntervalMs);
+      // After update-branch, the freshly-rebased commit invalidates the
+      // previous terminal outcomes. Reset to force the inner poll loop
+      // to re-evaluate the new CI cycle.
+      outcomes = {};
+      for (const name of requiredChecks) outcomes[name] = 'pending';
     }
 
     const isTerminal = allTerminal(outcomes);
@@ -345,6 +482,7 @@ export class Watcher {
       seqId,
       outcome,
       polls,
+      updatesApplied,
       requiredChecks: requiredChecks.length,
     });
     // The schema enum forbids `'pending'`; promote any leftover
