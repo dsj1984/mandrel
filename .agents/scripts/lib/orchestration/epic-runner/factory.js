@@ -576,7 +576,12 @@ function registerBlockerHandler({ bus, epicId, logger }) {
  * unit fixtures that supply an unbusable collaborators bag, an absent
  * provider, or a non-numeric epicId.
  */
-export function registerInterventionRecorder({ bus, provider, epicId, logger }) {
+export function registerInterventionRecorder({
+  bus,
+  provider,
+  epicId,
+  logger,
+}) {
   if (!bus || typeof bus.on !== 'function') return null;
   if (!provider) return null;
   if (!Number.isInteger(epicId) || epicId < 1) return null;
