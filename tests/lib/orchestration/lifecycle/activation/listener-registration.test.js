@@ -30,6 +30,7 @@ import {
 } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { AcceptanceReconciler } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
+import { AutomergeArmer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-armer.js';
 import { AutomergePredicate } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { Finalizer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 import {
@@ -457,6 +458,93 @@ describe('factory close-tail registrar — AutomergePredicate activation', () =>
       legacyMatches,
       null,
       'factory.js must NOT import the legacy lib/orchestration/automerge-predicate.js module — that path stays as dead code reachable only via the listener wrapper',
+    );
+  });
+});
+
+/**
+ * Story #2336 / Task #2341 — AutomergeArmer activation census.
+ *
+ * What this describe block pins:
+ *   1. `createEpicRunnerCollaborators` exposes `automergeArmer` on the
+ *      collaborator bag, instantiated from the production listener
+ *      class.
+ *   2. The bus on the same bag has at least one listener subscribed to
+ *      `epic.merge.ready` (AutomergeArmer's sole event) and ZERO
+ *      AutomergeArmer-shaped subscriptions to `epic.watch.end` or
+ *      `epic.merge.blocked` — those events MUST NOT trigger the arm.
+ *   3. Source-of-truth grep: `automerge-armer.js` is imported exactly
+ *      once in `factory.js`. Prevents accidental double-registration
+ *      when future close-tail listeners are added.
+ *
+ * This is the runtime closure of High-1 from the Epic #2172 review:
+ * without this listener wired into the production factory, the
+ * predicate's `epic.merge.ready` emission has no consumer — auto-merge
+ * silently never arms. With this listener wired and confirmed to
+ * subscribe to `epic.merge.ready` ONLY, the predicate's verdict is the
+ * sole gate.
+ */
+describe('factory close-tail registrar — AutomergeArmer activation', () => {
+  it('exposes automergeArmer on the collaborator bag', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.ok(
+      collaborators.automergeArmer,
+      'collaborators.automergeArmer must be present',
+    );
+    assert.ok(
+      collaborators.automergeArmer instanceof AutomergeArmer,
+      'collaborators.automergeArmer must be an AutomergeArmer',
+    );
+  });
+
+  it('subscribes AutomergeArmer to epic.merge.ready on the production bus', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    const readyListeners =
+      collaborators.bus._listeners.get('epic.merge.ready') ?? [];
+    assert.ok(
+      readyListeners.length >= 1,
+      'at least one listener subscribed to epic.merge.ready',
+    );
+    assert.deepEqual(
+      collaborators.automergeArmer.events,
+      ['epic.merge.ready'],
+      'AutomergeArmer.events must advertise epic.merge.ready and ONLY epic.merge.ready',
+    );
+  });
+
+  it('does NOT subscribe AutomergeArmer to epic.watch.end or epic.merge.blocked', () => {
+    // Defensive census: the safety invariant is that auto-merge fires
+    // ONLY after the predicate's clean verdict. If a future refactor
+    // accidentally adds a second subscription, this assertion catches
+    // it before the production bus ships.
+    assert.equal(
+      AutomergeArmer.prototype.events,
+      undefined,
+      'events is an instance property, not on the prototype',
+    );
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.equal(
+      collaborators.automergeArmer.events.includes('epic.watch.end'),
+      false,
+      'AutomergeArmer MUST NOT subscribe to epic.watch.end',
+    );
+    assert.equal(
+      collaborators.automergeArmer.events.includes('epic.merge.blocked'),
+      false,
+      'AutomergeArmer MUST NOT subscribe to epic.merge.blocked',
+    );
+  });
+
+  it('imports automerge-armer.js exactly once in factory.js', () => {
+    const factorySource = readFileSync(FACTORY_PATH, 'utf8');
+    const matches = factorySource.match(
+      /from\s+['"][^'"]*lifecycle\/listeners\/automerge-armer\.js['"]/g,
+    );
+    assert.ok(matches, 'factory.js must import automerge-armer.js');
+    assert.equal(
+      matches.length,
+      1,
+      'automerge-armer.js must be imported exactly once',
     );
   });
 });
