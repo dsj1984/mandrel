@@ -78,7 +78,10 @@ function buildChainWithShortcuts() {
       adj.set(i, []);
     } else if (i === 1) {
       // 1 has a direct edge to every higher node
-      adj.set(i, Array.from({ length: 19 }, (_, k) => k + 2));
+      adj.set(
+        i,
+        Array.from({ length: 19 }, (_, k) => k + 2),
+      );
     } else {
       adj.set(i, [i + 1]);
     }
