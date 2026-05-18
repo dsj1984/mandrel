@@ -286,10 +286,8 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   // helper keeps the `checkpointer.setPhase(nextPhase)` call shape
   // unchanged. Tests may inject a fake bag via `opts.epicRunStateStore`
   // (or the legacy `opts.checkpointer` name during the cutover window).
-  const checkpointer =
-    opts.epicRunStateStore ??
-    opts.checkpointer ??
-    {
+  const checkpointer = opts.epicRunStateStore ??
+    opts.checkpointer ?? {
       read: () => readEpicRunState({ provider, epicId }),
       setPhase: (nextPhase) =>
         setEpicRunStatePhase({ provider, epicId, nextPhase }),
