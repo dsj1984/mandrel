@@ -22,10 +22,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import {
-  renderSummary,
-  SECTIONS,
-} from '../../.agents/scripts/bootstrap.js';
+import { renderSummary, SECTIONS } from '../../.agents/scripts/bootstrap.js';
 
 function makeReport(overrides = {}) {
   const base = {

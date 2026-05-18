@@ -17,8 +17,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  BOOTSTRAP_PHASES,
   applyProjectBootstrap,
+  BOOTSTRAP_PHASES,
   runPhases,
   throwIfFatal,
 } from '../../.agents/scripts/lib/bootstrap/project-bootstrap.js';
