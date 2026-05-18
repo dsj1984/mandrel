@@ -184,6 +184,7 @@ CRITICAL REQUIREMENTS:
 - Every AC row MUST carry a Disposition value from the enum: new | updated | unchanged.
 - Each Outcome MUST be a single user-visible behaviour — no DB assertions, no HTTP status codes, no internal implementation details.
 - Cite proposed feature file paths under tests/features/** so Phase 8 can scaffold matching scenarios.
+- Acceptance Outcomes MUST NOT prescribe a commit subject that begins with a non-Conventional-Commits prefix (allowed leading types: feat|fix|chore|refactor|perf|docs|style|test|build|ci|revert). The legacy `baseline-refresh` token used as a leading subject prescription is forbidden — commitlint will reject it at commit time, and the decompose-time validator (`ticket-validator.js` → `validateAcceptanceSubjectPrefix`) will reject the decompose with `code: 'forbidden-subject-prefix'`. Use a Conventional-Commits subject (e.g. `chore(baselines): refresh ...`) and a body trailer (e.g. `baseline-refresh: true` — trailer with a value, not a subject prefix) when a machine-readable marker is needed. See Epic #2501 for rationale.
 ```
 
 ### Step 5 — Hand back to `/epic-plan`
