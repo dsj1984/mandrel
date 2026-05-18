@@ -256,9 +256,10 @@ describe('factory close-tail registrar — AcceptanceReconciler activation', () 
     // Replace the helper with a stub so the listener does not try to
     // touch the real spec reconciler (which would read a non-existent
     // Epic via the stub provider).
-    collaborators.acceptanceReconciler.reconcileAcceptanceSpecFn = async () => ({
-      status: 'waived',
-    });
+    collaborators.acceptanceReconciler.reconcileAcceptanceSpecFn =
+      async () => ({
+        status: 'waived',
+      });
 
     await collaborators.bus.emit('epic.close.end', { epicId: 2306 });
 
