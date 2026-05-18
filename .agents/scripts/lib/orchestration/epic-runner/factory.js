@@ -20,6 +20,7 @@ import { appendEpicSignal } from '../../observability/signals-writer.js';
 import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { AcceptanceReconciler } from '../lifecycle/listeners/acceptance-reconciler.js';
+import { AutomergePredicate } from '../lifecycle/listeners/automerge-predicate.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
@@ -211,14 +212,15 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // close-tail event order deterministic (reconciler emits `.ok`,
   // finalizer reacts) and ahead of the watcher / armer / cleaner
   // listeners that future Stories will wire here.
-  const { acceptanceReconciler, finalizer, watcher } = registerCloseTailChain({
-    bus,
-    epicId: ctx.epicId,
-    cwd: ctx.cwd,
-    provider,
-    config,
-    logger,
-  });
+  const { acceptanceReconciler, finalizer, watcher, automergePredicate } =
+    registerCloseTailChain({
+      bus,
+      epicId: ctx.epicId,
+      cwd: ctx.cwd,
+      provider,
+      config,
+      logger,
+    });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
   // iterate-waves can call `emitUnblocked()` after the wait loop
@@ -280,6 +282,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     acceptanceReconciler,
     finalizer,
     watcher,
+    automergePredicate,
   };
 }
 
@@ -330,8 +333,9 @@ export function registerReliabilityObservers({ bus, config, logger }) {
 
 /**
  * Construct and register the close-tail listener chain (Story #2315 /
- * Task #2322; extended by Story #2319 / Task #2328 and Story #2327 /
- * Task #2331). Registers, in canonical close-tail order:
+ * Task #2322; extended by Story #2319 / Task #2328, Story #2327 /
+ * Task #2331, and Story #2333 / Task #2337). Registers, in canonical
+ * close-tail order:
  *
  *   1. `AcceptanceReconciler` — subscribes to `epic.close.end`; emits
  *      `acceptance.reconcile.{ok,skipped,failed}` (and `epic.blocked`
@@ -345,18 +349,27 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      check name set at runtime via `gh pr checks` and emits
  *      `epic.watch.{start,end}`. Registered AFTER Finalizer so the bus
  *      delivers the freshly-emitted `pr.created` to Watcher in chain
- *      order, and BEFORE the (future) AutomergePredicate which
- *      subscribes to `epic.watch.end`.
+ *      order.
+ *   4. `AutomergePredicate` — subscribes to `epic.watch.end`; emits
+ *      `epic.merge.{ready,blocked}`. Wired AFTER Watcher so the bus
+ *      delivers the freshly-emitted `epic.watch.end` in chain order,
+ *      and BEFORE the (future) AutomergeArmer which subscribes to
+ *      `epic.merge.ready`. The listener wraps the legacy
+ *      `evaluateAutoMergePredicate` from
+ *      `lib/orchestration/automerge-predicate.js`; the legacy module
+ *      itself stays unimported here — only the listener under
+ *      `lib/orchestration/lifecycle/listeners/automerge-predicate.js`
+ *      is wired.
  *
  * The "close-tail chain" name is deliberately umbrella-shaped: future
- * close-time listeners (AutomergePredicate, AutomergeArmer, Cleaner)
- * register here in the same canonical slot — after observers and
- * mutators, before BlockerHandler.
+ * close-time listeners (AutomergeArmer, Cleaner) register here in the
+ * same canonical slot — after observers and mutators, before
+ * BlockerHandler.
  *
  * Returns the constructed listener bag so the collaborator bag can
- * expose each to tests. Returns `{ acceptanceReconciler: null,
- * finalizer: null, watcher: null }` when the bus or epicId is unusable
- * so unit fixtures continue to operate without a live bus.
+ * expose each to tests. Returns the bag with `null` slots when the bus
+ * or epicId is unusable so unit fixtures continue to operate without a
+ * live bus.
  */
 function registerCloseTailChain({
   bus,
@@ -367,10 +380,20 @@ function registerCloseTailChain({
   logger,
 }) {
   if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
-    return { acceptanceReconciler: null, finalizer: null, watcher: null };
+    return {
+      acceptanceReconciler: null,
+      finalizer: null,
+      watcher: null,
+      automergePredicate: null,
+    };
   }
   if (!Number.isInteger(epicId) || epicId < 1) {
-    return { acceptanceReconciler: null, finalizer: null, watcher: null };
+    return {
+      acceptanceReconciler: null,
+      finalizer: null,
+      watcher: null,
+      automergePredicate: null,
+    };
   }
   const acceptanceReconciler = new AcceptanceReconciler({
     bus,
@@ -394,10 +417,25 @@ function registerCloseTailChain({
     logger,
   });
   watcher.register();
+  // AutomergePredicate requires a truthy `provider` — its constructor
+  // throws otherwise. The factory's collaborator pipeline always
+  // supplies a provider in production (EpicRunnerContext enforces it),
+  // but unit fixtures occasionally pass `null`. Guard so the rest of
+  // the close-tail chain still wires cleanly in those cases.
+  let automergePredicate = null;
+  if (provider) {
+    automergePredicate = new AutomergePredicate({
+      bus,
+      epicId,
+      provider,
+      logger,
+    });
+    automergePredicate.register();
+  }
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end)',
   );
-  return { acceptanceReconciler, finalizer, watcher };
+  return { acceptanceReconciler, finalizer, watcher, automergePredicate };
 }
 
 /**
