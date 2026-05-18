@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  deepEqual,
   FULL_AGENTRC_PATH,
   getAgentrcDefaults,
   iterDefaultLeaves,
   lookupPath,
 } from '../../.agents/scripts/lib/config/defaults.js';
+import { deepEqual } from '../../.agents/scripts/lib/json-utils.js';
 
 const TEMPLATE_PATH = fileURLToPath(
   new URL('../../.agents/full-agentrc.json', import.meta.url),

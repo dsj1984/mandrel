@@ -22,6 +22,56 @@ import { kernelVersion as crapKernelVersion } from './crap.js';
 export const name = 'maintainability';
 export const keyField = 'path';
 
+/**
+ * Files the maintainability scorer cannot measure because `typhonjs-escomplex`
+ * (the upstream kernel) parse-fails on syntax the runtime supports but the
+ * library has never been updated for. Each entry must carry a one-line reason
+ * so a future engine bump can audit the list and drop the exclusion.
+ *
+ * Story #2467 / Task #2494 — the prior behaviour stored these files with
+ * `mi: 0` in `baselines/maintainability.json`, which corrupted the global
+ * `min`/p50 rollup and let real regressions hide behind a phantom floor.
+ * Excluding them at the scorer makes the absence explicit; the comparator
+ * already treats missing-in-baseline new files as `additions` (Story #2012)
+ * so re-inclusion is non-breaking once the kernel can score them.
+ *
+ * Canonicalised POSIX repo-relative paths.
+ */
+export const MAINTAINABILITY_EXCLUSIONS = Object.freeze(
+  new Set([
+    // escomplex: "Cannot read properties of undefined (reading 'pattern')" —
+    // chokes on modern destructuring / regex-property patterns used in the
+    // reconciler's spec walker.
+    '.agents/scripts/acceptance-spec-reconciler.js',
+    // escomplex: same "pattern" parse failure as acceptance-spec-reconciler;
+    // both files share the lifecycle-lint regex-driven scan helpers.
+    '.agents/scripts/check-lifecycle-lint.js',
+    // escomplex: "traveler[node.type] is not a function" — AST node type the
+    // upstream traveler table is missing (top-level await / private fields).
+    '.agents/scripts/lib/orchestration/epic-cleanup.js',
+    // escomplex: same "traveler[node.type] is not a function" — emitted by
+    // the spec-reconciler's `async` operator-comment IIFE.
+    '.agents/scripts/lib/orchestration/epic-spec-reconciler-ops.js',
+    // escomplex: "this[node.callee.type] is not a function" — the cyclomatic
+    // visitor lacks a handler for one of the quality-watch CLI's call shapes.
+    '.agents/scripts/quality-watch.js',
+  ]),
+);
+
+/**
+ * Filter parse-unscorable files out of a rows array. Used by the scorer
+ * before envelope assembly so MI=0 phantoms never reach the on-disk
+ * baseline. Pure — does not mutate the input.
+ *
+ * @template {{path: string}} R
+ * @param {R[]} rows
+ * @returns {R[]}
+ */
+export function filterExcludedRows(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.filter((row) => !MAINTAINABILITY_EXCLUSIONS.has(row?.path));
+}
+
 export function kernelVersion() {
   // MI and CRAP share the escomplex kernel — pin them together so a drift
   // in either always invalidates both baselines.
