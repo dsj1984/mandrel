@@ -42,7 +42,30 @@
 
 import { spawnSync } from 'node:child_process';
 
-import { runEpicDeliverFinalize as defaultRunEpicDeliverFinalize } from '../../../../epic-deliver-finalize.js';
+/**
+ * Default `runFinalizeFn` — a no-op for D-1 (Epic #2306 Story #2319).
+ *
+ * The legacy `runEpicDeliverFinalize` CLI was collapsed to an emit
+ * shim that fires `epic.close.end`; invoking it from inside the
+ * Finalizer listener would re-enter the close-tail chain through
+ * AcceptanceReconciler and recurse. Until a follow-up Story lifts the
+ * FF + push + `gh pr create` flow into the listener body itself,
+ * production callers MUST inject a working `runFinalizeFn`. Returning
+ * a `blocker: 'd1-default-no-op'` here keeps the listener honest:
+ * production runs that forget to wire the dependency degrade
+ * loudly (the classification surface records the gap), and unit /
+ * contract tests already inject their own stub via
+ * `opts.runFinalizeFn`.
+ */
+function defaultRunEpicDeliverFinalize() {
+  return {
+    blocker: {
+      reason: 'd1-default-no-op',
+      detail:
+        'Finalizer was constructed without an explicit runFinalizeFn; the D-1 shim cannot push or open a PR. Pass opts.runFinalizeFn to wire the production flow.',
+    },
+  };
+}
 
 /**
  * Parse `gh pr list --head <branch> --json url --jq '.[0].url'` output
