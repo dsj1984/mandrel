@@ -267,7 +267,7 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       epic: 100,
       spec,
       state,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'dispatch');
@@ -311,7 +311,7 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       epic: 100,
       spec,
       state,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'dispatch');
@@ -357,7 +357,7 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       epic: 100,
       spec,
       state,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
@@ -401,7 +401,7 @@ describe('lib/wave-runner/tick — spec-driven dispatch', () => {
       epic: 100,
       spec,
       state,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'observe');
@@ -441,7 +441,7 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'dispatch');
@@ -474,7 +474,7 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
@@ -496,7 +496,7 @@ describe('lib/wave-runner/tick — spec-absent regression parity', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');

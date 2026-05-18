@@ -14,7 +14,7 @@
 
 import { AGENT_LABELS } from '../label-constants.js';
 import { appendEpicSignal } from '../observability/signals-writer.js';
-import { Checkpointer } from '../orchestration/epic-runner/checkpointer.js';
+import * as epicRunStateStoreModule from '../orchestration/epic-run-state-store.js';
 
 import { WaveRunnerError } from './wave-runner-error.js';
 
@@ -48,7 +48,7 @@ import { WaveRunnerError } from './wave-runner-error.js';
  *   issue numbers via `state.mapping[slug].issueNumber`.
  * @property {{
  *   provider?: object,
- *   checkpointer?: { read: () => Promise<object|null> },
+ *   epicRunStateStore?: { read: () => Promise<object|null> },
  *   signalEmit?: (signal: object) => Promise<unknown>,
  * }} [collaborators]
  * @property {{ provider?: object, config?: object }} [ctx]
@@ -59,7 +59,7 @@ export async function tick(args = {}) {
   const epicId = resolveEpicId(args.epic);
   const {
     provider: collabProvider,
-    checkpointer: collabCheckpointer,
+    epicRunStateStore: collabStore,
     signalEmit,
   } = args.collaborators ?? {};
   const ctx = args.ctx ?? {};
@@ -69,13 +69,19 @@ export async function tick(args = {}) {
   if (!provider) {
     throw new WaveRunnerError('invalid-input', 'provider is required');
   }
-  const checkpointer =
-    collabCheckpointer ?? new Checkpointer({ provider, epicId });
+  // Story #2409 — the wave-runner tick is stateless. When the caller
+  // does not supply a collaborator shim, we read the `epic-run-state`
+  // structured comment directly via the function-based store, mirroring
+  // the pre-migration `.read()` shape exactly.
+  const epicRunStateStore =
+    collabStore ?? {
+      read: () => epicRunStateStoreModule.read({ provider, epicId }),
+    };
   const emit = signalEmit ?? defaultSignalEmit(epicId, ctx);
 
   let state;
   try {
-    state = await checkpointer.read();
+    state = await epicRunStateStore.read();
   } catch (err) {
     throw new WaveRunnerError('checkpoint-read', err);
   }

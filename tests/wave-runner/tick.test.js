@@ -55,7 +55,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
@@ -79,7 +79,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
@@ -112,7 +112,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'dispatch');
@@ -145,7 +145,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'dispatch');
@@ -178,7 +178,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'observe');
@@ -206,7 +206,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'wave-complete');
@@ -227,7 +227,7 @@ describe('lib/wave-runner/tick', () => {
 
     const result = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
 
     assert.equal(result.nextAction.kind, 'epic-complete');
@@ -238,7 +238,7 @@ describe('lib/wave-runner/tick', () => {
     const checkpointer = fakeCheckpointer(null);
     const provider = fakeProvider();
     await assert.rejects(
-      tick({ epic: 100, collaborators: { provider, checkpointer } }),
+      tick({ epic: 100, collaborators: { provider, epicRunStateStore: checkpointer } }),
       (err) =>
         err instanceof WaveRunnerError && err.phase === 'checkpoint-missing',
     );
@@ -252,7 +252,7 @@ describe('lib/wave-runner/tick', () => {
     };
     const provider = fakeProvider();
     await assert.rejects(
-      tick({ epic: 100, collaborators: { provider, checkpointer } }),
+      tick({ epic: 100, collaborators: { provider, epicRunStateStore: checkpointer } }),
       (err) =>
         err instanceof WaveRunnerError && err.phase === 'checkpoint-read',
     );
@@ -272,7 +272,7 @@ describe('lib/wave-runner/tick', () => {
       },
     };
     await assert.rejects(
-      tick({ epic: 100, collaborators: { provider, checkpointer } }),
+      tick({ epic: 100, collaborators: { provider, epicRunStateStore: checkpointer } }),
       (err) => err instanceof WaveRunnerError && err.phase === 'story-fetch',
     );
   });
@@ -296,11 +296,11 @@ describe('lib/wave-runner/tick', () => {
 
     const r1 = await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: async () => {} },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: async () => {} },
     });
     const r2 = await tick({
       epic: { id: 100 },
-      collaborators: { provider, checkpointer, signalEmit: async () => {} },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: async () => {} },
     });
     assert.equal(r1.nextAction.kind, r2.nextAction.kind);
   });
@@ -317,7 +317,7 @@ describe('lib/wave-runner/tick', () => {
 
     await tick({
       epic: 100,
-      collaborators: { provider, checkpointer, signalEmit: sig.signalEmit },
+      collaborators: { provider, epicRunStateStore: checkpointer, signalEmit: sig.signalEmit },
     });
     const tickCount = sig.emitted.filter((e) => e.kind === 'wave-tick').length;
     assert.equal(tickCount, 1);
