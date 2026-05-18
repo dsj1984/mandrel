@@ -156,52 +156,137 @@ export function resolveSilentAccept(defaults, flags, env = process.env) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Summary sections (Story #2459 / Task #2472)
+//
+// `printSummary` used to be a 47-line conditional ladder with three `if/else`
+// pairs interleaved with linear `Logger.info` calls. Each line is now a
+// declarative `{ label, render }` entry — the renderer returns either:
+//
+//   - `string`     — exact `Logger.info` argument (callers prepend their
+//                    own indentation, banner `\n`, etc.).
+//   - `string[]`   — one `Logger.info` call per entry.
+//   - `null`       — suppress this section entirely.
+//
+// `printSummary` becomes a single one-branch loop. The strings are
+// pre-padded inside each renderer rather than computed via a generic
+// pad-to-width because the original implementation hand-tuned column
+// widths per logical section (the github lines use a different column
+// width than the project lines). Snapshot tests pin the exact output.
+//
+// Exported for the snapshot test in `tests/scripts/bootstrap-print-summary.test.js`.
+// ---------------------------------------------------------------------------
+
+// Every renderer returns `string[]` (or `null` to suppress the section)
+// so the flatten step stays a single-branch loop.
+
+export const SECTIONS = Object.freeze([
+  {
+    name: 'banner',
+    render: () => ['\n=== Bootstrap Summary ==='],
+  },
+  {
+    name: 'package.json',
+    render: (r) => [
+      `  package.json           created=${r.pkg.created} sync:commands=${r.pkg.scriptsSyncCommands} prepare=${r.pkg.scriptsPrepare} deps+=${r.pkg.deps.added.length}`,
+    ],
+  },
+  {
+    name: 'install',
+    render: (r) => [
+      `  install                ${r.install.ran ? `ran via ${r.install.manager}` : `skipped (${r.install.reason})`}`,
+    ],
+  },
+  {
+    name: 'agentrc',
+    render: (r) => [`  .agentrc.json          ${r.agentrc.action}`],
+  },
+  {
+    name: 'claudeSettings',
+    render: (r) => [`  .claude/settings.json  ${r.claudeSettings.action}`],
+  },
+  {
+    name: 'gitignore.commands',
+    render: (r) => [`  .gitignore commands    ${r.gitignore.commands}`],
+  },
+  {
+    name: 'gitignore.mcp',
+    render: (r) => [`  .gitignore mcp         ${r.gitignore.mcp}`],
+  },
+  {
+    name: 'parity',
+    render: (r) => [`  parity                 ${r.parity.ok ? 'OK' : 'FAIL'}`],
+  },
+  {
+    name: 'quality',
+    render: (r) =>
+      r.quality.skipped
+        ? ['  quality                skipped']
+        : [
+            `  quality.helper         ${r.quality.helper.action}`,
+            `  quality.hook           ${r.quality.hook.action}`,
+            `  quality.scripts        ${r.quality.scripts.action}`,
+            `  quality.config         ${r.quality.config.action}`,
+          ],
+  },
+  {
+    name: 'winPerf',
+    render: (r) =>
+      r.winPerf.skipped
+        ? [`  windows-git-perf       skipped (${r.winPerf.platform})`]
+        : [`  windows-git-perf       ${r.winPerf.ok ? 'OK' : 'warnings'}`],
+  },
+  {
+    name: 'github',
+    render: (r) =>
+      r.github
+        ? [
+            `  github.labels          created=${r.github.labels.created.length} skipped=${r.github.labels.skipped.length}`,
+            `  github.project         ${r.github.project.projectNumber ?? 'skipped'}`,
+            `  github.branchProtection ${r.github.branchProtection.status ?? 'n/a'}`,
+            `  github.mergeMethods    ${r.github.mergeMethods.status ?? 'n/a'}`,
+          ]
+        : ['  github                 skipped'],
+  },
+]);
+
+/**
+ * Render the full summary as one newline-joined string. Pure helper so
+ * snapshot tests can compare against fixture output without intercepting
+ * `Logger.info` calls. Each section's renderer is responsible for its own
+ * indentation and column widths — `renderSummary` only stitches results
+ * together. Exported for tests.
+ *
+ * @param {object} report
+ * @returns {string}
+ */
+export function renderSummary(report) {
+  return flattenSummaryLines(report).join('\n');
+}
+
+/**
+ * Flatten the section list to a sequence of strings (one per emitted
+ * line). Each entry becomes one `Logger.info` call so the log adapter
+ * sees the same line count it did before the refactor.
+ *
+ * Exported for the snapshot test (the assertion runs against this list
+ * directly when the input is a fixture report).
+ *
+ * @param {object} report
+ * @returns {string[]}
+ */
+export function flattenSummaryLines(report) {
+  const out = [];
+  for (const section of SECTIONS) {
+    const lines = section.render(report);
+    if (lines == null) continue;
+    out.push(...lines);
+  }
+  return out;
+}
+
 function printSummary(report) {
-  Logger.info('\n=== Bootstrap Summary ===');
-  Logger.info(
-    `  package.json           created=${report.pkg.created} sync:commands=${report.pkg.scriptsSyncCommands} prepare=${report.pkg.scriptsPrepare} deps+=${report.pkg.deps.added.length}`,
-  );
-  Logger.info(
-    `  install                ${report.install.ran ? `ran via ${report.install.manager}` : `skipped (${report.install.reason})`}`,
-  );
-  Logger.info(`  .agentrc.json          ${report.agentrc.action}`);
-  Logger.info(`  .claude/settings.json  ${report.claudeSettings.action}`);
-  Logger.info(`  .gitignore commands    ${report.gitignore.commands}`);
-  Logger.info(`  .gitignore mcp         ${report.gitignore.mcp}`);
-  Logger.info(`  parity                 ${report.parity.ok ? 'OK' : 'FAIL'}`);
-  if (report.quality.skipped) {
-    Logger.info('  quality                skipped');
-  } else {
-    Logger.info(`  quality.helper         ${report.quality.helper.action}`);
-    Logger.info(`  quality.hook           ${report.quality.hook.action}`);
-    Logger.info(`  quality.scripts        ${report.quality.scripts.action}`);
-    Logger.info(`  quality.config         ${report.quality.config.action}`);
-  }
-  if (report.winPerf.skipped) {
-    Logger.info(
-      `  windows-git-perf       skipped (${report.winPerf.platform})`,
-    );
-  } else {
-    Logger.info(
-      `  windows-git-perf       ${report.winPerf.ok ? 'OK' : 'warnings'}`,
-    );
-  }
-  if (report.github) {
-    Logger.info(
-      `  github.labels          created=${report.github.labels.created.length} skipped=${report.github.labels.skipped.length}`,
-    );
-    Logger.info(
-      `  github.project         ${report.github.project.projectNumber ?? 'skipped'}`,
-    );
-    Logger.info(
-      `  github.branchProtection ${report.github.branchProtection.status ?? 'n/a'}`,
-    );
-    Logger.info(
-      `  github.mergeMethods    ${report.github.mergeMethods.status ?? 'n/a'}`,
-    );
-  } else {
-    Logger.info('  github                 skipped');
-  }
+  for (const line of flattenSummaryLines(report)) Logger.info(line);
 }
 
 async function runGithubBootstrap(answers, opts) {
