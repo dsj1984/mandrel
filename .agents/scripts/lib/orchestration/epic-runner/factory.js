@@ -30,6 +30,7 @@ import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/list
 import { SignalsAppender } from '../lifecycle/listeners/signals-appender.js';
 import { StructuredCommentPoster } from '../lifecycle/listeners/structured-comment-poster.js';
 import { TimeoutWatchdog } from '../lifecycle/listeners/timeout-watchdog.js';
+import { Watcher } from '../lifecycle/listeners/watcher.js';
 import { createTraceLogger } from '../lifecycle/trace-logger.js';
 import {
   transitionTicketState,
@@ -210,7 +211,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // close-tail event order deterministic (reconciler emits `.ok`,
   // finalizer reacts) and ahead of the watcher / armer / cleaner
   // listeners that future Stories will wire here.
-  const { acceptanceReconciler, finalizer } = registerCloseTailChain({
+  const { acceptanceReconciler, finalizer, watcher } = registerCloseTailChain({
     bus,
     epicId: ctx.epicId,
     cwd: ctx.cwd,
@@ -278,6 +279,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     reliabilityObservers,
     acceptanceReconciler,
     finalizer,
+    watcher,
   };
 }
 
@@ -328,8 +330,8 @@ export function registerReliabilityObservers({ bus, config, logger }) {
 
 /**
  * Construct and register the close-tail listener chain (Story #2315 /
- * Task #2322; extended by Story #2319 / Task #2328). Registers, in
- * canonical close-tail order:
+ * Task #2322; extended by Story #2319 / Task #2328 and Story #2327 /
+ * Task #2331). Registers, in canonical close-tail order:
  *
  *   1. `AcceptanceReconciler` — subscribes to `epic.close.end`; emits
  *      `acceptance.reconcile.{ok,skipped,failed}` (and `epic.blocked`
@@ -339,16 +341,22 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      AcceptanceReconciler so the bus invokes them in chain order;
  *      sequential-await semantics mean reconciler outcomes settle
  *      into the ledger before finalize side effects run.
+ *   3. `Watcher` — subscribes to `pr.created`; resolves the required
+ *      check name set at runtime via `gh pr checks` and emits
+ *      `epic.watch.{start,end}`. Registered AFTER Finalizer so the bus
+ *      delivers the freshly-emitted `pr.created` to Watcher in chain
+ *      order, and BEFORE the (future) AutomergePredicate which
+ *      subscribes to `epic.watch.end`.
  *
  * The "close-tail chain" name is deliberately umbrella-shaped: future
- * close-time listeners (Watcher, AutomergePredicate, AutomergeArmer,
- * Cleaner) register here in the same canonical slot — after observers
- * and mutators, before BlockerHandler.
+ * close-time listeners (AutomergePredicate, AutomergeArmer, Cleaner)
+ * register here in the same canonical slot — after observers and
+ * mutators, before BlockerHandler.
  *
  * Returns the constructed listener bag so the collaborator bag can
  * expose each to tests. Returns `{ acceptanceReconciler: null,
- * finalizer: null }` when the bus or epicId is unusable so unit
- * fixtures continue to operate without a live bus.
+ * finalizer: null, watcher: null }` when the bus or epicId is unusable
+ * so unit fixtures continue to operate without a live bus.
  */
 function registerCloseTailChain({
   bus,
@@ -359,10 +367,10 @@ function registerCloseTailChain({
   logger,
 }) {
   if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
-    return { acceptanceReconciler: null, finalizer: null };
+    return { acceptanceReconciler: null, finalizer: null, watcher: null };
   }
   if (!Number.isInteger(epicId) || epicId < 1) {
-    return { acceptanceReconciler: null, finalizer: null };
+    return { acceptanceReconciler: null, finalizer: null, watcher: null };
   }
   const acceptanceReconciler = new AcceptanceReconciler({
     bus,
@@ -380,10 +388,16 @@ function registerCloseTailChain({
     logger,
   });
   finalizer.register();
+  const watcher = new Watcher({
+    bus,
+    cwd: cwd ?? process.cwd(),
+    logger,
+  });
+  watcher.register();
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created)',
   );
-  return { acceptanceReconciler, finalizer };
+  return { acceptanceReconciler, finalizer, watcher };
 }
 
 /**
