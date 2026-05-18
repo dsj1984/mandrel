@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T03:45:54.359Z",
+  "generatedAt": "2026-05-18T03:50:01.200Z",
   "rollup": {
     "*": {
       "min": 0,
@@ -112,7 +112,7 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-finalize.js",
-      "mi": 83
+      "mi": 110.301
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -563,6 +563,10 @@
       "mi": 102.643
     },
     {
+      "path": ".agents/scripts/lib/epic-close-tail-helpers.js",
+      "mi": 83.319
+    },
+    {
       "path": ".agents/scripts/lib/epic-merge-lock.js",
       "mi": 99.737
     },
@@ -756,7 +760,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "mi": 93.214
+      "mi": 90.935
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
@@ -800,7 +804,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/iterate-waves.js",
-      "mi": 91.835
+      "mi": 89.934
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/phases/snapshot.js",
@@ -889,6 +893,14 @@
     {
       "path": ".agents/scripts/lib/orchestration/label-transitions.js",
       "mi": 129.416
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
+      "mi": 92.94
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
+      "mi": 93.277
     },
     {
       "path": ".agents/scripts/lib/orchestration/lint-baseline-service.js",
@@ -1368,7 +1380,7 @@
     },
     {
       "path": ".agents/scripts/pr-watch-with-update.js",
-      "mi": 85.162
+      "mi": 95.776
     },
     {
       "path": ".agents/scripts/providers/github.js",
@@ -2619,8 +2631,28 @@
       "mi": 111.346
     },
     {
+      "path": "tests/lib/orchestration/lifecycle/activation/acceptance-reconciler-activation.test.js",
+      "mi": 109.381
+    },
+    {
       "path": "tests/lib/orchestration/lifecycle/activation/automerge-armer-activation.test.js",
       "mi": 107.667
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/automerge-predicate-activation.test.js",
+      "mi": 111.692
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/finalizer-idempotency.test.js",
+      "mi": 109.571
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/heartbeat-monitor.test.js",
+      "mi": 110.954
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/iterate-waves-label-transitioner.test.js",
+      "mi": 99.632
     },
     {
       "path": "tests/lib/orchestration/lifecycle/activation/legacy-shims.test.js",
@@ -2629,6 +2661,14 @@
     {
       "path": "tests/lib/orchestration/lifecycle/activation/listener-registration.test.js",
       "mi": 109.312
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/timeout-watchdog.test.js",
+      "mi": 110.712
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/activation/watcher-behind-recovery.test.js",
+      "mi": 108.984
     },
     {
       "path": "tests/lib/orchestration/lint-baseline-service.test.js",
@@ -3111,24 +3151,8 @@
       "mi": 118.65
     },
     {
-      "path": "tests/scripts/epic-deliver-baseline-reconciliation.test.js",
-      "mi": 106.422
-    },
-    {
       "path": "tests/scripts/epic-deliver-cleanup.test.js",
       "mi": 109.413
-    },
-    {
-      "path": "tests/scripts/epic-deliver-finalize.refresh.test.js",
-      "mi": 109.708
-    },
-    {
-      "path": "tests/scripts/epic-deliver-finalize.row-preservation.test.js",
-      "mi": 108.751
-    },
-    {
-      "path": "tests/scripts/epic-deliver-finalize.test.js",
-      "mi": 106.415
     },
     {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",
@@ -3185,10 +3209,6 @@
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",
       "mi": 86.998
-    },
-    {
-      "path": "tests/scripts/pr-watch-with-update.test.js",
-      "mi": 108.531
     },
     {
       "path": "tests/scripts/run-tests.test.js",
