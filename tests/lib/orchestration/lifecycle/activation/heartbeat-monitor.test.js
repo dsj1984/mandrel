@@ -19,9 +19,8 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
-import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { registerReliabilityObservers } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
+import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 
 /**
  * Build a logger whose `warn` calls are captured for assertion. The
