@@ -63,7 +63,7 @@ test('renderWorkflowsBlock: assembles header + per-workflow summary + path', () 
         path: '.agents/workflows/a.md',
         summary: 'Run audit A.',
         byteSize: 1024,
-        artifactPath: 'temp/audit-story-close-1-a.md',
+        artifactPath: 'temp/audits/audit-story-close-1-a.md',
       },
       {
         audit: 'b',
@@ -88,7 +88,7 @@ test('renderWorkflowsBlock: assembles header + per-workflow summary + path', () 
   assert.match(out, /\*\*Source size:\*\* 1024 bytes/);
   assert.match(
     out,
-    /\*\*Full prompt artifact:\*\* `temp\/audit-story-close-1-a\.md` _\(local-only\)_/,
+    /\*\*Full prompt artifact:\*\* `temp\/audits\/audit-story-close-1-a\.md` _\(local-only\)_/,
   );
   assert.match(out, /Run audit A\./);
   assert.match(out, /Run audit B\./);
@@ -104,7 +104,7 @@ test('renderWorkflowsBlock: produces a bounded comment regardless of workflow bo
     summary:
       'Conduct a comprehensive audit. Evaluate dimensions one through five. Report findings with severity ratings.',
     byteSize: 30_000,
-    artifactPath: `temp/audit-story-close-555-audit-${i}.md`,
+    artifactPath: `temp/audits/audit-story-close-555-audit-${i}.md`,
   }));
   const out = renderWorkflowsBlock(
     workflows,
@@ -211,7 +211,7 @@ test('formatAuditReport: combined findings + workflows block', () => {
         path: '.agents/workflows/audit-security.md',
         summary: 'Run a security and vulnerability audit.',
         byteSize: 4096,
-        artifactPath: 'temp/audit-story-close-1-security.md',
+        artifactPath: 'temp/audits/audit-story-close-1-security.md',
       },
     ],
   });

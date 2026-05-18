@@ -154,9 +154,10 @@ async function reduceResults({
  *   2. Locate the corresponding `.agents/workflows/<auditName>.md` file.
  *   3. Return a slim `workflow` descriptor (audit name, source path, summary,
  *      byte size) for the calling AI agent. Full prompt bodies are written to
- *      `temp/audit-<runId>-<audit>.md` when `artifactPrefix` (or `runId`) is
- *      provided, so downstream agents can read them locally without bloating
- *      the GitHub comment surface.
+ *      `<auditOutputDir>/audit-<runId>-<audit>.md` (resolved from
+ *      `project.paths.tempRoot`, default `temp/audits/`) when `artifactPrefix`
+ *      (or `runId`) is provided, so downstream agents can read them locally
+ *      without bloating the GitHub comment surface.
  *
  * Substitutions: callers may pass a `substitutions` map of `{{key}}` → value
  * pairs. Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch)
@@ -170,7 +171,8 @@ async function reduceResults({
  * @param {string} [opts.artifactPrefix] - When set, write full bodies to
  *   `<artifactsDir>/audit-<artifactPrefix>-<audit>.md`.
  * @param {string} [opts.artifactsDir] - Override the artifacts directory
- *   (default: `<PROJECT_ROOT>/temp`).
+ *   (default: `<PROJECT_ROOT>/<auditOutputDir>`, which resolves to
+ *   `<tempRoot>/audits` — `temp/audits` with default config).
  * @param {Function} [opts.injectedLoadWorkflow] - Optional override for testing.
  * @param {object} [opts.injectedRules] - Optional override for the audit-rules content (testing).
  * @param {Function} [opts.injectedWriteArtifact] - Optional override for filesystem-free testing.
@@ -201,7 +203,8 @@ export async function runAuditSuite({
   const validAudits = Object.keys(rules.audits || {});
   const envelope = emptyEnvelope(auditWorkflows);
   const workflowsDir = path.join(PROJECT_ROOT, paths.workflowsRoot);
-  const effectiveArtifactsDir = artifactsDir ?? path.join(PROJECT_ROOT, 'temp');
+  const effectiveArtifactsDir =
+    artifactsDir ?? path.join(PROJECT_ROOT, paths.auditOutputDir);
   const writeArtifact = injectedWriteArtifact ?? defaultWriteArtifact;
   const loader = injectedLoadWorkflow ?? loadWorkflow;
 

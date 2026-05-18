@@ -20,7 +20,8 @@ Flags:
                    Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch)
                    plus any substitutionKeys declared on the requested audits.
   --run-id         Optional artifact prefix. When set, full prompt bodies are written
-                   to temp/audit-<run-id>-<audit>.md so downstream agents can read them.
+                   to <auditOutputDir>/audit-<run-id>-<audit>.md (defaults to
+                   temp/audits/) so downstream agents can read them.
   --help           Show this message.
 `;
 

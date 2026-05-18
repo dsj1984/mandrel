@@ -63,7 +63,7 @@ export function renderWorkflowsBlock(workflows, summary, auditsRun) {
   headLines.push(
     '',
     '> [!NOTE]',
-    '> Each entry below links to the audit workflow source. Full prompt bodies are written to `temp/audit-<gate>-<audit>.md` as local-only artifacts when downstream agents need to execute them.',
+    '> Each entry below links to the audit workflow source. Full prompt bodies are written to `<auditOutputDir>/audit-<gate>-<audit>.md` (defaults to `temp/audits/`) as local-only artifacts when downstream agents need to execute them.',
     '',
   );
   const head = headLines.join('\n');
