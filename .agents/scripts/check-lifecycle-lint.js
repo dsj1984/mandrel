@@ -124,9 +124,6 @@ const STATE_MUTATING_MODULES = Object.freeze([
   // git / worktree mutators
   'lib/git-utils.js',
   'lib/orchestration/worktree-manager.js',
-  // PR writers
-  'epic-deliver-finalize.js',
-  'epic-deliver-automerge.js',
   // notification writers
   'notify.js',
 ]);
