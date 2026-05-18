@@ -383,54 +383,88 @@ export function compareCrap({
 }
 
 /**
+ * Declarative axis table for `evaluateBaselineCompatibility` (Story #2467).
+ *
+ * Each axis is a pure `{ name, severity, check }` triple. `check` receives
+ * the compat context `{ baseline, runningKernelVersion,
+ * runningEscomplexVersion, runningTsTranspilerVersion }` and returns either
+ * `null` (axis passed) or a `string` message describing the failure.
+ *
+ * - `severity: 'fatal'` — first match short-circuits the reduce and the
+ *   function returns `{ ok: false, exitCode: 1, kind, message }`.
+ * - `severity: 'warn'`  — every match accumulates into `warnings[]` and the
+ *   function still returns `{ ok: true, warnings }`.
+ *
+ * Story #791 retired the transitional `bootstrap` exit-0 path: a missing
+ * baseline still fails closed. Story #829 (5.29.0) softened `kernelVersion`
+ * and `tsTranspilerVersion` drift to **warn**, not fail; `escomplexVersion`
+ * mismatch continues to fail closed.
+ */
+export const CRAP_COMPAT_AXES = [
+  {
+    name: 'missing-baseline',
+    severity: 'fatal',
+    check: ({ baseline }) =>
+      baseline === null || baseline === undefined
+        ? "[CRAP] ❌ no baseline found — run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to bootstrap"
+        : null,
+  },
+  {
+    name: 'escomplex-mismatch',
+    severity: 'fatal',
+    check: ({ baseline, runningEscomplexVersion }) =>
+      baseline && baseline.escomplexVersion !== runningEscomplexVersion
+        ? `[CRAP] scorer changed from ${baseline.escomplexVersion} to ${runningEscomplexVersion} — run 'npm run crap:update'`
+        : null,
+  },
+  {
+    name: 'kernel-drift',
+    severity: 'warn',
+    check: ({ baseline, runningKernelVersion }) =>
+      baseline && baseline.kernelVersion !== runningKernelVersion
+        ? `[CRAP] ⚠ kernelVersion drift: baseline=${baseline.kernelVersion} running=${runningKernelVersion}. ` +
+          "Run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to refresh."
+        : null,
+  },
+  {
+    name: 'ts-transpiler-drift',
+    severity: 'warn',
+    check: ({ baseline, runningTsTranspilerVersion }) => {
+      if (!baseline || !runningTsTranspilerVersion) return null;
+      const baselineTs = baseline.tsTranspilerVersion ?? '0.0.0';
+      if (baselineTs === runningTsTranspilerVersion) return null;
+      return (
+        `[CRAP] ⚠ tsTranspilerVersion drift: baseline=${baselineTs} running=${runningTsTranspilerVersion}. ` +
+        "Run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to refresh."
+      );
+    },
+  },
+];
+
+/**
  * Pure decision helper for the missing-baseline / kernel-mismatch /
  * escomplex-mismatch / tsTranspiler-mismatch gate paths. Lets tests
  * assert the exact operator-facing message without spawning a child
  * process.
  *
- * Story #791 retired the transitional `bootstrap` exit-0 path: a missing
- * baseline still fails closed (exit 1). Story #829 (5.29.0) softened
- * `kernelVersion` and `tsTranspilerVersion` drift to **warn**, not fail;
- * `escomplexVersion` mismatch continues to fail closed.
+ * Story #2467 rewrote the body as a reduce over `CRAP_COMPAT_AXES` to
+ * collapse the cyclomatic complexity below the project ceiling. Behavior
+ * is preserved byte-for-byte vs the prior imperative implementation.
  */
-export function evaluateBaselineCompatibility({
-  baseline,
-  runningKernelVersion,
-  runningEscomplexVersion,
-  runningTsTranspilerVersion,
-}) {
-  if (baseline === null || baseline === undefined) {
-    return {
-      ok: false,
-      exitCode: 1,
-      kind: 'missing-baseline',
-      message:
-        "[CRAP] ❌ no baseline found — run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to bootstrap",
-    };
-  }
-  if (baseline.escomplexVersion !== runningEscomplexVersion) {
-    return {
-      ok: false,
-      exitCode: 1,
-      kind: 'escomplex-mismatch',
-      message: `[CRAP] scorer changed from ${baseline.escomplexVersion} to ${runningEscomplexVersion} — run 'npm run crap:update'`,
-    };
-  }
-  const warnings = [];
-  if (baseline.kernelVersion !== runningKernelVersion) {
-    warnings.push(
-      `[CRAP] ⚠ kernelVersion drift: baseline=${baseline.kernelVersion} running=${runningKernelVersion}. ` +
-        "Run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to refresh.",
-    );
-  }
-  const baselineTs = baseline.tsTranspilerVersion ?? '0.0.0';
-  if (runningTsTranspilerVersion && baselineTs !== runningTsTranspilerVersion) {
-    warnings.push(
-      `[CRAP] ⚠ tsTranspilerVersion drift: baseline=${baselineTs} running=${runningTsTranspilerVersion}. ` +
-        "Run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to refresh.",
-    );
-  }
-  return { ok: true, warnings };
+export function evaluateBaselineCompatibility(ctx) {
+  return CRAP_COMPAT_AXES.reduce(
+    (acc, axis) => {
+      if (!acc.ok) return acc;
+      const message = axis.check(ctx);
+      if (!message) return acc;
+      if (axis.severity === 'fatal') {
+        return { ok: false, exitCode: 1, kind: axis.name, message };
+      }
+      acc.warnings.push(message);
+      return acc;
+    },
+    { ok: true, warnings: [] },
+  );
 }
 
 /**
