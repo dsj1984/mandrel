@@ -5,6 +5,7 @@ import {
   buildGlobFilter,
   buildJsonEnvelope,
   computeExitCode,
+  computeProtectedReason,
   computeProtectedSet,
   executeCleanup,
   executeFastForward,
@@ -159,6 +160,49 @@ describe('git-cleanup.computeProtectedSet', () => {
   });
 });
 
+describe('git-cleanup.computeProtectedReason', () => {
+  const ctx = (branch) => ({
+    baseBranch: 'main',
+    currentBranch: 'fix/wip',
+    configured: ['release'],
+    branch,
+  });
+
+  it('returns protected for the base branch', () => {
+    assert.equal(computeProtectedReason(ctx('main')), 'protected');
+  });
+
+  it('returns protected for configured-protected branches', () => {
+    assert.equal(computeProtectedReason(ctx('release')), 'protected');
+  });
+
+  it('returns current-head for the current branch when not also base/configured', () => {
+    assert.equal(computeProtectedReason(ctx('fix/wip')), 'current-head');
+  });
+
+  it('returns null for reapable branches', () => {
+    assert.equal(computeProtectedReason(ctx('feat/x')), null);
+  });
+
+  it('prefers protected over current-head when the same name appears in both', () => {
+    const reason = computeProtectedReason({
+      baseBranch: 'main',
+      currentBranch: 'main',
+      configured: [],
+      branch: 'main',
+    });
+    assert.equal(reason, 'protected');
+  });
+
+  it('tolerates a missing/empty branch', () => {
+    assert.equal(computeProtectedReason(ctx('')), null);
+    assert.equal(
+      computeProtectedReason({ baseBranch: 'main', branch: null }),
+      null,
+    );
+  });
+});
+
 describe('git-cleanup.planCleanup', () => {
   const baseCtx = (overrides) => ({
     cwd: '/repo',
@@ -201,7 +245,7 @@ describe('git-cleanup.planCleanup', () => {
     assert.equal(plan.candidates[0].detectedBy, 'git-merged');
   });
 
-  it('skips protected refs: main, current HEAD, configured', () => {
+  it('splits the current-HEAD skip out of the protected bucket', () => {
     const plan = planCleanup(
       baseCtx({
         localLister: () => ['main', 'fix/current', 'release', 'fix/ok'],
@@ -212,10 +256,14 @@ describe('git-cleanup.planCleanup', () => {
     );
     const candidates = plan.candidates.map((c) => c.branch);
     assert.deepEqual(candidates, ['fix/ok']);
-    const skipped = plan.skipped
+    const protectedSkipped = plan.skipped
       .filter((s) => s.reason === 'protected')
       .map((s) => s.branch);
-    assert.deepEqual(skipped.sort(), ['fix/current', 'main', 'release']);
+    assert.deepEqual(protectedSkipped.sort(), ['main', 'release']);
+    const currentHeadSkipped = plan.skipped
+      .filter((s) => s.reason === 'current-head')
+      .map((s) => s.branch);
+    assert.deepEqual(currentHeadSkipped, ['fix/current']);
   });
 
   it('annotates attached worktrees', () => {
@@ -269,6 +317,102 @@ describe('git-cleanup.planCleanup', () => {
       plan.candidates.map((c) => c.branch),
       ['fix/a'],
     );
+  });
+
+  it('local candidates carry localExists: true by default', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/a'],
+        prProbe: () => ({ number: 1, mergedAt: null }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].localExists, true);
+  });
+
+  it('does NOT enumerate remote-only branches by default', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/local'],
+        remoteLister: () => ['fix/remote-only'],
+        prProbe: () => ({ number: 1, mergedAt: null }),
+      }),
+    );
+    const branches = plan.candidates.map((c) => c.branch).sort();
+    assert.deepEqual(branches, ['fix/local']);
+  });
+
+  it('enumerates remote-only merged branches when includeRemoteOnly=true', () => {
+    const plan = planCleanup(
+      baseCtx({
+        includeRemoteOnly: true,
+        localLister: () => [],
+        remoteLister: () => ['fix/remote-only', 'main'],
+        prProbe: (b) =>
+          b === 'fix/remote-only'
+            ? { number: 42, mergedAt: '2026-05-18T00:00:00Z' }
+            : null,
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    const cand = plan.candidates[0];
+    assert.equal(cand.branch, 'fix/remote-only');
+    assert.equal(cand.detectedBy, 'remote-only');
+    assert.equal(cand.localExists, false);
+    assert.equal(cand.hasWorktree, false);
+    assert.equal(cand.prNumber, 42);
+  });
+
+  it('remote-only pass de-duplicates against the local enumeration', () => {
+    let remoteProbeCount = 0;
+    const plan = planCleanup(
+      baseCtx({
+        includeRemoteOnly: true,
+        localLister: () => ['fix/both'],
+        remoteLister: () => ['fix/both'],
+        prProbe: (b) => {
+          if (b === 'fix/both') remoteProbeCount += 1;
+          return { number: 1, mergedAt: null };
+        },
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].localExists, true);
+    assert.equal(
+      remoteProbeCount,
+      1,
+      'should probe once (from the local pass) and skip remote-only entirely',
+    );
+  });
+
+  it('remote-only pass respects the protected reason and the glob filter', () => {
+    const plan = planCleanup(
+      baseCtx({
+        includeRemoteOnly: true,
+        localLister: () => [],
+        remoteLister: () => ['main', 'release', 'fix/skip', 'fix/ok'],
+        protectedConfigFn: () => ['release'],
+        filter: buildGlobFilter({
+          include: ['fix/*'],
+          exclude: ['fix/skip'],
+        }),
+        prProbe: () => ({ number: 1, mergedAt: null }),
+      }),
+    );
+    const branches = plan.candidates.map((c) => c.branch);
+    assert.deepEqual(branches, ['fix/ok']);
+  });
+
+  it('remote-only pass skips branches without a merged PR', () => {
+    const plan = planCleanup(
+      baseCtx({
+        includeRemoteOnly: true,
+        localLister: () => [],
+        remoteLister: () => ['fix/no-pr'],
+        prProbe: () => null,
+      }),
+    );
+    assert.deepEqual(plan.candidates, []);
   });
 });
 
@@ -488,6 +632,64 @@ describe('git-cleanup.executeCleanup', () => {
       logger: { info() {}, warn() {}, error() {} },
     });
     assert.equal(capturedRemote, 'upstream');
+  });
+
+  it('skips deleteLocalFn for remote-only (localExists: false) candidates', () => {
+    let localCalls = 0;
+    let remoteCalls = 0;
+    const result = executeCleanup({
+      candidates: [
+        baseCand({
+          branch: 'fix/remote-only',
+          detectedBy: 'remote-only',
+          localExists: false,
+        }),
+      ],
+      cwd: '/repo',
+      remote: true,
+      deleteLocalFn: () => {
+        localCalls += 1;
+        return { deleted: false, reason: 'not-found' };
+      },
+      deleteRemoteFn: () => {
+        remoteCalls += 1;
+        return { deleted: true, reason: 'deleted' };
+      },
+      pruneRemoteFn: () => ({ ok: true, pruned: [] }),
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(localCalls, 0, 'deleteLocalFn must not run for remote-only');
+    assert.equal(remoteCalls, 1, 'deleteRemoteFn still runs');
+    assert.equal(result.local.length, 0, 'no local result row for remote-only');
+    assert.equal(result.remote.length, 1);
+    assert.equal(result.remote[0].ok, true);
+    assert.equal(result.ok, true);
+  });
+
+  it('still runs prune when remote-only candidates produced remote attempts', () => {
+    let pruneCalls = 0;
+    const result = executeCleanup({
+      candidates: [
+        baseCand({
+          branch: 'fix/remote-only',
+          detectedBy: 'remote-only',
+          localExists: false,
+        }),
+      ],
+      cwd: '/repo',
+      remote: true,
+      deleteLocalFn: () => {
+        throw new Error('should not run');
+      },
+      deleteRemoteFn: () => ({ deleted: true, reason: 'deleted' }),
+      pruneRemoteFn: () => {
+        pruneCalls += 1;
+        return { ok: true, pruned: ['fix/remote-only'] };
+      },
+      logger: { info() {}, warn() {}, error() {} },
+    });
+    assert.equal(pruneCalls, 1);
+    assert.equal(result.prune?.attempted, true);
   });
 
   it('aggregates failures across scopes and flips ok=false', () => {
@@ -749,6 +951,58 @@ describe('git-cleanup renderers', () => {
   it('renderDryRun says "no merged branches" when empty', () => {
     const lines = renderDryRun({ candidates: [] });
     assert.match(lines[1], /no merged branches to clean up/);
+  });
+
+  it('renderDryRun marks remote-only candidates with a (remote-only) note', () => {
+    const lines = renderDryRun({
+      candidates: [
+        {
+          branch: 'fix/remote-only',
+          prNumber: 99,
+          hasWorktree: false,
+          worktreePath: null,
+          detectedBy: 'remote-only',
+          localExists: false,
+        },
+      ],
+    });
+    assert.match(lines[1], /fix\/remote-only — PR #99 \(remote-only\)/);
+  });
+
+  it('renderDryRun emits a current-head remediation hint with the base branch', () => {
+    const lines = renderDryRun(
+      {
+        candidates: [],
+        skipped: [{ branch: 'feat/wip', reason: 'current-head' }],
+      },
+      { baseBranch: 'main' },
+    );
+    const hint = lines.find((l) => /current HEAD/.test(l));
+    assert.ok(hint, 'expected a current-head hint line');
+    assert.match(hint, /feat\/wip/);
+    assert.match(hint, /checkout main first/);
+  });
+
+  it('renderDryRun falls back to a generic checkout hint when baseBranch is omitted', () => {
+    const lines = renderDryRun({
+      candidates: [],
+      skipped: [{ branch: 'feat/wip', reason: 'current-head' }],
+    });
+    const hint = lines.find((l) => /current HEAD/.test(l));
+    assert.ok(hint);
+    assert.match(hint, /checkout the base branch first/);
+  });
+
+  it('renderDryRun does not emit a current-head hint when no current-head skip is present', () => {
+    const lines = renderDryRun(
+      {
+        candidates: [],
+        skipped: [{ branch: 'main', reason: 'protected' }],
+      },
+      { baseBranch: 'main' },
+    );
+    const hint = lines.find((l) => /current HEAD/.test(l));
+    assert.equal(hint, undefined);
   });
 
   it('renderExecutionLine annotates already-gone remote', () => {

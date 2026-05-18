@@ -24,6 +24,7 @@ import { AcceptanceReconciler } from '../lifecycle/listeners/acceptance-reconcil
 import { AutomergeArmer } from '../lifecycle/listeners/automerge-armer.js';
 import { AutomergePredicate } from '../lifecycle/listeners/automerge-predicate.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
+import { BranchCleaner } from '../lifecycle/listeners/branch-cleaner.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
 import { Cleaner } from '../lifecycle/listeners/cleaner.js';
 import { Finalizer } from '../lifecycle/listeners/finalizer.js';
@@ -262,6 +263,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     watcher,
     automergePredicate,
     automergeArmer,
+    branchCleaner,
     cleaner,
   } = registerCloseTailChain({
     bus,
@@ -271,6 +273,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
     tempRoot,
+    checkpointer,
   });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
@@ -336,6 +339,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     watcher,
     automergePredicate,
     automergeArmer,
+    branchCleaner,
     cleaner,
   };
 }
@@ -422,7 +426,16 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      which subscribes to `epic.merge.armed`. This is the runtime
  *      closure of High-1 from the Epic #2172 review: auto-merge can
  *      no longer fire before the predicate's verdict.
- *   6. `Cleaner` — subscribes to `epic.merge.armed` (and ONLY that
+ *   6. `BranchCleaner` — subscribes to `epic.cleanup.start` (and ONLY
+ *      that event). Reads the `epic-run-state` checkpoint, then reaps
+ *      every `story-<id>` + `epic/<id>` local branch, removes attached
+ *      worktrees (with a Windows file-lock fallback), prunes stale
+ *      `<remote>/...` tracking refs, and deletes the `wt-branch`
+ *      scratch ref. Registered immediately before Cleaner so the
+ *      subscription is live when Cleaner emits `epic.cleanup.start`
+ *      inside its `epic.merge.armed` handler. The slot stays `null`
+ *      for unit fixtures that omit the checkpointer.
+ *   7. `Cleaner` — subscribes to `epic.merge.armed` (and ONLY that
  *      event). Archives `temp/epic-<id>/` under
  *      `temp/archive/epic-<id>-<ts>/` and emits the terminal sequence
  *      `epic.cleanup.start → epic.cleanup.end → epic.complete`.
@@ -448,6 +461,7 @@ function registerCloseTailChain({
   config,
   logger,
   tempRoot,
+  checkpointer,
 }) {
   if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
     return {
@@ -456,6 +470,7 @@ function registerCloseTailChain({
       watcher: null,
       automergePredicate: null,
       automergeArmer: null,
+      branchCleaner: null,
       cleaner: null,
     };
   }
@@ -466,6 +481,7 @@ function registerCloseTailChain({
       watcher: null,
       automergePredicate: null,
       automergeArmer: null,
+      branchCleaner: null,
       cleaner: null,
     };
   }
@@ -517,6 +533,28 @@ function registerCloseTailChain({
     logger,
   });
   automergeArmer.register();
+  // Story #2398 — BranchCleaner subscribes to `epic.cleanup.start` (and
+  // ONLY that event). Registered immediately before Cleaner so the
+  // subscription is live by the time Cleaner emits `epic.cleanup.start`
+  // inside its `epic.merge.armed` handler. The bus runs listeners
+  // awaited and in registration order; BranchCleaner therefore reaps
+  // every `story-<id>` + `epic/<id>` branch (plus attached worktrees,
+  // stale tracking refs, and the `wt-branch` scratch ref) BEFORE
+  // Cleaner moves `temp/epic-<id>/` under `temp/archive/`. The
+  // listener requires a `checkpointer` (to read `epic-run-state` from
+  // the Epic Issue) and a `cwd` that points at the main checkout; the
+  // slot stays `null` for unit fixtures that omit either.
+  let branchCleaner = null;
+  if (checkpointer && typeof checkpointer.read === 'function') {
+    branchCleaner = new BranchCleaner({
+      bus,
+      epicId,
+      checkpointer,
+      cwd: cwd ?? process.cwd(),
+      logger,
+    });
+    branchCleaner.register();
+  }
   // Story #2338 / Task #2345 — Cleaner subscribes to `epic.merge.armed`
   // (and ONLY that event). Registered LAST in the close-tail chain so
   // every observer / mutator already on the bus sees the terminal
@@ -536,7 +574,7 @@ function registerCloseTailChain({
     cleaner.register();
   }
   logger?.debug?.(
-    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; cleaner → epic.merge.armed)',
+    '[lifecycle] close-tail chain registered (acceptance-reconciler → epic.close.end; finalizer → acceptance.reconcile.ok; watcher → pr.created; automerge-predicate → epic.watch.end; automerge-armer → epic.merge.ready; branch-cleaner → epic.cleanup.start; cleaner → epic.merge.armed)',
   );
   return {
     acceptanceReconciler,
@@ -544,6 +582,7 @@ function registerCloseTailChain({
     watcher,
     automergePredicate,
     automergeArmer,
+    branchCleaner,
     cleaner,
   };
 }

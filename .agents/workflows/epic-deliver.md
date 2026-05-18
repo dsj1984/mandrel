@@ -30,7 +30,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 6 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
   → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
   → Phase 7.5 — auto-merge gate    (lifecycle-emit → epic.automerge.start)
-  → Phase 8 — cleanup              (lifecycle-emit → epic.merge.armed — only after merge)
+  → Phase 8 — cleanup              (BranchCleaner + Cleaner lifecycle listeners on epic.cleanup.start / epic.merge.armed; fire via lifecycle-emit → epic.merge.armed)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
@@ -439,26 +439,56 @@ empty-committing to dodge CI diagnosis.
 
 ## Phase 8 — Local branch cleanup
 
-After Phase 7.5 has merged the PR (auto or manual), reap local refs by
-emitting `epic.merge.armed`:
+Phase 8 runs **automatically** inside the lifecycle bus once auto-merge
+arms: the `BranchCleaner` listener subscribes to `epic.cleanup.start`
+and reaps local refs before `Cleaner` archives the `temp/epic-<id>/`
+tree. No operator step is required on the auto-merge path.
+
+What gets reaped (in order, all in-process):
+
+1. The main checkout is switched off `epic/<id>` to `baseBranch` when
+   needed (otherwise `git branch -D epic/<id>` is refused).
+2. Every `story-<id>` listed in the `epic-run-state` checkpoint, plus
+   `epic/<id>`. Attached worktrees are removed with the standard
+   `git worktree remove` → `--force` → filesystem-rm fallback (the
+   last step covers Windows file-locks).
+3. `git remote prune <remote>` drops stale `<remote>/...` tracking
+   refs left behind by `gh pr merge --delete-branch`.
+4. The `wt-branch` scratch ref left by `story-close.js`'s internal
+   merge worktree is deleted when no worktree still points at it.
+
+Per-branch failures aggregate into the listener's classification log
+(`reaped` / `failed` / `no-state` / `skipped-duplicate`) and are
+visible in `temp/epic-<id>/lifecycle.ndjson`. They do not block the
+rest of cleanup.
+
+For out-of-band cleanup re-entry (resume after a crash, or operator
+override), fire `epic.merge.armed` via the lifecycle-emit helper:
 
 ```bash
 node .agents/scripts/lifecycle-emit.js --epic <epicId> \
   --event epic.merge.armed --pr-url <prUrl>
 ```
 
-The `Cleaner` listener subscribes to `epic.merge.armed`, enumerates
-`epic/<id>` + every `story-<storyId>`, removes worktrees, prunes the
-registry, drops local refs, and concludes with `epic.complete`.
-Remote branches are out of scope (`gh pr merge --delete-branch`
-handled them). The rare "scrap and reset" case for an unmerged
-Epic — walking remote `task/*` and `feature/*` refs — is handled
-manually.
+If Phase 7.5 fell back to the operator-merges-button path (`gh pr
+merge --auto` was declined), the `epic.merge.armed` event never fires
+inside this run and Phase 8 will not run automatically. After the
+operator merges the PR, `epic/<epicId>` and each `story-<id>` ref can
+be reaped manually:
 
-If Phase 7.5 fell back to the operator-merges-button path, **do not**
-run Phase 8 yourself — the operator emits `epic.merge.armed` via
-`node .agents/scripts/lifecycle-emit.js --epic <epicId> --event
-epic.merge.armed --pr-url <prUrl>` after they merge.
+```bash
+git checkout main
+git pull --ff-only origin main
+git branch -D epic/<epicId>
+git branch -D story-<id1> story-<id2> ...
+git remote prune origin
+```
+
+Note that `git-cleanup.js` alone will not catch `story-<id>` refs in
+this case because the epic PR squash-merges break the `git branch
+--merged main` signal and the stories never had their own PRs. Wiring
+a CLI surface that drives the BranchCleaner listener for this
+fallback is tracked as follow-up to Story #2398.
 
 ---
 
