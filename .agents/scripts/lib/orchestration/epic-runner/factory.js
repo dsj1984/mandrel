@@ -408,12 +408,11 @@ export function registerReliabilityObservers({ bus, config, logger }) {
  *      `epic.merge.{ready,blocked}`. Wired AFTER Watcher so the bus
  *      delivers the freshly-emitted `epic.watch.end` in chain order,
  *      and BEFORE the AutomergeArmer which subscribes to
- *      `epic.merge.ready`. The listener wraps the legacy
- *      `evaluateAutoMergePredicate` from
- *      `lib/orchestration/automerge-predicate.js`; the legacy module
- *      itself stays unimported here — only the listener under
+ *      `epic.merge.ready`. The listener at
  *      `lib/orchestration/lifecycle/listeners/automerge-predicate.js`
- *      is wired.
+ *      now owns `evaluateAutoMergePredicate` directly; the legacy
+ *      `lib/orchestration/automerge-predicate.js` module was deleted
+ *      in Story #2415 (Epic #2307).
  *   5. `AutomergeArmer` — subscribes to `epic.merge.ready` (and ONLY
  *      that event); probes `gh pr view --json autoMergeRequest` and
  *      issues `gh pr merge --auto --squash --delete-branch` exactly
