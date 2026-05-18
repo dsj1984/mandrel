@@ -80,9 +80,11 @@ const SCRIPTS_DIR = path.join(REPO_ROOT, '.agents', 'scripts');
  * auto-merge call could re-enter the codebase.
  */
 const MERGE_LOCKOUT_ALLOWED_SUFFIXES = Object.freeze([
-  // Wave 7 / Story #2256 — the predicate-gated AutomergeArmer listener.
-  // Pre-existence is NOT required; the suffix match still bites the
-  // file once it lands.
+  // Story #2256 / #2336 — the predicate-gated AutomergeArmer listener is
+  // now the SOLE production code path authorized to call `gh pr merge`.
+  // The legacy `.agents/scripts/epic-deliver-automerge.js` exemption was
+  // removed in Story #2336 / Task #2340 once the CLI was reduced to a
+  // pure `epic.automerge.start` emit shim.
   path.join(
     'lib',
     'orchestration',
@@ -90,16 +92,6 @@ const MERGE_LOCKOUT_ALLOWED_SUFFIXES = Object.freeze([
     'listeners',
     'automerge-armer.js',
   ),
-  // Legacy predicate-gated automerge CLI. This script is the
-  // historical carrier of `gh pr merge` — it implements the
-  // SAFE auto-merge path (predicate evaluates blocker / review
-  // state BEFORE calling the CLI). Story #2256 / Task 8-3 lifts
-  // this logic into the `AutomergeArmer` listener; until then the
-  // CLI remains the production code path and must be exempted.
-  //
-  // Maintainers: when Wave 7 ships and the CLI is deleted,
-  // remove this entry too.
-  path.join('.agents', 'scripts', 'epic-deliver-automerge.js'),
 ]);
 
 /**
