@@ -11,10 +11,10 @@
  *   - `epic-deliver-finalize.js`     (Story #2319 / Task #2329)
  *   - `pr-watch-with-update.js`      (Story #2327 / Task #2332)
  *   - `epic-deliver-automerge.js`    (Story #2336 / Task #2340)
+ *   - `epic-deliver-cleanup.js`      (Story #2338 / Task #2342)
  *
- * Follow-up Stories collapse `epic-deliver-cleanup.js`; each addition
- * appends an entry to the `SHIM_INVARIANTS` table below so the same
- * assertions guard them.
+ * Each addition appends an entry to the `SHIM_INVARIANTS` table below
+ * so the same assertions guard them.
  */
 
 import assert from 'node:assert/strict';
@@ -99,6 +99,27 @@ const SHIM_INVARIANTS = [
       'buildGhMergeArgs',
       // The merge-lockout literal MUST NOT appear in the shim.
       'gh pr merge',
+    ],
+  },
+  {
+    // Story #2338 / Task #2342 — collapsed from 134 lines to a thin
+    // emit shim. The Cleaner listener (subscribes to
+    // `epic.merge.armed`) owns the `temp/epic-<id>/` archive AND the
+    // terminal `epic.cleanup.start` → `epic.cleanup.end` →
+    // `epic.complete` emit sequence. The shim emits
+    // `epic.merge.armed` to kick the Cleaner for direct invocations;
+    // the wired listener chain inside `/epic-deliver` is the real
+    // cleanup code path.
+    label: 'epic-deliver-cleanup.js',
+    file: path.join(SCRIPTS_DIR, 'epic-deliver-cleanup.js'),
+    event: 'epic.merge.armed',
+    forbiddenIdentifiers: [
+      // Legacy helper exports lifted into the listener chain.
+      'parseCleanupArgs',
+      'classifyCleanupInvocation',
+      // The pre-Wave-8 direct filesystem mutators MUST NOT appear.
+      'git worktree remove',
+      'git branch -D',
     ],
   },
 ];
