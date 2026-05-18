@@ -6,7 +6,7 @@ import {
   PLAN_CHECKPOINT_SCHEMA_VERSION,
   PLAN_PHASES,
   PlanCheckpointer,
-} from '../../.agents/scripts/lib/orchestration/plan-runner/plan-checkpointer.js';
+} from '../fixtures/epic-plan-state-store.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function createFakeProvider() {
