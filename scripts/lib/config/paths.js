@@ -3,7 +3,7 @@
  *
  * The seven legacy `*Root` subdirectory keys and the legacy `auditOutputDir`
  * were dropped — every `${dir}Root` is derived at runtime as
- * `${agentRoot}/<dir>`, and `auditOutputDir` is derived as `${tempRoot}/audit`.
+ * `${agentRoot}/<dir>`, and `auditOutputDir` is derived as `${tempRoot}/audits`.
  */
 
 /**
@@ -49,8 +49,8 @@ export function resolvePaths(userPaths) {
     docsRoot,
     tempRoot,
     // Derived: every `${dir}Root` lives directly under the framework's
-    // `agentRoot`; `auditOutputDir` lives under `tempRoot/audit`.
-    auditOutputDir: `${tempRoot}/audit`,
+    // `agentRoot`; `auditOutputDir` lives under `tempRoot/audits`.
+    auditOutputDir: `${tempRoot}/audits`,
     scriptsRoot: `${agentRoot}/scripts`,
     workflowsRoot: `${agentRoot}/workflows`,
     personasRoot: `${agentRoot}/personas`,

@@ -57,7 +57,7 @@ export const AGENT_SETTINGS_STRING_FIELDS = Object.freeze([]);
  * `project.paths` carries the three required filesystem roots. The seven
  * legacy `*Root` subdirectory keys and the legacy `auditOutputDir` were
  * dropped — every `${dir}Root` is derived at runtime as `${agentRoot}/<dir>`
- * and `auditOutputDir` is derived as `${tempRoot}/audit`.
+ * and `auditOutputDir` is derived as `${tempRoot}/audits`.
  */
 const PATHS_SCHEMA = {
   type: 'object',
