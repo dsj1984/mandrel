@@ -42,7 +42,7 @@ function readNdjson(p) {
 function buildCollaborators({ bus, launcher, journalNoop = true } = {}) {
   return {
     notify: () => {},
-    checkpointer: {
+    epicRunStateStore: {
       async initialize() {},
       async read() {
         return null;
