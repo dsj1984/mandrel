@@ -4,6 +4,7 @@ import {
   buildAllowlistDecider,
   buildGlobFilter,
   buildJsonEnvelope,
+  classifyLatestPr,
   computeExitCode,
   computeProtectedReason,
   computeProtectedSet,
@@ -17,10 +18,12 @@ import {
   planCleanup,
   planFastForward,
   planStashes,
+  probeLatestPr,
   probeMergedPr,
   renderDryRun,
   renderExecutionLine,
   renderExecutionSummary,
+  renderLatestPrSkipLine,
   renderPruneLine,
   stashRefIndex,
 } from '../../.agents/scripts/git-cleanup.js';
@@ -1490,5 +1493,439 @@ describe('git-cleanup.buildJsonEnvelope multi-phase', () => {
     assert.equal(env.fastForward.applied, true);
     assert.equal(env.prune.pruned[0], 'a');
     assert.equal(env.stashes.actions[0].ref, 'stash@{0}');
+  });
+});
+
+describe('git-cleanup.probeLatestPr', () => {
+  it('passes the correct gh argv (state=all, json fields include state + headRefOid)', () => {
+    let captured;
+    probeLatestPr('feat/x', '/cwd', (args, { cwd }) => {
+      captured = { args, cwd };
+      return '[]';
+    });
+    assert.equal(captured.cwd, '/cwd');
+    assert.deepEqual(captured.args, [
+      'pr',
+      'list',
+      '--head',
+      'feat/x',
+      '--state',
+      'all',
+      '--json',
+      'number,state,mergedAt,closedAt,headRefOid',
+      '--limit',
+      '1',
+    ]);
+  });
+
+  it('returns null when gh returns an empty array', () => {
+    assert.equal(
+      probeLatestPr('fix/a', '/repo', () => '[]'),
+      null,
+    );
+  });
+
+  it('returns null when gh returns an empty / whitespace string', () => {
+    assert.equal(
+      probeLatestPr('fix/a', '/repo', () => ''),
+      null,
+    );
+    assert.equal(
+      probeLatestPr('fix/a', '/repo', () => '   '),
+      null,
+    );
+  });
+
+  it('returns null on malformed JSON (does not throw)', () => {
+    assert.equal(
+      probeLatestPr('fix/a', '/repo', () => '{not json'),
+      null,
+    );
+  });
+
+  it('returns the latest MERGED row with headRefOid for the tip cross-check', () => {
+    const out = probeLatestPr('fix/a', '/repo', () =>
+      JSON.stringify([
+        {
+          number: 42,
+          state: 'MERGED',
+          mergedAt: '2026-05-18T15:24:18Z',
+          closedAt: '2026-05-18T15:24:18Z',
+          headRefOid: '4c1a9798e2e44a642349ecf79f4a4fc9c682f088',
+        },
+      ]),
+    );
+    assert.deepEqual(out, {
+      number: 42,
+      state: 'MERGED',
+      mergedAt: '2026-05-18T15:24:18Z',
+      closedAt: '2026-05-18T15:24:18Z',
+      headRefOid: '4c1a9798e2e44a642349ecf79f4a4fc9c682f088',
+    });
+  });
+
+  it('preserves CLOSED-not-merged rows so the planner can skip them', () => {
+    const out = probeLatestPr('release-please/foo', '/repo', () =>
+      JSON.stringify([
+        {
+          number: 2456,
+          state: 'CLOSED',
+          mergedAt: null,
+          closedAt: '2026-05-18T16:01:24Z',
+          headRefOid: 'abc1234567890',
+        },
+      ]),
+    );
+    assert.equal(out.state, 'CLOSED');
+    assert.equal(out.mergedAt, null);
+    assert.equal(out.closedAt, '2026-05-18T16:01:24Z');
+  });
+
+  it('preserves OPEN rows so the planner can skip them', () => {
+    const out = probeLatestPr('feat/in-progress', '/repo', () =>
+      JSON.stringify([
+        {
+          number: 9,
+          state: 'OPEN',
+          mergedAt: null,
+          closedAt: null,
+          headRefOid: 'def4567890abc',
+        },
+      ]),
+    );
+    assert.equal(out.state, 'OPEN');
+  });
+
+  it('coerces missing optional fields to null', () => {
+    const out = probeLatestPr('fix/a', '/repo', () =>
+      JSON.stringify([{ number: 7, state: 'MERGED' }]),
+    );
+    assert.equal(out.mergedAt, null);
+    assert.equal(out.closedAt, null);
+    assert.equal(out.headRefOid, null);
+  });
+});
+
+describe('git-cleanup.classifyLatestPr (four-state matrix)', () => {
+  const baseArgs = (overrides = {}) => ({
+    branch: 'fix/a',
+    cwd: '/repo',
+    remoteName: 'origin',
+    localExists: true,
+    branchTipShaFn: () => null,
+    ...overrides,
+  });
+
+  it('returns no-pr when prInfo is null', () => {
+    const v = classifyLatestPr({ ...baseArgs(), prInfo: null });
+    assert.equal(v.kind, 'no-pr');
+  });
+
+  it('emits skip with latest-pr-open for OPEN PRs', () => {
+    const v = classifyLatestPr({
+      ...baseArgs(),
+      prInfo: { number: 9, state: 'OPEN' },
+    });
+    assert.equal(v.kind, 'skip');
+    assert.equal(v.reason, 'latest-pr-open');
+    assert.equal(v.prNumber, 9);
+  });
+
+  it('emits skip with latest-pr-closed-not-merged for CLOSED PRs', () => {
+    const v = classifyLatestPr({
+      ...baseArgs(),
+      prInfo: { number: 2456, state: 'CLOSED' },
+    });
+    assert.equal(v.kind, 'skip');
+    assert.equal(v.reason, 'latest-pr-closed-not-merged');
+    assert.equal(v.prNumber, 2456);
+  });
+
+  it('emits candidate for MERGED PR when tip matches headRefOid', () => {
+    const v = classifyLatestPr({
+      ...baseArgs({ branchTipShaFn: () => 'abc1234' }),
+      prInfo: { number: 1, state: 'MERGED', headRefOid: 'abc1234' },
+    });
+    assert.equal(v.kind, 'candidate');
+    assert.equal(v.prInfo.number, 1);
+  });
+
+  it('emits skip with tip-diverged-from-merge when MERGED but tip moved', () => {
+    const v = classifyLatestPr({
+      ...baseArgs({ branchTipShaFn: () => 'newshaXYZ' }),
+      prInfo: {
+        number: 2447,
+        state: 'MERGED',
+        headRefOid: 'mergedshaABC',
+      },
+    });
+    assert.equal(v.kind, 'skip');
+    assert.equal(v.reason, 'tip-diverged-from-merge');
+    assert.equal(v.tipSha, 'newshaXYZ');
+    assert.equal(v.mergedSha, 'mergedshaABC');
+  });
+
+  it('emits candidate when MERGED row has no headRefOid (tip check skipped)', () => {
+    const v = classifyLatestPr({
+      ...baseArgs(),
+      prInfo: { number: 1, state: 'MERGED', headRefOid: null },
+    });
+    assert.equal(v.kind, 'candidate');
+  });
+
+  it('treats legacy prInfo without state as MERGED for backwards compatibility', () => {
+    const v = classifyLatestPr({
+      ...baseArgs(),
+      prInfo: { number: 1, mergedAt: '2026-05-01T00:00:00Z' },
+    });
+    assert.equal(v.kind, 'candidate');
+  });
+
+  it('emits skip with latest-pr-unknown-state for unrecognized states', () => {
+    const v = classifyLatestPr({
+      ...baseArgs(),
+      prInfo: { number: 1, state: 'WEIRD' },
+    });
+    assert.equal(v.kind, 'skip');
+    assert.equal(v.reason, 'latest-pr-unknown-state');
+  });
+});
+
+describe('git-cleanup.planCleanup latest-PR-state integration', () => {
+  const baseCtx = (overrides) => ({
+    cwd: '/repo',
+    baseBranch: 'main',
+    localLister: () => [],
+    mergedLister: () => [],
+    currentBranchFn: () => 'main',
+    protectedConfigFn: () => [],
+    worktreesFn: () => new Map(),
+    prProbe: () => null,
+    branchTipShaFn: () => null,
+    filter: () => true,
+    ...overrides,
+  });
+
+  it('reaps a MERGED-latest branch when the tip matches headRefOid', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['release-please/foo'],
+        prProbe: () => ({
+          number: 2447,
+          state: 'MERGED',
+          mergedAt: '2026-05-18T15:24:18Z',
+          headRefOid: 'sha-merged',
+        }),
+        branchTipShaFn: () => 'sha-merged',
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].branch, 'release-please/foo');
+    assert.equal(plan.candidates[0].prNumber, 2447);
+  });
+
+  it('skips a MERGED-latest branch with tip-diverged-from-merge when tip moved', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['release-please/foo'],
+        prProbe: () => ({
+          number: 2447,
+          state: 'MERGED',
+          headRefOid: 'sha-merged',
+        }),
+        branchTipShaFn: () => 'sha-newer',
+      }),
+    );
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find(
+      (s) => s.reason === 'tip-diverged-from-merge',
+    );
+    assert.ok(skip, 'expected a tip-diverged-from-merge skip');
+    assert.equal(skip.branch, 'release-please/foo');
+    assert.equal(skip.tipSha, 'sha-newer');
+    assert.equal(skip.mergedSha, 'sha-merged');
+  });
+
+  it('skips a CLOSED-not-merged branch (the 2026-05-18 release-please case)', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['release-please/foo'],
+        prProbe: () => ({
+          number: 2456,
+          state: 'CLOSED',
+          mergedAt: null,
+          closedAt: '2026-05-18T16:01:24Z',
+        }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find(
+      (s) => s.reason === 'latest-pr-closed-not-merged',
+    );
+    assert.ok(skip, 'expected a latest-pr-closed-not-merged skip');
+    assert.equal(skip.prNumber, 2456);
+  });
+
+  it('skips an OPEN-latest branch with latest-pr-open', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['feat/in-progress'],
+        prProbe: () => ({ number: 9, state: 'OPEN' }),
+      }),
+    );
+    assert.equal(plan.candidates.length, 0);
+    const skip = plan.skipped.find((s) => s.reason === 'latest-pr-open');
+    assert.ok(skip);
+  });
+
+  it('git-merged fallback still works when no PR row exists', () => {
+    const plan = planCleanup(
+      baseCtx({
+        localLister: () => ['fix/no-pr'],
+        mergedLister: () => ['fix/no-pr'],
+        prProbe: () => null,
+      }),
+    );
+    assert.equal(plan.candidates.length, 1);
+    assert.equal(plan.candidates[0].detectedBy, 'git-merged');
+  });
+
+  it('remote-only walk also applies the latest-PR-state matrix', () => {
+    const plan = planCleanup(
+      baseCtx({
+        includeRemoteOnly: true,
+        localLister: () => [],
+        remoteLister: () => [
+          'release-please/foo',
+          'release-please/bar',
+          'release-please/baz',
+        ],
+        prProbe: (b) => {
+          if (b === 'release-please/foo') {
+            return {
+              number: 2447,
+              state: 'MERGED',
+              headRefOid: 'sha-merged',
+            };
+          }
+          if (b === 'release-please/bar') {
+            return { number: 2456, state: 'CLOSED' };
+          }
+          return { number: 9, state: 'OPEN' };
+        },
+        branchTipShaFn: ({ branch }) =>
+          branch === 'release-please/foo' ? 'sha-merged' : 'sha-other',
+      }),
+    );
+    const branches = plan.candidates.map((c) => c.branch);
+    assert.deepEqual(branches, ['release-please/foo']);
+    const closedSkip = plan.skipped.find(
+      (s) => s.reason === 'latest-pr-closed-not-merged',
+    );
+    assert.ok(
+      closedSkip,
+      'closed-not-merged remote-only ref should be skipped',
+    );
+    assert.equal(closedSkip.branch, 'release-please/bar');
+    const openSkip = plan.skipped.find((s) => s.reason === 'latest-pr-open');
+    assert.ok(openSkip);
+    assert.equal(openSkip.branch, 'release-please/baz');
+  });
+});
+
+describe('git-cleanup.renderLatestPrSkipLine', () => {
+  it('renders latest-pr-closed-not-merged with the PR number', () => {
+    const line = renderLatestPrSkipLine({
+      branch: 'release-please/foo',
+      reason: 'latest-pr-closed-not-merged',
+      prNumber: 2456,
+    });
+    assert.match(line, /release-please\/foo skipped/);
+    assert.match(line, /PR #2456 was closed without merging/);
+  });
+
+  it('renders latest-pr-open with the PR number', () => {
+    const line = renderLatestPrSkipLine({
+      branch: 'feat/x',
+      reason: 'latest-pr-open',
+      prNumber: 9,
+    });
+    assert.match(line, /PR #9 is still open/);
+  });
+
+  it('renders tip-diverged-from-merge with short SHAs', () => {
+    const line = renderLatestPrSkipLine({
+      branch: 'release-please/foo',
+      reason: 'tip-diverged-from-merge',
+      prNumber: 2447,
+      tipSha: 'abcdef1234567890',
+      mergedSha: '1234567abcdef000',
+    });
+    assert.match(line, /tip abcdef1/);
+    assert.match(line, /1234567/);
+    assert.match(line, /post-merge force-push/);
+  });
+
+  it('returns null for unrelated skip reasons', () => {
+    assert.equal(
+      renderLatestPrSkipLine({ branch: 'fix/a', reason: 'filtered' }),
+      null,
+    );
+    assert.equal(
+      renderLatestPrSkipLine({ branch: 'main', reason: 'protected' }),
+      null,
+    );
+  });
+
+  it('uses the "latest PR" fallback when no prNumber is available', () => {
+    const line = renderLatestPrSkipLine({
+      branch: 'fix/a',
+      reason: 'latest-pr-closed-not-merged',
+    });
+    assert.match(line, /latest PR was closed without merging/);
+  });
+});
+
+describe('git-cleanup.renderDryRun (latest-PR skip integration)', () => {
+  it('appends skip lines for latest-pr family reasons', () => {
+    const lines = renderDryRun(
+      {
+        candidates: [],
+        skipped: [
+          {
+            branch: 'release-please/foo',
+            reason: 'latest-pr-closed-not-merged',
+            prNumber: 2456,
+          },
+        ],
+      },
+      { baseBranch: 'main' },
+    );
+    const skipLine = lines.find((l) =>
+      /PR #2456 was closed without merging/.test(l),
+    );
+    assert.ok(skipLine);
+  });
+
+  it('renders multiple latest-PR skip lines together', () => {
+    const lines = renderDryRun({
+      candidates: [],
+      skipped: [
+        { branch: 'a', reason: 'latest-pr-open', prNumber: 1 },
+        { branch: 'b', reason: 'latest-pr-closed-not-merged', prNumber: 2 },
+        {
+          branch: 'c',
+          reason: 'tip-diverged-from-merge',
+          prNumber: 3,
+          tipSha: 'aaaaaaaaaaaa',
+          mergedSha: 'bbbbbbbbbbbb',
+        },
+      ],
+    });
+    assert.ok(lines.find((l) => /a skipped — PR #1 is still open/.test(l)));
+    assert.ok(
+      lines.find((l) => /b skipped — PR #2 was closed without merging/.test(l)),
+    );
+    assert.ok(lines.find((l) => /c skipped — tip aaaaaaa/.test(l)));
   });
 });
