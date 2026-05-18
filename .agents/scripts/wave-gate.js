@@ -86,6 +86,26 @@ export async function runWaveGate({
   const provider = injectedProvider || createProvider(orchestration);
   const concurrency = injectedConcurrency ?? resolveConcurrency(orchestration);
 
+  // Story #2465 — prime the provider's ticket cache once with every child
+  // ticket of the Epic, so the per-Story `getTicket` reads in the three
+  // `Promise.all` blocks below resolve from the inline cache instead of
+  // paying a wire round-trip each. `primeTicketCache` is a no-op on
+  // providers without a cache (manual adapter, test stubs), so the call
+  // is unconditional.
+  try {
+    const allTickets = await provider.getTickets(epicId);
+    if (Array.isArray(allTickets)) {
+      provider.primeTicketCache(allTickets);
+    }
+  } catch (err) {
+    // Best-effort prime — if the bulk fetch fails we fall back to the
+    // legacy per-Story `getTicket` path. Surface a warn so operators
+    // notice the warm-cache miss without halting the gate.
+    Logger.warn(
+      `[wave-gate] Ticket-cache prime failed for Epic #${epicId}: ${err?.message ?? err}. Falling back to per-Story fetches.`,
+    );
+  }
+
   const comment = await findStructuredComment(
     provider,
     epicId,
