@@ -19,9 +19,10 @@
  *     internal merge worktree when it is no longer checked out anywhere.
  *
  * Remote branches themselves are out of scope — `gh pr merge --delete-branch`
- * handles those. The existing `delete-epic-branches.js` script remains the
- * right tool for the heavy "scrap and reset" use case; this module narrows to
- * the post-merge cleanup path.
+ * handles those. The "scrap and reset" use case for unmerged Epics is rare
+ * enough that it is handled manually (or by ad-hoc operator instruction)
+ * rather than by a dedicated script; this module narrows to the post-merge
+ * cleanup path.
  *
  * Pure-ish — every IO side-effect is routed through injected hooks so unit
  * tests can drive the runner end-to-end without touching git or the disk.

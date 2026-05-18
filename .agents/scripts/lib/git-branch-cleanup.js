@@ -2,9 +2,9 @@
  * git-branch-cleanup.js — Shared branch deletion helpers (local + remote).
  *
  * Consolidates the "delete this branch from local and/or origin" pattern
- * that `delete-epic-branches.js` and `story-close.js` had each
- * re-implemented with subtly different idempotency rules. Both call
- * sites now route through this module.
+ * used by `story-close.js` and other branch-reaping flows. Originally
+ * carved out when more than one caller re-implemented the same idempotency
+ * rules with subtle drift.
  *
  * All helpers:
  *   - Take an explicit `cwd` (worktree-isolation friendly).

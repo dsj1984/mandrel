@@ -160,6 +160,13 @@ entirely**:
   the `delete-epic-branches-naming` self-healing check and was out of
   scope for this Epic.
 
+> **Superseded (Story #2301, 2026-05-17):** `delete-epic-branches.js` and
+> its `/delete-epic-branches` workflow were later removed entirely along
+> with the `delete-epic-branches-naming` check — the scrap-and-reset case
+> is now handled manually when (rarely) needed. Flat `story-NNNN` is the
+> canonical Story-branch naming per `git-conventions.md`, so the naming
+> check no longer had a purpose once the deletion script was gone.
+
 ### Consequences
 
 - Re-plan is **edit-spec + reconcile**. The destructive replay loop that

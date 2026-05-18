@@ -3,7 +3,7 @@
  *
  * This module is the single entry point for every consumer surface that
  * runs checks (preflight guards at `epic-deliver.js` / `story-close.js`, the
- * `npm test` wrapper, the `/diagnose` CLI, and the retro hook in
+ * `npm test` wrapper, the `diagnose.js` CLI viewer, and the retro hook in
  * `retro-runner.js`). Each surface calls `runChecks({ scope, autoFix, state })`
  * with its own scope and gets back `{ findings, fixed }`.
  *
@@ -127,8 +127,8 @@ export async function loadRegistry({ dir = __dirname } = {}) {
   } catch {
     // No directory → empty registry. The runner is still callable; it just
     // returns `{ findings: [], fixed: [] }` for every scope. This is the
-    // shape `/diagnose` expects when invoked on a fresh checkout before
-    // any check modules have been authored.
+    // shape the diagnose viewer expects when invoked on a fresh checkout
+    // before any check modules have been authored.
     registryCache.set(absDir, []);
     return [];
   }

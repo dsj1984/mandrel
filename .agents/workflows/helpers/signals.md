@@ -1,29 +1,37 @@
 ---
 description: >-
-  Render the signals span-tree for an Epic (and optionally a single Story) to
-  the terminal. Read-only viewer over `lib/signals/` — no remote writes, no
-  state mutation, no auto-fixes. Dumb-terminal-safe (`console.log` only).
-recommendedModel: haiku
+  Helper doc for the signals-view.js debug viewer. Renders the signals
+  span-tree for an Epic (and optionally a single Story) to the terminal.
+  Read-only over `lib/signals/` — no remote writes, no state mutation, no
+  auto-fixes. Dumb-terminal-safe (`console.log` only). Not a slash command —
+  invoke the script directly when needed.
 ---
 
-# /signals \<epic-id\> [--story \<id\>]
+# signals span-tree viewer (helper)
+
+> **Helper, not a slash command.** Files under `workflows/helpers/` are not
+> synced to `.claude/commands/`. The signals subsystem itself
+> (`lib/signals/`, writer, schema, detectors, NDJSON listeners) runs as
+> part of the normal `/epic-deliver` machinery — this viewer is for
+> ad-hoc debugging when you need to inspect the span-tree directly.
+> Invoke the backing script: `node .agents/scripts/signals-view.js <epic-id> [--story <id>]`.
 
 ## Overview
 
-`/signals` is the operator-facing viewer for the consolidated signals
-stream. It reads `temp/epic-<eid>/story-<sid>/signals.ndjson` via
-[`lib/signals/read`](../scripts/lib/signals/read.js), builds an
+`signals-view.js` is the operator-facing viewer for the consolidated
+signals stream. It reads `temp/epic-<eid>/story-<sid>/signals.ndjson` via
+[`lib/signals/read`](../../scripts/lib/signals/read.js), builds an
 in-memory span-tree via
-[`lib/signals/buildSpanTree`](../scripts/lib/signals/span-tree.js), and
+[`lib/signals/buildSpanTree`](../../scripts/lib/signals/span-tree.js), and
 prints an Epic → Story → Task → events tree to stdout.
 
-It is distinct from `/diagnose-friction` (per-Task signal capture that
-wraps a shell command) and from `/diagnose` (read of the checks
-registry). `/signals` is purely a formatter over an iterator — no
+It is distinct from `diagnose-friction.js` (per-Task signal capture that
+wraps a shell command) and from `diagnose.js` (read of the checks
+registry). This viewer is purely a formatter over an iterator — no
 GitHub I/O, no commit creation, no label transitions.
 
 ```text
-/signals <epic-id> [--story <id>]
+node .agents/scripts/signals-view.js <epic-id> [--story <id>]
   → signals.read({ epic, story? })
   → buildSpanTree(asyncIterator)
   → console.log lines (Epic → Story → Task → events)
@@ -89,16 +97,16 @@ node .agents/scripts/signals-view.js 9999
 - **Always** honours the configured `project.paths.tempRoot`.
   Earlier post-merge work leaked to the real repo root regardless of
   test sandbox `tempRoot` (project memory: `phase_timings_uses_project_root`) —
-  this viewer reads via [`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)
+  this viewer reads via [`lib/config/temp-paths.js`](../../scripts/lib/config/temp-paths.js)
   so the sandbox path always wins.
 
 ## See also
 
-- [`.agents/scripts/signals-view.js`](../scripts/signals-view.js) — the
-  CLI implementation backing this slash command.
-- [`.agents/scripts/lib/signals/`](../scripts/lib/signals/) — the
+- [`.agents/scripts/signals-view.js`](../../scripts/signals-view.js) — the
+  CLI implementation backing this helper.
+- [`.agents/scripts/lib/signals/`](../../scripts/lib/signals/) — the
   shared reader + schema + span-tree barrel.
-- [`tests/signals-view.test.js`](../../tests/signals-view.test.js) —
+- [`tests/signals-view.test.js`](../../../tests/signals-view.test.js) —
   pinned output and tempRoot-honour contracts.
-- [`tests/lib/signals/span-tree.test.js`](../../tests/lib/signals/span-tree.test.js) —
+- [`tests/lib/signals/span-tree.test.js`](../../../tests/lib/signals/span-tree.test.js) —
   pure-function contract for the span-tree builder.

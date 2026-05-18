@@ -23,8 +23,8 @@
  * onto a per-invocation bus and exits. The actual archive + branch
  * reaping runs inside the `/epic-deliver` runner where the listener
  * chain is wired. Direct invocations no longer reap branches —
- * operators should run `/epic-deliver` (or use
- * `/delete-epic-branches` for the "scrap and reset" flow) instead.
+ * operators should run `/epic-deliver` instead. The rare "scrap and
+ * reset" case for an unmerged Epic is handled manually.
  *
  * Usage:
  *   node .agents/scripts/epic-deliver-cleanup.js --epic <id>

@@ -64,7 +64,7 @@ Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan
 | [`workflows/helpers/`](workflows/helpers/) | Workflow fragments read by parent workflows; not exposed as slash commands. |
 | [`scripts/`](scripts/) | Deterministic Node.js CLIs used by workflows and operators. |
 | [`scripts/lib/orchestration/`](scripts/lib/orchestration/) | In-process orchestration SDK used by the CLI wrappers. |
-| [`scripts/lib/checks/`](scripts/lib/checks/) | Discovery-based self-healing checks registry for preflight, `/diagnose`, and retro surfaces. |
+| [`scripts/lib/checks/`](scripts/lib/checks/) | Discovery-based self-healing checks registry for preflight, the `diagnose.js` viewer, and retro surfaces. |
 | [`schemas/`](schemas/) | JSON Schema contracts for config, manifests, reports, and persisted runtime artefacts. |
 | [`templates/`](templates/) | Prompt and planning templates used by the orchestration flow. |
 
@@ -80,7 +80,7 @@ Epic; standalone Stories pair [`/single-story-plan`](workflows/single-story-plan
 | Quality-gate runbooks (CRAP, MI, lint, friction) | [`docs/quality-gates.md`](../docs/quality-gates.md) |
 | Baseline envelope, component model, writer/reader contract | [`docs/baselines.md`](../docs/baselines.md) |
 | Slash-command workflow definitions | [`workflows/`](workflows/) |
-| Render the signals span-tree (`/signals`) | [`workflows/signals.md`](workflows/signals.md) |
+| Render the signals span-tree (debug helper) | [`workflows/helpers/signals.md`](workflows/helpers/signals.md) |
 | Persona behavior packs | [`personas/`](personas/) |
 | Domain-agnostic baseline rules | [`rules/`](rules/) |
 | Skill library (core process + stack guardrails) | [`skills/core/`](skills/core/) · [`skills/stack/`](skills/stack/) |
@@ -266,9 +266,10 @@ sessions, `gh auth login` is sufficient.
 ## Self-Healing Checks
 
 `scripts/lib/checks/` is the discovery-based registry of named checks
-consumed by preflight guards, `/diagnose`, and `/epic-deliver` retro
-surfaces. Use one check per file. The runner (`index.js`) loads checks at
-process start and filters by scope at each call site.
+consumed by preflight guards (`/epic-deliver`, `/story-close`, `npm test`),
+the `diagnose.js` ad-hoc viewer, and the retro surface. Use one check per
+file. The runner (`index.js`) loads checks at process start and filters by
+scope at each call site.
 
 Each check module default-exports an object with this shape:
 
