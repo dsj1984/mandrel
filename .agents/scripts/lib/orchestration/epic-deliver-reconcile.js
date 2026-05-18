@@ -98,7 +98,12 @@ export function readDispatchPid(repoRoot, epicId, storyId) {
  */
 export function classifyStory(story, pid, probePid) {
   if (pid == null) {
-    return { id: story.id, title: story.title, pid: null, classification: 'unknown' };
+    return {
+      id: story.id,
+      title: story.title,
+      pid: null,
+      classification: 'unknown',
+    };
   }
   const alive = probePid(pid);
   return {
@@ -109,7 +114,10 @@ export function classifyStory(story, pid, probePid) {
   };
 }
 
-const RECONCILE_LABELS = new Set([AGENT_LABELS.EXECUTING, AGENT_LABELS.CLOSING]);
+const RECONCILE_LABELS = new Set([
+  AGENT_LABELS.EXECUTING,
+  AGENT_LABELS.CLOSING,
+]);
 
 function hasReconcileLabel(ticket) {
   const labels = ticket?.labels ?? [];
@@ -154,7 +162,9 @@ export async function reconcileEpicAgentLabels({
     );
   }
   if (typeof repoRoot !== 'string' || repoRoot.length === 0) {
-    throw new Error('[epic-deliver-reconcile] repoRoot must be a non-empty string.');
+    throw new Error(
+      '[epic-deliver-reconcile] repoRoot must be a non-empty string.',
+    );
   }
 
   const children = await provider.getTickets(epicId);

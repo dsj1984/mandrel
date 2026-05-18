@@ -19,17 +19,16 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
-import {
-  classifyStory,
-  reconcileEpicAgentLabels,
-  readDispatchPid,
-} from '../../.agents/scripts/lib/orchestration/epic-deliver-reconcile.js';
 import {
   buildRecoveryPlan,
   renderFrictionBody,
   runReconcile,
 } from '../../.agents/scripts/epic-deliver-reconcile.js';
+import {
+  classifyStory,
+  readDispatchPid,
+  reconcileEpicAgentLabels,
+} from '../../.agents/scripts/lib/orchestration/epic-deliver-reconcile.js';
 
 const EPIC_ID = 9001;
 const STORY_LIVE = 9101;
