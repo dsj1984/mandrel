@@ -2,21 +2,23 @@
 /**
  * AutomergePredicate — lifecycle listener that decides whether the Epic
  * PR is safe to auto-merge after the required-check watch settles.
- * Story #2256 / Task #2260 (Epic #2172).
+ * Story #2256 / Task #2260 (Epic #2172); inlined from the legacy
+ * `lib/orchestration/automerge-predicate.js` module in Story #2415
+ * (Epic #2307).
  *
  * Subscribes to:
  *   - `epic.watch.end` → evaluate the verdict. If every required
- *     check finished green AND the legacy `evaluateAutoMergePredicate`
- *     reports `clean: true` (no manual interventions, no incomplete
- *     waves, no story blockers, no critical/high review findings,
- *     compact retro), emit `epic.merge.ready`. Otherwise emit
+ *     check finished green AND `evaluateAutoMergePredicate` reports
+ *     `clean: true` (no manual interventions, no incomplete waves,
+ *     no story blockers, no critical/high review findings, compact
+ *     retro), emit `epic.merge.ready`. Otherwise emit
  *     `epic.merge.blocked` with a non-empty reason.
  *
  * Critical contract:
- *   - The verdict for clean inputs is **identical** to the legacy
- *     `lib/orchestration/automerge-predicate.js` — this listener wraps
- *     `evaluateAutoMergePredicate` rather than re-implementing the
- *     signal evaluation. The merge-gate-ordering invariant
+ *   - The verdict for any given input set is byte-identical to the
+ *     legacy `lib/orchestration/automerge-predicate.js` module — this
+ *     file is its replacement (the legacy module is deleted by the
+ *     sibling Task in this Story). The merge-gate-ordering invariant
  *     (`epic.merge.armed` preceded by `epic.merge.ready`) depends on
  *     this listener being the sole emitter of `epic.merge.ready`.
  *
@@ -29,9 +31,9 @@
  *
  * Idempotency contract (AC-10): per-instance `Set<string>` of
  * `${event}:${seqId}` keys. A repeat `(event, seqId)` short-circuits
- * without re-evaluating and emits nothing. The legacy evaluator is
- * read-only on GitHub state, so re-running it is safe; the seqId guard
- * is the defence against double-emit.
+ * without re-evaluating and emits nothing. The evaluator is read-only
+ * on GitHub state, so re-running it is safe; the seqId guard is the
+ * defence against double-emit.
  *
  * Side-effect firewall: the listener calls the read-only evaluator and
  * emits on the bus. It does NOT mutate labels, post comments, or call
@@ -40,8 +42,8 @@
  * `epic.merge.blocked`) own those side effects.
  */
 
-import { evaluateAutoMergePredicate as defaultEvaluateAutoMergePredicate } from '../../automerge-predicate.js';
-import { Checkpointer } from '../../epic-runner/checkpointer.js';
+import * as epicRunStateStore from '../../epic-run-state-store.js';
+import { findStructuredComment } from '../../ticketing.js';
 
 /**
  * Outcomes that count as "this required check did not block the merge".
@@ -53,6 +55,14 @@ import { Checkpointer } from '../../epic-runner/checkpointer.js';
 export const NON_FAILING_CHECK_OUTCOMES = Object.freeze(
   new Set(['success', 'neutral', 'skipped']),
 );
+
+/**
+ * Marker string used by the compact retro to advertise a clean sprint.
+ * Pure — exported so tests and downstream consumers (e.g. the predicate
+ * test suite migrated from the legacy module path) can build fixtures
+ * without re-asserting the literal.
+ */
+export const CLEAN_SPRINT_MARKER = '🟢 Clean sprint';
 
 /**
  * Reduce a `checkOutcomes` map to the list of names that did NOT pass.
@@ -80,6 +90,210 @@ export function formatCheckFailureReason(failures) {
 }
 
 /**
+ * Regex-parse the rendered severity bullets on the code-review markdown
+ * body. Pure. Exported for tests.
+ *
+ * @param {string} body
+ * @returns {{ critical: number|null, high: number|null, medium: number|null, suggestion: number|null }}
+ */
+export function parseSeverityCounts(body) {
+  if (typeof body !== 'string' || body.length === 0) {
+    return { critical: null, high: null, medium: null, suggestion: null };
+  }
+  const match = (re) => {
+    const m = body.match(re);
+    if (!m) return null;
+    const n = Number.parseInt(m[1], 10);
+    return Number.isFinite(n) ? n : null;
+  };
+  return {
+    critical: match(/🔴\s*Critical Blocker:\s*(\d+)/i),
+    high: match(/🟠\s*High Risk:\s*(\d+)/i),
+    medium: match(/🟡\s*Medium Risk:\s*(\d+)/i),
+    suggestion: match(/🟢\s*Suggestion:\s*(\d+)/i),
+  };
+}
+
+function evaluateStateSignals(state, reasons) {
+  const interventionCount = Array.isArray(state?.manualInterventions)
+    ? state.manualInterventions.length
+    : 0;
+  if (!state) {
+    reasons.push(
+      'epic-run-state checkpoint missing — cannot certify clean run',
+    );
+  } else if (interventionCount > 0) {
+    reasons.push(
+      `manual interventions recorded (${interventionCount}): ${state.manualInterventions
+        .map((i) => i.reason)
+        .slice(0, 3)
+        .join('; ')}${interventionCount > 3 ? '; …' : ''}`,
+    );
+  }
+  const waves = Array.isArray(state?.waves) ? state.waves : [];
+  const waveStatuses = waves.map((w) => w.status ?? 'unknown');
+  const nonCompleteWaves = waveStatuses.filter((s) => s !== 'complete');
+  if (nonCompleteWaves.length > 0) {
+    reasons.push(
+      `${nonCompleteWaves.length} wave(s) not complete (statuses: ${nonCompleteWaves.join(', ')})`,
+    );
+  }
+  const storyBlockers = countStoryBlockers(waves);
+  if (storyBlockers > 0) {
+    reasons.push(
+      `${storyBlockers} story-level blocker(s) recorded in run-state`,
+    );
+  }
+  return { interventionCount, waveStatuses, storyBlockers };
+}
+
+function countStoryBlockers(waves) {
+  let blockers = 0;
+  for (const w of waves) {
+    if (!Array.isArray(w.stories)) continue;
+    for (const s of w.stories) {
+      if (
+        s &&
+        typeof s.blockerCommentId === 'string' &&
+        s.blockerCommentId.length > 0
+      ) {
+        blockers += 1;
+      }
+      if (s?.status && s.status !== 'done') {
+        blockers += 1;
+      }
+    }
+  }
+  return blockers;
+}
+
+function evaluateCodeReviewSignals(codeReview, reasons) {
+  const codeReviewFound = !!codeReview && typeof codeReview.body === 'string';
+  const severity = codeReviewFound
+    ? parseSeverityCounts(codeReview.body)
+    : { critical: null, high: null, medium: null, suggestion: null };
+  if (!codeReviewFound) {
+    reasons.push('code-review structured comment not found on Epic');
+    return { codeReviewFound, severity };
+  }
+  if (severity.critical === null || severity.high === null) {
+    reasons.push('code-review severity bullets could not be parsed');
+    return { codeReviewFound, severity };
+  }
+  if (severity.critical > 0) {
+    reasons.push(`code-review has ${severity.critical} 🔴 Critical Blocker(s)`);
+  }
+  if (severity.high > 0) {
+    reasons.push(`code-review has ${severity.high} 🟠 High Risk finding(s)`);
+  }
+  return { codeReviewFound, severity };
+}
+
+function evaluateRetroSignals(retro, reasons) {
+  const retroFound = !!retro && typeof retro.body === 'string';
+  const retroCompact = retroFound
+    ? retro.body.includes(CLEAN_SPRINT_MARKER)
+    : false;
+  if (!retroFound) {
+    reasons.push('retro structured comment not found on Epic');
+  } else if (!retroCompact) {
+    reasons.push(
+      'retro is not compact (full retro indicates friction / parked / hotfixes)',
+    );
+  }
+  return { retroFound, retroCompact };
+}
+
+/**
+ * Pure verdict-from-signals function. Composes the three signal sources into
+ * a single `{ clean, reasons[] }` envelope. Exported for tests.
+ *
+ * @param {{
+ *   state: object|null,
+ *   codeReview: { body: string }|null,
+ *   retro: { body: string }|null,
+ * }} input
+ * @returns {{
+ *   clean: boolean,
+ *   reasons: string[],
+ *   signals: {
+ *     manualInterventions: number,
+ *     waveStatuses: string[],
+ *     storyBlockers: number,
+ *     severity: { critical: number|null, high: number|null, medium: number|null, suggestion: number|null },
+ *     retroCompact: boolean,
+ *     codeReviewFound: boolean,
+ *     retroFound: boolean,
+ *     stateFound: boolean,
+ *   },
+ * }}
+ */
+export function deriveAutoMergeVerdict({ state, codeReview, retro }) {
+  const reasons = [];
+  const stateSig = evaluateStateSignals(state, reasons);
+  const reviewSig = evaluateCodeReviewSignals(codeReview, reasons);
+  const retroSig = evaluateRetroSignals(retro, reasons);
+
+  return {
+    clean: reasons.length === 0,
+    reasons,
+    signals: {
+      manualInterventions: stateSig.interventionCount,
+      waveStatuses: stateSig.waveStatuses,
+      storyBlockers: stateSig.storyBlockers,
+      severity: reviewSig.severity,
+      retroCompact: retroSig.retroCompact,
+      codeReviewFound: reviewSig.codeReviewFound,
+      retroFound: retroSig.retroFound,
+      stateFound: !!state,
+    },
+  };
+}
+
+/**
+ * IO-bound entry. Loads all three signal sources from the structured-comment
+ * surface on the Epic ticket and hands them to `deriveAutoMergeVerdict`.
+ * DI-friendly via the `findCommentFn` and `readRunStateFn` hooks; both
+ * default to the production stack (the `epic-run-state-store.read` function
+ * replaces the previous `checkpointerFactory` indirection introduced by the
+ * now-deleted `Checkpointer` class).
+ *
+ * @param {{
+ *   provider: object,
+ *   epicId: number,
+ *   findCommentFn?: typeof findStructuredComment,
+ *   readRunStateFn?: typeof epicRunStateStore.read,
+ * }} opts
+ * @returns {Promise<{ clean: boolean, reasons: string[], signals: object }>}
+ */
+export async function evaluateAutoMergePredicate({
+  provider,
+  epicId,
+  findCommentFn = findStructuredComment,
+  readRunStateFn = epicRunStateStore.read,
+}) {
+  if (!provider)
+    throw new TypeError('evaluateAutoMergePredicate: provider required');
+  if (!Number.isInteger(epicId) || epicId <= 0) {
+    throw new TypeError(
+      'evaluateAutoMergePredicate: epicId must be a positive integer',
+    );
+  }
+
+  const [state, codeReview, retro] = await Promise.all([
+    readRunStateFn({ provider, epicId }),
+    findCommentFn(provider, epicId, 'code-review'),
+    (async () => {
+      const primary = await findCommentFn(provider, epicId, 'retro');
+      if (primary) return primary;
+      return findCommentFn(provider, epicId, 'retro-partial');
+    })(),
+  ]);
+
+  return deriveAutoMergeVerdict({ state, codeReview, retro });
+}
+
+/**
  * AutomergePredicate listener.
  */
 export class AutomergePredicate {
@@ -88,12 +302,10 @@ export class AutomergePredicate {
    * @param {object} opts.bus
    * @param {number} opts.epicId
    * @param {object} opts.provider GitHub provider (passed through to the
-   *   legacy evaluator). Required for the read of run-state + structured
+   *   evaluator). Required for the read of run-state + structured
    *   comments.
    * @param {Function} [opts.evaluatePredicateFn] override of
    *   `evaluateAutoMergePredicate` for tests.
-   * @param {Function} [opts.checkpointerFactory] override of the
-   *   `Checkpointer` factory for tests.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -116,9 +328,7 @@ export class AutomergePredicate {
     this.epicId = opts.epicId;
     this.provider = opts.provider;
     this.evaluatePredicateFn =
-      opts.evaluatePredicateFn ?? defaultEvaluateAutoMergePredicate;
-    this.checkpointerFactory =
-      opts.checkpointerFactory ?? ((deps) => new Checkpointer(deps));
+      opts.evaluatePredicateFn ?? evaluateAutoMergePredicate;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -168,8 +378,8 @@ export class AutomergePredicate {
 
     // Gate 1 — required-check freshness. Any non-passing required
     // check is a hard block: short-circuit before consulting the
-    // legacy evaluator so the operator sees the CI failure as the
-    // reason, not a downstream signal.
+    // structured-signal evaluator so the operator sees the CI failure
+    // as the reason, not a downstream signal.
     const failures = listFailingChecks(checkOutcomes);
     if (failures.length > 0) {
       const reason = formatCheckFailureReason(failures);
@@ -178,7 +388,7 @@ export class AutomergePredicate {
       return;
     }
 
-    // Gate 2 — legacy structured-signal verdict. Wraps
+    // Gate 2 — structured-signal verdict. Wraps
     // `evaluateAutoMergePredicate` so the verdict for any given input
     // set is IDENTICAL to what `epic-deliver-automerge.js` would have
     // produced before Wave 7. The classification surface logs the
@@ -189,7 +399,6 @@ export class AutomergePredicate {
       verdict = await this.evaluatePredicateFn({
         provider: this.provider,
         epicId: this.epicId,
-        checkpointerFactory: this.checkpointerFactory,
       });
     } catch (err) {
       const reason = `predicate-threw:${err?.message ?? err}`;
