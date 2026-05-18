@@ -233,6 +233,72 @@ export function structuredCommentCacheKey(ticketId, type, attrs) {
 }
 
 /**
+ * Per-provider raw-comments cache mapping ticketId → the full comment
+ * array returned by the most recent `provider.getTicketComments(ticketId)`
+ * call. Story #2465 — `findStructuredComment` is invoked back-to-back for
+ * different `type` discriminators against the same ticket (e.g.
+ * `story-run-progress` + `epic-run-progress` + a `friction` probe during
+ * an Epic-close wave). Without this cache each lookup pays a full
+ * pagination round-trip even when the prior call already fetched the
+ * same comments. The structured-comment-id cache short-circuits *repeat*
+ * lookups for the same `(type, attrs)` tuple but does not help across
+ * different types on the same ticket.
+ *
+ * Lifecycle:
+ *   - `findStructuredComment` consults this raw cache before issuing
+ *     `provider.getTicketComments`; on cache miss it seeds the entry
+ *     from the response.
+ *   - `postStructuredComment` and `upsertStructuredComment` evict the
+ *     entry for the mutated ticketId — any cached array is stale once
+ *     a new comment lands.
+ *   - Scoped per-provider via WeakMap so test fakes never share state
+ *     with the real GitHubProvider.
+ */
+export const _rawCommentsCache = new WeakMap();
+
+/**
+ * Lookup (or lazily create) the per-provider raw-comments cache.
+ * @param {object} provider
+ * @returns {Map<number, object[]>}
+ */
+export function getProviderRawCommentsCache(provider) {
+  if (!provider || typeof provider !== 'object') return new Map();
+  let map = _rawCommentsCache.get(provider);
+  if (!map) {
+    map = new Map();
+    _rawCommentsCache.set(provider, map);
+  }
+  return map;
+}
+
+/**
+ * Evict the cached raw-comments array for a given ticket on a provider.
+ * Called from the structured-comment write paths after a `postComment`
+ * lands. Safe to call when no entry exists.
+ *
+ * @param {object} provider
+ * @param {number} ticketId
+ */
+export function invalidateRawCommentsCache(provider, ticketId) {
+  if (!provider || typeof provider !== 'object') return;
+  const map = _rawCommentsCache.get(provider);
+  if (!map) return;
+  map.delete(ticketId);
+}
+
+/**
+ * Test seam — reset the raw-comments cache for a provider. Mirrors
+ * `_resetStructuredCommentCache` for the structured-id cache.
+ *
+ * @param {object} [provider]
+ */
+export function _resetRawCommentsCache(provider) {
+  if (provider && typeof provider === 'object') {
+    _rawCommentsCache.delete(provider);
+  }
+}
+
+/**
  * Test seam — reset the structured-comment ID cache.
  * Exported so unit tests can isolate cases without restarting the
  * process. Without arguments the entire WeakMap is dropped by
@@ -300,7 +366,18 @@ export async function findStructuredComment(
     return cache.get(cacheKey);
   }
   const marker = structuredCommentMarker(type, attrs);
-  const comments = (await provider.getTicketComments(ticketId)) ?? [];
+  // Story #2465 — consult the per-ticketId raw-comments cache before
+  // hitting the wire. Two back-to-back `findStructuredComment` calls for
+  // different types against the same ticket would otherwise both pay a
+  // full `getTicketComments` round-trip.
+  const rawCache = getProviderRawCommentsCache(provider);
+  let comments;
+  if (rawCache.has(ticketId)) {
+    comments = rawCache.get(ticketId);
+  } else {
+    comments = (await provider.getTicketComments(ticketId)) ?? [];
+    rawCache.set(ticketId, comments);
+  }
   // Return latest match (comments API sorts ascending by creation; take last).
   const matches = comments.filter(
     (c) => typeof c.body === 'string' && c.body.includes(marker),

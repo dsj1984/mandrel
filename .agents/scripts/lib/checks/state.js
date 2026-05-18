@@ -262,20 +262,59 @@ function probeGit(keys, cwd, git) {
     } else if (field === 'epicBranchSync') {
       // Build a map of epic branch → { local, remote, ahead } sync state.
       // Depends on `epicBranches` being assembled; the SCOPE_KEYS ordering
-      // ensures it appears first. Each entry probes:
-      //   - the local SHA of `epic/<id>` via `git rev-parse <ref>`
-      //   - the remote SHA of `origin/epic/<id>` via `git rev-parse <ref>`
-      // `ahead` is true when the local SHA exists, the remote SHA exists,
-      // and they differ — i.e. local is potentially ahead of (or has
-      // diverged from) origin. The check consumer treats divergence as a
-      // blocker because the close script's rebase will fight a stale base.
+      // ensures it appears first.
+      //
+      // Story #2463 (preflight batching): the prior implementation issued
+      // two `git rev-parse --verify` spawnSync calls per epic branch
+      // (one for `epic/<id>`, one for `origin/epic/<id>`), giving an
+      // O(branches × 2) probe cost. The collapsed implementation issues
+      // exactly one `git for-each-ref` invocation that emits
+      //   `<refname> <objectname> <upstream:short> <upstream:objectname>`
+      // for every local branch, then filters to the epic branches the
+      // scope already declared. Probe cost drops to O(1) for the spawn
+      // surface while preserving the byte-identical return shape:
+      //   { local: string|null, remote: string|null, ahead: boolean }.
+      //
+      // `ahead` stays true only when local AND remote SHAs both exist and
+      // differ — branches with no upstream config (no `%(upstream:objectname)`)
+      // report `remote: null, ahead: false`, matching the pre-batch behavior
+      // where `rev-parse --verify origin/<branch>` failed for unpushed refs.
       const sync = {};
       const branches = out.epicBranches ?? [];
+      const branchSet = new Set(branches);
+      const formatted = git(
+        cwd,
+        'for-each-ref',
+        '--format=%(refname:short) %(objectname) %(upstream:short) %(upstream:objectname)',
+        'refs/heads/',
+      );
+      const rows = new Map();
+      if (formatted.ok && formatted.stdout) {
+        for (const line of formatted.stdout.split('\n')) {
+          if (!line) continue;
+          // Split on whitespace; trailing fields may be empty strings.
+          // refname is mandatory (always present); objectname always populated
+          // for an existing ref; upstream fields may be missing.
+          const parts = line.split(' ');
+          const refname = parts[0];
+          if (!refname || !branchSet.has(refname)) continue;
+          const objectname = parts[1] || null;
+          const upstreamShort = parts[2] || null;
+          const upstreamObjectname = parts[3] || null;
+          rows.set(refname, {
+            local: objectname,
+            // Surface remote SHA only when an upstream is configured AND
+            // git resolved its objectname. An upstream short-name without
+            // an objectname (gone-upstream edge case) collapses to null.
+            remote:
+              upstreamShort && upstreamObjectname ? upstreamObjectname : null,
+          });
+        }
+      }
       for (const branch of branches) {
-        const local = git(cwd, 'rev-parse', '--verify', branch);
-        const remote = git(cwd, 'rev-parse', '--verify', `origin/${branch}`);
-        const localSha = local.ok ? local.stdout : null;
-        const remoteSha = remote.ok ? remote.stdout : null;
+        const row = rows.get(branch);
+        const localSha = row?.local ?? null;
+        const remoteSha = row?.remote ?? null;
         sync[branch] = {
           local: localSha,
           remote: remoteSha,

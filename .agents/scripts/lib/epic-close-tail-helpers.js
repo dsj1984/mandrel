@@ -58,6 +58,9 @@ export async function closePlanningArtifacts({
   logger = Logger,
   transitionFn = transitionTicketState,
 } = {}) {
+  // Seed the result with the canonical key order so downstream callers
+  // (and the JSON envelope) get prd → techSpec → acceptanceSpec regardless
+  // of which transition settles first under Promise.all.
   const result = {
     prd: { id: null, status: 'skipped' },
     techSpec: { id: null, status: 'skipped' },
@@ -67,31 +70,42 @@ export async function closePlanningArtifacts({
   const techSpecId = epic?.linkedIssues?.techSpec ?? null;
   const acceptanceSpecId = epic?.linkedIssues?.acceptanceSpec ?? null;
 
-  for (const [kind, id] of [
+  const entries = [
     ['prd', prdId],
     ['techSpec', techSpecId],
     ['acceptanceSpec', acceptanceSpecId],
-  ]) {
-    if (!Number.isInteger(id) || id <= 0) {
-      result[kind] = { id: null, status: 'skipped', detail: 'no-link' };
-      continue;
-    }
-    try {
-      // cascade:false avoids walking up the parent chain — the Epic is
-      // closed by GitHub when the operator merges the PR (or by the
-      // recovery path below), not by a cascade.
-      await transitionFn(provider, id, STATE_LABELS.DONE, { cascade: false });
-      result[kind] = { id, status: 'closed' };
-      logger.info?.(
-        `[epic-close-tail] Closed planning artifact ${kind} #${id} for Epic #${epicId}.`,
-      );
-    } catch (err) {
-      const detail = err?.message ?? String(err);
-      result[kind] = { id, status: 'failed', detail };
-      logger.warn?.(
-        `[epic-close-tail] Failed to close planning artifact ${kind} #${id}: ${detail}`,
-      );
-    }
+  ];
+
+  // Dispatch all three transitions concurrently. Each branch resolves to a
+  // { kind, value } tuple so we can re-assemble the result in canonical
+  // key order after `Promise.all` settles. cascade:false avoids walking up
+  // the parent chain — the Epic is closed by GitHub when the operator
+  // merges the PR (or by the recovery path below), not by a cascade.
+  const settled = await Promise.all(
+    entries.map(async ([kind, id]) => {
+      if (!Number.isInteger(id) || id <= 0) {
+        return {
+          kind,
+          value: { id: null, status: 'skipped', detail: 'no-link' },
+        };
+      }
+      try {
+        await transitionFn(provider, id, STATE_LABELS.DONE, { cascade: false });
+        logger.info?.(
+          `[epic-close-tail] Closed planning artifact ${kind} #${id} for Epic #${epicId}.`,
+        );
+        return { kind, value: { id, status: 'closed' } };
+      } catch (err) {
+        const detail = err?.message ?? String(err);
+        logger.warn?.(
+          `[epic-close-tail] Failed to close planning artifact ${kind} #${id}: ${detail}`,
+        );
+        return { kind, value: { id, status: 'failed', detail } };
+      }
+    }),
+  );
+  for (const { kind, value } of settled) {
+    result[kind] = value;
   }
   return result;
 }

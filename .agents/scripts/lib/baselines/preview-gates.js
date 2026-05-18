@@ -38,6 +38,7 @@ import {
 import {
   buildMaintainabilityReport,
   loadMaintainabilityBaseline,
+  MAINTAINABILITY_EXCLUSIONS,
 } from './kinds/maintainability.js';
 
 /**
@@ -132,7 +133,15 @@ export async function runMaintainabilityPreview({
     cwd,
   });
 
-  const scores = await calculateAll(scopedFiles);
+  const rawScores = await calculateAll(scopedFiles);
+  // Story #2467 / Task #2494: drop parse-unscorable files so they cannot
+  // surface as phantom MI=0 regressions in the preview envelope.
+  const scores = {};
+  for (const [key, mi] of Object.entries(rawScores)) {
+    const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+    const posixRel = rel.split(path.sep).join('/');
+    if (!MAINTAINABILITY_EXCLUSIONS.has(posixRel)) scores[key] = mi;
+  }
   const stats = compareScores(scores, scopedBaseline, tolerance);
   const envelope = buildMaintainabilityReport(scores, stats, {
     scope: changedSinceRef ? 'diff' : 'full',

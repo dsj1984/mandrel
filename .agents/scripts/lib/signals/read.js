@@ -54,6 +54,7 @@ import {
 } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
 
+import { isPositiveInt } from './detectors/common.js';
 import { EVENT_KIND_VALUES, hasCommonEnvelope } from './schema.js';
 
 // Module-level latch. Carries `{ path, lineNumber, totalCount }` for the
@@ -83,10 +84,6 @@ export function __resetMalformedLatchForTests() {
  */
 export function __getMalformedLatchForTests() {
   return { ..._malformedLatch };
-}
-
-function isPositiveInt(v) {
-  return Number.isInteger(v) && v > 0;
 }
 
 function warnOnceMalformed(targetPath, lineNumber, parseErr) {

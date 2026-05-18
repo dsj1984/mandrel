@@ -35,6 +35,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { refreshBaseline as defaultRefreshBaseline } from '../../../../../lib/baselines/refresh-service.js';
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
+import { filterExcludedRows } from '../../baselines/kinds/maintainability.js';
 import { canonicalise as canonicalisePath } from '../../baselines/path-canon.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
 import {
@@ -168,11 +169,13 @@ export function buildKindScorer({
         scanDirectory(abs, sourceList);
       }
       const scores = await calculateAll(sourceList);
-      return Object.entries(scores).map(([key, mi]) => {
-        const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
-        const posixRel = rel.split(path.sep).join('/');
-        return { path: canonicalisePath(posixRel), mi };
-      });
+      return filterExcludedRows(
+        Object.entries(scores).map(([key, mi]) => {
+          const rel = path.isAbsolute(key) ? path.relative(cwd, key) : key;
+          const posixRel = rel.split(path.sep).join('/');
+          return { path: canonicalisePath(posixRel), mi };
+        }),
+      );
     };
   }
   if (kind === 'crap') {

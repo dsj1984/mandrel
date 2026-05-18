@@ -6,6 +6,7 @@
  * wires the running Stryker version through (#1908).
  */
 
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -105,11 +106,6 @@ export function compare(head, base) {
     }
   }
   return { regressions, improvements, unchanged, additions };
-}
-
-function componentMatches(component, p) {
-  if (!component || typeof component.includes !== 'string') return false;
-  return p === component.includes || p.startsWith(`${component.includes}/`);
 }
 
 /**

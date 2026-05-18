@@ -42,6 +42,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { deepEqual } from '../json-utils.js';
 import { assertEnvelope, buildEnvelope } from './envelope.js';
 import { currentKernelVersion, getKindModule } from './kernel.js';
 import { assertCanonical } from './path-canon.js';
@@ -220,37 +221,6 @@ function resolvePriorEnvelope(priorEnvelope, prior) {
     return prior;
   }
   return null;
-}
-
-/**
- * Structural deep-equality for JSON-shaped data (numbers, strings, booleans,
- * null, arrays, plain objects). The writer only ever compares values it
- * just produced (or that came from disk via JSON.parse), so we do not need
- * to handle Dates, Maps, Sets, or class instances. Object key order is
- * ignored — the per-kind `sortRows` already pinned row order, and rollup
- * key order is irrelevant for equality.
- */
-function deepEqual(a, b) {
-  if (a === b) return true;
-  if (typeof a !== typeof b) return false;
-  if (a === null || b === null) return a === b;
-  if (Array.isArray(a)) {
-    if (!Array.isArray(b) || a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
-    }
-    return true;
-  }
-  if (Array.isArray(b)) return false;
-  if (typeof a !== 'object') return false;
-  const keysA = Object.keys(a);
-  const keysB = Object.keys(b);
-  if (keysA.length !== keysB.length) return false;
-  for (const k of keysA) {
-    if (!Object.hasOwn(b, k)) return false;
-    if (!deepEqual(a[k], b[k])) return false;
-  }
-  return true;
 }
 
 /**

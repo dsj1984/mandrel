@@ -403,40 +403,33 @@ function resolveAutoRefreshDeps(deps) {
   };
 }
 
-export async function runAutoRefresh({
-  storyId,
-  epicId,
+/**
+ * Step 1 of the four-step pipeline: snapshot the prior on-disk envelopes
+ * and dispatch one `refreshBaseline()` call per configured baseline kind.
+ *
+ * Returns an opaque "stage" object the next steps consume. The shape is
+ * intentionally minimal — it carries the resolved write paths, the
+ * snapshot envelopes, and the per-kind refresh result records. Callers
+ * never inspect the shape directly; they pass it through to `validate`
+ * and `commit`.
+ *
+ * Failure mode: a thrown `refreshBaseline` propagates here as a
+ * `{ ok: false, status: 'failed', reason: 'refresh-service-threw' }`
+ * envelope so the caller can short-circuit without try/catching at the
+ * top of `runAutoRefresh`.
+ */
+async function stageRefreshArtifacts({
   cwd,
   epicBranch,
   storyBranch,
   agentSettings,
-  deps = {},
-} = {}) {
-  const {
-    logger,
-    getQuality,
-    getBaselines,
-    evaluateAutoRefresh,
-    refreshBaseline,
-    scorerBuilder,
-    gitRunner,
-    fsImpl,
-    appendSignal,
-    forEachLine,
-    computeDiffPaths,
-    readerLoadFile,
-  } = resolveAutoRefreshDeps(deps);
-  const config = { agentSettings };
-
-  const autoRefresh = getQuality(config)?.autoRefresh;
-  if (!autoRefresh || autoRefresh.enabled === false) {
-    return { status: 'skipped', reason: 'disabled' };
-  }
-  const caps = {
-    miDropCap: autoRefresh.miDropCap,
-    crapJumpCap: autoRefresh.crapJumpCap,
-  };
-
+  config,
+  getBaselines,
+  refreshBaseline,
+  scorerBuilder,
+  fsImpl,
+  readerLoadFile,
+}) {
   const { miAbs, crapAbs } = resolveBaselineAbsPaths({
     cwd,
     config,
@@ -495,16 +488,61 @@ export async function runAutoRefresh({
     }
   } catch (err) {
     return {
+      ok: false,
       status: 'failed',
       reason: 'refresh-service-threw',
       detail: err?.message ?? String(err),
     };
   }
 
+  return {
+    ok: true,
+    miAbs,
+    crapAbs,
+    priorMiEnv,
+    priorCrapEnv,
+    miRefreshed,
+    crapRefreshed,
+  };
+}
+
+/**
+ * Step 2 of the four-step pipeline: re-read the (scope-merged) envelopes
+ * the refresh service just wrote and evaluate whether the row deltas sit
+ * at or below the configured caps. Returns `{ accepted, verdict, baselineFiles }`:
+ *
+ *   - `accepted: true`  → caps are satisfied; commitRefresh writes one
+ *     canonical commit per kind that actually drifted.
+ *   - `accepted: false` → at least one row breaches a cap; pushRefresh
+ *     rolls back the working-tree edits + appends a friction signal.
+ *
+ * The function also folds in the early-exit when no kind wrote — when
+ * every `refreshBaseline()` reports `wrote:false` there's nothing to
+ * validate, the caller short-circuits via the `noDrift: true` flag.
+ */
+function validateRefreshAccepted({
+  stage,
+  autoRefresh,
+  caps,
+  cwd,
+  epicBranch,
+  storyBranch,
+  evaluateAutoRefresh,
+  gitRunner,
+  computeDiffPaths,
+  readerLoadFile,
+}) {
+  const {
+    miAbs,
+    crapAbs,
+    priorMiEnv,
+    priorCrapEnv,
+    miRefreshed,
+    crapRefreshed,
+  } = stage;
+
   const anyWrote = miRefreshed?.wrote === true || crapRefreshed?.wrote === true;
-  if (!anyWrote) {
-    return { status: 'skipped', reason: 'no-baseline-drift' };
-  }
+  if (!anyWrote) return { noDrift: true };
 
   // Re-read the (scope-merged) envelopes for verdict evaluation.
   const finalMiEnv = miAbs
@@ -546,27 +584,26 @@ export async function runAutoRefresh({
     caps,
   });
 
-  const baselineFiles = [miAbs, crapAbs].filter(Boolean);
-  if (!verdict.canAutoRefresh) {
-    return handleRefusal({
-      verdict,
-      caps,
-      epicId,
-      storyId,
-      cwd,
-      baselineFiles,
-      gitRunner,
-      appendSignal,
-      forEachLine,
-      config,
-      logger,
-    });
-  }
+  return {
+    noDrift: false,
+    accepted: verdict.canAutoRefresh === true,
+    verdict,
+    baselineFiles: [miAbs, crapAbs].filter(Boolean),
+  };
+}
 
-  // AC-8 commit hygiene: stage each refreshed baseline file, run
-  // `git diff --cached --exit-code`, and emit one canonical commit per
-  // kind that actually drifted. Empty diff → no commit. No `--amend`,
-  // no `--allow-empty`.
+/**
+ * Step 3a of the four-step pipeline (accepted path): emit one canonical
+ * `chore(baselines): refresh <kind> for story-<id>` commit per kind that
+ * actually drifted (AC-8 commit hygiene). Empty diff → no commit. No
+ * `--amend`, no `--allow-empty`.
+ *
+ * Returns the canonical close-result envelope `runAutoRefresh` returns
+ * to its caller — `committed` / `failed` / `skipped` — so the pipeline
+ * top stays at one level of abstraction.
+ */
+function commitRefresh({ stage, cwd, storyId, gitRunner, logger }) {
+  const { miAbs, crapAbs, miRefreshed, crapRefreshed } = stage;
   const refreshed = [
     miRefreshed?.wrote === true
       ? { kind: 'maintainability', writePath: miAbs }
@@ -589,15 +626,148 @@ export async function runAutoRefresh({
   return {
     status: 'committed',
     sha: commit.lastSha,
-    files: baselineFiles,
+    files: [miAbs, crapAbs].filter(Boolean),
     committed: commit.committed,
   };
 }
 
+/**
+ * Step 3b of the four-step pipeline (refused path): roll back the baseline
+ * working-tree edits the refresh service just wrote and push a single
+ * `baseline-refresh-regression` friction signal onto the Story's NDJSON
+ * stream (dedup-aware — AC3 idempotent re-run contract). The "push" here
+ * is the friction-signal write + the rollback that publishes the refusal
+ * outcome past the in-process pipeline boundary.
+ *
+ * Returns the canonical `{ status: 'refused', ... }` envelope.
+ */
+async function pushRefresh({
+  validation,
+  caps,
+  epicId,
+  storyId,
+  cwd,
+  gitRunner,
+  appendSignal,
+  forEachLine,
+  config,
+  logger,
+}) {
+  return handleRefusal({
+    verdict: validation.verdict,
+    caps,
+    epicId,
+    storyId,
+    cwd,
+    baselineFiles: validation.baselineFiles,
+    gitRunner,
+    appendSignal,
+    forEachLine,
+    config,
+    logger,
+  });
+}
+
+export async function runAutoRefresh({
+  storyId,
+  epicId,
+  cwd,
+  epicBranch,
+  storyBranch,
+  agentSettings,
+  deps = {},
+} = {}) {
+  const {
+    logger,
+    getQuality,
+    getBaselines,
+    evaluateAutoRefresh,
+    refreshBaseline,
+    scorerBuilder,
+    gitRunner,
+    fsImpl,
+    appendSignal,
+    forEachLine,
+    computeDiffPaths,
+    readerLoadFile,
+  } = resolveAutoRefreshDeps(deps);
+  const config = { agentSettings };
+
+  const autoRefresh = getQuality(config)?.autoRefresh;
+  if (!autoRefresh || autoRefresh.enabled === false) {
+    return { status: 'skipped', reason: 'disabled' };
+  }
+  const caps = {
+    miDropCap: autoRefresh.miDropCap,
+    crapJumpCap: autoRefresh.crapJumpCap,
+  };
+
+  // Step 1 — stage refresh artifacts (snapshot + refreshBaseline per kind).
+  const stage = await stageRefreshArtifacts({
+    cwd,
+    epicBranch,
+    storyBranch,
+    agentSettings,
+    config,
+    getBaselines,
+    refreshBaseline,
+    scorerBuilder,
+    fsImpl,
+    readerLoadFile,
+  });
+  if (stage.ok !== true) {
+    return {
+      status: stage.status,
+      reason: stage.reason,
+      detail: stage.detail,
+    };
+  }
+
+  // Step 2 — validate that the refreshed envelopes satisfy the configured
+  // caps (and short-circuit when no kind wrote).
+  const validation = validateRefreshAccepted({
+    stage,
+    autoRefresh,
+    caps,
+    cwd,
+    epicBranch,
+    storyBranch,
+    evaluateAutoRefresh,
+    gitRunner,
+    computeDiffPaths,
+    readerLoadFile,
+  });
+  if (validation.noDrift) {
+    return { status: 'skipped', reason: 'no-baseline-drift' };
+  }
+
+  // Step 3 — fan out to the accepted (commit) or refused (push) terminal
+  // step. The pipeline-top stays at one level of abstraction.
+  if (!validation.accepted) {
+    return pushRefresh({
+      validation,
+      caps,
+      epicId,
+      storyId,
+      cwd,
+      gitRunner,
+      appendSignal,
+      forEachLine,
+      config,
+      logger,
+    });
+  }
+  return commitRefresh({ stage, cwd, storyId, gitRunner, logger });
+}
+
 export {
   buildRefusalSignal,
+  commitRefresh,
   FRICTION_CATEGORY,
   filterToStoryDiff,
   priorRefusalSignalExists,
+  pushRefresh,
   RUNNER_SOURCE_TOOL,
+  stageRefreshArtifacts,
+  validateRefreshAccepted,
 };

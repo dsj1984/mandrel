@@ -169,19 +169,58 @@ describe('runChecks', () => {
     );
   });
 
-  it('serializes checks (no Promise.all) — ordering preserved', async () => {
-    const seen = [];
-    const registry = ['a', 'b', 'c'].map((id) =>
+  it('returns findings in registry order even when detect() runs concurrently', async () => {
+    // Story #2463: detect() runs via Promise.all. Promise.all preserves
+    // input order on its resolved array, so even if probe `b` resolves
+    // before probe `a`, the resulting findings[] still appears in [a, b, c]
+    // registry order. We force `a` to resolve LAST to make the ordering
+    // contract observable.
+    const order = [];
+    const resolvers = {};
+    const finishedFirst = new Promise((r) => {
+      resolvers.first = r;
+    });
+    const registry = [
       makeCheck({
-        id,
+        id: 'a',
         detect: async () => {
-          seen.push(id);
-          return null;
+          // Wait for `b` to resolve before `a` finishes, proving order is
+          // NOT defined by detection completion — Promise.all keeps the
+          // findings array in registry order regardless.
+          await finishedFirst;
+          order.push('a');
+          return makeFinding({ id: 'a', summary: 'a-found' });
         },
       }),
+      makeCheck({
+        id: 'b',
+        detect: async () => {
+          order.push('b');
+          resolvers.first();
+          return makeFinding({ id: 'b', summary: 'b-found' });
+        },
+      }),
+      makeCheck({
+        id: 'c',
+        detect: async () => {
+          order.push('c');
+          return makeFinding({ id: 'c', summary: 'c-found' });
+        },
+      }),
+    ];
+    const result = await runChecks({
+      scope: 'story-close',
+      state: {},
+      registry,
+    });
+    // Detection completion order proves concurrency: b finished before a.
+    assert.equal(order[0], 'b', 'b detect() must complete before a');
+    assert.equal(order[order.length - 1], 'a', 'a detect() resolves last');
+    // Findings order matches registry order regardless of completion order.
+    assert.deepEqual(
+      result.findings.map((f) => f.id),
+      ['a', 'b', 'c'],
     );
-    await runChecks({ scope: 'story-close', state: {}, registry });
-    assert.deepEqual(seen, ['a', 'b', 'c']);
   });
 
   it('passes the same `state` object to every check', async () => {
@@ -199,6 +238,107 @@ describe('runChecks', () => {
     await runChecks({ scope: 'story-close', state, registry });
     assert.strictEqual(seen[0], state);
     assert.strictEqual(seen[1], state);
+  });
+
+  it('detect() probes overlap in flight (concurrent phase, Story #2463)', async () => {
+    // Spy on a shared "in-flight" counter. Two detect() probes increment
+    // on entry and decrement on exit; if they truly run concurrently the
+    // counter MUST observe a maximum value of >=2 at some point during
+    // the race. The probes synchronize on a barrier promise so neither
+    // can finish until BOTH have entered — this is the spy that proves
+    // the runner does not await each detect() before starting the next.
+    let inFlight = 0;
+    let peakInFlight = 0;
+    let bothEntered;
+    const barrier = new Promise((r) => {
+      bothEntered = r;
+    });
+    let enteredCount = 0;
+    const observe = () => {
+      inFlight += 1;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      enteredCount += 1;
+      if (enteredCount === 2) bothEntered();
+    };
+    const registry = [
+      makeCheck({
+        id: 'detect-a',
+        detect: async () => {
+          observe();
+          await barrier;
+          inFlight -= 1;
+          return null;
+        },
+      }),
+      makeCheck({
+        id: 'detect-b',
+        detect: async () => {
+          observe();
+          await barrier;
+          inFlight -= 1;
+          return null;
+        },
+      }),
+    ];
+    await runChecks({ scope: 'story-close', state: {}, registry });
+    assert.equal(
+      peakInFlight,
+      2,
+      'two detect() probes must be in flight simultaneously',
+    );
+  });
+
+  it('fix() probes remain strictly serial (mutation-phase invariant, Story #2463)', async () => {
+    // Symmetric spy on the FIX phase. Each fix() increments the in-flight
+    // counter on entry; the second fix() must not enter until the first
+    // has resolved. We deliberately stall fix-a so fix-b CANNOT run
+    // concurrently — if fix() were parallelized, peakInFlight would be 2
+    // and the test would fail. The serial invariant locks peakInFlight=1.
+    let inFlight = 0;
+    let peakInFlight = 0;
+    const seen = [];
+    const stallA = () => new Promise((resolve) => setTimeout(resolve, 25));
+    const registry = [
+      makeCheck({
+        id: 'fix-a',
+        autoCorrect: 'auto',
+        detect: () => makeFinding({ id: 'fix-a' }),
+        fix: async () => {
+          inFlight += 1;
+          if (inFlight > peakInFlight) peakInFlight = inFlight;
+          await stallA();
+          seen.push('a-done');
+          inFlight -= 1;
+          return { ok: true, message: 'a fixed' };
+        },
+      }),
+      makeCheck({
+        id: 'fix-b',
+        autoCorrect: 'auto',
+        detect: () => makeFinding({ id: 'fix-b' }),
+        fix: async () => {
+          inFlight += 1;
+          if (inFlight > peakInFlight) peakInFlight = inFlight;
+          seen.push('b-start');
+          inFlight -= 1;
+          return { ok: true, message: 'b fixed' };
+        },
+      }),
+    ];
+    const result = await runChecks({
+      scope: 'story-close',
+      autoFix: true,
+      state: {},
+      registry,
+    });
+    assert.equal(
+      peakInFlight,
+      1,
+      'fix() must run strictly serially — peak in-flight count must be 1',
+    );
+    // a finishes before b starts.
+    assert.deepEqual(seen, ['a-done', 'b-start']);
+    assert.equal(result.fixed.length, 2);
   });
 
   it('runs every registered check when scope is undefined', async () => {

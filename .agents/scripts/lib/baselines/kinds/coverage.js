@@ -9,6 +9,7 @@
  * arrive; the rollup signature is stable so callers don't churn.
  */
 
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -133,13 +134,6 @@ function classifyCoverage(
   if (down) regressions.push({ key, head, base });
   else if (up) improvements.push({ key, head, base });
   else unchanged.push({ key, head, base });
-}
-
-function componentMatches(component, path) {
-  if (!component || typeof component.includes !== 'string') return false;
-  return (
-    path === component.includes || path.startsWith(`${component.includes}/`)
-  );
 }
 
 /**

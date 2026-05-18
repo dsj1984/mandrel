@@ -1,0 +1,13 @@
+{
+  "exports": [
+    "captureStartingBranch",
+    "checkCdOutGuard",
+    "describeAutoRefreshOutcome",
+    "renderCoverageTimeoutFrictionBody",
+    "renderSpawnTimeoutFrictionBody",
+    "resolveSpawnTimeoutReason",
+    "restoreStartingBranch",
+    "runStoryClose",
+    "runStoryClosePreflight"
+  ]
+}

@@ -89,6 +89,57 @@ describe('closePlanningArtifacts', () => {
     assert.equal(calls.length, 0);
   });
 
+  it('dispatches all three transitions in parallel before any resolves (Story #2465)', async () => {
+    // Each transitionFn invocation is gated on a per-id deferred; we
+    // record the in-flight count when the third call enters. If the
+    // helper is serial, the third dispatch only fires after the first
+    // resolves, and `maxInFlight` would peak at 1.
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const releasers = [];
+    const dispatchedIds = [];
+    const transitionFn = (_provider, id) => {
+      dispatchedIds.push(id);
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise((resolve) => {
+        releasers.push(() => {
+          inFlight -= 1;
+          resolve();
+        });
+      });
+    };
+    const pending = closePlanningArtifacts({
+      epicId: 100,
+      epic: {
+        linkedIssues: { prd: 101, techSpec: 102, acceptanceSpec: 103 },
+      },
+      provider: {},
+      logger: makeLogger(),
+      transitionFn,
+    });
+    // Let microtasks drain so all three dispatches enter transitionFn
+    // before we release any of them.
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(
+      maxInFlight,
+      3,
+      `expected all three transitions to be in flight concurrently, got ${maxInFlight}`,
+    );
+    assert.deepEqual(dispatchedIds, [101, 102, 103]);
+    for (const release of releasers) release();
+    const result = await pending;
+    // Preserve canonical key order in the returned envelope.
+    assert.deepEqual(Object.keys(result), [
+      'prd',
+      'techSpec',
+      'acceptanceSpec',
+    ]);
+    assert.equal(result.prd.status, 'closed');
+    assert.equal(result.techSpec.status, 'closed');
+    assert.equal(result.acceptanceSpec.status, 'closed');
+  });
+
   it('skips when only one of PRD / Tech Spec is linked', async () => {
     const calls = [];
     const result = await closePlanningArtifacts({

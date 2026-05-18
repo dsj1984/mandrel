@@ -29,6 +29,7 @@
 import path from 'node:path';
 import { refreshBaseline } from '../../lib/baselines/refresh-service.js';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
+import { filterExcludedRows } from './lib/baselines/kinds/maintainability.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   getBaselines,
@@ -95,7 +96,10 @@ function buildMaintainabilityScorer({ targetDirs, logger }) {
       `[Maintainability] Calculating scores for ${absPaths.length} files...`,
     );
     const scores = await calculateAll(absPaths);
-    return Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
+    const rows = Object.entries(scores).map(([p, mi]) => ({ path: p, mi }));
+    // Story #2467 / Task #2494: drop files the escomplex kernel can't parse
+    // so they stop landing as `mi: 0` phantom entries in the baseline.
+    return filterExcludedRows(rows);
   };
 }
 
