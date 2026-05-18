@@ -30,6 +30,7 @@ import {
 } from '../../../../../.agents/scripts/lib/orchestration/epic-runner/factory.js';
 import { Bus } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/bus.js';
 import { AcceptanceReconciler } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js';
+import { Finalizer } from '../../../../../.agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js';
 import {
   DEFAULT_HEARTBEAT_WARN_SECONDS,
   HeartbeatMonitor,
@@ -283,6 +284,57 @@ describe('factory close-tail registrar — AcceptanceReconciler activation', () 
       matches.length,
       1,
       'acceptance-reconciler.js must be imported exactly once',
+    );
+  });
+});
+
+/**
+ * Story #2319 / Task #2328 — Finalizer activation census.
+ *
+ * What this describe block pins:
+ *   1. `createEpicRunnerCollaborators` exposes `finalizer` on the
+ *      collaborator bag, instantiated from the production listener
+ *      class.
+ *   2. The bus on the same bag has at least one listener subscribed to
+ *      `acceptance.reconcile.ok` (Finalizer's sole event).
+ *   3. Source-of-truth grep: `finalizer.js` is imported exactly once in
+ *      `factory.js`. Prevents accidental double-registration when
+ *      future close-tail listeners are added.
+ */
+describe('factory close-tail registrar — Finalizer activation', () => {
+  it('exposes finalizer on the collaborator bag', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    assert.ok(collaborators.finalizer, 'collaborators.finalizer must be present');
+    assert.ok(
+      collaborators.finalizer instanceof Finalizer,
+      'collaborators.finalizer must be a Finalizer',
+    );
+  });
+
+  it('subscribes Finalizer to acceptance.reconcile.ok on the production bus', () => {
+    const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
+    const reconcileOkListeners =
+      collaborators.bus._listeners.get('acceptance.reconcile.ok') ?? [];
+    assert.ok(
+      reconcileOkListeners.length >= 1,
+      'at least one listener subscribed to acceptance.reconcile.ok',
+    );
+    assert.ok(
+      collaborators.finalizer.events.includes('acceptance.reconcile.ok'),
+      'Finalizer.events advertises acceptance.reconcile.ok',
+    );
+  });
+
+  it('imports finalizer.js exactly once in factory.js', () => {
+    const factorySource = readFileSync(FACTORY_PATH, 'utf8');
+    const matches = factorySource.match(
+      /from\s+['"][^'"]*listeners\/finalizer\.js['"]/g,
+    );
+    assert.ok(matches, 'factory.js must import finalizer.js');
+    assert.equal(
+      matches.length,
+      1,
+      'finalizer.js must be imported exactly once',
     );
   });
 });
