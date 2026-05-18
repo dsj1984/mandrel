@@ -286,6 +286,13 @@ function worktreesByBranch(cwd) {
 /**
  * Check whether a branch has a merged PR via `gh`.
  *
+ * Legacy probe: queries `--state merged` and returns the first merged row's
+ * `{ number, mergedAt }`. Kept exported so older call sites and tests that
+ * predate the latest-PR-state model continue to work — the planner now
+ * defaults to {@link probeLatestPr} for the bug-A correctness fix, but a
+ * caller can still inject this as `prProbe` to opt into the historical
+ * "any merge on this head" semantics.
+ *
  * @param {string} branch
  * @param {string} cwd
  * @param {(args: string[], opts: { cwd: string }) => string} runGh
@@ -323,9 +330,181 @@ export function probeMergedPr(branch, cwd, runGh = defaultGhRunner) {
   };
 }
 
+/**
+ * Probe the most-recent PR on a branch head ref, regardless of state.
+ *
+ * Replaces {@link probeMergedPr} as the planner's default merge signal so
+ * branches with reused names (release-please, dependabot, renovate, manual
+ * reuse) cannot be silently reaped on a stale historical merge. The right
+ * question is "is the *latest* PR on this head ref a merge?" — not "did
+ * *any* PR ever merge on this head ref?". Returning the full state lets
+ * the planner skip OPEN and CLOSED-not-merged refs with operator-visible
+ * reasons.
+ *
+ * `headRefOid` is included so the planner can cross-check the current
+ * branch tip against the commit the PR actually merged (or pointed at);
+ * post-merge force-pushes flip the tip out from under a historical merge
+ * signal and would otherwise still reap.
+ *
+ * @param {string} branch
+ * @param {string} cwd
+ * @param {(args: string[], opts: { cwd: string }) => string} runGh
+ * @returns {{ number: number, state: 'OPEN'|'CLOSED'|'MERGED', mergedAt: string|null, closedAt: string|null, headRefOid: string|null } | null}
+ */
+export function probeLatestPr(branch, cwd, runGh = defaultGhRunner) {
+  const out = runGh(
+    [
+      'pr',
+      'list',
+      '--head',
+      branch,
+      '--state',
+      'all',
+      '--json',
+      'number,state,mergedAt,closedAt,headRefOid',
+      '--limit',
+      '1',
+    ],
+    { cwd },
+  );
+  const trimmed = (out ?? '').trim();
+  if (!trimmed) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+  const row = parsed[0];
+  const state =
+    typeof row.state === 'string' ? row.state.toUpperCase() : 'UNKNOWN';
+  return {
+    number: Number(row.number) || 0,
+    state,
+    mergedAt: row.mergedAt ?? null,
+    closedAt: row.closedAt ?? null,
+    headRefOid: row.headRefOid ?? null,
+  };
+}
+
 /* node:coverage ignore next */
 function defaultGhRunner(args, { cwd }) {
   return execFileSync('gh', args, { cwd, encoding: 'utf8' });
+}
+
+/**
+ * Resolve the current tip SHA of a branch.
+ *
+ * For branches that exist locally (`localExists: true`), reads
+ * `refs/heads/<branch>` via `git rev-parse`. For remote-only branches,
+ * reads the SHA from `git ls-remote --heads <remote> <branch>`. Returns
+ * `null` when the ref cannot be resolved — callers treat that as "no
+ * tip cross-check available" and skip the divergence guard rather than
+ * failing the candidate.
+ *
+ * @param {{ cwd: string, branch: string, remoteName?: string, localExists?: boolean }} args
+ * @returns {string | null}
+ */
+export function branchTipSha({
+  cwd,
+  branch,
+  remoteName = 'origin',
+  localExists = true,
+}) {
+  if (localExists) {
+    const res = gitSpawn(cwd, 'rev-parse', `refs/heads/${branch}`);
+    if (res.status !== 0) return null;
+    const sha = res.stdout.trim();
+    return /^[0-9a-f]{7,40}$/i.test(sha) ? sha : null;
+  }
+  const res = gitSpawn(cwd, 'ls-remote', '--heads', remoteName, branch);
+  if (res.status !== 0) return null;
+  const first = res.stdout
+    .split('\n')
+    .map((l) => l.trim())
+    .find(Boolean);
+  if (!first) return null;
+  const sha = first.split(/\s+/)[0]?.trim() ?? '';
+  return /^[0-9a-f]{7,40}$/i.test(sha) ? sha : null;
+}
+
+/**
+ * Pure-ish: classify a latest-PR probe row into a planner verdict.
+ *
+ * Centralizes the state-machine that decides whether a branch with a PR
+ * row is reapable. Pulled out of {@link planCleanup} so the local and
+ * remote-only branch walks share one source of truth.
+ *
+ * Inputs:
+ *   - `prInfo`: the row from `prProbe` — may be the new latest-PR shape
+ *     ({@link probeLatestPr}) carrying `state` + `headRefOid`, or the
+ *     legacy shape ({@link probeMergedPr}) carrying only `number` +
+ *     `mergedAt`. The absence of `state` is treated as MERGED so legacy
+ *     callers and historical tests keep working.
+ *   - `branch`, `localExists`, `remoteName`, `cwd`, `branchTipShaFn`: used
+ *     to resolve the branch's current tip for the divergence cross-check.
+ *
+ * Returns either:
+ *   - `{ kind: 'candidate', prInfo }` — caller appends a candidate.
+ *   - `{ kind: 'skip', reason: <new-reason>, prNumber? }` — caller pushes
+ *     into `skipped[]` and continues.
+ *
+ * @param {{
+ *   prInfo: { number?: number, state?: string, mergedAt?: string|null, headRefOid?: string|null } | null,
+ *   branch: string,
+ *   cwd: string,
+ *   remoteName: string,
+ *   localExists: boolean,
+ *   branchTipShaFn: (args: { cwd: string, branch: string, remoteName: string, localExists: boolean }) => string | null,
+ * }} args
+ * @returns {{ kind: 'candidate', prInfo: object } | { kind: 'skip', reason: string, prNumber?: number, tipSha?: string|null, mergedSha?: string|null }}
+ */
+export function classifyLatestPr({
+  prInfo,
+  branch,
+  cwd,
+  remoteName,
+  localExists,
+  branchTipShaFn,
+}) {
+  if (!prInfo) return { kind: 'no-pr' };
+  const state =
+    typeof prInfo.state === 'string' ? prInfo.state.toUpperCase() : 'MERGED';
+  if (state === 'OPEN') {
+    return {
+      kind: 'skip',
+      reason: 'latest-pr-open',
+      prNumber: prInfo.number ?? null,
+    };
+  }
+  if (state === 'CLOSED') {
+    return {
+      kind: 'skip',
+      reason: 'latest-pr-closed-not-merged',
+      prNumber: prInfo.number ?? null,
+    };
+  }
+  if (state !== 'MERGED') {
+    return {
+      kind: 'skip',
+      reason: 'latest-pr-unknown-state',
+      prNumber: prInfo.number ?? null,
+    };
+  }
+  if (prInfo.headRefOid) {
+    const tipSha = branchTipShaFn({ cwd, branch, remoteName, localExists });
+    if (tipSha && tipSha !== prInfo.headRefOid) {
+      return {
+        kind: 'skip',
+        reason: 'tip-diverged-from-merge',
+        prNumber: prInfo.number ?? null,
+        tipSha,
+        mergedSha: prInfo.headRefOid,
+      };
+    }
+  }
+  return { kind: 'candidate', prInfo };
 }
 
 /**
@@ -336,6 +515,15 @@ function defaultGhRunner(args, { cwd }) {
  * PR but have no local ref. These remote-only candidates carry
  * `localExists: false` so `executeCleanup` knows to skip the
  * `deleteBranchLocal` call and run only the remote deletion path.
+ *
+ * The PR probe defaults to {@link probeLatestPr} so the planner classifies
+ * each candidate by the **latest** PR on the head ref rather than any
+ * historical merge. Branches whose latest PR is OPEN or CLOSED-not-merged
+ * are skipped with `reason: 'latest-pr-open'` /
+ * `reason: 'latest-pr-closed-not-merged'`. When the latest PR is MERGED
+ * but the branch tip has diverged from the PR's `headRefOid` (post-merge
+ * force-push), the branch is skipped with
+ * `reason: 'tip-diverged-from-merge'`.
  */
 export function planCleanup(ctx) {
   const {
@@ -346,7 +534,8 @@ export function planCleanup(ctx) {
     currentBranchFn = currentBranch,
     protectedConfigFn = readProtectedConfig,
     worktreesFn = worktreesByBranch,
-    prProbe = (b, c) => probeMergedPr(b, c),
+    prProbe = (b, c) => probeLatestPr(b, c),
+    branchTipShaFn = branchTipSha,
     filter = () => true,
     includeRemoteOnly = false,
     remoteLister = listRemoteBranches,
@@ -383,9 +572,29 @@ export function planCleanup(ctx) {
     }
 
     const prInfo = prProbe(branch, cwd);
+    const verdict = classifyLatestPr({
+      prInfo,
+      branch,
+      cwd,
+      remoteName,
+      localExists: true,
+      branchTipShaFn,
+    });
+
+    if (verdict.kind === 'skip') {
+      const entry = { branch, reason: verdict.reason };
+      if (verdict.prNumber != null) entry.prNumber = verdict.prNumber;
+      if (verdict.tipSha) entry.tipSha = verdict.tipSha;
+      if (verdict.mergedSha) entry.mergedSha = verdict.mergedSha;
+      skipped.push(entry);
+      continue;
+    }
+
     let detectedBy = null;
-    if (prInfo) {
+    let resolvedPrInfo = null;
+    if (verdict.kind === 'candidate') {
       detectedBy = 'gh';
+      resolvedPrInfo = verdict.prInfo;
     } else if (mergedByGit.has(branch)) {
       detectedBy = 'git-merged';
     } else {
@@ -396,8 +605,8 @@ export function planCleanup(ctx) {
     const wt = wtMap.get(branch);
     candidates.push({
       branch,
-      prNumber: prInfo?.number ?? null,
-      mergedAt: prInfo?.mergedAt ?? null,
+      prNumber: resolvedPrInfo?.number ?? null,
+      mergedAt: resolvedPrInfo?.mergedAt ?? null,
       hasWorktree: !!wt,
       worktreePath: wt?.path ?? null,
       detectedBy,
@@ -413,12 +622,28 @@ export function planCleanup(ctx) {
       if (!filter(branch)) continue;
 
       const prInfo = prProbe(branch, cwd);
-      if (!prInfo) continue;
+      const verdict = classifyLatestPr({
+        prInfo,
+        branch,
+        cwd,
+        remoteName,
+        localExists: false,
+        branchTipShaFn,
+      });
+      if (verdict.kind === 'no-pr') continue;
+      if (verdict.kind === 'skip') {
+        const entry = { branch, reason: verdict.reason };
+        if (verdict.prNumber != null) entry.prNumber = verdict.prNumber;
+        if (verdict.tipSha) entry.tipSha = verdict.tipSha;
+        if (verdict.mergedSha) entry.mergedSha = verdict.mergedSha;
+        skipped.push(entry);
+        continue;
+      }
 
       candidates.push({
         branch,
-        prNumber: prInfo.number ?? null,
-        mergedAt: prInfo.mergedAt ?? null,
+        prNumber: verdict.prInfo.number ?? null,
+        mergedAt: verdict.prInfo.mergedAt ?? null,
         hasWorktree: false,
         worktreePath: null,
         detectedBy: 'remote-only',
@@ -912,9 +1137,8 @@ export function renderDryRun(plan, opts = {}) {
       lines.push(`  • ${c.branch} — ${pr}${wt}${remoteOnly}`);
     }
   }
-  const currentHeadSkip = (plan.skipped ?? []).find(
-    (s) => s.reason === 'current-head',
-  );
+  const skipped = plan.skipped ?? [];
+  const currentHeadSkip = skipped.find((s) => s.reason === 'current-head');
   if (currentHeadSkip) {
     const hint = baseBranch
       ? `checkout ${baseBranch} first to include this branch`
@@ -923,7 +1147,40 @@ export function renderDryRun(plan, opts = {}) {
       `${TAG} ⓘ ${currentHeadSkip.branch} skipped — current HEAD (${hint})`,
     );
   }
+  for (const skip of skipped) {
+    const line = renderLatestPrSkipLine(skip);
+    if (line) lines.push(line);
+  }
   return lines;
+}
+
+/**
+ * Pure: render a single latest-PR-state skip line. Returns null when the
+ * skip reason is not one of the latest-PR family — `renderDryRun` filters
+ * by truthy return value so unrelated skip reasons (`protected`,
+ * `current-head`, `filtered`, `not-merged`) stay quiet.
+ *
+ * @param {{ branch: string, reason: string, prNumber?: number, tipSha?: string, mergedSha?: string }} skip
+ * @returns {string | null}
+ */
+export function renderLatestPrSkipLine(skip) {
+  if (!skip) return null;
+  const prRef = skip.prNumber ? `PR #${skip.prNumber}` : 'latest PR';
+  if (skip.reason === 'latest-pr-closed-not-merged') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} was closed without merging`;
+  }
+  if (skip.reason === 'latest-pr-open') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} is still open`;
+  }
+  if (skip.reason === 'tip-diverged-from-merge') {
+    const tip = skip.tipSha ? skip.tipSha.slice(0, 7) : '<unknown>';
+    const merged = skip.mergedSha ? skip.mergedSha.slice(0, 7) : '<unknown>';
+    return `${TAG} ⏭️  ${skip.branch} skipped — tip ${tip} diverges from ${prRef}'s merged ${merged} (post-merge force-push)`;
+  }
+  if (skip.reason === 'latest-pr-unknown-state') {
+    return `${TAG} ⏭️  ${skip.branch} skipped — ${prRef} has an unrecognized state`;
+  }
+  return null;
 }
 
 /** Pure: render a per-branch execution line. */
