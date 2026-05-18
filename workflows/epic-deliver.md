@@ -146,7 +146,9 @@ Stdout is one `WaveTickResult` envelope:
 
 The CLI emits `wave-tick` (every call) plus `wave-start` /
 `wave-complete` / `epic-complete` at transitions to the per-Epic
-`signals.ndjson`; `/signals` renders them in the span-tree view.
+`signals.ndjson`; the
+[`signals` helper](helpers/signals.md) (`node .agents/scripts/signals-view.js`)
+renders them in the span-tree view when needed.
 
 ### 2b. Dispatch — fan out per-Story Agent calls
 
@@ -324,7 +326,8 @@ Runs three close-time responsibilities in order:
    path is not blocked by open sub-issues, then posts a hand-off
    structured comment naming the PR URL.
 
-Branch cleanup is out-of-band (`/delete-epic-branches`).
+Branch cleanup is out-of-band (Phase 8 reaps local refs after merge; the
+rare "scrap and reset" case for an unmerged Epic is handled manually).
 
 ---
 
@@ -433,15 +436,14 @@ node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>
 
 Enumerates `epic/<id>` + every `story-<storyId>`, removes worktrees,
 prunes the registry, drops local refs. Remote branches are out of
-scope (`gh pr merge --delete-branch` handled them). Fall back to
-`/delete-epic-branches` for the wider "scrap and reset" flow that
-walks remote `task/*` and `feature/*` refs.
+scope (`gh pr merge --delete-branch` handled them). The rare
+"scrap and reset" case for an unmerged Epic — walking remote `task/*`
+and `feature/*` refs — is handled manually.
 
 If Phase 7.5 fell back to the operator-merges-button path, **do not**
 run Phase 8 yourself — the operator runs
-`node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>` (or
-`/delete-epic-branches` for the wider scrap-and-reset flow) after they
-merge.
+`node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>` after
+they merge.
 
 ---
 
