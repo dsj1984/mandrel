@@ -273,7 +273,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     config,
     logger,
     tempRoot,
-    checkpointer,
+    checkpointer: epicRunStateStore,
   });
   // Story #2241 / Task #2246 — register the lifecycle BlockerHandler
   // listener. The instance is exposed on the collaborator bag so
