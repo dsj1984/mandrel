@@ -17,7 +17,6 @@ export async function runEpicDeliverCleanup({ epicId, prNumber, bus } = {}) {
     throw new TypeError('prNumber must be a positive integer');
   const prUrl = `https://github.com/local/pr/${prNumber}`;
   const { seqId } = await (bus ?? new Bus()).emit('epic.merge.armed', {
-    epicId,
     prUrl,
   });
   return { epicId, prNumber, prUrl, seqId };
