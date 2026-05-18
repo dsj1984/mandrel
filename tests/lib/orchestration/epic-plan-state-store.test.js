@@ -3,9 +3,9 @@ import { describe, it } from 'node:test';
 
 import {
   EPIC_PLAN_STATE_TYPE,
+  initialize,
   PLAN_CHECKPOINT_SCHEMA_VERSION,
   PLAN_PHASES,
-  initialize,
   read,
   setPhase,
   write,
@@ -175,8 +175,8 @@ describe('epic-plan-state-store', () => {
     const cp = new PlanCheckpointer({ provider: providerB, epicId: 777 });
     await cp.write(seed);
 
-    const a = (await read({ provider: providerA, epicId: 777 }));
-    const b = (await cp.read());
+    const a = await read({ provider: providerA, epicId: 777 });
+    const b = await cp.read();
 
     assert.deepEqual(
       strip(a),

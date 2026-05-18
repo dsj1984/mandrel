@@ -1,16 +1,15 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
-import { Checkpointer } from '../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
 import {
+  appendIntervention,
   CHECKPOINT_SCHEMA_VERSION,
   EPIC_RUN_STATE_TYPE,
-  appendIntervention,
   initialize,
   read,
   setPhase,
   write,
 } from '../../../.agents/scripts/lib/orchestration/epic-run-state-store.js';
+import { Checkpointer } from '../../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
 import { structuredCommentMarker } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
 
 function createFakeProvider() {
@@ -352,7 +351,9 @@ describe('epic-run-state-store', () => {
       phase: 'close-tail',
       waves: [],
       blockerHistory: [],
-      manualInterventions: [{ reason: 'r', source: 'host-llm', ts: '2026-04-21T20:00:00.000Z' }],
+      manualInterventions: [
+        { reason: 'r', source: 'host-llm', ts: '2026-04-21T20:00:00.000Z' },
+      ],
     };
     const written = await write({ provider, epicId: 321, state: seed });
     const got = await read({ provider, epicId: 321 });
