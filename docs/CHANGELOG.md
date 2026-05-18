@@ -185,6 +185,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.21.0](https://github.com/dsj1984/mandrel/compare/v1.20.0...v1.21.0) (2026-05-18)
+
+
+### Fixed
+
+* **git-cleanup:** split current-HEAD skip + add remote-only sweep ([#2446](https://github.com/dsj1984/mandrel/issues/2446)) ([8b63fee](https://github.com/dsj1984/mandrel/commit/8b63feed54b738e97492c00ae284b0db3148f9d1)), closes [#2445](https://github.com/dsj1984/mandrel/issues/2445)
+
 ## [1.20.0](https://github.com/dsj1984/mandrel/compare/v1.19.0...v1.20.0) (2026-05-18)
 
 
