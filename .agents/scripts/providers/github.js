@@ -42,12 +42,10 @@
  *      Epic #1179 Tech Spec #1350).
  */
 
-import { parseBlockedBy, parseBlocks } from '../lib/dependency-parser.js';
 import { gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
 import { Logger } from '../lib/Logger.js';
 import { TYPE_LABELS } from '../lib/label-constants.js';
-import { composeTaskBody } from '../lib/templates/task-body-renderer.js';
 import { concurrentMap } from '../lib/util/concurrent-map.js';
 import {
   __setExecSyncForTests,
@@ -74,6 +72,7 @@ import {
   subIssueNodeToTicket,
 } from './github/mappers.js';
 import * as projects from './github/projects-v2-graphql.js';
+import { TicketGateway } from './github/tickets.js';
 
 // ---------------------------------------------------------------------------
 // Re-exports of extracted modules (Story #1846).
@@ -297,11 +296,29 @@ export class GitHubProvider extends ITicketingProvider {
     // it (only individual `getTicket` reads and `primeIfAbsent` writes do).
     this._cache = createInlineTicketCache();
 
+    // TicketGateway owns ticket CRUD against `/repos/{owner}/{repo}/issues`
+    // plus the per-instance cache. The provider keeps the cache reference
+    // for backwards compatibility (tests assert on `provider._cache`); the
+    // gateway is the canonical writer.
+    const provider = this;
+    this.tickets = new TicketGateway({
+      gh: this._gh,
+      owner: this.owner,
+      repo: this.repo,
+      cache: this._cache,
+      hooks: {
+        addSubIssue: (parentNumber, childNodeId) =>
+          provider.addSubIssue(parentNumber, childNodeId),
+        addItemToProject: (nodeId) =>
+          projects.addItemToProject(provider._ctx, nodeId),
+        getProjectNumber: () => provider.projectNumber,
+      },
+    });
+
     // ctx is the shared object the projects-v2-graphql shim reads from.
     // `projectNumber` gets a live getter/setter so `resolveOrCreateProject`
     // can mutate it on demand; `cache` is a live getter so tests that
     // reassign `provider._cache` see the new instance.
-    const provider = this;
     this._ctx = {
       owner: this.owner,
       repo: this.repo,
@@ -446,24 +463,7 @@ export class GitHubProvider extends ITicketingProvider {
    */
   /* node:coverage ignore next */
   async getTickets(epicId, filters = {}) {
-    const params = new URLSearchParams({ state: filters.state ?? 'all' });
-    if (filters.label) params.set('labels', filters.label);
-
-    const endpoint = `/repos/${this.owner}/${this.repo}/issues?${params}`;
-    const issues = await paginateRest(this._gh, endpoint);
-
-    // Word-boundary regex prevents #1 matching #10, #100, etc.
-    const epicRefRe = new RegExp(
-      `(?:Epic:\\s*#${epicId}|parent:\\s*#${epicId})(?:\\s|$|[,.)\\]])`,
-    );
-
-    return issues
-      .filter((issue) => {
-        if (issue.pull_request) return false;
-        const body = issue.body ?? '';
-        return epicRefRe.test(body);
-      })
-      .map(issueToListItem);
+    return this.tickets.getTickets(epicId, filters);
   }
 
   /**
@@ -569,38 +569,20 @@ export class GitHubProvider extends ITicketingProvider {
    *                 title, body, labels, assignees, state
    */
   async getTicket(ticketId, opts = {}) {
-    if (!opts.fresh) {
-      if (Number.isFinite(opts.maxAgeMs)) {
-        const fresh = this._cache.peekFresh(ticketId, opts.maxAgeMs);
-        if (fresh !== undefined) return fresh;
-      } else if (this._cache.has(ticketId)) {
-        return this._cache.peek(ticketId);
-      }
-    }
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}`,
-    });
-    const ticket = issueToTicket(parseApiJson(result));
-    this._cache.set(ticketId, ticket);
-    return ticket;
+    return this.tickets.getTicket(ticketId, opts);
   }
 
   primeTicketCache(tickets) {
-    this._cache.primeMany(tickets);
+    this.tickets.primeTicketCache(tickets);
   }
 
   invalidateTicket(ticketId) {
-    this._cache.invalidate(ticketId);
+    this.tickets.invalidateTicket(ticketId);
   }
 
   /* node:coverage ignore next */
   async getTicketDependencies(ticketId) {
-    const ticket = await this.getTicket(ticketId);
-    return {
-      blocks: parseBlocks(ticket.body),
-      blockedBy: parseBlockedBy(ticket.body),
-    };
+    return this.tickets.getTicketDependencies(ticketId);
   }
 
   /**
@@ -616,53 +598,7 @@ export class GitHubProvider extends ITicketingProvider {
    */
   /* node:coverage ignore next */
   async createTicket(parentId, ticketData) {
-    const epicId = ticketData.epicId || parentId;
-    const renderedBody = composeTaskBody({
-      body: ticketData.body ?? '',
-      parentId,
-      epicId,
-      dependencies: ticketData.dependencies ?? [],
-      auditSnapshot: ticketData.auditSnapshot,
-    });
-
-    const result = await this._gh.api({
-      method: 'POST',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues`,
-      body: {
-        title: ticketData.title,
-        body: renderedBody,
-        labels: ticketData.labels ?? [],
-      },
-    });
-    const issue = parseApiJson(result);
-
-    let subIssueLinked = false;
-    let subIssueError = null;
-    try {
-      await this.addSubIssue(parentId, issue.node_id);
-      subIssueLinked = true;
-    } catch (err) {
-      subIssueError = err;
-    }
-
-    try {
-      if (this.projectNumber) {
-        await this._ctx.hooks.addItemToProject(issue.node_id);
-      }
-    } catch (err) {
-      Logger.warn(
-        `[GitHubProvider] Failed to add Issue #${issue.number} to project: ${err.message}`,
-      );
-    }
-
-    return {
-      id: issue.number,
-      internalId: issue.id,
-      nodeId: issue.node_id,
-      url: issue.html_url,
-      subIssueLinked,
-      subIssueError,
-    };
+    return this.tickets.createTicket(parentId, ticketData);
   }
 
   /**
@@ -849,28 +785,12 @@ export class GitHubProvider extends ITicketingProvider {
     hasOtherPatchFields,
     ticketSnapshot = null,
   ) {
-    const { add = [], remove = [] } = labelMutations;
-
-    if (add.length > 0 && remove.length === 0 && !hasOtherPatchFields) {
-      await this._gh.api({
-        method: 'POST',
-        endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}/labels`,
-        body: { labels: add },
-      });
-      return { skipPatch: true };
-    }
-
-    // Story #1795 — when `transitionTicketState` threads a pre-fetched
-    // snapshot via `_ticketSnapshot` we reuse its labels rather than
-    // issuing another `getTicket` for the merge. Snapshot is opt-in;
-    // when absent, fall back to the historical read so legacy call
-    // sites keep their existing behaviour.
-    const ticket = ticketSnapshot ?? (await this.getTicket(ticketId));
-    const currentLabels = new Set(ticket.labels ?? []);
-    for (const l of remove) currentLabels.delete(l);
-    for (const l of add) currentLabels.add(l);
-
-    return { skipPatch: false, mergedLabels: Array.from(currentLabels) };
+    return this.tickets._applyLabelMutations(
+      ticketId,
+      labelMutations,
+      hasOtherPatchFields,
+      ticketSnapshot,
+    );
   }
 
   /**
@@ -879,36 +799,7 @@ export class GitHubProvider extends ITicketingProvider {
    */
   /* node:coverage ignore next */
   async updateTicket(ticketId, mutations) {
-    const patch = {};
-    if (mutations.body !== undefined) patch.body = mutations.body;
-    if (mutations.assignees) patch.assignees = mutations.assignees;
-    if (mutations.state !== undefined) patch.state = mutations.state;
-    if (mutations.state_reason !== undefined)
-      patch.state_reason = mutations.state_reason;
-
-    if (mutations.labels) {
-      const hasOtherPatchFields = Object.keys(patch).length > 0;
-      const result = await this._applyLabelMutations(
-        ticketId,
-        mutations.labels,
-        hasOtherPatchFields,
-        mutations._ticketSnapshot ?? null,
-      );
-      if (result.skipPatch) {
-        this.invalidateTicket(ticketId);
-        return;
-      }
-      patch.labels = result.mergedLabels;
-    }
-
-    if (Object.keys(patch).length > 0) {
-      await this._gh.api({
-        method: 'PATCH',
-        endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}`,
-        body: patch,
-      });
-      this.invalidateTicket(ticketId);
-    }
+    return this.tickets.updateTicket(ticketId, mutations);
   }
 
   // =========================================================================
