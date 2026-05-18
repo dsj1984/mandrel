@@ -324,10 +324,12 @@ consumes in Phase 1.
 Delivery is driven by the **`/epic-deliver`** slash command for whole-Epic
 flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
-worktree isolation, and cascade closure. The slash command supplants the
-legacy deliver-runner CLI (retired in Story #2259, Epic #2172); the
-lifecycle bus listener chain inside the session owns wave fan-out,
-finalize, automerge, and cleanup. See
+worktree isolation, and cascade closure. The lifecycle bus listener
+chain inside the session is the single runtime; it owns wave fan-out,
+finalize, automerge, and cleanup. Phase 6, 7.5, and 8 each fire one
+typed event via `lifecycle-emit.js` (`epic.close.end`,
+`epic.automerge.start`, `epic.merge.armed`); the matching listeners run
+the side effects. See
 [`docs/LIFECYCLE.md`](../docs/LIFECYCLE.md) for the bus contract,
 event taxonomy, ledger format, and listener model — every phase
 transition, ticket-state flip, and webhook fan-out now flows through
@@ -347,8 +349,9 @@ side-effects rather than inline calls at phase boundaries; the
 > — presence is sufficient, matching the PRD and Tech Spec contract.
 > The reviewer's OK during `/epic-plan` Phase 7 is the approval
 > signal, not a manual ticket-close action; the three planning
-> context tickets are closed automatically by
-> `epic-deliver-finalize.js` once the Epic PR opens. Neither
+> context tickets are closed automatically by the
+> `Finalizer` listener subscribed to `epic.close.end` once the
+> Epic PR opens. Neither
 > condition met → the snapshot throws a clear error naming the
 > missing precondition and `runAsCli` maps it to `process.exit(1)`.
 > This refuses to launch Epics that skipped acceptance-spec
@@ -496,8 +499,9 @@ phases against the Epic branch before opening the PR:
    `epicRetroMirrorPath`) so operators can read the retro without
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
-4. **Finalize.** `epic-deliver-finalize.js` runs three close-time
-   responsibilities in order:
+4. **Finalize.** `/epic-deliver` fires `epic.close.end` via
+   `lifecycle-emit.js`; the `Finalizer` + `AcceptanceReconciler`
+   listener chain runs three close-time responsibilities in order:
    1. **Acceptance-spec reconciliation.** Invokes
       `acceptance-spec-reconciler.js` to diff the AC IDs declared in
       the linked `context::acceptance-spec` body against `@ac-*` /
