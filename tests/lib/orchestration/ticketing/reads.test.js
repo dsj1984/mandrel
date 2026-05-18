@@ -10,16 +10,23 @@ import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import {
   _peekStructuredCommentCache,
+  _resetRawCommentsCache,
   _resetStructuredCommentCache,
   ALL_STATES,
   assertValidStructuredCommentType,
   findStructuredComment,
+  getProviderRawCommentsCache,
+  invalidateRawCommentsCache,
   isValidStructuredCommentType,
   STATE_LABELS,
   STRUCTURED_COMMENT_TYPES,
   structuredCommentMarker,
   WAVE_TYPE_PATTERN,
 } from '../../../../.agents/scripts/lib/orchestration/ticketing/reads.js';
+import {
+  postStructuredComment,
+  upsertStructuredComment,
+} from '../../../../.agents/scripts/lib/orchestration/ticketing/state.js';
 
 function makeProvider({ existingComments = [] } = {}) {
   const getCommentsCalls = [];
@@ -149,5 +156,117 @@ describe('ticketing/reads — findStructuredComment', () => {
     );
     const peek = _peekStructuredCommentCache(provider);
     assert.ok(peek.size >= 1, 'cache should hold at least one entry');
+  });
+});
+
+describe('ticketing/reads — per-ticketId raw-comments cache (Story #2465)', () => {
+  function makeWriteProvider({ existingComments = [] } = {}) {
+    const getCommentsCalls = [];
+    const postCommentCalls = [];
+    const deleteCommentCalls = [];
+    let nextId = 1000;
+    const comments = [...existingComments];
+    return {
+      getCommentsCalls,
+      postCommentCalls,
+      deleteCommentCalls,
+      _comments: comments,
+      async getTicketComments(id) {
+        getCommentsCalls.push(id);
+        return comments.filter((c) => c.ticketId === id);
+      },
+      async postComment(id, { body }) {
+        postCommentCalls.push({ id, body });
+        const newComment = { id: ++nextId, ticketId: id, body };
+        comments.push(newComment);
+        return { id: newComment.id };
+      },
+      async deleteComment(commentId) {
+        deleteCommentCalls.push(commentId);
+        const idx = comments.findIndex((c) => c.id === commentId);
+        if (idx >= 0) comments.splice(idx, 1);
+      },
+    };
+  }
+
+  it('two consecutive findStructuredComment calls for different types share one getTicketComments fetch', async () => {
+    const provider = makeWriteProvider({
+      existingComments: [
+        {
+          id: 100,
+          ticketId: 42,
+          body: `${structuredCommentMarker('friction')}\nfriction-body`,
+        },
+        {
+          id: 101,
+          ticketId: 42,
+          body: `${structuredCommentMarker('progress')}\nprogress-body`,
+        },
+      ],
+    });
+    _resetStructuredCommentCache(provider);
+    _resetRawCommentsCache(provider);
+
+    const a = await findStructuredComment(provider, 42, 'friction');
+    const b = await findStructuredComment(provider, 42, 'progress');
+
+    assert.equal(a?.id, 100);
+    assert.equal(b?.id, 101);
+    assert.equal(
+      provider.getCommentsCalls.length,
+      1,
+      'expected exactly one getTicketComments fetch across two different-type lookups',
+    );
+  });
+
+  it('postStructuredComment evicts the raw-comments cache entry for that ticketId', async () => {
+    const provider = makeWriteProvider({
+      existingComments: [
+        {
+          id: 200,
+          ticketId: 7,
+          body: `${structuredCommentMarker('friction')}\nbody`,
+        },
+      ],
+    });
+    _resetStructuredCommentCache(provider);
+    _resetRawCommentsCache(provider);
+
+    // Seed the raw cache.
+    await findStructuredComment(provider, 7, 'friction');
+    const cache = getProviderRawCommentsCache(provider);
+    assert.ok(cache.has(7), 'raw cache should be seeded after first lookup');
+
+    await postStructuredComment(provider, 7, 'notification', 'hello');
+    assert.equal(
+      cache.has(7),
+      false,
+      'postStructuredComment must evict the raw cache for the mutated ticket',
+    );
+  });
+
+  it('upsertStructuredComment evicts the raw-comments cache entry for that ticketId', async () => {
+    const provider = makeWriteProvider({ existingComments: [] });
+    _resetStructuredCommentCache(provider);
+    _resetRawCommentsCache(provider);
+
+    // Seed the raw cache via a finder that returns null.
+    await findStructuredComment(provider, 9, 'progress');
+    const cache = getProviderRawCommentsCache(provider);
+    assert.ok(cache.has(9), 'raw cache seeded with empty array');
+
+    await upsertStructuredComment(provider, 9, 'progress', 'body-v1');
+    assert.equal(
+      cache.has(9),
+      false,
+      'upsertStructuredComment must evict the raw cache for the mutated ticket',
+    );
+  });
+
+  it('invalidateRawCommentsCache is a no-op for unknown providers and missing entries', () => {
+    // Should not throw or mutate when called with non-provider input.
+    invalidateRawCommentsCache(null, 1);
+    invalidateRawCommentsCache({}, 1);
+    invalidateRawCommentsCache('not-an-object', 1);
   });
 });

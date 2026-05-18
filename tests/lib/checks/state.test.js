@@ -63,16 +63,28 @@ describe('assembleState', () => {
           return { ok: true, stdout: 'epic/1143\nepic/1178' };
         }
         if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          // The sync probe (Story #2463) reuses `refs/heads/` with a
+          // multi-token format including objectname + upstream. Differentiate
+          // by inspecting the --format= argument shape: the localBranches
+          // probe asks only for `%(refname:short)`, while the sync probe
+          // requests refname/objectname/upstream:short/upstream:objectname.
+          if (args[1].includes('%(objectname)')) {
+            // Sync probe: emit one row per epic branch with matching SHAs.
+            return {
+              ok: true,
+              stdout:
+                'main aaaaaaaa origin/main aaaaaaaa\n' +
+                'epic/1143 aaaaaaaa origin/epic/1143 aaaaaaaa\n' +
+                'epic/1178 aaaaaaaa origin/epic/1178 aaaaaaaa\n' +
+                'story/epic-1143/1 bbbbbbbb  ',
+            };
+          }
           return {
             ok: true,
             stdout: 'main\nepic/1143\nepic/1178\nstory/epic-1143/1',
           };
         }
         if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        if (args[0] === 'rev-parse' && args[1] === '--verify') {
-          // Distinct SHAs for local vs origin so ahead=false for these tests.
-          return { ok: true, stdout: 'aaaaaaaa' };
-        }
         return { ok: false, stdout: '' };
       },
       fs: (p) => p.endsWith('.worktrees'),
@@ -93,7 +105,7 @@ describe('assembleState', () => {
       'story/epic-1143/1',
     ]);
     assert.equal(state.git.coreBare, 'false');
-    // epicBranchSync probes local + origin for each branch.
+    // epicBranchSync now resolves from a single for-each-ref invocation.
     assert.equal(typeof state.git.epicBranchSync, 'object');
     assert.equal(state.git.epicBranchSync['epic/1143'].local, 'aaaaaaaa');
     assert.equal(state.git.epicBranchSync['epic/1143'].remote, 'aaaaaaaa');
@@ -104,10 +116,11 @@ describe('assembleState', () => {
     assert.equal(state.fs.dotEnv, undefined);
     assert.equal(state.fs.dotMcp, undefined);
     // git probe was called for: headRef (1), epicBranches (1),
-    // localBranches (1), coreBare (1), epicBranchSync local+origin for 2
-    // branches (4), and the git-common-dir lookup driven by
-    // fs.epicMergeLocks (1) = 9 total.
-    assert.equal(calls.git.length, 9);
+    // localBranches (1), coreBare (1), epicBranchSync — single batched
+    // for-each-ref (1) — and the git-common-dir lookup driven by
+    // fs.epicMergeLocks (1) = 6 total. Story #2463 dropped the per-branch
+    // rev-parse pair (was +4) to the single batched call.
+    assert.equal(calls.git.length, 6);
     // fs probe was called for .worktrees only (1). epicMergeLocks routes to
     // the dedicated lock probe, not the existence-only fs probe.
     assert.equal(calls.fs.length, 1);
@@ -124,13 +137,17 @@ describe('assembleState', () => {
         if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
           return { ok: true, stdout: 'story-x' };
         }
-        if (args[0] === 'for-each-ref') {
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
           return { ok: true, stdout: 'epic/1143' };
         }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        if (args[0] === 'rev-parse' && args[1] === '--verify') {
-          return { ok: true, stdout: 'aaaa' };
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          // Sync probe: single batched row for the epic branch.
+          return {
+            ok: true,
+            stdout: 'epic/1143 aaaa origin/epic/1143 aaaa',
+          };
         }
+        if (args[0] === 'config') return { ok: true, stdout: 'false' };
         if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
           return { ok: true, stdout: '/repo/.git' };
         }
@@ -164,14 +181,17 @@ describe('assembleState', () => {
   it('fs.epicMergeLocks reports exists:false when no lock file is present', () => {
     const { probes } = makeSpyProbes({
       git: (_cwd, ...args) => {
-        if (args[0] === 'for-each-ref') {
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
           return { ok: true, stdout: 'epic/1143' };
+        }
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          return {
+            ok: true,
+            stdout: 'epic/1143 aaaa origin/epic/1143 aaaa',
+          };
         }
         if (args[0] === 'rev-parse' && args[1] === '--git-common-dir') {
           return { ok: true, stdout: '/repo/.git' };
-        }
-        if (args[0] === 'rev-parse' && args[1] === '--verify') {
-          return { ok: true, stdout: 'aaaa' };
         }
         return { ok: false, stdout: '' };
       },
@@ -192,17 +212,17 @@ describe('assembleState', () => {
         if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
           return { ok: true, stdout: 'story-x' };
         }
-        if (args[0] === 'for-each-ref') {
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
           return { ok: true, stdout: 'epic/1143' };
         }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        if (args[0] === 'rev-parse' && args[1] === '--verify') {
-          // The 3rd arg is the ref: branch (local) or origin/branch (remote).
-          if (args[2] === 'epic/1143') return { ok: true, stdout: 'aaaa' };
-          if (args[2] === 'origin/epic/1143') {
-            return { ok: true, stdout: 'bbbb' };
-          }
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          // Local SHA aaaa, upstream resolves to bbbb → ahead=true.
+          return {
+            ok: true,
+            stdout: 'epic/1143 aaaa origin/epic/1143 bbbb',
+          };
         }
+        if (args[0] === 'config') return { ok: true, stdout: 'false' };
         return { ok: false, stdout: '' };
       },
     });
@@ -222,15 +242,17 @@ describe('assembleState', () => {
         if (args[0] === 'rev-parse' && args[1] === '--abbrev-ref') {
           return { ok: true, stdout: 'story-x' };
         }
-        if (args[0] === 'for-each-ref') {
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/epic/') {
           return { ok: true, stdout: 'epic/9999' };
         }
-        if (args[0] === 'config') return { ok: true, stdout: 'false' };
-        if (args[0] === 'rev-parse' && args[1] === '--verify') {
-          if (args[2] === 'epic/9999') return { ok: true, stdout: 'cccc' };
-          // origin/epic/9999 does not exist yet (pre-push epic).
-          return { ok: false, stdout: '' };
+        if (args[0] === 'for-each-ref' && args[2] === 'refs/heads/') {
+          // Pre-push epic: no upstream configured → empty trailing fields.
+          return {
+            ok: true,
+            stdout: 'epic/9999 cccc  ',
+          };
         }
+        if (args[0] === 'config') return { ok: true, stdout: 'false' };
         return { ok: false, stdout: '' };
       },
     });
@@ -378,9 +400,18 @@ describe('assembleState', () => {
 
     const { probes: nullProbes } = makeSpyProbes({
       git: (_cwd, cmd, ...rest) => {
-        if (cmd === 'for-each-ref') return { ok: true, stdout: 'epic/9999' };
-        if (cmd === 'rev-parse' && rest[0] === '--verify')
+        if (cmd === 'for-each-ref') {
+          // Distinguish the two for-each-ref shapes by the path arg.
+          //   - rest[1] === 'refs/heads/epic/' → epicBranches enumeration
+          //   - rest[1] === 'refs/heads/' AND format includes objectname
+          //     → sync probe; returning a non-ok result models the "git
+          //       failed to enumerate refs" path so the sync map falls
+          //       back to local: null / remote: null / ahead: false.
+          if (rest[1] === 'refs/heads/epic/') {
+            return { ok: true, stdout: 'epic/9999' };
+          }
           return { ok: false, stdout: '' };
+        }
         return { ok: true, stdout: '' };
       },
     });

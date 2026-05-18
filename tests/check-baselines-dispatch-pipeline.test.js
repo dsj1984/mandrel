@@ -117,13 +117,19 @@ describe('check-baselines — Promise.all over kinds (Task #1977)', () => {
     // wanted-list mapping. A serial `for…of await` would not contain
     // `Promise.all`. This is a structural pin: the implementation must
     // continue to use Promise.all over the kinds.
+    // Story #2466 — the dispatch loop now lives in the pipeline phase
+    // module under lib/orchestration/check-baselines/phases/pipeline.js.
+    // The thin CLI shell re-exports `runCheckBaselines` from there.
     const source = readFileSync(
-      path.join(repoRoot, '.agents/scripts/check-baselines.js'),
+      path.join(
+        repoRoot,
+        '.agents/scripts/lib/orchestration/check-baselines/phases/pipeline.js',
+      ),
       'utf8',
     );
     assert.ok(
-      /Promise\.all\s*\(\s*wanted\.map\s*\(/.test(source),
-      'check-baselines.js must dispatch per-kind work via Promise.all(wanted.map(...))',
+      /Promise\.all\s*\(\s*\n?\s*wanted\.map\s*\(/.test(source),
+      'pipeline.js must dispatch per-kind work via Promise.all(wanted.map(...))',
     );
   });
 });
@@ -176,21 +182,30 @@ describe('check-baselines — read each baseline at most once (Task #1977)', () 
 
 describe('check-baselines — imports the new helpers (Task #1977)', () => {
   it('imports scope, git-base, and exit-codes from lib/baselines', () => {
-    const source = readFileSync(
-      path.join(repoRoot, '.agents/scripts/check-baselines.js'),
+    // Story #2466 — imports moved from the thin CLI shell into the
+    // phase modules. `compare.js` owns scope + git-base; `pipeline.js`
+    // owns the exit-codes aggregator; the shell keeps EXIT_CONFIG for
+    // the catch-block status mapping.
+    const phasesDir = path.join(
+      repoRoot,
+      '.agents/scripts/lib/orchestration/check-baselines/phases',
+    );
+    const compareSrc = readFileSync(path.join(phasesDir, 'compare.js'), 'utf8');
+    const pipelineSrc = readFileSync(
+      path.join(phasesDir, 'pipeline.js'),
       'utf8',
     );
     assert.ok(
-      /from '\.\/lib\/baselines\/scope\.js'/.test(source),
-      'expected import from ./lib/baselines/scope.js',
+      /from '\.\.\/\.\.\/\.\.\/baselines\/scope\.js'/.test(compareSrc),
+      'expected compare.js to import scope.js',
     );
     assert.ok(
-      /from '\.\/lib\/baselines\/git-base\.js'/.test(source),
-      'expected import from ./lib/baselines/git-base.js',
+      /from '\.\.\/\.\.\/\.\.\/baselines\/git-base\.js'/.test(compareSrc),
+      'expected compare.js to import git-base.js',
     );
     assert.ok(
-      /from '\.\/lib\/baselines\/exit-codes\.js'/.test(source),
-      'expected import from ./lib/baselines/exit-codes.js',
+      /from '\.\.\/\.\.\/\.\.\/baselines\/exit-codes\.js'/.test(pipelineSrc),
+      'expected pipeline.js to import exit-codes.js',
     );
   });
 });

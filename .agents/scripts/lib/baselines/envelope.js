@@ -230,6 +230,95 @@ const REQUIRED_TOP_LEVEL_KEYS = Object.freeze([
   'rows',
 ]);
 
+// ---------------------------------------------------------------------------
+// Shared baseline compatibility axes (Story #2467, Task #2492).
+//
+// Every baseline-kind compatibility check shares the same universal
+// invariants: the envelope must exist, its kernelVersion must match the
+// running scorer, and (when published) its `generatedAt` must be monotonic
+// vs the running clock. Per-kind axis tables (e.g. `CRAP_COMPAT_AXES`)
+// compose these into their kind-specific axis list so the hoisted axes
+// live in exactly one place.
+//
+// Each axis exposes `{ name, severity, check }`:
+//   - `name`     — stable label used as `kind` in the failure envelope.
+//   - `severity` — `'fatal'` (short-circuit, exitCode 1) or `'warn'`
+//                  (accumulate into `warnings`).
+//   - `check`    — pure function over the compat context. Returns `null`
+//                  when the axis passes, or a string message describing
+//                  the failure.
+// ---------------------------------------------------------------------------
+
+/**
+ * Universal "missing baseline" axis. Fires when the loader returned `null`
+ * / `undefined`. The operator message is parametrised by the kind label
+ * supplied at composition time so each kind keeps its own bootstrap hint.
+ *
+ * @param {string} kindLabel — operator-facing label (e.g. `CRAP`, `MI`).
+ * @returns {{name: string, severity: 'fatal', check: (ctx: {baseline: unknown}) => string|null}}
+ */
+export function missingBaselineAxis(kindLabel) {
+  return {
+    name: 'missing-baseline',
+    severity: 'fatal',
+    check: ({ baseline }) =>
+      baseline === null || baseline === undefined
+        ? `[${kindLabel}] ❌ no baseline found — run the matching baseline-update command and commit with a 'baseline-refresh:' subject to bootstrap`
+        : null,
+  };
+}
+
+/**
+ * Universal "kernel-version drift" axis. Fires when the baseline's
+ * recorded `kernelVersion` differs from the running scorer's
+ * `kernelVersion`. Warn-only by default — kernel drift surfaces as a
+ * baseline-refresh nudge, not a close-validation failure.
+ *
+ * @param {string} kindLabel
+ * @returns {{name: string, severity: 'warn', check: (ctx: {baseline: {kernelVersion?: string}|null|undefined, runningKernelVersion: string}) => string|null}}
+ */
+export function kernelDriftAxis(kindLabel) {
+  return {
+    name: 'kernel-drift',
+    severity: 'warn',
+    check: ({ baseline, runningKernelVersion }) =>
+      baseline && baseline.kernelVersion !== runningKernelVersion
+        ? `[${kindLabel}] ⚠ kernelVersion drift: baseline=${baseline.kernelVersion} running=${runningKernelVersion}. ` +
+          "Run the matching baseline-update command and commit with a 'baseline-refresh:' subject to refresh."
+        : null,
+  };
+}
+
+/**
+ * Reduce an axis list against a compat context, emitting either a fatal
+ * envelope `{ ok: false, exitCode: 1, kind, message }` (on the first
+ * 'fatal' match) or an accumulating `{ ok: true, warnings }` envelope.
+ *
+ * Shared by every per-kind `evaluateBaselineCompatibility` caller so the
+ * reduce body lives in one place and stays well below the project's
+ * cyclomatic-complexity ceiling.
+ *
+ * @template {object} Ctx
+ * @param {Array<{name: string, severity: 'fatal'|'warn', check: (ctx: Ctx) => string|null}>} axes
+ * @param {Ctx} ctx
+ * @returns {{ok: true, warnings: string[]} | {ok: false, exitCode: 1, kind: string, message: string}}
+ */
+export function reduceCompatAxes(axes, ctx) {
+  return axes.reduce(
+    (acc, axis) => {
+      if (!acc.ok) return acc;
+      const message = axis.check(ctx);
+      if (!message) return acc;
+      if (axis.severity === 'fatal') {
+        return { ok: false, exitCode: 1, kind: axis.name, message };
+      }
+      acc.warnings.push(message);
+      return acc;
+    },
+    { ok: true, warnings: [] },
+  );
+}
+
 /**
  * Validate an envelope against its per-kind schema.
  *

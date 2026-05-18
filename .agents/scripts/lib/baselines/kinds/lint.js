@@ -10,6 +10,7 @@
  *   - `rollup(rows, components)`: aggregate per-component lint counts.
  */
 
+import { componentMatches } from '../component-matcher.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -120,17 +121,6 @@ export function compare(head, base) {
     else unchanged.push({ key: b.path, head: null, base: b });
   }
   return { regressions, improvements, unchanged };
-}
-
-function componentMatches(component, path) {
-  // Components are exact-prefix matched on a path — the canonical
-  // resolver (added in a sibling Story #1902) replaces this stub. For the
-  // shared-writer foundation we only need a deterministic fallback so the
-  // rollup runs without a components registry.
-  if (!component || typeof component.includes !== 'string') return false;
-  return (
-    path === component.includes || path.startsWith(`${component.includes}/`)
-  );
 }
 
 /**

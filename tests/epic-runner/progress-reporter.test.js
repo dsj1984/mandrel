@@ -500,11 +500,11 @@ describe('ProgressReporter', () => {
   it('caches structured-comment reads — bounded fetches per story across ticks', async () => {
     // Once a story is terminal, both its `phase-timings` comment and its
     // `story-run-progress` comment are immutable (or permanently absent);
-    // the reporter must not re-fetch them on every tick. With the post-#908
-    // story-run-progress reader, the bounded fetch count is 2 per story per
-    // epic run (one per marker the reporter looks for) — both are cached
-    // after the first lookup. This protects the GH API budget on 50+ story
-    // epics regardless of how often the reporter fires.
+    // the reporter must not re-fetch them on every tick. After Story #2465
+    // the raw-comments cache also collapses the two different-marker
+    // lookups for the same ticket into a single `getTicketComments` fetch
+    // (the structured-comment-id cache then services subsequent ticks).
+    // Bounded fetch count is therefore 1 per terminal story per epic run.
     const fetchesByTicket = new Map();
     const fixtureBody = buildPhaseCommentBody(1, [
       ['implement', 30_000],
@@ -536,8 +536,8 @@ describe('ProgressReporter', () => {
     await reporter.fire();
     assert.equal(
       fetchesByTicket.get(1) ?? 0,
-      2,
-      'one fetch per marker (story-run-progress + phase-timings); both cached on subsequent fires',
+      1,
+      'raw-comments cache (Story #2465) collapses both marker lookups into a single getTicketComments fetch; subsequent fires hit the structured-comment-id cache',
     );
   });
 

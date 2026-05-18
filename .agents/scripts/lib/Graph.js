@@ -101,11 +101,32 @@ export function assignLayers(adjacency) {
 }
 
 /**
- * Performs transitive reduction on a DAG using DFS.
- * Removes edge (u→v) if v is reachable from u via an alternate path of length > 1.
- * Complexity: O(V·(V+E)) — significantly faster than Floyd-Warshall for sparse graphs.
+ * Performs transitive reduction on a DAG.
+ *
+ * Removes edge (u→v) iff some *other* direct dependency w of u satisfies
+ * v ∈ reach(w) — i.e. v is reachable from u via a path of length > 1 that
+ * does not use the edge (u→v) itself.
+ *
+ * Two-arg form (preferred on hot paths): callers that already hold a
+ * reachability matrix for the same `adjacency` (e.g. the dispatch
+ * pipeline, which also feeds it to `autoSerializeOverlaps`) pass it in
+ * via `reachable` so we skip the O(V·(V+E)) re-derivation. The per-edge
+ * check is then O(1) (`reach(w).has(v)`), making the overall reduction
+ * O(V+E) on top of the (amortized) cost of producing `reachable` once.
+ *
+ * Single-arg form (back-compat): when `reachable` is omitted we compute
+ * it locally via `computeReachability(adjacency)` so the function stays
+ * a drop-in replacement for the historical single-argument signature.
+ * Output is byte-identical between the two forms.
+ *
+ * @param {Map<*, *[]>} adjacency  Dependency map (node → deps[]).
+ * @param {Map<*, Set<*>>} [reachable]  Optional pre-computed reachability
+ *   matrix matching `adjacency`. When supplied it MUST cover every node
+ *   in `adjacency` — passing a partial map will silently corrupt output.
+ * @returns {Map<*, *[]>}  Reduced adjacency map.
  */
-export function transitiveReduction(adjacency) {
+export function transitiveReduction(adjacency, reachable) {
+  const reach = reachable ?? computeReachability(adjacency);
   const result = new Map();
 
   for (const [node, deps] of adjacency.entries()) {
@@ -117,32 +138,22 @@ export function transitiveReduction(adjacency) {
 
     const kept = [];
     for (const dep of deps) {
-      // Check if dep is reachable from node via any neighbour other than dep itself
-      const isRedundant = deps.some((other) => {
-        if (other === dep) return false;
-        return _dfsReaches(other, dep, adjacency, new Set([node]));
-      });
+      // Edge (node → dep) is redundant iff some other direct dep `other`
+      // of `node` already reaches `dep` transitively.
+      let isRedundant = false;
+      for (const other of deps) {
+        if (other === dep) continue;
+        if (reach.get(other)?.has(dep)) {
+          isRedundant = true;
+          break;
+        }
+      }
       if (!isRedundant) kept.push(dep);
     }
     result.set(node, kept);
   }
 
   return result;
-}
-
-/**
- * DFS helper: returns true if `target` is reachable from `start`,
- * skipping nodes in the `visited` set to avoid revisiting.
- */
-function _dfsReaches(start, target, adjacency, visited) {
-  if (start === target) return true;
-  visited.add(start);
-  for (const neighbour of adjacency.get(start) || []) {
-    if (!visited.has(neighbour)) {
-      if (_dfsReaches(neighbour, target, adjacency, visited)) return true;
-    }
-  }
-  return false;
 }
 
 /**

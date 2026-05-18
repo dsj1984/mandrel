@@ -9,7 +9,13 @@
 
 import { createAdapter } from '../adapter-factory.js';
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
-import { buildGraph, computeWaves, detectCycle } from '../Graph.js';
+import {
+  buildGraph,
+  computeReachability,
+  computeWaves,
+  detectCycle,
+  transitiveReduction,
+} from '../Graph.js';
 import { getEpicBranch } from '../git-utils.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
@@ -164,9 +170,19 @@ export function buildDispatchGraph(tasks) {
     );
   }
 
+  // Compute reachability once per dispatch run and share it across both
+  // graph-shape consumers (transitive reduction + focus-area
+  // serialization). Transitive reduction preserves reachability, so the
+  // same matrix remains valid for `autoSerializeOverlaps` even though it
+  // sees the reduced adjacency — the closure of the reduced graph is
+  // identical to the closure of the original.
+  const reachable = computeReachability(adjacency);
+  const reducedAdjacency = transitiveReduction(adjacency, reachable);
+
   const { finalAdjacency, graphMutated } = autoSerializeOverlaps(
     { tasks },
-    adjacency,
+    reducedAdjacency,
+    { reachable },
   );
   if (graphMutated) {
     Logger.info('Focus-area conflicts detected; serialized overlapping tasks.');
