@@ -7,7 +7,7 @@
  * tests continue to pass unchanged.
  *
  * Returned object:
- *   notify, checkpointer, blockerHandler, launcher, gitAdapter,
+ *   notify, epicRunStateStore, blockerHandler, launcher, gitAdapter,
  *   commitAssertion, waveObserver, progressReporter, columnSync,
  *   syncColumn (closure wrapping columnSync.sync with error-journal
  *   logging).
@@ -39,8 +39,8 @@ import {
   transitionTicketState,
   upsertStructuredComment,
 } from '../ticketing.js';
+import * as epicRunStateStoreModule from '../epic-run-state-store.js';
 import { waitForEpicUnblock } from './blocker-wait.js';
-import { Checkpointer } from './checkpointer.js';
 import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
 import { ProgressReporter } from './progress-reporter.js';
@@ -59,7 +59,33 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.notify ??
     ((ticketId, payload, opts = {}) =>
       notify(ticketId, payload, { orchestration: config, provider, ...opts }));
-  const checkpointer = new Checkpointer({ ctx });
+  // Story #2409 — the legacy class-based checkpoint surface is replaced
+  // by the function-based `epic-run-state-store` module. The collaborator
+  // slot exposes a bag of provider/epicId-pre-bound functions so
+  // iterate-waves keeps its `store.initialize({ totalWaves,
+  // concurrencyCap })` call shape unchanged. The legacy class file under
+  // `./checkpointer.js` is removed in a later Story (#2423); nothing
+  // imports it from this factory anymore.
+  const epicRunStateStore = {
+    initialize: (opts) =>
+      epicRunStateStoreModule.initialize({ provider, epicId: ctx.epicId, ...opts }),
+    read: () =>
+      epicRunStateStoreModule.read({ provider, epicId: ctx.epicId }),
+    write: (state) =>
+      epicRunStateStoreModule.write({ provider, epicId: ctx.epicId, state }),
+    setPhase: (nextPhase) =>
+      epicRunStateStoreModule.setPhase({
+        provider,
+        epicId: ctx.epicId,
+        nextPhase,
+      }),
+    appendIntervention: (entry) =>
+      epicRunStateStoreModule.appendIntervention({
+        provider,
+        epicId: ctx.epicId,
+        entry,
+      }),
+  };
   // Story #2241 / Task #2246 — the legacy BlockerHandler (label flip +
   // friction comment + notify + wait loop) is replaced by:
   //   * the lifecycle BlockerHandler listener (classifies story.blocked
@@ -271,7 +297,7 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
 
   return {
     notify: notifyFn,
-    checkpointer,
+    epicRunStateStore,
     blockerHandler,
     blockerWait,
     launcher,
