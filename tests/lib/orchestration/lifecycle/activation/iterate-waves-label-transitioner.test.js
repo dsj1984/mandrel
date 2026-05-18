@@ -91,7 +91,7 @@ function buildRecordingProvider(labelsById = {}) {
 function buildCollaborators({ bus, launcher }) {
   return {
     notify: () => {},
-    checkpointer: {
+    epicRunStateStore: {
       async initialize() {},
       async read() {
         return null;

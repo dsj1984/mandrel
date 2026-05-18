@@ -15,10 +15,11 @@
  * is still a single integer count — so callers only need to swap their
  * data source.
  *
- * Story #2289 — added `interventions`, sourced from the checkpointer's
- * `manualInterventions` array. The same list disqualifies the Epic from
- * auto-merge, so the retro shape and the auto-merge gate now agree on
- * what "clean" means.
+ * Story #2289 — added `interventions`, sourced from the
+ * `manualInterventions` array on the `epic-run-state` snapshot read
+ * via `epic-run-state-store.read`. The same list disqualifies the
+ * Epic from auto-merge, so the retro shape and the auto-merge gate
+ * now agree on what "clean" means.
  */
 
 /**

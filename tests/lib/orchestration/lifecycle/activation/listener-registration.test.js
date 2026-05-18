@@ -404,12 +404,9 @@ describe('factory close-tail registrar — Watcher activation', () => {
  *      `epic.watch.end` (AutomergePredicate's sole event).
  *   3. Source-of-truth grep: the **listener** at
  *      `lifecycle/listeners/automerge-predicate.js` is imported exactly
- *      once in `factory.js`, and the legacy module at
- *      `lib/orchestration/automerge-predicate.js` (sibling of the
- *      lifecycle directory) is NOT imported from factory.js — that
- *      module stays as dead code reachable only via the listener's
- *      internal wrapper. Prevents accidental dual-registration when the
- *      legacy module is eventually deleted.
+ *      once in `factory.js`, and no import of the now-deleted legacy
+ *      `lib/orchestration/automerge-predicate.js` sibling path leaks
+ *      back in. Prevents accidental dual-registration.
  */
 describe('factory close-tail registrar — AutomergePredicate activation', () => {
   it('exposes automergePredicate on the collaborator bag', () => {
@@ -458,7 +455,7 @@ describe('factory close-tail registrar — AutomergePredicate activation', () =>
     assert.equal(
       legacyMatches,
       null,
-      'factory.js must NOT import the legacy lib/orchestration/automerge-predicate.js module — that path stays as dead code reachable only via the listener wrapper',
+      'factory.js must NOT import the (now-deleted) legacy lib/orchestration/automerge-predicate.js module path',
     );
   });
 });

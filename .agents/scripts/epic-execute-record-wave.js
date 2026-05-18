@@ -42,7 +42,7 @@ import { runAsCli } from './lib/cli-utils.js';
 import { getRunners } from './lib/config/runners.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
+import * as epicRunStateStore from './lib/orchestration/epic-run-state-store.js';
 import { upsertEpicRunProgress } from './lib/orchestration/epic-runner/progress-reporter.js';
 import {
   loadManifestTitleMap,
@@ -167,8 +167,7 @@ export async function runEpicExecuteRecordWave({
   const config = injectedConfig ?? resolveConfig({ cwd });
   const provider = injectedProvider ?? createProvider(config.orchestration);
 
-  const checkpointer = new Checkpointer({ provider, epicId });
-  const existing = await checkpointer.read();
+  const existing = await epicRunStateStore.read({ provider, epicId });
   if (!existing) {
     throw new Error(
       `runEpicExecuteRecordWave: no epic-run-state checkpoint found on Epic #${epicId}; ` +
@@ -216,11 +215,15 @@ export async function runEpicExecuteRecordWave({
   });
 
   // 5. Persist the projected checkpoint.
-  await checkpointer.write({
-    ...existing,
-    currentWave: projection.nextCurrentWave,
-    totalWaves: projection.totalWaves,
-    waves: projection.nextWaves,
+  await epicRunStateStore.write({
+    provider,
+    epicId,
+    state: {
+      ...existing,
+      currentWave: projection.nextCurrentWave,
+      totalWaves: projection.totalWaves,
+      waves: projection.nextWaves,
+    },
   });
 
   // 6. Re-render the unified `epic-run-progress` rollup from the checkpoint

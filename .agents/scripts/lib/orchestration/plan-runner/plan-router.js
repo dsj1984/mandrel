@@ -27,7 +27,7 @@ export const PLAN_PHASE_NAMES = Object.freeze({
  * directly invokable slash commands.
  *
  * Exported as `PLAN_PHASE_DESCRIPTORS` so it does not collide with the
- * phase-name enum `PLAN_PHASES` in `plan-checkpointer.js`.
+ * phase-name enum `PLAN_PHASES` in `epic-plan-state-store.js`.
  */
 export const PLAN_PHASE_DESCRIPTORS = Object.freeze({
   [PLAN_PHASE_NAMES.SPEC]: {

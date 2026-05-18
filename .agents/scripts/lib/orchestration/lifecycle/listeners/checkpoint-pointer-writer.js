@@ -87,8 +87,7 @@ export const SUBSCRIBED_END_EVENTS = Object.freeze([
 
 /**
  * Resolve the pointer-file path for a given Epic. Exported so tests
- * and the legacy-resume adapter can target the same file without
- * re-deriving the layout.
+ * can target the same file without re-deriving the layout.
  */
 export function resolvePointerPath({ tempRoot, epicId }) {
   if (typeof tempRoot !== 'string' || tempRoot.length === 0) {
@@ -176,8 +175,7 @@ export class CheckpointPointerWriter {
   }
 
   /**
-   * Resolved on-disk path for the pointer file. Exposed for tests
-   * and the legacy-resume adapter.
+   * Resolved on-disk path for the pointer file. Exposed for tests.
    */
   get pointerPath() {
     return this._pointerPath;

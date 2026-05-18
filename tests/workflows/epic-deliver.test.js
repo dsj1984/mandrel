@@ -37,7 +37,7 @@ import {
   CHECKPOINT_SCHEMA_VERSION,
   Checkpointer,
   DELIVER_PHASES,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/checkpointer.js';
+} from '../fixtures/epic-run-state-store.js';
 
 /**
  * In-memory provider with `getTicketComments` / `postComment` /

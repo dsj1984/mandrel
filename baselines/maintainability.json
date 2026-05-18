@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T03:50:01.200Z",
+  "generatedAt": "2026-05-18T13:55:40.418Z",
   "rollup": {
     "*": {
       "min": 0,
       "p50": 103.156,
-      "p95": 121.484
+      "p95": 121.479
     }
   },
   "rows": [
@@ -116,11 +116,11 @@
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
-      "mi": 91.357
+      "mi": 86.917
     },
     {
       "path": ".agents/scripts/epic-deliver-prepare.js",
-      "mi": 96.333
+      "mi": 88.724
     },
     {
       "path": ".agents/scripts/epic-execute-record-wave.js",
@@ -132,7 +132,7 @@
     },
     {
       "path": ".agents/scripts/epic-plan-decompose.js",
-      "mi": 88.72
+      "mi": 87.995
     },
     {
       "path": ".agents/scripts/epic-plan-edit-flow.js",
@@ -144,7 +144,7 @@
     },
     {
       "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 71.938
+      "mi": 71.178
     },
     {
       "path": ".agents/scripts/epic-plan.js",
@@ -707,10 +707,6 @@
       "mi": 94.883
     },
     {
-      "path": ".agents/scripts/lib/orchestration/automerge-predicate.js",
-      "mi": 95.509
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/cascade-grouping.js",
       "mi": 97.534
     },
@@ -760,11 +756,19 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-deliver-close-tail.js",
-      "mi": 90.935
+      "mi": 92.223
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
       "mi": 109.889
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
+      "mi": 97.693
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
+      "mi": 97.779
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner.js",
@@ -792,7 +796,7 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/factory.js",
-      "mi": 84.161
+      "mi": 86.753
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-runner/hotspot-detection.js",
@@ -895,8 +899,20 @@
       "mi": 129.416
     },
     {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js",
+      "mi": 93.448
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/checkpoint-pointer-writer.js",
+      "mi": 106.54
+    },
+    {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/finalizer.js",
       "mi": 92.94
+    },
+    {
+      "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/intervention-recorder.js",
+      "mi": 107.526
     },
     {
       "path": ".agents/scripts/lib/orchestration/lifecycle/listeners/watcher.js",
@@ -952,11 +968,11 @@
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro-heuristics.js",
-      "mi": 114.637
+      "mi": 112.227
     },
     {
       "path": ".agents/scripts/lib/orchestration/retro-runner.js",
-      "mi": 90.142
+      "mi": 87.227
     },
     {
       "path": ".agents/scripts/lib/orchestration/spec-renderer.js",
@@ -1284,7 +1300,7 @@
     },
     {
       "path": ".agents/scripts/lib/wave-runner/tick.js",
-      "mi": 94.39
+      "mi": 94.921
     },
     {
       "path": ".agents/scripts/lib/wave-runner/wave-runner-error.js",
@@ -1361,6 +1377,10 @@
     {
       "path": ".agents/scripts/lib/worktree/node-modules-strategy.js",
       "mi": 88.788
+    },
+    {
+      "path": ".agents/scripts/lifecycle-emit.js",
+      "mi": 98.266
     },
     {
       "path": ".agents/scripts/lint-baseline.js",
@@ -1968,7 +1988,7 @@
     },
     {
       "path": "tests/epic-execute/epic-deliver-prepare.test.js",
-      "mi": 99.144
+      "mi": 91.379
     },
     {
       "path": "tests/epic-execute/epic-execute-record-wave.test.js",
@@ -2105,6 +2125,14 @@
     {
       "path": "tests/fixtures/baselines/cross-platform/nested/module-b.js",
       "mi": 159.877
+    },
+    {
+      "path": "tests/fixtures/epic-plan-state-store.js",
+      "mi": 100.865
+    },
+    {
+      "path": "tests/fixtures/epic-run-state-store.js",
+      "mi": 100.581
     },
     {
       "path": "tests/fixtures/mock-adapter.js",
@@ -2584,7 +2612,7 @@
     },
     {
       "path": "tests/lib/orchestration/automerge-predicate.test.js",
-      "mi": 109.024
+      "mi": 107.639
     },
     {
       "path": "tests/lib/orchestration/code-review.test.js",
@@ -2617,6 +2645,14 @@
     {
       "path": "tests/lib/orchestration/epic-lifecycle-detector.test.js",
       "mi": 105.011
+    },
+    {
+      "path": "tests/lib/orchestration/epic-plan-state-store.test.js",
+      "mi": 97.99
+    },
+    {
+      "path": "tests/lib/orchestration/epic-run-state-store.test.js",
+      "mi": 91.059
     },
     {
       "path": "tests/lib/orchestration/epic-runner/iterate-waves.resume-check.test.js",
@@ -2669,6 +2705,42 @@
     {
       "path": "tests/lib/orchestration/lifecycle/activation/watcher-behind-recovery.test.js",
       "mi": 108.984
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listener-predicate.test.js",
+      "mi": 105.256
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/listeners/intervention-recorder.test.js",
+      "mi": 106.976
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-close-tail.test.js",
+      "mi": 103.255
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-close-validate.test.js",
+      "mi": 103.866
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/phase-iterate-waves.test.js",
+      "mi": 108.292
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-close-tail.test.js",
+      "mi": 100.823
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-iterate-waves.test.js",
+      "mi": 104.911
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/resume-suite.test.js",
+      "mi": 97.223
+    },
+    {
+      "path": "tests/lib/orchestration/lifecycle/wave-completeness.test.js",
+      "mi": 111.439
     },
     {
       "path": "tests/lib/orchestration/lint-baseline-service.test.js",
@@ -3156,7 +3228,7 @@
     },
     {
       "path": "tests/scripts/epic-deliver-note-intervention.test.js",
-      "mi": 115.532
+      "mi": 111.067
     },
     {
       "path": "tests/scripts/epic-plan-decompose.sub-issue-safety-net.test.js",
@@ -3205,6 +3277,10 @@
     {
       "path": "tests/scripts/git-cleanup.test.js",
       "mi": 107.403
+    },
+    {
+      "path": "tests/scripts/lifecycle-emit.test.js",
+      "mi": 120.425
     },
     {
       "path": "tests/scripts/manifest-formatter-fromspec.test.js",
@@ -3420,7 +3496,7 @@
     },
     {
       "path": "tests/workflows/epic-deliver.test.js",
-      "mi": 105.25
+      "mi": 104.614
     },
     {
       "path": "tests/workflows/epic-execute-record-wave-cli.test.js",

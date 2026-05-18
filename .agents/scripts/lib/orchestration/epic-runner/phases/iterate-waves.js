@@ -126,7 +126,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { concurrencyCap } = getRunners(config).deliverRunner;
   const {
     notify: notifyFn,
-    checkpointer,
+    epicRunStateStore,
     blockerHandler,
     blockerWait,
     launcher,
@@ -153,7 +153,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   // here because it is a runner-state mirror, not a label mutation.
   await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
 
-  await checkpointer.initialize({
+  await epicRunStateStore.initialize({
     totalWaves: scheduler.totalWaves,
     concurrencyCap,
   });
@@ -166,7 +166,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
   // Every other Story serves the resume-check from the provider's
   // in-process cache — eliminating the `fresh: true` round-trip we
   // historically issued for every Story in every wave.
-  const checkpoint = await checkpointer.read().catch(() => null);
+  const checkpoint = await epicRunStateStore.read().catch(() => null);
   const haltedStoryIds = collectHaltedStoryIds(checkpoint);
 
   // Curated webhook fires: `epic-started` anchors the epic narrative; the
@@ -403,7 +403,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       startedAt,
       completedAt: new Date().toISOString(),
     });
-    await checkpointer.write({
+    await epicRunStateStore.write({
       currentWave: scheduler.currentWave,
       totalWaves: scheduler.totalWaves,
       waves: waveHistory,

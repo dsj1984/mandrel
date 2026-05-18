@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/intervention.recorded.schema.json",
+  "title": "intervention.recorded",
+  "description": "Emitted whenever the host LLM performs an out-of-band manual intervention during an Epic delivery (e.g., AskUserQuestion, manual git restore/reset, --no-ff recovery merge, story-close --skipValidation). The InterventionRecorder listener appends the payload to the epic-run-state-store's manualInterventions array; a non-empty array disqualifies the Epic from auto-merge.",
+  "type": "object",
+  "required": ["epicId", "reason"],
+  "properties": {
+    "epicId": { "type": "integer", "minimum": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "source": { "type": "string", "minLength": 1, "default": "host-llm" },
+    "ts": { "type": "string", "format": "date-time" }
+  },
+  "additionalProperties": false
+}

@@ -18,17 +18,16 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-
-import {
-  CLEAN_SPRINT_MARKER,
-  deriveAutoMergeVerdict,
-} from '../../../.agents/scripts/lib/orchestration/automerge-predicate.js';
 import { phaseToState } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import {
   coverageKeyMatches,
   createCrapDriftDetector,
   normaliseCoveragePath,
 } from '../../../.agents/scripts/lib/orchestration/epic-runner/progress-signals/crap-drift.js';
+import {
+  CLEAN_SPRINT_MARKER,
+  deriveAutoMergeVerdict,
+} from '../../../.agents/scripts/lib/orchestration/lifecycle/listeners/automerge-predicate.js';
 import { reconcileHierarchy } from '../../../.agents/scripts/lib/orchestration/reconciler.js';
 import { renderSpec } from '../../../.agents/scripts/lib/orchestration/spec-renderer.js';
 import { runAutoRefresh } from '../../../.agents/scripts/lib/orchestration/story-close/auto-refresh-runner.js';

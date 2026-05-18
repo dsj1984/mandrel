@@ -41,7 +41,7 @@ import { LedgerWriter } from '../../../../.agents/scripts/lib/orchestration/life
 function buildCollaborators({ bus, launcher }) {
   return {
     notify: () => {},
-    checkpointer: {
+    epicRunStateStore: {
       async initialize() {},
       async read() {
         return null;

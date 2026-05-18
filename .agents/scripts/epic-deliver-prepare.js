@@ -10,8 +10,8 @@
  *
  *   1. The Epic ticket snapshot (`runSnapshotPhase`).
  *   2. The wave DAG (`runBuildWaveDagPhase`) computed from every child Story.
- *   3. The seeded `epic-run-state` checkpoint (`Checkpointer.initialize`) —
- *      idempotent, so re-running prepare against a partially-driven Epic
+ *   3. The seeded `epic-run-state` checkpoint (`epic-run-state-store.initialize`)
+ *      — idempotent, so re-running prepare against a partially-driven Epic
  *      preserves the original `startedAt`.
  *   4. The per-wave dispatch plan (`StoryLauncher.planWave`) — a deterministic
  *      list of `{ storyId, worktree }` entries that the slash command feeds
@@ -29,7 +29,10 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { getRunners, resolveConfig } from './lib/config-resolver.js';
 import { Logger } from './lib/Logger.js';
-import { Checkpointer } from './lib/orchestration/epic-runner/checkpointer.js';
+import {
+  initialize as initializeEpicRunState,
+  write as writeEpicRunState,
+} from './lib/orchestration/epic-run-state-store.js';
 import {
   collectPendingStoryKeys,
   evaluateConcurrencyGate,
@@ -131,8 +134,9 @@ export async function runEpicDeliverPrepare({
   }
 
   const totalWaves = state.waves.length;
-  const checkpointer = new Checkpointer({ provider, epicId });
-  const checkpointState = await checkpointer.initialize({
+  const checkpointState = await initializeEpicRunState({
+    provider,
+    epicId,
     totalWaves,
     concurrencyCap,
   });
@@ -158,7 +162,7 @@ export async function runEpicDeliverPrepare({
   if (gate.bypassed) {
     checkpointPayload.ignoreConcurrencyHazards = true;
   }
-  await checkpointer.write(checkpointPayload);
+  await writeEpicRunState({ provider, epicId, state: checkpointPayload });
 
   return {
     epicId,

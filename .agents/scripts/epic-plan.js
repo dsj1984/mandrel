@@ -30,8 +30,8 @@ import {
 } from './lib/config-resolver.js';
 import {
   PLAN_PHASES,
-  PlanCheckpointer,
-} from './lib/orchestration/plan-runner/plan-checkpointer.js';
+  read as readPlanState,
+} from './lib/orchestration/epic-plan-state-store.js';
 import {
   advancePhase,
   nextPhaseForEpic,
@@ -139,8 +139,7 @@ export async function runSprintPlan({
  * @returns {Promise<{ nextPhase: string|null, checkpoint: object|null, epicLabels: string[] }>}
  */
 async function describePlanResumePoint({ provider, epicId }) {
-  const checkpointer = new PlanCheckpointer({ provider, epicId });
-  const checkpoint = await checkpointer.read();
+  const checkpoint = await readPlanState({ provider, epicId });
   const epic = await provider.getEpic(epicId);
   const labels = epic?.labels ?? [];
   const next = nextPhaseForEpic(labels);
@@ -245,6 +244,6 @@ async function main() {
 // Re-export the phase names/enums so downstream tooling can import them from
 // a single entry point. `advancePhase` and `PLAN_PHASES` (phase-name enum)
 // are the two most common consumers.
-export { advancePhase, PLAN_PHASE_NAMES, PLAN_PHASES, PlanCheckpointer };
+export { advancePhase, PLAN_PHASE_NAMES, PLAN_PHASES };
 
 runAsCli(import.meta.url, main, { source: 'epic-plan' });
