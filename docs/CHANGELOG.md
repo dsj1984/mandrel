@@ -185,6 +185,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.20.0](https://github.com/dsj1984/mandrel/compare/v1.19.0...v1.20.0) (2026-05-18)
+
+
+### Added
+
+* **orchestration:** add BranchCleaner lifecycle listener for end-of-Epic branch reap ([#2402](https://github.com/dsj1984/mandrel/issues/2402)) ([b912e54](https://github.com/dsj1984/mandrel/commit/b912e54f5da1c2c8305af4ef0e6eead8f6050d7f)), closes [#2398](https://github.com/dsj1984/mandrel/issues/2398)
+
 ## [1.19.0](https://github.com/dsj1984/mandrel/compare/v1.18.0...v1.19.0) (2026-05-18)
 
 
