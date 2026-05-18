@@ -38,6 +38,7 @@
  *     CI.
  */
 
+import { isObject } from '../json-utils.js';
 import { read as readSignals } from '../signals/read.js';
 import { EVENT_KINDS } from '../signals/schema.js';
 
@@ -53,10 +54,6 @@ const SIGNAL_COUNT_KINDS = Object.freeze([
   EVENT_KINDS.IDLE,
   EVENT_KINDS.RETRY,
 ]);
-
-function isObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
 
 function nonNegativeInt(v) {
   const n = Number(v);

@@ -62,9 +62,7 @@ function aggregate(rows) {
 export function rollup(rows, components = []) {
   const out = { '*': aggregate(rows) };
   for (const c of components ?? []) {
-    const matched = (rows ?? []).filter((r) =>
-      componentMatches(c, r.route),
-    );
+    const matched = (rows ?? []).filter((r) => componentMatches(c, r.route));
     out[c.name] = aggregate(matched);
   }
   return out;

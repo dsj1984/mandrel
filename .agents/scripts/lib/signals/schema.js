@@ -57,6 +57,7 @@
  * @module lib/signals/schema
  */
 
+import { isObject } from '../json-utils.js';
 import { isPositiveInt } from './detectors/common.js';
 
 /**
@@ -117,10 +118,6 @@ export const FIELDS = Object.freeze({
   CATEGORY: 'category',
   PHASE: 'phase',
 });
-
-function isObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
 
 /**
  * Return true when `v` is a non-empty ISO-8601-ish timestamp string.

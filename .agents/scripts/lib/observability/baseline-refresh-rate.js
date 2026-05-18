@@ -32,13 +32,11 @@
  * never throws on bad data.
  */
 
+import { isObject } from '../json-utils.js';
+
 const BASELINE_REFRESH_PREFIX = 'baseline-refresh:';
 const STORY_RESOLVE_PATTERN = /\(resolves\s+#\d+\)/i;
 const DEFAULT_WINDOW_DAYS = 28;
-
-function isObject(v) {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
-}
 
 /**
  * Coerce an ISO-8601 date string to epoch ms. Returns NaN for malformed

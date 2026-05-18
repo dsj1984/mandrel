@@ -50,10 +50,7 @@ describe('componentMatches()', () => {
 
   describe('prefix match', () => {
     it('returns true for a path under the includes directory', () => {
-      assert.equal(
-        componentMatches({ includes: 'src' }, 'src/foo.js'),
-        true,
-      );
+      assert.equal(componentMatches({ includes: 'src' }, 'src/foo.js'), true);
     });
 
     it('returns true for a deeply nested path under the includes directory', () => {
@@ -86,10 +83,7 @@ describe('componentMatches()', () => {
     });
 
     it('rejects a sibling route that only shares a prefix substring', () => {
-      assert.equal(
-        componentMatches({ includes: 'dash' }, 'dashboard'),
-        false,
-      );
+      assert.equal(componentMatches({ includes: 'dash' }, 'dashboard'), false);
     });
   });
 });
