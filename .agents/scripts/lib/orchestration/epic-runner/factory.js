@@ -21,11 +21,13 @@ import { createBus } from '../lifecycle/bus.js';
 import { createLedgerWriter } from '../lifecycle/ledger-writer.js';
 import { BlockerHandler as LifecycleBlockerHandler } from '../lifecycle/listeners/blocker-handler.js';
 import { CheckpointPointerWriter } from '../lifecycle/listeners/checkpoint-pointer-writer.js';
+import { HeartbeatMonitor } from '../lifecycle/listeners/heartbeat-monitor.js';
 import { LabelTransitioner } from '../lifecycle/listeners/label-transitioner.js';
 import { NotifyDispatcher } from '../lifecycle/listeners/notify-dispatcher.js';
 import { ProgressReporter as LifecycleProgressReporter } from '../lifecycle/listeners/progress-reporter.js';
 import { SignalsAppender } from '../lifecycle/listeners/signals-appender.js';
 import { StructuredCommentPoster } from '../lifecycle/listeners/structured-comment-poster.js';
+import { TimeoutWatchdog } from '../lifecycle/listeners/timeout-watchdog.js';
 import { createTraceLogger } from '../lifecycle/trace-logger.js';
 import {
   transitionTicketState,
@@ -146,6 +148,25 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     logger,
   });
 
+  // Story #2314 — register the reliability observers (TimeoutWatchdog,
+  // HeartbeatMonitor) as wildcard subscribers. Per the Epic's canonical
+  // listener ordering, observers run AFTER the trace/ledger writers (so
+  // the audit trail records the emit before the observer reacts) and
+  // BEFORE the named mutators (so a timeout-driven `epic.blocked` emit
+  // races no later-registered handler that might mutate runner state).
+  //
+  // Both observers are wildcard subscribers (`bus.on('*', …)`); the
+  // `wildcard-observer-firewall` lint rule already guarantees neither
+  // file imports a state-mutating module. Returns the constructed
+  // instances so the runner (or tests) can introspect armed timers and
+  // observation cursors; `null` for unit fixtures that hand a minimal
+  // collaborators bag.
+  const reliabilityObservers = registerReliabilityObservers({
+    bus,
+    config,
+    logger,
+  });
+
   // Phase-scoped listener registration. Snapshot + plan phases use the
   // privileged ledger seam for canonical persistence; named listeners
   // here are reserved for downstream side effects (column sync,
@@ -227,7 +248,53 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     traceLogger,
     lifecycleProgressReporter,
     checkpointPointerWriter,
+    reliabilityObservers,
   };
+}
+
+/**
+ * Construct and register the reliability observers
+ * (Story #2314): `TimeoutWatchdog` and `HeartbeatMonitor`. Both
+ * subscribers attach as wildcard observers (`bus.on('*', …)`) so the
+ * firewall lint rule's coverage of every observer remains intact.
+ *
+ * Budgets and warn thresholds are resolved from
+ * `config.delivery.lifecycle.timeouts` and
+ * `config.delivery.lifecycle.heartbeatWarnSeconds` respectively. The
+ * lifecycle schema gate (see `config-settings-schema.js`'s
+ * `LIFECYCLE_SCHEMA`) validates these at startup; this function is
+ * defensive about a missing block so unit fixtures with a minimal
+ * `config` still construct the observers cleanly.
+ *
+ * Returns an object exposing the constructed instances so tests can
+ * introspect armed timers / observation cursors; returns `null` for
+ * unit fixtures that hand an unbusable collaborators bag.
+ */
+export function registerReliabilityObservers({ bus, config, logger }) {
+  if (!bus || typeof bus.on !== 'function' || typeof bus.emit !== 'function') {
+    return null;
+  }
+  const lifecycle = config?.delivery?.lifecycle ?? {};
+  const timeouts =
+    lifecycle.timeouts && typeof lifecycle.timeouts === 'object'
+      ? lifecycle.timeouts
+      : {};
+  const timeoutWatchdog = new TimeoutWatchdog({ timeouts, logger });
+  timeoutWatchdog.register(bus);
+  // HeartbeatMonitor only consumes a positive-integer warn threshold.
+  // Defer to the listener's documented default when no override is
+  // configured — the constructor enforces the positivity guard so a
+  // missing or invalid value never produces a non-functional monitor.
+  const heartbeatOpts = { logger };
+  if (Number.isInteger(lifecycle.heartbeatWarnSeconds)) {
+    heartbeatOpts.warnSeconds = lifecycle.heartbeatWarnSeconds;
+  }
+  const heartbeatMonitor = new HeartbeatMonitor(heartbeatOpts);
+  heartbeatMonitor.register(bus);
+  logger?.debug?.(
+    '[lifecycle] reliability observers registered (timeout-watchdog, heartbeat-monitor wildcards)',
+  );
+  return { timeoutWatchdog, heartbeatMonitor };
 }
 
 /**
