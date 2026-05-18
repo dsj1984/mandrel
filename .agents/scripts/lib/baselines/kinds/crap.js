@@ -26,6 +26,11 @@ import {
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { Logger } from '../../Logger.js';
 import { componentMatches } from '../component-matcher.js';
+import {
+  kernelDriftAxis,
+  missingBaselineAxis,
+  reduceCompatAxes,
+} from '../envelope.js';
 import { canonicalise } from '../path-canon.js';
 import { mergeRowsByScope } from '../scope.js';
 
@@ -401,14 +406,10 @@ export function compareCrap({
  * mismatch continues to fail closed.
  */
 export const CRAP_COMPAT_AXES = [
-  {
-    name: 'missing-baseline',
-    severity: 'fatal',
-    check: ({ baseline }) =>
-      baseline === null || baseline === undefined
-        ? "[CRAP] ❌ no baseline found — run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to bootstrap"
-        : null,
-  },
+  // Universal axes hoisted into envelope.js (Story #2467, Task #2492). The
+  // missing-baseline and kernel-drift checks live in exactly one place;
+  // each per-kind table composes them in with its own kind label.
+  missingBaselineAxis('CRAP'),
   {
     name: 'escomplex-mismatch',
     severity: 'fatal',
@@ -417,15 +418,7 @@ export const CRAP_COMPAT_AXES = [
         ? `[CRAP] scorer changed from ${baseline.escomplexVersion} to ${runningEscomplexVersion} — run 'npm run crap:update'`
         : null,
   },
-  {
-    name: 'kernel-drift',
-    severity: 'warn',
-    check: ({ baseline, runningKernelVersion }) =>
-      baseline && baseline.kernelVersion !== runningKernelVersion
-        ? `[CRAP] ⚠ kernelVersion drift: baseline=${baseline.kernelVersion} running=${runningKernelVersion}. ` +
-          "Run 'npm run crap:update' and commit with a 'baseline-refresh:' subject to refresh."
-        : null,
-  },
+  kernelDriftAxis('CRAP'),
   {
     name: 'ts-transpiler-drift',
     severity: 'warn',
@@ -452,19 +445,7 @@ export const CRAP_COMPAT_AXES = [
  * is preserved byte-for-byte vs the prior imperative implementation.
  */
 export function evaluateBaselineCompatibility(ctx) {
-  return CRAP_COMPAT_AXES.reduce(
-    (acc, axis) => {
-      if (!acc.ok) return acc;
-      const message = axis.check(ctx);
-      if (!message) return acc;
-      if (axis.severity === 'fatal') {
-        return { ok: false, exitCode: 1, kind: axis.name, message };
-      }
-      acc.warnings.push(message);
-      return acc;
-    },
-    { ok: true, warnings: [] },
-  );
+  return reduceCompatAxes(CRAP_COMPAT_AXES, ctx);
 }
 
 /**
