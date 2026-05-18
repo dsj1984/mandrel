@@ -24,10 +24,7 @@
  * ```
  */
 
-import {
-  findStructuredComment,
-  upsertStructuredComment,
-} from './ticketing.js';
+import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 export const EPIC_PLAN_STATE_TYPE = 'epic-plan-state';
 export const PLAN_CHECKPOINT_SCHEMA_VERSION = 1;
@@ -50,7 +47,8 @@ export const PLAN_PHASES = Object.freeze({
 const JSON_FENCE_RE = /```json\s*\n([\s\S]*?)\n```/;
 
 function assertProvider(provider) {
-  if (!provider) throw new TypeError('epic-plan-state-store requires a provider');
+  if (!provider)
+    throw new TypeError('epic-plan-state-store requires a provider');
 }
 
 function assertEpicId(epicId) {
@@ -98,12 +96,7 @@ export async function write({ provider, epicId, state } = {}) {
     lastUpdatedAt: new Date().toISOString(),
   };
   const body = `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
-  await upsertStructuredComment(
-    provider,
-    epicId,
-    EPIC_PLAN_STATE_TYPE,
-    body,
-  );
+  await upsertStructuredComment(provider, epicId, EPIC_PLAN_STATE_TYPE, body);
   return payload;
 }
 

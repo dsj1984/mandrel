@@ -13,12 +13,9 @@
  * following the schema in tech spec #323.
  */
 
-import { parseFencedJsonComment } from './structured-comment-parser.js';
-import {
-  findStructuredComment,
-  upsertStructuredComment,
-} from './ticketing.js';
 import { assertValidDeliverPhase } from './epic-runner/deliver-phases.js';
+import { parseFencedJsonComment } from './structured-comment-parser.js';
+import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 
 export const EPIC_RUN_STATE_TYPE = 'epic-run-state';
 export const CHECKPOINT_SCHEMA_VERSION = 1;
@@ -31,7 +28,8 @@ export {
 } from './epic-runner/deliver-phases.js';
 
 function assertProvider(provider) {
-  if (!provider) throw new TypeError('epic-run-state-store requires a provider');
+  if (!provider)
+    throw new TypeError('epic-run-state-store requires a provider');
 }
 
 function assertEpicId(epicId) {
@@ -73,12 +71,7 @@ export async function write({ provider, epicId, state } = {}) {
     lastUpdatedAt: new Date().toISOString(),
   };
   const body = `\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
-  await upsertStructuredComment(
-    provider,
-    epicId,
-    EPIC_RUN_STATE_TYPE,
-    body,
-  );
+  await upsertStructuredComment(provider, epicId, EPIC_RUN_STATE_TYPE, body);
   return payload;
 }
 
@@ -148,14 +141,8 @@ export async function initialize({
 export async function appendIntervention({ provider, epicId, entry } = {}) {
   assertProvider(provider);
   assertEpicId(epicId);
-  if (
-    !entry ||
-    typeof entry.reason !== 'string' ||
-    entry.reason.length === 0
-  ) {
-    throw new TypeError(
-      'appendIntervention: { reason: string } is required.',
-    );
+  if (!entry || typeof entry.reason !== 'string' || entry.reason.length === 0) {
+    throw new TypeError('appendIntervention: { reason: string } is required.');
   }
   const existing = (await read({ provider, epicId })) ?? {};
   const list = Array.isArray(existing.manualInterventions)
