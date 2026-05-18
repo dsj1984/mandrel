@@ -49,7 +49,10 @@ describe('CRAP_COMPAT_AXES table shape', () => {
 
 describe('CRAP_COMPAT_AXES — per-axis check()', () => {
   it('missing-baseline fires when baseline is null', () => {
-    assert.match(axis('missing-baseline').check({ baseline: null }), /no baseline found/);
+    assert.match(
+      axis('missing-baseline').check({ baseline: null }),
+      /no baseline found/,
+    );
     assert.equal(axis('missing-baseline').check(VALID_CTX), null);
   });
 
