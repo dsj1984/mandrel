@@ -185,6 +185,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.22.0](https://github.com/dsj1984/mandrel/compare/v1.21.0...v1.22.0) (2026-05-18)
+
+
+### Changed
+
+* **audit-suite:** centralize audit artifacts under {tempRoot}/audits ([#2452](https://github.com/dsj1984/mandrel/issues/2452)) ([1eff6c4](https://github.com/dsj1984/mandrel/commit/1eff6c48e1da0f8828016d30db8c4e8aaa3663cd)), closes [#2451](https://github.com/dsj1984/mandrel/issues/2451)
+
 ## [1.21.0](https://github.com/dsj1984/mandrel/compare/v1.20.0...v1.21.0) (2026-05-18)
 
 
