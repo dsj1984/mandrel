@@ -304,7 +304,10 @@ describe('factory close-tail registrar — AcceptanceReconciler activation', () 
 describe('factory close-tail registrar — Finalizer activation', () => {
   it('exposes finalizer on the collaborator bag', () => {
     const collaborators = createEpicRunnerCollaborators(buildAcceptanceCtx());
-    assert.ok(collaborators.finalizer, 'collaborators.finalizer must be present');
+    assert.ok(
+      collaborators.finalizer,
+      'collaborators.finalizer must be present',
+    );
     assert.ok(
       collaborators.finalizer instanceof Finalizer,
       'collaborators.finalizer must be a Finalizer',

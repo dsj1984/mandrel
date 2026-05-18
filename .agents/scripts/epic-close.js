@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /* node:coverage ignore file */
 
 /**
@@ -35,12 +36,12 @@
  * @see .agents/scripts/epic-deliver-finalize.js
  */
 
+import { runAsCli } from './lib/cli-utils.js';
+import { resolveConfig as defaultResolveConfig } from './lib/config-resolver.js';
 import {
   closePlanningArtifacts as defaultClosePlanningArtifacts,
   verifyAndRecoverEpicClose as defaultVerifyAndRecoverEpicClose,
-} from './epic-deliver-finalize.js';
-import { runAsCli } from './lib/cli-utils.js';
-import { resolveConfig as defaultResolveConfig } from './lib/config-resolver.js';
+} from './lib/epic-close-tail-helpers.js';
 import { Logger } from './lib/Logger.js';
 import {
   PREFLIGHT_REFUSED_EXIT_CODE,
