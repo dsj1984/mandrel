@@ -185,6 +185,21 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.19.0](https://github.com/dsj1984/mandrel/compare/v1.18.0...v1.19.0) (2026-05-18)
+
+
+### Added
+
+* **epic-deliver:** surface cross-Story conflict findings in manifest and prepare-gate (resolves [#2297](https://github.com/dsj1984/mandrel/issues/2297)) ([#2305](https://github.com/dsj1984/mandrel/issues/2305)) ([e2a3288](https://github.com/dsj1984/mandrel/commit/e2a3288ef4a6d671d91a0a58627d29205fc92f18))
+* **epic-plan:** add cross-Story path-conflict & implicit-dependency graph (resolves [#2296](https://github.com/dsj1984/mandrel/issues/2296)) ([#2302](https://github.com/dsj1984/mandrel/issues/2302)) ([20fe62c](https://github.com/dsj1984/mandrel/commit/20fe62c81f319f40ac17069e6cf5fd44df72ac04))
+* **epic-plan:** decomposer prompt heuristic for shared config-file edits across Stories ([#2300](https://github.com/dsj1984/mandrel/issues/2300)) ([30dadc0](https://github.com/dsj1984/mandrel/commit/30dadc070124e45e5b56cf4295763fee1c28ed65)), closes [#2298](https://github.com/dsj1984/mandrel/issues/2298)
+* **workflows:** add /single-story-plan for standalone Story drafting (resolves [#2293](https://github.com/dsj1984/mandrel/issues/2293)) ([#2295](https://github.com/dsj1984/mandrel/issues/2295)) ([7b9b3b7](https://github.com/dsj1984/mandrel/commit/7b9b3b7cd76d9d92dff9aa451c05fbc6b039199e))
+
+
+### Fixed
+
+* **retro:** align retro-runner with ITicketingProvider; add no-op guard; count manual interventions ([#2290](https://github.com/dsj1984/mandrel/issues/2290)) ([3815739](https://github.com/dsj1984/mandrel/commit/3815739f0cc707c8ea24606198edf55936de9357)), closes [#2289](https://github.com/dsj1984/mandrel/issues/2289)
+
 ## [1.18.0](https://github.com/dsj1984/mandrel/compare/v1.17.0...v1.18.0) (2026-05-17)
 
 
