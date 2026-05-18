@@ -166,10 +166,9 @@ NDJSON.
 
 Resume is ledger-driven. The resume helper reads
 `temp/epic-<id>/lifecycle.ndjson`, finds the highest seqId with a
-terminal record (`completed` or `failed`), and replays the bus from that
-point. Idempotent listeners (`Set<seqId>` guard) make the replay safe.
-The pre-cutover compatibility shim (`legacy-resume.js`) was retired in
-Epic #2307 once every live Epic produced a native ledger.
+terminal record (`completed` or `failed`), and replays the bus from
+that point. Idempotent listeners (`Set<seqId>` guard) make the replay
+safe — the NDJSON ledger is the sole source of truth for resume.
 
 ---
 
@@ -192,7 +191,7 @@ boundary is always the first writer.
 | `NotifyDispatcher`           | The curated webhook subset (`epic-*` events)                                                   | Fan out the @mention + webhook channels via `notify.js`.             |
 | `CheckpointPointerWriter`    | `wave.end`, `epic.finalize.start`, `epic.complete`                                             | Persist a resume pointer in `epic-run-state`.                        |
 | `AcceptanceReconciler`       | `epic.close.start` (gated by waiver label)                                                     | Reconcile AC IDs against the linked acceptance-spec ticket.          |
-| `Finalizer`                  | `epic.finalize.start`                                                                          | Drive `epic-deliver-finalize.js` (PR-open + handoff comment).        |
+| `Finalizer`                  | `epic.finalize.start`                                                                          | FF-merge `epic/<id>` onto `main`, push, open the PR, close planning tickets, post the handoff comment. |
 | `Watcher`                    | `pr.created`                                                                                   | Resolve required-check names; poll `gh pr checks`; emit `epic.watch.end`. |
 | `AutomergePredicate`         | `epic.watch.end`                                                                               | Evaluate predicate signals; emit `epic.merge.ready` or `epic.merge.blocked`. |
 | `AutomergeArmer`             | `epic.merge.ready` **only**                                                                    | Arm GitHub native auto-merge — the SOLE production code path authorised to call `gh pr merge`. |
@@ -217,30 +216,28 @@ lint.
 
 ---
 
-## 5. Thin emit shims
+## 5. Emit boundaries
 
-Four CLI entry points that used to drive phase boundaries directly now
-serve as telemetry shims — they emit a single lifecycle event and exit.
-The actual work runs inside the `/epic-deliver` runner where the
-listener chain is wired:
+The lifecycle bus is the sole runtime; every side effect at a phase
+boundary is owned by a listener that subscribes to a typed event. The
+`/epic-deliver` workflow markdown reaches the bus through a single
+generic CLI — there are no per-phase shim scripts.
 
-- [`.agents/scripts/epic-deliver-automerge.js`](../.agents/scripts/epic-deliver-automerge.js)
-  — emits `epic.automerge.start`. Arming happens in `AutomergeArmer`.
-- [`.agents/scripts/epic-deliver-cleanup.js`](../.agents/scripts/epic-deliver-cleanup.js)
-  — emits `epic.cleanup.start`. The archive + branch reap happens in
-  `Cleaner`.
-- [`.agents/scripts/epic-deliver-finalize.js`](../.agents/scripts/epic-deliver-finalize.js)
-  — still drives FF-merge + push + `gh pr create` in-process, but no
-  longer calls `gh pr merge --auto`; auto-merge enablement lives in the
-  bus chain (`AutomergeArmer`).
-- [`.agents/scripts/notify.js`](../.agents/scripts/notify.js) — still
-  the single dispatch entry point for webhook / @mention channels, but
-  the canonical caller in the Wave-7+ runtime is `NotifyDispatcher`, not
-  inline calls at phase boundaries.
+- [`.agents/scripts/lifecycle-emit.js`](../.agents/scripts/lifecycle-emit.js)
+  — generic argv-driven emit helper. Phase 6 fires `epic.close.end`,
+  Phase 7.5 fires `epic.automerge.start`, Phase 8 fires
+  `epic.merge.armed`. Schema validation in the bus catches missing or
+  malformed payload fields before any listener runs.
+- [`.agents/scripts/notify.js`](../.agents/scripts/notify.js) — single
+  dispatch entry point for webhook / @mention channels. The canonical
+  caller is the `NotifyDispatcher` listener; out-of-band operator
+  invocations (smoke-testing a channel, replaying a missed notification)
+  remain supported.
 
-Direct invocations of the shims remain supported for operator one-shots
-(structured-comment back-channel and similar emergency flows) but no
-longer mutate Epic state at phase boundaries.
+Inside the session, the runner factory wires the listener roster onto
+the bus before the wave loop starts; emits from `lifecycle-emit.js`
+re-enter the same chain. The ledger writes (`emitted` → listener fan-out
+→ `completed` / `failed`) make the replay deterministic.
 
 ---
 

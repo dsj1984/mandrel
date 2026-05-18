@@ -27,10 +27,10 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
   → Phase 4 — code-review          (helpers/epic-code-review.md)
   → Phase 5 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
-  → Phase 6 — finalize             (epic-deliver-finalize.js → open PR to main)
+  → Phase 6 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
   → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
-  → Phase 7.5 — auto-merge gate    (epic-deliver-automerge.js)
-  → Phase 8 — cleanup              (epic-deliver-cleanup.js — only after merge)
+  → Phase 7.5 — auto-merge gate    (lifecycle-emit → epic.automerge.start)
+  → Phase 8 — cleanup              (lifecycle-emit → epic.merge.armed — only after merge)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
@@ -73,10 +73,13 @@ Every other runtime modifier is sourced from the Epic's labels or from
 - **Lifecycle bus is the runner model.** Phase transitions, ticket
   state flips, structured comments, and notifications are emitted as
   typed events on the in-session lifecycle bus; a fixed roster of
-  listeners performs the side effects. The CLIs called below
-  (`epic-deliver-finalize.js`, `epic-deliver-automerge.js`,
-  `epic-deliver-cleanup.js`) are thin emit shims for the matching
-  listener chain. The append-only NDJSON ledger at
+  listeners performs the side effects. Phase 6, 7.5, and 8 each fire
+  exactly one lifecycle event via the generic
+  [`lifecycle-emit.js`](../scripts/lifecycle-emit.js) CLI
+  (`--event epic.close.end` / `--event epic.automerge.start` /
+  `--event epic.merge.armed`); the matching listener chain runs the
+  side effects (acceptance reconcile, PR open, auto-merge arm,
+  branch cleanup). The append-only NDJSON ledger at
   `temp/epic-<id>/lifecycle.ndjson` is the resume target. See
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
@@ -295,10 +298,11 @@ and never fails the phase.
 ## Phase 6 — Finalize (open PR to main)
 
 ```bash
-node .agents/scripts/epic-deliver-finalize.js --epic <epicId>
+node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 ```
 
-Runs three close-time responsibilities in order:
+Emits `epic.close.end` onto the lifecycle bus. The matching listener
+chain runs three close-time responsibilities in order:
 
 1. **Acceptance-spec reconciliation.** Invokes
    [`acceptance-spec-reconciler.js`](../scripts/acceptance-spec-reconciler.js)
@@ -351,10 +355,11 @@ calls per session and `--poll-interval-ms MS` (default 10000) to
 override the polling cadence.
 
 Exit 0 → proceed to Phase 7.5. Non-zero → remediate (below) and re-run
-the helper. Auto-merge stays armed across retries; Phase 7.5
-(`epic-deliver-automerge.js`) still re-checks `mergeStateStatus` before
-firing merge, so a second BEHIND that arrives between the helper
-exiting clean and Phase 7.5 starting is also caught.
+the helper. Auto-merge stays armed across retries; the
+`epic.automerge.start` emit in Phase 7.5 re-runs the `AutomergeArmer`
+listener, which re-checks `mergeStateStatus` before firing merge, so a
+second BEHIND that arrives between the helper exiting clean and Phase
+7.5 starting is also caught.
 
 ### 7.1 Remediation
 
@@ -391,13 +396,18 @@ refresh baselines to dodge a red check.
 
 ## Phase 7.5 — Auto-merge gate
 
-After Phase 7 exits 0, evaluate the auto-merge predicate:
+After Phase 7 exits 0, evaluate the auto-merge predicate by emitting
+`epic.automerge.start`:
 
 ```bash
-node .agents/scripts/epic-deliver-automerge.js --epic <epicId> --pr <prNumber>
+node .agents/scripts/lifecycle-emit.js --epic <epicId> \
+  --event epic.automerge.start --pr-url <prUrl>
 ```
 
-`clean: true` only when **all** of:
+The `AutomergeArmer` listener subscribes to the downstream
+`epic.merge.ready` outcome and fires `gh pr merge --auto --squash
+--delete-branch` only when `clean: true`. `clean: true` requires
+**all** of:
 
 - `state.manualInterventions[]` is empty;
 - every wave's `status === "complete"`;
@@ -405,9 +415,10 @@ node .agents/scripts/epic-deliver-automerge.js --epic <epicId> --pr <prNumber>
 - code-review reports `0` 🔴 + `0` 🟠 findings;
 - the retro is the compact "🟢 Clean sprint" body.
 
-When clean, fires `gh pr merge --squash --delete-branch`. Otherwise
-prints disqualifying reasons and exits without merging — operator
-merges manually.
+When clean, the listener fires `gh pr merge --squash --delete-branch`.
+Otherwise the listener records disqualifying reasons via
+`epic.merge.blocked` and exits without merging — operator merges
+manually.
 
 ### Recording manual interventions
 
@@ -428,22 +439,26 @@ empty-committing to dodge CI diagnosis.
 
 ## Phase 8 — Local branch cleanup
 
-After Phase 7.5 has merged the PR (auto or manual), reap local refs:
+After Phase 7.5 has merged the PR (auto or manual), reap local refs by
+emitting `epic.merge.armed`:
 
 ```bash
-node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>
+node .agents/scripts/lifecycle-emit.js --epic <epicId> \
+  --event epic.merge.armed --pr-url <prUrl>
 ```
 
-Enumerates `epic/<id>` + every `story-<storyId>`, removes worktrees,
-prunes the registry, drops local refs. Remote branches are out of
-scope (`gh pr merge --delete-branch` handled them). The rare
-"scrap and reset" case for an unmerged Epic — walking remote `task/*`
-and `feature/*` refs — is handled manually.
+The `Cleaner` listener subscribes to `epic.merge.armed`, enumerates
+`epic/<id>` + every `story-<storyId>`, removes worktrees, prunes the
+registry, drops local refs, and concludes with `epic.complete`.
+Remote branches are out of scope (`gh pr merge --delete-branch`
+handled them). The rare "scrap and reset" case for an unmerged
+Epic — walking remote `task/*` and `feature/*` refs — is handled
+manually.
 
 If Phase 7.5 fell back to the operator-merges-button path, **do not**
-run Phase 8 yourself — the operator runs
-`node .agents/scripts/epic-deliver-cleanup.js --epic <epicId>` after
-they merge.
+run Phase 8 yourself — the operator emits `epic.merge.armed` via
+`node .agents/scripts/lifecycle-emit.js --epic <epicId> --event
+epic.merge.armed --pr-url <prUrl>` after they merge.
 
 ---
 
