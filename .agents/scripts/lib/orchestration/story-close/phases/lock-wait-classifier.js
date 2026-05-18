@@ -86,7 +86,10 @@ function readCpuMsPosix(pid) {
     // trailing `)` to get a stable index for fields 3+.
     const closeParen = raw.lastIndexOf(')');
     if (closeParen < 0) return null;
-    const after = raw.slice(closeParen + 1).trim().split(/\s+/);
+    const after = raw
+      .slice(closeParen + 1)
+      .trim()
+      .split(/\s+/);
     // After the close paren, indices shift by 3 (1=pid, 2=comm, 3=state →
     // after[0]). utime=field14 → after[11]; stime=field15 → after[12].
     const utime = Number(after[11]);
@@ -155,7 +158,10 @@ function processStartTimePosix(pid) {
     const raw = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
     const closeParen = raw.lastIndexOf(')');
     if (closeParen < 0) return null;
-    const after = raw.slice(closeParen + 1).trim().split(/\s+/);
+    const after = raw
+      .slice(closeParen + 1)
+      .trim()
+      .split(/\s+/);
     // starttime = field 22 → after[19]: clock ticks since boot.
     const startTicks = Number(after[19]);
     if (!Number.isFinite(startTicks)) return null;
@@ -336,4 +342,3 @@ function defaultIsAlive(pid) {
     return err.code === 'EPERM';
   }
 }
-
