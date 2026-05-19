@@ -62,4 +62,35 @@ describe('getRunners', () => {
     const r = getRunners({});
     assert.equal(r.decomposer.concurrencyCap, 3);
   });
+
+  it('returns documented defaults for delivery.epicAudit (Story #2611)', () => {
+    for (const input of [null, undefined, {}, { delivery: {} }]) {
+      const r = getRunners(input);
+      assert.deepEqual(r.epicAudit, { maxFixAttempts: 3, maxFixScopeFiles: 5 });
+    }
+  });
+
+  it('returns documented defaults for delivery.codeReview (Story #2611)', () => {
+    for (const input of [null, undefined, {}, { delivery: {} }]) {
+      const r = getRunners(input);
+      assert.deepEqual(r.codeReview, {
+        maxFixAttempts: 3,
+        maxFixScopeFiles: 5,
+      });
+    }
+  });
+
+  it('reads delivery.epicAudit overrides from config', () => {
+    const r = getRunners({
+      delivery: { epicAudit: { maxFixAttempts: 1, maxFixScopeFiles: 10 } },
+    });
+    assert.deepEqual(r.epicAudit, { maxFixAttempts: 1, maxFixScopeFiles: 10 });
+  });
+
+  it('reads delivery.codeReview overrides from config', () => {
+    const r = getRunners({
+      delivery: { codeReview: { maxFixAttempts: 0, maxFixScopeFiles: 2 } },
+    });
+    assert.deepEqual(r.codeReview, { maxFixAttempts: 0, maxFixScopeFiles: 2 });
+  });
 });
