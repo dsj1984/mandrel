@@ -2,10 +2,7 @@
 description:
   Orchestrates end-to-end Epic planning (PRD, Tech Spec, Acceptance Spec, and
   Work Breakdown) for a GitHub Epic.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: planning orchestrator composes PRD + Tech Spec + Acceptance Spec + WBS — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-plan [Epic ID]
 

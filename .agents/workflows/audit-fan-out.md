@@ -4,8 +4,6 @@ description: >-
   audit-* child (security, clean-code, dependencies, devops, lighthouse,
   performance, privacy, quality, seo, sre, ux-ui, architecture) and collect
   the per-child return envelopes for aggregation into a unified report.
-recommendedModel: opus
-# rationale: aggregation reasoning across 12 audit envelopes benefits from opus
 dispatchModel: haiku
 # rationale: per-audit children are structured scan + report writers — haiku is fast and sufficient
 ---
@@ -39,10 +37,9 @@ layer rather than the Story layer.
   → aggregate per-child envelopes into one unified report grouped by status
 ```
 
-The frontmatter declares `recommendedModel: opus` (the aggregator runs in
-the parent's loop and benefits from reasoning headroom) and
-`dispatchModel: haiku` (the children are structured scanners + report
-writers, well within haiku's competency and ~4–6× cheaper). See
+The frontmatter declares `dispatchModel: haiku` (the children are
+structured scanners + report writers, well within haiku's competency and
+~4–6× cheaper than the parent's loop). See
 [`README.md`](../README.md#workflow-authoring) for the precedence rules.
 
 > Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) Rule 3

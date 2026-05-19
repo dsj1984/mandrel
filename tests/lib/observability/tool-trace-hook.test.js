@@ -423,6 +423,71 @@ describe('tool-trace-hook — normalizedHash on trace records (Story #1768 / Tas
     assert.notEqual(lines[0].details.targetHash, lines[1].details.targetHash);
   });
 
+  it('records details.model on Agent calls (Story #2590)', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-agent-haiku',
+        tool_name: 'Agent',
+        tool_input: {
+          subagent_type: 'general-purpose',
+          model: 'haiku',
+          prompt: 'do work',
+        },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-agent-bare',
+        tool_name: 'Agent',
+        tool_input: { subagent_type: 'general-purpose', prompt: 'do work' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0].source.tool, 'Agent');
+    assert.equal(lines[0].details.model, 'haiku');
+    // Bare Agent call (no model) records `null` so the analyzer can
+    // distinguish "Agent fired without model" from "non-Agent tool".
+    assert.equal(lines[1].source.tool, 'Agent');
+    assert.equal(lines[1].details.model, null);
+    assert.equal(Object.hasOwn(lines[1].details, 'model'), true);
+  });
+
+  it('does NOT record details.model on non-Agent tool events', async () => {
+    await handlePost(
+      {
+        hook_event_name: 'PostToolUse',
+        tool_use_id: 'tu-nonagent-model',
+        tool_name: 'Bash',
+        tool_input: { command: 'echo hi' },
+      },
+      { epicId: 1030, storyId: 1043 },
+    );
+
+    const raw = await fs.readFile(
+      path.join(workRoot, 'temp', 'epic-1030', 'story-1043', 'traces.ndjson'),
+      'utf8',
+    );
+    const lines = raw
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1);
+    assert.equal(Object.hasOwn(lines[0].details, 'model'), false);
+  });
+
   it('does NOT record normalizedHash on non-Bash tool events (Edit / Write / Read / Grep / Glob)', async () => {
     const cases = [
       { tool: 'Edit', tool_input: { file_path: '/x/a.ts' } },

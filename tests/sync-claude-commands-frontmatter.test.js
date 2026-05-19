@@ -1,11 +1,12 @@
 /**
- * sync-claude-commands frontmatter pass-through (Story #1324, Epic #1185).
+ * sync-claude-commands frontmatter pass-through (Story #1324, Epic #1185;
+ * trimmed in Story #2590 after `recommendedModel` was removed).
  *
- * Asserts that the sync script propagates the optional `recommendedModel`
- * and `dispatchModel` fields verbatim, and that a workflow with neither
- * field set produces output that is byte-identical to today's baseline
- * (HEADER + source bytes). Together this proves the plumbing layer needs
- * no code change beyond the env-var SRC/DEST overrides added for testing.
+ * Asserts that the sync script propagates the optional `dispatchModel`
+ * field verbatim, and that a workflow with no model hint produces output
+ * that is byte-identical to today's baseline (HEADER + source bytes).
+ * Together this proves the plumbing layer needs no code change beyond
+ * the env-var SRC/DEST overrides added for testing.
  */
 
 import assert from 'node:assert/strict';
@@ -62,11 +63,10 @@ function runSyncWith(sources) {
   return synced;
 }
 
-test('sync-claude-commands: preserves recommendedModel + dispatchModel verbatim', () => {
+test('sync-claude-commands: preserves dispatchModel verbatim', () => {
   const source = [
     '---',
-    'description: Fixture workflow with both model hint fields.',
-    'recommendedModel: opus',
+    'description: Fixture workflow with a dispatchModel hint.',
     'dispatchModel: haiku',
     '---',
     '',
@@ -76,24 +76,22 @@ test('sync-claude-commands: preserves recommendedModel + dispatchModel verbatim'
     '',
   ].join('\n');
 
-  const synced = runSyncWith({ 'fixture-both.md': source });
+  const synced = runSyncWith({ 'fixture-dispatch.md': source });
 
-  assert.ok(synced['fixture-both.md'], 'expected fixture-both.md in dest');
+  assert.ok(synced['fixture-dispatch.md'], 'expected fixture-dispatch.md');
   // Header is prepended verbatim and frontmatter survives byte-for-byte.
-  assert.equal(synced['fixture-both.md'], HEADER + source);
-  // Defensive: both new fields are present in the synced output.
-  assert.match(synced['fixture-both.md'], /^recommendedModel: opus$/m);
-  assert.match(synced['fixture-both.md'], /^dispatchModel: haiku$/m);
+  assert.equal(synced['fixture-dispatch.md'], HEADER + source);
+  assert.match(synced['fixture-dispatch.md'], /^dispatchModel: haiku$/m);
 });
 
 test('sync-claude-commands: workflow without model hints is byte-identical to baseline', () => {
-  // A workflow declaring only `description` represents the pre-Epic shape.
-  // The synced output must equal HEADER + source bytes exactly — proof
-  // that the plumbing layer's behaviour is unchanged for workflows that
-  // opt out of the new convention.
+  // A workflow declaring only `description` represents the post-#2590
+  // baseline shape. The synced output must equal HEADER + source bytes
+  // exactly — proof that the plumbing layer's behaviour is unchanged for
+  // workflows that opt out of the convention.
   const source = [
     '---',
-    'description: Fixture workflow with no model hints (pre-Epic shape).',
+    'description: Fixture workflow with no model hints (baseline shape).',
     '---',
     '',
     '# Baseline',
@@ -106,19 +104,17 @@ test('sync-claude-commands: workflow without model hints is byte-identical to ba
 
   assert.ok(synced['fixture-baseline.md'], 'expected fixture-baseline.md');
   assert.equal(synced['fixture-baseline.md'], HEADER + source);
-  // Confirm neither new field leaked in.
-  assert.doesNotMatch(synced['fixture-baseline.md'], /recommendedModel/);
+  // Confirm no model hint leaked in.
   assert.doesNotMatch(synced['fixture-baseline.md'], /dispatchModel/);
 });
 
-test('sync-claude-commands: each enum value round-trips for both fields', () => {
+test('sync-claude-commands: each enum value round-trips for dispatchModel', () => {
   const values = ['haiku', 'sonnet', 'opus'];
   const sources = {};
   for (const v of values) {
     sources[`fixture-${v}.md`] = [
       '---',
       `description: Fixture for ${v}.`,
-      `recommendedModel: ${v}`,
       `dispatchModel: ${v}`,
       '---',
       '',
