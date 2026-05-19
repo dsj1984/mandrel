@@ -92,6 +92,18 @@ describe('ticketing/reads — constants and validators', () => {
     );
     assert.doesNotThrow(() => assertValidStructuredCommentType('friction'));
   });
+
+  // Story #2681 — `audit-results` was prescribed by `helpers/epic-audit.md`
+  // Step 4 before it was added to the registry; the missing entry made
+  // every Phase 4 audit-results upsert fail with "Invalid structured-
+  // comment type". Pin the entry so the helper's invocation stays
+  // green and the marker can't be silently retired again.
+  it('isValidStructuredCommentType accepts the audit-results marker', () => {
+    assert.equal(isValidStructuredCommentType('audit-results'), true);
+    assert.doesNotThrow(() =>
+      assertValidStructuredCommentType('audit-results'),
+    );
+  });
 });
 
 describe('ticketing/reads — structuredCommentMarker', () => {
