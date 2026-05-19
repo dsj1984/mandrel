@@ -136,7 +136,10 @@ export function describeAttemptFailure(result, timeoutMs) {
 }
 
 /** Relative path of the per-machine pnpm-store prime sentinel (under tempRoot). */
-export const PNPM_STORE_PRIME_SENTINEL = path.join('temp', '.pnpm-store-primed');
+export const PNPM_STORE_PRIME_SENTINEL = path.join(
+  'temp',
+  '.pnpm-store-primed',
+);
 
 /**
  * Pure: one-time per-machine pnpm content-addressable-store prime.
@@ -197,7 +200,9 @@ export function primePnpmStore({
     );
     return { primed: 'failed', reason: 'sentinel-write-failed' };
   }
-  logger.info(`worktree.install prime succeeded (sentinel written ${sentinelPath})`);
+  logger.info(
+    `worktree.install prime succeeded (sentinel written ${sentinelPath})`,
+  );
   return { primed: 'primed' };
 }
 

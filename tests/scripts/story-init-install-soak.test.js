@@ -23,8 +23,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
-  PNPM_STORE_PRIME_SENTINEL,
   installRetryPolicy,
+  PNPM_STORE_PRIME_SENTINEL,
   primePnpmStore,
   runInstallWithRetry,
 } from '../../.agents/scripts/lib/worktree/node-modules-strategy.js';
@@ -61,7 +61,11 @@ test('soak: 5 consecutive worktree inits produce zero npm ci fallbacks', () => {
     if (i === 0) {
       assert.equal(primeResult.primed, 'primed', 'first iteration primes');
     } else {
-      assert.equal(primeResult.primed, 'cached', 'subsequent iterations cached');
+      assert.equal(
+        primeResult.primed,
+        'cached',
+        'subsequent iterations cached',
+      );
     }
 
     // Then run the worktree-local install; success on attempt 1 models the

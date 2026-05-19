@@ -23,9 +23,9 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
-  PNPM_STORE_PRIME_SENTINEL,
   installDependencies,
   installRetryPolicy,
+  PNPM_STORE_PRIME_SENTINEL,
   primePnpmStore,
   runInstallWithRetry,
 } from '../../../.agents/scripts/lib/worktree/node-modules-strategy.js';
@@ -46,29 +46,32 @@ function mkPnpmStoreWorktree() {
   return root;
 }
 
-test('runInstallWithRetry: transient failure (fails once, then succeeds) ' +
-  'reports ok=true and exactly two attempts', () => {
-  let calls = 0;
-  const logger = collectingLogger();
-  const out = runInstallWithRetry({
-    cmd: 'pnpm',
-    args: ['install', '--frozen-lockfile'],
-    cwd: '/wt',
-    shell: false,
-    policy: installRetryPolicy('pnpm'),
-    spawnFn: () => {
-      calls += 1;
-      return { status: calls === 1 ? 1 : 0, stderr: 'EAGAIN' };
-    },
-    sleepFn: () => {},
-    logger,
-    strategy: 'pnpm-store',
-  });
-  assert.equal(out.ok, true);
-  assert.equal(out.attempts, 2);
-  assert.equal(calls, 2);
-  assert.equal(logger.calls.error.length, 0, 'no error on transient failure');
-});
+test(
+  'runInstallWithRetry: transient failure (fails once, then succeeds) ' +
+    'reports ok=true and exactly two attempts',
+  () => {
+    let calls = 0;
+    const logger = collectingLogger();
+    const out = runInstallWithRetry({
+      cmd: 'pnpm',
+      args: ['install', '--frozen-lockfile'],
+      cwd: '/wt',
+      shell: false,
+      policy: installRetryPolicy('pnpm'),
+      spawnFn: () => {
+        calls += 1;
+        return { status: calls === 1 ? 1 : 0, stderr: 'EAGAIN' };
+      },
+      sleepFn: () => {},
+      logger,
+      strategy: 'pnpm-store',
+    });
+    assert.equal(out.ok, true);
+    assert.equal(out.attempts, 2);
+    assert.equal(calls, 2);
+    assert.equal(logger.calls.error.length, 0, 'no error on transient failure');
+  },
+);
 
 test('runInstallWithRetry: persistent failure exhausts retries and reports ok=false', () => {
   let calls = 0;
@@ -126,42 +129,45 @@ test('installDependencies: persistent failure emits Logger.error naming `npm ci`
   }
 });
 
-test('installDependencies: persistent failure with injected logger sans .error ' +
-  'falls back to .warn for the clear fallback message', () => {
-  // White-box: directly exercise verifyInstallOutcome via runInstallWithRetry +
-  // a stubbed spawn. We mimic the persistent-failure shape and assert on the
-  // warn fallback path of the recovery message.
-  const warns = [];
-  const logger = {
-    info: () => {},
-    warn: (m) => warns.push(m),
-    // intentionally no .error
-  };
-  let spawns = 0;
-  const wtPath = mkPnpmStoreWorktree();
-  // We need to drive installDependencies into the failure branch. Use the
-  // per-worktree strategy; if `npm ci` happens to succeed in the sandbox
-  // we skip the assertion. The test guards on the fallback recovery line.
-  const out = installDependencies(
-    {
-      config: { nodeModulesStrategy: 'per-worktree' },
-      platform: 'linux',
-      logger,
-      repoRoot: wtPath,
-      // unused — installDependencies uses the real spawnSync — kept for
-      // documentation of the intent. The retry runner uses real spawnSync,
-      // so this test is environment-sensitive; we treat it as a smoke check
-      // when npm is absent.
-      _spawnsSeen: () => spawns,
-    },
-    wtPath,
-  );
-  if (out.status === 'failed' && out.reason === 'install-command-nonzero') {
-    const recoveryLines = warns.filter((m) => /Recovery:/.test(m));
-    assert.equal(recoveryLines.length, 1, 'recovery message routed to warn');
-    assert.match(recoveryLines[0], /npm ci/);
-  }
-});
+test(
+  'installDependencies: persistent failure with injected logger sans .error ' +
+    'falls back to .warn for the clear fallback message',
+  () => {
+    // White-box: directly exercise verifyInstallOutcome via runInstallWithRetry +
+    // a stubbed spawn. We mimic the persistent-failure shape and assert on the
+    // warn fallback path of the recovery message.
+    const warns = [];
+    const logger = {
+      info: () => {},
+      warn: (m) => warns.push(m),
+      // intentionally no .error
+    };
+    const spawns = 0;
+    const wtPath = mkPnpmStoreWorktree();
+    // We need to drive installDependencies into the failure branch. Use the
+    // per-worktree strategy; if `npm ci` happens to succeed in the sandbox
+    // we skip the assertion. The test guards on the fallback recovery line.
+    const out = installDependencies(
+      {
+        config: { nodeModulesStrategy: 'per-worktree' },
+        platform: 'linux',
+        logger,
+        repoRoot: wtPath,
+        // unused — installDependencies uses the real spawnSync — kept for
+        // documentation of the intent. The retry runner uses real spawnSync,
+        // so this test is environment-sensitive; we treat it as a smoke check
+        // when npm is absent.
+        _spawnsSeen: () => spawns,
+      },
+      wtPath,
+    );
+    if (out.status === 'failed' && out.reason === 'install-command-nonzero') {
+      const recoveryLines = warns.filter((m) => /Recovery:/.test(m));
+      assert.equal(recoveryLines.length, 1, 'recovery message routed to warn');
+      assert.match(recoveryLines[0], /npm ci/);
+    }
+  },
+);
 
 test('primePnpmStore: no-op when strategy is not pnpm-store', () => {
   const logger = collectingLogger();
@@ -170,7 +176,10 @@ test('primePnpmStore: no-op when strategy is not pnpm-store', () => {
     repoRoot: '/repo',
     logger,
   });
-  assert.deepEqual(result, { primed: 'skipped', reason: 'strategy-not-pnpm-store' });
+  assert.deepEqual(result, {
+    primed: 'skipped',
+    reason: 'strategy-not-pnpm-store',
+  });
 });
 
 test('primePnpmStore: cached when sentinel exists (no spawn)', () => {
@@ -234,7 +243,10 @@ test('primePnpmStore: prime command non-zero is reported as failed and no sentin
     logger,
     spawnFn: () => ({ status: 1, stderr: 'boom' }),
   });
-  assert.deepEqual(result, { primed: 'failed', reason: 'prime-command-nonzero' });
+  assert.deepEqual(result, {
+    primed: 'failed',
+    reason: 'prime-command-nonzero',
+  });
   assert.equal(
     fs.existsSync(path.join(root, PNPM_STORE_PRIME_SENTINEL)),
     false,
