@@ -23,8 +23,13 @@
  *                        post-merge-pipeline.js, progress-reporter.js,
  *                        auto-refresh-runner.js)
  *   - `dispatched`     — wave-dispatcher.js
- *   - `wave-start`     — epic-runner/wave-observer.js
- *   - `wave-end`       — epic-runner/wave-observer.js
+ *   - `wave-start`     — lifecycle/listeners/structured-comment-poster.js
+ *                        (was epic-runner/wave-observer.js prior to Epic
+ *                        #2646; the listener took over the rich body and
+ *                        marker namespace)
+ *   - `wave-end`       — lifecycle/listeners/structured-comment-poster.js
+ *                        (was epic-runner/wave-observer.js prior to Epic
+ *                        #2646)
  *   - `state-transition` — orchestration/ticketing.js
  *
  * Signals-writer `appendTrace` call sites (traces.ndjson sibling, but

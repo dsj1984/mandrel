@@ -50,6 +50,12 @@ function readNdjson(p) {
  *     same fixture observe different setTimeout / promise resolution
  *     latencies and emit different ms counts. Stripping it lets us
  *     assert the rest of the payload is identical.
+ *   - `startedAt`, `completedAt`, `durationMs` inside `wave.start` /
+ *     `wave.end` payloads — Epic #2646 Story C added these to the
+ *     payloads so the bus-driven `structured-comment-poster` can render
+ *     the rich body the retired `wave-observer.js` used to own. Like
+ *     `story.dispatch.end.durationMs` they are wall-clock and diverge
+ *     across runs.
  */
 function structuralRecord(record) {
   const { ts: _ts, seqId: _seqId, ...rest } = record;
@@ -59,6 +65,19 @@ function structuralRecord(record) {
     typeof rest.payload === 'object'
   ) {
     const { durationMs: _durationMs, ...restPayload } = rest.payload;
+    return { ...rest, payload: restPayload };
+  }
+  if (
+    (rest.event === 'wave.start' || rest.event === 'wave.end') &&
+    rest.payload &&
+    typeof rest.payload === 'object'
+  ) {
+    const {
+      startedAt: _startedAt,
+      completedAt: _completedAt,
+      durationMs: _waveDurationMs,
+      ...restPayload
+    } = rest.payload;
     return { ...rest, payload: restPayload };
   }
   return rest;
@@ -80,14 +99,7 @@ function buildCollaborators({ bus, launcher }) {
       },
     },
     launcher,
-    waveObserver: {
-      async waveStart() {
-        return { startedAt: '2025-01-01T00:00:00Z' };
-      },
-      async waveEnd({ stories }) {
-        return { stories };
-      },
-    },
+    commitAssertion: null,
     progressReporter: {
       setPlan() {},
       setWave() {},

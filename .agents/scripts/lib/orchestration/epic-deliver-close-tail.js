@@ -491,10 +491,10 @@ export async function runEpicDeliverCloseTail(opts = {}) {
  * is a separate parallel-writer concern: `StructuredCommentPoster`
  * writes a minimal `lifecycle-epic-blocked` marker off the same bus
  * event, while this helper writes the legacy operator-facing
- * `friction`-typed body. The dual-write mirrors the wave-observer
- * coexistence pattern (see `StructuredCommentPoster` header comment)
- * and a follow-up Story can collapse the two once the listener body
- * can render severity counts.
+ * `friction`-typed body. The two writers coexist by marker namespace
+ * (the listener writes `lifecycle-epic-blocked`; this helper writes a
+ * separate `friction`-typed marker) and a follow-up Story can collapse
+ * the two once the listener body can render severity counts.
  *
  * All side effects are best-effort — a failure is logged and
  * swallowed so the caller's `throw` is the operator-visible signal.

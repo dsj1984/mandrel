@@ -52,7 +52,6 @@ import { waitForEpicUnblock } from './blocker-wait.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
 import { ProgressReporter } from './progress-reporter.js';
 import { StoryLauncher } from './story-launcher.js';
-import { WaveObserver } from './wave-observer.js';
 
 export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const { provider, config, logger } = ctx;
@@ -112,18 +111,14 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
-  // Story #2239 — the lifecycle StructuredCommentPoster listener
-  // writes its own `lifecycle-wave-<n>-start` / `lifecycle-wave-<n>-end`
-  // markers (distinct from the legacy `wave-<n>-start` markers the
-  // observer below writes). Parallel-write is intentional during the
-  // bus-cutover window so the rich observer comments (with
-  // commit-assertion reclassification detail) remain the operator-
-  // facing surface until a follow-up Story removes the legacy writer
-  // wholesale. The two markers coexist without colliding.
-  const waveObserver = new WaveObserver({
-    ctx,
-    commitAssertion,
-  });
+  // Epic #2646 Story C (Task #2694) — the legacy `WaveObserver` writer
+  // was retired. The `StructuredCommentPoster` lifecycle listener now
+  // owns the `wave-<n>-start` / `wave-<n>-end` markers (rich body
+  // inherited from the observer, including commit-assertion `done →
+  // failed` reclassification detail). The phase still owns
+  // commit-assertion application — it runs the reclassification before
+  // emitting `wave.end` so the listener sees the post-assertion
+  // outcomes.
   const resolvedIntervalSec = Number(
     deliverRunner.progressReportIntervalSec ?? 0,
   );
@@ -309,7 +304,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     launcher,
     gitAdapter,
     commitAssertion,
-    waveObserver,
     progressReporter,
     journal,
     bus,
