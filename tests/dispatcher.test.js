@@ -3,10 +3,13 @@
  *
  * Tests the core dispatcher logic using:
  *  - A mock ITicketingProvider (in-memory, no GitHub calls)
- *  - A mock IExecutionAdapter (records dispatches, no side effects)
  *
- * All tests run in --dry-run=false mode with mocked provider/adapter,
- * and skip branch creation (tested separately in integration tests).
+ * All tests run in --dry-run=false mode with a mocked provider, and skip
+ * branch creation (tested separately in integration tests).
+ *
+ * Note: Epic #2646 / Story #2688 deleted the IExecutionAdapter abstraction;
+ * the inline dispatch record produced by `wave-dispatcher.js` no longer
+ * needs an adapter mock.
  */
 
 import assert from 'node:assert/strict';
@@ -22,9 +25,6 @@ const SCRIPTS = path.join(ROOT, '.agents', 'scripts');
 
 const { ITicketingProvider } = await import(
   pathToFileURL(path.join(LIB, 'ITicketingProvider.js')).href
-);
-const { IExecutionAdapter } = await import(
-  pathToFileURL(path.join(LIB, 'IExecutionAdapter.js')).href
 );
 const { dispatch } = await import(
   pathToFileURL(path.join(SCRIPTS, 'dispatcher.js')).href
@@ -74,32 +74,6 @@ class MockProvider extends ITicketingProvider {
 }
 
 // ---------------------------------------------------------------------------
-// Mock adapter
-// ---------------------------------------------------------------------------
-
-class MockAdapter extends IExecutionAdapter {
-  constructor() {
-    super();
-    this.dispatches = [];
-  }
-
-  get executorId() {
-    return 'mock';
-  }
-
-  async dispatchTask(taskDispatch) {
-    this.dispatches.push(taskDispatch);
-    return { dispatchId: `mock-${taskDispatch.taskId}`, status: 'dispatched' };
-  }
-
-  async getTaskStatus(dispatchId) {
-    return { dispatchId, status: 'pending' };
-  }
-
-  async cancelTask() {}
-}
-
-// ---------------------------------------------------------------------------
 // Helper to build task fixtures
 // ---------------------------------------------------------------------------
 
@@ -124,13 +98,10 @@ const EPIC = { id: 1, title: 'Test Epic', body: '', labels: ['type::epic'] };
 describe('dispatch() — empty task list', () => {
   it('returns manifest with zero waves when no tasks', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.epicId, 1);
@@ -146,13 +117,10 @@ describe('dispatch() — single task, no dependencies', () => {
       epic: EPIC,
       tasks: [makeTask(10)],
     });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.summary.totalTasks, 1);
@@ -162,13 +130,12 @@ describe('dispatch() — single task, no dependencies', () => {
     assert.equal(manifest.waves[0].tasks[0].taskId, 10);
   });
 
-  it('dry-run does not call adapter.dispatchTask()', async () => {
+  it('dry-run produces a manifest with empty dispatched array', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(10)] });
-    const adapter = new MockAdapter();
-
-    await dispatch({ epicId: 1, dryRun: true, provider, adapter });
-    // In dryRun mode dispatcher logs but doesn't call adapter.dispatchTask
-    assert.equal(adapter.dispatches.length, 0);
+    const manifest = await dispatch({ epicId: 1, dryRun: true, provider });
+    // In dryRun mode the wave-dispatcher synthesizes a `dry-run-<taskId>`
+    // record per eligible task but does not flip ticket state.
+    assert.ok(Array.isArray(manifest.dispatched));
   });
 });
 
@@ -183,13 +150,10 @@ describe('dispatch() — two independent tasks', () => {
     });
 
     const provider = new MockProvider({ epic: EPIC, tasks: [task10, task20] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.waves[0].tasks.length, 2);
@@ -209,13 +173,10 @@ describe('dispatch() — two independent tasks', () => {
     });
 
     const provider = new MockProvider({ epic: EPIC, tasks: [task10, task20] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     // After serialization, tasks are in separate waves
@@ -232,13 +193,10 @@ describe('dispatch() — dependent tasks', () => {
     });
 
     const provider = new MockProvider({ epic: EPIC, tasks: [taskA, taskB] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.waves.length, 2);
@@ -253,13 +211,10 @@ describe('dispatch() — dependent tasks', () => {
     });
 
     const provider = new MockProvider({ epic: EPIC, tasks: [taskA, taskB] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     // Wave 0 should be dispatched, Wave 1 should not be reached
@@ -279,10 +234,8 @@ describe('dispatch() — cycle detection', () => {
     });
 
     const provider = new MockProvider({ epic: EPIC, tasks: [taskA, taskB] });
-    const adapter = new MockAdapter();
-
     await assert.rejects(
-      () => dispatch({ epicId: 1, dryRun: true, provider, adapter }),
+      () => dispatch({ epicId: 1, dryRun: true, provider }),
       /cycle detected/i,
     );
   });
@@ -299,13 +252,10 @@ describe('dispatch() — skips already-done tasks', () => {
       epic: EPIC,
       tasks: [doneTask, readyTask],
     });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.summary.doneTasks, 1);
@@ -318,13 +268,10 @@ describe('dispatch() — skips already-done tasks', () => {
 describe('dispatch() — manifest schema compliance', () => {
   it('manifest contains all required top-level fields', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(5)] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     const required = [
@@ -345,13 +292,10 @@ describe('dispatch() — manifest schema compliance', () => {
 
   it('summary contains all required fields', async () => {
     const provider = new MockProvider({ epic: EPIC, tasks: [makeTask(5)] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     const requiredSummary = [
@@ -372,13 +316,10 @@ describe('dispatch() — manifest schema compliance', () => {
   it('progressPercent is 100 when all tasks are done', async () => {
     const doneTask = makeTask(10, { labels: ['type::task', 'agent::done'] });
     const provider = new MockProvider({ epic: EPIC, tasks: [doneTask] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.summary.progressPercent, 100);
@@ -401,13 +342,10 @@ describe('dispatch() — story-level orchestration', () => {
       epic: EPIC,
       tasks: [story100, task1, task2],
     });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     // Both tasks should share the story branch naming
@@ -442,13 +380,10 @@ describe('dispatch() — story-level orchestration', () => {
       epic: EPIC,
       tasks: [storyA, storyB, taskA, taskB],
     });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     // Should be serialized into 2 waves because of overlapping focus areas
@@ -470,13 +405,10 @@ describe('dispatch() — story-level orchestration', () => {
       body: '',
     };
     const provider = new MockProvider({ epic: EPIC, tasks: [sparseTask] });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     assert.equal(manifest.waves.length, 1);
@@ -536,13 +468,10 @@ describe('dispatch() — wave-level concurrency', () => {
     }
 
     const provider = new TrackingProvider({ epic, tasks });
-    const adapter = new MockAdapter();
-
     const manifest = await dispatch({
       epicId: 1,
       dryRun: true,
       provider,
-      adapter,
     });
 
     // All four should have been dispatched.
