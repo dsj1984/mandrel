@@ -194,6 +194,58 @@ the `code-review` structured comment for the operator to triage manually
 in Step 5. The loop never deletes a finding it could not fix — it just
 stops retrying.
 
+## Step 4.6 — Cross-phase re-check trigger
+
+After the auto-fix loop in Step 4.5 returns, the `fixed[]` commits have
+modified files on `[EPIC_BRANCH]` that the Phase 4 audit lenses already
+walked. Some of those edits may overlap the `filePatterns` of one or more
+lenses (e.g. an auto-fix landing in `**/auth/*.js` overlaps the
+`audit-security` lens). When that happens, the prior `audit-results`
+structured comment is **stale for the overlapping lenses only** — the
+non-overlapping findings remain authoritative and MUST NOT be
+re-derived.
+
+Invoke the re-check selector with the cumulative set of paths touched by
+the auto-fix commits:
+
+```powershell
+node .agents/scripts/epic-audit-recheck.js \
+  --epic [EPIC_ID] --files <comma-separated-touched-paths>
+```
+
+For large touched-file lists, pass `@<file>` (where `<file>` is a
+newline-delimited list written to `temp/`) to avoid shell argument-length
+limits. The CLI emits a JSON envelope of the shape
+`{ selectedAudits: [...], context: { ... } }` restricted to lenses whose
+`filePatterns` overlap the input file list. An empty `selectedAudits`
+array means no overlap — there is nothing to re-run and this step is a
+no-op.
+
+When `selectedAudits` is non-empty:
+
+1. Re-invoke each listed lens prompt under
+   [`../audit-*.md`](../) the same way Phase 4's `epic-audit.md` does —
+   one lens at a time, against the current `[EPIC_BRANCH]` tip.
+2. **Append** a `## Cross-phase re-check` section to the **existing**
+   `audit-results` structured comment on the Epic ticket. Do **not** post
+   a new comment; the comment is idempotent and downstream consumers
+   (the code-review trim, `/epic-deliver` Pillar 2, the retro helper)
+   read it once. The append carries the re-checked lens names, the new
+   findings (if any), and the auto-fix commit SHAs that triggered the
+   re-run, so reviewers can trace each finding back to the change set
+   that produced it.
+3. If the re-check surfaces fresh 🔴 / 🟠 findings, route them back
+   through Step 4.5's `runAutoFixLoop` invocation. The loop's per-finding
+   ceiling is preserved across re-entries — a finding that was already
+   counted against `attemptCeiling` in the first pass does not get a
+   fresh budget when the cross-phase re-check resurfaces an adjacent
+   one.
+
+If `selectedAudits` is empty, skip silently and proceed to Step 5. The
+re-check trigger is **read-only signal** — it never mutates the Epic
+branch on its own; mutations only happen if the re-invoked lenses
+surface findings that the auto-fix loop then converts into commits.
+
 ## Step 5 — Remediation
 
 If the operator instructs you to fix any findings:
