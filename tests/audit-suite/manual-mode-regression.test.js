@@ -17,9 +17,9 @@
  * other value) for an absent built-in key, this test trips.
  */
 
+import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { applySubstitutions } from '../../.agents/scripts/lib/audit-suite/substitutions.js';
