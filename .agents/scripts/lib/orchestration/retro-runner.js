@@ -38,9 +38,18 @@ import { runChecks } from '../checks/index.js';
 import { assembleState } from '../checks/state.js';
 import { epicRetroMirrorPath } from '../config/temp-paths.js';
 import { CONTEXT_LABELS, TYPE_LABELS } from '../label-constants.js';
+import { forEachLine } from '../observability/signals-writer.js';
+import { composeRoutedProposals } from './retro-proposals.js';
 import { isCleanManifest } from './retro-heuristics.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
 import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
+
+/**
+ * Default framework repo (the Mandrel mirror) used when the caller does
+ * not supply an override. Consumer projects re-routing framework friction
+ * back to mandrel rely on this constant.
+ */
+const DEFAULT_FRAMEWORK_REPO = 'dsj1984/mandrel';
 
 const RECUT_BODY_MARKER = /<!--\s*recut-of:\s*#?\d+\s*-->/;
 
@@ -138,7 +147,15 @@ async function warnIfEpicLooksPopulated({ epicId, provider, logger }) {
  *   parkedFollowOns: { recuts: object[], parked: object[], present: boolean },
  * }>}
  */
-export async function gatherRetroSignals({ epicId, provider, logger }) {
+export async function gatherRetroSignals({
+  epicId,
+  provider,
+  logger,
+  frameworkRepo,
+  consumerRepo,
+  forEachLineFn = forEachLine,
+  composeRoutedProposalsFn = composeRoutedProposals,
+}) {
   const descendants = await collectDescendants(provider, epicId);
   if (descendants.length === 0) {
     await warnIfEpicLooksPopulated({ epicId, provider, logger });
@@ -222,6 +239,66 @@ export async function gatherRetroSignals({ epicId, provider, logger }) {
     hitl,
   };
 
+  // Story #2558 — read per-Story `signals.ndjson` streams (already
+  // source-tagged by Story #2553's writer) and compose the four routed
+  // proposal sections (framework / consumer / memory / discarded). Read
+  // failures degrade silently — observability MUST NOT take down the
+  // retro path. Empty streams yield empty arrays so the composer
+  // remains backward-compatible.
+  const routedSignals = [];
+  const memorablePatterns = [];
+  for (const story of stories) {
+    const sid = Number(story.id ?? story.number);
+    if (!Number.isInteger(sid) || sid <= 0) continue;
+    try {
+      await forEachLineFn(epicId, sid, (parsed) => {
+        if (parsed === null || typeof parsed !== 'object') return;
+        const record = /** @type {Record<string, unknown>} */ (parsed);
+        const category =
+          typeof record.category === 'string' ? record.category : null;
+        const source =
+          record.source === 'framework' ? 'framework' : 'consumer';
+        if (category) {
+          routedSignals.push({ category, source });
+        }
+        if (record.memorable === true && typeof record.insight === 'string') {
+          memorablePatterns.push({
+            category: category ?? 'general',
+            insight: record.insight,
+          });
+        }
+      });
+    } catch (err) {
+      logger?.warn?.(
+        `[retro-runner] forEachLine failed for story #${sid} (continuing): ${
+          err?.message ?? err
+        }`,
+      );
+    }
+  }
+
+  // Resolve repos. Caller overrides win; otherwise default the consumer
+  // repo to the project's own `github.owner/repo` (best-effort: the
+  // provider may expose it, but we don't depend on it — empty string
+  // disables that pane in the routed proposals).
+  const resolvedFrameworkRepo =
+    typeof frameworkRepo === 'string' && frameworkRepo.length > 0
+      ? frameworkRepo
+      : DEFAULT_FRAMEWORK_REPO;
+  const resolvedConsumerRepo =
+    typeof consumerRepo === 'string' && consumerRepo.length > 0
+      ? consumerRepo
+      : resolvedFrameworkRepo; // when caller omits, fall back to the framework repo so the command renders without an empty `--repo` flag.
+
+  const routedProposals = composeRoutedProposalsFn({
+    epicId,
+    frameworkRepo: resolvedFrameworkRepo,
+    consumerRepo: resolvedConsumerRepo,
+    signals: routedSignals,
+    unresolvedBlockedEvents: [],
+    memorablePatterns,
+  });
+
   return {
     stories,
     tasks,
@@ -229,6 +306,7 @@ export async function gatherRetroSignals({ epicId, provider, logger }) {
     storyPerfSummaries,
     epicPerfReport,
     parkedFollowOns,
+    routedProposals,
   };
 }
 
@@ -587,6 +665,7 @@ async function composeAndPostRetro({
     storyPerfSummaries: signals.storyPerfSummaries,
     epicPerfReport: signals.epicPerfReport,
     parkedFollowOns: signals.parkedFollowOns,
+    routedProposals: signals.routedProposals,
     tasksTotal,
     tasksFirstTry,
     timestamp,
