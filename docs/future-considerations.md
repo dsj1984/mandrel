@@ -138,7 +138,14 @@ Recommendation:
 ### 3. Skill Library Should Become a Capability Index Plus Compact Policies
 
 **Status:** Simplify / Reframe
-**Action:** 🚀 Implement now (partial) — generating a `skills.index.json` manifest and adding "policy capsule" frontmatter to each `SKILL.md` is a pure tooling win that helps current models too (cheaper selection, faster hydration). Defer the deeper "stop hydrating full skills by default" change until model self-selection is trustworthy.
+**Action:** Split in two:
+- 🚀 **Implement now** — generate a `skills.index.json` manifest (or
+  frontmatter-only index) and add a 5-12 bullet "policy capsule" to each
+  `SKILL.md`. Pure tooling that helps current models too: cheaper
+  selection and faster hydration. No behavioral change to the runtime.
+- 🔭 **Monitor** — actually changing the hydrator to *stop* loading full
+  skill bodies by default, and to route skill selection through the
+  manifest. Waits until the model can self-select context confidently.
 
 **Primary paths:**
 
@@ -205,8 +212,15 @@ Simplify:
 
 ### 5. Four-Tier Ticket Hierarchy Is Often Overhead
 
-**Status:** Simplify / Reframe
-**Action:** 🚀 Implement now — adaptive Patch / Story / Epic modes pay off today (`/single-story-plan` already exists; Patch mode is the missing rung). Docs-only and refactor-only Epics burn real operator time on the full hierarchy.
+**Status:** ❌ Won't do — superseded by existing tooling + Finding #15
+**Action:** Close. `/single-story-plan` + `/single-story-deliver` already
+provide the lightweight rung this finding called for. A still-lighter
+"Patch" mode would differ from a single-Story-with-one-Task by a label
+and maybe one artifact — not enough value to justify a third planning
+surface. The actual friction this finding pointed at (heavy artifacts
+for docs-only / refactor work) is properly addressed by **Finding #15**
+(acceptance spec required/recommended/n-a per risk) rather than by
+adding a new hierarchy mode.
 
 **Primary paths:**
 
@@ -437,7 +451,37 @@ Simplify:
 ### 13. Execution Adapter Surface Is Underused
 
 **Status:** Reframe
-**Action:** 🚀 Implement now — this is a decision that should be made regardless of model strength: either invest in a real adapter contract or demote `ManualDispatchAdapter` to a documented compatibility example and simplify architecture docs around the actual Claude Code-first runtime. Either path removes confusion today.
+**Action:** 🚀 Implement now — decision made: keep `IExecutionAdapter` as a
+thin interface with the Claude Code implementation as the single shipped
+adapter, **delete `ManualDispatchAdapter` outright** if nothing still
+depends on it, and keep the dispatch manifest pipeline untouched (it is a
+separate concern from the adapter).
+
+Note on scope: the adapter and the dispatch manifest are on different
+axes and should not be conflated:
+
+- **Adapter** (`.agents/scripts/adapters/*.js`, `IExecutionAdapter.js`) —
+  the runtime contract for "how do we launch and track a task?"
+  (`dispatchTask`, `getTaskStatus`, `cancelTask`).
+- **Dispatch manifest** (`.agents/scripts/lib/presentation/manifest-*.js`,
+  `epic-runner/phases/build-wave-dag.js`) — the data artifact describing
+  the wave/DAG plan, consumed in-session by the Claude Code runtime.
+
+Deleting the manual adapter does not touch manifest generation. Concrete
+work:
+
+- Audit callers and tests of `ManualDispatchAdapter`. If nothing
+  load-bearing remains, delete the file and its tests; remove
+  `'manual'` from `adapter-factory.js`'s default selection.
+- Slim `IExecutionAdapter` to the methods the Claude Code runtime
+  actually uses; remove any placeholder/unimplemented surface that only
+  existed to keep the manual adapter compiling.
+- Keep dispatch manifest emission as-is — it remains a universal
+  artifact, not adapter-specific.
+- Update `docs/architecture.md` and `docs/decisions.md` to describe the
+  actual Claude Code-first runtime instead of the historical
+  multi-runtime framing, and to call out that the manifest is the
+  cross-runtime contract (not the adapter surface).
 
 **Primary paths:**
 
@@ -550,8 +594,23 @@ Recommendation:
 
 ### 17. Compatibility Shims and Legacy Shapes Are Dragging the Harness
 
-**Status:** Retire over time
-**Action:** 🚀 Implement now — a formal deprecation ledger with removal versions plus one migration command per retired surface is pure operator hygiene. d1f1eaff retired `dispatchModel` / `recommendedModel`; keep going. The harness gets harder to reason about (for humans *and* models) every release the shims linger.
+**Status:** Cleanup (hard cutovers only)
+**Action:** 🚀 Implement now — operator policy is **no shim layer, no
+deprecation ledger, no version-windowed sunsets**. Every change is a hard
+cutover. Concrete work:
+
+- Audit `config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
+  `lifecycle/legacy-resume.js`, `wave-session.js`, and the schemas for
+  existing compatibility branches; remove them in one pass.
+- Codify the policy in `git-conventions.md` (or a sibling rule):
+  contract changes ship as hard cutovers; consumers update on the new
+  release.
+- For any future contract change, the PR diff itself is the migration —
+  no parallel old-shape support code.
+
+This is the lowest-risk version of the original recommendation given the
+project is a Git-submodule-distributed framework whose consumers pin to
+specific versions; they opt into breaks at upgrade time.
 
 **Primary paths:**
 
