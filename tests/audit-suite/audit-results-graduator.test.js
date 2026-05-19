@@ -155,7 +155,11 @@ describe('audit-results graduator (contract)', () => {
       classifier: () => 'framework',
     });
     assert.equal(cwd, 'gh', 'sanity: spawn was invoked');
-    assert.equal(result.errors.length, 0, `errors: ${result.errors.join('; ')}`);
+    assert.equal(
+      result.errors.length,
+      0,
+      `errors: ${result.errors.join('; ')}`,
+    );
     // Exactly three non-blocking findings (high, medium, suggestion).
     assert.equal(
       result.filed.length,
@@ -214,7 +218,11 @@ describe('audit-results graduator (contract)', () => {
 });
 
 describe('Finalizer ↔ audit-results graduator (contract)', () => {
-  function buildFixture({ config, graduateAuditResultsFn, throwsInAudit } = {}) {
+  function buildFixture({
+    config,
+    graduateAuditResultsFn,
+    throwsInAudit,
+  } = {}) {
     const bus = makeBus();
     const provider = makeProvider([{ body: makeMixedFindingsBody() }]);
     const codeReviewCalls = [];
