@@ -14,20 +14,11 @@ test('validateFrontmatter: passes when no model-hint field is set', () => {
   assert.deepEqual(validateFrontmatter({}), { ok: true, errors: [] });
 });
 
-test('validateFrontmatter: accepts each allowed enum value on each field', () => {
-  for (const field of ['recommendedModel', 'dispatchModel']) {
-    for (const value of ALLOWED_MODEL_HINTS) {
-      const result = validateFrontmatter(mdWith(`${field}: ${value}`));
-      assert.equal(result.ok, true, `${field}=${value} should validate`);
-    }
+test('validateFrontmatter: accepts each allowed enum value on dispatchModel', () => {
+  for (const value of ALLOWED_MODEL_HINTS) {
+    const result = validateFrontmatter(mdWith(`dispatchModel: ${value}`));
+    assert.equal(result.ok, true, `dispatchModel=${value} should validate`);
   }
-});
-
-test('validateFrontmatter: accepts both fields set simultaneously', () => {
-  const result = validateFrontmatter(
-    '---\nrecommendedModel: opus\ndispatchModel: haiku\n---\n',
-  );
-  assert.deepEqual(result, { ok: true, errors: [] });
 });
 
 test('validateFrontmatter: rejects arbitrary string with enum-violation error', () => {
@@ -40,18 +31,11 @@ test('validateFrontmatter: rejects arbitrary string with enum-violation error', 
   assert.match(result.errors[0].message, /haiku.*sonnet.*opus/);
 });
 
-test('validateFrontmatter: rejects invalid recommendedModel value', () => {
+test('validateFrontmatter: ignores recommendedModel after Story #2590 removal', () => {
+  // The field was deleted from MODEL_HINT_FIELDS — a stale workflow that
+  // still declares it should pass the lint (not throw or false-positive).
   const result = validateFrontmatter(mdWith('recommendedModel: claude-2'));
-  assert.equal(result.ok, false);
-  assert.equal(result.errors[0].field, 'recommendedModel');
-});
-
-test('validateFrontmatter: reports both invalid fields when both are set', () => {
-  const result = validateFrontmatter(
-    '---\nrecommendedModel: bogus\ndispatchModel: alsoBogus\n---\n',
-  );
-  assert.equal(result.ok, false);
-  assert.equal(result.errors.length, 2);
+  assert.equal(result.ok, true);
 });
 
 test('validateFrontmatter: accepts a pre-parsed map directly', () => {

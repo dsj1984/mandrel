@@ -187,7 +187,6 @@ key/value map; nested structures are not supported.
 ```yaml
 ---
 description: <one-paragraph summary surfaced in the skill index>
-recommendedModel: haiku | sonnet | opus   # optional
 dispatchModel:    haiku | sonnet | opus   # optional
 ---
 ```
@@ -196,10 +195,15 @@ dispatchModel:    haiku | sonnet | opus   # optional
 audit-suite summary helpers truncate after three sentences. Missing
 frontmatter falls back to the file's first prose paragraph.
 
-`recommendedModel` is advisory only, surfaced in indexes for humans.
 `dispatchModel` is read by the workflow body when it fans out via the
 `Agent` tool; that value is passed as the `model:` argument on each
-generated `Agent` call unless a specific call overrides it.
+generated `Agent` call unless a specific call overrides it. The
+convention relies on the parent agent honouring the frontmatter — there
+is no runtime injection. The post-run analyzer
+[`audit-dispatch-model.js`](scripts/audit-dispatch-model.js) reads the
+tool-trace ledger and reports whether emitted `Agent` calls actually
+carried `model:`, so a finished run can be checked without the chat
+transcript.
 
 Dispatch-model precedence is:
 
@@ -217,7 +221,7 @@ To add a workflow:
 
 1. Drop a new `.md` file at the top level of `workflows/`.
 2. Add frontmatter with at least `description`; optionally add
-   `recommendedModel` or `dispatchModel`.
+   `dispatchModel`.
 3. Run `npm run sync:commands` to mirror the file into
    `.claude/commands/`.
 4. If the workflow fans out parallel sub-agents on one model, prefer
