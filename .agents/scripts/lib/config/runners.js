@@ -37,11 +37,29 @@ const DEFAULT_DELIVER_RUNNER = Object.freeze({
 });
 
 /**
+ * Default auto-fix loop ceilings for /epic-deliver Phase 4 (epic-audit)
+ * and Phase 5 (code-review). Operators override via
+ * `delivery.epicAudit.*` and `delivery.codeReview.*` in `.agentrc.json`
+ * (Story #2611, Epic #2586).
+ */
+export const DEFAULT_EPIC_AUDIT = Object.freeze({
+  maxFixAttempts: 3,
+  maxFixScopeFiles: 5,
+});
+
+export const DEFAULT_CODE_REVIEW = Object.freeze({
+  maxFixAttempts: 3,
+  maxFixScopeFiles: 5,
+});
+
+/**
  * Read the merged deliver-runner block plus the legacy companion stubs.
  *
  * @param {object | null | undefined} config
  * @returns {{
  *   deliverRunner: { concurrencyCap: number, progressReportIntervalSec: number },
+ *   epicAudit: { maxFixAttempts: number, maxFixScopeFiles: number },
+ *   codeReview: { maxFixAttempts: number, maxFixScopeFiles: number },
  *   planRunner: object,
  *   concurrency: object,
  *   storyMergeRetry: { maxAttempts: number, backoffMs: readonly number[] },
@@ -54,6 +72,8 @@ export function getRunners(config) {
     config?.deliverRunner ??
     config?.orchestration?.runners?.deliverRunner ??
     {};
+  const epicAuditUser = config?.delivery?.epicAudit ?? {};
+  const codeReviewUser = config?.delivery?.codeReview ?? {};
   return {
     deliverRunner: {
       concurrencyCap:
@@ -62,6 +82,18 @@ export function getRunners(config) {
       progressReportIntervalSec:
         deliverRunnerUser.progressReportIntervalSec ??
         DEFAULT_DELIVER_RUNNER.progressReportIntervalSec,
+    },
+    epicAudit: {
+      maxFixAttempts:
+        epicAuditUser.maxFixAttempts ?? DEFAULT_EPIC_AUDIT.maxFixAttempts,
+      maxFixScopeFiles:
+        epicAuditUser.maxFixScopeFiles ?? DEFAULT_EPIC_AUDIT.maxFixScopeFiles,
+    },
+    codeReview: {
+      maxFixAttempts:
+        codeReviewUser.maxFixAttempts ?? DEFAULT_CODE_REVIEW.maxFixAttempts,
+      maxFixScopeFiles:
+        codeReviewUser.maxFixScopeFiles ?? DEFAULT_CODE_REVIEW.maxFixScopeFiles,
     },
     planRunner: {},
     concurrency: {},
