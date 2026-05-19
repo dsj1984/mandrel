@@ -76,18 +76,48 @@ function collectTaskPathReferences(task) {
  * touched) from the planner's perspective, so the freshness gate must
  * accept them even when they're absent from `baseBranchRef`.
  *
- * Only `body.changes` is consulted — `body.goal`, `body.acceptance`, and
- * `body.verify` are deliberately excluded so the gate continues to flag a
- * planner that hallucinates a fictitious file in narrative copy without
- * declaring it in the changes contract.
+ * Two shapes are accepted:
+ *
+ * 1. **Legacy string bullets** — `"<path>: <verb> <object>"`. The
+ *    surrounding regex `FRESHNESS_PATH_RE` picks the path out of the
+ *    prose. Object-form entries that fall through `String(item)` would
+ *    stringify to `"[object Object]"` and silently match nothing, so
+ *    the regex path is gated to actual strings.
+ * 2. **Object form** — `{ path: "<path>", assumption: "creates" | ... }`,
+ *    introduced by Story #2636 as the canonical declaration shape and
+ *    documented in `epic-plan-decompose-author/SKILL.md`. The path is
+ *    trusted verbatim. Sibling shape `body.references[]` carries the
+ *    same `{ path, assumption: "exists" }` form for read-only deps and
+ *    is unioned in here too, since a path declared as a read-dependency
+ *    by the planner is also "intentional" from the freshness gate's
+ *    perspective and should not be flagged when it appears in goal /
+ *    verify text.
+ *
+ * Only `body.changes` (and now `body.references`) is consulted —
+ * `body.goal`, `body.acceptance`, and `body.verify` are deliberately
+ * excluded so the gate continues to flag a planner that hallucinates a
+ * fictitious file in narrative copy without declaring it in the
+ * changes/references contract.
  */
 function collectTaskChangesPaths(task) {
   const paths = new Set();
   const body = task.body;
   if (body === null || typeof body !== 'object') return paths;
-  if (!Array.isArray(body.changes)) return paths;
-  for (const item of body.changes) {
-    collectPathsFromText(String(item ?? ''), paths);
+  for (const arrName of ['changes', 'references']) {
+    const arr = body[arrName];
+    if (!Array.isArray(arr)) continue;
+    for (const item of arr) {
+      if (typeof item === 'string') {
+        collectPathsFromText(item, paths);
+      } else if (
+        item !== null &&
+        typeof item === 'object' &&
+        typeof item.path === 'string' &&
+        item.path.length > 0
+      ) {
+        paths.add(item.path);
+      }
+    }
   }
   return paths;
 }
