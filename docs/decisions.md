@@ -2578,7 +2578,7 @@ project's configured base branch is honoured.
 **Date:** 2026-05-12
 **Epic:** #1471 (v6.0.0 Epic G — Claude Code-first adoption)
 **Story:** #1557 (Rebase homegrown loop on built-in `/loop` or document divergence)
-**Supporting evidence:** [`temp/epic-1471/loop-contract-comparison.md`](../temp/epic-1471/loop-contract-comparison.md) — full discovery audit and contract surface table.
+**Supporting evidence:** `temp/epic-1471/loop-contract-comparison.md` (ephemeral) — full discovery audit and contract surface table.
 
 ### Context
 

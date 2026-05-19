@@ -75,7 +75,7 @@ flakes the pin is preventing.
 [`.agents/scripts/run-coverage.js`](../.agents/scripts/run-coverage.js),
 which runs the unit-test suite with `NODE_V8_COVERAGE` set, post-processes
 the V8 dumps with `c8 report`, then delegates to
-[`.agents/scripts/check-coverage-baseline.js`](../.agents/scripts/check-coverage-baseline.js)
+[`.agents/scripts/check-baselines.js`](../.agents/scripts/check-baselines.js)
 for the gate decision. There is no global `lines/branches/functions`
 threshold — the gate compares **per-file** coverage in
 `coverage/coverage-final.json` against the floors recorded in
@@ -156,12 +156,11 @@ touched it:
 The floors are declared in [`.agentrc.json`](../.agentrc.json) under
 `agentSettings.quality.qualityFloors.*` (defaults baked into the helper
 match the table above) and resolved at runtime by the shared
-helper [`lib/quality-floors.js`](../.agents/scripts/lib/quality-floors.js)
-(`loadFloorConfig()` + `applyFloorPolicy(records, floors, scope)`). All
-three checkers — `check-coverage-baseline.js`, `check-maintainability.js`,
-`check-crap.js` — invoke the same helper **after** their ratchet decision
-so a file that's below floor but matched the (stale) baseline still
-trips the gate.
+helper [`lib/orchestration/check-baselines/phases/floors.js`](../.agents/scripts/lib/orchestration/check-baselines/phases/floors.js).
+All three gates run through `check-baselines.js` (coverage,
+maintainability, crap), which invokes the floors phase **after** the
+ratchet decision so a file that's below floor but matched the (stale)
+baseline still trips the gate.
 
 ### When the floor gate fires
 

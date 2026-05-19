@@ -163,7 +163,7 @@ Apply the Acceptance Spec system prompt below to the PRD + Tech Spec just
 written, plus the **existing BDD scenario index** from
 `bddScenarios` on the planner-context envelope (Story #2637). The
 scenario index is the output of
-[`lib/bdd-scenario-scanner.js#scanBddScenarios`](../../scripts/lib/bdd-scenario-scanner.js)
+[`lib/bdd-scenario-scanner.js#scanBddScenarios`](../../../scripts/lib/bdd-scenario-scanner.js)
 and carries one row per `.feature` scenario found under the project's
 canonical BDD roots, with `{ file, line, scenarioTitle, tags,
 outcomeKeywords }`. Before emitting each AC row, run
