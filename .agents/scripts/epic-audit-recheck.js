@@ -43,7 +43,11 @@ import path from 'node:path';
 import { matchesAnyFilePattern } from './lib/audit-suite/index.js';
 import { defineFlags } from './lib/cli-args.js';
 import { runAsCli } from './lib/cli-utils.js';
-import { getPaths, PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import {
+  getPaths,
+  PROJECT_ROOT,
+  resolveConfig,
+} from './lib/config-resolver.js';
 
 const HELP = `Usage: node .agents/scripts/epic-audit-recheck.js \\
   --epic <id> --files <comma-list-or-@file>
@@ -202,10 +206,9 @@ export async function runEpicAuditRecheckCli(values, deps = {}) {
   }
 
   const rules = (deps.loadAuditRules ?? loadAuditRules)(deps);
-  const selectedAudits = (deps.selectOverlappingAudits ?? selectOverlappingAudits)(
-    rules,
-    filesResult.files,
-  );
+  const selectedAudits = (
+    deps.selectOverlappingAudits ?? selectOverlappingAudits
+  )(rules, filesResult.files);
 
   const envelope = {
     epicId: epic,
