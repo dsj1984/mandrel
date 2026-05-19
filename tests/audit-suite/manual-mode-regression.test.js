@@ -39,11 +39,7 @@ const LENSES = [
   'audit-ux-ui',
 ];
 
-const WORKFLOWS_DIR = path.resolve(
-  process.cwd(),
-  '.agents',
-  'workflows',
-);
+const WORKFLOWS_DIR = path.resolve(process.cwd(), '.agents', 'workflows');
 
 async function readLens(name) {
   return fs.readFile(path.join(WORKFLOWS_DIR, `${name}.md`), 'utf8');
