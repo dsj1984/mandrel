@@ -385,10 +385,6 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
     : aggregateTopHotspots(summaries);
 
   // mostFrictionStories: per-Story friction count, sorted desc, capped.
-  // When the upstream signal carries an optional `dispatchModel` hint
-  // (Epic #1185), propagate it onto the record. The field is omitted
-  // entirely (never null) when absent so the pre-Epic shape is byte-
-  // identical for the unset path.
   const mostFrictionStories = summaries
     .map((s) => {
       const counts = isObject(s.frictionByCategory)
@@ -397,19 +393,10 @@ export function computeEpicPerfReport(perStorySummaries, opts) {
             0,
           )
         : 0;
-      const row = {
+      return {
         storyId: nonNegativeInt(s.storyId),
         frictionCount: counts,
       };
-      if (
-        typeof s.dispatchModel === 'string' &&
-        (s.dispatchModel === 'haiku' ||
-          s.dispatchModel === 'sonnet' ||
-          s.dispatchModel === 'opus')
-      ) {
-        row.dispatchModel = s.dispatchModel;
-      }
-      return row;
     })
     .filter((row) => row.storyId > 0)
     .sort((a, b) => b.frictionCount - a.frictionCount)

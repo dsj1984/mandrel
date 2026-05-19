@@ -309,8 +309,8 @@ to author the spec.
 
    - **Wiring.** Each ticket is linked using `blocked by #NNN` syntax and
      GitHub's native sub-issues API.
-   - **Metadata.** Each Task is stamped with persona, model recommendations,
-     estimated files, and agent prompts.
+   - **Metadata.** Each Task is stamped with persona, estimated files, and
+     agent prompts.
 
 When decomposition completes the Epic flips to `agent::ready` and the
 dispatch manifest is posted as a structured comment on the Epic. That
