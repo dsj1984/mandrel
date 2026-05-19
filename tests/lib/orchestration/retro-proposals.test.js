@@ -148,7 +148,8 @@ test('composeRoutedProposals: memory section is plain insight lines, not frontma
         },
         {
           category: 'worktree-symlink',
-          insight: 'Worktree node_modules can symlink on Windows when ADMIN-enabled.',
+          insight:
+            'Worktree node_modules can symlink on Windows when ADMIN-enabled.',
         },
       ],
     }),
@@ -169,7 +170,10 @@ test('composeRoutedProposals: memorable single-occurrence categories do not get 
     baseInput({
       signals: [{ category: 'edge-case', source: 'consumer' }],
       memorablePatterns: [
-        { category: 'edge-case', insight: 'Watch for this edge case next sprint.' },
+        {
+          category: 'edge-case',
+          insight: 'Watch for this edge case next sprint.',
+        },
       ],
     }),
   );
@@ -249,7 +253,10 @@ test('composeRoutedProposals: gh issue create command shape is correct', () => {
   );
   const cmd = out.framework[0].command;
   assert.match(cmd, /gh issue create --repo dsj1984\/mandrel/);
-  assert.match(cmd, /--title "Friction: lint-loop recurred 2 times in Epic #2547"/);
+  assert.match(
+    cmd,
+    /--title "Friction: lint-loop recurred 2 times in Epic #2547"/,
+  );
   assert.match(cmd, /--label "meta::framework-gap,friction::lint-loop"/);
   assert.match(cmd, /--body-file - <<EOF/);
   assert.match(cmd, /\nEOF$/);

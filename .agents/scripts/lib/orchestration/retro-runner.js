@@ -256,8 +256,7 @@ export async function gatherRetroSignals({
         const record = /** @type {Record<string, unknown>} */ (parsed);
         const category =
           typeof record.category === 'string' ? record.category : null;
-        const source =
-          record.source === 'framework' ? 'framework' : 'consumer';
+        const source = record.source === 'framework' ? 'framework' : 'consumer';
         if (category) {
           routedSignals.push({ category, source });
         }

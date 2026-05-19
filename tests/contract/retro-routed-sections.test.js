@@ -46,7 +46,10 @@ test('contract: full retro renders four routed sections in deterministic order',
       { category: 'one-off', source: 'consumer' },
     ],
     memorablePatterns: [
-      { category: 'pwsh-and', insight: 'PowerShell does not support &&; use ;' },
+      {
+        category: 'pwsh-and',
+        insight: 'PowerShell does not support &&; use ;',
+      },
     ],
   });
 
@@ -74,14 +77,8 @@ test('contract: full retro renders four routed sections in deterministic order',
   assert.notEqual(completeIdx, -1, 'retro-complete marker present');
 
   // Deterministic ordering: consumer < framework < memory < discarded < marker.
-  assert.ok(
-    consumerIdx < frameworkIdx,
-    'consumer appears before framework',
-  );
-  assert.ok(
-    frameworkIdx < memoryIdx,
-    'framework appears before memory',
-  );
+  assert.ok(consumerIdx < frameworkIdx, 'consumer appears before framework');
+  assert.ok(frameworkIdx < memoryIdx, 'framework appears before memory');
   assert.ok(memoryIdx < discardedIdx, 'memory appears before discarded');
   assert.ok(
     discardedIdx < completeIdx,
@@ -190,10 +187,7 @@ test('contract: compact (clean-manifest) path remains unaffected when routedProp
     false,
     'compact path must not render routed sections',
   );
-  assert.equal(
-    body.includes('### Proposed issues — framework repo'),
-    false,
-  );
+  assert.equal(body.includes('### Proposed issues — framework repo'), false);
 });
 
 test('contract: full path with absent routedProposals renders legacy Action Items section', () => {
@@ -221,9 +215,7 @@ test('contract: routed sections render placeholders for empty buckets', () => {
     frameworkRepo: 'dsj1984/mandrel',
     consumerRepo: 'dsj1984/domio',
     signals: [],
-    memorablePatterns: [
-      { category: 'lesson', insight: 'Keep retros short.' },
-    ],
+    memorablePatterns: [{ category: 'lesson', insight: 'Keep retros short.' }],
   });
   const { body } = composeRetroBody({
     epicId: 2547,

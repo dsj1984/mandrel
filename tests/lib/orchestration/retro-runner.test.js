@@ -516,7 +516,11 @@ test('gatherRetroSignals: computes routedProposals from per-Story signals stream
     for (let i = 0; i < lines.length; i++) {
       await cb(lines[i], i + 1);
     }
-    return { linesRead: lines.length, linesParsed: lines.length, missing: false };
+    return {
+      linesRead: lines.length,
+      linesParsed: lines.length,
+      missing: false,
+    };
   };
   const out = await gatherRetroSignals({
     epicId: 960,
