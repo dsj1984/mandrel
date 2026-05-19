@@ -353,6 +353,7 @@ export function composeRetroBody(input) {
     counts,
     epicPerfReport = null,
     parkedFollowOns = { recuts: [], parked: [] },
+    routedProposals = null,
     tasksTotal = 0,
     tasksFirstTry = 0,
     timestamp = new Date().toISOString(),
@@ -436,9 +437,24 @@ export function composeRetroBody(input) {
           (r) => `- Recut #${r.storyId ?? r.id ?? '?'} attributed to manifest`,
         )
       : [];
-  const actionItems = [...parkedLines, ...recutLines];
-  const actionItemsBody =
-    actionItems.length > 0 ? actionItems.join('\n') : '_None._';
+  const legacyActionItems = [...parkedLines, ...recutLines];
+  const legacyActionItemsBody =
+    legacyActionItems.length > 0 ? legacyActionItems.join('\n') : '_None._';
+
+  // Story #2558 — routed-proposals mode. When routedProposals is supplied
+  // AND any of the four buckets is non-empty, render the four explicit
+  // sections in deterministic order ABOVE the retro-complete marker:
+  //   1. Proposed issues — consumer repo
+  //   2. Proposed issues — framework repo
+  //   3. Proposed memory updates
+  //   4. One-off / discarded
+  // Otherwise the legacy "Action Items for Next Epic" section renders.
+  const routedSectionsBlock = renderRoutedSections(routedProposals);
+
+  const actionSection =
+    routedSectionsBlock === null
+      ? ['### Action Items for Next Epic', '', legacyActionItemsBody]
+      : routedSectionsBlock;
 
   const body = [
     heading,
@@ -469,13 +485,106 @@ export function composeRetroBody(input) {
     '',
     '_(operator follow-up.)_',
     '',
-    '### Action Items for Next Epic',
-    '',
-    actionItemsBody,
+    ...actionSection,
     '',
     completeMarker,
   ].join('\n');
   return { body, compact: false, scorecard };
+}
+
+/**
+ * Pure: render the four routed-proposal sections in deterministic order.
+ * Returns `null` when `routedProposals` is absent or fully empty — the
+ * caller falls back to the legacy "Action Items for Next Epic" section so
+ * back-compat callers see no shape change.
+ *
+ * @param {{ framework: object[], consumer: object[], memory: object[], discarded: object[] } | null} routedProposals
+ * @returns {string[] | null}
+ */
+function renderRoutedSections(routedProposals) {
+  if (
+    !routedProposals ||
+    typeof routedProposals !== 'object' ||
+    Array.isArray(routedProposals)
+  ) {
+    return null;
+  }
+  const framework = Array.isArray(routedProposals.framework)
+    ? routedProposals.framework
+    : [];
+  const consumer = Array.isArray(routedProposals.consumer)
+    ? routedProposals.consumer
+    : [];
+  const memory = Array.isArray(routedProposals.memory)
+    ? routedProposals.memory
+    : [];
+  const discarded = Array.isArray(routedProposals.discarded)
+    ? routedProposals.discarded
+    : [];
+  if (
+    framework.length === 0 &&
+    consumer.length === 0 &&
+    memory.length === 0 &&
+    discarded.length === 0
+  ) {
+    return null;
+  }
+
+  const out = [];
+  out.push('### Proposed issues — consumer repo');
+  out.push('');
+  if (consumer.length === 0) {
+    out.push('_None._');
+  } else {
+    for (const item of consumer) {
+      out.push(`- **${item.title ?? item.category}**`);
+      out.push('');
+      out.push('```sh');
+      out.push(String(item.command ?? ''));
+      out.push('```');
+      out.push('');
+    }
+  }
+  out.push('');
+  out.push('### Proposed issues — framework repo');
+  out.push('');
+  if (framework.length === 0) {
+    out.push('_None._');
+  } else {
+    for (const item of framework) {
+      out.push(`- **${item.title ?? item.category}**`);
+      out.push('');
+      out.push('```sh');
+      out.push(String(item.command ?? ''));
+      out.push('```');
+      out.push('');
+    }
+  }
+  out.push('');
+  out.push('### Proposed memory updates');
+  out.push('');
+  if (memory.length === 0) {
+    out.push('_None._');
+  } else {
+    out.push('update your memory with the following insights:');
+    out.push('');
+    for (const m of memory) {
+      out.push(`- ${m.insight}`);
+    }
+  }
+  out.push('');
+  out.push('### One-off / discarded');
+  out.push('');
+  if (discarded.length === 0) {
+    out.push('_None._');
+  } else {
+    for (const d of discarded) {
+      out.push(
+        `- \`${d.category}\` (${d.occurrences ?? 1} occurrence, source: ${d.source ?? 'consumer'})`,
+      );
+    }
+  }
+  return out;
 }
 
 /**
