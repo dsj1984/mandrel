@@ -138,7 +138,14 @@ Recommendation:
 ### 3. Skill Library Should Become a Capability Index Plus Compact Policies
 
 **Status:** Simplify / Reframe
-**Action:** 🚀 Implement now (partial) — generating a `skills.index.json` manifest and adding "policy capsule" frontmatter to each `SKILL.md` is a pure tooling win that helps current models too (cheaper selection, faster hydration). Defer the deeper "stop hydrating full skills by default" change until model self-selection is trustworthy.
+**Action:** Split in two:
+- 🚀 **Implement now** — generate a `skills.index.json` manifest (or
+  frontmatter-only index) and add a 5-12 bullet "policy capsule" to each
+  `SKILL.md`. Pure tooling that helps current models too: cheaper
+  selection and faster hydration. No behavioral change to the runtime.
+- 🔭 **Monitor** — actually changing the hydrator to *stop* loading full
+  skill bodies by default, and to route skill selection through the
+  manifest. Waits until the model can self-select context confidently.
 
 **Primary paths:**
 
@@ -205,8 +212,14 @@ Simplify:
 
 ### 5. Four-Tier Ticket Hierarchy Is Often Overhead
 
-**Status:** Simplify / Reframe
-**Action:** 🚀 Implement now — adaptive Patch / Story / Epic modes pay off today (`/single-story-plan` already exists; Patch mode is the missing rung). Docs-only and refactor-only Epics burn real operator time on the full hierarchy.
+**Status:** Simplify / Reframe — largely covered
+**Action:** 🚀 Re-evaluate, then likely close — `/single-story-plan` and
+`/single-story-deliver` already provide the lightweight "Story mode" rung
+this finding called for. The only open question is whether a still-lighter
+"Patch" rung (one issue → one branch → one PR, no Story scaffold) is worth
+adding, or whether the single-story pair already covers that workload in
+practice. Evaluate against recent single-story usage before opening a new
+issue; if the existing pair is sufficient, mark this finding implemented.
 
 **Primary paths:**
 
@@ -437,7 +450,23 @@ Simplify:
 ### 13. Execution Adapter Surface Is Underused
 
 **Status:** Reframe
-**Action:** 🚀 Implement now — this is a decision that should be made regardless of model strength: either invest in a real adapter contract or demote `ManualDispatchAdapter` to a documented compatibility example and simplify architecture docs around the actual Claude Code-first runtime. Either path removes confusion today.
+**Action:** 🚀 Implement now — decision made: keep `IExecutionAdapter` as a
+thin interface with the Claude Code implementation as the single shipped
+adapter, and lift **dispatch manifest emission into the interface contract**
+so every adapter (current or future) is required to produce one. Concrete
+work:
+
+- Retire `ManualDispatchAdapter` as a runtime path. Either delete it or
+  keep a stripped-down version in `examples/` purely as documentation of
+  the contract.
+- Slim `IExecutionAdapter` to the methods the Claude Code runtime
+  actually uses; remove placeholder/unimplemented surface.
+- Make `emitDispatchManifest` (or equivalent) a non-optional method on
+  the interface, with a single shared implementation that all adapters
+  reuse. The manifest is the universal artifact across runtimes.
+- Update `docs/architecture.md` and `docs/decisions.md` to describe the
+  actual Claude Code-first runtime instead of the historical multi-runtime
+  framing.
 
 **Primary paths:**
 
@@ -550,8 +579,23 @@ Recommendation:
 
 ### 17. Compatibility Shims and Legacy Shapes Are Dragging the Harness
 
-**Status:** Retire over time
-**Action:** 🚀 Implement now — a formal deprecation ledger with removal versions plus one migration command per retired surface is pure operator hygiene. d1f1eaff retired `dispatchModel` / `recommendedModel`; keep going. The harness gets harder to reason about (for humans *and* models) every release the shims linger.
+**Status:** Cleanup (hard cutovers only)
+**Action:** 🚀 Implement now — operator policy is **no shim layer, no
+deprecation ledger, no version-windowed sunsets**. Every change is a hard
+cutover. Concrete work:
+
+- Audit `config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
+  `lifecycle/legacy-resume.js`, `wave-session.js`, and the schemas for
+  existing compatibility branches; remove them in one pass.
+- Codify the policy in `git-conventions.md` (or a sibling rule):
+  contract changes ship as hard cutovers; consumers update on the new
+  release.
+- For any future contract change, the PR diff itself is the migration —
+  no parallel old-shape support code.
+
+This is the lowest-risk version of the original recommendation given the
+project is a Git-submodule-distributed framework whose consumers pin to
+specific versions; they opt into breaks at upgrade time.
 
 **Primary paths:**
 
