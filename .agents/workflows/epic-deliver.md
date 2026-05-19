@@ -1,16 +1,17 @@
 ---
 description: >-
   Drive an Epic from `agent::ready` to a merged pull request against `main`.
-  The nine-phase flow runs the wave loop, close-validation, code-review, retro,
-  finalize, watch-and-iterate, conditional auto-merge, and local branch
-  cleanup. When the run is end-to-end clean (zero manual interventions, zero
-  🔴/🟠 review findings, compact retro) the PR auto-merges via `gh pr merge
-  --squash --delete-branch`; otherwise the workflow falls back to the
-  operator-merges-button path so a human inspects the surface area.
+  The ten-phase flow runs the wave loop, close-validation, epic-audit,
+  code-review, retro, finalize, watch-and-iterate, conditional auto-merge,
+  and local branch cleanup. When the run is end-to-end clean (zero manual
+  interventions, zero 🔴/🟠 review findings, compact retro) the PR
+  auto-merges via `gh pr merge --squash --delete-branch`; otherwise the
+  workflow falls back to the operator-merges-button path so a human
+  inspects the surface area.
 recommendedModel: opus
 ---
 
-<!-- recommendedModel rationale: nine-phase delivery orchestrator coordinates wave fan-out, code review, retro, and merge gating — reasoning-heavy, advisory hint for operators. -->
+<!-- recommendedModel rationale: ten-phase delivery orchestrator coordinates wave fan-out, change-set audits, code review, retro, and merge gating — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-deliver #[Epic ID]
 
@@ -25,12 +26,13 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 1 — prepare              (epic-deliver-prepare.js)
   → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
-  → Phase 4 — code-review          (helpers/epic-code-review.md)
-  → Phase 5 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
-  → Phase 6 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
-  → Phase 7 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
-  → Phase 7.5 — auto-merge gate    (lifecycle-emit → epic.automerge.start)
-  → Phase 8 — cleanup              (BranchCleaner + Cleaner lifecycle listeners on epic.cleanup.start / epic.merge.armed; fire via lifecycle-emit → epic.merge.armed)
+  → Phase 4 — epic-audit           (helpers/epic-audit.md — change-set audits via selectAudits)
+  → Phase 5 — code-review          (helpers/epic-code-review.md)
+  → Phase 6 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
+  → Phase 7 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
+  → Phase 8 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
+  → Phase 8.5 — auto-merge gate    (lifecycle-emit → epic.automerge.start)
+  → Phase 9 — cleanup              (BranchCleaner + Cleaner lifecycle listeners on epic.cleanup.start / epic.merge.armed; fire via lifecycle-emit → epic.merge.armed)
 ```
 
 The argument is always an Epic ID (`type::epic`). Story IDs go to
@@ -43,13 +45,15 @@ spawned.
 ## Arguments
 
 ```text
-/epic-deliver <epicId> [--skip-code-review] [--skip-retro] [--full-retro]
+/epic-deliver <epicId> [--skip-epic-audit] [--skip-code-review] [--skip-retro] [--full-retro]
 ```
 
 - `epicId` — must carry `type::epic`. Otherwise STOP and tell the operator
   to use `/story-deliver <id>` or open the parent Epic.
-- `--skip-code-review` — skip Phase 4 (log the override).
-- `--skip-retro` — skip Phase 5 (use sparingly).
+- `--skip-epic-audit` — skip Phase 4 (log the override). Use only when the
+  change-set audits are known to be irrelevant (e.g., docs-only Epic).
+- `--skip-code-review` — skip Phase 5 (log the override).
+- `--skip-retro` — skip Phase 6 (use sparingly).
 - `--full-retro` — force the six-section retro regardless of manifest
   cleanliness. `--skip-retro` wins over `--full-retro`.
 
@@ -67,13 +71,13 @@ Every other runtime modifier is sourced from the Epic's labels or from
 - **Two-level dispatch.** Host LLM fans out per-Story Agent calls
   directly with `subagent_type: general-purpose`. Sub-agents do not
   carry the `Agent` tool, so this stays flat.
-- **Operator-merges-PR exit.** Phase 6 opens the PR; the workflow
-  never merges to `main` itself. Phase 7.5 may fire auto-merge when
+- **Operator-merges-PR exit.** Phase 7 opens the PR; the workflow
+  never merges to `main` itself. Phase 8.5 may fire auto-merge when
   every signal is clean.
 - **Lifecycle bus is the runner model.** Phase transitions, ticket
   state flips, structured comments, and notifications are emitted as
   typed events on the in-session lifecycle bus; a fixed roster of
-  listeners performs the side effects. Phase 6, 7.5, and 8 each fire
+  listeners performs the side effects. Phase 7, 8.5, and 9 each fire
   exactly one lifecycle event via the generic
   [`lifecycle-emit.js`](../scripts/lifecycle-emit.js) CLI
   (`--event epic.close.end` / `--event epic.automerge.start` /
@@ -259,7 +263,27 @@ the Epic branch; if any drifts, refresh and commit
 
 ---
 
-## Phase 4 — Code review
+## Phase 4 — Epic audit (change-set lenses)
+
+Skip when `--skip-epic-audit`. Otherwise auto-invoke
+[`helpers/epic-audit.md`](helpers/epic-audit.md) inline. The helper runs
+[`epic-audit-prepare.js`](../scripts/epic-audit-prepare.js) to ask the
+[`selectAudits`](../scripts/lib/audit-suite/index.js) SDK which lenses fire
+at the `gate3` close gate, then dispatches each selected lens through
+[`runAuditSuite`](../scripts/lib/audit-suite/index.js). Findings are
+persisted as an `audit-results` structured comment on the Epic.
+
+- **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
+- **Only 🟠/🟡/🟢** — log as non-blocking and continue.
+- **Selector reports `degraded: true`** — STOP. Propagate the
+  `reason`/`detail`, post a friction comment, do not fall back to a
+  full-roster audit.
+- **`selectedAudits` is empty** (docs-only change set) — log the
+  short-circuit and continue to Phase 5.
+
+---
+
+## Phase 5 — Code review
 
 Skip when `--skip-code-review`. Otherwise auto-invoke
 [`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline
@@ -271,7 +295,7 @@ structured comment on the Epic.
 
 ---
 
-## Phase 5 — Retro
+## Phase 6 — Retro
 
 Skip when `--skip-retro`. Otherwise post the `epic-perf-report` via
 `node .agents/scripts/analyze-execution.js --epic <epicId>` (failure →
@@ -295,9 +319,9 @@ and never fails the phase.
 
 ---
 
-## Phase 6 — Finalize (open PR to main)
+## Phase 7 — Finalize (open PR to main)
 
-### 6.0 — Sync Epic branch from `main` (Story #2580)
+### 7.0 — Sync Epic branch from `main` (Story #2580)
 
 Before firing the close-tail emit, sync the Epic branch with
 `origin/main` so the PR opens with the latest base commits already
@@ -315,7 +339,7 @@ node .agents/scripts/sync-branch-from-base.js \
 Outcomes:
 
 - **`fast-forward` / `merge-commit` / `noop-already-current`** → push
-  the resulting tip and continue to Phase 6.1: `git push origin epic/<epicId>`.
+  the resulting tip and continue to Phase 7.1: `git push origin epic/<epicId>`.
 - **`conflict`** → resolve in the Epic checkout (`git merge --no-edit
   origin/main`, fix conflicts, `git commit --no-edit`), then re-run the
   sync command. Once it exits 0, continue. Operator-recoverable; not an
@@ -330,7 +354,7 @@ docstring). When a future Story lifts the push + `gh pr create` flow
 into the listener body, the sync may move with it; until then, run this
 step manually.
 
-### 6.1 — Fire the close-tail emit
+### 7.1 — Fire the close-tail emit
 
 ```bash
 node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
@@ -365,12 +389,12 @@ chain runs three close-time responsibilities in order:
    path is not blocked by open sub-issues, then posts a hand-off
    structured comment naming the PR URL.
 
-Branch cleanup is out-of-band (Phase 8 reaps local refs after merge; the
+Branch cleanup is out-of-band (Phase 9 reaps local refs after merge; the
 rare "scrap and reset" case for an unmerged Epic is handled manually).
 
 ---
 
-## Phase 7 — Watch-and-iterate until CI is green
+## Phase 8 — Watch-and-iterate until CI is green
 
 The host LLM owns the green-bar loop until the operator merges. Use
 the shared watch-and-recover helper, which wraps `gh pr checks --watch`
@@ -389,14 +413,14 @@ node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>
 calls per session and `--poll-interval-ms MS` (default 10000) to
 override the polling cadence.
 
-Exit 0 → proceed to Phase 7.5. Non-zero → remediate (below) and re-run
+Exit 0 → proceed to Phase 8.5. Non-zero → remediate (below) and re-run
 the helper. Auto-merge stays armed across retries; the
-`epic.automerge.start` emit in Phase 7.5 re-runs the `AutomergeArmer`
+`epic.automerge.start` emit in Phase 8.5 re-runs the `AutomergeArmer`
 listener, which re-checks `mergeStateStatus` before firing merge, so a
 second BEHIND that arrives between the helper exiting clean and Phase
-7.5 starting is also caught.
+8.5 starting is also caught.
 
-### 7.1 Remediation
+### 8.1 Remediation
 
 For each failed required check: fetch the log
 (`gh run view <runId> --log-failed`), classify and fix:
@@ -414,24 +438,24 @@ For each failed required check: fetch the log
 Push to `epic/<epicId>` and re-run
 `node <agentRoot>/scripts/pr-watch-with-update.js --pr <prNumber>`.
 
-### 7.2 When to halt
+### 8.2 When to halt
 
 Three consecutive iterations on the same failure class without
 convergence → friction comment, flip to `agent::blocked`, park. Unknown
 failure class on first encounter → attempt source-level fix; log
 friction if diagnosis takes more than one round.
 
-### 7.3 Hard prohibitions
+### 8.3 Hard prohibitions
 
-**Never** `gh pr merge` from Phase 7 (Phase 7.5 is the only merge
+**Never** `gh pr merge` from Phase 8 (Phase 8.5 is the only merge
 site). **Never** force-push to `main`. **Never** push empty commits or
 refresh baselines to dodge a red check.
 
 ---
 
-## Phase 7.5 — Auto-merge gate
+## Phase 8.5 — Auto-merge gate
 
-After Phase 7 exits 0, evaluate the auto-merge predicate by emitting
+After Phase 8 exits 0, evaluate the auto-merge predicate by emitting
 `epic.automerge.start`:
 
 ```bash
@@ -472,9 +496,9 @@ empty-committing to dodge CI diagnosis.
 
 ---
 
-## Phase 8 — Local branch cleanup
+## Phase 9 — Local branch cleanup
 
-Phase 8 runs **automatically** inside the lifecycle bus once auto-merge
+Phase 9 runs **automatically** inside the lifecycle bus once auto-merge
 arms: the `BranchCleaner` listener subscribes to `epic.cleanup.start`
 and reaps local refs before `Cleaner` archives the `temp/epic-<id>/`
 tree. No operator step is required on the auto-merge path.
@@ -505,9 +529,9 @@ node .agents/scripts/lifecycle-emit.js --epic <epicId> \
   --event epic.merge.armed --pr-url <prUrl>
 ```
 
-If Phase 7.5 fell back to the operator-merges-button path (`gh pr
+If Phase 8.5 fell back to the operator-merges-button path (`gh pr
 merge --auto` was declined), the `epic.merge.armed` event never fires
-inside this run and Phase 8 will not run automatically. After the
+inside this run and Phase 9 will not run automatically. After the
 operator merges the PR, `epic/<epicId>` and each `story-<id>` ref can
 be reaped manually:
 
@@ -530,7 +554,7 @@ fallback is tracked as follow-up to Story #2398.
 ## Idempotence and resume
 
 Re-runs pick up at the next undispatched wave (in-flight Stories finish
-via `/story-deliver`'s own checkpointing). The PR from Phase 6 is
+via `/story-deliver`'s own checkpointing). The PR from Phase 7 is
 updated in place on subsequent runs. The authoritative live view is
 the `epic-run-progress` structured comment.
 
@@ -538,7 +562,7 @@ the `epic-run-progress` structured comment.
 
 ## Constraints
 
-- **Never** merge `epic/<epicId>` to `main` outside Phase 7.5.
+- **Never** merge `epic/<epicId>` to `main` outside Phase 8.5.
 - **Never** dispatch more than one wave at a time; concurrency lives
   inside a single wave's fan-out, capped at `concurrencyCap`.
 - **Never** flip Story-level labels from this skill; **never** invoke
@@ -548,8 +572,8 @@ the `epic-run-progress` structured comment.
   `epic-execute-record-wave.js`; never write run state elsewhere.
 - **Always** post a friction structured comment before a non-`complete`
   outcome.
-- **Always** auto-invoke the code-review and retro helpers (Phases 4–5)
-  when their artefacts aren't already present.
-- **Always** drive Phase 7 to green CI before returning control — the
+- **Always** auto-invoke the epic-audit, code-review, and retro helpers
+  (Phases 4–6) when their artefacts aren't already present.
+- **Always** drive Phase 8 to green CI before returning control — the
   host LLM owns the loop until the PR is mergeable or the Epic is
   parked at `agent::blocked`.
