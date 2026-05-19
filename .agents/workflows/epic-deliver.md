@@ -297,6 +297,41 @@ and never fails the phase.
 
 ## Phase 6 — Finalize (open PR to main)
 
+### 6.0 — Sync Epic branch from `main` (Story #2580)
+
+Before firing the close-tail emit, sync the Epic branch with
+`origin/main` so the PR opens with the latest base commits already
+integrated. The Epic branch may be behind `main` if other PRs merged
+during the wave loop; without this step, the Epic→`main` PR opens
+"behind base" and (with branch-protection's `up-to-date branch` rule)
+stalls at the merge gate.
+
+```bash
+git checkout epic/<epicId>
+node .agents/scripts/sync-branch-from-base.js \
+  --branch epic/<epicId> --base main
+```
+
+Outcomes:
+
+- **`fast-forward` / `merge-commit` / `noop-already-current`** → push
+  the resulting tip and continue to Phase 6.1: `git push origin epic/<epicId>`.
+- **`conflict`** → resolve in the Epic checkout (`git merge --no-edit
+  origin/main`, fix conflicts, `git commit --no-edit`), then re-run the
+  sync command. Once it exits 0, continue. Operator-recoverable; not an
+  agent loop.
+- **`fetch-failed`** → re-check network / `origin` access and re-run.
+
+This is a workflow-level step (operator-driven), not part of the
+close-tail listener chain — the listener delegates to a `runFinalizeFn`
+that does not currently push or open the PR in production (see
+[`finalizer.js`](../scripts/lib/orchestration/lifecycle/listeners/finalizer.js)
+docstring). When a future Story lifts the push + `gh pr create` flow
+into the listener body, the sync may move with it; until then, run this
+step manually.
+
+### 6.1 — Fire the close-tail emit
+
 ```bash
 node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 ```

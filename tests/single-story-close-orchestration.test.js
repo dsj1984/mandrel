@@ -290,6 +290,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 1234,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: provider,
       injectedConfig: config,
     });
@@ -352,6 +353,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 1234,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
     });
@@ -384,6 +386,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 77,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       noAutoMerge: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
@@ -422,6 +425,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 1,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: makeFakeProvider({
         initialStory: { id: 1, state: 'open', title: '', labels: [] },
       }),
@@ -459,6 +463,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 55,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: makeFakeProvider({
         initialStory: { id: 55, state: 'open', title: 'AM fails', labels: [] },
       }),
@@ -503,6 +508,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 8,
       cwd: '/repo',
       skipValidation: false,
+      skipSync: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
           id: 8,
@@ -555,6 +561,7 @@ describe('runSingleStoryClose orchestration', () => {
         storyId: 11,
         cwd: '/repo',
         skipValidation: false,
+        skipSync: true,
         injectedProvider: makeFakeProvider({
           initialStory: {
             id: 11,
@@ -593,6 +600,7 @@ describe('runSingleStoryClose orchestration', () => {
         storyId: 22,
         cwd: '/repo',
         skipValidation: true,
+        skipSync: true,
         injectedProvider: makeFakeProvider({
           initialStory: {
             id: 22,
@@ -628,6 +636,7 @@ describe('runSingleStoryClose orchestration', () => {
       storyId: 33,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: makeFakeProvider({
         initialStory: {
           id: 33,
@@ -668,6 +677,7 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
       storyId: story.id,
       cwd: '/repo',
       skipValidation: true,
+      skipSync: true,
       injectedProvider: makeFakeProvider({
         initialStory: story,
         updateThrows,

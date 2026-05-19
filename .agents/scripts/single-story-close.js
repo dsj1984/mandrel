@@ -53,9 +53,12 @@ import {
   runCloseValidation,
 } from './lib/close-validation.js';
 import { PROJECT_ROOT, resolveConfig } from './lib/config-resolver.js';
+import { syncBranchFromBase } from './lib/git/sync-from-base.js';
 import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
+import { AGENT_LABELS } from './lib/label-constants.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
+import { upsertStructuredComment } from './lib/orchestration/ticketing/state.js';
 import { createProvider } from './lib/provider-factory.js';
 import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
@@ -69,11 +72,13 @@ export async function runSingleStoryClose({
   storyId: storyIdParam,
   cwd: cwdParam,
   skipValidation: skipValidationParam,
+  skipSync: skipSyncParam,
   noAutoMerge: noAutoMergeParam,
   noFullScopeCrap: noFullScopeCrapParam,
   injectedProvider,
   injectedConfig,
   injectedNotify,
+  injectedSync,
 } = {}) {
   const parsed =
     storyIdParam !== undefined
@@ -81,12 +86,14 @@ export async function runSingleStoryClose({
           storyId: storyIdParam,
           cwd: cwdParam ?? null,
           skipValidation: !!skipValidationParam,
+          skipSync: !!skipSyncParam,
           noAutoMerge: !!noAutoMergeParam,
           noFullScopeCrap: !!noFullScopeCrapParam,
         }
       : parseSprintArgs();
   const { storyId } = parsed;
   const skipValidation = skipValidationParam ?? parsed.skipValidation ?? false;
+  const skipSync = skipSyncParam ?? parsed.skipSync ?? false;
   const noAutoMerge = noAutoMergeParam ?? parsed.noAutoMerge ?? false;
   const noFullScopeCrap =
     noFullScopeCrapParam ?? parsed.noFullScopeCrap ?? false;
@@ -94,7 +101,7 @@ export async function runSingleStoryClose({
 
   if (!storyId) {
     throw new Error(
-      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--no-auto-merge] [--no-full-scope-crap]',
+      'Usage: node single-story-close.js --story <STORY_ID> [--cwd <main-repo>] [--skip-validation] [--skip-sync] [--no-auto-merge] [--no-full-scope-crap]',
     );
   }
 
@@ -174,6 +181,57 @@ export async function runSingleStoryClose({
     progress('VALIDATE', '✅ All gates passed.');
   } else {
     progress('VALIDATE', '⏭ Skipped (--skip-validation).');
+  }
+
+  // Step 1a (Story #2580): sync the Story branch from `origin/<baseBranch>`
+  // before push so the PR opens with the latest base commits already
+  // integrated. Defends against the parallel-`/single-story-deliver` race
+  // where one Story's auto-merge bumps `main` while sibling Stories are
+  // mid-flight — without the sync, the lagging PRs open "behind base"
+  // and stall against the `up-to-date branch` protection rule.
+  //
+  // The sync runs INSIDE the worktree (where the Story branch is checked
+  // out); falls back to the main checkout when the worktree is absent.
+  // On a merge conflict the Story is transitioned to `agent::blocked` and
+  // close throws — the operator resolves in the worktree and re-runs.
+  if (!skipSync) {
+    const syncCwd = worktreePath ?? cwd;
+    progress(
+      'SYNC',
+      `Syncing ${storyBranch} from origin/${baseBranch} in ${syncCwd}...`,
+    );
+    const syncFn = injectedSync ?? syncBranchFromBase;
+    const syncResult = await syncFn({
+      cwd: syncCwd,
+      baseBranch,
+      log: (tag, msg) => progress(tag, msg),
+    });
+    if (!syncResult.synced) {
+      await handleSyncFailure({
+        provider,
+        storyId,
+        syncCwd,
+        baseBranch,
+        storyBranch,
+        result: syncResult,
+        progress,
+      });
+      throw new Error(
+        `[single-story-close] Base-sync failed (${syncResult.kind})` +
+          (syncResult.conflictFiles
+            ? `: conflicting files = ${syncResult.conflictFiles.join(', ')}`
+            : syncResult.stderr
+              ? `: ${syncResult.stderr.slice(0, 200)}`
+              : '') +
+          `. Story transitioned to ${AGENT_LABELS.BLOCKED}; resolve in ${syncCwd} and re-run \`/single-story-deliver\`.`,
+      );
+    }
+    progress(
+      'SYNC',
+      `✅ Synced from origin/${baseBranch} (${syncResult.kind}).`,
+    );
+  } else {
+    progress('SYNC', '⏭ Skipped (--skip-sync).');
   }
 
   // Step 2: push the Story branch. `git push -u` makes the local branch
@@ -451,6 +509,117 @@ function defaultGhAutoMergeRunner(args, { cwd }) {
       stderr: err.stderr?.toString?.() ?? String(err?.message ?? err),
     };
   }
+}
+
+/**
+ * Post a `friction` structured comment summarising a base-sync failure
+ * and transition the Story to `agent::blocked`. Exported for testing.
+ *
+ * @param {{
+ *   provider: object,
+ *   storyId: number,
+ *   syncCwd: string,
+ *   baseBranch: string,
+ *   storyBranch: string,
+ *   result: { kind: string, conflictFiles?: string[], stderr?: string },
+ *   progress: (tag: string, msg: string) => void,
+ * }} args
+ */
+export async function handleSyncFailure({
+  provider,
+  storyId,
+  syncCwd,
+  baseBranch,
+  storyBranch,
+  result,
+  progress,
+}) {
+  const body = buildSyncFailureCommentBody({
+    storyId,
+    storyBranch,
+    baseBranch,
+    syncCwd,
+    result,
+  });
+
+  // Post the structured comment first so the operator's recovery
+  // surface lands even if the label flip fails. Both are best-effort:
+  // we never want a notification-side failure to mask the real reason
+  // close threw.
+  try {
+    await upsertStructuredComment(provider, storyId, 'friction', body);
+    progress('SYNC', `📝 Posted friction comment on #${storyId}.`);
+  } catch (err) {
+    Logger.warn?.(
+      `[single-story-close] ⚠️ Failed to post sync-failure friction comment on #${storyId}: ${err?.message ?? err}`,
+    );
+  }
+
+  try {
+    await provider.updateTicket(storyId, {
+      labels: {
+        add: [AGENT_LABELS.BLOCKED],
+        remove: [AGENT_LABELS.EXECUTING, AGENT_LABELS.READY, AGENT_LABELS.DONE],
+      },
+    });
+    progress('SYNC', `🚧 Flipped Story #${storyId} → ${AGENT_LABELS.BLOCKED}.`);
+  } catch (err) {
+    Logger.warn?.(
+      `[single-story-close] ⚠️ Failed to flip Story #${storyId} to ${AGENT_LABELS.BLOCKED}: ${err?.message ?? err}`,
+    );
+  }
+}
+
+/**
+ * Build the markdown body posted on a base-sync failure. Pure; exported
+ * for tests so the operator-recoverable surface stays reviewable.
+ *
+ * @param {{ storyId: number, storyBranch: string, baseBranch: string, syncCwd: string, result: { kind: string, conflictFiles?: string[], stderr?: string } }} args
+ * @returns {string}
+ */
+export function buildSyncFailureCommentBody({
+  storyId,
+  storyBranch,
+  baseBranch,
+  syncCwd,
+  result,
+}) {
+  const kind = result.kind ?? 'unknown';
+  const heading =
+    kind === 'conflict'
+      ? `Base-sync conflict on close: ${storyBranch} ↔ origin/${baseBranch}`
+      : `Base-sync failed on close (${kind}): ${storyBranch} ↔ origin/${baseBranch}`;
+  const fileList = (result.conflictFiles ?? []).map((f) => `- \`${f}\``);
+  const lines = [
+    `### ${heading}`,
+    '',
+    '`/single-story-deliver` close-validation passed, but the pre-push',
+    `sync against \`origin/${baseBranch}\` could not complete. The Story has`,
+    `been transitioned to \`agent::blocked\`. To resume:`,
+    '',
+    '```bash',
+    `cd ${syncCwd}`,
+    `git fetch origin ${baseBranch}`,
+    `git merge --no-edit origin/${baseBranch}`,
+    '# resolve any conflicts, then:',
+    `git add -A ; git commit --no-edit`,
+    '# re-run close:',
+    `node .agents/scripts/single-story-close.js --story ${storyId}`,
+    '```',
+  ];
+  if (kind === 'conflict' && fileList.length > 0) {
+    lines.push('', '**Conflicting files:**', '', ...fileList);
+  } else if (result.stderr) {
+    lines.push(
+      '',
+      '**git stderr:**',
+      '',
+      '```',
+      result.stderr.slice(0, 1000),
+      '```',
+    );
+  }
+  return lines.join('\n');
 }
 
 runAsCli(import.meta.url, runSingleStoryClose, {
