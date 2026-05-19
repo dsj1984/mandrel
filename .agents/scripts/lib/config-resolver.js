@@ -9,15 +9,16 @@
  * full-document AJV gate (`AGENTRC_SCHEMA`) on load and returns a wrapper
  * carrying each block plus a `raw`/`source` metadata pair.
  *
- * Hard cutover: legacy `agentSettings.*` / `orchestration.*` documents are
- * rejected up front by the AJV schema. Consumers update their
- * `.agentrc.json` in lockstep with the framework bump.
+ * Hard cutover (input side): legacy `agentSettings.*` / `orchestration.*`
+ * documents are rejected up front by the AJV schema. Consumers update
+ * their `.agentrc.json` in lockstep with the framework bump.
  *
- * Backwards-compat shim: the returned object additionally exposes
+ * Output-side shim: the returned object additionally exposes
  * `agentSettings` and `orchestration` pointers that surface a synthesized
- * view of the legacy shape, so call sites that haven't migrated yet keep
- * reading the same fields. The shim is read-only and converges on the
- * post-reshape paths internally.
+ * view of the canonical blocks under their legacy paths, so existing call
+ * sites keep reading the same fields. The shim is read-only and converges
+ * on the post-reshape paths internally; a future Epic sweeps every
+ * consumer onto the canonical `project` / `github` / `delivery` reads.
  */
 
 import fs from 'node:fs';

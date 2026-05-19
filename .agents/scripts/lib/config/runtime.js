@@ -20,7 +20,7 @@ const SESSION_ID_ALLOWED_CHAR_RE = /[^a-z0-9]/g;
  *   1. `env.AP_WORKTREE_ENABLED === 'true'`  → true   (explicit operator override)
  *   2. `env.AP_WORKTREE_ENABLED === 'false'` → false  (explicit operator override)
  *   3. `env.CLAUDE_CODE_REMOTE === 'true'`   → false  (web session auto-detect)
- *   4. else                                  → Boolean(config.orchestration.worktreeIsolation.enabled)
+ *   4. else                                  → Boolean(config.delivery.worktreeIsolation.enabled)
  *
  * String matching on `AP_WORKTREE_ENABLED` is deliberate: `""`, `"0"`, or any
  * other truthy-ish shell expansion must not flip the flag.
@@ -33,13 +33,7 @@ export function resolveWorktreeEnabled(opts = {}, env = process.env) {
   if (env.AP_WORKTREE_ENABLED === 'true') return true;
   if (env.AP_WORKTREE_ENABLED === 'false') return false;
   if (env.CLAUDE_CODE_REMOTE === 'true') return false;
-  // Post-reshape: worktree isolation lives under `delivery.worktreeIsolation`.
-  // Tolerate the legacy `orchestration.worktreeIsolation` path so the resolver
-  // can still bootstrap a legacy config long enough to surface a clear error.
-  return Boolean(
-    opts.config?.delivery?.worktreeIsolation?.enabled ??
-      opts.config?.orchestration?.worktreeIsolation?.enabled,
-  );
+  return Boolean(opts.config?.delivery?.worktreeIsolation?.enabled);
 }
 
 /**

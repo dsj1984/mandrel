@@ -76,7 +76,10 @@ function buildFormatHint(writeCmd) {
  */
 function resolveCommandWithFallback(settings, key, fallback) {
   try {
-    const cmds = getCommands({ agentSettings: settings });
+    // `settings` here is the legacy-shim view (`agentSettings.*`); under the
+    // post-reshape contract `getCommands` reads `config.project.commands`,
+    // and the shim guarantees `agentSettings.commands === project.commands`.
+    const cmds = getCommands({ project: { commands: settings?.commands } });
     const value = cmds[key];
     if (typeof value === 'string' && value.trim().length > 0) {
       return value.trim();

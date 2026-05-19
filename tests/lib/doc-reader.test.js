@@ -27,7 +27,7 @@ describe('doc-reader.scrapeProjectDocs', () => {
     fs.writeFileSync(path.join(tmpDocsDir, 'doc2.md'), 'Content 2');
     fs.writeFileSync(path.join(tmpDocsDir, 'not-a-doc.txt'), 'Text');
 
-    const out = await scrapeProjectDocs({ paths: { docsRoot: tmpDocsDir } });
+    const out = await scrapeProjectDocs({ project: { paths: { docsRoot: tmpDocsDir } } });
 
     assert.equal(out.usedFallback, true);
     const names = out.docs.map((d) => d.name).sort();
@@ -59,7 +59,7 @@ describe('doc-reader.scrapeProjectDocs', () => {
   });
 
   it('returns an empty docs list when the directory is empty', async () => {
-    const out = await scrapeProjectDocs({ paths: { docsRoot: tmpDocsDir } });
+    const out = await scrapeProjectDocs({ project: { paths: { docsRoot: tmpDocsDir } } });
     assert.equal(out.docs.length, 0);
   });
 });
@@ -81,7 +81,7 @@ describe('doc-reader.buildDocsContext', () => {
   it('returns full mode for small payloads under the budget', async () => {
     fs.writeFileSync(path.join(tmpDocsDir, 'a.md'), 'small');
     const out = await buildDocsContext(
-      { paths: { docsRoot: tmpDocsDir }, docsContextFiles: ['a.md'] },
+      { project: { paths: { docsRoot: tmpDocsDir } }, docsContextFiles: ['a.md'] },
       { maxBytes: 50000, summaryMode: 'auto' },
     );
     assert.equal(out.mode, 'full');
@@ -93,7 +93,7 @@ describe('doc-reader.buildDocsContext', () => {
     const big = `## Heading\n\n${'x'.repeat(2000)}\n`;
     fs.writeFileSync(path.join(tmpDocsDir, 'big.md'), big);
     const out = await buildDocsContext(
-      { paths: { docsRoot: tmpDocsDir }, docsContextFiles: ['big.md'] },
+      { project: { paths: { docsRoot: tmpDocsDir } }, docsContextFiles: ['big.md'] },
       { maxBytes: 500, summaryMode: 'auto' },
     );
     assert.equal(out.mode, 'summary');
@@ -104,7 +104,7 @@ describe('doc-reader.buildDocsContext', () => {
     const big = `## Heading\n\n${'x'.repeat(2000)}\n`;
     fs.writeFileSync(path.join(tmpDocsDir, 'big.md'), big);
     const out = await buildDocsContext(
-      { paths: { docsRoot: tmpDocsDir }, docsContextFiles: ['big.md'] },
+      { project: { paths: { docsRoot: tmpDocsDir } }, docsContextFiles: ['big.md'] },
       { maxBytes: 500, summaryMode: 'auto' },
       { fullContext: true },
     );
@@ -114,7 +114,7 @@ describe('doc-reader.buildDocsContext', () => {
 
   it('propagates usedFallback when docsContextFiles is unset', async () => {
     fs.writeFileSync(path.join(tmpDocsDir, 'a.md'), 'small');
-    const out = await buildDocsContext({ paths: { docsRoot: tmpDocsDir } });
+    const out = await buildDocsContext({ project: { paths: { docsRoot: tmpDocsDir } } });
     assert.equal(out.usedFallback, true);
   });
 });

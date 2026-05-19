@@ -6,11 +6,12 @@ import {
   getRunners,
 } from '../../.agents/scripts/lib/config/runners.js';
 
-// Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner` is
-// configurable; the legacy `planRunner`, `concurrency`, `storyMergeRetry`,
-// and `decomposer` sub-blocks moved to framework-internal constants. The
-// `getRunners` accessor still returns the legacy-shaped wrapper so existing
-// call sites continue to destructure without rewriting.
+// Post-reshape (Epic #1720 Story #1739) only `delivery.deliverRunner`,
+// `delivery.epicAudit`, and `delivery.codeReview` are configurable; the
+// legacy `planRunner`, `concurrency`, `storyMergeRetry`, and `decomposer`
+// sub-blocks moved to framework-internal constants. Story #2687 dropped
+// the legacy `config.deliverRunner` / `config.orchestration.runners.*`
+// fallback reads — `delivery.deliverRunner` is the only supported shape.
 
 describe('getRunners', () => {
   it('returns defaulted shape for null/undefined/empty config', () => {
@@ -19,8 +20,6 @@ describe('getRunners', () => {
       // deliverRunner falls back to framework constants (3 / 120s).
       assert.equal(r.deliverRunner.concurrencyCap, 3);
       assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
-      assert.deepEqual(r.planRunner, {});
-      assert.deepEqual(r.concurrency, {});
       assert.equal(r.storyMergeRetry, DEFAULT_STORY_MERGE_RETRY);
       assert.equal(r.decomposer, DEFAULT_DECOMPOSER);
     }
@@ -39,7 +38,7 @@ describe('getRunners', () => {
     });
   });
 
-  it('still reads legacy orchestration.runners.deliverRunner during the transition', () => {
+  it('ignores legacy orchestration.runners.deliverRunner (hard cutover)', () => {
     const config = {
       orchestration: {
         runners: {
@@ -48,8 +47,9 @@ describe('getRunners', () => {
       },
     };
     const r = getRunners(config);
-    assert.equal(r.deliverRunner.concurrencyCap, 2);
-    assert.equal(r.deliverRunner.progressReportIntervalSec, 30);
+    // Legacy reads dropped: fall through to framework defaults.
+    assert.equal(r.deliverRunner.concurrencyCap, 3);
+    assert.equal(r.deliverRunner.progressReportIntervalSec, 120);
   });
 
   it('exposes the hardcoded story-merge-retry defaults', () => {
