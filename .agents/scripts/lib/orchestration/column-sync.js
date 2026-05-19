@@ -17,9 +17,17 @@
  * The sync is implemented as pure functions plus a thin class wrapper so
  * tests can pump a fake provider's `graphql` calls without touching live
  * GitHub.
+ *
+ * Located at `lib/orchestration/column-sync.js` (Story #2548) so the
+ * canonical state mutator `transitionTicketState`
+ * (`lib/orchestration/ticketing/state.js`) can invoke it without an
+ * upward dependency into `epic-runner/`. Prior to #2548 this module
+ * lived under `epic-runner/` and was only wired against the Epic
+ * ticket — Stories and Tasks never updated their Projects v2 Status
+ * column on label flips.
  */
 
-import { AGENT_LABELS } from '../../label-constants.js';
+import { AGENT_LABELS } from '../label-constants.js';
 
 export const LABEL_TO_COLUMN = Object.freeze({
   [AGENT_LABELS.REVIEW_SPEC]: 'Spec Review',
@@ -47,9 +55,10 @@ export function columnForLabels(labels) {
 export class ColumnSync {
   /**
    * @param {{
-   *   provider: import('../../ITicketingProvider.js').ITicketingProvider & { projectNumber?: number|null, graphql: Function },
+   *   provider: import('../ITicketingProvider.js').ITicketingProvider & { projectNumber?: number|null, graphql: Function },
    *   projectNumber?: number | null,
    *   logger?: { info: Function, warn: Function },
+   *   ctx?: { provider?: object, config?: { github?: { projectNumber?: number|null } }, logger?: object },
    * }} opts
    */
   constructor(opts = {}) {
