@@ -4,8 +4,9 @@
  *
  * Story #2202 / Task #2215 (Epic #2173): this CLI is now a thin wrapper
  * around `refreshBaseline({ kind: 'maintainability' })` from
- * `lib/baselines/refresh-service.js`. All scoring, scope resolution,
- * envelope assembly, and persistence flows through the unified service.
+ * `.agents/scripts/lib/baselines/refresh-service.js`. All scoring, scope
+ * resolution, envelope assembly, and persistence flows through the unified
+ * service.
  *
  * Surface:
  *
@@ -27,9 +28,9 @@
  */
 
 import path from 'node:path';
-import { refreshBaseline } from '../../lib/baselines/refresh-service.js';
 import { parseDiffScopeFlag } from './lib/baselines/diff-scope-cli.js';
 import { filterExcludedRows } from './lib/baselines/kinds/maintainability.js';
+import { refreshBaseline } from './lib/baselines/refresh-service.js';
 import { getBaselineEpsilon } from './lib/config/quality.js';
 import {
   getBaselines,
