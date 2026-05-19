@@ -73,9 +73,7 @@ function makeNoopLogger() {
 describe('ticketClosurePhase — post-merge label transition (Story #2534)', () => {
   it('fresh run: transitions Story #N from agent::closing → agent::done and closes the ticket', async () => {
     const storyId = 99001;
-    const tasks = [
-      { id: 99002, labels: ['agent::executing', 'type::task'] },
-    ];
+    const tasks = [{ id: 99002, labels: ['agent::executing', 'type::task'] }];
     const provider = makeFakeProvider([
       {
         id: storyId,
@@ -125,9 +123,7 @@ describe('ticketClosurePhase — post-merge label transition (Story #2534)', () 
 
   it('idempotent re-run: re-invoking the phase on an already-closed Story does not error and emits no additional Story-level transition', async () => {
     const storyId = 99010;
-    const tasks = [
-      { id: 99011, labels: [STATE_LABELS.DONE, 'type::task'] },
-    ];
+    const tasks = [{ id: 99011, labels: [STATE_LABELS.DONE, 'type::task'] }];
     const provider = makeFakeProvider([
       {
         id: storyId,
@@ -190,5 +186,51 @@ describe('ticketClosurePhase — post-merge label transition (Story #2534)', () 
       'Story must not regress to agent::closing on re-run',
     );
     assert.ok(result, 'phase must resolve with a result envelope on re-run');
+    assert.ok(
+      result.closedTickets.includes(storyId),
+      'idempotent re-run must still record the Story in closedTickets',
+    );
+  });
+
+  it('rethrows on transport error so the runPhase wrapper surfaces it (no silent swallow)', async () => {
+    const storyId = 99020;
+    const tasks = [];
+    const provider = makeFakeProvider([
+      {
+        id: storyId,
+        state: 'open',
+        labels: [STATE_LABELS.CLOSING, 'type::story'],
+      },
+    ]);
+    // Force updateTicket to fail when called against the Story id.
+    const original = provider.updateTicket.bind(provider);
+    provider.updateTicket = async (id, mutations) => {
+      if (Number(id) === storyId) {
+        throw new Error('synthetic transport error: 503 upstream');
+      }
+      return original(id, mutations);
+    };
+
+    let threw = null;
+    try {
+      await ticketClosurePhase({
+        provider,
+        tasks,
+        storyId,
+        progress: () => {},
+        logger: makeNoopLogger(),
+      });
+    } catch (err) {
+      threw = err;
+    }
+    assert.ok(
+      threw instanceof Error,
+      'ticketClosurePhase must rethrow transport errors instead of silently swallowing them',
+    );
+    assert.match(
+      threw.message,
+      /transport error/,
+      'rethrown error must preserve the original transport message',
+    );
   });
 });

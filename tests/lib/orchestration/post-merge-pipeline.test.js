@@ -519,8 +519,19 @@ describe('worktreeReapPhase', () => {
 describe('ticketClosurePhase (smoke)', () => {
   it('returns closed/cascaded shape and uses injected provider', async () => {
     const transitions = [];
+    // Story #2534 / Task #2539 — `ticketClosurePhase` now reads the
+    // Story snapshot and invokes `provider.updateTicket` to fire the
+    // `agent::closing → agent::done` transition deterministically (and
+    // rethrows on transport errors instead of swallowing them). The
+    // smoke fake therefore needs the full `ITicketingProvider` surface
+    // the close path actually exercises.
     const provider = {
       getTicket: async (id) => ({ id, labels: ['agent::executing'] }),
+      updateTicket: async (id, mutations) => {
+        transitions.push({ id, mutations });
+      },
+      getSubTickets: async () => [],
+      getTicketDependencies: async () => ({ blocks: [], blockedBy: [] }),
       transitionTicketState: async (id, state) => {
         transitions.push({ id, state });
       },
