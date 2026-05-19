@@ -533,7 +533,18 @@
         "signals": { "$ref": "#/$defs/signals" },
         "quality": { "$ref": "#/$defs/quality" },
         "lifecycle": { "$ref": "#/$defs/lifecycle" },
-        "failOnConcurrencyHazards": { "type": "boolean" }
+        "failOnConcurrencyHazards": { "type": "boolean" },
+        "feedbackLoop": {
+          "type": "object",
+          "properties": {
+            "codeReviewAutoFile": {
+              "type": "boolean",
+              "default": true,
+              "description": "When true (default), the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic."
+            }
+          },
+          "additionalProperties": false
+        }
       },
       "additionalProperties": false
     }
