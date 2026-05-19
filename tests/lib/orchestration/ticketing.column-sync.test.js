@@ -23,6 +23,8 @@ function buildFakeProvider({ throwOnMutation = false } = {}) {
   let ticketLabels = ['agent::ready'];
   return {
     projectNumber: 42,
+    owner: 'acme',
+    repo: 'widgets',
     get _labels() {
       return ticketLabels;
     },
@@ -67,11 +69,13 @@ function buildFakeProvider({ throwOnMutation = false } = {}) {
           },
         };
       }
-      if (query.includes('items(first')) {
+      if (query.includes('projectItems(first')) {
         return {
-          node: {
-            items: {
-              nodes: [{ id: 'ITEM-321', content: { number: 321 } }],
+          repository: {
+            issue: {
+              projectItems: {
+                nodes: [{ id: 'ITEM-321', project: { id: 'PROJ' } }],
+              },
             },
           },
         };
