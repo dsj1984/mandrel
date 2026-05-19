@@ -200,6 +200,25 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.25.0](https://github.com/dsj1984/mandrel/compare/v1.24.0...v1.25.0) (2026-05-19)
+
+
+### Added
+
+* **epic-plan:** cross-reference ACs against existing BDD scenarios ([#2642](https://github.com/dsj1984/mandrel/issues/2642)) ([de68d65](https://github.com/dsj1984/mandrel/commit/de68d65e7c392f07fb5eeb9b207b061c5bea8f6d)), closes [#2637](https://github.com/dsj1984/mandrel/issues/2637)
+* **epic-plan:** cross-validate Tech Spec against codebase in Phase 7 ([#2638](https://github.com/dsj1984/mandrel/issues/2638)) ([aec99d1](https://github.com/dsj1984/mandrel/commit/aec99d1ccb216104a216bf6386c39a2eb64ba3bd)), closes [#2635](https://github.com/dsj1984/mandrel/issues/2635)
+* **epic-plan:** require explicit filesAssumption on Task paths ([#2639](https://github.com/dsj1984/mandrel/issues/2639)) ([fda76f2](https://github.com/dsj1984/mandrel/commit/fda76f2166f7096f31f92d3c45de2751b2fb92ec)), closes [#2636](https://github.com/dsj1984/mandrel/issues/2636)
+
+
+### Fixed
+
+* **column-sync:** look up project item by issue, not by paginated board scan ([#2633](https://github.com/dsj1984/mandrel/issues/2633)) ([bc6b6e4](https://github.com/dsj1984/mandrel/commit/bc6b6e4b2e1cf736cc65b6c67b022a3fa04146fa)), closes [#2632](https://github.com/dsj1984/mandrel/issues/2632)
+
+
+### Changed
+
+* **model-selection:** resolve daylight between schema, code, and docs ([#2630](https://github.com/dsj1984/mandrel/issues/2630)) ([d1f1eaf](https://github.com/dsj1984/mandrel/commit/d1f1eaff693528d1f8223f5ff555ea18c6494615)), closes [#2590](https://github.com/dsj1984/mandrel/issues/2590)
+
 ## [1.24.0](https://github.com/dsj1984/mandrel/compare/v1.23.0...v1.24.0) (2026-05-19)
 
 
