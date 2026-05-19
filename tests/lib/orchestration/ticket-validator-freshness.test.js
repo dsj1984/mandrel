@@ -400,7 +400,10 @@ test('validateAcFreshness: object-form `{path, assumption: "exists"}` in body.re
       // still accept the goal-line citation because references unions
       // into the expected-new set.
       references: [
-        { path: '.agents/scripts/lib/freshly-authored.js', assumption: 'exists' },
+        {
+          path: '.agents/scripts/lib/freshly-authored.js',
+          assumption: 'exists',
+        },
       ],
       acceptance: ['generator emits a Markdown table'],
       verify: ['node .agents/scripts/generate-foo.js'],
@@ -425,7 +428,10 @@ test('validateAcFreshness: mixed string + object form in the same body.changes a
       goal: 'Half-migrated planner output.',
       changes: [
         'tests/lib/legacy-bullet.test.js: new coverage',
-        { path: '.agents/scripts/generate-new-thing.js', assumption: 'creates' },
+        {
+          path: '.agents/scripts/generate-new-thing.js',
+          assumption: 'creates',
+        },
       ],
       acceptance: ['both paths covered'],
       verify: [
