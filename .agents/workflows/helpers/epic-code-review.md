@@ -52,7 +52,11 @@ This script will:
 
 ## Step 2 — Review Pillars
 
-For each changed file, execute a strict review against six pillars:
+For each changed file, execute a strict review against three pillars. The
+middle pillar (**Integration Review**) deliberately defers the security /
+performance / quality / coverage sweeps to the change-set-scoped audits
+that already ran in Phase 4 — re-walking them here is duplication, not
+defense-in-depth.
 
 ### Pillar 1: Spec Adherence
 
@@ -63,47 +67,33 @@ Does the implementation match the PRD requirements and Tech Spec architecture?
 - Verify API contracts, data models, and interface boundaries match the Tech
   Spec.
 
-### Pillar 2: Security & Privacy
+### Pillar 2: Integration Review
 
-Scan for common vulnerability patterns:
+Read the **`audit-results` structured comment** posted on the Epic ticket by
+the [`epic-audit.md`](epic-audit.md) helper in Phase 4. That comment is the
+authoritative source of security, privacy, performance, code-quality, and
+test-coverage findings for this change set — they were produced by the
+change-set-aware lens selector and per-lens audit workflows under
+`.agents/workflows/audit-*.md`. Do **not** re-derive those findings inline
+here.
 
-- **Secrets**: Hardcoded API keys, tokens, passwords, or connection strings.
-- **Injection**: Unsanitized user input in SQL, shell commands, or templates.
-- **Auth/AuthZ**: Missing or broken access control checks.
-- **Dependencies**: Known vulnerable packages (check `npm audit` or equivalent).
-- **Data exposure**: PII logged to console, included in error responses, or
-  stored without encryption.
+Your job in this pillar is the **integration view** the per-lens audits
+cannot produce because each lens runs in isolation:
 
-### Pillar 3: Performance & Scalability
+- Cross-reference 🔴 / 🟠 audit findings against the spec deviations flagged
+  in Pillar 1 — a finding that traces back to a deliberate Tech-Spec
+  decision is different from one that traces back to an oversight.
+- Look for cross-cutting concerns no single lens owns: contract drift
+  between Stories, shared-module ripple effects, boundary changes that
+  thread security and performance implications together.
+- Note any audit finding that the operator's remediation flow should
+  bundle (e.g. one refactor closes findings from multiple lenses).
 
-Identify potential performance bottlenecks:
+If the Epic has no `audit-results` comment (docs-only Epic, or Phase 4 was
+skipped via `--skip-epic-audit`), record that explicitly in the findings
+report and proceed — there is nothing to integrate.
 
-- Unindexed database queries or N+1 patterns.
-- Synchronous I/O in hot paths.
-- Unbounded loops, missing pagination, or memory leaks.
-- Missing caching where appropriate.
-- Oversized bundle imports or unnecessary dependencies.
-
-### Pillar 4: Code Quality & Conventions
-
-Verify adherence to the project's established patterns:
-
-- Consistent naming conventions, file structure, and module boundaries.
-- Proper error handling (no swallowed errors, structured logging).
-- Functions that exceed 50 lines or have more than 4 parameters.
-- Duplicated logic that should be extracted into shared utilities.
-- Proper use of the project's configured linter and formatter rules.
-
-### Pillar 5: Test Coverage
-
-Assess whether the changes are adequately tested:
-
-- New features and bug fixes should have corresponding tests.
-- Tests should cover happy paths, edge cases, and error conditions.
-- Test assertions should be meaningful (not just "does not throw").
-- Mock boundaries should be appropriate — not mocking the unit under test.
-
-### Pillar 6: Documentation Integrity
+### Pillar 3: Documentation Integrity
 
 Verify documentation stays synchronized with code:
 
@@ -149,6 +139,12 @@ For every finding, provide:
 - **Pillar** (which review pillar it failed)
 - **Description** of the issue
 - **Recommended fix** with a concrete code suggestion
+- **Agent Prompt** — a self-contained, copy-pasteable instruction the
+  operator can hand verbatim to a fresh sub-agent (or the auto-fix loop)
+  to remediate this single finding. The prompt MUST name the file path,
+  the specific change to make, and the acceptance check that proves the
+  fix worked. Keep it tight (≤ 5 sentences); the sub-agent will read the
+  surrounding code itself.
 
 ## Step 5 — Remediation
 

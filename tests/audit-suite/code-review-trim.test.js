@@ -78,9 +78,7 @@ test("Step 4 finding template documents an 'Agent Prompt' field", () => {
   const body = loadHelper();
   // Slice from Step 4's heading to the next top-level Step heading so we
   // don't pick up an "Agent Prompt" mention from elsewhere in the file.
-  const step4Match = body.match(
-    /^## Step 4 [\s\S]*?(?=^## Step \d|\Z)/m,
-  );
+  const step4Match = body.match(/^## Step 4 [\s\S]*?(?=^## Step \d|\Z)/m);
   assert.ok(step4Match, 'Step 4 section not found');
   assert.match(
     step4Match[0],
