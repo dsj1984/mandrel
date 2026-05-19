@@ -4,17 +4,15 @@
 framework. It is parsed at the start of every script via
 [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js), validated
 against AJV schemas at runtime, and consumed through grouped accessors
-(`getCommands()`, `getQuality()`, `getPaths()`, `getLimits()`).
+(`getCommands()`, `getQuality()`, `getPaths()`, etc.).
 
-This document is the reader-facing reference for the post-Epic-#730 grouped
+This document is the reader-facing reference for the post-Epic-#1720 grouped
 shape. The authoritative contract is the JSON Schema mirror at
 [`.agents/schemas/agentrc.schema.json`](../.agents/schemas/agentrc.schema.json),
-which is itself a mirror of the AJV schemas in
-[`.agents/scripts/lib/config-schema.js`](../.agents/scripts/lib/config-schema.js)
-and
-[`.agents/scripts/lib/config-settings-schema.js`](../.agents/scripts/lib/config-settings-schema.js).
-A drift test (`tests/config-schema-mirror-drift.test.js`) keeps the static
-mirror aligned with the runtime validators.
+which is itself a mirror of the AJV schemas under
+[`.agents/scripts/lib/`](../.agents/scripts/lib/). A drift test
+(`tests/config-schema-mirror-drift.test.js`) keeps the static mirror aligned
+with the runtime validators.
 
 > **Editor support.** `.agentrc.json`, `.agents/starter-agentrc.json`, and
 > `.agents/full-agentrc.json` all declare
@@ -26,236 +24,88 @@ mirror aligned with the runtime validators.
 ```jsonc
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
-  "agentSettings": { /* paths, commands, quality, limits, ... */ },
-  "orchestration":  { /* provider, github, worktreeIsolation, deliverRunner, ... */ }
+  "project":  { /* paths, commands, baseBranch, docsContextFiles */ },
+  "github":   { /* owner, repo, branchProtection, mergeMethods, notifications */ },
+  "planning": { /* riskHeuristics, maxTickets, codebaseSnapshot, context */ },
+  "delivery": { /* execution, quality, worktreeIsolation, deliverRunner, ... */ }
 }
 ```
 
-| Top-level key   | Required | Purpose                                               |
-| --------------- | -------- | ----------------------------------------------------- |
-| `agentSettings` | Yes      | Project-local execution behaviour (paths, commands, quality gates, limits). |
-| `orchestration` | Yes      | Ticketing provider + runner tuning (GitHub, worktree, runners). |
-| `release`       | No       | Release / version-bump tuning (`autoVersionBump`, `bumpFiles`, `docs`, `safetyChecks`). |
-| `$schema`       | No       | JSON Schema pointer for editor tooling.               |
-| `title`         | No       | Free-form display label.                              |
+The schema declares `additionalProperties: false` at the root — unknown
+top-level keys are validation errors.
+
+| Top-level key | Required | Purpose                                                                            |
+| ------------- | -------- | ---------------------------------------------------------------------------------- |
+| `project`     | **Yes**  | Project-local paths, base branch, validation commands, and context-hydrator files. |
+| `github`      | No       | Ticketing provider config: owner/repo, branch protection, merge methods, notifications. |
+| `planning`    | No       | `/epic-plan` tuning: ticket budget, risk heuristics, codebase snapshot, context cap. |
+| `delivery`    | No       | `/epic-deliver` and `/story-deliver` tuning: quality gates, worktree isolation, runners, lifecycle. |
+| `$schema`     | No       | JSON Schema pointer for editor tooling.                                            |
 
 ---
 
-## `agentSettings`
+## `project` (required)
 
-The grouped shape post-#730. Every former flat setting now lives under one of
-the four sub-blocks below: `paths`, `commands`, `quality`, `limits`. There are
-no flat-key reads anywhere in the resolver or in any consumer.
+Project-local execution behaviour. Only `paths` is required; everything else
+falls back to documented defaults.
 
-The schema requires only `paths`. All other sub-blocks are optional and fall
-back to documented defaults (or are no-ops when omitted).
+### `project.paths` (required)
 
-### `agentSettings.paths` (required)
+Filesystem roots the framework reads from. All three keys are required —
+the resolver no longer applies code-level fallbacks; a missing value is a
+validation error with a clear `instancePath`.
 
-Filesystem roots the framework reads from. `agentRoot`, `docsRoot`, and
-`tempRoot` are required — the resolver no longer applies code-level fallbacks
-(e.g. `?? '.agents'`); a missing value is a validation error with a clear
-`instancePath`.
-
-| Field            | Required | Default                  | Purpose                                          |
-| ---------------- | -------- | ------------------------ | ------------------------------------------------ |
-| `agentRoot`      | Yes      | (none — must be set)     | Path to the framework submodule (e.g. `.agents`). |
-| `docsRoot`       | Yes      | (none — must be set)     | Path to project documentation (e.g. `docs`).      |
-| `tempRoot`       | Yes      | (none — must be set)     | Path for ephemeral artefacts (e.g. `temp`).       |
-| `scriptsRoot`    | No       | `.agents/scripts`        | Path to the framework's CLI scripts.              |
-| `workflowsRoot`  | No       | `.agents/workflows`      | Path to slash-command workflow definitions.       |
-| `personasRoot`   | No       | `.agents/personas`       | Path to persona behaviour packs.                  |
-| `schemasRoot`    | No       | `.agents/schemas`        | Path to JSON Schemas.                             |
-| `skillsRoot`     | No       | `.agents/skills`         | Path to skill library (core + stack).             |
-| `templatesRoot`  | No       | `.agents/templates`      | Path to context-hydration templates.              |
-| `rulesRoot`      | No       | `.agents/rules`          | Path to domain-agnostic baseline rules.           |
-
-The seven `*Root` directories carry framework defaults; consumers only need to
-override them when the bundle lives somewhere other than `.agents/<subdir>`.
+| Field       | Required | Purpose                                          |
+| ----------- | -------- | ------------------------------------------------ |
+| `agentRoot` | Yes      | Path to the framework submodule (e.g. `.agents`). |
+| `docsRoot`  | Yes      | Path to project documentation (e.g. `docs`).      |
+| `tempRoot`  | Yes      | Path for ephemeral artefacts (e.g. `temp`).       |
 
 `auditOutputDir` is derived (not configurable) — it resolves to
 `${tempRoot}/audits` and is the canonical destination for every
 `audit-*` workflow's result reports **and** the audit-suite's prompt
 artifacts. Override `tempRoot` to relocate audit output.
 
-### `agentSettings.commands`
+### `project.baseBranch`
+
+| Field        | Required | Default | Purpose                                                                   |
+| ------------ | -------- | ------- | ------------------------------------------------------------------------- |
+| `baseBranch` | No       | (none)  | Default branch name (e.g. `main`). Read by close, push, and rebase paths. |
+
+### `project.commands`
 
 Executable strings the framework spawns for validation, testing, and baseline
 ratchets. Strings must be non-empty and pass the shell-injection guard
-(`safeString` — disallows `;`, `&`, `|`, backtick, `$(`).
+(`safeString` — disallows `;`, `&`, `|`, backtick, `$`, `<`, `>`).
 
-`typecheck` and `build` are nullable to indicate "not applicable for this
-repo"; `null` is the canonical disabled value, empty strings are rejected.
+`typecheck` is nullable to indicate "not applicable for this repo"; `null`
+is the canonical disabled value.
 
-| Field             | Required | Default | Type            | Purpose                                                 |
-| ----------------- | -------- | ------- | --------------- | ------------------------------------------------------- |
-| `validate`        | No       | (none)  | `string`        | Comprehensive pre-merge check (e.g. `npm run lint`).    |
-| `lintBaseline`    | No       | (none)  | `string`        | Structured-output linter for the lint ratchet.          |
-| `test`            | No       | (none)  | `string`        | Project test runner.                                    |
-| `typecheck`       | No       | `null`  | `string \| null` | Strict type-checking. `null` = disabled.                |
-| `build`           | No       | `null`  | `string \| null` | Production build. `null` = disabled.                    |
-| `formatCheck`     | No       | `npx biome format .` | `string`  | Read-only format check used by close-validation. Configurable for Prettier / dprint repos. |
-| `formatWrite`     | No       | `npx biome format --write .` | `string` | Auto-format invocation used by `runFormatAutofix`. Pair with `formatCheck`. |
+| Field          | Required | Default                       | Type            | Purpose                                                |
+| -------------- | -------- | ----------------------------- | --------------- | ------------------------------------------------------ |
+| `lintBaseline` | No       | (none)                        | `string`        | Structured-output linter for the lint ratchet.         |
+| `test`         | No       | (none)                        | `string`        | Project test runner.                                   |
+| `typecheck`    | No       | `null`                        | `string \| null` | Strict type-checking. `null` = disabled.               |
+| `formatCheck`  | No       | `npx biome format .`          | `string`        | Read-only format check used by close-validation.       |
+| `formatWrite`  | No       | `npx biome format --write .`  | `string`        | Auto-format invocation used by `runFormatAutofix`.     |
 
 Read with `getCommands(config)` — see
 [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js).
 
-### `agentSettings.quality`
+### `project.docsContextFiles`
 
-Maintainability, CRAP, lint baseline, and PR-gate configuration. All four
-sub-blocks are optional; the gates self-skip when their config is absent or
-disabled.
-
-#### `agentSettings.quality.baselines`
-
-Pointers to the three canonical ratchet baseline files. See
-[Baseline conventions](#baseline-conventions) below for the canonical-vs-drift
-file split.
-
-| Field                        | Required | Default                          | Purpose                                                  |
-| ---------------------------- | -------- | -------------------------------- | -------------------------------------------------------- |
-| `lint.path`                  | Yes\*    | `baselines/lint.json`            | Path to lint ratchet baseline (relative to repo root).   |
-| `lint.refreshCommand`        | No       | (none)                           | Override command to regenerate the lint baseline.        |
-| `crap.path`                  | Yes\*    | `baselines/crap.json`            | Path to CRAP per-method baseline.                        |
-| `crap.refreshCommand`        | No       | (none)                           | Override command to regenerate the CRAP baseline.        |
-| `maintainability.path`       | Yes\*    | `baselines/maintainability.json` | Path to maintainability per-file baseline.               |
-| `maintainability.refreshCommand` | No   | (none)                           | Override command to regenerate the MI baseline.          |
-
-\* `path` is required *if* the corresponding baseline entry is present. The
-entire `baselines.<gate>` block is optional — omit it to disable the
-corresponding gate.
-
-#### `agentSettings.quality.maintainability`
-
-| Field        | Required | Default | Purpose                                                          |
-| ------------ | -------- | ------- | ---------------------------------------------------------------- |
-| `targetDirs` | No       | `["src"]` (resolver fallback) | Directories scanned by the MI engine. Accepts `["a", "b"]` or `{ "append": [...] }` / `{ "prepend": [...] }` deep-merge forms. |
-
-#### `agentSettings.quality.crap`
-
-Per-method CRAP gate. See [`docs/quality-gates.md`](quality-gates.md)
-"CRAP Gate — Consumer Onboarding" for first-run behaviour and
-consumer-extension guidance.
-
-| Field             | Required           | Default      | Purpose                                                         |
-| ----------------- | ------------------ | ------------ | --------------------------------------------------------------- |
-| `enabled`         | No                 | `true`       | Master switch. `false` makes all three gate sites self-skip.    |
-| `targetDirs`      | No                 | `["src"]`    | Source dirs to score. Accepts list or `{ append/prepend }` form. |
-| `newMethodCeiling`| No                 | `30`         | Max CRAP score allowed for methods absent from the baseline.    |
-| `coveragePath`    | Conditional        | `coverage/coverage-final.json` | Required when `enabled: true` and `requireCoverage: true`. |
-| `tolerance`       | No                 | `0.05`       | Floating-point slack when comparing scores against baseline. Raised 0.001 → 0.05 in 5.36.1 — cross-environment coverage rounding produces ~0.01 drift on a clean rebuild. |
-| `requireCoverage` | No                 | `true`       | When `true`, methods without coverage are skipped (not failed). |
-| `friction.markerKey` | No              | `crap-baseline-regression` | Friction-log marker for regressions.              |
-| `refreshTag`      | No                 | `baseline-refresh:` | Subject prefix the refresh-guardrail expects on baseline-only commits. |
-
-##### Coverage capture path
-
-The CRAP gate reads per-method coverage from `crap.coveragePath` (default
-`coverage/coverage-final.json`) and skips any method without an entry under
-`requireCoverage: true`. A missing or stale artifact silently weakens the gate,
-so coverage is captured in-band at every gate site:
-
-| Site                            | Capture command                                                                  | Behaviour                                                                                                                                                  |
-| ------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `close-validation` (pre-flight) | `node .agents/scripts/coverage-capture.js`                                       | Runs as a gate immediately before `check-crap`. Skips when the artifact's mtime is ≥ the newest mtime in `crap.targetDirs`; otherwise runs `npm run test:coverage` and propagates its exit. |
-| `.husky/pre-push`               | `node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref main`  | Same freshness check, plus a fast-path: skips entirely when no file under `crap.targetDirs` is in the `main...HEAD` diff.                                  |
-| `.github/workflows/ci.yml`      | `npm run test:coverage` (existing) + `Upload Coverage Artifact` step             | The coverage map is uploaded as the `coverage-final-node-22` artifact (`if: always()`) so downstream agent workflows can replay it without re-running tests. |
-
-Both CLI sites self-skip when `crap.enabled === false`. The capture step is
-idempotent on warm worktrees — only stale or missing artifacts trigger a
-test:coverage run.
-
-##### Missing-baseline behaviour
-
-With `crap.enabled: true` and `baselines/crap.json` absent, all three gate
-sites fail closed (exit 1).
-Bootstrap the baseline explicitly: `npm run test:coverage` to produce
-`coverage/coverage-final.json`, then `npm run crap:update` to write
-`baselines/crap.json`, and commit the file with a `baseline-refresh:` tagged
-subject + non-empty body so the refresh-guardrail accepts it.
-
-#### `agentSettings.quality.prGate`
-
-The `checks` array drives both the close-validation chain inside
-`/epic-deliver` Phase 3 and the required-status-checks expectation that
-`/epic-deliver` Phase 6 sets on the PR. `enforceBranchProtection` is the
-load-bearing knob that controls whether `/agents-bootstrap-github`
-creates branch protection on `main` — load-bearing because the PR merge
-is now the sole promotion gate to `main`.
-
-| Field                       | Required | Default                                                              | Purpose                                                                                                                                                                |
-| --------------------------- | -------- | -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `checks`                    | No       | `["validate", "test", "lint-baseline", "crap-check", "maintainability"]` | Required-status-check names enforced by branch protection and re-run inside `/epic-deliver` Phase 3.                                                                  |
-| `enforceBranchProtection`   | No       | `true`                                                               | When `true`, `/agents-bootstrap-github` calls `ensureMainBranchProtection({ checks })` to create or merge protection on `main`. Set to `false` to opt out (not recommended). |
-
-Read with `getQuality(config)` (composes `getBaselines`, MI, CRAP, prGate
-sub-objects).
-
-### `agentSettings.limits`
-
-Resource and friction-detector ceilings. All fields are positive integers; the
-resolver accepts the block as a whole and exposes `getLimits()`.
-
-| Field                | Required | Default | Purpose                                                            |
-| -------------------- | -------- | ------- | ------------------------------------------------------------------ |
-| `maxInstructionSteps`| No       | `5`     | Soft cap on instruction-set steps (planning hint).                 |
-| `maxTickets`         | No       | `40`    | Soft cap on tickets a single Epic may decompose.                   |
-| `maxTokenBudget`     | No       | `200000`| Soft cap on per-call token budget (planning hint).                 |
-| `executionTimeoutMs` | No       | `300000`| Per-spawn timeout for child processes the framework launches.       |
-| `executionMaxBuffer` | No       | `10485760` | Max stdout/stderr buffer (bytes) for child processes.            |
-
-#### `agentSettings.limits.friction`
-
-Anti-thrashing thresholds. The friction logger flips a Story to `agent::blocked`
-when any of these are tripped.
-
-| Field                    | Required | Default | Purpose                                                |
-| ------------------------ | -------- | ------- | ------------------------------------------------------ |
-| `repetitiveCommandCount` | No       | `3`     | Identical commands run consecutively before halting.   |
-| `consecutiveErrorCount`  | No       | `3`     | Tool errors in a row before halting.                   |
-| `stagnationStepCount`    | No       | `5`     | Analysis-only steps without a file edit before halting. |
-| `maxIntegrationRetries`  | No       | `2`     | Retries permitted on integration-test phases.          |
-
-#### `agentSettings.limits.planningContext`
-
-Caps the size of `--emit-context` JSON payloads emitted during `/epic-plan`
-so a runaway PRD / Tech Spec can't blow the planning agent's context budget.
-Added in Epic #817 Story 9.
-
-| Field         | Required | Default  | Purpose                                                                  |
-| ------------- | -------- | -------- | ------------------------------------------------------------------------ |
-| `maxBytes`    | No       | `50000`  | Hard ceiling on the JSON payload size (bytes). Truncation is summary-mode-aware. |
-| `summaryMode` | No       | `'auto'` | `'auto'` truncates intelligently; `'off'` errors over the cap; `'always'` always summarizes. |
-
-### Other `agentSettings` keys
-
-| Field              | Required | Default | Purpose                                                                                  |
-| ------------------ | -------- | ------- | ---------------------------------------------------------------------------------------- |
-| `baseBranch`       | No       | (none)  | Default branch name (e.g. `main`). Read by close, push, and rebase paths.                |
-| `release.docs`     | No       | `[]`    | Files refreshed during the post-PR-merge release tagging step.                           |
-| `release.versionFile` | No    | `null`  | Path to a version file the release helper bumps. `null` skips file bumping.              |
-| `release.packageJson` | No    | `false` | When `true`, the release helper bumps `package.json` `version`.                          |
-| `release.autoVersionBump` | No | `false` | Enables automatic semver bumping at release tagging.                                    |
-| `planning.riskHeuristics` | No | `[]`  | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). |
-| `docsContextFiles` | No       | `[]`    | Files context-hydrator includes when assembling agent prompts.                           |
+| Field              | Required | Default | Purpose                                                                                            |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `docsContextFiles` | No       | `[]`    | Files the context-hydrator includes when assembling agent prompts. Resolved against `paths.docsRoot`. |
 
 ---
 
-## `orchestration`
+## `github`
 
-| Field             | Required | Default | Purpose                                                            |
-| ----------------- | -------- | ------- | ------------------------------------------------------------------ |
-| `provider`        | Yes      | (none)  | Ticketing provider. `"github"` is the only shipped value.          |
-| `github`          | Yes\*    | (none)  | Required when `provider: "github"`. See sub-block.                 |
-| `executor`        | No       | (none)  | Executor adapter id (advanced; rarely set).                        |
-| `notifications`   | No       | `{}`    | Notifier behaviour. See sub-block.                                 |
-| `worktreeIsolation` | No     | (see sub-block) | Worktree-per-Story isolation tuning.                            |
-| `deliverRunner`   | No       | (see sub-block) | `/epic-deliver` fan-out tuning. |
-| `planRunner`      | No       | (see sub-block) | Plan-runner tuning.                                             |
-| `concurrency`     | No       | (none)  | Internal concurrency caps for wave gates and assertions.            |
-| `storyMergeRetry` | No       | (none)  | Retry policy for `story-close.js` non-fast-forward pushes. |
+Ticketing provider configuration. Required when any GitHub-aware workflow
+runs (which is the common case).
 
-### `orchestration.github`
+### `github` — top-level
 
 | Field            | Required | Purpose                                                            |
 | ---------------- | -------- | ------------------------------------------------------------------ |
@@ -263,121 +113,310 @@ Added in Epic #817 Story 9.
 | `repo`           | Yes      | GitHub repository name.                                             |
 | `projectNumber`  | No       | GitHub Projects V2 number for custom field writes.                  |
 | `projectOwner`   | No       | Project board owner (defaults to `owner`).                          |
-| `projectName`    | No       | Optional human-readable project label.                              |
 | `operatorHandle` | No       | `@`-prefixed handle used in operator @mentions.                     |
 
-### `orchestration.notifications`
+### `github.branchProtection`
 
-| Field              | Required | Default                                  | Purpose                                                                                                                                       |
-| ------------------ | -------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mentionOperator`  | No       | `false`                                  | When `true`, friction comments @-mention `operatorHandle` for `medium`-severity dispatches (high always @mentions).                          |
-| `commentEvents`    | **Yes**  | `["state-transition", "story-merged", "operator-message"]` | Allowlist of event names that reach the GitHub ticket comment channel.                                                                       |
-| `webhookEvents`    | **Yes**  | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative (% progress + blockers); story-level events are excluded by default. |
+Drives the `node .agents/scripts/bootstrap.js` flow that creates or merges
+branch protection on the base branch.
 
-> **Both channels gate on event name, not severity.** `commentEvents`
-> and `webhookEvents` filter independently — each is a closed allowlist
-> of event names. Severity is carried as envelope metadata (and still
-> drives `@mention` behavior on the comment channel) but is no longer a
-> routing factor for either channel. To suppress a channel entirely, set
-> its array to `[]`. The closed enums are pinned in the schema:
->
-> - `commentEvents`: `state-transition`, `story-merged`, `operator-message`
-> - `webhookEvents`: `epic-started`, `epic-progress`, `epic-blocked`,
->   `epic-unblocked`, `epic-complete`
->
-> `transitionTicketState` suppresses the `notify()` dispatch entirely
-> for low-severity transitions (task-level, non-terminal story / epic
-> flips) so the comment channel sees only the medium-severity
-> story-level events operators expect on the ticket timeline.
->
-> **Severity assignment by event hierarchy.** Task transitions and
-> `story-run-progress` upserts fire `low` (frequency-driven). Story state
-> transitions, `wave-run-progress`, `epic-run-progress`, and
-> epic-completion fire `medium`. Epic blockers and HITL gates fire `high`
-> (webhook prefix `[Action Required]` when an allowlisted blocker event
-> reaches the webhook). Per-Task `agent::executing` transitions during
-> Story init batch into a single Story-level summary comment that never
-> reaches the webhook (no `event` field).
->
-> **Curated webhook event vocabulary.** Five `epic-*` events drive the
-> Slack narrative: `epic-started` (kickoff anchor), `epic-progress`
-> (wave-boundary + post-blocker snapshots carrying
-> `{ pct, done, total, currentWave, totalWaves, openBlockers }`),
-> `epic-blocked` (`[Action Required]`), `epic-unblocked` (operator
-> resumed), `epic-complete` (terminal). `epic-progress` fires strictly on
-> event boundaries — wave N → N+1, blocker raise, blocker clear — not on
-> a periodic timer, so volume tracks the epic narrative rather than
-> story-execution churn.
->
-> **Typed webhook envelope.** Webhook subscribers receive
-> `{ text, severity, ticketId, event?, level?, epicId?, phase? }`. `text`
-> stays populated for back-compat with `{text}`-only consumers; the typed
-> fields let routable subscribers filter by event or hierarchy level.
+| Field            | Required | Default | Purpose                                                                 |
+| ---------------- | -------- | ------- | ----------------------------------------------------------------------- |
+| `enforce`        | No       | `true`  | When `true`, `node .agents/scripts/bootstrap.js` calls `ensureMainBranchProtection(...)`. |
+| `requiredChecks` | No       | `[]`    | Array of `{ name, cmd[] }` entries used both as required-status-check expectations on the PR and as local close-validation gate invocations. |
 
-### `orchestration.worktreeIsolation`
+Each `requiredChecks` entry takes the shape:
+
+```jsonc
+{ "name": "lint", "cmd": ["npm", "run", "lint"] }
+```
+
+### `github.mergeMethods`
+
+Repository-level merge-method allowlist applied by bootstrap.
+
+| Field                    | Required | Default | Purpose                                          |
+| ------------------------ | -------- | ------- | ------------------------------------------------ |
+| `allow_squash_merge`     | No       | `true`  | Permit squash merges through the UI / `gh`.      |
+| `allow_rebase_merge`     | No       | `false` | Permit rebase merges.                            |
+| `allow_merge_commit`     | No       | `false` | Permit merge commits.                            |
+| `allow_auto_merge`       | No       | `true`  | Enable auto-merge for the repository.            |
+| `delete_branch_on_merge` | No       | `true`  | Delete the source branch after merge.            |
+
+### `github.notifications`
+
+| Field             | Required | Default                                                                                | Purpose                                                                                                                                       |
+| ----------------- | -------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mentionOperator` | No       | `false`                                                                                | When `true`, friction comments @-mention `operatorHandle` for `medium`-severity dispatches (high always @mentions).                          |
+| `commentEvents`   | No       | `["state-transition", "story-merged", "operator-message"]`                             | Allowlist of event names that reach the GitHub ticket comment channel.                                                                       |
+| `webhookEvents`   | No       | `["epic-started", "epic-progress", "epic-blocked", "epic-unblocked", "epic-complete"]` | Allowlist of event names that reach `NOTIFICATION_WEBHOOK_URL`. The webhook channel is curated for the epic narrative; story-level events are excluded. |
+
+Both fields' enums are pinned in the schema and rejected if extended. To
+suppress a channel entirely, set its array to `[]`.
+
+> **Severity assignment.** Task transitions and `story-run-progress` upserts
+> fire `low` (frequency-driven). Story state transitions, `wave-run-progress`,
+> `epic-run-progress`, and epic-completion fire `medium`. Epic blockers and
+> HITL gates fire `high` (webhook prefix `[Action Required]` when an
+> allowlisted blocker event reaches the webhook).
+
+---
+
+## `planning`
+
+`/epic-plan` tuning. All fields optional.
+
+| Field                          | Required | Default | Purpose                                                                                          |
+| ------------------------------ | -------- | ------- | ------------------------------------------------------------------------------------------------ |
+| `riskHeuristics`               | No       | `[]`    | Free-form rubric for `risk::high` decisions (informational only — `risk::high` does not gate runtime). Accepts a plain array or the `{ append/prepend }` extender form. |
+| `maxTickets`                   | No       | (none)  | Soft cap on tickets a single Epic may decompose.                                                 |
+| `failOnSharedEditors`          | No       | (none)  | Hard-fail Phase 7 when two Stories declare the same editor.                                       |
+| `requireExplicitCrossStoryDeps`| No       | (none)  | Require explicit cross-Story `blocked by` declarations rather than inferring from shared paths.   |
+
+### `planning.context`
+
+Caps the size of `--emit-context` JSON payloads emitted during `/epic-plan`
+so a runaway PRD / Tech Spec can't blow the planning agent's context budget.
+
+| Field         | Required | Default  | Purpose                                                                                       |
+| ------------- | -------- | -------- | --------------------------------------------------------------------------------------------- |
+| `maxBytes`    | No       | `50000`  | Hard ceiling on the JSON payload size (bytes). Truncation is summary-mode-aware.              |
+| `summaryMode` | No       | `'auto'` | `'auto'` truncates intelligently; `'never'` errors over the cap; `'always'` always summarizes. |
+
+### `planning.codebaseSnapshot`
+
+Controls the Phase 7 codebase-snapshot fetcher that grounds story decomposition.
+
+| Field                | Required | Default     | Purpose                                                                  |
+| -------------------- | -------- | ----------- | ------------------------------------------------------------------------ |
+| `tier`               | No       | `'skinny'`  | One of `'skinny'` or `'medium'`. `medium` opts into a richer snapshot.    |
+| `include`            | No       | (see below) | Glob patterns whose matches are included in the snapshot.                |
+| `exclude`            | No       | (see below) | Glob patterns whose matches are excluded from the snapshot.              |
+| `recentCommitWindow` | No       | (none)      | Number of recent commits to summarise in the snapshot header.            |
+
+The shipped `include` default scans `.agents/scripts/**`, `src/**`,
+`lib/**`, `app/**`, and `packages/**`; the shipped `exclude` default drops
+`node_modules`, `dist`, `build`, and `coverage`. Override only when the
+project's source layout differs.
+
+---
+
+## `delivery`
+
+`/epic-deliver` and `/story-deliver` tuning. All sub-blocks are optional and
+fall back to documented defaults (or are no-ops when omitted).
+
+### `delivery.execution`
+
+| Field       | Required | Default | Purpose                                                            |
+| ----------- | -------- | ------- | ------------------------------------------------------------------ |
+| `timeoutMs` | No       | (none)  | Per-spawn timeout (ms) for child processes the framework launches. |
+
+### `delivery.maxTokenBudget`
+
+| Field             | Required | Default | Purpose                                                            |
+| ----------------- | -------- | ------- | ------------------------------------------------------------------ |
+| `maxTokenBudget`  | No       | (none)  | Soft cap on per-call token budget (planning hint).                 |
+
+### `delivery.docsFreshness`
+
+| Field   | Required | Default | Purpose                                                       |
+| ------- | -------- | ------- | ------------------------------------------------------------- |
+| `paths` | No       | `[]`    | Files refreshed during the post-PR-merge release tagging step. |
+
+### `delivery.deliverRunner`
+
+| Field                       | Required | Default | Purpose                                          |
+| --------------------------- | -------- | ------- | ------------------------------------------------ |
+| `concurrencyCap`            | No       | `3`     | Max parallel Story sub-agents per wave.          |
+| `progressReportIntervalSec` | No       | `120`   | Progress-report cadence (seconds).               |
+
+### `delivery.worktreeIsolation`
 
 Story-level worktree isolation. When `enabled: true`, `/story-deliver` runs
 each Story inside `.worktrees/story-<id>/` instead of moving the main
 checkout's HEAD.
 
-| Field                            | Required        | Default          | Purpose                                                     |
-| -------------------------------- | --------------- | ---------------- | ----------------------------------------------------------- |
-| `enabled`                        | No              | `false`          | Master switch.                                              |
-| `root`                           | Conditional     | `.worktrees`     | Required when `enabled: true`. Worktree parent directory.    |
-| `nodeModulesStrategy`            | No              | `per-worktree`   | One of `per-worktree`, `symlink`, `pnpm-store`.              |
-| `primeFromPath`                  | No              | `null`           | Optional source path used to prime `node_modules`.            |
-| `allowSymlinkOnWindows`          | No              | `false`          | Permit symlink strategy on Windows (requires admin/dev mode). |
-| `reapOnSuccess`                  | No              | `true`           | Reap the worktree after a successful Story close.            |
-| `reapOnCancel`                   | No              | `true`           | Reap the worktree if the Story is cancelled.                 |
-| `windowsPathLengthWarnThreshold` | No              | (none)           | Emit a warning when the worktree path exceeds this length.    |
-| `bootstrapFiles`                 | No              | `[]`             | Untracked files (e.g. `.env`) copied into each new worktree. |
+| Field                   | Required        | Default          | Purpose                                                     |
+| ----------------------- | --------------- | ---------------- | ----------------------------------------------------------- |
+| `enabled`               | No              | `false`          | Master switch.                                              |
+| `root`                  | Conditional     | `.worktrees`     | Required when `enabled: true`. Worktree parent directory.    |
+| `nodeModulesStrategy`   | No              | `per-worktree`   | One of `per-worktree`, `symlink`, `pnpm-store`.              |
+| `primeFromPath`         | No              | `null`           | Optional source path used to prime `node_modules`.            |
+| `allowSymlinkOnWindows` | No              | `false`          | Permit symlink strategy on Windows (requires admin/dev mode). |
+| `reapOnSuccess`         | No              | `true`           | Reap the worktree after a successful Story close.            |
+| `reapOnCancel`          | No              | `true`           | Reap the worktree if the Story is cancelled.                 |
+| `bootstrapFiles`        | No              | `[]`             | Untracked files (e.g. `.env`) copied into each new worktree. |
 
-### `orchestration.runners`
+### `delivery.signals`
 
-Every runner-flavoured sub-block lives under `orchestration.runners.*`.
-The schema rejects unknown keys with `additionalProperties: false` at
-both the runners root and each runner sub-block, so legacy flat keys
-and prior names are not accepted. The merged `full-agentrc.json`
-reference documents the current key names.
+Friction-detector thresholds consumed by progress-signal listeners.
 
-#### `orchestration.runners.deliverRunner`
+| Field                  | Required | Default | Purpose                                                                  |
+| ---------------------- | -------- | ------- | ------------------------------------------------------------------------ |
+| `hotspot.p95Multiplier`| No       | (none)  | Hot-file threshold expressed as a multiplier of the p95 edit frequency.   |
+| `rework.editsPerFile`  | No       | (none)  | Edits to the same file before a rework signal fires.                      |
+| `retry.repeatCount`    | No       | (none)  | Identical retried commands before a retry signal fires.                   |
 
-| Field                       | Required        | Default | Purpose                                                  |
-| --------------------------- | --------------- | ------- | -------------------------------------------------------- |
-| `enabled`                   | No              | `true`  | Master switch.                                           |
-| `concurrencyCap`            | Conditional     | `3`     | Required unless `enabled: false`. Max parallel Story sub-agents per wave. |
-| `pollIntervalSec`           | No              | `30`    | Wave-state poll interval (seconds).                      |
-| `progressReportIntervalSec` | No              | `120`   | Progress-report cadence (seconds).                       |
-| `idleTimeoutSec`            | No              | `900`   | Kill a Story sub-agent after this many idle seconds.     |
-| `logsDir`                   | No              | `temp/epic-runner-logs` | Directory for per-Epic progress logs.            |
+### `delivery.quality`
 
-#### `orchestration.runners.planRunner`
+Quality-gate configuration. Lives under `delivery.quality` and uses the
+uniform `gates.<tier>` shape (seven gates: `lint`, `coverage`, `crap`,
+`maintainability`, `mutation`, `lighthouse`, `bundle-size`) introduced by
+Epic #1720 Story #1737.
 
-| Field             | Required | Default | Purpose                                       |
-| ----------------- | -------- | ------- | --------------------------------------------- |
-| `enabled`         | No       | `true`  | Master switch.                                |
-| `pollIntervalSec` | No       | `30`    | Plan-runner poll cadence.                     |
+#### `delivery.quality.gateScoping`
 
-#### `orchestration.runners.concurrency`
+| Field     | Required | Default  | Purpose                                                                        |
+| --------- | -------- | -------- | ------------------------------------------------------------------------------ |
+| `scope`   | No       | `'full'` | One of `'diff'` (only files changed vs `diffRef`) or `'full'` (all targetDirs). |
+| `diffRef` | No       | (none)   | Ref used to compute the diff when `scope: 'diff'` (e.g. `main`).               |
 
-| Field              | Required | Default | Purpose                                          |
-| ------------------ | -------- | ------- | ------------------------------------------------ |
-| `waveGate`         | No       | (none)  | Concurrency cap for wave-gate phase.              |
-| `commitAssertion`  | No       | (none)  | Concurrency cap for commit-assertion phase.       |
-| `progressReporter` | No       | (none)  | Concurrency cap for progress-reporter phase.      |
+#### `delivery.quality.gates.<tier>` — common shape
 
-#### `orchestration.runners.storyMergeRetry`
+Every gate shares the same envelope:
 
-| Field         | Required | Default                | Purpose                                       |
-| ------------- | -------- | ---------------------- | --------------------------------------------- |
-| `maxAttempts` | No       | `3`                    | Max retries on non-fast-forward push.          |
-| `backoffMs`   | No       | `[250, 500, 1000]`     | Per-attempt backoff (ms).                     |
+| Field          | Required | Purpose                                                                                                        |
+| -------------- | -------- | -------------------------------------------------------------------------------------------------------------- |
+| `enabled`      | No       | Master switch. `false` makes all three gate sites self-skip for this tier.                                     |
+| `baselinePath` | No       | Path to the per-tier ratchet baseline file (e.g. `baselines/crap.json`).                                       |
+| `tolerance`    | No       | `{ kind: 'absolute' \| 'percent', value: <number> }` — slack permitted when comparing scores against baseline. |
+| `floors`       | No       | `{ <workspace>: { <metric>: <number> } }` — absolute floors below which the gate fails regardless of baseline. |
+| `components`   | No       | `{ <component>: [<glob>, ...] }` — optional component-level grouping for breakdown reporting.                  |
 
-#### `orchestration.runners.decomposer`
+Tier-specific knobs:
 
-| Field            | Required | Default | Purpose                                                          |
-| ---------------- | -------- | ------- | ---------------------------------------------------------------- |
-| `concurrencyCap` | No       | `3`     | Max parallel decomposer Stories during `/epic-plan` Phase 2 fan-out. |
+##### `gates.lint`
+
+No tier-specific knobs beyond the common shape.
+
+##### `gates.coverage`
+
+| Field          | Required | Default                          | Purpose                                                  |
+| -------------- | -------- | -------------------------------- | -------------------------------------------------------- |
+| `coveragePath` | No       | `coverage/coverage-final.json`   | Per-method coverage artifact consumed by the gate.       |
+
+##### `gates.crap`
+
+| Field               | Required    | Default                     | Purpose                                                          |
+| ------------------- | ----------- | --------------------------- | ---------------------------------------------------------------- |
+| `targetDirs`        | No          | `["src"]`                   | Source dirs to score. Accepts list or `{ append/prepend }` form. |
+| `newMethodCeiling`  | No          | `30`                        | Max CRAP score allowed for methods absent from the baseline.     |
+| `requireCoverage`   | No          | `true`                      | When `true`, methods without coverage are skipped (not failed).  |
+| `friction.markerKey`| No          | `crap-baseline-regression`  | Friction-log marker for regressions.                             |
+| `refreshTag`        | No          | `baseline-refresh:`         | Subject prefix the refresh-guardrail expects on baseline-only commits. |
+| `refreshTimeoutMs`  | No          | `60000`                     | Bounded timeout (ms) for `npm run crap:update` in the baseline-attribution refresh path. SIGKILL → exit 124 → Story `agent::blocked`. |
+
+##### `gates.maintainability`
+
+| Field              | Required | Default     | Purpose                                                          |
+| ------------------ | -------- | ----------- | ---------------------------------------------------------------- |
+| `targetDirs`       | No       | `["src"]`   | Source dirs to score. Accepts list or `{ append/prepend }` form. |
+| `refreshTimeoutMs` | No       | `60000`     | Bounded timeout (ms) for `npm run maintainability:update` in the baseline-attribution refresh path. |
+
+##### `gates.mutation`
+
+| Field                | Required | Default | Purpose                                                  |
+| -------------------- | -------- | ------- | -------------------------------------------------------- |
+| `strykerConfigPath`  | No       | `null`  | Path to the Stryker config the mutation gate consumes.   |
+
+##### `gates.lighthouse`
+
+| Field     | Required | Default | Purpose                                                                                  |
+| --------- | -------- | ------- | ---------------------------------------------------------------------------------------- |
+| `baseUrl` | No       | `null`  | Base URL Lighthouse audits.                                                              |
+| `routes`  | No       | `[]`    | Array of `{ path, formFactor? }` entries, where `formFactor` is `'mobile'` or `'desktop'`. |
+
+##### `gates.bundle-size`
+
+| Field     | Required | Default | Purpose                                                                                  |
+| --------- | -------- | ------- | ---------------------------------------------------------------------------------------- |
+| `bundles` | No       | `[]`    | Array of `{ name, path, limit }` entries (e.g. `{ "name": "app", "path": "dist/app.js", "limit": "100kB" }`). |
+
+#### `delivery.quality.formatAutofix`
+
+| Field       | Required | Default | Purpose                                                                                                                  |
+| ----------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `timeoutMs` | No       | (none)  | Bounded timeout (ms) for the close-time `npx biome format --write` spawn. SIGKILL maps to exit 124 → Story `agent::blocked`. |
+
+#### `delivery.quality.codingGuardrails`
+
+| Field                  | Required | Default | Purpose                                                            |
+| ---------------------- | -------- | ------- | ------------------------------------------------------------------ |
+| `cyclomaticFlag`       | No       | (none)  | Cyclomatic-complexity value at which the engineer should refactor.  |
+| `cyclomaticMustFix`    | No       | (none)  | Cyclomatic-complexity value that hard-fails the gate.               |
+| `miDropMustRefactor`   | No       | (none)  | MI drop that mandates a refactor.                                   |
+| `requireSiblingTest`   | No       | (none)  | When `true`, a new function requires a sibling test file.           |
+
+#### `delivery.quality.autoRefresh`
+
+Controls Story-close auto-baseline-refresh for gated metrics.
+
+| Field         | Required | Default | Purpose                                                  |
+| ------------- | -------- | ------- | -------------------------------------------------------- |
+| `enabled`     | No       | (none)  | Master switch.                                           |
+| `miDropCap`   | No       | (none)  | Max MI drop the auto-refresher will absorb before failing. |
+| `crapJumpCap` | No       | (none)  | Max CRAP jump the auto-refresher will absorb before failing. |
+| `scope`       | No       | (none)  | One of `'diff'` or `'full'`.                              |
+
+#### `delivery.quality.baselineEpsilon`
+
+Per-kind epsilon (introduced by Story #1964). Sub-epsilon row deltas resolve
+to prior bytes so cross-environment variance does not rewrite the on-disk
+baseline.
+
+| Field             | Required | Default | Purpose                                |
+| ----------------- | -------- | ------- | -------------------------------------- |
+| `maintainability` | No       | (none)  | Epsilon for maintainability rows.      |
+| `crap`            | No       | (none)  | Epsilon for CRAP rows.                 |
+| `coverage`        | No       | (none)  | Epsilon for coverage rows.             |
+| `mutation`        | No       | (none)  | Epsilon for mutation rows.             |
+| `lint`            | No       | (none)  | Epsilon for lint rows.                 |
+| `lighthouse`      | No       | (none)  | Epsilon for Lighthouse rows.           |
+| `bundle-size`     | No       | (none)  | Epsilon for bundle-size rows.          |
+
+### `delivery.lifecycle`
+
+Knobs consumed by the lifecycle event bus (Epic #2172). `timeouts` is a
+per-event budget map (eventName → seconds) used by `TimeoutWatchdog`;
+missing entries fall back to in-listener defaults.
+
+| Field                  | Required | Default | Purpose                                                |
+| ---------------------- | -------- | ------- | ------------------------------------------------------ |
+| `timeouts`             | No       | `{}`    | `{ <eventName>: <seconds> }` watchdog budgets.         |
+| `heartbeatWarnSeconds` | No       | (none)  | No-progress threshold consumed by `HeartbeatMonitor`.  |
+
+### `delivery.epicAudit`
+
+`/epic-deliver` Phase 4 (epic-audit) auto-fix budget.
+
+| Field              | Required | Default | Purpose                                                              |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------- |
+| `maxFixAttempts`   | No       | `3`     | Max auto-fix retry attempts per finding. `0` disables auto-fix.       |
+| `maxFixScopeFiles` | No       | `5`     | Max file count a single auto-fix may modify before escalating to `agent::blocked`. |
+
+### `delivery.codeReview`
+
+`/epic-deliver` Phase 5 (code-review) auto-fix budget. Same shape as
+`epicAudit`.
+
+| Field              | Required | Default | Purpose                                                              |
+| ------------------ | -------- | ------- | -------------------------------------------------------------------- |
+| `maxFixAttempts`   | No       | `3`     | Max auto-fix retry attempts per finding. `0` disables auto-fix.       |
+| `maxFixScopeFiles` | No       | `5`     | Max file count a single auto-fix may modify before escalating to `agent::blocked`. |
+
+### `delivery.failOnConcurrencyHazards`
+
+| Field                       | Required | Default | Purpose                                                                                         |
+| --------------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `failOnConcurrencyHazards`  | No       | (none)  | When `true`, hard-fail the plan if Phase 7 detects shared-editor or unsequenced cross-Story deps. |
+
+### `delivery.feedbackLoop`
+
+| Field                   | Required | Default | Purpose                                                                                                                                  |
+| ----------------------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `codeReviewAutoFile`    | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. |
+| `auditResultsAutoFile`  | No       | `true`  | When `true`, the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. |
 
 ---
 
@@ -393,18 +432,16 @@ number of keys.
 | `.agents/starter-agentrc.json`    | Downstream consumer repos           | Bootstrap delta-seed a consumer copies via `cp .agents/starter-agentrc.json .agentrc.json`. Minimum schema-required keys only.      |
 | `.agents/full-agentrc.json`       | Operators and reviewers             | Exhaustive editor reference enumerating every schema key with its framework default. Not a copy target.                             |
 
-| Key                                       | Root dogfood                          | Distributed template                | Why they differ                                                                                                                                                                          |
-| ----------------------------------------- | ------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agentSettings.commands.lintBaseline`     | `npm run lint`                        | `npx eslint . --format json`        | Root piggybacks on the repo's existing lint script; consumer template assumes a generic ESLint setup with structured output.                                                              |
-| `agentSettings.quality.maintainability.targetDirs` | `[".agents/scripts", "tests"]` | `["src", "tests"]`                  | Root scans the framework's own source tree; consumer template scans the conventional `src/`.                                                                                              |
-| `agentSettings.quality.crap.targetDirs`   | `[".agents/scripts"]`                 | `["src"]`                           | Same reason as MI above.                                                                                                                                                                  |
-| `agentSettings.release.docs`              | `["README.md", "docs/CHANGELOG.md"]`  | `["README.md"]`                     | Root keeps a separate CHANGELOG; template starts minimal and lets consumers extend.                                                                                                       |
-| `agentSettings.release.versionFile`       | `".agents/VERSION"`                   | `null`                              | Root tracks the framework's own version file; consumer template defers version-file ownership to the consumer.                                                                            |
-| `orchestration.github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced during `/agents-bootstrap-github` (or by hand). |
-| `orchestration.worktreeIsolation.nodeModulesStrategy` | `per-worktree`             | `pnpm-store`                        | Root is npm-only; template defaults to the strategy that scales best for pnpm consumers.                                                                                                  |
+| Key                                                  | Root dogfood                          | Distributed template (`full-agentrc.json`) | Why they differ                                                                                                                  |
+| ---------------------------------------------------- | ------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `project.commands.lintBaseline`                      | `npm run lint`                        | `npx eslint . --format json`               | Root piggybacks on the repo's existing lint script; consumer template assumes a generic ESLint setup with structured output.     |
+| `delivery.quality.gates.maintainability.targetDirs`  | `[".agents/scripts", "tests"]`        | `["src"]`                                  | Root scans the framework's own source tree; consumer template scans the conventional `src/`.                                     |
+| `delivery.quality.gates.crap.targetDirs`             | `[".agents/scripts"]`                 | `["src"]`                                  | Same reason as maintainability above.                                                                                            |
+| `github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
+| `delivery.worktreeIsolation.nodeModulesStrategy`     | `pnpm-store`                          | `per-worktree`                             | Root uses pnpm content-addressable store; template defaults to per-worktree for npm-only consumers.                              |
 
-The two files share every other key. When a consumer runs `/agents-update`,
-the [`agents-sync-config`](../.agents/workflows/helpers/agents-sync-config.md)
+When a consumer runs `/agents-update`, the
+[`agents-sync-config`](../.agents/workflows/helpers/agents-sync-config.md)
 helper validates the project config against the schema, then adds any
 template-introduced keys the project does not already define. Project-side
 values that validate are preserved unconditionally — including optional keys
@@ -428,22 +465,20 @@ separated so a repo-wide grep never confuses one with the other.
 Committed, schema-pointed baselines that gate every PR via close-validation,
 the lint ratchet, and the CRAP/MI gates.
 
-| File                              | Owner                              | Refresh                                                  |
-| --------------------------------- | ---------------------------------- | -------------------------------------------------------- |
-| `baselines/lint.json`             | `lint-baseline.js`                 | `node .agents/scripts/lint-baseline.js --refresh`         |
-| `baselines/crap.json`             | `update-crap-baseline.js`          | `npm run crap:update` (or the configured `refreshCommand`) |
-| `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update` (or the configured `refreshCommand`)  |
+| File                              | Owner                                | Refresh                                                                |
+| --------------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| `baselines/lint.json`             | `lint-baseline.js`                   | `node .agents/scripts/lint-baseline.js --refresh`                       |
+| `baselines/crap.json`             | `update-crap-baseline.js`            | `npm run crap:update`                                                   |
+| `baselines/maintainability.json`  | `update-maintainability-baseline.js` | `npm run maintainability:update`                                        |
 
 These files are the contract. They are read by every gate (Story close, push
-hook, CI) and are regenerated only via tagged `baseline-refresh:` commits with
-a non-empty body. The convention is now operator-enforced (the bot-pipeline
-guardrail that mechanically rejected unlabeled baseline edits was removed in
-5.42); see the CRAP section of [`docs/quality-gates.md`](quality-gates.md)
-for the policy.
+hook, CI) and are regenerated only via tagged `baseline-refresh:` commits
+with a non-empty body. The convention is operator-enforced; see the CRAP
+section of [`docs/quality-gates.md`](quality-gates.md) for the policy.
 
-Paths are configured in `agentSettings.quality.baselines.<gate>.path`. The
-default values match the canonical layout above; override only when a project
-genuinely stores baselines elsewhere.
+Paths are configured in `delivery.quality.gates.<tier>.baselinePath`. The
+default values match the canonical layout above; override only when a
+project genuinely stores baselines elsewhere.
 
 ### Per-wave drift snapshots — `.agents/state/`
 
@@ -451,10 +486,10 @@ The Epic runner's progress reporter writes wave-start snapshots so that a
 resumed run can detect intra-wave drift without re-reading the canonical
 baseline (which may have been refreshed mid-Epic).
 
-| File                                  | Owner                                                                                  | Lifecycle                                  |
-| ------------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `.agents/state/wave-mi-snapshot.json` | `progress-signals/maintainability-drift.js`                                            | Captured at wave-start; overwritten next wave. |
-| `.agents/state/wave-crap-snapshot.json` | `progress-signals/crap-drift.js`                                                     | Captured at wave-start; overwritten next wave. |
+| File                                    | Owner                                                | Lifecycle                                       |
+| --------------------------------------- | ---------------------------------------------------- | ----------------------------------------------- |
+| `.agents/state/wave-mi-snapshot.json`   | `progress-signals/maintainability-drift.js`          | Captured at wave-start; overwritten next wave.   |
+| `.agents/state/wave-crap-snapshot.json` | `progress-signals/crap-drift.js`                     | Captured at wave-start; overwritten next wave.   |
 
 These are **not** ratchet baselines and must not be committed as such. The
 filenames intentionally differ from the canonical files so a repo-wide grep
@@ -485,15 +520,18 @@ project-specific knob:
 
 ### Extending list-valued keys without losing template defaults
 
-`agentSettings.quality.maintainability.targetDirs` and
-`agentSettings.quality.crap.targetDirs` accept the deep-merge extender form:
+`delivery.quality.gates.maintainability.targetDirs`,
+`delivery.quality.gates.crap.targetDirs`, and `planning.riskHeuristics`
+accept the deep-merge extender form:
 
 ```jsonc
 {
-  "agentSettings": {
+  "delivery": {
     "quality": {
-      "crap": {
-        "targetDirs": { "append": ["packages/foo/src", "packages/bar/src"] }
+      "gates": {
+        "crap": {
+          "targetDirs": { "append": ["packages/foo/src", "packages/bar/src"] }
+        }
       }
     }
   }
@@ -508,13 +546,15 @@ entirely — useful when the consumer wants exactly its own dirs.
 
 `.agentrc.local.json` (gitignored) is layered on top of `.agentrc.json` by the
 resolver. Use it for machine-specific tuning (e.g. lower
-`deliverRunner.concurrencyCap` on a laptop) that should never reach git.
+`delivery.deliverRunner.concurrencyCap` on a laptop) that should never reach
+git.
 
 ### Adding a new top-level key (framework change)
 
 This is a framework-level change, not a project-level one. The path is:
 
-1. Add the AJV schema in `config-schema.js` or `config-settings-schema.js`.
+1. Add the AJV schema in the relevant module under
+   `.agents/scripts/lib/`.
 2. Mirror it manually in `.agents/schemas/agentrc.schema.json`.
 3. Add a resolver getter in
    [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js).
@@ -635,13 +675,12 @@ move and the allowlist response in the same diff.
 
 - JSON Schema mirror —
   [`.agents/schemas/agentrc.schema.json`](../.agents/schemas/agentrc.schema.json)
-- Runtime AJV schemas —
-  [`config-schema.js`](../.agents/scripts/lib/config-schema.js),
-  [`config-settings-schema.js`](../.agents/scripts/lib/config-settings-schema.js)
 - Resolver entry point —
   [`config-resolver.js`](../.agents/scripts/lib/config-resolver.js)
 - Sync helper —
   [`agents-sync-config.md`](../.agents/workflows/helpers/agents-sync-config.md)
+- Bootstrap script —
+  [`bootstrap.js`](../.agents/scripts/bootstrap.js)
 - Quality gates runbook (CRAP onboarding, MI ratchet, lint ratchet) —
   [`docs/quality-gates.md`](quality-gates.md)
 - Activation pointers (slash commands, personas, skills) —
