@@ -179,8 +179,28 @@
         "riskHeuristics": { "$ref": "#/$defs/listOrExtenderOfStrings" },
         "maxTickets": { "type": "integer", "minimum": 1 },
         "context": { "$ref": "#/$defs/planningContext" },
+        "codebaseSnapshot": { "$ref": "#/$defs/codebaseSnapshot" },
         "failOnSharedEditors": { "type": "boolean" },
         "requireExplicitCrossStoryDeps": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "codebaseSnapshot": {
+      "type": "object",
+      "properties": {
+        "tier": {
+          "type": "string",
+          "enum": ["skinny", "medium"]
+        },
+        "include": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "recentCommitWindow": { "type": "integer", "minimum": 1 }
       },
       "additionalProperties": false
     },

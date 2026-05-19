@@ -217,12 +217,37 @@ const PLANNING_CONTEXT_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * Story #2634 — `planning.codebaseSnapshot` controls the structural
+ * view of the consumer repo threaded into `/epic-plan` Phase 7 spec
+ * authoring. Absent / partial entries resolve to defaults inside
+ * `lib/codebase-snapshot.js#resolveSnapshotConfig` — the schema only
+ * enforces shape (correct enum value, well-formed glob arrays).
+ */
+const CODEBASE_SNAPSHOT_SCHEMA = {
+  type: 'object',
+  properties: {
+    tier: { type: 'string', enum: ['skinny', 'medium'] },
+    include: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+    },
+    exclude: {
+      type: 'array',
+      items: { type: 'string', minLength: 1 },
+    },
+    recentCommitWindow: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const PLANNING_SCHEMA = {
   type: 'object',
   properties: {
     riskHeuristics: LIST_OR_EXTENDER_OF_STRINGS,
     maxTickets: { type: 'integer', minimum: 1 },
     context: PLANNING_CONTEXT_SCHEMA,
+    codebaseSnapshot: CODEBASE_SNAPSHOT_SCHEMA,
     // Cross-Story conflict-finding severity gates. Off by default so
     // existing repos keep advisory-only behaviour; flipping either to
     // `true` upgrades the matching finding class to `'hard'`, which routes
