@@ -73,8 +73,7 @@ function makeFakeWorkflowLoader(registeredLenses) {
     if (!registeredLenses.includes(auditName)) return null;
     return {
       path: `.agents/workflows/${auditName}.md`,
-      content:
-        `# ${auditName}\n\nChanged files:\n{{changedFiles}}\n\nTicket: {{ticketId}}\n`,
+      content: `# ${auditName}\n\nChanged files:\n{{changedFiles}}\n\nTicket: {{ticketId}}\n`,
     };
   };
 }
@@ -159,7 +158,11 @@ test('helper dispatch: lenses applied → suite returns auditsRun and comment ca
     [...selectedAudits].sort(),
     'every requested lens ran',
   );
-  assert.equal(suiteEnvelope.findings.length, 0, 'no error findings on happy path');
+  assert.equal(
+    suiteEnvelope.findings.length,
+    0,
+    'no error findings on happy path',
+  );
 
   const commentBody = renderAuditResultsBody({
     envelope: prepResult.envelope,
