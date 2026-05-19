@@ -509,6 +509,95 @@ describe('runEpicMode — baseline-refresh-rate row (Story #1400 / Task #1427)',
   });
 });
 
+describe('runStoryMode — back-compat with source-tagged streams (Story #2553)', () => {
+  // Story #2553 / Task #2559: confirm the analyzer aggregates a mixed
+  // stream (records with `source: "framework"` / `source: "consumer"`
+  // AND legacy records without the field) without throwing.
+
+  it('aggregates a mixed stream that contains source-tagged records', async () => {
+    await seedSignals(1100, 1101, [
+      // Legacy shape — no source field
+      {
+        kind: 'friction',
+        category: 'tool-limitation',
+        details: { category: 'tool-limitation' },
+      },
+      // New shape — framework-tagged
+      {
+        kind: 'friction',
+        category: 'tool-limitation',
+        details: { category: 'tool-limitation' },
+        source: 'framework',
+        command: 'node .agents/scripts/story-init.js',
+      },
+      // New shape — consumer-tagged
+      {
+        kind: 'retry',
+        details: { command: 'npm test' },
+        source: 'consumer',
+      },
+    ]);
+
+    const provider = createFakeProvider();
+    const result = await runStoryMode({
+      storyId: 1101,
+      epicId: 1100,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {}, error() {} },
+      now: () => new Date('2026-05-19T12:00:00.000Z'),
+    });
+
+    // Pre-existing behaviour must survive: friction tally, retry density,
+    // structured marker. The new field is a pure passthrough at this tier.
+    assert.equal(result.payload.kind, 'story-perf-summary');
+    assert.equal(result.payload.storyId, 1101);
+    assert.equal(
+      result.payload.frictionByCategory['tool-limitation'],
+      2,
+      'both friction records (with and without source) tallied',
+    );
+    assert.equal(result.payload.retryDensity.retries, 1);
+    const commentList = provider._commentStore.get(1101);
+    assert.equal(commentList.length, 1);
+  });
+
+  it('byte-equivalent legacy-shape output: a stream without source produces the same payload it would have pre-Story', async () => {
+    // Identical seeds to the canonical "upserts a story-perf-summary"
+    // test at the top of the file — pre-Story-2553 fixture shape.
+    await seedSignals(1200, 1201, [
+      { kind: 'friction', details: { category: 'Tool Limitation' } },
+      { kind: 'friction', details: { category: 'Tool Limitation' } },
+      { kind: 'retry', details: { command: 'npm test' } },
+    ]);
+    await seedPhaseTimings(1200, 1201, {
+      storyId: 1201,
+      totalMs: 5000,
+      phases: [
+        { name: 'install', elapsedMs: 1500 },
+        { name: 'test', elapsedMs: 3500 },
+      ],
+    });
+
+    const provider = createFakeProvider();
+    const result = await runStoryMode({
+      storyId: 1201,
+      epicId: 1200,
+      provider,
+      config: cfg,
+      logger: { info() {}, warn() {}, error() {} },
+      now: () => new Date('2026-05-07T12:00:00.000Z'),
+    });
+
+    // The aggregator output is byte-equivalent to the pre-Story baseline:
+    // same frictionByCategory, same phaseTimingsMs, same retry tally.
+    assert.equal(result.payload.frictionByCategory['Tool Limitation'], 2);
+    assert.equal(result.payload.phaseTimingsMs.install, 1500);
+    assert.equal(result.payload.phaseTimingsMs.test, 3500);
+    assert.equal(result.payload.retryDensity.retries, 1);
+  });
+});
+
 describe('extractStoryPerfSummaryFromComment', () => {
   it('returns null on bodies without the marker', () => {
     assert.equal(extractStoryPerfSummaryFromComment('hello world'), null);
