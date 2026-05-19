@@ -354,7 +354,7 @@ side-effects rather than inline calls at phase boundaries; the
 
 > **Acceptance-spec start gate.** Before a single wave fans out,
 > `/epic-deliver`'s snapshot phase
-> ([`lib/orchestration/epic-runner/phases/snapshot.js`](../scripts/lib/orchestration/epic-runner/phases/snapshot.js))
+> ([`lib/orchestration/epic-runner/phases/snapshot.js`](scripts/lib/orchestration/epic-runner/phases/snapshot.js))
 > asserts that the Epic either (a) carries the `acceptance::n-a`
 > waiver label, or (b) has a linked `context::acceptance-spec`
 > ticket. The ticket's GitHub state (open / closed) is not checked
@@ -512,7 +512,7 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    that access. After the GitHub upsert succeeds, the retro body is
    also **mirrored locally** to the per-Epic temp tree at
    `temp/epic-<id>/retro.md` (path resolved via
-   [`lib/config/temp-paths.js`](../scripts/lib/config/temp-paths.js)'s
+   [`lib/config/temp-paths.js`](scripts/lib/config/temp-paths.js)'s
    `epicRetroMirrorPath`) so operators can read the retro without
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
