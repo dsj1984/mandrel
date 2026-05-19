@@ -39,8 +39,8 @@ import { assembleState } from '../checks/state.js';
 import { epicRetroMirrorPath } from '../config/temp-paths.js';
 import { CONTEXT_LABELS, TYPE_LABELS } from '../label-constants.js';
 import { forEachLine } from '../observability/signals-writer.js';
-import { composeRoutedProposals } from './retro-proposals.js';
 import { isCleanManifest } from './retro-heuristics.js';
+import { composeRoutedProposals } from './retro-proposals.js';
 import { parseFencedJsonComment } from './structured-comment-parser.js';
 import { findStructuredComment, upsertStructuredComment } from './ticketing.js';
 

@@ -18,9 +18,8 @@
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
-
-import { composeRetroBody } from '../../.agents/scripts/lib/orchestration/retro-runner.js';
 import { composeRoutedProposals } from '../../.agents/scripts/lib/orchestration/retro-proposals.js';
+import { composeRetroBody } from '../../.agents/scripts/lib/orchestration/retro-runner.js';
 
 const NON_CLEAN_COUNTS = {
   friction: 5,
