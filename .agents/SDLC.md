@@ -44,22 +44,34 @@ From zero to shipped:
    3. **Phase 3 — close-validation** — lint, test, and the project's
       ratcheted baselines run against the Epic branch. Evidence is
       cached by HEAD SHA so re-runs short-circuit.
-   4. **Phase 4 — code-review** — auto-invokes
+   4. **Phase 4 — audit** — runs the change-set audit lenses against
+      the Epic diff; findings flow through as advisory signal.
+   5. **Phase 5 — code-review** — auto-invokes
       `helpers/epic-code-review.md`; findings persist as a
       `code-review` structured comment on the Epic. Critical findings
       halt the run.
-   5. **Phase 5 — retro** — auto-invokes the in-process
+   6. **Phase 6 — retro** — auto-invokes the in-process
       `lib/orchestration/retro-runner.js` (extracted from the old
       retro helper) and posts the structured retro comment on the
       Epic. The retro fires **before** the PR is opened so it has
       full env access in the operator's local session.
-   6. **Phase 6 — finalize** — pushes `epic/<epicId>` to `origin`,
+   7. **Phase 7 — finalize** — pushes `epic/<epicId>` to `origin`,
       opens a pull request to `main`, sets the required-checks
       expectation from `agentSettings.quality.prGate.checks`, posts
       the hand-off comment naming the PR URL, and **stops**. The
       Epic stays at `agent::executing` until the operator merges the
       PR through the GitHub UI; the merge fires the standard
       transition that flips the Epic to `agent::done`.
+   8. **Phase 8 — watch-and-iterate** — watches CI on the open PR
+      until checks turn green (or a failure surfaces for human
+      remediation).
+   9. **Phase 8.5 — auto-merge** — arms GitHub native auto-merge
+      (`gh pr merge --auto --squash --delete-branch`) once the
+      required checks have passed so the PR lands without a second
+      operator visit.
+   10. **Phase 9 — cleanup** — reaps local Story/Epic branch refs and
+       worktrees after the PR merges so the workspace returns to a
+       clean state for the next Epic.
 
    For a single Story off the dispatch table (re-driving a hotfix,
    resuming after a halt), run `/story-deliver <storyId>` directly. The
@@ -326,7 +338,7 @@ flows and the **Story Init/Close** scripts for individual Stories. All entry
 points share the same primitives — DAG computation, context hydration,
 worktree isolation, and cascade closure. The lifecycle bus listener
 chain inside the session is the single runtime; it owns wave fan-out,
-finalize, automerge, and cleanup. Phase 6, 7.5, and 8 each fire one
+finalize, automerge, and cleanup. Phase 7, 8.5, and 9 each fire one
 typed event via `lifecycle-emit.js` (`epic.close.end`,
 `epic.automerge.start`, `epic.merge.armed`); the matching listeners run
 the side effects. See
@@ -416,7 +428,7 @@ Agents update their state in real-time on GitHub:
 
 - **Labels**: `agent::ready` → `agent::executing` → `agent::done`. The
   intermediate review label is not part of the label taxonomy; the
-  PR opened by `/epic-deliver` Phase 6 is the equivalent "ready to merge"
+  PR opened by `/epic-deliver` Phase 7 is the equivalent "ready to merge"
   signal at the Epic level. The `WaveObserver` submodule additionally
   syncs a GitHub Projects v2 Status column on each transition when a
   `projectNumber` is configured.
@@ -471,21 +483,26 @@ A real content conflict (both stories touched the same lines) aborts the
 loop with a clear error, leaves the local tree clean, and exits non-zero for
 manual resolution. The retry path is a wrapper around the existing happy path.
 
-### Close-tail (Phases 3–6 of `/epic-deliver`)
+### Close-tail (Phases 3–9 of `/epic-deliver`)
 
-After the wave loop returns `complete`, `/epic-deliver` runs four sequential
-phases against the Epic branch before opening the PR:
+After the wave loop returns `complete`, `/epic-deliver` runs the
+remaining phases against the Epic branch — close-validation, audit,
+code-review, retro, and finalize — before handing off to the
+watch / auto-merge / cleanup tail that drives the PR to merge:
 
-1. **Close-validation.** Lint + test + project-extended ratchets
+1. **Close-validation (Phase 3).** Lint + test + project-extended ratchets
    (maintainability, CRAP, lint baseline) run via `evidence-gate.js` keyed
    on `git rev-parse HEAD`. A clean tree on a re-run short-circuits in
    milliseconds. A failing gate halts the workflow until the regression is
    fixed on a hotfix branch and re-merged into the Epic.
-2. **Code-review.** `lib/orchestration/code-review.js` (extracted from the
-   `epic-code-review.md` helper) audits the diff and posts the findings as
-   a `code-review` structured comment on the Epic. 🔴 Critical findings
-   halt the run; 🟠/🟡/🟢 findings flow through as non-blocking.
-3. **Retro.** `lib/orchestration/retro-runner.js` (extracted from the old
+2. **Audit (Phase 4).** The change-set audit lenses run against the Epic
+   diff; findings flow through as advisory signal to inform the code
+   review that follows.
+3. **Code-review (Phase 5).** `lib/orchestration/code-review.js` (extracted
+   from the `epic-code-review.md` helper) audits the diff and posts the
+   findings as a `code-review` structured comment on the Epic. 🔴 Critical
+   findings halt the run; 🟠/🟡/🟢 findings flow through as non-blocking.
+4. **Retro (Phase 6).** `lib/orchestration/retro-runner.js` (extracted from the old
    retro helper) aggregates perf signals, friction counts, hotfix counts,
    recut counts, parked counts, and HITL count using
    `retro-heuristics.js`. The structured retro comment is posted on the
@@ -499,7 +516,7 @@ phases against the Epic branch before opening the PR:
    `epicRetroMirrorPath`) so operators can read the retro without
    re-fetching from GitHub. GitHub remains the source of truth; the
    mirror write is best-effort and a failure only logs a warn.
-4. **Finalize.** `/epic-deliver` fires `epic.close.end` via
+5. **Finalize (Phase 7).** `/epic-deliver` fires `epic.close.end` via
    `lifecycle-emit.js`; the `Finalizer` + `AcceptanceReconciler`
    listener chain runs three close-time responsibilities in order:
    1. **Acceptance-spec reconciliation.** Invokes
@@ -526,9 +543,21 @@ phases against the Epic branch before opening the PR:
       auto-close path is not blocked by open sub-issues, then posts a
       hand-off structured comment naming the PR URL. The Epic stays
       at `agent::executing` until the PR merges.
+6. **Watch-and-iterate (Phase 8).** `/epic-deliver` watches the open PR's
+   required checks until they turn green. Transient failures trigger an
+   automated re-run loop; durable failures surface for human remediation
+   on the Epic branch.
+7. **Auto-merge (Phase 8.5).** Once the watch loop reports all required
+   checks passing, the auto-merge gate arms GitHub native auto-merge via
+   `gh pr merge --auto --squash --delete-branch` so the PR lands without
+   a second operator visit.
+8. **Cleanup (Phase 9).** After the PR merges, the cleanup phase reaps
+   local Story/Epic branch refs and any lingering worktrees so the
+   workspace returns to a clean state for the next Epic.
 
-`/epic-deliver` exits cleanly without merging. The operator merges through
-the GitHub UI.
+`/epic-deliver` exits cleanly once auto-merge is armed (or sooner if the
+operator declines auto-merge). The operator can merge through the GitHub UI
+at any time; Phase 9 handles the post-merge branch reap.
 
 ---
 
@@ -596,8 +625,8 @@ runner.
 | `notification-hook` | Fire-and-forget webhook for blocker / wave-transition events.                                                           |
 | `wave-observer`     | Emits `wave-N-start` / `wave-N-end` comments and reads each Story's `story-run-progress` snapshot.                      |
 | `column-sync`       | Syncs the Projects v2 Status column from `agent::` labels.                                                              |
-| `code-review`       | `lib/orchestration/code-review.js` — Phase 4 inline audit; halts on critical findings.                                  |
-| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 5 retro authoring; posts structured retro comment.                          |
+| `code-review`       | `lib/orchestration/code-review.js` — Phase 5 inline audit; halts on critical findings.                                  |
+| `retro-runner`      | `lib/orchestration/retro-runner.js` — Phase 6 retro authoring; posts structured retro comment.                          |
 
 ### Claude Max quota
 
@@ -645,7 +674,7 @@ PR through the GitHub UI.
      reviewer-trail and required-checks history;
    - the standard label-transition pathway flips the Epic to
      `agent::done`;
-   - branch cleanup runs out-of-band: Phase 8 of `/epic-deliver` reaps
+   - branch cleanup runs out-of-band: Phase 9 of `/epic-deliver` reaps
      local refs after the merge; the rare "scrap and reset" case for an
      unmerged Epic is handled manually.
 
@@ -699,8 +728,8 @@ defined in `.agents/schemas/audit-rules.json` (schema:
 | ------ | ------------------------------------------ | ------------------------------------------ |
 | Gate 1 | After Story completion                     | Content-triggered audits (clean-code, etc) |
 | Gate 2 | Pre-integration                            | Dependency + DevOps audits                 |
-| Gate 3 | `/epic-deliver` Phase 4 (code-review)      | Full automated audit pass                  |
-| Gate 4 | `/epic-deliver` Phase 6 (pre-PR-open)      | `audit-sre` production readiness gate      |
+| Gate 3 | `/epic-deliver` Phase 5 (code-review)      | Full automated audit pass                  |
+| Gate 4 | `/epic-deliver` Phase 7 (pre-PR-open)      | `audit-sre` production readiness gate      |
 
 ### Review & feedback loop
 
@@ -821,7 +850,7 @@ failures never block execution.
 | `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main`. Operator merges via the GitHub UI.                                         |
 | `/story-deliver <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
 | _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
-| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 4; not a slash command.                                                                                                                 |
+| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 5; not a slash command.                                                                                                                 |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
