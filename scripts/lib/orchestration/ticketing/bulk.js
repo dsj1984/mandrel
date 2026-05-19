@@ -19,7 +19,7 @@ import { Logger } from '../../Logger.js';
 import { TYPE_LABELS } from '../../label-constants.js';
 import { concurrentMap } from '../../util/concurrent-map.js';
 import { dispatchCascadeGroups, groupByAncestor } from '../cascade-grouping.js';
-import { STATE_LABELS } from './reads.js';
+import { ALL_STATES, STATE_LABELS } from './reads.js';
 import {
   postStructuredComment,
   toggleTasklistCheckbox,
@@ -475,6 +475,270 @@ export async function cascadeCompletion(provider, ticketId, opts = {}) {
   for (const r of results) {
     cascadedTo.push(...r.cascadedTo);
     failed.push(...r.failed);
+  }
+  return { cascadedTo, failed };
+}
+
+/**
+ * Derive the parent `agent::*` state from the composition of its children.
+ *
+ * Rules (Story #2676):
+ * - Any child carrying `agent::blocked` → parent should be `agent::blocked`.
+ * - Otherwise, every child is `agent::done` (or closed) → parent should be
+ *   `agent::done`.
+ * - Otherwise, any child carrying `agent::executing` or `agent::closing` →
+ *   parent should be `agent::executing`.
+ * - Otherwise (e.g. all children still `agent::ready`) → return `null` to
+ *   signal "leave the parent unchanged". A parent already partway through
+ *   the lifecycle MUST NOT be downgraded just because one child reverted.
+ *
+ * The function is pure and exported so the rule can be exercised in
+ * isolation by unit tests without dragging the cascade I/O surface in.
+ *
+ * @param {Array<{ labels?: string[], state?: string }>} siblings
+ * @returns {string|null} A `STATE_LABELS.*` value, or `null` for no-op.
+ */
+export function deriveParentState(siblings) {
+  if (!Array.isArray(siblings) || siblings.length === 0) return null;
+  const labelsOf = (s) => (Array.isArray(s?.labels) ? s.labels : []);
+  if (siblings.some((s) => labelsOf(s).includes(STATE_LABELS.BLOCKED))) {
+    return STATE_LABELS.BLOCKED;
+  }
+  const allDone = siblings.every(
+    (s) => labelsOf(s).includes(STATE_LABELS.DONE) || s?.state === 'closed',
+  );
+  if (allDone) return STATE_LABELS.DONE;
+  const anyActive = siblings.some(
+    (s) =>
+      labelsOf(s).includes(STATE_LABELS.EXECUTING) ||
+      labelsOf(s).includes(STATE_LABELS.CLOSING),
+  );
+  if (anyActive) return STATE_LABELS.EXECUTING;
+  return null;
+}
+
+/**
+ * Parent-state cascade for non-terminal transitions. Story #2676.
+ *
+ * When a child ticket transitions to any `agent::*` state, this function
+ * walks the parent chain and updates each parent's state to the value
+ * derived by {@link deriveParentState} — so that moving a Task to
+ * `agent::executing` propagates "in progress" up to the Story and the
+ * Epic on the Project board, and moving a Task to `agent::blocked`
+ * surfaces the HITL signal at every ancestor.
+ *
+ * For `agent::done` transitions, propagation is delegated to the
+ * existing {@link cascadeCompletion} so the long-standing semantics
+ * (tasklist checkbox toggling, the "All child tickets completed via
+ * recursive cascade" progress comment, Epic exclusion) are preserved
+ * verbatim.
+ *
+ * Resilience matches {@link cascadeCompletion}: disjoint parent groups
+ * run in parallel via {@link dispatchCascadeGroups}; parents within a
+ * group run sequentially; the per-parent lock from
+ * {@link withParentCascadeLock} prevents races on shared ancestors; and
+ * per-parent errors are isolated so a sibling parent's failure does not
+ * discard work on the others.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} ticketId
+ * @param {{ notify?: Function, _logger?: object }} [opts]
+ * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
+ */
+export async function cascadeParentState(provider, ticketId, opts = {}) {
+  // Provider-capability guard. Cascade derivation needs both
+  // `getTicketDependencies` (to walk the `blocks:` parent edge) and
+  // `getSubTickets` (to inspect the parent's children). Test fakes
+  // that stub only the single-ticket surface (e.g. the column-sync
+  // sibling tests) MUST still be able to drive `transitionTicketState`
+  // without the cascade blowing up. Silently no-op when the surface
+  // is missing — propagation is best-effort, matching the contract
+  // already documented for the column-sync mirror.
+  if (
+    typeof provider?.getTicketDependencies !== 'function' ||
+    typeof provider?.getSubTickets !== 'function'
+  ) {
+    return { cascadedTo: [], failed: [] };
+  }
+  const ticket = await provider.getTicket(ticketId);
+  const labels = Array.isArray(ticket?.labels) ? ticket.labels : [];
+  const childState = labels.find((l) => ALL_STATES.includes(l));
+  if (!childState) return { cascadedTo: [], failed: [] };
+
+  // DONE-cascade keeps the existing path: tasklist checkbox toggle,
+  // progress comment, Epic-close exclusion, and the legacy log shape are
+  // all encoded in `cascadeCompletion` and externally observed by tests.
+  if (childState === STATE_LABELS.DONE) {
+    return cascadeCompletion(provider, ticketId, opts);
+  }
+
+  const parsedParents = await resolveParentIds(provider, ticket, ticketId);
+  if (parsedParents.length === 0) return { cascadedTo: [], failed: [] };
+
+  const groups = await groupByAncestor(parsedParents, provider);
+  const results = await dispatchCascadeGroups({
+    parsedParents,
+    groups,
+    flushLogger: opts._logger ?? Logger,
+    processParent: (parentId, logger) =>
+      processStateCascadeParent(provider, parentId, {
+        notify: opts.notify,
+        _logger: logger,
+      }),
+  });
+
+  const cascadedTo = [];
+  const failed = [];
+  for (const r of results) {
+    cascadedTo.push(...r.cascadedTo);
+    failed.push(...r.failed);
+  }
+  return { cascadedTo, failed };
+}
+
+/**
+ * Resolve the parent issue ids for a ticket: native `blocks:` dependency
+ * annotations first, then `parent: #NNN` body references as a fallback.
+ * Mirrors the resolution path used by {@link cascadeCompletion}.
+ *
+ * @param {import('../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {object} ticket
+ * @param {number} ticketId
+ * @returns {Promise<number[]>}
+ */
+async function resolveParentIds(provider, ticket, ticketId) {
+  const { blocks: parentIds } = await provider.getTicketDependencies(ticketId);
+  if (Array.isArray(parentIds) && parentIds.length > 0) return parentIds;
+  const parentMatch = ticket?.body
+    ? [...ticket.body.matchAll(/parent:\s*#(\d+)/gi)]
+    : [];
+  return parentMatch.map((m) => Number.parseInt(m[1], 10));
+}
+
+/**
+ * Per-parent worker for {@link cascadeParentState}. Acquires the shared
+ * per-parent cascade lock so concurrent transitions on sibling children
+ * cannot race on the parent's derived-state check.
+ *
+ * @returns {Promise<{ cascadedTo: number[], failed: Array<{ parentId: number, error: string }> }>}
+ */
+async function processStateCascadeParent(provider, parentId, opts) {
+  const logger = opts._logger ?? Logger;
+  return withParentCascadeLock(parentId, () =>
+    processStateCascadeParentLocked(provider, parentId, opts, logger),
+  );
+}
+
+/**
+ * Body of {@link processStateCascadeParent} under the per-parent lock.
+ * Computes the derived state from a fresh sibling read, applies the
+ * idempotency guard, and recurses upward.
+ */
+async function processStateCascadeParentLocked(
+  provider,
+  parentId,
+  opts,
+  logger,
+) {
+  const cascadedTo = [];
+  const failed = [];
+  try {
+    if (typeof provider.invalidateTicket === 'function') {
+      try {
+        provider.invalidateTicket(parentId);
+      } catch {
+        // best-effort cache invalidation
+      }
+    }
+    const subTickets = await provider.getSubTickets(parentId);
+    const freshSubs = await concurrentMap(
+      subTickets,
+      async (st) => {
+        if (typeof provider.invalidateTicket === 'function') {
+          try {
+            provider.invalidateTicket(st.id);
+          } catch {
+            // best-effort cache invalidation
+          }
+        }
+        if (typeof provider.getTicket !== 'function') return st;
+        try {
+          return await provider.getTicket(st.id, { fresh: true });
+        } catch {
+          // Transient sibling read failure must not silently flip the
+          // parent's derived state — fall back to the row we already
+          // have so the existing label set still drives the rule.
+          return st;
+        }
+      },
+      { concurrency: CASCADE_SIBLING_READ_CONCURRENCY },
+    );
+
+    const derived = deriveParentState(freshSubs);
+    if (derived === null) return { cascadedTo, failed };
+
+    // Defer the all-done case to the legacy DONE-cascade so it
+    // owns the Epic exclusion, the tasklist toggle, the progress
+    // comment, and the recursive walk that already pin its
+    // behaviour via the existing test surface. The closing child's
+    // id is taken from `freshSubs` — any DONE child suffices because
+    // cascadeCompletion only uses the child to look up its parents.
+    if (derived === STATE_LABELS.DONE) {
+      const doneChild = freshSubs.find(
+        (s) => Array.isArray(s?.labels) && s.labels.includes(STATE_LABELS.DONE),
+      );
+      if (!doneChild) return { cascadedTo, failed };
+      const nested = await cascadeCompletion(provider, doneChild.id, {
+        notify: opts.notify,
+        _logger: logger,
+      });
+      cascadedTo.push(...nested.cascadedTo);
+      failed.push(...nested.failed);
+      return { cascadedTo, failed };
+    }
+
+    const parent = await provider.getTicket(parentId);
+    const parentLabels = Array.isArray(parent?.labels) ? parent.labels : [];
+    const currentState = parentLabels.find((l) => ALL_STATES.includes(l));
+    if (currentState === derived) {
+      // Idempotency guard — Project board is already in the derived
+      // column. Skip the transition entirely so we do not burn a
+      // GraphQL write for a no-op.
+      return { cascadedTo, failed };
+    }
+
+    await retryTransient(
+      () =>
+        transitionTicketState(provider, parentId, derived, {
+          notify: opts.notify,
+          // Recursion is handled explicitly below — passing cascade:false
+          // prevents state.js from firing its own cascadeParentState on the
+          // parent and double-walking the tree.
+          cascade: false,
+        }),
+      {
+        onRetry: (err, attempt, delayMs) => {
+          logger.warn(
+            `[Ticketing] State cascade to parent #${parentId} hit transient ${err?.name ?? 'error'} ` +
+              `(attempt ${attempt}); retrying in ${delayMs}ms. ${formatCascadeError(err)}`,
+          );
+        },
+      },
+    );
+    cascadedTo.push(parentId);
+
+    const nested = await cascadeParentState(provider, parentId, {
+      notify: opts.notify,
+      _logger: logger,
+    });
+    cascadedTo.push(...nested.cascadedTo);
+    failed.push(...nested.failed);
+  } catch (err) {
+    const detail = formatCascadeError(err);
+    failed.push({ parentId, error: detail });
+    logger.warn(
+      `[Ticketing] State cascade to parent #${parentId} failed: ${detail}`,
+    );
   }
   return { cascadedTo, failed };
 }
