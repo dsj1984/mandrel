@@ -33,10 +33,7 @@ describe('source-classifier — framework classification by failingPath', () => 
   });
 
   it('tags paths under .claude/ as framework', () => {
-    assert.equal(
-      classifyPathSource('.claude/settings.json', ''),
-      'framework',
-    );
+    assert.equal(classifyPathSource('.claude/settings.json', ''), 'framework');
     assert.equal(
       classifyPathSource('host/.claude/hooks/post-commit', ''),
       'framework',
@@ -47,27 +44,15 @@ describe('source-classifier — framework classification by failingPath', () => 
 describe('source-classifier — framework classification by command', () => {
   it('tags commands invoking node .agents/scripts/ as framework', () => {
     assert.equal(
-      classifyPathSource(
-        '',
-        'node .agents/scripts/story-init.js --story 2553',
-      ),
+      classifyPathSource('', 'node .agents/scripts/story-init.js --story 2553'),
       'framework',
     );
   });
 
   it('tags commands that reference any framework prefix as framework', () => {
-    assert.equal(
-      classifyPathSource('', 'ls .agents/scripts'),
-      'framework',
-    );
-    assert.equal(
-      classifyPathSource('', 'cat .agentrc.json'),
-      'framework',
-    );
-    assert.equal(
-      classifyPathSource('', 'rg foo .claude/'),
-      'framework',
-    );
+    assert.equal(classifyPathSource('', 'ls .agents/scripts'), 'framework');
+    assert.equal(classifyPathSource('', 'cat .agentrc.json'), 'framework');
+    assert.equal(classifyPathSource('', 'rg foo .claude/'), 'framework');
   });
 });
 
@@ -81,21 +66,12 @@ describe('source-classifier — consumer classification', () => {
       classifyPathSource('tests/integration/checkout.test.ts', ''),
       'consumer',
     );
-    assert.equal(
-      classifyPathSource('package.json', ''),
-      'consumer',
-    );
+    assert.equal(classifyPathSource('package.json', ''), 'consumer');
   });
 
   it('tags ordinary commands as consumer', () => {
-    assert.equal(
-      classifyPathSource('', 'npm run test'),
-      'consumer',
-    );
-    assert.equal(
-      classifyPathSource('', 'pnpm install'),
-      'consumer',
-    );
+    assert.equal(classifyPathSource('', 'npm run test'), 'consumer');
+    assert.equal(classifyPathSource('', 'pnpm install'), 'consumer');
   });
 
   it('does NOT confuse `agents` substrings without the dot prefix', () => {
@@ -105,10 +81,7 @@ describe('source-classifier — consumer classification', () => {
       classifyPathSource('src/agents/orchestrator.ts', ''),
       'consumer',
     );
-    assert.equal(
-      classifyPathSource('docs/agents-overview.md', ''),
-      'consumer',
-    );
+    assert.equal(classifyPathSource('docs/agents-overview.md', ''), 'consumer');
   });
 });
 

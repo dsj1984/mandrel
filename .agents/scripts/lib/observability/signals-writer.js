@@ -85,7 +85,7 @@ function tagSignalSource(signal) {
   // Caller-supplied source wins, even when undefined-typed but present as
   // an own property — only inject when the key is absent entirely so we
   // never overwrite an explicit decision.
-  if (Object.prototype.hasOwnProperty.call(signal, 'source')) {
+  if (Object.hasOwn(signal, 'source')) {
     return signal;
   }
   try {
