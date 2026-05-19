@@ -233,8 +233,5 @@ opened. When the Standalone-Stories path ran, list every Issue URL.
 
 ## See also
 
-- [`/audit-fan-out`](audit-fan-out.md) — parallel orchestrator that
-  runs every `audit-*` workflow and produces the per-dimension reports
-  this workflow consumes.
 - [`/epic-plan`](epic-plan.md) — the planning pipeline `/audit-to-stories`
   chains into for the Single-Epic grouping mode.

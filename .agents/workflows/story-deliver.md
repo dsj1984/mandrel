@@ -11,7 +11,7 @@ description: >-
 ## Overview
 
 `/story-deliver` is the **single-Story worker**. It sits below
-[`/epic-deliver`](epic-execute.md) (which fans out one Story sub-agent per
+[`/epic-deliver`](epic-deliver.md) (which fans out one Story sub-agent per
 slot, per wave) and runs one Story from init to close in one invocation.
 
 ```text
@@ -25,7 +25,7 @@ slot, per wave) and runs one Story from init to close in one invocation.
 ```
 
 The argument is always a **Story ID** (`type::story`). Epic IDs go through
-[`/epic-deliver`](epic-execute.md); Tasks are not directly executable —
+[`/epic-deliver`](epic-deliver.md); Tasks are not directly executable —
 they are implemented by their parent Story's loop.
 
 **Standalone Stories** (no `Epic: #N` in body) use

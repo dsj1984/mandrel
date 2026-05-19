@@ -638,7 +638,7 @@ inline-emit comments" framing is retired.
 
 One runtime pause point — `agent::blocked` on the Epic. `risk::high` is
 metadata; mid-run changes are ignored. Branch protection on `main` (set up
-during `/agents-bootstrap-github`) is the load-bearing destructive-action
+during `node .agents/scripts/bootstrap.js`) is the load-bearing destructive-action
 guard now that the operator's PR merge is the sole promotion gate.
 
 ---

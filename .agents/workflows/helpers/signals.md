@@ -93,7 +93,7 @@ node .agents/scripts/signals-view.js 9999
   reads them.
 - **Never** uses Ink, blessed, or terminal-control escape sequences.
   Output goes through `console.log` exclusively so the viewer works on
-  Windows + bash hosts (see [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md)).
+  Windows + bash hosts (see [`helpers/parallel-tooling.md`](parallel-tooling.md)).
 - **Always** honours the configured `project.paths.tempRoot`.
   Earlier post-merge work leaked to the real repo root regardless of
   test sandbox `tempRoot` (project memory: `phase_timings_uses_project_root`) —
