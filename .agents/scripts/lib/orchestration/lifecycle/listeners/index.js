@@ -168,11 +168,32 @@ export async function buildDefaultListenerChain(opts = {}) {
   acceptanceReconciler.register();
   order.push('AcceptanceReconciler');
 
-  // 3. Finalizer — opens the PR on acceptance.reconcile.ok.
+  // 3. Finalizer — opens the PR on acceptance.reconcile.ok and (Story
+  //    #2555) auto-graduates non-blocking code-review findings into
+  //    routed follow-up issues. The graduator step is best-effort and
+  //    is silently skipped when `provider` / `currentRepo` are not
+  //    wired in (e.g. lifecycle-emit CLI). `currentRepo` is resolved
+  //    from `config.github.{owner,repo}`; `frameworkRepo` from
+  //    `config.github.frameworkRepo` when distinct, otherwise omitted.
+  const currentRepo =
+    config?.github?.owner && config?.github?.repo
+      ? { owner: config.github.owner, repo: config.github.repo }
+      : null;
+  const frameworkRepo =
+    config?.github?.frameworkRepo?.owner && config?.github?.frameworkRepo?.repo
+      ? {
+          owner: config.github.frameworkRepo.owner,
+          repo: config.github.frameworkRepo.repo,
+        }
+      : null;
   const finalizer = new Finalizer({
     bus,
     epicId,
     cwd: repoRoot,
+    provider,
+    config,
+    currentRepo,
+    frameworkRepo,
     logger,
   });
   finalizer.register();

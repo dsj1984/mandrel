@@ -42,6 +42,8 @@
 
 import { spawnSync } from 'node:child_process';
 
+import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
+
 /**
  * Default `runFinalizeFn` — a no-op for D-1 (Epic #2306 Story #2319).
  *
@@ -138,6 +140,18 @@ export class Finalizer {
    *   `runEpicDeliverFinalize` for tests.
    * @param {Function} [opts.ghPrListHeadFn] override of the
    *   idempotency probe.
+   * @param {object} [opts.provider] Ticketing provider forwarded to the
+   *   code-review graduator (Story #2555 / Epic #2547). When omitted,
+   *   the graduator step is skipped — auto-filing is best-effort.
+   * @param {object} [opts.config] Resolved agent config; forwarded to
+   *   the graduator so the `delivery.feedbackLoop.codeReviewAutoFile`
+   *   toggle is honoured.
+   * @param {{owner:string,repo:string}} [opts.currentRepo] Repo the
+   *   listener is running in; used by the graduator's cross-repo guard.
+   * @param {{owner:string,repo:string}} [opts.frameworkRepo] Optional
+   *   framework-repo override for source-tagged finding routing.
+   * @param {Function} [opts.graduateFindingsFn] Override of the
+   *   `graduateFindings` helper for tests.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -157,6 +171,12 @@ export class Finalizer {
     this.fullScope = opts.fullScope === true;
     this.runFinalizeFn = opts.runFinalizeFn ?? defaultRunEpicDeliverFinalize;
     this.ghPrListHeadFn = opts.ghPrListHeadFn ?? ghPrListHead;
+    this.provider = opts.provider ?? null;
+    this.config = opts.config ?? null;
+    this.currentRepo = opts.currentRepo ?? null;
+    this.frameworkRepo = opts.frameworkRepo ?? null;
+    this.graduateFindingsFn =
+      opts.graduateFindingsFn ?? defaultGraduateFindings;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -208,6 +228,13 @@ export class Finalizer {
       );
       return;
     }
+
+    // 1b. Auto-graduate non-blocking code-review findings (Story #2555).
+    //     Best-effort: never throws, listener failures are logged but
+    //     do NOT block the finalize phase. Skipped silently when the
+    //     provider / currentRepo wiring is absent (e.g. lifecycle-emit
+    //     CLI runs without a provider).
+    await this._runCodeReviewGraduation();
 
     // 2. Idempotency probe — does a PR already exist on the head
     //    branch? If yes, short-circuit to a pr.created emit with the
@@ -302,6 +329,51 @@ export class Finalizer {
       base: this._resolveBase(),
       outcome: 'opened',
     });
+  }
+
+  /**
+   * Invoke the code-review graduator best-effort. Wired into finalize so
+   * that surviving non-blocking findings get auto-filed as routed
+   * follow-up issues (Story #2555 / Epic #2547). All failures are
+   * captured and logged at warn level; the finalize pipeline continues
+   * regardless — the toggle `delivery.feedbackLoop.codeReviewAutoFile`
+   * is the only operator-facing kill switch.
+   */
+  async _runCodeReviewGraduation() {
+    if (!this.provider || !this.currentRepo) {
+      this.logger.debug?.(
+        '[Finalizer] code-review graduation skipped: provider or currentRepo not wired',
+      );
+      return;
+    }
+    try {
+      const summary = await this.graduateFindingsFn({
+        epicId: this.epicId,
+        provider: this.provider,
+        config: this.config,
+        currentRepo: this.currentRepo,
+        frameworkRepo: this.frameworkRepo,
+        cwd: this.cwd,
+        logger: this.logger,
+      });
+      const filed = Array.isArray(summary?.filed) ? summary.filed.length : 0;
+      const skipped = Array.isArray(summary?.skipped)
+        ? summary.skipped.length
+        : 0;
+      const errors = Array.isArray(summary?.errors) ? summary.errors.length : 0;
+      this.logger.info?.(
+        `[Finalizer] code-review graduation: filed=${filed} skipped=${skipped} errors=${errors}`,
+      );
+      if (errors > 0) {
+        this.logger.warn?.(
+          `[Finalizer] code-review graduator errors: ${summary.errors.join('; ')}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn?.(
+        `[Finalizer] code-review graduator threw (swallowed): ${err?.message ?? err}`,
+      );
+    }
   }
 
   /**
