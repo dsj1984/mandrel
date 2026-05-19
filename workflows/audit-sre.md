@@ -18,6 +18,27 @@ release candidate. Your goal is to surface critical risks across configuration
 integrity, security, observability, and code quality — providing a prioritized,
 actionable report that can be handed off for remediation before deployment.
 
+## Scope (Epic mode)
+
+When this lens is invoked from `/epic-deliver` Phase 4 (epic-audit), the
+following block is populated with the Epic's change-set file list.
+Otherwise — for any manual `/audit-<dimension>` invocation — the block
+renders the literal substitution token and you MUST treat it as **no
+scope filter — run the lens codebase-wide** exactly as you would have
+before this section existed.
+
+```text
+{{changedFiles}}
+```
+
+- If the block above contains a newline-delimited list of file paths,
+  restrict your analysis to those files (and their direct dependencies
+  when the lens explicitly calls for cross-file reasoning).
+- If the block above renders as the literal string `{{changedFiles}}`
+  (i.e. no substitution was supplied), ignore this section entirely and
+  proceed with the full codebase-wide scan defined in the remaining
+  steps.
+
 ## Step 1: Context Gathering (Read-Only Scan)
 
 > Apply [`helpers/parallel-tooling.md`](helpers/parallel-tooling.md) when batching the scan below — independent reads belong in one turn, long shells run via `run_in_background` + `Monitor`.

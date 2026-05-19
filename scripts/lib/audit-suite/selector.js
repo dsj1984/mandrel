@@ -168,6 +168,10 @@ export async function selectAudits({
     ticketId,
     gate,
     context: {
+      // Full file list, exposed so Epic-mode callers (e.g. epic-audit) can
+      // pass it through as the {{changedFiles}} substitution value. Existing
+      // callers that read only `changedFilesCount` remain unaffected.
+      changedFiles,
       changedFilesCount: changedFiles.length,
       ticketTitle: ticket.title,
     },

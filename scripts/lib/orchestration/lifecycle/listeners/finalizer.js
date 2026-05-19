@@ -42,6 +42,10 @@
 
 import { spawnSync } from 'node:child_process';
 
+import {
+  graduateAuditResults as defaultGraduateAuditResults,
+  isAutoFileEnabled as isAuditResultsAutoFileEnabled,
+} from '../../../feedback-loop/audit-results-graduator.js';
 import { graduateFindings as defaultGraduateFindings } from '../../../feedback-loop/code-review-graduator.js';
 
 /**
@@ -152,6 +156,10 @@ export class Finalizer {
    *   framework-repo override for source-tagged finding routing.
    * @param {Function} [opts.graduateFindingsFn] Override of the
    *   `graduateFindings` helper for tests.
+   * @param {Function} [opts.graduateAuditResultsFn] Override of the
+   *   `graduateAuditResults` helper for tests (Story #2615 / Epic
+   *   #2586). When `delivery.feedbackLoop.auditResultsAutoFile === false`
+   *   the listener short-circuits and never invokes this function.
    * @param {{ info?: Function, warn?: Function, debug?: Function }} [opts.logger]
    */
   constructor(opts = {}) {
@@ -177,6 +185,8 @@ export class Finalizer {
     this.frameworkRepo = opts.frameworkRepo ?? null;
     this.graduateFindingsFn =
       opts.graduateFindingsFn ?? defaultGraduateFindings;
+    this.graduateAuditResultsFn =
+      opts.graduateAuditResultsFn ?? defaultGraduateAuditResults;
     this.logger = opts.logger ?? console;
     /** @type {Set<string>} `${event}:${seqId}` idempotency cache. */
     this._seen = new Set();
@@ -235,6 +245,12 @@ export class Finalizer {
     //     provider / currentRepo wiring is absent (e.g. lifecycle-emit
     //     CLI runs without a provider).
     await this._runCodeReviewGraduation();
+
+    // 1c. Auto-graduate non-blocking audit-results findings (Story
+    //     #2615 / Epic #2586). Same best-effort contract as 1b; the
+    //     `delivery.feedbackLoop.auditResultsAutoFile` toggle is checked
+    //     up-front so the function is never invoked when disabled.
+    await this._runAuditResultsGraduation();
 
     // 2. Idempotency probe — does a PR already exist on the head
     //    branch? If yes, short-circuit to a pr.created emit with the
@@ -372,6 +388,63 @@ export class Finalizer {
     } catch (err) {
       this.logger.warn?.(
         `[Finalizer] code-review graduator threw (swallowed): ${err?.message ?? err}`,
+      );
+    }
+  }
+
+  /**
+   * Invoke the audit-results graduator best-effort. Wired into finalize
+   * so that non-blocking audit findings (high/medium/low/suggestion) get
+   * auto-filed as routed follow-up issues — Story #2615 / Epic #2586.
+   *
+   * Unlike the code-review graduator (which is always invoked and short-
+   * circuits internally on its toggle), this method gates the call on
+   * `delivery.feedbackLoop.auditResultsAutoFile` BEFORE invoking the
+   * graduator. AC requires the function not to run when the toggle is
+   * disabled, so the gate lives in the listener.
+   *
+   * All failures are captured and logged at warn level; the finalize
+   * pipeline continues regardless.
+   */
+  async _runAuditResultsGraduation() {
+    if (!this.provider || !this.currentRepo) {
+      this.logger.debug?.(
+        '[Finalizer] audit-results graduation skipped: provider or currentRepo not wired',
+      );
+      return;
+    }
+    if (!isAuditResultsAutoFileEnabled(this.config)) {
+      this.logger.debug?.(
+        '[Finalizer] audit-results graduation skipped: auditResultsAutoFile toggle disabled',
+      );
+      return;
+    }
+    try {
+      const summary = await this.graduateAuditResultsFn({
+        epicId: this.epicId,
+        provider: this.provider,
+        config: this.config,
+        currentRepo: this.currentRepo,
+        frameworkRepo: this.frameworkRepo,
+        cwd: this.cwd,
+        logger: this.logger,
+      });
+      const filed = Array.isArray(summary?.filed) ? summary.filed.length : 0;
+      const skipped = Array.isArray(summary?.skipped)
+        ? summary.skipped.length
+        : 0;
+      const errors = Array.isArray(summary?.errors) ? summary.errors.length : 0;
+      this.logger.info?.(
+        `[Finalizer] audit-results graduation: filed=${filed} skipped=${skipped} errors=${errors}`,
+      );
+      if (errors > 0) {
+        this.logger.warn?.(
+          `[Finalizer] audit-results graduator errors: ${summary.errors.join('; ')}`,
+        );
+      }
+    } catch (err) {
+      this.logger.warn?.(
+        `[Finalizer] audit-results graduator threw (swallowed): ${err?.message ?? err}`,
       );
     }
   }

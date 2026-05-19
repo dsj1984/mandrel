@@ -27,6 +27,11 @@ export const BUILT_IN_SUBSTITUTION_KEYS = Object.freeze([
   'auditOutputDir',
   'ticketId',
   'baseBranch',
+  // Newline-joined change-set file list, populated by Epic-mode callers
+  // (e.g. `epic-audit`) from `selectAudits().context.changedFiles`.
+  // Absent in manual `/audit-*` invocations — lens templates handle the
+  // unsubstituted literal as "no scope filter".
+  'changedFiles',
 ]);
 
 function escapeRegExp(str) {

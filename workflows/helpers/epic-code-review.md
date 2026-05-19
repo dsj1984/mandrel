@@ -52,7 +52,11 @@ This script will:
 
 ## Step 2 — Review Pillars
 
-For each changed file, execute a strict review against six pillars:
+For each changed file, execute a strict review against three pillars. The
+middle pillar (**Integration Review**) deliberately defers the security /
+performance / quality / coverage sweeps to the change-set-scoped audits
+that already ran in Phase 4 — re-walking them here is duplication, not
+defense-in-depth.
 
 ### Pillar 1: Spec Adherence
 
@@ -63,47 +67,33 @@ Does the implementation match the PRD requirements and Tech Spec architecture?
 - Verify API contracts, data models, and interface boundaries match the Tech
   Spec.
 
-### Pillar 2: Security & Privacy
+### Pillar 2: Integration Review
 
-Scan for common vulnerability patterns:
+Read the **`audit-results` structured comment** posted on the Epic ticket by
+the [`epic-audit.md`](epic-audit.md) helper in Phase 4. That comment is the
+authoritative source of security, privacy, performance, code-quality, and
+test-coverage findings for this change set — they were produced by the
+change-set-aware lens selector and per-lens audit workflows under
+`.agents/workflows/audit-*.md`. Do **not** re-derive those findings inline
+here.
 
-- **Secrets**: Hardcoded API keys, tokens, passwords, or connection strings.
-- **Injection**: Unsanitized user input in SQL, shell commands, or templates.
-- **Auth/AuthZ**: Missing or broken access control checks.
-- **Dependencies**: Known vulnerable packages (check `npm audit` or equivalent).
-- **Data exposure**: PII logged to console, included in error responses, or
-  stored without encryption.
+Your job in this pillar is the **integration view** the per-lens audits
+cannot produce because each lens runs in isolation:
 
-### Pillar 3: Performance & Scalability
+- Cross-reference 🔴 / 🟠 audit findings against the spec deviations flagged
+  in Pillar 1 — a finding that traces back to a deliberate Tech-Spec
+  decision is different from one that traces back to an oversight.
+- Look for cross-cutting concerns no single lens owns: contract drift
+  between Stories, shared-module ripple effects, boundary changes that
+  thread security and performance implications together.
+- Note any audit finding that the operator's remediation flow should
+  bundle (e.g. one refactor closes findings from multiple lenses).
 
-Identify potential performance bottlenecks:
+If the Epic has no `audit-results` comment (docs-only Epic, or Phase 4 was
+skipped via `--skip-epic-audit`), record that explicitly in the findings
+report and proceed — there is nothing to integrate.
 
-- Unindexed database queries or N+1 patterns.
-- Synchronous I/O in hot paths.
-- Unbounded loops, missing pagination, or memory leaks.
-- Missing caching where appropriate.
-- Oversized bundle imports or unnecessary dependencies.
-
-### Pillar 4: Code Quality & Conventions
-
-Verify adherence to the project's established patterns:
-
-- Consistent naming conventions, file structure, and module boundaries.
-- Proper error handling (no swallowed errors, structured logging).
-- Functions that exceed 50 lines or have more than 4 parameters.
-- Duplicated logic that should be extracted into shared utilities.
-- Proper use of the project's configured linter and formatter rules.
-
-### Pillar 5: Test Coverage
-
-Assess whether the changes are adequately tested:
-
-- New features and bug fixes should have corresponding tests.
-- Tests should cover happy paths, edge cases, and error conditions.
-- Test assertions should be meaningful (not just "does not throw").
-- Mock boundaries should be appropriate — not mocking the unit under test.
-
-### Pillar 6: Documentation Integrity
+### Pillar 3: Documentation Integrity
 
 Verify documentation stays synchronized with code:
 
@@ -149,6 +139,112 @@ For every finding, provide:
 - **Pillar** (which review pillar it failed)
 - **Description** of the issue
 - **Recommended fix** with a concrete code suggestion
+- **Agent Prompt** — a self-contained, copy-pasteable instruction the
+  operator can hand verbatim to a fresh sub-agent (or the auto-fix loop)
+  to remediate this single finding. The prompt MUST name the file path,
+  the specific change to make, and the acceptance check that proves the
+  fix worked. Keep it tight (≤ 5 sentences); the sub-agent will read the
+  surrounding code itself.
+
+## Step 4.5 — Auto-fix Loop
+
+Walk the 🔴 / 🟠 findings from Step 4 through the shared bounded-retry
+loop in
+[`../../scripts/lib/orchestration/auto-fix-loop.js`](../../scripts/lib/orchestration/auto-fix-loop.js).
+The module owns the control flow (per-finding attempt ceiling, scope-cap,
+anti-thrash, safety escalation); this helper supplies the phase-specific
+hooks.
+
+Resolve the loop budget from `.agentrc.json`:
+
+- **`delivery.codeReview.maxFixAttempts`** — per-finding attempt ceiling
+  (`attemptCeiling`). Defaults to 3 if unset.
+- **`delivery.codeReview.maxFixScopeFiles`** — per-fix file scope cap
+  (`scopeCap`). Defaults to 5 if unset.
+
+Invoke `runAutoFixLoop` inline (Node ESM):
+
+```js
+import {
+  runAutoFixLoop,
+} from '../../scripts/lib/orchestration/auto-fix-loop.js';
+
+const { fixed, escalated } = await runAutoFixLoop({
+  findings: reviewFindings, // 🔴 + 🟠 from Step 4, ordered by severity
+  attemptCeiling: cfg.delivery?.codeReview?.maxFixAttempts ?? 3,
+  scopeCap: cfg.delivery?.codeReview?.maxFixScopeFiles ?? 5,
+  classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
+  applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
+  rescan, // re-run epic-code-review.js or targeted diff scan
+  validate, // npm run lint + npm test
+});
+```
+
+The helper's `applyFix` hook MUST:
+
+1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
+   `--expected [EPIC_BRANCH]` before touching the working tree.
+2. Stage explicit paths only (never `git add .`).
+3. Make one focused conventional commit per finding
+   (`fix(<scope>): <description> (review finding)`).
+
+Findings that route to `escalated[]` (safety classes, `ceiling-exhausted`,
+`thrash-detected`, `validation-regression`, `scope-exceeded`) remain on
+the `code-review` structured comment for the operator to triage manually
+in Step 5. The loop never deletes a finding it could not fix — it just
+stops retrying.
+
+## Step 4.6 — Cross-phase re-check trigger
+
+After the auto-fix loop in Step 4.5 returns, the `fixed[]` commits have
+modified files on `[EPIC_BRANCH]` that the Phase 4 audit lenses already
+walked. Some of those edits may overlap the `filePatterns` of one or more
+lenses (e.g. an auto-fix landing in `**/auth/*.js` overlaps the
+`audit-security` lens). When that happens, the prior `audit-results`
+structured comment is **stale for the overlapping lenses only** — the
+non-overlapping findings remain authoritative and MUST NOT be
+re-derived.
+
+Invoke the re-check selector with the cumulative set of paths touched by
+the auto-fix commits:
+
+```powershell
+node .agents/scripts/epic-audit-recheck.js \
+  --epic [EPIC_ID] --files <comma-separated-touched-paths>
+```
+
+For large touched-file lists, pass `@<file>` (where `<file>` is a
+newline-delimited list written to `temp/`) to avoid shell argument-length
+limits. The CLI emits a JSON envelope of the shape
+`{ selectedAudits: [...], context: { ... } }` restricted to lenses whose
+`filePatterns` overlap the input file list. An empty `selectedAudits`
+array means no overlap — there is nothing to re-run and this step is a
+no-op.
+
+When `selectedAudits` is non-empty:
+
+1. Re-invoke each listed lens prompt under
+   [`../audit-*.md`](../) the same way Phase 4's `epic-audit.md` does —
+   one lens at a time, against the current `[EPIC_BRANCH]` tip.
+2. **Append** a `## Cross-phase re-check` section to the **existing**
+   `audit-results` structured comment on the Epic ticket. Do **not** post
+   a new comment; the comment is idempotent and downstream consumers
+   (the code-review trim, `/epic-deliver` Pillar 2, the retro helper)
+   read it once. The append carries the re-checked lens names, the new
+   findings (if any), and the auto-fix commit SHAs that triggered the
+   re-run, so reviewers can trace each finding back to the change set
+   that produced it.
+3. If the re-check surfaces fresh 🔴 / 🟠 findings, route them back
+   through Step 4.5's `runAutoFixLoop` invocation. The loop's per-finding
+   ceiling is preserved across re-entries — a finding that was already
+   counted against `attemptCeiling` in the first pass does not get a
+   fresh budget when the cross-phase re-check resurfaces an adjacent
+   one.
+
+If `selectedAudits` is empty, skip silently and proceed to Step 5. The
+re-check trigger is **read-only signal** — it never mutates the Epic
+branch on its own; mutations only happen if the re-invoked lenses
+surface findings that the auto-fix loop then converts into commits.
 
 ## Step 5 — Remediation
 
