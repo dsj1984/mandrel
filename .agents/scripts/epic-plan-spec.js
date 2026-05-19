@@ -42,7 +42,11 @@ import {
 // for the same reason.
 export { forkAndCommitEpicSnapshot, forkMainToEpic };
 
-import { verifyBddRunnerPendingTag } from './lib/bdd-runner-detect.js';
+import {
+  resolveFeatureRoots,
+  verifyBddRunnerPendingTag,
+} from './lib/bdd-runner-detect.js';
+import { scanBddScenarios } from './lib/bdd-scenario-scanner.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { buildCodebaseSnapshot } from './lib/codebase-snapshot.js';
 import {
@@ -174,6 +178,18 @@ export async function buildAuthoringContext(
   // when no supported runner is present.
   const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
 
+  // Story #2637 — index existing BDD scenarios so the Acceptance Engineer
+  // step can annotate planned ACs with matches from the project's
+  // `.feature` files. Empty array when the project has not adopted BDD;
+  // the scanner is best-effort and never throws on filesystem errors.
+  let bddScenarios = [];
+  try {
+    const featureRoots = resolveFeatureRoots({ cwd: PROJECT_ROOT });
+    bddScenarios = scanBddScenarios({ featureRoots });
+  } catch (err) {
+    Logger.warn(`[epic-plan-spec] BDD scenario scan skipped: ${err.message}`);
+  }
+
   // Story #2557 — memory-freshness pre-flight runs BEFORE the prior-feedback
   // fetch so the planner sees a deduplicated, currently-actionable memory
   // store. The scanner is best-effort: missing memory dir or gh-CLI failures
@@ -232,6 +248,7 @@ export async function buildAuthoringContext(
       acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
     bddRunner,
+    bddScenarios,
     memoryFreshness,
     priorFeedback,
   };

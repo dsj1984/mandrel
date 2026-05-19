@@ -368,7 +368,24 @@ for the scoring logic.
    issue's `spec-freshness` comment and correct the cited spec body
    before approving the plan for Phase 8.
 
-6. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
+6. **BDD scenario cross-reference (advisory)**: When the project has
+   adopted BDD, `epic-plan-spec.js` populates the planner-context
+   envelope with `bddScenarios` — the output of
+   [`scanBddScenarios`](../scripts/lib/bdd-scenario-scanner.js) over
+   the canonical feature roots resolved by
+   [`resolveFeatureRoots`](../scripts/lib/bdd-runner-detect.js)
+   (`tests/features`, `features`, `test/features`). The Acceptance
+   Engineer step in the [`epic-plan-spec-author`](../skills/core/epic-plan-spec-author/SKILL.md)
+   skill scores each planned AC against the scenario index via
+   `findBestScenarioMatch`; when an existing scenario covers an AC's
+   outcome, the AC's `Scenario` column is annotated with `<file>:L<line>`
+   and the `Disposition` becomes `unchanged` / `refined` instead of
+   `new`. When `bddScenarios` is empty (no `.feature` files), the skill
+   degrades silently and the spec is authored exactly as before. The
+   matcher is keyword-based and deterministic so re-runs produce stable
+   dispositions.
+
+7. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
