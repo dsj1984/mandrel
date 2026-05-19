@@ -33,20 +33,34 @@ describe('lib/config/temp-paths.js — tempRoot resolution', () => {
     assert.equal(tempRootFrom({}), 'temp');
   });
 
-  it('reads from a full resolved config (agentSettings.paths.tempRoot)', () => {
-    const config = { agentSettings: { paths: { tempRoot: 'tmp/work' } } };
+  it('reads from a full resolved config (project.paths.tempRoot)', () => {
+    const config = { project: { paths: { tempRoot: 'tmp/work' } } };
     assert.equal(tempRootFrom(config), 'tmp/work');
   });
 
-  it('reads from a bare agentSettings bag', () => {
+  it('ignores legacy agentSettings.paths shape (hard cutover)', () => {
+    const config = { agentSettings: { paths: { tempRoot: 'workspace' } } };
+    assert.equal(tempRootFrom(config), 'temp');
+  });
+
+  it('ignores a bare `paths` bag (hard cutover)', () => {
     const config = { paths: { tempRoot: 'workspace' } };
-    assert.equal(tempRootFrom(config), 'workspace');
+    assert.equal(tempRootFrom(config), 'temp');
   });
 
   it('falls back to "temp" when tempRoot is empty / non-string', () => {
-    assert.equal(tempRootFrom({ paths: { tempRoot: '' } }), 'temp');
-    assert.equal(tempRootFrom({ paths: { tempRoot: null } }), 'temp');
-    assert.equal(tempRootFrom({ paths: { tempRoot: 123 } }), 'temp');
+    assert.equal(
+      tempRootFrom({ project: { paths: { tempRoot: '' } } }),
+      'temp',
+    );
+    assert.equal(
+      tempRootFrom({ project: { paths: { tempRoot: null } } }),
+      'temp',
+    );
+    assert.equal(
+      tempRootFrom({ project: { paths: { tempRoot: 123 } } }),
+      'temp',
+    );
   });
 });
 
@@ -56,7 +70,7 @@ describe('lib/config/temp-paths.js — Epic / Story directory helpers', () => {
   });
 
   it('honours a custom tempRoot via config bag', () => {
-    const cfg = { paths: { tempRoot: 'workspace' } };
+    const cfg = { project: { paths: { tempRoot: 'workspace' } } };
     assert.equal(epicTempDir(42, cfg), path.join('workspace', 'epic-42'));
   });
 
@@ -154,7 +168,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
   it('round-trips through path.join with no double-separators', () => {
     // path.join collapses repeated separators; round-tripping the result
     // through path.normalize should be a no-op.
-    const cfg = { paths: { tempRoot: 'temp' } };
+    const cfg = { project: { paths: { tempRoot: 'temp' } } };
     const candidates = [
       epicTempDir(1030, cfg),
       storyTempDir(1030, 1042, cfg),
@@ -177,7 +191,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
   });
 
   it('handles a tempRoot with a trailing separator', () => {
-    const cfg = { paths: { tempRoot: `tmp${SEP}` } };
+    const cfg = { project: { paths: { tempRoot: `tmp${SEP}` } } };
     const dir = epicTempDir(1030, cfg);
     assert.ok(
       !dir.includes(`${SEP}${SEP}`),
@@ -187,7 +201,7 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
   });
 
   it('handles a nested tempRoot ("a/b/temp")', () => {
-    const cfg = { paths: { tempRoot: path.join('a', 'b', 'temp') } };
+    const cfg = { project: { paths: { tempRoot: path.join('a', 'b', 'temp') } } };
     assert.equal(
       epicTempDir(1030, cfg),
       path.join('a', 'b', 'temp', 'epic-1030'),

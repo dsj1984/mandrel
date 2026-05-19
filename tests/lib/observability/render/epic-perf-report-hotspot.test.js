@@ -41,7 +41,7 @@ let cfg;
 
 beforeEach(async () => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'epic-perf-report-hotspot-'));
-  cfg = { project: { paths: { tempRoot: workRoot } } };
+  cfg = { project: { paths: { tempRoot: workRoot } }  };
   // The per-Epic stream lives at `temp/epic-<eid>/signals.ndjson` (sibling
   // to per-Story dirs). The reader's `listEpicStorySignalsFiles` looks for
   // the top-level signals.ndjson before walking story dirs, so we author
