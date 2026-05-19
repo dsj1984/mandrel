@@ -229,7 +229,7 @@ graph TB
 
 | Script                       | Responsibility                                                                                                                                                                              |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint.                                                                       |
+| `epic-plan-spec.js`          | Authoring wrapper for PRD + Tech Spec; flips Epic to `agent::review-spec` and writes the `epic-plan-state` checkpoint. Threads `docsContext` and a `codebaseSnapshot` (Story #2634, see below) into the spec-author envelope so the Architect persona cites real modules instead of doc-only names. |
 | `epic-plan-decompose.js`     | Authoring wrapper for the 4-tier ticket hierarchy; flips Epic to `agent::ready` and posts the dispatch manifest.                                                                              |
 | `dispatcher.js`              | Builds dependency DAG, computes execution waves, posts the dispatch manifest (consumed by `/epic-deliver`).                                                                                   |
 | `epic-deliver-prepare.js`    | Snapshots the Epic, builds the wave plan, and initialises the `epic-run-state` checkpoint at the start of `/epic-deliver` Phase 1.                                                            |
@@ -306,6 +306,28 @@ so the error surface is auditable after a run completes. See
 `lib/orchestration/epic-runner/progress-reporter.js` emits a periodic
 `epic-run-progress` structured comment on the Epic, driven by
 `orchestration.runners.deliverRunner.progressReportIntervalSec`.
+
+#### Codebase snapshot (Phase 7)
+
+`lib/codebase-snapshot.js` emits a structural view of the consumer repo
+that Phase 7 spec authoring threads into the `planner-context.json`
+envelope under `codebaseSnapshot`. The snapshot is bounded — file tree
+(filtered by the configured include/exclude globs), `package.json`
+exports + scripts, recently-touched directories from `git log`, and the
+detected test/BDD surface. Tier is controlled by
+`planning.codebaseSnapshot.tier` in `.agentrc.json`:
+
+- **`skinny` (default)** — file paths only. Target: ~2–5k tokens on a
+  mid-size repo.
+- **`medium`** — skinny + a per-file export signature list extracted via
+  a regex pass over each `.js` / `.ts` body. Target: ~15–30k tokens.
+
+The Architect persona is instructed (via the
+`epic-plan-spec-author` skill) to prefer module / file names that
+appear in the snapshot over names that appear only in `docsContext.items[]`,
+because the docs may be stale relative to the source tree. Any error in
+the snapshot generation degrades to a `Logger.warn` and an empty
+envelope so Phase 7 stays non-blocking.
 
 #### Resilience layers
 

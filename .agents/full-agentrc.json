@@ -64,6 +64,25 @@
       "maxBytes": 50000,
       "summaryMode": "auto"
     },
+    "codebaseSnapshot": {
+      "tier": "skinny",
+      "include": [
+        ".agents/scripts/**",
+        "src/**",
+        "lib/**",
+        "app/**",
+        "packages/**"
+      ],
+      "exclude": [
+        "**/node_modules/**",
+        "**/dist/**",
+        "**/build/**",
+        "**/coverage/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ],
+      "recentCommitWindow": 30
+    },
     "riskHeuristics": [
       "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
       "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",

@@ -44,6 +44,7 @@ export { forkAndCommitEpicSnapshot, forkMainToEpic };
 
 import { verifyBddRunnerPendingTag } from './lib/bdd-runner-detect.js';
 import { runAsCli } from './lib/cli-utils.js';
+import { buildCodebaseSnapshot } from './lib/codebase-snapshot.js';
 import {
   getLimits,
   PROJECT_ROOT,
@@ -195,6 +196,26 @@ export async function buildAuthoringContext(
     repo: githubCfg?.repo,
   });
 
+  // Story #2634 — codebase snapshot. Generates a bounded structural view
+  // of the consumer repo (file tree + package surface + recent activity
+  // + optional export signatures at the `medium` tier) so the Architect
+  // can prefer real module names over doc-only ones. The check is
+  // best-effort: any git/filesystem error degrades to an empty snapshot
+  // so Phase 7 stays non-blocking.
+  let codebaseSnapshot = null;
+  try {
+    codebaseSnapshot = buildCodebaseSnapshot({
+      cwd: PROJECT_ROOT,
+      tier: settings?.planning?.codebaseSnapshot?.tier,
+      include: settings?.planning?.codebaseSnapshot?.include,
+      exclude: settings?.planning?.codebaseSnapshot?.exclude,
+      recentCommitWindow:
+        settings?.planning?.codebaseSnapshot?.recentCommitWindow,
+    });
+  } catch (err) {
+    Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
+  }
+
   return {
     epic: {
       id: epic.id,
@@ -204,6 +225,7 @@ export async function buildAuthoringContext(
       linkedIssues: epic.linkedIssues ?? { prd: null, techSpec: null },
     },
     docsContext,
+    codebaseSnapshot,
     systemPrompts: {
       prd: PRD_SYSTEM_PROMPT,
       techSpec: TECH_SPEC_SYSTEM_PROMPT,
