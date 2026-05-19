@@ -1,12 +1,9 @@
 /**
  * kinds/crap.js — per-kind module for the CRAP baseline (Story #1891).
  *
- * Row shape: `{ path, method, startLine, crap }`. The legacy on-disk
- * baseline uses `file` instead of `path`; the per-kind v2 envelope schema
- * settles on `path` to match every other kind. The migration in Task
- * #1901 emits `path`; Story #1895 then regenerates the on-disk baseline
- * through the new writer, and Story #1892 updates the reader to consume
- * `path`.
+ * Row shape: `{ path, method, startLine, crap }`. The per-kind v2 envelope
+ * schema settles on `path` to match every other kind; the on-disk
+ * baseline carries canonical `path:` rows end-to-end.
  *
  * `kernelVersion()` returns the installed `typhonjs-escomplex` package
  * version — the CRAP score depends on escomplex's cyclomatic-complexity
@@ -18,11 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readBaselineAtRef } from '../../baseline-loader.js';
 import { deriveFixGuidance } from '../../crap-engine.js';
-import {
-  getCrapBaseline,
-  resolveEscomplexVersion,
-  resolveTsTranspilerVersion,
-} from '../../crap-utils.js';
+import { getCrapBaseline } from '../../crap-utils.js';
 import { loadBaseline } from '../../gates/baseline-store.js';
 import { Logger } from '../../Logger.js';
 import { componentMatches } from '../component-matcher.js';
@@ -78,7 +71,7 @@ export function kernelVersion() {
 
 export function projectRow(row) {
   return {
-    path: canonicalise(row.path ?? row.file),
+    path: canonicalise(row.path),
     method: row.method,
     startLine: row.startLine,
     crap: row.crap,
@@ -449,37 +442,9 @@ export function evaluateBaselineCompatibility(ctx) {
 }
 
 /**
- * Story #1895: project a canonical envelope read from the Epic ref back
- * to the legacy CRAP shape (`escomplexVersion`/`tsTranspilerVersion`
- * backfilled from the running scorer, rows re-keyed by `file`). Returns
- * `null` when `parsed` isn't a canonical envelope so the legacy
- * shape-check path can run.
- */
-function projectEpicRefCrapEnvelope(parsed) {
-  if (
-    !Array.isArray(parsed.rows) ||
-    parsed.rows.length === 0 ||
-    typeof parsed.rows[0]?.path !== 'string'
-  ) {
-    return null;
-  }
-  return {
-    kernelVersion: parsed.kernelVersion,
-    escomplexVersion: resolveEscomplexVersion(),
-    tsTranspilerVersion: resolveTsTranspilerVersion(),
-    rows: parsed.rows.map((row) => ({
-      crap: row.crap,
-      file: row.path,
-      method: row.method,
-      startLine: row.startLine,
-    })),
-  };
-}
-
-/**
  * Pure helper: resolve the CRAP baseline either from the working tree
- * (legacy fs read via `getCrapBaseline`) or, when `epicRef` is supplied,
- * from `git show <epicRef>:<baselinePath>` via `readBaselineAtRef`.
+ * (via `getCrapBaseline`) or, when `epicRef` is supplied, from
+ * `git show <epicRef>:<baselinePath>` via `readBaselineAtRef`.
  *
  * Story #1120 threads `epic/<id>` into close-validation so the
  * comparison runs against the Epic-branch HEAD's committed baseline.
@@ -509,8 +474,6 @@ export function loadCrapBaseline({
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return null;
   }
-  const projected = projectEpicRefCrapEnvelope(parsed);
-  if (projected) return projected;
   if (typeof parsed.kernelVersion !== 'string') return null;
   if (typeof parsed.escomplexVersion !== 'string') return null;
   if (!Array.isArray(parsed.rows)) return null;
