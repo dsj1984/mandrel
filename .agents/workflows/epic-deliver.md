@@ -7,10 +7,7 @@ description: >-
   🔴/🟠 review findings, compact retro) the PR auto-merges via `gh pr merge
   --squash --delete-branch`; otherwise the workflow falls back to the
   operator-merges-button path so a human inspects the surface area.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: nine-phase delivery orchestrator coordinates wave fan-out, code review, retro, and merge gating — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-deliver #[Epic ID]
 

@@ -74,12 +74,7 @@
         "required": ["storyId", "frictionCount"],
         "properties": {
           "storyId": { "type": "integer", "minimum": 1 },
-          "frictionCount": { "type": "integer", "minimum": 0 },
-          "dispatchModel": {
-            "description": "Optional dispatch-model hint carried through from the Story's workflow frontmatter (Epic #1185). Omitted when the upstream signal does not carry one — never null.",
-            "type": "string",
-            "enum": ["haiku", "sonnet", "opus"]
-          }
+          "frictionCount": { "type": "integer", "minimum": 0 }
         }
       }
     }
