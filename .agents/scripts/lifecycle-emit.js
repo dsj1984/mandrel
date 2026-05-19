@@ -54,8 +54,11 @@ import { fileURLToPath } from 'node:url';
 
 import { runAsCli } from './lib/cli-utils.js';
 import { epicLedgerPath } from './lib/config/temp-paths.js';
+import { resolveConfig } from './lib/config-resolver.js';
+import * as epicRunStateStoreModule from './lib/orchestration/epic-run-state-store.js';
 import { createBus } from './lib/orchestration/lifecycle/bus.js';
 import { buildDefaultListenerChain } from './lib/orchestration/lifecycle/listeners/index.js';
+import { createProvider } from './lib/provider-factory.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_SCHEMA_DIR = path.resolve(
@@ -151,12 +154,14 @@ export function buildPayload(parsed) {
  * automerge, cleanup). Callers that inject a bus retain full control —
  * they are responsible for wiring whatever listeners they want.
  *
- * The listener chain only requires `epicId` (decoded from the payload)
- * and a `repoRoot` (defaulted from `process.cwd()`). Listeners that
- * require collaborators not available outside the runner (provider,
- * checkpointer) are skipped cleanly; the standalone CLI is not the
- * production runner and the skipped listeners are the same ones the
- * `epic-runner` factory skips when a unit fixture omits them.
+ * The listener chain requires `epicId` (decoded from the payload) and a
+ * `repoRoot` (defaulted from `process.cwd()`). Story #2531 (Epic #2527)
+ * additionally resolves the canonical orchestration `provider`, the
+ * full agent `config`, and a per-Epic `checkpointer` bound to the
+ * `epic-run-state` structured comment so the FULL listener roster
+ * (including AutomergePredicate and BranchCleaner) subscribes — the
+ * skip path that previously dropped those two listeners is reserved
+ * for callers that inject overrides via `opts`.
  *
  * @param {object} opts
  * @param {string} opts.event lifecycle event name (matches schema file)
@@ -166,6 +171,14 @@ export function buildPayload(parsed) {
  * @param {string} [opts.repoRoot] override repo root for shell-out
  *   listeners (defaults to `process.cwd()`)
  * @param {object} [opts.logger] optional logger forwarded to the chain
+ * @param {object} [opts.provider] override provider (defaults to
+ *   `createProvider(config.orchestration)` from the resolved config).
+ *   Pass `null` to explicitly skip provider-dependent listeners.
+ * @param {object} [opts.checkpointer] override checkpointer (defaults
+ *   to a provider/epicId-bound `epic-run-state-store` facade). Pass
+ *   `null` to explicitly skip BranchCleaner.
+ * @param {object} [opts.config] override resolved config (defaults to
+ *   `resolveConfig()`).
  */
 export async function runLifecycleEmit({
   event,
@@ -174,6 +187,9 @@ export async function runLifecycleEmit({
   schemaDir = DEFAULT_SCHEMA_DIR,
   repoRoot,
   logger,
+  provider,
+  checkpointer,
+  config,
 } = {}) {
   if (typeof event !== 'string' || event.length === 0) {
     throw new Error('lifecycle-emit: --event is required');
@@ -192,16 +208,72 @@ export async function runLifecycleEmit({
     const epicId = Number(payload?.epicId);
     if (Number.isInteger(epicId) && epicId > 0) {
       const ledgerPath = epicLedgerPath(epicId);
+      // Resolve config + provider + checkpointer so the full canonical
+      // listener roster subscribes (Story #2531). The CLI swallows
+      // resolution errors (missing/invalid .agentrc.json or
+      // unconfigured provider) and falls back to the skip-cleanly
+      // behaviour — the standalone CLI MUST remain usable in repos
+      // that have not configured the orchestration block yet, just
+      // with a reduced listener roster.
+      let resolvedConfig = config;
+      let resolvedProvider = provider;
+      let resolvedCheckpointer = checkpointer;
+      if (resolvedConfig === undefined) {
+        try {
+          resolvedConfig = resolveConfig();
+        } catch (err) {
+          (logger ?? console)?.debug?.(
+            `[lifecycle-emit] resolveConfig failed (continuing with skipped collaborators): ${err?.message ?? err}`,
+          );
+          resolvedConfig = null;
+        }
+      }
+      if (resolvedProvider === undefined) {
+        try {
+          resolvedProvider = createProvider(resolvedConfig?.orchestration);
+        } catch (err) {
+          (logger ?? console)?.debug?.(
+            `[lifecycle-emit] createProvider skipped (no orchestration provider configured): ${err?.message ?? err}`,
+          );
+          resolvedProvider = null;
+        }
+      }
+      if (resolvedCheckpointer === undefined) {
+        resolvedCheckpointer = resolvedProvider
+          ? buildEpicCheckpointer({ provider: resolvedProvider, epicId })
+          : null;
+      }
       await buildDefaultListenerChain({
         bus: targetBus,
         ledgerPath,
         repoRoot: repoRoot ?? process.cwd(),
+        provider: resolvedProvider,
+        checkpointer: resolvedCheckpointer,
+        config: resolvedConfig,
         logger,
       });
     }
   }
   const { seqId } = await targetBus.emit(event, payload ?? {});
   return { event, payload: payload ?? {}, seqId };
+}
+
+/**
+ * Build a thin per-Epic checkpointer facade over `epic-run-state-store`.
+ * Mirrors the shape that `epic-runner/factory.js` constructs for the
+ * production runner so BranchCleaner sees the same `read()`/`write()`
+ * surface in both paths.
+ */
+function buildEpicCheckpointer({ provider, epicId }) {
+  return {
+    read: () => epicRunStateStoreModule.read({ provider, epicId }),
+    write: (state) =>
+      epicRunStateStoreModule.write({ provider, epicId, state }),
+    setPhase: (nextPhase) =>
+      epicRunStateStoreModule.setPhase({ provider, epicId, nextPhase }),
+    appendIntervention: (entry) =>
+      epicRunStateStoreModule.appendIntervention({ provider, epicId, entry }),
+  };
 }
 
 async function main() {

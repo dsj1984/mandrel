@@ -478,15 +478,44 @@ export async function ticketClosurePhase(ctx) {
   );
   const closedTickets = [...batch.transitioned, ...batch.skipped];
 
+  // Story #2534 / Task #2539 — auto-transition `agent::closing →
+  // agent::done` deterministically and idempotently on every successful
+  // merge. The pre-Story #2534 path silently swallowed transport errors
+  // here, which made an already-merged-but-not-labelled Story look closed
+  // in the close-result envelope. We now:
+  //   - read the Story snapshot first to detect an "already done" state
+  //     (label `agent::done` AND issue state `closed`) and treat re-runs
+  //     as a no-op record, satisfying the idempotency contract;
+  //   - otherwise call `toDone` unconditionally — there is no other
+  //     conditional skip in any normal exit path;
+  //   - rethrow transport errors so the surrounding
+  //     `runPhase('ticket-closure', ...)` logs the failure loudly via
+  //     `[phase=ticket-closure] <message>` instead of letting the close
+  //     report success on a half-failed transition.
   log('TICKETS', `Transitioning Story #${storyId} to agent::done...`);
+  let storySnapshot = null;
   try {
+    storySnapshot = await provider.getTicket(storyId);
+  } catch (err) {
+    logger?.warn?.(
+      `[phase=tickets]   Story #${storyId} snapshot read failed (continuing with transition): ${err?.message ?? err}`,
+    );
+  }
+  const alreadyDone =
+    storySnapshot &&
+    Array.isArray(storySnapshot.labels) &&
+    storySnapshot.labels.includes(STATE_LABELS.DONE) &&
+    storySnapshot.state === 'closed';
+  if (alreadyDone) {
+    log(
+      'TICKETS',
+      `  #${storyId} already agent::done — no-op (idempotent re-run)`,
+    );
+    closedTickets.push(storyId);
+  } else {
     await toDone(provider, [storyId]);
     closedTickets.push(storyId);
     log('TICKETS', `  #${storyId} → agent::done ✅`);
-  } catch (err) {
-    logger.error(
-      `[phase=tickets]   Story #${storyId} → FAILED: ${err.message}`,
-    );
   }
 
   log('TICKETS', 'Running cascade completion...');

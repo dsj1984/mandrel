@@ -22,6 +22,7 @@
 import { Logger } from '../../../Logger.js';
 import { runPreMergeGatesWithAttribution } from '../baseline-attribution-wiring.js';
 import { runFormatAutofix } from '../format-autofix.js';
+import { runScopedFormatAutofix } from '../format-autofix-scoped.js';
 import { emitStoryBlockedSafe } from '../merge-runner.js';
 import { emitMaintainabilityProjection } from '../pre-merge-validation.js';
 
@@ -102,6 +103,24 @@ export async function runPreMergeValidation({
   provider,
   bus = null,
 }) {
+  // Story #2533: scope-narrowed biome-format auto-apply on the Epic→Story
+  // diff *before* the whole-tree autofix runs. The scoped step folds
+  // format drift introduced by Story commits into a dedicated
+  // `fix(story-close):` commit on the Story branch and emits Logger.warn
+  // naming the auto-fixed files, so the subsequent `biome ci` gate finds
+  // zero diffs on the changed-file set. Skipped when epic/story branches
+  // are not supplied (defensive: keeps the old whole-tree path intact for
+  // resume callers that don't pass them).
+  if (epicBranch && storyBranch) {
+    runScopedFormatAutofix({
+      cwd,
+      storyId,
+      epicBranch,
+      storyBranch,
+      agentSettings,
+      logger: Logger,
+    });
+  }
   const formatAutofixOutcome = runFormatAutofix({
     cwd,
     storyId,

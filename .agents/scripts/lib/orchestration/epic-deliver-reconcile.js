@@ -54,8 +54,16 @@ export function defaultProbePid(pid) {
 /**
  * Read the dispatch PID for a Story from
  * `temp/epic-<epicId>/<storyId>/story-init.state.json`. Returns `null` when
- * the file does not exist or carries no `pid` field — the caller will
- * classify the Story as `unknown` in that case.
+ * the file does not exist or carries no recognized PID field — the caller
+ * will classify the Story as `unknown` in that case.
+ *
+ * Recognized field names (in order of precedence):
+ *
+ *   - `dispatchPid` — the canonical name written by Story #2535's writer
+ *     in `lib/story-init/dispatch-state-writer.js`.
+ *   - `pid`         — legacy name accepted for backward compatibility
+ *     with state files written before the writer landed (and with the
+ *     pre-existing test fixtures that seed `pid` directly).
  *
  * @param {string} repoRoot
  * @param {number|string} epicId
@@ -83,7 +91,7 @@ export function readDispatchPid(repoRoot, epicId, storyId) {
   } catch {
     return null;
   }
-  const pid = parsed?.pid;
+  const pid = parsed?.dispatchPid ?? parsed?.pid;
   if (!Number.isInteger(pid) || pid <= 0) return null;
   return pid;
 }
