@@ -139,3 +139,47 @@ describe('buildPayload (kebab → camelCase, --epic → epicId)', () => {
     );
   });
 });
+
+// Story #2681 — the three `epic.merge.*` schemas previously declared
+// `additionalProperties: false` with no `epicId` property, so
+// `lifecycle-emit --epic <id> --event epic.merge.armed --pr-url <url>`
+// failed schema validation despite the CLI's documented auto-inject of
+// `epicId`. The schemas now accept `epicId` as an optional integer.
+// These tests pin the relaxation so a future schema edit can't silently
+// re-tighten and re-break the documented CLI surface.
+describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
+  it('epic.merge.armed accepts the injected epicId alongside prUrl', async () => {
+    const out = await runLifecycleEmit({
+      event: 'epic.merge.armed',
+      payload: {
+        epicId: 90042,
+        prUrl: 'https://github.com/dsj1984/mandrel/pull/90042',
+      },
+    });
+    assert.equal(out.event, 'epic.merge.armed');
+    assert.equal(typeof out.seqId, 'number');
+  });
+
+  it('epic.merge.blocked accepts the injected epicId alongside prUrl + reason', async () => {
+    const out = await runLifecycleEmit({
+      event: 'epic.merge.blocked',
+      payload: {
+        epicId: 90043,
+        prUrl: 'https://github.com/dsj1984/mandrel/pull/90043',
+        reason: 'manualInterventions > 0',
+      },
+    });
+    assert.equal(out.event, 'epic.merge.blocked');
+  });
+
+  it('epic.merge.ready accepts the injected epicId alongside prUrl', async () => {
+    const out = await runLifecycleEmit({
+      event: 'epic.merge.ready',
+      payload: {
+        epicId: 90044,
+        prUrl: 'https://github.com/dsj1984/mandrel/pull/90044',
+      },
+    });
+    assert.equal(out.event, 'epic.merge.ready');
+  });
+});
