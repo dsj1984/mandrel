@@ -28,17 +28,17 @@
  */
 
 import fs from 'node:fs';
+import { glob } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { parseArgs } from 'node:util';
-import { glob } from 'node:fs/promises';
-
-import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
+import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
+import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
 import { withFingerprints } from './lib/audit-to-stories/fingerprint.js';
 import { groupFindings } from './lib/audit-to-stories/group-findings.js';
-import { classifyGroupsAgainstGitHub } from './lib/audit-to-stories/dedupe-against-github.js';
+import { parseAuditReports } from './lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from './lib/audit-to-stories/seed-epic-from-findings.js';
-import { buildStoryBody } from './lib/audit-to-stories/build-story-body.js';
+import { runAsCli } from './lib/cli-utils.js';
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1 };
 const DEFAULT_GLOB = 'temp/audits/audit-*-results.md';
@@ -120,7 +120,13 @@ async function buildPlan({ glob: pattern, severity, useProvider }) {
       groups: [],
       edges: [],
       classifications: [],
-      summary: { totalFindings: 0, filtered: 0, create: 0, skipOpen: 0, skipReoccurring: 0 },
+      summary: {
+        totalFindings: 0,
+        filtered: 0,
+        create: 0,
+        skipOpen: 0,
+        skipReoccurring: 0,
+      },
     };
   }
 
@@ -184,8 +190,7 @@ export const __testing = {
   buildPlan,
 };
 
-const SELF = process.argv[1] ?? '';
-if (SELF.endsWith('audit-to-stories.js') || process.env.DEBUG_MAIN) {
+async function main() {
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
@@ -202,54 +207,51 @@ if (SELF.endsWith('audit-to-stories.js') || process.env.DEBUG_MAIN) {
     strict: false,
   });
 
-  (async () => {
-    if (values.scan) {
-      const plan = await buildPlan({
-        glob: values.glob,
-        severity: values.severity,
-        useProvider: !values['no-provider'],
-      });
-      const out = JSON.stringify(plan, null, 2);
-      persist(out, values.out);
-      if (!values.out) process.stdout.write('\n');
-      return;
-    }
+  if (values.scan) {
+    const plan = await buildPlan({
+      glob: values.glob,
+      severity: values.severity,
+      useProvider: !values['no-provider'],
+    });
+    const out = JSON.stringify(plan, null, 2);
+    persist(out, values.out);
+    if (!values.out) process.stdout.write('\n');
+    return;
+  }
 
-    if (values['emit-epic-seed']) {
-      const plan = loadPlan(values.plan);
-      const md = buildEpicSeedMarkdown({
-        groups: plan.groups ?? [],
-        findings: plan.findings ?? [],
-        sourceReports: plan.sourceReports ?? [],
-      });
-      persist(md, values.out);
-      return;
-    }
+  if (values['emit-epic-seed']) {
+    const plan = loadPlan(values.plan);
+    const md = buildEpicSeedMarkdown({
+      groups: plan.groups ?? [],
+      findings: plan.findings ?? [],
+      sourceReports: plan.sourceReports ?? [],
+    });
+    persist(md, values.out);
+    return;
+  }
 
-    if (values['emit-stories']) {
-      const plan = loadPlan(values.plan);
-      const eligible = (plan.classifications ?? [])
-        .filter((c) => c.action === 'create')
-        .map((c) => c.group);
-      const built = eligible.map((g) => buildStoryBody({ group: g }));
-      const out = values.json
-        ? JSON.stringify(built, null, 2)
-        : built
-            .map(
-              (s, i) =>
-                `--- story ${i + 1} ---\nTitle: ${s.title}\nLabels: ${s.labels.join(', ')}\n\n${s.body}\n`,
-            )
-            .join('\n');
-      persist(out, values.out);
-      if (!values.out) process.stdout.write('\n');
-      return;
-    }
+  if (values['emit-stories']) {
+    const plan = loadPlan(values.plan);
+    const eligible = (plan.classifications ?? [])
+      .filter((c) => c.action === 'create')
+      .map((c) => c.group);
+    const built = eligible.map((g) => buildStoryBody({ group: g }));
+    const out = values.json
+      ? JSON.stringify(built, null, 2)
+      : built
+          .map(
+            (s, i) =>
+              `--- story ${i + 1} ---\nTitle: ${s.title}\nLabels: ${s.labels.join(', ')}\n\n${s.body}\n`,
+          )
+          .join('\n');
+    persist(out, values.out);
+    if (!values.out) process.stdout.write('\n');
+    return;
+  }
 
-    throw new Error(
-      'Usage: node audit-to-stories.js (--scan | --emit-epic-seed | --emit-stories) [options]',
-    );
-  })().catch((err) => {
-    process.stderr.write(`audit-to-stories: ${err.message}\n`);
-    process.exit(1);
-  });
+  throw new Error(
+    'Usage: node audit-to-stories.js (--scan | --emit-epic-seed | --emit-stories) [options]',
+  );
 }
+
+runAsCli(import.meta.url, main, { source: 'audit-to-stories' });

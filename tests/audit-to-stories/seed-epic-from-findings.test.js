@@ -1,11 +1,11 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import url from 'node:url';
-import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { withFingerprints } from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
+import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { buildEpicSeedMarkdown } from '../../.agents/scripts/lib/audit-to-stories/seed-epic-from-findings.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -72,7 +72,11 @@ test('buildEpicSeedMarkdown lists every source report in Key Assumptions', () =>
   const findings = withFingerprints(parseAuditReports(loadAll()));
   const { groups } = groupFindings(findings);
   const reports = loadAll().map((r) => r.sourceReport);
-  const md = buildEpicSeedMarkdown({ groups, findings, sourceReports: reports });
+  const md = buildEpicSeedMarkdown({
+    groups,
+    findings,
+    sourceReports: reports,
+  });
   for (const r of reports) {
     assert.ok(md.includes(r));
   }
@@ -85,7 +89,11 @@ test('buildEpicSeedMarkdown throws on bad input', () => {
 });
 
 test('buildEpicSeedMarkdown handles zero findings gracefully', () => {
-  const md = buildEpicSeedMarkdown({ groups: [], findings: [], sourceReports: [] });
+  const md = buildEpicSeedMarkdown({
+    groups: [],
+    findings: [],
+    sourceReports: [],
+  });
   assert.ok(md.includes('## Problem Statement'));
   assert.ok(md.includes('_(no concrete file paths surfaced)_'));
 });

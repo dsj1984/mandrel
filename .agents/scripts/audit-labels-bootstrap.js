@@ -17,24 +17,73 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { parseArgs } from 'node:util';
 import process from 'node:process';
+import { parseArgs } from 'node:util';
 
+import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 
 const DIMENSIONS = Object.freeze([
-  { name: 'architecture', color: '6f42c1', description: 'Audit-sourced finding: architectural concerns' },
-  { name: 'clean-code', color: '0e8a16', description: 'Audit-sourced finding: clean-code / maintainability' },
-  { name: 'dependencies', color: 'd4c5f9', description: 'Audit-sourced finding: dependencies / supply chain' },
-  { name: 'devops', color: 'fbca04', description: 'Audit-sourced finding: DevOps / CI / CD' },
-  { name: 'lighthouse', color: 'c5def5', description: 'Audit-sourced finding: Lighthouse score regressions' },
-  { name: 'performance', color: 'b60205', description: 'Audit-sourced finding: performance / latency' },
-  { name: 'privacy', color: 'fef2c0', description: 'Audit-sourced finding: privacy / data handling' },
-  { name: 'quality', color: '0052cc', description: 'Audit-sourced finding: test quality / coverage gaps' },
-  { name: 'security', color: 'b60205', description: 'Audit-sourced finding: security / OWASP' },
-  { name: 'seo', color: 'fbca04', description: 'Audit-sourced finding: SEO / discoverability' },
-  { name: 'sre', color: '0052cc', description: 'Audit-sourced finding: SRE / observability / reliability' },
-  { name: 'ux-ui', color: 'd4c5f9', description: 'Audit-sourced finding: UX / UI concerns' },
+  {
+    name: 'architecture',
+    color: '6f42c1',
+    description: 'Audit-sourced finding: architectural concerns',
+  },
+  {
+    name: 'clean-code',
+    color: '0e8a16',
+    description: 'Audit-sourced finding: clean-code / maintainability',
+  },
+  {
+    name: 'dependencies',
+    color: 'd4c5f9',
+    description: 'Audit-sourced finding: dependencies / supply chain',
+  },
+  {
+    name: 'devops',
+    color: 'fbca04',
+    description: 'Audit-sourced finding: DevOps / CI / CD',
+  },
+  {
+    name: 'lighthouse',
+    color: 'c5def5',
+    description: 'Audit-sourced finding: Lighthouse score regressions',
+  },
+  {
+    name: 'performance',
+    color: 'b60205',
+    description: 'Audit-sourced finding: performance / latency',
+  },
+  {
+    name: 'privacy',
+    color: 'fef2c0',
+    description: 'Audit-sourced finding: privacy / data handling',
+  },
+  {
+    name: 'quality',
+    color: '0052cc',
+    description: 'Audit-sourced finding: test quality / coverage gaps',
+  },
+  {
+    name: 'security',
+    color: 'b60205',
+    description: 'Audit-sourced finding: security / OWASP',
+  },
+  {
+    name: 'seo',
+    color: 'fbca04',
+    description: 'Audit-sourced finding: SEO / discoverability',
+  },
+  {
+    name: 'sre',
+    color: '0052cc',
+    description: 'Audit-sourced finding: SRE / observability / reliability',
+  },
+  {
+    name: 'ux-ui',
+    color: 'd4c5f9',
+    description: 'Audit-sourced finding: UX / UI concerns',
+  },
 ]);
 
 function runGh(args) {
@@ -49,10 +98,14 @@ function runGh(args) {
 
 function labelExists(owner, repo, name) {
   const { code, stdout } = runGh([
-    'label', 'list',
-    '--repo', `${owner}/${repo}`,
-    '--limit', '200',
-    '--json', 'name',
+    'label',
+    'list',
+    '--repo',
+    `${owner}/${repo}`,
+    '--limit',
+    '200',
+    '--json',
+    'name',
   ]);
   if (code !== 0) return false;
   try {
@@ -65,17 +118,27 @@ function labelExists(owner, repo, name) {
 
 function createLabel(owner, repo, { name, color, description }, { force }) {
   const args = [
-    'label', 'create', name,
-    '--repo', `${owner}/${repo}`,
-    '--color', color,
-    '--description', description,
+    'label',
+    'create',
+    name,
+    '--repo',
+    `${owner}/${repo}`,
+    '--color',
+    color,
+    '--description',
+    description,
   ];
   if (force) args.push('--force');
   const { code, stderr } = runGh(args);
   return { ok: code === 0, stderr: stderr.trim() };
 }
 
-export function bootstrapAuditLabels({ owner, repo, force = false, dryRun = false } = {}) {
+export function bootstrapAuditLabels({
+  owner,
+  repo,
+  force = false,
+  dryRun = false,
+} = {}) {
   if (typeof owner !== 'string' || owner.length === 0) {
     throw new Error('bootstrapAuditLabels: owner is required');
   }
@@ -116,8 +179,7 @@ export function bootstrapAuditLabels({ owner, repo, force = false, dryRun = fals
 
 export const __testing = { DIMENSIONS };
 
-const SELF = process.argv[1] ?? '';
-if (SELF.endsWith('audit-labels-bootstrap.js') || process.env.DEBUG_MAIN) {
+async function main() {
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
@@ -159,6 +221,8 @@ if (SELF.endsWith('audit-labels-bootstrap.js') || process.env.DEBUG_MAIN) {
     for (const f of result.failed) {
       process.stderr.write(`  FAILED ${f.label}: ${f.reason}\n`);
     }
-    process.exit(1);
+    throw new Error(`${result.failed.length} label(s) failed to create`);
   }
 }
+
+runAsCli(import.meta.url, main, { source: 'audit-labels-bootstrap' });

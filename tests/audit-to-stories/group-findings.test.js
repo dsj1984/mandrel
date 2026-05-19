@@ -1,10 +1,10 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import url from 'node:url';
-import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
+import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,7 +86,7 @@ test('groupFindings throws on non-array input', () => {
   assert.throws(() => groupFindings(null));
 });
 
-test('groupFindings detects a dependency edge when Recommendation names another group\'s file', () => {
+test("groupFindings detects a dependency edge when Recommendation names another group's file", () => {
   const findings = [
     {
       dimension: 'security',
@@ -95,7 +95,8 @@ test('groupFindings detects a dependency edge when Recommendation names another 
       normalisedTitle: 'validation gap api orders',
       files: ['src/routes/orders.js'],
       currentState: 'orders.js accepts arbitrary JSON.',
-      recommendation: 'Use the helper exported from src/lib/validate.js to gate all bodies.',
+      recommendation:
+        'Use the helper exported from src/lib/validate.js to gate all bodies.',
     },
     {
       dimension: 'clean-code',

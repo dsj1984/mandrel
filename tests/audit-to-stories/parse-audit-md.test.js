@@ -1,12 +1,12 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import url from 'node:url';
 import {
+  __testing,
   parseAuditReport,
   parseAuditReports,
-  __testing,
 } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
@@ -38,7 +38,9 @@ test('parseAuditReport normalises severity from Severity field', () => {
 });
 
 test('parseAuditReport normalises severity from Impact field (dependencies template)', () => {
-  const findings = parseAuditReport(loadFixture('audit-dependencies-results.md'));
+  const findings = parseAuditReport(
+    loadFixture('audit-dependencies-results.md'),
+  );
   assert.equal(findings[0].severity, 'high');
   assert.equal(findings[1].severity, 'medium');
 });
@@ -98,7 +100,9 @@ test('parseAuditReports flattens multiple reports', () => {
 });
 
 test('parseAuditReport rejects non-string markdown', () => {
-  assert.throws(() => parseAuditReport({ markdown: null, sourceReport: 'x.md' }));
+  assert.throws(() =>
+    parseAuditReport({ markdown: null, sourceReport: 'x.md' }),
+  );
 });
 
 test('parseAuditReport rejects missing sourceReport', () => {

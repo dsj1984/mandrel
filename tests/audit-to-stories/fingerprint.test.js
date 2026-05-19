@@ -1,15 +1,15 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import url from 'node:url';
-import { parseAuditReport } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 import {
   fingerprintFinding,
-  withFingerprints,
-  renderFingerprintFooter,
   parseFingerprintFooter,
+  renderFingerprintFooter,
+  withFingerprints,
 } from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
+import { parseAuditReport } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,7 +86,10 @@ test('renderFingerprintFooter / parseFingerprintFooter round-trip', () => {
   const findings = withFingerprints(loadReport('audit-security-results.md'));
   const body = `Some issue body.\n\n${renderFingerprintFooter(findings)}\n`;
   const parsed = parseFingerprintFooter(body);
-  assert.deepEqual(parsed, findings.map((f) => f.fingerprint.full));
+  assert.deepEqual(
+    parsed,
+    findings.map((f) => f.fingerprint.full),
+  );
 });
 
 test('parseFingerprintFooter returns empty array when marker absent', () => {
@@ -94,7 +97,8 @@ test('parseFingerprintFooter returns empty array when marker absent', () => {
 });
 
 test('parseFingerprintFooter ignores malformed sha entries', () => {
-  const body = '<!-- audit-fingerprints: notasha, abc, 0123456789abcdef0123456789abcdef01234567 -->';
+  const body =
+    '<!-- audit-fingerprints: notasha, abc, 0123456789abcdef0123456789abcdef01234567 -->';
   assert.deepEqual(parseFingerprintFooter(body), [
     '0123456789abcdef0123456789abcdef01234567',
   ]);

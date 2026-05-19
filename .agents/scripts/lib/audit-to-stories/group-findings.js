@@ -72,7 +72,7 @@ function tokenisePhrase(text) {
     text
       .toLowerCase()
       .replace(/[`*_]/g, '')
-      .replace(/[^a-z0-9 \-]/g, ' ')
+      .replace(/[^a-z0-9 -]/g, ' ')
       .split(/\s+/)
       .filter((w) => w.length > 4),
   );
@@ -207,7 +207,8 @@ export function groupFindings(findings) {
 
     if (!groups.has(key)) {
       groups.set(key, makeGroup(key));
-      if (!sigBuckets.has(key)) sigBuckets.set(key, rootCauseSignature(finding));
+      if (!sigBuckets.has(key))
+        sigBuckets.set(key, rootCauseSignature(finding));
     } else {
       const existing = sigBuckets.get(key) ?? new Set();
       for (const t of rootCauseSignature(finding)) existing.add(t);

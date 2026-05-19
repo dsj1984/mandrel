@@ -1,5 +1,5 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { classifyGroupsAgainstGitHub } from '../../.agents/scripts/lib/audit-to-stories/dedupe-against-github.js';
 import { renderFingerprintFooter } from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
 
@@ -27,7 +27,10 @@ const SHA_C = 'c'.repeat(40);
 test('classifyGroupsAgainstGitHub marks a brand-new group "create"', async () => {
   const groups = [fakeGroup([SHA_A])];
   const provider = inMemoryProvider([]);
-  const { classifications, summary } = await classifyGroupsAgainstGitHub({ groups, provider });
+  const { classifications, summary } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider,
+  });
   assert.equal(classifications[0].action, 'create');
   assert.equal(summary.create, 1);
 });
@@ -41,7 +44,10 @@ test('classifyGroupsAgainstGitHub marks an open-issue match "skip-open" (Story A
       body: `prelude\n${renderFingerprintFooter([{ fingerprint: { full: SHA_A } }])}\n`,
     },
   ]);
-  const { classifications, summary } = await classifyGroupsAgainstGitHub({ groups, provider });
+  const { classifications, summary } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider,
+  });
   assert.equal(classifications[0].action, 'skip-open');
   assert.equal(classifications[0].matchedIssues[0].number, 42);
   assert.equal(summary.skipOpen, 1);
@@ -56,7 +62,10 @@ test('classifyGroupsAgainstGitHub marks a closed-only match "skip-reoccurring"',
       body: renderFingerprintFooter([{ fingerprint: { full: SHA_A } }]),
     },
   ]);
-  const { classifications, summary } = await classifyGroupsAgainstGitHub({ groups, provider });
+  const { classifications, summary } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider,
+  });
   assert.equal(classifications[0].action, 'skip-reoccurring');
   assert.equal(summary.skipReoccurring, 1);
 });
@@ -70,7 +79,10 @@ test('classifyGroupsAgainstGitHub ignores false-positive search hits that lack t
       body: `Mentions ${SHA_A} in prose but no fingerprint footer.`,
     },
   ]);
-  const { classifications } = await classifyGroupsAgainstGitHub({ groups, provider });
+  const { classifications } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider,
+  });
   // The fake search returns the issue because the sha is in the body,
   // but the footer-confirmation step drops it → still create.
   assert.equal(classifications[0].action, 'create');
@@ -90,7 +102,10 @@ test('classifyGroupsAgainstGitHub handles a group whose findings span multiple m
       body: renderFingerprintFooter([{ fingerprint: { full: SHA_B } }]),
     },
   ]);
-  const { classifications } = await classifyGroupsAgainstGitHub({ groups, provider });
+  const { classifications } = await classifyGroupsAgainstGitHub({
+    groups,
+    provider,
+  });
   // Any OPEN match beats CLOSED — action is skip-open.
   assert.equal(classifications[0].action, 'skip-open');
   assert.equal(classifications[0].matchedIssues.length, 2);

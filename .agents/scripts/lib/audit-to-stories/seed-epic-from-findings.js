@@ -93,7 +93,10 @@ function formatKeyFiles(groups) {
   const files = new Set();
   for (const g of groups) for (const f of g.files) files.add(f);
   if (files.size === 0) return '_(no concrete file paths surfaced)_';
-  return [...files].sort().map((f) => `- \`${f}\``).join('\n');
+  return [...files]
+    .sort()
+    .map((f) => `- \`${f}\``)
+    .join('\n');
 }
 
 function formatKeyAssumptions(sourceReports) {
@@ -110,8 +113,14 @@ function formatKeyAssumptions(sourceReports) {
  * @returns {string}
  */
 export function buildEpicSeedMarkdown({ groups, findings, sourceReports }) {
-  if (!Array.isArray(groups) || !Array.isArray(findings) || !Array.isArray(sourceReports)) {
-    throw new Error('buildEpicSeedMarkdown: groups, findings, sourceReports must all be arrays');
+  if (
+    !Array.isArray(groups) ||
+    !Array.isArray(findings) ||
+    !Array.isArray(sourceReports)
+  ) {
+    throw new Error(
+      'buildEpicSeedMarkdown: groups, findings, sourceReports must all be arrays',
+    );
   }
   const problem = formatProblemStatement(findings);
   const direction = formatRecommendedDirection(findings);

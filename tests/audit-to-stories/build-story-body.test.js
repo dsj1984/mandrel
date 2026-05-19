@@ -1,12 +1,15 @@
-import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { test } from 'node:test';
 import url from 'node:url';
-import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
-import { withFingerprints, parseFingerprintFooter } from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
-import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
 import { buildStoryBody } from '../../.agents/scripts/lib/audit-to-stories/build-story-body.js';
+import {
+  parseFingerprintFooter,
+  withFingerprints,
+} from '../../.agents/scripts/lib/audit-to-stories/fingerprint.js';
+import { groupFindings } from '../../.agents/scripts/lib/audit-to-stories/group-findings.js';
+import { parseAuditReports } from '../../.agents/scripts/lib/audit-to-stories/parse-audit-md.js';
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

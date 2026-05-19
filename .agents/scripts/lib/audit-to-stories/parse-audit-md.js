@@ -26,7 +26,8 @@ const SEVERITY_ALIASES = Object.freeze({
 const KEY_LINE = /^\s*-\s*\*\*([^:*]+):\*\*\s*(.*)$/;
 const HEADING_FINDING = /^###\s+(.+?)\s*$/;
 const HEADING_SECTION = /^##\s+(.+?)\s*$/;
-const PATH_HINT = /(?<![\w/])([A-Za-z0-9_./\\@-]+\.(?:js|ts|tsx|jsx|mjs|cjs|md|json|yaml|yml|css|scss|html|py|go|rs|java|kt|rb|sh|ps1|tf|env))(?![\w])/g;
+const PATH_HINT =
+  /(?<![\w/])([A-Za-z0-9_./\\@-]+\.(?:js|ts|tsx|jsx|mjs|cjs|md|json|yaml|yml|css|scss|html|py|go|rs|java|kt|rb|sh|ps1|tf|env))(?![\w])/g;
 
 function unwrapInlineCode(value) {
   if (typeof value !== 'string') return '';
@@ -56,7 +57,10 @@ function deriveDimension(fields, fallbackDimension) {
   for (const key of ['dimension', 'category', 'area']) {
     const raw = fields[key];
     if (typeof raw === 'string' && raw.trim().length > 0) {
-      return raw.replace(/\[|\]/g, '').trim().split(/\s*\|\s*/)[0];
+      return raw
+        .replace(/\[|\]/g, '')
+        .trim()
+        .split(/\s*\|\s*/)[0];
     }
   }
   return fallbackDimension;
@@ -75,16 +79,14 @@ function normaliseTitle(title) {
     .toLowerCase()
     .replace(/[`*_]/g, '')
     .replace(/\s+/g, ' ')
-    .replace(/[^a-z0-9 \-]/g, '')
+    .replace(/[^a-z0-9 -]/g, '')
     .trim();
 }
 
 function extractFilePaths(text) {
   if (typeof text !== 'string') return [];
   const seen = new Set();
-  let match;
-  PATH_HINT.lastIndex = 0;
-  while ((match = PATH_HINT.exec(text)) !== null) {
+  for (const match of text.matchAll(PATH_HINT)) {
     const candidate = match[1].replace(/^[`'"]+|[`'"]+$/g, '');
     if (candidate.includes('/') || candidate.includes('\\')) {
       seen.add(candidate);
@@ -94,7 +96,8 @@ function extractFilePaths(text) {
 }
 
 function inferDimensionFromReportName(sourceReport) {
-  if (typeof sourceReport !== 'string' || sourceReport.length === 0) return 'unknown';
+  if (typeof sourceReport !== 'string' || sourceReport.length === 0)
+    return 'unknown';
   const base = path.basename(sourceReport, path.extname(sourceReport));
   const match = base.match(/^audit-(.+?)(?:-results)?$/);
   return match ? match[1] : base;
@@ -236,4 +239,8 @@ export function parseAuditReports(reports) {
   return out;
 }
 
-export const __testing = { normaliseSeverity, extractFilePaths, normaliseTitle };
+export const __testing = {
+  normaliseSeverity,
+  extractFilePaths,
+  normaliseTitle,
+};

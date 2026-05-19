@@ -41,14 +41,18 @@ function acceptanceCriteriaFromGroup(group) {
 
 function agentPromptsFromGroup(group) {
   const blocks = group.findings
-    .filter((f) => typeof f.agentPrompt === 'string' && f.agentPrompt.length > 0)
+    .filter(
+      (f) => typeof f.agentPrompt === 'string' && f.agentPrompt.length > 0,
+    )
     .map((f) => `**${f.title}**\n\n\`\`\`\n${f.agentPrompt}\n\`\`\``);
   return blocks.join('\n\n') || '_(no copy-pasteable prompts captured)_';
 }
 
 function contextLinksFromGroup(group) {
   const reports = uniq(
-    group.findings.map((f) => f.sourceReport).filter((s) => typeof s === 'string'),
+    group.findings
+      .map((f) => f.sourceReport)
+      .filter((s) => typeof s === 'string'),
   );
   if (reports.length === 0) return '_(no source audit reports captured)_';
   return reports.map((r) => `- [\`${r}\`](${r})`).join('\n');
@@ -59,7 +63,9 @@ function labelsForGroup(group) {
     (group.dimensions ?? []).map((d) => `audit::${d.replace(/\s+/g, '-')}`),
   );
   const labels = [...STATIC_LABELS, ...auditLabels];
-  const hasCritical = (group.findings ?? []).some((f) => f.severity === 'critical');
+  const hasCritical = (group.findings ?? []).some(
+    (f) => f.severity === 'critical',
+  );
   if (hasCritical) labels.push('risk::high');
   return uniq(labels);
 }
