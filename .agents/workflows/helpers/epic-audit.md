@@ -99,16 +99,54 @@ inline. Each lens workflow declares its own pillars, severity rubric, and
 remediation prose — follow the workflow's procedure verbatim. Aggregate
 findings across lenses by severity (🔴 / 🟠 / 🟡 / 🟢) for the Step 4 report.
 
-## Step 3 — Auto-fix Loop (placeholder)
+## Step 3 — Auto-fix Loop
 
-Reserved for Story 3.2.4 wiring. The wiring Story will add an inline
-auto-fix loop here: for each 🔴/🟠 finding the helper proposes a concrete
-fix, commits it on `[EPIC_BRANCH]` via
-[`assert-branch.js`](../../scripts/assert-branch.js) + a focused commit,
-re-runs Step 2 against the same lens, and bails out after a configurable
-retry budget. Until that Story lands, **do not auto-fix from this
-helper** — surface findings in Step 4 and let the operator drive
-remediation.
+Walk the aggregated 🔴 / 🟠 findings from Step 2 through the shared
+bounded-retry loop in
+[`../../scripts/lib/orchestration/auto-fix-loop.js`](../../scripts/lib/orchestration/auto-fix-loop.js).
+The module owns the control flow (per-finding attempt ceiling, scope-cap,
+anti-thrash, safety escalation); this helper supplies the phase-specific
+hooks.
+
+Resolve the loop budget from `.agentrc.json`:
+
+- **`delivery.epicAudit.maxFixAttempts`** — per-finding attempt ceiling
+  (`attemptCeiling`). Defaults to 3 if unset.
+- **`delivery.epicAudit.maxFixScopeFiles`** — per-fix file scope cap
+  (`scopeCap`). Defaults to 5 if unset.
+
+Invoke `runAutoFixLoop` inline (Node ESM, top-level `await` inside the
+helper's runner block):
+
+```js
+import {
+  runAutoFixLoop,
+} from '../../scripts/lib/orchestration/auto-fix-loop.js';
+
+const { fixed, escalated } = await runAutoFixLoop({
+  findings: aggregatedFindings, // 🔴 + 🟠 from Step 2, ordered by severity
+  attemptCeiling: cfg.delivery?.epicAudit?.maxFixAttempts ?? 3,
+  scopeCap: cfg.delivery?.epicAudit?.maxFixScopeFiles ?? 5,
+  classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
+  applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
+  rescan, // re-run the owning lens via run-audit-suite.js
+  validate, // npm run lint + npm test (lens-appropriate subset)
+});
+```
+
+The helper's `applyFix` hook MUST:
+
+1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
+   `--expected [EPIC_BRANCH]` before touching the working tree.
+2. Stage explicit paths only (never `git add .`).
+3. Make one focused conventional commit per finding
+   (`fix(<scope>): <description> (audit finding)`).
+
+Findings that route to `escalated[]` (safety classes, `ceiling-exhausted`,
+`thrash-detected`, `validation-regression`, `scope-exceeded`) flow through
+to Step 4 unchanged — the loop does not delete them, it just stops trying
+to fix them automatically. Surface the `escalated` reasons in the
+`audit-results` comment so the operator sees why the loop bailed.
 
 ## Step 4 — Post `audit-results` Structured Comment
 
@@ -147,8 +185,9 @@ The body MUST include:
   branches. The audit examines the cumulative effect of the entire Epic.
 - **Always** read the PRD and Tech Spec before walking lenses. Findings
   without spec context are noise.
-- **Never** auto-fix from this helper until Story 3.2.4 lands the loop.
-  Default mode is read-only audit.
+- **Always** run auto-fix through the shared `runAutoFixLoop` module — never
+  re-derive bounded-retry / anti-thrash / escalation semantics inline. The
+  loop is the single source of truth for those guarantees.
 - **Never** widen the lens roster past `selectedAudits`. The whole point of
   the change-set selector is to avoid running irrelevant audits on a
   scoped Epic — running extras defeats the gate.

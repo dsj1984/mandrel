@@ -146,6 +146,54 @@ For every finding, provide:
   fix worked. Keep it tight (≤ 5 sentences); the sub-agent will read the
   surrounding code itself.
 
+## Step 4.5 — Auto-fix Loop
+
+Walk the 🔴 / 🟠 findings from Step 4 through the shared bounded-retry
+loop in
+[`../../scripts/lib/orchestration/auto-fix-loop.js`](../../scripts/lib/orchestration/auto-fix-loop.js).
+The module owns the control flow (per-finding attempt ceiling, scope-cap,
+anti-thrash, safety escalation); this helper supplies the phase-specific
+hooks.
+
+Resolve the loop budget from `.agentrc.json`:
+
+- **`delivery.codeReview.maxFixAttempts`** — per-finding attempt ceiling
+  (`attemptCeiling`). Defaults to 3 if unset.
+- **`delivery.codeReview.maxFixScopeFiles`** — per-fix file scope cap
+  (`scopeCap`). Defaults to 5 if unset.
+
+Invoke `runAutoFixLoop` inline (Node ESM):
+
+```js
+import {
+  runAutoFixLoop,
+} from '../../scripts/lib/orchestration/auto-fix-loop.js';
+
+const { fixed, escalated } = await runAutoFixLoop({
+  findings: reviewFindings, // 🔴 + 🟠 from Step 4, ordered by severity
+  attemptCeiling: cfg.delivery?.codeReview?.maxFixAttempts ?? 3,
+  scopeCap: cfg.delivery?.codeReview?.maxFixScopeFiles ?? 5,
+  classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
+  applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
+  rescan, // re-run epic-code-review.js or targeted diff scan
+  validate, // npm run lint + npm test
+});
+```
+
+The helper's `applyFix` hook MUST:
+
+1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
+   `--expected [EPIC_BRANCH]` before touching the working tree.
+2. Stage explicit paths only (never `git add .`).
+3. Make one focused conventional commit per finding
+   (`fix(<scope>): <description> (review finding)`).
+
+Findings that route to `escalated[]` (safety classes, `ceiling-exhausted`,
+`thrash-detected`, `validation-regression`, `scope-exceeded`) remain on
+the `code-review` structured comment for the operator to triage manually
+in Step 5. The loop never deletes a finding it could not fix — it just
+stops retrying.
+
 ## Step 5 — Remediation
 
 If the operator instructs you to fix any findings:
