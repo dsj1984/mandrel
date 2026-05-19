@@ -301,9 +301,7 @@ describe('lifecycle-emit end-to-end — full-roster PR-open fixture (Story #2531
       mergeEmits.push({ event: 'epic.merge.blocked', payload: ctx.payload }),
     );
     const prCreatedEmits = [];
-    bus.on('pr.created', async (ctx) =>
-      prCreatedEmits.push(ctx.payload),
-    );
+    bus.on('pr.created', async (ctx) => prCreatedEmits.push(ctx.payload));
 
     try {
       // Wire the full canonical roster — provider + checkpointer +
@@ -451,10 +449,7 @@ describe('lifecycle-emit end-to-end — full-roster PR-open fixture (Story #2531
       // every emit lands on disk; the close-tail trace replays cleanly.
       const records = readLedger(ledgerPath);
       const events = records.map((r) => r.event);
-      assert.ok(
-        events.includes('pr.created'),
-        'pr.created recorded in ledger',
-      );
+      assert.ok(events.includes('pr.created'), 'pr.created recorded in ledger');
       assert.ok(
         events.includes('epic.merge.blocked'),
         'epic.merge.blocked recorded in ledger',
