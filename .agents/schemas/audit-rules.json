@@ -57,11 +57,77 @@
       "substitutionKeys": []
     },
     "audit-devops": {
-      "triggers": { "gates": ["gate2"] },
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": ["ci", "deploy", "docker", "k8s", "terraform", "workflow"],
+        "filePatterns": [
+          ".github/workflows/**",
+          "**/Dockerfile",
+          "infra/**",
+          "**/*.tf"
+        ]
+      },
       "substitutionKeys": []
     },
     "audit-sre": {
       "triggers": { "gates": ["gate4"] },
+      "substitutionKeys": []
+    },
+    "audit-dependencies": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": [
+          "dependency",
+          "dependencies",
+          "package",
+          "vulnerability",
+          "cve",
+          "upgrade",
+          "supply chain"
+        ],
+        "filePatterns": [
+          "**/package.json",
+          "**/package-lock.json",
+          "**/pnpm-lock.yaml",
+          "**/yarn.lock"
+        ]
+      },
+      "substitutionKeys": []
+    },
+    "audit-performance": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": ["performance", "n+1", "hot path", "latency", "throughput"],
+        "filePatterns": [".agents/scripts/**", "src/**/*.{ts,js}"]
+      },
+      "substitutionKeys": []
+    },
+    "audit-quality": {
+      "triggers": {
+        "gates": ["gate1", "gate3"],
+        "keywords": ["test", "coverage", "flaky", "assertion"],
+        "filePatterns": ["tests/**", "**/*.test.{ts,js}", "**/*.spec.{ts,js}"]
+      },
+      "substitutionKeys": []
+    },
+    "audit-seo": {
+      "triggers": {
+        "gates": ["gate2", "gate3"],
+        "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
+        "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
+      },
+      "substitutionKeys": []
+    },
+    "audit-ux-ui": {
+      "triggers": {
+        "gates": ["gate2", "gate3"],
+        "keywords": ["ux", "ui", "design tokens", "component", "accessibility"],
+        "filePatterns": [
+          "**/components/**/*.{tsx,jsx,vue,svelte}",
+          "**/styles/**",
+          "**/*.css"
+        ]
+      },
       "substitutionKeys": []
     }
   }

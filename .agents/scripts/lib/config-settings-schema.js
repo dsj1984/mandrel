@@ -472,6 +472,36 @@ const QUALITY_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.epicAudit` — bounded-retry knobs for /epic-deliver Phase 4
+ * (epic-audit). `maxFixAttempts` caps how many times the auto-fix loop
+ * retries a single finding (Story #2611, Epic #2586). `maxFixScopeFiles`
+ * caps how many files a single auto-fix may touch before escalating to
+ * `agent::blocked` — matches the 5-file rule in `.agents/instructions.md
+ * § 7`.
+ */
+const EPIC_AUDIT_SCHEMA = {
+  type: 'object',
+  properties: {
+    maxFixAttempts: { type: 'integer', minimum: 0 },
+    maxFixScopeFiles: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
+/**
+ * `delivery.codeReview` — sibling to `delivery.epicAudit`. Same bounded
+ * retry + scope cap, applied to /epic-deliver Phase 5 (code-review).
+ */
+const CODE_REVIEW_SCHEMA = {
+  type: 'object',
+  properties: {
+    maxFixAttempts: { type: 'integer', minimum: 0 },
+    maxFixScopeFiles: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+};
+
 const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
@@ -483,6 +513,8 @@ const DELIVERY_SCHEMA = {
     signals: SIGNALS_SCHEMA,
     quality: QUALITY_SCHEMA,
     lifecycle: LIFECYCLE_SCHEMA,
+    epicAudit: EPIC_AUDIT_SCHEMA,
+    codeReview: CODE_REVIEW_SCHEMA,
     // Cross-Story concurrency-hazard gate (Story #2297). When true,
     // `epic-deliver-prepare` refuses to flip the Epic to
     // `agent::executing` if the upcoming waves still carry any conflict

@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Removed — Epic #2586: retire `/audit-fan-out` workflow
+
+The broken parallel fan-out orchestrator `/audit-fan-out` is retired. Its
+workflow source (`.agents/workflows/audit-fan-out.md`) and the generated
+slash-command mirror (`.claude/commands/audit-fan-out.md`) are deleted, and a
+reappearance smoke test (`tests/audit-suite/audit-fan-out-retirement.test.js`)
+guards against accidental restoration. Closes Epic #2586 (Stories #2595, #2602
+follow-up).
+
+- Operators that previously invoked `/audit-fan-out` should run the
+  individual `/audit-<dimension>` workflows directly, or use `/audit-to-stories`
+  for end-to-end audit-to-backlog routing. A future adaptive audit
+  orchestrator (per `docs/future-considerations.md` § 8) may replace the
+  retired fan-out surface.
+
 ### Changed — Story #2202: `update-maintainability-baseline.js` defaults to diff-scope
 
 The manual maintainability-baseline refresh CLI

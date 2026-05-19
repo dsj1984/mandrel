@@ -2,10 +2,7 @@
 description:
   Orchestrates end-to-end Epic planning (PRD, Tech Spec, Acceptance Spec, and
   Work Breakdown) for a GitHub Epic.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: planning orchestrator composes PRD + Tech Spec + Acceptance Spec + WBS — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-plan [Epic ID]
 
@@ -345,7 +342,33 @@ for the scoring logic.
      NOT proceed to decomposition until the user confirms the plan is
      accurate.
 
-5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
+5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
+   is created, `epic-plan-spec.js` runs
+   [`validateSpecFreshness`](../scripts/lib/orchestration/spec-freshness.js)
+   against the authored Tech Spec body, probing every cited path-shape
+   reference (backticked paths, `// header` lines in code blocks, and
+   inline mentions of paths under `.agents/`, `src/`, `lib/`, `app/`,
+   `tests/`, `packages/`, `scripts/`, `docs/`) against the configured
+   `baseBranch`. Results land in three buckets:
+   - **fresh** — path exists at the base ref (no action).
+   - **ambiguous** — path is absent but surrounding prose carries a
+     net-new cue (`introduce`, `add`, `create`, `new file`, `to be
+     created`, etc.); surfaced for review without alarm.
+   - **stale** — path is absent and no net-new cue is nearby; likely a
+     reference the Architect inherited from drift-stale docs.
+
+   When ≥1 stale reference is detected, a `spec-freshness` structured
+   comment is upserted on the Tech Spec issue listing each citation
+   with its line number. The full report is also written to
+   `<tempRoot>/epic-<id>-spec-freshness.json` for downstream tooling.
+   The check is **advisory and non-blocking** — Phase 7 completes even
+   when stale references are present, so the operator retains final
+   judgment on edge cases. If the run summary shows
+   `⚠️ Spec freshness: N stale / M ambiguous`, review the Tech Spec
+   issue's `spec-freshness` comment and correct the cited spec body
+   before approving the plan for Phase 8.
+
+6. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
@@ -399,6 +422,20 @@ for the scoring logic.
      [`lib/orchestration/ticket-validator.js`](../scripts/lib/orchestration/ticket-validator.js);
      its output during decomposition is the canonical proof — no manual
      re-check needed.
+   - **File-assumption gate (Story #2636)**: Each Task's `body.changes`
+     and `body.references` entries declare an explicit `assumption` ∈
+     `creates | refactors-existing | exists | deletes`.
+     [`validateTaskFileAssumptions`](../scripts/lib/orchestration/file-assumptions.js)
+     probes the base branch for every declared path and rejects the
+     decompose when the declaration contradicts reality:
+     - `creates` + path **exists** at base → error.
+     - `refactors-existing` / `exists` / `deletes` + path **absent** at
+       base → error.
+     Errors are batched per-Task into the validator's `errors` envelope
+     so the decompose loop surfaces every mismatch in a single re-prompt
+     rather than one at a time. Tasks that still use the legacy
+     string-bullet shape (`"<path>: <verb> <object>"`) are accepted but
+     log a deprecation warning so the migration progress is visible.
    - **Scope-overlap check (docs/runbook downstream of config work)**: Scan for
      Stories whose scope is "docs update", "runbook", or "README" Tasks that
      land downstream of an earlier "config + runbook" Story in the same Epic. If
