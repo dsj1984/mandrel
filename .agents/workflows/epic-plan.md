@@ -399,6 +399,20 @@ for the scoring logic.
      [`lib/orchestration/ticket-validator.js`](../scripts/lib/orchestration/ticket-validator.js);
      its output during decomposition is the canonical proof — no manual
      re-check needed.
+   - **File-assumption gate (Story #2636)**: Each Task's `body.changes`
+     and `body.references` entries declare an explicit `assumption` ∈
+     `creates | refactors-existing | exists | deletes`.
+     [`validateTaskFileAssumptions`](../scripts/lib/orchestration/file-assumptions.js)
+     probes the base branch for every declared path and rejects the
+     decompose when the declaration contradicts reality:
+     - `creates` + path **exists** at base → error.
+     - `refactors-existing` / `exists` / `deletes` + path **absent** at
+       base → error.
+     Errors are batched per-Task into the validator's `errors` envelope
+     so the decompose loop surfaces every mismatch in a single re-prompt
+     rather than one at a time. Tasks that still use the legacy
+     string-bullet shape (`"<path>: <verb> <object>"`) are accepted but
+     log a deprecation warning so the migration progress is visible.
    - **Scope-overlap check (docs/runbook downstream of config work)**: Scan for
      Stories whose scope is "docs update", "runbook", or "README" Tasks that
      land downstream of an earlier "config + runbook" Story in the same Epic. If

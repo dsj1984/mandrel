@@ -9,10 +9,32 @@
  * path-shaped token so vague verbs ("clean up", "refactor") can't slip
  * through.
  *
+ * `body.changes` items may be either:
+ *   1. A string bullet (legacy shape, e.g. `"src/foo.ts: extract handler"`).
+ *   2. An object `{ path: string, assumption: enum }` (Story #2636 shape).
+ *
+ * Object-form items must declare an `assumption` ∈ `creates |
+ * refactors-existing | exists | deletes`. The optional `body.references`
+ * array uses the same object shape and is the home for paths the Task
+ * reads but does not modify (test fixtures, sibling modules, etc.).
+ * String-form `changes` items remain legal so legacy plans keep parsing,
+ * but they emit a deprecation signal via `validateTaskFileAssumptions`.
+ *
  * The errors are batched and surfaced as a single thrown Error so the
  * planner can see every offending slug in one pass instead of fixing one
  * at a time.
  */
+
+/**
+ * Canonical assumption values a path entry may declare. Mirrored in
+ * {@link ./file-assumptions.js} where the runtime semantics live.
+ */
+export const FILE_ASSUMPTION_VALUES = Object.freeze([
+  'creates',
+  'refactors-existing',
+  'exists',
+  'deletes',
+]);
 
 const PATH_LIKE_RE = /[/.][\w@\-./*]+|\*\*?\/?\*?\.\w+|[a-z][\w-]*\/[\w-./*]+/i;
 const VAGUE_VERBS = [
@@ -93,7 +115,42 @@ export function validateTaskBodyShape(ticket) {
   errors.push(...collectChangesErrors(prefix, body.changes));
   errors.push(...collectAcceptanceErrors(prefix, body.acceptance));
   errors.push(...collectVerifyErrors(prefix, body.verify));
+  errors.push(...collectReferencesErrors(prefix, body.references));
   return errors;
+}
+
+/**
+ * Predicate: is `entry` a well-formed object-form path entry? Returns
+ * `true` only when it carries a non-empty `path` string and an
+ * `assumption` from the canonical enum. Bare objects without these
+ * fields surface as errors via `collectChangesErrors` /
+ * `collectReferencesErrors`.
+ *
+ * @param {unknown} entry
+ * @returns {entry is { path: string, assumption: typeof FILE_ASSUMPTION_VALUES[number] }}
+ */
+export function isObjectPathEntry(entry) {
+  if (entry === null || typeof entry !== 'object') return false;
+  if (typeof entry.path !== 'string' || entry.path.trim() === '') return false;
+  if (!FILE_ASSUMPTION_VALUES.includes(entry.assumption)) return false;
+  return true;
+}
+
+/**
+ * Predicate: is `entry` an object that *looks* like the new shape but
+ * has at least one invalid field? Distinct from `isObjectPathEntry` so
+ * we can route bad objects through a specific error message instead of
+ * silently collapsing them into the "name no path-shaped token" bucket.
+ *
+ * @param {unknown} entry
+ * @returns {boolean}
+ */
+export function isMalformedObjectPathEntry(entry) {
+  if (entry === null || typeof entry !== 'object') return false;
+  if (isObjectPathEntry(entry)) return false;
+  // Anything that's an object and isn't a valid entry is malformed —
+  // string-form bullets fall through this predicate (they're not objects).
+  return true;
 }
 
 /**
@@ -107,20 +164,54 @@ function collectChangesErrors(prefix, rawChanges) {
     return [`${prefix}: body.changes must list at least one bullet.`];
   }
   const errors = [];
-  const noPath = changes.filter(
-    (c) => typeof c !== 'string' || !bulletNamesPath(c),
-  );
-  if (noPath.length === changes.length) {
+  // An entry "names a path" when it is either a path-shaped bullet
+  // string OR an object-form entry that passed the assumption schema.
+  const namesPath = (c) => {
+    if (typeof c === 'string') return bulletNamesPath(c);
+    return isObjectPathEntry(c);
+  };
+  if (changes.every((c) => !namesPath(c))) {
     errors.push(
-      `${prefix}: body.changes bullets name no path-shaped token. Use "<path>: <verb> <object>" — e.g. "src/components/Foo.tsx: extract handleSubmit".`,
+      `${prefix}: body.changes bullets name no path-shaped token. Use "<path>: <verb> <object>" — e.g. "src/components/Foo.tsx: extract handleSubmit". Object-form entries may also declare { path, assumption } directly.`,
     );
   }
-  for (const bullet of changes) {
-    if (typeof bullet !== 'string') continue;
-    const verb = vagueVerbWithoutTarget(bullet);
-    if (verb) {
+  for (const entry of changes) {
+    if (typeof entry === 'string') {
+      const verb = vagueVerbWithoutTarget(entry);
+      if (verb) {
+        errors.push(
+          `${prefix}: body.changes bullet uses vague verb "${verb}" without a named target: "${entry}".`,
+        );
+      }
+      continue;
+    }
+    if (isMalformedObjectPathEntry(entry)) {
       errors.push(
-        `${prefix}: body.changes bullet uses vague verb "${verb}" without a named target: "${bullet}".`,
+        `${prefix}: body.changes object entry must declare { path: <string>, assumption: one of ${FILE_ASSUMPTION_VALUES.join('|')} }. Got: ${JSON.stringify(entry)}.`,
+      );
+    }
+  }
+  return errors;
+}
+
+/**
+ * @param {string} prefix
+ * @param {unknown} rawReferences
+ * @returns {string[]}
+ */
+function collectReferencesErrors(prefix, rawReferences) {
+  // `body.references` is optional — absent / null / undefined is fine.
+  if (rawReferences === undefined || rawReferences === null) return [];
+  if (!Array.isArray(rawReferences)) {
+    return [
+      `${prefix}: body.references must be an array of { path, assumption } objects when present, got ${typeof rawReferences}.`,
+    ];
+  }
+  const errors = [];
+  for (const entry of rawReferences) {
+    if (!isObjectPathEntry(entry)) {
+      errors.push(
+        `${prefix}: body.references entry must declare { path: <string>, assumption: one of ${FILE_ASSUMPTION_VALUES.join('|')} }. Got: ${JSON.stringify(entry)}.`,
       );
     }
   }
