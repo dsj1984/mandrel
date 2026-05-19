@@ -71,11 +71,14 @@ import { assertCanonical } from './path-canon.js';
  * absent (or `prior` is absent), behaviour is unchanged from the pre-#1974
  * contract — also regression-fail-safe.
  *
- * `prior` MUST be an array of already-canonical rows (typically the
- * `rows[]` from the previous envelope on disk). Passing raw, un-projected
- * rows is a programming error: the lookup matches by the canonical key
- * field, so non-canonical paths simply miss the prior map and fall
- * through to the regenerated row.
+ * `prior` MAY be an array of rows in any shape the per-kind `projectRow`
+ * accepts — including legacy v1 envelopes that predate a field rename
+ * (e.g. CRAP's pre-v2 `file:` → v2 `path:`). The writer projects every
+ * prior row through `mod.projectRow` on entry, so both `mergeRows` and
+ * `applyEpsilon` see canonical rows regardless of the on-disk shape and
+ * the final envelope passes `assertEnvelope` on a fresh v1-to-v2 merge.
+ * Story #2574 — was previously contracted as "already-canonical", which
+ * silently broke any consumer that handed in a legacy on-disk envelope.
  *
  * Story #2135 (Task #2146) added the structural-equality short-circuit on
  * top of `prior`. When a `prior` envelope (or `priorEnvelope`) is supplied
@@ -146,8 +149,14 @@ export function write({
     });
   }
 
-  const merged = scopeMergeRows(mod, projected, prior, scope);
-  const stabilised = stabiliseRows(mod, merged, prior, epsilon);
+  // Story #2574 — canonicalise `prior` at the writer boundary so legacy
+  // on-disk shapes (e.g. CRAP v1's `file:` key) don't poison `mergeRows`
+  // or `applyEpsilon`. `projectPrior` returns the input unchanged when
+  // `prior` is absent, an envelope-object (handled by the short-circuit
+  // path below), or empty.
+  const canonicalPrior = projectPrior(mod, prior);
+  const merged = scopeMergeRows(mod, projected, canonicalPrior, scope);
+  const stabilised = stabiliseRows(mod, merged, canonicalPrior, epsilon);
 
   const sortedRows = mod.sortRows(stabilised);
   const rollup = mod.rollup(sortedRows, components ?? []);
@@ -273,6 +282,19 @@ export function writeFile(absPath, envelope, opts = {}) {
   fsImpl.writeFileSync(tmpPath, `${JSON.stringify(canonical, null, 2)}\n`);
   fsImpl.renameSync(tmpPath, absPath);
   return absPath;
+}
+
+/**
+ * Story #2574 — funnel `prior` through `mod.projectRow` so legacy on-disk
+ * shapes (CRAP v1's `file:` key being the motivating case) are
+ * canonicalised at the writer boundary. Returns `prior` unchanged when
+ * it's not an array (the priorEnvelope short-circuit path handles
+ * envelope objects directly) or when `projectRow` is unavailable.
+ */
+function projectPrior(mod, prior) {
+  if (!Array.isArray(prior)) return prior;
+  if (typeof mod.projectRow !== 'function') return prior;
+  return prior.map((row) => mod.projectRow(row));
 }
 
 /**
