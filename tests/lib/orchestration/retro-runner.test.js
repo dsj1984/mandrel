@@ -437,6 +437,132 @@ test('runRetro: surfaces manualInterventions count in scorecard', async () => {
   assert.match(provider.posted[0].body, /Manual Interventions {9}\| 3/);
 });
 
+// --- Story #2558 routedProposals coverage ---
+
+test('gatherRetroSignals: returns routedProposals envelope (empty when no signals)', async () => {
+  const provider = makeProvider({
+    epic: { id: 950, title: 'No signals Epic' },
+    stories: [
+      {
+        id: 951,
+        labels: ['type::story'],
+        perfSummary: { kind: 'story-perf-summary', frictionByCategory: {} },
+      },
+    ],
+    tasks: [{ id: 952, parentStoryId: 951, labels: ['type::task'] }],
+  });
+  // Stub forEachLineFn so the test does not hit disk — emit nothing.
+  const signals = await gatherRetroSignals({
+    epicId: 950,
+    provider,
+    forEachLineFn: async () => ({
+      linesRead: 0,
+      linesParsed: 0,
+      missing: true,
+    }),
+  });
+  assert.ok(signals.routedProposals, 'routedProposals key present');
+  assert.deepEqual(signals.routedProposals, {
+    framework: [],
+    consumer: [],
+    memory: [],
+    discarded: [],
+  });
+  // Existing behaviour intact.
+  assert.equal(signals.storyPerfSummaries.length, 1);
+  assert.equal(signals.tasks.length, 1);
+});
+
+test('gatherRetroSignals: computes routedProposals from per-Story signals streams', async () => {
+  const provider = makeProvider({
+    epic: { id: 960, title: 'Signals Epic' },
+    stories: [
+      {
+        id: 961,
+        labels: ['type::story'],
+        perfSummary: { kind: 'story-perf-summary', frictionByCategory: {} },
+      },
+      {
+        id: 962,
+        labels: ['type::story'],
+        perfSummary: { kind: 'story-perf-summary', frictionByCategory: {} },
+      },
+    ],
+    tasks: [
+      { id: 963, parentStoryId: 961, labels: ['type::task'] },
+      { id: 964, parentStoryId: 962, labels: ['type::task'] },
+    ],
+  });
+  // Synthetic signals streams per Story.
+  const fakeStreams = new Map([
+    [
+      961,
+      [
+        { category: 'lint-loop', source: 'framework' },
+        { category: 'lint-loop', source: 'framework' },
+        { category: 'one-off', source: 'consumer' },
+      ],
+    ],
+    [
+      962,
+      [
+        { category: 'flaky-test', source: 'consumer' },
+        { category: 'flaky-test', source: 'consumer' },
+      ],
+    ],
+  ]);
+  const forEachLineFn = async (_epicId, sid, cb) => {
+    const lines = fakeStreams.get(sid) ?? [];
+    for (let i = 0; i < lines.length; i++) {
+      await cb(lines[i], i + 1);
+    }
+    return {
+      linesRead: lines.length,
+      linesParsed: lines.length,
+      missing: false,
+    };
+  };
+  const out = await gatherRetroSignals({
+    epicId: 960,
+    provider,
+    frameworkRepo: 'dsj1984/mandrel',
+    consumerRepo: 'dsj1984/domio',
+    forEachLineFn,
+  });
+  assert.equal(out.routedProposals.framework.length, 1);
+  assert.equal(out.routedProposals.framework[0].category, 'lint-loop');
+  assert.equal(out.routedProposals.consumer.length, 1);
+  assert.equal(out.routedProposals.consumer[0].category, 'flaky-test');
+  assert.equal(out.routedProposals.discarded.length, 1);
+  assert.equal(out.routedProposals.discarded[0].category, 'one-off');
+});
+
+test('gatherRetroSignals: degrades silently on forEachLine error', async () => {
+  const provider = makeProvider({
+    epic: { id: 970, title: 'Defensive Epic' },
+    stories: [
+      {
+        id: 971,
+        labels: ['type::story'],
+        perfSummary: { kind: 'story-perf-summary', frictionByCategory: {} },
+      },
+    ],
+    tasks: [{ id: 972, parentStoryId: 971, labels: ['type::task'] }],
+  });
+  const warns = [];
+  const out = await gatherRetroSignals({
+    epicId: 970,
+    provider,
+    logger: { warn: (m) => warns.push(m) },
+    forEachLineFn: async () => {
+      throw new Error('boom');
+    },
+  });
+  assert.ok(out.routedProposals, 'still returns routedProposals on read error');
+  assert.deepEqual(out.routedProposals.framework, []);
+  assert.ok(warns.some((w) => /forEachLine failed/.test(w)));
+});
+
 test('runRetro: ignores non-finite manualInterventions (defensive)', async () => {
   const provider = makeProvider({
     epic: { id: 900, title: 'Defensive Epic' },

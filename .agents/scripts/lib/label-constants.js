@@ -116,6 +116,21 @@ export const ACCEPTANCE_LABELS = {
 
 export const ACCEPTANCE_NA = ACCEPTANCE_LABELS.N_A;
 
+/**
+ * Meta-axis labels for retrospective signal routing (Epic #2547 — feedback
+ * loop). `meta::framework-gap` is applied to issues that surface a defect or
+ * missing capability in the framework itself; `meta::consumer-improvement`
+ * is applied to issues that surface improvements to a consumer project
+ * (workflow tweaks, ergonomic asks, doc polish). The `/epic-plan` Phase 0
+ * fetcher (see `lib/feedback-loop/prior-feedback-fetcher.js`) reads open
+ * issues carrying either label and surfaces them to the planner so retro
+ * signals are routed into durable substrates rather than lost in chat.
+ */
+export const META_LABELS = {
+  FRAMEWORK_GAP: 'meta::framework-gap',
+  CONSUMER_IMPROVEMENT: 'meta::consumer-improvement',
+};
+
 /** Palette for the taxonomy; consumed by label-taxonomy.js. */
 export const LABEL_COLORS = {
   TYPE: '#7057FF',

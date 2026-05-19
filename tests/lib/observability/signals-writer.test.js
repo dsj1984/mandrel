@@ -17,6 +17,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
 import {
+  appendEpicSignal,
   appendSignal,
   appendTrace,
   forEachLine,
@@ -80,7 +81,13 @@ describe('signals-writer — appendSignal correctness', () => {
     const stat = await fs.stat(dir);
     assert.ok(stat.isDirectory());
     const raw = await fs.readFile(signalsPath(2000, 2100), 'utf8');
-    assert.equal(raw, `${JSON.stringify({ kind: 'lazy', value: 1 })}\n`);
+    // The writer injects a `source` tag (Story #2553) — the rest of the
+    // payload must survive verbatim.
+    assert.ok(raw.endsWith('\n'));
+    const parsed = JSON.parse(raw.replace(/\n$/, ''));
+    assert.equal(parsed.kind, 'lazy');
+    assert.equal(parsed.value, 1);
+    assert.equal(parsed.source, 'consumer');
   });
 
   it('returns false (not throw) when the record cannot be serialised', async () => {
@@ -153,6 +160,156 @@ describe('signals-writer — appendSignal correctness', () => {
     // The directory should still exist (we did not delete on failure).
     const stat = await fs.stat(target);
     assert.ok(stat.isDirectory());
+  });
+});
+
+describe('signals-writer — source tagging (Story #2553)', () => {
+  it('tags consumer signals with source="consumer"', async () => {
+    await appendSignal({
+      epicId: 100,
+      storyId: 101,
+      signal: { kind: 'lint-failure', failingPath: 'src/foo.ts' },
+      config: cfg,
+    });
+    const raw = await fs.readFile(signalsPath(100, 101), 'utf8');
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'consumer');
+    assert.equal(parsed.failingPath, 'src/foo.ts');
+  });
+
+  it('tags framework signals (by failingPath) with source="framework"', async () => {
+    await appendSignal({
+      epicId: 100,
+      storyId: 102,
+      signal: {
+        kind: 'test-failure',
+        failingPath: '.agents/scripts/story-init.js',
+      },
+      config: cfg,
+    });
+    const raw = await fs.readFile(signalsPath(100, 102), 'utf8');
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'framework');
+  });
+
+  it('tags framework signals (by command) with source="framework"', async () => {
+    await appendSignal({
+      epicId: 100,
+      storyId: 103,
+      signal: {
+        kind: 'command-failure',
+        command: 'node .agents/scripts/story-close.js',
+      },
+      config: cfg,
+    });
+    const raw = await fs.readFile(signalsPath(100, 103), 'utf8');
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'framework');
+  });
+
+  it('preserves caller-supplied source (does not overwrite)', async () => {
+    await appendSignal({
+      epicId: 100,
+      storyId: 104,
+      signal: {
+        kind: 'wave-tick',
+        // failingPath says consumer, but caller has tagged framework
+        failingPath: 'src/checkout/index.ts',
+        source: 'framework',
+      },
+      config: cfg,
+    });
+    const raw = await fs.readFile(signalsPath(100, 104), 'utf8');
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'framework');
+  });
+
+  it('preserves caller-supplied source even when set to "consumer"', async () => {
+    await appendSignal({
+      epicId: 100,
+      storyId: 105,
+      signal: {
+        kind: 'pinned',
+        failingPath: '.agents/scripts/story-init.js',
+        source: 'consumer',
+      },
+      config: cfg,
+    });
+    const raw = await fs.readFile(signalsPath(100, 105), 'utf8');
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'consumer');
+  });
+
+  it('tags signals appended via appendEpicSignal', async () => {
+    await appendEpicSignal({
+      epicId: 200,
+      signal: {
+        kind: 'wave-start',
+        command: 'node .agents/scripts/epic-deliver.js',
+      },
+      config: cfg,
+    });
+    const raw = await fs.readFile(
+      path.join(workRoot, 'epic-200', 'signals.ndjson'),
+      'utf8',
+    );
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'framework');
+  });
+
+  it('appendEpicSignal preserves caller-supplied source', async () => {
+    await appendEpicSignal({
+      epicId: 201,
+      signal: { kind: 'manual', source: 'consumer' },
+      config: cfg,
+    });
+    const raw = await fs.readFile(
+      path.join(workRoot, 'epic-201', 'signals.ndjson'),
+      'utf8',
+    );
+    const parsed = JSON.parse(raw.trim());
+    assert.equal(parsed.source, 'consumer');
+  });
+
+  it('degrades to a swallowed warn when classifier accessor throws', async () => {
+    // Build a signal whose `failingPath` is a throwing getter. The
+    // writer's tagSignalSource MUST catch that (Tech Spec #2550: classifier
+    // failures degrade to Logger.warn and do not throw out of the writer).
+    // The returned status may be `false` because JSON.stringify also fails
+    // on the throwing getter, but `appendSignal` MUST NOT throw — that
+    // contract is the heart of the best-effort guarantee.
+    const exploding = { kind: 'getter-bomb' };
+    Object.defineProperty(exploding, 'failingPath', {
+      enumerable: true,
+      get() {
+        throw new Error('boom from getter');
+      },
+    });
+    // No throw is the assertion. Resolution to true/false is allowed —
+    // both are "best-effort". We just need the await to settle without
+    // propagating an exception out of the writer.
+    await assert.doesNotReject(async () => {
+      await appendSignal({
+        epicId: 300,
+        storyId: 301,
+        signal: exploding,
+        config: cfg,
+      });
+    });
+  });
+
+  it('passes through non-object signals (string/number) without tagging', async () => {
+    // The writer must not blow up if a detector posts a scalar (legacy
+    // shape). It just persists the value verbatim — no tag injection.
+    const ok = await appendSignal({
+      epicId: 400,
+      storyId: 401,
+      signal: 'just-a-string',
+      config: cfg,
+    });
+    assert.equal(ok, true);
+    const raw = await fs.readFile(signalsPath(400, 401), 'utf8');
+    assert.equal(raw, '"just-a-string"\n');
   });
 });
 
@@ -307,5 +464,105 @@ describe('signals-writer — forEachLine reader', () => {
     assert.equal(result.linesRead, 0);
     assert.equal(result.linesParsed, 0);
     assert.equal(result.missing, false);
+  });
+
+  // Story #2553 / Task #2559 — back-compat: forEachLine MUST yield
+  // records unchanged regardless of whether the `source` key is present.
+  // This is what guarantees pre-Story fixtures and brand-new framework
+  // signals coexist in the same stream without crashing readers.
+  it('yields records with the source field intact (Story #2553)', async () => {
+    const dir = path.dirname(signalsPath(1300, 1301));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1300, 1301);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', source: 'framework', id: 1 }),
+        JSON.stringify({ kind: 'friction', source: 'consumer', id: 2 }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    const result = await forEachLine(
+      1300,
+      1301,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(result.linesParsed, 2);
+    assert.equal(seen[0].source, 'framework');
+    assert.equal(seen[1].source, 'consumer');
+    // ID + kind survive verbatim.
+    assert.deepEqual(
+      seen.map((s) => s.id),
+      [1, 2],
+    );
+  });
+
+  it('yields records without the source field unchanged (Story #2553)', async () => {
+    // Legacy fixture — pre-Story-2553 records lack the `source` key.
+    // forEachLine MUST passthrough them without injecting anything.
+    const dir = path.dirname(signalsPath(1400, 1401));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1400, 1401);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', id: 1 }),
+        JSON.stringify({ kind: 'retry', id: 2 }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    await forEachLine(
+      1400,
+      1401,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(seen.length, 2);
+    assert.equal('source' in seen[0], false);
+    assert.equal('source' in seen[1], false);
+  });
+
+  it('yields a mixed stream (with and without source) unchanged (Story #2553)', async () => {
+    // Real-world transition shape: in-flight Stories may have a partial
+    // signals.ndjson that mixes legacy records with new source-tagged
+    // records depending on when the writer was deployed. forEachLine
+    // MUST walk this without complaint.
+    const dir = path.dirname(signalsPath(1500, 1501));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1500, 1501);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', id: 1 }), // legacy
+        JSON.stringify({ kind: 'friction', source: 'framework', id: 2 }),
+        JSON.stringify({ kind: 'friction', source: 'consumer', id: 3 }),
+        JSON.stringify({ kind: 'retry', id: 4 }), // legacy
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    const result = await forEachLine(
+      1500,
+      1501,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(result.linesParsed, 4);
+    assert.deepEqual(
+      seen.map((s) => s.source),
+      [undefined, 'framework', 'consumer', undefined],
+    );
   });
 });
