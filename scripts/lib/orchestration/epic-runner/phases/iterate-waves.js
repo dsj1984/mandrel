@@ -20,7 +20,6 @@ import { getRunners } from '../../../config/runners.js';
 import { AGENT_LABELS } from '../../../label-constants.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../../concurrency.js';
-import { STATE_LABELS } from '../../ticketing.js';
 import { createWaveSession } from '../../wave-session.js';
 import {
   emitEpicProgress,
@@ -132,7 +131,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     launcher,
     waveObserver,
     progressReporter,
-    syncColumn,
     journal,
     bus = null,
     waveSessionFactory = createWaveSession,
@@ -144,15 +142,10 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
 
   // Epic-level `agent::executing` flip is owned by the LabelTransitioner
   // lifecycle listener (subscribes to `epic.unblocked` on resume) and by
-  // the upstream dispatch surface that flips the Epic before runIterate-
-  // WavesPhase is reached on a cold start. The previous inline
-  // `transitionTicketState` call competed with that listener; removing it
-  // makes the listener the sole label mutator from the iterate-waves
-  // boundary (Epic #2306 AC: `phases/iterate-waves.js` contains zero
-  // `transitionTicketState` calls). The column-board sync below remains
-  // here because it is a runner-state mirror, not a label mutation.
-  await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
-
+  // the upstream dispatch surface that flips the Epic before this phase
+  // is reached on a cold start. The Projects v2 Status column is now
+  // synced inside `transitionTicketState` itself (Story #2548), so no
+  // explicit column-board mirror call is needed here.
   await epicRunStateStore.initialize({
     totalWaves: scheduler.totalWaves,
     concurrencyCap,
@@ -443,7 +436,11 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         storyId: firstFailure.storyId,
         detail: firstFailure.detail,
       };
-      await syncColumn(epicId, [AGENT_LABELS.BLOCKED]);
+      // Story #2548 — Projects v2 Status column is synced inside
+      // `transitionTicketState` itself; the bus cascade below triggers
+      // the LabelTransitioner listener whose flip to `agent::blocked`
+      // updates the column automatically. The previous inline
+      // `syncColumn` mirror is redundant.
       // Story #2241 / Task #2246 — emit `story.blocked` on the bus. The
       // lifecycle BlockerHandler listener (registered by the factory)
       // classifies it and cascades to `epic.blocked`; the
@@ -499,7 +496,9 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
           completionState: 'halted',
         };
       }
-      await syncColumn(epicId, [STATE_LABELS.EXECUTING]);
+      // Story #2548 — column sync is handled by `transitionTicketState`
+      // via the LabelTransitioner listener that reacts to
+      // `epic.unblocked`. No explicit mirror call needed here.
       // Story #2241 / Task #2246 — emit `epic.unblocked` once the
       // operator's resume is observed. The lifecycle BlockerHandler
       // listener clears its active-cascade tracker and the downstream
