@@ -388,7 +388,15 @@ Soften:
 ### 11. Lifecycle Bus and Ledger Should Stay
 
 **Status:** Keep
-**Action:** 🚀 Implement now (the simplification sublist only) — removing legacy emit shims, collapsing duplicate progress/comment writers, and generating event docs from schemas are pure hygiene wins. Core bus/ledger stays untouched.
+**Action:** Split. The **generate-event-docs-from-schemas** piece of the
+original simplification sublist landed under Epic #2645 (see "Implemented
+Since Audit"). The other two simplification items remain:
+- 🚀 **Implement now** — remove legacy emit shims once all runtime paths are
+  bus-native.
+- 🚀 **Implement now** — collapse duplicate progress/comment writers where
+  the event stream already contains the required data.
+
+Core bus/ledger stays untouched.
 
 **Primary paths:**
 
@@ -409,13 +417,6 @@ Keep:
 - Secret stripping before ledger writes.
 - Side-effect firewall and merge lockout lint.
 - Resume from durable lifecycle state.
-
-Potential simplification:
-
-- Remove legacy emit shims once all runtime paths are bus-native.
-- Collapse duplicate progress/comment writers where the event stream already
-  contains the required data.
-- Generate event documentation from schemas to avoid docs drift.
 
 ### 12. Worktree and Branch Isolation Still Matter
 
@@ -565,7 +566,10 @@ Recommendation:
 ### 16. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
-**Action:** 🚀 Implement now (docs cleanup) / 🔭 Monitor (relaxation) — removing stale docs that describe already-removed numeric limits (`maxInstructionSteps`, flat `friction.*`) as active config is an obvious docs-drift fix to do now. Further relaxation of per-turn FinOps rituals waits on future inference economics.
+**Action:** 🔭 Monitor — the docs-cleanup half (removing stale `maxInstructionSteps`
+references from active docs/personas) landed under Epic #2645; see "Implemented
+Since Audit" below. Further relaxation of per-turn FinOps rituals waits on
+future inference economics.
 
 **Primary paths:**
 
@@ -583,12 +587,9 @@ Recommendation:
 
 - Keep friction telemetry, but treat it as observability, not frequent control
   flow.
-- Prefer qualitative anti-thrashing guidance over numeric step limits. The code
-  already moved in this direction by dropping `maxInstructionSteps` and
-  `friction.*` from the surviving limits surface.
+- Prefer qualitative anti-thrashing guidance over numeric step limits.
 - Keep hard stops for destructive actions, security uncertainty, and external
   service failure.
-- Remove stale docs that still describe removed numeric limits as active config.
 - Relax per-turn FinOps rituals to job-level or run-level limits if future
   inference economics make the current webhook/threshold machinery noisy.
 
@@ -635,47 +636,6 @@ Recommendation:
   depending on consumer promises.
 - Keep schema versions and explicit migrations instead of silent shims.
 
-### 18. Docs Drift Is a Future-Model Risk
-
-**Status:** Fix / Reframe
-**Action:** 🚀 Implement now — stale docs are dangerous regardless of model strength (today's models follow them confidently too). All four originally observed drifts were still present as of 2026-05-19; fix them in a single pass and add the generated-from-schema tooling so they cannot regress.
-
-**Primary paths:**
-
-- `docs/configuration.md`
-- `docs/architecture.md`
-- `.agents/SDLC.md`
-- `.agents/workflows/*.md`
-- `.agentrc.json`
-- `.agents/schemas/agentrc.schema.json`
-
-Several docs describe older shapes or command names while newer files describe
-the current state. A 10x model will follow stale docs more confidently.
-
-Examples observed:
-
-- `docs/configuration.md` presents `agentSettings` / `orchestration` as the
-  top-level config shape, while `.agentrc.json` and the schema now use
-  `project`, `github`, `planning`, and `delivery`.
-- Some SDLC text still references `/agents-bootstrap-github`, while the README
-  points to `node .agents/scripts/bootstrap.js`.
-- `story-deliver.md` links to `epic-execute.md`, while the actual workflow file
-  is `epic-deliver.md`.
-- Some docs refer to Phase 6 as PR-open-and-stop, while current
-  `epic-deliver.md` describes Phase 7 watch, Phase 7.5 auto-merge, and Phase 8
-  cleanup.
-- `.agents/SDLC.md` still lists Phase 4 as code-review and Phase 5 as retro,
-  while `epic-deliver.md` has Phase 4 as audit, Phase 5 as code-review, Phase
-  6 as retro, and Phase 7 as finalize.
-
-Recommendation:
-
-- Generate config reference from `.agents/schemas/agentrc.schema.json`.
-- Generate lifecycle event tables from `.agents/schemas/lifecycle/`.
-- Add doc tests for command names and internal workflow links.
-- Mark historical workflow docs explicitly as archived when they no longer
-  match current runtime behavior.
-
 ## Implemented Since Audit
 
 Tracked here so the numbered list above stays focused on open work.
@@ -694,6 +654,39 @@ Tracked here so the numbered list above stays focused on open work.
   validation on Task paths and aec99d1c added Phase 7 cross-validation
   of Tech Spec against the codebase. Risk-based gate streamlining is
   still open.
+- ✅ **Finding #18 (Docs Drift Is a Future-Model Risk)** — Epic #2645
+  (commits 87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6,
+  eef564c1, 3e0273f6 on `epic/2645`). All four originally observed drifts
+  were fixed in a single pass: `docs/configuration.md` reconciled with the
+  live schema shape (b8068a8a, 1146e721); `/agents-bootstrap-github`
+  references retired in active docs (5b2077dd); `epic-execute.md` links
+  replaced with `epic-deliver.md` (8a3a28e2, 43b586a9); and
+  `.agents/SDLC.md` phase numbering reconciled with `epic-deliver.md`
+  (0b670212, f98ed1cf). Generated-from-schema tooling shipped to prevent
+  regression: `generate-config-docs.js` (e38b0501, 6460cbbd),
+  `generate-lifecycle-docs.js` (8016d0da, 87deb0c1), and
+  `check-doc-links.js` (a3d8b6d6, f3a43175), all wired into `npm run lint`
+  and CI via `docs:check` (eef564c1, 3e0273f6). No carve-outs — the entire
+  finding shipped.
+- 🟡 **Finding #16 partial (docs cleanup half)** — Epic #2645 (commits
+  87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6, eef564c1,
+  3e0273f6 on `epic/2645`). Stale `maxInstructionSteps` references were
+  removed from active docs and personas (00cb5190, f8d69bff) and the
+  generated-from-schema docs tooling above prevents recurrence. 🔭 The
+  Monitor half — further relaxation of per-turn FinOps rituals to
+  job/run-level limits — remains in the numbered list above; no carve-outs
+  beyond what the original finding already split as "Monitor".
+- 🟡 **Finding #11 partial (event-doc generation simplification)** — Epic
+  #2645 (commits 87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501,
+  a3d8b6d6, eef564c1, 3e0273f6 on `epic/2645`). `generate-lifecycle-docs.js`
+  now emits the lifecycle event table from `.agents/schemas/lifecycle/`
+  into a bounded region in `docs/LIFECYCLE.md` (87deb0c1, 8016d0da), wired
+  through `docs:check` so the docs cannot drift from the schemas
+  (eef564c1, 3e0273f6). 🚀 Carve-outs remaining (still in the numbered
+  list above): remove legacy emit shims once all runtime paths are
+  bus-native, and collapse duplicate progress/comment writers where the
+  event stream already contains the required data. The 🔭 Monitor halves
+  of Finding #11's "Keep" stance on the core bus/ledger are unchanged.
 
 ## Functionality Likely Obsolete With a 10x Model
 
