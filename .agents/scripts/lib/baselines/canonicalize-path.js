@@ -21,7 +21,7 @@
  * writer-boundary `assertCanonical` in `.agents/scripts/lib/baselines/path-canon.js`
  * is a separate concern and is not exported from this module.
  *
- * @module lib/baselines/canonicalize-path
+ * @module .agents/scripts/lib/baselines/canonicalize-path
  */
 
 /**

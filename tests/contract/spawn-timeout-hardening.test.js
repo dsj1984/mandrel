@@ -103,7 +103,7 @@ describe('format-autofix bounded timeout (Story #2165)', () => {
 // Story #2205 — the `baseline-refresh bounded timeout (Story #2165)`
 // tests have been retired. `runRefreshCommit` no longer spawns
 // `npm run <kind>:update`; the refresh runs in-process through
-// `refreshBaseline()` (lib/baselines/refresh-service.js). The
+// `refreshBaseline()` (.agents/scripts/lib/baselines/refresh-service.js). The
 // `REFRESH_TIMEOUT_EXIT_CODE` constant is still exported for callers
 // (and tests) that referenced the historical contract, but the
 // bounded-timeout wall no longer fires from this code path.

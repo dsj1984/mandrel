@@ -3,7 +3,7 @@ import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { canonicalizeBaselinePath } from '../../lib/baselines/canonicalize-path.js';
+import { canonicalizeBaselinePath } from '../../.agents/scripts/lib/baselines/canonicalize-path.js';
 
 // ---------------------------------------------------------------------------
 // canonicalize-path-fixture.test.js — cross-platform determinism snapshot

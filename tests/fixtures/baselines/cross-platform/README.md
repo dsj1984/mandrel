@@ -4,7 +4,7 @@ Fixture corpus for Story #2192 (Epic #2173 — Unified Baseline Refresh
 Service). The downstream determinism test
 (`tests/baselines/canonicalize-path-fixture.test.js`) walks this directory
 deterministically and feeds every discovered relative path through
-[`canonicalizeBaselinePath()`](../../../../lib/baselines/canonicalize-path.js)
+[`canonicalizeBaselinePath()`](../../../../.agents/scripts/lib/baselines/canonicalize-path.js)
 to assert that the emitted POSIX key list is byte-identical on Windows
 and Linux CI.
 

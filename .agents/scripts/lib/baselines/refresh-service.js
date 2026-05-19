@@ -66,17 +66,17 @@
  *         for-byte (Task #2209).
  *   AC-7: All persisted paths go through canonicalizeBaselinePath().
  *
- * @module lib/baselines/refresh-service
+ * @module .agents/scripts/lib/baselines/refresh-service
  */
 
 import { execFile as nodeExecFile } from 'node:child_process';
 import nodeFs from 'node:fs';
 import { promisify } from 'node:util';
+import { canonicalizeBaselinePath } from './canonicalize-path.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
-} from '../../.agents/scripts/lib/baselines/writer.js';
-import { canonicalizeBaselinePath } from './canonicalize-path.js';
+} from './writer.js';
 
 const execFileAsync = promisify(nodeExecFile);
 

@@ -24,7 +24,7 @@ import {
   deriveScopeFromDiff,
   fileFilterFor,
   refreshBaseline,
-} from '../../lib/baselines/refresh-service.js';
+} from '../../.agents/scripts/lib/baselines/refresh-service.js';
 
 const FIXED = '2026-05-15T00:00:00Z';
 

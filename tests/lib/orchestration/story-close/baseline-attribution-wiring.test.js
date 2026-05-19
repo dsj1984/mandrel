@@ -15,7 +15,7 @@ import { renderBaselineFrictionBody } from '../../../../.agents/scripts/lib/orch
  * commit-hygiene contract:
  *
  *   - Refresh path flows through `refreshBaseline()` from
- *     `lib/baselines/refresh-service.js`. No `npm run …:update` shell-out.
+ *     `.agents/scripts/lib/baselines/refresh-service.js`. No `npm run …:update` shell-out.
  *   - Post-refresh hygiene: stage + `git diff --cached --exit-code`,
  *     then either skip (empty diff) or emit one canonical
  *     `chore(baselines): refresh <kind> for story-<id>` commit.
