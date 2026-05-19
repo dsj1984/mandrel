@@ -135,6 +135,77 @@ export function describeAttemptFailure(result, timeoutMs) {
   return `exit ${result.status}`;
 }
 
+/** Relative path of the per-machine pnpm-store prime sentinel (under tempRoot). */
+export const PNPM_STORE_PRIME_SENTINEL = path.join(
+  'temp',
+  '.pnpm-store-primed',
+);
+
+/**
+ * Pure: one-time per-machine pnpm content-addressable-store prime.
+ *
+ * The `pnpm-store` strategy relies on a hydrated shared store. On a cold
+ * machine the first `pnpm install --frozen-lockfile` inside a worktree races
+ * other workers, and the per-tree retries can all hit the same un-populated
+ * store and exhaust without any single attempt succeeding. Priming the store
+ * once at `repoRoot` (where the lockfile lives) before any worktree install
+ * eliminates that class of transient failure.
+ *
+ * The sentinel is a zero-byte file under `<repoRoot>/temp/`. The directory
+ * lives outside Git (the project's standard scratch root) so the sentinel
+ * persists across worktrees on the same machine but never ships to commits.
+ *
+ * No-op for strategies other than `pnpm-store`.
+ *
+ * @returns {{ primed: 'primed' | 'cached' | 'failed' | 'skipped', reason?: string }}
+ */
+export function primePnpmStore({
+  strategy,
+  repoRoot,
+  logger,
+  spawnFn = spawnSync,
+  fsLike = fs,
+  shell = process.platform === 'win32',
+}) {
+  if (strategy !== 'pnpm-store') {
+    return { primed: 'skipped', reason: 'strategy-not-pnpm-store' };
+  }
+  const sentinelPath = path.join(repoRoot, PNPM_STORE_PRIME_SENTINEL);
+  if (fsLike.existsSync(sentinelPath)) {
+    logger.info(`worktree.install prime skipped (sentinel ${sentinelPath})`);
+    return { primed: 'cached', reason: 'sentinel-present' };
+  }
+  logger.info(
+    `worktree.install priming pnpm content-addressable store at ${repoRoot} (sentinel missing)`,
+  );
+  const result = spawnFn('pnpm', ['install', '--frozen-lockfile'], {
+    cwd: repoRoot,
+    stdio: 'pipe',
+    encoding: 'utf-8',
+    shell,
+    timeout: 600_000,
+  });
+  if (result.status !== 0) {
+    logger.warn(
+      `worktree.install prime FAILED (${describeAttemptFailure(result, 600_000)}) stderr=${(result.stderr ?? '').slice(0, 500)}`,
+    );
+    return { primed: 'failed', reason: 'prime-command-nonzero' };
+  }
+  try {
+    fsLike.mkdirSync(path.dirname(sentinelPath), { recursive: true });
+    fsLike.writeFileSync(sentinelPath, '');
+  } catch (err) {
+    logger.warn(
+      `worktree.install prime succeeded but sentinel write failed: ${err.message}`,
+    );
+    return { primed: 'failed', reason: 'sentinel-write-failed' };
+  }
+  logger.info(
+    `worktree.install prime succeeded (sentinel written ${sentinelPath})`,
+  );
+  return { primed: 'primed' };
+}
+
 /**
  * Run the package-manager install with the configured retry policy. Pure
  * w.r.t. `spawnFn` + `sleepFn` — the CLI wires real ones; tests inject stubs.
@@ -206,9 +277,13 @@ export function runInstallWithRetry({
  */
 function verifyInstallOutcome(ctx, wtPath, selection, run, policy) {
   if (!run.ok) {
-    ctx.logger.warn(
-      `worktree.install FAILED after ${policy.maxAttempts} attempt(s). ` +
-        'Agent will need to run install manually in the worktree.',
+    const errFn = ctx.logger.error ?? ctx.logger.warn;
+    errFn.call(
+      ctx.logger,
+      `worktree.install FAILED after ${policy.maxAttempts} attempt(s) of ` +
+        `${selection.cmd} ${selection.args.join(' ')} in ${wtPath}. ` +
+        `Recovery: cd "${wtPath}" ; npm ci  ` +
+        '(falls back to the npm install path; resolve any underlying registry/network issue first).',
     );
     return { status: 'failed', reason: 'install-command-nonzero' };
   }
@@ -234,6 +309,18 @@ export function installDependencies(ctx, wtPath) {
   const selection = selectInstallCommand(strategy, wtPath);
   if (selection === null) {
     return { status: 'skipped', reason: 'no-package-json' };
+  }
+  // Prime the pnpm content-addressable store once per machine before the
+  // worktree's own install runs. No-op for non-pnpm-store strategies. Prime
+  // failures are surfaced as warnings but do not short-circuit the install —
+  // the retry ladder below still gets its full budget of attempts.
+  if (strategy === 'pnpm-store' && ctx.repoRoot) {
+    primePnpmStore({
+      strategy,
+      repoRoot: ctx.repoRoot,
+      logger: ctx.logger,
+      shell: ctx.platform === 'win32',
+    });
   }
   const policy = installRetryPolicy(selection.cmd);
   const run = runInstallWithRetry({
