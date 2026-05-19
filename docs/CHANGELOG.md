@@ -185,6 +185,14 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.24.0](https://github.com/dsj1984/mandrel/compare/v1.23.0...v1.24.0) (2026-05-19)
+
+
+### Added
+
+* **close:** sync story/epic branch from base before PR open ([#2581](https://github.com/dsj1984/mandrel/issues/2581)) ([1026c86](https://github.com/dsj1984/mandrel/commit/1026c86759de7f1319c2d173773cb35fedbe4da6)), closes [#2580](https://github.com/dsj1984/mandrel/issues/2580)
+* **workflows:** add /audit-to-stories — convert audit MD findings into actionable GitHub Stories ([#2583](https://github.com/dsj1984/mandrel/issues/2583)) ([#2585](https://github.com/dsj1984/mandrel/issues/2585)) ([e4ab422](https://github.com/dsj1984/mandrel/commit/e4ab4227c84b825f259b8682c95a285baafe08b3))
+
 ## [1.23.0](https://github.com/dsj1984/mandrel/compare/v1.22.0...v1.23.0) (2026-05-19)
 
 
