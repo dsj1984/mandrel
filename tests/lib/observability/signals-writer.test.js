@@ -465,4 +465,104 @@ describe('signals-writer — forEachLine reader', () => {
     assert.equal(result.linesParsed, 0);
     assert.equal(result.missing, false);
   });
+
+  // Story #2553 / Task #2559 — back-compat: forEachLine MUST yield
+  // records unchanged regardless of whether the `source` key is present.
+  // This is what guarantees pre-Story fixtures and brand-new framework
+  // signals coexist in the same stream without crashing readers.
+  it('yields records with the source field intact (Story #2553)', async () => {
+    const dir = path.dirname(signalsPath(1300, 1301));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1300, 1301);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', source: 'framework', id: 1 }),
+        JSON.stringify({ kind: 'friction', source: 'consumer', id: 2 }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    const result = await forEachLine(
+      1300,
+      1301,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(result.linesParsed, 2);
+    assert.equal(seen[0].source, 'framework');
+    assert.equal(seen[1].source, 'consumer');
+    // ID + kind survive verbatim.
+    assert.deepEqual(
+      seen.map((s) => s.id),
+      [1, 2],
+    );
+  });
+
+  it('yields records without the source field unchanged (Story #2553)', async () => {
+    // Legacy fixture — pre-Story-2553 records lack the `source` key.
+    // forEachLine MUST passthrough them without injecting anything.
+    const dir = path.dirname(signalsPath(1400, 1401));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1400, 1401);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', id: 1 }),
+        JSON.stringify({ kind: 'retry', id: 2 }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    await forEachLine(
+      1400,
+      1401,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(seen.length, 2);
+    assert.equal('source' in seen[0], false);
+    assert.equal('source' in seen[1], false);
+  });
+
+  it('yields a mixed stream (with and without source) unchanged (Story #2553)', async () => {
+    // Real-world transition shape: in-flight Stories may have a partial
+    // signals.ndjson that mixes legacy records with new source-tagged
+    // records depending on when the writer was deployed. forEachLine
+    // MUST walk this without complaint.
+    const dir = path.dirname(signalsPath(1500, 1501));
+    await fs.mkdir(dir, { recursive: true });
+    const target = signalsPath(1500, 1501);
+    await fs.writeFile(
+      target,
+      [
+        JSON.stringify({ kind: 'friction', id: 1 }), // legacy
+        JSON.stringify({ kind: 'friction', source: 'framework', id: 2 }),
+        JSON.stringify({ kind: 'friction', source: 'consumer', id: 3 }),
+        JSON.stringify({ kind: 'retry', id: 4 }), // legacy
+      ].join('\n') + '\n',
+      'utf8',
+    );
+
+    const seen = [];
+    const result = await forEachLine(
+      1500,
+      1501,
+      (parsed) => {
+        seen.push(parsed);
+      },
+      cfg,
+    );
+    assert.equal(result.linesParsed, 4);
+    assert.deepEqual(
+      seen.map((s) => s.source),
+      [undefined, 'framework', 'consumer', undefined],
+    );
+  });
 });
