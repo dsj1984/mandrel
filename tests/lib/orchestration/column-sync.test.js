@@ -4,7 +4,7 @@ import { describe, it } from 'node:test';
 import {
   ColumnSync,
   columnForLabels,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/column-sync.js';
+} from '../../../.agents/scripts/lib/orchestration/column-sync.js';
 
 describe('columnForLabels', () => {
   it('maps agent lifecycle labels to board columns', () => {

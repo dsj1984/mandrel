@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { ColumnSync } from '../../.agents/scripts/lib/orchestration/epic-runner/column-sync.js';
+import { ColumnSync } from '../../.agents/scripts/lib/orchestration/column-sync.js';
 
 /**
  * Tech spec #443 §1.1 regression guard: GitHub's GraphQL server rejects any
