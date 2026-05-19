@@ -160,8 +160,8 @@ async function reduceResults({
  *      without bloating the GitHub comment surface.
  *
  * Substitutions: callers may pass a `substitutions` map of `{{key}}` → value
- * pairs. Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch)
- * plus any `substitutionKeys` declared on the requested audits in
+ * pairs. Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch,
+ * changedFiles) plus any `substitutionKeys` declared on the requested audits in
  * audit-rules.json, aggregated across auditWorkflows. Unknown keys
  * raise a ValidationError.
  *
