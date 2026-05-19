@@ -24,6 +24,7 @@
  *     reason: 'no-bdd-runner-detected' }
  */
 
+import { existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -133,4 +134,46 @@ export async function verifyBddRunnerPendingTag(opts = {}) {
   }
 
   return { ...FALLBACK };
+}
+
+/**
+ * Canonical directories a project might use to house `.feature` files.
+ * Probed in order; the first existing directory wins. The list is
+ * deliberately short — projects that house features elsewhere will need
+ * to land an explicit config surface for it, which Story #2637 leaves
+ * out of scope.
+ */
+const CANONICAL_FEATURE_ROOTS = Object.freeze([
+  'tests/features',
+  'features',
+  'test/features',
+]);
+
+/**
+ * Resolve the project's BDD feature roots — absolute paths to every
+ * canonical directory that exists under `cwd`. Returns an empty array
+ * when no feature directory is present (the project has not adopted
+ * BDD), so downstream scanners can degrade silently to "no scenarios".
+ *
+ * Story #2637 — the Phase 7 BDD-scenario scanner consumes this so the
+ * planner can cross-reference acceptance criteria against existing
+ * scenarios without introducing a new config key.
+ *
+ * @param {{ cwd?: string }} [opts]
+ * @returns {string[]} Absolute paths to existing feature roots.
+ */
+export function resolveFeatureRoots(opts = {}) {
+  const cwd = opts.cwd ?? process.cwd();
+  const roots = [];
+  for (const candidate of CANONICAL_FEATURE_ROOTS) {
+    const abs = path.join(cwd, candidate);
+    try {
+      if (existsSync(abs) && statSync(abs).isDirectory()) {
+        roots.push(abs);
+      }
+    } catch (_err) {
+      // Unreadable path → treat as absent. Non-blocking by design.
+    }
+  }
+  return roots;
 }

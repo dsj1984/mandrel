@@ -54,6 +54,13 @@ reads:
     `.feature` files with that exact tag. When `fallback: true`, render
     `"Fallback: dependencies-first ordering"` and omit the pending-tag
     line — Phase 8 reverts to topological ordering.
+  - `bddScenarios` — Story #2637 scenario index for the project's
+    existing `.feature` files. Each row is
+    `{ file, line, scenarioTitle, tags, outcomeKeywords }`. Empty array
+    means the project has not adopted BDD; degrade silently and proceed
+    as before. Non-empty means the Acceptance Engineer step MUST run
+    `findBestScenarioMatch` for each planned AC and annotate the
+    Disposition column accordingly (see Step 4).
 
 ## Outputs
 
@@ -141,8 +148,23 @@ CRITICAL REQUIREMENTS:
 ### Step 4 — Author the Acceptance Spec (Acceptance Engineer persona)
 
 Apply the Acceptance Spec system prompt below to the PRD + Tech Spec just
-written. Write to `temp/epic-<Epic_ID>/acceptance-spec.md`. The Acceptance
-Spec MUST:
+written, plus the **existing BDD scenario index** from
+`bddScenarios` on the planner-context envelope (Story #2637). The
+scenario index is the output of
+[`lib/bdd-scenario-scanner.js#scanBddScenarios`](../../scripts/lib/bdd-scenario-scanner.js)
+and carries one row per `.feature` scenario found under the project's
+canonical BDD roots, with `{ file, line, scenarioTitle, tags,
+outcomeKeywords }`. Before emitting each AC row, run
+`findBestScenarioMatch(<AC outcome>, bddScenarios)`: when a match is
+found, annotate the AC's `Scenario` column with `<file>:L<line>` and
+set `Disposition` to `unchanged` (carried through verbatim) or
+`refined` (Outcome wording adjusted but the scenario already covers the
+behaviour) — never `new` for an AC whose outcome is already proven by
+an existing scenario. When `bddScenarios` is empty (the project has not
+adopted BDD), proceed exactly as before with no annotation.
+
+Write to `temp/epic-<Epic_ID>/acceptance-spec.md`. The Acceptance Spec
+MUST:
 
 - Start with `## Acceptance Criteria` — never a top-level `#` heading.
 - Render the AC table with the canonical column shape documented in Tech
