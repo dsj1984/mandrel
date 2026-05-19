@@ -9,8 +9,18 @@ import {
   CONTEXT_LABELS,
   isValidTransition,
   LABEL_COLORS,
+  META_LABELS,
   VALID_TRANSITIONS,
 } from '../../.agents/scripts/lib/label-constants.js';
+
+// ── Story #2554 — meta-axis labels for retrospective signal routing ─────
+test('META_LABELS.FRAMEWORK_GAP equals "meta::framework-gap"', () => {
+  assert.equal(META_LABELS.FRAMEWORK_GAP, 'meta::framework-gap');
+});
+
+test('META_LABELS.CONSUMER_IMPROVEMENT equals "meta::consumer-improvement"', () => {
+  assert.equal(META_LABELS.CONSUMER_IMPROVEMENT, 'meta::consumer-improvement');
+});
 
 test('CONTEXT_LABELS.ACCEPTANCE_SPEC equals "context::acceptance-spec"', () => {
   assert.equal(CONTEXT_LABELS.ACCEPTANCE_SPEC, 'context::acceptance-spec');

@@ -138,7 +138,10 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
 
   const result = await runGh({ ghPath, args, spawnImpl });
 
-  if (result.spawnError || (typeof result.code === 'number' && result.code !== 0)) {
+  if (
+    result.spawnError ||
+    (typeof result.code === 'number' && result.code !== 0)
+  ) {
     return { issues: [], error: formatGhError(label, result) };
   }
 
@@ -150,9 +153,7 @@ async function fetchByLabel({ owner, repo, label, ghPath, limit, spawnImpl }) {
         error: `gh issue list returned non-array JSON for label "${label}"`,
       };
     }
-    const issues = parsed
-      .map(normalizeIssue)
-      .filter((issue) => issue !== null);
+    const issues = parsed.map(normalizeIssue).filter((issue) => issue !== null);
     return { issues, error: null };
   } catch (err) {
     return {
