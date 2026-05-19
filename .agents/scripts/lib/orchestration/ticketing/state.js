@@ -23,12 +23,13 @@ import {
   renderTransitionMessage,
 } from '../../notifications/notifier.js';
 import { ColumnSync } from '../column-sync.js';
-// Story #1848 — `cascadeCompletion` + `logCascadePartialFailures` live
-// in `./bulk.js`. The ESM cycle between state.js ↔ bulk.js is safe
-// because neither side dereferences the imported bindings at module-
-// evaluation time — both are invoked at call-time once the cycle has
-// fully resolved.
-import { cascadeCompletion, logCascadePartialFailures } from './bulk.js';
+// Story #1848 — cascade primitives live in `./bulk.js`. The ESM cycle
+// between state.js ↔ bulk.js is safe because neither side dereferences
+// the imported bindings at module-evaluation time — both are invoked at
+// call-time once the cycle has fully resolved. Story #2676 — the entry
+// point for upward propagation is now `cascadeParentState`, which
+// delegates `agent::done` transitions to `cascadeCompletion` internally.
+import { cascadeParentState, logCascadePartialFailures } from './bulk.js';
 import {
   ALL_STATES,
   assertValidStructuredCommentType,
@@ -259,17 +260,25 @@ export async function transitionTicketState(
   // column. Best-effort; never blocks the transition.
   await syncProjectStatusColumn(provider, ticketId, newState);
 
-  // Automatically trigger upward cascade when a ticket is completed.
-  // This ensures parents (Stories, Features) close as soon as their last
-  // child is marked done. Per-parent failures are aggregated by
-  // `cascadeCompletion`; surface any to the operator so a partial close
-  // doesn't look like a clean one. Callers that close a child while the
-  // parent's "done" precondition is something other than "all children
-  // done" (notably `story-task-progress.js`, which closes Tasks at
-  // commit-time but defers the Story flip to story-close after the
-  // branch is merged) opt out by passing `cascade: false`.
-  if (isDone && opts.cascade !== false) {
-    const cascade = await cascadeCompletion(provider, ticketId, {
+  // Automatically trigger upward cascade on every transition (Story
+  // #2676). The unified entry point is `cascadeParentState`, which:
+  //   - delegates `agent::done` transitions to the legacy
+  //     `cascadeCompletion` (preserving tasklist-checkbox toggling, the
+  //     "All child tickets completed" progress comment, and the Epic
+  //     close-exclusion);
+  //   - for every other `agent::*` transition (`executing`, `blocked`,
+  //     `closing`, …) walks the parent chain and updates each parent to
+  //     the state derived from its children's current composition. This
+  //     keeps the GitHub Project board accurate when work begins on a
+  //     Task ("In Progress" surfaces up to the Story and Epic) or when a
+  //     child enters the HITL pause state.
+  //
+  // Callers that intentionally suppress propagation (notably
+  // `story-task-progress.js`, which closes Tasks at commit-time but
+  // defers the Story flip to story-close after the branch is merged)
+  // opt out by passing `cascade: false`.
+  if (opts.cascade !== false) {
+    const cascade = await cascadeParentState(provider, ticketId, {
       notify: opts.notify,
     });
     logCascadePartialFailures(ticketId, cascade);
