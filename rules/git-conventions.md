@@ -57,6 +57,35 @@ rejected by `pre-push` hooks):
     other hook-skipping flags unless the operator explicitly authorizes it.
     If a hook fails, investigate the underlying cause.
 
+## Meta Labels (Retrospective Signal Routing)
+
+Two `meta::*` labels route retrospective signals into durable substrates so
+the `/epic-plan` Phase 0 fetcher (see
+[`prior-feedback-fetcher.js`](../scripts/lib/feedback-loop/prior-feedback-fetcher.js))
+can surface open feedback issues to the planner. Both labels live in
+[`label-constants.js`](../scripts/lib/label-constants.js) under the
+`META_LABELS` export — reference them by symbol from scripts rather than
+hard-coding the string.
+
+### `meta::framework-gap`
+
+Apply this label to a GitHub issue that surfaces a defect, missing
+capability, or weak ergonomic in the **framework itself** (anything under
+`.agents/` or the dispatcher engine). Typical sources: a retrospective that
+identifies a workflow that does not yet exist, a hook that should fire but
+does not, or a script-level usability problem that should be solved
+upstream rather than worked around in a consumer project.
+
+### `meta::consumer-improvement`
+
+Apply this label to a GitHub issue that surfaces an improvement that lives
+in a **consumer project** (workflow tweaks, ergonomic asks, doc polish, or
+project-local automation). The work is scoped to the consumer's
+`.agents/`-driven layer or the consumer's own codebase, not to upstream
+framework changes. Issues that span both axes should carry both labels —
+`fetchPriorFeedback` dedupes by issue number so a dual-labeled issue
+appears exactly once in the planner context.
+
 ## Pull Requests
 
 - Never commit `.env` or hardcoded secrets.

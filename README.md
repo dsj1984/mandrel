@@ -386,6 +386,36 @@ Schema conventions:
 
 ---
 
+## Feedback loop — code-review auto-graduation
+
+When the Epic finalize listener runs, non-blocking code-review findings
+(severity `high`, `medium`, or `low`) that survived merge are
+auto-graduated into follow-up issues, routed by source classification
+into the framework repo or the consumer repo. The toggle lives at
+`delivery.feedbackLoop.codeReviewAutoFile` and defaults to `true`.
+
+To opt out (for example, to triage findings manually during a
+stabilization window), set the toggle to `false` in your root
+`.agentrc.json`:
+
+```json
+{
+  "delivery": {
+    "feedbackLoop": {
+      "codeReviewAutoFile": false
+    }
+  }
+}
+```
+
+When disabled, the listener short-circuits and leaves the structured
+`code-review` comments on the Epic ticket untouched. Re-enabling the
+toggle is safe: the graduator embeds an idempotency marker
+(`<!-- code-review-followup: epic-<id>-finding-<idx> -->`) in each filed
+issue body, so re-runs skip findings that already have an issue.
+
+---
+
 ## Worktree dependency strategies
 
 When `delivery.worktreeIsolation.enabled` is `true`, each Story runs in
