@@ -185,6 +185,20 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.23.0](https://github.com/dsj1984/mandrel/compare/v1.22.0...v1.23.0) (2026-05-19)
+
+
+### Added
+
+* **column-sync:** wire Projects v2 Status sync into transitionTicketState (resolves [#2548](https://github.com/dsj1984/mandrel/issues/2548)) ([#2575](https://github.com/dsj1984/mandrel/issues/2575)) ([5457ca7](https://github.com/dsj1984/mandrel/commit/5457ca7c39a31d8c6d9a80091597364c893785cb))
+
+
+### Fixed
+
+* **baselines/writer:** project legacy prior rows through projectRow at writer entry ([#2578](https://github.com/dsj1984/mandrel/issues/2578)) ([a106457](https://github.com/dsj1984/mandrel/commit/a1064577334a0cc4a901500f7888dd18b9fb6e29)), closes [#2574](https://github.com/dsj1984/mandrel/issues/2574)
+* **baselines:** ship refresh-service.js inside .agents/ bundle ([#2579](https://github.com/dsj1984/mandrel/issues/2579)) ([e27c109](https://github.com/dsj1984/mandrel/commit/e27c109597485301f9f7d6597c8e5e81b725c8a2)), closes [#2572](https://github.com/dsj1984/mandrel/issues/2572)
+* **full-agentrc:** correct floor axis keys to match v2 envelopes ([#2577](https://github.com/dsj1984/mandrel/issues/2577)) ([bdb90d7](https://github.com/dsj1984/mandrel/commit/bdb90d781c3d4658fe6f720a208db328b5aa5a17)), closes [#2573](https://github.com/dsj1984/mandrel/issues/2573)
+
 ## [1.22.0](https://github.com/dsj1984/mandrel/compare/v1.21.0...v1.22.0) (2026-05-18)
 
 
