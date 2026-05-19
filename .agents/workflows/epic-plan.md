@@ -345,7 +345,33 @@ for the scoring logic.
      NOT proceed to decomposition until the user confirms the plan is
      accurate.
 
-5. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
+5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
+   is created, `epic-plan-spec.js` runs
+   [`validateSpecFreshness`](../scripts/lib/orchestration/spec-freshness.js)
+   against the authored Tech Spec body, probing every cited path-shape
+   reference (backticked paths, `// header` lines in code blocks, and
+   inline mentions of paths under `.agents/`, `src/`, `lib/`, `app/`,
+   `tests/`, `packages/`, `scripts/`, `docs/`) against the configured
+   `baseBranch`. Results land in three buckets:
+   - **fresh** — path exists at the base ref (no action).
+   - **ambiguous** — path is absent but surrounding prose carries a
+     net-new cue (`introduce`, `add`, `create`, `new file`, `to be
+     created`, etc.); surfaced for review without alarm.
+   - **stale** — path is absent and no net-new cue is nearby; likely a
+     reference the Architect inherited from drift-stale docs.
+
+   When ≥1 stale reference is detected, a `spec-freshness` structured
+   comment is upserted on the Tech Spec issue listing each citation
+   with its line number. The full report is also written to
+   `<tempRoot>/epic-<id>-spec-freshness.json` for downstream tooling.
+   The check is **advisory and non-blocking** — Phase 7 completes even
+   when stale references are present, so the operator retains final
+   judgment on edge cases. If the run summary shows
+   `⚠️ Spec freshness: N stale / M ambiguous`, review the Tech Spec
+   issue's `spec-freshness` comment and correct the cited spec body
+   before approving the plan for Phase 8.
+
+6. **Cleanup**: The wrapper script (`epic-plan-spec.js`) deletes the Phase 7
    temp files automatically on success — no operator action required. The
    cleanup contract lives in
    [`lib/plan-phase-cleanup.js`](../scripts/lib/plan-phase-cleanup.js).
