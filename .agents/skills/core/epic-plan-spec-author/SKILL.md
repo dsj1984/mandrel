@@ -43,6 +43,16 @@ reads:
   - `docsContext.items[]` — bounded project docs scraped from the configured
     `docsRoot` (start with these for "how does the codebase do X today?"
     context; the validator already capped their size)
+  - `codebaseSnapshot` — Story #2634 structural view of the consumer repo
+    (file tree, `package.json` exports + scripts, recently-touched
+    directories, detected test runner + BDD feature roots, and — at the
+    `medium` tier — per-file export signatures). Prefer module / file
+    names that appear in this snapshot over names that appear only in
+    `docsContext.items[]`; the docs may be stale relative to the actual
+    source tree. When the spec needs to cite a file that is **not** in
+    `codebaseSnapshot.files`, surface that as a `<!-- DRIFT -->` callout
+    in the Tech Spec body naming the cited path, so the freshness gate
+    (Story #2635) has prose context for the operator to read.
   - `systemPrompts.prd`, `systemPrompts.techSpec`, and
     `systemPrompts.acceptanceSpec` — left in the envelope as a backstop;
     this Skill's own body below carries the authoritative versions and is
@@ -115,10 +125,12 @@ CRITICAL REQUIREMENTS:
 
 ### Step 3 — Author the Tech Spec (Engineering Architect persona)
 
-Apply the Tech Spec system prompt below to the PRD just written + the
-`docsContext` items (so the spec is grounded in the actual codebase, not
-hallucinated patterns). Write to `temp/epic-<Epic_ID>/techspec.md`. The Tech
-Spec MUST:
+Apply the Tech Spec system prompt below to the PRD just written, the
+`docsContext` items, and the `codebaseSnapshot` envelope (so the spec is
+grounded in the actual codebase, not hallucinated patterns). Cite module
+and file names from `codebaseSnapshot.files` / `codebaseSnapshot.signatures`
+before reaching for names that appear only in the documentation. Write to
+`temp/epic-<Epic_ID>/techspec.md`. The Tech Spec MUST:
 
 - Start with `## Technical Overview` — never a top-level `#` heading.
 - Cover Architecture & Design, Data Models (if any), API Changes (if any),
