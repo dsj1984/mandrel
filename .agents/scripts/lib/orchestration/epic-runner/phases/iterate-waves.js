@@ -184,15 +184,12 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     blockerWait,
     launcher,
     commitAssertion,
-    progressReporter,
     journal,
     bus = null,
     waveSessionFactory = createWaveSession,
   } = collaborators;
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const { scheduler, waves, epic } = state;
-
-  progressReporter.setPlan({ waves });
 
   // Epic-level `agent::executing` flip is owned by the LabelTransitioner
   // lifecycle listener (subscribes to `epic.unblocked` on resume) and by
@@ -256,14 +253,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       `[EpicRunner] Wave ${wave.index + 1}/${scheduler.totalWaves} dispatching ${wave.stories.length} stor${wave.stories.length === 1 ? 'y' : 'ies'}`,
     );
     const startedAt = new Date().toISOString();
-
-    progressReporter.setWave({
-      index: wave.index,
-      totalWaves: scheduler.totalWaves,
-      stories: wave.stories,
-      startedAt,
-    });
-    progressReporter.start();
 
     // Short-circuit stories that are already `agent::done` on resume.
     // Without this, the runner re-dispatches every Story in every wave after
@@ -406,7 +395,6 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         : [];
       launchResults = [...skippedResults, ...spawned];
     }
-    await progressReporter.stop();
 
     scheduler.markWaveComplete(wave.index);
     // Epic #2646 Story C — commit-assertion reclassification used to
