@@ -126,6 +126,14 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
       'CheckpointPointerWriter',
     ]);
 
+    // Pinning the array length protects future readers from a silent
+    // listener addition that bypasses the canonical roster contract.
+    assert.equal(
+      chain.order.length,
+      8,
+      'full-roster chain has exactly eight named registrations',
+    );
+
     // Every named listener is constructed and exposed for tests.
     assert.ok(chain.ledgerWriter, 'ledgerWriter constructed');
     assert.ok(chain.acceptanceReconciler, 'acceptanceReconciler constructed');
@@ -157,6 +165,56 @@ describe('buildDefaultListenerChain — registration order (full roster)', () =>
       closeEndListeners.length >= 1,
       'at least one named listener on epic.close.end',
     );
+  });
+});
+
+describe('buildDefaultListenerChain — full roster with provider + checkpointer + config', () => {
+  it('subscribes all eight canonical listeners and forwards config to AcceptanceReconciler', async () => {
+    const bus = new Bus();
+    // Synthetic resolved-config wrapper that mirrors the post-reshape
+    // shape returned by `resolveConfig()`. The reconciler only reads
+    // through `injectedConfig`; we just need a recognisable object.
+    const fakeConfig = {
+      project: { paths: { tempRoot: 'temp' } },
+      orchestration: { provider: 'github' },
+      __tag: 'fake-config',
+    };
+    const chain = await buildDefaultListenerChain({
+      bus,
+      ledgerPath: path.join('temp', 'epic-2527', 'lifecycle.ndjson'),
+      repoRoot: process.cwd(),
+      provider: fakeProvider,
+      checkpointer: fakeCheckpointer,
+      config: fakeConfig,
+      logger: quietLogger(),
+    });
+
+    // All eight canonical listeners subscribe, in canonical order, when
+    // provider + checkpointer + config are all supplied — the
+    // `buildDefaultListenerChain` "full roster" contract from Story
+    // #2531 (Epic #2527).
+    assert.deepEqual(chain.order, [
+      'LedgerWriter',
+      'AcceptanceReconciler',
+      'Finalizer',
+      'AutomergeArmer',
+      'AutomergePredicate',
+      'BranchCleaner',
+      'Cleaner',
+      'CheckpointPointerWriter',
+    ]);
+    assert.equal(chain.order.length, 8);
+
+    // The reconciler stored the injected config for its downstream
+    // `reconcileAcceptanceSpec` call; assert the reference threaded
+    // through so the production caller's `resolveConfig()` result
+    // actually reaches the reconciler.
+    assert.strictEqual(chain.acceptanceReconciler.config, fakeConfig);
+    assert.strictEqual(chain.acceptanceReconciler.provider, fakeProvider);
+    // BranchCleaner received the injected checkpointer.
+    assert.strictEqual(chain.branchCleaner.checkpointer, fakeCheckpointer);
+    // AutomergePredicate received the injected provider.
+    assert.strictEqual(chain.automergePredicate.provider, fakeProvider);
   });
 });
 
