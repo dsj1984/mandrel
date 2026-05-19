@@ -9,7 +9,7 @@
  *
  * The contract that makes this possible is that both code paths now
  * funnel through `refreshBaseline({ kind: 'maintainability' })` from
- * `lib/baselines/refresh-service.js`:
+ * `.agents/scripts/lib/baselines/refresh-service.js`:
  *
  *   - The manual CLI (Task #2215) imports `refreshBaseline` directly and
  *     forwards the operator's scope flags.
@@ -46,7 +46,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { refreshBaseline } from '../../lib/baselines/refresh-service.js';
+import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 
 const FIXED_GENERATED_AT = '2026-05-15T00:00:00Z';
 

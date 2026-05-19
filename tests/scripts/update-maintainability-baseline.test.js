@@ -43,13 +43,13 @@ const CLI_PATH = path.join(
 describe('update-maintainability-baseline — refreshBaseline wrapper', () => {
   const source = readFileSync(CLI_PATH, 'utf8');
 
-  it('AC: imports refreshBaseline from lib/baselines/refresh-service.js', () => {
+  it('AC: imports refreshBaseline from .agents/scripts/lib/baselines/refresh-service.js', () => {
     // Allow any quote style + any relative path so future moves don't
     // unnecessarily fail this guard; pin the path tail + symbol name.
     assert.match(
       source,
       /import\s*\{[^}]*\brefreshBaseline\b[^}]*\}\s*from\s*['"][^'"]*lib\/baselines\/refresh-service\.js['"]/,
-      'CLI must import refreshBaseline from lib/baselines/refresh-service.js',
+      'CLI must import refreshBaseline from .agents/scripts/lib/baselines/refresh-service.js',
     );
   });
 

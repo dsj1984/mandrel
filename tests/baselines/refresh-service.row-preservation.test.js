@@ -23,12 +23,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-
+import { refreshBaseline } from '../../.agents/scripts/lib/baselines/refresh-service.js';
 import {
   write as writeEnvelope,
   writeFile as writeEnvelopeFile,
 } from '../../.agents/scripts/lib/baselines/writer.js';
-import { refreshBaseline } from '../../lib/baselines/refresh-service.js';
 
 const FIXED_PRIOR = '2024-01-01T00:00:00Z';
 const FIXED_NOW = '2026-05-15T00:00:00Z';

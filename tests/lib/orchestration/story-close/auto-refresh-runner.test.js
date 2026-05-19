@@ -2,9 +2,9 @@
  * auto-refresh-runner.test.js — Story #2205 / Task #2218.
  *
  * Pins the routing contract: `runAutoRefresh` MUST hand every baseline
- * write to `refreshBaseline()` from `lib/baselines/refresh-service.js`. No
- * direct call to `regenerateMainFromTree` or per-kind regen helpers
- * remains in the runner.
+ * write to `refreshBaseline()` from
+ * `.agents/scripts/lib/baselines/refresh-service.js`. No direct call to
+ * `regenerateMainFromTree` or per-kind regen helpers remains in the runner.
  */
 
 import assert from 'node:assert/strict';

@@ -21,7 +21,7 @@
  *      to short-circuit with `{ status: 'blocked', phase: 'closing' }`.
  *
  * Story #2205 — refresh path now flows through `refreshBaseline()` from
- * `lib/baselines/refresh-service.js`. The `--amend` / `--allow-empty`
+ * `.agents/scripts/lib/baselines/refresh-service.js`. The `--amend` / `--allow-empty`
  * shortcuts and the legacy `npm run <kind>:update` shell-outs are gone.
  * Post-refresh hygiene is: stage the baseline file, run `git diff --cached
  * --exit-code`, and either skip (empty diff → log "no baseline drift to
@@ -33,10 +33,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { refreshBaseline as defaultRefreshBaseline } from '../../../../../lib/baselines/refresh-service.js';
 import { readBaselineAtRef as defaultReadBaselineAtRef } from '../../baseline-loader.js';
 import { filterExcludedRows } from '../../baselines/kinds/maintainability.js';
 import { canonicalise as canonicalisePath } from '../../baselines/path-canon.js';
+import { refreshBaseline as defaultRefreshBaseline } from '../../baselines/refresh-service.js';
 import { projectMaintainabilityRegressions as defaultProjectMaintainabilityRegressions } from '../../close-validation.js';
 import {
   getBaselines as defaultGetBaselines,

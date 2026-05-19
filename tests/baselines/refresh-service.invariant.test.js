@@ -6,11 +6,11 @@
  *   - "No code path constructs or regenerates a maintainability baseline
  *     file without going through refreshBaseline()."
  *
- * This test is the static-analysis half of AC-1. It scans `lib/` and
- * `.agents/scripts/` for direct invocations of the legacy kind-specific
- * writers / regenerators that the Unified Baseline Refresh Service is
- * contracted to replace, and fails when any new caller appears outside
- * the refresh-service module itself.
+ * This test is the static-analysis half of AC-1. It scans `.agents/scripts/`
+ * for direct invocations of the legacy kind-specific writers / regenerators
+ * that the Unified Baseline Refresh Service is contracted to replace, and
+ * fails when any new caller appears outside the refresh-service module
+ * itself.
  *
  * **Migration allowlist.** Story #2197 lands the service module + tests
  * only — Stories 3/4/5 of Epic #2173 migrate the existing call sites
@@ -97,13 +97,15 @@ const MIGRATION_ALLOWLIST = Object.freeze(
 // to the writer / canonicalise / etc. machinery. It is explicitly exempt
 // from the scan.
 // ---------------------------------------------------------------------------
-const SERVICE_MODULE = 'lib/baselines/refresh-service.js';
+const SERVICE_MODULE = '.agents/scripts/lib/baselines/refresh-service.js';
 
 // ---------------------------------------------------------------------------
 // Directories the scanner walks. Scoped to source roots only — tests are
 // not in scope because tests legitimately import the helpers they cover.
+// Story #2572 relocated `lib/baselines/` under `.agents/scripts/`, so the
+// distributed bundle is the only source root the scanner needs to walk.
 // ---------------------------------------------------------------------------
-const SCAN_ROOTS = Object.freeze(['lib', '.agents/scripts']);
+const SCAN_ROOTS = Object.freeze(['.agents/scripts']);
 
 // Files / directories the scanner skips while walking.
 const SKIP_DIR_NAMES = Object.freeze(
@@ -252,7 +254,7 @@ describe('refresh-service invariant — repository scan', () => {
         .join('');
       assert.fail(
         `Found ${offenders.length} non-allowlisted file(s) with forbidden direct kind calls (AC-1). ` +
-          `Route the call through refreshBaseline() from lib/baselines/refresh-service.js, or ` +
+          `Route the call through refreshBaseline() from .agents/scripts/lib/baselines/refresh-service.js, or ` +
           `(if you're migrating a known site) update MIGRATION_ALLOWLIST in this test file.${summary}`,
       );
     }

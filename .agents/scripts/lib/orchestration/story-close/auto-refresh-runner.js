@@ -35,7 +35,7 @@
  *     `{ status: 'skipped', reason }` without touching the branch tip.
  *
  * Story #2205 — every baseline write goes through `refreshBaseline()` in
- * `lib/baselines/refresh-service.js`. The legacy
+ * `.agents/scripts/lib/baselines/refresh-service.js`. The legacy
  * `regenerateMainFromTree` + `writeScopeMergedBaseline` +
  * `loadPriorEnvelope` + `amendBaselinesIntoHead` chain is gone. The
  * `--amend` / `--allow-empty` shortcut is gone. The commit subject is
@@ -60,16 +60,15 @@
  * writer are injectable seams. Production callers omit the seams; tests
  * inject mocks.
  *
- * @see lib/baselines/refresh-service.js (the unified write funnel)
+ * @see .agents/scripts/lib/baselines/refresh-service.js (the unified write funnel)
  * @see .agents/scripts/lib/auto-refresh-baselines.js (evaluator)
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
-
-import { refreshBaseline as defaultRefreshBaseline } from '../../../../../lib/baselines/refresh-service.js';
 import { evaluateAutoRefresh as defaultEvaluateAutoRefresh } from '../../auto-refresh-baselines.js';
 import { loadFile as defaultReaderLoadFile } from '../../baselines/reader.js';
+import { refreshBaseline as defaultRefreshBaseline } from '../../baselines/refresh-service.js';
 import {
   getBaselines as defaultGetBaselines,
   getQuality as defaultGetQuality,
