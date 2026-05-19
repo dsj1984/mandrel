@@ -493,7 +493,7 @@ Concrete changes:
 - Delete the `wave-run-progress` structured-comment type and its writer
   (`wave-run-progress-writer.js`). `epic-run-progress` becomes the
   single operator-facing summary, grouped by wave.
-- `epic-execute.md` Step 2 absorbs the per-wave fan-out (one assistant
+- `epic-deliver.md` Step 2 absorbs the per-wave fan-out (one assistant
   turn per wave; pump-and-refill at `concurrencyCap`).
 
 ### Consequences
@@ -568,7 +568,7 @@ unreachable from `node --test` — it never silently passes.
   tool and can dispatch its per-Story children.
 - `subagent_type: general-purpose` for wave-level dispatch is forbidden.
   The harness-constraint section in `wave-execute.md` and the
-  cross-reference from `epic-execute.md` Step 2 spell this out so the
+  cross-reference from `epic-deliver.md` Step 2 spell this out so the
   next operator does not rediscover the constraint by hitting the same
   failure mode.
 - A future Claude Code release that disallows nested `Agent` even for
@@ -907,7 +907,7 @@ ADR if the trade-off proves wrong.
 - **Q4 — rename the operator-visible surface; keep internal markers
   and lib paths.**
   - Renamed: slash commands (`/epic-plan`, `/epic-close`), the new
-    skill files (`epic-execute.md`, `wave-execute.md`,
+    skill files (`epic-deliver.md`, `wave-execute.md`,
     `story-deliver.md`), top-level scripts (`epic-plan*.js`,
     `story-*.js`, `epic-*.js`), helper `.md` files under
     `workflows/helpers/`, and the config key
