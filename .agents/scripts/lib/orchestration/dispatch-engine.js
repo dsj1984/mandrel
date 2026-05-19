@@ -86,7 +86,7 @@ export async function captureLintBaseline(epicBranch, settings) {
  * wrapper and the MCP `dispatch_wave` tool.
  */
 export async function resolveAndDispatch(options) {
-  const { ticketId, dryRun = false, executorOverride } = options;
+  const { ticketId, dryRun = false } = options;
   const { orchestration } = resolveConfig();
   const provider = options.provider ?? createProvider(orchestration);
 
@@ -109,7 +109,7 @@ export async function resolveAndDispatch(options) {
   }
 
   if (isEpic) {
-    return dispatch({ epicId: ticketId, dryRun, executorOverride, provider });
+    return dispatch({ epicId: ticketId, dryRun, provider });
   }
 
   if (isFeature) {
@@ -134,7 +134,7 @@ export async function resolveAndDispatch(options) {
  */
 export async function dispatch(options) {
   const ctx = resolveDispatchContext(options, ensureBranch);
-  const { epicId, dryRun, adapter, provider } = ctx;
+  const { epicId, dryRun, provider } = ctx;
 
   const fetched = await fetchEpicContext(ctx);
   await reconcileEpicState(ctx, fetched);
@@ -149,7 +149,6 @@ export async function dispatch(options) {
       waves: [],
       dispatched: [],
       dryRun,
-      adapter,
     });
   }
 
@@ -181,7 +180,6 @@ export async function dispatch(options) {
     waves: allWaves,
     dispatched,
     dryRun,
-    adapter,
   });
 
   await detectEpicCompletion({

@@ -114,7 +114,6 @@ export function buildManifest({
   waves,
   dispatched,
   dryRun,
-  adapter,
   agentTelemetry = null,
 }) {
   const totalTasks = tasks.length;
@@ -128,7 +127,7 @@ export function buildManifest({
     generatedAt: new Date().toISOString(),
     epicId,
     epicTitle: epic?.title ?? '',
-    executor: adapter.executorId,
+    executor: 'claude-code',
     dryRun,
     summary: {
       totalTasks,

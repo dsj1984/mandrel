@@ -9,7 +9,7 @@
  * handles file I/O and console output.
  *
  * Usage:
- *   node dispatcher.js <ticketId> [--dry-run] [--executor <name>]
+ *   node dispatcher.js <ticketId> [--dry-run]
  *
  * The script auto-detects whether the ticket is an Epic or Story
  * and routes to the appropriate execution mode.
@@ -145,7 +145,6 @@ export function tryRenderFromSpec(manifest, deps = {}) {
  *
  * @param {number} ticketId
  * @param {boolean} [dryRun]
- * @param {string|null} [executorOverride]
  * @param {{ provider?: object }} [opts] - Optional overrides. `provider`
  *   lets callers pass a provider whose per-instance ticket cache is already
  *   primed, so dashboard regeneration issues zero extra REST calls.
@@ -250,13 +249,11 @@ function logManifestSummary(manifest) {
 export async function generateAndSaveManifest(
   ticketId,
   dryRun = false,
-  executorOverride = null,
   opts = {},
 ) {
   const manifest = await resolveAndDispatch({
     ticketId,
     dryRun,
-    executorOverride,
     provider: opts.provider,
   });
   persistAndAnnounceMarkdown(manifest);
@@ -275,7 +272,7 @@ export async function generateAndSaveManifest(
 /* node:coverage ignore next */
 /* node:coverage ignore next */
 async function main() {
-  const { ticketId, dryRun, executor } = parseSprintArgs();
+  const { ticketId, dryRun } = parseSprintArgs();
 
   if (!ticketId) {
     Logger.error(
@@ -285,7 +282,7 @@ async function main() {
     process.exit(1);
   }
 
-  await generateAndSaveManifest(ticketId, dryRun, executor);
+  await generateAndSaveManifest(ticketId, dryRun);
 }
 
 runAsCli(import.meta.url, main, {
