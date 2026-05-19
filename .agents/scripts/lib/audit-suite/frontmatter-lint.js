@@ -10,10 +10,10 @@
 
 import { extractFrontmatter } from './frontmatter.js';
 
-/** Allowed values for `recommendedModel` and `dispatchModel`. */
+/** Allowed values for `dispatchModel`. */
 export const ALLOWED_MODEL_HINTS = Object.freeze(['haiku', 'sonnet', 'opus']);
 
-const MODEL_HINT_FIELDS = Object.freeze(['recommendedModel', 'dispatchModel']);
+const MODEL_HINT_FIELDS = Object.freeze(['dispatchModel']);
 
 /**
  * Pure: lint a frontmatter map (or raw workflow content) for model-hint

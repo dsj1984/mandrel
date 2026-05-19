@@ -92,6 +92,12 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // a `clarity-gate-update` comment on the Epic when the operator approves
   // a sharpened body rewrite, recording the persistence event for audit.
   'clarity-gate-update',
+  // Story #2635 — Phase 7 Tech Spec freshness check. `epic-plan-spec.js`
+  // upserts a `spec-freshness` comment on the Tech Spec issue listing any
+  // path-shaped references that don't exist at the base branch, so the
+  // operator can correct drift before Phase 8 decomposes from a stale
+  // spec. Advisory: the run continues regardless of the report contents.
+  'spec-freshness',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;

@@ -48,6 +48,8 @@ function providerWithProject() {
   const provider = {
     graphqlCalls,
     projectNumber: 42,
+    owner: 'acme',
+    repo: 'widgets',
     async graphql(query, vars) {
       graphqlCalls.push({ query, vars });
       if (query.includes('viewer {')) {
@@ -68,14 +70,19 @@ function providerWithProject() {
           },
         };
       }
-      if (query.includes('items(first')) {
+      if (query.includes('projectItems(first')) {
+        // By-issue lookup. The fake returns two project memberships and
+        // expects the matcher to pick the one whose project.id matches
+        // the configured board ('PROJ').
         return {
-          node: {
-            items: {
-              nodes: [
-                { id: 'ITEM-1', content: { number: 321 } },
-                { id: 'ITEM-2', content: { number: 400 } },
-              ],
+          repository: {
+            issue: {
+              projectItems: {
+                nodes: [
+                  { id: 'ITEM-OTHER', project: { id: 'OTHER-PROJ' } },
+                  { id: 'ITEM-1', project: { id: 'PROJ' } },
+                ],
+              },
             },
           },
         };
@@ -141,6 +148,8 @@ describe('ColumnSync.sync', () => {
   it('propagates errors from the update mutation (fail loud)', async () => {
     const provider = {
       projectNumber: 42,
+      owner: 'acme',
+      repo: 'widgets',
       async graphql(query) {
         if (query.includes('viewer {')) {
           return {
@@ -155,10 +164,14 @@ describe('ColumnSync.sync', () => {
             },
           };
         }
-        if (query.includes('items(first')) {
+        if (query.includes('projectItems(first')) {
           return {
-            node: {
-              items: { nodes: [{ id: 'ITEM', content: { number: 321 } }] },
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM', project: { id: 'PROJ' } }],
+                },
+              },
             },
           };
         }
@@ -167,5 +180,112 @@ describe('ColumnSync.sync', () => {
     };
     const sync = new ColumnSync({ provider, logger: { warn: () => {} } });
     await assert.rejects(() => sync.sync(321, ['agent::done']), /API boom/);
+  });
+
+  it('looks up the project item by issue → projectItems (no pagination cliff)', async () => {
+    // Regression for the >100-item project bug. The previous implementation
+    // paginated `node(projectId).items(first: 100)` which silently no-oped
+    // for any issue beyond the first 100 board items. The fix walks from
+    // the issue to its projectItems and picks the match by project.id.
+    const provider = providerWithProject();
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(2586, ['agent::executing']);
+
+    assert.equal(res.status, 'synced');
+    assert.equal(res.column, 'In Progress');
+
+    const lookup = provider.graphqlCalls.find((c) =>
+      c.query.includes('projectItems(first'),
+    );
+    assert.ok(lookup, 'used the by-issue projectItems lookup');
+    assert.equal(lookup.vars.owner, 'acme');
+    assert.equal(lookup.vars.repo, 'widgets');
+    assert.equal(lookup.vars.number, 2586);
+
+    const oldLookup = provider.graphqlCalls.find(
+      (c) =>
+        c.query.includes('items(first') &&
+        !c.query.includes('projectItems(first'),
+    );
+    assert.equal(
+      oldLookup,
+      undefined,
+      'no longer issues the bulk items(first: 100) scan',
+    );
+
+    const mutation = provider.graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.equal(
+      mutation.vars.itemId,
+      'ITEM-1',
+      'selects the projectItem whose project.id matches the configured board',
+    );
+  });
+
+  it('skips when the issue is not on the configured project', async () => {
+    const provider = {
+      projectNumber: 42,
+      owner: 'acme',
+      repo: 'widgets',
+      async graphql(query) {
+        if (query.includes('viewer {')) {
+          return {
+            viewer: {
+              projectV2: {
+                id: 'PROJ',
+                field: {
+                  id: 'F',
+                  options: [{ id: 'opt-inprog', name: 'In Progress' }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          // The issue is on a different project, not 'PROJ'.
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ELSEWHERE', project: { id: 'OTHER' } }],
+                },
+              },
+            },
+          };
+        }
+        return {};
+      },
+    };
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(321, ['agent::executing']);
+    assert.equal(res.status, 'skipped');
+    assert.equal(res.reason, 'not-on-project');
+  });
+
+  it('skips when the provider has no owner/repo configured', async () => {
+    const provider = {
+      projectNumber: 42,
+      async graphql(query) {
+        if (query.includes('viewer {')) {
+          return {
+            viewer: {
+              projectV2: {
+                id: 'PROJ',
+                field: {
+                  id: 'F',
+                  options: [{ id: 'opt-inprog', name: 'In Progress' }],
+                },
+              },
+            },
+          };
+        }
+        return {};
+      },
+    };
+    const sync = new ColumnSync({ provider });
+    const res = await sync.sync(321, ['agent::executing']);
+    assert.equal(res.status, 'skipped');
+    assert.equal(res.reason, 'not-on-project');
   });
 });

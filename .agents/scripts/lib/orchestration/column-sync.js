@@ -165,24 +165,35 @@ export class ColumnSync {
   }
 
   async #getProjectItemId(issueId, projectId) {
+    // Walk from the issue to its projectItems and pick the one whose
+    // project.id matches the configured board. The previous implementation
+    // paginated `node(projectId).items(first: 100)` and scanned for the
+    // issue number, which silently returned null on any board with >100
+    // items — the Mandrel board crossed that cliff at ~2,300 items, so
+    // every recent ticket's Status flip became a no-op. The by-issue path
+    // is O(1) per sync and has no pagination cliff (an issue is
+    // realistically never on more than a handful of boards at once).
+    const owner = this.provider.owner;
+    const repo = this.provider.repo;
+    if (!owner || !repo) return null;
     const data = await this.provider.graphql(
       `
-      query($projectId: ID!) {
-        node(id: $projectId) {
-          ... on ProjectV2 {
-            items(first: 100) {
+      query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          issue(number: $number) {
+            projectItems(first: 20) {
               nodes {
                 id
-                content { ... on Issue { number } }
+                project { id }
               }
             }
           }
         }
       }`,
-      { projectId },
+      { owner, repo, number: issueId },
     );
-    const nodes = data?.node?.items?.nodes ?? [];
-    const match = nodes.find((n) => n?.content?.number === issueId);
+    const nodes = data?.repository?.issue?.projectItems?.nodes ?? [];
+    const match = nodes.find((n) => n?.project?.id === projectId);
     return match?.id ?? null;
   }
 }

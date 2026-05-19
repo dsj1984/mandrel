@@ -4,10 +4,7 @@ description:
   context envelope, lets the host LLM draft the body, and creates the
   GitHub Issue with type::story and a persona label — ready to feed into
   /single-story-deliver.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: ideation + draft-authoring step benefits from a reasoning model, matching the /epic-plan recommendation. -->
 
 # /single-story-plan
 

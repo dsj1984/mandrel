@@ -52,6 +52,8 @@ function recordingProvider() {
   return {
     calls,
     projectNumber: 42,
+    owner: 'acme',
+    repo: 'widgets',
     async graphql(query, vars) {
       calls.push({ query, vars });
       if (query.includes('viewer {')) {
@@ -67,11 +69,13 @@ function recordingProvider() {
           },
         };
       }
-      if (query.includes('items(first')) {
+      if (query.includes('projectItems(first')) {
         return {
-          node: {
-            items: {
-              nodes: [{ id: 'ITEM-1', content: { number: 321 } }],
+          repository: {
+            issue: {
+              projectItems: {
+                nodes: [{ id: 'ITEM-1', project: { id: 'PROJ' } }],
+              },
             },
           },
         };
@@ -90,7 +94,9 @@ describe('shared GraphQL query builders', () => {
     await sync.sync(321, ['agent::executing']);
 
     const loadMeta = provider.calls.find((c) => c.query.includes('viewer {'));
-    const getItem = provider.calls.find((c) => c.query.includes('items(first'));
+    const getItem = provider.calls.find((c) =>
+      c.query.includes('projectItems(first'),
+    );
     assert.ok(loadMeta, 'loadMeta query was issued');
     assert.ok(getItem, 'getProjectItemId query was issued');
 
