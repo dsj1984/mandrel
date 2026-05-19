@@ -148,16 +148,24 @@ For tasks, `body` is a STRUCTURED OBJECT, not a string. Tasks are consumed by no
 
   "body": {
     "goal":       "<one sentence — tie this task to the parent Story slug, naming the slug>",
-    "changes":    ["<file path>: <verb> <object>", ...],
+    "changes":    [
+      { "path": "<file path>", "assumption": "creates" | "refactors-existing" | "deletes" },
+      ...
+    ],
     "acceptance": ["<testable, observable criterion>", ...],
-    "verify":     ["<exact command or test path> (<tier>)", ...]
+    "verify":     ["<exact command or test path> (<tier>)", ...],
+    "references": [
+      { "path": "<read-only dependency path>", "assumption": "exists" },
+      ...
+    ]
   }
 
 #### TASK BODY RULES:
 
 - **goal**: One sentence stating WHY this task exists. MUST name the parent Story slug.
-- **changes**: Each bullet MUST be `<path-or-glob>: <concrete verb> <object>`. Acceptable path shapes include explicit files (`src/components/Foo.tsx`), glob patterns (`tests/e2e/*.spec.ts`, `**/*.astro`), and module identifiers that resolve to files. Vague verbs ("clean up", "refactor", "improve", "polish", "tighten") are FORBIDDEN unless paired with a named target — "refactor src/x.ts: extract handleSubmit" is fine, "refactor the form" is not.
-- **NEW-FILE CONTRACT (must-follow)**: Any path the Task references in `goal`, `acceptance`, or `verify` that does **not** already exist on `main` MUST also appear in the same Task's `changes` array. The freshness validator probes `main` for every referenced code path and rejects the decompose when a missing path is absent from `changes` — even when the Task is the one authoring the file. Example: a Task creating `tests/lib/foo.test.js` whose `verify` runs `node --test tests/lib/foo.test.js` MUST list `"tests/lib/foo.test.js: add regression test"` in `changes`, otherwise the validator emits a freshness miss and the decompose round trips for a re-emit.
+- **changes**: Each entry is an object `{ path, assumption }` where `assumption` is one of `creates | refactors-existing | deletes`. The Phase 8 validator probes the base branch for every declared path and rejects the decompose when the declared assumption contradicts reality: `creates` against an existing path is an error, `refactors-existing` / `deletes` against a missing path is an error. Use `refactors-existing` for in-place edits to a file already on `main`; `creates` for net-new files; `deletes` for removals. The legacy shape — bullet strings of the form `"<path-or-glob>: <verb> <object>"` — is still parsed for backwards compatibility but emits a deprecation warning per Task. Acceptable path shapes include explicit files (`src/components/Foo.tsx`), glob patterns (`tests/e2e/*.spec.ts`, `**/*.astro`), and module identifiers that resolve to files. In any legacy string bullet, vague verbs ("clean up", "refactor", "improve", "polish", "tighten") are FORBIDDEN unless paired with a named target — "refactor src/x.ts: extract handleSubmit" is fine, "refactor the form" is not.
+- **references** (optional): Object-form entries `{ path, assumption: "exists" }` for paths the Task **reads** but does not modify (test fixtures it relies on, sibling modules it imports, feature files it scans). The validator probes these like `changes` and rejects the decompose when an `exists` path is absent on the base branch. Use this list to make read-dependencies explicit so a hallucinated or stale assumption surfaces at planning time rather than execution time.
+- **NEW-FILE CONTRACT (must-follow)**: Any path the Task references in `goal`, `acceptance`, or `verify` that does **not** already exist on `main` MUST also appear in the same Task's `changes` array with `assumption: "creates"`. The freshness validator probes `main` for every referenced code path and rejects the decompose when a missing path is absent from `changes` — even when the Task is the one authoring the file. Example: a Task creating `tests/lib/foo.test.js` whose `verify` runs `node --test tests/lib/foo.test.js` MUST include `{ "path": "tests/lib/foo.test.js", "assumption": "creates" }` in `changes`, otherwise the validator emits a freshness miss and the decompose round trips for a re-emit.
 - **acceptance**: Items MUST be observable from outside the agent. Acceptable shapes: a specific command exits 0, a file exists at a given path, a snapshot test matches, a `data-testid` resolves under a given selector, a row count in a fixture matches. UNACCEPTABLE: "verify by reading the diff", "looks good", "matches the spec" — push these down into a `verify` command instead.
 - **verify**: Each entry MUST name a testing tier in parentheses, drawn from `unit` / `contract` / `e2e` / `validate`. Example: `npm run test -- src/x.test.ts (unit)`, `npm run validate (validate)`. Tasks with zero verify entries SHOULD fail validation; if a task is genuinely unverifiable in isolation (e.g., a copy edit auditor will eyeball), the literal entry `manual:<reason>` is allowed so the absence is intentional, not lazy. Manual entries without a reason are rejected.
 
