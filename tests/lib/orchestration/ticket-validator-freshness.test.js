@@ -313,3 +313,138 @@ test('validateAndNormalizeTickets: freshness gate is opt-in via opts.baseBranchR
     ValidationError,
   );
 });
+
+// --- Object-form body.changes (Story #2680 / framework-gap #1) -----------
+
+test('validateAcFreshness: object-form `{path, assumption: "creates"}` entries short-circuit the probe', () => {
+  // Story #2636 introduced the object form; the freshness gate's
+  // `collectTaskChangesPaths` must recognise it the same way it recognises
+  // legacy string bullets. The path is declared as net-new in `changes`
+  // and cited verbatim by `verify` — the gate must accept it.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Author the freshness regression test.',
+      changes: [
+        { path: 'tests/lib/freshly-authored.test.js', assumption: 'creates' },
+        {
+          path: '.agents/scripts/lib/orchestration/ticket-validator.js',
+          assumption: 'refactors-existing',
+        },
+      ],
+      acceptance: ['regression test exercises the gate'],
+      verify: ['node --test tests/lib/freshly-authored.test.js'],
+    }),
+  ];
+  assert.doesNotThrow(() =>
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      // Only the existing validator path is on `main`; the test file is
+      // net-new. Without the object-form fix the gate would reject the
+      // verify citation because String({path,...}) would never match the
+      // freshness regex.
+      gitRunner: fakeGitRunner([
+        '.agents/scripts/lib/orchestration/ticket-validator.js',
+      ]),
+    }),
+  );
+});
+
+test('validateAcFreshness: object-form changes still flag a verify path NOT in changes/references', () => {
+  // Confirms the object-form acceptance is path-set membership, not a
+  // blanket "trust everything". A task that only declares one object-form
+  // path but cites a different one in verify must still fail closed.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Edit a known file.',
+      changes: [
+        {
+          path: '.agents/scripts/lib/orchestration/ticket-validator.js',
+          assumption: 'refactors-existing',
+        },
+      ],
+      acceptance: ['regression test exercises the gate'],
+      verify: ['node .agents/scripts/missing-aggregator.js'],
+    }),
+  ];
+  assert.throws(
+    () =>
+      validateAcFreshness({
+        tickets,
+        baseBranchRef: 'main',
+        gitRunner: fakeGitRunner([
+          '.agents/scripts/lib/orchestration/ticket-validator.js',
+        ]),
+      }),
+    (err) => {
+      assert.ok(err instanceof ValidationError);
+      assert.match(err.message, /missing-aggregator\.js/);
+      return true;
+    },
+  );
+});
+
+test('validateAcFreshness: object-form `{path, assumption: "exists"}` in body.references is unioned in', () => {
+  // The new shape also covers read-only dependencies declared via
+  // `body.references`. A path declared as a read-dependency by the
+  // planner is intentional; citing it in `goal`/`verify` must not trip
+  // the freshness gate.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Wire generate-foo.js against .agents/schemas/foo.schema.json',
+      changes: [
+        { path: '.agents/scripts/generate-foo.js', assumption: 'creates' },
+      ],
+      // The schema is read-only, declared via references, and absent
+      // from main from the fake-runner's perspective. The gate must
+      // still accept the goal-line citation because references unions
+      // into the expected-new set.
+      references: [
+        {
+          path: '.agents/scripts/lib/freshly-authored.js',
+          assumption: 'exists',
+        },
+      ],
+      acceptance: ['generator emits a Markdown table'],
+      verify: ['node .agents/scripts/generate-foo.js'],
+    }),
+  ];
+  assert.doesNotThrow(() =>
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      // Empty fixture: every probe would return false. The pass-through
+      // proves the references-declared path joined the expected-new set.
+      gitRunner: () => false,
+    }),
+  );
+});
+
+test('validateAcFreshness: mixed string + object form in the same body.changes array', () => {
+  // Backwards compat: planners (and tests) emitting a mix of the two
+  // shapes during the migration window must work too.
+  const tickets = [
+    makeTask('T1', {
+      goal: 'Half-migrated planner output.',
+      changes: [
+        'tests/lib/legacy-bullet.test.js: new coverage',
+        {
+          path: '.agents/scripts/generate-new-thing.js',
+          assumption: 'creates',
+        },
+      ],
+      acceptance: ['both paths covered'],
+      verify: [
+        'node --test tests/lib/legacy-bullet.test.js',
+        'node .agents/scripts/generate-new-thing.js',
+      ],
+    }),
+  ];
+  assert.doesNotThrow(() =>
+    validateAcFreshness({
+      tickets,
+      baseBranchRef: 'main',
+      gitRunner: () => false,
+    }),
+  );
+});
