@@ -98,6 +98,14 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // operator can correct drift before Phase 8 decomposes from a stale
   // spec. Advisory: the run continues regardless of the report contents.
   'spec-freshness',
+  // Story #2681 — `/epic-deliver` Phase 4 epic-audit helper upserts an
+  // `audit-results` comment on the Epic listing the per-lens findings
+  // returned by the change-set audit pass. The marker was prescribed by
+  // `helpers/epic-audit.md` Step 4 long before it was added to this
+  // registry; without the entry the helper's `post-structured-comment.js`
+  // invocation always failed with "Invalid structured-comment type". One
+  // entry per Epic; re-runs replace prior content.
+  'audit-results',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
