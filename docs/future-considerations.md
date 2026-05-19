@@ -212,14 +212,15 @@ Simplify:
 
 ### 5. Four-Tier Ticket Hierarchy Is Often Overhead
 
-**Status:** Simplify / Reframe — largely covered
-**Action:** 🚀 Re-evaluate, then likely close — `/single-story-plan` and
-`/single-story-deliver` already provide the lightweight "Story mode" rung
-this finding called for. The only open question is whether a still-lighter
-"Patch" rung (one issue → one branch → one PR, no Story scaffold) is worth
-adding, or whether the single-story pair already covers that workload in
-practice. Evaluate against recent single-story usage before opening a new
-issue; if the existing pair is sufficient, mark this finding implemented.
+**Status:** ❌ Won't do — superseded by existing tooling + Finding #15
+**Action:** Close. `/single-story-plan` + `/single-story-deliver` already
+provide the lightweight rung this finding called for. A still-lighter
+"Patch" mode would differ from a single-Story-with-one-Task by a label
+and maybe one artifact — not enough value to justify a third planning
+surface. The actual friction this finding pointed at (heavy artifacts
+for docs-only / refactor work) is properly addressed by **Finding #15**
+(acceptance spec required/recommended/n-a per risk) rather than by
+adding a new hierarchy mode.
 
 **Primary paths:**
 
@@ -452,21 +453,35 @@ Simplify:
 **Status:** Reframe
 **Action:** 🚀 Implement now — decision made: keep `IExecutionAdapter` as a
 thin interface with the Claude Code implementation as the single shipped
-adapter, and lift **dispatch manifest emission into the interface contract**
-so every adapter (current or future) is required to produce one. Concrete
+adapter, **delete `ManualDispatchAdapter` outright** if nothing still
+depends on it, and keep the dispatch manifest pipeline untouched (it is a
+separate concern from the adapter).
+
+Note on scope: the adapter and the dispatch manifest are on different
+axes and should not be conflated:
+
+- **Adapter** (`.agents/scripts/adapters/*.js`, `IExecutionAdapter.js`) —
+  the runtime contract for "how do we launch and track a task?"
+  (`dispatchTask`, `getTaskStatus`, `cancelTask`).
+- **Dispatch manifest** (`.agents/scripts/lib/presentation/manifest-*.js`,
+  `epic-runner/phases/build-wave-dag.js`) — the data artifact describing
+  the wave/DAG plan, consumed in-session by the Claude Code runtime.
+
+Deleting the manual adapter does not touch manifest generation. Concrete
 work:
 
-- Retire `ManualDispatchAdapter` as a runtime path. Either delete it or
-  keep a stripped-down version in `examples/` purely as documentation of
-  the contract.
+- Audit callers and tests of `ManualDispatchAdapter`. If nothing
+  load-bearing remains, delete the file and its tests; remove
+  `'manual'` from `adapter-factory.js`'s default selection.
 - Slim `IExecutionAdapter` to the methods the Claude Code runtime
-  actually uses; remove placeholder/unimplemented surface.
-- Make `emitDispatchManifest` (or equivalent) a non-optional method on
-  the interface, with a single shared implementation that all adapters
-  reuse. The manifest is the universal artifact across runtimes.
+  actually uses; remove any placeholder/unimplemented surface that only
+  existed to keep the manual adapter compiling.
+- Keep dispatch manifest emission as-is — it remains a universal
+  artifact, not adapter-specific.
 - Update `docs/architecture.md` and `docs/decisions.md` to describe the
-  actual Claude Code-first runtime instead of the historical multi-runtime
-  framing.
+  actual Claude Code-first runtime instead of the historical
+  multi-runtime framing, and to call out that the manifest is the
+  cross-runtime contract (not the adapter surface).
 
 **Primary paths:**
 
