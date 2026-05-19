@@ -211,6 +211,38 @@
       },
       "additionalProperties": false
     },
+    "epicAudit": {
+      "type": "object",
+      "properties": {
+        "maxFixAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3."
+        },
+        "maxFixScopeFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5."
+        }
+      },
+      "additionalProperties": false
+    },
+    "codeReview": {
+      "type": "object",
+      "properties": {
+        "maxFixAttempts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3."
+        },
+        "maxFixScopeFiles": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5."
+        }
+      },
+      "additionalProperties": false
+    },
     "worktreeIsolation": {
       "type": "object",
       "properties": {
@@ -533,6 +565,8 @@
         "signals": { "$ref": "#/$defs/signals" },
         "quality": { "$ref": "#/$defs/quality" },
         "lifecycle": { "$ref": "#/$defs/lifecycle" },
+        "epicAudit": { "$ref": "#/$defs/epicAudit" },
+        "codeReview": { "$ref": "#/$defs/codeReview" },
         "failOnConcurrencyHazards": { "type": "boolean" },
         "feedbackLoop": {
           "type": "object",
@@ -541,6 +575,11 @@
               "type": "boolean",
               "default": true,
               "description": "When true (default), the Epic finalize listener auto-files non-blocking code-review findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic."
+            },
+            "auditResultsAutoFile": {
+              "type": "boolean",
+              "default": true,
+              "description": "When true (default), the Epic finalize listener auto-files non-blocking audit-results findings as follow-up issues routed by source classification. Set to false to suppress auto-filing; findings remain accessible in the structured comments on the Epic."
             }
           },
           "additionalProperties": false
