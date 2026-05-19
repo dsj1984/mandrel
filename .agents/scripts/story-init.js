@@ -44,6 +44,7 @@ import { validateBlockers } from './lib/story-init/blocker-validator.js';
 import { initializeBranch } from './lib/story-init/branch-initializer.js';
 import { resolveContext } from './lib/story-init/context-resolver.js';
 import { runDispatchManifestGuard } from './lib/story-init/dependency-guard.js';
+import { writeDispatchStateFile } from './lib/story-init/dispatch-state-writer.js';
 import { traceHierarchy } from './lib/story-init/hierarchy-tracer.js';
 import { transitionTaskStates } from './lib/story-init/state-transitioner.js';
 import { buildTaskGraph } from './lib/story-init/task-graph-builder.js';
@@ -246,6 +247,31 @@ export async function runStoryInit({
     workCwd = branchResult.workCwd;
     worktreeCreated = branchResult.worktreeCreated;
     installStatus = branchResult.installStatus ?? installStatus;
+
+    // Story #2535 — write the per-Story dispatch state file under the
+    // main repo's `temp/epic-<id>/<storyId>/story-init.state.json` so the
+    // host-crash watchdog (`reconcileEpicAgentLabels`) can probe this
+    // Story's dispatch PID and classify the Story as live / dead / unknown
+    // instead of always falling back to `unknown`. Non-fatal: a failed
+    // write only degrades the watchdog signal (the Story will classify as
+    // `unknown` until the next dispatch), it must not block init.
+    try {
+      const stateWrite = writeDispatchStateFile({
+        repoRoot: cwd,
+        epicId,
+        storyId,
+        branch: storyBranch,
+        worktreePath: workCwd,
+      });
+      progress(
+        'WATCHDOG',
+        `📍 Recorded dispatch state at ${stateWrite.path} (pid=${stateWrite.payload.dispatchPid})`,
+      );
+    } catch (err) {
+      stageLogger.warn(
+        `[story-init] ⚠️ Failed to record dispatch state: ${err?.message ?? err}`,
+      );
+    }
 
     // Propagate Epic + Story ids to the trace hook (Story #1043). The
     // hook in `lib/observability/tool-trace-hook.js` is a no-op when
