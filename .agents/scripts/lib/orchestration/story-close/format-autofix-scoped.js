@@ -38,14 +38,11 @@ const TAG = '[format-autofix-scoped]';
  * @returns {string[]}
  */
 function listChangedFiles({ cwd, epicBranch, storyBranch, git }) {
-  const out = git(
-    ['diff', '--name-only', `${epicBranch}...${storyBranch}`],
-    {
-      cwd,
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    },
-  );
+  const out = git(['diff', '--name-only', `${epicBranch}...${storyBranch}`], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  });
   return out
     .split('\n')
     .map((line) => line.trim())
