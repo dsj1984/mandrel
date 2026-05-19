@@ -42,6 +42,7 @@ import {
   storyTempDir,
 } from '../config/temp-paths.js';
 import { Logger } from '../Logger.js';
+import { classifyPathSource } from './source-classifier.js';
 
 const TRACES_BASENAME = 'traces.ndjson';
 const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
@@ -53,6 +54,54 @@ const EPIC_SIGNALS_BASENAME = 'signals.ndjson';
  */
 function tracesFile(eid, sid, config) {
   return path.join(storyTempDir(eid, sid, config), TRACES_BASENAME);
+}
+
+/**
+ * Best-effort decoration of a signal record with a `source` field
+ * (`"framework"` or `"consumer"`) produced by `classifyPathSource`.
+ *
+ * Rules (Epic #2547 / Story #2553 / Tech Spec #2550):
+ *   - If the record is not a plain object (string, number, null,
+ *     undefined), return it unchanged — the writer's existing
+ *     serialisation guard will reject or pass it through as before.
+ *   - If the caller pre-set `signal.source`, preserve it verbatim. Some
+ *     detectors classify upstream (e.g. wave-lifecycle signals always
+ *     belong to the framework) and we MUST NOT overwrite their
+ *     intentional tag.
+ *   - Otherwise, invoke `classifyPathSource` against the record's
+ *     `failingPath` / `path` and `command` fields, and inject the result
+ *     as a new `source` key. The classifier itself never throws, but we
+ *     belt-and-braces a try/catch so an unexpected fault degrades to a
+ *     `Logger.warn` and a passthrough of the original signal — never a
+ *     dropped write.
+ *
+ * @param {unknown} signal
+ * @returns {unknown}
+ */
+function tagSignalSource(signal) {
+  if (signal === null || typeof signal !== 'object' || Array.isArray(signal)) {
+    return signal;
+  }
+  // Caller-supplied source wins, even when undefined-typed but present as
+  // an own property — only inject when the key is absent entirely so we
+  // never overwrite an explicit decision.
+  if (Object.prototype.hasOwnProperty.call(signal, 'source')) {
+    return signal;
+  }
+  try {
+    const record = /** @type {Record<string, unknown>} */ (signal);
+    const failingPath = record.failingPath ?? record.path;
+    const command = record.command;
+    const source = classifyPathSource(failingPath, command);
+    return { ...record, source };
+  } catch (err) {
+    Logger.warn(
+      `signals-writer: source classifier failed (${
+        err instanceof Error ? err.message : String(err)
+      }); falling back to original signal without source tag`,
+    );
+    return signal;
+  }
 }
 
 /**
@@ -114,7 +163,7 @@ export async function appendSignal(args) {
     );
     return false;
   }
-  return appendOne(target, signal);
+  return appendOne(target, tagSignalSource(signal));
 }
 
 /**
@@ -139,7 +188,7 @@ export async function appendEpicSignal(args) {
     );
     return false;
   }
-  return appendOne(target, signal);
+  return appendOne(target, tagSignalSource(signal));
 }
 
 /**
