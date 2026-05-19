@@ -274,7 +274,7 @@ Simplify:
 
 ### 8. Audit Suite Is Over-Decomposed for a Stronger Model
 
-**Status:** Simplify / Partially Retire
+**Status:** Implemented in Epic #2586 (fan-out retired) / Simplify remainder
 
 **Primary paths:**
 
