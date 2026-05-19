@@ -49,6 +49,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
+import { fetchPriorFeedback } from './lib/feedback-loop/prior-feedback-fetcher.js';
 import * as gitUtils from './lib/git-utils.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
 import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
@@ -165,6 +166,16 @@ export async function buildAuthoringContext(
   // when no supported runner is present.
   const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
 
+  // Story #2554 — surface open meta feedback issues to the planner so retro
+  // signals are routed into durable substrates rather than lost in chat.
+  // The fetcher is best-effort: missing owner/repo or gh-CLI failures land
+  // in `errors[]` and never throw.
+  const githubCfg = opts.github ?? null;
+  const priorFeedback = await fetchPriorFeedback({
+    owner: githubCfg?.owner,
+    repo: githubCfg?.repo,
+  });
+
   return {
     epic: {
       id: epic.id,
@@ -180,6 +191,7 @@ export async function buildAuthoringContext(
       acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
     bddRunner,
+    priorFeedback,
   };
 }
 
@@ -624,6 +636,7 @@ async function main() {
   if (emitContext) {
     const ctx = await buildAuthoringContext(epicId, provider, settings, {
       fullContext: values['full-context'],
+      github: orchestration?.github ?? null,
     });
     const json = values.pretty
       ? JSON.stringify(ctx, null, 2)
