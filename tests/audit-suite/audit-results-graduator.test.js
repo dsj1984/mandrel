@@ -268,13 +268,7 @@ describe('Finalizer ↔ audit-results graduator (contract)', () => {
         codeReviewCalls.push({ at: Date.now(), opts });
         return { filed: [], skipped: [], errors: [] };
       },
-      graduateAuditResultsFn: async (opts) => {
-        const ts = Date.now();
-        const result = await fnAudit(opts);
-        auditResultsCalls[auditResultsCalls.length - 1]?.at &&
-          (auditResultsCalls[auditResultsCalls.length - 1].at = ts);
-        return result;
-      },
+      graduateAuditResultsFn: async (opts) => fnAudit(opts),
       runFinalizeFn: async () => ({
         prUrl: 'https://github.com/dsj1984/mandrel/pull/4242',
       }),
@@ -346,12 +340,12 @@ function makeFakeChild(setupBehaviour) {
   const handlers = { stdout: [], stderr: [], error: [], close: [] };
   const child = {
     stdout: {
-      on(event, fn) {
+      on(_event, fn) {
         handlers.stdout.push(fn);
       },
     },
     stderr: {
-      on(event, fn) {
+      on(_event, fn) {
         handlers.stderr.push(fn);
       },
     },
