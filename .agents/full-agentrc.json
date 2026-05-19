@@ -104,7 +104,7 @@
           "enabled": true,
           "baselinePath": "baselines/lint.json",
           "tolerance": { "kind": "absolute", "value": 0 },
-          "floors": { "*": { "errors": 0 } }
+          "floors": { "*": { "errorCount": 0 } }
         },
         "coverage": {
           "enabled": true,
@@ -117,7 +117,7 @@
           "enabled": true,
           "baselinePath": "baselines/crap.json",
           "tolerance": { "kind": "absolute", "value": 0.05 },
-          "floors": { "*": { "crap": 20 } },
+          "floors": { "*": { "max": 30, "p95": 20, "methodsAbove20": 50 } },
           "targetDirs": ["src"],
           "newMethodCeiling": 30,
           "requireCoverage": true,
@@ -128,7 +128,7 @@
           "enabled": true,
           "baselinePath": "baselines/maintainability.json",
           "tolerance": { "kind": "absolute", "value": 0.5 },
-          "floors": { "*": { "maintainability": 70 } },
+          "floors": { "*": { "min": 70, "p50": 80 } },
           "targetDirs": ["src", "tests"]
         },
         "mutation": {
