@@ -243,6 +243,16 @@ function buildDetails({ tool, toolInput, durationMs }) {
     ) {
       details.targetHash = hashTarget(toolInput.pattern);
     }
+    // Agent: record the literal `model` arg (Story #2590). The arg is a
+    // short enum value ('haiku'/'sonnet'/'opus') with no operator-secret
+    // content, so we store it plaintext. Records absence as `null` for
+    // Agent calls only — the field is omitted for every other tool — so
+    // the analyzer can distinguish "Agent fired without model" from
+    // "non-Agent tool".
+    if (tool === 'Agent') {
+      details.model =
+        typeof toolInput.model === 'string' ? clamp(toolInput.model) : null;
+    }
   }
 
   // Clamp the tool name (defensive — Claude's tool names are short, but

@@ -33,7 +33,7 @@ describe('extractDescription', () => {
       'description: >-\n' +
       '  Render the signals span-tree for an Epic to the\n' +
       '  terminal. Read-only viewer over `lib/signals/`.\n' +
-      'recommendedModel: haiku\n' +
+      'dispatchModel: haiku\n' +
       '---\n';
     const desc = extractDescription(src);
     assert.match(desc, /^Render the signals span-tree/);
@@ -48,7 +48,7 @@ describe('extractDescription', () => {
   });
 
   it('returns null when description key is missing', () => {
-    const src = '---\nrecommendedModel: opus\n---\n';
+    const src = '---\ndispatchModel: opus\n---\n';
     assert.equal(extractDescription(src), null);
   });
 

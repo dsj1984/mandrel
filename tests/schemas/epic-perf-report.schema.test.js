@@ -1,13 +1,13 @@
 /**
- * Unit tests for the optional `dispatchModel` field added to
- * `mostFrictionStories[]` items in `epic-perf-report.schema.json`
- * (Epic #1185 / Story #1329 / Task #1341).
+ * Unit tests for `epic-perf-report.schema.json` — `mostFrictionStories[]`
+ * item shape.
  *
- * Contract:
- *   - Pre-existing records without `dispatchModel` still validate (back-compat).
- *   - Records with `dispatchModel: 'haiku' | 'sonnet' | 'opus'` validate.
- *   - Records with any other string (e.g. `'gpt-4'`) fail with a clear
- *     enum-violation error.
+ * Story #2590 removed the `dispatchModel` field from the schema after the
+ * audit found no production producer wrote it. The tests below pin the
+ * post-removal contract:
+ *   - Records with just `{ storyId, frictionCount }` validate.
+ *   - Records that smuggle a `dispatchModel` key (any value) are rejected
+ *     by `additionalProperties: false`.
  */
 
 import assert from 'node:assert/strict';
@@ -56,8 +56,8 @@ function basePayload(overrides = {}) {
   };
 }
 
-describe('epic-perf-report.schema.json — dispatchModel field (Epic #1185)', () => {
-  it('still validates pre-existing records that omit dispatchModel (back-compat)', () => {
+describe('epic-perf-report.schema.json — mostFrictionStories item shape', () => {
+  it('validates the canonical { storyId, frictionCount } shape', () => {
     const validate = compileSchema();
     const ok = validate(
       basePayload({
@@ -67,52 +67,21 @@ describe('epic-perf-report.schema.json — dispatchModel field (Epic #1185)', ()
     assert.equal(ok, true, JSON.stringify(validate.errors));
   });
 
-  for (const value of ['haiku', 'sonnet', 'opus']) {
-    it(`validates records carrying dispatchModel: '${value}'`, () => {
-      const validate = compileSchema();
-      const ok = validate(
-        basePayload({
-          mostFrictionStories: [
-            { storyId: 1042, frictionCount: 4, dispatchModel: value },
-          ],
-        }),
-      );
-      assert.equal(ok, true, JSON.stringify(validate.errors));
-    });
-  }
-
-  it('rejects an unknown dispatchModel value with an enum-violation error', () => {
+  it('rejects records carrying a dispatchModel key (Story #2590 removal)', () => {
     const validate = compileSchema();
     const ok = validate(
       basePayload({
         mostFrictionStories: [
-          { storyId: 1042, frictionCount: 4, dispatchModel: 'gpt-4' },
+          { storyId: 1042, frictionCount: 4, dispatchModel: 'haiku' },
         ],
       }),
     );
     assert.equal(ok, false);
     const errors = validate.errors ?? [];
-    const enumError = errors.find((e) => e.keyword === 'enum');
+    const extra = errors.find((e) => e.keyword === 'additionalProperties');
     assert.ok(
-      enumError,
-      `expected an enum-violation error, got: ${JSON.stringify(errors)}`,
+      extra,
+      `expected additionalProperties error, got: ${JSON.stringify(errors)}`,
     );
-    assert.match(
-      String(enumError.instancePath ?? ''),
-      /dispatchModel/,
-      `expected enum error to point at dispatchModel, got: ${JSON.stringify(enumError)}`,
-    );
-  });
-
-  it('rejects null dispatchModel (omit-not-null contract)', () => {
-    const validate = compileSchema();
-    const ok = validate(
-      basePayload({
-        mostFrictionStories: [
-          { storyId: 1042, frictionCount: 4, dispatchModel: null },
-        ],
-      }),
-    );
-    assert.equal(ok, false);
   });
 });
