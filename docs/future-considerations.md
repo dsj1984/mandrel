@@ -1,6 +1,18 @@
 # Future Model Audit: Mandrel Under a 10x Coding Model
 
-Date: 2026-05-17
+Date: 2026-05-17 (last reviewed 2026-05-19)
+
+> **Action legend.** Each finding below carries one of two action tags:
+>
+> - 🚀 **Implement now** — an obvious win or high-value cleanup that pays
+>   off under today's models. Schedule it like any other backlog item.
+> - 🔭 **Monitor** — primary motivation is a materially stronger model.
+>   Park it until the next model-tier release moves the cost/benefit,
+>   then re-evaluate.
+>
+> Findings already shipped between the audit date and the last-reviewed
+> date are collapsed into the "Implemented Since Audit" section near the
+> end and removed from the numbered list.
 
 ## Executive Summary
 
@@ -58,6 +70,7 @@ I classified surfaces into four categories:
 ### 1. Prompt and Instruction Surface Is Too Procedural
 
 **Status:** Simplify / Reframe
+**Action:** 🔭 Monitor — today's models still rely on this procedural scaffold; the right time to compress is when the model can self-select context.
 
 **Primary paths:**
 
@@ -98,6 +111,7 @@ Specific simplifications:
 ### 2. Persona Files Become Advisory, Not Routing-Critical
 
 **Status:** Simplify
+**Action:** 🔭 Monitor — persona injection still measurably reduces role drift on current models.
 
 **Primary paths:**
 
@@ -124,6 +138,7 @@ Recommendation:
 ### 3. Skill Library Should Become a Capability Index Plus Compact Policies
 
 **Status:** Simplify / Reframe
+**Action:** 🚀 Implement now (partial) — generating a `skills.index.json` manifest and adding "policy capsule" frontmatter to each `SKILL.md` is a pure tooling win that helps current models too (cheaper selection, faster hydration). Defer the deeper "stop hydrating full skills by default" change until model self-selection is trustworthy.
 
 **Primary paths:**
 
@@ -151,6 +166,7 @@ Recommendation:
 ### 4. Planning Flow Has Too Many Fixed HITL Gates
 
 **Status:** Simplify
+**Action:** 🚀 Implement now — risk-based gating is valuable regardless of model strength. Phase 7 cross-validation (aec99d1c) and explicit `filesAssumption` (fda76f21) already moved in this direction; the remaining work (collapse idea refinement / clarity / Epic rendering into one proposal step, convert `maxTickets` from hard cap to reviewability budget) is operator-experience cleanup.
 
 **Primary paths:**
 
@@ -190,6 +206,7 @@ Simplify:
 ### 5. Four-Tier Ticket Hierarchy Is Often Overhead
 
 **Status:** Simplify / Reframe
+**Action:** 🚀 Implement now — adaptive Patch / Story / Epic modes pay off today (`/single-story-plan` already exists; Patch mode is the missing rung). Docs-only and refactor-only Epics burn real operator time on the full hierarchy.
 
 **Primary paths:**
 
@@ -219,6 +236,7 @@ Recommendation:
 ### 6. Per-Task Ritual and Commit Strategy Can Relax
 
 **Status:** Simplify
+**Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for resume/bisect. Relaxing depends on stronger holistic-edit coherence in future models.
 
 **Primary paths:**
 
@@ -242,6 +260,7 @@ Recommendation:
 ### 7. Sub-Agent Return Repair Can Shrink Substantially
 
 **Status:** Simplify
+**Action:** 🔭 Monitor — repair heuristics exist because current sub-agents still produce malformed envelopes. Re-evaluate once structured-output compliance is rock-solid in the next tier.
 
 **Primary paths:**
 
@@ -274,35 +293,18 @@ Simplify:
 
 ### 8. Audit Suite Is Over-Decomposed for a Stronger Model
 
-**Status:** Implemented in Epic #2586 (fan-out retired) / Simplify remainder
-
-**Primary paths:**
-
-- `.agents/workflows/audit-fan-out.md`
-- `.agents/workflows/audit-*.md`
-- `.agents/scripts/run-audit-suite.js`
-- `.agents/scripts/lib/audit-suite/`
-- `.agents/workflows/helpers/epic-code-review.md`
-
-Mandrel ships twelve specialized audit workflows and a fan-out aggregator. This
-mirrors the limits of current models: narrow specialists with explicit report
-templates reduce missed findings. A 10x model can likely perform a holistic
-review in one pass, then call targeted tools for evidence.
-
-Recommendation:
-
-- Keep domain-specific audit checklists as lenses.
-- Replace mandatory 12-agent fan-out with one adaptive audit orchestrator that
-  selects relevant lenses based on changed files, tech stack, and risk.
-- Retain independent security, privacy, dependency, and release-readiness gates
-  for high-risk diffs.
-- Avoid hard-coding model tiers like `haiku`, `sonnet`, and `opus` into workflow
-  expectations. Future models should be selected by capability profile, not
-  static vendor names.
+**Status:** ✅ Fully implemented (Epic #2586, commit 3e7937b4). The
+`audit-fan-out` workflow and slash-command are retired; `select-audits.js` +
+`audit-orchestrator.js` now select relevant lenses from changed files and
+risk. `/audit-to-stories` (e4ab4227) aggregates findings into Stories. The
+model-name enum softening called out in the original recommendation is
+covered separately under Finding #10's "Soften" list. See "Implemented
+Since Audit" at the bottom of this doc.
 
 ### 9. Code Review Should Become Evidence-First, Not Ritual-First
 
 **Status:** Reframe
+**Action:** 🔭 Monitor — adaptive review-depth selection is most valuable once the model can reliably judge "this diff is risky." Keep the structured `code-review` comment contract as-is until then.
 
 **Primary paths:**
 
@@ -328,6 +330,7 @@ Recommendation:
 ### 10. Quality Gates Remain Load-Bearing
 
 **Status:** Keep
+**Action:** 🚀 Implement now (the "Soften" sublist only) — replacing closed model-name enums (`haiku | sonnet | opus`) with open capability tiers, and removing magic-number compact-vs-pretty ratio assertions, are obvious cleanup wins today. d1f1eaff partially addressed model-name daylight; finish the job. The "Keep" gates stay untouched.
 
 **Primary paths:**
 
@@ -371,6 +374,7 @@ Soften:
 ### 11. Lifecycle Bus and Ledger Should Stay
 
 **Status:** Keep
+**Action:** 🚀 Implement now (the simplification sublist only) — removing legacy emit shims, collapsing duplicate progress/comment writers, and generating event docs from schemas are pure hygiene wins. Core bus/ledger stays untouched.
 
 **Primary paths:**
 
@@ -402,6 +406,7 @@ Potential simplification:
 ### 12. Worktree and Branch Isolation Still Matter
 
 **Status:** Keep
+**Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to an implementation option) is contingent on future agent platforms shipping reliable per-task sandboxes. Keep the abstraction as-is until then.
 
 **Primary paths:**
 
@@ -432,6 +437,7 @@ Simplify:
 ### 13. Execution Adapter Surface Is Underused
 
 **Status:** Reframe
+**Action:** 🚀 Implement now — this is a decision that should be made regardless of model strength: either invest in a real adapter contract or demote `ManualDispatchAdapter` to a documented compatibility example and simplify architecture docs around the actual Claude Code-first runtime. Either path removes confusion today.
 
 **Primary paths:**
 
@@ -460,6 +466,7 @@ Recommendation:
 ### 14. Context Hydration Should Become Structured and Selective
 
 **Status:** Simplify
+**Action:** 🚀 Implement now — structured retrieval beats concatenation today, not just under future models. Emitting a structured context object with named sections, stored ticket IDs/versions/hashes, and section-aware elision improves auditability and reduces hydration cost now. Pair with Finding #3's `skills.index.json` work.
 
 **Primary paths:**
 
@@ -485,6 +492,7 @@ Recommendation:
 ### 15. Acceptance Spec Is Valuable but Too Universal
 
 **Status:** Simplify
+**Action:** 🚀 Implement now — making the planner choose required / recommended / not-applicable based on visible-behavior risk is operator-time savings today. `acceptance::n-a` already exists; promote it from a manual waiver to a planner decision with a risk-rubric.
 
 **Primary paths:**
 
@@ -513,6 +521,7 @@ Recommendation:
 ### 16. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
+**Action:** 🚀 Implement now (docs cleanup) / 🔭 Monitor (relaxation) — removing stale docs that describe already-removed numeric limits (`maxInstructionSteps`, flat `friction.*`) as active config is an obvious docs-drift fix to do now. Further relaxation of per-turn FinOps rituals waits on future inference economics.
 
 **Primary paths:**
 
@@ -542,6 +551,7 @@ Recommendation:
 ### 17. Compatibility Shims and Legacy Shapes Are Dragging the Harness
 
 **Status:** Retire over time
+**Action:** 🚀 Implement now — a formal deprecation ledger with removal versions plus one migration command per retired surface is pure operator hygiene. d1f1eaff retired `dispatchModel` / `recommendedModel`; keep going. The harness gets harder to reason about (for humans *and* models) every release the shims linger.
 
 **Primary paths:**
 
@@ -569,6 +579,7 @@ Recommendation:
 ### 18. Docs Drift Is a Future-Model Risk
 
 **Status:** Fix / Reframe
+**Action:** 🚀 Implement now — stale docs are dangerous regardless of model strength (today's models follow them confidently too). All four originally observed drifts were still present as of 2026-05-19; fix them in a single pass and add the generated-from-schema tooling so they cannot regress.
 
 **Primary paths:**
 
@@ -594,6 +605,9 @@ Examples observed:
 - Some docs refer to Phase 6 as PR-open-and-stop, while current
   `epic-deliver.md` describes Phase 7 watch, Phase 7.5 auto-merge, and Phase 8
   cleanup.
+- `.agents/SDLC.md` still lists Phase 4 as code-review and Phase 5 as retro,
+  while `epic-deliver.md` has Phase 4 as audit, Phase 5 as code-review, Phase
+  6 as retro, and Phase 7 as finalize.
 
 Recommendation:
 
@@ -602,6 +616,25 @@ Recommendation:
 - Add doc tests for command names and internal workflow links.
 - Mark historical workflow docs explicitly as archived when they no longer
   match current runtime behavior.
+
+## Implemented Since Audit
+
+Tracked here so the numbered list above stays focused on open work.
+
+- ✅ **Finding #8 (Audit fan-out)** — Epic #2586 / commit 3e7937b4 (2026-05-18).
+  Retired `audit-fan-out.md` and the slash-command; the twelve audit
+  workflows now act as lenses selected by `select-audits.js` +
+  `audit-orchestrator.js` based on changed files and risk.
+  `/audit-to-stories` (e4ab4227) converts findings into actionable
+  Stories.
+- 🟡 **Finding #13 partial (model-name daylight)** — commit d1f1eaff
+  removed dead `dispatchModel` / `recommendedModel` fields. The broader
+  question of whether `IExecutionAdapter` is a real public extension
+  point is still open (see Finding #13).
+- 🟡 **Finding #4 partial** — fda76f21 added explicit `filesAssumption`
+  validation on Task paths and aec99d1c added Phase 7 cross-validation
+  of Tech Spec against the codebase. Risk-based gate streamlining is
+  still open.
 
 ## Functionality Likely Obsolete With a 10x Model
 
