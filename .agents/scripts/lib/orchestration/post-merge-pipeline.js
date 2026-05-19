@@ -625,7 +625,7 @@ export async function dashboardRefreshPhase(ctx) {
     return false;
   }
   log('DASHBOARD', 'Regenerating dispatch manifest...');
-  await generateManifestFn(epicId, true, null, { provider });
+  await generateManifestFn(epicId, true, { provider });
   log('DASHBOARD', '✅ Dashboard manifest updated (temp/)');
   return true;
 }

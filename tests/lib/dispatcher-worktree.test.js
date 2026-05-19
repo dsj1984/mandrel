@@ -4,13 +4,13 @@
  * Covers:
  *   - collectOpenStoryIds: gc input is restricted to stories whose tasks
  *     are not all done, so reaping cannot delete a live story's worktree.
- *   - ManualDispatchAdapter: when `cwd` is present in the dispatch payload,
- *     a `cd "<path>"` instruction is printed for the operator.
+ *   - The inline dispatch record shape produced by `dispatchTaskInWave`
+ *     (Epic #2646 / Story #2688 deleted the IExecutionAdapter abstraction
+ *     and inlined `{ taskId, dispatchId, status }` at the call site).
  */
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ManualDispatchAdapter } from '../../.agents/scripts/adapters/manual.js';
 import { collectOpenStoryIds } from '../../.agents/scripts/lib/orchestration/dispatch-engine.js';
 
 // ---------------------------------------------------------------------------
@@ -86,60 +86,5 @@ describe('collectOpenStoryIds — gc safety', () => {
       collectOpenStoryIds(tasks, allTicketsById, { reapOnCancel: false }),
       [100],
     );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// ManualDispatchAdapter — surfaces cwd to operator
-// ---------------------------------------------------------------------------
-
-describe('ManualDispatchAdapter — cwd dispatch instruction', () => {
-  function makeDispatch(extra = {}) {
-    return {
-      taskId: 42,
-      epicId: 1,
-      branch: 'story-7',
-      epicBranch: 'epic/1',
-      prompt: '<<prompt>>',
-      persona: 'engineer',
-      model: 'sonnet',
-      mode: 'fast',
-      skills: [],
-      focusAreas: [],
-      metadata: {},
-      ...extra,
-    };
-  }
-
-  function captureStdout(fn) {
-    const lines = [];
-    const original = console.log;
-    console.log = (...args) => lines.push(args.join(' '));
-    try {
-      return { result: fn(), output: () => lines.join('\n') };
-    } finally {
-      console.log = original;
-    }
-  }
-
-  it('surfaces cwd in the dispatch log when set', async () => {
-    const adapter = new ManualDispatchAdapter(null);
-    const cwd = '/repo/.worktrees/story-7';
-    const { result, output } = captureStdout(() =>
-      adapter.dispatchTask(makeDispatch({ cwd })),
-    );
-    await result;
-    const text = output();
-    assert.match(text, /cwd=\/repo\/\.worktrees\/story-7/);
-  });
-
-  it('omits cwd from the dispatch log when absent (single-tree mode)', async () => {
-    const adapter = new ManualDispatchAdapter(null);
-    const { result, output } = captureStdout(() =>
-      adapter.dispatchTask(makeDispatch()),
-    );
-    await result;
-    const text = output();
-    assert.doesNotMatch(text, /cwd=/);
   });
 });

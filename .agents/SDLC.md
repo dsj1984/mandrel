@@ -8,9 +8,9 @@ ticket data.
 
 The framework is **Claude Code-first**: `.claude/`, hooks, skills, and
 the slash-command surface lean in on Claude Code as the reference
-runtime, while the dispatcher (`.agents/scripts/`) stays runtime-neutral
-behind the `IExecutionAdapter` boundary. See ADR 20260512-coupling-stance
-in [`../docs/decisions.md`](../docs/decisions.md).
+runtime, and the dispatcher (`.agents/scripts/`) treats the dispatch
+manifest (md + structured comment) as the cross-runtime contract. See
+ADR 20260512-coupling-stance in [`../docs/decisions.md`](../docs/decisions.md).
 
 ---
 

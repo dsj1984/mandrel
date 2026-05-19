@@ -574,7 +574,7 @@ describe('dashboardRefreshPhase / notificationPhase', () => {
       provider: { tag: 'p' },
       skipDashboard: false,
       progress: () => {},
-      generateManifestFn: async (epicId, fresh, _arg, opts) => {
+      generateManifestFn: async (epicId, fresh, opts) => {
         captured = { epicId, fresh, opts };
       },
     });
