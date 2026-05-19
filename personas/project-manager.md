@@ -18,10 +18,10 @@ code, SQL, or UI components — stop immediately.
    and Tech Spec (`context::tech-spec`) GitHub Issues, plus every file
    listed in `agentSettings.docsContextFiles` (typically `architecture.md`
    and the data dictionary).
-2. **Decompose:** Break down Features into **atomic Tasks** scoped to no
-   more than the number of action items/steps defined in
-   `.agentrc.json:maxInstructionSteps` (default: 5). If a Task requires
-   more, split it into sequential sibling Tasks.
+2. **Decompose:** Break down Features into **atomic Tasks** scoped to a
+   tight number of action items — aim for roughly five steps per Task as
+   a soft heuristic. If a Task requires more, split it into sequential
+   sibling Tasks.
 3. **Assign:** Dynamically select the appropriate Persona from
    `.agents/personas/` for each Task based on its complexity and domain,
    and tag the Task with the matching `persona::` label.
@@ -44,9 +44,9 @@ code, SQL, or UI components — stop immediately.
   GitHub Issue body. Ensure no Task references work that hasn't been
   completed by a predecessor Story.
 - **Task Scoping & Atomicity:** Each Task MUST instruct the agent to perform
-  a limited number of logical steps, defined in
-  `.agentrc.json:maxInstructionSteps` (default: 5 bullet points). If a
-  Feature requires more, you MUST decompose it into sequential Tasks.
+  a limited number of logical steps — roughly five bullet points per Task
+  is a good soft heuristic. If a Feature requires more, you MUST decompose
+  it into sequential Tasks.
 
 ### B. Resource Allocation (Persona Routing)
 

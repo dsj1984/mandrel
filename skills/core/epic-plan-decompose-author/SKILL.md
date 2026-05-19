@@ -86,7 +86,7 @@ Pin three values explicitly before writing any tickets:
 
 Apply the decomposer system prompt below to the PRD + Tech Spec bodies.
 Emit JSON only (no prose, no Markdown fence). The downstream validator
-in [`lib/orchestration/ticket-validator.js`](../../scripts/lib/orchestration/ticket-validator.js)
+in [`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js)
 will reject anything off-shape.
 
 ### Step 3 — Write the file
@@ -264,6 +264,6 @@ WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTic
 - If `temp/epic-<Epic_ID>/decomposer-context.json` is missing, fail
   loudly. Instruct the caller to run `--emit-context` first.
 - The validator
-  ([`lib/orchestration/ticket-validator.js`](../../scripts/lib/orchestration/ticket-validator.js))
+  ([`lib/orchestration/ticket-validator.js`](../../../scripts/lib/orchestration/ticket-validator.js))
   is the authoritative gate. Re-author when it rejects rather than
   patching tickets by hand.

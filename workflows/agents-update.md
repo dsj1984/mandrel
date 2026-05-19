@@ -121,7 +121,7 @@ A framework bump that crosses the Epic #1386 boundary requires four
 additive installs on the consumer project so the new gate behaviour is
 actually wired into the consumer's commit / push / CI surfaces. The
 installs share the same idempotent helpers
-[`/agents-bootstrap-project`](agents-bootstrap-project.md) Step 7.5 uses,
+[`bootstrap.js`](../scripts/bootstrap.js) Step 7.5 uses,
 so a project that already ran the bootstrap on a post-Epic #1386
 framework version sees `no-change` everywhere here.
 
