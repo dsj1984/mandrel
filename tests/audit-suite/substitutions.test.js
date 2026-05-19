@@ -9,14 +9,22 @@ import {
 } from '../../.agents/scripts/lib/audit-suite/substitutions.js';
 import { ValidationError } from '../../.agents/scripts/lib/errors/index.js';
 
-test('BUILT_IN_SUBSTITUTION_KEYS: stable, frozen, includes the canonical trio', () => {
+test('BUILT_IN_SUBSTITUTION_KEYS: stable, frozen, includes the canonical set', () => {
   assert.deepEqual(
     [...BUILT_IN_SUBSTITUTION_KEYS],
-    ['auditOutputDir', 'ticketId', 'baseBranch'],
+    ['auditOutputDir', 'ticketId', 'baseBranch', 'changedFiles'],
   );
   assert.throws(() => {
     BUILT_IN_SUBSTITUTION_KEYS.push('nope');
   });
+});
+
+test('BUILT_IN_SUBSTITUTION_KEYS: includes changedFiles (Epic-mode lens scoping)', () => {
+  // Story #2597: `{{changedFiles}}` is a built-in so any audit lens template
+  // can reference it without declaring it in audit-rules.json. Absent in
+  // manual `/audit-*` invocations — the literal is left intact by
+  // applySubstitutions and handled by the lens body.
+  assert.ok(BUILT_IN_SUBSTITUTION_KEYS.includes('changedFiles'));
 });
 
 test('applySubstitutions: replaces every {{key}} occurrence', () => {
@@ -90,8 +98,21 @@ test('computeAllowedKeys: returns built-ins when no audits supplied', () => {
   assert.deepEqual([...allowed].sort(), [
     'auditOutputDir',
     'baseBranch',
+    'changedFiles',
     'ticketId',
   ]);
+});
+
+test('computeAllowedKeys: changedFiles is in the allow-list for any audit list', () => {
+  // Built-in keys are unconditional — they do not depend on which audits
+  // the caller requested.
+  const empty = computeAllowedKeys({}, []);
+  assert.ok(empty.has('changedFiles'));
+  const withAudits = computeAllowedKeys(
+    { audits: { foo: { substitutionKeys: ['extra'] } } },
+    ['foo'],
+  );
+  assert.ok(withAudits.has('changedFiles'));
 });
 
 test('computeAllowedKeys: unions built-ins with audit-declared keys', () => {

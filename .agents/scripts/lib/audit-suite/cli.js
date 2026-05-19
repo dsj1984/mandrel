@@ -17,8 +17,8 @@ Flags:
   --ticket         Ticket id used for the {{ticketId}} substitution (optional).
   --base-branch    Value used for the {{baseBranch}} substitution (default: main).
   --substitution   Repeatable key=value substitution (e.g. --substitution alphaKey=val).
-                   Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch)
-                   plus any substitutionKeys declared on the requested audits.
+                   Allowed keys are the built-ins (auditOutputDir, ticketId, baseBranch,
+                   changedFiles) plus any substitutionKeys declared on the requested audits.
   --run-id         Optional artifact prefix. When set, full prompt bodies are written
                    to <auditOutputDir>/audit-<run-id>-<audit>.md (defaults to
                    temp/audits/) so downstream agents can read them.

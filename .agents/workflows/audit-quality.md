@@ -27,6 +27,27 @@ and integration test coverage alongside their feature implementations. The QA
 Engineering function focuses on End-to-End (E2E) testing, complex system
 integrations, and test environment stability.
 
+## Scope (Epic mode)
+
+When this lens is invoked from `/epic-deliver` Phase 4 (epic-audit), the
+following block is populated with the Epic's change-set file list.
+Otherwise — for any manual `/audit-<dimension>` invocation — the block
+renders the literal substitution token and you MUST treat it as **no
+scope filter — run the lens codebase-wide** exactly as you would have
+before this section existed.
+
+```text
+{{changedFiles}}
+```
+
+- If the block above contains a newline-delimited list of file paths,
+  restrict your analysis to those files (and their direct dependencies
+  when the lens explicitly calls for cross-file reasoning).
+- If the block above renders as the literal string `{{changedFiles}}`
+  (i.e. no substitution was supplied), ignore this section entirely and
+  proceed with the full codebase-wide scan defined in the remaining
+  steps.
+
 ## Step 0 - Project Context
 
 1.  Read the active Epic and its child tickets to identify the current milestone
