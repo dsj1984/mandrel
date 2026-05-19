@@ -8,9 +8,15 @@
  *
  * Returned object:
  *   notify, epicRunStateStore, blockerHandler, launcher, gitAdapter,
- *   commitAssertion, waveObserver, progressReporter, columnSync,
- *   syncColumn (closure wrapping columnSync.sync with error-journal
- *   logging).
+ *   commitAssertion, waveObserver, progressReporter, journal, bus,
+ *   plus the lifecycle listener instances.
+ *
+ * Story #2548 — Projects v2 Status column sync is owned by
+ * `transitionTicketState` itself, so this factory no longer constructs
+ * a `ColumnSync` or wires a `syncColumn` closure into the collaborator
+ * bag. The iterate-waves phase relied on those mirror calls; with the
+ * sync inlined into the state mutator, every label flip (Epic, Story,
+ * Task) updates the board automatically.
  */
 
 import { notify } from '../../../notify.js';
@@ -43,7 +49,6 @@ import {
   upsertStructuredComment,
 } from '../ticketing.js';
 import { waitForEpicUnblock } from './blocker-wait.js';
-import { ColumnSync } from './column-sync.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
 import { ProgressReporter } from './progress-reporter.js';
 import { StoryLauncher } from './story-launcher.js';
@@ -138,7 +143,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     cwd: ctx.cwd,
     config,
   });
-  const columnSync = new ColumnSync({ ctx });
 
   // Lifecycle bus wiring (Story #2233 — snapshot + plan phase conversions).
   // The bus runs in parallel with the legacy code path: phases still mutate
@@ -297,23 +301,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
       signal,
     });
 
-  const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
-  const syncColumn = async (id, labels) => {
-    try {
-      await columnSync.sync(id, labels);
-    } catch (err) {
-      logger.warn?.(
-        `[EpicRunner] column sync failed for #${id}: ${err.message}${journalSuffix()}`,
-      );
-      await journal?.record({
-        module: 'EpicRunner',
-        op: `columnSync.sync(#${id})`,
-        error: err,
-        recovery: 'swallowed',
-      });
-    }
-  };
-
   return {
     notify: notifyFn,
     epicRunStateStore,
@@ -324,8 +311,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     commitAssertion,
     waveObserver,
     progressReporter,
-    columnSync,
-    syncColumn,
     journal,
     bus,
     ledgerWriter,
