@@ -646,6 +646,21 @@ Tracked here so the numbered list above stays focused on open work.
   `audit-orchestrator.js` based on changed files and risk.
   `/audit-to-stories` (e4ab4227) converts findings into actionable
   Stories.
+- ✅ **Finding #10 Soften sublist (closed model-name enum + magic-number
+  ratio)** — Epic #2646 / Story #2690 (2026-05-19). The magic-number
+  `compact/pretty <= 0.7` assertion was deleted from
+  `tests/emit-context-compact-json.test.js` (the bounded-payload
+  `compact.length < pretty.length` and JSON parseability assertions are
+  retained). A defensive sweep across `.agents/schemas/*.json`,
+  `.agents/workflows/**` frontmatter, and `.agents/scripts/lib/**/*.js`
+  validators confirmed no straggler closed enum unions of
+  `haiku | sonnet | opus` remain as **vendor-name** enums. The
+  `ALLOWED_MODEL_HINTS` enum in
+  `.agents/scripts/lib/audit-suite/frontmatter-lint.js` is intentionally
+  retained: it validates the `dispatchModel` frontmatter field, which is a
+  Claude **tier hint** (fast/balanced/heavy semantics expressed via the
+  three tier names), not a vendor model identifier. Sweep commands and
+  empty results documented in the PR body.
 - 🟡 **Finding #13 partial (model-name daylight)** — commit d1f1eaff
   removed dead `dispatchModel` / `recommendedModel` fields. The broader
   question of whether `IExecutionAdapter` is a real public extension
