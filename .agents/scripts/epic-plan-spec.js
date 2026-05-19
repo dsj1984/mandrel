@@ -27,6 +27,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
+import * as os from 'node:os';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
@@ -49,6 +50,7 @@ import {
   resolveConfig,
   validateOrchestrationConfig,
 } from './lib/config-resolver.js';
+import { scanMemoryFreshness } from './lib/feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from './lib/feedback-loop/prior-feedback-fetcher.js';
 import * as gitUtils from './lib/git-utils.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
@@ -166,11 +168,23 @@ export async function buildAuthoringContext(
   // when no supported runner is present.
   const bddRunner = await verifyBddRunnerPendingTag({ cwd: PROJECT_ROOT });
 
+  // Story #2557 — memory-freshness pre-flight runs BEFORE the prior-feedback
+  // fetch so the planner sees a deduplicated, currently-actionable memory
+  // store. The scanner is best-effort: missing memory dir or gh-CLI failures
+  // land in `memoryFreshness.errors[]` and never throw.
+  const githubCfg = opts.github ?? null;
+  const memoryDir = resolveMemoryDir({ github: githubCfg });
+  const memoryFreshness = await scanMemoryFreshness({
+    memoryDir,
+    owner: githubCfg?.owner,
+    repo: githubCfg?.repo,
+    projectRoot: PROJECT_ROOT,
+  });
+
   // Story #2554 — surface open meta feedback issues to the planner so retro
   // signals are routed into durable substrates rather than lost in chat.
   // The fetcher is best-effort: missing owner/repo or gh-CLI failures land
   // in `errors[]` and never throw.
-  const githubCfg = opts.github ?? null;
   const priorFeedback = await fetchPriorFeedback({
     owner: githubCfg?.owner,
     repo: githubCfg?.repo,
@@ -191,8 +205,37 @@ export async function buildAuthoringContext(
       acceptanceSpec: ACCEPTANCE_SPEC_SYSTEM_PROMPT,
     },
     bddRunner,
+    memoryFreshness,
     priorFeedback,
   };
+}
+
+/**
+ * Resolve the per-project memory directory used by the memory-freshness
+ * pre-flight (Story #2557 / Epic #2547).
+ *
+ * Resolution order:
+ *   1. `MANDREL_MEMORY_DIR` environment variable (test seam and operator
+ *      override).
+ *   2. `~/.claude/projects/<repo>/memory/` — the standard Claude Code
+ *      memory substrate path, scoped by the configured GitHub repo so each
+ *      consumer project gets its own memory pool.
+ *   3. `null` when neither is resolvable. The scanner tolerates a missing
+ *      `memoryDir` and surfaces a single `errors[]` entry.
+ *
+ * @param {{ github?: { owner?: string, repo?: string }|null }} opts
+ * @returns {string|null}
+ */
+export function resolveMemoryDir({ github } = {}) {
+  if (
+    typeof process.env.MANDREL_MEMORY_DIR === 'string' &&
+    process.env.MANDREL_MEMORY_DIR.length > 0
+  ) {
+    return process.env.MANDREL_MEMORY_DIR;
+  }
+  const repo = github?.repo;
+  if (typeof repo !== 'string' || repo.length === 0) return null;
+  return path.join(os.homedir(), '.claude', 'projects', repo, 'memory');
 }
 
 /**
