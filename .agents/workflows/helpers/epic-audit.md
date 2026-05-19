@@ -78,26 +78,67 @@ envelope:
 
 ## Step 2 — Walk Selected Lenses (`runAuditSuite`)
 
+> **Execution model — the host LLM is the executor, not the CLI.**
+> `run-audit-suite.js` is a **prompt-assembly runner**, not a findings
+> generator. It resolves each lens to its workflow markdown, applies
+> the `{{ticketId}}` / `{{baseBranch}}` / `{{changedFiles}}` (and any
+> per-audit) substitutions, and returns one *workflow descriptor* per
+> lens. Its return envelope intentionally carries `findings: []` and
+> `summary: { critical:0, high:0, medium:0, low:0 }` because no lens
+> has been *executed* yet — the host LLM walks each workflow's
+> procedure inline against the substitution payload, severity-rates
+> what it finds, and assembles the aggregate report in Step 4. If you
+> expected `findings[]` to be populated by the CLI, the rest of this
+> helper will surprise you; stop and re-read this paragraph.
+
 For each lens name in `selectedAudits`, invoke
-[`runAuditSuite`](../../scripts/lib/audit-suite/index.js) inline with the
-prepare envelope as the substitution source. The runner loads the matching
-`.agents/workflows/audit-<lens>.md` file, applies substitutions
-(`{{changedFiles}}`, `{{ticketId}}`, `{{baseBranch}}`, …), and returns a
-slim workflow descriptor plus a per-lens artifact path under
-`<auditOutputDir>` (default `temp/audits/`):
+[`runAuditSuite`](../../scripts/lib/audit-suite/index.js) (or its CLI
+wrapper) with the prepare envelope as the substitution source. The
+runner loads the matching `.agents/workflows/audit-<lens>.md` file,
+applies the substitutions, and — when `--run-id` is supplied — writes
+the substituted body to a per-lens artifact at
+`<auditOutputDir>/audit-<run-id>-<lens>.md` (default `auditOutputDir`
+is `temp/audits/`):
 
 ```bash
 node .agents/scripts/run-audit-suite.js \
-  --audits audit-security audit-privacy \
-  --substitutions '{"ticketId":"[EPIC_ID]","baseBranch":"[BASE_BRANCH]","changedFiles":"[substitutionsPayload]"}' \
-  --artifact-prefix epic-[EPIC_ID]
+  --audits audit-security,audit-privacy \
+  --ticket [EPIC_ID] \
+  --base-branch [BASE_BRANCH] \
+  --substitution changedFiles="[substitutionsPayload]" \
+  --run-id epic-[EPIC_ID]
 ```
 
-Then **read each per-lens artifact** under
-`<auditOutputDir>/audit-epic-[EPIC_ID]-<lens>.md` and walk its findings
-inline. Each lens workflow declares its own pillars, severity rubric, and
-remediation prose — follow the workflow's procedure verbatim. Aggregate
-findings across lenses by severity (🔴 / 🟠 / 🟡 / 🟢) for the Step 4 report.
+CLI shape notes:
+
+- `--audits` is **comma-separated**, not space-separated. Passing each
+  lens as a separate positional arg only captures the first one.
+- `--substitution` is **repeatable** (`key=value` per occurrence); the
+  legacy `--substitutions '<json>'` flag is not supported.
+- `--run-id` is the per-lens artifact prefix (the legacy
+  `--artifact-prefix` flag is not supported). When omitted, no
+  artifact is written and the host LLM must walk the workflow body in
+  memory.
+
+After the runner returns:
+
+1. **Read the descriptor stream** — confirm every requested lens
+   appears in `metadata.auditsRun`, then walk each entry in
+   `workflows[]` (or each on-disk artifact when `--run-id` was set).
+2. **Execute the lens inline.** Open the lens workflow at
+   `path` (or the per-lens artifact file when `--run-id` produced
+   one) and follow its procedure verbatim against the substituted
+   change set. Each lens declares its own pillars, severity rubric,
+   and remediation prose; treat its body as the canonical execution
+   contract for that pass.
+3. **Aggregate** by severity (🔴 Critical Blocker / 🟠 High /
+   🟡 Medium / 🟢 Suggestion). Hold the aggregate for Step 3
+   (auto-fix) and Step 4 (the `audit-results` structured comment).
+
+If a future Story lifts per-lens execution out of the host-LLM walk
+into the CLI itself, the runner will populate `findings[]` and this
+section will collapse to a "read the structured findings off the
+envelope" bullet. Until then, the host LLM is the gate.
 
 ## Step 3 — Auto-fix Loop
 
