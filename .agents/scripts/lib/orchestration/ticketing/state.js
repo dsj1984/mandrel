@@ -22,6 +22,7 @@ import {
   eventSeverity,
   renderTransitionMessage,
 } from '../../notifications/notifier.js';
+import { ColumnSync } from '../column-sync.js';
 // Story #1848 — `cascadeCompletion` + `logCascadePartialFailures` live
 // in `./bulk.js`. The ESM cycle between state.js ↔ bulk.js is safe
 // because neither side dereferences the imported bindings at module-
@@ -82,6 +83,35 @@ async function loadTicketSnapshot(provider, opts, ticketId) {
       `[Ticketing] fromState lookup failed for #${ticketId}: ${err.message ?? err}`,
     );
     return null;
+  }
+}
+
+/**
+ * Mirror the post-flip label set onto the GitHub Projects v2 Status
+ * column. Story #2548 — wiring this here makes every caller of
+ * `transitionTicketState` (story-init, story-close, story-task-progress,
+ * the LabelTransitioner lifecycle listener, the update-ticket-state CLI,
+ * batch transitions) update the board automatically. Prior to #2548 the
+ * sync was only wired from the epic-runner against the Epic ticket, so
+ * Stories and Tasks never had their `agent::executing` /
+ * `agent::blocked` flips reflected on the board.
+ *
+ * Best-effort: a project-board misconfig, missing scope, or transient
+ * GraphQL failure MUST NOT block the label transition itself. Errors
+ * surface via `Logger.warn` and the function resolves cleanly.
+ *
+ * @param {object} provider
+ * @param {number} ticketId
+ * @param {string} newState
+ */
+async function syncProjectStatusColumn(provider, ticketId, newState) {
+  try {
+    const sync = new ColumnSync({ provider, logger: Logger });
+    await sync.sync(ticketId, [newState]);
+  } catch (err) {
+    Logger.warn(
+      `[Ticketing] column sync failed for #${ticketId} → ${newState}: ${err?.message ?? err}`,
+    );
   }
 }
 
@@ -224,6 +254,10 @@ export async function transitionTicketState(
     // `mutations` shape.
     _ticketSnapshot: ticketSnapshot,
   });
+
+  // Story #2548 — mirror the new state onto the Projects v2 Status
+  // column. Best-effort; never blocks the transition.
+  await syncProjectStatusColumn(provider, ticketId, newState);
 
   // Automatically trigger upward cascade when a ticket is completed.
   // This ensures parents (Stories, Features) close as soon as their last

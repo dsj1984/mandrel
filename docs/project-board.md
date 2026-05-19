@@ -26,10 +26,13 @@ options, so extending the field with team-specific states (e.g.
 
 ## Label → Column map
 
-`lib/orchestration/epic-runner/column-sync.js` drives the Status column
-on every label transition via the `LABEL_TO_COLUMN` table. When two
-lifecycle labels overlap, terminal states win (Done > Blocked > Review >
-Spec Review > Ready > In Progress).
+`lib/orchestration/column-sync.js` drives the Status column on every
+label transition via the `LABEL_TO_COLUMN` table. The sync is invoked
+from inside `transitionTicketState` (Story #2548), so every Epic,
+Story, and Task flip mirrors onto the board automatically — no need
+for callers to opt in. When two lifecycle labels overlap, terminal
+states win (Done > Blocked > Review > Spec Review > Ready > In
+Progress).
 
 | Label                | Column        |
 | -------------------- | ------------- |
