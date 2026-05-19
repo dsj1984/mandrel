@@ -173,6 +173,30 @@ The script:
 
 1. Runs the close-validation gates against `baseBranch` as the baseline.
    On any gate failure it throws — the operator fixes and re-runs close.
+1a. **Syncs the Story branch from `origin/<baseBranch>`** before push
+   (Story #2580). Runs `git fetch origin <baseBranch>` followed by
+   `git merge --no-edit origin/<baseBranch>` inside the worktree. This
+   defends against the parallel-`/single-story-deliver` race: when
+   multiple sessions run in parallel, the Story that auto-merges first
+   bumps `baseBranch`, and without this sync the lagging Stories open
+   PRs that are "behind base" and stall against branch-protection's
+   `up-to-date branch` rule. Outcomes:
+   - **No-op / fast-forward / clean merge-commit** → close proceeds to
+     push.
+   - **Merge conflict** → the merge is aborted, a `friction` structured
+     comment is posted on the Story (conflicting file list + recovery
+     command set), the Story flips to `agent::blocked`, and close
+     throws. Resolve in the worktree (`git merge origin/<base>` + fix
+     conflicts + `git commit --no-edit`) and re-run
+     `/single-story-deliver`.
+   - **Fetch failed** → close throws with the git stderr; no label
+     transition.
+
+   Note: the merge queue (when enabled) re-tests each PR against the
+   queue tip before merging, so this sync + merge queue is the complete
+   defence against the parallel race. Without merge queue, the sync
+   closes the PR-open-time race but a residual race remains between PR
+   open and auto-merge fire.
 2. Pushes `story-<id>` to `origin`.
 3. Probes for an existing open PR with `head = story-<id>`. If none
    exists, opens one via `gh pr create --base <baseBranch>`. The PR
@@ -194,6 +218,9 @@ The script:
 
 `--skip-validation` bypasses Step 1 (gates). Use only when re-running
 close after a fixed gate failure that's already known to pass.
+
+`--skip-sync` bypasses Step 1a (base-sync). Use only when re-running
+close after a hand-resolved sync, or in tests.
 
 `--no-auto-merge` disables Step 3a. Use when the PR materially changes
 behaviour and warrants pre-merge review.
