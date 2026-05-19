@@ -390,7 +390,7 @@ The supporting deletions land atomically:
 
 `agentSettings.quality.prGate` is promoted from schema-only to
 default config and gains an `enforceBranchProtection` boolean
-(default `true`).  `/agents-bootstrap-github` gains an
+(default `true`).  `node .agents/scripts/bootstrap.js` gains an
 `ensureMainBranchProtection({ checks })` step that creates or merges
 branch protection on `main` with the configured `prGate.checks` as
 required status checks.  Branch protection is now load-bearing
@@ -416,7 +416,7 @@ because the operator's PR merge is the sole promotion gate.
 - **Branch protection is load-bearing.**  Consumers that previously
   relied on the in-script merge to gate red trees from `main` must
   ensure `enforceBranchProtection: true` and re-run
-  `/agents-bootstrap-github` so the required-checks set is wired up.
+  `node .agents/scripts/bootstrap.js` so the required-checks set is wired up.
   The default flips this on; the migration path is documented in
   the 5.40.0 CHANGELOG entry.
 - **Resolver-key alignment fixes the silent override-drop bug.**
