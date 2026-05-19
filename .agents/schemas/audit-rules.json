@@ -97,13 +97,7 @@
     "audit-performance": {
       "triggers": {
         "gates": ["gate1", "gate3"],
-        "keywords": [
-          "performance",
-          "n+1",
-          "hot path",
-          "latency",
-          "throughput"
-        ],
+        "keywords": ["performance", "n+1", "hot path", "latency", "throughput"],
         "filePatterns": [".agents/scripts/**", "src/**/*.{ts,js}"]
       },
       "substitutionKeys": []
@@ -119,13 +113,7 @@
     "audit-seo": {
       "triggers": {
         "gates": ["gate2", "gate3"],
-        "keywords": [
-          "seo",
-          "meta",
-          "structured data",
-          "schema.org",
-          "sitemap"
-        ],
+        "keywords": ["seo", "meta", "structured data", "schema.org", "sitemap"],
         "filePatterns": ["**/*.html", "**/sitemap*", "**/robots.txt"]
       },
       "substitutionKeys": []
