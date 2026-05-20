@@ -36,13 +36,12 @@ import {
   envelopeToPrompt,
 } from './context-envelope.js';
 import { legacyHydrate } from './context-hydration-engine.legacy.js';
+import { loadSkillCapsule } from './skill-capsule-loader.js';
 
 // ---------------------------------------------------------------------------
-// File-content cache — the agent-protocol template, persona files, and
-// skill files are read-only during a dispatch run. Reading them via
-// `fs.readFileSync` per task is ~4–16 blocking syscalls. Memoize by
-// absolute path; entries survive for the lifetime of the Node process
-// (fine for CLI runs; tests can call `__resetContextCache()`).
+// File-content cache — the agent-protocol template and persona files are
+// read-only during a dispatch run. Skill bodies are loaded via
+// `skills.index.json` + `loadSkillCapsule` (not cached here).
 // ---------------------------------------------------------------------------
 
 const _fileCache = new Map();
@@ -54,70 +53,19 @@ function readFileCached(absPath) {
   return content;
 }
 
-// ---------------------------------------------------------------------------
-// Skill path index — memoized discovery for `skillsRoot`. Skill directories
-// are stable for the lifetime of a dispatch run; enumerating them once keeps
-// per-task hydration O(1) instead of re-probing the filesystem with
-// readdirSync + existsSync on every activated skill.
-// ---------------------------------------------------------------------------
+let _skillsIndexCache = null;
 
-let _skillIndex = null;
-
-function buildSkillIndex(skillsRoot) {
-  // Map<skillName, absoluteSkillMdPath>. First writer wins so the
-  // precedence order matches the previous `candidates.find` traversal:
-  //   1. skills/core/<skill>/SKILL.md
-  //   2. skills/stack/<skill>/SKILL.md
-  //   3. skills/<skill>/SKILL.md
-  //   4. skills/stack/<category>/<skill>/SKILL.md (any subcategory)
-  const index = new Map();
-  const addIfMissing = (skillName, absPath) => {
-    if (!index.has(skillName) && fs.existsSync(absPath)) {
-      index.set(skillName, absPath);
-    }
-  };
-
-  const enumerateSkillsIn = (baseDir, addFn) => {
-    if (!fs.existsSync(baseDir)) return;
-    let entries;
-    try {
-      entries = fs.readdirSync(baseDir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      addFn(entry.name, path.join(baseDir, entry.name, 'SKILL.md'));
-    }
-  };
-
-  enumerateSkillsIn(path.join(skillsRoot, 'core'), addIfMissing);
-  enumerateSkillsIn(path.join(skillsRoot, 'stack'), addIfMissing);
-  enumerateSkillsIn(skillsRoot, addIfMissing);
-
-  // Stack subcategories: skills/stack/<category>/<skill>/SKILL.md
-  const stackBase = path.join(skillsRoot, 'stack');
-  if (fs.existsSync(stackBase)) {
-    let categories;
-    try {
-      categories = fs.readdirSync(stackBase, { withFileTypes: true });
-    } catch {
-      categories = [];
-    }
-    for (const cat of categories) {
-      if (!cat.isDirectory()) continue;
-      enumerateSkillsIn(path.join(stackBase, cat.name), addIfMissing);
-    }
+function loadSkillsIndex() {
+  if (!_skillsIndexCache) {
+    const indexPath = path.join(
+      PROJECT_ROOT,
+      '.agents',
+      'skills',
+      'skills.index.json',
+    );
+    _skillsIndexCache = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
   }
-
-  return index;
-}
-
-function getSkillPath(skillsRoot, skillName) {
-  if (!_skillIndex || _skillIndex.root !== skillsRoot) {
-    _skillIndex = { root: skillsRoot, paths: buildSkillIndex(skillsRoot) };
-  }
-  return _skillIndex.paths.get(skillName) ?? null;
+  return _skillsIndexCache;
 }
 
 /**
@@ -127,7 +75,51 @@ function getSkillPath(skillsRoot, skillName) {
  */
 export function __resetContextCache() {
   _fileCache.clear();
-  _skillIndex = null;
+  _skillsIndexCache = null;
+}
+
+/**
+ * Resolve activated skills to capsule payloads via `skills.index.json`.
+ *
+ * @param {object} task - Normalized task (skills[], labels[]).
+ * @param {object} skillsIndex - Parsed `skills.index.json` body.
+ * @param {{ fullSkillBodies?: boolean }} [options]
+ * @returns {Array<{ skill: string, capsule: string, source: string }>}
+ */
+export function buildSkillCapsuleSections(task, skillsIndex, options = {}) {
+  const fullBodyOptIn =
+    Boolean(options.fullSkillBodies) ||
+    (task.labels ?? []).includes('skill::full');
+  const entries = [];
+
+  for (const skill of task.skills ?? []) {
+    try {
+      const { capsule, source } = loadSkillCapsule(skill, skillsIndex, {
+        fullBodyOptIn,
+      });
+      entries.push({ skill, capsule, source });
+    } catch (err) {
+      Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
+    }
+  }
+
+  return entries;
+}
+
+/**
+ * Render skill capsule entries for the legacy prose prompt and envelope
+ * `skillCapsules` section (source is recorded per skill for auditors).
+ *
+ * @param {Array<{ skill: string, capsule: string, source: string }>} entries
+ * @returns {string}
+ */
+export function formatSkillCapsulesSection(entries) {
+  if (!entries.length) return '';
+  let out = '## Activated Skills\n\n';
+  for (const { skill, capsule, source } of entries) {
+    out += `### Skill: ${skill} (source: ${source})\n${capsule}\n\n`;
+  }
+  return out.trimEnd();
 }
 
 // ---------------------------------------------------------------------------
@@ -397,25 +389,27 @@ function buildStaticSections(
   }
 
   if (task.skills?.length > 0) {
-    let skillsContext = '## Activated Skills\n\n';
-    const skillsRoot = path.join(PROJECT_ROOT, paths.skillsRoot);
-    for (const skill of task.skills) {
-      try {
-        const sPath = getSkillPath(skillsRoot, skill);
-        if (sPath) {
-          skillsContext += `### Skill: ${skill}\n${readFileCached(sPath)}\n\n`;
-        }
-      } catch (err) {
-        Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
+    try {
+      const skillsIndex = loadSkillsIndex();
+      const fullSkillBodies = Boolean(
+        agentSettings?.hydration?.fullSkillBodies,
+      );
+      const entries = buildSkillCapsuleSections(task, skillsIndex, {
+        fullSkillBodies,
+      });
+      const skillsContext = formatSkillCapsulesSection(entries);
+      if (skillsContext) {
+        sections.push({
+          name: 'skillCapsules',
+          priority: DEFAULT_SECTION_PRIORITIES.skillCapsules,
+          elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.skillCapsules,
+          content: skillsContext,
+          source: { kind: 'derived', ref: 'activated-skills' },
+        });
       }
+    } catch (err) {
+      Logger.warn(`[Hydrator] Failed to load skills index: ${err.message}`);
     }
-    sections.push({
-      name: 'skillCapsules',
-      priority: DEFAULT_SECTION_PRIORITIES.skillCapsules,
-      elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.skillCapsules,
-      content: skillsContext.trimEnd(),
-      source: { kind: 'derived', ref: 'activated-skills' },
-    });
   }
 
   sections.push({
