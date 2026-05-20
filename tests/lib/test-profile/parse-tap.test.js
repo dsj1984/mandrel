@@ -23,11 +23,15 @@ test('parseTapOutput reads footer aggregates and timed rows', () => {
   assert.equal(profile.totalDurationMs, 1500.75);
   assert.ok(profile.entries.length >= 3);
 
-  const suite = profile.entries.find((e) => e.kind === 'suite' && e.name === 'slowSuite');
+  const suite = profile.entries.find(
+    (e) => e.kind === 'suite' && e.name === 'slowSuite',
+  );
   assert.ok(suite);
   assert.equal(suite.durationMs, 1200.25);
 
-  const leaf = profile.entries.find((e) => e.kind === 'test' && e.name === 'nestedCase');
+  const leaf = profile.entries.find(
+    (e) => e.kind === 'test' && e.name === 'nestedCase',
+  );
   assert.ok(leaf);
   assert.equal(leaf.durationMs, 50.5);
   assert.match(leaf.path, /slowSuite/);
