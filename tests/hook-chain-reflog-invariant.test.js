@@ -31,7 +31,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   __resetForTests as __resetGitBase,
@@ -224,16 +224,18 @@ function assertReflogClean(delta, label) {
   }
 }
 
-describe('hook chain reflog harness (pre-commit)', () => {
+// One throwaway repo for every reflog harness case — hook scripts are
+// read-only on HEAD, so serial reuse is safe and avoids four full inits.
+describe('hook chain reflog harness', () => {
   let fixture;
-  beforeEach(() => {
+  before(() => {
     fixture = makeHookFixture();
   });
-  afterEach(() => {
+  after(() => {
     rmSync(fixture.dir, { recursive: true, force: true });
   });
 
-  it('quality-preview.js leaves HEAD reflog untouched', () => {
+  it('pre-commit: quality-preview.js leaves HEAD reflog untouched', () => {
     const before = snapshotReflog(fixture.run);
     const headBefore = fixture.run('rev-parse', 'HEAD').trim();
 
@@ -248,18 +250,8 @@ describe('hook chain reflog harness (pre-commit)', () => {
     assert.equal(headAfter, headBefore, 'quality-preview must not move HEAD');
     assertReflogClean(reflogDelta(before, after), 'quality-preview');
   });
-});
 
-describe('hook chain reflog harness (pre-push)', () => {
-  let fixture;
-  beforeEach(() => {
-    fixture = makeHookFixture();
-  });
-  afterEach(() => {
-    rmSync(fixture.dir, { recursive: true, force: true });
-  });
-
-  it('check-baselines.js (--gate maintainability) leaves HEAD reflog untouched', () => {
+  it('pre-push: check-baselines.js (--gate maintainability) leaves HEAD reflog untouched', () => {
     const before = snapshotReflog(fixture.run);
     const headBefore = fixture.run('rev-parse', 'HEAD').trim();
 
@@ -278,7 +270,7 @@ describe('hook chain reflog harness (pre-push)', () => {
     );
   });
 
-  it('check-baselines.js (--gate crap) leaves HEAD reflog untouched', () => {
+  it('pre-push: check-baselines.js (--gate crap) leaves HEAD reflog untouched', () => {
     const before = snapshotReflog(fixture.run);
     const headBefore = fixture.run('rev-parse', 'HEAD').trim();
 
@@ -294,7 +286,7 @@ describe('hook chain reflog harness (pre-push)', () => {
     assertReflogClean(reflogDelta(before, after), 'check-baselines crap');
   });
 
-  it('coverage-capture.js (--skip-when-no-crap-files) leaves HEAD reflog untouched', () => {
+  it('pre-push: coverage-capture.js (--skip-when-no-crap-files) leaves HEAD reflog untouched', () => {
     const before = snapshotReflog(fixture.run);
     const headBefore = fixture.run('rev-parse', 'HEAD').trim();
 

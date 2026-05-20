@@ -5,15 +5,18 @@ import picomatch from 'picomatch';
 /**
  * Globs for slow / integration-style suites excluded from `test:quick`.
  *
- * Curated from the local performance review (Story #2740 context) and
- * `*.integration.test.js` naming. Refine when the profiling story (#2742)
- * publishes a machine-generated inventory.
+ * Curated from `npm run test:profile` (Stories #2742 / #2744). Real-git
+ * harnesses, binary-spawn CLI contracts, and other suites whose setup
+ * dominates quick-tier feedback stay here; unit-guard / mock paths remain
+ * in quick.
  */
 export const INTEGRATION_INCLUDE = [
   'tests/**/*.integration.test.js',
   'tests/epic-execute/epic-execute-record-wave.test.js',
   'tests/hook-chain-reflog-invariant.test.js',
   'tests/push-epic-retry.test.js',
+  'tests/contract/check-baselines-regression.test.js',
+  'tests/contract/check-baselines-kernel-mismatch.test.js',
   'tests/integration-prime-after-sweep.test.js',
   'tests/concurrency-wiring.test.js',
   'tests/scripts/git-cleanup.test.js',
