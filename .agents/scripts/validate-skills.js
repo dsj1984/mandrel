@@ -148,7 +148,9 @@ function readIndexPaths(repoRoot) {
     const manifest = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
     const paths = new Set(
       Array.isArray(manifest.skills)
-        ? manifest.skills.map((s) => s.path).filter((p) => typeof p === 'string')
+        ? manifest.skills
+            .map((s) => s.path)
+            .filter((p) => typeof p === 'string')
         : [],
     );
     return { exists: true, paths, indexPath };
@@ -217,7 +219,9 @@ export function run({ argv = [], repoRoot } = {}) {
       findings: [],
     };
   }
-  const root = parsed.root ? path.resolve(parsed.root) : (repoRoot ?? defaultRepoRoot());
+  const root = parsed.root
+    ? path.resolve(parsed.root)
+    : (repoRoot ?? defaultRepoRoot());
   const validateFrontmatter = buildValidator(root);
   const indexInfo = readIndexPaths(root);
 

@@ -262,7 +262,9 @@ export function run({ argv = [], now = new Date(), repoRoot } = {}) {
       ].join('\n'),
     };
   }
-  const root = parsed.root ? path.resolve(parsed.root) : (repoRoot ?? defaultRepoRoot());
+  const root = parsed.root
+    ? path.resolve(parsed.root)
+    : (repoRoot ?? defaultRepoRoot());
   const outPath = resolveOutPath(root, parsed.out);
   const fresh = buildManifest(root, { nowIso: now.toISOString() });
 
@@ -276,7 +278,9 @@ export function run({ argv = [], now = new Date(), repoRoot } = {}) {
     }
     const diff = diffManifestsIgnoringTimestamp(disk, fresh);
     if (diff === null) {
-      Logger.info(`skills.index.json is fresh (${fresh.skills.length} entries)`);
+      Logger.info(
+        `skills.index.json is fresh (${fresh.skills.length} entries)`,
+      );
       return { status: 0, output: '' };
     }
     return { status: 1, output: diff };
