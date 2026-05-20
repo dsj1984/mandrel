@@ -1,0 +1,517 @@
+{
+  "generatedAt": "2026-05-20T13:04:20.935Z",
+  "generator": "generate-skills-index.js@1",
+  "skills": [
+    {
+      "name": "analyze-execution",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/analyze-execution/SKILL.md",
+      "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "api-and-interface-design",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/api-and-interface-design/SKILL.md",
+      "description": "Designs stable, well-documented APIs and module interfaces. Use when creating REST/GraphQL endpoints, defining contracts between modules, or changing public interfaces. The wire-format SSOT — response envelope, HTTP status codes, validation taxonomy, payload naming — lives in `.agents/rules/api-conventions.md`; this skill shows authors how to apply it.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "baseline-refresh",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/baseline-refresh/SKILL.md",
+      "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "browser-testing-with-devtools",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/browser-testing-with-devtools/SKILL.md",
+      "description": "Tests in real browsers. Use when building or debugging anything that runs in a browser. Use when you need to inspect the DOM, capture console errors, analyze network requests, profile performance, or verify visual output with real runtime data via Chrome DevTools MCP.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "ci-cd-and-automation",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/ci-cd-and-automation/SKILL.md",
+      "description": "Automates CI/CD pipeline setup. Use when setting up or modifying build and deployment pipelines. Use when you need to automate quality gates, configure test runners in CI, or establish deployment strategies.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "code-review-and-quality",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/code-review-and-quality/SKILL.md",
+      "description": "Conducts multi-axis code review. Use before merging any change. Use when reviewing code written by yourself, another agent, or a human. Use when you need to assess code quality across multiple dimensions before it enters the main branch.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "code-simplification",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/code-simplification/SKILL.md",
+      "description": "Simplifies code for clarity. Use when refactoring code for clarity without changing behavior. Use when code works but is harder to read, maintain, or extend than it should be. Use when reviewing code that has accumulated unnecessary complexity.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "context-engineering",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/context-engineering/SKILL.md",
+      "description": "Optimizes agent context setup. Use when starting a new session, when agent output quality degrades, when switching between tasks, or when you need to configure rules files and context for a project.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "debugging-and-error-recovery",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/debugging-and-error-recovery/SKILL.md",
+      "description": "Guides systematic root-cause debugging. Use when tests fail, builds break, behavior doesn't match expectations, or you encounter any unexpected error. Use when you need a systematic approach to finding and fixing the root cause rather than guessing.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "deprecation-and-migration",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/deprecation-and-migration/SKILL.md",
+      "description": "Manages deprecation and migration. Use when removing old systems, APIs, or features. Use when migrating users from one implementation to another. Use when deciding whether to maintain or sunset existing code.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "diagnose-friction",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/diagnose-friction/SKILL.md",
+      "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Bash",
+        "Read"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "documentation-and-adrs",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/documentation-and-adrs/SKILL.md",
+      "description": "Records decisions and documentation. Use when making architectural decisions, changing public APIs, shipping features, or when you need to record context that future engineers and agents will need to understand the codebase.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "epic-plan-decompose-author",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
+      "description": "Author the Feature/Story/Task ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "epic-plan-spec-author",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
+      "description": "Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "frontend-ui-engineering",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/frontend-ui-engineering/SKILL.md",
+      "description": "Builds production-quality UIs. Use when building or modifying user-facing interfaces. Use when creating components, implementing layouts, managing state, or when the output needs to look and feel production-quality rather than AI-generated.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "git-workflow-and-versioning",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/git-workflow-and-versioning/SKILL.md",
+      "description": "Structures git workflow practices. Use when making any code change. Use when committing, branching, resolving conflicts, or when you need to organize work across multiple parallel streams.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "hydrate-context",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/hydrate-context/SKILL.md",
+      "description": "Hydrate a Task or Story ticket into a single prompt string the executor can drop in front of an implementation request. Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and composes a `{ prompt }` JSON envelope. Successor to the retired mandrel MCP `context.hydrate` tool.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
+      "vendor": null
+    },
+    {
+      "name": "idea-refinement",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/idea-refinement/SKILL.md",
+      "description": "Refines ideas iteratively. Refine ideas through structured divergent and convergent thinking. Use \"idea-refine\" or \"ideate\" to trigger.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "incremental-implementation",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/incremental-implementation/SKILL.md",
+      "description": "Delivers changes incrementally. Use when implementing any feature or change that touches more than one file. Use when you're about to write a large amount of code at once, or when a task feels too big to land in one step.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "performance-optimization",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/performance-optimization/SKILL.md",
+      "description": "Optimizes application performance. Use when performance requirements exist, when you suspect performance regressions, or when Core Web Vitals or load times need improvement. Use when profiling reveals bottlenecks that need fixing.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "planning-and-task-breakdown",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/planning-and-task-breakdown/SKILL.md",
+      "description": "Breaks work into ordered tasks. Use when you have a spec or clear requirements and need to break work into implementable tasks. Use when a task feels too large to start, when you need to estimate scope, or when parallel work is possible.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "security-and-hardening",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/security-and-hardening/SKILL.md",
+      "description": "Hardens code against vulnerabilities. Use when handling user input, authentication, data storage, or external integrations. The non-negotiable security MUSTs live in `.agents/rules/security-baseline.md`; this skill shows how to apply them with code patterns, decision trees, and review checklists.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "shipping-and-launch",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/shipping-and-launch/SKILL.md",
+      "description": "Prepares production launches. Use when preparing to deploy to production. Use when you need a pre-launch checklist, when setting up monitoring, when planning a staged rollout, or when you need a rollback strategy.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "spec-driven-development",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/spec-driven-development/SKILL.md",
+      "description": "Creates specs before coding. Use when starting a new project, feature, or significant change and no specification exists yet. Use when requirements are unclear, ambiguous, or only exist as a vague idea.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "test-driven-development",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/test-driven-development/SKILL.md",
+      "description": "Drives development with tests. Use when implementing any logic, fixing any bug, or changing any behavior. The non-negotiable test-tier placement, mocking, assertion-placement, and coverage rules live in `.agents/rules/testing-standards.md`; this skill shows how to apply them via the TDD cycle, the Prove-It Pattern, and good-test style.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "using-agent-skills",
+      "tier": "core",
+      "category": "core",
+      "path": ".agents/skills/core/using-agent-skills/SKILL.md",
+      "description": "Discovers and invokes agent skills. Use when starting a session or when you need to discover which skill applies to the current task. This is the meta-skill that governs how all other skills are discovered and invoked.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "monorepo-path-strategist",
+      "tier": "stack",
+      "category": "architecture",
+      "path": ".agents/skills/stack/architecture/monorepo-path-strategist/SKILL.md",
+      "description": "Enforces strict workspace package routing and dependency boundaries. Use when working in a monorepo with workspace aliases (e.g. `@repo/shared/*`, `@repo/ui/*`) and you need to prevent deep relative imports, cross-workspace contamination, or dependencies added at the wrong package.json level.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "structured-output-zod",
+      "tier": "stack",
+      "category": "architecture",
+      "path": ".agents/skills/stack/architecture/structured-output-zod/SKILL.md",
+      "description": "Validates external and structured data with Zod schemas. Use when accepting untrusted input at API boundaries, validating environment variables on startup, parsing third-party responses, or generating typed shapes via `z.infer`. Parse, don't validate.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "zod"
+    },
+    {
+      "name": "subagent-orchestration",
+      "tier": "stack",
+      "category": "architecture",
+      "path": ".agents/skills/stack/architecture/subagent-orchestration/SKILL.md",
+      "description": "Coordinates complex tasks via task-isolated subagents. Use when one objective is too large for a single agent or when independent work streams should run concurrently with minimal context bleed. One objective per subagent; summarize before returning to keep the main context window clean.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "cloudflare-hono-architect",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/cloudflare-hono-architect/SKILL.md",
+      "description": "Prevents Node.js module hallucinations in Cloudflare Worker (V8 isolate) edge environments. Use when writing Hono routes deployed to Workers — prefer Web APIs (Fetch, Web Crypto) over Node built-ins (`fs`, `path`, `child_process`, `crypto`), and access bindings via Hono's `c.env`.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "cloudflare"
+    },
+    {
+      "name": "cloudflare-queue-manager",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/cloudflare-queue-manager/SKILL.md",
+      "description": "Ensures idempotent and resilient background job execution on Cloudflare Queues. Use when writing consumer handlers — design for at-least-once delivery, wrap processing in try/catch with `message.retry()`, and order cascading deletes so the database row drops last.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "cloudflare"
+    },
+    {
+      "name": "cloudflare-workers",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/cloudflare-workers/SKILL.md",
+      "description": "Builds and deploys high-performance edge logic on Cloudflare Workers. Use when working within Workers' 128MB memory and 5–50ms CPU constraints, integrating KV/R2/D1 storage, or writing Wrangler-managed edge-first request/response code.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "cloudflare"
+    },
+    {
+      "name": "highlevel-crm",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/highlevel-crm/SKILL.md",
+      "description": "Integrates with the HighLevel (GoHighLevel) CRM API v2 and its automation engine. Use when synchronizing data via OAuth 2.0, building custom widgets, handling sub-account `locationId` scoping, or implementing webhook-driven workflows with rate-limit-aware retries.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "highlevel"
+    },
+    {
+      "name": "sqlite-drizzle-expert",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/sqlite-drizzle-expert/SKILL.md",
+      "description": "Enforces SQLite dialect for Drizzle ORM and Turso (libSQL). Use when writing schema or queries with `drizzle-orm/sqlite-core` — avoid PostgreSQL-only types (`serial`, `jsonb`, `uuid`), use `text()` for IDs and dates, and define relations explicitly via the `relations` API.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "drizzle"
+    },
+    {
+      "name": "stripe-integration",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/stripe-integration/SKILL.md",
+      "description": "Implements secure Stripe payments and subscription billing. Use when handling card data (PCI compliance via Elements/Checkout), verifying webhook signatures, attaching `idempotencyKey` to mutations, or treating the server-side webhook as the source of truth for entitlement changes.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "stripe"
+    },
+    {
+      "name": "turso-sqlite",
+      "tier": "stack",
+      "category": "backend",
+      "path": ".agents/skills/stack/backend/turso-sqlite/SKILL.md",
+      "description": "Develops with Turso's distributed SQLite (libSQL) platform. Use when working with the `@libsql/client` driver — leverage edge replicas for low-latency reads, route writes to the primary, and use parameterized queries plus a versioned migration tool (drizzle-kit, atlas) for schema changes.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "turso"
+    },
+    {
+      "name": "astro-react-island-strategist",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/astro-react-island-strategist/SKILL.md",
+      "description": "Maintains strict boundaries between Astro server components and React client islands in hybrid Astro/React workspaces. Use when keeping `.astro` files for static HTML/SEO and `.tsx` for interactive islands — embed React only with explicit `client:*` directives and pass serializable props.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "astro"
+    },
+    {
+      "name": "astro",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/astro/SKILL.md",
+      "description": "Builds ultra-fast content-driven websites with Astro. Use when defaulting to SSG, opting into SSR only for dynamic data, picking the most restrictive `client:*` hydration directive, leveraging Server Islands (`server:defer`), Astro Actions for type-safe mutations, and the Content Layer with Zod- validated collections.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "astro"
+    },
+    {
+      "name": "expo-react-native-developer",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/expo-react-native-developer/SKILL.md",
+      "description": "Prevents DOM element usage in React Native (Expo) workspaces. Use when writing components for Expo apps — `<View>`, `<Text>`, `<TouchableOpacity>` instead of `<div>`/`<span>`/`<p>`, no `window`/`document`, and styling through the project's established solution.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "expo"
+    },
+    {
+      "name": "google-analytics-v4",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/google-analytics-v4/SKILL.md",
+      "description": "Implements privacy-compliant event tracking with Google Analytics 4. Use when wiring analytics that must comply with GDPR/CCPA via Consent Mode V2 — `snake_case` event names, no PII to GA servers, GTM-driven event firing, and DebugView verification before deploy.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "google"
+    },
+    {
+      "name": "tailwind-v4",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/tailwind-v4/SKILL.md",
+      "description": "Implements maintainable styling with Tailwind CSS v4. Use when writing styles in v4 projects — CSS-first configuration via `@theme` blocks (never `tailwind.config.ts/js`), mobile-first breakpoints, full class names (no string interpolation), and no arbitrary `p-[13px]`-style values.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "tailwind"
+    },
+    {
+      "name": "ui-accessibility-engineer",
+      "tier": "stack",
+      "category": "frontend",
+      "path": ".agents/skills/stack/frontend/ui-accessibility-engineer/SKILL.md",
+      "description": "Enforces mobile-first Tailwind CSS and strict WCAG 2.1 AA compliance for user-facing UI. Use when building UI components — utility classes only (no custom CSS or inline `style={{}}`), mobile-first breakpoints, visible focus states, alt text, and 4.5:1 contrast.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "tailwind"
+    },
+    {
+      "name": "audit-accessibility",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/audit-accessibility/SKILL.md",
+      "description": "Audits sites and apps for WCAG 2.1 Level AA compliance using automated and manual testing tools. Use when running an accessibility audit or building a remediation plan — semantic HTML, contrast, focus management, keyboard reachability, and axe-core integration in Vitest/Playwright.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "gherkin-authoring",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/gherkin-authoring/SKILL.md",
+      "description": "Authors `.feature` files that stay business-readable, translate cleanly from PRD acceptance criteria, and reuse a shared step-definition library. Use when writing or editing scenarios — the SSOT enforcement rules live in `.agents/rules/gherkin-standards.md`; this skill shows authors how to apply them.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "lighthouse-baseline",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/lighthouse-baseline/SKILL.md",
+      "description": "Codifies the capture-and-check baseline pattern for long-running quality signals (Lighthouse scores, bundle size, p95 latency, runtime memory). Use when wiring a new metric that needs a baseline file, paired :capture / :check npm scripts, a tolerance-bounded gate, and a weekly refresh cadence — the goal is a hard CI signal that ratchets only with intent.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": null
+    },
+    {
+      "name": "playwright-bdd",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/playwright-bdd/SKILL.md",
+      "description": "Wires Gherkin `.feature` files to Playwright via the `playwright-bdd` library. Use when running BDD scenarios on a Playwright runtime — pairs with the `gherkin-authoring` skill (scenario prose) and the `playwright` skill (browser conventions). Drives execution by tag expression with trace-first debugging and Playwright-native sharding.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "playwright"
+    },
+    {
+      "name": "playwright",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/playwright/SKILL.md",
+      "description": "Robust E2E browser testing with Playwright. Use when writing browser-driven tests — leverage auto-waiting (no `waitForTimeout`), prefer user-visible locators (`getByRole`, `getByText`, `getByLabel`) over CSS/XPath, reuse `storageState` for auth, and enable trace-on-first-retry for CI debugging.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "playwright"
+    },
+    {
+      "name": "vitest",
+      "tier": "stack",
+      "category": "qa",
+      "path": ".agents/skills/stack/qa/vitest/SKILL.md",
+      "description": "Writes fast, isolated unit and integration tests with Vitest. Use when each test must run on file-save without shared state — `vi.mock()` for external deps, `vi.spyOn()` for call monitoring, AAA structure, and edge-case coverage for null/undefined/boundary inputs.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "vitest"
+    },
+    {
+      "name": "backend-security-patterns",
+      "tier": "stack",
+      "category": "security",
+      "path": ".agents/skills/stack/security/backend-security-patterns/SKILL.md",
+      "description": "Combined backend protocols for authentication (Clerk JWT verification) and PII-safe observability. Use when handling auth on the server, verifying Clerk webhooks via `svix`, scoping metadata via `publicMetadata`/ `privateMetadata`, or sanitizing logs to keep emails, tokens, and request bodies out of telemetry.",
+      "policyCapsuleBullets": 0,
+      "allowedTools": null,
+      "vendor": "clerk"
+    }
+  ]
+}
