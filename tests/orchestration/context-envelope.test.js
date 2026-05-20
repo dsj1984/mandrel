@@ -62,7 +62,14 @@ describe('buildEnvelope', () => {
   it('stamps estimatedTokens on sections when omitted', () => {
     const envelope = buildEnvelope({
       task: { id: 1, title: 'T' },
-      sections: [{ name: 'persona', priority: 50, elideWhenOverBudget: 'summarize', content: 'hello' }],
+      sections: [
+        {
+          name: 'persona',
+          priority: 50,
+          elideWhenOverBudget: 'summarize',
+          content: 'hello',
+        },
+      ],
     });
     assert.equal(envelope.sections[0].estimatedTokens, estimateTokens('hello'));
   });
@@ -108,7 +115,9 @@ describe('elideEnvelope', () => {
     });
 
     const elided = elideEnvelope(envelope, 5);
-    const taskSection = elided.sections.find((s) => s.name === 'taskInstructions');
+    const taskSection = elided.sections.find(
+      (s) => s.name === 'taskInstructions',
+    );
 
     assert.equal(taskSection?.content, huge);
     assert.ok(!elided.budget.elided.includes('taskInstructions'));
