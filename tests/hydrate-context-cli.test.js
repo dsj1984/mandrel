@@ -10,6 +10,7 @@ import {
   getEpicBranch,
   getStoryBranch,
 } from '../.agents/scripts/lib/git-utils.js';
+import { envelopeToPrompt } from '../.agents/scripts/lib/orchestration/context-envelope.js';
 import { hydrateContext } from '../.agents/scripts/lib/orchestration/context-hydration-engine.js';
 
 class MockProvider {
@@ -80,16 +81,20 @@ test('ticketToTask: extracts persona from labels', () => {
   assert.deepEqual(task.skills, ['audit-architecture']);
 });
 
-test('runHydrateContext: emits the same { prompt } envelope as the MCP tool', async () => {
+test('runHydrateContext: emits { prompt, envelope } with prompt === envelopeToPrompt(envelope)', async () => {
   const provider = new MockProvider();
-  const envelope = await runHydrateContext({
+  const result = await runHydrateContext({
     ticketId: 99,
     epicId: 1,
     provider,
   });
-  assert.ok('prompt' in envelope, 'envelope has prompt key');
-  assert.equal(Object.keys(envelope).length, 1, 'envelope has exactly one key');
-  assert.equal(typeof envelope.prompt, 'string');
+  assert.ok('prompt' in result, 'result has prompt key');
+  assert.ok('envelope' in result, 'result has envelope key');
+  assert.equal(
+    result.prompt,
+    envelopeToPrompt(result.envelope),
+    'prompt is the prose transform of envelope',
+  );
 });
 
 test('runHydrateContext: prompt matches direct SDK invocation byte-for-byte', async () => {
@@ -104,13 +109,14 @@ test('runHydrateContext: prompt matches direct SDK invocation byte-for-byte', as
 
   // Direct SDK call with the exact arguments the CLI assembles.
   const ticket = await sdkProvider.getTicket(99);
-  const sdkPrompt = await hydrateContext(
+  const sdkEnvelope = await hydrateContext(
     ticketToTask({ ...ticket, id: 99 }),
     sdkProvider,
     getEpicBranch(1),
     getStoryBranch(1, 99),
     1,
   );
+  const sdkPrompt = envelopeToPrompt(sdkEnvelope);
 
   assert.equal(cliPrompt, sdkPrompt);
 });
@@ -176,7 +182,7 @@ test('hydrateContext: surfaces a failure marker when a hierarchy fetch rejects (
   const warnings = [];
   console.warn = (...args) => warnings.push(args.join(' '));
   try {
-    const prompt = await hydrateContext(
+    const envelope = await hydrateContext(
       ticketToTask({
         id: 200,
         title: 'Child task',
@@ -188,6 +194,7 @@ test('hydrateContext: surfaces a failure marker when a hierarchy fetch rejects (
       'story-1',
       1,
     );
+    const prompt = envelopeToPrompt(envelope);
     assert.match(
       prompt,
       /Epic: #1 — ⚠️ unavailable \(fetch failed: rate limit exceeded\)/,

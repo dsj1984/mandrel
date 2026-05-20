@@ -574,10 +574,29 @@
       },
       "additionalProperties": false
     },
+    "hydration": {
+      "type": "object",
+      "description": "Context hydrator output mode (Epic #2648). prose-legacy delegates to context-hydration-engine.legacy.js for one release; remove hydration.outputMode and the legacy module together in the cutover PR.",
+      "properties": {
+        "outputMode": {
+          "type": "string",
+          "enum": ["envelope", "prose-legacy"],
+          "default": "envelope",
+          "description": "envelope: typed ContextEnvelope pipeline (default). prose-legacy: frozen pre-Epic prose hydrator — one-release sunset."
+        },
+        "fullSkillBodies": {
+          "type": "boolean",
+          "default": false,
+          "description": "When true, embed full SKILL.md bodies; when false, prefer policy capsules from skills.index.json."
+        }
+      },
+      "additionalProperties": false
+    },
     "delivery": {
       "type": "object",
       "properties": {
         "execution": { "$ref": "#/$defs/execution" },
+        "hydration": { "$ref": "#/$defs/hydration" },
         "maxTokenBudget": { "type": "integer", "minimum": 1 },
         "docsFreshness": { "$ref": "#/$defs/docsFreshness" },
         "deliverRunner": { "$ref": "#/$defs/deliverRunner" },

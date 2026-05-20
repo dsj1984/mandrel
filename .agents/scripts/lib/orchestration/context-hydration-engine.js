@@ -16,6 +16,7 @@
  * @see .agents/scripts/lib/ITicketingProvider.js
  */
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getCommands } from '../config/commands.js';
@@ -27,6 +28,14 @@ import {
 } from '../config-resolver.js';
 
 import { Logger } from '../Logger.js';
+import {
+  buildEnvelope,
+  DEFAULT_ELIDE_POLICIES,
+  DEFAULT_SECTION_PRIORITIES,
+  elideEnvelope,
+  envelopeToPrompt,
+} from './context-envelope.js';
+import { legacyHydrate } from './context-hydration-engine.legacy.js';
 
 // ---------------------------------------------------------------------------
 // File-content cache — the agent-protocol template, persona files, and
@@ -231,97 +240,53 @@ function loadProtocolTemplate({
 }
 
 // ---------------------------------------------------------------------------
-// Public SDK export
+// Envelope assembly helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Hydrate the execution context into a self-contained prompt string.
- *
- * Assembles a prompt from:
- *   1. Version mismatch warning (if protocol version differs)
- *   2. Agent protocol template (`agent-protocol.md`)
- *   3. Persona document (from `.agents/personas/<persona>.md`)
- *   4. Activated skill documents (from `.agents/skills/`)
- *   5. Work-breakdown hierarchy (Epic, Feature, Story, PRD, Tech Spec bodies)
- *   6. Task instructions (from the ticket body)
- *   7. Token budget truncation (from `agentSettings.limits.maxTokenBudget`)
- *
- * @param {object} task - The normalized task object from the dispatcher
- * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
- * @param {string} epicBranch  - e.g. `epic/71`
- * @param {string} taskBranch  - e.g. `story/epic-71/my-story`
- * @param {number} epicId
- * @returns {Promise<string>} The fully-hydrated prompt string
+ * @param {object} ticket
+ * @param {string} retrievedAt
+ * @returns {import('./context-envelope.js').TicketSnapshot}
  */
-export async function hydrateContext(
-  task,
-  provider,
-  epicBranch,
-  taskBranch,
-  epicId,
-) {
-  const { agentSettings } = resolveConfig();
-  const paths = getPaths({ agentSettings });
-  const currentVersion = getVersion();
-  let warnings = '';
+function ticketSnapshot(ticket, retrievedAt) {
+  const body = ticket.body ?? '';
+  const id = ticket.id ?? ticket.number;
+  const version =
+    ticket.updatedAt ?? ticket.updated_at ?? ticket.updatedAtISO ?? retrievedAt;
+  const hash = crypto
+    .createHash('sha256')
+    .update(body)
+    .digest('hex')
+    .slice(0, 12);
+  return { id, version: String(version), hash, retrievedAt };
+}
 
-  // 1. Version Mismatch Check
-  if (task.protocolVersion && task.protocolVersion !== currentVersion) {
-    warnings += `⚠️ WARNING: Protocol version mismatch. Task was planned with v${task.protocolVersion}, but is executing with v${currentVersion}.\n\n`;
-    Logger.warn(
-      `[Hydrator] Protocol version mismatch on Task #${task.id}: planned with v${task.protocolVersion}, executing with v${currentVersion}`,
-    );
-  }
+/**
+ * @param {object} task
+ * @returns {import('./context-envelope.js').ContextEnvelope['task']}
+ */
+function envelopeTaskFrom(task) {
+  return {
+    id: task.id,
+    title: task.title,
+    persona: task.persona,
+    skills: task.skills,
+    protocolVersion: task.protocolVersion,
+  };
+}
 
-  // 2. Load Agent Protocol Template
-  const protocolTpl = loadProtocolTemplate({
-    paths,
-    settings: agentSettings,
-    currentVersion,
-    taskBranch,
-    epicBranch,
-    taskId: task.id,
-  });
-
-  // 3. Load Persona
-  let personaContext = '';
-  if (task.persona) {
-    try {
-      const pPath = path.join(
-        PROJECT_ROOT,
-        paths.personasRoot,
-        `${task.persona}.md`,
-      );
-      if (fs.existsSync(pPath)) {
-        personaContext = `## Persona: ${task.persona}\n\n${readFileCached(pPath)}`;
-      }
-    } catch (err) {
-      Logger.warn(
-        `[Hydrator] Failed to load persona ${task.persona}: ${err.message}`,
-      );
-    }
-  }
-
-  // 4. Load Activated Skills
-  let skillsContext = '';
-  if (task.skills && task.skills.length > 0) {
-    skillsContext = '## Activated Skills\n\n';
-    const skillsRoot = path.join(PROJECT_ROOT, paths.skillsRoot);
-    for (const skill of task.skills) {
-      try {
-        const sPath = getSkillPath(skillsRoot, skill);
-        if (sPath) {
-          skillsContext += `### Skill: ${skill}\n${readFileCached(sPath)}\n\n`;
-        }
-      } catch (err) {
-        Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
-      }
-    }
-  }
-
-  // 5. Hierarchy Context Assembly
+/**
+ * @param {object} task
+ * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} epicId
+ * @param {object} agentSettings
+ * @returns {Promise<{ content: string, provenance: import('./context-envelope.js').TicketSnapshot[] }>}
+ */
+async function buildHierarchySections(task, provider, epicId, agentSettings) {
   const hierarchyKeys = parseHierarchy(task.body);
   let hierarchyContext = '## Work Breakdown Hierarchy\n\n';
+  const provenance = [];
+  const retrievedAt = new Date().toISOString();
 
   const depth = agentSettings?.contextDepth ?? 'standard';
   const idsToFetch = [];
@@ -342,44 +307,217 @@ export async function hydrateContext(
 
   const fetchPromises = idsToFetch
     .filter((item) => item.id)
-    .map((item) =>
-      provider
-        .getTicket(item.id)
-        .then((t) => `### ${item.key}: ${t.title} (#${t.id})\n\n${t.body}\n`)
-        .catch((err) => {
-          // Failure-signal preservation: a silent `.catch(() => '')` here used
-          // to drop hierarchy fetches (rate-limit, network, missing ticket)
-          // without telling the agent the prompt was hydrated against a
-          // partial context. Surface the error in the prompt + a stderr warn
-          // so downstream callers (and test fixtures) can see the gap.
-          const detail = err?.message ? `: ${err.message}` : '';
-          Logger.warn(
-            `[Hydrator] hierarchy fetch failed for ${item.key} #${item.id}${detail}`,
-          );
-          return `### ${item.key}: #${item.id} — ⚠️ unavailable (fetch failed${detail})\n`;
-        }),
-    );
+    .map(async (item) => {
+      try {
+        const t = await provider.getTicket(item.id);
+        provenance.push(ticketSnapshot(t, retrievedAt));
+        return `### ${item.key}: ${t.title} (#${t.id})\n\n${t.body}\n`;
+      } catch (err) {
+        const detail = err?.message ? `: ${err.message}` : '';
+        Logger.warn(
+          `[Hydrator] hierarchy fetch failed for ${item.key} #${item.id}${detail}`,
+        );
+        return `### ${item.key}: #${item.id} — ⚠️ unavailable (fetch failed${detail})\n`;
+      }
+    });
 
   const fetchedHierarchy = await Promise.all(fetchPromises);
   hierarchyContext += fetchedHierarchy.filter(Boolean).join('\n---\n\n');
+  return { content: hierarchyContext, provenance };
+}
 
-  // 6. Prompt Assembly
-  const fullPromptParts = [
-    warnings.trim(),
-    protocolTpl,
-    personaContext,
-    skillsContext,
-    hierarchyContext,
-    `## Task Instructions (Issue #${task.id}: ${task.title})\n\n${task.body}`,
-  ].filter(Boolean);
+/**
+ * @param {object} task
+ * @param {{ templatesRoot: string, personasRoot: string, skillsRoot: string }} paths
+ * @param {object} agentSettings
+ * @param {string} currentVersion
+ * @param {string} taskBranch
+ * @param {string} epicBranch
+ * @returns {{ warnings: string[], sections: import('./context-envelope.js').Section[] }}
+ */
+function buildStaticSections(
+  task,
+  paths,
+  agentSettings,
+  currentVersion,
+  taskBranch,
+  epicBranch,
+) {
+  const warnings = [];
 
-  const fullPrompt = fullPromptParts.join(
-    '\n\n========================================================================\n\n',
-  );
+  if (task.protocolVersion && task.protocolVersion !== currentVersion) {
+    warnings.push(
+      `⚠️ WARNING: Protocol version mismatch. Task was planned with v${task.protocolVersion}, but is executing with v${currentVersion}.`,
+    );
+    Logger.warn(
+      `[Hydrator] Protocol version mismatch on Task #${task.id}: planned with v${task.protocolVersion}, executing with v${currentVersion}`,
+    );
+  }
 
-  // 7. Token Budget
-  const budget = getLimits({
+  const sections = [];
+  const protocolTpl = loadProtocolTemplate({
+    paths,
+    settings: agentSettings,
+    currentVersion,
+    taskBranch,
+    epicBranch,
+    taskId: task.id,
+  });
+  if (protocolTpl) {
+    sections.push({
+      name: 'protocolPolicy',
+      priority: DEFAULT_SECTION_PRIORITIES.protocolPolicy,
+      elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.protocolPolicy,
+      content: protocolTpl,
+      source: { kind: 'file', ref: 'templates/agent-protocol.md' },
+    });
+  }
+
+  if (task.persona) {
+    try {
+      const pPath = path.join(
+        PROJECT_ROOT,
+        paths.personasRoot,
+        `${task.persona}.md`,
+      );
+      if (fs.existsSync(pPath)) {
+        sections.push({
+          name: 'persona',
+          priority: DEFAULT_SECTION_PRIORITIES.persona,
+          elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.persona,
+          content: `## Persona: ${task.persona}\n\n${readFileCached(pPath)}`,
+          source: { kind: 'file', ref: `personas/${task.persona}.md` },
+        });
+      }
+    } catch (err) {
+      Logger.warn(
+        `[Hydrator] Failed to load persona ${task.persona}: ${err.message}`,
+      );
+    }
+  }
+
+  if (task.skills?.length > 0) {
+    let skillsContext = '## Activated Skills\n\n';
+    const skillsRoot = path.join(PROJECT_ROOT, paths.skillsRoot);
+    for (const skill of task.skills) {
+      try {
+        const sPath = getSkillPath(skillsRoot, skill);
+        if (sPath) {
+          skillsContext += `### Skill: ${skill}\n${readFileCached(sPath)}\n\n`;
+        }
+      } catch (err) {
+        Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
+      }
+    }
+    sections.push({
+      name: 'skillCapsules',
+      priority: DEFAULT_SECTION_PRIORITIES.skillCapsules,
+      elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.skillCapsules,
+      content: skillsContext.trimEnd(),
+      source: { kind: 'derived', ref: 'activated-skills' },
+    });
+  }
+
+  sections.push({
+    name: 'taskInstructions',
+    priority: DEFAULT_SECTION_PRIORITIES.taskInstructions,
+    elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.taskInstructions,
+    content: `## Task Instructions (Issue #${task.id}: ${task.title})\n\n${task.body}`,
+    source: { kind: 'ticket', ref: String(task.id) },
+  });
+
+  return { warnings, sections };
+}
+
+// ---------------------------------------------------------------------------
+// Public SDK export
+// ---------------------------------------------------------------------------
+
+/**
+ * Hydrate the execution context into a {@link ContextEnvelope}.
+ *
+ * @param {object} task - The normalized task object from the dispatcher
+ * @param {import('../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {string} epicBranch  - e.g. `epic/71`
+ * @param {string} taskBranch  - e.g. `story/epic-71/my-story`
+ * @param {number} epicId
+ * @returns {Promise<import('./context-envelope.js').ContextEnvelope>}
+ */
+export async function hydrateContext(
+  task,
+  provider,
+  epicBranch,
+  taskBranch,
+  epicId,
+) {
+  const { agentSettings } = resolveConfig();
+  const maxTokens = getLimits({
     agentSettings: agentSettings ?? {},
   }).maxTokenBudget;
-  return truncateToTokenBudget(fullPrompt, budget);
+  const outputMode = agentSettings?.hydration?.outputMode ?? 'envelope';
+
+  if (outputMode === 'prose-legacy') {
+    const legacyString = await legacyHydrate(
+      task,
+      provider,
+      epicBranch,
+      taskBranch,
+      epicId,
+    );
+    return buildEnvelope({
+      task: envelopeTaskFrom(task),
+      sections: [
+        {
+          name: 'taskInstructions',
+          priority: DEFAULT_SECTION_PRIORITIES.taskInstructions,
+          elideWhenOverBudget: 'drop',
+          content: legacyString,
+        },
+      ],
+      provenance: [],
+      warnings: [],
+      maxTokens,
+    });
+  }
+
+  const paths = getPaths({ agentSettings });
+  const currentVersion = getVersion();
+  const { warnings, sections: staticSections } = buildStaticSections(
+    task,
+    paths,
+    agentSettings,
+    currentVersion,
+    taskBranch,
+    epicBranch,
+  );
+
+  const { content: hierarchyContent, provenance } =
+    await buildHierarchySections(task, provider, epicId, agentSettings);
+
+  const sections = [...staticSections];
+  const hierarchySection = {
+    name: 'hierarchy',
+    priority: DEFAULT_SECTION_PRIORITIES.hierarchy,
+    elideWhenOverBudget: DEFAULT_ELIDE_POLICIES.hierarchy,
+    content: hierarchyContent,
+    source: { kind: 'derived', ref: 'work-breakdown-hierarchy' },
+  };
+  const taskIdx = sections.findIndex((s) => s.name === 'taskInstructions');
+  if (taskIdx >= 0) {
+    sections.splice(taskIdx, 0, hierarchySection);
+  } else {
+    sections.push(hierarchySection);
+  }
+
+  const envelope = buildEnvelope({
+    task: envelopeTaskFrom(task),
+    sections,
+    provenance,
+    warnings,
+    maxTokens,
+  });
+
+  return elideEnvelope(envelope, maxTokens);
 }
+
+export { envelopeToPrompt };

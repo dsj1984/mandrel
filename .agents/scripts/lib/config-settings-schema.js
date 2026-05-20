@@ -502,10 +502,28 @@ const CODE_REVIEW_SCHEMA = {
   additionalProperties: false,
 };
 
+/**
+ * `delivery.hydration` — hydrator output mode (Epic #2648). `prose-legacy`
+ * delegates to `context-hydration-engine.legacy.js` for one release; remove
+ * the flag and legacy module together in the cutover PR (no indefinite shim).
+ */
+const HYDRATION_SCHEMA = {
+  type: 'object',
+  properties: {
+    outputMode: {
+      type: 'string',
+      enum: ['envelope', 'prose-legacy'],
+    },
+    fullSkillBodies: { type: 'boolean' },
+  },
+  additionalProperties: false,
+};
+
 const DELIVERY_SCHEMA = {
   type: 'object',
   properties: {
     execution: EXECUTION_SCHEMA,
+    hydration: HYDRATION_SCHEMA,
     maxTokenBudget: { type: 'integer', minimum: 1 },
     docsFreshness: DOCS_FRESHNESS_SCHEMA,
     deliverRunner: DELIVER_RUNNER_SCHEMA,
