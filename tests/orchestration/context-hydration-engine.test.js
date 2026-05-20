@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-
 import fs from 'node:fs';
+import path from 'node:path';
+import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   __resetContextCache,
   buildSkillCapsuleSections,
   formatSkillCapsulesSection,
   hydrateContext,
 } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.js';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');

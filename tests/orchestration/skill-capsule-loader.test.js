@@ -34,10 +34,7 @@ function stageFixtureRoot() {
     'well-formed-skill',
   );
   fs.mkdirSync(coreDir, { recursive: true });
-  fs.copyFileSync(
-    WELL_FORMED_SKILL,
-    path.join(coreDir, 'SKILL.md'),
-  );
+  fs.copyFileSync(WELL_FORMED_SKILL, path.join(coreDir, 'SKILL.md'));
   const noCapsuleDir = path.join(
     root,
     '.agents',
@@ -46,10 +43,7 @@ function stageFixtureRoot() {
     'no-capsule-skill',
   );
   fs.mkdirSync(noCapsuleDir, { recursive: true });
-  fs.copyFileSync(
-    NO_CAPSULE_FIXTURE,
-    path.join(noCapsuleDir, 'SKILL.md'),
-  );
+  fs.copyFileSync(NO_CAPSULE_FIXTURE, path.join(noCapsuleDir, 'SKILL.md'));
   return root;
 }
 
