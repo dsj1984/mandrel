@@ -201,7 +201,9 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
   });
 
   it('handles a nested tempRoot ("a/b/temp")', () => {
-    const cfg = { project: { paths: { tempRoot: path.join('a', 'b', 'temp') } } };
+    const cfg = {
+      project: { paths: { tempRoot: path.join('a', 'b', 'temp') } },
+    };
     assert.equal(
       epicTempDir(1030, cfg),
       path.join('a', 'b', 'temp', 'epic-1030'),

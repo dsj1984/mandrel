@@ -46,7 +46,7 @@ let cfg;
 
 beforeEach(async () => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'story-perf-summary-detectors-'));
-  cfg = { project: { paths: { tempRoot: workRoot } }  };
+  cfg = { project: { paths: { tempRoot: workRoot } } };
   const dir = path.join(workRoot, `epic-${EPIC_ID}`, `story-${STORY_ID}`);
   await fs.mkdir(dir, { recursive: true });
 });

@@ -175,7 +175,7 @@ describe('buildDefaultListenerChain — full roster with provider + checkpointer
     // shape returned by `resolveConfig()`. The reconciler only reads
     // through `injectedConfig`; we just need a recognisable object.
     const fakeConfig = {
-      project: { paths: { tempRoot: 'temp' } } ,
+      project: { paths: { tempRoot: 'temp' } },
       orchestration: { provider: 'github' },
       __tag: 'fake-config',
     };
