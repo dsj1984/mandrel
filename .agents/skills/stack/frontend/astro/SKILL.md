@@ -11,6 +11,17 @@ vendor: astro
 
 # Skill: Astro (Iron)
 
+## Policy Capsule
+
+- Default to SSG; opt into SSR only when a route requires per-request dynamic data.
+- Ship zero JS by default — `.astro` components must not bundle client JavaScript unless a `client:*` directive is set explicitly.
+- For personalized or dynamic islands, prefer `server:defer` (Server Islands) over shipping a fully hydrated client island.
+- Use the most restrictive hydration directive that meets the interaction: `client:load` only for immediate interactivity, `client:visible` for below-the-fold, `client:idle` for non-critical logic.
+- Handle data mutations and form submissions through Astro Actions, not ad-hoc fetch handlers, to preserve type safety.
+- Source content through the Content Layer API with Zod-validated collections in `src/content/config.ts`.
+- Use the built-in `<Image />` and `<Picture />` components for image optimization rather than raw `<img>` tags.
+- Inject SEO metadata (`title`, `meta`, `og:image`, `canonical`) from a shared layout component.
+
 Guidelines and best practices for building ultra-fast content-driven websites
 using Astro.
 

@@ -10,6 +10,14 @@ vendor: expo
 
 # Expo React Native Developer
 
+## Policy Capsule
+
+- Never use HTML DOM elements (`<div>`, `<span>`, `<p>`, `<button>`, etc.) inside Expo or React Native components.
+- Use React Native primitives instead: `<View>`, `<Text>`, `<TouchableOpacity>`, `<Pressable>`, `<ScrollView>`.
+- Never reference browser globals (`window`, `document`, `localStorage`) in React Native code paths.
+- Route all styling through the project's established styling solution; do not introduce a parallel CSS pipeline.
+- Treat the `@repo/mobile` workspace as DOM-free — any DOM symbol that appears is a hallucination and must be replaced.
+
 **Description:** Prevents DOM element usage in React Native.
 
 **Instruction:** For the `@repo/mobile` workspace:

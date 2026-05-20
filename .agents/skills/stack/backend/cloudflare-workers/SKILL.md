@@ -10,6 +10,17 @@ vendor: cloudflare
 
 # Skill: Cloudflare Workers
 
+## Policy Capsule
+
+- Respect the Worker resource envelope: 128MB memory and 5–50ms CPU per invocation; design code paths to fit inside it.
+- Configure and deploy via Wrangler; do not hand-roll deployment scripts.
+- Pick the right storage primitive: KV for simple key-value, R2 for object storage, D1 for relational data.
+- Use the standard Fetch API for outgoing HTTP; never reach for Node-flavored HTTP clients.
+- Store secrets with `wrangler secret`; never commit secrets to source.
+- Minimize sub-requests per invocation to stay under platform limits.
+- Stream large payloads via `TransformStream`; never buffer them entirely into memory.
+- Install a global error handler so a single failing request does not take down the worker.
+
 Guidelines for building and deploying high-performance serverless logic at the
 edge.
 

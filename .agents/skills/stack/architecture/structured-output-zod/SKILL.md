@@ -10,6 +10,16 @@ vendor: zod
 
 # Skill: Structured Output (Zod)
 
+## Policy Capsule
+
+- Define every external or structured data shape as a Zod schema before it is processed or stored.
+- Derive TypeScript types from schemas via `z.infer`; never hand-author a parallel `type` for the same shape.
+- Parse untrusted input with `z.parse()` or `z.safeParse()` — do not pass raw values past the boundary.
+- Validate every incoming request body and query parameter at the application boundary.
+- Validate `process.env` at startup with a Zod schema so missing or malformed config fails fast.
+- Compose complex schemas with `.extend()`, `.merge()`, and `.pick()` to keep shapes DRY.
+- Use `z.coerce.*` deliberately for form and query inputs; do not coerce in trusted server-to-server paths.
+
 Guidelines for ensuring system reliability through schema validation and typed
 safety.
 

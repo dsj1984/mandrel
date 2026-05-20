@@ -9,6 +9,16 @@ description:
 
 # Skill: Subagent Orchestration
 
+## Policy Capsule
+
+- Dispatch one objective per subagent; never bundle unrelated goals into a single delegation.
+- Hand each subagent only the minimum context (files, docs, goal) required — no broad context dumps.
+- Specify the expected return format explicitly (JSON summary, diff, bullet list) in every handoff.
+- Verify the subagent's output before incorporating it; treat returned artifacts as untrusted until checked.
+- Run non-dependent subagents in parallel; serialize only when one subagent's output is required input for another.
+- Require a concise summary back from each subagent to keep the main context window clean.
+- Investigate subagent failures rather than retrying blindly with the same prompt.
+
 Internal protocol for managing complex tasks through the creation and
 coordination of subagents.
 

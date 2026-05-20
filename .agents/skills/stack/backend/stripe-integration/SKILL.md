@@ -10,6 +10,17 @@ vendor: stripe
 
 # Skill: Stripe Payments & Billing
 
+## Policy Capsule
+
+- Never let raw card data touch your servers; collect payment details through Stripe Elements or Checkout.
+- Treat the server-side webhook as the source of truth for entitlement changes; never trust client-side success redirects.
+- Verify the `Stripe-Signature` header against the raw request body using the configured webhook secret before parsing any payload.
+- Attach an `idempotencyKey` to every Stripe API mutation to prevent duplicate charges on retry.
+- Use the official `stripe` Node SDK for backend calls; do not hand-roll HTTP requests.
+- Store Stripe object IDs (Customer, Price, Subscription) in your database — never store PCI-sensitive card data.
+- Log Stripe event IDs for traceability, but exclude sensitive customer data from logs.
+- Use Stripe's test environment and test cards for all development and QA.
+
 Standard procedures for secure and robust payment + subscription billing
 integration using Stripe.
 

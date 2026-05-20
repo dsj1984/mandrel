@@ -10,6 +10,14 @@ vendor: cloudflare
 
 # Cloudflare Queue Lifecycle Manager
 
+## Policy Capsule
+
+- Design every consumer handler to be idempotent; assume at-least-once delivery and treat duplicate messages as expected.
+- Wrap message processing in `try/catch`; never let an unhandled throw kill the worker mid-batch.
+- Use `message.retry()` for transient failures rather than crashing the whole consumer.
+- For cascading deletions, delete third-party assets (Mux, R2, external APIs) first and the database row last to avoid orphans.
+- Log each message ID and processing outcome so retried duplicates are traceable across replays.
+
 **Description:** Ensures idempotent and resilient background job execution.
 
 **Instruction:** You are writing consumer logic for Cloudflare Queues.
