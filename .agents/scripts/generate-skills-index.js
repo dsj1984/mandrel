@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { parseSkill } from './lib/skills/parse-skill.js';
+import { collectSkillFiles } from './lib/skills/walk-skill-files.js';
 
 const GENERATOR_ID = 'generate-skills-index.js@1';
 
@@ -76,58 +77,13 @@ export function parseArgs(argv) {
 }
 
 /**
- * Recursively enumerate `SKILL.md` paths under a directory. Returns an
- * array of absolute paths.
- */
-function walkSkillFiles(rootDir) {
-  const out = [];
-  if (!fs.existsSync(rootDir)) return out;
-  const stack = [rootDir];
-  while (stack.length > 0) {
-    const dir = stack.pop();
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && entry.name === 'SKILL.md') {
-        out.push(full);
-      }
-    }
-  }
-  return out;
-}
-
-/**
- * Build the list of SKILL.md files under <repoRoot>/.agents/skills/{core,
- * stack}/, sorted by POSIX repo-relative path for deterministic output.
- */
-function collectSkillFiles(repoRoot) {
-  const skillsRoot = path.join(repoRoot, '.agents', 'skills');
-  const coreFiles = walkSkillFiles(path.join(skillsRoot, 'core'));
-  const stackFiles = walkSkillFiles(path.join(skillsRoot, 'stack'));
-  return [...coreFiles, ...stackFiles].sort((a, b) => {
-    const ra = path.relative(repoRoot, a).split(path.sep).join('/');
-    const rb = path.relative(repoRoot, b).split(path.sep).join('/');
-    return ra < rb ? -1 : ra > rb ? 1 : 0;
-  });
-}
-
-/**
  * Project a parseSkill result into an index entry shaped by
  * `.agents/schemas/skills-index.schema.json`.
  *
- * For skills that have not yet been backfilled with a Policy Capsule
- * (Wave 1 ships the generator/validator before Wave 2 lands capsules),
- * `policyCapsuleBullets` is emitted as the raw bullet count (which may
- * fall outside the schema's [5, 12] range). The on-disk manifest is
- * regenerated end-state-conformant once capsules land; the validator
- * surfaces missing-capsule findings in the meantime.
+ * Post-Wave-2 every SKILL.md carries a 5–12-bullet Policy Capsule.
+ * `policyCapsuleBullets` records that count for the manifest entry.
+ * A value of `0` means the parser did not find the capsule section and
+ * is a validator-rejected condition (see validate-skills.js).
  */
 function projectEntry(parsed) {
   return {

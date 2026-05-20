@@ -29,6 +29,7 @@ import addFormats from 'ajv-formats';
 import { runAsCli } from './lib/cli-utils.js';
 import { Logger } from './lib/Logger.js';
 import { parseSkill } from './lib/skills/parse-skill.js';
+import { collectSkillFiles } from './lib/skills/walk-skill-files.js';
 
 const MIN_CAPSULE_BULLETS = 5;
 const MAX_CAPSULE_BULLETS = 12;
@@ -57,44 +58,6 @@ export function parseArgs(argv) {
 }
 
 /**
- * Recursively enumerate `SKILL.md` paths under a directory.
- */
-function walkSkillFiles(rootDir) {
-  const out = [];
-  if (!fs.existsSync(rootDir)) return out;
-  const stack = [rootDir];
-  while (stack.length > 0) {
-    const dir = stack.pop();
-    let entries;
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(full);
-      } else if (entry.isFile() && entry.name === 'SKILL.md') {
-        out.push(full);
-      }
-    }
-  }
-  return out;
-}
-
-function collectSkillFiles(repoRoot) {
-  const skillsRoot = path.join(repoRoot, '.agents', 'skills');
-  const coreFiles = walkSkillFiles(path.join(skillsRoot, 'core'));
-  const stackFiles = walkSkillFiles(path.join(skillsRoot, 'stack'));
-  return [...coreFiles, ...stackFiles].sort((a, b) => {
-    const ra = path.relative(repoRoot, a).split(path.sep).join('/');
-    const rb = path.relative(repoRoot, b).split(path.sep).join('/');
-    return ra < rb ? -1 : ra > rb ? 1 : 0;
-  });
-}
-
-/**
  * Load the skill frontmatter schema from the in-repo schemas directory.
  * Falls back to the script-relative path when the repo root override
  * does not carry its own schema copy (fixture trees reuse the real one).
@@ -118,23 +81,51 @@ function loadSkillSchema(repoRoot) {
   return JSON.parse(fs.readFileSync(fallback, 'utf8'));
 }
 
-function buildValidator(repoRoot) {
-  // Ajv ESM ships its constructor as the default export; addFormats wires
-  // up the `format: "date-time"` keyword used by sibling schemas.
+function loadManifestSchema(repoRoot) {
+  const candidate = path.join(
+    repoRoot,
+    '.agents',
+    'schemas',
+    'skills-index.schema.json',
+  );
+  if (fs.existsSync(candidate)) {
+    return JSON.parse(fs.readFileSync(candidate, 'utf8'));
+  }
+  const fallback = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    'schemas',
+    'skills-index.schema.json',
+  );
+  return JSON.parse(fs.readFileSync(fallback, 'utf8'));
+}
+
+function createAjv() {
   const AjvCtor = Ajv.default ?? Ajv;
   const ajv = new AjvCtor({ allErrors: true, strict: false });
   const addFormatsFn = addFormats.default ?? addFormats;
   addFormatsFn(ajv);
+  return ajv;
+}
+
+function buildValidator(repoRoot) {
+  const ajv = createAjv();
   const schema = loadSkillSchema(repoRoot);
   return ajv.compile(schema);
 }
 
+function buildManifestValidator(repoRoot) {
+  const ajv = createAjv();
+  const schema = loadManifestSchema(repoRoot);
+  return ajv.compile(schema);
+}
+
 /**
- * Read the on-disk skills.index.json manifest, returning `{ exists, paths }`
- * where `paths` is the Set of `entry.path` values when the file is
- * present and parseable, or null otherwise.
+ * Read the on-disk skills.index.json manifest, returning `{ exists, paths,
+ * manifest }` where `paths` is the Set of `entry.path` values when the file
+ * is present and parseable, or null otherwise.
  */
-function readIndexPaths(repoRoot) {
+function readIndex(repoRoot) {
   const indexPath = path.join(
     repoRoot,
     '.agents',
@@ -142,7 +133,7 @@ function readIndexPaths(repoRoot) {
     'skills.index.json',
   );
   if (!fs.existsSync(indexPath)) {
-    return { exists: false, paths: null, indexPath };
+    return { exists: false, paths: null, manifest: null, indexPath };
   }
   try {
     const manifest = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
@@ -153,15 +144,33 @@ function readIndexPaths(repoRoot) {
             .filter((p) => typeof p === 'string')
         : [],
     );
-    return { exists: true, paths, indexPath };
+    return { exists: true, paths, manifest, indexPath };
   } catch (err) {
     return {
       exists: true,
       paths: null,
+      manifest: null,
       indexPath,
       parseError: err.message,
     };
   }
+}
+
+/**
+ * Validate a parsed manifest against skills-index.schema.json. Returns
+ * finding strings tagged with the `manifest-schema` pillar.
+ */
+function validateManifestSchema(manifest, indexRelPath, validateManifest) {
+  const findings = [];
+  if (!validateManifest(manifest)) {
+    for (const err of validateManifest.errors ?? []) {
+      const where = err.instancePath || '(root)';
+      findings.push(
+        `${indexRelPath}: manifest-schema: schema violation at ${where}: ${err.message}`,
+      );
+    }
+  }
+  return findings;
 }
 
 /**
@@ -223,16 +232,20 @@ export function run({ argv = [], repoRoot } = {}) {
     ? path.resolve(parsed.root)
     : (repoRoot ?? defaultRepoRoot());
   const validateFrontmatter = buildValidator(root);
-  const indexInfo = readIndexPaths(root);
+  const validateManifest = buildManifestValidator(root);
+  const indexInfo = readIndex(root);
+  const indexRel = rel(indexInfo.indexPath, root);
 
   const findings = [];
   if (!indexInfo.exists) {
     findings.push(
-      `index missing: ${rel(indexInfo.indexPath, root)} not found — run 'node .agents/scripts/generate-skills-index.js'`,
+      `index missing: ${indexRel} not found — run 'node .agents/scripts/generate-skills-index.js'`,
     );
   } else if (indexInfo.paths === null) {
+    findings.push(`index unparseable: ${indexRel} — ${indexInfo.parseError}`);
+  } else if (indexInfo.manifest !== null) {
     findings.push(
-      `index unparseable: ${rel(indexInfo.indexPath, root)} — ${indexInfo.parseError}`,
+      ...validateManifestSchema(indexInfo.manifest, indexRel, validateManifest),
     );
   }
 
