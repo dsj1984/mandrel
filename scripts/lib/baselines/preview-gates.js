@@ -19,7 +19,7 @@
 
 import path from 'node:path';
 
-import { getChangedFiles } from '../changed-files.js';
+import { resolvePreviewScope } from '../changed-files.js';
 import { getBaselines, getQuality, resolveConfig } from '../config-resolver.js';
 import { loadCoverage } from '../coverage-utils.js';
 import {
@@ -77,17 +77,10 @@ function compareScores(scores, baseline, tolerance) {
   return { regressions, newFiles, improvements, regressedFiles };
 }
 
-function applyDiffScopeMi({ files, baseline, changedSinceRef, cwd }) {
-  if (!changedSinceRef) {
+function applyDiffScopeMi({ files, baseline, scopeSet, cwd }) {
+  if (!scopeSet) {
     return { scopedFiles: files, scopedBaseline: baseline ?? {} };
   }
-  let changedList;
-  try {
-    changedList = getChangedFiles({ ref: changedSinceRef, cwd });
-  } catch {
-    return { scopedFiles: [], scopedBaseline: {} };
-  }
-  const scopeSet = new Set(changedList);
   const scopedFiles = files.filter((abs) => {
     const rel = path.relative(cwd, abs).replace(/\\/g, '/');
     return scopeSet.has(rel);
@@ -104,12 +97,14 @@ function applyDiffScopeMi({ files, baseline, changedSinceRef, cwd }) {
  * @param {{
  *   cwd?: string,
  *   changedSinceRef?: string | null,
+ *   staged?: boolean,
  *   tolerance?: number,
  * }} [opts]
  */
 export async function runMaintainabilityPreview({
   cwd = process.cwd(),
   changedSinceRef = null,
+  staged = false,
   tolerance = 0.5,
 } = {}) {
   const { agentSettings } = resolveConfig({ cwd });
@@ -126,10 +121,15 @@ export async function runMaintainabilityPreview({
   for (const dir of targetDirs) {
     scanDirectory(dir, files);
   }
+  const { scopeSet, scope, diffRef } = resolvePreviewScope({
+    staged,
+    changedSinceRef,
+    cwd,
+  });
   const { scopedFiles, scopedBaseline } = applyDiffScopeMi({
     files,
     baseline,
-    changedSinceRef,
+    scopeSet,
     cwd,
   });
 
@@ -144,8 +144,8 @@ export async function runMaintainabilityPreview({
   }
   const stats = compareScores(scores, scopedBaseline, tolerance);
   const envelope = buildMaintainabilityReport(scores, stats, {
-    scope: changedSinceRef ? 'diff' : 'full',
-    diffRef: changedSinceRef ?? null,
+    scope,
+    diffRef,
   });
   const exitCode = stats.regressions > 0 ? 1 : 0;
   return { exitCode, envelope };
@@ -157,7 +157,13 @@ export async function runMaintainabilityPreview({
 export async function runCrapPreview({
   cwd = process.cwd(),
   changedSinceRef = null,
+  staged = false,
 } = {}) {
+  const { scopeSet, scope, diffRef } = resolvePreviewScope({
+    staged,
+    changedSinceRef,
+    cwd,
+  });
   const { agentSettings } = resolveConfig({ cwd });
   const baselinePath = getBaselines({ agentSettings }).crap.path;
   const baseline = loadCrapBaseline({
@@ -181,21 +187,12 @@ export async function runCrapPreview({
           drifted: 0,
           removed: 0,
           skippedNoCoverage: 0,
-          scope: changedSinceRef ? 'diff' : 'full',
-          diffRef: changedSinceRef ?? null,
+          scope,
+          diffRef,
         },
         violations: [],
       },
     };
-  }
-
-  let scopeSet = null;
-  if (changedSinceRef) {
-    try {
-      scopeSet = new Set(getChangedFiles({ ref: changedSinceRef, cwd }));
-    } catch {
-      scopeSet = new Set();
-    }
   }
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
@@ -229,8 +226,8 @@ export async function runCrapPreview({
     escomplexVersion: resolveEscomplexVersion(),
     newMethodCeiling,
     scopeInfo: {
-      scope: changedSinceRef ? 'diff' : 'full',
-      diffRef: changedSinceRef ?? null,
+      scope,
+      diffRef,
     },
   });
   const exitCode = result.regressions > 0 || result.newViolations > 0 ? 1 : 0;
