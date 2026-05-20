@@ -1,15 +1,18 @@
-# `npm run lint` runs biome ci + markdownlint-cli2 in parallel (covers
-# lint + format check + import order).
-npm run lint
-# Scope is resolved by the unified dispatcher via
-# delivery.quality.gateScoping (.agentrc.json) — diffRef defaults to main.
-npm run maintainability:check
-# CI runs `npm audit --audit-level=high` on every PR and push-to-main.
-# Opt back in locally with `PREPUSH_AUDIT=1` when reviewing advisories.
+#!/usr/bin/env sh
+# Pre-push — fast, diff-scoped gates against origin/main (see
+# delivery.quality.gateScoping in .agentrc.json). Does NOT run full-repo
+# lint, docs:check, or the full test suite.
+#
+# Before opening a PR or when you want CI-parity confidence locally, run:
+#   npm run verify
+# That runs lint (biome + docs:check) → npm test → unified check-baselines.
+# CI (.github/workflows/ci.yml) remains the authoritative full gate on every PR.
+#
+# Optional: PREPUSH_AUDIT=1 re-enables npm audit (CI still audits on PR/push).
+
+node .agents/scripts/quality-preview.js --changed-since origin/main
 if [ "${PREPUSH_AUDIT:-0}" = "1" ]; then
   npm audit --audit-level=high
 fi
 node .agents/scripts/coverage-capture.js --skip-when-no-crap-files --ref origin/main
 npm run crap:check
-# CI is the authoritative `--full-scope` floor gate (coverage 90/85/90,
-# MI>=70, CRAP<=20). Local pre-push stays diff-scoped for speed.

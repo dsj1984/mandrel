@@ -101,9 +101,10 @@ npm run verify            # Full local gate: lint + full tests + baselines
 ```
 
 Use `test:quick` while iterating, `test:integration` before pushing when you
-touched git/orchestration hooks, and `verify` (or `npm test` + `npm run lint`
-separately) when you want pre-PR confidence. CI always runs the full `npm test`
-suite.
+touched git/orchestration hooks, and `npm run verify` when you want pre-PR
+confidence (lint + full tests + baselines). Pre-push runs only diff-scoped
+quality preview plus coverage/CRAP ratchet; it does not run full lint or
+`npm test`. CI always runs the full `npm test` suite.
 
 ### Slow-test profiling
 

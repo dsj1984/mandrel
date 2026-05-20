@@ -990,8 +990,9 @@ watch loop.
 ```text
         ┌───────────────────────────────────────┐
 local ▶ │ pre-push (.husky/pre-push):           │
-        │   lint → format → MI → audit →        │
-        │   test:coverage → check-crap          │
+        │   quality-preview (diff) →            │
+        │   coverage-capture → crap:check       │
+        │   (full lint+test: npm run verify)    │
         └───────────────────┬───────────────────┘
                             │
         ┌───────────────────▼───────────────────┐

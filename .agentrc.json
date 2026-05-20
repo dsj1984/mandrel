@@ -58,6 +58,7 @@
       "allowSymlinkOnWindows": true
     },
     "quality": {
+      "gateScoping": { "scope": "diff", "diffRef": "main" },
       "gates": {
         "coverage": {
           "floors": {}
