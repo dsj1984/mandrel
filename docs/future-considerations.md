@@ -731,8 +731,8 @@ Tracked here so the numbered list above stays focused on open work.
 - ✅ **Finding #3 (🚀 half — Skill index + policy capsules)** — Epic #2647
   (`epic/2647`). Shipped a generated `.agents/skills/skills.index.json`
   manifest with a JSON-Schema contract
-  (`.agents/schemas/skills/skills-index.schema.json`) plus a per-skill
-  frontmatter contract (`.agents/schemas/skills/skill.schema.json`), a
+  (`.agents/schemas/skills-index.schema.json`) plus a per-skill
+  frontmatter contract (`.agents/schemas/skill.schema.json`), a
   shared parser helper (`.agents/scripts/lib/skills/parse-skill.js`), a
   `generate-skills-index.js` CLI, and a `validate-skills.js` CLI. Added a
   5–12 bullet "Policy Capsule" section to every `SKILL.md` across `core/`
