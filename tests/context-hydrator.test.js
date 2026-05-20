@@ -75,7 +75,13 @@ describe('Context Hydrator', () => {
     // The hydrate context currently fetches settings from config-resolver.
     // If the mock project has maxTokenBudget set to something small, it will truncate.
     // Let's just verify it doesn't crash.
-    const envelope = await hydrateContext(task, provider, 'epic/1', 'task/1', 1);
+    const envelope = await hydrateContext(
+      task,
+      provider,
+      'epic/1',
+      'task/1',
+      1,
+    );
     const prompt = envelopeToPrompt(envelope);
     assert.ok(typeof prompt === 'string');
   });

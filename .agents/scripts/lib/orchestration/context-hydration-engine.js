@@ -252,11 +252,12 @@ function ticketSnapshot(ticket, retrievedAt) {
   const body = ticket.body ?? '';
   const id = ticket.id ?? ticket.number;
   const version =
-    ticket.updatedAt ??
-    ticket.updated_at ??
-    ticket.updatedAtISO ??
-    retrievedAt;
-  const hash = crypto.createHash('sha256').update(body).digest('hex').slice(0, 12);
+    ticket.updatedAt ?? ticket.updated_at ?? ticket.updatedAtISO ?? retrievedAt;
+  const hash = crypto
+    .createHash('sha256')
+    .update(body)
+    .digest('hex')
+    .slice(0, 12);
   return { id, version: String(version), hash, retrievedAt };
 }
 
@@ -490,12 +491,8 @@ export async function hydrateContext(
     epicBranch,
   );
 
-  const { content: hierarchyContent, provenance } = await buildHierarchySections(
-    task,
-    provider,
-    epicId,
-    agentSettings,
-  );
+  const { content: hierarchyContent, provenance } =
+    await buildHierarchySections(task, provider, epicId, agentSettings);
 
   const sections = [...staticSections];
   const hierarchySection = {
