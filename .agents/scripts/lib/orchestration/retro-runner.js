@@ -587,22 +587,6 @@ function renderRoutedSections(routedProposals) {
 }
 
 /**
- * Story #2252 — best-effort lifecycle emit helper. Wraps `bus.emit` in a
- * try/catch so a misbehaving observability surface never blocks the
- * retro phase. `bus: null` short-circuits to a no-op.
- */
-async function emitLifecycleSafe({ bus, event, payload, logger }) {
-  if (!bus || typeof bus.emit !== 'function') return;
-  try {
-    await bus.emit(event, payload);
-  } catch (err) {
-    logger?.warn?.(
-      `[retro-runner] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-}
-
-/**
  * Public: compose and post the retro structured comment on the Epic.
  *
  * Story #1290 (Epic #1143) — at /epic-deliver Phase 5, the runner invokes
@@ -651,7 +635,7 @@ export async function runRetro(opts = {}) {
     logger,
     forceFull = false,
     timestamp,
-    bus = null,
+    bus,
     now = Date.now,
     manualInterventions = 0,
     gatherFn = gatherRetroSignals,
@@ -669,15 +653,16 @@ export async function runRetro(opts = {}) {
   if (!provider) {
     throw new TypeError('runRetro: provider is required.');
   }
+  // Epic #2646 Story C (Task #2700) — `bus` is now a hard input. The
+  // previous guarded `emitLifecycleSafe` helper that tolerated a null
+  // bus is gone.
+  if (!bus || typeof bus.emit !== 'function') {
+    throw new TypeError('runRetro: bus is required (object with emit()).');
+  }
 
   logger?.info?.(`[retro-runner] Composing retro for Epic #${epicId}...`);
   const startedAt = typeof now === 'function' ? now() : Date.now();
-  await emitLifecycleSafe({
-    bus,
-    event: 'retro.start',
-    payload: { epicId },
-    logger,
-  });
+  await bus.emit('retro.start', { epicId });
   let retroPathWritten = null;
   try {
     return await composeAndPostRetro({
@@ -711,12 +696,7 @@ export async function runRetro(opts = {}) {
       durationMs: Math.max(0, Math.floor(endedAt - startedAt)),
     };
     if (retroPathWritten) payload.retroPath = retroPathWritten;
-    await emitLifecycleSafe({
-      bus,
-      event: 'retro.end',
-      payload,
-      logger,
-    });
+    await bus.emit('retro.end', payload);
     throw err;
   }
 }
@@ -826,12 +806,7 @@ async function composeAndPostRetro({
     durationMs: Math.max(0, Math.floor(endedAt - startedAt)),
   };
   if (mirrorAbsPath) retroEndPayload.retroPath = mirrorAbsPath;
-  await emitLifecycleSafe({
-    bus,
-    event: 'retro.end',
-    payload: retroEndPayload,
-    logger,
-  });
+  await bus.emit('retro.end', retroEndPayload);
 
   return {
     posted: true,

@@ -123,6 +123,7 @@ test('runEpicDeliverCloseTail: happy path runs all four phases and writes phase=
   const out = await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => {
       phasesObserved.push('wave-gate');
       return { exitCode: 0 };
@@ -188,11 +189,33 @@ test('runEpicDeliverCloseTail: code-review critical throws + marks blocked befor
   let retroCalled = false;
   let finalizeCalled = false;
 
+  // Epic #2646 Story C (Task #2700) — the close-tail emits
+  // `epic.blocked` through the bus on a critical code-review finding;
+  // production wires the LabelTransitioner listener to flip the Epic
+  // label. The test stubs a bus that mirrors the listener's contract so
+  // the legacy direct-updateTicket fallback (only used when no bus is
+  // wired) stays excluded from this test's surface.
+  const busEmits = [];
+  const stubBusWithListener = {
+    async emit(event, payload) {
+      busEmits.push({ event, payload });
+      if (event === 'epic.blocked') {
+        await provider.updateTicket(42, {
+          labels: {
+            add: ['agent::blocked'],
+            remove: ['agent::executing'],
+          },
+        });
+      }
+    },
+  };
+
   await assert.rejects(
     () =>
       runEpicDeliverCloseTail({
         epicId: 42,
         provider,
+        bus: stubBusWithListener,
         runWaveGateFn: async () => ({ exitCode: 0 }),
         runHierarchyGateFn: async () => ({ exitCode: 0 }),
         runCodeReviewFn: async () => ({
@@ -216,6 +239,12 @@ test('runEpicDeliverCloseTail: code-review critical throws + marks blocked befor
 
   assert.equal(retroCalled, false, 'retro must not run after critical');
   assert.equal(finalizeCalled, false, 'finalize must not run after critical');
+
+  const blockedEmit = busEmits.find(
+    (e) =>
+      e.event === 'epic.blocked' && e.payload?.reason === 'critical-findings',
+  );
+  assert.ok(blockedEmit, 'epic.blocked must be emitted via the bus');
 
   const blockedUpdate = provider.updates.find(
     (u) =>
@@ -246,6 +275,7 @@ test('runEpicDeliverCloseTail: clean code-review proceeds to retro + finalize', 
   const out = await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => ({ exitCode: 0 }),
     runHierarchyGateFn: async () => ({ exitCode: 0 }),
     runCodeReviewFn: async () => ({
@@ -296,6 +326,7 @@ test('runEpicDeliverCloseTail: close-validation halts on wave-gate failure', asy
   const out = await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => ({ exitCode: 1, message: 'open story #99' }),
     runHierarchyGateFn: async () => ({ exitCode: 0 }),
     runCodeReviewFn: async () => {
@@ -326,6 +357,7 @@ test('CONTRACT: crash during retro → resume runs retro + finalize, NOT close-v
   await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => {
       waveGateCalls++;
       return { exitCode: 0 };
@@ -370,6 +402,7 @@ test('CONTRACT: crash during retro → resume runs retro + finalize, NOT close-v
   const out = await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => {
       waveGateCalls++;
       return { exitCode: 0 };
@@ -447,6 +480,16 @@ test('runEpicDeliverCloseTail: rejects missing args', async () => {
     () => runEpicDeliverCloseTail({ epicId: 1, provider: {} }),
     /runFinalizeFn is required/,
   );
+  // Epic #2646 Story C (Task #2700) — bus is now a hard input.
+  await assert.rejects(
+    () =>
+      runEpicDeliverCloseTail({
+        epicId: 1,
+        provider: {},
+        runFinalizeFn: async () => ({}),
+      }),
+    /bus is required/,
+  );
 });
 
 // Story #2289 — Phase E reads the checkpoint's manualInterventions count
@@ -479,6 +522,7 @@ test('runEpicDeliverCloseTail: passes manualInterventions count from checkpoint 
   await runEpicDeliverCloseTail({
     epicId: 42,
     provider,
+    bus: { emit: async () => {} },
     runWaveGateFn: async () => ({ exitCode: 0 }),
     runHierarchyGateFn: async () => ({ exitCode: 0 }),
     runCodeReviewFn: async () => ({

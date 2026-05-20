@@ -224,24 +224,32 @@ describe('lifecycle/phase-close-validate — runPreMergeGates emits', () => {
     assert.equal(epicBlocked.payload.reason, 'close-validate-failed:lint');
   });
 
-  it('is a no-op observer when bus is null (backward compatibility)', async () => {
-    // The legacy path (no bus) MUST continue to operate. The gate chain
-    // runs to completion and the helper returns the validation envelope
-    // without touching any ledger.
-    const out = await runPreMergeGates({
-      cwd: '/repo',
-      worktreePath: '/repo',
-      epicBranch: 'epic/0',
-      agentSettings: {},
-      storyId: 1,
-      epicId: 1,
-      useEvidence: false,
-      bus: null,
-      logger: quietLogger(),
-      buildDefaultGates: () => [],
-      runCloseValidation: async () => ({ ok: true, failed: [], skipped: [] }),
-    });
-    assert.equal(out.ok, true);
+  it('rejects when bus is null (Epic #2646 — bus is a hard input)', async () => {
+    // Epic #2646 Story C (Task #2700) — the legacy guarded
+    // `emitLifecycleSafe` helper that tolerated a null bus is gone.
+    // The runner now throws a TypeError up-front so callers cannot
+    // silently lose lifecycle observability.
+    await assert.rejects(
+      () =>
+        runPreMergeGates({
+          cwd: '/repo',
+          worktreePath: '/repo',
+          epicBranch: 'epic/0',
+          agentSettings: {},
+          storyId: 1,
+          epicId: 1,
+          useEvidence: false,
+          bus: null,
+          logger: quietLogger(),
+          buildDefaultGates: () => [],
+          runCloseValidation: async () => ({
+            ok: true,
+            failed: [],
+            skipped: [],
+          }),
+        }),
+      /bus is required/,
+    );
   });
 
   it('skips emits when storyId is missing even with a bus (schema-required field)', async () => {
