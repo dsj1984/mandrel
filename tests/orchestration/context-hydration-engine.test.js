@@ -4,14 +4,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-
+import { resolveConfig } from '../../.agents/scripts/lib/config-resolver.js';
 import { envelopeToPrompt } from '../../.agents/scripts/lib/orchestration/context-envelope.js';
 import {
   __resetContextCache,
   hydrateContext,
 } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.js';
 import { legacyHydrate } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.legacy.js';
-import { resolveConfig } from '../../.agents/scripts/lib/config-resolver.js';
 
 class HierarchyProvider {
   constructor(tickets) {
