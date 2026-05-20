@@ -6,6 +6,7 @@
   "scripts": {
     "pretest": "node .agents/scripts/test-wrapper.js",
     "test": "node .agents/scripts/run-tests.js",
+    "test:profile": "node .agents/scripts/run-test-profile.js",
     "typecheck": "node -e \"process.exit(0)\"",
     "test:coverage": "node .agents/scripts/run-coverage.js",
     "coverage:check": "node .agents/scripts/check-baselines.js --gate coverage",

@@ -94,7 +94,22 @@ npm run lint          # Check all markdown for lint errors
 npm run format        # Auto-format all markdown files
 npm run format:check  # Verify formatting without modifying files
 npm test              # Run framework tests (node --test)
+npm run test:profile  # Slow-test report → temp/test-profile.{tap,summary.txt}
 ```
+
+### Slow-test profiling
+
+`npm run test:profile` runs the full suite with the TAP reporter, writes
+`temp/test-profile.tap` (raw machine output) and `temp/test-profile.summary.txt`
+(human-readable top-20 slow tests and suites). Both paths are gitignored under
+`temp/`. The command skips npm-test preflight (`SKIP_PREFLIGHT=1`) so timings
+reflect the test runner; export `SKIP_PREFLIGHT=0` to include preflight.
+
+Read the summary file to spot regressions: **suite** rows are parent `describe`
+blocks (often whole files), **test** rows are leaf cases. Compare reports from
+the same machine before and after an optimization. Optional flags:
+`--out-dir <path>`, `--top <n>`, plus any `node --test` args after `--` (e.g.
+`npm run test:profile -- --test-name-pattern "epic-execute"`).
 
 ---
 
