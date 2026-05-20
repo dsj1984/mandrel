@@ -26,6 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
+import { getHydration, resolveHydration } from './config/hydration.js';
 import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
 import { resolveQuality } from './config/quality.js';
@@ -47,6 +48,11 @@ export {
   MERGE_METHODS_DEFAULTS,
   NOTIFICATIONS_DEFAULTS,
 } from './config/github.js';
+export {
+  getHydration,
+  HYDRATION_DEFAULTS,
+  resolveHydration,
+} from './config/hydration.js';
 export {
   getLimits,
   getSignals,
@@ -178,6 +184,7 @@ function buildLegacyShim(blocks) {
       planning,
       quality: resolvedQuality,
       limits: resolveLimits({ planning, delivery }),
+      hydration: resolveHydration(delivery),
     },
     orchestration: github
       ? {
