@@ -137,34 +137,28 @@ Recommendation:
 
 ### 3. Skill Library Should Become a Capability Index Plus Compact Policies
 
-**Status:** Simplify / Reframe
-**Action:** Split in two:
-- 🚀 **Implement now** — generate a `skills.index.json` manifest (or
-  frontmatter-only index) and add a 5-12 bullet "policy capsule" to each
-  `SKILL.md`. Pure tooling that helps current models too: cheaper
-  selection and faster hydration. No behavioral change to the runtime.
-- 🔭 **Monitor** — actually changing the hydrator to *stop* loading full
-  skill bodies by default, and to route skill selection through the
-  manifest. Waits until the model can self-select context confidently.
+**Status:** ✅ Closed (🚀 half) — see "Implemented Since Audit" (Epic #2647).
+The 🔭 Monitor half below remains open but carries no remaining 🚀 work.
+
+**Action:** 🔭 **Monitor only** — actually changing the hydrator to *stop*
+loading full skill bodies by default and route skill selection through the
+generated manifest, and pushing remaining stack-specific non-negotiables
+into validators / lint checks rather than skill prose. Waits until the
+model can self-select context confidently and until validator coverage
+catches up.
 
 **Primary paths:**
 
-- `.agents/skills/core/`
-- `.agents/skills/stack/`
-- `.agents/README.md`
 - `.agents/scripts/lib/orchestration/context-hydration-engine.js`
+- `.agents/skills/stack/`
 
 The skill split between deterministic scripts and prompt+judgment is sound. The
 problem is payload size and repeated procedural instruction. A 10x model will
 not need long explanations of TDD, debugging, code review, frontend
 accessibility, or common stack patterns on every task.
 
-Recommendation:
+Remaining recommendation (Monitor):
 
-- Keep `SKILL.md` files as human-readable docs, but generate a compact
-  `skills.index.json` or frontmatter-only manifest for runtime selection.
-- Add a "policy capsule" to each skill: 5-12 enforceable bullets plus links to
-  deeper examples.
 - Avoid hydrating entire skills into task prompts unless the task is high-risk
   or the user explicitly asks for the full playbook.
 - Move stack-specific non-negotiables into validators or lint checks where
@@ -734,6 +728,20 @@ Tracked here so the numbered list above stays focused on open work.
     `structured-comment-poster` promoted (94325677).
   Core bus/ledger remains untouched, as the original "Keep" stance
   required.
+- ✅ **Finding #3 (🚀 half — Skill index + policy capsules)** — Epic #2647
+  (`epic/2647`). Shipped a generated `.agents/skills/skills.index.json`
+  manifest with a JSON-Schema contract
+  (`.agents/schemas/skills/skills-index.schema.json`) plus a per-skill
+  frontmatter contract (`.agents/schemas/skills/skill.schema.json`), a
+  shared parser helper (`.agents/scripts/lib/skills/parse-skill.js`), a
+  `generate-skills-index.js` CLI, and a `validate-skills.js` CLI. Added a
+  5–12 bullet "Policy Capsule" section to every `SKILL.md` across `core/`
+  and `stack/`, refreshed the manifest, and wired `skills:index` /
+  `skills:check` into `npm run lint`'s `docs:check` chain plus `pretest`
+  so the index and capsules cannot drift. Pure tooling — no behavioral
+  change to the runtime hydrator yet. The 🔭 Monitor half (stop hydrating
+  full skill bodies by default, push stack non-negotiables into
+  validators) remains in the numbered list above.
 - ✅ **Finding #17 (Compatibility shims and legacy shapes)** — Epic #2646 /
   Story B #2687 (commit 807918a3 on `epic/2646`, plus dependent tickets
   ae3ee9b3, bafd95bf, 43d02d26, 9c3ad434). All known compatibility branches
