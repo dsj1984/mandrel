@@ -1,11 +1,11 @@
 ---
 name: hydrate-context
 description: >-
-  Hydrate a Task or Story ticket into a single prompt string the executor
-  can drop in front of an implementation request. Reads the ticket body,
-  parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and
-  composes a `{ prompt }` JSON envelope. Successor to the retired
-  mandrel MCP `context.hydrate` tool.
+  Hydrate a Task or Story ticket into a structured ContextEnvelope (or the
+  legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses
+  Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles
+  named sections with provenance and section-aware elision. Successor to
+  the retired mandrel MCP `context.hydrate` tool.
 allowed_tools:
   - Read
   - Bash
@@ -19,8 +19,8 @@ allowed_tools:
 - Treat the operation as strictly **read-only on GitHub** — never modify ticket bodies, never post comments, never apply labels.
 - When `--epic` is omitted, parse the Epic ID from the ticket body's `Epic: #N` line; do not infer it from elsewhere.
 - Surface `persona::*` and `skill::*` labels from the ticket into the composed prompt so the downstream executor can pin its sub-agent dispatch.
-- Emit exactly one JSON object on stdout (`{ "prompt": "..." }`) and nothing else — no temp files, no diagnostic prints that would corrupt the envelope.
-- Honour the engine's context-budget cap: when the composed prompt would exceed the configured limit, the engine performs explicit field downgrades. Never silently truncate.
+- Emit exactly one JSON object on stdout (`{ "prompt": "..." }` by default, or `{ "envelope": {...} }` with `--emit envelope`) and nothing else — no temp files, no diagnostic prints that would corrupt the envelope.
+- Honour the engine's context-budget cap via section-aware elision (`elideEnvelope`): lower-priority sections drop or summarize before higher-priority ones. Never silently truncate mid-string.
 - Do not persist the composed prompt to disk; forwarding is the caller's responsibility.
 
 ## Role
@@ -49,10 +49,31 @@ executor can pin its sub-agent dispatch.
 
 ## Outputs
 
-A single JSON object on stdout:
+The engine assembles a typed **ContextEnvelope** (`lib/orchestration/context-envelope.js`) and serializes it for consumers:
+
+| Field | Role |
+| --- | --- |
+| `schemaVersion` | Always `"1"` for the current contract. |
+| `task` | `{ id, title, persona?, skills?, protocolVersion? }` from the ticket and labels. |
+| `sections[]` | Named blocks (`protocolPolicy`, `persona`, `skillCapsules`, `hierarchy`, `acceptanceCriteria`, `verificationCommands`, `taskInstructions`) each with `priority`, `elideWhenOverBudget` (`drop` \| `summarize`), `content`, `estimatedTokens`, optional `source`. |
+| `provenance[]` | Ticket snapshots: `{ id, version, hash, retrievedAt }` so auditors can cite what was fetched. |
+| `budget` | `{ maxTokens, used, elided[] }` after `elideEnvelope` runs. |
+| `warnings[]` | Non-fatal hydration notices (missing files, skipped skills, etc.). |
+
+Default CLI stdout (backward-compatible wrapper):
 
 ```json
 { "prompt": "..." }
+```
+
+`prompt` is `envelopeToPrompt(envelope)` — sections joined in `SECTION_RENDER_ORDER`, not elision priority. For inspection or downstream tools that consume the typed shape:
+
+```bash
+node .agents/scripts/hydrate-context.js --ticket <id> --emit envelope
+```
+
+```json
+{ "envelope": { "schemaVersion": "1", "task": { ... }, "sections": [ ... ], "provenance": [ ... ], "budget": { ... }, "warnings": [ ... ] } }
 ```
 
 The Skill writes nothing else — no GitHub comments, no temp files.
@@ -66,7 +87,21 @@ node .agents/scripts/hydrate-context.js --ticket <id> [--epic <id>]
 
 Delegates to `hydrateContext` from
 `lib/orchestration/context-hydration-engine.js`. The engine handles
-provider I/O, body parsing, and the context-budget cap.
+provider I/O, body parsing, provenance stamping, and
+`elideEnvelope` when `budget.used` exceeds `limits.maxTokenBudget`.
+
+**Section-aware elision.** Each section carries a numeric `priority`
+(lower drops first) and an `elideWhenOverBudget` policy (`drop` removes
+the section; `summarize` keeps a head excerpt). Defaults live in
+`DEFAULT_SECTION_PRIORITIES` and `DEFAULT_ELIDE_POLICIES` in
+`context-envelope.js`. Elided section names are recorded in
+`budget.elided`.
+
+**Skill capsules by default.** Activated skills resolve through
+`skills.index.json` and `loadSkillCapsule`, emitting Policy Capsule
+text into the `skillCapsules` section. Full `SKILL.md` bodies load only
+when the ticket carries a `skill::full` label or
+`delivery.hydration.fullSkillBodies` is `true` in `.agentrc.json`.
 
 ## Constraints
 
@@ -74,7 +109,11 @@ provider I/O, body parsing, and the context-budget cap.
   strictly read-only on GitHub.
 - Do **not** persist the composed prompt to disk. The caller is
   responsible for forwarding the stdout envelope to its consumer.
-- Do **not** bypass the context-budget cap in the engine — if the
-  composed prompt would exceed the configured limit, the engine
-  downgrades fields explicitly. Honour that contract; never silently
-  truncate.
+- Do **not** bypass the context-budget cap — honour `elideEnvelope`
+  and the per-section policies; never silently truncate.
+- **`outputMode: 'prose-legacy'`** (`delivery.hydration` in
+  `.agentrc.json`) is a one-release compatibility flag that delegates
+  to `context-hydration-engine.legacy.js` and wraps the result as a
+  single `taskInstructions` section. It sunsets on the next hard
+  cutover PR that removes `hydration.outputMode`, the legacy module, and
+  the enum value together — no indefinite shim layer.
