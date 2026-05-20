@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T18:30:01.299Z",
+  "generatedAt": "2026-05-20T19:33:20.406Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -2964,42 +2964,6 @@
       "crap": 4
     },
     {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyGithubDefaults",
-      "startLine": 101,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyCommandsDefaults",
-      "startLine": 114,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDeliveryDefaults",
-      "startLine": 124,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDefaults",
-      "startLine": 136,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "buildLegacyShim",
-      "startLine": 168,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 218,
-      "crap": 9
-    },
-    {
       "path": ".agents/scripts/lib/config/baselines.js",
       "method": "getBaselines",
       "startLine": 28,
@@ -5116,72 +5080,6 @@
       "method": "<anon method-3>",
       "startLine": 141,
       "crap": 8
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "readFileCached",
-      "startLine": 41,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "buildSkillIndex",
-      "startLine": 57,
-      "crap": 3.004895919217333
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "<anon method-1>",
-      "startLine": 65,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "<anon method-2>",
-      "startLine": 71,
-      "crap": 3.0327719617660445
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "getSkillPath",
-      "startLine": 107,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "__resetContextCache",
-      "startLine": 119,
-      "crap": 1.421875
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "getVersion",
-      "startLine": 133,
-      "crap": 1.010973936899863
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "parseHierarchy",
-      "startLine": 152,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "truncateToTokenBudget",
-      "startLine": 173,
-      "crap": 3.845229151014275
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "loadProtocolTemplate",
-      "startLine": 198,
-      "crap": 2.0027478119275393
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "method": "hydrateContext",
-      "startLine": 256,
-      "crap": 13.259615384615385
     },
     {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
@@ -8512,42 +8410,6 @@
       "method": "upsertStructuredComment",
       "startLine": 333,
       "crap": 6.0163859808830225
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "collectOpenStoryIds",
-      "startLine": 35,
-      "crap": 7
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchTaskInWave",
-      "startLine": 64,
-      "crap": 10.331267911869041
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "collectHierarchyIds",
-      "startLine": 159,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "primeWaveHierarchy",
-      "startLine": 187,
-      "crap": 6.013119533527696
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchWave",
-      "startLine": 224,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "method": "dispatchNextWave",
-      "startLine": 299,
-      "crap": 3
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
