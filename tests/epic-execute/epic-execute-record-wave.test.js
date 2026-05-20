@@ -54,6 +54,16 @@ const TEST_CONFIG = {
   orchestration: { runners: { deliverRunner: { concurrencyCap: 2 } } },
 };
 
+/** Skip subprocess `dispatcher.js --dry-run` — not under test here. */
+const FAST_RECORD = {
+  injectedConfig: TEST_CONFIG,
+  injectedRefreshLocalManifest: async () => {},
+};
+
+function recordWave(overrides) {
+  return runEpicExecuteRecordWave({ ...FAST_RECORD, ...overrides });
+}
+
 describe('classifyWaveOutcome', () => {
   it('complete + remaining waves → dispatch-next', () => {
     assert.deepEqual(
@@ -200,16 +210,31 @@ describe('parseInputArg', () => {
 });
 
 describe('runEpicExecuteRecordWave', () => {
+  it('routes manifest refresh through injectedRefreshLocalManifest', async () => {
+    let refreshEpicId;
+    const provider = createFakeProvider();
+    await seedCheckpoint(provider, 700);
+    await recordWave({
+      epicId: 700,
+      wave: 0,
+      results: [{ storyId: 1, status: 'done' }],
+      injectedProvider: provider,
+      injectedRefreshLocalManifest: async ({ epicId }) => {
+        refreshEpicId = epicId;
+      },
+    });
+    assert.equal(refreshEpicId, 700);
+  });
+
   it('appends the wave outcome and returns dispatch-next when more waves remain', async () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 555);
 
-    const out = await runEpicExecuteRecordWave({
+    const out = await recordWave({
       epicId: 555,
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       now: () => new Date('2026-05-02T12:00:00Z'),
     });
 
@@ -236,19 +261,17 @@ describe('runEpicExecuteRecordWave', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 556, { totalWaves: 2 });
 
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 556,
       wave: 0,
       results: [],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
-    const out = await runEpicExecuteRecordWave({
+    const out = await recordWave({
       epicId: 556,
       wave: 1,
       results: [],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
     assert.equal(out.nextAction, 'finalize');
     assert.equal(out.remainingWaves, 0);
@@ -257,7 +280,7 @@ describe('runEpicExecuteRecordWave', () => {
   it('returns halt-blocked when any Story returned blocked', async () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 557);
-    const out = await runEpicExecuteRecordWave({
+    const out = await recordWave({
       epicId: 557,
       wave: 0,
       results: [
@@ -265,7 +288,6 @@ describe('runEpicExecuteRecordWave', () => {
         { storyId: 9, status: 'blocked' },
       ],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
     assert.equal(out.status, 'blocked');
     assert.deepEqual(out.blockedStoryIds, [9]);
@@ -278,19 +300,17 @@ describe('runEpicExecuteRecordWave', () => {
   it('replaces a prior record for the same wave (idempotent re-record)', async () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 558);
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 558,
       wave: 0,
       results: [{ storyId: 1, status: 'failed' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 558,
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
     const state = await new Checkpointer({ provider, epicId: 558 }).read();
     assert.equal(state.waves.length, 1);
@@ -306,12 +326,11 @@ describe('runEpicExecuteRecordWave', () => {
       },
     });
     await seedCheckpoint(provider, 559);
-    const out = await runEpicExecuteRecordWave({
+    const out = await recordWave({
       epicId: 559,
       wave: 0,
       results: [{ storyId: 7, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
     assert.equal(out.status, 'failed');
     assert.ok(Array.isArray(out.discrepancies));
@@ -323,19 +342,17 @@ describe('runEpicExecuteRecordWave', () => {
   it('upserts a single epic-run-progress comment grouped by wave', async () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 560, { totalWaves: 2 });
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 560,
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 560,
       wave: 1,
       results: [{ storyId: 2, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
     });
     const epicComments = provider._comments.get(560) ?? [];
     const epicProgress = epicComments.filter((c) =>
@@ -352,12 +369,11 @@ describe('runEpicExecuteRecordWave', () => {
   it('throws when no checkpoint exists', async () => {
     const provider = createFakeProvider();
     await assert.rejects(
-      runEpicExecuteRecordWave({
+      recordWave({
         epicId: 561,
         wave: 0,
         results: [],
         injectedProvider: provider,
-        injectedConfig: TEST_CONFIG,
       }),
       /no epic-run-state checkpoint found/,
     );
@@ -367,13 +383,12 @@ describe('runEpicExecuteRecordWave', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 562);
     await assert.rejects(
-      runEpicExecuteRecordWave({
+      recordWave({
         epicId: 562,
         wave: 0,
         results: [],
         returns: [],
         injectedProvider: provider,
-        injectedConfig: TEST_CONFIG,
       }),
       /not both/,
     );
@@ -383,12 +398,11 @@ describe('runEpicExecuteRecordWave', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 563);
     await assert.rejects(
-      runEpicExecuteRecordWave({
+      recordWave({
         epicId: 563,
         wave: 0,
         results: [{ storyId: 1, status: 'gibberish' }],
         injectedProvider: provider,
-        injectedConfig: TEST_CONFIG,
       }),
       /must be one of/,
     );
@@ -416,12 +430,11 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 600);
     const { events, fn } = captureNotify();
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 600,
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       injectedNotify: fn,
     });
     assert.deepEqual(
@@ -436,7 +449,7 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 601);
     const { events, fn } = captureNotify();
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 601,
       wave: 0,
       results: [
@@ -444,7 +457,6 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
         { storyId: 9, status: 'blocked' },
       ],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       injectedNotify: fn,
     });
     const eventNames = events.map((e) => e.event);
@@ -458,22 +470,20 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 602);
     // First call: wave 0 lands blocked.
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 602,
       wave: 0,
       results: [{ storyId: 9, status: 'blocked' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       injectedNotify: async () => {},
     });
     // Second call (operator unblocked, host re-dispatched): wave 0 lands complete.
     const { events, fn } = captureNotify();
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 602,
       wave: 0,
       results: [{ storyId: 9, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       injectedNotify: fn,
     });
     const eventNames = events.map((e) => e.event);
@@ -495,12 +505,11 @@ describe('runEpicExecuteRecordWave — curated webhook emits', () => {
     const provider = createFakeProvider();
     await seedCheckpoint(provider, 603, { totalWaves: 1 });
     const { events, fn } = captureNotify();
-    await runEpicExecuteRecordWave({
+    await recordWave({
       epicId: 603,
       wave: 0,
       results: [{ storyId: 1, status: 'done' }],
       injectedProvider: provider,
-      injectedConfig: TEST_CONFIG,
       injectedNotify: fn,
     });
     const eventNames = events.map((e) => e.event);
