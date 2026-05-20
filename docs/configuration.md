@@ -641,7 +641,7 @@ number of keys.
 | `delivery.quality.gates.maintainability.targetDirs`  | `[".agents/scripts", "tests"]`        | `["src"]`                                  | Root scans the framework's own source tree; consumer template scans the conventional `src/`.                                     |
 | `delivery.quality.gates.crap.targetDirs`             | `[".agents/scripts"]`                 | `["src"]`                                  | Same reason as maintainability above.                                                                                            |
 | `github.owner` / `.repo` / `.projectNumber` / `.projectOwner` / `.operatorHandle` | Populated for `dsj1984/mandrel` | `[OWNER]` / `[REPO]` / `null` / `null` / `@[USERNAME]` | Repo-specific identifiers; placeholders in the template are replaced by `node .agents/scripts/bootstrap.js` (or by hand). |
-| `delivery.worktreeIsolation.nodeModulesStrategy`     | `pnpm-store`                          | `per-worktree`                             | Root uses pnpm content-addressable store; template defaults to per-worktree for npm-only consumers.                              |
+| `delivery.worktreeIsolation.nodeModulesStrategy`     | `per-worktree`                        | `per-worktree`                             | npm-only repo (`package-lock.json`); worktree init runs `npm ci` per tree.                                                       |
 
 When a consumer runs `/agents-update`, the
 [`agents-sync-config`](../.agents/workflows/helpers/agents-sync-config.md)

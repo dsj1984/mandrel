@@ -90,11 +90,19 @@ mandrel/
 ### Key Commands
 
 ```text
-npm run lint          # Check all markdown for lint errors
-npm run format        # Auto-format all markdown files
-npm run format:check  # Verify formatting without modifying files
-npm test              # Run framework tests (node --test)
+npm run lint              # Check all markdown for lint errors
+npm run format            # Auto-format all markdown files
+npm run format:check      # Verify formatting without modifying files
+npm run test:quick        # TDD loop — excludes slow integration-style suites
+npm run test:integration  # Real-git / hook-chain / long orchestration suites only
+npm test                  # Full suite (same as CI test gate)
+npm run verify            # Full local gate: lint + full tests + baselines
 ```
+
+Use `test:quick` while iterating, `test:integration` before pushing when you
+touched git/orchestration hooks, and `verify` (or `npm test` + `npm run lint`
+separately) when you want pre-PR confidence. CI always runs the full `npm test`
+suite.
 
 ---
 
