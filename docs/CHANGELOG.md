@@ -200,6 +200,21 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.26.0](https://github.com/dsj1984/mandrel/compare/v1.25.0...v1.26.0) (2026-05-20)
+
+
+### Added
+
+* **architecture:** cleanup shims, adapters, and enums (closes [#2646](https://github.com/dsj1984/mandrel/issues/2646)) ([#2712](https://github.com/dsj1984/mandrel/issues/2712)) ([8993bad](https://github.com/dsj1984/mandrel/commit/8993bad5085c02e39fce0fbd0dd6c440eba2e7c5))
+* **audit-architecture:** add Automated Architecture Guardrails dimension ([#2734](https://github.com/dsj1984/mandrel/issues/2734)) ([184574d](https://github.com/dsj1984/mandrel/commit/184574d65bdaba1ebed54a68cda5d0cdee50d823)), closes [#2713](https://github.com/dsj1984/mandrel/issues/2713)
+* **orchestration:** propagate ticket state upward on every transition ([#2677](https://github.com/dsj1984/mandrel/issues/2677)) ([29a036d](https://github.com/dsj1984/mandrel/commit/29a036deea739a0ec7abd39ba8e76dc2ebeb8d5b)), closes [#2676](https://github.com/dsj1984/mandrel/issues/2676)
+
+
+### Fixed
+
+* **lifecycle:** close-tail completeness — audit-results marker, epic.merge.* schemas, Phase 7 doc-truth ([#2710](https://github.com/dsj1984/mandrel/issues/2710)) ([41c4c84](https://github.com/dsj1984/mandrel/commit/41c4c84ec272f501f3d6e30df6ecb71a0d8357e1)), closes [#2681](https://github.com/dsj1984/mandrel/issues/2681)
+* **single-story-deliver:** route label flips through transitionTicketState so Projects v2 Status syncs ([#2739](https://github.com/dsj1984/mandrel/issues/2739)) ([5f4e6e2](https://github.com/dsj1984/mandrel/commit/5f4e6e291f89f7f4353b6a72d57f173982b25c75)), closes [#2717](https://github.com/dsj1984/mandrel/issues/2717)
+
 ## [1.25.0](https://github.com/dsj1984/mandrel/compare/v1.24.0...v1.25.0) (2026-05-19)
 
 
