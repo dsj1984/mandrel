@@ -9,6 +9,19 @@ description:
 
 # Performance Optimization
 
+## Policy Capsule
+
+- Always **Measure → Identify → Fix → Verify → Guard**. Never optimize without baseline + post-fix measurements; premature optimization is a defect.
+- Frontend regressions are evaluated against Core Web Vitals targets: LCP ≤ 2.5 s, INP ≤ 200 ms, CLS ≤ 0.1. Anything worse than "Needs Improvement" is a fail.
+- Eliminate N+1 query patterns; every list-fetch path uses joins/includes or batched queries.
+- Every list endpoint MUST be paginated with explicit `take` / `skip` (or cursor) — no unbounded `findMany`.
+- All `<img>` tags ship with explicit `width`/`height`, `loading="lazy"` where appropriate, and responsive `srcset`/`sizes`; missing dimensions cause CLS and are forbidden.
+- Stabilize React render inputs: hoist object/array literals out of render, apply `React.memo` to provably expensive children, and reach for `useMemo` only when a benchmark confirms the win — overuse is a red flag.
+- Trim bundle weight: prefer tree-shakable subpath imports, lazy-load rarely-used features via dynamic `import()`, and keep initial JS within the configured performance budget.
+- Cache deliberately: in-memory TTL cache for frequently-read / rarely-changed data, `Cache-Control: immutable` for content-hashed static assets, explicit `Cache-Control` headers for API responses.
+- Enforce the performance budget in CI (bundle-size + Lighthouse CI); a budget breach blocks the change.
+- After every fix, attach before/after numbers, confirm Core Web Vitals stay in "Good", verify no N+1 was introduced, and ensure existing tests still pass.
+
 ## Overview
 
 Measure before optimizing. Performance work without measurement is guessing —

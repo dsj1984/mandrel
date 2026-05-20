@@ -9,6 +9,18 @@ description:
 
 # Planning and Task Breakdown
 
+## Policy Capsule
+
+- Enter Plan Mode before writing any code: read the spec + relevant codebase, map dependencies, list risks. Planning output is a plan document, not implementation.
+- Slice work **vertically** — one user-visible path per task — not horizontally (all DB, then all API, then all UI).
+- Every task carries: a one-paragraph description, explicit acceptance criteria, a verification step (test/build/manual check), declared dependencies, files-likely-touched, and an estimated scope (XS–L).
+- Cap individual tasks at scope **M** (3–5 files) where possible and never start an **XL** task — break it down further. Triggers for further decomposition: >2 hours of agent work, >3 acceptance bullets, two independent subsystems touched, or "and" in the title.
+- Order tasks by dependency graph (foundations first) and by risk (high-risk tasks early to fail fast).
+- Insert explicit checkpoints every 2–3 tasks: tests pass, build clean, end-to-end flow works, human review before proceeding.
+- Distinguish parallelization classes — safe (independent slices, docs), must-be-sequential (migrations, shared state), and needs-coordination (shared API contract — define the contract first).
+- Capture risks + mitigations and any open questions for human input as first-class plan sections.
+- Do not start implementation until every task has acceptance criteria, a verification step, ordered dependencies, and human approval of the plan.
+
 ## Overview
 
 Decompose work into small, verifiable tasks with explicit acceptance criteria.

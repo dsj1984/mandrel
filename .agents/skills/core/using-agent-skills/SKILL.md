@@ -8,6 +8,18 @@ description:
 
 # Using Agent Skills
 
+## Policy Capsule
+
+- Check for an applicable skill **before** starting work; skills are workflows, not suggestions — follow steps in order and never skip the verification step.
+- Surface assumptions explicitly before any non-trivial implementation (`ASSUMPTIONS I'M MAKING:` block) and invite correction.
+- Manage confusion actively: STOP, name the inconsistency, present the trade-off, wait for resolution. Never silently pick an interpretation.
+- **Sub-agent exception**: when running under `/story-deliver` or another non-interactive parent, never stall for input. Pick the narrowest reasonable interpretation that satisfies the parent Story's AC; if truly stuck, transition to `agent::blocked`, post a `friction` structured comment with the default assumption, and exit non-zero.
+- Push back on flawed approaches with concrete, quantified downsides and an alternative; sycophancy is a failure mode.
+- Enforce Simplicity: prefer the boring, obvious solution. Resist abstraction unless it earns its complexity; 1000 lines where 100 suffice is a failure.
+- Maintain Scope Discipline: no drive-by cleanups, no refactoring adjacent systems, no deletions you don't fully understand, no unsolicited features.
+- Verify, don't assume — tasks complete only when evidence (passing tests, build output, runtime data) is in hand.
+- When in doubt and the task is non-trivial without a spec, start with `spec-driven-development`. Multiple skills compose; follow the canonical lifecycle order when delivering a complete feature.
+
 ## Overview
 
 Agent Skills is a collection of engineering workflow skills organized by

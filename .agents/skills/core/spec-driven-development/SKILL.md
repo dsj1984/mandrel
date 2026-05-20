@@ -8,6 +8,18 @@ description:
 
 # Spec-Driven Development
 
+## Policy Capsule
+
+- Follow the gated workflow: **Specify → Plan → Tasks → Implement**. Never advance until the human has reviewed and approved the current phase.
+- Surface assumptions explicitly **before** writing spec content: list them as "ASSUMPTIONS I'M MAKING" and ask the human to correct them. Never silently fill in ambiguous requirements.
+- Reframe vague requirements (e.g. "make it faster") as specific, testable success criteria with numeric targets before accepting them as scope.
+- Phase 1 specs MUST cover all six core areas: **Objective, Commands, Project Structure, Code Style, Testing Strategy, Boundaries**.
+- The Boundaries section is three-tier and mandatory: **Always do** / **Ask first** / **Never do**. Database schema changes, dependency additions, and CI changes default to "Ask first".
+- Provide commands as full executable strings (with flags), not just tool names; provide code style as a real snippet plus key conventions, not prose-only descriptions.
+- Phase 3 tasks each have explicit acceptance criteria, a verification step (test/build/manual), declared file scope (≤ ~5 files), and dependency-ordered sequencing.
+- Treat the spec as a **living document** — update it first when decisions or scope change, commit it to version control, and link the relevant section from each PR.
+- Do not start implementation until the spec has been reviewed, success criteria are specific and testable, boundaries are defined, and the spec lives in the repo.
+
 ## Overview
 
 Write a structured specification before writing any code. The spec is the shared

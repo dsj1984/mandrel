@@ -13,6 +13,19 @@ allowed_tools:
 
 # epic-plan-spec-author
 
+## Policy Capsule
+
+- Run only during `/epic-plan` Phase 7, after `epic-plan-spec.js --emit-context` has written `temp/epic-<Epic_ID>/planner-context.json`; fail loudly if the file is missing rather than fabricating context.
+- Write exactly three artifacts and only inside `temp/epic-<Epic_ID>/`: `prd.md`, `techspec.md`, `acceptance-spec.md`. All three MUST exist on disk before returning.
+- Start each artifact at the correct `##` heading (PRD → `## Overview`, Tech Spec → `## Technical Overview`, Acceptance Spec → `## Acceptance Criteria`) — never emit a top-level `#` heading.
+- Cite real module / file names from `codebaseSnapshot.files` and `codebaseSnapshot.signatures` before citing docs-only names; flag any cited path that is missing from the snapshot with a `<!-- DRIFT -->` callout.
+- Assign stable AC IDs of the form `AC-<n>` in document order; reuse existing IDs across re-plans when Outcome wording is materially unchanged and tag every row's `Disposition` with one of `new | updated | unchanged`.
+- Render the AC table with the canonical columns `AC ID | Outcome | Feature File | Scenario | Disposition`; when `bddScenarios` is non-empty, run `findBestScenarioMatch` per AC and annotate matched rows with `<file>:L<line>` (never tag a covered outcome as `new`).
+- Emit a `Runner Verification` line directly under the AC table reflecting the `bddRunner` envelope (`<runner> supports <pendingTag>` when supported, or `Fallback: dependencies-first ordering (reason: …)` on fallback).
+- Each AC Outcome MUST describe a single user-visible behaviour — no DB assertions, HTTP status codes, or implementation details — and MUST NOT prescribe a commit subject that starts with a non-Conventional-Commits prefix (the literal `baseline-refresh:` prefix is forbidden; use a body trailer instead).
+- Do not mutate GitHub issues from this Skill; persistence is the script's job. Reads MAY span anything `docsContext` references plus the planner-context JSON.
+- Respect the planning-context budget: when `epic.body` is `null` but `epic.bodySummary` is present, work from the summary instead of re-fetching the full body.
+
 ## Role
 
 Technical Product Manager + Engineering Architect + Acceptance Engineer (three
