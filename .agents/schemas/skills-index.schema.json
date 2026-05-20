@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel.dev/schemas/skills-index.schema.json",
+  "title": "SkillsIndex",
+  "description": "Shape of the generated .agents/skills/skills.index.json manifest. Produced by the skills index generator from every SKILL.md under .agents/skills/{core,stack}/.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["generatedAt", "generator", "skills"],
+  "properties": {
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp at which the index was generated."
+    },
+    "generator": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identifier of the tool that produced the index (e.g. script path + version)."
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/skill" }
+    }
+  },
+  "definitions": {
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "tier",
+        "category",
+        "path",
+        "description",
+        "policyCapsuleBullets"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Skill identifier (matches the parent directory name and frontmatter.name)."
+        },
+        "tier": {
+          "type": "string",
+          "enum": ["core", "stack"]
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "description": "For tier=core, the bucket name (typically 'core'). For tier=stack, the subcategory (e.g. 'backend', 'frontend', 'qa')."
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repo-relative POSIX path to the SKILL.md file."
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Mirror of the frontmatter description field."
+        },
+        "policyCapsuleBullets": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 12,
+          "description": "Number of top-level bullets in the '## Policy Capsule' section. Bounded to keep capsules scannable."
+        },
+        "allowedTools": {
+          "type": ["array", "null"],
+          "items": { "type": "string", "minLength": 1 },
+          "description": "Optional mirror of frontmatter.allowed_tools; null when the SKILL declines to scope tools."
+        },
+        "vendor": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "description": "Optional mirror of frontmatter.vendor; null for non-vendored skills."
+        }
+      }
+    }
+  }
+}
