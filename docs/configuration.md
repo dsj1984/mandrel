@@ -114,6 +114,9 @@ top-level keys are validation errors.
 | --- | --- | --- | --- | --- |
 | `execution` | No | `object` | — | Nested configuration block. |
 | `execution.timeoutMs` | No | `integer` | — | — |
+| `hydration` | No | `object` | — | Context hydrator output mode (Epic #2648). prose-legacy delegates to context-hydration-engine.legacy.js for one release; remove hydration.outputMode and the legacy module together in the cutover PR. |
+| `hydration.outputMode` | No | `"envelope"` \| `"prose-legacy"` | `"envelope"` | envelope: typed ContextEnvelope pipeline (default). prose-legacy: frozen pre-Epic prose hydrator — one-release sunset. |
+| `hydration.fullSkillBodies` | No | `boolean` | `false` | When true, embed full SKILL.md bodies; when false, prefer policy capsules from skills.index.json. |
 | `maxTokenBudget` | No | `integer` | — | — |
 | `docsFreshness` | No | `object` | — | Nested configuration block. |
 | `docsFreshness.paths` | No | `array` | — | — |
