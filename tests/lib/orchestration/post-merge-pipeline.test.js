@@ -483,7 +483,7 @@ describe('worktreeReapPhase', () => {
         progress: () => {},
         worktreeManagerFactory: factory,
         config: {
-          agentSettings: { paths: { tempRoot: configuredTempRoot } },
+          project: { paths: { tempRoot: configuredTempRoot } },
         },
       });
 

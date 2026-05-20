@@ -65,12 +65,12 @@ describe('getGitHub — operator overrides', () => {
     assert.equal(out.operatorHandle, '@dsj1984');
   });
 
-  it('reads the legacy orchestration.github bag', () => {
+  it('ignores the legacy orchestration.github bag (hard cutover)', () => {
     const out = getGitHub({
       orchestration: { github: { owner: 'org', repo: 'repo' } },
     });
-    assert.equal(out.owner, 'org');
-    assert.equal(out.repo, 'repo');
+    assert.equal(out.owner, null);
+    assert.equal(out.repo, null);
   });
 
   it('overrides branchProtection.enforce when explicitly set to false', () => {
@@ -117,12 +117,15 @@ describe('getGitHub — operator overrides', () => {
     );
   });
 
-  it('falls back to legacy orchestration.notifications when github.notifications is absent', () => {
+  it('ignores legacy orchestration.notifications when github.notifications is absent (hard cutover)', () => {
     const out = getGitHub({
       github: { owner: 'o', repo: 'r' },
       orchestration: { notifications: { mentionOperator: true } },
     });
-    assert.equal(out.notifications.mentionOperator, true);
+    assert.equal(
+      out.notifications.mentionOperator,
+      NOTIFICATIONS_DEFAULTS.mentionOperator,
+    );
   });
 
   it('ignores non-array requiredChecks (falls back to defaults)', () => {

@@ -28,7 +28,7 @@ let cfg;
 
 beforeEach(() => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'signals-writer-'));
-  cfg = { paths: { tempRoot: workRoot } };
+  cfg = { project: { paths: { tempRoot: workRoot } } };
 });
 
 afterEach(() => {

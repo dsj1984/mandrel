@@ -660,28 +660,19 @@ export function getBaselineEpsilon(kind, config) {
   if (!BASELINE_EPSILON_KINDS.has(kind)) {
     throw new Error(`[config] getBaselineEpsilon: unknown kind '${kind}'`);
   }
-  const userBlock =
-    config?.delivery?.quality?.baselineEpsilon ??
-    config?.quality?.baselineEpsilon ??
-    config?.agentSettings?.quality?.baselineEpsilon ??
-    undefined;
+  const userBlock = config?.delivery?.quality?.baselineEpsilon;
   const resolved = resolveBaselineEpsilon(userBlock);
   return resolved[kind];
 }
 
 /**
  * Read the merged `delivery.quality` block. Accepts the full resolved
- * config or any unwrapped variant (`{ delivery }`, `{ quality }`, or — for
- * legacy compatibility — `{ agentSettings: { quality } }`).
+ * config — the canonical `delivery.quality` path is the single supported
+ * shape.
  *
  * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolveQuality>}
  */
 export function getQuality(config) {
-  const userQuality =
-    config?.delivery?.quality ??
-    config?.quality ??
-    config?.agentSettings?.quality ??
-    undefined;
-  return resolveQuality(userQuality);
+  return resolveQuality(config?.delivery?.quality);
 }

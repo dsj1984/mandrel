@@ -10,12 +10,12 @@ import {
 
 describe('resolveWorktreeEnabled', () => {
   const cfgOn = {
-    config: { orchestration: { worktreeIsolation: { enabled: true } } },
+    config: { delivery: { worktreeIsolation: { enabled: true } } },
   };
   const cfgOff = {
-    config: { orchestration: { worktreeIsolation: { enabled: false } } },
+    config: { delivery: { worktreeIsolation: { enabled: false } } },
   };
-  const cfgMissing = { config: { orchestration: {} } };
+  const cfgMissing = { config: { delivery: {} } };
 
   it("returns true when AP_WORKTREE_ENABLED === 'true' overrides config-off", () => {
     assert.equal(
@@ -138,10 +138,10 @@ describe('resolveSessionId', () => {
 
 describe('resolveRuntime', () => {
   const cfgOn = {
-    config: { orchestration: { worktreeIsolation: { enabled: true } } },
+    config: { delivery: { worktreeIsolation: { enabled: true } } },
   };
   const cfgOff = {
-    config: { orchestration: { worktreeIsolation: { enabled: false } } },
+    config: { delivery: { worktreeIsolation: { enabled: false } } },
   };
 
   it('records env-override as the worktree source when AP_WORKTREE_ENABLED is set', () => {
