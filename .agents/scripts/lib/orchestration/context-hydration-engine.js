@@ -90,9 +90,7 @@ export function buildSkillCapsuleSections(task, skillsIndex, options = {}) {
       });
       entries.push({ skill, capsule, source });
     } catch (err) {
-      Logger.warn(
-        `[Hydrator] Failed to load skill ${skill}: ${err.message}`,
-      );
+      Logger.warn(`[Hydrator] Failed to load skill ${skill}: ${err.message}`);
     }
   }
 
@@ -301,7 +299,9 @@ export async function hydrateContext(
   if (task.skills && task.skills.length > 0) {
     try {
       const skillsIndex = loadSkillsIndex();
-      const fullSkillBodies = Boolean(agentSettings?.hydration?.fullSkillBodies);
+      const fullSkillBodies = Boolean(
+        agentSettings?.hydration?.fullSkillBodies,
+      );
       const entries = buildSkillCapsuleSections(task, skillsIndex, {
         fullSkillBodies,
       });
