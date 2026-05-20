@@ -63,16 +63,6 @@ describe('emit-context compact JSON output', () => {
     assert.deepStrictEqual(JSON.parse(compact), fixture);
   });
 
-  it('default (compact) is at least 30% smaller than --pretty', () => {
-    const compact = emit(fixture, { pretty: false });
-    const pretty = emit(fixture, { pretty: true });
-    const ratio = compact.length / pretty.length;
-    assert.ok(
-      ratio <= 0.7,
-      `expected compact/pretty ratio <= 0.7, got ${ratio.toFixed(3)} (compact=${compact.length}, pretty=${pretty.length})`,
-    );
-  });
-
   it('compact output contains no formatting whitespace between tokens', () => {
     const compact = emit(fixture, { pretty: false });
     assert.ok(

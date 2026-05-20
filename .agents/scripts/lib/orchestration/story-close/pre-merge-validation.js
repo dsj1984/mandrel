@@ -39,27 +39,6 @@ import { getBaselines as defaultGetBaselines } from '../../config-resolver.js';
 import { Logger as DefaultLogger } from '../../Logger.js';
 
 /**
- * Best-effort lifecycle emit helper — Story #2250.
- *
- * `runPreMergeGates` runs in two callers: a real story-close path (where a
- * lifecycle bus is wired) and unit fixtures that pass none at all. Every
- * emit therefore goes through this wrapper so a missing/broken bus never
- * blocks the gate chain. The bus is the only authorized surface for typed
- * events, but the gate is the canonical close-validate boundary regardless
- * of whether observability is wired this run.
- */
-async function emitLifecycleSafe({ bus, event, payload, logger }) {
-  if (!bus || typeof bus.emit !== 'function') return;
-  try {
-    await bus.emit(event, payload);
-  } catch (err) {
-    logger?.warn?.(
-      `[close-validation] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-}
-
-/**
  * Run the pre-merge validation gate chain. On failure throws an `Error`
  * whose message embeds the first failed gate's name, exit code, hint, and
  * the working directory the gate ran in — the `runAsCli` boundary in
@@ -96,12 +75,22 @@ export async function runPreMergeGates({
   epicId,
   useEvidence = true,
   phaseTimer,
-  bus = null,
+  bus,
   now = Date.now,
   logger = DefaultLogger,
   buildDefaultGates = defaultBuildDefaultGates,
   runCloseValidation = defaultRunCloseValidation,
 }) {
+  // Epic #2646 Story C (Task #2700) — `bus` is a hard input. The
+  // previous guarded `emitLifecycleSafe` helper that tolerated a null
+  // bus is gone. The `emitsActive` outer guard below still skips emits
+  // for legacy resume fixtures that pass `storyId: null` (those rows
+  // have no Story-scoped lifecycle), but bus must be present.
+  if (!bus || typeof bus.emit !== 'function') {
+    throw new TypeError(
+      'runPreMergeGates: bus is required (object with emit()).',
+    );
+  }
   logger.info?.(
     `[close-validation] Running pre-merge gates (typecheck, lint, test, format, maintainability, crap, baselines)${worktreePath ? ` in ${worktreePath}` : ''}${epicBranch ? ` against baseline ref ${epicBranch}` : ''}...`,
   );
@@ -119,12 +108,7 @@ export async function runPreMergeGates({
     !!bus;
   const startedAt = typeof now === 'function' ? now() : Date.now();
   if (emitsActive) {
-    await emitLifecycleSafe({
-      bus,
-      event: 'close-validate.start',
-      payload: { epicId, storyId },
-      logger,
-    });
+    await bus.emit('close-validate.start', { epicId, storyId });
   }
   let validation;
   try {
@@ -154,24 +138,17 @@ export async function runPreMergeGates({
     // re-throw.
     if (emitsActive) {
       const endedAt = typeof now === 'function' ? now() : Date.now();
-      await emitLifecycleSafe({
-        bus,
-        event: 'close-validate.end',
-        payload: {
-          epicId,
-          storyId,
-          ok: false,
-          gateCount,
-          failedGate: 'runner-error',
-          durationMs: Math.max(0, endedAt - startedAt),
-        },
-        logger,
+      await bus.emit('close-validate.end', {
+        epicId,
+        storyId,
+        ok: false,
+        gateCount,
+        failedGate: 'runner-error',
+        durationMs: Math.max(0, endedAt - startedAt),
       });
-      await emitLifecycleSafe({
-        bus,
-        event: 'story.blocked',
-        payload: { storyId, reason: 'close-validate-failed:runner-error' },
-        logger,
+      await bus.emit('story.blocked', {
+        storyId,
+        reason: 'close-validate-failed:runner-error',
       });
     }
     throw err;
@@ -187,28 +164,18 @@ export async function runPreMergeGates({
     // — failed validators MUST route through the lifecycle cascade.
     if (emitsActive) {
       const endedAt = typeof now === 'function' ? now() : Date.now();
-      await emitLifecycleSafe({
-        bus,
-        event: 'close-validate.end',
-        payload: {
-          epicId,
-          storyId,
-          ok: false,
-          gateCount,
-          failedGate: gate.name,
-          exitCode: status,
-          durationMs: Math.max(0, endedAt - startedAt),
-        },
-        logger,
+      await bus.emit('close-validate.end', {
+        epicId,
+        storyId,
+        ok: false,
+        gateCount,
+        failedGate: gate.name,
+        exitCode: status,
+        durationMs: Math.max(0, endedAt - startedAt),
       });
-      await emitLifecycleSafe({
-        bus,
-        event: 'story.blocked',
-        payload: {
-          storyId,
-          reason: `close-validate-failed:${gate.name}`,
-        },
-        logger,
+      await bus.emit('story.blocked', {
+        storyId,
+        reason: `close-validate-failed:${gate.name}`,
       });
     }
     // Story #2136 / Task #2143 — surface the structured failure metadata
@@ -229,17 +196,12 @@ export async function runPreMergeGates({
   }
   if (emitsActive) {
     const endedAt = typeof now === 'function' ? now() : Date.now();
-    await emitLifecycleSafe({
-      bus,
-      event: 'close-validate.end',
-      payload: {
-        epicId,
-        storyId,
-        ok: true,
-        gateCount,
-        durationMs: Math.max(0, endedAt - startedAt),
-      },
-      logger,
+    await bus.emit('close-validate.end', {
+      epicId,
+      storyId,
+      ok: true,
+      gateCount,
+      durationMs: Math.max(0, endedAt - startedAt),
     });
   }
   return validation;

@@ -89,6 +89,7 @@ test('runRetro: writes local mirror with the same body it posts to GitHub', asyn
   const result = await runRetro({
     epicId,
     provider,
+    bus: { emit: async () => {} },
     logger,
     timestamp: '2026-05-16T00:00:00.000Z',
     upsertFn,
@@ -151,6 +152,7 @@ test('runRetro: warns and resolves normally when writeFileSync throws', async ()
   const result = await runRetro({
     epicId,
     provider,
+    bus: { emit: async () => {} },
     logger,
     timestamp: '2026-05-16T01:00:00.000Z',
     upsertFn,

@@ -62,18 +62,12 @@ export function resolvePaths(userPaths) {
 }
 
 /**
- * Read the merged `project.paths` block. Accepts either the full resolved
- * config or any unwrapped variant (`{ project }`, `{ paths }`, or — for the
- * legacy two-shape contract — `{ agentSettings: { paths } }`).
+ * Read the merged `project.paths` block. Accepts the full resolved config
+ * or a bare `{ project }` bag.
  *
  * @param {object | null | undefined} config
  * @returns {ReturnType<typeof resolvePaths>}
  */
 export function getPaths(config) {
-  const userPaths =
-    config?.project?.paths ??
-    config?.paths ??
-    config?.agentSettings?.paths ??
-    undefined;
-  return resolvePaths(userPaths);
+  return resolvePaths(config?.project?.paths);
 }

@@ -23,9 +23,7 @@ afterEach(() => {
 
 function tempConfig() {
   return {
-    agentSettings: {
-      paths: { tempRoot: tmpRoot },
-    },
+    project: { paths: { tempRoot: tmpRoot } },
   };
 }
 

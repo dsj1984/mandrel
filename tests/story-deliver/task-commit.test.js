@@ -368,7 +368,7 @@ test('resolveSiblingTestFlag: falls back to config when CLI is undefined', () =>
   assert.equal(
     resolveSiblingTestFlag({
       resolveConfigImpl: () => ({
-        agentSettings: {
+        delivery: {
           quality: { codingGuardrails: { requireSiblingTest: true } },
         },
       }),
@@ -378,7 +378,7 @@ test('resolveSiblingTestFlag: falls back to config when CLI is undefined', () =>
   assert.equal(
     resolveSiblingTestFlag({
       resolveConfigImpl: () => ({
-        agentSettings: {
+        delivery: {
           quality: { codingGuardrails: { requireSiblingTest: false } },
         },
       }),

@@ -14,6 +14,81 @@
 > answered at the time; cross-cuts that the Mandrel rebrand supersedes
 > are flagged in the entries themselves.
 
+## ADR 20260519-adapter-layer-removed: Delete the `IExecutionAdapter` abstraction
+
+**Status:** Accepted
+**Date:** 2026-05-19
+**Epic:** [#2646](https://github.com/dsj1984/mandrel/issues/2646) —
+hard-cutover cleanup pass
+**Story:** [#2688](https://github.com/dsj1984/mandrel/issues/2688) —
+Story A: Delete the IExecutionAdapter abstraction
+**Supersedes (in part):**
+[ADR 20260512-coupling-stance](#adr-20260512-coupling-stance-two-surface-coupling-stance) —
+keeps the two-surface stance but retires the "runtime-pluggable
+dispatcher" framing in favor of the dispatch manifest as the
+cross-runtime contract.
+
+### Context
+
+The shipped `IExecutionAdapter` interface
+(`.agents/scripts/lib/IExecutionAdapter.js`), `ManualDispatchAdapter`
+(`.agents/scripts/adapters/manual.js`), and `adapter-factory.js`
+existed to keep the dispatcher runtime-neutral so future adapters
+(Codex, Antigravity, subprocess, MCP) could plug in without
+rewriting the orchestration core. In practice:
+
+- The only concrete adapter ever shipped was `manual`. It was
+  hardcoded as the factory default.
+- The adapter return values (`dispatchId`, in-memory registry,
+  `getTaskStatus`, `cancelTask`) were **never observed at runtime** —
+  completion is tracked via GitHub `agent::*` labels, not by polling
+  the adapter.
+- The dispatch *manifest* (the `.md` artifact written under `temp/`
+  and the `dispatch-manifest` structured comment posted on the Epic)
+  is the load-bearing artifact downstream tooling and operators read.
+
+### Decision
+
+Delete the adapter layer:
+
+- `.agents/scripts/adapters/manual.js` — gone.
+- `.agents/scripts/lib/IExecutionAdapter.js` — gone.
+- `.agents/scripts/lib/adapter-factory.js` — gone.
+- `tests/execution-adapter.test.js` and adapter-coupled assertions in
+  `tests/lib/dispatcher-worktree.test.js` — deleted / re-pointed to
+  the inline dispatch-record shape.
+
+Inline the trivial dispatch-record shape `{ taskId, dispatchId,
+status }` at the two consuming call sites
+(`wave-dispatcher.js`, `manifest-builder.js`). The manifest's
+`executor` field is fixed to the string literal `'claude-code'`.
+
+The **dispatch manifest** (md + structured comment, schema
+[`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
+is the cross-runtime contract. Any future host that wants to replay,
+audit, or interoperate with a Mandrel dispatch consumes the manifest,
+not an in-process interface.
+
+### Consequences
+
+- **Smaller orchestrator surface.** Fewer files, fewer dual-shape
+  readers, no factory indirection on the dispatch hot path.
+- **Schema-level breaking change.** The `orchestration.executor` key
+  in `.agentrc.json` becomes a no-op. Per the "no shim layer / hard
+  cutovers only" policy (codified by Epic #2646 in
+  [`git-conventions.md`](../.agents/rules/git-conventions.md)),
+  consumers who still set it will fail validation on upgrade — the
+  PR diff is the migration.
+- **Dispatch manifest is byte-stable.** Story A preserved the
+  manifest md and structured-comment payload byte-for-byte; the
+  only field that changed is `executor` (now always `'claude-code'`).
+- **Future runtimes still in scope.** Adding a non-Claude-Code
+  runtime later is not blocked — the new host owns the dispatch
+  manifest contract directly. There is no in-process interface that
+  must be retrofitted.
+
+---
+
 ## ADR 20260514-drop-churn-idle: Drop `churn` + `idle` from active perf-signal taxonomy
 
 **Status:** Accepted

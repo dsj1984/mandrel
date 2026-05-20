@@ -107,18 +107,12 @@ export function resolveDiffScope({ argv, cwd, spawnImpl } = {}) {
 }
 
 /**
- * Read + parse the prior baseline at `absBaselinePath` and project the
- * result into the per-row shape expected by the per-kind `mergeRows` /
- * `applyEpsilon` helpers (Story #1974). Returns `null` when the file is
- * absent or malformed; the caller treats `null` as "skip the merge"
- * (regression-fail-safe — equivalent to a fresh write).
- *
- * `kind` decides how to interpret the on-disk shape:
- *
- *   - `'maintainability'`: handles both the v2 envelope (`rows[]`) and
- *     the legacy flat `{ "<path>": <mi> }` map.
- *   - `'crap'`: envelope `rows[]` only; adapts the legacy `file:` field
- *     to canonical `path:` so the per-kind module's matchers line up.
+ * Read + parse the prior baseline at `absBaselinePath` and return the
+ * canonical `rows[]` array (per-kind row shape with `path:` keys, as
+ * expected by the per-kind `mergeRows` / `applyEpsilon` helpers from
+ * Story #1974). Returns `null` when the file is absent, malformed, or
+ * missing a `rows[]` envelope; the caller treats `null` as "skip the
+ * merge" (regression-fail-safe — equivalent to a fresh write).
  *
  * Pure-by-design (file I/O through the injected `fsImpl` seam).
  *
@@ -142,26 +136,19 @@ function readBaselineJson(absBaselinePath, fsImpl) {
   }
 }
 
-// CRAP path: envelope `rows[]` with legacy `file` adapted to canonical `path`.
+// CRAP path: envelope `rows[]` only; rows already carry canonical `path:`.
 function readCrapPriorRows(parsed) {
   if (!Array.isArray(parsed.rows)) return null;
-  return parsed.rows.map((row) => ({ ...row, path: row.path ?? row.file }));
+  return parsed.rows;
 }
 
-// Maintainability path: prefer envelope `rows[]`; fall back to the legacy
-// flat-map shape (`{ "<path>": <mi>, ... }`).
+// Maintainability path: envelope `rows[]` only; rows already carry
+// canonical `path:` + `mi:`.
 function readMaintainabilityPriorRows(parsed) {
-  if (Array.isArray(parsed.rows)) {
-    return parsed.rows.filter(
-      (r) => r && typeof r.path === 'string' && typeof r.mi === 'number',
-    );
-  }
-  const rows = [];
-  for (const [p, mi] of Object.entries(parsed)) {
-    if (p === '$schema') continue;
-    if (typeof mi === 'number') rows.push({ path: p, mi });
-  }
-  return rows;
+  if (!Array.isArray(parsed.rows)) return null;
+  return parsed.rows.filter(
+    (r) => r && typeof r.path === 'string' && typeof r.mi === 'number',
+  );
 }
 
 export function readPriorBaselineRows({ kind, absBaselinePath, fsImpl = fs }) {

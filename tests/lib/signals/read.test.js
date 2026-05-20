@@ -31,7 +31,7 @@ let cfg;
 
 beforeEach(() => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'signals-read-'));
-  cfg = { paths: { tempRoot: workRoot } };
+  cfg = { project: { paths: { tempRoot: workRoot } } };
   __resetMalformedLatchForTests();
 });
 

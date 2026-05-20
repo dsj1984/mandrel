@@ -15,6 +15,10 @@ import test from 'node:test';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
 
+// Epic #2646 Story C (Task #2700) — runCodeReview now requires `bus`
+// as a hard input; tests pass this minimal stub through every call.
+const stubBus = { emit: async () => {} };
+
 function makeStubRunner({
   status = 'ok',
   severity = { critical: 0, high: 0, medium: 0, suggestion: 0 },
@@ -53,6 +57,7 @@ test('runCodeReview: forwards provider via providerFactory and post=true', async
     epicId: 42,
     provider,
     runner: stub,
+    bus: stubBus,
   });
 
   assert.equal(calls.length, 1);
@@ -77,6 +82,7 @@ test('runCodeReview: critical > 0 sets halted=true with reason', async () => {
     epicId: 42,
     provider: {},
     runner: stub,
+    bus: stubBus,
   });
   assert.equal(out.halted, true);
   assert.match(out.blockerReason, /2 critical/);
@@ -94,6 +100,7 @@ test('runCodeReview: status=no-changes never halts and forwards envelope', async
     epicId: 42,
     provider: {},
     runner: stub,
+    bus: stubBus,
   });
   assert.equal(out.status, 'no-changes');
   assert.equal(out.halted, false);
@@ -111,6 +118,7 @@ test('runCodeReview: status=invalid surfaces but does not halt', async () => {
     epicId: 42,
     provider: {},
     runner: stub,
+    bus: stubBus,
   });
   assert.equal(out.status, 'invalid');
   assert.equal(out.halted, false);
@@ -126,6 +134,7 @@ test('runCodeReview: passes through optional config knobs', async () => {
     scopeLint: 'off',
     storyId: 99,
     useEvidence: false,
+    bus: stubBus,
   });
   const { args } = calls[0];
   assert.equal(args.baseBranch, 'develop');
@@ -140,6 +149,7 @@ test('runCodeReview: defaults severity buckets to zero when runner omits them', 
     epicId: 42,
     provider: {},
     runner: stub,
+    bus: stubBus,
   });
   assert.deepEqual(out.severity, {
     critical: 0,

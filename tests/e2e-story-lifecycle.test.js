@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { IExecutionAdapter } from '../.agents/scripts/lib/IExecutionAdapter.js';
 import { ITicketingProvider } from '../.agents/scripts/lib/ITicketingProvider.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -102,28 +101,6 @@ class MockProvider extends ITicketingProvider {
   }
 }
 
-class MockAdapter extends IExecutionAdapter {
-  constructor() {
-    super();
-    this.dispatches = [];
-  }
-
-  get executorId() {
-    return 'mock';
-  }
-
-  async dispatchTask(taskDispatch) {
-    this.dispatches.push(taskDispatch);
-    return { dispatchId: `mock-${taskDispatch.taskId}`, status: 'dispatched' };
-  }
-
-  async getTaskStatus(dispatchId) {
-    return { dispatchId, status: 'pending' };
-  }
-
-  async cancelTask() {}
-}
-
 const EPIC = {
   id: 10,
   title: 'Epic Title',
@@ -181,9 +158,6 @@ test('e2e-story-lifecycle — validates full flow from dispatch to story complet
     tasks: [EPIC, feature20, story30, task31, task32],
   });
 
-  // Set global provider for state-sync functions
-  const adapter = new MockAdapter();
-
   // -------------------------------------------------------------------------
   // PHASE 1: Initial Dispatch
   // -------------------------------------------------------------------------
@@ -191,7 +165,6 @@ test('e2e-story-lifecycle — validates full flow from dispatch to story complet
     epicId: 10,
     dryRun: true,
     provider,
-    adapter,
   });
 
   // Wave 0 should only contain task 31, since task 32 is blocked
@@ -223,7 +196,6 @@ test('e2e-story-lifecycle — validates full flow from dispatch to story complet
     epicId: 10,
     dryRun: true,
     provider,
-    adapter,
   });
 
   // Wave 0 of the new dispatch should contain task 32

@@ -22,8 +22,9 @@ import { WaveSession } from '../../../.agents/scripts/lib/orchestration/wave-ses
  *                            the originating error captured on `returns`.
  *   - child throw          — same surface as malformed return; wave does
  *                            not abort.
- *   - timeout-style return — legacy `status: 'timeout'` coerces to the
- *                            `failed` schema enum.
+ *   - timeout-style return — legacy `status: 'timeout'` is rejected as
+ *                            malformed; the wave surfaces a `failed`
+ *                            outcome via the catch path.
  *
  * These tests deliberately exercise the wave-session ↔ bus boundary via
  * the LedgerWriter so the wire-shape assertion is the same one a human
@@ -213,7 +214,7 @@ describe('wave-session edge cases', () => {
     assert.equal(result.returns[2].error.code, 'CHILD_BOOM');
   });
 
-  it('timeout-style return (`status: "timeout"`) coerces to `failed` per schema enum', async () => {
+  it('legacy timeout-style return (`status: "timeout"`) is rejected as malformed and surfaces as `failed`', async () => {
     const bus = new Bus();
     const writer = new LedgerWriter({ epicId: 2172, tempRoot });
     writer.register(bus);
@@ -225,11 +226,13 @@ describe('wave-session edge cases', () => {
       dispatchFn: async () => ({ status: 'timeout', reason: 'spawn-timeout' }),
       cap: 1,
     });
+    // Story #2687 hard cutover: `status: 'timeout'` is no longer coerced;
+    // parseChildReturn throws WAVE_MALFORMED_RETURN and the WaveSession
+    // catch path surfaces a `failed` outcome with the original error
+    // attached on `returns[id]` (the malformed payload is dropped).
     assert.equal(result.outcomes[5], 'failed');
-    // Original record is preserved on `returns` so the bus emit drops
-    // the alias but downstream listeners can still read the reason.
-    assert.equal(result.returns[5].status, 'timeout');
-    assert.equal(result.returns[5].reason, 'spawn-timeout');
+    assert.equal(result.returns[5].outcome, 'failed');
+    assert.equal(result.returns[5].error.code, 'WAVE_MALFORMED_RETURN');
     const records = readNdjson(writer.ledgerPath);
     const endRec = records.find(
       (r) => r.kind === 'emitted' && r.event === 'story.dispatch.end',

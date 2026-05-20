@@ -81,7 +81,10 @@ const progressLog = (tag, msg) => progress(tag, msg);
 function wireLifecycleBus({ epicId, agentSettings, orchestration }) {
   try {
     const lifecycleBus = createBus();
-    const tempRoot = tempRootFrom({ agentSettings, orchestration });
+    const tempRoot = tempRootFrom({
+      project: { paths: agentSettings?.paths },
+      orchestration,
+    });
     const ledger = createLedgerWriter({
       epicId: Number(epicId),
       tempRoot,

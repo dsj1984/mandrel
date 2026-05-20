@@ -106,9 +106,10 @@ describe('getBaselineEpsilon — config traversal', () => {
     assert.equal(getBaselineEpsilon('crap', cfg), 0.05);
   });
 
-  it('reads from quality.baselineEpsilon (unwrapped)', () => {
+  it('ignores legacy quality.baselineEpsilon unwrapped shape (hard cutover)', () => {
     const cfg = { quality: { baselineEpsilon: { coverage: 0.2 } } };
-    assert.equal(getBaselineEpsilon('coverage', cfg), 0.2);
+    // Falls through to framework default (0.1).
+    assert.equal(getBaselineEpsilon('coverage', cfg), 0.1);
   });
 
   it('falls back to framework default when config is empty', () => {

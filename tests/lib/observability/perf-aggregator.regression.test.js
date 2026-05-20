@@ -112,7 +112,7 @@ describe('perf-aggregator regression — streaming-from-store path', () => {
 
   beforeEach(async () => {
     workRoot = mkdtempSync(path.join(tmpdir(), 'perf-aggregator-regression-'));
-    cfg = { paths: { tempRoot: workRoot } };
+    cfg = { project: { paths: { tempRoot: workRoot } } };
     const dir = path.join(workRoot, 'epic-1030', 'story-1041');
     await fs.mkdir(dir, { recursive: true });
     const raw = await fs.readFile(FIXTURE_NDJSON, 'utf8');

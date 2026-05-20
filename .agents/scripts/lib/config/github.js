@@ -2,9 +2,7 @@
  * `github.*` accessor (Epic #1720 Story #1739 — top-level reshape).
  *
  * GitHub identity, branch protection, merge methods, and notifications all
- * live under the top-level `github` block post-reshape. The legacy
- * `orchestration.github.*`, `orchestration.notifications.*`,
- * `quality.prGate`, and `quality.mergeMethods` paths are gone.
+ * live under the top-level `github` block post-reshape.
  *
  * `branchProtection.requiredChecks` is the single source of truth that
  * drives both:
@@ -82,7 +80,7 @@ export const NOTIFICATIONS_DEFAULTS = Object.freeze({
  * }}
  */
 export function getGitHub(config) {
-  const gh = config?.github ?? config?.orchestration?.github ?? config ?? {};
+  const gh = config?.github ?? config ?? {};
   const userBranchProtection =
     gh.branchProtection && typeof gh.branchProtection === 'object'
       ? gh.branchProtection
@@ -91,8 +89,7 @@ export function getGitHub(config) {
     gh.mergeMethods && typeof gh.mergeMethods === 'object'
       ? gh.mergeMethods
       : {};
-  const userNotifications =
-    gh.notifications ?? config?.orchestration?.notifications ?? {};
+  const userNotifications = gh.notifications ?? {};
   return {
     owner: gh.owner ?? null,
     repo: gh.repo ?? null,

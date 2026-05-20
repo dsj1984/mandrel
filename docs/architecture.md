@@ -12,12 +12,13 @@ structured, how components interact, and where to find each subsystem.
 > [`workflows.md`](workflows.md).
 >
 > **Coupling stance.** Mandrel is a **Claude Code-first opinionated
-> workflow framework with a runtime-pluggable dispatcher**. The
-> dispatcher / `.agents/scripts/` library stays runtime-neutral behind
-> the `IExecutionAdapter` boundary; the workflow / `.claude/` / hook /
-> skill surface leans in on Claude Code as the reference runtime.
-> See ADR `20260512-coupling-stance` in [`decisions.md`](decisions.md)
-> for the rationale and what it explicitly is and isn't.
+> workflow framework**. The dispatcher / `.agents/scripts/` library
+> produces a **dispatch manifest** (md + structured comment) as the
+> cross-runtime contract; the workflow / `.claude/` / hook / skill
+> surface leans in on Claude Code as the in-session reference runtime.
+> See ADR `20260512-coupling-stance` and the adapter-removal ADR in
+> [`decisions.md`](decisions.md) for the rationale and what it
+> explicitly is and isn't.
 
 ---
 
@@ -197,7 +198,6 @@ graph TB
     subgraph Lib ["Shared Library (lib/)"]
         CR["config-resolver.js"]:::lib
         PF["provider-factory.js"]:::lib
-        AF["adapter-factory.js"]:::lib
         GH["Graph.js (DAG)"]:::lib
         DP["dependency-parser.js"]:::lib
         GMO["git-merge-orchestrator.js"]:::lib
@@ -207,22 +207,18 @@ graph TB
 
     subgraph Interfaces ["Abstract Interfaces"]
         ITP["ITicketingProvider"]:::iface
-        IEA["IExecutionAdapter"]:::iface
     end
 
     subgraph Implementations ["Concrete Implementations"]
         GHP["providers/github.js"]:::script
-        MA["adapters/manual.js"]:::script
     end
 
-    DI --> CR & PF & AF & GH & DP & CH
+    DI --> CR & PF & GH & DP & CH
     EP --> CR & PF
     TD --> CR & PF & DP
 
     PF --> ITP
-    AF --> IEA
     ITP -.->|"implements"| GHP
-    IEA -.->|"implements"| MA
 ```
 
 #### Key Scripts
@@ -430,32 +426,24 @@ symbol consumers previously imported.
 
 ---
 
-### 4. Execution Adapter Layer
+### 4. Execution Path
 
-The **`IExecutionAdapter`** interface separates _what to run_ (Dispatcher) from
-_how to run it_ (Adapter), enabling pluggable agentic runtimes.
+Mandrel runs Claude-Code-in-session: `/epic-deliver` fans out via the
+`Agent` tool over a wave of Story sub-agents, each driving the per-Story
+Task loop directly from the Story worktree. There is no separate
+adapter abstraction — `wave-dispatcher.js` synthesizes the
+`{ taskId, dispatchId, status }` record inline at the dispatch site,
+and the **dispatch manifest** (md + structured comment, schema
+[`dispatch-manifest.json`](../.agents/schemas/dispatch-manifest.json))
+is the load-bearing artifact downstream tooling (and operators) read.
+The manifest is the cross-runtime contract: any future host that wants
+to replay or audit a Mandrel dispatch consumes the manifest, not an
+in-process interface.
 
-```mermaid
-classDiagram
-    class IExecutionAdapter {
-        <<abstract>>
-        +executorId: string
-        +dispatchTask(taskDispatch) Promise
-        +getTaskStatus(dispatchId) Promise
-        +cancelTask(dispatchId) Promise
-        +describe() string
-    }
-
-    class ManualDispatchAdapter {
-        +executorId = "manual"
-        +dispatchTask() prints instructions
-    }
-
-    IExecutionAdapter <|-- ManualDispatchAdapter
-```
-
-**Resolution**: `adapter-factory.js` reads `orchestration.executor` from
-`.agentrc.json` (default: `"manual"`).
+The `executor` field on the manifest is fixed to `"claude-code"`. See
+the adapter-removal ADR in [`decisions.md`](decisions.md) (Epic #2646)
+for the rationale; the deletion landed as a hard cutover with no
+shim layer, per the policy codified there.
 
 ---
 
@@ -749,9 +737,9 @@ must continue to import `WorktreeManager` from `lib/worktree-manager.js`.
 Dispatcher integration:
 
 - **Ensure before dispatch**: `dispatch()` calls `wm.ensure(storyId, branch)`
-  and threads the resolved worktree path as `cwd` into
-  `IExecutionAdapter.dispatchTask`. The `ManualDispatchAdapter` surfaces the
-  path as a `cd "<path>"` instruction for the HITL operator.
+  and threads the resolved worktree path as `cwd` on the dispatch record.
+  Downstream consumers of the dispatch manifest can use the `cwd` to
+  pin sub-agent execution to the right worktree.
 - **Reap on merge**: `story-close` calls `wm.reap` after a successful merge.
   The reap refuses dirty trees and logs a warning.
 - **GC on dispatch start**: `dispatch()` sweeps orphaned worktrees whose
@@ -1127,8 +1115,11 @@ conventions to follow.
   manifest build, story execution, context hydration
 - **Ticketing provider abstraction:** `.agents/scripts/lib/ITicketingProvider.js`
   with a shipped GitHub implementation in `.agents/scripts/providers/github.js`
-- **Execution adapter abstraction:** `.agents/scripts/lib/IExecutionAdapter.js`
-  with a manual adapter in `.agents/scripts/adapters/manual.js`
+- **Execution path:** Claude-Code-in-session; the dispatch record is
+  synthesized inline at `wave-dispatcher.js` and the
+  [dispatch manifest](../.agents/schemas/dispatch-manifest.json) is the
+  cross-runtime contract. Epic #2646 removed the previous
+  `IExecutionAdapter` abstraction as a hard cutover.
 - **Config resolution:** `.agents/scripts/lib/config-resolver.js` +
   `config-schema.js` (shell-metacharacter injection guards built in)
 

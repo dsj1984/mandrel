@@ -37,6 +37,7 @@ describe('runPreMergeGates — onGateStart wiring', () => {
     await runPreMergeGates({
       cwd: '/repo',
       agentSettings: {},
+      bus: { emit: async () => {} },
       logger: silentLogger(),
       phaseTimer,
       buildDefaultGates: () => gates,
@@ -54,6 +55,7 @@ describe('runPreMergeGates — onGateStart wiring', () => {
     await runPreMergeGates({
       cwd: '/repo',
       agentSettings: {},
+      bus: { emit: async () => {} },
       logger: silentLogger(),
       buildDefaultGates: () => [{ name: 'lint' }, { name: 'test' }],
       runCloseValidation: async ({ onGateStart }) => {
@@ -74,6 +76,7 @@ describe('runPreMergeGates — failure throw shape', () => {
         runPreMergeGates({
           cwd: '/repo',
           agentSettings: {},
+          bus: { emit: async () => {} },
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'lint' }],
           runCloseValidation: async () => ({
@@ -97,6 +100,7 @@ describe('runPreMergeGates — failure throw shape', () => {
         runPreMergeGates({
           cwd: '/repo',
           agentSettings: {},
+          bus: { emit: async () => {} },
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'format' }],
           runCloseValidation: async () => ({
@@ -126,6 +130,7 @@ describe('runPreMergeGates — failure throw shape', () => {
       await runPreMergeGates({
         cwd: '/repo',
         agentSettings: {},
+        bus: { emit: async () => {} },
         logger: silentLogger(),
         buildDefaultGates: () => [{ name: 'coverage-capture' }],
         runCloseValidation: async () => ({
@@ -155,6 +160,7 @@ describe('runPreMergeGates — failure throw shape', () => {
         runPreMergeGates({
           cwd: '/repo',
           agentSettings: {},
+          bus: { emit: async () => {} },
           logger: silentLogger(),
           buildDefaultGates: () => [{ name: 'typecheck' }],
           runCloseValidation: async () => ({

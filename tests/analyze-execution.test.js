@@ -61,7 +61,7 @@ let cfg;
 
 beforeEach(() => {
   workRoot = mkdtempSync(path.join(tmpdir(), 'analyze-execution-'));
-  cfg = { paths: { tempRoot: workRoot } };
+  cfg = { project: { paths: { tempRoot: workRoot } } };
 });
 
 afterEach(() => {

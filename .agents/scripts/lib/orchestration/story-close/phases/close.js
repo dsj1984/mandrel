@@ -101,7 +101,11 @@ export async function runPostMergePhase(ctx) {
     epicBranch,
     cwd,
     projectRoot: PROJECT_ROOT,
-    config: { agentSettings, orchestration },
+    config: {
+      project: { paths: agentSettings?.paths },
+      agentSettings,
+      orchestration,
+    },
     provider,
     notify: notifyFn,
     tasks,

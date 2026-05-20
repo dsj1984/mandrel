@@ -10,14 +10,14 @@
 
 ## Project Overview
 
-**Mandrel** is a Claude Code-first opinionated workflow framework with a
-runtime-pluggable dispatcher: a framework of instructions, personas,
-skills, and SDLC workflows that govern AI coding assistants. The
-`.claude/` / hook / skill surface leans in on Claude Code as the
-reference runtime; the dispatcher under `.agents/scripts/` stays
-runtime-neutral behind the `IExecutionAdapter` boundary. The framework
-is distributed as a Git submodule (via the `dist` branch) into consumer
-projects' `.agents/` directories.
+**Mandrel** is a Claude Code-first opinionated workflow framework: a
+collection of instructions, personas, skills, and SDLC workflows that
+govern AI coding assistants. The `.claude/` / hook / skill surface
+leans in on Claude Code as the reference runtime, and the dispatcher
+under `.agents/scripts/` treats the dispatch manifest (md + structured
+comment) as the cross-runtime contract. The framework is distributed
+as a Git submodule (via the `dist` branch) into consumer projects'
+`.agents/` directories.
 
 - **Current Version:** See [`.agents/VERSION`](.agents/VERSION)
 - **License:** ISC
