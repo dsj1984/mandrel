@@ -50,6 +50,29 @@ special attention to:
 - Complex or heavily modified files (look for large file sizes or deeply nested
   directory structures).
 
+Additionally, gather signal for the **Automated Architecture Guardrails**
+dimension below by looking for:
+
+- **Documented architecture boundaries** — `docs/architecture.md`, ADRs
+  (`docs/adr/**`, `docs/decisions/**`), per-package `README.md` files,
+  module-level docs, or equivalent project documentation that names
+  layers, feature boundaries, public entrypoints, or forbidden import
+  paths.
+- **Automated boundary checks** — `package.json` scripts, CI workflow
+  files (`.github/workflows/**`, `.gitlab-ci.yml`, etc.), test suites
+  asserting on module shape, lint configs
+  (`.eslintrc*`, `eslint.config.*`) with `eslint-plugin-boundaries`,
+  `eslint-plugin-import` (`no-restricted-paths`, `no-internal-modules`),
+  or `@nx/enforce-module-boundaries`, `dependency-cruiser`
+  (`.dependency-cruiser.*`) configs, `madge` configs or scripts,
+  TypeScript project references (`tsconfig.*.json` `references`),
+  workspace/package `exports` / `main` / `types` declarations restricting
+  the public surface, and custom architecture-check scripts in
+  `scripts/`, `tools/`, or equivalent.
+
+Treat absence of evidence as a signal, not a failure — many codebases
+legitimately have no layered architecture to guard.
+
 ## Step 2: Analysis Dimensions
 
 Evaluate the gathered context against the following clean code dimensions:
@@ -68,6 +91,55 @@ Evaluate the gathered context against the following clean code dimensions:
    explain _what_ the code does rather than _why_.
 5. **Coupling & Cohesion:** Spot tight coupling between modules that should be
    independent or god-objects handling too many concerns.
+6. **Automated Architecture Guardrails:** Assess whether the project encodes
+   its architectural boundaries as **deterministic, automated checks** rather
+   than relying on convention or reviewer memory. When relevant to the
+   consumer project's shape, evaluate enforcement for:
+   - Layer direction (e.g., UI → application → domain → infrastructure;
+     no upward imports).
+   - Feature / module boundaries (sibling features cannot import each
+     other's internals).
+   - Server/client separation (server-only modules must not be imported
+     from client bundles, and vice versa).
+   - Workspace package boundaries (workspace packages only depend on
+     declared workspace siblings; no cross-package deep imports into
+     `src/`).
+   - Public entrypoints (consumers import only from the package's
+     declared `exports` / barrel, not from internal paths).
+   - Circular dependencies (cycles between modules or packages).
+   - Forbidden deep imports (e.g., reaching past `index.ts`, importing
+     from `dist/`, or importing private `_internal` paths).
+
+   Recommendations under this dimension MUST prefer **project-local,
+   lightweight tooling** (an added ESLint rule, a `dependency-cruiser`
+   config, a `npm run check:boundaries` script, a CI step) over
+   Mandrel-owned harness changes. The audit is advisory: it surfaces the
+   maturity gap and proposes the lightest fitting next step, but the
+   consumer project owns adoption. Do not propose new Mandrel quality
+   gates, baseline kinds, close-validation steps, dependencies, or
+   harness subsystems under this dimension.
+
+   **Scope-mode behavior.** When this lens is invoked in Epic mode (the
+   `{{changedFiles}}` block above is populated with a file list), the
+   maturity assessment for this dimension is a repo-wide property that
+   cannot be represented by a small changeset. In that case, render the
+   `Architecture Guardrail Coverage` report section with maturity
+   `Not Assessed — scoped run` and skip the per-axis evaluation. The
+   full maturity assessment runs only in codebase-wide mode (when
+   `{{changedFiles}}` renders as the literal substitution token).
+
+### Maturity Rubric
+
+Use these definitions to classify the project's `Architecture Guardrail
+Coverage`. The rubric is a single axis; pick the highest level the
+evidence supports.
+
+| Level              | Definition                                                                                                                                                            |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Strong**         | Documented boundaries **and** at least one automated check **and** CI enforcement (the check fails the build on violation).                                           |
+| **Partial**        | Documented boundaries **or** at least one automated check exists, but the pair is incomplete or CI does not fail the build on violation.                              |
+| **Missing**        | Neither documented boundaries nor automated checks exist for a codebase whose shape (layered, multi-package, server/client split, feature-sliced) would benefit from them. |
+| **Not Applicable** | The codebase has no meaningful architectural layering to guard (e.g., a single-package utility repo, a one-file script, a flat content repo).                          |
 
 ## Step 3: Output Requirements
 
@@ -95,6 +167,36 @@ architectural pain points and areas for simplification.]
 - [List 2–3 larger refactors — e.g., decoupling services, flattening complex
   module hierarchies, removing unnecessary design patterns.]
 
+## Architecture Guardrail Coverage
+
+[Codebase-wide mode: complete this section using the maturity rubric in
+Step 2. Epic-mode / scoped run: set `Current Maturity` to
+`Not Assessed — scoped run` and leave the remaining fields empty or
+marked `n/a`.]
+
+- **Current Maturity:** [Strong | Partial | Missing | Not Applicable | Not Assessed — scoped run]
+- **Documented Boundaries:** [Files / sections that name the architecture
+  boundaries — e.g., `docs/architecture.md § Layering`, ADR-0007. State
+  `none found` if absent.]
+- **Automated Checks Found:** [Tooling and config paths — e.g.,
+  `dependency-cruiser` at `.dependency-cruiser.cjs`,
+  `eslint-plugin-boundaries` rules in `eslint.config.js`,
+  `tsconfig.json` `references`. State `none found` if absent.]
+- **CI Enforcement:** [Whether a CI job runs the checks and fails the
+  build on violation — name the workflow file and job. State `not
+  enforced in CI` if the check runs only locally, or `n/a` if no check
+  exists.]
+- **Axes Covered:** [Tick the axes from Step 2 that have at least one
+  automated check — layer direction, feature/module boundaries,
+  server/client separation, workspace package boundaries, public
+  entrypoints, circular dependencies, forbidden deep imports. Mark
+  axes that don't apply to this codebase's shape as `n/a`.]
+- **Recommended Next Step:** [The single lightest fitting project-local
+  improvement — e.g., "add `dependency-cruiser` with a
+  `no-circular` rule and wire `npm run check:arch` into the existing
+  CI lint job". Advisory only; the consumer project owns adoption. Do
+  not propose Mandrel-owned harness changes.]
+
 ## Detailed Findings
 
 [For every gap identified, use the following strict structure:]
@@ -102,7 +204,7 @@ architectural pain points and areas for simplification.]
 ### [Short Title of the Issue]
 
 - **Category:** [Quick Win | Structural Change]
-- **Dimension:** [e.g., Cognitive Load & Nesting]
+- **Dimension:** [e.g., Cognitive Load & Nesting | Automated Architecture Guardrails]
 - **Current State:** [The specific file/function and why it is problematic]
 - **Recommendation & Rationale:** [The specific refactor strategy and how it
   improves readability or maintainability]
