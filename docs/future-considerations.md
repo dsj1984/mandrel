@@ -387,16 +387,26 @@ Soften:
 
 ### 11. Lifecycle Bus and Ledger Should Stay
 
-**Status:** Keep
+**Status:** ✅ Closed — see "Implemented Since Audit". All three sublist
+items shipped:
+- generate-event-docs-from-schemas landed under Epic #2645.
+- Legacy emit shims removed under Epic #2646 / Story C #2689
+  (commit c39cf293 plus a460cc68 / 041e366c).
+- Duplicate progress/comment writers collapsed under the same Story C
+  (commit 94325677 — wave-observer deleted, structured-comment-poster
+  promoted).
+
+Core bus/ledger stays untouched (the "Keep" stance below is unchanged).
+
+**Original framing (kept for historical context):**
+
 **Action:** Split. The **generate-event-docs-from-schemas** piece of the
-original simplification sublist landed under Epic #2645 (see "Implemented
-Since Audit"). The other two simplification items remain:
+original simplification sublist landed under Epic #2645. The other two
+simplification items (now closed under Epic #2646) were:
 - 🚀 **Implement now** — remove legacy emit shims once all runtime paths are
   bus-native.
 - 🚀 **Implement now** — collapse duplicate progress/comment writers where
   the event stream already contains the required data.
-
-Core bus/ledger stays untouched.
 
 **Primary paths:**
 
@@ -451,7 +461,13 @@ Simplify:
 
 ### 13. Execution Adapter Surface Is Underused
 
-**Status:** Reframe
+**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2646 / Story A
+#2688, commit df7790de). The `IExecutionAdapter` abstraction,
+`ManualDispatchAdapter`, and `adapter-factory.js` were deleted outright;
+the dispatch manifest remains as the cross-runtime contract.
+
+**Original framing (kept for historical context):**
+
 **Action:** 🚀 Implement now — decision made: keep `IExecutionAdapter` as a
 thin interface with the Claude Code implementation as the single shipped
 adapter, **delete `ManualDispatchAdapter` outright** if nothing still
@@ -595,7 +611,15 @@ Recommendation:
 
 ### 17. Compatibility Shims and Legacy Shapes Are Dragging the Harness
 
-**Status:** Cleanup (hard cutovers only)
+**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2646 / Story B
+#2687, commit 807918a3 and the dependent tickets it merged). All
+known compatibility branches in `config-resolver.js`, `lib/config/*.js`,
+`lib/baselines/`, `wave-session.js`, and the schemas were removed in one
+pass; the policy is codified in `git-conventions.md` (this Story closes the
+audit loop by adding that section).
+
+**Original framing (kept for historical context):**
+
 **Action:** 🚀 Implement now — operator policy is **no shim layer, no
 deprecation ledger, no version-windowed sunsets**. Every change is a hard
 cutover. Concrete work:
@@ -661,10 +685,13 @@ Tracked here so the numbered list above stays focused on open work.
   Claude **tier hint** (fast/balanced/heavy semantics expressed via the
   three tier names), not a vendor model identifier. Sweep commands and
   empty results documented in the PR body.
-- 🟡 **Finding #13 partial (model-name daylight)** — commit d1f1eaff
-  removed dead `dispatchModel` / `recommendedModel` fields. The broader
-  question of whether `IExecutionAdapter` is a real public extension
-  point is still open (see Finding #13).
+- ✅ **Finding #13 (Execution Adapter Surface)** — Epic #2646 / Story A
+  #2688 (commit df7790de on `epic/2646`, plus dependent tickets d2baec74,
+  1c479eb5, 563555cd, 9b6cdf85, cfea1cfa). `IExecutionAdapter`,
+  `ManualDispatchAdapter`, and `adapter-factory.js` were deleted outright;
+  call sites now construct dispatch records inline. The dispatch manifest
+  remains intact as the cross-runtime contract.  Earlier groundwork: commit
+  d1f1eaff removed dead `dispatchModel` / `recommendedModel` fields.
 - 🟡 **Finding #4 partial** — fda76f21 added explicit `filesAssumption`
   validation on Task paths and aec99d1c added Phase 7 cross-validation
   of Tech Spec against the codebase. Risk-based gate streamlining is
@@ -691,17 +718,34 @@ Tracked here so the numbered list above stays focused on open work.
   Monitor half — further relaxation of per-turn FinOps rituals to
   job/run-level limits — remains in the numbered list above; no carve-outs
   beyond what the original finding already split as "Monitor".
-- 🟡 **Finding #11 partial (event-doc generation simplification)** — Epic
-  #2645 (commits 87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501,
-  a3d8b6d6, eef564c1, 3e0273f6 on `epic/2645`). `generate-lifecycle-docs.js`
-  now emits the lifecycle event table from `.agents/schemas/lifecycle/`
-  into a bounded region in `docs/LIFECYCLE.md` (87deb0c1, 8016d0da), wired
-  through `docs:check` so the docs cannot drift from the schemas
-  (eef564c1, 3e0273f6). 🚀 Carve-outs remaining (still in the numbered
-  list above): remove legacy emit shims once all runtime paths are
-  bus-native, and collapse duplicate progress/comment writers where the
-  event stream already contains the required data. The 🔭 Monitor halves
-  of Finding #11's "Keep" stance on the core bus/ledger are unchanged.
+- ✅ **Finding #11 (Lifecycle Bus simplification sublist)** — closed across
+  two Epics:
+  - **Event-doc generation simplification** — Epic #2645 (commits 87deb0c1,
+    6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6, eef564c1, 3e0273f6 on
+    `epic/2645`). `generate-lifecycle-docs.js` now emits the lifecycle
+    event table from `.agents/schemas/lifecycle/` into a bounded region in
+    `docs/LIFECYCLE.md` (87deb0c1, 8016d0da), wired through `docs:check`
+    so the docs cannot drift from the schemas (eef564c1, 3e0273f6).
+  - **Legacy emit shims removed + duplicate writers collapsed** — Epic
+    #2646 / Story C #2689 (commits c39cf293, a460cc68, 041e366c, 94325677,
+    3de21b7d on `epic/2646`). Guarded `bus.emit` shims replaced with
+    direct calls (a460cc68), polling ProgressReporter retired in favor of
+    the bus listener (041e366c), and `wave-observer` deleted with
+    `structured-comment-poster` promoted (94325677).
+  Core bus/ledger remains untouched, as the original "Keep" stance
+  required.
+- ✅ **Finding #17 (Compatibility shims and legacy shapes)** — Epic #2646 /
+  Story B #2687 (commit 807918a3 on `epic/2646`, plus dependent tickets
+  ae3ee9b3, bafd95bf, 43d02d26, 9c3ad434). All known compatibility branches
+  were removed in one pass: legacy-shape branches in the config layer
+  (ae3ee9b3), legacy paths-bag tolerance in the temp-paths resolver
+  (bafd95bf), legacy merged/timeout aliases from `wave-session.js`
+  (43d02d26), and a confirmation sweep that the schemas held no
+  legacy-only optional fields (9c3ad434). The hard-cutover policy is
+  codified in `.agents/rules/git-conventions.md` under the new "Contract
+  Cutovers — No Shim Layer" section (Story E #2708) — future contract
+  changes ship as hard cutovers with the PR diff itself as the migration,
+  no parallel old-shape support code.
 
 ## Functionality Likely Obsolete With a 10x Model
 
