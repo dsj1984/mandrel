@@ -53,7 +53,11 @@ function walkTestFiles(dir, prefix, fsLike) {
  * @returns {string[]}
  */
 export function listTestFilesForTier(tier, repoRoot, fsLike = fs) {
-  const all = walkTestFiles(path.join(repoRoot, 'tests'), 'tests', fsLike).sort();
+  const all = walkTestFiles(
+    path.join(repoRoot, 'tests'),
+    'tests',
+    fsLike,
+  ).sort();
   if (tier === 'full') {
     return ['tests/**/*.test.js'];
   }

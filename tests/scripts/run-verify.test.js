@@ -33,8 +33,5 @@ test('runVerifySteps runs lint, test, and baselines in order', () => {
   assert.deepEqual(outcome, { ok: true });
   assert.deepEqual(calls[0], ['npm', 'run', 'lint']);
   assert.deepEqual(calls[1], ['npm', 'test']);
-  assert.deepEqual(calls[2], [
-    'node',
-    '.agents/scripts/check-baselines.js',
-  ]);
+  assert.deepEqual(calls[2], ['node', '.agents/scripts/check-baselines.js']);
 });

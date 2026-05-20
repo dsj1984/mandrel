@@ -34,15 +34,23 @@ export function runVerifySteps({
       throw result.error;
     }
     if ((result.status ?? 1) !== 0) {
-      return { ok: false, failedStep: step.label, exitCode: result.status ?? 1 };
+      return {
+        ok: false,
+        failedStep: step.label,
+        exitCode: result.status ?? 1,
+      };
     }
   }
   return { ok: true };
 }
 
-runAsCli(import.meta.url, async () => {
-  const outcome = runVerifySteps();
-  if (!outcome.ok) {
-    process.exit(outcome.exitCode);
-  }
-}, { source: 'run-verify' });
+runAsCli(
+  import.meta.url,
+  async () => {
+    const outcome = runVerifySteps();
+    if (!outcome.ok) {
+      process.exit(outcome.exitCode);
+    }
+  },
+  { source: 'run-verify' },
+);
