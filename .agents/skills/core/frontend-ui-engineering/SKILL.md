@@ -9,6 +9,18 @@ description:
 
 # Frontend UI Engineering
 
+## Policy Capsule
+
+- Build UI that meets WCAG 2.1 AA: every interactive element keyboard-accessible, ARIA labels on icon-only controls, focus moved when content changes, color never the sole indicator of state.
+- Adhere to the project's design system — use semantic tokens (`text-primary`, `bg-surface`) and the spacing scale (no arbitrary pixel values, no inline styles).
+- Avoid the "AI aesthetic": no default purple/indigo palettes, gratuitous gradients, blanket `rounded-2xl`, oversized padding, or shadow-heavy layering.
+- Prefer composition over configuration; keep components focused (split anything past ~200 lines) and separate data-fetching containers from presentation components.
+- Choose the simplest state mechanism that works: local `useState` → lifted state → context (read-heavy) → URL state → server-state library → global store; do not prop-drill past three levels.
+- Render meaningful loading, empty, and error states for every async surface — skeletons for content (not spinners), and explicit empty-state copy + CTA.
+- Design mobile-first and verify at 320 / 768 / 1024 / 1440 px breakpoints before claiming responsive.
+- Respect the heading hierarchy (one `h1` per page, no skipped levels) and never re-purpose heading styles for non-heading content.
+- Verify accessibility tooling (axe-core / dev-tools warnings) is clean and a screen reader can convey the page structure before marking the work done.
+
 ## Overview
 
 Build production-quality user interfaces that are accessible, performant, and

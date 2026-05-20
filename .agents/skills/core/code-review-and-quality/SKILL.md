@@ -9,6 +9,19 @@ description:
 
 # Code Review and Quality
 
+## Policy Capsule
+
+- Every change gets reviewed before merge — no exceptions, including agent-authored code.
+- Apply the **five-axis review** to every change: **Correctness, Readability & Simplicity, Architecture, Security, Performance**.
+- Approval standard: approve when the change **definitely improves overall code health**, even if it isn't perfect. Don't block on stylistic preferences that match project conventions.
+- Verify the spec/task requirements are met, edge cases (null, empty, boundary) and error paths are handled, and the tests are actually testing the right things — not just that they pass.
+- Reject "clever" code in favour of the boring, obvious solution. Abstractions MUST earn their complexity (no generalizing before the third use case).
+- Flag dead code artifacts (`_unused` vars, backwards-compat shims, `// removed` comments) and require their removal before merge.
+- Defer to `.agents/rules/security-baseline.md` and the `security-and-hardening` skill for security review; explicit checks include input validation, no hardcoded secrets, parameterized queries, encoded output, authn+authz, and treating external data as untrusted.
+- Defer to `performance-optimization` for perf review; explicit checks include no N+1 queries, no unbounded fetches, no blocking sync work, no obviously oversized bundles.
+- Disallow scope creep in a PR: drive-by cleanups, adjacent refactors, and "while I'm here" edits should be split into a separate change.
+- Bug-fix reviews cover **both** the fix and the regression test; a fix without a failing-then-passing test is not approvable.
+
 ## Overview
 
 Multi-dimensional code review with quality gates. Every change gets reviewed

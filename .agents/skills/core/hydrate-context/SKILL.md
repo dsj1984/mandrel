@@ -13,6 +13,16 @@ allowed_tools:
 
 # hydrate-context
 
+## Policy Capsule
+
+- Invoke via `node .agents/scripts/hydrate-context.js --ticket <id> [--epic <id>]`; the wrapping CLI is the only supported entry point and delegates to `lib/orchestration/context-hydration-engine.js`.
+- Treat the operation as strictly **read-only on GitHub** — never modify ticket bodies, never post comments, never apply labels.
+- When `--epic` is omitted, parse the Epic ID from the ticket body's `Epic: #N` line; do not infer it from elsewhere.
+- Surface `persona::*` and `skill::*` labels from the ticket into the composed prompt so the downstream executor can pin its sub-agent dispatch.
+- Emit exactly one JSON object on stdout (`{ "prompt": "..." }`) and nothing else — no temp files, no diagnostic prints that would corrupt the envelope.
+- Honour the engine's context-budget cap: when the composed prompt would exceed the configured limit, the engine performs explicit field downgrades. Never silently truncate.
+- Do not persist the composed prompt to disk; forwarding is the caller's responsibility.
+
 ## Role
 
 Context aggregator. Resolves a ticket's hierarchy (Task → Story →

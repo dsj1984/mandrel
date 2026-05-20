@@ -8,6 +8,19 @@ description:
 
 # Deprecation and Migration
 
+## Policy Capsule
+
+- Treat code as a **liability**, not an asset. When the same functionality can be provided with less code, the old code should go.
+- Plan deprecation at **design time**: ask "how would we remove this in 3 years?" Clean interfaces, feature flags, and minimal surface area make later removal possible.
+- Hyrum's Law applies — once users depend on observable behaviour (including quirks), removal requires active migration, not just an announcement.
+- Never deprecate without a working replacement that covers the critical use cases, ships with a migration guide, and is proven in production.
+- **Default to advisory deprecation**. Reserve compulsory (hard-deadline) deprecation for security/maintenance unsustainability, and only after providing migration tooling, docs, and support.
+- Migrate consumers **incrementally**, not all at once — identify touchpoints, migrate, verify, then move to the next consumer.
+- Announce deprecations with a structured notice: status, replacement, removal date (or "advisory"), reason, and step-by-step migration guide.
+- For Mandrel framework contract changes, apply the **Hard-Cutover** rule from `.agents/rules/git-conventions.md` — no shim layer, no parallel old-shape support; the PR diff IS the migration.
+- Remove the deprecated code aggressively once consumers have migrated; lingering deprecated paths accumulate maintenance cost and confuse future readers.
+- Keep a clear migration journal (PR descriptions, ADRs, changelog entries) so the rationale survives author turnover.
+
 ## Overview
 
 Code is a liability, not an asset. Every line of code has ongoing maintenance

@@ -8,6 +8,19 @@ description:
 
 # Git Workflow and Versioning
 
+## Policy Capsule
+
+- Default to trunk-based development: branch from `main`, keep feature branches short-lived (1–3 days), and delete them after merge. Prefer feature flags over long-lived branches.
+- Commit early and often — each successful increment is its own save point. Never accumulate large uncommitted changes.
+- Keep commits atomic: each commit does exactly one logical thing. Never mix formatting changes with behavior changes, or refactors with features.
+- Write commit messages that explain the **why**, not the what. Follow the `<type>: <description>` convention with types drawn from `feat | fix | refactor | test | docs | chore` (imperative mood).
+- Target ~100 lines per commit/PR; split anything over ~1000 lines into smaller logical changes before submitting.
+- Before every commit: review the staged diff, scan for secrets/PII, run tests + lint + typecheck; automate via husky/lint-staged when available.
+- Provide a structured Change Summary on completion that includes `CHANGES MADE`, `THINGS I DIDN'T TOUCH (intentionally)`, and `POTENTIAL CONCERNS` — the "didn't touch" section is mandatory to demonstrate scope discipline.
+- Never commit `.env`, build output (`dist/`, `.next/`), `node_modules/`, IDE-private config, or any hardcoded secret. Keep a `.gitignore` that covers these from day one.
+- Never force-push to shared branches; on rejected pushes, fix the underlying issue and create a follow-up commit rather than amending.
+- Use worktrees (not branch-switching) for parallel agent work so concurrent streams are isolated until explicitly merged.
+
 ## Overview
 
 Git is your safety net. Treat commits as save points, branches as sandboxes, and
