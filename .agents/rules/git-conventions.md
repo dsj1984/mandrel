@@ -36,6 +36,48 @@ creation via `story-init.js`; agents commit on the active Story branch only.
   titles edited in the GitHub UI; author the PR title in conventional form
   so the squash commit on `main` parses cleanly for release-please.
 
+## Contract Cutovers — No Shim Layer
+
+Mandrel is a Git-submodule-distributed framework whose consumers pin to
+specific versions; they opt into breaks at upgrade time. Operator policy
+for any contract change (config shape, baseline shape, schema, lifecycle
+payload, ticket label, dispatch artifact, public API of a script) is
+therefore:
+
+1. **Hard cutovers only.** Contract changes ship as a single in-tree
+   migration of every producer and consumer. There is no parallel
+   old-shape support code, no read-side tolerance branch, and no
+   feature flag that toggles between the two shapes.
+2. **The PR diff IS the migration.** A consumer upgrading to a release
+   with the change adopts the new shape by upgrading the
+   `.agents/` submodule. The PR that lands on `main` already moved
+   every internal call site; consumers move on the same beat by
+   re-pinning.
+3. **No deprecation ledger, no version-windowed sunsets.** The framework
+   does not track "to be removed in vX.Y" entries or run two shapes side
+   by side for a release window. If a shape changes, the old shape is
+   deleted in the same PR.
+
+The codifying decision is **Epic #2646** (the "Hard-Cutover Cleanup Epic"),
+which deleted the existing compatibility shim layer across
+`config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
+`wave-session.js`, `IExecutionAdapter` / `ManualDispatchAdapter`, lifecycle
+emit shims, and duplicate progress/comment writers in one pass. See
+[`docs/future-considerations.md` § Implemented Since Audit](../../docs/future-considerations.md)
+for the per-finding closing references (Findings #10, #11, #13, #17).
+
+Practical guidance when authoring a contract change:
+
+- If you are tempted to add a "legacy shape" branch in a parser or
+  resolver, **don't** — update every call site instead, and delete the
+  old shape in the same PR.
+- If you cannot land every call site in a single PR (e.g. a
+  cross-repository change), the contract change is too large for one
+  hard cutover. Split the contract itself, not the rollout.
+- Schema versions remain useful as **identifiers** (so a future consumer
+  can detect "I cannot read this artifact"); they are **not** an
+  invitation to keep multiple readers alive in the same release.
+
 ## Push Validation & Reliability
 
 To prevent "silent" push failures (e.g., hidden by multi-command chains or
