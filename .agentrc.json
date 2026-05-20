@@ -53,7 +53,7 @@
       "progressReportIntervalSec": 300
     },
     "worktreeIsolation": {
-      "nodeModulesStrategy": "pnpm-store",
+      "nodeModulesStrategy": "per-worktree",
       "primeFromPath": ".",
       "allowSymlinkOnWindows": true
     },

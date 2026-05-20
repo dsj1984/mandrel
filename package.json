@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "pretest": "node .agents/scripts/test-wrapper.js",
+    "pretest:quick": "node .agents/scripts/test-wrapper.js",
+    "pretest:integration": "node .agents/scripts/test-wrapper.js",
     "test": "node .agents/scripts/run-tests.js",
+    "test:quick": "node .agents/scripts/run-tests.js --tier quick",
+    "test:integration": "node .agents/scripts/run-tests.js --tier integration",
+    "verify": "node .agents/scripts/run-verify.js",
     "typecheck": "node -e \"process.exit(0)\"",
     "test:coverage": "node .agents/scripts/run-coverage.js",
     "coverage:check": "node .agents/scripts/check-baselines.js --gate coverage",
