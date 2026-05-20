@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { parseTapOutput } from '../../../.agents/scripts/lib/test-profile/parse-tap.js';
 import { renderProfileReport } from '../../../.agents/scripts/lib/test-profile/render-report.js';

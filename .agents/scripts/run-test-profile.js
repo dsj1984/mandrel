@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+
 /* node:coverage ignore file */
 
 /**
@@ -7,14 +8,14 @@
  * runner only — set SKIP_PREFLIGHT=0 to include preflight if desired.
  */
 
-import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildNodeTestArgs } from './run-tests.js';
 import { runAsCli } from './lib/cli-utils.js';
 import { parseTapOutput } from './lib/test-profile/parse-tap.js';
 import { renderProfileReport } from './lib/test-profile/render-report.js';
+import { buildNodeTestArgs } from './run-tests.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..', '..');
