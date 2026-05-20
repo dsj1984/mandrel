@@ -10,6 +10,17 @@ vendor: tailwind
 
 # Skill: Tailwind CSS v4
 
+## Policy Capsule
+
+- Configure the theme via CSS-first `@theme` blocks; never use `tailwind.config.ts` or `tailwind.config.js` in v4 projects.
+- Prefer atomic utility classes (`flex`, `p-4`, `text-lg`) over hand-written CSS classes.
+- Use mobile-first breakpoints (`sm:`, `md:`, `lg:`, `xl:`); never write desktop-first overrides.
+- Define `hover:`, `focus-visible:`, and `active:` states explicitly on every interactive element.
+- Arbitrary values (`p-[13px]`) are prohibited — map one-off values to a `@theme` CSS variable instead.
+- Never build utility classes by string interpolation (e.g. `text-${color}`); always use full literal class names so the compiler detects them.
+- Adhere to the design system's spacing, color, and typography tokens defined in `@theme` variables.
+- For repeated UI patterns, extract a component or a CSS `@apply` block — do not let class strings bloat in JSX.
+
 Rules for implementing high-performance, maintainable styling using the latest
 Tailwind CSS specification.
 

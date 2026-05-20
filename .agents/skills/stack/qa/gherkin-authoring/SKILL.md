@@ -10,6 +10,17 @@ description:
 
 # Skill: gherkin-authoring
 
+## Policy Capsule
+
+- Write `Given` clauses as stative preconditions, `When` as a single business action, and `Then` as a user-visible outcome.
+- Allow exactly one `When` per scenario; if you need two, split into two scenarios.
+- Never assert on HTTP status codes, SQL state, DOM selectors, URLs, or JSON payloads inside `.feature` prose — push those to contract tests.
+- Tag every Scenario or Outline with exactly one canonical `@domain-*` tag and the appropriate risk/platform tags from the gherkin-standards taxonomy.
+- Use `Background` only when every scenario in the file genuinely shares the precondition with no per-scenario variation.
+- Reuse existing step definitions: grep the steps tree for the verb stem before authoring a new step.
+- Author one scenario per PRD acceptance criterion; for bounded matrices, use a Scenario Outline with ≤12 Examples rows.
+- Use third-person present-tense, role-qualified actors (`the billing-admin`), never first person.
+
 Guidance for authoring `.feature` files that stay business-readable, translate
 cleanly from PRD acceptance criteria, and reuse a shared step-definition
 library. The enforcement rules — tag taxonomy, forbidden patterns, Outline
