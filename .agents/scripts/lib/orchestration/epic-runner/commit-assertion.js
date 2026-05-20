@@ -103,8 +103,9 @@ export class CommitAssertion {
  * integer count.
  *
  * If the story branch is missing (story-close deletes both the local
- * and remote story branch after a successful merge — by the time the Epic
- * wave-observer invokes the assertion, `origin/story-<storyId>` is gone),
+ * and remote story branch after a successful merge — by the time the
+ * iterate-waves phase invokes the assertion, `origin/story-<storyId>`
+ * is gone),
  * the adapter falls back to counting commits on the epic branch whose
  * message matches `resolves #<storyId>`. A non-zero fallback is treated as
  * proof the story's work landed on the epic branch. A zero-result fallback

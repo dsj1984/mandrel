@@ -130,6 +130,10 @@ function makeProvider(graph) {
   };
 }
 
+// Epic #2646 Story C (Task #2700) — runRetro now requires `bus` as a
+// hard input; tests pass this minimal stub through every call.
+const stubBus = { emit: async () => {} };
+
 test('runRetro: rejects missing epicId / provider', async () => {
   await assert.rejects(() => runRetro({ provider: {} }), /epicId is required/);
   await assert.rejects(() => runRetro({ epicId: 5 }), /provider is required/);
@@ -157,6 +161,7 @@ test('runRetro: clean manifest fires the compact path and posts retro comment', 
   const out = await runRetro({
     epicId: 100,
     provider,
+    bus: stubBus,
     timestamp: '2026-05-10T00:00:00.000Z',
   });
 
@@ -207,6 +212,7 @@ test('runRetro: non-clean signals route to the full six-section path', async () 
   const out = await runRetro({
     epicId: 101,
     provider,
+    bus: stubBus,
     timestamp: '2026-05-10T01:00:00.000Z',
   });
 
@@ -238,6 +244,7 @@ test('runRetro: forceFull overrides the clean-manifest heuristic', async () => {
   const out = await runRetro({
     epicId: 102,
     provider,
+    bus: stubBus,
     timestamp: '2026-05-10T02:00:00.000Z',
     forceFull: true,
   });
@@ -312,6 +319,7 @@ test('runRetro: throws when provider is missing getSubTickets (no silent compact
     runRetro({
       epicId: 500,
       provider,
+      bus: stubBus,
       timestamp: '2026-05-17T00:00:00.000Z',
     }),
   );
@@ -428,6 +436,7 @@ test('runRetro: surfaces manualInterventions count in scorecard', async () => {
   const out = await runRetro({
     epicId: 800,
     provider,
+    bus: stubBus,
     manualInterventions: 3,
     timestamp: '2026-05-17T02:00:00.000Z',
   });
@@ -581,6 +590,7 @@ test('runRetro: ignores non-finite manualInterventions (defensive)', async () =>
   const out = await runRetro({
     epicId: 900,
     provider,
+    bus: stubBus,
     manualInterventions: Number.NaN,
     timestamp: '2026-05-17T03:00:00.000Z',
   });

@@ -5,11 +5,11 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { runEpic } from '../../.agents/scripts/lib/orchestration/epic-runner.js';
 import {
   waveEndMarker,
   waveStartMarker,
-} from '../../.agents/scripts/lib/orchestration/epic-runner/wave-observer.js';
-import { runEpic } from '../../.agents/scripts/lib/orchestration/epic-runner.js';
+} from '../../.agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js';
 import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 import { EPIC_RUN_STATE_TYPE } from '../fixtures/epic-run-state-store.js';
 import { buildCtx } from './_build-ctx.js';

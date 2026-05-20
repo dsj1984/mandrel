@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/wave.start.schema.json",
   "title": "wave.start",
-  "description": "Emitted by iterate-waves when a wave begins; lists story IDs dispatched in this wave.",
+  "description": "Emitted by iterate-waves when a wave begins; lists story IDs dispatched in this wave. Epic #2646 Story C — optional `totalWaves`, `stories`, and `startedAt` enrich the comment body emitted by structured-comment-poster (replaces the legacy wave-observer writer).",
   "type": "object",
   "required": ["waveIndex", "storyIds"],
   "properties": {
@@ -10,7 +10,21 @@
     "storyIds": {
       "type": "array",
       "items": { "type": "integer", "minimum": 1 }
-    }
+    },
+    "totalWaves": { "type": "integer", "minimum": 1 },
+    "stories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id"],
+        "properties": {
+          "id": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "startedAt": { "type": "string" }
   },
   "additionalProperties": false
 }

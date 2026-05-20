@@ -29,22 +29,6 @@
 import { runEpicCodeReview } from '../../epic-code-review.js';
 
 /**
- * Story #2252 — best-effort lifecycle emit helper. Wraps `bus.emit` in a
- * try/catch so a misbehaving observability surface never blocks the
- * code-review phase. `bus: null` short-circuits to a no-op.
- */
-async function emitLifecycleSafe({ bus, event, payload, logger }) {
-  if (!bus || typeof bus.emit !== 'function') return;
-  try {
-    await bus.emit(event, payload);
-  } catch (err) {
-    logger?.warn?.(
-      `[code-review] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
-    );
-  }
-}
-
-/**
  * Build the `code-review.end` payload from the runner's normalized
  * result envelope. Pure — exported indirectly so test fixtures can pin
  * the strip behavior without round-tripping through the bus.
@@ -123,7 +107,7 @@ export async function runCodeReview(opts = {}) {
     scopeLint = 'changed-only',
     storyId = null,
     useEvidence = true,
-    bus = null,
+    bus,
     now = Date.now,
     runner = runEpicCodeReview,
   } = opts;
@@ -132,6 +116,12 @@ export async function runCodeReview(opts = {}) {
     throw new TypeError(
       'runCodeReview: epicId is required (positive integer).',
     );
+  }
+  // Epic #2646 Story C (Task #2700) — `bus` is now a hard input. The
+  // previous guarded `emitLifecycleSafe` helper that tolerated a null
+  // bus is gone; callers MUST wire the lifecycle bus through.
+  if (!bus || typeof bus.emit !== 'function') {
+    throw new TypeError('runCodeReview: bus is required (object with emit()).');
   }
 
   const args = {
@@ -152,12 +142,7 @@ export async function runCodeReview(opts = {}) {
   }
 
   const startedAt = typeof now === 'function' ? now() : Date.now();
-  await emitLifecycleSafe({
-    bus,
-    event: 'code-review.start',
-    payload: { epicId },
-    logger,
-  });
+  await bus.emit('code-review.start', { epicId });
 
   let result;
   try {
@@ -168,16 +153,14 @@ export async function runCodeReview(opts = {}) {
     // is the canonical "could not complete" value (the runner uses it
     // for precondition failures).
     const endedAt = typeof now === 'function' ? now() : Date.now();
-    await emitLifecycleSafe({
-      bus,
-      event: 'code-review.end',
-      payload: buildCodeReviewEndPayload({
+    await bus.emit(
+      'code-review.end',
+      buildCodeReviewEndPayload({
         epicId,
         result: { status: 'invalid' },
         durationMs: Math.max(0, endedAt - startedAt),
       }),
-      logger,
-    });
+    );
     throw err;
   }
 
@@ -194,16 +177,14 @@ export async function runCodeReview(opts = {}) {
       blockerReason: null,
     };
     const endedAt = typeof now === 'function' ? now() : Date.now();
-    await emitLifecycleSafe({
-      bus,
-      event: 'code-review.end',
-      payload: buildCodeReviewEndPayload({
+    await bus.emit(
+      'code-review.end',
+      buildCodeReviewEndPayload({
         epicId,
         result: envelope,
         durationMs: Math.max(0, endedAt - startedAt),
       }),
-      logger,
-    });
+    );
     return envelope;
   }
 
@@ -227,15 +208,13 @@ export async function runCodeReview(opts = {}) {
     blockerReason,
   };
   const endedAt = typeof now === 'function' ? now() : Date.now();
-  await emitLifecycleSafe({
-    bus,
-    event: 'code-review.end',
-    payload: buildCodeReviewEndPayload({
+  await bus.emit(
+    'code-review.end',
+    buildCodeReviewEndPayload({
       epicId,
       result: envelope,
       durationMs: Math.max(0, endedAt - startedAt),
     }),
-    logger,
-  });
+  );
   return envelope;
 }

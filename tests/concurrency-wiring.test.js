@@ -6,7 +6,6 @@ import {
   resolveConcurrency,
 } from '../.agents/scripts/lib/orchestration/concurrency.js';
 import { CommitAssertion } from '../.agents/scripts/lib/orchestration/epic-runner/commit-assertion.js';
-import { ProgressReporter } from '../.agents/scripts/lib/orchestration/epic-runner/progress-reporter.js';
 import { createRuntimeContext } from '../.agents/scripts/lib/runtime-context.js';
 import { runWaveGate } from '../.agents/scripts/wave-gate.js';
 
@@ -212,74 +211,12 @@ describe('CommitAssertion — concurrency cap wiring', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// ProgressReporter — cap derived from ctx.concurrency.progressReporter
-// ---------------------------------------------------------------------------
-
-describe('ProgressReporter — concurrency cap wiring', () => {
-  function buildReporter({ explicitCap, storyIds }) {
-    let inFlight = 0;
-    let maxInFlight = 0;
-    const provider = {
-      async getTicket(id) {
-        inFlight++;
-        if (inFlight > maxInFlight) maxInFlight = inFlight;
-        // Yield multiple turns so the concurrency cap has a chance to bite.
-        await new Promise((r) => setImmediate(r));
-        await new Promise((r) => setImmediate(r));
-        inFlight--;
-        return { id, state: 'open', labels: [], title: `Story #${id}` };
-      },
-    };
-    const reporter = new ProgressReporter({
-      provider,
-      epicId: 500,
-      intervalSec: 0,
-      logger: { info: () => {}, warn: () => {} },
-      ...(explicitCap != null ? { concurrency: explicitCap } : {}),
-    });
-    // Provide stub upsert via provider to avoid real HTTP surface.
-    provider.upsertStructuredComment = async () => {};
-    // The reporter calls upsertStructuredComment via the ticketing module;
-    // stub the comment fetch methods too so we don't hit the real path.
-    provider.getTicketComments = async () => [];
-    provider.updateComment = async () => {};
-    provider.createComment = async () => ({ id: 1 });
-    reporter.setWave({
-      index: 0,
-      totalWaves: 1,
-      stories: storyIds,
-    });
-    return { reporter, getMax: () => maxInFlight };
-  }
-
-  it('defaults to 8 concurrent ticket reads when no cap is supplied', async () => {
-    const ids = Array.from({ length: 20 }, (_, i) => 6000 + i);
-    const { reporter, getMax } = buildReporter({ storyIds: ids });
-    await reporter.fire();
-    assert.equal(getMax(), 8);
-  });
-
-  it('honours opts.concurrency = 3', async () => {
-    const ids = Array.from({ length: 20 }, (_, i) => 7000 + i);
-    const { reporter, getMax } = buildReporter({
-      explicitCap: 3,
-      storyIds: ids,
-    });
-    await reporter.fire();
-    assert.equal(getMax(), 3);
-  });
-
-  it('honours opts.concurrency = 2 (explicit override path)', async () => {
-    const ids = Array.from({ length: 20 }, (_, i) => 8000 + i);
-    const { reporter, getMax } = buildReporter({
-      explicitCap: 2,
-      storyIds: ids,
-    });
-    await reporter.fire();
-    assert.equal(getMax(), 2);
-  });
-});
+// Epic #2646 Story C (Task #2699) — the polling `ProgressReporter`
+// concurrency-cap wiring suite was removed alongside the class. The
+// bus-driven `lifecycle/listeners/progress-reporter.js` listener that
+// took over the snapshot duties fires synchronously on `wave.end` /
+// `story.dispatch.end` and does not fan out concurrent ticket reads;
+// there is no equivalent cap to verify.
 
 // ---------------------------------------------------------------------------
 // wave-gate — waveGate cap affects the fanout
