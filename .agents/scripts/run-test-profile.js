@@ -67,7 +67,11 @@ export function runTestProfile({
   const { outDir, topN, testArgv } = parseProfileArgv(argv);
   fsLike.mkdirSync(outDir, { recursive: true });
 
-  const nodeArgs = [...buildNodeTestArgs(testArgv), '--test-reporter', 'tap'];
+  const nodeArgs = [
+    ...buildNodeTestArgs({ extraArgs: testArgv }),
+    '--test-reporter',
+    'tap',
+  ];
 
   const started = Date.now();
   const result = spawn(process.execPath, nodeArgs, {

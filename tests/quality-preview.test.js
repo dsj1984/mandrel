@@ -361,16 +361,49 @@ test('runCli — --json mode emits structured envelope to stdout', async () => {
   assert.deepEqual(payload.merged.rows, []);
 });
 
-test('runCli — --staged is parsed without throwing (forwarded for surface stability)', async () => {
+test('runCli — --staged forwards staged mode to preview runners', async () => {
   const out = makeStreamCapture();
   const err = makeStreamCapture();
+  let miOpts;
+  let crapOpts;
   const { exitCode } = await runCli({
-    argv: ['--changed-since', 'HEAD', '--staged'],
+    argv: ['--staged'],
     cwd: process.cwd(),
     stdout: out,
     stderr: err,
-    runMi: makeMiStub(makeMiEnvelope([], 0)),
-    runCrap: makeCrapStub(makeCrapEnvelope()),
+    runMi: async (opts) => {
+      miOpts = opts;
+      return { exitCode: 0, envelope: makeMiEnvelope([], 0) };
+    },
+    runCrap: async (opts) => {
+      crapOpts = opts;
+      return { exitCode: 0, envelope: makeCrapEnvelope() };
+    },
   });
   assert.equal(exitCode, 0);
+  assert.equal(miOpts.staged, true);
+  assert.equal(crapOpts.staged, true);
+  assert.equal(miOpts.changedSinceRef, null);
+  assert.equal(crapOpts.changedSinceRef, null);
+  assert.match(out.lines.join(''), /scope=staged \(git diff --cached\)/);
+});
+
+test('runCli — --changed-since without --staged keeps ref-based diff mode', async () => {
+  const out = makeStreamCapture();
+  const err = makeStreamCapture();
+  let miOpts;
+  await runCli({
+    argv: ['--changed-since', 'main'],
+    cwd: process.cwd(),
+    stdout: out,
+    stderr: err,
+    runMi: async (opts) => {
+      miOpts = opts;
+      return { exitCode: 0, envelope: makeMiEnvelope([], 0) };
+    },
+    runCrap: makeCrapStub(makeCrapEnvelope()),
+  });
+  assert.equal(miOpts.staged, false);
+  assert.equal(miOpts.changedSinceRef, 'main');
+  assert.match(out.lines.join(''), /scope=diff ref=main/);
 });
