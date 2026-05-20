@@ -31,6 +31,15 @@ import { createGitInterface } from './git-utils.js';
  *   etc.). The error message names the ref so the operator can react without
  *   re-reading the CLI flags.
  */
+function parseNameOnlyStdout(stdout) {
+  if (!stdout) return [];
+  return stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .map((line) => line.replace(/\\/g, '/'));
+}
+
 export function getChangedFiles({
   ref = 'main',
   cwd = process.cwd(),
@@ -44,10 +53,73 @@ export function getChangedFiles({
       `[changed-since] unable to resolve ref "${ref}": ${detail}`,
     );
   }
-  if (!res.stdout) return [];
-  return res.stdout
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => line.replace(/\\/g, '/'));
+  return parseNameOnlyStdout(res.stdout);
+}
+
+/**
+ * Resolve paths in the index (staged for commit). Used by `quality-preview
+ * --staged` so pre-commit gates score only the commit payload, not unstaged
+ * working-tree edits.
+ *
+ * Semantics:
+ *   - Runs `git diff --name-only --cached`.
+ *   - Returns forward-slash-normalized repo-relative paths.
+ *   - Non-zero git exit throws — staged mode must not silently widen scope.
+ *
+ * @param {object} [params]
+ * @param {string} [params.cwd=process.cwd()]
+ * @param {ReturnType<typeof createGitInterface>} [params.git]
+ * @returns {string[]}
+ */
+export function getStagedFiles({ cwd = process.cwd(), git } = {}) {
+  const gitIface = git ?? createGitInterface({});
+  const res = gitIface.gitSpawn(cwd, 'diff', '--name-only', '--cached');
+  if (res.status !== 0) {
+    const detail = res.stderr || res.stdout || `exit ${res.status}`;
+    throw new Error(`[staged] unable to read cached diff: ${detail}`);
+  }
+  return parseNameOnlyStdout(res.stdout);
+}
+
+/**
+ * Resolve the file set for quality-preview runners.
+ *
+ * When `staged` is true, only index paths are returned and `changedSinceRef`
+ * is ignored. Otherwise a `changedSinceRef` limits to that three-dot diff;
+ * when both are absent the caller runs in full-repo mode (`scopeSet: null`).
+ *
+ * @param {object} [params]
+ * @param {boolean} [params.staged=false]
+ * @param {string | null} [params.changedSinceRef=null]
+ * @param {string} [params.cwd=process.cwd()]
+ * @param {ReturnType<typeof createGitInterface>} [params.git]
+ * @returns {{
+ *   scopeSet: Set<string> | null,
+ *   scope: 'staged' | 'diff' | 'full',
+ *   diffRef: string | null,
+ * }}
+ */
+export function resolvePreviewScope({
+  staged = false,
+  changedSinceRef = null,
+  cwd = process.cwd(),
+  git,
+} = {}) {
+  if (staged) {
+    const files = getStagedFiles({ cwd, git });
+    return { scopeSet: new Set(files), scope: 'staged', diffRef: null };
+  }
+  if (changedSinceRef) {
+    try {
+      const files = getChangedFiles({ ref: changedSinceRef, cwd, git });
+      return {
+        scopeSet: new Set(files),
+        scope: 'diff',
+        diffRef: changedSinceRef,
+      };
+    } catch {
+      return { scopeSet: new Set(), scope: 'diff', diffRef: changedSinceRef };
+    }
+  }
+  return { scopeSet: null, scope: 'full', diffRef: null };
 }

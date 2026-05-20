@@ -7,13 +7,24 @@ import {
 } from '../../.agents/scripts/run-tests.js';
 
 test('buildNodeTestArgs preserves the default test glob and appends extra args', () => {
-  assert.deepEqual(buildNodeTestArgs(['tests/foo.test.js']), [
-    '--experimental-test-module-mocks',
-    '--test',
-    '--test-concurrency=8',
-    'tests/**/*.test.js',
-    'tests/foo.test.js',
-  ]);
+  assert.deepEqual(
+    buildNodeTestArgs({ extraArgs: ['tests/foo.test.js'], tier: 'full' }),
+    [
+      '--experimental-test-module-mocks',
+      '--test',
+      '--test-concurrency=8',
+      'tests/**/*.test.js',
+      'tests/foo.test.js',
+    ],
+  );
+});
+
+test('buildNodeTestArgs quick tier resolves explicit file targets', () => {
+  const args = buildNodeTestArgs({ tier: 'quick', repoRoot: process.cwd() });
+  assert.ok(args.includes('--test-concurrency=8'));
+  assert.ok(!args.includes('tests/**/*.test.js'));
+  assert.ok(args.some((a) => a.startsWith('tests/')));
+  assert.ok(!args.includes('tests/hook-chain-reflog-invariant.test.js'));
 });
 
 test('runTestSuite cleans reserved temp even when the test process fails', () => {
