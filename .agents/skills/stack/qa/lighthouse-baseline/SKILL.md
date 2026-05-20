@@ -10,6 +10,17 @@ description:
 
 # Skill: Lighthouse-Style Quality Baseline
 
+## Policy Capsule
+
+- Use this pattern only for numeric, run-to-run-comparable signals with directional intent (higher-is-better or lower-is-better) and meaningful noise variance.
+- Commit one canonical `baselines/<name>.json` per signal — never combine multiple metrics into a single baseline file.
+- Provide paired `<name>:capture` and `<name>:check` npm scripts; `:capture` writes the baseline, `:check` compares with tolerance and exits non-zero on regression.
+- Implement a `--self-test` mode that runs the comparator against known-good and known-regression fixtures so CI verifies the gate itself.
+- Pick tolerance from observed run-to-run spread (~2σ); tolerance of 0 flaps and trains reviewers to rubber-stamp refreshes.
+- Refresh baselines through deliberate, human-reviewed commits with the `baseline-refresh:` subject prefix; never auto-refresh on every CI run.
+- Run a weekly scheduled `:capture` workflow that opens a PR only when drift exceeds tolerance.
+- Keep baselines under source control — never store them in `temp/` or `coverage/` or anything covered by `.gitignore`.
+
 Pattern for promoting an episodic measurement into a long-running quality
 signal. The audit-lighthouse / audit-performance / audit-bundle-size
 workflows produce a snapshot. This skill is for the next step: turning that

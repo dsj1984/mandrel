@@ -11,6 +11,17 @@ vendor: clerk
 
 # Skill: Backend Security Patterns
 
+## Policy Capsule
+
+- Verify Clerk JWTs on the server or in middleware on every protected route; never trust client-asserted auth state.
+- Protect sensitive routes with Clerk's middleware helper so unauthenticated requests are redirected before hitting application logic.
+- Verify Clerk webhook signatures with the `svix` library before parsing payloads.
+- Store user state in `publicMetadata` (client-readable) or `privateMetadata` (server-only); never invent a parallel user store.
+- Never log raw request bodies, headers, or user objects that may contain PII (emails, DOB, IPs, Stripe tokens, passwords, JWTs).
+- Log entities by opaque ID only — e.g. `{ event: 'user_created', userId: user.id }`.
+- For Clerk-flow telemetry, log the Clerk user ID or session ID — never the email, name, or metadata payload.
+- Sanitize user input before including it in error logs so payloads cannot smuggle PII through the error path.
+
 Combined protocols for authentication (Clerk) and PII-safe observability in
 backend services.
 

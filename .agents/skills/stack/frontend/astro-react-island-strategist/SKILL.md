@@ -10,6 +10,14 @@ vendor: astro
 
 # Astro & React Island Strategist
 
+## Policy Capsule
+
+- Use `.astro` files for static HTML generation, routing, and SEO; do not reach for React when Astro suffices.
+- Use React `.tsx` files only for genuinely interactive UI islands, not for static rendering.
+- Embed a React component in Astro only with an explicit `client:*` directive (`client:load`, `client:idle`, `client:visible`).
+- Pick the most restrictive `client:*` directive that satisfies the interaction — prefer `client:idle` or `client:visible` over `client:load` whenever possible.
+- Pass only serializable data as props across the Astro → React island boundary; never pass functions or class instances.
+
 **Description:** Maintains strict boundaries between Astro server components and
 React client islands.
 

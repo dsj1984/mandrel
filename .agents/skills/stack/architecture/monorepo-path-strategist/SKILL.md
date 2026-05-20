@@ -9,6 +9,14 @@ description:
 
 # Monorepo Path Strategist
 
+## Policy Capsule
+
+- Never use deeply nested relative imports to access shared logic across workspaces.
+- Use the established workspace aliases (e.g. `@repo/shared/db`, `@repo/ui/components`) for every cross-package reference.
+- Add new dependencies to the specific workspace's `package.json`, not the monorepo root.
+- Never cross-contaminate UI surfaces: `@repo/web` and `@repo/mobile` must not import from each other.
+- Treat workspace aliases as the canonical contract — refactor any deep relative import you encounter into the alias form.
+
 **Description:** Enforces strict workspace package routing and dependency
 boundaries.
 
