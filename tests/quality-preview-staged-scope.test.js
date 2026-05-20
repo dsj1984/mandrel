@@ -4,7 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
-import { getStagedFiles, resolvePreviewScope } from '../.agents/scripts/lib/changed-files.js';
+import {
+  getStagedFiles,
+  resolvePreviewScope,
+} from '../.agents/scripts/lib/changed-files.js';
 
 function git(cwd, ...args) {
   execSync(['git', ...args].join(' '), { cwd, stdio: 'pipe' });
@@ -24,8 +27,14 @@ function initRepo() {
 describe('quality-preview staged scope (git integration)', () => {
   it('staged-only: only index paths appear in staged scope', () => {
     const repo = initRepo();
-    fs.writeFileSync(path.join(repo, 'staged-only.js'), 'export const a = 1;\n');
-    fs.writeFileSync(path.join(repo, 'unstaged-only.js'), 'export const b = 2;\n');
+    fs.writeFileSync(
+      path.join(repo, 'staged-only.js'),
+      'export const a = 1;\n',
+    );
+    fs.writeFileSync(
+      path.join(repo, 'unstaged-only.js'),
+      'export const b = 2;\n',
+    );
     git(repo, 'add', 'staged-only.js');
 
     assert.deepEqual(getStagedFiles({ cwd: repo }), ['staged-only.js']);

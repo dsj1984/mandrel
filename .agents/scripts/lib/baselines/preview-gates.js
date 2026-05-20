@@ -159,6 +159,11 @@ export async function runCrapPreview({
   changedSinceRef = null,
   staged = false,
 } = {}) {
+  const { scopeSet, scope, diffRef } = resolvePreviewScope({
+    staged,
+    changedSinceRef,
+    cwd,
+  });
   const { agentSettings } = resolveConfig({ cwd });
   const baselinePath = getBaselines({ agentSettings }).crap.path;
   const baseline = loadCrapBaseline({
@@ -189,12 +194,6 @@ export async function runCrapPreview({
       },
     };
   }
-
-  const { scopeSet, scope, diffRef } = resolvePreviewScope({
-    staged,
-    changedSinceRef,
-    cwd,
-  });
 
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const requireCoverage = crap.requireCoverage !== false;
