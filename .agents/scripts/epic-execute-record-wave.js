@@ -270,8 +270,7 @@ export async function runEpicExecuteRecordWave({
   //    per-wave refresh loop; without this hop the manifest is frozen at
   //    planning time and shows `0/N tasks` even after Stories merge.
   //    Best-effort: failure here must not block the wave loop.
-  const refreshManifest =
-    injectedRefreshLocalManifest ?? refreshLocalManifest;
+  const refreshManifest = injectedRefreshLocalManifest ?? refreshLocalManifest;
   await refreshManifest({ epicId }).catch((err) => {
     Logger.warn(
       `[record-wave] Non-fatal: could not refresh local manifest for Epic #${epicId} — ${err?.message ?? 'unknown error'}`,

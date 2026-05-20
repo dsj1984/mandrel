@@ -20,7 +20,11 @@ test('emitWaveBoundaryNotifications fires epic-started on first wave 0 record', 
   const events = [];
   await emitWaveBoundaryNotifications({
     injectedNotify: async (ticketId, payload) => {
-      events.push({ ticketId, event: payload.event, severity: payload.severity });
+      events.push({
+        ticketId,
+        event: payload.event,
+        severity: payload.severity,
+      });
     },
     defaultNotify: async () => {},
     config: { orchestration: {} },
