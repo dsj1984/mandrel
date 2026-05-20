@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-18T19:52:16.607Z",
+  "generatedAt": "2026-05-20T19:29:37.414Z",
   "rollup": {
     "*": {
-      "min": 45.226,
-      "p50": 103.804,
-      "p95": 121.484
+      "min": 52.885,
+      "p50": 103.888,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -53,10 +53,6 @@
     {
       "path": ".agents/scripts/consolidate-changelog-archive.js",
       "mi": 91.11
-    },
-    {
-      "path": ".agents/scripts/context-hydrator.js",
-      "mi": 95.736
     },
     {
       "path": ".agents/scripts/coverage-capture.js",
@@ -149,10 +145,6 @@
     {
       "path": ".agents/scripts/hierarchy-gate.js",
       "mi": 86.239
-    },
-    {
-      "path": ".agents/scripts/hydrate-context.js",
-      "mi": 100.793
     },
     {
       "path": ".agents/scripts/lib/adapter-factory.js",
@@ -427,20 +419,12 @@
       "mi": 52.885
     },
     {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "mi": 90.908
-    },
-    {
       "path": ".agents/scripts/lib/config-schema-shared.js",
       "mi": 138.317
     },
     {
       "path": ".agents/scripts/lib/config-schema.js",
       "mi": 171
-    },
-    {
-      "path": ".agents/scripts/lib/config-settings-schema.js",
-      "mi": 45.226
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -701,10 +685,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/concurrent-task-resolver.js",
       "mi": 89.513
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.js",
-      "mi": 92.569
     },
     {
       "path": ".agents/scripts/lib/orchestration/context.js",
@@ -1137,10 +1117,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
       "mi": 96.093
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/wave-dispatcher.js",
-      "mi": 92.763
     },
     {
       "path": ".agents/scripts/lib/orchestration/wave-marker.js",
@@ -2007,10 +1983,6 @@
       "mi": 104.567
     },
     {
-      "path": "tests/context-hydrator.test.js",
-      "mi": 100.176
-    },
-    {
       "path": "tests/contract/check-baselines-kernel-mismatch.test.js",
       "mi": 99.205
     },
@@ -2329,10 +2301,6 @@
     {
       "path": "tests/hook-chain-reflog-invariant.test.js",
       "mi": 108.553
-    },
-    {
-      "path": "tests/hydrate-context-cli.test.js",
-      "mi": 100.85
     },
     {
       "path": "tests/integration-prime-after-sweep.test.js",
