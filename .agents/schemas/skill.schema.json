@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://mandrel.dev/schemas/skill.schema.json",
+  "title": "SkillFrontmatter",
+  "description": "Canonical YAML frontmatter contract for every SKILL.md under .agents/skills/{core,stack}/. Validated by the skills index generator and the skills validator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "description"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Skill identifier. MUST equal the parent directory name of the SKILL.md file."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-paragraph human description of when to use this skill."
+    },
+    "allowed_tools": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Optional tool allowlist that scopes the skill's execution surface."
+    },
+    "vendor": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional vendor / library / product tag for stack skills (e.g. 'playwright', 'tailwind')."
+    }
+  }
+}
