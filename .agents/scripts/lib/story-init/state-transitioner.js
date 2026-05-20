@@ -1,25 +1,55 @@
 /**
  * state-transitioner.js — Stage 6 of the story-init pipeline.
  *
- * Batch-transitions every child Task of the Story to `agent::executing`.
- * Returns a structured `{ ok, failed }` verdict so the caller can decide
- * whether partial failures abort init or are tolerated based on the
- * `orchestration.storyInit.continueOnPartialTransition` setting.
+ * Flips the Story ticket to `agent::executing` at init time. Child Tasks
+ * stay at their prior label (typically `agent::ready`) until
+ * `story-task-progress.js --state executing` runs for each Task in the
+ * `/story-deliver` loop.
  */
 
-import { STATE_LABELS } from '../orchestration/ticketing.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+} from '../orchestration/ticketing.js';
 import { batchTransitionTickets } from '../story-lifecycle.js';
 
 /**
+ * Flip the Story to `agent::executing` and cascade upward (Epic / Feature).
+ *
+ * @param {object} deps
+ * @param {object} deps.provider
+ * @param {object} [deps.logger]
+ * @param {object} deps.input
+ * @param {number} deps.input.storyId
+ * @param {object} deps.input.story - Prefetched Story ticket (`ticketSnapshot`).
+ * @param {Function|null} [deps.input.notify]
+ * @returns {Promise<{ ok: true }>}
+ */
+export async function transitionStoryToExecuting({ provider, logger, input }) {
+  const { storyId, story, notify = null } = input;
+  const progress = logger?.progress ?? (() => {});
+
+  progress('TICKETS', `Transitioning Story #${storyId} to agent::executing...`);
+  await transitionTicketState(provider, storyId, STATE_LABELS.EXECUTING, {
+    ticketSnapshot: story,
+    cascade: true,
+    notify,
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Batch-transitions every child Task to a target label. Retained for
+ * `batchTransitionTickets` unit coverage and post-merge batch closes;
+ * story-init no longer calls this at startup.
+ *
  * @param {object} deps
  * @param {object} deps.provider
  * @param {object} [deps.logger]
  * @param {object} deps.input
  * @param {Array<object>} deps.input.tasks
- * @param {Function|null} [deps.input.notify] - Per-task notify hook. Pass a
- *   skipComment-aware wrapper so per-task webhooks fire individually but the
- *   comment fanout is consolidated into one Story-level summary by the caller
- *   (see `postBatchedTransitionSummary`).
+ * @param {Function|null} [deps.input.notify]
  * @returns {Promise<{
  *   ok: boolean,
  *   failed: Array<{id:number,attempts:number,error:string}>,

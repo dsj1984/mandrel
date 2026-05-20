@@ -1,6 +1,10 @@
 import assert from 'node:assert';
 import { test } from 'node:test';
-import { transitionTaskStates } from '../../../.agents/scripts/lib/story-init/state-transitioner.js';
+import { STATE_LABELS } from '../../../.agents/scripts/lib/orchestration/ticketing.js';
+import {
+  transitionStoryToExecuting,
+  transitionTaskStates,
+} from '../../../.agents/scripts/lib/story-init/state-transitioner.js';
 
 function mkProvider({ updateTicket, getTicket }) {
   return {
@@ -13,6 +17,24 @@ function mkProvider({ updateTicket, getTicket }) {
     },
   };
 }
+
+test('transitionStoryToExecuting flips the Story to agent::executing', async () => {
+  const calls = [];
+  const provider = mkProvider({
+    updateTicket: (id, patch) => {
+      calls.push({ id, patch });
+    },
+  });
+  const story = { id: 100, title: 'Story', labels: ['type::story'] };
+  const out = await transitionStoryToExecuting({
+    provider,
+    input: { storyId: 100, story },
+  });
+  assert.strictEqual(out.ok, true);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls[0].id, 100);
+  assert.ok(calls[0].patch.labels.add.includes(STATE_LABELS.EXECUTING));
+});
 
 test('returns ok:true when every task transitions successfully', async () => {
   const calls = [];

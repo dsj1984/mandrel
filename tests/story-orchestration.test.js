@@ -191,13 +191,19 @@ test('story-init: successful initialization', async () => {
   );
   assert.equal(result.tasks[1].id, 102, 'Task 2 should be second');
 
-  // Verify ticket updates
-  const task1Updates = provider.updates.filter((u) => u.id === 101);
+  // Story init flips the Story, not every child Task (Tasks start in Step 1).
+  const storyUpdates = provider.updates.filter((u) => u.id === 100);
   assert.ok(
-    task1Updates.some((u) =>
+    storyUpdates.some((u) =>
       u.mutations.labels.add.includes('agent::executing'),
     ),
-    'Task 1 should be executing',
+    'Story should be executing',
+  );
+  const task1Updates = provider.updates.filter((u) => u.id === 101);
+  assert.equal(
+    task1Updates.length,
+    0,
+    'Task 1 should not be batch-transitioned at init',
   );
 
   // Verify git actions
