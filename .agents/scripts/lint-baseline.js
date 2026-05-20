@@ -31,6 +31,36 @@ const PROJECT_ROOT = path.resolve(__dirname, '../..');
  */
 const EXECUTION_MAX_BUFFER = 10485760;
 
+/**
+ * Allowlist of command names that resolve via shell-launcher shims on
+ * Windows (`.cmd` / `.bat`). Node's `spawnSync({ shell: false })` cannot
+ * execute `.cmd` files (post CVE-2024-27980), so commands beginning with
+ * one of these names are invoked through the platform shell. Restricting
+ * `shell: true` to this fixed set keeps the command-injection surface
+ * minimal while making the default `npx eslint …` invocation portable.
+ */
+const SHIM_LAUNCHERS = new Set(['npx', 'npm', 'pnpm', 'pnpx', 'yarn']);
+
+/**
+ * Decide how `spawnSync` should be invoked for `cmdConfig`. Returns the
+ * full argument tuple — exported for unit testing the shim-detection
+ * logic without a real process spawn.
+ *
+ * @param {string} cmdConfig — operator-configured command string.
+ * @returns {{ shell: boolean, command: string, args: string[] }}
+ */
+export function pickSpawnShape(cmdConfig) {
+  const parsedArgs = parseArgsStringToArgv(cmdConfig);
+  if (parsedArgs.length === 0) {
+    return { shell: false, command: '', args: [] };
+  }
+  const head = parsedArgs[0];
+  if (SHIM_LAUNCHERS.has(head)) {
+    return { shell: true, command: cmdConfig, args: [] };
+  }
+  return { shell: false, command: head, args: parsedArgs.slice(1) };
+}
+
 // Shared core: extract the JSON-array tail from shell output, then tally
 // errors/warnings. `detailed=true` also returns per-file counts + rule
 // histogram (used by `diff` + `captureBaseline` to attribute regressions).
@@ -94,20 +124,19 @@ function runLintShared(
   gateModeOpts,
   detailed,
 ) {
-  const parsedArgs = parseArgsStringToArgv(cmdConfig);
-  if (parsedArgs.length === 0) {
+  const shape = pickSpawnShape(cmdConfig);
+  if (shape.command === '') {
     Logger.warn(`⚠️ [lint-baseline] Empty command configuration provided.`);
     return detailed
       ? { errorCount: 0, warningCount: 0, byFile: {} }
       : { errorCount: 0, warningCount: 0 };
   }
-  const cmd = parsedArgs.shift();
-  const result = spawnSync(cmd, parsedArgs, {
+  const result = spawnSync(shape.command, shape.args, {
     cwd: PROJECT_ROOT,
     encoding: 'utf-8',
     timeout: executionTimeoutMs,
     maxBuffer: executionMaxBuffer,
-    shell: false,
+    shell: shape.shell,
   });
   try {
     return parseLintShared(result.stdout.trim(), detailed);
@@ -425,9 +454,7 @@ export async function runLintBaselineCli(values, deps = {}) {
   }
 
   const cfg = deps.resolveConfig ? deps.resolveConfig() : resolveConfig();
-  const cmdConfig = getCommands({
-    agentSettings: cfg.agentSettings,
-  }).lintBaseline;
+  const cmdConfig = getCommands(cfg).lintBaseline;
   const baselinePathRel = getBaselines({ agentSettings: cfg.agentSettings })
     .lint.path;
   const projectRoot = deps.projectRoot ?? PROJECT_ROOT;
