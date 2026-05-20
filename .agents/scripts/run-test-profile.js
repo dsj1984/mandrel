@@ -66,11 +66,7 @@ export function runTestProfile({
   const { outDir, topN, testArgv } = parseProfileArgv(argv);
   fsLike.mkdirSync(outDir, { recursive: true });
 
-  const nodeArgs = [
-    ...buildNodeTestArgs(testArgv),
-    '--test-reporter',
-    'tap',
-  ];
+  const nodeArgs = [...buildNodeTestArgs(testArgv), '--test-reporter', 'tap'];
 
   const started = Date.now();
   const result = spawn(process.execPath, nodeArgs, {
@@ -112,9 +108,13 @@ export function runTestProfile({
   };
 }
 
-runAsCli(import.meta.url, async () => {
-  const outcome = runTestProfile();
-  if (outcome.exitCode !== 0) {
-    process.exit(outcome.exitCode);
-  }
-}, { source: 'run-test-profile' });
+runAsCli(
+  import.meta.url,
+  async () => {
+    const outcome = runTestProfile();
+    if (outcome.exitCode !== 0) {
+      process.exit(outcome.exitCode);
+    }
+  },
+  { source: 'run-test-profile' },
+);

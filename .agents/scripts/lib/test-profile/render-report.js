@@ -8,8 +8,7 @@ import { selectSlowestEntries } from './parse-tap.js';
 export function renderProfileReport(profile, opts = {}) {
   const topN = opts.topN ?? 20;
   const slowest = selectSlowestEntries(profile.entries, topN);
-  const totalSec =
-    (opts.wallDurationMs ?? profile.totalDurationMs ?? 0) / 1000;
+  const totalSec = (opts.wallDurationMs ?? profile.totalDurationMs ?? 0) / 1000;
   const lines = [
     'Mandrel test profile summary',
     '===========================',
