@@ -10,6 +10,10 @@ import { createProvider } from './lib/provider-factory.js';
 
 export { runHydrateContext, ticketToTask } from './hydrate-context.js';
 export {
+  elideEnvelope,
+  envelopeToPrompt,
+} from './lib/orchestration/context-envelope.js';
+export {
   hydrateContext,
   parseHierarchy,
   truncateToTokenBudget,
