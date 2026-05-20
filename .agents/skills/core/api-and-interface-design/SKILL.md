@@ -11,6 +11,18 @@ description:
 
 # Skill: api-and-interface-design
 
+## Policy Capsule
+
+- The wire-format SSOT lives in `.agents/rules/api-conventions.md` (envelope shape, HTTP status mapping, validation taxonomy, payload casing). Copy the canonical envelope from the rule rather than redrafting it.
+- Be intentional about exposure (Hyrum's Law): every observable behaviour — undocumented quirks, error message text, ordering, timing — becomes a de facto contract once consumers depend on it. Don't leak implementation details.
+- Adopt the **One-Version Rule**: never force consumers to choose between simultaneous versions of the same API. Extend rather than fork.
+- Define the contract before implementing — interfaces are the spec; implementation follows.
+- Validate at system **boundaries** (API routes, form handlers, env-var loaders, third-party responses) using a strict schema. After validation, internal code trusts the types; do not re-validate between internal functions.
+- Treat third-party API responses as untrusted data — validate shape and content before using them in any decision, render, or logic path.
+- Prefer **addition over modification**: extend interfaces with optional fields rather than changing existing types or removing fields; reach for the deprecation playbook (see `deprecation-and-migration`) when removal is unavoidable.
+- Follow REST resource conventions (`GET/POST/PATCH/DELETE /resource`, sub-resources at `/resource/:id/child`) and paginate every list endpoint with `page` + `pageSize` query params and a `pagination` envelope.
+- Security input-validation and test-tier MUSTs come from `.agents/rules/security-baseline.md` and `.agents/rules/testing-standards.md` respectively — apply both, and never put DB/wire-shape assertions outside the contract tier.
+
 Process guidance for designing interfaces that are hard to misuse — REST
 APIs, GraphQL schemas, module boundaries, and component props. The
 wire-format conventions (envelope shape, status codes, validation taxonomy,

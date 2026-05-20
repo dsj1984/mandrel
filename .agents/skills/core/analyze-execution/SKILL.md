@@ -13,6 +13,17 @@ allowed_tools:
 
 # analyze-execution
 
+## Policy Capsule
+
+- Invoke via the wrapping CLI `node .agents/scripts/analyze-execution.js`; do not duplicate the read/write logic from this Skill body.
+- Resolve mode strictly by flags: `--story <sid> --epic <eid>` → Story mode; `--epic <eid>` alone → Epic mode.
+- Read NDJSON signals only through `lib/signals/read` (the async-iterator entry point). Never open `<tempRoot>/epic-<eid>/story-<sid>/signals.ndjson` directly — the reader owns the warn-once malformed-JSON policy.
+- Emit a single structured GitHub comment per ticket (`<!-- structured:story-perf-summary -->` or `<!-- structured:epic-perf-report -->`); rely on `upsertStructuredComment` for idempotence — never post duplicates.
+- Never rename or alter the structured-marker IDs; the retro composer and Epic dashboard grep them verbatim.
+- Validate the structured payload against `docs/data-dictionary.md §StoryPerfSummary` or `§EpicPerfReport` before posting. Schema violations exit non-zero.
+- Soft-fail (exit 0 with a warning) when NDJSON is missing for a Story or an Epic has no children — observability output MUST NOT block the close pipeline.
+- Do not write to disk. Persistence is GitHub; the Skill is read-NDJSON + post-comment only.
+
 ## Role
 
 Observability writer. Composes the structured `story-perf-summary` /
