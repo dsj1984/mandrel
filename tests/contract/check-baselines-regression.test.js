@@ -19,7 +19,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { currentKernelVersion } from '../../.agents/scripts/lib/baselines/kernel.js';
@@ -120,23 +120,27 @@ function spawnDispatcher(cwd, extraArgs = []) {
 describe('check-baselines (binary spawn) — regression contract', () => {
   let root;
 
-  beforeEach(() => {
-    root = undefined;
-  });
-
-  afterEach(() => {
-    if (root) {
-      rmSync(root, { recursive: true, force: true });
-      root = undefined;
-    }
-  });
-
-  it('exits 4 when the head baseline regresses against the committed base', () => {
+  before(() => {
     root = setupRepo({
       baseRollup: { '*': { lines: 95, branches: 92, functions: 95 } },
       baseRows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
     });
+  });
 
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it('exits 0 when the head baseline matches the committed base (parity)', () => {
+    const res = spawnDispatcher(root);
+    assert.equal(
+      res.status,
+      0,
+      `expected exit 0, got ${res.status}; stdout=${res.stdout}; stderr=${res.stderr}`,
+    );
+  });
+
+  it('exits 4 when the head baseline regresses against the committed base', () => {
     // Overwrite the working-tree baseline with a regressing row. Floor
     // is still met by the rollup (95/92/95), so the only failure mode
     // available is regression — isolating EXIT_REGRESSION.
@@ -153,21 +157,6 @@ describe('check-baselines (binary spawn) — regression contract', () => {
       res.status,
       4,
       `expected exit 4, got ${res.status}; stdout=${res.stdout}; stderr=${res.stderr}`,
-    );
-  });
-
-  it('exits 0 when the head baseline matches the committed base (parity)', () => {
-    root = setupRepo({
-      baseRollup: { '*': { lines: 95, branches: 92, functions: 95 } },
-      baseRows: [{ path: 'src/a.js', lines: 95, branches: 95, functions: 95 }],
-    });
-    // Working-tree baseline is the same as the committed one — no regression,
-    // no floor breach, kernel matches.
-    const res = spawnDispatcher(root);
-    assert.equal(
-      res.status,
-      0,
-      `expected exit 0, got ${res.status}; stdout=${res.stdout}; stderr=${res.stderr}`,
     );
   });
 });

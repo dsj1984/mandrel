@@ -90,11 +90,34 @@ mandrel/
 ### Key Commands
 
 ```text
-npm run lint          # Check all markdown for lint errors
-npm run format        # Auto-format all markdown files
-npm run format:check  # Verify formatting without modifying files
-npm test              # Run framework tests (node --test)
+npm run lint              # Check all markdown for lint errors
+npm run format            # Auto-format all markdown files
+npm run format:check      # Verify formatting without modifying files
+npm run test:quick        # TDD loop — excludes slow integration-style suites
+npm run test:integration  # Real-git / hook-chain / long orchestration suites only
+npm test                  # Full suite (same as CI test gate)
+npm run test:profile      # Slow-test report → temp/test-profile.{tap,summary.txt}
+npm run verify            # Full local gate: lint + full tests + baselines
 ```
+
+Use `test:quick` while iterating, `test:integration` before pushing when you
+touched git/orchestration hooks, and `verify` (or `npm test` + `npm run lint`
+separately) when you want pre-PR confidence. CI always runs the full `npm test`
+suite.
+
+### Slow-test profiling
+
+`npm run test:profile` runs the full suite with the TAP reporter, writes
+`temp/test-profile.tap` (raw machine output) and `temp/test-profile.summary.txt`
+(human-readable top-20 slow tests and suites). Both paths are gitignored under
+`temp/`. The command skips npm-test preflight (`SKIP_PREFLIGHT=1`) so timings
+reflect the test runner; export `SKIP_PREFLIGHT=0` to include preflight.
+
+Read the summary file to spot regressions: **suite** rows are parent `describe`
+blocks (often whole files), **test** rows are leaf cases. Compare reports from
+the same machine before and after an optimization. Optional flags:
+`--out-dir <path>`, `--top <n>`, plus any `node --test` args after `--` (e.g.
+`npm run test:profile -- --test-name-pattern "epic-execute"`).
 
 ---
 

@@ -26,15 +26,11 @@ test('.husky/pre-commit exists and is non-empty', () => {
   assert.ok(body.length > 0, 'pre-commit hook must be non-empty');
 });
 
-test('.husky/pre-commit invokes quality-preview.js with --changed-since HEAD --staged', () => {
+test('.husky/pre-commit invokes quality-preview.js with --staged only', () => {
   const body = readHook();
-  // The hook must invoke node + the script with the canonical flags. We
-  // assert on a single substring rather than a regex over the entire line
-  // so future operators can rearrange whitespace / split args without
-  // breaking the test.
   assert.match(body, /node \.agents\/scripts\/quality-preview\.js/);
-  assert.match(body, /--changed-since HEAD/);
   assert.match(body, /--staged/);
+  assert.doesNotMatch(body, /--changed-since/);
 });
 
 test('.husky/pre-commit is idempotent under repeated `npm run prepare`', () => {
