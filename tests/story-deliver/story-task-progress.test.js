@@ -308,6 +308,35 @@ test('isCommitReachableFromHead: true for HEAD sha, false for unknown sha', () =
   );
 });
 
+test('runStoryTaskProgress: state=executing flips the Task ticket to agent::executing', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'story-task-progress-'));
+  const cachePath = path.join(dir, 'story-32-progress.json');
+  writeCache(cachePath, {
+    storyId: 32,
+    branch: 'story-32',
+    tasks: [{ id: 321, title: 't', state: 'pending' }],
+  });
+  const provider = makeProvider([]);
+  provider.tickets[321] = { id: 321, labels: ['agent::ready'], state: 'open' };
+
+  const result = await runStoryTaskProgress({
+    storyId: 32,
+    taskId: 321,
+    state: 'executing',
+    provider,
+    cachePath,
+  });
+  assert.equal(result.taskState, 'executing');
+  const startCall = provider.updates.find(
+    (u) =>
+      u.ticketId === 321 &&
+      u.mutations.labels?.add?.includes('agent::executing'),
+  );
+  assert.ok(startCall, 'expected updateTicket call starting Task #321');
+  assert.equal(startCall.mutations.state, 'open');
+  assert.ok(provider.tickets[321].labels.includes('agent::executing'));
+});
+
 test('runStoryTaskProgress: state=done with commitSha closes the Task ticket (cascade suppressed)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'story-task-progress-'));
   const cachePath = path.join(dir, 'story-30-progress.json');

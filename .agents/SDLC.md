@@ -398,7 +398,8 @@ Whether the Story is launched directly by the operator or fanned out by
    - Syncs the Epic base branch with `main`.
    - Creates or seeds the Story branch (in a worktree when
      `orchestration.worktreeIsolation.enabled: true`).
-   - Transitions child Tasks to `agent::executing`.
+   - Transitions the Story to `agent::executing` (child Tasks start in
+     the `/story-deliver` loop via `story-task-progress.js`).
 2. **Task implementation.** The agent executes each Task sequentially on the
    shared Story branch, committing after each Task completion.
 3. **Closure** (`story-close.js`):

@@ -14,7 +14,8 @@
  *   4. task-graph-builder   — fetch + topologically sort child Tasks.
  *   5. branch-initializer   — materialise the story branch (single-tree
  *                             checkout or isolated worktree).
- *   6. state-transitioner   — batch-flip child Tasks to `agent::executing`.
+ *   6. state-transitioner   — flip the Story to `agent::executing` (Tasks
+ *                             start via `story-task-progress.js` per Task).
  *
  * Usage:
  *   node story-init.js --story <STORY_ID> [--dry-run]
@@ -46,9 +47,8 @@ import { resolveContext } from './lib/story-init/context-resolver.js';
 import { runDispatchManifestGuard } from './lib/story-init/dependency-guard.js';
 import { writeDispatchStateFile } from './lib/story-init/dispatch-state-writer.js';
 import { traceHierarchy } from './lib/story-init/hierarchy-tracer.js';
-import { transitionTaskStates } from './lib/story-init/state-transitioner.js';
+import { transitionStoryToExecuting } from './lib/story-init/state-transitioner.js';
 import { buildTaskGraph } from './lib/story-init/task-graph-builder.js';
-import { postBatchedTransitionSummary } from './lib/story-init/transition-summary.js';
 import { createPhaseTimer } from './lib/util/phase-timer.js';
 import { savePhaseTimerState } from './lib/util/phase-timer-state.js';
 import { forceClear as clearValidationEvidence } from './lib/validation-evidence.js';
@@ -317,54 +317,22 @@ export async function runStoryInit({
       );
     }
 
-    const transition = await transitionTaskStates({
-      provider,
-      logger: stageLogger,
-      input: { tasks: sortedTasks, notify: notifyWebhookOnly },
-    });
-    if (!transition.ok) {
-      const failedSummary = transition.failed
-        .map((f) => `#${f.id} (${f.attempts}x: ${f.error})`)
-        .join(', ');
-      const continueOnPartial =
-        orchestration?.storyInit?.continueOnPartialTransition === true;
-      if (continueOnPartial) {
-        progress(
-          'TICKETS',
-          `⚠️ ${transition.failed.length} task(s) failed to transition after retries: ${failedSummary}. Continuing (continueOnPartialTransition=true) — agent may be working with stale state.`,
-        );
-      } else {
-        Logger.error(
-          `\n❌ ${transition.failed.length} task(s) failed to transition after retries: ${failedSummary}`,
-        );
-        Logger.error(
-          'Story init aborted. Fix the underlying error and re-run, or set ' +
-            '`orchestration.storyInit.continueOnPartialTransition: true` to opt into ' +
-            'the old lenient behavior.',
-        );
-        return {
-          success: false,
-          reason: 'partial-transition-failure',
-          failed: transition.failed,
-        };
-      }
-    }
-
-    // Replace the N per-Task `agent::executing` comments (suppressed above
-    // via `notifyWebhookOnly`) with one Story-level summary. The dispatch
-    // carries no `event` field, so under the curated `commentEvents` /
-    // `webhookEvents` allowlists it is a no-op by default — preserving
-    // the silent-init behavior previously enforced via severity gating.
     try {
-      await postBatchedTransitionSummary({
-        notify: notifyFn,
-        storyId,
-        transitioned: transition.transitioned ?? [],
+      await transitionStoryToExecuting({
+        provider,
+        logger: stageLogger,
+        input: { storyId, story, notify: notifyWebhookOnly },
       });
+      progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
     } catch (err) {
       Logger.error(
-        `[story-init] ⚠️ Failed to post batched transition summary: ${err.message}`,
+        `\n❌ Story #${storyId} failed to transition to agent::executing: ${err?.message ?? err}`,
       );
+      return {
+        success: false,
+        reason: 'story-transition-failure',
+        error: err?.message ?? String(err),
+      };
     }
 
     // Open the `implement` phase last so everything between now and the
