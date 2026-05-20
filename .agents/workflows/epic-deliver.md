@@ -82,8 +82,11 @@ Every other runtime modifier is sourced from the Epic's labels or from
   [`lifecycle-emit.js`](../scripts/lifecycle-emit.js) CLI
   (`--event epic.close.end` / `--event epic.automerge.start` /
   `--event epic.merge.armed`); the matching listener chain runs the
-  side effects (acceptance reconcile, PR open, auto-merge arm,
-  branch cleanup). The append-only NDJSON ledger at
+  bus-driven side effects (acceptance reconcile, automerge-armer,
+  branch cleanup). PR open + planning-artifact close are
+  operator-/host-LLM-driven in the current wiring — see Phase 7.1 for
+  the canonical manual sequence and `finalizer.js` for the listener's
+  no-op disclaimer. The append-only NDJSON ledger at
   `temp/epic-<id>/lifecycle.ndjson` is the resume target. See
   [`docs/LIFECYCLE.md`](../../docs/LIFECYCLE.md) for the bus
   contract, event taxonomy, ledger format, and listener model.
@@ -360,34 +363,60 @@ step manually.
 node .agents/scripts/lifecycle-emit.js --epic <epicId> --event epic.close.end
 ```
 
-Emits `epic.close.end` onto the lifecycle bus. The matching listener
-chain runs three close-time responsibilities in order:
+Emits `epic.close.end` onto the lifecycle bus. **In the current
+production wiring only the first of the three close-time
+responsibilities below runs inside the listener chain; the other two
+are operator/host-LLM responsibilities until the listener's
+`runFinalizeFn` is lifted out of its no-op state (see
+[`finalizer.js`](../scripts/lib/orchestration/lifecycle/listeners/finalizer.js)
+docstring).** Treat this section as both a runtime contract and a
+runbook.
 
-1. **Acceptance-spec reconciliation.** Invokes
+1. **Acceptance-spec reconciliation — bus-driven.** The
+   `AcceptanceReconciler` listener invokes
    [`acceptance-spec-reconciler.js`](../scripts/acceptance-spec-reconciler.js)
    to diff the AC IDs declared in the linked `context::acceptance-spec`
    body against `@ac-*` / `@pending` tags in `tests/features/**`. A
    non-OK reconciliation throws (per
    [`rules/orchestration-error-handling.md`](../rules/orchestration-error-handling.md)),
-   aborting finalize **before** the planning artifacts are closed — so
-   the PRD, Tech Spec, and Acceptance Spec stay open until the AC
-   coverage gap is fixed. The reconciler returns `status: 'waived'`
-   without scanning features when the Epic carries `acceptance::n-a`,
-   and defends against direct CLI invocation by refusing to run when
-   no spec is linked and no waiver is set (the start gate in Phase 1
-   would normally catch that first).
-2. **PR open and auto-merge arm.** Pushes `epic/<epicId>`, opens a PR
-   to `main` (title `Epic #<epicId>: <title>`, body links run-progress
-   / code-review / retro comments), sets required-checks from
-   `github.branchProtection.checks`, and enables GitHub native
-   auto-merge (`gh pr merge --auto --squash --delete-branch`).
-   Auto-merge enablement failures are non-fatal (operator can merge
-   through the UI).
-3. **Planning-artifact close + hand-off.** Closes the three planning
-   context tickets (`context::prd`, `context::tech-spec`,
-   `context::acceptance-spec`) so the Epic's `Closes #<id>` auto-close
-   path is not blocked by open sub-issues, then posts a hand-off
-   structured comment naming the PR URL.
+   aborting finalize **before** any PR is opened or planning artifacts
+   are closed — so the PRD, Tech Spec, and Acceptance Spec stay open
+   until the AC coverage gap is fixed. The reconciler returns
+   `status: 'waived'` without scanning features when the Epic carries
+   `acceptance::n-a`, and defends against direct CLI invocation by
+   refusing to run when no spec is linked and no waiver is set (the
+   start gate in Phase 1 would normally catch that first).
+2. **PR open and auto-merge arm — operator-/host-LLM-driven (today).**
+   The `Finalizer` listener fires after `AcceptanceReconciler`, but its
+   `runFinalizeFn` is a no-op in production. The operator (or the host
+   LLM driving `/epic-deliver`) MUST run the canonical PR-open sequence
+   inline after the close-tail emit returns:
+
+   ```bash
+   gh pr create --base main --head epic/<epicId> \
+     --title "Epic #<epicId>: <title>" \
+     --body-file <run-progress + code-review + retro summary>
+   gh pr merge <prNumber> --auto --squash --delete-branch
+   ```
+
+   Failure of `gh pr merge --auto` is non-fatal — the operator merges
+   through the GitHub UI instead. Once a future Story lifts this flow
+   into the `Finalizer` listener body, this step will become
+   bus-driven and this prose updates to match.
+3. **Planning-artifact close + hand-off — operator-/host-LLM-driven
+   (today).** Close the three planning context tickets manually so the
+   Epic's `Closes #<id>` auto-close path is not blocked by open
+   sub-issues:
+
+   ```bash
+   gh issue close <prdId> --reason completed
+   gh issue close <techSpecId> --reason completed
+   gh issue close <acceptanceSpecId> --reason completed
+   ```
+
+   When the `acceptance::n-a` waiver is set, the Acceptance Spec
+   ticket need not be authored; if no spec was ever opened, the third
+   `gh issue close` is skipped.
 
 Branch cleanup is out-of-band (Phase 9 reaps local refs after merge; the
 rare "scrap and reset" case for an unmerged Epic is handled manually).

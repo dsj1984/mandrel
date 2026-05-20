@@ -7,7 +7,8 @@
   "required": ["prUrl"],
   "properties": {
     "prUrl": { "type": "string", "format": "uri", "minLength": 1 },
-    "reason": { "type": "string" }
+    "reason": { "type": "string" },
+    "epicId": { "type": "integer", "minimum": 1 }
   },
   "additionalProperties": false
 }
