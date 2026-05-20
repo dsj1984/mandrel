@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-20T13:52:15.225Z",
+  "generatedAt": "2026-05-20T14:08:47.072Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -9,7 +9,10 @@
       "path": ".agents/skills/core/analyze-execution/SKILL.md",
       "description": "Aggregate per-Story or per-Epic execution signals into a structured perf-summary or perf-report and upsert it onto the corresponding GitHub ticket. Use after a Story closes (Story mode) or as part of `/epic-deliver` Phase 6 (Epic mode). Reads NDJSON via `lib/signals/read` and writes a single structured comment.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -29,7 +32,11 @@
       "path": ".agents/skills/core/baseline-refresh/SKILL.md",
       "description": "Author a refresh commit for any of the unified-baseline snapshots (CRAP, maintainability, dead-exports, lighthouse). Use whenever an intentional code change resets a baseline key (rename, deliberate complexity bump, perf regression with operator sign-off) and the close-validation chain needs the refreshed snapshot to land on the same Story branch as the triggering edit.",
       "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -109,7 +116,10 @@
       "path": ".agents/skills/core/diagnose-friction/SKILL.md",
       "description": "Wrap a shell command with diagnostic capture. On failure, print static suggestions and append a structured `friction` record to the per-Story signals.ndjson stream. Use whenever a script in the orchestration loop invokes a tool whose failure shape we want the analyzer to attribute.",
       "policyCapsuleBullets": 8,
-      "allowedTools": ["Bash", "Read"],
+      "allowedTools": [
+        "Bash",
+        "Read"
+      ],
       "vendor": null
     },
     {
@@ -129,7 +139,11 @@
       "path": ".agents/skills/core/epic-plan-decompose-author/SKILL.md",
       "description": "Author the Feature/Story/Task ticket JSON for an Epic from the decomposer authoring context emitted by `epic-plan-decompose.js --emit-context`. Use during Phase 8 of `/epic-plan` when the host LLM needs to write the ticket array before `epic-plan-decompose.js` validates and persists it.",
       "policyCapsuleBullets": 11,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -139,7 +153,11 @@
       "path": ".agents/skills/core/epic-plan-spec-author/SKILL.md",
       "description": "Author the PRD, Tech Spec, and Acceptance Spec markdown for an Epic from the planner authoring context emitted by `epic-plan-spec.js --emit-context`. Use during Phase 7 of `/epic-plan` when the host LLM needs to write the three artifacts before `epic-plan-spec.js` persists them.",
       "policyCapsuleBullets": 10,
-      "allowedTools": ["Read", "Write", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -169,7 +187,10 @@
       "path": ".agents/skills/core/hydrate-context/SKILL.md",
       "description": "Hydrate a Task or Story ticket into a single prompt string the executor can drop in front of an implementation request. Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and composes a `{ prompt }` JSON envelope. Successor to the retired mandrel MCP `context.hydrate` tool.",
       "policyCapsuleBullets": 7,
-      "allowedTools": ["Read", "Bash"],
+      "allowedTools": [
+        "Read",
+        "Bash"
+      ],
       "vendor": null
     },
     {
@@ -268,7 +289,7 @@
       "category": "architecture",
       "path": ".agents/skills/stack/architecture/monorepo-path-strategist/SKILL.md",
       "description": "Enforces strict workspace package routing and dependency boundaries. Use when working in a monorepo with workspace aliases (e.g. `@repo/shared/*`, `@repo/ui/*`) and you need to prevent deep relative imports, cross-workspace contamination, or dependencies added at the wrong package.json level.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": null
     },
@@ -278,7 +299,7 @@
       "category": "architecture",
       "path": ".agents/skills/stack/architecture/structured-output-zod/SKILL.md",
       "description": "Validates external and structured data with Zod schemas. Use when accepting untrusted input at API boundaries, validating environment variables on startup, parsing third-party responses, or generating typed shapes via `z.infer`. Parse, don't validate.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 7,
       "allowedTools": null,
       "vendor": "zod"
     },
@@ -288,7 +309,7 @@
       "category": "architecture",
       "path": ".agents/skills/stack/architecture/subagent-orchestration/SKILL.md",
       "description": "Coordinates complex tasks via task-isolated subagents. Use when one objective is too large for a single agent or when independent work streams should run concurrently with minimal context bleed. One objective per subagent; summarize before returning to keep the main context window clean.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 7,
       "allowedTools": null,
       "vendor": null
     },
@@ -298,7 +319,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/cloudflare-hono-architect/SKILL.md",
       "description": "Prevents Node.js module hallucinations in Cloudflare Worker (V8 isolate) edge environments. Use when writing Hono routes deployed to Workers — prefer Web APIs (Fetch, Web Crypto) over Node built-ins (`fs`, `path`, `child_process`, `crypto`), and access bindings via Hono's `c.env`.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": "cloudflare"
     },
@@ -308,7 +329,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/cloudflare-queue-manager/SKILL.md",
       "description": "Ensures idempotent and resilient background job execution on Cloudflare Queues. Use when writing consumer handlers — design for at-least-once delivery, wrap processing in try/catch with `message.retry()`, and order cascading deletes so the database row drops last.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": "cloudflare"
     },
@@ -318,7 +339,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/cloudflare-workers/SKILL.md",
       "description": "Builds and deploys high-performance edge logic on Cloudflare Workers. Use when working within Workers' 128MB memory and 5–50ms CPU constraints, integrating KV/R2/D1 storage, or writing Wrangler-managed edge-first request/response code.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "cloudflare"
     },
@@ -328,7 +349,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/highlevel-crm/SKILL.md",
       "description": "Integrates with the HighLevel (GoHighLevel) CRM API v2 and its automation engine. Use when synchronizing data via OAuth 2.0, building custom widgets, handling sub-account `locationId` scoping, or implementing webhook-driven workflows with rate-limit-aware retries.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "highlevel"
     },
@@ -338,7 +359,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/sqlite-drizzle-expert/SKILL.md",
       "description": "Enforces SQLite dialect for Drizzle ORM and Turso (libSQL). Use when writing schema or queries with `drizzle-orm/sqlite-core` — avoid PostgreSQL-only types (`serial`, `jsonb`, `uuid`), use `text()` for IDs and dates, and define relations explicitly via the `relations` API.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": "drizzle"
     },
@@ -348,7 +369,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/stripe-integration/SKILL.md",
       "description": "Implements secure Stripe payments and subscription billing. Use when handling card data (PCI compliance via Elements/Checkout), verifying webhook signatures, attaching `idempotencyKey` to mutations, or treating the server-side webhook as the source of truth for entitlement changes.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "stripe"
     },
@@ -358,7 +379,7 @@
       "category": "backend",
       "path": ".agents/skills/stack/backend/turso-sqlite/SKILL.md",
       "description": "Develops with Turso's distributed SQLite (libSQL) platform. Use when working with the `@libsql/client` driver — leverage edge replicas for low-latency reads, route writes to the primary, and use parameterized queries plus a versioned migration tool (drizzle-kit, atlas) for schema changes.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 6,
       "allowedTools": null,
       "vendor": "turso"
     },
@@ -368,7 +389,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/astro-react-island-strategist/SKILL.md",
       "description": "Maintains strict boundaries between Astro server components and React client islands in hybrid Astro/React workspaces. Use when keeping `.astro` files for static HTML/SEO and `.tsx` for interactive islands — embed React only with explicit `client:*` directives and pass serializable props.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": "astro"
     },
@@ -378,7 +399,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/astro/SKILL.md",
       "description": "Builds ultra-fast content-driven websites with Astro. Use when defaulting to SSG, opting into SSR only for dynamic data, picking the most restrictive `client:*` hydration directive, leveraging Server Islands (`server:defer`), Astro Actions for type-safe mutations, and the Content Layer with Zod- validated collections.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "astro"
     },
@@ -388,7 +409,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/expo-react-native-developer/SKILL.md",
       "description": "Prevents DOM element usage in React Native (Expo) workspaces. Use when writing components for Expo apps — `<View>`, `<Text>`, `<TouchableOpacity>` instead of `<div>`/`<span>`/`<p>`, no `window`/`document`, and styling through the project's established solution.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 5,
       "allowedTools": null,
       "vendor": "expo"
     },
@@ -398,7 +419,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/google-analytics-v4/SKILL.md",
       "description": "Implements privacy-compliant event tracking with Google Analytics 4. Use when wiring analytics that must comply with GDPR/CCPA via Consent Mode V2 — `snake_case` event names, no PII to GA servers, GTM-driven event firing, and DebugView verification before deploy.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "google"
     },
@@ -408,7 +429,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/tailwind-v4/SKILL.md",
       "description": "Implements maintainable styling with Tailwind CSS v4. Use when writing styles in v4 projects — CSS-first configuration via `@theme` blocks (never `tailwind.config.ts/js`), mobile-first breakpoints, full class names (no string interpolation), and no arbitrary `p-[13px]`-style values.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "tailwind"
     },
@@ -418,7 +439,7 @@
       "category": "frontend",
       "path": ".agents/skills/stack/frontend/ui-accessibility-engineer/SKILL.md",
       "description": "Enforces mobile-first Tailwind CSS and strict WCAG 2.1 AA compliance for user-facing UI. Use when building UI components — utility classes only (no custom CSS or inline `style={{}}`), mobile-first breakpoints, visible focus states, alt text, and 4.5:1 contrast.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 7,
       "allowedTools": null,
       "vendor": "tailwind"
     },
@@ -428,7 +449,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/audit-accessibility/SKILL.md",
       "description": "Audits sites and apps for WCAG 2.1 Level AA compliance using automated and manual testing tools. Use when running an accessibility audit or building a remediation plan — semantic HTML, contrast, focus management, keyboard reachability, and axe-core integration in Vitest/Playwright.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
@@ -438,7 +459,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/gherkin-authoring/SKILL.md",
       "description": "Authors `.feature` files that stay business-readable, translate cleanly from PRD acceptance criteria, and reuse a shared step-definition library. Use when writing or editing scenarios — the SSOT enforcement rules live in `.agents/rules/gherkin-standards.md`; this skill shows authors how to apply them.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
@@ -448,7 +469,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/lighthouse-baseline/SKILL.md",
       "description": "Codifies the capture-and-check baseline pattern for long-running quality signals (Lighthouse scores, bundle size, p95 latency, runtime memory). Use when wiring a new metric that needs a baseline file, paired :capture / :check npm scripts, a tolerance-bounded gate, and a weekly refresh cadence — the goal is a hard CI signal that ratchets only with intent.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": null
     },
@@ -458,7 +479,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/playwright-bdd/SKILL.md",
       "description": "Wires Gherkin `.feature` files to Playwright via the `playwright-bdd` library. Use when running BDD scenarios on a Playwright runtime — pairs with the `gherkin-authoring` skill (scenario prose) and the `playwright` skill (browser conventions). Drives execution by tag expression with trace-first debugging and Playwright-native sharding.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "playwright"
     },
@@ -468,7 +489,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/playwright/SKILL.md",
       "description": "Robust E2E browser testing with Playwright. Use when writing browser-driven tests — leverage auto-waiting (no `waitForTimeout`), prefer user-visible locators (`getByRole`, `getByText`, `getByLabel`) over CSS/XPath, reuse `storageState` for auth, and enable trace-on-first-retry for CI debugging.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 7,
       "allowedTools": null,
       "vendor": "playwright"
     },
@@ -478,7 +499,7 @@
       "category": "qa",
       "path": ".agents/skills/stack/qa/vitest/SKILL.md",
       "description": "Writes fast, isolated unit and integration tests with Vitest. Use when each test must run on file-save without shared state — `vi.mock()` for external deps, `vi.spyOn()` for call monitoring, AAA structure, and edge-case coverage for null/undefined/boundary inputs.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "vitest"
     },
@@ -488,7 +509,7 @@
       "category": "security",
       "path": ".agents/skills/stack/security/backend-security-patterns/SKILL.md",
       "description": "Combined backend protocols for authentication (Clerk JWT verification) and PII-safe observability. Use when handling auth on the server, verifying Clerk webhooks via `svix`, scoping metadata via `publicMetadata`/ `privateMetadata`, or sanitizing logs to keep emails, tokens, and request bodies out of telemetry.",
-      "policyCapsuleBullets": 0,
+      "policyCapsuleBullets": 8,
       "allowedTools": null,
       "vendor": "clerk"
     }
