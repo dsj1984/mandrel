@@ -9,7 +9,7 @@ const SCRIPTS = path.join(ROOT, '.agents', 'scripts');
 
 // Note: we might have issues testing fs calls directly inside the hydrator
 // but we'll use a mocked ITicketingProvider.
-const { hydrateContext } = await import(
+const { envelopeToPrompt, hydrateContext } = await import(
   pathToFileURL(path.join(SCRIPTS, 'context-hydrator.js')).href
 );
 
@@ -37,13 +37,14 @@ describe('Context Hydrator', () => {
     // unless running inside the exact monorepo.
     const provider = new MockProvider();
 
-    const prompt = await hydrateContext(
+    const envelope = await hydrateContext(
       task,
       provider,
       'epic/1',
       'task/epic-1/99',
       1,
     );
+    const prompt = envelopeToPrompt(envelope);
 
     assert.ok(prompt.includes('Fix the bug'), 'Prompt contains task body');
     assert.ok(
@@ -74,7 +75,8 @@ describe('Context Hydrator', () => {
     // The hydrate context currently fetches settings from config-resolver.
     // If the mock project has maxTokenBudget set to something small, it will truncate.
     // Let's just verify it doesn't crash.
-    const prompt = await hydrateContext(task, provider, 'epic/1', 'task/1', 1);
+    const envelope = await hydrateContext(task, provider, 'epic/1', 'task/1', 1);
+    const prompt = envelopeToPrompt(envelope);
     assert.ok(typeof prompt === 'string');
   });
 });
