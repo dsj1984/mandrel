@@ -59,10 +59,10 @@ export function collectOpenStoryIds(tasks, allTicketsById, opts = {}) {
  * Dispatch a single eligible task within a wave.
  *
  * @param {object} task
- * @param {object} ctx - Dispatch context (provider, adapter, settings, etc.).
+ * @param {object} ctx - Dispatch context (provider, settings, etc.).
  */
 async function dispatchTaskInWave(task, ctx) {
-  const { provider, adapter, allTicketsById, epicId, epicBranch, dryRun } = ctx;
+  const { provider, allTicketsById, epicId, epicBranch, dryRun } = ctx;
 
   const taskBranch = getResolvedBranch(task, allTicketsById, epicId);
   const storyMatch = taskBranch.match(/^story-(\d+)$/);
@@ -134,10 +134,14 @@ async function dispatchTaskInWave(task, ctx) {
     labels: { add: [AGENT_EXECUTING_LABEL], remove: [AGENT_READY_LABEL] },
   });
 
-  const result = await adapter.dispatchTask(taskDispatch);
-  Logger.info(
-    `✅ Dispatched Task #${task.id} — dispatchId: ${result.dispatchId}`,
-  );
+  // Inline dispatch record (Epic #2646 / Story #2688): the IExecutionAdapter
+  // abstraction has been deleted. Completion is tracked via GitHub
+  // `agent::*` labels, not via the dispatchId/status returned here — but
+  // the manifest's `dispatched[]` array still carries the record shape for
+  // operator visibility, so we synthesize a monotonic id locally.
+  const dispatchId = `${task.id}-${Date.now().toString(36)}`;
+  const result = { dispatchId, status: 'dispatched' };
+  Logger.info(`✅ Dispatched Task #${task.id} — dispatchId: ${dispatchId}`);
   return { taskId: task.id, ...result };
 }
 
@@ -301,7 +305,6 @@ export async function dispatchNextWave(ctx, fetched, allWaves, taskMap) {
 
   const waveCtx = {
     provider: ctx.provider,
-    adapter: ctx.adapter,
     allTicketsById: fetched.allTicketsById,
     epicId: ctx.epicId,
     epicBranch: ctx.epicBranch,

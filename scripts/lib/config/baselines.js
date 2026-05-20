@@ -19,18 +19,14 @@ export const BASELINES_DEFAULTS = Object.freeze({
 
 /**
  * Read the per-gate baseline paths and surface them under the historical
- * flat envelope. Accepts the full resolved config or any unwrapped
- * variant; `agentSettings` is honoured for the legacy shim path.
+ * flat envelope. Accepts the full resolved config — the canonical
+ * `delivery.quality.gates` path is the single supported shape.
  *
  * @param {object | null | undefined} config
  * @returns {{ lint: { path: string, refreshCommand: null }, crap: { path: string, refreshCommand: null }, maintainability: { path: string, refreshCommand: null } }}
  */
 export function getBaselines(config) {
-  const gates =
-    config?.delivery?.quality?.gates ??
-    config?.quality?.gates ??
-    config?.agentSettings?.quality?.gates ??
-    {};
+  const gates = config?.delivery?.quality?.gates ?? {};
   const merge = (key) => {
     const fallback = BASELINES_DEFAULTS[key];
     const path = gates[key]?.baselinePath ?? fallback.path;

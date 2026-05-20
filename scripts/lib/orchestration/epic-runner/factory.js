@@ -20,7 +20,6 @@
  */
 
 import { notify } from '../../../notify.js';
-import { getRunners } from '../../config/runners.js';
 import { tempRootFrom } from '../../config/temp-paths.js';
 import { appendEpicSignal } from '../../observability/signals-writer.js';
 import * as epicRunStateStoreModule from '../epic-run-state-store.js';
@@ -50,13 +49,10 @@ import {
 } from '../ticketing.js';
 import { waitForEpicUnblock } from './blocker-wait.js';
 import { buildDefaultGitAdapter, CommitAssertion } from './commit-assertion.js';
-import { ProgressReporter } from './progress-reporter.js';
 import { StoryLauncher } from './story-launcher.js';
-import { WaveObserver } from './wave-observer.js';
 
 export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   const { provider, config, logger } = ctx;
-  const { deliverRunner } = getRunners(config);
   const journal = errorJournal ?? ctx.errorJournal;
 
   // Wrapper forwards caller `opts` into `notify()` so structured-comment
@@ -112,37 +108,23 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     ctx.gitAdapter ?? buildDefaultGitAdapter({ cwd: ctx.cwd ?? process.cwd() });
   const commitAssertion =
     ctx.commitAssertion ?? new CommitAssertion({ ctx, gitAdapter, logger });
-  // Story #2239 — the lifecycle StructuredCommentPoster listener
-  // writes its own `lifecycle-wave-<n>-start` / `lifecycle-wave-<n>-end`
-  // markers (distinct from the legacy `wave-<n>-start` markers the
-  // observer below writes). Parallel-write is intentional during the
-  // bus-cutover window so the rich observer comments (with
-  // commit-assertion reclassification detail) remain the operator-
-  // facing surface until a follow-up Story removes the legacy writer
-  // wholesale. The two markers coexist without colliding.
-  const waveObserver = new WaveObserver({
-    ctx,
-    commitAssertion,
-  });
-  const resolvedIntervalSec = Number(
-    deliverRunner.progressReportIntervalSec ?? 0,
-  );
-  const userInterval =
-    config?.delivery?.deliverRunner?.progressReportIntervalSec ??
-    config?.deliverRunner?.progressReportIntervalSec ??
-    config?.orchestration?.runners?.deliverRunner?.progressReportIntervalSec;
-  logger?.info?.(
-    `[ProgressReporter] interval=${resolvedIntervalSec}s source=${userInterval == null ? 'default' : 'config'}`,
-  );
-  const progressReporter = new ProgressReporter({
-    provider,
-    epicId: ctx.epicId,
-    intervalSec: resolvedIntervalSec,
-    logger,
-    concurrency: ctx.concurrency?.progressReporter,
-    cwd: ctx.cwd,
-    config,
-  });
+  // Epic #2646 Story C (Task #2694) — the legacy `WaveObserver` writer
+  // was retired. The `StructuredCommentPoster` lifecycle listener now
+  // owns the `wave-<n>-start` / `wave-<n>-end` markers (rich body
+  // inherited from the observer, including commit-assertion `done →
+  // failed` reclassification detail). The phase still owns
+  // commit-assertion application — it runs the reclassification before
+  // emitting `wave.end` so the listener sees the post-assertion
+  // outcomes.
+  // Epic #2646 Story C (Task #2699) — the polling `ProgressReporter`
+  // class that used to be wired here was retired. The bus-driven
+  // `lifecycle/listeners/progress-reporter.js` listener (registered
+  // below as `lifecycleProgressReporter`) consumes
+  // `story.dispatch.end` + `wave.end` and writes the same
+  // `epic-run-progress` structured comment — event-driven instead of
+  // tick-driven. `delivery.deliverRunner.progressReportIntervalSec` is
+  // now an inert tuning knob; the lifecycle listener fires on every
+  // bus event, not on a wall-clock cadence.
 
   // Lifecycle bus wiring (Story #2233 — snapshot + plan phase conversions).
   // The bus runs in parallel with the legacy code path: phases still mutate
@@ -309,8 +291,6 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
     launcher,
     gitAdapter,
     commitAssertion,
-    waveObserver,
-    progressReporter,
     journal,
     bus,
     ledgerWriter,

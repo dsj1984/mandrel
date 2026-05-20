@@ -6,9 +6,12 @@ events and performs a single side effect:
 - `label-transitioner.js` — flips ticket `agent::*` labels via
   `transitionTicketState` in response to `wave.end`, `story.merged`,
   `story.blocked`, `epic.blocked`, `epic.unblocked`, `epic.complete`.
-- `structured-comment-poster.js` — upserts structured comments on the
-  Epic ticket (replaces `wave-observer.js`'s `wave-<n>-start` /
-  `wave-<n>-end` markers).
+- `structured-comment-poster.js` — upserts `wave-<n>-start` /
+  `wave-<n>-end` and `lifecycle-epic-blocked` / `lifecycle-epic-unblocked`
+  structured comments on the Epic ticket. Owns the rich wave-boundary
+  body (per-story bullets, duration, commit-assertion reclassification
+  detail) inherited from the retired `wave-observer.js` writer
+  (Epic #2646 Story C).
 - `progress-reporter.js` _(Task #2244)_ — composes the
   `epic-run-progress` comment off `wave.end` / `story.dispatch.end`.
 - `signals-appender.js` _(Task #2244)_ — appends idempotent rows to

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/lifecycle/wave.end.schema.json",
   "title": "wave.end",
-  "description": "Emitted by iterate-waves when a wave settles. The outcomes object must carry exactly the story IDs from the matching wave.start (Repeatability AC #5 — wave completeness invariant).",
+  "description": "Emitted by iterate-waves when a wave settles. The outcomes object must carry exactly the story IDs from the matching wave.start (Repeatability AC #5 — wave completeness invariant). Epic #2646 Story C — optional `totalWaves`, `startedAt`, `completedAt`, `durationMs`, and `stories[]` enrich the comment body emitted by structured-comment-poster (replaces the legacy wave-observer writer). `stories[]` carries per-story commit-assertion deltas so a reclassified `done → failed` row surfaces in the wave-end comment body.",
   "type": "object",
   "required": ["waveIndex", "outcomes"],
   "properties": {
@@ -12,6 +12,27 @@
       "additionalProperties": {
         "type": "string",
         "enum": ["done", "blocked", "failed", "skipped"]
+      }
+    },
+    "totalWaves": { "type": "integer", "minimum": 1 },
+    "startedAt": { "type": "string" },
+    "completedAt": { "type": "string" },
+    "durationMs": { "type": ["integer", "null"], "minimum": 0 },
+    "stories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["storyId", "status"],
+        "properties": {
+          "storyId": { "type": "integer", "minimum": 1 },
+          "status": {
+            "type": "string",
+            "enum": ["done", "blocked", "failed", "skipped"]
+          },
+          "detail": { "type": "string" },
+          "newCommitCount": { "type": ["integer", "null"], "minimum": 0 }
+        },
+        "additionalProperties": true
       }
     }
   },

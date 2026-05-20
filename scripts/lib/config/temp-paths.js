@@ -2,7 +2,7 @@
  * `temp/epic-<id>/` path-resolution helper (Epic #1030 Story #1039).
  *
  * Single source of truth for every artifact path that lives under
- * `agentSettings.paths.tempRoot`. Every script that previously hand-rolled
+ * `project.paths.tempRoot`. Every script that previously hand-rolled
  * a flat `temp/<artifact>-epic-<id>.<ext>` path migrates to call one of
  * these helpers. The Tech Spec (#1032) names this module as the cutover
  * grep target — `temp/.*-epic-` should be empty across `.agents/scripts`
@@ -52,12 +52,11 @@ async function getResolveConfig() {
 }
 
 /**
- * Synchronous tempRoot extraction. Accepts the canonical two-shape contract
- * shared by every accessor in this directory:
- *   - the full resolved config `{ agentSettings, ... }` (resolver wrapper), or
- *   - the bare `agentSettings` bag (already-unwrapped).
+ * Synchronous tempRoot extraction. Accepts the canonical full resolved
+ * config (`{ project, ... }`) and reads `project.paths.tempRoot`.
  *
- * Returns `'temp'` for `undefined` / non-object input.
+ * Returns `'temp'` for `undefined` / non-object input or when
+ * `project.paths.tempRoot` is missing / empty / non-string.
  *
  * Cross-script callers that already hold a resolved config should pass it
  * here; bare callers omit the argument and accept the framework default.
@@ -67,16 +66,8 @@ async function getResolveConfig() {
  */
 export function tempRootFrom(config) {
   if (!config || typeof config !== 'object') return 'temp';
-  // Post-reshape: paths live under `project.paths.*`. Tolerate the bare
-  // `paths` bag (legacy two-shape contract) and the legacy
-  // `agentSettings.paths` shape so the resolver can still bootstrap when
-  // its caller hasn't been migrated yet.
-  const paths =
-    config.project?.paths ??
-    config.paths ??
-    config.agentSettings?.paths ??
-    null;
-  const tempRoot = paths?.tempRoot;
+  // Post-reshape canonical shape: paths live under `project.paths.*`.
+  const tempRoot = config.project?.paths?.tempRoot;
   return typeof tempRoot === 'string' && tempRoot.length > 0
     ? tempRoot
     : 'temp';

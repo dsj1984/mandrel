@@ -49,7 +49,13 @@ async function readDocsFromRoot(docsRoot, settings) {
  * @returns {Promise<{ docs: Array<{name: string, path: string, content: string}>, usedFallback: boolean }>}
  */
 export async function scrapeProjectDocs(settings) {
-  const docsRoot = getPaths({ agentSettings: settings }).docsRoot;
+  // `settings` is the legacy-shim view (`{ paths, docsContextFiles, ... }`)
+  // OR the post-reshape canonical (`{ project: { paths, ... } }`). Under the
+  // resolver shim `agentSettings.paths === project.paths`, so re-wrap to the
+  // canonical shape `getPaths` consumes.
+  const docsRoot = getPaths({
+    project: { paths: settings?.project?.paths ?? settings?.paths },
+  }).docsRoot;
   if (!docsRoot || !fs.existsSync(docsRoot)) {
     return { docs: [], usedFallback: false };
   }

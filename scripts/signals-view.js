@@ -31,7 +31,7 @@
  *
  * Tempfile contract:
  *   The viewer resolves the on-disk signals path via the configured
- *   `agentSettings.paths.tempRoot`. The `phase_timings_uses_project_root`
+ *   `project.paths.tempRoot`. The `phase_timings_uses_project_root`
  *   memory captures the failure mode this guards against — earlier
  *   post-merge work leaked to the real repo root regardless of test
  *   sandbox `tempRoot`. The `--temp-root` flag is the test hook;
@@ -224,7 +224,7 @@ export function renderTree(tree, opts = {}) {
 
 function buildConfig(tempRoot) {
   if (tempRoot == null) return undefined;
-  return { paths: { tempRoot } };
+  return { project: { paths: { tempRoot } } };
 }
 
 /**

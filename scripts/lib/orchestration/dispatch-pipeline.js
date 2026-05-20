@@ -7,7 +7,6 @@
  * scaffold → GC → dispatch.
  */
 
-import { createAdapter } from '../adapter-factory.js';
 import { PROJECT_ROOT, resolveConfig } from '../config-resolver.js';
 import {
   buildGraph,
@@ -42,7 +41,6 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  * @property {object} agentSettings                           Resolved `.agentrc.json` `agentSettings` block.
  * @property {object} orchestration                           Resolved `.agentrc.json` `orchestration` block.
  * @property {import('../ITicketingProvider.js').ITicketingProvider} provider  Ticketing provider (may come from cache).
- * @property {object} adapter                                 Execution adapter (CLI / MCP / in-process).
  * @property {import('../worktree-manager.js').WorktreeManager | undefined} worktreeManager  Optional worktree manager (only when isolation is enabled and not dry-run).
  * @property {string} baseBranch                              Trunk branch the Epic branches from (default `main`).
  * @property {string} epicBranch                              Epic branch name (`epic/<epicId>`).
@@ -67,21 +65,16 @@ export const TYPE_TASK_LABEL = TYPE_LABELS.TASK;
  * @param {object} options                                    Dispatch entry options.
  * @param {number} options.epicId                             Epic ticket number.
  * @param {boolean} [options.dryRun=false]                    When true, skip branch creation and worktree setup.
- * @param {string} [options.executorOverride]                 Optional adapter-factory executor hint.
  * @param {import('../ITicketingProvider.js').ITicketingProvider} [options.provider]  Pre-constructed provider (overrides factory).
- * @param {object} [options.adapter]                          Pre-constructed adapter (overrides factory).
  * @param {import('../worktree-manager.js').WorktreeManager} [options.worktreeManager]  Pre-constructed worktree manager.
  * @param {(branchName: string, baseBranch: string) => void} ensureBranch  Branch-creation helper bound by caller (keeps engine ↔ git-lifecycle coupling at the edge).
  * @returns {DispatchContext}                                 Fully resolved dispatch context.
  */
 export function resolveDispatchContext(options, ensureBranch) {
-  const { epicId, dryRun = false, executorOverride } = options;
+  const { epicId, dryRun = false } = options;
 
   const { agentSettings, orchestration } = resolveConfig();
   const provider = options.provider ?? createProvider(orchestration);
-  const adapter =
-    options.adapter ??
-    createAdapter(orchestration, { executor: executorOverride });
 
   const wtConfig = orchestration?.worktreeIsolation;
   let worktreeManager = options.worktreeManager;
@@ -98,7 +91,6 @@ export function resolveDispatchContext(options, ensureBranch) {
     agentSettings,
     orchestration,
     provider,
-    adapter,
     worktreeManager,
     baseBranch: agentSettings.baseBranch ?? 'main',
     epicBranch: getEpicBranch(epicId),

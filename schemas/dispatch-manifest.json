@@ -32,8 +32,8 @@
     },
     "executor": {
       "type": "string",
-      "description": "The IExecutionAdapter executorId used for this dispatch cycle.",
-      "examples": ["manual", "subprocess", "mcp"]
+      "description": "The executor identifier used for this dispatch cycle (e.g., 'claude-code').",
+      "examples": ["claude-code"]
     },
     "dryRun": {
       "type": "boolean",

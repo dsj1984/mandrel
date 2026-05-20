@@ -3,14 +3,24 @@
  *
  * Before the loop: flip Epic to `agent::executing` and initialize checkpoint.
  *
- * Inside the loop: dispatch each wave via StoryLauncher, let WaveObserver
- * reclassify zero-delta stories, record wave history, checkpoint, and
- * delegate blocker halts to BlockerHandler. An unresumed halt short-circuits
- * the pipeline with a `halted` outcome.
+ * Inside the loop: dispatch each wave via StoryLauncher, apply the
+ * CommitAssertion to reclassify zero-delta `done` stories as `failed`,
+ * record wave history, checkpoint, and delegate blocker halts to
+ * BlockerHandler. An unresumed halt short-circuits the pipeline with a
+ * `halted` outcome.
  *
- * When a lifecycle bus is on collaborators, the phase ALSO emits
- * `wave.start` and `wave.end` events around each wave (in parallel with
- * the legacy code path, matching the Story #2233 snapshot+plan cutover).
+ * Epic #2646 Story C (Task #2694) — the legacy `wave-observer.js` writer
+ * was retired in favor of the bus-driven
+ * `lifecycle/listeners/structured-comment-poster.js`. The phase still
+ * holds the commit-assertion reclassification logic (it must run
+ * BEFORE `wave.end` is emitted so the listener sees the post-assertion
+ * outcomes) and now passes the rich body data — `totalWaves`,
+ * `startedAt`, `completedAt`, `durationMs`, and per-story rows with
+ * `detail`/`newCommitCount` — through the `wave.start`/`wave.end`
+ * payloads. The structured-comment-poster owns the `wave-<n>-start` /
+ * `wave-<n>-end` markers (rich body inherited from the observer) and
+ * the `lifecycle-epic-blocked` / `lifecycle-epic-unblocked` markers.
+ *
  * `wave.end.outcomes` is invariant-checked: its key set MUST equal the
  * `wave.start.storyIds` set. The check throws before emit so a violation
  * cannot land in the ledger.
@@ -21,6 +31,7 @@ import { AGENT_LABELS } from '../../../label-constants.js';
 import { concurrentMap } from '../../../util/concurrent-map.js';
 import { DEFAULT_CONCURRENCY } from '../../concurrency.js';
 import { createWaveSession } from '../../wave-session.js';
+import { COMMIT_ASSERTION_ZERO_DELTA_DETAIL } from '../commit-assertion.js';
 import {
   emitEpicProgress,
   emitEpicStarted,
@@ -120,6 +131,49 @@ export function collectHaltedStoryIds(checkpoint) {
   return halted;
 }
 
+/**
+ * Apply the CommitAssertion to the launcher's per-story outcome rows.
+ * Reclassifies any `done` row whose Story branch produced zero new
+ * commits as `failed` with the canonical zero-delta detail. Errors from
+ * the assertion are swallowed and logged — the original rows pass
+ * through unchanged so a transient `git` failure cannot halt the wave.
+ *
+ * Epic #2646 Story C — moved here from `wave-observer.js` so the
+ * post-assertion outcomes are emitted directly through the bus.
+ */
+async function applyCommitAssertion({
+  stories,
+  commitAssertion,
+  epicId,
+  logger,
+}) {
+  const rows = Array.isArray(stories) ? stories : [];
+  if (!commitAssertion) return rows.map((r) => ({ ...r }));
+  const doneIds = rows.filter((r) => r.status === 'done').map((r) => r.storyId);
+  if (doneIds.length === 0) return rows.map((r) => ({ ...r }));
+  let deltas;
+  try {
+    deltas = await commitAssertion.check(doneIds, { epicId });
+  } catch (err) {
+    logger?.warn?.(
+      `[iterate-waves] commit-assertion check failed: ${err?.message ?? err}`,
+    );
+    return rows.map((r) => ({ ...r }));
+  }
+  const byId = new Map(deltas.map((d) => [d.storyId, d]));
+  return rows.map((row) => {
+    if (row.status !== 'done') return { ...row };
+    const delta = byId.get(row.storyId);
+    if (!delta || delta.newCommitCount !== 0) return { ...row };
+    return {
+      ...row,
+      status: 'failed',
+      detail: COMMIT_ASSERTION_ZERO_DELTA_DETAIL,
+      newCommitCount: 0,
+    };
+  });
+}
+
 export async function runIterateWavesPhase(ctx, collaborators, state) {
   const { epicId, provider, config, logger } = ctx;
   const { concurrencyCap } = getRunners(config).deliverRunner;
@@ -129,16 +183,13 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     blockerHandler,
     blockerWait,
     launcher,
-    waveObserver,
-    progressReporter,
+    commitAssertion,
     journal,
     bus = null,
     waveSessionFactory = createWaveSession,
   } = collaborators;
   const journalSuffix = () => (journal?.path ? ` (see ${journal.path})` : '');
   const { scheduler, waves, epic } = state;
-
-  progressReporter.setPlan({ waves });
 
   // Epic-level `agent::executing` flip is owned by the LabelTransitioner
   // lifecycle listener (subscribes to `epic.unblocked` on resume) and by
@@ -201,19 +252,7 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     logger.info?.(
       `[EpicRunner] Wave ${wave.index + 1}/${scheduler.totalWaves} dispatching ${wave.stories.length} stor${wave.stories.length === 1 ? 'y' : 'ies'}`,
     );
-    const { startedAt } = await waveObserver.waveStart({
-      index: wave.index,
-      totalWaves: scheduler.totalWaves,
-      stories: wave.stories,
-    });
-
-    progressReporter.setWave({
-      index: wave.index,
-      totalWaves: scheduler.totalWaves,
-      stories: wave.stories,
-      startedAt,
-    });
-    progressReporter.start();
+    const startedAt = new Date().toISOString();
 
     // Short-circuit stories that are already `agent::done` on resume.
     // Without this, the runner re-dispatches every Story in every wave after
@@ -279,10 +318,28 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
     // `wave.start.storyIds` before emit (AC-8). The check throws on
     // violation; the bus never sees a non-conformant payload.
     const waveStartStoryIds = extractStoryIds(wave.stories);
+    const waveStartStories = (Array.isArray(wave.stories) ? wave.stories : [])
+      .map((s) => {
+        const raw =
+          typeof s === 'object' && s !== null
+            ? (s.id ?? s.storyId ?? s.number)
+            : s;
+        const id = Number(raw);
+        if (!Number.isInteger(id) || id <= 0) return null;
+        const title =
+          typeof s === 'object' && s !== null && typeof s.title === 'string'
+            ? s.title
+            : undefined;
+        return title ? { id, title } : { id };
+      })
+      .filter(Boolean);
     if (bus) {
       await bus.emit('wave.start', {
         waveIndex: wave.index,
         storyIds: waveStartStoryIds,
+        totalWaves: scheduler.totalWaves,
+        stories: waveStartStories,
+        startedAt,
       });
     }
 
@@ -338,15 +395,23 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
         : [];
       launchResults = [...skippedResults, ...spawned];
     }
-    await progressReporter.stop();
 
     scheduler.markWaveComplete(wave.index);
-    const { stories: results = launchResults } = await waveObserver.waveEnd({
-      index: wave.index,
-      totalWaves: scheduler.totalWaves,
-      startedAt,
+    // Epic #2646 Story C — commit-assertion reclassification used to
+    // live inside `wave-observer.js`. Now that the observer is retired,
+    // the phase applies the assertion inline so the post-assertion
+    // outcomes flow into both the `wave.end` payload and the
+    // `waveHistory` checkpoint atomically.
+    const results = await applyCommitAssertion({
       stories: launchResults,
+      commitAssertion,
+      epicId,
+      logger,
     });
+    const completedAt = new Date().toISOString();
+    const durationMs = startedAt
+      ? new Date(completedAt).getTime() - new Date(startedAt).getTime()
+      : null;
     const failures = results.filter(
       (r) => r.status === 'failed' || r.status === 'blocked',
     );
@@ -386,6 +451,24 @@ export async function runIterateWavesPhase(ctx, collaborators, state) {
       await bus.emit('wave.end', {
         waveIndex: wave.index,
         outcomes,
+        totalWaves: scheduler.totalWaves,
+        startedAt,
+        completedAt,
+        durationMs,
+        stories: results.map((row) => {
+          const out = {
+            storyId: Number(row.storyId),
+            status: String(row.status ?? 'failed'),
+          };
+          if (row.detail) out.detail = String(row.detail);
+          if (
+            row.newCommitCount === null ||
+            Number.isInteger(row.newCommitCount)
+          ) {
+            out.newCommitCount = row.newCommitCount;
+          }
+          return out;
+        }),
       });
     }
 

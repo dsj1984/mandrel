@@ -541,9 +541,13 @@ const DELIVERY_SCHEMA = {
  *   - `delivery` — execution timeouts, worktree isolation, deliver-runner
  *                  concurrency, docs-freshness, signals, quality.
  *
- * Hard cutover: the legacy `agentSettings.*` / `orchestration.*` shape is
- * rejected entirely. Consumers update their `.agentrc.json` in lockstep
- * with the framework bump.
+ * Hard cutover (Epic #2646, Story #2687): the legacy `agentSettings.*` /
+ * `orchestration.*` input shape is rejected entirely by this schema, and
+ * the corresponding resolver-side compat branches have been swept across
+ * the seven `lib/config/*.js` accessors. The internal output-side shim on
+ * `resolveConfig` survives as a transitional pointer — a future Epic
+ * migrates every consumer onto the canonical `project` / `github` /
+ * `delivery` blocks and removes the shim.
  */
 export const AGENTRC_SCHEMA = {
   type: 'object',

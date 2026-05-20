@@ -235,12 +235,14 @@ To add a workflow:
 top-level CLI under `scripts/` should be a thin wrapper that parses argv,
 resolves config, and delegates business logic to the SDK.
 
-Provider operations are mediated through `ITicketingProvider`; execution
-operations are mediated through `IExecutionAdapter`. The shipped
+Provider operations are mediated through `ITicketingProvider`. The shipped
 ticketing provider is GitHub, resolved by `provider-factory.js` from the
 `orchestration.provider` config key. CLI scripts receive provider
 instances from the SDK surface rather than importing provider
-implementations directly.
+implementations directly. Execution is Claude-Code-in-session — there is
+no separate adapter abstraction; `wave-dispatcher.js` synthesizes the
+dispatch record inline and the dispatch manifest (md + structured
+comment) is the cross-runtime contract.
 
 The SDK barrel is `scripts/lib/orchestration/index.js`; its exports are
 the source of truth for the public in-process surface. Key families

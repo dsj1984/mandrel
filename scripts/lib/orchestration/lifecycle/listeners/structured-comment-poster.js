@@ -1,20 +1,22 @@
 // .agents/scripts/lib/orchestration/lifecycle/listeners/structured-comment-poster.js
+import { structuredCommentMarker } from '../../ticketing.js';
+
 /**
  * StructuredCommentPoster — lifecycle listener that upserts structured
  * comments on the Epic ticket at wave + blocker boundaries.
  *
- * Writes its own lifecycle-tagged structured comments, coexisting with
- * the legacy `wave-observer.js` writer during the bus-cutover window:
- * the observer keeps the rich `wave-<n>-start` / `wave-<n>-end` markers
- * (with commit-assertion reclassification detail); this listener writes
- * minimal lifecycle-prefixed markers off the bus. A follow-up Story
- * removes the legacy writer once the bus surface is the source of
- * truth for the rich body.
+ * Epic #2646 Story C (Task #2694) — promoted to the canonical writer for
+ * the `wave-<n>-start` / `wave-<n>-end` markers that the legacy
+ * `epic-runner/wave-observer.js` used to own. The listener now renders the
+ * rich body the observer carried (per-story bullets, duration, commit-
+ * assertion `done → failed` reclassification detail), so the bus is the
+ * single source of truth for wave-boundary structured comments.
  *
- * Subscribes to (per Story #2239 Task #2242):
- *   - `wave.start`    → upsert `lifecycle-wave-<index>-start` marker.
- *   - `wave.end`      → upsert `lifecycle-wave-<index>-end`   marker.
- *   - `epic.blocked`  → upsert `lifecycle-epic-blocked`       marker.
+ * Subscribes to:
+ *   - `wave.start`        → upsert `wave-<index>-start` marker.
+ *   - `wave.end`          → upsert `wave-<index>-end`   marker.
+ *   - `epic.blocked`      → upsert `lifecycle-epic-blocked`   marker.
+ *   - `epic.unblocked`    → upsert `lifecycle-epic-unblocked` marker.
  *
  * Idempotency contract (Acceptance Spec AC-10): the listener keeps a
  * per-instance `Set<string>` of `event:seqId` keys it has handled. A
@@ -43,12 +45,12 @@ export function markerTypeFor(event, payload) {
   if (event === 'wave.start') {
     const idx = Number(payload?.waveIndex);
     if (!Number.isInteger(idx) || idx < 0) return null;
-    return `lifecycle-wave-${idx}-start`;
+    return `wave-${idx}-start`;
   }
   if (event === 'wave.end') {
     const idx = Number(payload?.waveIndex);
     if (!Number.isInteger(idx) || idx < 0) return null;
-    return `lifecycle-wave-${idx}-end`;
+    return `wave-${idx}-end`;
   }
   if (event === 'epic.blocked') {
     return 'lifecycle-epic-blocked';
@@ -63,44 +65,92 @@ export function markerTypeFor(event, payload) {
 }
 
 /**
- * Render the comment body for a given event + payload. The body is
- * intentionally compact — a one-line heading plus a fenced JSON block
- * carrying the event payload verbatim — so a reader can recover the
- * lifecycle record from the GitHub comment without round-tripping
- * through the ledger.
- *
- * Note: this is NOT the rich wave-observer body (which carried
- * commit-assertion deltas and per-story bullets). The richer body is
- * still produced by the `wave-observer.js` legacy path during the
- * parallel-write window; the listener writes a minimal marker so the
- * comment surface remains owned by exactly one writer once the legacy
- * path is removed in a follow-up Story.
+ * Format a duration in milliseconds as a compact human-readable string.
+ * Matches the legacy `wave-observer.js` rendering so retrospective
+ * tooling and operator eyeballs continue to read the same shape.
+ */
+function formatDuration(ms) {
+  if (ms == null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const rem = seconds % 60;
+  return `${minutes}m${rem > 0 ? ` ${rem}s` : ''}`;
+}
+
+/**
+ * Render the comment body for a given event + payload. Wave events
+ * use the rich body inherited from the legacy wave-observer writer
+ * (heading with `Wave X/Y`, per-story bullets, duration, JSON fence
+ * with the full payload). Blocker events stay compact.
  */
 export function renderBody(event, payload) {
   const lines = [];
   if (event === 'wave.start') {
     const idx = Number(payload?.waveIndex);
+    const totalWaves = Number(payload?.totalWaves);
+    const stories = Array.isArray(payload?.stories) ? payload.stories : [];
     const ids = Array.isArray(payload?.storyIds) ? payload.storyIds : [];
-    lines.push(`### 🚀 Wave ${idx + 1} starting`);
+    const startedAt = payload?.startedAt;
+    const heading = Number.isInteger(totalWaves)
+      ? `### 🚀 Wave ${idx + 1}/${totalWaves} starting`
+      : `### 🚀 Wave ${idx + 1} starting`;
+    lines.push(heading);
     lines.push('');
-    lines.push(`Stories: ${ids.length}`);
-    if (ids.length) {
+    if (startedAt) {
+      lines.push(`Started: \`${startedAt}\``);
+    }
+    const count = stories.length || ids.length;
+    lines.push(`Stories: ${count}`);
+    if (stories.length) {
+      lines.push('');
+      for (const s of stories) {
+        const id = Number(s?.id ?? s?.storyId);
+        const title = typeof s?.title === 'string' && s.title ? s.title : null;
+        lines.push(`- #${id}${title ? ` — ${title}` : ''}`);
+      }
+    } else if (ids.length) {
       lines.push('');
       for (const id of ids) lines.push(`- #${id}`);
     }
   } else if (event === 'wave.end') {
     const idx = Number(payload?.waveIndex);
+    const totalWaves = Number(payload?.totalWaves);
     const outcomes = payload?.outcomes ?? {};
+    const stories = Array.isArray(payload?.stories) ? payload.stories : [];
+    const completedAt = payload?.completedAt;
+    const durationMs = payload?.durationMs;
     const entries = Object.entries(outcomes);
     const okCount = entries.filter(([, v]) => v === 'done').length;
     const skippedCount = entries.filter(([, v]) => v === 'skipped').length;
     const bad = entries.length - okCount - skippedCount;
-    lines.push(`### 🏁 Wave ${idx + 1} ${bad === 0 ? 'completed' : 'halted'}`);
+    const heading = Number.isInteger(totalWaves)
+      ? `### 🏁 Wave ${idx + 1}/${totalWaves} ${bad === 0 ? 'completed' : 'halted'}`
+      : `### 🏁 Wave ${idx + 1} ${bad === 0 ? 'completed' : 'halted'}`;
+    lines.push(heading);
     lines.push('');
+    if (completedAt) {
+      const formatted = formatDuration(durationMs);
+      lines.push(
+        `Completed: \`${completedAt}\`${formatted ? ` (${formatted})` : ''}`,
+      );
+    }
     lines.push(
       `Outcomes: ${okCount} done · ${skippedCount} skipped · ${bad} failed/blocked`,
     );
-    if (entries.length) {
+    if (stories.length) {
+      lines.push('');
+      for (const s of stories) {
+        const id = Number(s?.storyId);
+        const status = String(s?.status ?? 'failed');
+        const icon =
+          status === 'done' ? '✅' : status === 'skipped' ? '⏭️' : '❌';
+        const detail =
+          typeof s?.detail === 'string' && s.detail ? ` — ${s.detail}` : '';
+        lines.push(`- ${icon} #${id} \`${status}\`${detail}`);
+      }
+    } else if (entries.length) {
       lines.push('');
       for (const [id, outcome] of entries) {
         const icon =
@@ -207,4 +257,23 @@ export class StructuredCommentPoster {
 
 export function createStructuredCommentPoster(opts) {
   return new StructuredCommentPoster(opts);
+}
+
+/**
+ * Marker-helper exports — used by retrospective tooling and parity
+ * tests to locate the wave-start/wave-end structured comments without
+ * importing the marker-format helper from ticketing.js. The marker
+ * strings here are the on-comment HTML markers (rendered by
+ * `upsertStructuredComment` from the marker type), so callers can
+ * `body.includes(waveStartMarker(0))` directly.
+ *
+ * Epic #2646 Story C — the retired `wave-observer.js` exported the
+ * same names; tests import from here now.
+ */
+export function waveStartMarker(index) {
+  return structuredCommentMarker(`wave-${index}-start`);
+}
+
+export function waveEndMarker(index) {
+  return structuredCommentMarker(`wave-${index}-end`);
 }

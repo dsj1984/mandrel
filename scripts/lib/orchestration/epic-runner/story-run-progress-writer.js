@@ -9,6 +9,16 @@
  * the structured-comment marker without re-fetching ticket labels or walking
  * the Task tree per Story.
  *
+ * Epic #2646 Story C audit (Task #2691): this writer is RETAINED, not retired.
+ * The bus-driven `story.dispatch.start`/`story.dispatch.end` events are emitted
+ * by epic-runner at coarser grain (one pair per Story dispatch) and do not
+ * carry the per-Task transition snapshot that `/story-deliver`'s loop produces.
+ * `story-task-progress.js`, `story-deliver-prepare.js`, and `sub-agent-return.js`
+ * are the active consumers — none of them have a bus equivalent. The duplicate-
+ * writer scope in Epic #2646 covers `wave-observer.js` and the polling
+ * `epic-runner/progress-reporter.js`; this writer is the sole producer of the
+ * `story-run-progress` marker and is preserved.
+ *
  * Payload shape — per tech spec #902 (kept stable; consumers parse the JSON
  * fence directly):
  *

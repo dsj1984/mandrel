@@ -188,7 +188,7 @@ async function runPhase({
  * any violation. Lifted out of the main function body so the orchestrator
  * stays close to a linear phase sequence.
  */
-function assertCloseTailInputs({ epicId, provider, runFinalizeFn }) {
+function assertCloseTailInputs({ epicId, provider, runFinalizeFn, bus }) {
   if (!Number.isInteger(epicId) || epicId <= 0) {
     throw new TypeError(
       'runEpicDeliverCloseTail: epicId is required (positive integer).',
@@ -202,22 +202,12 @@ function assertCloseTailInputs({ epicId, provider, runFinalizeFn }) {
       'runEpicDeliverCloseTail: runFinalizeFn is required (the close-tail does not import the finalize CLI directly).',
     );
   }
-}
-
-/**
- * Best-effort lifecycle emit helper — Story #2250 / #2252.
- *
- * Wraps `bus.emit` in a try/catch so the close-tail orchestrator is
- * never blocked by a misbehaving observability surface. When `bus` is
- * `null` (legacy tests, unit fixtures), the helper is a no-op.
- */
-async function emitLifecycleSafe({ bus, event, payload, logger }) {
-  if (!bus || typeof bus.emit !== 'function') return;
-  try {
-    await bus.emit(event, payload);
-  } catch (err) {
-    logger?.warn?.(
-      `[close-tail] ⚠️ ${event} emit failed (swallowed): ${err?.message ?? err}`,
+  // Epic #2646 Story C (Task #2700) — `bus` is now a hard input. The
+  // previous guarded `emitLifecycleSafe` helper that tolerated a null
+  // bus is gone.
+  if (!bus || typeof bus.emit !== 'function') {
+    throw new TypeError(
+      'runEpicDeliverCloseTail: bus is required (object with emit()).',
     );
   }
 }
@@ -270,7 +260,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     epicId,
     provider,
     logger,
-    bus = null,
+    bus,
     runWaveGateFn,
     runHierarchyGateFn,
     runCodeReviewFn = runCodeReviewDefault,
@@ -278,7 +268,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     runFinalizeFn,
   } = opts;
 
-  assertCloseTailInputs({ epicId, provider, runFinalizeFn });
+  assertCloseTailInputs({ epicId, provider, runFinalizeFn, bus });
 
   // Story #2413 — the legacy class-based checkpoint surface is replaced
   // by the function-based `epic-run-state-store` module. The collaborator
@@ -320,12 +310,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
     'close-validation',
   );
   if (shouldEmitEpicCloseStart) {
-    await emitLifecycleSafe({
-      bus,
-      event: 'epic.close.start',
-      payload: { epicId },
-      logger,
-    });
+    await bus.emit('epic.close.start', { epicId });
   }
   const c = await runPhase({
     ...phaseCtx,
@@ -438,12 +423,7 @@ export async function runEpicDeliverCloseTail(opts = {}) {
   // resume (because the original run finished retro), the umbrella end
   // is already in the prior run's ledger and we must not re-emit.
   if (retroRan) {
-    await emitLifecycleSafe({
-      bus,
-      event: 'epic.close.end',
-      payload: { epicId },
-      logger,
-    });
+    await bus.emit('epic.close.end', { epicId });
   }
 
   // ---------- Phase F: finalize ----------
@@ -491,10 +471,10 @@ export async function runEpicDeliverCloseTail(opts = {}) {
  * is a separate parallel-writer concern: `StructuredCommentPoster`
  * writes a minimal `lifecycle-epic-blocked` marker off the same bus
  * event, while this helper writes the legacy operator-facing
- * `friction`-typed body. The dual-write mirrors the wave-observer
- * coexistence pattern (see `StructuredCommentPoster` header comment)
- * and a follow-up Story can collapse the two once the listener body
- * can render severity counts.
+ * `friction`-typed body. The two writers coexist by marker namespace
+ * (the listener writes `lifecycle-epic-blocked`; this helper writes a
+ * separate `friction`-typed marker) and a follow-up Story can collapse
+ * the two once the listener body can render severity counts.
  *
  * All side effects are best-effort — a failure is logged and
  * swallowed so the caller's `throw` is the operator-visible signal.

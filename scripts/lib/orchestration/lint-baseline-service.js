@@ -76,8 +76,15 @@ export class LintBaselineService {
    */
   async capture(epicBranch) {
     const { settings, logger, exec, fs } = this;
-    const lintBaselinePath = getBaselines({ agentSettings: settings }).lint
-      .path;
+    // `settings` is the legacy-shim view (`{ paths, quality, ... }`). The
+    // post-reshape accessors read `project.paths` and `delivery.quality`;
+    // the shim's pointers are reference-equal to the canonical blocks, so
+    // re-wrap here.
+    const canonical = {
+      project: { paths: settings?.paths },
+      delivery: { quality: settings?.quality },
+    };
+    const lintBaselinePath = getBaselines(canonical).lint.path;
     const absPath = path.resolve(PROJECT_ROOT, lintBaselinePath);
 
     if (fs.existsSync(absPath)) {
@@ -86,7 +93,7 @@ export class LintBaselineService {
     }
 
     logger.info(`Capturing lint baseline on ${epicBranch}...`);
-    const scriptsRoot = getPaths({ agentSettings: settings }).scriptsRoot;
+    const scriptsRoot = getPaths(canonical).scriptsRoot;
     try {
       await exec(
         'node',
