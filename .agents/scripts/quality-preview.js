@@ -63,10 +63,9 @@ export function parseJsonFlag(argv) {
 
 /**
  * Detect `--staged` (pre-commit mode). Used by `.husky/pre-commit` to
- * scope the gate to the about-to-be-committed delta rather than the
- * working tree. The current preview runners do not yet honor this flag
- * (they only support `--changed-since <ref>`), but the flag is parsed
- * here verbatim so callers can rely on a stable surface.
+ * scope both MI and CRAP preview gates to `git diff --name-only --cached`
+ * so only index (staged) paths are scored. When present, `--staged` takes
+ * precedence over `--changed-since`.
  *
  * @param {string[]} argv
  * @returns {boolean}
@@ -252,24 +251,18 @@ export async function runCli({
   runMi = runMaintainabilityPreview,
   runCrap = runCrapPreview,
 } = {}) {
-  const ref = parseChangedSinceArg(argv) ?? 'HEAD';
   const json = parseJsonFlag(argv);
   const staged = parseStagedFlag(argv);
-
-  // Story #1981 (Task #2005): the per-kind CLI shells were retired and
-  // both gate runs now happen in-process via the per-kind preview
-  // runners under `lib/baselines/preview-gates.js`. The `--staged`
-  // flag is parsed for surface stability but not yet plumbed through.
-  void staged;
+  const ref = staged ? null : (parseChangedSinceArg(argv) ?? 'HEAD');
 
   const [miResult, crapResult] = await Promise.all([
-    runMi({ cwd, changedSinceRef: ref }).catch((err) => {
+    runMi({ cwd, staged, changedSinceRef: ref }).catch((err) => {
       stderr.write(
         `[quality:preview] MI runner failed: ${err?.message ?? err}\n`,
       );
       return { exitCode: 1, envelope: null };
     }),
-    runCrap({ cwd, changedSinceRef: ref }).catch((err) => {
+    runCrap({ cwd, staged, changedSinceRef: ref }).catch((err) => {
       stderr.write(
         `[quality:preview] CRAP runner failed: ${err?.message ?? err}\n`,
       );
@@ -286,7 +279,8 @@ export async function runCli({
     stdout.write(
       `${JSON.stringify(
         {
-          ref,
+          ref: staged ? null : ref,
+          staged,
           mi: { exit: miExit, envelope: miEnvelope },
           crap: { exit: crapExit, envelope: crapEnvelope },
           merged,
@@ -297,7 +291,11 @@ export async function runCli({
     );
   } else {
     stdout.write('\n--- quality:preview ---\n');
-    stdout.write(`scope=diff ref=${ref}${staged ? ' (staged)' : ''}\n\n`);
+    stdout.write(
+      staged
+        ? 'scope=staged (git diff --cached)\n\n'
+        : `scope=diff ref=${ref}\n\n`,
+    );
     stdout.write(`${renderTable(merged)}\n`);
     if (miExit !== 0 || crapExit !== 0) {
       stderr.write(
