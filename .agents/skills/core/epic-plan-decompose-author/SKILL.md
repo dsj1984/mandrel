@@ -13,6 +13,20 @@ allowed_tools:
 
 # epic-plan-decompose-author
 
+## Policy Capsule
+
+- Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
+- Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
+- Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
+- Respect the **`maxTickets` cap** from the context envelope as a hard ceiling. Combine atomic Tasks rather than spilling over; splitting past the cap means re-scoping the Epic.
+- Honour the three-level hierarchy: **Feature → Story → Task**. Every Story MUST decompose into at least one Task (typically 2–5); empty Story containers are invalid.
+- Every ticket carries `type::[feature|story|task]` and `persona::*` labels; every Task body is a structured object with `goal`, `changes[]` (object form `{ path, assumption }`), `acceptance[]`, `verify[]`, and optional `references[]`.
+- **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Task's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
+- Acceptance items MUST be **observable from outside the agent** (command exits 0, file exists, snapshot matches, testid resolves). Items like "verify by reading the diff" or "looks good" are forbidden — push them into `verify` commands instead.
+- Acceptance MUST NOT prescribe a commit subject starting with a non-Conventional-Commits prefix; the literal `baseline-refresh:` leading token is forbidden (use a body trailer instead — see Epic #2501).
+- Wide Tasks (files > `softFileCount`, default 3) MUST declare `body.sizingProfile` from the closed enum `mechanical-sweep | atomic-rewrite | scaffolding`. UI-touching Tasks MUST end `changes` with a `data-testid invariance:` or `data-testid changes: <old> -> <new>` declaration.
+- A Task's `depends_on` references only **sibling Tasks within the same Story**; cross-Story Task dependencies are forbidden — express ordering at the Story level instead. Apply the cross-cutting-config-file rule (sequential `depends_on` or a late-wave wiring Story) whenever multiple Stories edit a shared root config file.
+
 ## Role
 
 Senior Project Manager + Orchestrator. The Skill's job is to take a PRD plus

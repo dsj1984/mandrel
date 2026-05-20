@@ -8,6 +8,18 @@ description:
 
 # Incremental Implementation
 
+## Policy Capsule
+
+- Deliver in thin vertical slices: **Implement → Test → Verify → Commit → Next slice**. Never write more than ~100 lines before testing.
+- Each slice MUST leave the system in a working, testable state — build green, existing tests pass, type-check and lint clean.
+- Each commit changes one logical thing; never mix refactors with features or formatting with behavior.
+- Apply Simplicity First: write the naive, obviously-correct version. Three similar lines beats a premature abstraction; do not build for hypothetical future requirements.
+- Enforce Scope Discipline: touch only what the task requires. No drive-by cleanups, import re-orderings, comment deletions, or syntax modernizations in files you're "just reading" — note them instead.
+- Gate incomplete work behind a feature flag rather than holding a long-lived branch; default new behaviour to safe / opt-in.
+- Keep increments rollback-friendly: prefer additive changes, ship DB migrations with rollbacks, and never delete + replace in the same commit.
+- Prefer vertical slices that deliver end-to-end functionality; use contract-first slicing only when backend/frontend must develop in parallel, and risk-first slicing when the riskiest piece dominates the plan.
+- Verify the increment checklist before moving on: tests pass, build succeeds, types check, lint clean, change committed with a descriptive message.
+
 ## Overview
 
 Build in thin vertical slices — implement one piece, test it, verify it, then

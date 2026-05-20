@@ -15,6 +15,19 @@ allowed_tools:
 
 # baseline-refresh
 
+## Policy Capsule
+
+- Refresh only when the change is **deliberate** (rename, approved complexity bump, signed-off perf delta, intentional API surface change). Never refresh to paper over an unintentional regression — fix the regression instead.
+- Run the kind-specific update command (`npm run crap:update` / `maintainability:update` / `dead-exports:update` / `lighthouse:update`) on the **Story branch**, not on `main`.
+- Verify the resulting diff is scoped to the relevant `baselines/<kind>.json` (plus cosmetic `package-lock.json` churn only). If unrelated files appear, STOP — the refresh is contaminated.
+- Stage baseline files **explicitly** (`git add baselines/<kind>.json`). Never `git add -A` in a refresh commit.
+- Commit-subject contract: a **Conventional-Commits** subject of the form `chore(baselines): refresh <kind> snapshot for <reason>` — never an ad-hoc leading token like `baseline-refresh:` (commitlint and the planner validator reject it).
+- The commit body is **mandatory** and non-empty: explain what changed, why the new floor is correct, and link the Story/Epic that triggered the refresh.
+- Add the machine-readable trailer `baseline-refresh: true` (one per line, `Key: value` git-trailer style) to the body whenever observability classification matters.
+- Include `Epic: #<epic-id>` as a body trailer.
+- Never pass `--no-verify`. The `commit-msg` hook (commitlint) MUST run and pass.
+- After the refresh lands, re-run `node .agents/scripts/check-baselines.js` to confirm the gate passes against the new snapshot; if it still fails, a sibling kind drifted — refresh that kind too.
+
 ## Role
 
 Senior engineer authoring a deliberate, observable refresh of one of the

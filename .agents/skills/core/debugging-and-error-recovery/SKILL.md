@@ -9,6 +9,18 @@ description:
 
 # Debugging and Error Recovery
 
+## Policy Capsule
+
+- **Stop the line** the instant something breaks: stop adding features, preserve evidence (errors, logs, repro), diagnose, fix root cause, guard against recurrence, **then** resume. Never push past a failing test or broken build.
+- Follow the triage checklist in order — **Reproduce → Localize → Diagnose → Fix → Verify → Guard** — and never skip steps.
+- A bug you cannot reproduce reliably is a bug you cannot fix with confidence. Invest in reproduction before patching.
+- Fix the **root cause**, not the symptom. Suppressing an error, swallowing an exception, or stubbing an assertion is not a fix.
+- Every bug fix ships with a **failing-then-passing regression test** (the Prove-It Pattern from `test-driven-development`). A fix without a guard test is incomplete.
+- Apply the **Anti-Thrashing** rule: if you have applied the same kind of fix more than once and the failure mode hasn't changed, the diagnosis is wrong — re-plan.
+- For non-reproducible bugs, classify them (timing / environment / state / random), add targeted instrumentation, and document conditions instead of chasing in the dark.
+- Bisect history with `git bisect` (or equivalent) when "something used to work" and you cannot localize from the diff.
+- After verification passes, document the root cause and the guard so the same class of failure cannot recur silently.
+
 ## Overview
 
 Systematic debugging with structured triage. When something breaks, stop adding

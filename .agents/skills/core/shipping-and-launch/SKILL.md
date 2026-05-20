@@ -8,6 +8,18 @@ description:
 
 # Shipping and Launch
 
+## Policy Capsule
+
+- Every launch MUST be reversible, observable, and incremental — no big-bang deploys, no Friday-afternoon ships.
+- Walk the pre-launch checklist top to bottom: code quality, security, performance, accessibility, infrastructure, documentation. A red box blocks the deploy.
+- Ship behind feature flags so deployment is decoupled from release. Every flag has a named owner, a recorded expiration date, and gets cleaned up within 2 weeks of full rollout.
+- Follow the staged rollout sequence: staging → production (flag off) → team (flag on) → 5 % canary → 25 % → 50 % → 100 %. Advance only when error rate, p95 latency, client JS errors, and business metrics are all within the green thresholds for the prior stage.
+- Roll back **immediately** when error rate exceeds 2× baseline, p95 latency rises by more than 50 %, user-reported issues spike, data integrity is at risk, or a security vulnerability surfaces.
+- Document a rollback plan **before** the deploy: explicit trigger conditions, step-by-step revert procedure, database migration rollback notes, and target time-to-rollback.
+- Monitor the right surfaces: application metrics (error rate, p50/p95/p99, request volume), infrastructure (CPU, memory, DB pool), client (Core Web Vitals, JS errors), and key business metrics.
+- Wire error reporting through a tracking service (with user/request context) on both client and server; never leak stack traces or internal error details in API responses.
+- Perform first-hour post-launch verification: health endpoint 200, no new error types, latency stable, critical user flow exercised manually, logs flowing, rollback mechanism dry-run.
+
 ## Overview
 
 Ship with confidence. The goal is not just to deploy — it's to deploy safely,

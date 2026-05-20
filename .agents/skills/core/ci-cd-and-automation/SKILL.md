@@ -8,6 +8,18 @@ description:
 
 # CI/CD and Automation
 
+## Policy Capsule
+
+- Every PR passes the same quality-gate pipeline before merge: **lint → typecheck → unit tests → build → integration tests → optional E2E → security audit → bundle-size**. Gates are ordered shift-left so cheap checks fail first.
+- **No gate may be skipped.** Failing lint means fix lint, not disable the rule. Failing a test means fix the code, not delete or `.skip` the test.
+- **Faster is safer.** Prefer many small, frequent releases over big-bang merges; one deploy of three changes is debuggable, one deploy of thirty is not.
+- Cache aggressively (npm cache, build cache) and split lint / typecheck / test into parallel jobs to keep PR feedback under ~10 minutes.
+- Use GitHub Secrets (or platform equivalent) for every credential — even in CI-only test databases. Never hardcode credentials in workflow YAML.
+- Wire preview deployments for every PR so reviewers can exercise the change in a production-like environment before merge.
+- Feed CI failure output verbatim back to the agent loop with the specific error and the directive to verify locally before re-pushing.
+- Treat the security audit (`npm audit` or equivalent) as gating: critical and high vulnerabilities reachable in production code MUST be remediated before merge.
+- Enforce a bundle-size budget in CI; a budget breach blocks the change just like a failing test.
+
 ## Overview
 
 Automate quality gates so that no change reaches production without passing

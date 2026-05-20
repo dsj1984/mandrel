@@ -10,6 +10,17 @@ vendor: highlevel
 
 # Skill: HighLevel CRM (GoHighLevel)
 
+## Policy Capsule
+
+- Integrate with HighLevel exclusively through API v2 over OAuth 2.0; never hardcode credentials.
+- Manage `access_token` and `refresh_token` rotation in code — assume tokens expire and refresh proactively.
+- Include `locationId` on every API request to scope writes to the correct sub-account.
+- Prefer HighLevel's native automation engine; reach for custom code only when native workflows cannot express the requirement.
+- Implement exponential-backoff retry to respect HighLevel's API rate limits.
+- Use email as the primary key for contact deduplication; do not rely on CRM-internal IDs for cross-system joins.
+- Drive event-driven flows through HighLevel webhooks rather than polling.
+- Test integrations against a sandbox sub-account before pointing them at live data.
+
 Protocols for integrating with the HighLevel CRM API (v2) and building custom
 widgets/automations.
 

@@ -12,6 +12,17 @@ allowed_tools:
 
 # diagnose-friction
 
+## Policy Capsule
+
+- Invoke via the wrapping CLI `node .agents/scripts/diagnose-friction.js --task <id> --story <id> --epic <id> --cmd <command args...>`; this is the single supported entry point.
+- Pass the wrapped command's stdout and stderr through **unchanged** — never reformat, redact, or buffer in a way that loses the original failure shape.
+- Never mutate the wrapped command's exit code. The Skill observes; the caller decides whether the failure is fatal.
+- Operate as **best-effort observation**: a write failure on the signals stream MUST NOT halt the runner. A missing signal is preferable to a stalled wave.
+- On non-zero exit append a `friction` NDJSON record (`kind`, `ts`, `category`, `detail`, `exitCode`) only through the signals writer helper — never open `signals.ndjson` directly.
+- Resolve Story / Epic context from `--story` and `--epic` first; fall back to parsing `parent: #<storyId>` + `Epic: #<epicId>` from the Task body when only `--task` is supplied.
+- Do **not** post GitHub comments from this Skill. Friction is local NDJSON in v5; the structured-comment surface belongs to `analyze-execution`.
+- Categorize failures deterministically (rebase abort, test-suite name, lint category, etc.) so the downstream analyzer can attribute friction without re-running the command.
+
 ## Role
 
 Diagnostic interceptor. Captures the failure shape of a wrapped command

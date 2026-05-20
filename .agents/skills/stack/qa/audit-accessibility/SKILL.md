@@ -9,6 +9,17 @@ description:
 
 # Skill: Accessibility Audit (A11y)
 
+## Policy Capsule
+
+- Use semantic HTML (`<nav>`, `<main>`, `<header>`, `<button>`) before reaching for ARIA roles.
+- Maintain a minimum 4.5:1 contrast for normal text and 3:1 for large text.
+- Ensure a visible focus indicator on every focusable element and a logical tab order across the page.
+- Use `aria-label`, `aria-labelledby`, and `aria-describedby` only when semantic HTML cannot express the intent.
+- Treat automated scans as 40–50% coverage only; follow every audit with manual keyboard and screen-reader checks.
+- Integrate `axe-core` into Vitest or Playwright runs so a11y regressions are caught in CI.
+- Give every `<img>` an `alt` attribute — empty for decorative, descriptive for functional.
+- Verify every interactive element is reachable and triggerable via keyboard alone.
+
 Protocols for ensuring WCAG 2.1 Level AA compliance using automated and manual
 testing tools.
 

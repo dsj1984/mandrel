@@ -11,6 +11,17 @@ vendor: playwright
 
 # Skill: playwright-bdd
 
+## Policy Capsule
+
+- Complete the pre-authoring grep-for-existing-steps checklist before writing any new scenario text; record the matches in your output.
+- Keep `.feature` files free of Playwright API calls — scenarios describe intent, step definitions translate to browser actions.
+- Generate step bindings into a dedicated directory (e.g. `.features-gen/`) and add it to `.gitignore`; never commit generated specs.
+- Drive runs by tag expression (`--grep "@smoke and not @flaky"`), not filename globs; use the canonical `@smoke`/`@risk-high`/`@platform-*`/`@domain-*` taxonomy.
+- Inject fixtures via `createBdd` rather than pulling singletons from module scope; reset persistent state through fixture teardown, not stray `After` hooks.
+- Reuse `storageState` for authenticated scenarios — create a logged-in user fixture instead of repeating login steps in `Background`.
+- Keep `trace: 'on-first-retry'` (or `'retain-on-failure'`) enabled; reproduce failures by `@scenario-id` tag, not by title.
+- Shard with Playwright's native `--shard=i/N`; never partition by tag expression across CI jobs.
+
 Guidance for running Gherkin `.feature` files against Playwright via
 `playwright-bdd`. Pairs with the `gherkin-authoring` skill (scenario prose) and
 the `playwright` skill (browser-level conventions); this skill covers the wiring

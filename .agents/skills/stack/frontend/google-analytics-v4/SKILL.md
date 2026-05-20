@@ -10,6 +10,17 @@ vendor: google
 
 # Skill: Google Analytics 4 (GA4)
 
+## Policy Capsule
+
+- Implement Consent Mode V2 and respect GDPR/CCPA; never send PII to GA servers.
+- Track meaningful business actions (e.g. `start_checkout`, `share_article`) rather than relying solely on page views.
+- Use `snake_case` for every event name and parameter — GA4 enforces this convention.
+- Fire all events through Google Tag Manager rather than embedding measurement IDs directly in application code.
+- Define critical user attributes (e.g. `user_type`, `pricing_plan`) as custom dimensions on the GA4 property.
+- Verify every new event in GA4 DebugView before deploying to production.
+- Filter development and internal traffic out of the production GA4 property.
+- Keep IP anonymization enabled and configure cross-domain tracking when traffic spans multiple origins.
+
 Guidelines for privacy-compliant and data-driven event tracking using GA4.
 
 ## 1. Core Principles

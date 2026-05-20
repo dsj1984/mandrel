@@ -9,6 +9,18 @@ description:
 
 # Code Simplification
 
+## Policy Capsule
+
+- Preserve behaviour **exactly**: inputs, outputs, side effects, error semantics, and ordering must be identical. If you're not sure a change preserves behaviour, don't make it.
+- Every simplification MUST leave existing tests passing without modification; if tests need to change, the refactor changed behaviour and is no longer a simplification.
+- Follow project conventions (CLAUDE.md, neighbour-code patterns, import style, naming, error handling). Simplification that breaks consistency is churn, not improvement.
+- Prefer clarity over cleverness: explicit code beats compact code whenever the compact form requires a mental pause to parse.
+- Comprehend before you simplify — never refactor code you don't yet fully understand.
+- Do not simplify for its own sake: skip when code is already clean, when performance would measurably regress, or when the module is about to be rewritten.
+- Lines-of-code is **not** the goal. The metric is "would a new team member understand this faster than the original?".
+- Make each simplification an isolated commit, not a drive-by inside a feature change (see `git-workflow-and-versioning`).
+- Verify behaviourally: run the full test suite, exercise affected paths, and diff the runtime output against the original before claiming the simplification is safe.
+
 > Inspired by the
 > [Claude Code Simplifier plugin](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/code-simplifier/agents/code-simplifier.md).
 > Adapted here as a model-agnostic, process-driven skill for any AI coding
