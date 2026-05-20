@@ -68,4 +68,9 @@ test('INTEGRATION_INCLUDE matches documented slow suites', () => {
       p.includes('epic-execute-record-wave.test.js'),
     ),
   );
+  assert.ok(
+    INTEGRATION_INCLUDE.some((p) =>
+      p.includes('check-baselines-regression.test.js'),
+    ),
+  );
 });

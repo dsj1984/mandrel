@@ -24,26 +24,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 
 import { runOnPool } from '../../.agents/scripts/lib/cpu-pool.js';
 import { scanAndScore } from '../../.agents/scripts/lib/crap-utils.js';
 import { calculateForFile } from '../../.agents/scripts/lib/maintainability-engine.js';
 import { calculateAll } from '../../.agents/scripts/lib/maintainability-utils.js';
-
-let workDir;
-let originalCwd;
-
-beforeEach(() => {
-  workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-'));
-  originalCwd = process.cwd();
-  process.chdir(workDir);
-});
-
-afterEach(() => {
-  process.chdir(originalCwd);
-  fs.rmSync(workDir, { recursive: true, force: true });
-});
 
 /**
  * Generate N small but non-trivial JS files under `dir`, each shaped so
@@ -103,9 +89,25 @@ function buildCoverageMap(files) {
 // ---------------------------------------------------------------------------
 
 describe('cpu-pool — byte-for-byte parity with serial baseline', () => {
+  let workDir;
+  let originalCwd;
+
+  before(() => {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-parity-'));
+    originalCwd = process.cwd();
+    process.chdir(workDir);
+  });
+
+  after(() => {
+    process.chdir(originalCwd);
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
   it('maintainability calculateAll: pool output matches in-process scores', async () => {
-    // 12 fixtures > SERIAL_THRESHOLD (8) so the pool path runs.
-    const files = writeJsFixtures(workDir, 12);
+    const caseDir = path.join(workDir, 'maintainability-parity');
+    fs.mkdirSync(caseDir, { recursive: true });
+    // 9 fixtures > SERIAL_THRESHOLD (8) so the pool path runs.
+    const files = writeJsFixtures(caseDir, 9);
 
     // Reference: build the same map by calling the synchronous engine
     // directly on each file, then sort keys to mirror the migration's
@@ -139,19 +141,21 @@ describe('cpu-pool — byte-for-byte parity with serial baseline', () => {
   });
 
   it('CRAP scanAndScore: pool rows match the per-file serial reference', async () => {
-    const files = writeJsFixtures(workDir, 12, 'g');
+    const caseDir = path.join(workDir, 'crap-parity');
+    fs.mkdirSync(caseDir, { recursive: true });
+    const files = writeJsFixtures(caseDir, 9, 'g');
     const coverage = buildCoverageMap(files);
     const result = await scanAndScore({
-      targetDirs: [workDir],
+      targetDirs: [caseDir],
       coverage,
       requireCoverage: true,
-      cwd: workDir,
+      cwd: caseDir,
     });
 
     // Every fixture surfaces exactly one row (one function per file).
-    assert.strictEqual(result.scannedFiles, 12);
+    assert.strictEqual(result.scannedFiles, 9);
     assert.strictEqual(result.skippedFilesNoCoverage, 0);
-    assert.strictEqual(result.rows.length, 12);
+    assert.strictEqual(result.rows.length, 9);
 
     // Rows are sorted by (file, startLine, method) — assert that the
     // sort actually fires regardless of which worker finished first.
@@ -180,9 +184,25 @@ describe('cpu-pool — byte-for-byte parity with serial baseline', () => {
 // ---------------------------------------------------------------------------
 
 describe('cpu-pool — parse-error isolation', () => {
+  let workDir;
+  let originalCwd;
+
+  before(() => {
+    workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cpu-pool-isolate-'));
+    originalCwd = process.cwd();
+    process.chdir(workDir);
+  });
+
+  after(() => {
+    process.chdir(originalCwd);
+    fs.rmSync(workDir, { recursive: true, force: true });
+  });
+
   it('maintainability: a parse-error file is dropped; siblings score normally', async () => {
-    const goodFiles = writeJsFixtures(workDir, 11, 'h');
-    const badPath = path.join(workDir, 'BROKEN.js');
+    const caseDir = path.join(workDir, 'maintainability-case');
+    fs.mkdirSync(caseDir, { recursive: true });
+    const goodFiles = writeJsFixtures(caseDir, 8, 'h');
+    const badPath = path.join(caseDir, 'BROKEN.js');
     // Garbage bytes that ts.transpileModule + escomplex will both
     // refuse to parse. The current serial path returns 0 for parse
     // errors; the pool path matches that, so the file silently drops
@@ -206,24 +226,26 @@ describe('cpu-pool — parse-error isolation', () => {
   });
 
   it('CRAP: a parse-error file produces zero rows; siblings score normally', async () => {
-    const goodFiles = writeJsFixtures(workDir, 11, 'k');
-    const badPath = path.join(workDir, 'BROKEN.js');
+    const caseDir = path.join(workDir, 'crap-case');
+    fs.mkdirSync(caseDir, { recursive: true });
+    const goodFiles = writeJsFixtures(caseDir, 8, 'k');
+    const badPath = path.join(caseDir, 'BROKEN.js');
     fs.writeFileSync(badPath, '))) syntax garbage (((\n');
     const all = [...goodFiles, badPath];
     const coverage = buildCoverageMap(all);
 
     const result = await scanAndScore({
-      targetDirs: [workDir],
+      targetDirs: [caseDir],
       coverage,
       requireCoverage: true,
-      cwd: workDir,
+      cwd: caseDir,
     });
 
     // The bad file was scanned (it has a coverage entry so requireCoverage
     // doesn't filter it out) but produced no rows because TS transpile
     // surfaces nothing escomplex can chew on.
-    assert.strictEqual(result.scannedFiles, 12);
-    assert.strictEqual(result.rows.length, 11);
+    assert.strictEqual(result.scannedFiles, 9);
+    assert.strictEqual(result.rows.length, 8);
     for (const row of result.rows) {
       assert.match(row.file, /^k\d+\.js$/, 'BROKEN.js must not appear');
     }

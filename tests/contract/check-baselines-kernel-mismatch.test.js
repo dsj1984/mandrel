@@ -25,7 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { currentKernelVersion } from '../../.agents/scripts/lib/baselines/kernel.js';
@@ -122,19 +122,15 @@ function spawnDispatcher(cwd, extraArgs = []) {
 describe('check-baselines (binary spawn) — kernel-mismatch contract', () => {
   let root;
 
-  beforeEach(() => {
-    root = undefined;
+  before(() => {
+    root = setupRepo();
   });
 
-  afterEach(() => {
-    if (root) {
-      rmSync(root, { recursive: true, force: true });
-      root = undefined;
-    }
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
   });
 
   it('emits friction (kernel drift) and exits non-failing (0) when head kernel mismatches', () => {
-    root = setupRepo();
     // Overwrite working-tree baseline with a mismatched kernelVersion.
     // Floor is met and rows are absent, so the only friction surface
     // available is the kernel-mismatch event.

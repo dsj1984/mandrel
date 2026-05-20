@@ -304,8 +304,9 @@ function setupFixture() {
   git(session1, 'checkout', '-b', 'epic/1');
   git(session1, 'push', '-u', 'origin', 'epic/1');
 
-  // Second clone starts from the same state.
-  git(root, 'clone', bare, 's2');
+  // Shared object store — faster than a cold clone, still independent
+  // working trees so both sessions can check out epic/1 concurrently.
+  git(root, 'clone', '--shared', bare, 's2');
   git(session2, 'checkout', 'epic/1');
 
   return { root, bare, session1, session2 };
