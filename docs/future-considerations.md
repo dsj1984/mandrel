@@ -1,6 +1,6 @@
 # Future Model Audit: Mandrel Under a 10x Coding Model
 
-Date: 2026-05-17 (last reviewed 2026-05-19)
+Date: 2026-05-17 (last reviewed 2026-05-20)
 
 > **Action legend.** Each finding below carries one of two action tags:
 >
@@ -518,32 +518,6 @@ Recommendation:
   sub-agent.
 - Remove stale examples naming unimplemented runtimes from comments and docs.
 
-### 14. Context Hydration Should Become Structured and Selective
-
-**Status:** Simplify
-**Action:** 🚀 Implement now — structured retrieval beats concatenation today, not just under future models. Emitting a structured context object with named sections, stored ticket IDs/versions/hashes, and section-aware elision improves auditability and reduces hydration cost now. Pair with Finding #3's `skills.index.json` work.
-
-**Primary paths:**
-
-- `.agents/scripts/context-hydrator.js`
-- `.agents/scripts/lib/orchestration/context-hydration-engine.js`
-- `.agents/skills/core/hydrate-context/SKILL.md`
-- `.agents/templates/agent-protocol.md`
-
-The current hydrator assembles a large text prompt from protocol template,
-persona, skills, hierarchy bodies, and task instructions, then applies rough
-token truncation. A 10x model reduces the risk of long context, but structured
-retrieval remains better than concatenation.
-
-Recommendation:
-
-- Emit a structured context object with named sections and priorities.
-- Store retrieved ticket IDs, versions, and hashes so the model can cite what it
-  used.
-- Replace rough token truncation with section-aware elision.
-- Prefer task-local acceptance criteria and verification commands over loading
-  the full policy library.
-
 ### 15. Acceptance Spec Is Valuable but Too Universal
 
 **Status:** Simplify
@@ -658,6 +632,19 @@ Recommendation:
 
 Tracked here so the numbered list above stays focused on open work.
 
+- ✅ **Finding #14 (Context hydration structured and selective)** — Epic #2648
+  (`epic/2648`; closing PR when the Epic merges). Shipped typed
+  `ContextEnvelope` in `context-envelope.js`, section-aware `elideEnvelope`,
+  ticket provenance snapshots, skill Policy Capsules via `skills.index.json`
+  with `skill::full` / `fullSkillBodies` opt-in for full bodies, and consumer
+  documentation in `hydrate-context/SKILL.md` (Story #2770). Default CLI
+  stdout remains `{ "prompt": "..." }` from `envelopeToPrompt`; pass
+  `--emit envelope` to inspect the typed shape.
+  - 🚀 **Remaining:** remove `delivery.hydration.outputMode: 'prose-legacy'`,
+    `context-hydration-engine.legacy.js`, and the `prose-legacy` enum value
+    together in the next hard-cutover PR (one-release sunset per
+    `lib/config/hydration.js` and the hydrate-context skill — flag still
+    present at Story #2770 close).
 - ✅ **Finding #8 (Audit fan-out)** — Epic #2586 / commit 3e7937b4 (2026-05-18).
   Retired `audit-fan-out.md` and the slash-command; the twelve audit
   workflows now act as lenses selected by `select-audits.js` +
