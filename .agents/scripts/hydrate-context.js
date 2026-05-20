@@ -54,6 +54,7 @@ export function ticketToTask(ticket) {
     id: ticket.id ?? ticket.number,
     title: ticket.title,
     body: ticket.body ?? '',
+    labels,
     persona,
     skills,
   };
