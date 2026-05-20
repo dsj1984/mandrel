@@ -62,6 +62,10 @@ import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
 import {
+  executeFastForward,
+  planFastForward,
+} from './lib/orchestration/git-cleanup/phases/fast-forward.js';
+import {
   STATE_LABELS,
   transitionTicketState,
   upsertStructuredComment,
@@ -256,6 +260,39 @@ export async function runSingleStoryInit({
       if (r.status !== 0) {
         throw new Error(
           `Failed to fetch base branch ${baseBranch}: ${r.stderr || '(no stderr)'}`,
+        );
+      }
+    } else {
+      // `git fetch origin` updates remote-tracking refs only; local
+      // `main` stays at the pre-merge tip until fast-forwarded. Use the
+      // same helper as `/git-cleanup --fast-forward-main` (checkout base +
+      // `merge --ff-only`) so new `story-*` branches seed from origin's
+      // tip when the main checkout is clean (Story #2744).
+      const ffPlan = planFastForward({ cwd, baseBranch });
+      const ff = executeFastForward({
+        cwd,
+        baseBranch,
+        plan: ffPlan,
+        logger: {
+          info: (m) => progress('GIT', m.replace(/^\[git-cleanup\]\s*/, '')),
+          warn: (m) =>
+            progress('GIT', `⚠️ ${m.replace(/^\[git-cleanup\]\s*/, '')}`),
+        },
+      });
+      if (ff.applied) {
+        progress(
+          'GIT',
+          `Fast-forwarded local ${baseBranch} by ${ff.behind} commit(s).`,
+        );
+      } else if (ff.reason === 'not-fast-forward') {
+        progress(
+          'GIT',
+          `⚠️ local ${baseBranch} is not a fast-forward behind origin/${baseBranch}; seeding from local tip.`,
+        );
+      } else if (ff.reason === 'dirty-tree') {
+        progress(
+          'GIT',
+          `⚠️ working tree dirty; skipped fast-forward of ${baseBranch}.`,
         );
       }
     }

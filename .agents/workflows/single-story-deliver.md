@@ -346,24 +346,41 @@ invocation, but that's next-run cleanup, not end-of-run cleanup. Stale
 local refs accumulate between sessions, clutter `git branch`, and shadow
 the lessons the sweep is meant to surface.
 
-After Step 5 confirms `state: "MERGED"`, prune the local ref and
-tracking refs:
+**Why local `main` goes stale:** `single-story-init.js` seeds new
+`story-<id>` branches from the **local** `baseBranch` ref (default
+`main`). Auto-merge updates **`origin/main`** on GitHub; nothing in
+close or the old Step 6 command updated **local `main`**. The next init
+then forked from a tip six merges behind until you manually pulled.
+`single-story-init` also attempts the same fast-forward after `git fetch`
+when the main checkout is clean (defense in depth if Step 6 was skipped).
+Step 6 must still run `--fast-forward-main` so local `main` is current
+before the next session — init may skip when the tree is dirty or the
+operator is mid-checkout on another branch.
+
+After Step 5 confirms `state: "MERGED"`, prune the story ref **and**
+fast-forward local `main` (or `project.baseBranch`):
 
 ```bash
 node .agents/scripts/git-cleanup.js \
   --execute \
   --remote \
   --yes \
+  --fast-forward-main \
   --branches \
   --include "story-<storyId>"
 ```
 
 What this does:
 
-- **`--branches`** narrows the run to the merged-branch reap phase
-  (skips `--fast-forward-main`, `--prune-remotes`, `--stashes`).
-- **`--include "story-<storyId>"`** scopes the sweep to this Story's
-  ref only — sibling stories in flight are untouched.
+- **`--fast-forward-main`** fetches `origin/<baseBranch>` and
+  `git merge --ff-only` on the main checkout when the tree is clean and
+  the local base is strictly behind remote. Skipped when already current,
+  dirty, or diverged (see `/git-cleanup`).
+- **`--branches`** reaps the merged `story-<storyId>` ref (worktree,
+  local branch, stale `origin/` tracking ref). Does not run
+  `--prune-remotes` or `--stashes` unless you add those flags.
+- **`--include "story-<storyId>"`** scopes the branch reap to this
+  Story's ref only — sibling stories in flight are untouched.
 - **`--execute --remote --yes`** actually deletes the local ref, prunes
   the matching `origin/` tracking ref, and runs non-interactively.
 

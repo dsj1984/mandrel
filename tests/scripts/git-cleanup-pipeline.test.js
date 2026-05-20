@@ -85,6 +85,19 @@ describe('git-cleanup pipeline — parseCleanupArgs (Story #2466)', () => {
     assert.equal(opts.phases.stashes, false);
   });
 
+  it('Step 6 may combine --fast-forward-main with --branches', () => {
+    const opts = parseCleanupArgs([
+      '--fast-forward-main',
+      '--branches',
+      '--include',
+      'story-99',
+    ]);
+    assert.equal(opts.phases.fastForwardMain, true);
+    assert.equal(opts.phases.branches, true);
+    assert.equal(opts.phases.pruneRemotes, false);
+    assert.deepEqual(opts.include, ['story-99']);
+  });
+
   it('--execute and --remote propagate; --dry-run wins over --execute', () => {
     const a = parseCleanupArgs(['--execute', '--remote']);
     assert.equal(a.execute, true);
