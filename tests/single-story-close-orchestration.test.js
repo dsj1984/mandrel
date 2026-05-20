@@ -324,8 +324,20 @@ describe('runSingleStoryClose orchestration', () => {
     assert.ok(ghCalls[2].includes('--squash'));
     assert.ok(ghCalls[2].includes('--delete-branch'));
 
+    // The flip routes through `transitionTicketState` (Story #2717), so
+    // the patch carries the add/remove form rather than a raw labels
+    // array, plus the issue-close mirror (`state: 'closed'`,
+    // `state_reason: 'completed'`) that the canonical mutator emits for
+    // every `agent::done` transition.
     const [{ patch }] = provider._updates();
-    assert.deepEqual(patch.labels, ['agent::done']);
+    assert.deepEqual(patch.labels.add, ['agent::done']);
+    assert.ok(
+      Array.isArray(patch.labels.remove) &&
+        patch.labels.remove.includes('agent::executing'),
+      'transitionTicketState must remove sibling agent:: states',
+    );
+    assert.equal(patch.state, 'closed');
+    assert.equal(patch.state_reason, 'completed');
   });
 
   it('returns noop early when the Story is already closed', async (t) => {
@@ -613,6 +625,105 @@ describe('runSingleStoryClose orchestration', () => {
       }),
       /git push failed.*remote rejected/,
     );
+  });
+
+  it('routes the label flip through transitionTicketState so ColumnSync attempts a Projects v2 mutation', async (t) => {
+    // Story #2717 — regression guard. The pre-fix path called
+    // `provider.updateTicket({ labels })` directly, which skipped
+    // `syncProjectStatusColumn` and left the GitHub Projects board on
+    // the Story's prior status column for the entire run. This test
+    // pins the new contract by asserting that ColumnSync's GraphQL
+    // surface is touched on the flip to `agent::done`.
+    t.mock.module(
+      'node:child_process',
+      childProcessMock((_cmd, args) => {
+        if (args[1] === 'list') return '';
+        if (args[1] === 'create') {
+          return 'https://github.com/owner/repo/pull/2717\n';
+        }
+        if (args[1] === 'merge') return 'ok';
+        throw new Error(`unexpected gh: ${args.join(' ')}`);
+      }),
+    );
+    t.mock.module(GIT_UTILS_URL, defaultGitUtilsMock());
+    t.mock.module(CLOSE_VALIDATION_URL, defaultCloseValidationMock());
+    t.mock.module(WORKTREE_MANAGER_URL, defaultWorktreeManagerMock());
+
+    const graphqlCalls = [];
+    const base = makeFakeProvider({
+      initialStory: {
+        id: 2717,
+        state: 'open',
+        title: 'Column sync regression',
+        labels: ['agent::executing'],
+      },
+    });
+    const provider = {
+      ...base,
+      projectNumber: 1,
+      owner: 'owner',
+      repo: 'repo',
+      async graphql(query, vars) {
+        graphqlCalls.push({ query, vars });
+        if (query.includes('viewer {')) {
+          return {
+            viewer: {
+              projectV2: {
+                id: 'PROJ',
+                field: {
+                  id: 'FIELD',
+                  options: [
+                    { id: 'opt-done', name: 'Done' },
+                    { id: 'opt-inprog', name: 'In Progress' },
+                  ],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('projectItems(first')) {
+          return {
+            repository: {
+              issue: {
+                projectItems: {
+                  nodes: [{ id: 'ITEM-1', project: { id: 'PROJ' } }],
+                },
+              },
+            },
+          };
+        }
+        if (query.includes('updateProjectV2ItemFieldValue')) {
+          return {
+            updateProjectV2ItemFieldValue: {
+              projectV2Item: { id: vars.itemId },
+            },
+          };
+        }
+        return {};
+      },
+    };
+
+    const { runSingleStoryClose } = await import(`${SUT_URL}?t=column-sync`);
+    const { success } = await runSingleStoryClose({
+      storyId: 2717,
+      cwd: '/repo',
+      skipValidation: true,
+      skipSync: true,
+      injectedProvider: provider,
+      injectedConfig: fakeConfig(),
+    });
+
+    assert.equal(success, true);
+    const mutation = graphqlCalls.find((c) =>
+      c.query.includes('updateProjectV2ItemFieldValue'),
+    );
+    assert.ok(
+      mutation,
+      'ColumnSync must issue the updateProjectV2ItemFieldValue mutation when the Story flips to agent::done',
+    );
+    assert.equal(mutation.vars.optionId, 'opt-done');
+    assert.equal(mutation.vars.itemId, 'ITEM-1');
+    assert.equal(mutation.vars.projectId, 'PROJ');
   });
 
   it('swallows updateTicket failures so the run still returns success', async (t) => {

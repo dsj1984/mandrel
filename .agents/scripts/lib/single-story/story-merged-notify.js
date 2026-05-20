@@ -11,6 +11,10 @@
 
 import { notify as defaultNotify } from '../../notify.js';
 import { Logger } from '../Logger.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+} from '../orchestration/ticketing.js';
 
 export async function flipLabelAndNotify({
   provider,
@@ -39,10 +43,25 @@ export async function flipLabelAndNotify({
 
 async function flipLabel(provider, storyId, story, progress) {
   try {
-    const labels = (story.labels || [])
-      .filter((l) => !l.startsWith('agent::'))
-      .concat('agent::done');
-    await provider.updateTicket(storyId, { labels });
+    // Route through the canonical state mutator so the Projects v2
+    // Status column mirrors the `agent::done` flip (Story #2548 wires
+    // column-sync inside `transitionTicketState`). `cascade: false` is
+    // correct for a standalone Story (no parent chain), and threading
+    // the prefetched `story` as `ticketSnapshot` preserves the
+    // round-trip elimination from Story #1795.
+    //
+    // We deliberately omit `notify` here: the `state-transition`
+    // notification that `transitionTicketState` would dispatch is
+    // redundant with the typed `story-merged` event that
+    // `fireStoryMergedNotify` emits immediately afterwards. Operator
+    // subscribers consume `story-merged` (it mirrors the
+    // post-merge-pipeline event name for Epic-attached Stories), so
+    // letting the close path own the dispatch keeps both lanes on a
+    // single event per Story merge.
+    await transitionTicketState(provider, storyId, STATE_LABELS.DONE, {
+      ticketSnapshot: story,
+      cascade: false,
+    });
     progress?.('LABELS', `🏷️  Story #${storyId} → agent::done`);
     return true;
   } catch (err) {

@@ -61,7 +61,11 @@ import {
 import { Logger } from './lib/Logger.js';
 import { TYPE_LABELS } from './lib/label-constants.js';
 import { setActiveStoryEnv } from './lib/observability/active-story-env.js';
-import { upsertStructuredComment } from './lib/orchestration/ticketing.js';
+import {
+  STATE_LABELS,
+  transitionTicketState,
+  upsertStructuredComment,
+} from './lib/orchestration/ticketing.js';
 import { createProvider } from './lib/provider-factory.js';
 // `sweepMergedStoryBranches` is imported dynamically below — its transitive
 // graph reaches `picomatch` (via `git-cleanup.js`). Loading it statically
@@ -375,10 +379,19 @@ export async function runSingleStoryInit({
     }
 
     try {
-      const labels = (story.labels || [])
-        .filter((l) => !l.startsWith('agent::'))
-        .concat('agent::executing');
-      await provider.updateTicket(storyId, { labels });
+      // Route through the canonical state mutator so the Projects v2
+      // Status column mirrors the label flip (Story #2548 wires column-
+      // sync inside `transitionTicketState`). A direct
+      // `provider.updateTicket({ labels })` would skip the board update
+      // and leave the Story on its prior status column for the entire
+      // run. `cascade: false` is correct — a standalone Story has no
+      // parent chain — and threading the prefetched `story` as
+      // `ticketSnapshot` preserves the round-trip elimination from
+      // Story #1795.
+      await transitionTicketState(provider, storyId, STATE_LABELS.EXECUTING, {
+        ticketSnapshot: story,
+        cascade: false,
+      });
       progress('LABELS', `🏷️  Story #${storyId} → agent::executing`);
     } catch (err) {
       Logger.error(
