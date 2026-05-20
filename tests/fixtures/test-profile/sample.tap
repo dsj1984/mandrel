@@ -1,0 +1,29 @@
+TAP version 13
+# Subtest: slowSuite
+    # Subtest: nestedCase
+    ok 1 - nestedCase
+      ---
+      duration_ms: 50.5
+      type: 'test'
+      ...
+    1..1
+ok 1 - slowSuite
+  ---
+  duration_ms: 1200.25
+  type: 'suite'
+  ...
+# Subtest: fastSuite
+ok 1 - fastSuite
+  ---
+  duration_ms: 2.1
+  type: 'suite'
+  ...
+1..2
+# tests 2
+# suites 2
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1500.75
