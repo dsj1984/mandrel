@@ -26,7 +26,11 @@ const FIXTURE_ROOT = path.resolve(import.meta.dirname, 'fixtures');
  * `category` is required for stack-tier; for core-tier the layout is
  * `.agents/skills/core/<name>/SKILL.md`.
  */
-function stageFixture(tmpRoot, fixtureName, { tier, category, name, eol = '\n' }) {
+function stageFixture(
+  tmpRoot,
+  fixtureName,
+  { tier, category, name, eol = '\n' },
+) {
   const src = fs.readFileSync(path.join(FIXTURE_ROOT, fixtureName), 'utf8');
   const segments =
     tier === 'core'
@@ -35,7 +39,10 @@ function stageFixture(tmpRoot, fixtureName, { tier, category, name, eol = '\n' }
   const skillDir = path.join(tmpRoot, ...segments);
   fs.mkdirSync(skillDir, { recursive: true });
   const target = path.join(skillDir, 'SKILL.md');
-  const normalized = eol === '\r\n' ? src.replace(/\r?\n/g, '\r\n') : src.replace(/\r?\n/g, '\n');
+  const normalized =
+    eol === '\r\n'
+      ? src.replace(/\r?\n/g, '\r\n')
+      : src.replace(/\r?\n/g, '\n');
   fs.writeFileSync(target, normalized);
   return target;
 }
@@ -62,9 +69,14 @@ describe('parseSkill — well-formed SKILL with Policy Capsule', () => {
     assert.equal(result.name, 'well-formed-skill');
     assert.equal(result.tier, 'core');
     assert.equal(result.category, 'core');
-    assert.ok(result.path.endsWith('.agents/skills/core/well-formed-skill/SKILL.md'));
+    assert.ok(
+      result.path.endsWith('.agents/skills/core/well-formed-skill/SKILL.md'),
+    );
     assert.equal(result.frontmatter.name, 'well-formed-skill');
-    assert.equal(result.frontmatter.description.includes('Capsule fixture'), true);
+    assert.equal(
+      result.frontmatter.description.includes('Capsule fixture'),
+      true,
+    );
     assert.deepEqual(result.frontmatter.allowed_tools, ['Read', 'Bash']);
 
     assert.equal(result.policyCapsule.found, true);
@@ -78,7 +90,9 @@ describe('parseSkill — well-formed SKILL with Policy Capsule', () => {
     // Stage two isolated repo roots so both stagings can use the parent
     // directory name that matches the fixture's declared frontmatter name.
     const lfRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'parse-skill-lf-'));
-    const crlfRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'parse-skill-crlf-'));
+    const crlfRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'parse-skill-crlf-'),
+    );
     try {
       const lfPath = stageFixture(lfRoot, 'well-formed.md', {
         tier: 'core',
@@ -94,7 +108,10 @@ describe('parseSkill — well-formed SKILL with Policy Capsule', () => {
       const lf = parseSkill(lfPath);
       const crlf = parseSkill(crlfPath);
 
-      assert.equal(crlf.policyCapsule.bulletCount, lf.policyCapsule.bulletCount);
+      assert.equal(
+        crlf.policyCapsule.bulletCount,
+        lf.policyCapsule.bulletCount,
+      );
       assert.equal(crlf.policyCapsule.found, true);
       assert.equal(crlf.frontmatter.name, 'well-formed-skill');
     } finally {

@@ -68,14 +68,18 @@ function splitLines(src) {
  */
 function extractFrontmatterBlock(lines, skillPath) {
   if (lines[0] !== FRONTMATTER_DELIMITER) {
-    throw new Error(`SKILL.md is missing the leading '---' frontmatter delimiter: ${skillPath}`);
+    throw new Error(
+      `SKILL.md is missing the leading '---' frontmatter delimiter: ${skillPath}`,
+    );
   }
   for (let i = 1; i < lines.length; i += 1) {
     if (lines[i] === FRONTMATTER_DELIMITER) {
       return { yamlText: lines.slice(1, i).join('\n'), bodyStart: i + 1 };
     }
   }
-  throw new Error(`SKILL.md frontmatter is not closed by a trailing '---': ${skillPath}`);
+  throw new Error(
+    `SKILL.md frontmatter is not closed by a trailing '---': ${skillPath}`,
+  );
 }
 
 /**
@@ -132,7 +136,9 @@ export function parseSkill(absolutePath, options = {}) {
     throw new TypeError('parseSkill: absolutePath must be a non-empty string');
   }
   if (!path.isAbsolute(absolutePath)) {
-    throw new TypeError(`parseSkill: absolutePath must be absolute (got ${absolutePath})`);
+    throw new TypeError(
+      `parseSkill: absolutePath must be absolute (got ${absolutePath})`,
+    );
   }
 
   const repoRoot = options.repoRoot ?? resolveRepoRoot(absolutePath);
@@ -145,10 +151,18 @@ export function parseSkill(absolutePath, options = {}) {
   try {
     frontmatter = yaml.load(yamlText);
   } catch (err) {
-    throw new Error(`SKILL.md frontmatter is not valid YAML at ${absolutePath}: ${err.message}`);
+    throw new Error(
+      `SKILL.md frontmatter is not valid YAML at ${absolutePath}: ${err.message}`,
+    );
   }
-  if (frontmatter === null || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
-    throw new Error(`SKILL.md frontmatter must be a YAML mapping at ${absolutePath}`);
+  if (
+    frontmatter === null ||
+    typeof frontmatter !== 'object' ||
+    Array.isArray(frontmatter)
+  ) {
+    throw new Error(
+      `SKILL.md frontmatter must be a YAML mapping at ${absolutePath}`,
+    );
   }
 
   const parentDir = path.dirname(absolutePath);
