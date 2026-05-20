@@ -40,16 +40,14 @@ const VALID_OUTCOMES_SET = new Set(VALID_OUTCOMES);
 
 /**
  * Coerce a host-LLM child return record into the
- * `story.dispatch.end.outcome` enum. The runner accepts a permissive
- * surface (`status` or `outcome` field, plus a couple of legacy aliases)
- * so the host-LLM does not need to know the exact wire shape; this helper
- * normalizes once and rejects anything we cannot interpret.
+ * `story.dispatch.end.outcome` enum. The runner accepts both `status` and
+ * `outcome` as the canonical field name so the host-LLM does not need to
+ * know the exact wire shape; this helper normalizes once and rejects
+ * anything we cannot interpret.
  *
  * Accepted inputs:
  *   - `{ status: 'done' | 'blocked' | 'failed' | 'skipped', ... }`
  *   - `{ outcome: 'done' | 'blocked' | 'failed' | 'skipped', ... }`
- *   - `{ status: 'merged', ... }`  → `'done'` (legacy alias)
- *   - `{ status: 'timeout', ... }` → `'failed'` (legacy alias)
  *
  * Anything else throws a typed `Error` with `code: 'WAVE_MALFORMED_RETURN'`.
  *
@@ -89,14 +87,7 @@ export function parseChildReturn(childReturn, ctx) {
     err.storyId = storyId;
     throw err;
   }
-  // Legacy aliases — `merged` lands when a Story closes cleanly, and
-  // `timeout` is what the spawn layer surfaces when it kills a hung child.
-  // Both predate the lifecycle taxonomy; coerce them rather than break
-  // existing callers.
-  let normalized = raw;
-  if (raw === 'merged') normalized = 'done';
-  else if (raw === 'timeout') normalized = 'failed';
-  if (!VALID_OUTCOMES_SET.has(normalized)) {
+  if (!VALID_OUTCOMES_SET.has(raw)) {
     const err = new Error(
       `WaveSession: malformed child-return for story #${storyId}: outcome "${raw}" is not one of ${VALID_OUTCOMES.join(', ')}`,
     );
@@ -105,7 +96,7 @@ export function parseChildReturn(childReturn, ctx) {
     err.outcome = raw;
     throw err;
   }
-  return normalized;
+  return raw;
 }
 
 /**

@@ -203,14 +203,22 @@ describe('lib/orchestration/wave-session — child-return parsing', () => {
     );
   });
 
-  it('coerces legacy `merged` and `timeout` aliases', () => {
-    assert.equal(
-      parseChildReturn({ status: 'merged' }, { storyId: 1 }),
-      'done',
+  it('rejects legacy `merged` and `timeout` aliases (hard cutover)', () => {
+    assert.throws(
+      () => parseChildReturn({ status: 'merged' }, { storyId: 1 }),
+      (err) => {
+        assert.equal(err.code, 'WAVE_MALFORMED_RETURN');
+        assert.equal(err.outcome, 'merged');
+        return true;
+      },
     );
-    assert.equal(
-      parseChildReturn({ status: 'timeout' }, { storyId: 2 }),
-      'failed',
+    assert.throws(
+      () => parseChildReturn({ status: 'timeout' }, { storyId: 2 }),
+      (err) => {
+        assert.equal(err.code, 'WAVE_MALFORMED_RETURN');
+        assert.equal(err.outcome, 'timeout');
+        return true;
+      },
     );
   });
 
