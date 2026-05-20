@@ -164,13 +164,13 @@ baseline still trips the gate.
 
 ### When the floor gate fires
 
-- **Pre-push** (`.husky/pre-push`): the per-file ratchet runs against
-  `origin/main` first (diff-scoped, fast). The three full-scope floor
-  calls (`npm run coverage:check -- --full-scope`,
-  `maintainability:check -- --full-scope`,
-  `crap:check -- --full-scope`) run after the ratchet so an in-scope
-  file drifting below floor in an untouched part of the tree still
-  blocks the push.
+- **Pre-push** (`.husky/pre-push`): diff-scoped, fast path only —
+  `quality-preview.js --changed-since origin/main` (MI + CRAP preview),
+  then `coverage-capture.js` and `npm run crap:check` (unified
+  dispatcher, diff-scoped via `delivery.quality.gateScoping`). Full-repo
+  lint, docs generation checks, and the complete test suite are **not**
+  run on push; use `npm run verify` locally before a PR. CI enforces the
+  authoritative full gate set on every PR.
 - **CI** (`.github/workflows/ci.yml`): the floor block is enabled by
   default inside each checker, so the existing **Maintainability Check**
   and **CRAP Check** steps already enforce floors. Epic #1184 added an

@@ -251,23 +251,20 @@ describe('hook chain reflog harness', () => {
     assertReflogClean(reflogDelta(before, after), 'quality-preview');
   });
 
-  it('pre-push: check-baselines.js (--gate maintainability) leaves HEAD reflog untouched', () => {
+  it('pre-push: quality-preview.js (--changed-since origin/main) leaves HEAD reflog untouched', () => {
     const before = snapshotReflog(fixture.run);
     const headBefore = fixture.run('rev-parse', 'HEAD').trim();
 
     runHookScript(
-      '.agents/scripts/check-baselines.js',
-      ['--gate', 'maintainability'],
+      '.agents/scripts/quality-preview.js',
+      ['--changed-since', 'origin/main'],
       fixture.dir,
     );
 
     const after = snapshotReflog(fixture.run);
     const headAfter = fixture.run('rev-parse', 'HEAD').trim();
-    assert.equal(headAfter, headBefore, 'check-baselines must not move HEAD');
-    assertReflogClean(
-      reflogDelta(before, after),
-      'check-baselines maintainability',
-    );
+    assert.equal(headAfter, headBefore, 'quality-preview must not move HEAD');
+    assertReflogClean(reflogDelta(before, after), 'quality-preview pre-push');
   });
 
   it('pre-push: check-baselines.js (--gate crap) leaves HEAD reflog untouched', () => {

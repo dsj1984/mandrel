@@ -52,16 +52,14 @@ test('Site 2 — ci.yml runs the unified baselines gate (Story #1981 collapse)',
   assert.match(yml, /pull_request:/);
 });
 
-test('Site 3 — .husky/pre-push invokes the unified crap:check (no legacy --changed-since)', () => {
-  // Epic #1943: the unified `check-baselines.js` dispatcher resolves
-  // scope via `delivery.quality.gateScoping` in `.agentrc.json`, so the
-  // legacy `--changed-since origin/main` flag is gone from pre-push.
-  // The contract that survives is: pre-push still runs crap:check, and
-  // coverage-capture still seeds coverage data before it.
+test('Site 3 — .husky/pre-push uses diff-scoped preview + crap ratchet (Story #2745)', () => {
   const hook = fs.readFileSync(
     path.join(REPO_ROOT, '.husky', 'pre-push'),
     'utf8',
   );
+  assert.match(hook, /quality-preview\.js/);
+  assert.match(hook, /--changed-since\s+origin\/main/);
+  assert.doesNotMatch(hook, /npm run lint\b/);
   assert.match(hook, /npm run crap:check/);
   const captureIdx = hook.indexOf('coverage-capture.js');
   const crapIdx = hook.indexOf('npm run crap:check');
@@ -71,6 +69,7 @@ test('Site 3 — .husky/pre-push invokes the unified crap:check (no legacy --cha
   );
   assert.match(hook, /coverage-capture\.js\s+--skip-when-no-crap-files/);
   assert.match(hook, /coverage-capture\.js[^\n]*--ref\s+origin\/main/);
+  assert.match(hook, /npm run verify/);
 });
 
 // Story #1981 (Task #2006): the per-kind `check-crap.js` CLI was deleted
