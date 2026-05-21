@@ -37,8 +37,7 @@ describe('classifyPlanningRisk', () => {
     assert.strictEqual(result.gateDecision, 'review-required');
     assert.ok(
       result.axes.some(
-        (entry) =>
-          entry.axis === 'critical-workflow' && entry.level === 'high',
+        (entry) => entry.axis === 'critical-workflow' && entry.level === 'high',
       ),
     );
   });
@@ -80,7 +79,9 @@ describe('classifyPlanningRisk', () => {
     for (const entry of result.axes) {
       assert.ok(typeof entry.axis === 'string');
       assert.ok(['low', 'medium', 'high'].includes(entry.level));
-      assert.ok(typeof entry.evidence === 'string' && entry.evidence.length > 0);
+      assert.ok(
+        typeof entry.evidence === 'string' && entry.evidence.length > 0,
+      );
     }
     assert.ok(['low', 'medium', 'high'].includes(result.overallLevel));
     assert.strictEqual(typeof result.requiresReview, 'boolean');
@@ -89,6 +90,8 @@ describe('classifyPlanningRisk', () => {
         result.acceptanceDisposition,
       ),
     );
-    assert.ok(['review-required', 'auto-proceed'].includes(result.gateDecision));
+    assert.ok(
+      ['review-required', 'auto-proceed'].includes(result.gateDecision),
+    );
   });
 });

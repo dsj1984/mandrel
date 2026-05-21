@@ -78,7 +78,8 @@ const AXIS_RULES = [
   {
     axis: 'security',
     level: 'high',
-    pattern: /\b(?:security|authentication|auth(?:entication)?|authorization)\b/i,
+    pattern:
+      /\b(?:security|authentication|auth(?:entication)?|authorization)\b/i,
     evidenceFor: (snippet) => `Security signal: ${trimSnippet(snippet)}`,
   },
   {
@@ -254,7 +255,10 @@ export function classifyPlanningRisk(input = {}) {
   }
 
   const overallLevel = resolveOverallLevel(axes);
-  const acceptanceDisposition = resolveAcceptanceDisposition(axes, overallLevel);
+  const acceptanceDisposition = resolveAcceptanceDisposition(
+    axes,
+    overallLevel,
+  );
   const requiresReview = resolveRequiresReview(overallLevel, axes);
   const gateDecision = requiresReview ? 'review-required' : 'auto-proceed';
 
