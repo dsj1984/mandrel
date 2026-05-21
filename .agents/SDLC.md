@@ -47,7 +47,7 @@ From zero to shipped:
    4. **Phase 4 — audit** — runs the change-set audit lenses against
       the Epic diff; findings flow through as advisory signal.
    5. **Phase 5 — code-review** — auto-invokes
-      `helpers/epic-code-review.md`; findings persist as a
+      `helpers/code-review.md` (with `scope: epic`); findings persist as a
       `code-review` structured comment on the Epic. Critical findings
       halt the run.
    6. **Phase 6 — retro** — auto-invokes the in-process
@@ -542,7 +542,7 @@ watch / auto-merge / cleanup tail that drives the PR to merge:
    diff; findings flow through as advisory signal to inform the code
    review that follows.
 3. **Code-review (Phase 5).** `lib/orchestration/code-review.js` (extracted
-   from the `epic-code-review.md` helper) audits the diff and posts the
+   from the `code-review.md` helper) audits the diff and posts the
    findings as a `code-review` structured comment on the Epic. 🔴 Critical
    findings halt the run; 🟠/🟡/🟢 findings flow through as non-blocking.
 4. **Retro (Phase 6).** `lib/orchestration/retro-runner.js` (extracted from the old
@@ -893,7 +893,7 @@ failures never block execution.
 | `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main`. Operator merges via the GitHub UI.                                         |
 | `/story-deliver <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
 | _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
-| _helper_ `workflows/helpers/epic-code-review.md` | Auto-invoked by `/epic-deliver` Phase 5; not a slash command.                                                                                                                 |
+| _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver` Phase 5 (scope: epic); not a slash command.                                                               |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
 | `/git-push`                                      | Stage, commit, and push to remote                                                                                                                                            |
 | `epic-reconcile.js --explicit-delete`            | Hard reset — close orphaned Epic-scoped issues per `.agents/epics/<id>.yaml`                                                                                                 |
