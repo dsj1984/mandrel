@@ -106,16 +106,28 @@ describe('lifecycle/phase-close-tail — code-review.start/.end', () => {
     const writer = new LedgerWriter({ epicId, tempRoot });
     writer.register(bus);
 
+    // Story #2831 — runCodeReview now derives severity from the adapter's
+    // Finding[] return value. Seed an adapter that returns the desired tier
+    // mix and stub the renderer/upsert seams so the test stays hermetic.
+    const seededFindings = [
+      { severity: 'high', title: 'h1', body: 'b' },
+      { severity: 'medium', title: 'm1', body: 'b' },
+      { severity: 'medium', title: 'm2', body: 'b' },
+      { severity: 'suggestion', title: 's1', body: 'b' },
+      { severity: 'suggestion', title: 's2', body: 'b' },
+      { severity: 'suggestion', title: 's3', body: 'b' },
+    ];
     await runCodeReview({
       epicId,
       bus,
+      provider: {},
       logger: quietLogger(),
-      runner: async () => ({
-        status: 'ok',
-        severity: { critical: 0, high: 1, medium: 2, suggestion: 3 },
-        report: 'review body',
-        posted: true,
+      reviewProvider: { runReview: async () => seededFindings },
+      resolveConfigFn: () => ({
+        project: { baseBranch: 'main' },
+        delivery: { codeReview: { provider: 'native' } },
       }),
+      upsertCommentFn: async () => {},
     });
 
     const records = readNdjson(writer.ledgerPath);
@@ -145,13 +157,18 @@ describe('lifecycle/phase-close-tail — code-review.start/.end', () => {
     await runCodeReview({
       epicId,
       bus,
+      provider: {},
       logger: quietLogger(),
-      runner: async () => ({
-        status: 'ok',
-        severity: { critical: 1, high: 0, medium: 0, suggestion: 0 },
-        report: 'review body',
-        posted: true,
+      reviewProvider: {
+        runReview: async () => [
+          { severity: 'critical', title: 'c1', body: 'b' },
+        ],
+      },
+      resolveConfigFn: () => ({
+        project: { baseBranch: 'main' },
+        delivery: { codeReview: { provider: 'native' } },
       }),
+      upsertCommentFn: async () => {},
     });
 
     const records = readNdjson(writer.ledgerPath);
