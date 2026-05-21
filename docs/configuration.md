@@ -241,6 +241,8 @@ top-level keys are validation errors.
 | `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `codeReview` | No | `object` | — | Nested configuration block. |
+| `codeReview.provider` | No | `"native"` | `"native"` | ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Epic #2815 registers only `native` (the in-process maintainability/lint pass). Additional adapters (e.g. `codex`) are introduced by later stories under the same Epic and will extend this enum. |
+| `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `failOnConcurrencyHazards` | No | `boolean` | — | — |

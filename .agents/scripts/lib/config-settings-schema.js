@@ -496,6 +496,12 @@ const EPIC_AUDIT_SCHEMA = {
 const CODE_REVIEW_SCHEMA = {
   type: 'object',
   properties: {
+    // Story #2825 (Epic #2815) — pluggable review backend. Only
+    // `native` is registered today; later stories under #2815 extend
+    // the enum (e.g. `codex`). `providerConfig` is an open-shape
+    // escape hatch reserved for adapter-specific options.
+    provider: { type: 'string', enum: ['native'], default: 'native' },
+    providerConfig: { type: 'object', additionalProperties: true },
     maxFixAttempts: { type: 'integer', minimum: 0 },
     maxFixScopeFiles: { type: 'integer', minimum: 1 },
   },

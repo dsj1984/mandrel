@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T14:26:49.917Z",
+  "generatedAt": "2026-05-21T14:31:33.736Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.904,
+      "p50": 103.888,
       "p95": 121.484
     }
   },
@@ -1933,10 +1933,6 @@
     {
       "path": "tests/config-schema-mirror-drift.test.js",
       "mi": 101.563
-    },
-    {
-      "path": "tests/config-settings-schema.test.js",
-      "mi": 108.151
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",

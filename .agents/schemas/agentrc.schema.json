@@ -250,6 +250,17 @@
     "codeReview": {
       "type": "object",
       "properties": {
+        "provider": {
+          "type": "string",
+          "enum": ["native"],
+          "default": "native",
+          "description": "ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Epic #2815 registers only `native` (the in-process maintainability/lint pass). Additional adapters (e.g. `codex`) are introduced by later stories under the same Epic and will extend this enum."
+        },
+        "providerConfig": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration."
+        },
         "maxFixAttempts": {
           "type": "integer",
           "minimum": 0,
