@@ -6,24 +6,28 @@
  * Claude Code plugin's `/codex:review` slash command into the
  * pluggable ReviewProvider contract.
  *
- * This file ships with Task #2834 in the form needed by the
- * `review-provider-factory` registry: a probe function plus a
- * zero-arg constructor that throws a hard-fail Error (naming both
- * remediations) when the plugin's `/codex:review` command is not
- * registered on the host. Task #2836 (same Story) lands the full
- * `runReview()` implementation and the severity-vocabulary parser.
+ * Two halves shipped under one Story:
+ *   - Task #2834 — schema enum + factory registration + hard-fail
+ *     probe (this file's `createCodexProvider` + `*ForRegistry`).
+ *   - Task #2836 — `runReview()` invokes `/codex:review --base <ref>
+ *     --wait` through an injectable runner and parses the response
+ *     into `Finding[]`, mapping the Codex severity vocabulary onto
+ *     the canonical `critical|high|medium|suggestion` enum.
  *
  * The factory NEVER silently falls back to the native provider when
  * `provider: codex` is configured. Operators who want native MUST set
  * `provider: native` explicitly; the probe is the only thing that
  * routes between "configured backend present" and "configured backend
- * missing".
+ * missing". The adapter never consults a GitHub provider — the
+ * orchestrator owns posting/upserting and the lifecycle bus.
  *
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
+ * @typedef {import('./types.js').Severity} Severity
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -97,15 +101,182 @@ export function buildCodexUnavailableError() {
 }
 
 /**
+ * Canonical severity table. Maps every Codex severity vocabulary
+ * token (case-insensitive) onto the canonical ReviewProvider
+ * `Severity` enum. The table is intentionally explicit — drop-through
+ * to `'suggestion'` is reserved for tokens the table does NOT name.
+ *
+ * Exported so unit tests can drive a table-driven assertion across
+ * every documented Codex severity without re-listing the mapping
+ * inside the test file.
+ *
+ * @type {Readonly<Record<string, Severity>>}
+ */
+export const CODEX_SEVERITY_MAP = Object.freeze({
+  // Codex "blocker" terminology → canonical critical (halts the
+  // review with an unresolved-finding gate).
+  blocker: 'critical',
+  critical: 'critical',
+  fatal: 'critical',
+  // Codex "major" terminology → canonical high (lint-error
+  // equivalent; non-halting but must be addressed before merge).
+  major: 'high',
+  high: 'high',
+  error: 'high',
+  // Codex "minor" terminology → canonical medium (size/volume
+  // warning equivalent; flagged but not gating).
+  minor: 'medium',
+  medium: 'medium',
+  warning: 'medium',
+  // Codex "info" / "nit" / "style" → canonical suggestion
+  // (advisory only, no gate).
+  info: 'suggestion',
+  nit: 'suggestion',
+  style: 'suggestion',
+  suggestion: 'suggestion',
+  note: 'suggestion',
+});
+
+/**
+ * Map a single Codex severity string onto the canonical enum.
+ *
+ * @param {unknown} raw
+ * @returns {Severity}
+ */
+export function mapCodexSeverity(raw) {
+  if (typeof raw !== 'string') return 'suggestion';
+  const key = raw.trim().toLowerCase();
+  return CODEX_SEVERITY_MAP[key] ?? 'suggestion';
+}
+
+/**
+ * Parse the raw `/codex:review` stdout into `Finding[]`.
+ *
+ * The plugin emits JSON; the adapter is liberal in what it accepts:
+ *   - A bare array of finding objects.
+ *   - An object with a `findings` array.
+ *   - Either shape wrapped in an outer envelope with a `result` or
+ *     `data` key (covers minor wire-format drift across plugin
+ *     versions without re-shimming).
+ *
+ * Each entry's severity is funnelled through `mapCodexSeverity` so
+ * the canonical enum is the only thing that reaches the renderer.
+ * Entries without a `title` or `body` are skipped — the orchestrator
+ * cannot post an empty finding, and silently dropping the entry is
+ * safer than fabricating one.
+ *
+ * Exported for testing.
+ *
+ * @param {string} rawStdout
+ * @returns {Finding[]}
+ * @throws {Error} when stdout is not parseable JSON.
+ */
+export function parseCodexFindings(rawStdout) {
+  const text = (rawStdout ?? '').trim();
+  if (text.length === 0) return [];
+
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (err) {
+    throw new Error(
+      `[codex-review] Failed to parse /codex:review stdout as JSON: ${
+        err?.message ?? err
+      }`,
+    );
+  }
+
+  // Unwrap a single layer of envelope when present.
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
+    else if (parsed.result !== undefined) parsed = parsed.result;
+    else if (parsed.data !== undefined) parsed = parsed.data;
+  }
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    if (Array.isArray(parsed.findings)) parsed = parsed.findings;
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  /** @type {Finding[]} */
+  const findings = [];
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== 'object') continue;
+    const title =
+      typeof entry.title === 'string' && entry.title.trim().length > 0
+        ? entry.title.trim()
+        : null;
+    const body =
+      typeof entry.body === 'string' && entry.body.trim().length > 0
+        ? entry.body
+        : typeof entry.message === 'string' && entry.message.trim().length > 0
+          ? entry.message
+          : null;
+    if (!title || !body) continue;
+
+    /** @type {Finding} */
+    const finding = {
+      severity: mapCodexSeverity(entry.severity),
+      title,
+      body,
+    };
+    if (typeof entry.file === 'string' && entry.file.length > 0) {
+      finding.file = entry.file;
+    }
+    if (Number.isInteger(entry.line) && entry.line > 0) {
+      finding.line = entry.line;
+    }
+    if (typeof entry.category === 'string' && entry.category.length > 0) {
+      finding.category = entry.category;
+    }
+    findings.push(finding);
+  }
+  return findings;
+}
+
+/**
+ * Default invoker: shell out to the host's `claude` CLI to run the
+ * `/codex:review` slash command. The plugin is expected to print a
+ * JSON document to stdout when `--wait` is passed; non-zero exits
+ * propagate as an Error so the orchestrator records the run as
+ * `status=invalid` rather than burying the failure.
+ *
+ * Exported for testing — the production adapter accepts an
+ * `invokeFn` override so tests never spawn a real process.
+ *
+ * @param {{ baseRef: string, headRef: string }} args
+ * @returns {{ status: number, stdout: string, stderr: string }}
+ */
+export function defaultInvokeCodexReview({ baseRef, headRef }) {
+  const cliArgs = [
+    '--print',
+    `/codex:review --base ${baseRef} --head ${headRef} --wait`,
+  ];
+  const result = spawnSync('claude', cliArgs, {
+    encoding: 'utf-8',
+    shell: process.platform === 'win32',
+  });
+  return {
+    status: result.status ?? 1,
+    stdout: result.stdout ?? '',
+    stderr: result.stderr ?? '',
+  };
+}
+
+/**
  * Build a `ReviewProvider` instance backed by the Codex plugin.
  *
- * Task #2834 ships the probe + registry wiring; Task #2836 replaces
- * the `runReview()` stub with the real `/codex:review --base <ref>
- * --wait` invocation and the severity-vocabulary parser. Until #2836
- * lands, `runReview()` throws so a misconfigured deployment fails
- * loudly rather than silently emitting empty findings.
+ * The `deps` overload is the test seam — production callers (the
+ * factory) invoke `createCodexProvider()` with no arguments and get
+ * the default dependency chain (probe via plugin marker, invoker via
+ * the `claude` CLI). Tests inject `probeFn` (to bypass the marker
+ * check) and `invokeFn` (to return canned stdout).
  *
- * @param {{ probeFn?: () => boolean }} [deps]
+ * @param {{
+ *   probeFn?: () => boolean,
+ *   invokeFn?: (args: { baseRef: string, headRef: string, scope: string, ticketId: number }) => { status: number, stdout: string, stderr: string },
+ *   logger?: { info?: Function, warn?: Function, error?: Function },
+ * }} [deps]
  * @returns {ReviewProvider}
  */
 export function createCodexProvider(deps = {}) {
@@ -114,17 +285,46 @@ export function createCodexProvider(deps = {}) {
     throw buildCodexUnavailableError();
   }
 
+  const invokeFn = deps.invokeFn ?? defaultInvokeCodexReview;
+  const logger = deps.logger;
+
   return {
     /**
-     * @param {ReviewInput} _input
+     * @param {ReviewInput} input
      * @returns {Promise<Finding[]>}
      */
-    async runReview(_input) {
-      throw new Error(
-        '[codex-review] runReview() is not yet implemented. ' +
-          'Task #2836 (Story #2830, Epic #2815) lands the `/codex:review` ' +
-          'invocation and the Codex-severity parser.',
+    async runReview(input) {
+      const { scope, ticketId, baseRef, headRef } = input ?? {};
+      if (!baseRef || !headRef) {
+        throw new TypeError(
+          '[codex-review] runReview requires baseRef and headRef.',
+        );
+      }
+      if (!Number.isInteger(ticketId) || ticketId <= 0) {
+        throw new TypeError(
+          '[codex-review] runReview requires a positive integer ticketId.',
+        );
+      }
+
+      logger?.info?.(
+        `[codex-review] Invoking /codex:review --base ${baseRef} --head ${headRef} ` +
+          `for ${scope} #${ticketId}...`,
       );
+
+      const result = invokeFn({ baseRef, headRef, scope, ticketId });
+      if (result.status !== 0) {
+        throw new Error(
+          `[codex-review] /codex:review exited with status ${result.status}: ${
+            result.stderr || result.stdout || '<no output>'
+          }`,
+        );
+      }
+
+      const findings = parseCodexFindings(result.stdout);
+      logger?.info?.(
+        `[codex-review] Parsed ${findings.length} finding(s) from /codex:review.`,
+      );
+      return findings;
     },
   };
 }
