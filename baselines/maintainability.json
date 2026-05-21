@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T10:38:47.240Z",
+  "generatedAt": "2026-05-21T14:31:33.736Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.914,
+      "p50": 103.888,
       "p95": 121.484
     }
   },
@@ -149,10 +149,6 @@
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
       "mi": 93.141
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
-      "mi": 118.892
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter.js",
@@ -1663,10 +1659,6 @@
       "mi": 98.588
     },
     {
-      "path": "tests/audit-suite/frontmatter-lint.test.js",
-      "mi": 111.871
-    },
-    {
       "path": "tests/audit-suite/frontmatter.test.js",
       "mi": 116.01
     },
@@ -1941,10 +1933,6 @@
     {
       "path": "tests/config-schema-mirror-drift.test.js",
       "mi": 101.563
-    },
-    {
-      "path": "tests/config-settings-schema.test.js",
-      "mi": 108.151
     },
     {
       "path": "tests/config/agentrc-defaults.test.js",
