@@ -13,6 +13,8 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { parseApiJson } from './request-helpers.js';
+
 /**
  * Detect a 404 across both error surfaces:
  *
@@ -39,16 +41,6 @@ export function isNotFoundError(err) {
     // gh-exec carries the failing code on err.code for the test mock path.
     err?.code === 404
   );
-}
-
-/**
- * Parse a `gh api ...` stdout payload into JSON. Returns `null` for empty
- * bodies (HTTP 204 DELETE responses).
- */
-function parseApiJson(result) {
-  const stdout = result?.stdout ?? '';
-  if (!stdout.trim()) return null;
-  return JSON.parse(stdout);
 }
 
 export class BranchProtectionGateway {

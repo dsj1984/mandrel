@@ -97,6 +97,88 @@ export function classifyGithubError(err) {
 }
 
 // ---------------------------------------------------------------------------
+// Transient-retry helper (Story #2852)
+// ---------------------------------------------------------------------------
+//
+// Mirrors the addSubIssue retry contract in `sub-issues.js` so read-path
+// callers (paginateRest, getTicket, getNativeSubIssues, …) absorb the same
+// jittered exponential backoff on transient GitHub errors instead of
+// bubbling a one-shot 502/429/ECONNRESET that kills a longer orchestration
+// (e.g. the /epic-deliver Phase E retro).
+
+export const TRANSIENT_RETRY_DEFAULTS = Object.freeze({
+  maxAttempts: 6,
+  baseDelayMs: 500,
+  capMs: 30_000,
+  jitterMs: 500,
+});
+
+/**
+ * Run `fn` with jittered exponential backoff on transient GitHub errors.
+ * `classify` (defaults to `classifyGithubError`) decides whether each
+ * failure is retry-eligible: only `'transient'` retries; every other
+ * bucket (`feature-disabled` / `permission` / `permanent`) bubbles on the
+ * first failure. The retry shape matches `addSubIssue` in
+ * `sub-issues.js:119-167`.
+ *
+ * `sleep` and `random` are injectable so tests can drive deterministic
+ * retry paths without real-world timing.
+ *
+ * @template T
+ * @param {() => Promise<T>} fn
+ * @param {{
+ *   maxAttempts?: number,
+ *   baseDelayMs?: number,
+ *   capMs?: number,
+ *   jitterMs?: number,
+ *   classify?: (err: unknown) => string,
+ *   label?: string,
+ *   onRetry?: (info: {
+ *     attempt: number,
+ *     maxAttempts: number,
+ *     delay: number,
+ *     err: unknown,
+ *     label: string,
+ *   }) => void,
+ *   sleep?: (ms: number) => Promise<void>,
+ *   random?: () => number,
+ * }} [opts]
+ * @returns {Promise<T>}
+ */
+export async function withTransientRetry(fn, opts = {}) {
+  const {
+    maxAttempts = TRANSIENT_RETRY_DEFAULTS.maxAttempts,
+    baseDelayMs = TRANSIENT_RETRY_DEFAULTS.baseDelayMs,
+    capMs = TRANSIENT_RETRY_DEFAULTS.capMs,
+    jitterMs = TRANSIENT_RETRY_DEFAULTS.jitterMs,
+    classify = classifyGithubError,
+    label = 'gh-api',
+    onRetry,
+    sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+    random = Math.random,
+  } = opts;
+
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const category = classify(err);
+      const isFinal = attempt === maxAttempts - 1;
+      if (category !== 'transient' || isFinal) throw err;
+      const base = Math.min(capMs, baseDelayMs * 2 ** attempt);
+      const delay = base + Math.floor(random() * jitterMs);
+      if (typeof onRetry === 'function') {
+        onRetry({ attempt: attempt + 1, maxAttempts, delay, err, label });
+      }
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
+// ---------------------------------------------------------------------------
 // Sub-issues GraphQL shapes
 // ---------------------------------------------------------------------------
 export const SUB_ISSUES_QUERY = `query($id: ID!, $cursor: String) {

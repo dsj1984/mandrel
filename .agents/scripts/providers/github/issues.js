@@ -19,7 +19,13 @@ import { Logger } from '../../lib/Logger.js';
 import { TYPE_LABELS } from '../../lib/label-constants.js';
 import { concurrentMap } from '../../lib/util/concurrent-map.js';
 import { isNotFoundError } from './branch-protection.js';
+import { withTransientRetry } from './errors.js';
 import { issueToEpic, issueToEpicListItem } from './mappers.js';
+import {
+  defaultRetryWarn,
+  paginateRest,
+  parseApiJson,
+} from './request-helpers.js';
 
 /**
  * Concurrency budget for the `getSubTickets` fan-out — preserved from
@@ -27,39 +33,10 @@ import { issueToEpic, issueToEpicListItem } from './mappers.js';
  */
 export const SUBTICKET_HYDRATION_CONCURRENCY = 8;
 
-/**
- * Parse a `gh api ...` stdout payload into JSON. Returns `null` for empty
- * bodies (HTTP 204 DELETE responses).
- */
-function parseApiJson(result) {
-  const stdout = result?.stdout ?? '';
-  if (!stdout.trim()) return null;
-  return JSON.parse(stdout);
-}
-
-/**
- * Paginate a REST list endpoint by appending `page=N&per_page=100` until a
- * short page lands. We sidestep `gh api --paginate` here because that flag
- * emits concatenated JSON documents (one per page) rather than a single
- * array.
- */
-export async function paginateRest(ghFacade, endpoint) {
-  const items = [];
-  const separator = endpoint.includes('?') ? '&' : '?';
-  let page = 1;
-  while (true) {
-    const result = await ghFacade.api({
-      method: 'GET',
-      endpoint: `${endpoint}${separator}page=${page}&per_page=100`,
-    });
-    const batch = parseApiJson(result);
-    if (!Array.isArray(batch)) break;
-    items.push(...batch);
-    if (batch.length < 100) break;
-    page++;
-  }
-  return items;
-}
+// Re-export so existing test consumers that previously imported
+// `paginateRest` from this module continue to work without an extra
+// migration step.
+export { paginateRest };
 
 export class IssuesGateway {
   /**
@@ -145,10 +122,14 @@ export class IssuesGateway {
    *                 title, body, labels, state
    */
   async getEpic(epicId) {
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/${epicId}`,
-    });
+    const result = await withTransientRetry(
+      () =>
+        this._gh.api({
+          method: 'GET',
+          endpoint: `/repos/${this.owner}/${this.repo}/issues/${epicId}`,
+        }),
+      { label: `getEpic #${epicId}`, onRetry: defaultRetryWarn },
+    );
     return issueToEpic(parseApiJson(result));
   }
 
@@ -162,7 +143,10 @@ export class IssuesGateway {
   async branchExists(branch) {
     const endpoint = `/repos/${this.owner}/${this.repo}/branches/${encodeURIComponent(branch)}`;
     try {
-      await this._gh.api({ method: 'GET', endpoint });
+      await withTransientRetry(
+        () => this._gh.api({ method: 'GET', endpoint }),
+        { label: `branchExists ${branch}`, onRetry: defaultRetryWarn },
+      );
       return true;
     } catch (err) {
       if (isNotFoundError(err)) return false;
