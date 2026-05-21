@@ -24,7 +24,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
   → Phase 4 — epic-audit           (helpers/epic-audit.md — change-set audits via selectAudits)
-  → Phase 5 — code-review          (helpers/epic-code-review.md)
+  → Phase 5 — code-review          (helpers/code-review.md with scope: epic)
   → Phase 6 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
   → Phase 7 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
   → Phase 8 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
@@ -286,9 +286,10 @@ persisted as an `audit-results` structured comment on the Epic.
 ## Phase 5 — Code review
 
 Skip when `--skip-code-review`. Otherwise auto-invoke
-[`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline
-(read-only audit). The helper persists findings as a `code-review`
-structured comment on the Epic.
+[`helpers/code-review.md`](helpers/code-review.md) inline (read-only audit)
+with the argument envelope `{ scope: 'epic', ticketId: <epicId>, baseRef:
+'main', headRef: 'epic/<epicId>' }`. The helper persists findings as a
+`code-review` structured comment on the Epic.
 
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.

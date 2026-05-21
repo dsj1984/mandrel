@@ -194,7 +194,7 @@ Human reviewers should **keep using the main checkout** — not a worktree:
   the main checkout, not in any per-story worktree.
 - Opening a worktree in an IDE can mislead: the working directory looks like the
   main repo but carries a different HEAD. The main checkout is the canonical
-  place to read PRDs, Tech Specs, and run the `helpers/epic-code-review.md`
+  place to read PRDs, Tech Specs, and run the `helpers/code-review.md`
   procedure.
 - `git worktree list --porcelain` on the main checkout enumerates any still
   in-flight story worktrees if you need to inspect one — prefer read-only

@@ -6,7 +6,7 @@
  *
  * Story #2619 (Epic #2586). Read a list of touched files (provided by the
  * caller after the code-review auto-fix loop in
- * `.agents/workflows/helpers/epic-code-review.md` Step 4.6) and emit the
+ * `.agents/workflows/helpers/code-review.md` Step 4.6) and emit the
  * subset of audit lenses whose `filePatterns` overlap that list.
  *
  * The CLI is intentionally narrower than `select-audits.js`: it does NOT
