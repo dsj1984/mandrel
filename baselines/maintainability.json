@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T01:34:18.716Z",
+  "generatedAt": "2026-05-21T01:47:32.835Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.888,
+      "p50": 103.904,
       "p95": 121.571
     }
   },
@@ -3179,10 +3179,6 @@
       "mi": 108.717
     },
     {
-      "path": "tests/lib/planning-state-manager.test.js",
-      "mi": 87.071
-    },
-    {
       "path": "tests/lib/presentation/manifest-builder.test.js",
       "mi": 98.574
     },
@@ -3613,10 +3609,6 @@
     {
       "path": "tests/scripts/epic-plan.edit-flow.test.js",
       "mi": 108.552
-    },
-    {
-      "path": "tests/scripts/epic-plan.spec-flow.test.js",
-      "mi": 86.091
     },
     {
       "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
