@@ -250,6 +250,13 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.27.0](https://github.com/dsj1984/mandrel/compare/v1.26.0...v1.27.0) (2026-05-21)
+
+
+### Added
+
+* retire prose-legacy hydration output mode ([#2864](https://github.com/dsj1984/mandrel/issues/2864)) ([#2865](https://github.com/dsj1984/mandrel/issues/2865)) ([5d514c9](https://github.com/dsj1984/mandrel/commit/5d514c9d9d1e148a9eab9d693988548f732434f2))
+
 ## [1.26.0](https://github.com/dsj1984/mandrel/compare/v1.25.0...v1.26.0) (2026-05-21)
 
 
