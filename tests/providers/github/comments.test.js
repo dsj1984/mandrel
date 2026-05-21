@@ -143,4 +143,42 @@ describe('providers/github/comments.js — CommentGateway', () => {
     const sentBody = JSON.parse(gh.__exec.calls[0].input).body;
     assert.equal(sentBody, 'msg');
   });
+
+  // Story #2852: end-to-end retry exercised through getTicketComments to
+  // prove paginateRest's wrap survives a real gateway round-trip.
+  it('getTicketComments: retries on a transient 502 and recovers without losing prior pages', async () => {
+    // Three logical pages: full-page 1, transient 502, page 2 (short).
+    // The gw passes through paginateRest → withTransientRetry → gh.api,
+    // so the retry must be observed at the api-call level.
+    const fullPage = new Array(100).fill(0).map((_, i) => ({
+      id: i + 1,
+      body: `c${i + 1}`,
+    }));
+    let call = 0;
+    const gh = {
+      api: async () => {
+        call++;
+        if (call === 1) {
+          return { stdout: JSON.stringify(fullPage), stderr: '', code: 0 };
+        }
+        if (call === 2) {
+          const err = new Error('gh: HTTP 502');
+          err.status = 502;
+          throw err;
+        }
+        // Retry of page 2 succeeds with a short page.
+        return {
+          stdout: JSON.stringify([{ id: 101, body: 'c101' }]),
+          stderr: '',
+          code: 0,
+        };
+      },
+    };
+    const gw = new CommentGateway({ gh, owner: 'o', repo: 'r' });
+    // The default retry sleeps with setTimeout — keep delay small so the
+    // test stays fast. The retry path itself is verified by the call count.
+    const out = await gw.getTicketComments(42);
+    assert.equal(out.length, 101);
+    assert.equal(call, 3, 'transient triggered exactly one retry of page 2');
+  });
 });

@@ -14,6 +14,8 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { parseApiJson } from './request-helpers.js';
+
 /**
  * Fields the merge-method bootstrap reads/writes.
  */
@@ -24,16 +26,6 @@ export const MERGE_METHOD_FIELDS = [
   'allow_auto_merge',
   'delete_branch_on_merge',
 ];
-
-/**
- * Parse a `gh api ...` stdout payload into JSON. Returns `null` for empty
- * bodies (HTTP 204 DELETE responses).
- */
-function parseApiJson(result) {
-  const stdout = result?.stdout ?? '';
-  if (!stdout.trim()) return null;
-  return JSON.parse(stdout);
-}
 
 export class MergeMethodsGateway {
   /**

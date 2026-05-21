@@ -32,8 +32,10 @@ import {
   classifyGithubError as defaultClassifyGithubError,
   REMOVE_SUB_ISSUE_MUTATION,
   SUB_ISSUES_QUERY,
+  withTransientRetry,
 } from './errors.js';
 import { subIssueNodeToTicket } from './mappers.js';
+import { defaultRetryWarn } from './request-helpers.js';
 
 // Concurrency + retry budgets — preserved from `../github.js` so dispatch
 // fan-out and sub-issue reconciliation keep their established shapes.
@@ -42,6 +44,12 @@ const SUB_ISSUE_RETRY_MAX_ATTEMPTS = 6;
 const SUB_ISSUE_RETRY_BASE_DELAY_MS = 1000;
 const SUB_ISSUE_RETRY_MAX_DELAY_MS = 30000;
 const SUB_ISSUE_RETRY_JITTER_MS = 500;
+
+// Story #2852: cap the native sub-issue cursor walk so a runaway pagination
+// (e.g. an upstream API regression that never sets `hasNextPage = false`)
+// fails fast instead of looping forever. 50 cursor pages × 100 nodes per
+// page = 5000 sub-issues, well above any realistic Epic.
+const NATIVE_SUB_ISSUE_PAGE_CAP = 50;
 
 export class SubIssueGateway {
   /**
@@ -78,11 +86,19 @@ export class SubIssueGateway {
     const childIds = [];
     let cursor = null;
     try {
-      while (true) {
-        const data = await this._ghGraphql(
-          SUB_ISSUES_QUERY,
-          { id: parentNodeId, cursor },
-          { headers: { 'GraphQL-Features': 'sub_issues' } },
+      for (let walked = 0; walked < NATIVE_SUB_ISSUE_PAGE_CAP; walked++) {
+        const data = await withTransientRetry(
+          () =>
+            this._ghGraphql(
+              SUB_ISSUES_QUERY,
+              { id: parentNodeId, cursor },
+              { headers: { 'GraphQL-Features': 'sub_issues' } },
+            ),
+          {
+            label: `getNativeSubIssues parent=#${parentId}`,
+            classify: this._classify,
+            onRetry: defaultRetryWarn,
+          },
         );
         const page = data.node?.subIssues;
         const nodes = page?.nodes ?? [];
@@ -92,8 +108,14 @@ export class SubIssueGateway {
             this._cache.primeIfAbsent(subIssueNodeToTicket(node));
           }
         }
-        if (!page?.pageInfo?.hasNextPage) break;
+        if (!page?.pageInfo?.hasNextPage) return childIds;
         cursor = page.pageInfo.endCursor;
+        if (walked === NATIVE_SUB_ISSUE_PAGE_CAP - 1) {
+          throw new Error(
+            `[getNativeSubIssues] cursor cap exceeded for parent #${parentId} ` +
+              `(cap=${NATIVE_SUB_ISSUE_PAGE_CAP}, collected=${childIds.length})`,
+          );
+        }
       }
     } catch (err) {
       const category = this._classify(err);

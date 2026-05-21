@@ -14,6 +14,13 @@
  * @see Story #2462 — Split GitHubProvider god class into seven composed gateways.
  */
 
+import { withTransientRetry } from './errors.js';
+import {
+  defaultRetryWarn,
+  paginateRest,
+  parseApiJson,
+} from './request-helpers.js';
+
 // Structured-comment badge — preserved verbatim from the legacy
 // `./github/comments.js`. `upsertStructuredComment` in
 // `lib/orchestration/ticketing.js` prepends the
@@ -27,39 +34,6 @@ const TYPE_BADGES = {
   friction: '⚠️ **Friction**',
   notification: '📢 **Notification**',
 };
-
-/**
- * Parse a `gh api ...` stdout payload into JSON. Returns `null` for empty
- * bodies (HTTP 204 DELETE responses).
- */
-function parseApiJson(result) {
-  const stdout = result?.stdout ?? '';
-  if (!stdout.trim()) return null;
-  return JSON.parse(stdout);
-}
-
-/**
- * Paginate a REST list endpoint by appending `page=N&per_page=100` until a
- * short page lands. Mirrors the legacy bespoke-client `restPaginated`
- * behaviour so consumers see the same all-pages array.
- */
-async function paginateRest(ghFacade, endpoint) {
-  const items = [];
-  const separator = endpoint.includes('?') ? '&' : '?';
-  let page = 1;
-  while (true) {
-    const result = await ghFacade.api({
-      method: 'GET',
-      endpoint: `${endpoint}${separator}page=${page}&per_page=100`,
-    });
-    const batch = parseApiJson(result);
-    if (!Array.isArray(batch)) break;
-    items.push(...batch);
-    if (batch.length < 100) break;
-    page++;
-  }
-  return items;
-}
 
 export class CommentGateway {
   /**
@@ -84,10 +58,14 @@ export class CommentGateway {
    *                 id, body, created_at, user, issue_url
    */
   async getRecentComments(limit = 100) {
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/comments?sort=created&direction=desc&per_page=${limit}`,
-    });
+    const result = await withTransientRetry(
+      () =>
+        this._gh.api({
+          method: 'GET',
+          endpoint: `/repos/${this.owner}/${this.repo}/issues/comments?sort=created&direction=desc&per_page=${limit}`,
+        }),
+      { label: 'getRecentComments', onRetry: defaultRetryWarn },
+    );
     return parseApiJson(result) ?? [];
   }
 

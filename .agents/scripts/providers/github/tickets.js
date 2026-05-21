@@ -25,44 +25,13 @@ import { parseBlockedBy, parseBlocks } from '../../lib/dependency-parser.js';
 import { Logger } from '../../lib/Logger.js';
 import { composeTaskBody } from '../../lib/templates/task-body-renderer.js';
 import { createInlineTicketCache } from './cache.js';
+import { withTransientRetry } from './errors.js';
 import { issueToListItem, issueToTicket } from './mappers.js';
-
-/**
- * Parse a `gh api ...` stdout payload into JSON. `gh-exec.exec` returns
- * `{ stdout, stderr, code }`; we own the parse here. Returns `null` for
- * empty bodies (HTTP 204).
- */
-function parseApiJson(result) {
-  const stdout = result?.stdout ?? '';
-  if (!stdout.trim()) return null;
-  return JSON.parse(stdout);
-}
-
-/**
- * Paginate a REST list endpoint by appending `page=N&per_page=100` until a
- * short page lands. Mirrors the legacy bespoke client's `restPaginated`
- * behaviour so consumers see the same all-pages array.
- *
- * @param {object} ghFacade  the bound gh facade (provider._gh).
- * @param {string} endpoint  REST endpoint without `page=` set.
- */
-async function paginateRest(ghFacade, endpoint) {
-  const items = [];
-  const separator = endpoint.includes('?') ? '&' : '?';
-  let page = 1;
-  while (true) {
-    const result = await ghFacade.api({
-      method: 'GET',
-      endpoint: `${endpoint}${separator}page=${page}&per_page=100`,
-    });
-    const batch = parseApiJson(result);
-    if (!Array.isArray(batch)) break;
-    items.push(...batch);
-    if (batch.length < 100) break;
-    page++;
-  }
-  return items;
-}
+import {
+  defaultRetryWarn,
+  paginateRest,
+  parseApiJson,
+} from './request-helpers.js';
 
 export class TicketGateway {
   /**
@@ -112,10 +81,14 @@ export class TicketGateway {
         return this._cache.peek(ticketId);
       }
     }
-    const result = await this._gh.api({
-      method: 'GET',
-      endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}`,
-    });
+    const result = await withTransientRetry(
+      () =>
+        this._gh.api({
+          method: 'GET',
+          endpoint: `/repos/${this.owner}/${this.repo}/issues/${ticketId}`,
+        }),
+      { label: `getTicket #${ticketId}`, onRetry: defaultRetryWarn },
+    );
     const ticket = issueToTicket(parseApiJson(result));
     this._cache.set(ticketId, ticket);
     return ticket;
