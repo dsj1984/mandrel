@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T16:51:28.188Z",
+  "generatedAt": "2026-05-21T17:08:10.790Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -3178,42 +3178,6 @@
       "method": "formatMaintainabilityProjection",
       "startLine": 278,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyGithubDefaults",
-      "startLine": 110,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyCommandsDefaults",
-      "startLine": 123,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDeliveryDefaults",
-      "startLine": 133,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "applyDefaults",
-      "startLine": 146,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "buildLegacyShim",
-      "startLine": 178,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/config-resolver.js",
-      "method": "resolveConfig",
-      "startLine": 229,
-      "crap": 9
     },
     {
       "path": ".agents/scripts/lib/config/baselines.js",
@@ -9892,18 +9856,6 @@
       "method": "defaultIsAlive",
       "startLine": 336,
       "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runGatesAndRefresh",
-      "startLine": 43,
-      "crap": 20
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "method": "runStoryCloseLocked",
-      "startLine": 105,
-      "crap": 4.001502629601803
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
