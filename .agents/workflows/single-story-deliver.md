@@ -335,6 +335,46 @@ gate. The operator reviews and merges via the GitHub UI; the same
 
 ---
 
+## Step 5.5 — Re-assert Status column (**required, not optional**)
+
+The GitHub Projects v2 built-in workflows `Pull request merged` and
+`Pull request linked to issue` are enabled by default on most boards
+and fire ~minutes *after* auto-merge lands. They overwrite the Status
+field as a side-effect, clobbering the `Done` value `single-story-close.js`
+set at `agent::done` flip-time and leaving closed Stories stuck at
+`In Progress` on the board (reproduced on Story #2813). The
+orchestrator's close path has already exited by then, so the bot
+gets the last write.
+
+Re-assert authority once the merge confirms:
+
+```bash
+node .agents/scripts/resync-status-column.js --story <storyId>
+```
+
+What this does:
+
+- Reads the ticket's current `agent::*` label set (now `agent::done`).
+- Re-fires the same `ColumnSync` mutation `transitionTicketState` used
+  at close, overwriting the bot's late write.
+- Prints a single-line JSON envelope: `{ ticketId, status, column?, reason? }`.
+
+Idempotent: re-running on a ticket whose Status already matches the
+target returns the same envelope and issues the same single GraphQL
+mutation. No-op skips (`no-project`, `no-meta`, `not-on-project`)
+exit 0 with the reason in the envelope so the workflow can continue.
+
+Operators who have already disabled the conflicting bot workflows via
+`agents-bootstrap-github.js --reap-conflicting-workflows` can still
+run this step safely — the re-assert is cheap and defends against
+re-enabled or future bot workflows.
+
+Skip Step 5.5 only when the operator opted out of auto-merge AND has
+not yet merged the PR (no `agent::done` to re-assert yet) — run it
+after the manual merge instead.
+
+---
+
 ## Step 6 — Local branch cleanup (**required, not optional**)
 
 GitHub deletes the **remote** branch on auto-merge (via the
