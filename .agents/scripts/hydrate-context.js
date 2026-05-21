@@ -20,6 +20,7 @@ import { parseArgs } from 'node:util';
 import { runAsCli } from './lib/cli-utils.js';
 import { resolveConfig } from './lib/config-resolver.js';
 import { getEpicBranch, getStoryBranch } from './lib/git-utils.js';
+import { envelopeToPrompt } from './lib/orchestration/context-envelope.js';
 import {
   hydrateContext,
   parseHierarchy,
@@ -33,7 +34,8 @@ Flags:
   --epic     Epic id (optional; parsed from the ticket body when omitted).
   --help     Show this message.
 
-Output: a single JSON object {"prompt": "..."} on stdout.
+Output: a single JSON object {"prompt": "..."} on stdout by default.
+  --emit envelope  Write {"envelope": {...}} instead (debug / inspection).
 `;
 
 /**
@@ -54,6 +56,7 @@ export function ticketToTask(ticket) {
     id: ticket.id ?? ticket.number,
     title: ticket.title,
     body: ticket.body ?? '',
+    labels,
     persona,
     skills,
   };
@@ -88,14 +91,15 @@ export async function runHydrateContext({ ticketId, epicId, provider }) {
   const taskBranch = getStoryBranch(resolvedEpicId, storyId);
 
   const task = ticketToTask({ ...ticket, id: ticketId });
-  const prompt = await hydrateContext(
+  const envelope = await hydrateContext(
     task,
     provider,
     epicBranch,
     taskBranch,
     resolvedEpicId,
   );
-  return { prompt };
+  const prompt = envelopeToPrompt(envelope);
+  return { prompt, envelope };
 }
 
 export function parseArgv(argv) {
@@ -104,6 +108,7 @@ export function parseArgv(argv) {
     options: {
       ticket: { type: 'string' },
       epic: { type: 'string' },
+      emit: { type: 'string' },
       help: { type: 'boolean' },
     },
     strict: false,
@@ -119,7 +124,7 @@ export function parseArgv(argv) {
  * Shapes:
  *   - { kind: 'help' }
  *   - { kind: 'usage-error', message }
- *   - { kind: 'run', ticketId, epicId | undefined }
+ *   - { kind: 'run', ticketId, epicId | undefined, emit?: 'envelope' }
  */
 export function classifyCliInvocation(values) {
   if (values?.help) return { kind: 'help' };
@@ -131,7 +136,11 @@ export function classifyCliInvocation(values) {
     };
   }
   const epicId = values?.epic ? Number.parseInt(values.epic, 10) : undefined;
-  return { kind: 'run', ticketId, epicId };
+  const intent = { kind: 'run', ticketId, epicId };
+  if (values?.emit === 'envelope') {
+    intent.emit = 'envelope';
+  }
+  return intent;
 }
 
 export async function main(argv = process.argv.slice(2)) {
@@ -147,12 +156,16 @@ export async function main(argv = process.argv.slice(2)) {
 
   const { orchestration } = resolveConfig();
   const provider = createProvider(orchestration);
-  const envelope = await runHydrateContext({
+  const result = await runHydrateContext({
     ticketId: intent.ticketId,
     epicId: intent.epicId,
     provider,
   });
-  process.stdout.write(`${JSON.stringify(envelope)}\n`);
+  const stdoutPayload =
+    intent.emit === 'envelope'
+      ? { envelope: result.envelope }
+      : { prompt: result.prompt };
+  process.stdout.write(`${JSON.stringify(stdoutPayload)}\n`);
 }
 
 runAsCli(import.meta.url, main, { source: 'hydrate-context' });

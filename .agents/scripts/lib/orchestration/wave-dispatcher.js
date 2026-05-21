@@ -11,6 +11,7 @@ import { PROJECT_ROOT } from '../config-resolver.js';
 import { branchExistsLocally } from '../git-branch-lifecycle.js';
 import { Logger } from '../Logger.js';
 import { TYPE_LABELS } from '../label-constants.js';
+import { envelopeToPrompt } from './context-envelope.js';
 import { hydrateContext, parseHierarchy } from './context-hydration-engine.js';
 import { getResolvedBranch } from './manifest-builder.js';
 import { STATE_LABELS } from './ticketing.js';
@@ -67,13 +68,14 @@ async function dispatchTaskInWave(task, ctx) {
   const taskBranch = getResolvedBranch(task, allTicketsById, epicId);
   const storyMatch = taskBranch.match(/^story-(\d+)$/);
 
-  const hydratedPrompt = await hydrateContext(
+  const hydratedEnvelope = await hydrateContext(
     task,
     provider,
     epicBranch,
     taskBranch,
     epicId,
   );
+  const hydratedPrompt = envelopeToPrompt(hydratedEnvelope);
 
   const taskDispatch = {
     taskId: task.id,

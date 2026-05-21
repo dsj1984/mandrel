@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-20T14:08:47.072Z",
+  "generatedAt": "2026-05-20T22:26:21.850Z",
   "generator": "generate-skills-index.js@1",
   "skills": [
     {
@@ -167,7 +167,7 @@
       "tier": "core",
       "category": "core",
       "path": ".agents/skills/core/hydrate-context/SKILL.md",
-      "description": "Hydrate a Task or Story ticket into a single prompt string the executor can drop in front of an implementation request. Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and composes a `{ prompt }` JSON envelope. Successor to the retired mandrel MCP `context.hydrate` tool.",
+      "description": "Hydrate a Task or Story ticket into a structured ContextEnvelope (or the legacy `{ prompt }` stdout wrapper). Reads the ticket body, parses Feature / Epic hierarchy, fetches the Tech Spec + PRD, and assembles named sections with provenance and section-aware elision. Successor to the retired mandrel MCP `context.hydrate` tool.",
       "policyCapsuleBullets": 7,
       "allowedTools": ["Read", "Bash"],
       "vendor": null
