@@ -8,10 +8,7 @@ description: >-
   auto-merges via `gh pr merge --squash --delete-branch`; otherwise the
   workflow falls back to the operator-merges-button path so a human
   inspects the surface area.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: ten-phase delivery orchestrator coordinates wave fan-out, change-set audits, code review, retro, and merge gating — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-deliver #[Epic ID]
 
@@ -27,7 +24,7 @@ clean run; otherwise it falls back to the operator-merges-button path.
   → Phase 2 — wave loop            (wave-tick.js + Agent fan-out × concurrencyCap)
   → Phase 3 — close-validation     (lint + test + ratchets on epic/<id>)
   → Phase 4 — epic-audit           (helpers/epic-audit.md — change-set audits via selectAudits)
-  → Phase 5 — code-review          (helpers/epic-code-review.md)
+  → Phase 5 — code-review          (helpers/code-review.md with scope: epic)
   → Phase 6 — retro                (.agents/scripts/lib/orchestration/retro-runner.js)
   → Phase 7 — finalize             (lifecycle-emit → epic.close.end → open PR to main)
   → Phase 8 — watch-and-iterate    (poll `gh pr checks`; fix locally until green)
@@ -196,12 +193,12 @@ JSON return.
 }
 ```
 
-**Dispatch-model resolution.** For `model:`, precedence (highest
-wins): per-call literal → workflow `dispatchModel` frontmatter →
-inherit (emit no argument). The unset case is today's behaviour — full
-inheritance via the `general-purpose` sub-agent definition. Children
-inherit the parent's worktree context; no
-`--dangerously-skip-permissions` (no subprocess is spawned).
+**Sub-agent dispatch.** `Agent` calls emit no `model:` argument by
+default — children inherit from the `general-purpose` sub-agent
+definition and the parent's worktree context. No
+`--dangerously-skip-permissions` (no subprocess is spawned). If a
+specific call needs to override the inherited model, pass `model:` as a
+per-call literal at the `Agent(...)` site.
 
 ### 2c. Record the wave outcome
 
@@ -289,9 +286,10 @@ persisted as an `audit-results` structured comment on the Epic.
 ## Phase 5 — Code review
 
 Skip when `--skip-code-review`. Otherwise auto-invoke
-[`helpers/epic-code-review.md`](helpers/epic-code-review.md) inline
-(read-only audit). The helper persists findings as a `code-review`
-structured comment on the Epic.
+[`helpers/code-review.md`](helpers/code-review.md) inline (read-only audit)
+with the argument envelope `{ scope: 'epic', ticketId: <epicId>, baseRef:
+'main', headRef: 'epic/<epicId>' }`. The helper persists findings as a
+`code-review` structured comment on the Epic.
 
 - **Any 🔴 Critical Blocker** — STOP. Relay to the operator.
 - **Only 🟠/🟡/🟢** — log as non-blocking and continue.

@@ -187,7 +187,6 @@ key/value map; nested structures are not supported.
 ```yaml
 ---
 description: <one-paragraph summary surfaced in the skill index>
-dispatchModel:    haiku | sonnet | opus   # optional
 ---
 ```
 
@@ -195,37 +194,18 @@ dispatchModel:    haiku | sonnet | opus   # optional
 audit-suite summary helpers truncate after three sentences. Missing
 frontmatter falls back to the file's first prose paragraph.
 
-`dispatchModel` is read by the workflow body when it fans out via the
-`Agent` tool; that value is passed as the `model:` argument on each
-generated `Agent` call unless a specific call overrides it. The
-convention relies on the parent agent honouring the frontmatter — there
-is no runtime injection. The post-run analyzer
-[`audit-dispatch-model.js`](scripts/audit-dispatch-model.js) reads the
-tool-trace ledger and reports whether emitted `Agent` calls actually
-carried `model:`, so a finished run can be checked without the chat
-transcript.
-
-Dispatch-model precedence is:
-
-1. A per-call `model: <hint>` literal in the workflow body.
-2. The workflow frontmatter `dispatchModel`.
-3. No emitted `model:` argument, so the call inherits from the parent
-   agent or sub-agent definition.
-
-Putting `model:` on workflow frontmatter does not change the workflow's
-own runtime model. Workflows run inside the parent agent loop. To choose
-the model for a sub-agent, use the sub-agent definition frontmatter or
-the `model:` argument on the `Agent` call that spawns it.
+Workflow frontmatter does **not** carry model identifiers. `Agent`
+sub-dispatches inherit from the `general-purpose` sub-agent definition
+unless a specific call in the workflow body passes a per-call `model:`
+literal — that per-call override is the only supported way to pin a
+sub-agent's model.
 
 To add a workflow:
 
 1. Drop a new `.md` file at the top level of `workflows/`.
-2. Add frontmatter with at least `description`; optionally add
-   `dispatchModel`.
+2. Add frontmatter with at least `description`.
 3. Run `npm run sync:commands` to mirror the file into
    `.claude/commands/`.
-4. If the workflow fans out parallel sub-agents on one model, prefer
-   `dispatchModel` over repeating `model:` on every `Agent` call.
 
 ---
 

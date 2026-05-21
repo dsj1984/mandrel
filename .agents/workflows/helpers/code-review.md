@@ -1,61 +1,75 @@
 ---
 description: >-
-  Perform a comprehensive code review of all changes implemented during a sprint
+  Perform a comprehensive code review of a change set scoped to either a Story
+  branch or an Epic branch
 ---
 
-# Sprint Code Review (helper)
+# Code Review (helper)
 
 > **Helper module.** Not a slash command. Invoked automatically from
-> `/epic-deliver` Phase 3 and from the Bookend Lifecycle in `/epic-deliver`
-> when all Tasks reach `agent::done`. To run a review directly, use
-> `/epic-deliver [Epic_ID]` — it delegates here (or pass `--skip-code-review`
-> to bypass).
+> `/story-deliver` (Story scope) and `/epic-deliver` Phase 5 (Epic scope).
+> To run a review directly, invoke the parent workflow — operators do not
+> call this helper by hand.
 
-This helper performs a comprehensive code review of **all code changes** on an
-Epic branch before it is merged to `main`. It is a mandatory Bookend phase —
-every sprint must pass a code review before closure.
+This helper performs a comprehensive code review of a change set before it
+is merged upstream. It runs in two scopes:
 
-> **When to run**: After all Stories are merged into the Epic branch and before
-> `/epic-deliver`. The Bookend Lifecycle in `/epic-deliver` invokes this
-> automatically when all Tasks reach `agent::done`.
->
+- **Story scope** — reviews the diff between a Story branch and its parent
+  Epic branch, before `story-close.js` merges the Story into the Epic.
+- **Epic scope** — reviews the cumulative diff between an Epic branch and
+  `main`, before `/epic-deliver` opens the integration pull request.
+
 > **Persona**: `architect` · **Skills**: `core/code-review-and-quality`,
 > `core/security-and-hardening`
 
+## Argument contract
+
+The caller passes the following arguments (Story workflows pass
+`scope: story`; Epic workflows pass `scope: epic`):
+
+| Argument    | Type                  | Required | Meaning                                                                                          |
+| ----------- | --------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `scope`     | `"story"` \| `"epic"` | yes      | Selects the integration-pillar diff base and the structured-comment target ticket.               |
+| `ticketId`  | integer               | yes      | GitHub issue number of the Story (when `scope === 'story'`) or Epic (when `scope === 'epic'`).   |
+| `baseRef`   | string (git ref)      | yes      | The diff base. Story scope: `epic/<epicId>`. Epic scope: `main` (or `project.baseBranch`).       |
+| `headRef`   | string (git ref)      | yes      | The branch tip under review. Story scope: `story-<storyId>`. Epic scope: `epic/<epicId>`.        |
+
+All scope-dependent behavior in this helper branches off these four
+arguments. Do not hard-code branch names or ticket types — read them from
+the argument envelope.
+
 ## Step 0 — Resolve Context
 
-1. Resolve `[EPIC_ID]` — the GitHub Issue number of the Epic under review.
-2. Resolve `[EPIC_BRANCH]` — `epic/<epicId>`.
-3. Resolve `[BASE_BRANCH]` from `baseBranch` in `.agentrc.json` (default:
-   `main`).
-4. Fetch the Epic ticket and identify linked context tickets:
-   - **PRD** — the `context::prd` ticket linked in the Epic body.
-   - **Tech Spec** — the `context::tech-spec` ticket linked in the Epic body.
-5. Read both the PRD and Tech Spec fully to understand the intended scope,
+1. Resolve `[TICKET_ID]` from `ticketId` (Story or Epic depending on `scope`).
+2. Resolve `[BASE_REF]` from `baseRef` and `[HEAD_REF]` from `headRef`.
+3. Fetch the `[TICKET_ID]` ticket and identify linked context tickets:
+   - **Story scope** — read the parent Epic from the Story body, then load
+     the Epic's `context::prd` (PRD) and `context::tech-spec` (Tech Spec).
+   - **Epic scope** — load the Epic's `context::prd` (PRD) and
+     `context::tech-spec` (Tech Spec) directly from the Epic body.
+4. Read both the PRD and Tech Spec fully to understand the intended scope,
    architectural decisions, and acceptance criteria.
 
 ## Step 1 — Automated Audit (Pre-Review)
 
-Run the automated code review script to perform a quick maintainability and lint
-sweep of the changes:
+The caller invokes the in-process code-review pipeline
+(`runCodeReview` in `.agents/scripts/lib/orchestration/code-review.js`)
+with the resolved `{ scope, ticketId, baseRef, headRef }` envelope. The
+pluggable `ReviewProvider` adapter chain (Epic #2815) runs against the
+diff `baseRef..headRef` and posts a structured summary to `[TICKET_ID]`.
+The pipeline will:
 
-```powershell
-node .agents/scripts/epic-code-review.js --epic [EPIC_ID]
-```
-
-This script will:
-
-- Generate a `git diff` against `main`.
+- Generate a `git diff baseRef..headRef`.
 - Calculate maintainability scores for all new/modified files.
-- Run a focused lint check.
-- Post a structured summary report to the Epic issue.
+- Run a focused lint check on the change set.
+- Post a structured summary report to the `[TICKET_ID]` issue.
 
 ## Step 2 — Review Pillars
 
 For each changed file, execute a strict review against three pillars. The
 middle pillar (**Integration Review**) deliberately defers the security /
 performance / quality / coverage sweeps to the change-set-scoped audits
-that already ran in Phase 4 — re-walking them here is duplication, not
+that already ran upstream — re-walking them here is duplication, not
 defense-in-depth.
 
 ### Pillar 1: Spec Adherence
@@ -69,29 +83,47 @@ Does the implementation match the PRD requirements and Tech Spec architecture?
 
 ### Pillar 2: Integration Review
 
-Read the **`audit-results` structured comment** posted on the Epic ticket by
-the [`epic-audit.md`](epic-audit.md) helper in Phase 4. That comment is the
-authoritative source of security, privacy, performance, code-quality, and
-test-coverage findings for this change set — they were produced by the
-change-set-aware lens selector and per-lens audit workflows under
-`.agents/workflows/audit-*.md`. Do **not** re-derive those findings inline
-here.
+The integration view depends on `scope`. The diff under review is always
+`baseRef..headRef`, but the **set of upstream audit signals** to integrate
+against differs:
 
-Your job in this pillar is the **integration view** the per-lens audits
-cannot produce because each lens runs in isolation:
+- **`scope: story`** — the diff is `epic/<epicId>..story-<storyId>` (i.e.
+  one Story's contribution to the Epic). There is typically no
+  `audit-results` comment on the Story; Phase 4 epic-level audits have not
+  yet run for this change set. The integration view here focuses on
+  cross-Task ripple within the Story and contract drift against the Epic
+  branch tip. Look for:
+  - Cross-Task contract drift inside the Story (one Task's API change vs.
+    another Task's caller in the same branch).
+  - Shared-module ripple effects from this Story onto siblings already
+    merged into `epic/<epicId>`.
+  - Spec deviations that the per-Task commits papered over.
 
-- Cross-reference 🔴 / 🟠 audit findings against the spec deviations flagged
-  in Pillar 1 — a finding that traces back to a deliberate Tech-Spec
-  decision is different from one that traces back to an oversight.
-- Look for cross-cutting concerns no single lens owns: contract drift
-  between Stories, shared-module ripple effects, boundary changes that
-  thread security and performance implications together.
-- Note any audit finding that the operator's remediation flow should
-  bundle (e.g. one refactor closes findings from multiple lenses).
+- **`scope: epic`** — the diff is `main..epic/<epicId>` (the cumulative
+  Epic change set). Read the **`audit-results` structured comment** posted
+  on the Epic ticket by the [`epic-audit.md`](epic-audit.md) helper in
+  Phase 4. That comment is the authoritative source of security, privacy,
+  performance, code-quality, and test-coverage findings for this change
+  set — they were produced by the change-set-aware lens selector and
+  per-lens audit workflows under `.agents/workflows/audit-*.md`. Do **not**
+  re-derive those findings inline here.
 
-If the Epic has no `audit-results` comment (docs-only Epic, or Phase 4 was
-skipped via `--skip-epic-audit`), record that explicitly in the findings
-report and proceed — there is nothing to integrate.
+  The integration view at epic scope is what the per-lens audits cannot
+  produce because each lens runs in isolation:
+
+  - Cross-reference 🔴 / 🟠 audit findings against the spec deviations
+    flagged in Pillar 1 — a finding that traces back to a deliberate
+    Tech-Spec decision is different from one that traces back to an
+    oversight.
+  - Look for cross-cutting concerns no single lens owns: contract drift
+    between Stories, shared-module ripple effects, boundary changes that
+    thread security and performance implications together.
+  - Note any audit finding that the operator's remediation flow should
+    bundle (e.g. one refactor closes findings from multiple lenses).
+
+  If the Epic has no `audit-results` comment (docs-only Epic, or Phase 4
+  was skipped via `--skip-epic-audit`), record that explicitly in the
+  findings report and proceed — there is nothing to integrate.
 
 ### Pillar 3: Documentation Integrity
 
@@ -116,11 +148,13 @@ prior baseline before merging.
 
 ## Step 4 — Produce Findings Report
 
-Findings are **persisted as a `code-review` structured comment on the Epic
-issue** by `epic-code-review.js` (v5.9.0+). The comment is idempotent —
-re-runs replace the prior one — and its body includes severity-tier counts plus
-the full findings list so downstream workflows (notably the retro helper) can
-summarise blockers/high findings without re-running the review.
+Findings are **persisted as a `code-review` structured comment on the
+`[TICKET_ID]` issue** by `runCodeReview`. The target ticket is the Story
+when `scope === 'story'` and the Epic when `scope === 'epic'`. The comment
+is idempotent — re-runs replace the prior one — and its body includes
+severity-tier counts plus the full findings list so downstream workflows
+(notably the retro helper) can summarise blockers/high findings without
+re-running the review.
 
 Output a consolidated findings report grouped by severity:
 
@@ -174,8 +208,8 @@ const { fixed, escalated } = await runAutoFixLoop({
   attemptCeiling: cfg.delivery?.codeReview?.maxFixAttempts ?? 3,
   scopeCap: cfg.delivery?.codeReview?.maxFixScopeFiles ?? 5,
   classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
-  applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
-  rescan, // re-run epic-code-review.js or targeted diff scan
+  applyFix, // assert-branch + edit + focused commit on [HEAD_REF]
+  rescan, // re-run runCodeReview or a targeted diff scan
   validate, // npm run lint + npm test
 });
 ```
@@ -183,7 +217,7 @@ const { fixed, escalated } = await runAutoFixLoop({
 The helper's `applyFix` hook MUST:
 
 1. Call [`assert-branch.js`](../../scripts/assert-branch.js) with
-   `--expected [EPIC_BRANCH]` before touching the working tree.
+   `--expected [HEAD_REF]` before touching the working tree.
 2. Stage explicit paths only (never `git add .`).
 3. Make one focused conventional commit per finding
    (`fix(<scope>): <description> (review finding)`).
@@ -197,7 +231,7 @@ stops retrying.
 ## Step 4.6 — Cross-phase re-check trigger
 
 After the auto-fix loop in Step 4.5 returns, the `fixed[]` commits have
-modified files on `[EPIC_BRANCH]` that the Phase 4 audit lenses already
+modified files on `[HEAD_REF]` that the Phase 4 audit lenses already
 walked. Some of those edits may overlap the `filePatterns` of one or more
 lenses (e.g. an auto-fix landing in `**/auth/*.js` overlaps the
 `audit-security` lens). When that happens, the prior `audit-results`
@@ -205,12 +239,17 @@ structured comment is **stale for the overlapping lenses only** — the
 non-overlapping findings remain authoritative and MUST NOT be
 re-derived.
 
+> **Scope note.** This cross-phase re-check applies only when
+> `scope === 'epic'`. Story-scope reviews run before Phase 4 epic audits
+> exist, so there is no `audit-results` comment to invalidate; skip this
+> step entirely for `scope === 'story'`.
+
 Invoke the re-check selector with the cumulative set of paths touched by
 the auto-fix commits:
 
 ```powershell
 node .agents/scripts/epic-audit-recheck.js \
-  --epic [EPIC_ID] --files <comma-separated-touched-paths>
+  --epic [TICKET_ID] --files <comma-separated-touched-paths>
 ```
 
 For large touched-file lists, pass `@<file>` (where `<file>` is a
@@ -225,7 +264,7 @@ When `selectedAudits` is non-empty:
 
 1. Re-invoke each listed lens prompt under
    [`../audit-*.md`](../) the same way Phase 4's `epic-audit.md` does —
-   one lens at a time, against the current `[EPIC_BRANCH]` tip.
+   one lens at a time, against the current `[HEAD_REF]` tip.
 2. **Append** a `## Cross-phase re-check` section to the **existing**
    `audit-results` structured comment on the Epic ticket. Do **not** post
    a new comment; the comment is idempotent and downstream consumers
@@ -250,12 +289,12 @@ surface findings that the auto-fix loop then converts into commits.
 
 If the operator instructs you to fix any findings:
 
-1. Implement the fixes on the `[EPIC_BRANCH]`.
+1. Implement the fixes on the `[HEAD_REF]` branch.
 2. Commit each logical fix atomically:
 
    ```powershell
-   # Guard: confirm we're on the Epic branch before committing.
-   node .agents/scripts/assert-branch.js --expected [EPIC_BRANCH]
+   # Guard: confirm we're on the correct branch before committing.
+   node .agents/scripts/assert-branch.js --expected [HEAD_REF]
 
    # Stage explicit paths — never `git add .` on a shared tree.
    git add <path/one> <path/two>
@@ -273,12 +312,14 @@ If the operator instructs you to fix any findings:
    ```
 
 If no fixes are requested, this workflow is complete. The operator may proceed
-to `/epic-deliver`.
+to the next phase of the parent workflow.
 
 ## Constraint
 
-- **Always** diff against `[BASE_BRANCH]`, not against individual Story
-  branches. The review examines the **cumulative** effect of the entire Epic.
+- **Always** diff `baseRef..headRef`. Never substitute a different base —
+  the scope is set by the caller, and reviewing against the wrong base
+  produces either a hollow review (too small a diff) or noise (too large a
+  diff that includes unrelated history).
 - **Always** read the PRD and Tech Spec before reviewing code. Findings without
   spec context are noise.
 - **Never** implement fixes unless the operator explicitly requests it. The

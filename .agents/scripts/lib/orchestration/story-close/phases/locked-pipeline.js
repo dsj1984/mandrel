@@ -27,6 +27,7 @@ import {
 } from '../../../util/phase-timer-state.js';
 import { dispatchRecovery } from '../../story-close-recovery.js';
 import { runClosePhase } from './close.js';
+import { runStoryCodeReview } from './code-review.js';
 import {
   emitBaselineBlockedResult,
   runPreMergeValidation,
@@ -160,6 +161,21 @@ export async function runStoryCloseLocked(args) {
   if (!skipValidation) {
     const { blocked } = await runGatesAndRefresh(ctx);
     if (blocked) return blocked;
+
+    // Story #2840 — Story-scope code review runs after the gate chain
+    // passes (so we know the diff is build-clean) but before the merge
+    // into `epic/<id>`. Critical findings short-circuit the close and
+    // exit non-zero; non-critical findings post a structured comment
+    // and let close proceed.
+    const review = await runStoryCodeReview({
+      storyId: ctx.storyId,
+      epicBranch: ctx.epicBranch,
+      storyBranch: ctx.storyBranch,
+      provider: ctx.provider,
+      bus: ctx.bus,
+      progress: ctx.progress,
+    });
+    if (review.blocked) return review.blocked;
   }
 
   // Everything past validation is the `close` phase; the post-merge

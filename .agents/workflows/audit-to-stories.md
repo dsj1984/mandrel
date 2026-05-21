@@ -4,10 +4,7 @@ description:
   GitHub Stories. Reads temp/audits/audit-*-results.md, groups findings
   cross-audit, deduplicates against existing Issues by fingerprint, and
   either chains into /epic-plan --idea or opens standalone Stories.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: grouping + dependency reasoning + Epic-seed authoring across N findings benefits from reasoning headroom. No dispatchModel — single linear workflow, no subagent fan-out. -->
 
 # /audit-to-stories [audit-file-or-glob]
 

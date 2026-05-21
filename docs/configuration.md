@@ -241,6 +241,8 @@ top-level keys are validation errors.
 | `epicAudit.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 4 (epic-audit). 0 disables auto-fix. Default 3. |
 | `epicAudit.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `codeReview` | No | `object` | — | Nested configuration block. |
+| `codeReview.provider` | No | `"native"` \| `"codex"` | `"native"` | ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Story #2833 (Epic #2815) registered `native` (the in-process maintainability/lint pass); Story #2830 added `codex`, which invokes the `/codex:review` Claude Code plugin (https://github.com/openai/codex-plugin-cc). Selecting `codex` when the plugin is not installed hard-fails at factory construction with remediation guidance — there is no silent fallback to `native`. |
+| `codeReview.providerConfig` | No | `object` | — | Optional escape hatch for adapter-specific configuration. No documented keys in Epic #2815; reserved so future adapters can be configured without another schema migration. |
 | `codeReview.maxFixAttempts` | No | `integer` | — | Maximum auto-fix retry attempts per finding in /epic-deliver Phase 5 (code-review). 0 disables auto-fix. Default 3. |
 | `codeReview.maxFixScopeFiles` | No | `integer` | — | Maximum file count a single auto-fix may modify before escalating to agent::blocked. Default 5. |
 | `failOnConcurrencyHazards` | No | `boolean` | — | — |
@@ -603,13 +605,39 @@ missing entries fall back to in-listener defaults.
 
 ### `delivery.codeReview`
 
-`/epic-deliver` Phase 5 (code-review) auto-fix budget. Same shape as
-`epicAudit`.
+Configuration block for the code-review pipeline that runs at **both**
+Story-close (`story-close.js`) and Epic-close (`/epic-deliver` Phase 5).
+Selects the review backend, exposes an escape-hatch for adapter-specific
+configuration, and sets the auto-fix budget enforced at each close scope.
 
-| Field              | Required | Default | Purpose                                                              |
-| ------------------ | -------- | ------- | -------------------------------------------------------------------- |
-| `maxFixAttempts`   | No       | `3`     | Max auto-fix retry attempts per finding. `0` disables auto-fix.       |
-| `maxFixScopeFiles` | No       | `5`     | Max file count a single auto-fix may modify before escalating to `agent::blocked`. |
+| Field              | Required | Default    | Purpose                                                              |
+| ------------------ | -------- | ---------- | -------------------------------------------------------------------- |
+| `provider`         | No       | `"native"` | ReviewProvider adapter that produces the `Finding[]` consumed by `runCodeReview()`. See enum values below. |
+| `providerConfig`   | No       | `{}`       | Optional escape hatch for adapter-specific configuration. Reserved so future adapters can be configured without another schema migration; no documented keys in Epic #2815. |
+| `maxFixAttempts`   | No       | `3`        | Max auto-fix retry attempts per finding. `0` disables auto-fix. Applied at **both** Story-close and Epic-close. |
+| `maxFixScopeFiles` | No       | `5`        | Max file count a single auto-fix may modify before escalating to `agent::blocked`. Applied at **both** Story-close and Epic-close. |
+
+#### `provider` enum
+
+| Value      | Behaviour                                                                                                                                                                                                                                                          |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `native`   | Default. In-process maintainability/lint pass that runs without any external plugin. Always available.                                                                                                                                                              |
+| `codex`    | Invokes the `/codex:review` Claude Code plugin via the [`codex-plugin-cc`](https://github.com/openai/codex-plugin-cc) backend. Selecting `codex` when the plugin is not installed hard-fails at factory construction with remediation guidance — there is no silent fallback to `native`. |
+
+#### Dual-scope fix budget
+
+`maxFixAttempts` and `maxFixScopeFiles` are enforced at two distinct
+points in the SDLC, using the **same configured values** for both scopes:
+
+- **Story-close** — `story-close.js` runs `runCodeReview()` against the
+  Story branch's diff and applies the budget per finding before merging
+  into `epic/<epicId>`.
+- **Epic-close** — `/epic-deliver` Phase 5 runs `runCodeReview()` against
+  the integrated Epic branch and applies the same per-finding budget
+  before opening the PR to `main`.
+
+Setting `maxFixAttempts: 0` disables auto-fix at both scopes; there is no
+per-scope override.
 
 ### `delivery.failOnConcurrencyHazards`
 

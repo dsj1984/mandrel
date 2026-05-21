@@ -1,9 +1,6 @@
 ---
 description: Audit logs, telemetry, and persistence paths for PII leakage and retention violations; surface secrets exposure and consent gaps.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: regex/keyword PII scan against a fixed taxonomy — Haiku A/B matched sonnet. -->
 
 # Privacy and PII Data Audit
 

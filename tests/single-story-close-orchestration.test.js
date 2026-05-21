@@ -139,6 +139,25 @@ function defaultWorktreeManagerMock() {
   };
 }
 
+/**
+ * Story #2839 — stub the Story-scope review runner so the orchestration
+ * tests never reach the real `runCodeReview` (which would shell out to
+ * the native review adapter and try to `git diff main...story-<id>` in
+ * the test cwd). The default returns a clean envelope with no findings;
+ * tests that care about review semantics pass their own stub.
+ */
+function noopReview() {
+  return async () => ({
+    status: 'ok',
+    severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+    posted: false,
+    postedCommentId: null,
+    commentTargetId: 0,
+    halted: false,
+    blockerReason: null,
+  });
+}
+
 describe('ensurePullRequest', () => {
   it('reuses an existing open PR when gh pr list returns a URL', async (t) => {
     const calls = [];
@@ -293,6 +312,7 @@ describe('runSingleStoryClose orchestration', () => {
       skipSync: true,
       injectedProvider: provider,
       injectedConfig: config,
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(success, true);
@@ -368,6 +388,7 @@ describe('runSingleStoryClose orchestration', () => {
       skipSync: true,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(success, true);
@@ -409,6 +430,7 @@ describe('runSingleStoryClose orchestration', () => {
         },
       }),
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(result.autoMergeEnabled, false);
@@ -442,6 +464,7 @@ describe('runSingleStoryClose orchestration', () => {
         initialStory: { id: 1, state: 'open', title: '', labels: [] },
       }),
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(result.prNumber, null);
@@ -480,6 +503,7 @@ describe('runSingleStoryClose orchestration', () => {
         initialStory: { id: 55, state: 'open', title: 'AM fails', labels: [] },
       }),
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(result.prNumber, 55);
@@ -530,6 +554,7 @@ describe('runSingleStoryClose orchestration', () => {
         },
       }),
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(result.pushed, true);
@@ -583,6 +608,7 @@ describe('runSingleStoryClose orchestration', () => {
           },
         }),
         injectedConfig: fakeConfig(),
+        injectedRunCodeReview: noopReview(),
       }),
       /Gate failed: lint/,
     );
@@ -622,6 +648,7 @@ describe('runSingleStoryClose orchestration', () => {
           },
         }),
         injectedConfig: fakeConfig(),
+        injectedRunCodeReview: noopReview(),
       }),
       /git push failed.*remote rejected/,
     );
@@ -711,6 +738,7 @@ describe('runSingleStoryClose orchestration', () => {
       skipSync: true,
       injectedProvider: provider,
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(success, true);
@@ -758,6 +786,7 @@ describe('runSingleStoryClose orchestration', () => {
         updateThrows: true,
       }),
       injectedConfig: fakeConfig(),
+      injectedRunCodeReview: noopReview(),
     });
 
     assert.equal(success, true);
@@ -795,6 +824,7 @@ describe('runSingleStoryClose story-merged notify dispatch', () => {
       }),
       injectedConfig: fakeConfig(),
       injectedNotify: fakeNotify,
+      injectedRunCodeReview: noopReview(),
     });
   }
 

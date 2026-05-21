@@ -31,7 +31,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
-import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   __resetForTests as __resetGitBase,

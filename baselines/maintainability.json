@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T10:38:47.240Z",
+  "generatedAt": "2026-05-21T17:08:10.334Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.914,
-      "p95": 121.484
+      "p50": 103.928,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -83,10 +83,6 @@
       "mi": 97.229
     },
     {
-      "path": ".agents/scripts/epic-code-review.js",
-      "mi": 87.18
-    },
-    {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
       "mi": 86.917
     },
@@ -149,10 +145,6 @@
     {
       "path": ".agents/scripts/lib/audit-suite/findings.js",
       "mi": 93.141
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
-      "mi": 118.892
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter.js",
@@ -667,10 +659,6 @@
       "mi": 97.534
     },
     {
-      "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 77.981
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/concurrency.js",
       "mi": 132.519
     },
@@ -1029,10 +1017,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/gates.js",
       "mi": 96.616
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "mi": 76.646
     },
     {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
@@ -1547,10 +1531,6 @@
       "mi": 92.43
     },
     {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 83.302
-    },
-    {
       "path": ".agents/scripts/single-story-init.js",
       "mi": 88.724
     },
@@ -1559,16 +1539,8 @@
       "mi": 86.607
     },
     {
-      "path": ".agents/scripts/story-close.js",
-      "mi": 94.7
-    },
-    {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 93.255
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 84.472
     },
     {
       "path": ".agents/scripts/story-task-progress.js",
@@ -1661,10 +1633,6 @@
     {
       "path": "tests/audit-suite/findings.test.js",
       "mi": 98.588
-    },
-    {
-      "path": "tests/audit-suite/frontmatter-lint.test.js",
-      "mi": 111.871
     },
     {
       "path": "tests/audit-suite/frontmatter.test.js",
@@ -1943,10 +1911,6 @@
       "mi": 101.563
     },
     {
-      "path": "tests/config-settings-schema.test.js",
-      "mi": 108.151
-    },
-    {
       "path": "tests/config/agentrc-defaults.test.js",
       "mi": 114.456
     },
@@ -2081,14 +2045,6 @@
     {
       "path": "tests/epic-close-preflight.test.js",
       "mi": 105.181
-    },
-    {
-      "path": "tests/epic-code-review-run.test.js",
-      "mi": 110.468
-    },
-    {
-      "path": "tests/epic-code-review.test.js",
-      "mi": 104.492
     },
     {
       "path": "tests/epic-execute/epic-deliver-prepare.test.js",
@@ -2277,10 +2233,6 @@
     {
       "path": "tests/hierarchy-gate.test.js",
       "mi": 98.674
-    },
-    {
-      "path": "tests/hook-chain-reflog-invariant.test.js",
-      "mi": 108.553
     },
     {
       "path": "tests/integration-prime-after-sweep.test.js",
@@ -2723,10 +2675,6 @@
       "mi": 107.639
     },
     {
-      "path": "tests/lib/orchestration/code-review.test.js",
-      "mi": 102.057
-    },
-    {
       "path": "tests/lib/orchestration/concurrency-gate.test.js",
       "mi": 100.546
     },
@@ -2933,10 +2881,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/merge-lockout-lint.test.js",
       "mi": 108.787
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/phase-close-tail.test.js",
-      "mi": 103.255
     },
     {
       "path": "tests/lib/orchestration/lifecycle/phase-close-validate.test.js",
@@ -3705,10 +3649,6 @@
     {
       "path": "tests/single-story-close-auto-merge.test.js",
       "mi": 115.3
-    },
-    {
-      "path": "tests/single-story-close-orchestration.test.js",
-      "mi": 98.068
     },
     {
       "path": "tests/single-story-plan.test.js",

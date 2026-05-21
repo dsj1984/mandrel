@@ -26,7 +26,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
-import { getHydration, resolveHydration } from './config/hydration.js';
+import { resolveHydration } from './config/hydration.js';
 import { getLifecycle } from './config/lifecycle.js';
 import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';

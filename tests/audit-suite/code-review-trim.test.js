@@ -21,14 +21,14 @@ const HELPER_PATH = path.join(
   '.agents',
   'workflows',
   'helpers',
-  'epic-code-review.md',
+  'code-review.md',
 );
 
 function loadHelper() {
   return readFileSync(HELPER_PATH, 'utf8');
 }
 
-test('epic-code-review.md declares exactly three pillar headings', () => {
+test('code-review.md declares exactly three pillar headings', () => {
   // Arrange
   const body = loadHelper();
 
@@ -43,17 +43,17 @@ test('epic-code-review.md declares exactly three pillar headings', () => {
   );
 });
 
-test('epic-code-review.md keeps Pillar 1 (Spec Adherence)', () => {
+test('code-review.md keeps Pillar 1 (Spec Adherence)', () => {
   const body = loadHelper();
   assert.match(body, /^### Pillar 1: Spec Adherence$/m);
 });
 
-test('epic-code-review.md renumbers the merged middle pillar to Pillar 2: Integration Review', () => {
+test('code-review.md renumbers the merged middle pillar to Pillar 2: Integration Review', () => {
   const body = loadHelper();
   assert.match(body, /^### Pillar 2: Integration Review$/m);
 });
 
-test('epic-code-review.md keeps Pillar 6 content, renumbered to Pillar 3: Documentation Integrity', () => {
+test('code-review.md keeps Pillar 6 content, renumbered to Pillar 3: Documentation Integrity', () => {
   const body = loadHelper();
   assert.match(body, /^### Pillar 3: Documentation Integrity$/m);
 });

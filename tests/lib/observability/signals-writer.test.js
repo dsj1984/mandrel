@@ -476,10 +476,10 @@ describe('signals-writer — forEachLine reader', () => {
     const target = signalsPath(1300, 1301);
     await fs.writeFile(
       target,
-      [
+      `${[
         JSON.stringify({ kind: 'friction', source: 'framework', id: 1 }),
         JSON.stringify({ kind: 'friction', source: 'consumer', id: 2 }),
-      ].join('\n') + '\n',
+      ].join('\n')}\n`,
       'utf8',
     );
 
@@ -510,10 +510,10 @@ describe('signals-writer — forEachLine reader', () => {
     const target = signalsPath(1400, 1401);
     await fs.writeFile(
       target,
-      [
+      `${[
         JSON.stringify({ kind: 'friction', id: 1 }),
         JSON.stringify({ kind: 'retry', id: 2 }),
-      ].join('\n') + '\n',
+      ].join('\n')}\n`,
       'utf8',
     );
 
@@ -541,12 +541,12 @@ describe('signals-writer — forEachLine reader', () => {
     const target = signalsPath(1500, 1501);
     await fs.writeFile(
       target,
-      [
+      `${[
         JSON.stringify({ kind: 'friction', id: 1 }), // legacy
         JSON.stringify({ kind: 'friction', source: 'framework', id: 2 }),
         JSON.stringify({ kind: 'friction', source: 'consumer', id: 3 }),
         JSON.stringify({ kind: 'retry', id: 4 }), // legacy
-      ].join('\n') + '\n',
+      ].join('\n')}\n`,
       'utf8',
     );
 

@@ -312,6 +312,15 @@ describe('runSingleStoryClose — sync integration', () => {
       injectedConfig: fakeConfig(),
       injectedSync: async () => ({ synced: true, kind: 'fast-forward' }),
       injectedNotify: () => Promise.resolve(),
+      injectedRunCodeReview: async () => ({
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: false,
+        postedCommentId: null,
+        commentTargetId: 0,
+        halted: false,
+        blockerReason: null,
+      }),
     });
     assert.equal(out.success, true);
     assert.equal(out.result.pushed, true);
@@ -345,6 +354,15 @@ describe('runSingleStoryClose — sync integration', () => {
         return { synced: true, kind: 'fast-forward' };
       },
       injectedNotify: () => Promise.resolve(),
+      injectedRunCodeReview: async () => ({
+        status: 'ok',
+        severity: { critical: 0, high: 0, medium: 0, suggestion: 0 },
+        posted: false,
+        postedCommentId: null,
+        commentTargetId: 0,
+        halted: false,
+        blockerReason: null,
+      }),
     });
     assert.equal(
       syncInvoked,

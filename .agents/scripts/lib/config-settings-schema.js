@@ -496,6 +496,15 @@ const EPIC_AUDIT_SCHEMA = {
 const CODE_REVIEW_SCHEMA = {
   type: 'object',
   properties: {
+    // Story #2825 (Epic #2815) seeded the pluggable review backend
+    // with `native`; Story #2830 added `codex` (the
+    // `openai/codex-plugin-cc` Claude Code plugin). The codex
+    // adapter probes for `/codex:review` at factory construction and
+    // hard-fails with remediation when absent — there is no silent
+    // fallback to native. `providerConfig` is an open-shape escape
+    // hatch reserved for adapter-specific options.
+    provider: { type: 'string', enum: ['native', 'codex'], default: 'native' },
+    providerConfig: { type: 'object', additionalProperties: true },
     maxFixAttempts: { type: 'integer', minimum: 0 },
     maxFixScopeFiles: { type: 'integer', minimum: 1 },
   },

@@ -1,9 +1,6 @@
 ---
 description: Audit production-readiness for a release candidate: SLOs, observability, runbooks, error budgets, and rollback paths.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: release-readiness checklist scan over runbooks/SLOs — Haiku A/B matched sonnet. -->
 
 # Production Release Candidate Audit
 

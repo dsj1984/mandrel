@@ -1,9 +1,6 @@
 ---
 description: Audit `package.json` for unused, outdated, and major-version-stale dependencies; surface Node-engine drift and propose upgrade batches.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: structured manifest + CVE lookup work — minimal reasoning, A/B parity with sonnet. -->
 
 # Dependency Update Audit
 
