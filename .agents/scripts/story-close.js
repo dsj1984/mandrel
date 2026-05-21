@@ -230,6 +230,12 @@ runAsCli(
     if (envelope?.exitCode === PREFLIGHT_REFUSED_EXIT_CODE) {
       process.exit(PREFLIGHT_REFUSED_EXIT_CODE);
     }
+    // Story #2840 — a blocked envelope (code-review-critical, etc.) carries
+    // its own exit code so the CLI fails non-zero without losing the
+    // envelope shape that callers serialise.
+    if (Number.isInteger(envelope?.exitCode) && envelope.exitCode !== 0) {
+      process.exit(envelope.exitCode);
+    }
     return envelope;
   },
   {
