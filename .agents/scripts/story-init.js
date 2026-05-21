@@ -105,7 +105,7 @@ export async function runStoryInit({
   const config = injectedConfig || resolveConfig({ cwd });
   const { agentSettings, orchestration } = config;
   const provider = injectedProvider || createProvider(orchestration);
-  const notifyFn = (ticketId, payload, opts = {}) =>
+  const _notifyFn = (ticketId, payload, opts = {}) =>
     notify(ticketId, payload, { orchestration, provider, ...opts });
   // Per-Task transition hook: GitHub-comment surface suppressed (the
   // Story-level summary below replaces the N per-Task comments with a
