@@ -72,6 +72,7 @@ import {
   STORY_RUN_PROGRESS_TYPE,
   upsertStoryRunProgress,
 } from './lib/orchestration/epic-runner/story-run-progress-writer.js';
+import { emitModelAttribution } from './lib/orchestration/model-attribution.js';
 import { parseFencedJsonComment } from './lib/orchestration/structured-comment-parser.js';
 import {
   findStructuredComment,
@@ -385,6 +386,18 @@ export async function runStoryTaskProgress(args) {
       notify: null,
       cascade: true,
     });
+    // Story #2813 — record which Claude model is executing this Task.
+    // Best-effort: a network or schema failure here must never block the
+    // transition itself. `emitModelAttribution` is idempotent (upsert),
+    // so a resume that re-enters this path with a different model will
+    // overwrite the prior attribution rather than duplicate it.
+    try {
+      await emitModelAttribution({ provider, ticketId: taskId });
+    } catch (err) {
+      Logger.warn(
+        `[story-task-progress] model-attribution emit failed for #${taskId}: ${err?.message ?? err}`,
+      );
+    }
   }
 
   // 2b. Per-Task close: when the Task transitions to `done` with a recorded

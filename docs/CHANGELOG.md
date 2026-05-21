@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added — Story #2813: per-Task model-attribution structured comments + rollup
+
+Each Task ticket now receives a `model-attribution` structured comment when it
+transitions to `agent::executing`, recording which Claude model executed the
+work (resolved from SDK response metadata → `CLAUDE_MODEL`/`ANTHROPIC_MODEL`
+env vars → an `unknown` sentinel). Closes #2813.
+
+- **New structured-comment kind** `'model-attribution'` is registered in
+  `STRUCTURED_COMMENT_TYPES` and documented by
+  `.agents/schemas/model-attribution.schema.json`.
+- **Hand-rolled validator** at the upsert seam rejects malformed payloads
+  without writing to the provider, matching the pattern used by
+  `lib/signals/schema.js` and the existing structured-comment kinds.
+- **Per-Task emit** is wired into `story-task-progress.js` after the
+  `agent::executing` label flip — best-effort, never blocks the transition,
+  idempotent across resume re-runs.
+- **Rollup helper** `rollupModelAttribution({ provider, parentId })` walks
+  the Story's or Epic's immediate children, parses each child's attribution
+  comment, and returns `{ totalTasks, missing, byModel, byId }` so retros
+  can render the per-Epic model mix (e.g. "Opus 60% / Sonnet 40%") without
+  scraping external billing exports. No automatic Story/Epic emission —
+  rollup is query-time only.
+
 ### Removed — Epic #2586: retire `/audit-fan-out` workflow
 
 The broken parallel fan-out orchestrator `/audit-fan-out` is retired. Its
