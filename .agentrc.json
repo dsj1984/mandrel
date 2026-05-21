@@ -35,11 +35,11 @@
     "quality": {
       "gates": {
         "crap": {
-          "floors": { "*": { "max": 999 } },
+          "floors": { "*": { "max": 340 } },
           "targetDirs": [".agents/scripts"]
         },
         "maintainability": {
-          "floors": { "*": { "min": 0 } },
+          "floors": { "*": { "min": 50 } },
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
