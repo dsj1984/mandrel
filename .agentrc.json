@@ -1,7 +1,6 @@
 {
   "$schema": "./.agents/schemas/agentrc.schema.json",
   "project": {
-    "baseBranch": "main",
     "paths": {
       "agentRoot": ".agents",
       "docsRoot": "docs",
@@ -19,50 +18,19 @@
     "projectOwner": "dsj1984",
     "operatorHandle": "@dsj1984",
     "branchProtection": {
-      "enforce": true,
       "requiredChecks": [
-        {
-          "name": "lint",
-          "cmd": ["npm", "run", "lint"]
-        },
-        {
-          "name": "test",
-          "cmd": ["npm", "test"]
-        },
-        {
-          "name": "baselines",
-          "cmd": ["node", ".agents/scripts/check-baselines.js"]
-        }
+        { "name": "lint", "cmd": ["npm", "run", "lint"] },
+        { "name": "test", "cmd": ["npm", "test"] },
+        { "name": "baselines", "cmd": ["node", ".agents/scripts/check-baselines.js"] }
       ]
     }
-  },
-  "planning": {
-    "riskHeuristics": [
-      "Destructive or irreversible data mutations (dropping tables, deleting rows without soft-delete or backup, truncating production state).",
-      "Modifications to shared security or auth infrastructure (IAM policies, auth middleware, session or token handling, secret rotation).",
-      "Changes to CI/CD, deployment pipelines, or release gating that could disable safety checks or ship unverified code to production.",
-      "Monorepo-wide AST or text replacements touching overlapping files in parallel (catastrophic merge-conflict risk across concurrent agents).",
-      "Schema migrations that rewrite existing rows or drop columns without a backfill or rollback plan."
-    ]
   },
   "delivery": {
     "docsFreshness": {
       "paths": ["README.md", "docs/CHANGELOG.md"]
     },
-    "deliverRunner": {
-      "progressReportIntervalSec": 300
-    },
-    "worktreeIsolation": {
-      "nodeModulesStrategy": "per-worktree",
-      "primeFromPath": ".",
-      "allowSymlinkOnWindows": true
-    },
     "quality": {
-      "gateScoping": { "scope": "diff", "diffRef": "main" },
       "gates": {
-        "coverage": {
-          "floors": {}
-        },
         "crap": {
           "floors": { "*": { "max": 999 } },
           "targetDirs": [".agents/scripts"]
@@ -72,14 +40,6 @@
           "targetDirs": [".agents/scripts", "tests"]
         }
       }
-    },
-    "lifecycle": {
-      "timeouts": {
-        "acceptance.reconcile": 600,
-        "epic.finalize": 600,
-        "epic.watch": 1800
-      },
-      "heartbeatWarnSeconds": 60
     }
   }
 }
