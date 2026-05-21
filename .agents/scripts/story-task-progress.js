@@ -45,10 +45,19 @@
  * prior run left off" after a kill mid-Story. See `story-deliver.md`
  * Step 1 for the consumer side.
  *
- * Per-Task close (state=done): the script also flips the Task ticket to
- * `agent::done` and closes the GitHub issue immediately — `cascade: false`
+ * Per-Task start (state=executing): flips the Task ticket to
+ * `agent::executing` via `transitionTicketState` (Projects column sync
+ * included). Parent cascade is enabled so the Story/Epic board reflects
+ * active work when the first Task starts (the Story is already
+ * `agent::executing` from `story-init.js`).
+ *
+ * Per-Task close (state=done): when `--commit-sha` is present, flips the
+ * Task ticket to `agent::done` and closes the GitHub issue — `cascade: false`
  * so the Story doesn't auto-close while the branch is still unmerged,
  * `notify: null` to avoid duplicating the consolidated story-close fan.
+ * `--state done` without `--commit-sha` updates only the progress snapshot
+ * (no GitHub label/issue mutation); the normal `/story-deliver` loop always
+ * passes the SHA from `task-commit.js`.
  */
 
 import fs from 'node:fs';
@@ -368,6 +377,15 @@ export async function runStoryTaskProgress(args) {
     commitSha,
     blockerCommentId,
   });
+
+  // 2a. Per-Task start: flip the GitHub Task to `agent::executing` before
+  // persisting the snapshot so a network failure leaves the cache untouched.
+  if (state === 'executing') {
+    await transitionTicketState(provider, taskId, STATE_LABELS.EXECUTING, {
+      notify: null,
+      cascade: true,
+    });
+  }
 
   // 2b. Per-Task close: when the Task transitions to `done` with a recorded
   // commit, flip the GitHub Task ticket to `agent::done` and close the

@@ -86,8 +86,10 @@ The script validates `type::story`, checks blockers, traces the
 Feature → Epic → PRD/Tech-Spec hierarchy, enumerates child Tasks in
 dependency order, seeds `story-<id>` from the Epic branch, and (when
 worktree isolation is on) runs `git worktree add` at
-`.worktrees/story-<id>/`. All child Tasks are batch-transitioned to
-`agent::executing` and a `story-init` structured comment is upserted.
+`.worktrees/story-<id>/`. The Story flips to `agent::executing`; child
+Tasks stay at their prior label until Step 1 runs
+`story-task-progress.js --state executing` for each Task. A
+`story-init` structured comment is upserted.
 
 Capture `workCwd`, `dependenciesInstalled` (tri-state), `tasks[]`, and
 `context.{prdId,techSpecId}`. Add `--dry-run` to check status without git
@@ -133,7 +135,9 @@ reads).
 
 For **each child Task** in the order returned by `story-init.js`:
 
-1. Mark the Task `executing` and flip `phase` to `implementing`:
+1. Mark the Task `executing` on GitHub (label + Projects column via
+   `transitionTicketState`) and flip `phase` to `implementing` in the
+   progress snapshot:
 
    ```bash
    node .agents/scripts/story-task-progress.js \
