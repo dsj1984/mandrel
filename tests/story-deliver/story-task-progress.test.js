@@ -434,6 +434,78 @@ test('runStoryTaskProgress: state=executing returns skip:true when prior run clo
   assert.equal(provider.updates.length, 0);
 });
 
+test('runStoryTaskProgress: state=executing emits a model-attribution comment on the Task (Story #2813)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'story-task-progress-'));
+  const cachePath = path.join(dir, 'story-50-progress.json');
+  writeCache(cachePath, {
+    storyId: 50,
+    branch: 'story-50',
+    tasks: [{ id: 501, title: 'attr-target', state: 'pending' }],
+  });
+  const provider = makeProvider([]);
+  provider.tickets[501] = { id: 501, labels: ['agent::ready'], state: 'open' };
+  const priorEnv = process.env.CLAUDE_MODEL;
+  process.env.CLAUDE_MODEL = 'claude-opus-4-7';
+  try {
+    await runStoryTaskProgress({
+      storyId: 50,
+      taskId: 501,
+      state: 'executing',
+      provider,
+      cachePath,
+    });
+  } finally {
+    if (priorEnv === undefined) delete process.env.CLAUDE_MODEL;
+    else process.env.CLAUDE_MODEL = priorEnv;
+  }
+  const attribution = provider.comments.find(
+    (c) => c.ticketId === 501 && c.type === 'model-attribution',
+  );
+  assert.ok(attribution, 'expected one model-attribution comment on Task #501');
+  assert.match(attribution.body, /claude-opus-4-7/);
+});
+
+test('runStoryTaskProgress: state=executing tolerates a model-attribution emit failure', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'story-task-progress-'));
+  const cachePath = path.join(dir, 'story-51-progress.json');
+  writeCache(cachePath, {
+    storyId: 51,
+    branch: 'story-51',
+    tasks: [{ id: 511, title: 'attr-fail', state: 'pending' }],
+  });
+  const provider = makeProvider([]);
+  provider.tickets[511] = { id: 511, labels: ['agent::ready'], state: 'open' };
+  // First postComment (the model-attribution upsert) throws; subsequent
+  // story-run-progress upsert must still succeed.
+  let postCalls = 0;
+  const originalPost = provider.postComment.bind(provider);
+  provider.postComment = async function postCommentFailing(ticketId, args) {
+    postCalls++;
+    if (postCalls === 1 && args.type === 'model-attribution') {
+      throw new Error('simulated network failure');
+    }
+    return originalPost(ticketId, args);
+  };
+
+  const result = await runStoryTaskProgress({
+    storyId: 51,
+    taskId: 511,
+    state: 'executing',
+    provider,
+    cachePath,
+  });
+  assert.equal(result.taskState, 'executing');
+  // Label transition must have landed despite the emit failure.
+  assert.ok(provider.tickets[511].labels.includes('agent::executing'));
+  // story-run-progress comment must have been written.
+  assert.ok(
+    provider.comments.some(
+      (c) => c.ticketId === 51 && c.type === 'story-run-progress',
+    ),
+    'story-run-progress upsert must still succeed after attribution failure',
+  );
+});
+
 test('runStoryTaskProgress: state=executing does NOT skip when prior commit is missing from HEAD (resume after branch loss)', async () => {
   const repo = makeTmpGitRepo();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'story-task-progress-'));
