@@ -27,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { getCommands } from './config/commands.js';
 import { getGitHub } from './config/github.js';
 import { getHydration, resolveHydration } from './config/hydration.js';
+import { getLifecycle } from './config/lifecycle.js';
 import { resolveLimits } from './config/limits.js';
 import { resolvePaths } from './config/paths.js';
 import { resolveQuality } from './config/quality.js';
@@ -53,6 +54,7 @@ export {
   HYDRATION_DEFAULTS,
   resolveHydration,
 } from './config/hydration.js';
+export { getLifecycle, LIFECYCLE_DEFAULTS } from './config/lifecycle.js';
 export {
   getLimits,
   getSignals,
@@ -133,6 +135,7 @@ function applyDeliveryDefaults(rawDelivery) {
   delivery.worktreeIsolation = getWorktreeIsolation({
     worktreeIsolation: delivery.worktreeIsolation,
   });
+  delivery.lifecycle = getLifecycle({ lifecycle: delivery.lifecycle });
   return delivery;
 }
 

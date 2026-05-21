@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed — Story #2845: own Projects v2 Status column (audit + post-merge re-sync)
+
+The orchestrator's `ColumnSync` writes Status at `transitionTicketState`
+time, but GitHub's built-in `Pull request merged` / `Pull request linked
+to issue` workflows fire minutes after auto-merge and overwrite Status —
+typically leaving closed Stories stuck at `In Progress` on the board
+(reproduced on Story #2813). This change closes the race on both axes.
+Closes #2845.
+
+- **Bootstrap workflow audit.** `agents-bootstrap-github.js` now audits
+  `projectV2.workflows` after project provisioning and surfaces a
+  warning for any enabled workflow in
+  `lib/bootstrap/workflow-audit.js#CONFLICTING_WORKFLOWS`. The warning
+  names the offenders and points operators at the two remediation paths.
+- **Opt-in destructive cleanup.** Passing
+  `--reap-conflicting-workflows` to `agents-bootstrap-github.js`
+  calls `deleteProjectV2Workflow` for each conflicting entry
+  (fail-fast on the first mutation error; the GraphQL API has no
+  toggle mutation — `ProjectV2Workflow.enabled` is read-only).
+- **Post-merge re-assert CLI.** New
+  `.agents/scripts/resync-status-column.js` re-fires `ColumnSync`
+  against the orchestrator's view of the Status column. The
+  `/single-story-deliver` workflow doc invokes it as Step 5.5 after
+  merge confirmation so the orchestrator wins the race even when the
+  bot workflows stay enabled. Shared via the new
+  `lib/orchestration/reassert-status-column.js` helper.
+
+### Added — Story #2813: per-Task model-attribution structured comments + rollup
+
+Each Task ticket now receives a `model-attribution` structured comment when it
+transitions to `agent::executing`, recording which Claude model executed the
+work (resolved from SDK response metadata → `CLAUDE_MODEL`/`ANTHROPIC_MODEL`
+env vars → an `unknown` sentinel). Closes #2813.
+
+- **New structured-comment kind** `'model-attribution'` is registered in
+  `STRUCTURED_COMMENT_TYPES` and documented by
+  `.agents/schemas/model-attribution.schema.json`.
+- **Hand-rolled validator** at the upsert seam rejects malformed payloads
+  without writing to the provider, matching the pattern used by
+  `lib/signals/schema.js` and the existing structured-comment kinds.
+- **Per-Task emit** is wired into `story-task-progress.js` after the
+  `agent::executing` label flip — best-effort, never blocks the transition,
+  idempotent across resume re-runs.
+- **Rollup helper** `rollupModelAttribution({ provider, parentId })` walks
+  the Story's or Epic's immediate children, parses each child's attribution
+  comment, and returns `{ totalTasks, missing, byModel, byId }` so retros
+  can render the per-Epic model mix (e.g. "Opus 60% / Sonnet 40%") without
+  scraping external billing exports. No automatic Story/Epic emission —
+  rollup is query-time only.
+
 ### Removed — Epic #2586: retire `/audit-fan-out` workflow
 
 The broken parallel fan-out orchestrator `/audit-fan-out` is retired. Its

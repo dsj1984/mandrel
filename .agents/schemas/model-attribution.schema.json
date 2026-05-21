@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/model-attribution.schema.json",
+  "title": "ModelAttribution",
+  "description": "Payload of the <!-- structured:model-attribution --> comment upserted onto a Task ticket at the moment it transitions to agent::executing (Story #2813). One entry per Task. Story- and Epic-level breakdowns are derived at query time from the child Tasks' attribution comments — there is no Story/Epic-scope emission.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "ticketId", "model", "source", "recordedAt"],
+  "properties": {
+    "kind": { "type": "string", "const": "model-attribution" },
+    "ticketId": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "GitHub Issue number of the Task this attribution is recorded on."
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Canonical model identifier (e.g. 'claude-opus-4-7', 'claude-sonnet-4-6'), or the sentinel 'unknown' when neither SDK metadata nor a runtime env var supplied an identity."
+        },
+        "family": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Coarse model family label for rollup grouping (e.g. 'Opus', 'Sonnet', 'Haiku'). Optional; derived from the id when present."
+        }
+      }
+    },
+    "source": {
+      "type": "string",
+      "enum": ["sdk-metadata", "env", "unknown"],
+      "description": "Provenance of the model identification, in fallback order: 'sdk-metadata' (resolved from the SDK response), 'env' (resolved from a runtime env var), 'unknown' (neither was available)."
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp at which the attribution was recorded."
+    },
+    "sdkMetadata": {
+      "type": "object",
+      "description": "Opaque pass-through fields lifted from the SDK response metadata when available (e.g. response id, usage hints). Never required; never relied upon by the rollup helper.",
+      "additionalProperties": true
+    }
+  }
+}

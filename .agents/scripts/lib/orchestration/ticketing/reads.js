@@ -106,6 +106,16 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // invocation always failed with "Invalid structured-comment type". One
   // entry per Epic; re-runs replace prior content.
   'audit-results',
+  // Story #2813 — `story-task-progress.js` upserts a `model-attribution`
+  // comment on a Task ticket at the moment it transitions to
+  // `agent::executing`, recording which Claude model was actively
+  // executing the work. One entry per Task (upsert is idempotent across
+  // resume re-runs). Story- and Epic-level rollups are computed at query
+  // time by `rollupModelAttribution` in
+  // `lib/orchestration/model-attribution.js` — no Story/Epic-scope
+  // emissions are written. Schema:
+  // `.agents/schemas/model-attribution.schema.json`.
+  'model-attribution',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
