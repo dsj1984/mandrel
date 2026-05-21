@@ -179,6 +179,17 @@ describe('epic-planner orchestration (v5.6+)', () => {
   });
 
   it('creates a third context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+    mockProvider.getEpic = async (id) => {
+      if (id !== 1) return null;
+      return {
+        id: 1,
+        title: 'Implement V5 Core',
+        body: 'User-facing security changes and /epic-plan gate routing.',
+        labels: ['epic'],
+        linkedIssues: { prd: null, techSpec: null },
+      };
+    };
+
     await planEpic(1, mockProvider, {
       prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
