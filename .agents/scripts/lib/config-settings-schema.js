@@ -512,17 +512,13 @@ const CODE_REVIEW_SCHEMA = {
 };
 
 /**
- * `delivery.hydration` — hydrator output mode (Epic #2648). `prose-legacy`
- * delegates to `context-hydration-engine.legacy.js` for one release; remove
- * the flag and legacy module together in the cutover PR (no indefinite shim).
+ * `delivery.hydration` — hydrator settings (Epic #2648). The envelope-first
+ * pipeline is the only supported output shape; this object now only carries
+ * the skill-body opt-in.
  */
 const HYDRATION_SCHEMA = {
   type: 'object',
   properties: {
-    outputMode: {
-      type: 'string',
-      enum: ['envelope', 'prose-legacy'],
-    },
     fullSkillBodies: { type: 'boolean' },
   },
   additionalProperties: false,

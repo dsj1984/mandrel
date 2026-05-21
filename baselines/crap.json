@@ -5952,60 +5952,6 @@
       "crap": 3.0001640180784372
     },
     {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "readFileCached",
-      "startLine": 34,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "buildSkillIndex",
-      "startLine": 50,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "getSkillPath",
-      "startLine": 100,
-      "crap": 12
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "__resetContextCache",
-      "startLine": 112,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "getVersion",
-      "startLine": 126,
-      "crap": 1.010973936899863
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "parseHierarchy",
-      "startLine": 145,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "truncateToTokenBudget",
-      "startLine": 166,
-      "crap": 3.845229151014275
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "loadProtocolTemplate",
-      "startLine": 191,
-      "crap": 2.0027478119275393
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/context-hydration-engine.legacy.js",
-      "method": "legacyHydrate",
-      "startLine": 249,
-      "crap": 22.615384615384613
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/dependency-analyzer.js",
       "method": "rollUpStoryFocus",
       "startLine": 17,

@@ -60,10 +60,11 @@ Surfaces fall into four categories:
 
 ## High-Confidence Findings
 
-> **Numbering.** Original audit numbers are preserved with gaps where closed
-> findings were removed. The list intentionally jumps (e.g. #2 → #3 → #6) so
-> inbound references by number remain stable. New forward-looking entries
-> identified during the trim use the next available gap number.
+> **Numbering.** Findings are renumbered sequentially as they close. The
+> list has no intentional gaps — when a finding ships, it is deleted and
+> the remaining findings shift down. Inbound references to a specific
+> number are point-in-time citations against the audit as it existed at
+> the time and are not maintained across renumbers.
 
 ### 1. Prompt and Instruction Surface Is Too Procedural
 
@@ -165,7 +166,7 @@ Recommendation (Monitor):
 - Move stack-specific non-negotiables into validators or lint checks where
   feasible.
 
-### 6. Per-Task Ritual and Commit Strategy Can Relax
+### 4. Per-Task Ritual and Commit Strategy Can Relax
 
 **Status:** Simplify
 **Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for
@@ -191,7 +192,7 @@ Recommendation:
 - Replace always-on per-Task preview checks with once-per-Story or
   diff-threshold-triggered previews.
 
-### 7. Sub-Agent Return Repair Can Shrink Substantially
+### 5. Sub-Agent Return Repair Can Shrink Substantially
 
 **Status:** Simplify
 **Action:** 🔭 Monitor — repair heuristics exist because current sub-agents
@@ -227,7 +228,7 @@ Simplify:
 - Reduce chat relay instructions when the canonical progress surface is already
   a structured comment.
 
-### 9. Code Review Should Become Evidence-First, Not Ritual-First
+### 6. Code Review Should Become Evidence-First, Not Ritual-First
 
 **Status:** Reframe
 **Action:** 🔭 Monitor — adaptive review-depth selection is most valuable
@@ -255,7 +256,7 @@ Recommendation:
 - Let the future model perform review directly, then validate that required
   sections, severities, and changed-file coverage exist.
 
-### 12. Worktree and Branch Isolation Still Matter
+### 7. Worktree and Branch Isolation Still Matter
 
 **Status:** Keep
 **Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to
@@ -288,25 +289,7 @@ Simplify:
   local worktrees an implementation option rather than the default mental model.
 - Keep the abstraction but reduce operator-facing worktree prose.
 
-### 14. Retire `prose-legacy` Hydration Output Mode
-
-**Status:** Retire
-**Action:** 🚀 Implement now — remove
-`delivery.hydration.outputMode: 'prose-legacy'`, the
-`context-hydration-engine.legacy.js` module, and the `prose-legacy` enum
-value together in a single hard-cutover PR. The structured `ContextEnvelope`
-shipped under Epic #2648 is the canonical hydration shape; the legacy
-prose-flattening path is a temporary read-side compatibility branch that
-contradicts the project's no-shim-layer policy
-(`.agents/rules/git-conventions.md` § Contract Cutovers — No Shim Layer).
-
-**Primary paths:**
-
-- `.agents/scripts/lib/config/hydration.js`
-- `.agents/scripts/lib/orchestration/context-hydration-engine.legacy.js`
-- `.agents/skills/core/hydrate-context/SKILL.md`
-
-### 16. Anti-Thrashing and FinOps Should Be Softer
+### 8. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
 **Action:** 🔭 Monitor — further relaxation of per-turn FinOps rituals
@@ -345,8 +328,6 @@ These should be removed or made opt-in once future-model assumptions hold:
 2. **Free-form sub-agent JSON extraction heuristics.** Keep schema validation
    and GitHub reconciliation; drop the assumption that malformed returns are
    common.
-3. **`prose-legacy` hydration output mode** and the parallel legacy
-   hydration engine. See Finding #14.
 
 ## Functionality Greatly Simplified
 
@@ -456,8 +437,6 @@ work clusters into two areas:
 - Flip the hydrator default to manifest-driven skill selection; stop
   hydrating full skill bodies unless `skill::full` / `fullSkillBodies`
   is set (Finding #3).
-- Delete the `prose-legacy` hydration mode and the legacy engine
-  (Finding #14).
 - Push remaining stack-specific non-negotiables into validators or lint
   checks rather than skill prose (Finding #3).
 
@@ -465,12 +444,12 @@ work clusters into two areas:
 
 - Convert persona prose into concise review checklists (Finding #2).
 - Reduce per-Task commit ritual when Tasks are tightly coupled
-  (Finding #6).
+  (Finding #4).
 - Drop sub-agent return repair heuristics once structured-output
-  compliance is reliable (Finding #7).
-- Make code-review depth adaptive to diff risk (Finding #9).
+  compliance is reliable (Finding #5).
+- Make code-review depth adaptive to diff risk (Finding #6).
 - Treat anti-thrashing / FinOps as observability rather than control
-  flow when inference economics permit (Finding #16).
+  flow when inference economics permit (Finding #8).
 
 ## Priority Recommendations
 
@@ -484,7 +463,8 @@ work clusters into two areas:
    work that needs it; the planner-side risk classifier (Epic #2649) is the
    model — extend it rather than reinventing.
 4. **Delete legacy shapes on sight.** Hard-cutover is the operator policy;
-   the `prose-legacy` hydration mode is the next concrete instance.
+   any read-side compatibility branch encountered during a contract change
+   is the next concrete deletion target.
 5. **Measure harness value by external guarantees.** If a feature only tells
    the model to think harder, it is a retirement candidate. If it records,
    validates, isolates, or gates side effects, it likely stays.

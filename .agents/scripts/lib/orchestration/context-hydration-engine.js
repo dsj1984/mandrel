@@ -35,7 +35,6 @@ import {
   elideEnvelope,
   envelopeToPrompt,
 } from './context-envelope.js';
-import { legacyHydrate } from './context-hydration-engine.legacy.js';
 import { loadSkillCapsule } from './skill-capsule-loader.js';
 
 // ---------------------------------------------------------------------------
@@ -448,31 +447,6 @@ export async function hydrateContext(
   const maxTokens = getLimits({
     agentSettings: agentSettings ?? {},
   }).maxTokenBudget;
-  const outputMode = agentSettings?.hydration?.outputMode ?? 'envelope';
-
-  if (outputMode === 'prose-legacy') {
-    const legacyString = await legacyHydrate(
-      task,
-      provider,
-      epicBranch,
-      taskBranch,
-      epicId,
-    );
-    return buildEnvelope({
-      task: envelopeTaskFrom(task),
-      sections: [
-        {
-          name: 'taskInstructions',
-          priority: DEFAULT_SECTION_PRIORITIES.taskInstructions,
-          elideWhenOverBudget: 'drop',
-          content: legacyString,
-        },
-      ],
-      provenance: [],
-      warnings: [],
-      maxTokens,
-    });
-  }
 
   const paths = getPaths({ agentSettings });
   const currentVersion = getVersion();

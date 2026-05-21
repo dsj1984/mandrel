@@ -1,19 +1,19 @@
 /**
- * `delivery.hydration` — context hydrator output mode (Epic #2648).
+ * `delivery.hydration` — context hydrator settings (Epic #2648).
  *
- * `outputMode` selects envelope-first vs one-release legacy prose. The
- * `prose-legacy` value and `context-hydration-engine.legacy.js` are removed
- * together in the cutover PR after one release — no indefinite shim layer.
+ * The envelope-first pipeline is the only supported output shape. This
+ * resolver only carries the `fullSkillBodies` opt-in; the historical
+ * `outputMode` toggle and the parallel legacy engine were removed under
+ * Story #2864 per the hard-cutover policy.
  */
 
 export const HYDRATION_DEFAULTS = Object.freeze({
-  outputMode: 'envelope',
   fullSkillBodies: false,
 });
 
 /**
  * @param {object|undefined} delivery
- * @returns {{ outputMode: 'envelope' | 'prose-legacy', fullSkillBodies: boolean }}
+ * @returns {{ fullSkillBodies: boolean }}
  */
 export function resolveHydration(delivery) {
   const user =
@@ -21,7 +21,6 @@ export function resolveHydration(delivery) {
       ? delivery.hydration
       : {};
   return {
-    outputMode: user.outputMode ?? HYDRATION_DEFAULTS.outputMode,
     fullSkillBodies: user.fullSkillBodies ?? HYDRATION_DEFAULTS.fullSkillBodies,
   };
 }

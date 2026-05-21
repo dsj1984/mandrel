@@ -1,10 +1,8 @@
 import assert from 'node:assert/strict';
-import fs, { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { resolveConfig } from '../../.agents/scripts/lib/config-resolver.js';
 import { envelopeToPrompt } from '../../.agents/scripts/lib/orchestration/context-envelope.js';
 import {
   __resetContextCache,
@@ -12,7 +10,6 @@ import {
   formatSkillCapsulesSection,
   hydrateContext,
 } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.js';
-import { legacyHydrate } from '../../.agents/scripts/lib/orchestration/context-hydration-engine.legacy.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '..', '..');
@@ -176,55 +173,6 @@ describe('hydrateContext — envelope return shape', () => {
     }
     const ids = envelope.provenance.map((p) => p.id).sort((a, b) => a - b);
     assert.deepEqual(ids, [1, 5, 9]);
-  });
-
-  it('prose-legacy wraps legacyHydrate without running the envelope pipeline', async () => {
-    const provider = new HierarchyProvider({
-      1: { id: 1, title: 'Epic', body: 'Epic Body' },
-    });
-
-    const legacyString = await legacyHydrate(
-      baseTask,
-      provider,
-      'epic/1',
-      'story-1',
-      1,
-    );
-
-    const tmp = mkdtempSync(path.join(tmpdir(), 'mandrel-hydration-'));
-    writeFileSync(
-      path.join(tmp, '.agentrc.json'),
-      JSON.stringify({
-        project: {
-          paths: { agentRoot: '.agents', docsRoot: 'docs', tempRoot: 'temp' },
-        },
-        delivery: { hydration: { outputMode: 'prose-legacy' } },
-      }),
-    );
-
-    const prevCwd = process.env.AP_AGENTRC_CWD;
-    process.env.AP_AGENTRC_CWD = tmp;
-    resolveConfig({ bustCache: true });
-    __resetContextCache();
-
-    try {
-      const envelope = await hydrateContext(
-        baseTask,
-        provider,
-        'epic/1',
-        'story-1',
-        1,
-      );
-
-      assert.equal(envelope.sections.length, 1);
-      assert.equal(envelope.sections[0].name, 'taskInstructions');
-      assert.equal(envelope.sections[0].content, legacyString);
-      assert.deepEqual(envelope.provenance, []);
-    } finally {
-      process.env.AP_AGENTRC_CWD = prevCwd;
-      resolveConfig({ bustCache: true });
-      __resetContextCache();
-    }
   });
 });
 

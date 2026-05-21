@@ -111,9 +111,3 @@ when the ticket carries a `skill::full` label or
   responsible for forwarding the stdout envelope to its consumer.
 - Do **not** bypass the context-budget cap — honour `elideEnvelope`
   and the per-section policies; never silently truncate.
-- **`outputMode: 'prose-legacy'`** (`delivery.hydration` in
-  `.agentrc.json`) is a one-release compatibility flag that delegates
-  to `context-hydration-engine.legacy.js` and wraps the result as a
-  single `taskInstructions` section. It sunsets on the next hard
-  cutover PR that removes `hydration.outputMode`, the legacy module, and
-  the enum value together — no indefinite shim layer.
