@@ -24,15 +24,23 @@
  * @typedef {import('./types.js').ReviewInput} ReviewInput
  */
 
+import { createCodexProviderForRegistry } from './codex.js';
 import { createNativeProviderForRegistry } from './native.js';
 
 /**
  * Provider registry. Maps the `codeReview.provider` enum value to a
  * zero-arg constructor that returns a `ReviewProvider` instance.
  *
+ * Story #2830 (Task #2834) registers the `codex` adapter alongside
+ * `native`. The `codex` constructor probes for the `/codex:review`
+ * slash command at construction time and throws a hard-fail Error
+ * (naming both remediations) when the plugin is not installed — the
+ * factory does NOT silently fall back to `native`.
+ *
  * @type {Readonly<Record<string, () => ReviewProvider>>}
  */
 const PROVIDERS = Object.freeze({
+  codex: createCodexProviderForRegistry,
   native: createNativeProviderForRegistry,
 });
 

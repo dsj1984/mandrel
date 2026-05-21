@@ -717,9 +717,19 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
     );
   });
 
-  it('rejects provider: "codex" (added in a later Story under Epic #2815)', () => {
+  it('accepts provider: "codex" (Story #2830 — codex ReviewProvider adapter)', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: { codeReview: { provider: 'codex' } },
+      }),
+      true,
+    );
+  });
+
+  it('rejects provider: "gemini" (not registered)', () => {
     expectErrors(
-      { ...REQ, delivery: { codeReview: { provider: 'codex' } } },
+      { ...REQ, delivery: { codeReview: { provider: 'gemini' } } },
       /must be equal to one of the allowed values|enum/,
     );
   });
