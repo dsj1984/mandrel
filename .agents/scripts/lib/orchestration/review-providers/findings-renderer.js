@@ -32,7 +32,7 @@ const SEVERITY_ORDER = Object.freeze([
 
 /**
  * Emoji + human label mapping. Mirrors the legacy
- * `epic-code-review.js` vocabulary so downstream operators see the
+ * legacy epic-code-review vocabulary so downstream operators see the
  * same tier names regardless of which adapter produced the findings.
  *
  * @type {Readonly<Record<Severity, { emoji: string, label: string }>>}

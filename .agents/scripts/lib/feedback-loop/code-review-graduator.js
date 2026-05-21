@@ -78,7 +78,7 @@ export function buildIdempotencyMarker(epicId, index) {
  * finding has `{ severity, path, summary, index }`. Pure. Exported so
  * the parser can be unit-tested in isolation.
  *
- * Today's epic-code-review.js emits findings as bullet lines under the
+ * The structured `code-review` comment emits findings as bullet lines under the
  * "🚨 Critical Findings" and "🟡 Warnings" sections. Each line begins
  * with a severity emoji and embeds the cited path inside backticks. We
  * filter 🔴 (Critical Blocker — blocking) out; 🟠/🟡/🟢 are non-blocking

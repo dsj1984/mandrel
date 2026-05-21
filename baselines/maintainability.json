@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T14:31:33.736Z",
+  "generatedAt": "2026-05-21T15:25:17.555Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.888,
-      "p95": 121.484
+      "p50": 103.904,
+      "p95": 121.571
     }
   },
   "rows": [
@@ -81,10 +81,6 @@
     {
       "path": ".agents/scripts/epic-close.js",
       "mi": 97.229
-    },
-    {
-      "path": ".agents/scripts/epic-code-review.js",
-      "mi": 87.18
     },
     {
       "path": ".agents/scripts/epic-deliver-note-intervention.js",
@@ -661,10 +657,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/cascade-grouping.js",
       "mi": 97.534
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/code-review.js",
-      "mi": 77.981
     },
     {
       "path": ".agents/scripts/lib/orchestration/concurrency.js",
@@ -2071,14 +2063,6 @@
       "mi": 105.181
     },
     {
-      "path": "tests/epic-code-review-run.test.js",
-      "mi": 110.468
-    },
-    {
-      "path": "tests/epic-code-review.test.js",
-      "mi": 104.492
-    },
-    {
       "path": "tests/epic-execute/epic-deliver-prepare.test.js",
       "mi": 91.379
     },
@@ -2711,10 +2695,6 @@
       "mi": 107.639
     },
     {
-      "path": "tests/lib/orchestration/code-review.test.js",
-      "mi": 102.057
-    },
-    {
       "path": "tests/lib/orchestration/concurrency-gate.test.js",
       "mi": 100.546
     },
@@ -2921,10 +2901,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/merge-lockout-lint.test.js",
       "mi": 108.787
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/phase-close-tail.test.js",
-      "mi": 103.255
     },
     {
       "path": "tests/lib/orchestration/lifecycle/phase-close-validate.test.js",
