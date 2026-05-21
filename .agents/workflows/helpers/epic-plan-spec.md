@@ -41,9 +41,11 @@ wrapper chains both helpers with a confirmation gate in between.
   label for the spec phase is `agent::review-spec`.
 - **Every** temp file must include the Epic ID in its name. Multiple Epics may
   be planned concurrently; bare names like `temp/prd.md` will collide.
-- **Stop and hand back to the operator** after Step 4 — do not chain into
-  decomposition. The human must confirm the PRD/Tech Spec on GitHub before the
-  next phase starts.
+- **Stop and hand back to the operator** after Step 4 when
+  `planningRisk.requiresReview` is true or the operator passed
+  `--force-review` — do not chain into decomposition. Low-risk Epics
+  auto-proceed to Phase 8 after the persist stdout confirms
+  `reviewRouting.decision === 'auto-proceed'`.
 
 ## Prerequisites
 
@@ -109,12 +111,19 @@ need to inspect the temp artefacts after the fact, re-run
 
 ## Handoff
 
-- **STOP** — do not proceed to decomposition. Surface the PRD and Tech Spec
+Branch on the shared planning risk decision surfaced in the persist stdout
+JSON (`planningRisk`, `reviewRouting`):
+
+- **High risk or `--force-review` — STOP.** Surface the PRD and Tech Spec
   URLs to the operator:
 
   > "Spec phase complete for Epic #[ID]. Review PRD (#XX) and Tech Spec (#YY)
   > on GitHub. When you're ready, re-run `/epic-plan [Epic_ID]` — the wrapper
   > will pick up where it left off and run the decompose phase."
+
+- **Low risk — auto-proceed.** Relay `reviewRouting.operatorMessage` and
+  continue directly to Phase 8 decomposition without waiting for verbal
+  approval in this session.
 
 ## Troubleshooting
 

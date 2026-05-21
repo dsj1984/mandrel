@@ -21,6 +21,8 @@
  *   "lastUpdatedAt": "...",
  *   "spec": { "prdId": null, "techSpecId": null, "acceptanceSpecId": null, "completedAt": null },
  *   "decompose": { "ticketCount": null, "completedAt": null },
+ *   "planningRisk": { "overallLevel": "...", "requiresReview": true, "gateDecision": "..." },
+ *   "reviewRouting": { "decision": "review-required|auto-proceed|operator-override-review", "requiresStop": true, "forceReviewApplied": false },
  *   "manifestCommentId": null
  * }
  * ```

@@ -76,6 +76,7 @@ export async function runSprintPlan({
   config,
   artifacts,
   force = false,
+  forceReview = false,
   apply = false,
   runSpec = runSpecPhase,
   runDecompose = runDecomposePhase,
@@ -111,7 +112,7 @@ export async function runSprintPlan({
       techSpecContent: artifacts.techSpecContent,
     },
     settings,
-    { force },
+    { force, forceReview },
   );
 
   const decomposeResult = await runDecompose(
@@ -159,6 +160,7 @@ async function main() {
       techspec: { type: 'string' },
       tickets: { type: 'string' },
       force: { type: 'boolean', default: false },
+      'force-review': { type: 'boolean', default: false },
       apply: { type: 'boolean', default: false },
       'describe-resume-point': { type: 'boolean', default: false },
     },
@@ -235,6 +237,7 @@ async function main() {
     config,
     artifacts: { prdContent, techSpecContent, tickets },
     force: values.force,
+    forceReview: values['force-review'],
     apply: values.apply,
   });
 

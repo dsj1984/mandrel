@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T01:47:32.835Z",
+  "generatedAt": "2026-05-21T02:04:56.975Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.904,
+      "p50": 103.914,
       "p95": 121.571
     }
   },
@@ -113,10 +113,6 @@
     {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 98.816
-    },
-    {
-      "path": ".agents/scripts/epic-plan.js",
-      "mi": 78.094
     },
     {
       "path": ".agents/scripts/epic-reconcile.js",
@@ -713,10 +709,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/epic-lifecycle-detector.js",
       "mi": 109.889
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "mi": 97.693
     },
     {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
