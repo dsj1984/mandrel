@@ -30,10 +30,13 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import yaml from 'js-yaml';
 
+import { classifyPlanningRisk } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
+import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
 import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
 import {
   planEpic,
   resolveAcceptancePersistence,
+  runSpecPhase,
 } from '../../.agents/scripts/epic-plan-spec.js';
 import {
   EXIT_CODES,
@@ -464,6 +467,116 @@ function buildPlanEpicProvider(epicShape = {}) {
 
   return provider;
 }
+
+/**
+ * Provider for runSpecPhase tests — extends the plan-epic stub with
+ * structured-comment I/O used by epic-plan-state-store.
+ */
+function buildRunSpecPhaseProvider(epicShape = {}) {
+  let commentId = 9000;
+  const comments = new Map();
+  const base = buildPlanEpicProvider(epicShape);
+
+  return {
+    ...base,
+    async getTicketComments(ticketId) {
+      return comments.get(ticketId) ?? [];
+    },
+    async postComment(ticketId, payload) {
+      const list = comments.get(ticketId) ?? [];
+      const comment = { id: commentId++, body: payload.body };
+      list.push(comment);
+      comments.set(ticketId, list);
+      return comment;
+    },
+    async deleteComment(id) {
+      for (const [, list] of comments) {
+        const idx = list.findIndex((entry) => entry.id === id);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+    },
+  };
+}
+
+describe('review routing — Story #2795', () => {
+  it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Adaptive planning gate routing',
+      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+    });
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+    );
+
+    assert.equal(result.planningRisk.requiresReview, true);
+    assert.equal(result.reviewRouting.decision, 'review-required');
+    assert.equal(result.reviewRouting.requiresStop, true);
+    assert.equal(result.checkpoint.reviewRouting.decision, 'review-required');
+    assert.equal(result.checkpoint.reviewRouting.requiresStop, true);
+    assert.ok(provider.epic.labels.includes('agent::review-spec'));
+  });
+
+  it('low-risk runSpecPhase records auto-proceed routing in checkpoint', async () => {
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+    });
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+    );
+
+    assert.equal(result.planningRisk.requiresReview, false);
+    assert.equal(result.reviewRouting.decision, 'auto-proceed');
+    assert.equal(result.reviewRouting.requiresStop, false);
+    assert.equal(result.checkpoint.reviewRouting.decision, 'auto-proceed');
+    assert.match(result.reviewRouting.operatorMessage, /auto-proceed/i);
+  });
+
+  it('operator override forces review stop on a low-risk Epic', async () => {
+    const planningRisk = classifyPlanningRisk({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+      labels: ['type::epic'],
+    });
+    const routing = resolveReviewRouting({ planningRisk, forceReview: true });
+
+    assert.equal(routing.decision, 'operator-override-review');
+    assert.equal(routing.requiresStop, true);
+
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+    });
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { forceReview: true },
+    );
+
+    assert.equal(result.reviewRouting.decision, 'operator-override-review');
+    assert.equal(result.reviewRouting.requiresStop, true);
+    assert.equal(result.checkpoint.reviewRouting.forceReviewApplied, true);
+  });
+});
 
 describe('acceptance disposition persistence — Story #2792', () => {
   it('resolveAcceptancePersistence routes required disposition to acceptance-spec', () => {
