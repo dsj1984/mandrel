@@ -54,6 +54,7 @@ export {
   HYDRATION_DEFAULTS,
   resolveHydration,
 } from './config/hydration.js';
+export { getLifecycle, LIFECYCLE_DEFAULTS } from './config/lifecycle.js';
 export {
   getLimits,
   getSignals,
@@ -91,7 +92,6 @@ export {
   getWorktreeIsolation,
   WORKTREE_ISOLATION_DEFAULTS,
 } from './config/worktree-isolation.js';
-export { getLifecycle, LIFECYCLE_DEFAULTS } from './config/lifecycle.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // scripts/lib/ → scripts/ → .agents/ → project root
