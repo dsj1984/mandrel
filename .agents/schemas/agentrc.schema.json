@@ -252,9 +252,9 @@
       "properties": {
         "provider": {
           "type": "string",
-          "enum": ["native"],
+          "enum": ["native", "codex"],
           "default": "native",
-          "description": "ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Epic #2815 registers only `native` (the in-process maintainability/lint pass). Additional adapters (e.g. `codex`) are introduced by later stories under the same Epic and will extend this enum."
+          "description": "ReviewProvider adapter that produces the Finding[] consumed by runCodeReview(). Story #2833 (Epic #2815) registered `native` (the in-process maintainability/lint pass); Story #2830 added `codex`, which invokes the `/codex:review` Claude Code plugin (https://github.com/openai/codex-plugin-cc). Selecting `codex` when the plugin is not installed hard-fails at factory construction with remediation guidance — there is no silent fallback to `native`."
         },
         "providerConfig": {
           "type": "object",
