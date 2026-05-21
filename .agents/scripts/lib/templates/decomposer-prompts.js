@@ -124,5 +124,10 @@ This prevents the executing agent from redoing work the upstream Story already m
 
 CRITICAL: Dependencies should follow execution blockers. For hierarchical grouping, strongly strictly use 'parent_slug' (Story parent MUST be a Feature, Task parent MUST be a Story). Features should have no 'parent_slug' (they attach to Epic).
 IMPORTANT DEPENDENCY RULE: A Task's \`depends_on\` MUST only reference other Tasks within the SAME Story (same parent_slug). Cross-story task dependencies are FORBIDDEN. If two Stories have a logical ordering requirement, add the dependency at the STORY level (one Story depends_on the other Story's slug), NOT between their child Tasks.
-WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTickets} tickets in total. Combine atomic tasks into larger, cohesive tasks. Do NOT cut off the JSON array prematurely!`;
+
+### REVIEWABILITY BUDGET (Story #2798):
+\`maxTickets = ${maxTickets}\` is a **reviewability budget**, not a hard authoring cap. It marks the count of tickets a human operator can comfortably review in one planning pass; emitting more than this overflows the operator's review window. Default behaviour:
+- **Stay at or under the budget when possible.** Combine atomic tasks into larger, cohesive tasks before splitting; small Stories should merge back into siblings rather than spawn their own container.
+- **Do NOT truncate or over-compress to fit.** If the plan genuinely needs more tickets than the budget, emit the full plan anyway and add a compact \`over_budget_rationale\` string at the top of the FIRST Feature's \`body\` explaining (a) why the plan exceeds the budget and (b) what was already merged to keep the count down. The operator will then either accept the plan by re-running the decompose with the explicit \`--allow-over-budget\` override flag, or push back and ask for a re-scope.
+- **Never stop mid-array.** Always emit complete JSON — partial arrays are rejected by the validator.`;
 }

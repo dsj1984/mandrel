@@ -79,10 +79,20 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
             'Skill body must require an over-budget rationale or describe the --allow-over-budget override path',
           );
         }
-        if (/hard ceiling/i.test(body)) {
-          errors.push(
-            'Skill body must drop hard-cap / hard-ceiling phrasing in favor of reviewability-budget language',
-          );
+        // Story #2798 — the maxTickets section MUST not call the budget a
+        // "hard cap" or "hard ceiling". The unrelated task-sizing
+        // validator phrasing ("validator's hard ceilings (default
+        // maxAcceptance ...") stays legitimate, so the check is scoped
+        // to lines that mention maxTickets in the same sentence.
+        const maxTicketsLines = body
+          .split('\n')
+          .filter((l) => /maxTickets/.test(l));
+        for (const line of maxTicketsLines) {
+          if (/hard (cap|ceiling)/i.test(line)) {
+            errors.push(
+              `Skill body must drop hard-cap / hard-ceiling phrasing for maxTickets (line: "${line.trim()}")`,
+            );
+          }
         }
         return { ok: errors.length === 0, errors };
       },
