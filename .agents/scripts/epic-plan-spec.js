@@ -74,7 +74,10 @@ import {
 } from './lib/orchestration/epic-plan-state-store.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 import { classifyPlanningRisk } from './lib/orchestration/planning-risk.js';
+
+export { resolveReviewRouting };
 import { PlanningStateManager } from './lib/orchestration/planning-state-manager.js';
 import {
   renderSpecFreshnessComment,
@@ -741,15 +744,15 @@ export async function runSpecFreshnessCheck({
  * @param {import('./lib/ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ prdContent: string, techSpecContent: string }} artifacts
  * @param {object} settings
- * @param {{ force?: boolean, snapshotFork?: typeof forkAndCommitEpicSnapshot }} [opts]
- * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, checkpoint: object }>}
+ * @param {{ force?: boolean, forceReview?: boolean, snapshotFork?: typeof forkAndCommitEpicSnapshot }} [opts]
+ * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, checkpoint: object, planningRisk: import('./lib/orchestration/planning-risk.js').PlanningRiskEnvelope, reviewRouting: import('./lib/orchestration/plan-review-routing.js').ReviewRoutingEnvelope }>}
  */
 export async function runSpecPhase(
   epicId,
   provider,
   { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
-  { force = false } = {},
+  { force = false, forceReview = false } = {},
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
@@ -808,6 +811,13 @@ export async function runSpecPhase(
   // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
   // `forkMainToEpic` remain exported for that caller.
 
+  const planningRisk = classifyPlanningRisk({
+    title: afterPlan.title,
+    body: afterPlan.body ?? '',
+    labels: afterPlan.labels ?? [],
+  });
+  const reviewRouting = resolveReviewRouting({ planningRisk, forceReview });
+
   const currentState =
     (await readPlanState({ provider, epicId })) ??
     (await initializePlanState({ provider, epicId }));
@@ -816,6 +826,12 @@ export async function runSpecPhase(
     epicId,
     state: {
       ...currentState,
+      planningRisk,
+      reviewRouting: {
+        decision: reviewRouting.decision,
+        requiresStop: reviewRouting.requiresStop,
+        forceReviewApplied: reviewRouting.forceReviewApplied,
+      },
       spec: {
         ...currentState.spec,
         prdId,
@@ -825,6 +841,9 @@ export async function runSpecPhase(
       },
     },
   });
+
+  Logger.info(`[epic-plan-spec] Review routing: ${reviewRouting.decision}.`);
+  Logger.info(`[epic-plan-spec] ${reviewRouting.operatorMessage}`);
 
   Logger.info(
     `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
@@ -861,6 +880,8 @@ export async function runSpecPhase(
     checkpoint,
     cleanup,
     freshness,
+    planningRisk,
+    reviewRouting,
   };
 }
 
@@ -873,6 +894,7 @@ async function main() {
       techspec: { type: 'string' },
       'acceptance-spec': { type: 'string' },
       force: { type: 'boolean', default: false },
+      'force-review': { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -959,7 +981,7 @@ async function main() {
     provider,
     { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
-    { force: values.force },
+    { force: values.force, forceReview: values['force-review'] },
   );
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

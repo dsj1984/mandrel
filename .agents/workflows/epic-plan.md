@@ -31,7 +31,9 @@ artifacts you author.
 ## Constraint
 
 - Do not modify existing issues without explicit permission.
-- Wait for user validation before migrating to Phase 8.
+- Wait for user validation before migrating to Phase 8 when
+  `planningRisk.requiresReview` is true (or the operator passes
+  `--force-review`). Low-risk Epics auto-proceed after spec validation.
 - Delegate Phase 7 and Phase 8 to the
   [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
   [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
@@ -328,19 +330,27 @@ for the scoring logic.
      --techspec temp/epic-[Epic_ID]/techspec.md
    ```
 
-4. **Verification**:
+4. **Verification and review routing**:
    - Verify that the PRD, Technical Specification, and (when not waived)
      Acceptance Specification have been posted as linked issues under
      the Epic.
-   - **STOP**: Ask the USER to review the generated PRD, Tech Spec, and
-     Acceptance Spec on GitHub. Approval is the user's verbal OK in this
-     session — the three context tickets stay **open** through delivery
-     and are closed automatically by `epic-deliver-finalize.js` once the
-     Epic PR opens. `/epic-deliver`'s start gate only requires that the
-     Acceptance Spec is linked (or that the Epic carries the
-     `acceptance::n-a` waiver); it does not require manual closure. Do
-     NOT proceed to decomposition until the user confirms the plan is
-     accurate.
+   - Read `planningRisk` from the persist stdout JSON (or the
+     `epic-plan-state` checkpoint). Branch on
+     `planningRisk.requiresReview` unless the operator passed
+     `--force-review`:
+     - **High risk** (`requiresReview === true`) or **operator override**
+       (`--force-review`): **STOP**. Ask the USER to review the generated
+       PRD, Tech Spec, and Acceptance Spec on GitHub. Approval is the
+       user's verbal OK in this session — the three context tickets stay
+       **open** through delivery and are closed automatically by
+       `epic-deliver-finalize.js` once the Epic PR opens. Do NOT proceed
+       to decomposition until the user confirms the plan is accurate.
+     - **Low risk** (`requiresReview === false` and no `--force-review`):
+       Emit the auto-proceed message from the persist stdout
+       (`reviewRouting.operatorMessage`) and **continue directly to Phase 8**
+       without an extra review stop. The Epic still carries
+       `agent::review-spec` until decomposition completes; the routing
+       decision is recorded in the `epic-plan-state` checkpoint.
 
 5. **Tech Spec freshness check (advisory)**: After the Tech Spec issue
    is created, `epic-plan-spec.js` runs
