@@ -468,7 +468,10 @@ describe('epic-plan-decompose pipeline — buildDecompositionContext planning ri
       'maxTickets',
       'contextMode',
     ]) {
-      assert.ok(key in ctx, `legacy context field "${key}" must remain present`);
+      assert.ok(
+        key in ctx,
+        `legacy context field "${key}" must remain present`,
+      );
     }
   });
 
