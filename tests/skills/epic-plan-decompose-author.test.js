@@ -65,6 +65,35 @@ describe('skill:epic-plan-decompose-author — smoke', () => {
         if (!/JSON array/i.test(body)) {
           errors.push('Skill body must require a JSON-array output shape');
         }
+        // Story #2798 — the Skill must describe `maxTickets` as a
+        // reviewability budget rather than a hard authoring cap, and
+        // require an explicit over-budget rationale / operator override
+        // path when the plan exceeds the budget.
+        if (!/reviewability budget/i.test(body)) {
+          errors.push(
+            'Skill body must describe `maxTickets` as a reviewability budget',
+          );
+        }
+        if (!/over[- ]budget rationale|--allow-over-budget/i.test(body)) {
+          errors.push(
+            'Skill body must require an over-budget rationale or describe the --allow-over-budget override path',
+          );
+        }
+        // Story #2798 — the maxTickets section MUST not call the budget a
+        // "hard cap" or "hard ceiling". The unrelated task-sizing
+        // validator phrasing ("validator's hard ceilings (default
+        // maxAcceptance ...") stays legitimate, so the check is scoped
+        // to lines that mention maxTickets in the same sentence.
+        const maxTicketsLines = body
+          .split('\n')
+          .filter((l) => /maxTickets/.test(l));
+        for (const line of maxTicketsLines) {
+          if (/hard (cap|ceiling)/i.test(line)) {
+            errors.push(
+              `Skill body must drop hard-cap / hard-ceiling phrasing for maxTickets (line: "${line.trim()}")`,
+            );
+          }
+        }
         return { ok: errors.length === 0, errors };
       },
     });

@@ -182,13 +182,29 @@ export function assertEpicHasPlanningArtifacts(epic, epicId) {
   }
 }
 
+/**
+ * Advisory-only ticket-count check (Story #2798).
+ *
+ * `maxTickets` is a **reviewability budget**, not a hard authoring cap.
+ * This helper emits a non-destructive warning when a decomposition meets
+ * or exceeds the budget so the operator can spot over-budget plans early
+ * in the persist flow. It never blocks — the hard gate lives in the
+ * `runDecomposePhase` over-budget check, which requires an explicit
+ * `allowOverBudget` (CLI: `--allow-over-budget`) override.
+ *
+ * @param {Array} tickets
+ * @param {number} maxTickets — the reviewability budget
+ * @param {string} [tag] — log prefix
+ * @param {{ logger?: Pick<typeof Logger, 'warn'> }} [opts]
+ */
 export function warnTicketCapNearLimit(
   tickets,
   maxTickets,
   tag = 'epic-plan-decompose',
+  { logger = Logger } = {},
 ) {
   if (tickets.length < maxTickets) return;
-  Logger.warn(
-    `[${tag}] ⚠️  Received ${tickets.length} tickets (at or above the ${maxTickets}-ticket cap). Verify every Story still has child Tasks or split the Epic into smaller scopes.`,
+  logger.warn(
+    `[${tag}] ⚠️  Received ${tickets.length} tickets against a reviewability budget of ${maxTickets}. Verify every Story still has child Tasks; over-budget persistence requires --allow-over-budget.`,
   );
 }

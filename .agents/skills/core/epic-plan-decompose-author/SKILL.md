@@ -18,7 +18,7 @@ allowed_tools:
 - Run only after `epic-plan-decompose.js --emit-context` has written `temp/epic-<Epic_ID>/decomposer-context.json`; fail loudly if the file is missing.
 - Emit exactly one artifact: `temp/epic-<Epic_ID>/tickets.json` (a JSON array). Do not write anywhere else, and never call the GitHub API from this Skill — persistence belongs to the script.
 - Output is JSON only — no prose, no Markdown fence. The downstream validator (`lib/orchestration/ticket-validator.js`) is the authoritative gate; re-author rather than hand-patching when it rejects.
-- Respect the **`maxTickets` cap** from the context envelope as a hard ceiling. Combine atomic Tasks rather than spilling over; splitting past the cap means re-scoping the Epic.
+- Treat **`maxTickets`** from the context envelope as a **reviewability budget**, not a hard authoring cap (Story #2798). Combine atomic Tasks first; if the plan genuinely needs more, emit the full plan and add a compact `over_budget_rationale` field at the top of the first Feature's `body` explaining why the plan exceeds the budget. Operator persistence then requires the explicit `--allow-over-budget` override on `epic-plan-decompose.js`; without it the persist step rejects the over-budget array. Never truncate the JSON array to fit.
 - Honour the three-level hierarchy: **Feature → Story → Task**. Every Story MUST decompose into at least one Task (typically 2–5); empty Story containers are invalid.
 - Every ticket carries `type::[feature|story|task]` and `persona::*` labels; every Task body is a structured object with `goal`, `changes[]` (object form `{ path, assumption }`), `acceptance[]`, `verify[]`, and optional `references[]`.
 - **New-File Contract**: any path referenced in `goal`, `acceptance`, or `verify` that does not exist on `main` MUST appear in the Task's `changes[]` with `assumption: "creates"`; otherwise the freshness validator rejects the decompose.
@@ -59,10 +59,12 @@ reads:
   - `heuristics[]` — risk heuristics surfaced from
     `agentSettings.planning.riskHeuristics`. Apply each one against the
     Stories you are emitting; flag matches via `risk::high` labels.
-  - `maxTickets` — hard cap from `agentSettings.limits.maxTickets`. Do
-    not exceed it. The script also logs the resolved value to stderr;
-    if the prompt cap and the script log disagree, the script wins
-    (the validator enforces it).
+  - `maxTickets` — reviewability budget from
+    `agentSettings.planning.maxTickets` (Story #2798). Default: stay
+    under. When the plan genuinely needs more, emit the full plan with
+    an `over_budget_rationale` and rely on the operator's
+    `--allow-over-budget` override at persist time. The script logs the
+    resolved value to stderr.
   - `contextMode` — `"full"` or `"summary"`. When `"summary"`, work
     from the `bodySummary` fields rather than re-fetching the bodies.
 
@@ -88,8 +90,9 @@ its rules, not for "looks right."
 Read `temp/epic-<Epic_ID>/decomposer-context.json` with the `Read` tool.
 Pin three values explicitly before writing any tickets:
 
-1. `maxTickets` — your hard ceiling. Combine atomic Tasks rather than
-   spilling over the cap.
+1. `maxTickets` — your reviewability budget. Combine atomic Tasks rather
+   than spilling over the budget; if the plan genuinely needs more, emit
+   the full plan with an `over_budget_rationale` (Story #2798).
 2. `contextMode` — if `"summary"`, the body strings are bounded; trust
    them, but keep Tasks more conservative because the upstream context
    is partial.
@@ -118,8 +121,10 @@ the Epic to `agent::ready`.
 
 ## Decomposer system prompt (authoritative)
 
-The cap `${maxTickets}` is substituted at runtime from the
-`maxTickets` field in the loaded context. Treat it as a hard ceiling.
+The value `${maxTickets}` is substituted at runtime from the
+`maxTickets` field in the loaded context. Treat it as the reviewability
+budget (Story #2798) — stay under by default; over-budget plans need an
+`over_budget_rationale` plus operator `--allow-over-budget` to persist.
 
 ```text
 You are an expert Senior Project Manager and Orchestrator.
@@ -273,8 +278,11 @@ WARNING: You MUST conserve your output limit. Do NOT generate more than ${maxTic
   script's job; the Skill is pure JSON authoring.
 - Do **not** write outside `temp/epic-<Epic_ID>/`. Reads may cover the
   PRD/Tech Spec bodies plus any docs the context envelope cites.
-- The decomposer prompt's `${maxTickets}` cap is **canonical**. Splitting
-  past the cap means re-scoping the Epic, not silently exceeding it.
+- The decomposer prompt's `${maxTickets}` value is the **reviewability
+  budget** (Story #2798). Staying under is the default; exceeding it
+  requires both an `over_budget_rationale` in the JSON output and the
+  operator's `--allow-over-budget` flag at persist time. Silently
+  exceeding the budget — or truncating the plan to fit — is forbidden.
 - If `temp/epic-<Epic_ID>/decomposer-context.json` is missing, fail
   loudly. Instruct the caller to run `--emit-context` first.
 - The validator
