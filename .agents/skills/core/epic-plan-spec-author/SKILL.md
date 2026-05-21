@@ -84,6 +84,24 @@ reads:
     as before. Non-empty means the Acceptance Engineer step MUST run
     `findBestScenarioMatch` for each planned AC and annotate the
     Disposition column accordingly (see Step 4).
+  - `planningRisk` — deterministic risk envelope computed in Phase 7
+    (Epic #2649). Shape: `{ axes[], overallLevel, requiresReview,
+    acceptanceDisposition, gateDecision }`. Use it as authoring
+    signal across all three artifacts:
+    - **PRD** — summarize the risk decision in the Context & Goals
+      section so reviewers see why the gate routing is what it is.
+    - **Tech Spec** — cite `planningRisk.axes` when designing
+      gating behavior (e.g. when the Epic is high-risk on the
+      `critical-workflow` axis, the spec should call out the
+      review-required path explicitly).
+    - **Acceptance Spec** — branch on
+      `planningRisk.acceptanceDisposition`. `required` and
+      `recommended` author the spec normally. `not-applicable`
+      authorizes the persist half to apply `acceptance::n-a` on the
+      Epic; in that case write a one-paragraph waiver rationale to
+      `temp/epic-<Epic_ID>/acceptance-spec.md` instead of the AC
+      table so the audit trail still exists, and start the file with
+      `## Acceptance Criteria — waived (planner-selected)`.
 
 ## Outputs
 
