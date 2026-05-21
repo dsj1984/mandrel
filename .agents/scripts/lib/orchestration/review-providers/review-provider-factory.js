@@ -16,39 +16,15 @@
  *     verbatim — the factory does NOT silently fall back to `native`
  *     because that would mask a deliberate operator routing choice.
  *
- * Story #2825 registers only the `native` placeholder. The native
- * adapter body itself lands in a later story; this file establishes
- * the registry shape and the error contract.
+ * Story #2833 replaced the placeholder `native` stub with the real
+ * adapter from `./native.js`; the registry shape is unchanged.
  *
  * @typedef {import('./types.js').ReviewProvider} ReviewProvider
  * @typedef {import('./types.js').Finding} Finding
  * @typedef {import('./types.js').ReviewInput} ReviewInput
  */
 
-/**
- * Placeholder native adapter. Story #2825 only stands up the seam;
- * the real findings-collection logic moves into `native.js` in a
- * later story and replaces this stub. The stub throws on `runReview`
- * so any caller that wires the seam before the adapter lands fails
- * loudly rather than silently returning an empty `Finding[]`.
- *
- * @returns {ReviewProvider}
- */
-function createNativeProviderStub() {
-  return {
-    /**
-     * @param {ReviewInput} _input
-     * @returns {Promise<Finding[]>}
-     */
-    async runReview(_input) {
-      throw new Error(
-        '[ReviewProviderFactory] native provider is not yet implemented. ' +
-          'The native adapter lands in a later story under Epic #2815; ' +
-          'until then, do not invoke runCodeReview() through this factory.',
-      );
-    },
-  };
-}
+import { createNativeProviderForRegistry } from './native.js';
 
 /**
  * Provider registry. Maps the `codeReview.provider` enum value to a
@@ -57,7 +33,7 @@ function createNativeProviderStub() {
  * @type {Readonly<Record<string, () => ReviewProvider>>}
  */
 const PROVIDERS = Object.freeze({
-  native: createNativeProviderStub,
+  native: createNativeProviderForRegistry,
 });
 
 /**
