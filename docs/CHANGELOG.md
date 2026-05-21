@@ -250,6 +250,17 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.28.0](https://github.com/dsj1984/mandrel/compare/v1.27.0...v1.28.0) (2026-05-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* **board:** collapse Status field to Todo/In Progress/Done ([#2868](https://github.com/dsj1984/mandrel/issues/2868))
+
+### Added
+
+* **board:** collapse Status field to Todo/In Progress/Done ([#2868](https://github.com/dsj1984/mandrel/issues/2868)) ([60e99a2](https://github.com/dsj1984/mandrel/commit/60e99a2b019698034e146e0e73c92ee3c68a08bf)), closes [#2867](https://github.com/dsj1984/mandrel/issues/2867)
+
 ## [1.27.0](https://github.com/dsj1984/mandrel/compare/v1.26.0...v1.27.0) (2026-05-21)
 
 
