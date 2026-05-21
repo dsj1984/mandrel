@@ -62,9 +62,10 @@ The codifying decision is **Epic #2646** (the "Hard-Cutover Cleanup Epic"),
 which deleted the existing compatibility shim layer across
 `config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
 `wave-session.js`, `IExecutionAdapter` / `ManualDispatchAdapter`, lifecycle
-emit shims, and duplicate progress/comment writers in one pass. See
-[`docs/future-considerations.md` § Implemented Since Audit](../../docs/future-considerations.md)
-for the per-finding closing references (Findings #10, #11, #13, #17).
+emit shims, and duplicate progress/comment writers in one pass. The
+per-finding closing references (audit Findings #10, #11, #13, #17) live in
+the merged PRs and the Epic #2646 history; the standing forward-looking
+audit lives at [`docs/future-considerations.md`](../../docs/future-considerations.md).
 
 Practical guidance when authoring a contract change:
 

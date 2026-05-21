@@ -250,6 +250,43 @@ restoration.
 - → follow-up **#2071** (schema-module maintainability uplift):
   - `.agents/scripts/lib/config-settings-schema.js` (`mi: 46`)
   - `.agents/scripts/lib/config-gates-schema.js` (`mi: 51`)
+## [1.26.0](https://github.com/dsj1984/mandrel/compare/v1.25.0...v1.26.0) (2026-05-21)
+
+
+### Added
+
+* add lifecycle defaults + strip redundant config from .agentrc.json ([#2846](https://github.com/dsj1984/mandrel/issues/2846)) ([#2848](https://github.com/dsj1984/mandrel/issues/2848)) ([89a8b30](https://github.com/dsj1984/mandrel/commit/89a8b3063c5fd38583db31c1d08538fe7f0e79d4))
+* **architecture:** cleanup shims, adapters, and enums (closes [#2646](https://github.com/dsj1984/mandrel/issues/2646)) ([#2712](https://github.com/dsj1984/mandrel/issues/2712)) ([8993bad](https://github.com/dsj1984/mandrel/commit/8993bad5085c02e39fce0fbd0dd6c440eba2e7c5))
+* **audit-architecture:** add Automated Architecture Guardrails dimension ([#2734](https://github.com/dsj1984/mandrel/issues/2734)) ([184574d](https://github.com/dsj1984/mandrel/commit/184574d65bdaba1ebed54a68cda5d0cdee50d823)), closes [#2713](https://github.com/dsj1984/mandrel/issues/2713)
+* **hooks:** rebalance pre-push to diff-scoped gates ([#2745](https://github.com/dsj1984/mandrel/issues/2745)) ([#2754](https://github.com/dsj1984/mandrel/issues/2754)) ([5f93eb0](https://github.com/dsj1984/mandrel/commit/5f93eb05bcf443bb5b8ce9d3fb5158cd379d6d25))
+* **orchestration:** propagate ticket state upward on every transition ([#2677](https://github.com/dsj1984/mandrel/issues/2677)) ([29a036d](https://github.com/dsj1984/mandrel/commit/29a036deea739a0ec7abd39ba8e76dc2ebeb8d5b)), closes [#2676](https://github.com/dsj1984/mandrel/issues/2676)
+* **orchestration:** record model attribution as structured comments on tasks + rollup ([#2814](https://github.com/dsj1984/mandrel/issues/2814)) ([3bbea99](https://github.com/dsj1984/mandrel/commit/3bbea99cf09260dd8d227d41b370db72226aa24a)), closes [#2813](https://github.com/dsj1984/mandrel/issues/2813)
+* **providers:** retry transient gh-api reads + cap paginateRest pages ([#2857](https://github.com/dsj1984/mandrel/issues/2857)) ([b8a60e6](https://github.com/dsj1984/mandrel/commit/b8a60e6ba7db6e2129b28a7aa38ace3391fccafc)), closes [#2852](https://github.com/dsj1984/mandrel/issues/2852)
+* skill library index + policy capsules (Epic [#2647](https://github.com/dsj1984/mandrel/issues/2647)) ([#2755](https://github.com/dsj1984/mandrel/issues/2755)) ([2e7f2b8](https://github.com/dsj1984/mandrel/commit/2e7f2b8d48ee147e2f4ad1f783eb29d8806088eb))
+
+
+### Fixed
+
+* **lifecycle:** allow epicId on epic.automerge.start payload ([#2856](https://github.com/dsj1984/mandrel/issues/2856)) ([c76b7ae](https://github.com/dsj1984/mandrel/commit/c76b7aec424ef5d6dddb9043ec2421b643dc24d5)), closes [#2855](https://github.com/dsj1984/mandrel/issues/2855)
+* **lifecycle:** close-tail completeness — audit-results marker, epic.merge.* schemas, Phase 7 doc-truth ([#2710](https://github.com/dsj1984/mandrel/issues/2710)) ([41c4c84](https://github.com/dsj1984/mandrel/commit/41c4c84ec272f501f3d6e30df6ecb71a0d8357e1)), closes [#2681](https://github.com/dsj1984/mandrel/issues/2681)
+* **lint-baseline:** honor agentrc override and run shim launchers via shell ([#2752](https://github.com/dsj1984/mandrel/issues/2752)) ([6c39c29](https://github.com/dsj1984/mandrel/commit/6c39c292433a67067f2cb5dee713658306f4cfcb)), closes [#2750](https://github.com/dsj1984/mandrel/issues/2750)
+* **orchestration:** flip task labels at per-task start, not story-init ([#2779](https://github.com/dsj1984/mandrel/issues/2779)) ([a155549](https://github.com/dsj1984/mandrel/commit/a155549ccaff45134e5c3306c059f836af23fe9a))
+* **orchestration:** own Projects v2 Status column — audit + post-merge re-sync ([#2847](https://github.com/dsj1984/mandrel/issues/2847)) ([acc277d](https://github.com/dsj1984/mandrel/commit/acc277da06d6c5971dd7295bf9808c0ad4be7247)), closes [#2845](https://github.com/dsj1984/mandrel/issues/2845)
+* **single-story-deliver:** route label flips through transitionTicketState so Projects v2 Status syncs ([#2739](https://github.com/dsj1984/mandrel/issues/2739)) ([5f4e6e2](https://github.com/dsj1984/mandrel/commit/5f4e6e291f89f7f4353b6a72d57f173982b25c75)), closes [#2717](https://github.com/dsj1984/mandrel/issues/2717)
+* **single-story:** fast-forward local main after deliver and at init ([#2753](https://github.com/dsj1984/mandrel/issues/2753)) ([80a5cea](https://github.com/dsj1984/mandrel/commit/80a5cea77dcc43968fc5e0a9be0e420ba5cc871f))
+* **skills:** enforce manifest schema and dedupe SKILL walkers ([#2757](https://github.com/dsj1984/mandrel/issues/2757)) ([88b0098](https://github.com/dsj1984/mandrel/commit/88b0098aad447fc04739c5fe34fb1cf57bec1e89))
+
+
+### Performance
+
+* **retro:** parallelize Story comment fetches + level-order BFS ([#2859](https://github.com/dsj1984/mandrel/issues/2859)) ([66e45bc](https://github.com/dsj1984/mandrel/commit/66e45bcfd5f45cec2a8e7780ec006e580affa196)), closes [#2853](https://github.com/dsj1984/mandrel/issues/2853)
+* **test:** trim slow integration-style suite setup ([#2744](https://github.com/dsj1984/mandrel/issues/2744)) ([#2751](https://github.com/dsj1984/mandrel/issues/2751)) ([3cfc316](https://github.com/dsj1984/mandrel/commit/3cfc316cd4b861570ed76bc67d8a76f5c1119555))
+
+
+### Changed
+
+* break down CRAP hotspots to ratchet crap floor below 340 ([#2850](https://github.com/dsj1984/mandrel/issues/2850)) ([#2858](https://github.com/dsj1984/mandrel/issues/2858)) ([d3e68c2](https://github.com/dsj1984/mandrel/commit/d3e68c22494a9cc4a4ef89c3ce9caeeea310fb59))
+
 ## [1.25.0](https://github.com/dsj1984/mandrel/compare/v1.24.0...v1.25.0) (2026-05-19)
 
 
