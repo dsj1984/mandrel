@@ -183,3 +183,23 @@ describe('lifecycle-emit ↔ epic.merge.* schemas (Story #2681)', () => {
     assert.equal(out.event, 'epic.merge.ready');
   });
 });
+
+// Story #2855 — `epic.automerge.start` had the same shape as the #2681
+// schemas (additionalProperties: false, no `epicId` property), so the
+// documented `/epic-deliver` Phase 8.5 invocation
+// `lifecycle-emit --epic <id> --event epic.automerge.start --pr-url <url>`
+// failed schema validation. The schema now accepts `epicId` as an optional
+// integer. This test pins the relaxation against future re-tightening.
+describe('lifecycle-emit ↔ epic.automerge.start schema (Story #2855)', () => {
+  it('epic.automerge.start accepts the injected epicId alongside prUrl', async () => {
+    const out = await runLifecycleEmit({
+      event: 'epic.automerge.start',
+      payload: {
+        epicId: 90045,
+        prUrl: 'https://github.com/dsj1984/mandrel/pull/90045',
+      },
+    });
+    assert.equal(out.event, 'epic.automerge.start');
+    assert.equal(typeof out.seqId, 'number');
+  });
+});
