@@ -677,3 +677,89 @@ describe('delivery.quality.* shape — uniform gates (Story #1737)', () => {
     );
   });
 });
+
+describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => {
+  it('accepts provider: "native"', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: { codeReview: { provider: 'native' } },
+      }),
+      true,
+    );
+  });
+
+  it('accepts codeReview omitted entirely (default kicks in elsewhere)', () => {
+    assert.equal(validate({ ...REQ, delivery: {} }), true);
+  });
+
+  it('accepts an empty providerConfig object', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: { codeReview: { providerConfig: {} } },
+      }),
+      true,
+    );
+  });
+
+  it('accepts a populated providerConfig (open shape)', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: {
+          codeReview: { providerConfig: { anyAdapterKey: 'value', nested: { a: 1 } } },
+        },
+      }),
+      true,
+    );
+  });
+
+  it('rejects provider: "codex" (added in a later Story under Epic #2815)', () => {
+    expectErrors(
+      { ...REQ, delivery: { codeReview: { provider: 'codex' } } },
+      /must be equal to one of the allowed values|enum/,
+    );
+  });
+
+  it('rejects an unknown provider string', () => {
+    expectErrors(
+      { ...REQ, delivery: { codeReview: { provider: 'bogus' } } },
+      /must be equal to one of the allowed values|enum/,
+    );
+  });
+
+  it('rejects providerConfig of the wrong type (must be object)', () => {
+    expectErrors(
+      { ...REQ, delivery: { codeReview: { providerConfig: 'no' } } },
+      /must be object/,
+    );
+  });
+
+  it('rejects unknown sibling keys on codeReview (typo guard)', () => {
+    expectErrors(
+      {
+        ...REQ,
+        delivery: { codeReview: { provder: 'native' } },
+      },
+      /additional properties/,
+    );
+  });
+
+  it('preserves maxFixAttempts and maxFixScopeFiles validation', () => {
+    assert.equal(
+      validate({
+        ...REQ,
+        delivery: {
+          codeReview: {
+            provider: 'native',
+            providerConfig: {},
+            maxFixAttempts: 3,
+            maxFixScopeFiles: 5,
+          },
+        },
+      }),
+      true,
+    );
+  });
+});
