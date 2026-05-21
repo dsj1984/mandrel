@@ -70,6 +70,7 @@ import {
 } from './lib/orchestration/epic-plan-state-store.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { classifyPlanningRisk } from './lib/orchestration/planning-risk.js';
 import { PlanningStateManager } from './lib/orchestration/planning-state-manager.js';
 import {
   renderSpecFreshnessComment,
@@ -232,6 +233,15 @@ export async function buildAuthoringContext(
     Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
   }
 
+  // Story #2791 — deterministic planning-risk envelope for gate routing
+  // and acceptance disposition. Pure classification over Epic metadata;
+  // no GitHub mutation on the emit-context path.
+  const planningRisk = classifyPlanningRisk({
+    title: epic.title,
+    body: epic.body ?? '',
+    labels: epic.labels ?? [],
+  });
+
   return {
     epic: {
       id: epic.id,
@@ -251,6 +261,7 @@ export async function buildAuthoringContext(
     bddScenarios,
     memoryFreshness,
     priorFeedback,
+    planningRisk,
   };
 }
 
