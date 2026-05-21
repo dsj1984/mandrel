@@ -34,6 +34,9 @@ artifacts you author.
 - Wait for user validation before migrating to Phase 8 when
   `planningRisk.requiresReview` is true (or the operator passes
   `--force-review`). Low-risk Epics auto-proceed after spec validation.
+  See [SDLC § Adaptive planning risk routing](../SDLC.md#adaptive-planning-risk-routing)
+  for the full envelope shape and the planner-selected
+  `acceptance::n-a` route.
 - Delegate Phase 7 and Phase 8 to the
   [`helpers/epic-plan-spec.md`](helpers/epic-plan-spec.md) and
   [`helpers/epic-plan-decompose.md`](helpers/epic-plan-decompose.md)
