@@ -143,22 +143,16 @@ export const PROJECT_FIELD_DEFS = [
 ];
 
 /**
- * Canonical lifecycle options for the Status single-select field. Order here
- * is the order they appear on the board; `ColumnSync` reads label → column
- * names that match these strings exactly.
+ * Canonical lifecycle options for the Status single-select field. These are
+ * the three stock GitHub Projects v2 options; granular lifecycle state lives
+ * in the `agent::*` labels and `ColumnSync` collapses each label onto one of
+ * these three buckets via `LABEL_TO_COLUMN` in
+ * `lib/orchestration/column-sync.js`. Order matches the order options appear
+ * on a fresh GitHub board.
  *
  * @type {string[]}
  */
-export const STATUS_FIELD_OPTIONS = [
-  'Backlog',
-  'Planning',
-  'Spec Review',
-  'Ready',
-  'In Progress',
-  'Blocked',
-  'Review',
-  'Done',
-];
+export const STATUS_FIELD_OPTIONS = ['Todo', 'In Progress', 'Done'];
 
 /**
  * Default Projects V2 saved Views. Filter strings follow GitHub's Projects

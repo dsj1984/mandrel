@@ -2,11 +2,18 @@
  * ColumnSync — derive the GitHub Projects v2 Status column from an issue's
  * agent:: labels, and push the update via the provider's GraphQL surface.
  *
- * Mapping:
- *   agent::review-spec → Spec Review
- *   agent::ready       → Ready
+ * The Status field carries only the three stock GitHub options
+ * (`Todo` / `In Progress` / `Done`) — granular lifecycle state lives in the
+ * `agent::*` labels themselves. This mapping collapses each lifecycle label
+ * onto one of those three buckets:
+ *
+ *   agent::review-spec → Todo
+ *   agent::ready       → Todo
  *   agent::executing   → In Progress
- *   agent::blocked     → Blocked
+ *   agent::closing     → In Progress
+ *   agent::blocked     → In Progress (the `agent::blocked` label is the
+ *                       granular signal; the board column just shows the
+ *                       work is still in flight)
  *   agent::done        → Done
  *
  * No-op (soft fail) when:
@@ -30,25 +37,32 @@
 import { AGENT_LABELS } from '../label-constants.js';
 
 export const LABEL_TO_COLUMN = Object.freeze({
-  [AGENT_LABELS.REVIEW_SPEC]: 'Spec Review',
-  [AGENT_LABELS.READY]: 'Ready',
+  [AGENT_LABELS.REVIEW_SPEC]: 'Todo',
+  [AGENT_LABELS.READY]: 'Todo',
   [AGENT_LABELS.EXECUTING]: 'In Progress',
-  [AGENT_LABELS.BLOCKED]: 'Blocked',
+  [AGENT_LABELS.CLOSING]: 'In Progress',
+  [AGENT_LABELS.BLOCKED]: 'In Progress',
   [AGENT_LABELS.DONE]: 'Done',
 });
 
 /**
- * Pick the target column for a set of labels. Precedence:
- *   done > blocked > spec-review > ready > in-progress.
- * Terminal states win; the active blocker outranks execution.
+ * Pick the target column for a set of labels. Terminal `done` wins
+ * unconditionally; otherwise any in-flight label (executing / closing /
+ * blocked) collapses to `In Progress`, and parking labels (review-spec /
+ * ready) collapse to `Todo`. Returns null when no `agent::*` label is
+ * present so the caller can skip the sync.
  */
 export function columnForLabels(labels) {
   const set = new Set(labels);
   if (set.has(AGENT_LABELS.DONE)) return 'Done';
-  if (set.has(AGENT_LABELS.BLOCKED)) return 'Blocked';
-  if (set.has(AGENT_LABELS.REVIEW_SPEC)) return 'Spec Review';
-  if (set.has(AGENT_LABELS.READY)) return 'Ready';
-  if (set.has(AGENT_LABELS.EXECUTING)) return 'In Progress';
+  if (
+    set.has(AGENT_LABELS.BLOCKED) ||
+    set.has(AGENT_LABELS.EXECUTING) ||
+    set.has(AGENT_LABELS.CLOSING)
+  )
+    return 'In Progress';
+  if (set.has(AGENT_LABELS.READY) || set.has(AGENT_LABELS.REVIEW_SPEC))
+    return 'Todo';
   return null;
 }
 

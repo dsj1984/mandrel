@@ -59,10 +59,9 @@ function buildFakeProvider({ throwOnMutation = false } = {}) {
               field: {
                 id: 'FIELD',
                 options: [
+                  { id: 'opt-todo', name: 'Todo' },
                   { id: 'opt-inprog', name: 'In Progress' },
-                  { id: 'opt-blocked', name: 'Blocked' },
                   { id: 'opt-done', name: 'Done' },
-                  { id: 'opt-ready', name: 'Ready' },
                 ],
               },
             },
@@ -117,7 +116,7 @@ describe('transitionTicketState — Projects v2 Status column sync', () => {
     );
   });
 
-  it('mirrors agent::blocked onto the Blocked column', async () => {
+  it('mirrors agent::blocked onto the In Progress column (label retains the granular signal)', async () => {
     const provider = buildFakeProvider();
 
     await transitionTicketState(provider, 321, 'agent::blocked');
@@ -126,7 +125,7 @@ describe('transitionTicketState — Projects v2 Status column sync', () => {
       c.query.includes('updateProjectV2ItemFieldValue'),
     );
     assert.ok(mutation, 'mutation issued');
-    assert.equal(mutation.vars.optionId, 'opt-blocked');
+    assert.equal(mutation.vars.optionId, 'opt-inprog');
   });
 
   it('does not propagate column-sync failures (best-effort mirror)', async () => {

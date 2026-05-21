@@ -234,17 +234,8 @@ describe('Bootstrap — PROJECT_FIELD_DEFS', () => {
 // STATUS_FIELD_OPTIONS + PROJECT_VIEW_DEFS
 // ---------------------------------------------------------------------------
 describe('Bootstrap — STATUS_FIELD_OPTIONS', () => {
-  it('contains all 8 lifecycle options in canonical order', () => {
-    assert.deepEqual(STATUS_FIELD_OPTIONS, [
-      'Backlog',
-      'Planning',
-      'Spec Review',
-      'Ready',
-      'In Progress',
-      'Blocked',
-      'Review',
-      'Done',
-    ]);
+  it('contains the three stock Status options in canonical order', () => {
+    assert.deepEqual(STATUS_FIELD_OPTIONS, ['Todo', 'In Progress', 'Done']);
   });
 });
 
@@ -337,18 +328,14 @@ describe('Bootstrap — runBootstrap()', () => {
     const mock = new MockProvider();
     mock._statusResult = {
       status: 'updated',
-      added: ['Planning', 'Spec Review', 'Ready'],
+      added: ['Todo'],
     };
     const result = await runBootstrap(orchestration, {
       providerOverride: mock,
       quiet: true,
     });
     assert.equal(result.statusField.status, 'updated');
-    assert.deepEqual(result.statusField.added, [
-      'Planning',
-      'Spec Review',
-      'Ready',
-    ]);
+    assert.deepEqual(result.statusField.added, ['Todo']);
   });
 
   it('skips board provisioning when no projectNumber resolves and creation is declined (scopes)', async () => {
@@ -384,7 +371,7 @@ describe('Bootstrap — module exports', () => {
 
   it('exports STATUS_FIELD_OPTIONS array', () => {
     assert.ok(Array.isArray(STATUS_FIELD_OPTIONS));
-    assert.equal(STATUS_FIELD_OPTIONS.length, 8);
+    assert.equal(STATUS_FIELD_OPTIONS.length, 3);
   });
 
   it('exports PROJECT_VIEW_DEFS array', () => {

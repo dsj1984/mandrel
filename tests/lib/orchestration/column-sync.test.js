@@ -7,29 +7,31 @@ import {
 } from '../../../.agents/scripts/lib/orchestration/column-sync.js';
 
 describe('columnForLabels', () => {
-  it('maps agent lifecycle labels to board columns', () => {
+  it('maps agent lifecycle labels to the three stock columns', () => {
     assert.equal(columnForLabels(['agent::executing']), 'In Progress');
-    assert.equal(columnForLabels(['agent::blocked']), 'Blocked');
+    assert.equal(columnForLabels(['agent::closing']), 'In Progress');
+    assert.equal(columnForLabels(['agent::blocked']), 'In Progress');
     assert.equal(columnForLabels(['agent::done']), 'Done');
   });
 
-  it('maps the parking planning-phase labels to board columns', () => {
-    assert.equal(columnForLabels(['agent::review-spec']), 'Spec Review');
-    assert.equal(columnForLabels(['agent::ready']), 'Ready');
+  it('collapses the parking planning-phase labels onto Todo', () => {
+    assert.equal(columnForLabels(['agent::review-spec']), 'Todo');
+    assert.equal(columnForLabels(['agent::ready']), 'Todo');
   });
 
-  it('prefers the more urgent state when multiple are set', () => {
-    // executing + blocked → Blocked (urgency wins)
+  it('done beats every other state; in-flight beats parking', () => {
+    // executing + blocked → In Progress (both collapse to the same bucket)
     assert.equal(
       columnForLabels(['agent::executing', 'agent::blocked']),
-      'Blocked',
+      'In Progress',
     );
-    // executing + done → Done (terminal beats active)
+    // executing + done → Done (terminal wins)
     assert.equal(columnForLabels(['agent::executing', 'agent::done']), 'Done');
-    // ready + executing → Ready (parking outranks execution at the board level)
+    // ready + executing → In Progress (in-flight outranks parking at the
+    // board level even though the label set retains both signals)
     assert.equal(
       columnForLabels(['agent::ready', 'agent::executing']),
-      'Ready',
+      'In Progress',
     );
     // done beats every parking-phase label
     assert.equal(columnForLabels(['agent::ready', 'agent::done']), 'Done');
@@ -60,9 +62,8 @@ function providerWithProject() {
               field: {
                 id: 'FIELD',
                 options: [
+                  { id: 'opt-todo', name: 'Todo' },
                   { id: 'opt-inprog', name: 'In Progress' },
-                  { id: 'opt-blocked', name: 'Blocked' },
-                  { id: 'opt-review', name: 'Review' },
                   { id: 'opt-done', name: 'Done' },
                 ],
               },

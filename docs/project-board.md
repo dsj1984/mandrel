@@ -8,21 +8,20 @@ expected to be finished by hand using the checklist at the bottom.
 
 ## Status field
 
-The board has a single-select custom field named **`Status`** with these
-seven options, in order:
+The board uses GitHub's stock single-select `Status` field with its three
+default options, in order:
 
-| # | Option        | Meaning                                                         |
-| - | ------------- | --------------------------------------------------------------- |
-| 1 | `Backlog`     | Open work item, not yet scheduled.                              |
-| 2 | `Spec Review` | `agent::review-spec` — awaiting human review of PRD/Tech Spec.  |
-| 3 | `Ready`       | `agent::ready` — manifest ready, awaiting `/epic-deliver`.      |
-| 4 | `In Progress` | `agent::executing` — active work (covers PR-open hand-off too). |
-| 5 | `Blocked`     | `agent::blocked` — waiting on a dependency or HITL.             |
-| 6 | `Done`        | `agent::done` — work complete, cascaded; PR merged for Epics.   |
+| # | Option        | Meaning                                                                  |
+| - | ------------- | ------------------------------------------------------------------------ |
+| 1 | `Todo`        | Open work item; not yet started. Covers parking states (review-spec, ready). |
+| 2 | `In Progress` | Active work, including hand-offs to closing and blocked-on-HITL pauses.  |
+| 3 | `Done`        | `agent::done` — work complete, cascaded; PR merged for Epics.            |
 
-Bootstrap treats the option list as additive — it never removes existing
-options, so extending the field with team-specific states (e.g.
-`Archived`) is safe.
+Granular lifecycle state lives in the `agent::*` labels (see the
+mapping below); the Status column is a coarse kanban view collapsed
+from them. Bootstrap treats the option list as additive — it never
+removes existing options, so extending the field with team-specific
+states is safe.
 
 ## Label → Column map
 
@@ -30,16 +29,17 @@ options, so extending the field with team-specific states (e.g.
 label transition via the `LABEL_TO_COLUMN` table. The sync is invoked
 from inside `transitionTicketState` (Story #2548), so every Epic,
 Story, and Task flip mirrors onto the board automatically — no need
-for callers to opt in. When two lifecycle labels overlap, terminal
-states win (Done > Blocked > Review > Spec Review > Ready > In
-Progress).
+for callers to opt in. Terminal `Done` wins unconditionally; in-flight
+labels (executing / closing / blocked) collapse to `In Progress`;
+parking labels (review-spec / ready) collapse to `Todo`.
 
 | Label                | Column        |
 | -------------------- | ------------- |
-| `agent::review-spec` | `Spec Review` |
-| `agent::ready`       | `Ready`       |
+| `agent::review-spec` | `Todo`        |
+| `agent::ready`       | `Todo`        |
 | `agent::executing`   | `In Progress` |
-| `agent::blocked`     | `Blocked`     |
+| `agent::closing`     | `In Progress` |
+| `agent::blocked`     | `In Progress` |
 | `agent::done`        | `Done`        |
 
 ## Default Views
@@ -93,9 +93,13 @@ Use this when bootstrap logs a warning such as
 2. **Record the project number.** Set
    `orchestration.github.projectNumber` and
    `orchestration.github.projectOwner` in `.agentrc.json` to match.
-3. **Add the `Status` field.** Settings → `+ New field` → Single select
-   → name `Status` → add the seven options from the table above in
-   order.
+3. **Add the `Status` field.** A freshly-created GitHub project already
+   has a `Status` field with the three options (`Todo`, `In Progress`,
+   `Done`) — no manual setup needed. Bootstrap's `ensureStatusField`
+   call is a no-op in that state. Only intervene if the project was
+   created without the default field, in which case: Settings → `+ New
+   field` → Single select → name `Status` → add the three options from
+   the table above in order.
 4. **Create the three views.** For each of Epic Roadmap, Active
    Stories, My Queue: `+ New view` → Board → paste the filter string →
    set Group by = Status.
