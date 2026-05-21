@@ -58,7 +58,11 @@ import { getStoryBranch, gitSync } from './lib/git-utils.js';
 import { Logger } from './lib/Logger.js';
 import { AGENT_LABELS } from './lib/label-constants.js';
 import { clearActiveStoryEnv } from './lib/observability/active-story-env.js';
-import { upsertStructuredComment } from './lib/orchestration/ticketing/state.js';
+import { runCodeReview as runCodeReviewDefault } from './lib/orchestration/code-review.js';
+import {
+  postStructuredComment,
+  upsertStructuredComment,
+} from './lib/orchestration/ticketing/state.js';
 import { createProvider } from './lib/provider-factory.js';
 import { flipLabelAndNotify } from './lib/single-story/story-merged-notify.js';
 import { WorktreeManager } from './lib/worktree-manager.js';
@@ -139,6 +143,7 @@ export async function runSingleStoryClose({
   injectedConfig,
   injectedNotify,
   injectedSync,
+  injectedRunCodeReview,
 } = {}) {
   const {
     storyId,
@@ -314,6 +319,31 @@ export async function runSingleStoryClose({
     baseBranch,
   });
 
+  // Step 3.5 (Story #2839, Epic #2815): run a Story-scope code review
+  // against `main` and post the structured findings to the PR. A
+  // one-line cross-reference comment goes back to the Story issue so
+  // reviewers reading the ticket can click through. Critical findings
+  // fail the close non-zero — the PR stays open but auto-merge is not
+  // enabled, and the operator must remediate before re-running.
+  const reviewPrNumber = parsePrNumber(prUrl);
+  const reviewOutcome = await runStoryScopeReview({
+    cwd,
+    storyId,
+    storyBranch,
+    baseBranch,
+    prUrl,
+    prNumber: reviewPrNumber,
+    provider,
+    runCodeReviewFn: injectedRunCodeReview ?? runCodeReviewDefault,
+    progress,
+  });
+  if (reviewOutcome.halted) {
+    throw new Error(
+      `[single-story-close] Story-scope review reported ${reviewOutcome.severity?.critical ?? 0} critical blocker(s) on PR ${prUrl}. ` +
+        'Auto-merge was not enabled. Remediate the findings posted to the PR and re-run `/single-story-deliver`.',
+    );
+  }
+
   // Step 3a: enable GitHub native auto-merge so the PR squash-merges itself
   // when required checks pass. Mirrors `epic-deliver-finalize.js`. Default
   // is on for the standalone path because a single-story PR has no
@@ -321,7 +351,7 @@ export async function runSingleStoryClose({
   // operator wants to inspect the diff before clicking merge. Failures are
   // non-fatal — the operator retains the manual merge path through the
   // GitHub UI.
-  const prNumber = parsePrNumber(prUrl);
+  const prNumber = reviewPrNumber;
   let autoMergeEnabled = false;
   let autoMergeReason = null;
   if (noAutoMerge) {
@@ -677,6 +707,161 @@ export function buildSyncFailureCommentBody({
     );
   }
   return lines.join('\n');
+}
+
+/**
+ * Run the Story-scope code review against `main`, post the structured
+ * findings comment to the PR (not the Story issue), and add a one-line
+ * cross-reference comment on the Story issue linking back to the PR
+ * review comment. The render header still labels the comment "Story #N"
+ * even though the post target is the PR — the PR is the comment surface,
+ * the Story is the ticket the findings *describe*.
+ *
+ * Cross-reference URL shape: GitHub serves issue comments at
+ * `<prUrl>#issuecomment-<commentId>` — the same URL pattern for PR
+ * conversation comments and issue comments, because PRs are issues at
+ * the API level.
+ *
+ * Failure modes:
+ *   - When `prNumber` is null (couldn't parse), the review is skipped
+ *     and the function returns `{ halted: false, skipped: true }`.
+ *   - When the runner throws, the close fails non-zero (the throw
+ *     propagates) — a Story-scope review failure is not silently
+ *     ignored.
+ *
+ * Exported for testing.
+ *
+ * @param {{
+ *   cwd: string,
+ *   storyId: number,
+ *   storyBranch: string,
+ *   baseBranch: string,
+ *   prUrl: string,
+ *   prNumber: number|null,
+ *   provider: object,
+ *   runCodeReviewFn: typeof runCodeReviewDefault,
+ *   progress: (tag: string, msg: string) => void,
+ * }} args
+ * @returns {Promise<{
+ *   halted: boolean,
+ *   skipped?: boolean,
+ *   severity?: { critical: number, high: number, medium: number, suggestion: number },
+ *   posted?: boolean,
+ *   postedCommentId?: number|null,
+ *   crossRefPosted?: boolean,
+ * }>}
+ */
+export async function runStoryScopeReview({
+  cwd: _cwd,
+  storyId,
+  storyBranch,
+  baseBranch,
+  prUrl,
+  prNumber,
+  provider,
+  runCodeReviewFn,
+  progress,
+}) {
+  if (prNumber == null) {
+    progress(
+      'REVIEW',
+      `⏭ Story-scope review skipped: could not parse PR number from URL ${prUrl}.`,
+    );
+    return { halted: false, skipped: true };
+  }
+
+  progress(
+    'REVIEW',
+    `Running Story-scope code review for Story #${storyId} (${baseBranch}...${storyBranch}) → PR #${prNumber}...`,
+  );
+
+  const result = await runCodeReviewFn({
+    scope: 'story',
+    ticketId: storyId,
+    baseRef: baseBranch,
+    headRef: storyBranch,
+    commentTargetId: prNumber,
+    provider,
+    logger: {
+      info: (m) => progress('REVIEW', m),
+      warn: (m) => progress('REVIEW', `⚠️ ${m}`),
+    },
+  });
+
+  const sev = result.severity ?? {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    suggestion: 0,
+  };
+  progress(
+    'REVIEW',
+    `Findings — critical:${sev.critical} high:${sev.high} medium:${sev.medium} suggestion:${sev.suggestion}. Posted to PR #${prNumber}: ${result.posted}.`,
+  );
+
+  let crossRefPosted = false;
+  if (result.posted && Number.isInteger(result.postedCommentId)) {
+    const commentUrl = `${prUrl}#issuecomment-${result.postedCommentId}`;
+    const body = buildStoryReviewCrossRefBody({
+      prUrl,
+      prNumber,
+      commentUrl,
+      severity: sev,
+    });
+    try {
+      await postStructuredComment(provider, storyId, 'notification', body);
+      crossRefPosted = true;
+      progress(
+        'REVIEW',
+        `📝 Cross-reference comment posted on Story #${storyId} → ${commentUrl}`,
+      );
+    } catch (err) {
+      progress(
+        'REVIEW',
+        `⚠️ Failed to post Story cross-reference comment: ${err?.message ?? err}`,
+      );
+    }
+  } else if (!result.posted) {
+    progress(
+      'REVIEW',
+      '⚠️ Skipping Story cross-reference comment: PR-side review comment did not post.',
+    );
+  }
+
+  return {
+    halted: !!result.halted,
+    severity: sev,
+    posted: result.posted,
+    postedCommentId: result.postedCommentId ?? null,
+    crossRefPosted,
+  };
+}
+
+/**
+ * Build the cross-reference comment body posted on the Story issue when
+ * the PR-side review comment lands. Pure; exported for testing.
+ *
+ * @param {{
+ *   prUrl: string,
+ *   prNumber: number,
+ *   commentUrl: string,
+ *   severity: { critical: number, high: number, medium: number, suggestion: number },
+ * }} args
+ * @returns {string}
+ */
+export function buildStoryReviewCrossRefBody({
+  prUrl,
+  prNumber,
+  commentUrl,
+  severity,
+}) {
+  const tally =
+    `critical:${severity.critical} · high:${severity.high} · ` +
+    `medium:${severity.medium} · suggestion:${severity.suggestion}`;
+  return (
+    `🔬 Story-scope code review posted on PR [#${prNumber}](${prUrl}): ` +
+    `[view findings](${commentUrl}) — ${tally}.`
+  );
 }
 
 runAsCli(import.meta.url, runSingleStoryClose, {

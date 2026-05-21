@@ -48,6 +48,12 @@ import { upsertStructuredComment } from './ticketing.js';
  * severity counts that drift from the structured `severity` field. The
  * lifecycle ledger is the structured surface; the report is GitHub's
  * surface (posted via the structured comment).
+ *
+ * Story #2839: `epicId` is preserved verbatim in the lifecycle payload so
+ * the `code-review.end` schema (additionalProperties: false, requires
+ * `epicId`) stays unchanged. Story-scope invocations never reach this
+ * helper — `runCodeReview` short-circuits the bus emit for `scope: 'story'`
+ * because story-scope review sits outside the Epic lifecycle ledger.
  */
 function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
   const payload = {
@@ -71,7 +77,91 @@ function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
 }
 
 /**
- * In-process wrapper that the `/epic-deliver` runner consumes.
+ * Resolve the scope envelope from the (legacy `epicId` + optional
+ * `baseBranch`) shape OR the (new `scope`/`ticketId`/`headRef`/
+ * `commentTargetId`) shape into a single normalized record. Extracted to
+ * keep `runCodeReview` body below the CRAP-cyclomatic ceiling.
+ *
+ * @param {{
+ *   epicId?: number,
+ *   scope?: 'epic'|'story',
+ *   ticketId?: number,
+ *   baseBranch?: string|null,
+ *   baseRef?: string|null,
+ *   headRef?: string|null,
+ *   commentTargetId?: number|null,
+ * }} opts
+ * @param {object} config
+ * @returns {{
+ *   scope: 'epic'|'story',
+ *   ticketId: number,
+ *   baseRef: string,
+ *   headRef: string,
+ *   commentTargetId: number,
+ *   epicIdForLedger: number|null,
+ * }}
+ */
+function resolveScopeEnvelope(opts, config) {
+  const explicitScope = opts.scope;
+  const epicIdLegacy = opts.epicId;
+  const configBase =
+    config?.project?.baseBranch ?? config?.agentSettings?.baseBranch ?? 'main';
+
+  if (explicitScope === 'story') {
+    if (!Number.isInteger(opts.ticketId) || opts.ticketId <= 0) {
+      throw new TypeError(
+        'runCodeReview: ticketId is required (positive integer) when scope="story".',
+      );
+    }
+    if (typeof opts.headRef !== 'string' || opts.headRef.length === 0) {
+      throw new TypeError(
+        'runCodeReview: headRef is required (non-empty string) when scope="story".',
+      );
+    }
+    const baseRef = opts.baseRef ?? opts.baseBranch ?? configBase;
+    const commentTargetId =
+      Number.isInteger(opts.commentTargetId) && opts.commentTargetId > 0
+        ? opts.commentTargetId
+        : opts.ticketId;
+    return {
+      scope: 'story',
+      ticketId: opts.ticketId,
+      baseRef,
+      headRef: opts.headRef,
+      commentTargetId,
+      epicIdForLedger: null,
+    };
+  }
+
+  // Epic scope (default + legacy `epicId` callers).
+  const effectiveEpicId =
+    Number.isInteger(opts.ticketId) && opts.ticketId > 0
+      ? opts.ticketId
+      : epicIdLegacy;
+  if (!Number.isInteger(effectiveEpicId) || effectiveEpicId <= 0) {
+    throw new TypeError(
+      'runCodeReview: epicId is required (positive integer).',
+    );
+  }
+  const baseRef = opts.baseRef ?? opts.baseBranch ?? configBase;
+  const headRef = opts.headRef ?? `epic/${effectiveEpicId}`;
+  const commentTargetId =
+    Number.isInteger(opts.commentTargetId) && opts.commentTargetId > 0
+      ? opts.commentTargetId
+      : effectiveEpicId;
+  return {
+    scope: 'epic',
+    ticketId: effectiveEpicId,
+    baseRef,
+    headRef,
+    commentTargetId,
+    epicIdForLedger: effectiveEpicId,
+  };
+}
+
+/**
+ * In-process wrapper that the `/epic-deliver` runner and the
+ * `/single-story-deliver` close path consume.
  *
  * Story #2252 — emits `code-review.start` immediately on entry and
  * `code-review.end` immediately before returning the envelope (success
@@ -84,8 +174,31 @@ function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
  * derived from the `Finding[]` returned by the adapter (no separate
  * severity field on the runner result).
  *
+ * Story #2839 (Epic #2815) — accepts a parameterized scope envelope
+ * so the standalone Story closer can request a Story-scope review
+ * against `main`, post the structured findings comment to the PR
+ * (via `commentTargetId`), and surface critical findings to the
+ * caller as `halted: true`. Lifecycle bus emits are confined to
+ * `scope: 'epic'` because the `code-review.end` schema requires
+ * `epicId` and the ledger only spans Epic lifecycles.
+ *
+ * Argument shapes:
+ *   - Legacy (Epic):
+ *       `{ epicId, provider, bus, [baseBranch] }`
+ *   - Parameterized (Epic or Story):
+ *       `{ scope, ticketId, baseRef, headRef, [commentTargetId],
+ *          provider, bus }`
+ *     For `scope === 'story'`, `commentTargetId` overrides the post
+ *     target (e.g. PR number) while `ticketId` continues to label the
+ *     rendered header ("Story #N").
+ *
  * @param {{
- *   epicId: number,
+ *   epicId?: number,
+ *   scope?: 'epic'|'story',
+ *   ticketId?: number,
+ *   baseRef?: string|null,
+ *   headRef?: string|null,
+ *   commentTargetId?: number|null,
  *   provider: object,
  *   logger?: { info?: Function, warn?: Function, error?: Function, fatal?: Function, createProgress?: Function },
  *   baseBranch?: string|null,
@@ -103,16 +216,16 @@ function buildCodeReviewEndPayload({ epicId, result, durationMs }) {
  *   severity: { critical: number, high: number, medium: number, suggestion: number },
  *   report?: string,
  *   posted: boolean,
+ *   postedCommentId: number|null,
+ *   commentTargetId: number,
  *   halted: boolean,
  *   blockerReason: string|null,
  * }>}
  */
 export async function runCodeReview(opts = {}) {
   const {
-    epicId,
     provider,
     logger,
-    baseBranch = null,
     bus,
     now = Date.now,
     reviewProvider: injectedReviewProvider,
@@ -122,21 +235,27 @@ export async function runCodeReview(opts = {}) {
     renderFindingsFn = renderFindings,
   } = opts;
 
-  if (!Number.isInteger(epicId) || epicId <= 0) {
-    throw new TypeError(
-      'runCodeReview: epicId is required (positive integer).',
-    );
-  }
-  // Epic #2646 Story C (Task #2700) — `bus` is now a hard input.
-  if (!bus || typeof bus.emit !== 'function') {
+  const config = resolveConfigFn();
+  const envelope = resolveScopeEnvelope(opts, config);
+  const { scope, ticketId, baseRef, headRef, commentTargetId } = envelope;
+
+  // Epic-scope lifecycle ledger requires `bus`; Story-scope sits outside
+  // the Epic lifecycle so the bus is optional there. A caller without a
+  // bus on the Story path still gets the full review semantics — only the
+  // `code-review.start`/`.end` events are suppressed.
+  const requiresBus = scope === 'epic';
+  if (requiresBus && (!bus || typeof bus.emit !== 'function')) {
     throw new TypeError('runCodeReview: bus is required (object with emit()).');
   }
+  const ledgerEnabled =
+    scope === 'epic' && bus && typeof bus.emit === 'function';
 
   const startedAt = typeof now === 'function' ? now() : Date.now();
-  await bus.emit('code-review.start', { epicId });
+  if (ledgerEnabled) {
+    await bus.emit('code-review.start', { epicId: envelope.epicIdForLedger });
+  }
 
   try {
-    const config = resolveConfigFn();
     const codeReviewConfig = config?.delivery?.codeReview ?? null;
     const providerName =
       (codeReviewConfig && typeof codeReviewConfig.provider === 'string'
@@ -145,21 +264,15 @@ export async function runCodeReview(opts = {}) {
     const reviewProvider =
       injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
 
-    const resolvedBaseRef =
-      baseBranch ??
-      config?.project?.baseBranch ??
-      config?.agentSettings?.baseBranch ??
-      'main';
-    const headRef = `epic/${epicId}`;
-
+    const scopeLabel = scope === 'epic' ? 'Epic' : 'Story';
     logger?.info?.(
-      `[code-review] Running ${providerName} adapter for Epic #${epicId} (${resolvedBaseRef}...${headRef})...`,
+      `[code-review] Running ${providerName} adapter for ${scopeLabel} #${ticketId} (${baseRef}...${headRef})...`,
     );
 
     const findings = await reviewProvider.runReview({
-      scope: 'epic',
-      ticketId: epicId,
-      baseRef: resolvedBaseRef,
+      scope,
+      ticketId,
+      baseRef,
       headRef,
     });
 
@@ -176,59 +289,78 @@ export async function runCodeReview(opts = {}) {
       : null;
 
     const report = renderFindingsFn({
-      scope: 'epic',
-      ticketId: epicId,
-      baseRef: resolvedBaseRef,
+      scope,
+      ticketId,
+      baseRef,
       headRef,
       findings,
       provider: providerName,
     });
 
     let posted = false;
+    let postedCommentId = null;
     try {
-      await upsertCommentFn(provider, epicId, 'code-review', report);
+      const postResult = await upsertCommentFn(
+        provider,
+        commentTargetId,
+        'code-review',
+        report,
+      );
       posted = true;
+      const rawId =
+        typeof postResult?.commentId === 'number'
+          ? postResult.commentId
+          : typeof postResult?.id === 'number'
+            ? postResult.id
+            : null;
+      postedCommentId = rawId;
       logger?.info?.(
-        `[code-review] Posted structured comment to Epic #${epicId}.`,
+        `[code-review] Posted structured comment to #${commentTargetId}.`,
       );
     } catch (err) {
       logger?.warn?.(
-        `[code-review] Failed to upsert structured comment on Epic #${epicId}: ${err?.message ?? err}`,
+        `[code-review] Failed to upsert structured comment on #${commentTargetId}: ${err?.message ?? err}`,
       );
       posted = false;
     }
 
-    const envelope = {
+    const result = {
       status: 'ok',
       severity,
       report,
       posted,
+      postedCommentId,
+      commentTargetId,
       halted,
       blockerReason,
     };
-    const endedAt = typeof now === 'function' ? now() : Date.now();
-    await bus.emit(
-      'code-review.end',
-      buildCodeReviewEndPayload({
-        epicId,
-        result: envelope,
-        durationMs: Math.max(0, endedAt - startedAt),
-      }),
-    );
-    return envelope;
+    if (ledgerEnabled) {
+      const endedAt = typeof now === 'function' ? now() : Date.now();
+      await bus.emit(
+        'code-review.end',
+        buildCodeReviewEndPayload({
+          epicId: envelope.epicIdForLedger,
+          result,
+          durationMs: Math.max(0, endedAt - startedAt),
+        }),
+      );
+    }
+    return result;
   } catch (err) {
     // Surface the closing boundary even on adapter throw — the ledger
     // must always show a matched start/end pair. `status: 'invalid'`
     // is the canonical "could not complete" value.
-    const endedAt = typeof now === 'function' ? now() : Date.now();
-    await bus.emit(
-      'code-review.end',
-      buildCodeReviewEndPayload({
-        epicId,
-        result: { status: 'invalid' },
-        durationMs: Math.max(0, endedAt - startedAt),
-      }),
-    );
+    if (ledgerEnabled) {
+      const endedAt = typeof now === 'function' ? now() : Date.now();
+      await bus.emit(
+        'code-review.end',
+        buildCodeReviewEndPayload({
+          epicId: envelope.epicIdForLedger,
+          result: { status: 'invalid' },
+          durationMs: Math.max(0, endedAt - startedAt),
+        }),
+      );
+    }
     throw err;
   }
 }
