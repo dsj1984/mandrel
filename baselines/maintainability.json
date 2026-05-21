@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T15:25:17.555Z",
+  "generatedAt": "2026-05-21T16:51:27.329Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.904,
+      "p50": 103.914,
       "p95": 121.571
     }
   },
@@ -1533,10 +1533,6 @@
     {
       "path": ".agents/scripts/signals-view.js",
       "mi": 92.43
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "mi": 83.302
     },
     {
       "path": ".agents/scripts/single-story-init.js",
@@ -3669,10 +3665,6 @@
     {
       "path": "tests/single-story-close-auto-merge.test.js",
       "mi": 115.3
-    },
-    {
-      "path": "tests/single-story-close-orchestration.test.js",
-      "mi": 98.068
     },
     {
       "path": "tests/single-story-plan.test.js",
