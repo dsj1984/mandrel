@@ -841,7 +841,16 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
   it('returns the base prompt (with default maxTickets) when no heuristics are supplied', () => {
     const prompt = buildDecomposerSystemPrompt([]);
     assert.equal(prompt, renderDecomposerSystemPrompt());
-    assert.ok(prompt.includes('Do NOT generate more than 60 tickets in total'));
+    // Story #2798 — `maxTickets` is now framed as a reviewability budget,
+    // not a hard authoring cap. The prompt must mention the resolved
+    // budget value and the "reviewability budget" language; the legacy
+    // "Do NOT generate more than ..." hard-cap directive is forbidden.
+    assert.ok(/reviewability budget/i.test(prompt));
+    assert.ok(/maxTickets\s*=\s*60/.test(prompt));
+    assert.ok(
+      !/Do NOT generate more than/.test(prompt),
+      'hard-cap directive must be removed in favor of reviewability-budget language',
+    );
   });
 
   it('appends risk heuristics when supplied', () => {
@@ -856,10 +865,26 @@ describe('ticket-decomposer buildDecomposerSystemPrompt', () => {
     assert.ok(prompt.includes('Global refactors'));
   });
 
-  it('interpolates the configured maxTickets cap into the prompt', () => {
+  it('interpolates the configured maxTickets budget into the prompt', () => {
     const prompt = buildDecomposerSystemPrompt([], { maxTickets: 75 });
-    assert.ok(prompt.includes('Do NOT generate more than 75 tickets in total'));
-    assert.ok(!prompt.includes('more than 40 tickets'));
+    assert.ok(/maxTickets\s*=\s*75/.test(prompt));
+    assert.ok(!/maxTickets\s*=\s*40/.test(prompt));
+  });
+
+  it('instructs the author to provide an over-budget rationale rather than truncate', () => {
+    // Story #2798 — when the plan genuinely needs more tickets than the
+    // budget, the prompt must tell the author to emit the rationale +
+    // proceed (with operator override at persist time), NOT to truncate
+    // or over-compress the plan to fit.
+    const prompt = buildDecomposerSystemPrompt([], { maxTickets: 60 });
+    assert.ok(
+      /over[- ]budget rationale|rationale|--allow-over-budget/i.test(prompt),
+      'prompt must mention an explicit over-budget rationale or override path',
+    );
+    assert.ok(
+      !/cut off the JSON array prematurely/i.test(prompt),
+      'truncation language must be removed; the author should not stop emitting tickets to fit',
+    );
   });
 });
 
@@ -895,10 +920,9 @@ describe('ticket-decomposer buildDecompositionContext', () => {
     assert.ok(ctx.systemPrompt.includes('Heuristic A'));
     assert.equal(ctx.maxTickets, 60);
     assert.ok(
-      ctx.systemPrompt.includes(
-        'Do NOT generate more than 60 tickets in total',
-      ),
-      'systemPrompt must interpolate the configured maxTickets cap',
+      /maxTickets\s*=\s*60/.test(ctx.systemPrompt) &&
+        /reviewability budget/i.test(ctx.systemPrompt),
+      'systemPrompt must interpolate the configured maxTickets value and describe it as a reviewability budget',
     );
   });
 
