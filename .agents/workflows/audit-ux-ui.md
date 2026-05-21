@@ -1,9 +1,6 @@
 ---
 description: Audit UX/UI consistency and design system adherence
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: design-token + component-shape consistency scan — Haiku A/B matched sonnet. -->
 
 # UX/UI & Design System Audit
 

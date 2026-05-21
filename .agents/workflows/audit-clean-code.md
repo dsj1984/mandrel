@@ -1,9 +1,6 @@
 ---
 description: Audit code smells, dead code, complexity hotspots, and maintainability-index outliers; emit a structured findings report.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: mechanical pattern-scan over naming, duplication, and shape — Haiku A/B matched sonnet output. -->
 
 # Clean Code & Maintainability Audit
 

@@ -1,37 +1,32 @@
 /**
- * lib/audit-suite/frontmatter-lint.js — model-hint frontmatter linter.
+ * lib/audit-suite/frontmatter-lint.js — workflow frontmatter linter.
  *
  * Lives next to `frontmatter.js` but stays in its own module so adding
- * the lint doesn't drag the summary helper's maintainability score
- * down. Pure: no IO, no provider calls, safe to unit-test in isolation.
+ * lints doesn't drag the summary helper's maintainability score down.
+ * Pure: no IO, no provider calls, safe to unit-test in isolation.
  *
  * Story #1324, Epic #1185 — Dispatch performance pass.
+ *
+ * Story #2824, Epic #2815 — Model-hint frontmatter was removed from
+ * every workflow and from the validator's field list. The function is
+ * retained as a no-op safety net so callers (and any future frontmatter
+ * lints) keep a stable entry point.
  */
 
 import { extractFrontmatter } from './frontmatter.js';
 
-/** Allowed values for `dispatchModel`. */
-export const ALLOWED_MODEL_HINTS = Object.freeze(['haiku', 'sonnet', 'opus']);
-
-const MODEL_HINT_FIELDS = Object.freeze(['dispatchModel']);
-
 /**
- * Pure: lint a frontmatter map (or raw workflow content) for model-hint
- * correctness. Unset fields pass. Set fields must use one of the
- * allowed enum values; arbitrary strings are rejected with a clear
- * enum-violation error.
+ * Pure: lint a frontmatter map (or raw workflow content). Currently a
+ * no-op — no frontmatter fields are validated after the model-hint
+ * removal. The signature is preserved so future field-level lints can
+ * slot in without churning callers.
  *
  * @param {string | Record<string, string>} input
  * @returns {{ ok: boolean, errors: Array<{ field: string, value: string, message: string }> }}
  */
 export function validateFrontmatter(input) {
-  const fm = typeof input === 'string' ? extractFrontmatter(input) : input;
-  const errors = MODEL_HINT_FIELDS.filter((f) => f in fm)
-    .filter((f) => !ALLOWED_MODEL_HINTS.includes(fm[f]))
-    .map((field) => ({
-      field,
-      value: fm[field],
-      message: `Invalid ${field}: "${fm[field]}". Expected one of ${ALLOWED_MODEL_HINTS.join(', ')}.`,
-    }));
-  return { ok: errors.length === 0, errors };
+  // Extract so callers still pay the same "is this parseable?" cost as
+  // before; we just have no field-level rules to enforce right now.
+  if (typeof input === 'string') extractFrontmatter(input);
+  return { ok: true, errors: [] };
 }

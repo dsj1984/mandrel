@@ -1,9 +1,6 @@
 ---
 description: Audit test coverage gaps, flaky tests, missing assertions, and test-pyramid balance; recommend a remediation batch.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: coverage/test-shape audit against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Testing & Quality Assurance Audit
 
