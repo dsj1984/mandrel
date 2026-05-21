@@ -1,6 +1,6 @@
 # Future Model Audit: Mandrel Under a 10x Coding Model
 
-Date: 2026-05-17 (last reviewed 2026-05-20)
+Date: 2026-05-21 (last reviewed 2026-05-21)
 
 > **Action legend.** Each finding below carries one of two action tags:
 >
@@ -9,10 +9,6 @@ Date: 2026-05-17 (last reviewed 2026-05-20)
 > - 🔭 **Monitor** — primary motivation is a materially stronger model.
 >   Park it until the next model-tier release moves the cost/benefit,
 >   then re-evaluate.
->
-> Findings already shipped between the audit date and the last-reviewed
-> date are collapsed into the "Implemented Since Audit" section near the
-> end and removed from the numbered list.
 
 ## Executive Summary
 
@@ -37,25 +33,22 @@ The parts most likely to become obsolete or restrictive are the procedural
 prompt scaffolds that micromanage how an agent thinks or reports:
 
 - Repeated STOP/HITL rituals for normal planning quality review.
-- Hard limits on instruction steps, ticket counts, and artificial decomposition
-  size.
+- Hard limits on instruction steps and artificial decomposition size.
 - Heavy persona/skill prose loaded as context instead of compact policy.
 - Strict sub-agent return parsing repair code written around weak structured
   compliance.
-- Audit fan-out and code-review rituals that replicate what a stronger model or
+- Audit and code-review rituals that replicate what a stronger model or
   native IDE feature could perform in one pass.
-- Compatibility shims, legacy config aliases, and model-specific workflow prose
-  that make the harness feel larger than the guarantees it provides.
 
-Recommendation: evolve Mandrel toward a **policy-and-state kernel**. Keep the
-deterministic scripts, schemas, state transitions, ledgers, branch protections,
-quality gates, and external audit trail. Compress prompt documents into concise
-policies. Make planning, decomposition, review, and audit depth adaptive by
-risk and scope instead of fixed ceremony.
+Recommendation: continue evolving Mandrel toward a **policy-and-state kernel**.
+Keep the deterministic scripts, schemas, state transitions, ledgers, branch
+protections, quality gates, and external audit trail. Compress prompt documents
+into concise policies. Make planning, decomposition, review, and audit depth
+adaptive by risk and scope instead of fixed ceremony.
 
 ## Review Lens
 
-I classified surfaces into four categories:
+Surfaces fall into four categories:
 
 - **Keep**: Still useful even with very strong models because it protects
   external state, security, concurrency, reproducibility, or human governance.
@@ -67,10 +60,17 @@ I classified surfaces into four categories:
 
 ## High-Confidence Findings
 
+> **Numbering.** Original audit numbers are preserved with gaps where closed
+> findings were removed. The list intentionally jumps (e.g. #2 → #3 → #6) so
+> inbound references by number remain stable. New forward-looking entries
+> identified during the trim use the next available gap number.
+
 ### 1. Prompt and Instruction Surface Is Too Procedural
 
 **Status:** Simplify / Reframe
-**Action:** 🔭 Monitor — today's models still rely on this procedural scaffold; the right time to compress is when the model can self-select context.
+**Action:** 🔭 Monitor — today's models still rely on this procedural
+scaffold; the right time to compress is when the model can self-select
+context.
 
 **Primary paths:**
 
@@ -111,7 +111,8 @@ Specific simplifications:
 ### 2. Persona Files Become Advisory, Not Routing-Critical
 
 **Status:** Simplify
-**Action:** 🔭 Monitor — persona injection still measurably reduces role drift on current models.
+**Action:** 🔭 Monitor — persona injection still measurably reduces role
+drift on current models.
 
 **Primary paths:**
 
@@ -135,124 +136,41 @@ Recommendation:
   implementation task.
 - Preserve security and release personas as optional high-risk review modes.
 
-### 3. Skill Library Should Become a Capability Index Plus Compact Policies
+### 3. Skill Library — Stop Hydrating Full Bodies by Default
 
-**Status:** ✅ Closed (🚀 half) — see "Implemented Since Audit" (Epic #2647).
-The 🔭 Monitor half below remains open but carries no remaining 🚀 work.
-
-**Action:** 🔭 **Monitor only** — actually changing the hydrator to *stop*
-loading full skill bodies by default and route skill selection through the
-generated manifest, and pushing remaining stack-specific non-negotiables
-into validators / lint checks rather than skill prose. Waits until the
-model can self-select context confidently and until validator coverage
-catches up.
+**Status:** Simplify
+**Action:** 🔭 **Monitor** — change the hydrator to *stop* loading full
+skill bodies by default and route skill selection through the generated
+manifest, and push remaining stack-specific non-negotiables into validators
+/ lint checks rather than skill prose. Waits until the model can self-select
+context confidently and until validator coverage catches up.
 
 **Primary paths:**
 
 - `.agents/scripts/lib/orchestration/context-hydration-engine.js`
+- `.agents/skills/skills.index.json`
 - `.agents/skills/stack/`
 
-The skill split between deterministic scripts and prompt+judgment is sound. The
-problem is payload size and repeated procedural instruction. A 10x model will
-not need long explanations of TDD, debugging, code review, frontend
-accessibility, or common stack patterns on every task.
+The skill library now ships a generated manifest (`skills.index.json`) and a
+Policy Capsule per skill, so selection is cheap; the remaining work is the
+behavioral cut-over inside the hydrator and the validator coverage that
+makes it safe.
 
-Remaining recommendation (Monitor):
+Recommendation (Monitor):
 
-- Avoid hydrating entire skills into task prompts unless the task is high-risk
-  or the user explicitly asks for the full playbook.
+- Avoid hydrating entire skills into task prompts unless the task is
+  high-risk or the user explicitly asks for the full playbook (today the
+  default is still full bodies via `fullSkillBodies` / `skill::full`
+  opt-out).
 - Move stack-specific non-negotiables into validators or lint checks where
   feasible.
-
-### 4. Planning Flow Has Too Many Fixed HITL Gates
-
-**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2649). Risk-based
-review routing, planner-side risk classification threaded into Phase 7,
-acceptance-disposition persistence, and the `maxTickets` reframing as a
-reviewability budget all shipped under `epic/2649`. Earlier groundwork
-(fda76f21 explicit `filesAssumption`, aec99d1c Phase 7 cross-validation) is
-retained.
-
-**Original framing (kept for historical context):**
-
-**Action:** 🚀 Implement now — risk-based gating is valuable regardless of model strength. Phase 7 cross-validation (aec99d1c) and explicit `filesAssumption` (fda76f21) already moved in this direction; the remaining work (collapse idea refinement / clarity / Epic rendering into one proposal step, convert `maxTickets` from hard cap to reviewability budget) is operator-experience cleanup.
-
-**Primary paths:**
-
-- `.agents/workflows/epic-plan.md`
-- `.agents/workflows/helpers/epic-plan-spec.md`
-- `.agents/workflows/helpers/epic-plan-decompose.md`
-- `.agents/SDLC.md`
-- `.agents/scripts/epic-plan-spec.js`
-- `.agents/scripts/epic-plan-decompose.js`
-- `.agents/skills/core/epic-plan-spec-author/SKILL.md`
-- `.agents/skills/core/epic-plan-decompose-author/SKILL.md`
-
-The planning workflow currently has multiple mandatory confirmation points:
-idea refinement, duplicate review, rendered Epic body, clarity rewrite, PRD /
-Tech Spec / Acceptance Spec review, decomposition, and handoff. A 10x model
-should produce a coherent plan and decomposition in fewer passes.
-
-Keep:
-
-- Durable PRD, Tech Spec, and Acceptance Spec artifacts for non-trivial Epics.
-- Schema validation before GitHub persistence.
-- Duplicate search, but as a background warning with confidence scores.
-- Declarative `epic.yaml` and reconcile semantics for re-planning.
-
-Simplify:
-
-- Combine idea refinement, clarity scoring, and Epic body rendering into one
-  model-authored plan proposal step.
-- Make the PRD / Tech Spec / Acceptance Spec review gate risk-based. Require
-  operator confirmation for high-risk, public API, data migration, security, or
-  billing work; auto-proceed for small, reversible, low-risk changes.
-- Preserve the three linked planning artifacts, but allow single-shot authoring
-  followed by scripted split and validation.
-- Reconsider `maxTickets` as a hard model-output cap. It should become a
-  reviewability budget with explicit override, not a decomposition rule.
-
-### 5. Four-Tier Ticket Hierarchy Is Often Overhead
-
-**Status:** ❌ Won't do — superseded by existing tooling + Finding #15
-**Action:** Close. `/single-story-plan` + `/single-story-deliver` already
-provide the lightweight rung this finding called for. A still-lighter
-"Patch" mode would differ from a single-Story-with-one-Task by a label
-and maybe one artifact — not enough value to justify a third planning
-surface. The actual friction this finding pointed at (heavy artifacts
-for docs-only / refactor work) is properly addressed by **Finding #15**
-(acceptance spec required/recommended/n-a per risk) rather than by
-adding a new hierarchy mode.
-
-**Primary paths:**
-
-- `.agents/SDLC.md`
-- `.agents/workflows/epic-plan.md`
-- `.agents/scripts/lib/orchestration/ticket-validator.js`
-- `.agents/scripts/lib/orchestration/ticket-validator-sizing.js`
-- `.agents/schemas/epic-spec.schema.json`
-
-The Epic -> Feature -> Story -> Task hierarchy is valuable for large,
-parallelizable initiatives, but too heavy as a universal default. A 10x model
-can maintain larger intent and implementation scope without needing every idea
-split into small atomic tickets.
-
-Recommendation:
-
-- Introduce adaptive planning modes:
-  - **Patch**: one issue, one branch, one PR.
-  - **Story**: one Story with structured tasks.
-  - **Epic**: full Feature / Story / Task hierarchy.
-- Let the planner choose the mode, then validate it against risk, estimated
-  file count, dependency count, and expected parallelism.
-- Keep DAG validation and dependency parsing for Epic mode.
-- Avoid forcing docs-only and refactor-only work through the full acceptance
-  spec and hierarchy machinery.
 
 ### 6. Per-Task Ritual and Commit Strategy Can Relax
 
 **Status:** Simplify
-**Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for resume/bisect. Relaxing depends on stronger holistic-edit coherence in future models.
+**Action:** 🔭 Monitor — per-Task granularity is currently load-bearing for
+resume/bisect. Relaxing depends on stronger holistic-edit coherence in
+future models.
 
 **Primary paths:**
 
@@ -276,7 +194,9 @@ Recommendation:
 ### 7. Sub-Agent Return Repair Can Shrink Substantially
 
 **Status:** Simplify
-**Action:** 🔭 Monitor — repair heuristics exist because current sub-agents still produce malformed envelopes. Re-evaluate once structured-output compliance is rock-solid in the next tier.
+**Action:** 🔭 Monitor — repair heuristics exist because current sub-agents
+still produce malformed envelopes. Re-evaluate once structured-output
+compliance is rock-solid in the next tier.
 
 **Primary paths:**
 
@@ -307,20 +227,12 @@ Simplify:
 - Reduce chat relay instructions when the canonical progress surface is already
   a structured comment.
 
-### 8. Audit Suite Is Over-Decomposed for a Stronger Model
-
-**Status:** ✅ Fully implemented (Epic #2586, commit 3e7937b4). The
-`audit-fan-out` workflow and slash-command are retired; `select-audits.js` +
-`audit-orchestrator.js` now select relevant lenses from changed files and
-risk. `/audit-to-stories` (e4ab4227) aggregates findings into Stories. The
-model-name enum softening called out in the original recommendation is
-covered separately under Finding #10's "Soften" list. See "Implemented
-Since Audit" at the bottom of this doc.
-
 ### 9. Code Review Should Become Evidence-First, Not Ritual-First
 
 **Status:** Reframe
-**Action:** 🔭 Monitor — adaptive review-depth selection is most valuable once the model can reliably judge "this diff is risky." Keep the structured `code-review` comment contract as-is until then.
+**Action:** 🔭 Monitor — adaptive review-depth selection is most valuable
+once the model can reliably judge "this diff is risky." Keep the structured
+`code-review` comment contract as-is until then.
 
 **Primary paths:**
 
@@ -343,97 +255,12 @@ Recommendation:
 - Let the future model perform review directly, then validate that required
   sections, severities, and changed-file coverage exist.
 
-### 10. Quality Gates Remain Load-Bearing
-
-**Status:** Keep
-**Action:** 🚀 Implement now (the "Soften" sublist only) — replacing closed model-name enums (`haiku | sonnet | opus`) with open capability tiers, and removing magic-number compact-vs-pretty ratio assertions, are obvious cleanup wins today. d1f1eaff partially addressed model-name daylight; finish the job. The "Keep" gates stay untouched.
-
-**Primary paths:**
-
-- `package.json`
-- `.github/workflows/ci.yml`
-- `.husky/pre-push`
-- `.agentrc.json`
-- `docs/quality-gates.md`
-- `docs/baselines.md`
-- `.agents/scripts/check-baselines.js`
-- `.agents/scripts/run-tests.js`
-- `.agents/scripts/run-lint.js`
-- `.agents/scripts/check-lifecycle-lint.js`
-- `tests/`
-- `baselines/`
-
-Stronger models do not remove the need for independent verification. Lint,
-format, tests, coverage, maintainability, CRAP, lifecycle lint, branch
-protection, dependency audit, secret scanning, and CI checks are still useful
-because they are objective and repeatable.
-
-Keep:
-
-- CI security scans, including dependency audit and secret scanning.
-- Lint and format checks for the distributed `.agents/` bundle.
-- Unified baselines, coverage-driven CRAP, maintainability, and schema/kernel
-  checks.
-- JSON-on-stdout contracts for `--emit-context` CLIs.
-- Dist publish structural checks.
-- Preflight checks that prevent running tests in known-bad repo states.
-- Secret-redaction tests for ledgers, journals, and CLI output.
-
-Soften:
-
-- Strict model-name enums like `haiku | sonnet | opus` in workflow frontmatter
-  linting. Use open strings or capability tiers such as `fast`, `balanced`, and
-  `heavy`.
-- Token-size assertions that pin arbitrary compact-vs-pretty ratios. Keep
-  bounded-payload tests, but avoid magic numbers tied to current model cost.
-
-### 11. Lifecycle Bus and Ledger Should Stay
-
-**Status:** ✅ Closed — see "Implemented Since Audit". All three sublist
-items shipped:
-- generate-event-docs-from-schemas landed under Epic #2645.
-- Legacy emit shims removed under Epic #2646 / Story C #2689
-  (commit c39cf293 plus a460cc68 / 041e366c).
-- Duplicate progress/comment writers collapsed under the same Story C
-  (commit 94325677 — wave-observer deleted, structured-comment-poster
-  promoted).
-
-Core bus/ledger stays untouched (the "Keep" stance below is unchanged).
-
-**Original framing (kept for historical context):**
-
-**Action:** Split. The **generate-event-docs-from-schemas** piece of the
-original simplification sublist landed under Epic #2645. The other two
-simplification items (now closed under Epic #2646) were:
-- 🚀 **Implement now** — remove legacy emit shims once all runtime paths are
-  bus-native.
-- 🚀 **Implement now** — collapse duplicate progress/comment writers where
-  the event stream already contains the required data.
-
-**Primary paths:**
-
-- `docs/LIFECYCLE.md`
-- `.agents/scripts/lib/orchestration/lifecycle/`
-- `.agents/schemas/lifecycle/`
-- `.agents/scripts/lib/orchestration/epic-runner/`
-
-The lifecycle bus is one of the most future-proof parts of the harness. It does
-not exist because models are weak; it exists because long-running, side-effecting
-workflows need ordering, idempotency, recovery, and audit logs.
-
-Keep:
-
-- Typed event schemas.
-- Sequential listener ordering where resume semantics depend on order.
-- Append-only NDJSON ledger.
-- Secret stripping before ledger writes.
-- Side-effect firewall and merge lockout lint.
-- Resume from durable lifecycle state.
-
 ### 12. Worktree and Branch Isolation Still Matter
 
 **Status:** Keep
-**Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to an implementation option) is contingent on future agent platforms shipping reliable per-task sandboxes. Keep the abstraction as-is until then.
+**Action:** 🔭 Monitor — the "Simplify" sublist (demote local worktrees to
+an implementation option) is contingent on future agent platforms shipping
+reliable per-task sandboxes. Keep the abstraction as-is until then.
 
 **Primary paths:**
 
@@ -461,114 +288,29 @@ Simplify:
   local worktrees an implementation option rather than the default mental model.
 - Keep the abstraction but reduce operator-facing worktree prose.
 
-### 13. Execution Adapter Surface Is Underused
+### 14. Retire `prose-legacy` Hydration Output Mode
 
-**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2646 / Story A
-#2688, commit df7790de). The `IExecutionAdapter` abstraction,
-`ManualDispatchAdapter`, and `adapter-factory.js` were deleted outright;
-the dispatch manifest remains as the cross-runtime contract.
-
-**Original framing (kept for historical context):**
-
-**Action:** 🚀 Implement now — decision made: keep `IExecutionAdapter` as a
-thin interface with the Claude Code implementation as the single shipped
-adapter, **delete `ManualDispatchAdapter` outright** if nothing still
-depends on it, and keep the dispatch manifest pipeline untouched (it is a
-separate concern from the adapter).
-
-Note on scope: the adapter and the dispatch manifest are on different
-axes and should not be conflated:
-
-- **Adapter** (`.agents/scripts/adapters/*.js`, `IExecutionAdapter.js`) —
-  the runtime contract for "how do we launch and track a task?"
-  (`dispatchTask`, `getTaskStatus`, `cancelTask`).
-- **Dispatch manifest** (`.agents/scripts/lib/presentation/manifest-*.js`,
-  `epic-runner/phases/build-wave-dag.js`) — the data artifact describing
-  the wave/DAG plan, consumed in-session by the Claude Code runtime.
-
-Deleting the manual adapter does not touch manifest generation. Concrete
-work:
-
-- Audit callers and tests of `ManualDispatchAdapter`. If nothing
-  load-bearing remains, delete the file and its tests; remove
-  `'manual'` from `adapter-factory.js`'s default selection.
-- Slim `IExecutionAdapter` to the methods the Claude Code runtime
-  actually uses; remove any placeholder/unimplemented surface that only
-  existed to keep the manual adapter compiling.
-- Keep dispatch manifest emission as-is — it remains a universal
-  artifact, not adapter-specific.
-- Update `docs/architecture.md` and `docs/decisions.md` to describe the
-  actual Claude Code-first runtime instead of the historical
-  multi-runtime framing, and to call out that the manifest is the
-  cross-runtime contract (not the adapter surface).
+**Status:** Retire
+**Action:** 🚀 Implement now — remove
+`delivery.hydration.outputMode: 'prose-legacy'`, the
+`context-hydration-engine.legacy.js` module, and the `prose-legacy` enum
+value together in a single hard-cutover PR. The structured `ContextEnvelope`
+shipped under Epic #2648 is the canonical hydration shape; the legacy
+prose-flattening path is a temporary read-side compatibility branch that
+contradicts the project's no-shim-layer policy
+(`.agents/rules/git-conventions.md` § Contract Cutovers — No Shim Layer).
 
 **Primary paths:**
 
-- `.agents/scripts/lib/IExecutionAdapter.js`
-- `.agents/scripts/adapters/manual.js`
-- `.agents/scripts/lib/adapter-factory.js`
-- `docs/architecture.md`
-- `docs/decisions.md`
-
-Mandrel states that the dispatcher is runtime-neutral behind
-`IExecutionAdapter`, but the current delivery path is Claude Code-first and
-uses in-session Agent-tool fan-out. The shipped `ManualDispatchAdapter` is
-mostly a historical reference and status registry; it is not the main runtime
-path.
-
-Recommendation:
-
-- Keep the provider abstraction (`ITicketingProvider`) as genuinely useful.
-- Reassess `IExecutionAdapter`: either invest in a real future-model adapter
-  surface, or demote the manual adapter to a compatibility example.
-- For a 10x model, the more important interface may be "execution sandbox"
-  rather than "model runtime": local worktree, cloud clone, CI job, or IDE
-  sub-agent.
-- Remove stale examples naming unimplemented runtimes from comments and docs.
-
-### 15. Acceptance Spec Is Valuable but Too Universal
-
-**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2649). The
-planner now persists an `acceptance::*` disposition (required / recommended /
-not-applicable) driven by the shared planning-risk classifier, promoting the
-prior `acceptance::n-a` waiver to a planner-side decision with an explicit
-rubric.
-
-**Original framing (kept for historical context):**
-
-**Action:** 🚀 Implement now — making the planner choose required / recommended / not-applicable based on visible-behavior risk is operator-time savings today. `acceptance::n-a` already exists; promote it from a manual waiver to a planner decision with a risk-rubric.
-
-**Primary paths:**
-
-- `.agents/workflows/epic-plan.md`
-- `.agents/workflows/epic-deliver.md`
-- `.agents/scripts/acceptance-spec-reconciler.js`
-- `.agents/scripts/lib/orchestration/lifecycle/listeners/acceptance-reconciler.js`
-- `.agents/rules/gherkin-standards.md`
-- `.agents/skills/stack/qa/gherkin-authoring/SKILL.md`
-
-Stable acceptance IDs and reconciliation against feature tags are useful for
-user-facing functionality. They are likely overkill for internal refactors,
-docs changes, prompt edits, and framework maintenance. The existing
-`acceptance::n-a` waiver acknowledges this, but the default still makes
-acceptance specs feel mandatory.
-
-Recommendation:
-
-- Make the planner choose one of: required, recommended, or not applicable.
-- Require acceptance specs for externally visible behavior, public APIs,
-  billing, auth, data migrations, and critical workflows.
-- Skip by default for docs-only, cleanup, pure test harness, and internal
-  refactor work unless the model flags user-visible risk.
-- Keep close-time reconciliation when an acceptance spec exists.
+- `.agents/scripts/lib/config/hydration.js`
+- `.agents/scripts/lib/orchestration/context-hydration-engine.legacy.js`
+- `.agents/skills/core/hydrate-context/SKILL.md`
 
 ### 16. Anti-Thrashing and FinOps Should Be Softer
 
 **Status:** Simplify
-**Action:** 🔭 Monitor — the docs-cleanup half (removing stale `maxInstructionSteps`
-references from active docs/personas) landed under Epic #2645; see "Implemented
-Since Audit" below. Further relaxation of per-turn FinOps rituals waits on
-future inference economics.
+**Action:** 🔭 Monitor — further relaxation of per-turn FinOps rituals
+waits on future inference economics.
 
 **Primary paths:**
 
@@ -592,240 +334,33 @@ Recommendation:
 - Relax per-turn FinOps rituals to job-level or run-level limits if future
   inference economics make the current webhook/threshold machinery noisy.
 
-### 17. Compatibility Shims and Legacy Shapes Are Dragging the Harness
-
-**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2646 / Story B
-#2687, commit 807918a3 and the dependent tickets it merged). All
-known compatibility branches in `config-resolver.js`, `lib/config/*.js`,
-`lib/baselines/`, `wave-session.js`, and the schemas were removed in one
-pass; the policy is codified in `git-conventions.md` (this Story closes the
-audit loop by adding that section).
-
-**Original framing (kept for historical context):**
-
-**Action:** 🚀 Implement now — operator policy is **no shim layer, no
-deprecation ledger, no version-windowed sunsets**. Every change is a hard
-cutover. Concrete work:
-
-- Audit `config-resolver.js`, `lib/config/*.js`, `lib/baselines/`,
-  `lifecycle/legacy-resume.js`, `wave-session.js`, and the schemas for
-  existing compatibility branches; remove them in one pass.
-- Codify the policy in `git-conventions.md` (or a sibling rule):
-  contract changes ship as hard cutovers; consumers update on the new
-  release.
-- For any future contract change, the PR diff itself is the migration —
-  no parallel old-shape support code.
-
-This is the lowest-risk version of the original recommendation given the
-project is a Git-submodule-distributed framework whose consumers pin to
-specific versions; they opt into breaks at upgrade time.
-
-**Primary paths:**
-
-- `.agents/scripts/lib/config-resolver.js`
-- `.agents/scripts/lib/config/*.js`
-- `.agents/scripts/lib/baselines/`
-- `.agents/scripts/lib/orchestration/lifecycle/legacy-resume.js`
-- `.agents/scripts/lib/orchestration/wave-session.js`
-- `.agents/schemas/*`
-- `docs/configuration.md`
-
-There are many compatibility references for old config shapes, baseline shapes,
-legacy returns, legacy resume, and retired surfaces. These may be necessary for
-near-term consumer migration, but they make the harness harder for both humans
-and models to reason about.
-
-Recommendation:
-
-- Create a formal deprecation ledger with removal versions.
-- Add one migration command per retired surface.
-- Remove read-side compatibility after two minor releases or one major release,
-  depending on consumer promises.
-- Keep schema versions and explicit migrations instead of silent shims.
-
-## Implemented Since Audit
-
-Tracked here so the numbered list above stays focused on open work.
-
-- ✅ **Finding #14 (Context hydration structured and selective)** — Epic #2648
-  (`epic/2648`; closing PR when the Epic merges). Shipped typed
-  `ContextEnvelope` in `context-envelope.js`, section-aware `elideEnvelope`,
-  ticket provenance snapshots, skill Policy Capsules via `skills.index.json`
-  with `skill::full` / `fullSkillBodies` opt-in for full bodies, and consumer
-  documentation in `hydrate-context/SKILL.md` (Story #2770). Default CLI
-  stdout remains `{ "prompt": "..." }` from `envelopeToPrompt`; pass
-  `--emit envelope` to inspect the typed shape.
-  - 🚀 **Remaining:** remove `delivery.hydration.outputMode: 'prose-legacy'`,
-    `context-hydration-engine.legacy.js`, and the `prose-legacy` enum value
-    together in the next hard-cutover PR (one-release sunset per
-    `lib/config/hydration.js` and the hydrate-context skill — flag still
-    present at Story #2770 close).
-- ✅ **Finding #8 (Audit fan-out)** — Epic #2586 / commit 3e7937b4 (2026-05-18).
-  Retired `audit-fan-out.md` and the slash-command; the twelve audit
-  workflows now act as lenses selected by `select-audits.js` +
-  `audit-orchestrator.js` based on changed files and risk.
-  `/audit-to-stories` (e4ab4227) converts findings into actionable
-  Stories.
-- ✅ **Finding #10 Soften sublist (closed model-name enum + magic-number
-  ratio)** — Epic #2646 / Story #2690 (2026-05-19). The magic-number
-  `compact/pretty <= 0.7` assertion was deleted from
-  `tests/emit-context-compact-json.test.js` (the bounded-payload
-  `compact.length < pretty.length` and JSON parseability assertions are
-  retained). A defensive sweep across `.agents/schemas/*.json`,
-  `.agents/workflows/**` frontmatter, and `.agents/scripts/lib/**/*.js`
-  validators confirmed no straggler closed enum unions of
-  `haiku | sonnet | opus` remain as **vendor-name** enums. The
-  `ALLOWED_MODEL_HINTS` enum in
-  `.agents/scripts/lib/audit-suite/frontmatter-lint.js` is intentionally
-  retained: it validates the `dispatchModel` frontmatter field, which is a
-  Claude **tier hint** (fast/balanced/heavy semantics expressed via the
-  three tier names), not a vendor model identifier. Sweep commands and
-  empty results documented in the PR body.
-- ✅ **Finding #13 (Execution Adapter Surface)** — Epic #2646 / Story A
-  #2688 (commit df7790de on `epic/2646`, plus dependent tickets d2baec74,
-  1c479eb5, 563555cd, 9b6cdf85, cfea1cfa). `IExecutionAdapter`,
-  `ManualDispatchAdapter`, and `adapter-factory.js` were deleted outright;
-  call sites now construct dispatch records inline. The dispatch manifest
-  remains intact as the cross-runtime contract.  Earlier groundwork: commit
-  d1f1eaff removed dead `dispatchModel` / `recommendedModel` fields.
-- ✅ **Finding #4 (Planning Flow Has Too Many Fixed HITL Gates)** — Epic
-  #2649 (`epic/2649`; closing PR when the Epic merges). Risk-based review
-  routing now drives Phase 7 stops via a deterministic planning-risk
-  classifier (c1ef6c6c, c912aa5f, 88108e06, 0c8b7cf9), threaded into the
-  spec context (6e068a76, d6e50605, 1492e796, 6efec193) and Phase 7 review
-  routing (61e1baef, d1188303, c459986c, 912fcb45). `maxTickets` was
-  reframed as a reviewability budget rather than a hard decomposition cap
-  (8b77cf2f, 99dc3d46, 02c65495, 58140dfd, 1e4d4ddc), and planning risk
-  is now exposed to the decomposer (db06d603, 8f4a5830, 0606cb38,
-  f3776298). Workflow docs and the spec-author skill cross-link the new
-  routing (cfb45848, 0e6f3e47, 83c7b2e0). Earlier groundwork — fda76f21
-  (explicit `filesAssumption` validation on Task paths) and aec99d1c
-  (Phase 7 cross-validation of Tech Spec against the codebase) — remains
-  in place. Single-shot authoring of the PRD/Tech Spec/Acceptance Spec
-  trio with scripted split was not pursued; the three-artifact split
-  remains useful as a reviewability seam and is gated by the same risk
-  decision.
-- ✅ **Finding #15 (Acceptance Spec Is Valuable but Too Universal)** —
-  Epic #2649 (`epic/2649`; closing PR when the Epic merges). The
-  planner now persists an `acceptance::*` disposition (required /
-  recommended / not-applicable) wired into spec persistence
-  (11eb2897, 1da091dd, 6d35a888, ccea7720), driven by the same
-  deterministic planning-risk classifier that gates Phase 7 routing under
-  Finding #4. The prior `acceptance::n-a` waiver is now a planner-side
-  decision with an explicit rubric rather than a manual operator
-  override. Close-time reconciliation against feature tags is unchanged
-  for Epics that carry an acceptance spec.
-- ✅ **Finding #18 (Docs Drift Is a Future-Model Risk)** — Epic #2645
-  (commits 87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6,
-  eef564c1, 3e0273f6 on `epic/2645`). All four originally observed drifts
-  were fixed in a single pass: `docs/configuration.md` reconciled with the
-  live schema shape (b8068a8a, 1146e721); `/agents-bootstrap-github`
-  references retired in active docs (5b2077dd); `epic-execute.md` links
-  replaced with `epic-deliver.md` (8a3a28e2, 43b586a9); and
-  `.agents/SDLC.md` phase numbering reconciled with `epic-deliver.md`
-  (0b670212, f98ed1cf). Generated-from-schema tooling shipped to prevent
-  regression: `generate-config-docs.js` (e38b0501, 6460cbbd),
-  `generate-lifecycle-docs.js` (8016d0da, 87deb0c1), and
-  `check-doc-links.js` (a3d8b6d6, f3a43175), all wired into `npm run lint`
-  and CI via `docs:check` (eef564c1, 3e0273f6). No carve-outs — the entire
-  finding shipped.
-- 🟡 **Finding #16 partial (docs cleanup half)** — Epic #2645 (commits
-  87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6, eef564c1,
-  3e0273f6 on `epic/2645`). Stale `maxInstructionSteps` references were
-  removed from active docs and personas (00cb5190, f8d69bff) and the
-  generated-from-schema docs tooling above prevents recurrence. 🔭 The
-  Monitor half — further relaxation of per-turn FinOps rituals to
-  job/run-level limits — remains in the numbered list above; no carve-outs
-  beyond what the original finding already split as "Monitor".
-- ✅ **Finding #11 (Lifecycle Bus simplification sublist)** — closed across
-  two Epics:
-  - **Event-doc generation simplification** — Epic #2645 (commits 87deb0c1,
-    6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6, eef564c1, 3e0273f6 on
-    `epic/2645`). `generate-lifecycle-docs.js` now emits the lifecycle
-    event table from `.agents/schemas/lifecycle/` into a bounded region in
-    `docs/LIFECYCLE.md` (87deb0c1, 8016d0da), wired through `docs:check`
-    so the docs cannot drift from the schemas (eef564c1, 3e0273f6).
-  - **Legacy emit shims removed + duplicate writers collapsed** — Epic
-    #2646 / Story C #2689 (commits c39cf293, a460cc68, 041e366c, 94325677,
-    3de21b7d on `epic/2646`). Guarded `bus.emit` shims replaced with
-    direct calls (a460cc68), polling ProgressReporter retired in favor of
-    the bus listener (041e366c), and `wave-observer` deleted with
-    `structured-comment-poster` promoted (94325677).
-  Core bus/ledger remains untouched, as the original "Keep" stance
-  required.
-- ✅ **Finding #3 (🚀 half — Skill index + policy capsules)** — Epic #2647
-  (`epic/2647`). Shipped a generated `.agents/skills/skills.index.json`
-  manifest with a JSON-Schema contract
-  (`.agents/schemas/skills-index.schema.json`) plus a per-skill
-  frontmatter contract (`.agents/schemas/skill.schema.json`), a
-  shared parser helper (`.agents/scripts/lib/skills/parse-skill.js`), a
-  `generate-skills-index.js` CLI, and a `validate-skills.js` CLI. Added a
-  5–12 bullet "Policy Capsule" section to every `SKILL.md` across `core/`
-  and `stack/`, refreshed the manifest, and wired `skills:index` /
-  `skills:check` into `npm run lint`'s `docs:check` chain plus `pretest`
-  so the index and capsules cannot drift. Pure tooling — no behavioral
-  change to the runtime hydrator yet. The 🔭 Monitor half (stop hydrating
-  full skill bodies by default, push stack non-negotiables into
-  validators) remains in the numbered list above.
-- ✅ **Finding #17 (Compatibility shims and legacy shapes)** — Epic #2646 /
-  Story B #2687 (commit 807918a3 on `epic/2646`, plus dependent tickets
-  ae3ee9b3, bafd95bf, 43d02d26, 9c3ad434). All known compatibility branches
-  were removed in one pass: legacy-shape branches in the config layer
-  (ae3ee9b3), legacy paths-bag tolerance in the temp-paths resolver
-  (bafd95bf), legacy merged/timeout aliases from `wave-session.js`
-  (43d02d26), and a confirmation sweep that the schemas held no
-  legacy-only optional fields (9c3ad434). The hard-cutover policy is
-  codified in `.agents/rules/git-conventions.md` under the new "Contract
-  Cutovers — No Shim Layer" section (Story E #2708) — future contract
-  changes ship as hard cutovers with the PR diff itself as the migration,
-  no parallel old-shape support code.
-
 ## Functionality Likely Obsolete With a 10x Model
 
 These should be removed or made opt-in once future-model assumptions hold:
 
-1. **Rigid step-count guidance** such as `maxInstructionSteps` references and
-   "5-file rule" decomposition for model comprehension. Keep reviewability
-   sizing, but do not use arbitrary model-capacity thresholds.
-2. **Mandatory full skill/persona hydration** for common tasks. Replace with
-   compact policy capsules and on-demand deep docs.
-3. **Multi-stage idea refinement for every new Epic.** Strong models can produce
-   a plan proposal directly and ask for targeted clarification only when risk or
-   ambiguity warrants it.
-4. **The 12-way audit fan-out as a default.** Keep targeted audit lenses; retire
-   the fixed specialist swarm as the normal path.
-5. **Free-form sub-agent JSON extraction heuristics.** Keep schema validation
+1. **Mandatory full skill/persona hydration** for common tasks. Replace with
+   compact policy capsules and on-demand deep docs. (Capsules and the
+   manifest already exist; the hydrator default flip is the remaining work
+   under Finding #3.)
+2. **Free-form sub-agent JSON extraction heuristics.** Keep schema validation
    and GitHub reconciliation; drop the assumption that malformed returns are
    common.
-6. **Manual dispatch adapter as a central architecture concept.** Keep if needed
-   for fallback, but stop treating it as the reference execution story.
-7. **Compatibility aliases with no sunset.** Future models are better served by
-   one clear current contract plus explicit migrations.
-8. **Closed Claude model-name enums in workflow frontmatter.** Replace them with
-   open strings or model-agnostic capability tiers.
-9. **Arbitrary compact JSON size-ratio tests.** Keep bounded payload and
-   parseability contracts, but do not encode current token economics as a
-   permanent invariant.
+3. **`prose-legacy` hydration output mode** and the parallel legacy
+   hydration engine. See Finding #14.
 
 ## Functionality Greatly Simplified
 
 These remain useful but should become smaller:
 
-1. **Planning and decomposition**: one adaptive planner with risk-based gates,
-   not fixed Phase 1-11 choreography for all work.
-2. **Context hydration**: structured, prioritized context envelopes instead of a
-   large concatenated prompt.
-3. **Personas and skills**: concise lenses and policies, not full behavioral
+1. **Context hydration**: continue tightening structured, prioritized
+   context envelopes; stop hydrating full skill bodies by default.
+2. **Personas and skills**: concise lenses and policies, not full behavioral
    scripts loaded into the model.
-4. **Code review**: adaptive evidence-first review with structured findings,
+3. **Code review**: adaptive evidence-first review with structured findings,
    not a mandatory identical six-pillar ritual every time.
-5. **Acceptance specs**: required for behavior contracts, optional or skipped
-   for internal maintenance.
-6. **Telemetry**: keep aggregate signals; reduce control-flow dependence on
+4. **Telemetry**: keep aggregate signals; reduce control-flow dependence on
    friction counters.
-7. **Workflow docs**: generated or schema-backed references instead of repeated
-   hand-authored phase descriptions.
-8. **Per-Task execution**: preserve close-validation and state tracking, but
+5. **Per-Task execution**: preserve close-validation and state tracking, but
    allow Story-level batching when Tasks are tightly coupled.
 
 ## Functionality That Should Stay
@@ -909,61 +444,49 @@ every reasoning step.
 
 ## Migration Roadmap
 
-### Phase 1: Reduce Prompt Weight
+The audit's original five-phase roadmap is largely complete: adaptive
+planning (Epic #2649), structured context envelopes (Epic #2648), skill
+index + policy capsules (Epic #2647), schema-backed docs (Epic #2645),
+hard-cutover compatibility cleanup (Epic #2646), and adaptive audit
+selection (Epic #2586) have all shipped. The remaining forward-looking
+work clusters into two areas:
 
-- Create compact policy capsules for global instructions, personas, and skills.
-- Teach the context hydrator to emit structured sections with priorities.
-- Stop hydrating full skill bodies by default.
-- Add doc tests for current command names and workflow links.
+### Reduce Prompt Weight Further
 
-### Phase 2: Make Planning Adaptive
+- Flip the hydrator default to manifest-driven skill selection; stop
+  hydrating full skill bodies unless `skill::full` / `fullSkillBodies`
+  is set (Finding #3).
+- Delete the `prose-legacy` hydration mode and the legacy engine
+  (Finding #14).
+- Push remaining stack-specific non-negotiables into validators or lint
+  checks rather than skill prose (Finding #3).
 
-- Add planning modes: Patch, Story, Epic.
-- Make acceptance specs and full hierarchy required by risk profile, not by
-  default.
-- Combine idea refinement, clarity scoring, and Epic rendering into one proposal
-  step.
-- Convert `maxTickets` from a hard cap into a warning / reviewability budget.
+### Soften Procedural Defaults
 
-### Phase 3: Simplify Review and Audit
-
-- Replace fixed audit fan-out with a lens selector.
-- Keep structured audit report contracts.
-- Make code-review depth proportional to diff risk.
-- Remove static model-name assumptions from workflow frontmatter.
-
-### Phase 4: Retire Legacy Compatibility
-
-- Publish a deprecation ledger for old config and baseline shapes.
-- Add migration scripts where needed.
-- Remove compatibility shims after defined release windows.
-- Generate docs from schemas and runtime metadata.
-
-### Phase 5: Reassess Execution Abstractions
-
-- Decide whether `IExecutionAdapter` is a real public extension point.
-- If yes, define a future-model adapter contract around sandbox execution,
-  structured results, and cancellation.
-- If no, demote the manual adapter and simplify architecture docs around the
-  actual Claude Code-first runtime.
+- Convert persona prose into concise review checklists (Finding #2).
+- Reduce per-Task commit ritual when Tasks are tightly coupled
+  (Finding #6).
+- Drop sub-agent return repair heuristics once structured-output
+  compliance is reliable (Finding #7).
+- Make code-review depth adaptive to diff risk (Finding #9).
+- Treat anti-thrashing / FinOps as observability rather than control
+  flow when inference economics permit (Finding #16).
 
 ## Priority Recommendations
 
 1. **Keep the deterministic kernel.** Do not remove schemas, CI, branch
    protection, lifecycle ledgers, worktree isolation, or state-transition
    scripts just because the model is stronger.
-2. **Shrink the instruction layer.** Convert long procedural docs into compact
-   policy capsules plus links.
-3. **Make hierarchy and gates adaptive.** Full Epic ceremony should be reserved
-   for work that needs it.
-4. **Replace fixed audit swarms with adaptive review.** Stronger models should
-   choose relevant lenses, not run every specialist every time.
-5. **Clean up docs and legacy shims.** Stale or duplicated contracts become more
-   dangerous as model confidence rises.
-6. **Generalize model hints.** Do not encode today's vendor tier names as
-   permanent workflow schema.
-7. **Measure harness value by external guarantees.** If a feature only tells the
-   model to think harder, it is a retirement candidate. If it records,
+2. **Shrink the instruction layer further.** Compact policy capsules now
+   exist; the next move is flipping the hydrator default away from full
+   skill bodies.
+3. **Continue making gates adaptive.** Full ceremony should be reserved for
+   work that needs it; the planner-side risk classifier (Epic #2649) is the
+   model — extend it rather than reinventing.
+4. **Delete legacy shapes on sight.** Hard-cutover is the operator policy;
+   the `prose-legacy` hydration mode is the next concrete instance.
+5. **Measure harness value by external guarantees.** If a feature only tells
+   the model to think harder, it is a retirement candidate. If it records,
    validates, isolates, or gates side effects, it likely stays.
 
 ## Bottom Line
