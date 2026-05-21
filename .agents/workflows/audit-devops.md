@@ -1,9 +1,6 @@
 ---
 description: Audit CI/CD workflows, container images, infrastructure-as-code, and deployment pipelines; surface failure modes and hardening gaps.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: config/IaC pattern-scan against a known rubric — Haiku A/B matched sonnet findings. -->
 
 # DevOps Infrastructure Audit
 

@@ -8,10 +8,7 @@ description: >-
   auto-merges via `gh pr merge --squash --delete-branch`; otherwise the
   workflow falls back to the operator-merges-button path so a human
   inspects the surface area.
-recommendedModel: opus
 ---
-
-<!-- recommendedModel rationale: ten-phase delivery orchestrator coordinates wave fan-out, change-set audits, code review, retro, and merge gating — reasoning-heavy, advisory hint for operators. -->
 
 # /epic-deliver #[Epic ID]
 
@@ -196,12 +193,12 @@ JSON return.
 }
 ```
 
-**Dispatch-model resolution.** For `model:`, precedence (highest
-wins): per-call literal → workflow `dispatchModel` frontmatter →
-inherit (emit no argument). The unset case is today's behaviour — full
-inheritance via the `general-purpose` sub-agent definition. Children
-inherit the parent's worktree context; no
-`--dangerously-skip-permissions` (no subprocess is spawned).
+**Sub-agent dispatch.** `Agent` calls emit no `model:` argument by
+default — children inherit from the `general-purpose` sub-agent
+definition and the parent's worktree context. No
+`--dangerously-skip-permissions` (no subprocess is spawned). If a
+specific call needs to override the inherited model, pass `model:` as a
+per-call literal at the `Agent(...)` site.
 
 ### 2c. Record the wave outcome
 

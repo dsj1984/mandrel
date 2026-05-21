@@ -1,9 +1,6 @@
 ---
 description: Audit hot paths, algorithmic complexity, and I/O bottlenecks in the tooling surface (`epic-close`, dispatcher, gates); propose remediations.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: hotpath/big-O pattern-spotting against a rubric — Haiku A/B matched sonnet findings. -->
 
 # Performance & Bottleneck Audit
 

@@ -1,9 +1,6 @@
 ---
 description: Audit SEO fundamentals and Generative Engine Optimization signals (meta, structured data, crawlability); only relevant for web targets.
-dispatchModel: haiku
 ---
-
-<!-- dispatchModel rationale: structured HTML/JSON-LD/schema scan against a checklist — Haiku A/B matched sonnet. -->
 
 # SEO & Generative Engine Optimization Audit
 
