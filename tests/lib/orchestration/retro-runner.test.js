@@ -572,6 +572,154 @@ test('gatherRetroSignals: degrades silently on forEachLine error', async () => {
   assert.ok(warns.some((w) => /forEachLine failed/.test(w)));
 });
 
+// Story #2853 — concurrent fan-out assertions.
+//
+// `gatherRetroSignals` previously serialized two hot loops:
+//   1. per-Story `findStructuredComment` lookups for `story-perf-summary`
+//   2. descendant BFS in `collectDescendants`
+//
+// Both are now parallelized; the assertions below pin that behaviour so a
+// future refactor that reintroduces the serial shape fails loudly.
+
+test('gatherRetroSignals: per-Story story-perf-summary lookups fan out concurrently', async () => {
+  // Use deferred promises to gate each per-Story `getTicketComments` call.
+  // If the loop is serial, only the first deferred will be observed before
+  // we resolve them; if it's concurrent, all four are awaited at the same
+  // time.
+  const deferreds = new Map();
+  const observedActive = new Set();
+  let maxActive = 0;
+  let activeNow = 0;
+
+  const epicComment = {
+    id: 1,
+    body: `<!-- ap:structured-comment type="epic-perf-report" -->\n\n\`\`\`json\n${JSON.stringify(
+      { ok: true },
+    )}\n\`\`\``,
+  };
+
+  const storyIds = [201, 202, 203, 204];
+
+  const provider = {
+    async getSubTickets(id) {
+      if (id === 200) {
+        return storyIds.map((sid) => ({
+          id: sid,
+          number: sid,
+          labels: ['type::story'],
+        }));
+      }
+      return [];
+    },
+    async getTicket(id) {
+      if (id === 200) return { id: 200, title: 'Concurrent Epic', body: '' };
+      return null;
+    },
+    async getTicketComments(ticketId) {
+      if (ticketId === 200) return [epicComment];
+      // Story ticket — gate on a per-call deferred.
+      activeNow++;
+      maxActive = Math.max(maxActive, activeNow);
+      observedActive.add(ticketId);
+      const result = await new Promise((resolve) => {
+        deferreds.set(ticketId, resolve);
+      });
+      activeNow--;
+      return result;
+    },
+  };
+
+  // Kick off the gather; resolve every per-Story deferred only after all
+  // four have been observed in flight.
+  const gatherPromise = gatherRetroSignals({ epicId: 200, provider });
+
+  // Spin until every Story is awaiting (or fail the test if it never
+  // happens). The retro-runner orchestrates other awaits between
+  // descendant collection and the per-Story fan-out, so we may need a
+  // few microtasks to reach the fan-out.
+  for (let i = 0; i < 100 && observedActive.size < storyIds.length; i++) {
+    await new Promise((r) => setImmediate(r));
+  }
+  assert.equal(
+    observedActive.size,
+    storyIds.length,
+    'every Story comment fetch should be in flight before any resolves (serial loop regression)',
+  );
+  assert.equal(
+    maxActive,
+    storyIds.length,
+    'max in-flight should equal Story count',
+  );
+
+  // Resolve all the deferreds with empty comment lists so gather completes.
+  for (const sid of storyIds) {
+    deferreds.get(sid)([]);
+  }
+  await gatherPromise;
+});
+
+test('collectDescendants: walks each BFS level concurrently', async () => {
+  // Provider records the order of getSubTickets calls. A serial walk
+  // would interleave parent → child → parent → child …; level-order
+  // parallelism fires every parent at the current depth before any
+  // child at the next depth.
+  const callOrder = [];
+  const callStartTimes = new Map();
+
+  const subsByParent = new Map([
+    [400, [{ id: 401 }, { id: 402 }, { id: 403 }]],
+    [401, [{ id: 411 }, { id: 412 }]],
+    [402, [{ id: 421 }]],
+    [403, [{ id: 431 }, { id: 432 }]],
+    // Leaves return empty.
+  ]);
+
+  const provider = {
+    async getSubTickets(id) {
+      callOrder.push(id);
+      callStartTimes.set(id, callOrder.length);
+      // Defer the resolution so the test can observe whether siblings
+      // start before any of their children fire.
+      await new Promise((r) => setImmediate(r));
+      const subs = subsByParent.get(id) ?? [];
+      return subs.map((s) => ({ ...s, number: s.id, labels: ['type::task'] }));
+    },
+    async getTicket() {
+      return null;
+    },
+    async getTicketComments() {
+      return [];
+    },
+  };
+
+  const out = await gatherRetroSignals({ epicId: 400, provider });
+
+  // Level 0: epic 400.
+  // Level 1: stories 401, 402, 403 (all three must start before any
+  // level-2 children).
+  // Level 2: 411, 412, 421, 431, 432.
+  const idxOf = (id) => callOrder.indexOf(id);
+  const lvl1 = [401, 402, 403].map(idxOf);
+  const lvl2 = [411, 412, 421, 431, 432].map(idxOf);
+  const maxLvl1 = Math.max(...lvl1);
+  const minLvl2 = Math.min(...lvl2);
+  assert.ok(
+    maxLvl1 < minLvl2,
+    `all level-1 getSubTickets calls must fire before any level-2 call ` +
+      `(serial BFS regression). order=${callOrder.join(',')}`,
+  );
+
+  // Sanity: the descendant set is the same as the serial walker would
+  // produce.
+  const descendantIds = new Set();
+  for (const sub of [...out.stories, ...out.tasks]) {
+    descendantIds.add(sub.id ?? sub.number);
+  }
+  for (const id of [401, 402, 403, 411, 412, 421, 431, 432]) {
+    assert.ok(descendantIds.has(id), `descendant set missing #${id}`);
+  }
+});
+
 test('runRetro: ignores non-finite manualInterventions (defensive)', async () => {
   const provider = makeProvider({
     epic: { id: 900, title: 'Defensive Epic' },

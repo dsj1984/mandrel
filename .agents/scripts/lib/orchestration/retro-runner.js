@@ -77,17 +77,29 @@ function sumFriction(byCategory) {
 async function collectDescendants(provider, epicId) {
   const visited = new Set([epicId]);
   const out = [];
-  const queue = [epicId];
-  while (queue.length > 0) {
-    const id = queue.shift();
-    const subs = (await provider.getSubTickets(id)) ?? [];
-    for (const sub of subs) {
-      const subId = Number(sub?.id ?? sub?.number);
-      if (!Number.isInteger(subId) || visited.has(subId)) continue;
-      visited.add(subId);
-      out.push(sub);
-      queue.push(subId);
+  // Story #2853 — level-order BFS so every parent at the current depth
+  // fires its getSubTickets call concurrently. Previously this loop
+  // awaited one parent at a time, serializing one network round-trip per
+  // descendant tier (a 2-level Epic with 10 Stories was 11 sequential
+  // calls). Each `getSubTickets` already fans out child hydration
+  // internally with concurrency=8 (issues.js:SUBTICKET_HYDRATION_CONCURRENCY),
+  // so outer parallelism is consistent with the existing design.
+  let frontier = [epicId];
+  while (frontier.length > 0) {
+    const results = await Promise.all(
+      frontier.map((id) => provider.getSubTickets(id)),
+    );
+    const nextFrontier = [];
+    for (const subs of results) {
+      for (const sub of subs ?? []) {
+        const subId = Number(sub?.id ?? sub?.number);
+        if (!Number.isInteger(subId) || visited.has(subId)) continue;
+        visited.add(subId);
+        out.push(sub);
+        nextFrontier.push(subId);
+      }
     }
+    frontier = nextFrontier;
   }
   return out;
 }
@@ -182,14 +194,26 @@ export async function gatherRetroSignals({
   ).length;
 
   // Aggregate per-Story `story-perf-summary` payloads for friction totals.
+  // Story #2853 — fan out the per-Story `findStructuredComment` lookups
+  // concurrently. Each Story's lookup resolves to a single paginated
+  // `getTicketComments` round-trip (the raw-comments cache at
+  // ticketing/reads.js:381-412 dedupes the per-type lookups within a
+  // ticket), so parallelization adds no extra wire calls — it just
+  // collapses N sequential round-trips into one wall-clock fan-out.
+  // `Promise.all` preserves index order, so the resulting
+  // `storyPerfSummaries` array stays deterministic relative to `stories`.
+  const perStoryComments = await Promise.all(
+    stories.map((story) =>
+      findStructuredComment(
+        provider,
+        story.id ?? story.number,
+        'story-perf-summary',
+      ),
+    ),
+  );
   const storyPerfSummaries = [];
   let frictionFromSummaries = 0;
-  for (const story of stories) {
-    const comment = await findStructuredComment(
-      provider,
-      story.id ?? story.number,
-      'story-perf-summary',
-    );
+  for (const comment of perStoryComments) {
     const parsed = parseFencedJsonComment(comment);
     if (parsed) {
       storyPerfSummaries.push(parsed);
