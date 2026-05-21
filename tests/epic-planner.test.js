@@ -10,8 +10,10 @@ import {
   buildAuthoringContext,
   PRD_SYSTEM_PROMPT,
   planEpic,
+  resolveReviewRouting,
   TECH_SPEC_SYSTEM_PROMPT,
 } from '../.agents/scripts/epic-plan-spec.js';
+import { classifyPlanningRisk } from '../.agents/scripts/lib/orchestration/planning-risk.js';
 
 describe('epic-planner orchestration (v5.6+)', () => {
   let mockProvider;
@@ -179,6 +181,17 @@ describe('epic-planner orchestration (v5.6+)', () => {
   });
 
   it('creates a third context::acceptance-spec ticket and links it in Planning Artifacts', async () => {
+    mockProvider.getEpic = async (id) => {
+      if (id !== 1) return null;
+      return {
+        id: 1,
+        title: 'Implement V5 Core',
+        body: 'User-facing security changes and /epic-plan gate routing.',
+        labels: ['epic'],
+        linkedIssues: { prd: null, techSpec: null },
+      };
+    };
+
     await planEpic(1, mockProvider, {
       prdContent: '## Overview\nAuthored PRD.',
       techSpecContent: '## Technical Overview\nAuthored Tech Spec.',
@@ -271,6 +284,56 @@ describe('epic-planner buildAuthoringContext', () => {
     assert.equal(typeof ctx.bddRunner.fallback, 'boolean');
     // Exactly one of supported/fallback is true.
     assert.notEqual(ctx.bddRunner.supported, ctx.bddRunner.fallback);
+    // Story #2791 — planningRisk rides alongside the pre-existing envelope
+    // keys without replacing them.
+    assert.equal(typeof ctx.memoryFreshness, 'object');
+    assert.equal(typeof ctx.priorFeedback, 'object');
+    assert.ok(Array.isArray(ctx.bddScenarios));
+    assert.equal(typeof ctx.planningRisk, 'object');
+    assert.ok(ctx.planningRisk);
+    assert.equal(typeof ctx.planningRisk.overallLevel, 'string');
+    assert.equal(typeof ctx.planningRisk.gateDecision, 'string');
+  });
+
+  it('classifies a critical-workflow Epic as high risk in planningRisk', async () => {
+    const provider = {
+      async getEpic(id) {
+        return {
+          id,
+          title: 'Adaptive Planning Gate Routing',
+          body: `## Scope
+
+Changes /epic-plan gate behavior and acceptance-spec creation for critical workflow orchestration.`,
+          labels: ['type::epic'],
+          linkedIssues: { prd: null, techSpec: null },
+        };
+      },
+    };
+
+    const ctx = await buildAuthoringContext(99, provider, {});
+
+    assert.equal(ctx.planningRisk.overallLevel, 'high');
+    assert.equal(ctx.planningRisk.requiresReview, true);
+    assert.equal(ctx.planningRisk.acceptanceDisposition, 'required');
+    assert.equal(ctx.planningRisk.gateDecision, 'review-required');
+    assert.ok(
+      ctx.planningRisk.axes.some(
+        (entry) => entry.axis === 'critical-workflow' && entry.level === 'high',
+      ),
+    );
+  });
+
+  it('branches review routing on planningRisk for low-risk docs-only Epics', () => {
+    const planningRisk = classifyPlanningRisk({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+      labels: ['type::epic'],
+    });
+    const routing = resolveReviewRouting({ planningRisk });
+
+    assert.equal(planningRisk.gateDecision, 'auto-proceed');
+    assert.equal(routing.requiresStop, false);
+    assert.equal(routing.decision, 'auto-proceed');
   });
 
   it('throws when the epic is not found', async () => {

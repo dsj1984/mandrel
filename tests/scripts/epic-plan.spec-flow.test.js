@@ -29,12 +29,20 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import yaml from 'js-yaml';
-
 import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
+import {
+  planEpic,
+  resolveAcceptancePersistence,
+  runSpecPhase,
+} from '../../.agents/scripts/epic-plan-spec.js';
 import {
   EXIT_CODES,
   runReconcile,
 } from '../../.agents/scripts/epic-reconcile.js';
+import { ACCEPTANCE_NA } from '../../.agents/scripts/lib/label-constants.js';
+import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
+import { classifyPlanningRisk } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
+import { PlanningStateManager } from '../../.agents/scripts/lib/orchestration/planning-state-manager.js';
 import {
   loadSpec,
   loadState,
@@ -408,5 +416,278 @@ describe('epic-plan spec-flow integration', () => {
       'reconciler.apply must create issues',
     );
     assert.ok(applyResult, 'applyResult envelope must be returned');
+  });
+});
+
+/**
+ * Build a minimal provider for Phase 7 persist-half tests. Tracks created
+ * tickets and label/body mutations on the Epic in memory.
+ */
+function buildPlanEpicProvider(epicShape = {}) {
+  let nextId = 600;
+  const epic = {
+    id: 6000,
+    title: epicShape.title ?? 'Test Epic',
+    body: epicShape.body ?? '',
+    labels: epicShape.labels ?? ['type::epic'],
+    linkedIssues: { prd: null, techSpec: null, acceptanceSpec: null },
+  };
+  const createdTickets = [];
+  const updatedTickets = [];
+
+  const provider = {
+    epic,
+    createdTickets,
+    updatedTickets,
+    async getEpic() {
+      return epic;
+    },
+    async getTickets() {
+      return [];
+    },
+    async createTicket(epicId, ticketData) {
+      const id = nextId++;
+      createdTickets.push({ epicId, ticketData, id });
+      return { id, url: `https://stub/issues/${id}` };
+    },
+    async updateTicket(id, mutations) {
+      updatedTickets.push({ id, mutations });
+      if (id !== epic.id) return;
+      if (mutations.body !== undefined) epic.body = mutations.body;
+      if (mutations.labels) {
+        const existing = new Set(epic.labels ?? []);
+        for (const add of mutations.labels.add ?? []) existing.add(add);
+        for (const rm of mutations.labels.remove ?? []) existing.delete(rm);
+        epic.labels = Array.from(existing);
+      }
+    },
+    primeTicketCache() {},
+  };
+
+  return provider;
+}
+
+/**
+ * Provider for runSpecPhase tests — extends the plan-epic stub with
+ * structured-comment I/O used by epic-plan-state-store.
+ */
+function buildRunSpecPhaseProvider(epicShape = {}) {
+  let commentId = 9000;
+  const comments = new Map();
+  const base = buildPlanEpicProvider(epicShape);
+
+  return {
+    ...base,
+    async getTicketComments(ticketId) {
+      return comments.get(ticketId) ?? [];
+    },
+    async postComment(ticketId, payload) {
+      const list = comments.get(ticketId) ?? [];
+      const comment = { id: commentId++, body: payload.body };
+      list.push(comment);
+      comments.set(ticketId, list);
+      return comment;
+    },
+    async deleteComment(id) {
+      for (const [, list] of comments) {
+        const idx = list.findIndex((entry) => entry.id === id);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+    },
+  };
+}
+
+describe('review routing — Story #2795', () => {
+  it('high-risk runSpecPhase records review-required routing in checkpoint', async () => {
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Adaptive planning gate routing',
+      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+    });
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+    );
+
+    assert.equal(result.planningRisk.requiresReview, true);
+    assert.equal(result.reviewRouting.decision, 'review-required');
+    assert.equal(result.reviewRouting.requiresStop, true);
+    assert.equal(result.checkpoint.reviewRouting.decision, 'review-required');
+    assert.equal(result.checkpoint.reviewRouting.requiresStop, true);
+    assert.ok(provider.epic.labels.includes('agent::review-spec'));
+  });
+
+  it('low-risk runSpecPhase records auto-proceed routing in checkpoint', async () => {
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+    });
+
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+    );
+
+    assert.equal(result.planningRisk.requiresReview, false);
+    assert.equal(result.reviewRouting.decision, 'auto-proceed');
+    assert.equal(result.reviewRouting.requiresStop, false);
+    assert.equal(result.checkpoint.reviewRouting.decision, 'auto-proceed');
+    assert.match(result.reviewRouting.operatorMessage, /auto-proceed/i);
+  });
+
+  it('operator override forces review stop on a low-risk Epic', async () => {
+    const planningRisk = classifyPlanningRisk({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+      labels: ['type::epic'],
+    });
+    const routing = resolveReviewRouting({ planningRisk, forceReview: true });
+
+    assert.equal(routing.decision, 'operator-override-review');
+    assert.equal(routing.requiresStop, true);
+
+    const provider = buildRunSpecPhaseProvider({
+      title: 'Docs-only readme cleanup',
+      body: 'Documentation-only prose cleanup.',
+    });
+    const result = await runSpecPhase(
+      provider.epic.id,
+      provider,
+      {
+        prdContent: '## Overview\nPRD.',
+        techSpecContent: '## Technical Overview\nNo stale paths here.',
+      },
+      { baseBranch: 'main', paths: { tempRoot: sandbox } },
+      { forceReview: true },
+    );
+
+    assert.equal(result.reviewRouting.decision, 'operator-override-review');
+    assert.equal(result.reviewRouting.requiresStop, true);
+    assert.equal(result.checkpoint.reviewRouting.forceReviewApplied, true);
+  });
+});
+
+describe('acceptance disposition persistence — Story #2792', () => {
+  it('resolveAcceptancePersistence routes required disposition to acceptance-spec', () => {
+    const verdict = resolveAcceptancePersistence(
+      {
+        title: 'Security and billing rollout',
+        body: 'User-facing security changes with Stripe billing.',
+        labels: ['type::epic'],
+      },
+      '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    );
+
+    assert.equal(verdict.planningRisk.acceptanceDisposition, 'required');
+    assert.equal(verdict.wantsAcceptanceSpec, true);
+    assert.equal(verdict.applyAcceptanceWaiver, false);
+  });
+
+  it('resolveAcceptancePersistence routes not-applicable disposition to waiver', () => {
+    const verdict = resolveAcceptancePersistence(
+      {
+        title: 'Docs-only readme cleanup',
+        body: 'Documentation-only prose cleanup.',
+        labels: ['type::epic'],
+      },
+      '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    );
+
+    assert.equal(verdict.planningRisk.acceptanceDisposition, 'not-applicable');
+    assert.equal(verdict.wantsAcceptanceSpec, false);
+    assert.equal(verdict.applyAcceptanceWaiver, true);
+  });
+
+  it('required disposition creates and links context::acceptance-spec', async () => {
+    const provider = buildPlanEpicProvider({
+      title: 'Adaptive planning gate routing',
+      body: 'Changes /epic-plan gate behavior and acceptance-spec creation.',
+    });
+
+    await planEpic(provider.epic.id, provider, {
+      prdContent: '## Overview\nPRD.',
+      techSpecContent: '## Technical Overview\nTS.',
+      acceptanceSpecContent:
+        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    });
+
+    assert.equal(provider.createdTickets.length, 3);
+    assert.deepEqual(provider.createdTickets[2].ticketData.labels, [
+      'context::acceptance-spec',
+    ]);
+    const epicUpdate = provider.updatedTickets.find(
+      (entry) => entry.id === provider.epic.id,
+    );
+    assert.ok(epicUpdate.mutations.body.includes('Acceptance Spec'));
+    assert.ok(
+      !(epicUpdate.mutations.labels?.add ?? []).includes(ACCEPTANCE_NA),
+    );
+  });
+
+  it('not-applicable disposition applies acceptance::n-a and skips acceptance-spec', async () => {
+    const provider = buildPlanEpicProvider({
+      title: 'Internal refactor cleanup',
+      body: 'Internal refactor only — docs-only housekeeping.',
+    });
+
+    await planEpic(provider.epic.id, provider, {
+      prdContent: '## Overview\nPRD.',
+      techSpecContent: '## Technical Overview\nTS.',
+      acceptanceSpecContent:
+        '## Acceptance Criteria\n| AC-1 | x | f | s | new |',
+    });
+
+    assert.equal(
+      provider.createdTickets.length,
+      2,
+      'must not create acceptance-spec when disposition is not-applicable',
+    );
+    const epicUpdate = provider.updatedTickets.find(
+      (entry) => entry.id === provider.epic.id,
+    );
+    assert.ok((epicUpdate.mutations.labels?.add ?? []).includes(ACCEPTANCE_NA));
+    assert.ok(!epicUpdate.mutations.body.includes('Acceptance Spec'));
+    assert.ok(provider.epic.labels.includes(ACCEPTANCE_NA));
+
+    const mgr = new PlanningStateManager({
+      async getTicket(id) {
+        if (id === provider.epic.id) {
+          return {
+            id: provider.epic.id,
+            labels: provider.epic.labels,
+            body: provider.epic.body,
+          };
+        }
+        const created = provider.createdTickets.find((t) => t.id === id);
+        if (!created) return null;
+        return {
+          id,
+          labels: created.ticketData.labels,
+          state: 'closed',
+        };
+      },
+      async getTickets() {
+        return provider.createdTickets.map((t) => ({
+          id: t.id,
+          labels: t.ticketData.labels,
+          state: 'closed',
+        }));
+      },
+      primeTicketCache() {},
+    });
+    const verdict = await mgr.computeReviewReadiness(provider.epic.id);
+    assert.strictEqual(verdict.ready, true);
+    assert.strictEqual(verdict.reason, 'acceptance-waived');
+    assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
   });
 });

@@ -59,7 +59,11 @@ import { scanMemoryFreshness } from './lib/feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from './lib/feedback-loop/prior-feedback-fetcher.js';
 import * as gitUtils from './lib/git-utils.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
-import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
+import {
+  ACCEPTANCE_NA,
+  AGENT_LABELS,
+  TYPE_LABELS,
+} from './lib/label-constants.js';
 import { buildDocsContext } from './lib/orchestration/doc-reader.js';
 import {
   initialize as initializePlanState,
@@ -68,8 +72,13 @@ import {
   setPhase as setPlanPhase,
   write as writePlanState,
 } from './lib/orchestration/epic-plan-state-store.js';
+import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
+import { classifyPlanningRisk } from './lib/orchestration/planning-risk.js';
+
+export { resolveReviewRouting };
+
 import { PlanningStateManager } from './lib/orchestration/planning-state-manager.js';
 import {
   renderSpecFreshnessComment,
@@ -232,6 +241,15 @@ export async function buildAuthoringContext(
     Logger.warn(`[epic-plan-spec] codebase snapshot skipped: ${err.message}`);
   }
 
+  // Story #2791 — deterministic planning-risk envelope for gate routing
+  // and acceptance disposition. Pure classification over Epic metadata;
+  // no GitHub mutation on the emit-context path.
+  const planningRisk = classifyPlanningRisk({
+    title: epic.title,
+    body: epic.body ?? '',
+    labels: epic.labels ?? [],
+  });
+
   return {
     epic: {
       id: epic.id,
@@ -251,6 +269,7 @@ export async function buildAuthoringContext(
     bddScenarios,
     memoryFreshness,
     priorFeedback,
+    planningRisk,
   };
 }
 
@@ -280,6 +299,40 @@ export function resolveMemoryDir({ github } = {}) {
   const repo = github?.repo;
   if (typeof repo !== 'string' || repo.length === 0) return null;
   return path.join(os.homedir(), '.claude', 'projects', repo, 'memory');
+}
+
+/**
+ * Resolve whether Phase 7 should persist an acceptance-spec ticket or apply
+ * the existing `acceptance::n-a` waiver from {@link classifyPlanningRisk}.
+ *
+ * @param {{ title?: string, body?: string, labels?: string[] }} epic
+ * @param {string|null} acceptanceSpecContent
+ * @returns {{ planningRisk: import('./lib/orchestration/planning-risk.js').PlanningRiskEnvelope, wantsAcceptanceSpec: boolean, applyAcceptanceWaiver: boolean }}
+ */
+export function resolveAcceptancePersistence(epic, acceptanceSpecContent) {
+  const planningRisk = classifyPlanningRisk({
+    title: epic.title,
+    body: epic.body ?? '',
+    labels: epic.labels ?? [],
+  });
+
+  const hasAcceptanceContent =
+    typeof acceptanceSpecContent === 'string' &&
+    acceptanceSpecContent.trim() !== '';
+
+  if (planningRisk.acceptanceDisposition === 'not-applicable') {
+    return {
+      planningRisk,
+      wantsAcceptanceSpec: false,
+      applyAcceptanceWaiver: true,
+    };
+  }
+
+  return {
+    planningRisk,
+    wantsAcceptanceSpec: hasAcceptanceContent,
+    applyAcceptanceWaiver: false,
+  };
 }
 
 /**
@@ -328,8 +381,19 @@ export async function planEpic(
   const stateManager = new PlanningStateManager(provider);
   await stateManager.healAndCleanupArtifacts(epic, force);
 
+  const { planningRisk, wantsAcceptanceSpec, applyAcceptanceWaiver } =
+    resolveAcceptancePersistence(epic, acceptanceSpecContent);
+
+  Logger.info(
+    `[Epic Planner] Acceptance disposition: ${planningRisk.acceptanceDisposition}` +
+      (applyAcceptanceWaiver
+        ? ` — applying ${ACCEPTANCE_NA} waiver (no acceptance-spec ticket).`
+        : wantsAcceptanceSpec
+          ? ' — persisting context::acceptance-spec.'
+          : ' — no acceptance-spec content supplied.'),
+  );
+
   // M-8: Resumable planning — if all artifacts exist, abort to prevent dupes.
-  const wantsAcceptanceSpec = acceptanceSpecContent !== null;
   const hasPrd = Boolean(epic.linkedIssues?.prd);
   const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
   const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
@@ -434,8 +498,22 @@ export async function planEpic(
   const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
   const newBody = epic.body + appendBody;
 
+  /** @type {{ add?: string[], remove?: string[] }} */
+  const labelMutations = {};
+  if (applyAcceptanceWaiver) {
+    labelMutations.add = [ACCEPTANCE_NA];
+  } else if (
+    wantsAcceptanceSpec &&
+    (epic.labels ?? []).includes(ACCEPTANCE_NA)
+  ) {
+    labelMutations.remove = [ACCEPTANCE_NA];
+  }
+
   await provider.updateTicket(epicId, {
     body: newBody,
+    ...(labelMutations.add || labelMutations.remove
+      ? { labels: labelMutations }
+      : {}),
   });
 
   Logger.info(`[Epic Planner] Epic #${epicId} updated successfully.`);
@@ -667,15 +745,15 @@ export async function runSpecFreshnessCheck({
  * @param {import('./lib/ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ prdContent: string, techSpecContent: string }} artifacts
  * @param {object} settings
- * @param {{ force?: boolean, snapshotFork?: typeof forkAndCommitEpicSnapshot }} [opts]
- * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, checkpoint: object }>}
+ * @param {{ force?: boolean, forceReview?: boolean, snapshotFork?: typeof forkAndCommitEpicSnapshot }} [opts]
+ * @returns {Promise<{ epicId: number, prdId: number|null, techSpecId: number|null, checkpoint: object, planningRisk: import('./lib/orchestration/planning-risk.js').PlanningRiskEnvelope, reviewRouting: import('./lib/orchestration/plan-review-routing.js').ReviewRoutingEnvelope }>}
  */
 export async function runSpecPhase(
   epicId,
   provider,
   { prdContent, techSpecContent, acceptanceSpecContent = null },
   settings = {},
-  { force = false } = {},
+  { force = false, forceReview = false } = {},
 ) {
   const epic = await provider.getEpic(epicId);
   if (!epic) {
@@ -734,6 +812,13 @@ export async function runSpecPhase(
   // `/epic-plan` remains git-state-free. `forkAndCommitEpicSnapshot` and
   // `forkMainToEpic` remain exported for that caller.
 
+  const planningRisk = classifyPlanningRisk({
+    title: afterPlan.title,
+    body: afterPlan.body ?? '',
+    labels: afterPlan.labels ?? [],
+  });
+  const reviewRouting = resolveReviewRouting({ planningRisk, forceReview });
+
   const currentState =
     (await readPlanState({ provider, epicId })) ??
     (await initializePlanState({ provider, epicId }));
@@ -742,6 +827,12 @@ export async function runSpecPhase(
     epicId,
     state: {
       ...currentState,
+      planningRisk,
+      reviewRouting: {
+        decision: reviewRouting.decision,
+        requiresStop: reviewRouting.requiresStop,
+        forceReviewApplied: reviewRouting.forceReviewApplied,
+      },
       spec: {
         ...currentState.spec,
         prdId,
@@ -751,6 +842,9 @@ export async function runSpecPhase(
       },
     },
   });
+
+  Logger.info(`[epic-plan-spec] Review routing: ${reviewRouting.decision}.`);
+  Logger.info(`[epic-plan-spec] ${reviewRouting.operatorMessage}`);
 
   Logger.info(
     `[epic-plan-spec] Flipping Epic #${epicId} to ${AGENT_LABELS.REVIEW_SPEC}...`,
@@ -787,6 +881,8 @@ export async function runSpecPhase(
     checkpoint,
     cleanup,
     freshness,
+    planningRisk,
+    reviewRouting,
   };
 }
 
@@ -799,6 +895,7 @@ async function main() {
       techspec: { type: 'string' },
       'acceptance-spec': { type: 'string' },
       force: { type: 'boolean', default: false },
+      'force-review': { type: 'boolean', default: false },
       'emit-context': { type: 'boolean', default: false },
       pretty: { type: 'boolean', default: false },
       'full-context': { type: 'boolean', default: false },
@@ -885,7 +982,7 @@ async function main() {
     provider,
     { prdContent, techSpecContent, acceptanceSpecContent },
     settings,
-    { force: values.force },
+    { force: values.force, forceReview: values['force-review'] },
   );
 
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);

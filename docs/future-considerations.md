@@ -166,7 +166,15 @@ Remaining recommendation (Monitor):
 
 ### 4. Planning Flow Has Too Many Fixed HITL Gates
 
-**Status:** Simplify
+**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2649). Risk-based
+review routing, planner-side risk classification threaded into Phase 7,
+acceptance-disposition persistence, and the `maxTickets` reframing as a
+reviewability budget all shipped under `epic/2649`. Earlier groundwork
+(fda76f21 explicit `filesAssumption`, aec99d1c Phase 7 cross-validation) is
+retained.
+
+**Original framing (kept for historical context):**
+
 **Action:** 🚀 Implement now — risk-based gating is valuable regardless of model strength. Phase 7 cross-validation (aec99d1c) and explicit `filesAssumption` (fda76f21) already moved in this direction; the remaining work (collapse idea refinement / clarity / Epic rendering into one proposal step, convert `maxTickets` from hard cap to reviewability budget) is operator-experience cleanup.
 
 **Primary paths:**
@@ -520,7 +528,14 @@ Recommendation:
 
 ### 15. Acceptance Spec Is Valuable but Too Universal
 
-**Status:** Simplify
+**Status:** ✅ Closed — see "Implemented Since Audit" (Epic #2649). The
+planner now persists an `acceptance::*` disposition (required / recommended /
+not-applicable) driven by the shared planning-risk classifier, promoting the
+prior `acceptance::n-a` waiver to a planner-side decision with an explicit
+rubric.
+
+**Original framing (kept for historical context):**
+
 **Action:** 🚀 Implement now — making the planner choose required / recommended / not-applicable based on visible-behavior risk is operator-time savings today. `acceptance::n-a` already exists; promote it from a manual waiver to a planner decision with a risk-rubric.
 
 **Primary paths:**
@@ -673,10 +688,33 @@ Tracked here so the numbered list above stays focused on open work.
   call sites now construct dispatch records inline. The dispatch manifest
   remains intact as the cross-runtime contract.  Earlier groundwork: commit
   d1f1eaff removed dead `dispatchModel` / `recommendedModel` fields.
-- 🟡 **Finding #4 partial** — fda76f21 added explicit `filesAssumption`
-  validation on Task paths and aec99d1c added Phase 7 cross-validation
-  of Tech Spec against the codebase. Risk-based gate streamlining is
-  still open.
+- ✅ **Finding #4 (Planning Flow Has Too Many Fixed HITL Gates)** — Epic
+  #2649 (`epic/2649`; closing PR when the Epic merges). Risk-based review
+  routing now drives Phase 7 stops via a deterministic planning-risk
+  classifier (c1ef6c6c, c912aa5f, 88108e06, 0c8b7cf9), threaded into the
+  spec context (6e068a76, d6e50605, 1492e796, 6efec193) and Phase 7 review
+  routing (61e1baef, d1188303, c459986c, 912fcb45). `maxTickets` was
+  reframed as a reviewability budget rather than a hard decomposition cap
+  (8b77cf2f, 99dc3d46, 02c65495, 58140dfd, 1e4d4ddc), and planning risk
+  is now exposed to the decomposer (db06d603, 8f4a5830, 0606cb38,
+  f3776298). Workflow docs and the spec-author skill cross-link the new
+  routing (cfb45848, 0e6f3e47, 83c7b2e0). Earlier groundwork — fda76f21
+  (explicit `filesAssumption` validation on Task paths) and aec99d1c
+  (Phase 7 cross-validation of Tech Spec against the codebase) — remains
+  in place. Single-shot authoring of the PRD/Tech Spec/Acceptance Spec
+  trio with scripted split was not pursued; the three-artifact split
+  remains useful as a reviewability seam and is gated by the same risk
+  decision.
+- ✅ **Finding #15 (Acceptance Spec Is Valuable but Too Universal)** —
+  Epic #2649 (`epic/2649`; closing PR when the Epic merges). The
+  planner now persists an `acceptance::*` disposition (required /
+  recommended / not-applicable) wired into spec persistence
+  (11eb2897, 1da091dd, 6d35a888, ccea7720), driven by the same
+  deterministic planning-risk classifier that gates Phase 7 routing under
+  Finding #4. The prior `acceptance::n-a` waiver is now a planner-side
+  decision with an explicit rubric rather than a manual operator
+  override. Close-time reconciliation against feature tags is unchanged
+  for Epics that carry an acceptance spec.
 - ✅ **Finding #18 (Docs Drift Is a Future-Model Risk)** — Epic #2645
   (commits 87deb0c1, 6460cbbd, f3a43175, 8016d0da, e38b0501, a3d8b6d6,
   eef564c1, 3e0273f6 on `epic/2645`). All four originally observed drifts

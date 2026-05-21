@@ -285,12 +285,54 @@ The spec is persisted by
 — the persist half writes all three artifacts in one atomic step and
 fails loudly if any is missing or empty.
 
+#### Adaptive planning risk routing
+
+`/epic-plan` Phase 7 computes a deterministic **`planningRisk`** envelope
+from the Epic body, labels, and linked context before persisting the
+spec artifacts. The envelope is recorded in the `epic-plan-state`
+checkpoint and consumed by two downstream decisions:
+
+- **Acceptance disposition** — `acceptanceDisposition` is one of
+  `required`, `recommended`, or `not-applicable`. The `not-applicable`
+  case is the planner-selected route to the `acceptance::n-a` waiver
+  (see the section below); the other two cause the Acceptance Spec to
+  be authored normally.
+- **Gate routing** — `gateDecision` is either `review-required`
+  (paired with `requiresReview: true`) or `auto-proceed`. High-risk
+  Epics (visible behavior, public API, security, billing, data
+  migration, destructive mutation, critical workflow) trigger a HITL
+  stop after Phase 7 so the operator can read the PRD / Tech Spec /
+  Acceptance Spec on GitHub before decomposition starts. Low-risk
+  Epics (docs-only, internal refactor, pure test harness, cleanup)
+  print the auto-proceed message from `reviewRouting.operatorMessage`
+  and chain directly into Phase 8. The operator can force the review
+  stop on low-risk work by passing `--force-review` to `/epic-plan`.
+
+The risk envelope is also threaded into the Phase 8 decomposer context
+so the ticket array can cite the relevant axes when assigning
+`risk::high` labels to Stories. The classifier is local and
+deterministic — it never calls an external LLM or sends Epic content
+off-host.
+
 #### Opting out — the `acceptance::n-a` waiver
 
 Not every Epic warrants a formal Acceptance Spec (pure refactors,
-framework maintenance, docs-only churn). For those, the operator applies
-the **`acceptance::n-a`** label to the Epic ticket. The waiver is
-respected by both runtime gates:
+framework maintenance, docs-only churn). The **`acceptance::n-a`** label
+on the Epic ticket records the waiver. There are two routes to the label:
+
+- **Operator-applied** — the operator labels the Epic before or during
+  `/epic-plan` Phase 7 when they already know the work does not need a
+  spec.
+- **Planner-selected** — `/epic-plan` Phase 7 computes a
+  `planningRisk` envelope (see § Adaptive planning risk routing) and,
+  when `acceptanceDisposition === 'not-applicable'`, the persist half
+  of `epic-plan-spec.js` applies `acceptance::n-a` on the Epic and skips
+  the Acceptance Spec artifact for that run. The disposition is also
+  recorded in the `epic-plan-state` checkpoint so the decision is
+  auditable.
+
+Either route produces the same runtime behavior. The waiver is respected
+by both runtime gates:
 
 - The `/epic-deliver` **start gate** (Phase 1 snapshot) skips the
   acceptance-spec presence check when the label is set.

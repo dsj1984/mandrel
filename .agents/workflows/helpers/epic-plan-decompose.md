@@ -56,7 +56,9 @@ node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] --emit-context \
 ```
 
 The emitted JSON contains the PRD body, Tech Spec body, risk heuristics, the
-decomposer system prompt, and the `maxTickets` cap.
+decomposer system prompt, and the `maxTickets` **reviewability budget**
+(Story #2798 — not a hard cap; over-budget plans require an explicit
+`--allow-over-budget` override at persist time).
 
 ## Step 2 — Author the ticket array
 
@@ -74,6 +76,11 @@ node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
 # Re-decompose (closes existing child Features/Stories/Tasks first)
 node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
   --tickets temp/epic-[Epic_ID]/tickets.json --force
+
+# Persist an over-budget plan (Story #2798 — only after the operator
+# has confirmed the over_budget_rationale on the Epic)
+node .agents/scripts/epic-plan-decompose.js --epic [Epic_ID] \
+  --tickets temp/epic-[Epic_ID]/tickets.json --allow-over-budget
 ```
 
 On success the script:

@@ -14,6 +14,7 @@
 
 import { getLimits } from '../../../config-resolver.js';
 import { renderDecomposerSystemPrompt } from '../../../templates/decomposer-prompts.js';
+import { read as readPlanState } from '../../epic-plan-state-store.js';
 import { applyBudget } from '../../planning-context-budget.js';
 
 export function buildDecomposerSystemPrompt(
@@ -38,6 +39,41 @@ function resolveHeuristics(config) {
 function projectBudgetedEntry(item, ticket, mode) {
   if (mode === 'full') return { id: ticket.id, body: ticket.body };
   return { id: ticket.id, body: null, bodySummary: item };
+}
+
+/**
+ * Read the persisted planning decision for the Epic so the decomposition
+ * authoring step (Phase 8) can cite the same risk classification the
+ * gate routing used in Phase 7. The decision lives in the `epic-plan-state`
+ * structured comment written by `epic-plan-spec.js`.
+ *
+ * Returns `{ planningRisk: null, reviewRouting: null }` when the comment
+ * is missing (older plans planned before Story #2801 landed) or when the
+ * payload predates the fields. The null sentinels are part of the
+ * decomposition context contract — callers MUST be able to JSON.stringify
+ * the result without losing the keys.
+ *
+ * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
+ * @param {number} epicId
+ * @returns {Promise<{ planningRisk: object | null, reviewRouting: object | null }>}
+ */
+async function readPlanningDecision(provider, epicId) {
+  let state = null;
+  try {
+    state = await readPlanState({ provider, epicId });
+  } catch (_err) {
+    // `read` already swallows JSON parse errors; a thrown error here
+    // means the provider couldn't fetch comments. Treat as null state —
+    // the decomposer can still author tickets without the risk envelope.
+    state = null;
+  }
+  if (!state || typeof state !== 'object') {
+    return { planningRisk: null, reviewRouting: null };
+  }
+  return {
+    planningRisk: state.planningRisk ?? null,
+    reviewRouting: state.reviewRouting ?? null,
+  };
 }
 
 async function fetchPlanningTickets(provider, epicId) {
@@ -69,6 +105,10 @@ export async function buildDecompositionContext(
   opts = {},
 ) {
   const { epic, prd, techSpec } = await fetchPlanningTickets(provider, epicId);
+  const { planningRisk, reviewRouting } = await readPlanningDecision(
+    provider,
+    epicId,
+  );
   const heuristics = resolveHeuristics(config);
   const limits = getLimits(config);
   const maxTickets = limits.maxTickets;
@@ -93,5 +133,11 @@ export async function buildDecompositionContext(
     systemPrompt,
     maxTickets,
     contextMode: budgeted.mode,
+    // Story #2801 — surface the Phase 7 planning decision so the
+    // decomposition authoring step can cite the same risk
+    // classification used by gate routing. Both fields are `null`
+    // when the Epic was planned before the decision contract existed.
+    planningRisk,
+    reviewRouting,
   };
 }
