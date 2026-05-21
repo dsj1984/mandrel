@@ -34,13 +34,14 @@ const CLI_OPTIONS = {
   tickets: { type: 'string' },
   force: { type: 'boolean', default: false },
   resume: { type: 'boolean', default: false },
+  'allow-over-budget': { type: 'boolean', default: false },
   'emit-context': { type: 'boolean', default: false },
   pretty: { type: 'boolean', default: false },
   'full-context': { type: 'boolean', default: false },
 };
 
 const USAGE =
-  'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume]';
+  'Usage: epic-plan-decompose.js --epic <EpicId> (--emit-context [--pretty] [--full-context] | --tickets <file>) [--force | --resume] [--allow-over-budget]';
 
 function parseEpicId(rawEpic) {
   if (!rawEpic) throw new Error(USAGE);
@@ -81,11 +82,13 @@ async function runEmitContextPath({ epicId, provider, config, values }) {
   const ctx = await buildDecompositionContext(epicId, provider, config, {
     fullContext: values['full-context'],
   });
-  // Surface the resolved cap on stderr so a misconfigured `.agentrc.json`
-  // (e.g. flat-key `maxTickets` instead of grouped `limits.maxTickets`) is
+  // Surface the resolved budget on stderr so a misconfigured `.agentrc.json`
+  // (e.g. flat-key `maxTickets` instead of grouped `planning.maxTickets`) is
   // visible to the operator. The decomposer prompt embeds the same value.
+  // Story #2798 — language changed from "prompt cap" to "reviewability
+  // budget" to match the new prompt/skill contract.
   Logger.error(
-    `[epic-plan-decompose] Resolved limits.maxTickets = ${ctx.maxTickets} (prompt cap).`,
+    `[epic-plan-decompose] Resolved planning.maxTickets = ${ctx.maxTickets} (reviewability budget).`,
   );
   const json = values.pretty
     ? JSON.stringify(ctx, null, 2)
@@ -116,6 +119,7 @@ async function runPersistPath({ epicId, provider, config, values }) {
     result = await runDecomposePhase(epicId, provider, { tickets }, config, {
       force: values.force,
       resume: values.resume,
+      allowOverBudget: values['allow-over-budget'],
     });
   } catch (err) {
     await reportPartialFailure({ epicId, provider, err });

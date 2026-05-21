@@ -372,6 +372,35 @@ describe('PlanningStateManager', () => {
       assert.strictEqual(verdict.ready, false);
       assert.strictEqual(verdict.reason, 'prd-missing');
     });
+
+    describe('acceptance disposition waiver — Story #2792', () => {
+      it('reports acceptance axis as waived when acceptance::n-a is present without a spec ticket', async () => {
+        const provider = buildProvider({
+          epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
+          prd: 'closed',
+          techSpec: 'closed',
+        });
+        const mgr = new PlanningStateManager(provider);
+        const verdict = await mgr.computeReviewReadiness(10);
+        assert.strictEqual(verdict.ready, true);
+        assert.strictEqual(verdict.reason, 'acceptance-waived');
+        assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
+      });
+
+      it('honours acceptance::n-a even when an open acceptance-spec ticket exists', async () => {
+        const provider = buildProvider({
+          epicLabels: ['type::epic', 'agent::review-spec', 'acceptance::n-a'],
+          prd: 'closed',
+          techSpec: 'closed',
+          acceptanceSpec: 'open',
+        });
+        const mgr = new PlanningStateManager(provider);
+        const verdict = await mgr.computeReviewReadiness(10);
+        assert.strictEqual(verdict.ready, true);
+        assert.strictEqual(verdict.reason, 'acceptance-waived');
+        assert.strictEqual(verdict.contexts.acceptanceSpec, 'waived');
+      });
+    });
   });
 
   describe('flipEpicToReadyIfContextClosed', () => {

@@ -54,7 +54,7 @@ import { RECONCILE_CLI, spawnReconcilerApply } from './reconcile-spawn.js';
  * @param {import('../../../ITicketingProvider.js').ITicketingProvider} provider
  * @param {{ tickets: Array<object> }} payload
  * @param {object} config
- * @param {{ force?: boolean, resume?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string }} [opts]
+ * @param {{ force?: boolean, resume?: boolean, allowOverBudget?: boolean, spawnSync?: typeof defaultSpawnSync, reconcileCli?: string, writeSpecFn?: typeof writeSpec, renderSpecFn?: typeof renderSpec, cwd?: string }} [opts]
  */
 export async function runDecomposePhase(
   epicId,
@@ -64,6 +64,7 @@ export async function runDecomposePhase(
   {
     force = false,
     resume = false,
+    allowOverBudget = false,
     spawnSync = defaultSpawnSync,
     reconcileCli = RECONCILE_CLI,
     writeSpecFn = writeSpec,
@@ -78,7 +79,22 @@ export async function runDecomposePhase(
   }
   const epic = await provider.getEpic(epicId);
   assertDecomposeInputs(epic, epicId, tickets);
-  warnTicketCapNearLimit(tickets, getLimits(config).maxTickets);
+  const maxTickets = getLimits(config).maxTickets;
+  // Story #2798 — `maxTickets` is a reviewability budget. Over-budget
+  // persistence requires an explicit `--allow-over-budget` override so
+  // an accidental over-budget plan does not silently land.
+  if (tickets.length > maxTickets && !allowOverBudget) {
+    throw new Error(
+      `[epic-plan-decompose] Tickets (${tickets.length}) exceed the reviewability budget (${maxTickets}). ` +
+        `Re-scope the Epic into a smaller plan, or rerun with --allow-over-budget after confirming the over-budget rationale on the Epic.`,
+    );
+  }
+  warnTicketCapNearLimit(tickets, maxTickets);
+  if (tickets.length > maxTickets && allowOverBudget) {
+    Logger.warn(
+      `[epic-plan-decompose] Persisting an over-budget decomposition: ${tickets.length} tickets vs. budget ${maxTickets} (operator override --allow-over-budget).`,
+    );
+  }
   await seedPlanState(provider, epicId, epic);
 
   Logger.info(
