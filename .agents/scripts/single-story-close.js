@@ -110,10 +110,18 @@ function parseCloseOptions({
   return {
     storyId: parsed.storyId,
     cwd: path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT),
-    skipValidation: resolveFlag(skipValidationParam, parsed.skipValidation, false),
+    skipValidation: resolveFlag(
+      skipValidationParam,
+      parsed.skipValidation,
+      false,
+    ),
     skipSync: resolveFlag(skipSyncParam, parsed.skipSync, false),
     noAutoMerge: resolveFlag(noAutoMergeParam, parsed.noAutoMerge, false),
-    noFullScopeCrap: resolveFlag(noFullScopeCrapParam, parsed.noFullScopeCrap, false),
+    noFullScopeCrap: resolveFlag(
+      noFullScopeCrapParam,
+      parsed.noFullScopeCrap,
+      false,
+    ),
   };
 }
 
@@ -132,15 +140,21 @@ export async function runSingleStoryClose({
   injectedNotify,
   injectedSync,
 } = {}) {
-  const { storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap } =
-    parseCloseOptions({
-      storyIdParam,
-      cwdParam,
-      skipValidationParam,
-      skipSyncParam,
-      noAutoMergeParam,
-      noFullScopeCrapParam,
-    });
+  const {
+    storyId,
+    cwd,
+    skipValidation,
+    skipSync,
+    noAutoMerge,
+    noFullScopeCrap,
+  } = parseCloseOptions({
+    storyIdParam,
+    cwdParam,
+    skipValidationParam,
+    skipSyncParam,
+    noAutoMergeParam,
+    noFullScopeCrapParam,
+  });
 
   if (!storyId) {
     throw new Error(

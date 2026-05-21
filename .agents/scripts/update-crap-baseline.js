@@ -55,8 +55,7 @@ async function main() {
   const requireCoverage = crap.requireCoverage !== false;
   const coveragePath =
     args.coveragePath ?? crap.coveragePath ?? 'coverage/coverage-final.json';
-  const baselinePath =
-    args.baselinePath ?? getBaselines(config).crap.path;
+  const baselinePath = args.baselinePath ?? getBaselines(config).crap.path;
 
   Logger.info('[CRAP] Updating baseline...');
   Logger.info(`[CRAP] Target dirs: ${targetDirs.join(', ')}`);

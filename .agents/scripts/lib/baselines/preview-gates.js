@@ -86,7 +86,9 @@ function compareScores(scores, baseline, tolerance) {
  * @returns {object[]}
  */
 function resolveBaselineRows(baseline, scopeSet) {
-  return scopeSet ? filterRowsByFileScope(baseline.rows, scopeSet) : baseline.rows;
+  return scopeSet
+    ? filterRowsByFileScope(baseline.rows, scopeSet)
+    : baseline.rows;
 }
 
 /**
