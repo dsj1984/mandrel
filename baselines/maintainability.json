@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-20T19:33:19.837Z",
+  "generatedAt": "2026-05-21T10:38:47.240Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.888,
-      "p95": 121.571
+      "p50": 103.914,
+      "p95": 121.484
     }
   },
   "rows": [
@@ -113,14 +113,6 @@
     {
       "path": ".agents/scripts/epic-plan-healthcheck.js",
       "mi": 98.816
-    },
-    {
-      "path": ".agents/scripts/epic-plan-spec.js",
-      "mi": 71.178
-    },
-    {
-      "path": ".agents/scripts/epic-plan.js",
-      "mi": 78.094
     },
     {
       "path": ".agents/scripts/epic-reconcile.js",
@@ -719,10 +711,6 @@
       "mi": 109.889
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "mi": 97.693
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "mi": 97.779
     },
@@ -1313,10 +1301,6 @@
     {
       "path": ".agents/scripts/lib/task-utils.js",
       "mi": 146.427
-    },
-    {
-      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "mi": 154.087
     },
     {
       "path": ".agents/scripts/lib/templates/task-body-renderer.js",
@@ -2125,10 +2109,6 @@
     {
       "path": "tests/epic-plan-spec-snapshot-fork.test.js",
       "mi": 107.32
-    },
-    {
-      "path": "tests/epic-planner.test.js",
-      "mi": 102.209
     },
     {
       "path": "tests/epic-runner/_build-ctx.js",
@@ -3187,10 +3167,6 @@
       "mi": 108.717
     },
     {
-      "path": "tests/lib/planning-state-manager.test.js",
-      "mi": 87.071
-    },
-    {
       "path": "tests/lib/presentation/manifest-builder.test.js",
       "mi": 98.574
     },
@@ -3619,16 +3595,8 @@
       "mi": 93.794
     },
     {
-      "path": "tests/scripts/epic-plan-emit-context-stdout-clean.test.js",
-      "mi": 106.737
-    },
-    {
       "path": "tests/scripts/epic-plan.edit-flow.test.js",
       "mi": 108.552
-    },
-    {
-      "path": "tests/scripts/epic-plan.spec-flow.test.js",
-      "mi": 86.091
     },
     {
       "path": "tests/scripts/epic-reconcile.bootstrap.test.js",
@@ -3763,10 +3731,6 @@
       "mi": 106.996
     },
     {
-      "path": "tests/skills/epic-plan-decompose-author.test.js",
-      "mi": 106.841
-    },
-    {
       "path": "tests/skills/epic-plan-spec-author.test.js",
       "mi": 105.588
     },
@@ -3861,10 +3825,6 @@
     {
       "path": "tests/test-wrapper-preflight.test.js",
       "mi": 110.176
-    },
-    {
-      "path": "tests/ticket-decomposer.test.js",
-      "mi": 97.766
     },
     {
       "path": "tests/ticket-validation.test.js",

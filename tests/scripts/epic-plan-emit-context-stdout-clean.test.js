@@ -27,7 +27,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
 
-import { drainPendingCleanupAtBoot } from '../../.agents/scripts/epic-plan-spec.js';
+import {
+  buildAuthoringContext,
+  drainPendingCleanupAtBoot,
+} from '../../.agents/scripts/epic-plan-spec.js';
 import {
   Logger,
   routeAllOutputToStderr,
@@ -238,6 +241,63 @@ describe('epic-plan --emit-context: stdout is reserved for JSON', () => {
       } finally {
         fs.rmSync(tmp, { recursive: true, force: true });
       }
+    });
+  });
+
+  // Story #2791 — Phase 7 emit-context must surface planningRisk inside the
+  // JSON envelope while keeping stdout reserved for JSON only.
+  describe('planningRisk envelope — Story #2791', () => {
+    const highRiskProvider = {
+      async getEpic(id) {
+        return {
+          id,
+          title: 'Adaptive Planning Gate Routing',
+          body: `## Scope
+
+Changes /epic-plan gate behavior and acceptance-spec creation for critical workflow orchestration.`,
+          labels: ['type::epic'],
+          linkedIssues: { prd: null, techSpec: null },
+        };
+      },
+    };
+
+    it('buildAuthoringContext attaches planningRisk for a high-risk Epic', async () => {
+      const ctx = await buildAuthoringContext(99, highRiskProvider, {});
+
+      assert.ok(
+        Object.hasOwn(ctx, 'planningRisk'),
+        'emit-context envelope must include planningRisk',
+      );
+      assert.equal(ctx.planningRisk.overallLevel, 'high');
+      assert.equal(ctx.planningRisk.gateDecision, 'review-required');
+      assert.ok(ctx.bddRunner);
+      assert.ok(ctx.memoryFreshness);
+      assert.ok(ctx.priorFeedback);
+    });
+
+    it('stdout JSON payload is parseable and carries planningRisk without logger text', async () => {
+      routeAllOutputToStderr();
+
+      const ctx = await buildAuthoringContext(99, highRiskProvider, {});
+      const json = `${JSON.stringify(ctx)}\n`;
+      const parsed = JSON.parse(json.trim());
+      assert.equal(parsed.planningRisk.gateDecision, 'review-required');
+      assert.equal(parsed.planningRisk.overallLevel, 'high');
+
+      const { stdout } = await captureIO(async () => {
+        process.stdout.write(json);
+      });
+
+      assert.doesNotMatch(
+        stdout,
+        /\[Orchestrator\]/,
+        'stdout must not contain routed Logger lines',
+      );
+      // node:test may append V8 binary IPC to the captured stdout buffer;
+      // assert the envelope fingerprint we wrote is present instead of
+      // parsing the whole capture.
+      assert.match(stdout, /"planningRisk"/);
+      assert.match(stdout, /"gateDecision":"review-required"/);
     });
   });
 

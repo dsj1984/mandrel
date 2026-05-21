@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-20T19:33:20.406Z",
+  "generatedAt": "2026-05-21T10:38:47.579Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -5256,42 +5256,6 @@
       "crap": 4.000812884214804
     },
     {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "assertProvider",
-      "startLine": 51,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "assertEpicId",
-      "startLine": 56,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "read",
-      "startLine": 69,
-      "crap": 3.0146549969468754
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "write",
-      "startLine": 92,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "initialize",
-      "startLine": 114,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/epic-plan-state-store.js",
-      "method": "setPhase",
-      "startLine": 141,
-      "crap": 2
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/epic-run-state-store.js",
       "method": "assertProvider",
       "startLine": 32,
@@ -9832,12 +9796,6 @@
       "method": "isBookendTask",
       "startLine": 22,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/templates/decomposer-prompts.js",
-      "method": "renderDecomposerSystemPrompt",
-      "startLine": 11,
-      "crap": 1
     },
     {
       "path": ".agents/scripts/lib/templates/task-body-renderer.js",
