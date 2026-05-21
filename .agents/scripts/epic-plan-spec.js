@@ -59,7 +59,11 @@ import { scanMemoryFreshness } from './lib/feedback-loop/memory-freshness.js';
 import { fetchPriorFeedback } from './lib/feedback-loop/prior-feedback-fetcher.js';
 import * as gitUtils from './lib/git-utils.js';
 import { Logger, routeAllOutputToStderr, STDERR_LOGGER } from './lib/Logger.js';
-import { AGENT_LABELS, TYPE_LABELS } from './lib/label-constants.js';
+import {
+  ACCEPTANCE_NA,
+  AGENT_LABELS,
+  TYPE_LABELS,
+} from './lib/label-constants.js';
 import { buildDocsContext } from './lib/orchestration/doc-reader.js';
 import {
   initialize as initializePlanState,
@@ -294,6 +298,40 @@ export function resolveMemoryDir({ github } = {}) {
 }
 
 /**
+ * Resolve whether Phase 7 should persist an acceptance-spec ticket or apply
+ * the existing `acceptance::n-a` waiver from {@link classifyPlanningRisk}.
+ *
+ * @param {{ title?: string, body?: string, labels?: string[] }} epic
+ * @param {string|null} acceptanceSpecContent
+ * @returns {{ planningRisk: import('./lib/orchestration/planning-risk.js').PlanningRiskEnvelope, wantsAcceptanceSpec: boolean, applyAcceptanceWaiver: boolean }}
+ */
+export function resolveAcceptancePersistence(epic, acceptanceSpecContent) {
+  const planningRisk = classifyPlanningRisk({
+    title: epic.title,
+    body: epic.body ?? '',
+    labels: epic.labels ?? [],
+  });
+
+  const hasAcceptanceContent =
+    typeof acceptanceSpecContent === 'string' &&
+    acceptanceSpecContent.trim() !== '';
+
+  if (planningRisk.acceptanceDisposition === 'not-applicable') {
+    return {
+      planningRisk,
+      wantsAcceptanceSpec: false,
+      applyAcceptanceWaiver: true,
+    };
+  }
+
+  return {
+    planningRisk,
+    wantsAcceptanceSpec: hasAcceptanceContent,
+    applyAcceptanceWaiver: false,
+  };
+}
+
+/**
  * Persist the host-authored PRD and Tech Spec under the Epic.
  *
  * Heals any prior planning artifacts (PRD / Tech Spec issues, "Planning
@@ -339,8 +377,19 @@ export async function planEpic(
   const stateManager = new PlanningStateManager(provider);
   await stateManager.healAndCleanupArtifacts(epic, force);
 
+  const { planningRisk, wantsAcceptanceSpec, applyAcceptanceWaiver } =
+    resolveAcceptancePersistence(epic, acceptanceSpecContent);
+
+  Logger.info(
+    `[Epic Planner] Acceptance disposition: ${planningRisk.acceptanceDisposition}` +
+      (applyAcceptanceWaiver
+        ? ` — applying ${ACCEPTANCE_NA} waiver (no acceptance-spec ticket).`
+        : wantsAcceptanceSpec
+          ? ' — persisting context::acceptance-spec.'
+          : ' — no acceptance-spec content supplied.'),
+  );
+
   // M-8: Resumable planning — if all artifacts exist, abort to prevent dupes.
-  const wantsAcceptanceSpec = acceptanceSpecContent !== null;
   const hasPrd = Boolean(epic.linkedIssues?.prd);
   const hasTechSpec = Boolean(epic.linkedIssues?.techSpec);
   const hasAcceptanceSpec = Boolean(epic.linkedIssues?.acceptanceSpec);
@@ -445,8 +494,22 @@ export async function planEpic(
   const appendBody = `\n\n## Planning Artifacts\n${artifactLines.join('\n')}\n`;
   const newBody = epic.body + appendBody;
 
+  /** @type {{ add?: string[], remove?: string[] }} */
+  const labelMutations = {};
+  if (applyAcceptanceWaiver) {
+    labelMutations.add = [ACCEPTANCE_NA];
+  } else if (
+    wantsAcceptanceSpec &&
+    (epic.labels ?? []).includes(ACCEPTANCE_NA)
+  ) {
+    labelMutations.remove = [ACCEPTANCE_NA];
+  }
+
   await provider.updateTicket(epicId, {
     body: newBody,
+    ...(labelMutations.add || labelMutations.remove
+      ? { labels: labelMutations }
+      : {}),
   });
 
   Logger.info(`[Epic Planner] Epic #${epicId} updated successfully.`);
