@@ -13,8 +13,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  DEFAULT_PROVIDER_NAME,
   createReviewProvider,
+  DEFAULT_PROVIDER_NAME,
   listRegisteredProviders,
 } from '../../../../.agents/scripts/lib/orchestration/review-providers/review-provider-factory.js';
 

@@ -708,7 +708,9 @@ describe('AGENTRC_SCHEMA — delivery.codeReview.provider (Story #2825)', () => 
       validate({
         ...REQ,
         delivery: {
-          codeReview: { providerConfig: { anyAdapterKey: 'value', nested: { a: 1 } } },
+          codeReview: {
+            providerConfig: { anyAdapterKey: 'value', nested: { a: 1 } },
+          },
         },
       }),
       true,

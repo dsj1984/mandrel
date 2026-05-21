@@ -52,7 +52,10 @@ test('renderFinding: includes file:line attribution and category', () => {
     line: 42,
     category: 'security',
   });
-  assert.match(out, /^#### 🟠 Missing null check — `src\/foo\.js:42` _\[security\]_/);
+  assert.match(
+    out,
+    /^#### 🟠 Missing null check — `src\/foo\.js:42` _\[security\]_/,
+  );
   assert.match(out, /Guard the `user` lookup\./);
 });
 
