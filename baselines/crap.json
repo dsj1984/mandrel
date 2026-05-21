@@ -1,13 +1,13 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T15:25:18.594Z",
+  "generatedAt": "2026-05-21T16:51:28.188Z",
   "rollup": {
     "*": {
       "p50": 3,
       "p95": 12,
       "max": 52.501371135067686,
-      "methodsAbove20": 25
+      "methodsAbove20": 24
     }
   },
   "rows": [
@@ -13666,96 +13666,6 @@
       "method": "<anon method-3>",
       "startLine": 299,
       "crap": 2.5
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "resolveFlag",
-      "startLine": 79,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "parseCloseOptions",
-      "startLine": 91,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "runSingleStoryClose",
-      "startLine": 123,
-      "crap": 21.331329827197596
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-1>",
-      "startLine": 201,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-2>",
-      "startLine": 250,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-3>",
-      "startLine": 362,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-4>",
-      "startLine": 363,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-5>",
-      "startLine": 364,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "<anon method-6>",
-      "startLine": 381,
-      "crap": 1
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "ensurePullRequest",
-      "startLine": 414,
-      "crap": 3
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "parsePrNumber",
-      "startLine": 496,
-      "crap": 5
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "enableAutoMerge",
-      "startLine": 516,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "defaultGhAutoMergeRunner",
-      "startLine": 540,
-      "crap": 2
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "handleSyncFailure",
-      "startLine": 571,
-      "crap": 1.0000117392937642
-    },
-    {
-      "path": ".agents/scripts/single-story-close.js",
-      "method": "buildSyncFailureCommentBody",
-      "startLine": 623,
-      "crap": 5
     },
     {
       "path": ".agents/scripts/single-story-plan.js",
