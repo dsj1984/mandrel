@@ -77,6 +77,31 @@ function compareScores(scores, baseline, tolerance) {
   return { regressions, newFiles, improvements, regressedFiles };
 }
 
+/**
+ * Narrow a CRAP baseline to the rows whose file path is in `scopeSet`,
+ * or return all rows when no diff-scope filter is active.
+ *
+ * @param {{ rows: object[] }} baseline
+ * @param {Set<string>|null|undefined} scopeSet
+ * @returns {object[]}
+ */
+function resolveBaselineRows(baseline, scopeSet) {
+  return scopeSet
+    ? filterRowsByFileScope(baseline.rows, scopeSet)
+    : baseline.rows;
+}
+
+/**
+ * Return true when the CRAP compare result contains regressions or new
+ * violations — i.e. when the preview gate should exit non-zero.
+ *
+ * @param {{ regressions: number, newViolations: number }} result
+ * @returns {boolean}
+ */
+function hasCrapRegressions(result) {
+  return result.regressions > 0 || result.newViolations > 0;
+}
+
 function applyDiffScopeMi({ files, baseline, scopeSet, cwd }) {
   if (!scopeSet) {
     return { scopedFiles: files, scopedBaseline: baseline ?? {} };
@@ -210,9 +235,7 @@ export async function runCrapPreview({
     cwd,
     scopeFiles: scopeSet,
   });
-  const baselineRows = scopeSet
-    ? filterRowsByFileScope(baseline.rows, scopeSet)
-    : baseline.rows;
+  const baselineRows = resolveBaselineRows(baseline, scopeSet);
   const result = compareCrap({
     currentRows: scan.rows,
     baselineRows,
@@ -230,6 +253,6 @@ export async function runCrapPreview({
       diffRef,
     },
   });
-  const exitCode = result.regressions > 0 || result.newViolations > 0 ? 1 : 0;
+  const exitCode = hasCrapRegressions(result) ? 1 : 0;
   return { exitCode, envelope };
 }

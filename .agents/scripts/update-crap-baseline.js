@@ -49,14 +49,13 @@ function parseCliArgs(argv = process.argv.slice(2)) {
 
 async function main() {
   const args = parseCliArgs();
-  const { agentSettings } = resolveConfig();
-  const crap = getQuality({ agentSettings }).crap;
+  const config = resolveConfig();
+  const crap = getQuality(config).crap;
   const targetDirs = Array.isArray(crap.targetDirs) ? crap.targetDirs : [];
   const requireCoverage = crap.requireCoverage !== false;
   const coveragePath =
     args.coveragePath ?? crap.coveragePath ?? 'coverage/coverage-final.json';
-  const baselinePath =
-    args.baselinePath ?? getBaselines({ agentSettings }).crap.path;
+  const baselinePath = args.baselinePath ?? getBaselines(config).crap.path;
 
   Logger.info('[CRAP] Updating baseline...');
   Logger.info(`[CRAP] Target dirs: ${targetDirs.join(', ')}`);
@@ -104,7 +103,7 @@ async function main() {
   const scopeArgs = buildWriterScopeArgs({
     kind: 'crap',
     absBaselinePath,
-    epsilon: getBaselineEpsilon('crap', { agentSettings }),
+    epsilon: getBaselineEpsilon('crap', config),
     logger: Logger,
     logTag: '[CRAP]',
   });

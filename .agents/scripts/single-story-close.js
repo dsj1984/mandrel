@@ -66,6 +66,66 @@ import { WorktreeManager } from './lib/worktree-manager.js';
 const progress = Logger.createProgress('single-story-close', { stderr: true });
 
 /**
+ * Resolve a flag value from an explicit override, a parsed CLI arg, or a
+ * hard default. Extracted to reduce cyclomatic complexity in the main
+ * function; each `??` operator is a counted branch in escomplex.
+ *
+ * @template T
+ * @param {T|undefined} paramValue
+ * @param {T|undefined} parsedValue
+ * @param {T} defaultValue
+ * @returns {T}
+ */
+function resolveFlag(paramValue, parsedValue, defaultValue) {
+  return paramValue ?? parsedValue ?? defaultValue;
+}
+
+/**
+ * Parse and resolve all CLI / injection options for `runSingleStoryClose`.
+ * Handles the conditional param-vs-CLI branch and all flag defaults in one
+ * place so the main function body stays focused on orchestration logic.
+ *
+ * @param {{ storyIdParam, cwdParam, skipValidationParam, skipSyncParam, noAutoMergeParam, noFullScopeCrapParam }} raw
+ * @returns {{ storyId, cwd, skipValidation, skipSync, noAutoMerge, noFullScopeCrap }}
+ */
+function parseCloseOptions({
+  storyIdParam,
+  cwdParam,
+  skipValidationParam,
+  skipSyncParam,
+  noAutoMergeParam,
+  noFullScopeCrapParam,
+}) {
+  const parsed =
+    storyIdParam !== undefined
+      ? {
+          storyId: storyIdParam,
+          cwd: cwdParam ?? null,
+          skipValidation: !!skipValidationParam,
+          skipSync: !!skipSyncParam,
+          noAutoMerge: !!noAutoMergeParam,
+          noFullScopeCrap: !!noFullScopeCrapParam,
+        }
+      : parseSprintArgs();
+  return {
+    storyId: parsed.storyId,
+    cwd: path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT),
+    skipValidation: resolveFlag(
+      skipValidationParam,
+      parsed.skipValidation,
+      false,
+    ),
+    skipSync: resolveFlag(skipSyncParam, parsed.skipSync, false),
+    noAutoMerge: resolveFlag(noAutoMergeParam, parsed.noAutoMerge, false),
+    noFullScopeCrap: resolveFlag(
+      noFullScopeCrapParam,
+      parsed.noFullScopeCrap,
+      false,
+    ),
+  };
+}
+
+/**
  * Close a standalone Story. Exported for testing.
  */
 export async function runSingleStoryClose({
@@ -80,24 +140,21 @@ export async function runSingleStoryClose({
   injectedNotify,
   injectedSync,
 } = {}) {
-  const parsed =
-    storyIdParam !== undefined
-      ? {
-          storyId: storyIdParam,
-          cwd: cwdParam ?? null,
-          skipValidation: !!skipValidationParam,
-          skipSync: !!skipSyncParam,
-          noAutoMerge: !!noAutoMergeParam,
-          noFullScopeCrap: !!noFullScopeCrapParam,
-        }
-      : parseSprintArgs();
-  const { storyId } = parsed;
-  const skipValidation = skipValidationParam ?? parsed.skipValidation ?? false;
-  const skipSync = skipSyncParam ?? parsed.skipSync ?? false;
-  const noAutoMerge = noAutoMergeParam ?? parsed.noAutoMerge ?? false;
-  const noFullScopeCrap =
-    noFullScopeCrapParam ?? parsed.noFullScopeCrap ?? false;
-  const cwd = path.resolve(cwdParam ?? parsed.cwd ?? PROJECT_ROOT);
+  const {
+    storyId,
+    cwd,
+    skipValidation,
+    skipSync,
+    noAutoMerge,
+    noFullScopeCrap,
+  } = parseCloseOptions({
+    storyIdParam,
+    cwdParam,
+    skipValidationParam,
+    skipSyncParam,
+    noAutoMergeParam,
+    noFullScopeCrapParam,
+  });
 
   if (!storyId) {
     throw new Error(
