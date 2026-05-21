@@ -9,8 +9,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { runCodeReview } from '../../../.agents/scripts/lib/orchestration/code-review.js';
 

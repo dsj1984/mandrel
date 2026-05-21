@@ -2,7 +2,7 @@
  * review-providers/native.js — Native (in-process) ReviewProvider adapter.
  *
  * Story #2833 (Epic #2815) — extracts the findings-collection logic that
- * previously lived in `.agents/scripts/epic-code-review.js` into a
+ * previously lived in the retired `.agents/scripts/epic-code-review` CLI into a
  * `ReviewProvider`-shaped adapter. The adapter:
  *
  *   1. Diffs `headRef` against `baseRef` to enumerate changed files.
@@ -338,7 +338,7 @@ export function buildLintFindings(lintSummary) {
   return findings;
 }
 
-function emptyResults() {
+function _emptyResults() {
   return {
     totalFiles: 0,
     jsFiles: 0,
@@ -433,7 +433,9 @@ async function runLintPhase({
   logger,
 }) {
   if (scopeLint === 'off') {
-    logger?.info?.('[native-review] Lint scoped off (scopeLint=off); skipping.');
+    logger?.info?.(
+      '[native-review] Lint scoped off (scopeLint=off); skipping.',
+    );
     return {
       errors: 0,
       warnings: 0,

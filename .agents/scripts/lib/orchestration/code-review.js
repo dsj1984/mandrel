@@ -146,7 +146,10 @@ export async function runCodeReview(opts = {}) {
       injectedReviewProvider ?? createReviewProviderFn(codeReviewConfig);
 
     const resolvedBaseRef =
-      baseBranch ?? config?.project?.baseBranch ?? config?.agentSettings?.baseBranch ?? 'main';
+      baseBranch ??
+      config?.project?.baseBranch ??
+      config?.agentSettings?.baseBranch ??
+      'main';
     const headRef = `epic/${epicId}`;
 
     logger?.info?.(

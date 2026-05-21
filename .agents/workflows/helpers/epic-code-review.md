@@ -36,14 +36,12 @@ every sprint must pass a code review before closure.
 
 ## Step 1 — Automated Audit (Pre-Review)
 
-Run the automated code review script to perform a quick maintainability and lint
-sweep of the changes:
-
-```powershell
-node .agents/scripts/epic-code-review.js --epic [EPIC_ID]
-```
-
-This script will:
+The `/epic-deliver` runner invokes the in-process code-review pipeline
+(`runCodeReview` in `.agents/scripts/lib/orchestration/code-review.js`)
+during Phase D; the retired `.agents/scripts/epic-code-review` CLI has
+been replaced by that module + the pluggable `ReviewProvider` adapter
+chain (Epic #2815). Operators no longer invoke a separate script — the
+phase fires automatically. The pipeline will:
 
 - Generate a `git diff` against `main`.
 - Calculate maintainability scores for all new/modified files.
@@ -117,7 +115,7 @@ prior baseline before merging.
 ## Step 4 — Produce Findings Report
 
 Findings are **persisted as a `code-review` structured comment on the Epic
-issue** by `epic-code-review.js` (v5.9.0+). The comment is idempotent —
+issue** by `runCodeReview` (Phase D of `/epic-deliver`). The comment is idempotent —
 re-runs replace the prior one — and its body includes severity-tier counts plus
 the full findings list so downstream workflows (notably the retro helper) can
 summarise blockers/high findings without re-running the review.
@@ -175,7 +173,7 @@ const { fixed, escalated } = await runAutoFixLoop({
   scopeCap: cfg.delivery?.codeReview?.maxFixScopeFiles ?? 5,
   classify, // returns 'spec-deviation' | 'secrets' | … | 'fixable'
   applyFix, // assert-branch + edit + focused commit on [EPIC_BRANCH]
-  rescan, // re-run epic-code-review.js or targeted diff scan
+  rescan, // re-run runCodeReview or a targeted diff scan
   validate, // npm run lint + npm test
 });
 ```
