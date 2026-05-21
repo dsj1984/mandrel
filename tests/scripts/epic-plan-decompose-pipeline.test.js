@@ -23,6 +23,8 @@ import {
   runDecomposePhase,
 } from '../../.agents/scripts/epic-plan-decompose.js';
 import { warnTicketCapNearLimit } from '../../.agents/scripts/lib/orchestration/epic-plan-decompose/phases/creation.js';
+import { EPIC_PLAN_STATE_TYPE } from '../../.agents/scripts/lib/orchestration/epic-plan-state-store.js';
+import { structuredCommentMarker } from '../../.agents/scripts/lib/orchestration/ticketing.js';
 
 describe('epic-plan-decompose pipeline — named exports (Story #2466)', () => {
   it('re-exports the legacy named surface', () => {
@@ -266,5 +268,228 @@ describe('epic-plan-decompose pipeline — resolveDependencies (Story #2466)', (
         ),
       /unresolved slug "missing"/,
     );
+  });
+});
+
+describe('epic-plan-decompose pipeline — buildDecompositionContext planning risk (Story #2801)', () => {
+  // Story #2801 — the decomposition context must surface the
+  // `planningRisk` decision computed during Phase 7 so the Phase 8
+  // authoring step can cite the same risk classification used by gate
+  // routing. The decision is persisted in the `epic-plan-state`
+  // structured comment on the Epic and is read through the standard
+  // provider boundary (`getTicketComments`).
+  //
+  // Tests use small, opaque-but-realistic risk and routing envelopes;
+  // the contract is "round-trips through the context without
+  // re-shaping", not "classifier output matches an oracle".
+
+  const EPIC_ID = 7400;
+  const PRD_ID = 7401;
+  const TECH_SPEC_ID = 7402;
+
+  const PRD_BODY = '# PRD\n\nSome PRD prose for #7400.\n';
+  const TECH_SPEC_BODY = '# Tech Spec\n\nSome Tech Spec prose for #7400.\n';
+
+  const RISK_ENVELOPE = {
+    axes: [
+      {
+        axis: 'critical-workflow',
+        level: 'high',
+        evidence: 'Touches /epic-plan gate routing.',
+      },
+    ],
+    overallLevel: 'high',
+    requiresReview: true,
+    acceptanceDisposition: 'required',
+    gateDecision: 'review-required',
+  };
+
+  const ROUTING_ENVELOPE = {
+    decision: 'review-required',
+    requiresStop: true,
+    forceReviewApplied: false,
+  };
+
+  function planStateCommentBody(state) {
+    const marker = structuredCommentMarker(EPIC_PLAN_STATE_TYPE);
+    const payload = {
+      version: 1,
+      epicId: EPIC_ID,
+      phase: 'review-spec',
+      ...state,
+    };
+    return `${marker}\n\n\`\`\`json\n${JSON.stringify(payload, null, 2)}\n\`\`\``;
+  }
+
+  function buildProvider({ planStateBody = null } = {}) {
+    const epic = {
+      id: EPIC_ID,
+      title: 'Adaptive planning',
+      body: '## Epic body\n',
+      labels: ['type::epic'],
+      linkedIssues: { prd: PRD_ID, techSpec: TECH_SPEC_ID },
+    };
+    const tickets = new Map([
+      [EPIC_ID, epic],
+      [PRD_ID, { id: PRD_ID, body: PRD_BODY }],
+      [TECH_SPEC_ID, { id: TECH_SPEC_ID, body: TECH_SPEC_BODY }],
+    ]);
+    const comments = new Map();
+    if (planStateBody) {
+      comments.set(EPIC_ID, [{ id: 1, body: planStateBody }]);
+    }
+    return {
+      async getEpic(id) {
+        return tickets.get(id);
+      },
+      async getTicket(id) {
+        return tickets.get(id);
+      },
+      async getTicketComments(id) {
+        return comments.get(id) ?? [];
+      },
+    };
+  }
+
+  it('surfaces the planningRisk envelope from the epic-plan-state comment', async () => {
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.deepEqual(ctx.planningRisk, RISK_ENVELOPE);
+  });
+
+  it('surfaces the reviewRouting envelope from the epic-plan-state comment', async () => {
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.deepEqual(ctx.reviewRouting, ROUTING_ENVELOPE);
+  });
+
+  it('exposes null planningRisk when the Epic has no epic-plan-state comment (older plans)', async () => {
+    // Documented null-state for Epics planned before Story #2801 landed.
+    const provider = buildProvider({ planStateBody: null });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.equal(
+      ctx.planningRisk,
+      null,
+      'planningRisk must be exposed as explicit null, not undefined or omitted',
+    );
+    assert.equal(
+      ctx.reviewRouting,
+      null,
+      'reviewRouting must be exposed as explicit null when the comment is absent',
+    );
+  });
+
+  it('exposes null planningRisk when the comment exists but lacks the field (forward-compat)', async () => {
+    // Older `epic-plan-state` payloads may exist without the risk field.
+    // The decomposer must not crash and must surface a null sentinel.
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        spec: { prdId: PRD_ID, techSpecId: TECH_SPEC_ID },
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.equal(ctx.planningRisk, null);
+    assert.equal(ctx.reviewRouting, null);
+  });
+
+  it('preserves existing PRD and Tech Spec body behavior (AC #2)', async () => {
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    assert.equal(ctx.prd.id, PRD_ID);
+    assert.equal(ctx.techSpec.id, TECH_SPEC_ID);
+    // In default (budgeted) mode the body slot is null and a summary
+    // is provided; in `fullContext: true` mode the verbatim body is
+    // restored. Both behaviors are preserved by Story #2801.
+    assert.ok('body' in ctx.prd && 'body' in ctx.techSpec);
+    const fullCtx = await buildDecompositionContext(
+      EPIC_ID,
+      provider,
+      { planning: { maxTickets: 60 } },
+      { fullContext: true },
+    );
+    assert.equal(fullCtx.prd.body, PRD_BODY);
+    assert.equal(fullCtx.techSpec.body, TECH_SPEC_BODY);
+  });
+
+  it('preserves the resolved maxTickets reviewability budget (AC #3)', async () => {
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 42 },
+    });
+    assert.equal(ctx.maxTickets, 42);
+  });
+
+  it('does not remove or rename existing context fields (Tech Spec AC)', async () => {
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    for (const key of [
+      'epic',
+      'prd',
+      'techSpec',
+      'heuristics',
+      'systemPrompt',
+      'maxTickets',
+      'contextMode',
+    ]) {
+      assert.ok(key in ctx, `legacy context field "${key}" must remain present`);
+    }
+  });
+
+  it('emits a context that round-trips through JSON.stringify in both modes', async () => {
+    // Tech Spec AC: "context remains valid JSON for compact and pretty
+    // emit modes." Cycle-free JSON output is the practical contract.
+    const provider = buildProvider({
+      planStateBody: planStateCommentBody({
+        planningRisk: RISK_ENVELOPE,
+        reviewRouting: ROUTING_ENVELOPE,
+      }),
+    });
+    const ctx = await buildDecompositionContext(EPIC_ID, provider, {
+      planning: { maxTickets: 60 },
+    });
+    const compact = JSON.stringify(ctx);
+    const pretty = JSON.stringify(ctx, null, 2);
+    assert.ok(compact.length > 0);
+    assert.ok(pretty.length > compact.length);
+    const reparsed = JSON.parse(compact);
+    assert.deepEqual(reparsed.planningRisk, RISK_ENVELOPE);
+    assert.deepEqual(reparsed.reviewRouting, ROUTING_ENVELOPE);
   });
 });
