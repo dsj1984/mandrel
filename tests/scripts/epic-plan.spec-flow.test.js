@@ -29,9 +29,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import yaml from 'js-yaml';
-
-import { classifyPlanningRisk } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
-import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
 import { runDecomposePhase } from '../../.agents/scripts/epic-plan-decompose.js';
 import {
   planEpic,
@@ -43,6 +40,8 @@ import {
   runReconcile,
 } from '../../.agents/scripts/epic-reconcile.js';
 import { ACCEPTANCE_NA } from '../../.agents/scripts/lib/label-constants.js';
+import { resolveReviewRouting } from '../../.agents/scripts/lib/orchestration/plan-review-routing.js';
+import { classifyPlanningRisk } from '../../.agents/scripts/lib/orchestration/planning-risk.js';
 import { PlanningStateManager } from '../../.agents/scripts/lib/orchestration/planning-state-manager.js';
 import {
   loadSpec,

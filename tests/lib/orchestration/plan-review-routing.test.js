@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { classifyPlanningRisk } from '../../../.agents/scripts/lib/orchestration/planning-risk.js';
 import { resolveReviewRouting } from '../../../.agents/scripts/lib/orchestration/plan-review-routing.js';
+import { classifyPlanningRisk } from '../../../.agents/scripts/lib/orchestration/planning-risk.js';
 
 describe('resolveReviewRouting — Story #2795', () => {
   it('requires stop for high-risk planning', () => {

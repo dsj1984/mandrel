@@ -72,12 +72,13 @@ import {
   setPhase as setPlanPhase,
   write as writePlanState,
 } from './lib/orchestration/epic-plan-state-store.js';
+import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 import { sweepStaleStoryWorktrees } from './lib/orchestration/plan-runner/worktree-sweep.js';
 import { applyBudget } from './lib/orchestration/planning-context-budget.js';
-import { resolveReviewRouting } from './lib/orchestration/plan-review-routing.js';
 import { classifyPlanningRisk } from './lib/orchestration/planning-risk.js';
 
 export { resolveReviewRouting };
+
 import { PlanningStateManager } from './lib/orchestration/planning-state-manager.js';
 import {
   renderSpecFreshnessComment,
