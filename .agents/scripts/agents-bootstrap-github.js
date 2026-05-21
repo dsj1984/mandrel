@@ -25,6 +25,12 @@ import {
 } from './lib/bootstrap/ci-workflow-template.js';
 import { confirm as defaultHitlConfirm } from './lib/bootstrap/hitl-confirm.js';
 import { applyMergeMethods } from './lib/bootstrap/merge-methods.js';
+import {
+  auditProjectWorkflows,
+  formatAuditSummary,
+  reapConflictingWorkflows,
+  resolveProjectIdByNumber,
+} from './lib/bootstrap/workflow-audit.js';
 import { runAsCli } from './lib/cli-utils.js';
 import {
   GhAuthError,
@@ -360,6 +366,79 @@ async function ensureViews(provider, log) {
   }
 }
 
+/**
+ * Audit the project's built-in workflows and, when explicitly opted-in
+ * via `--reap-conflicting-workflows`, delete the ones that race against
+ * the orchestrator's `ColumnSync` writes. Default behaviour is
+ * advisory: warn loudly with the operator-driven remediation hint, do
+ * not mutate. Story #2845.
+ *
+ * Returns a structured envelope the bootstrap summary renders, even
+ * when the audit was skipped (no projectId) so callers don't need a
+ * separate "did this run" guard.
+ *
+ * @param {object} provider
+ * @param {number} projectNumber
+ * @param {boolean} reap
+ * @param {(line: string) => void} log
+ */
+async function auditAndOptionallyReapWorkflows(
+  provider,
+  projectNumber,
+  reap,
+  log,
+) {
+  let projectId = null;
+  try {
+    projectId = await resolveProjectIdByNumber({ provider, projectNumber });
+  } catch (err) {
+    log(
+      `[bootstrap] Workflow audit: could not resolve project id — ${err.message}.`,
+    );
+    return { skipped: true, reason: 'project-id-unresolved' };
+  }
+  if (!projectId) {
+    log(
+      `[bootstrap] Workflow audit: project #${projectNumber} not visible to viewer — skipping.`,
+    );
+    return { skipped: true, reason: 'project-not-visible' };
+  }
+  let audit;
+  try {
+    audit = await auditProjectWorkflows({ provider, projectId });
+  } catch (err) {
+    log(`[bootstrap] Workflow audit failed: ${err.message} — skipping.`);
+    return { skipped: true, reason: 'audit-failed', error: err.message };
+  }
+  log(`[bootstrap] Workflow audit — ${formatAuditSummary(audit)}.`);
+  if (audit.conflicting.length === 0) {
+    return { audit, reaped: [], action: 'no-conflicts' };
+  }
+  const names = audit.conflicting.map((w) => w.name).join(', ');
+  if (!reap) {
+    log(
+      `[bootstrap] ⚠️ Conflicting workflows enabled: ${names}. ` +
+        `These race against the orchestrator's ColumnSync writes and ` +
+        `typically leave closed Stories stuck at "In Progress" on the ` +
+        `board (see Story #2813 for the reproduction). Remediation: ` +
+        `(a) re-run with --reap-conflicting-workflows to delete them, ` +
+        `or (b) toggle them off in the GitHub UI under ` +
+        `Project → Workflows. The orchestrator's post-merge ` +
+        `resync-status-column.js CLI defends against both unless you ` +
+        `also disable that step.`,
+    );
+    return { audit, reaped: [], action: 'warn-only' };
+  }
+  log(
+    `[bootstrap] Reaping ${audit.conflicting.length} conflicting workflow(s): ${names}...`,
+  );
+  const { reaped } = await reapConflictingWorkflows({ provider, audit });
+  log(
+    `[bootstrap] ✅ Deleted ${reaped.length} workflow(s): ${reaped.map((r) => r.name).join(', ')}.`,
+  );
+  return { audit, reaped, action: 'reaped' };
+}
+
 async function ensureProjectFields(provider, project, log) {
   log(
     `[bootstrap] Ensuring ${PROJECT_FIELD_DEFS.length} project fields on project #${project.projectNumber}...`,
@@ -514,6 +593,22 @@ export async function runBootstrap(orchestration, opts = {}) {
     log('[bootstrap] No active project — skipping legacy project-field setup.');
   }
 
+  // Story #2845 — audit project workflows for the ones that race against
+  // the orchestrator's ColumnSync writes (notably `Pull request merged`
+  // and `Pull request linked to issue`, which both rewrite Status as a
+  // side-effect of auto-merge). When `--reap-conflicting-workflows` is
+  // set, also delete the offenders via `deleteProjectV2Workflow` (the
+  // only programmatic action GraphQL exposes today — `enabled` is
+  // read-only).
+  const workflowAudit = projectReady
+    ? await auditAndOptionallyReapWorkflows(
+        provider,
+        project.projectNumber,
+        opts.reapConflictingWorkflows === true,
+        log,
+      )
+    : { skipped: true, reason: 'no-project' };
+
   // Consumer-facing bootstrap promotes the framework's CI-gates-only
   // stance: branch protection with enforce_admins + 0-approval-count and
   // the squash-only merge-method allowlist. Behavior-shifting drift on
@@ -562,6 +657,7 @@ export async function runBootstrap(orchestration, opts = {}) {
     project,
     statusField,
     views,
+    workflowAudit,
     branchProtection,
     mergeMethods,
   };
@@ -591,6 +687,16 @@ function formatBranchProtectionSummary(bp) {
   return bp.status;
 }
 
+function formatWorkflowAuditSummary(wa) {
+  if (!wa) return 'not-run';
+  if (wa.skipped) return `skipped (${wa.reason})`;
+  if (wa.action === 'no-conflicts') return 'no conflicting workflows';
+  if (wa.action === 'warn-only')
+    return `warned (${wa.audit.conflicting.length} conflicting; pass --reap-conflicting-workflows to delete)`;
+  if (wa.action === 'reaped') return `reaped ${wa.reaped.length} workflow(s)`;
+  return wa.action ?? 'unknown';
+}
+
 function formatMergeMethodsSummary(mm) {
   if (!mm) return 'not-run';
   if (mm.status === 'unchanged') return 'unchanged (already at target stance)';
@@ -614,6 +720,9 @@ function printSummary(result) {
     : '';
   Logger.info(
     `Views — created: ${result.views.created.length}, skipped: ${result.views.skipped.length}${unavailableSuffix}`,
+  );
+  Logger.info(
+    `Workflow audit: ${formatWorkflowAuditSummary(result.workflowAudit)}`,
   );
   Logger.info(
     `Branch protection: ${formatBranchProtectionSummary(result.branchProtection)}`,
@@ -684,6 +793,13 @@ async function main() {
   // these flags are the documented escape hatches.
   const assumeYes = process.argv.includes('--assume-yes');
   const assumeNo = process.argv.includes('--assume-no');
+  // Story #2845 — opt-in destructive flag. When set, the workflow-audit
+  // step calls `deleteProjectV2Workflow` for every conflicting built-in
+  // (e.g. "Pull request merged", "Pull request linked to issue"). Default
+  // is warn-only because the GraphQL mutation is irreversible.
+  const reapConflictingWorkflows = process.argv.includes(
+    '--reap-conflicting-workflows',
+  );
 
   try {
     const result = await runBootstrap(config.orchestration, {
@@ -694,6 +810,7 @@ async function main() {
       agentSettings: config.agentSettings,
       assumeYes,
       assumeNo,
+      reapConflictingWorkflows,
     });
     printSummary(result);
   } catch (err) {

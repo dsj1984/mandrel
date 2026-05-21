@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed — Story #2845: own Projects v2 Status column (audit + post-merge re-sync)
+
+The orchestrator's `ColumnSync` writes Status at `transitionTicketState`
+time, but GitHub's built-in `Pull request merged` / `Pull request linked
+to issue` workflows fire minutes after auto-merge and overwrite Status —
+typically leaving closed Stories stuck at `In Progress` on the board
+(reproduced on Story #2813). This change closes the race on both axes.
+Closes #2845.
+
+- **Bootstrap workflow audit.** `agents-bootstrap-github.js` now audits
+  `projectV2.workflows` after project provisioning and surfaces a
+  warning for any enabled workflow in
+  `lib/bootstrap/workflow-audit.js#CONFLICTING_WORKFLOWS`. The warning
+  names the offenders and points operators at the two remediation paths.
+- **Opt-in destructive cleanup.** Passing
+  `--reap-conflicting-workflows` to `agents-bootstrap-github.js`
+  calls `deleteProjectV2Workflow` for each conflicting entry
+  (fail-fast on the first mutation error; the GraphQL API has no
+  toggle mutation — `ProjectV2Workflow.enabled` is read-only).
+- **Post-merge re-assert CLI.** New
+  `.agents/scripts/resync-status-column.js` re-fires `ColumnSync`
+  against the orchestrator's view of the Status column. The
+  `/single-story-deliver` workflow doc invokes it as Step 5.5 after
+  merge confirmation so the orchestrator wins the race even when the
+  bot workflows stay enabled. Shared via the new
+  `lib/orchestration/reassert-status-column.js` helper.
+
 ### Added — Story #2813: per-Task model-attribution structured comments + rollup
 
 Each Task ticket now receives a `model-attribution` structured comment when it
