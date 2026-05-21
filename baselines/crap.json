@@ -1,7 +1,7 @@
 {
   "$schema": ".agents/schemas/baselines/crap.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T13:14:44.043Z",
+  "generatedAt": "2026-05-21T14:31:34.141Z",
   "rollup": {
     "*": {
       "p50": 3,
@@ -850,12 +850,6 @@
       "method": "aggregateBaselineDelta",
       "startLine": 121,
       "crap": 4
-    },
-    {
-      "path": ".agents/scripts/lib/audit-suite/frontmatter-lint.js",
-      "method": "validateFrontmatter",
-      "startLine": 27,
-      "crap": 2
     },
     {
       "path": ".agents/scripts/lib/audit-suite/frontmatter.js",
