@@ -587,14 +587,8 @@
     },
     "hydration": {
       "type": "object",
-      "description": "Context hydrator output mode (Epic #2648). prose-legacy delegates to context-hydration-engine.legacy.js for one release; remove hydration.outputMode and the legacy module together in the cutover PR.",
+      "description": "Context hydrator settings (Epic #2648). The envelope-first pipeline is the only supported output shape; this object now only carries the skill-body opt-in.",
       "properties": {
-        "outputMode": {
-          "type": "string",
-          "enum": ["envelope", "prose-legacy"],
-          "default": "envelope",
-          "description": "envelope: typed ContextEnvelope pipeline (default). prose-legacy: frozen pre-Epic prose hydrator — one-release sunset."
-        },
         "fullSkillBodies": {
           "type": "boolean",
           "default": false,
