@@ -71,7 +71,7 @@ export function kernelVersion() {
 
 export function projectRow(row) {
   return {
-    path: canonicalise(row.path),
+    path: canonicalise(row.path ?? row.file),
     method: row.method,
     startLine: row.startLine,
     crap: row.crap,
