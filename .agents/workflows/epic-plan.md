@@ -343,7 +343,7 @@ for the scoring logic.
        PRD, Tech Spec, and Acceptance Spec on GitHub. Approval is the
        user's verbal OK in this session — the three context tickets stay
        **open** through delivery and are closed automatically by
-       `epic-deliver-finalize.js` once the Epic PR opens. Do NOT proceed
+       `/epic-deliver` when the Epic PR opens. Do NOT proceed
        to decomposition until the user confirms the plan is accurate.
      - **Low risk** (`requiresReview === false` and no `--force-review`):
        Emit the auto-proceed message from the persist stdout
