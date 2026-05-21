@@ -21,7 +21,10 @@
       "requiredChecks": [
         { "name": "lint", "cmd": ["npm", "run", "lint"] },
         { "name": "test", "cmd": ["npm", "test"] },
-        { "name": "baselines", "cmd": ["node", ".agents/scripts/check-baselines.js"] }
+        {
+          "name": "baselines",
+          "cmd": ["node", ".agents/scripts/check-baselines.js"]
+        }
       ]
     }
   },

@@ -29,13 +29,11 @@ export const LIFECYCLE_DEFAULTS = Object.freeze({
  * @returns {{ timeouts: Record<string, number>, heartbeatWarnSeconds: number }}
  */
 export function getLifecycle(config) {
-  const lc =
-    config?.delivery?.lifecycle ?? config?.lifecycle ?? config ?? {};
+  const lc = config?.delivery?.lifecycle ?? config?.lifecycle ?? config ?? {};
   return {
     timeouts: { ...LIFECYCLE_DEFAULTS.timeouts, ...(lc.timeouts ?? {}) },
     heartbeatWarnSeconds:
-      Number.isInteger(lc.heartbeatWarnSeconds) &&
-      lc.heartbeatWarnSeconds >= 1
+      Number.isInteger(lc.heartbeatWarnSeconds) && lc.heartbeatWarnSeconds >= 1
         ? lc.heartbeatWarnSeconds
         : LIFECYCLE_DEFAULTS.heartbeatWarnSeconds,
   };
