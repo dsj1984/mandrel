@@ -1,11 +1,11 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-21T16:51:27.329Z",
+  "generatedAt": "2026-05-21T17:08:10.334Z",
   "rollup": {
     "*": {
       "min": 52.885,
-      "p50": 103.914,
+      "p50": 103.928,
       "p95": 121.571
     }
   },
@@ -1019,10 +1019,6 @@
       "mi": 96.616
     },
     {
-      "path": ".agents/scripts/lib/orchestration/story-close/phases/locked-pipeline.js",
-      "mi": 76.646
-    },
-    {
       "path": ".agents/scripts/lib/orchestration/story-close/phases/preflight.js",
       "mi": 103.268
     },
@@ -1543,16 +1539,8 @@
       "mi": 86.607
     },
     {
-      "path": ".agents/scripts/story-close.js",
-      "mi": 94.7
-    },
-    {
       "path": ".agents/scripts/story-deliver-prepare.js",
       "mi": 93.255
-    },
-    {
-      "path": ".agents/scripts/story-init.js",
-      "mi": 84.472
     },
     {
       "path": ".agents/scripts/story-task-progress.js",
@@ -2245,10 +2233,6 @@
     {
       "path": "tests/hierarchy-gate.test.js",
       "mi": 98.674
-    },
-    {
-      "path": "tests/hook-chain-reflog-invariant.test.js",
-      "mi": 108.553
     },
     {
       "path": "tests/integration-prime-after-sweep.test.js",
