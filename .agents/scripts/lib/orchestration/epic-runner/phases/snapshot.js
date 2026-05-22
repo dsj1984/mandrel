@@ -24,14 +24,21 @@ import { ACCEPTANCE_NA, TYPE_LABELS } from '../../../label-constants.js';
 /**
  * Run the snapshot phase.
  *
- * Behavior is unchanged from the pre-lifecycle-bus path: fetch the Epic
- * ticket and assert the acceptance-spec start gate. When the collaborator
- * factory provides a `bus`, the phase ALSO emits `epic.snapshot.start` at
- * entry and `epic.snapshot.end` at exit. The legacy code path remains
- * the source of truth for runner state (parallel writes — Story #2233
- * proves the bus contract end-to-end without cutting over yet). When no
- * `bus` is provided (e.g. unit fixtures that pass `{}` as collaborators),
- * emits are skipped silently for backward compatibility.
+ * Fetch the Epic ticket, assert the acceptance-spec start gate, and emit
+ * `epic.snapshot.start` at entry and `epic.snapshot.end` at exit via the
+ * lifecycle bus. After the Epic #2880 / Story #2898 hard cutover the bus
+ * is the sole mutator of phase state — production wiring (see
+ * `createEpicRunnerCollaborators`) always supplies a bus, and named
+ * listeners on the bus (LabelTransitioner, StructuredCommentPoster, …)
+ * own every state side effect. The phase return shape (`{ ...state, epic }`)
+ * is the function's contract with the runner pipeline; it is not a parallel
+ * state write.
+ *
+ * The `bus` parameter is still defensively typed as optional because unit
+ * fixtures occasionally pass `{}` as the collaborator bag (e.g. the
+ * acceptance-spec gate tests under `tests/epic-runner/`); those callers
+ * skip the emit but still exercise the gate logic. Production cannot
+ * reach the `!bus` branch.
  *
  * `epic.snapshot.end` carries the enumerated story IDs the Epic owns
  * (matching the schema at `.agents/schemas/lifecycle/epic.snapshot.end.schema.json`).

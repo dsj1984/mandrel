@@ -32,7 +32,6 @@
  * surface, not a separate orchestrator.
  */
 
-import { AGENT_LABELS } from '../label-constants.js';
 import { runCodeReview as runCodeReviewDefault } from './code-review.js';
 import {
   DELIVER_PHASES,
@@ -270,13 +269,11 @@ export async function runEpicDeliverCloseTail(opts = {}) {
 
   assertCloseTailInputs({ epicId, provider, runFinalizeFn, bus });
 
-  // Story #2413 — the legacy class-based checkpoint surface is replaced
-  // by the function-based `epic-run-state-store` module. The collaborator
-  // slot exposes a provider/epicId-pre-bound bag so the inner `runPhase`
-  // helper keeps the `checkpointer.setPhase(nextPhase)` call shape
-  // unchanged. Tests inject a fake bag via `opts.epicRunStateStore`.
-  // Story #2423 retired the `opts.checkpointer` cutover alias along with
-  // the `Checkpointer` class itself.
+  // The checkpoint surface is the function-based `epic-run-state-store`
+  // module. The collaborator slot exposes a provider/epicId-pre-bound
+  // bag so the inner `runPhase` helper calls `checkpointer.setPhase(
+  // nextPhase)` directly. Tests inject a fake bag via
+  // `opts.epicRunStateStore`.
   const checkpointer = opts.epicRunStateStore ?? {
     read: () => readEpicRunState({ provider, epicId }),
     setPhase: (nextPhase) =>
@@ -458,23 +455,20 @@ export async function runEpicDeliverCloseTail(opts = {}) {
 
 /**
  * Mark an Epic blocked because Phase D code-review surfaced critical
- * findings. The label flip is routed through `bus.emit('epic.blocked',
- * ...)` so the lifecycle `LabelTransitioner` listener owns the
- * `agent::executing` → `agent::blocked` transition (Epic #2306 /
- * Story #2316 — no direct provider mutations from the close-tail; the
- * listener chain is the sole label mutator). When `bus` is absent
- * (legacy tests, unit fixtures that do not wire a bus), the helper
- * falls back to a direct `provider.updateTicket` so the test surface
- * stays observable; production always supplies a bus.
+ * findings. After the Epic #2880 / Story #2898 hard cutover the
+ * close-tail issues NO direct `provider.updateTicket` writes for any
+ * phase state already produced by a listener — the label flip is
+ * exclusively routed through `bus.emit('epic.blocked', ...)` so the
+ * lifecycle `LabelTransitioner` listener owns the
+ * `agent::executing` → `agent::blocked` transition. `assertCloseTailInputs`
+ * guarantees `bus` is present before this code path runs.
  *
  * The rich friction comment (severity counts + halted-phase context)
- * is a separate parallel-writer concern: `StructuredCommentPoster`
- * writes a minimal `lifecycle-epic-blocked` marker off the same bus
- * event, while this helper writes the legacy operator-facing
- * `friction`-typed body. The two writers coexist by marker namespace
- * (the listener writes `lifecycle-epic-blocked`; this helper writes a
- * separate `friction`-typed marker) and a follow-up Story can collapse
- * the two once the listener body can render severity counts.
+ * is intentionally kept here: `StructuredCommentPoster` writes a
+ * minimal `lifecycle-epic-blocked` marker off the same bus event,
+ * while this helper writes the operator-facing `friction`-typed body
+ * with severity totals. The two coexist by marker namespace and serve
+ * different reader audiences (machine-readable vs. operator-readable).
  *
  * All side effects are best-effort — a failure is logged and
  * swallowed so the caller's `throw` is the operator-visible signal.
@@ -487,34 +481,16 @@ async function markEpicBlockedForCriticalReview({
   logger,
   bus,
 }) {
-  if (bus && typeof bus.emit === 'function') {
-    try {
-      await bus.emit('epic.blocked', {
-        reason: 'critical-findings',
-        ...(detail ? { detail } : {}),
-      });
-    } catch (err) {
-      logger?.warn?.(
-        `[close-tail] epic.blocked emit failed (swallowed): ${messageOf(err)}`,
-      );
-    }
-  } else {
-    // Fallback: tests / unit fixtures that do not supply a bus still
-    // get the label flip so their assertions observe the state change.
-    // Production wires the bus unconditionally; this branch is dead in
-    // the live runner.
-    try {
-      await provider.updateTicket(epicId, {
-        labels: {
-          add: [AGENT_LABELS.BLOCKED],
-          remove: [AGENT_LABELS.EXECUTING],
-        },
-      });
-    } catch (err) {
-      logger?.warn?.(
-        `[close-tail] could not flip Epic #${epicId} → agent::blocked: ${messageOf(err)}`,
-      );
-    }
+  try {
+    // The `epic.blocked` payload schema accepts `reason` (required) and
+    // an optional `sourceStoryId`. The operator-facing detail is carried
+    // in the friction `postComment` below — not in the bus payload —
+    // because the schema is strict (`additionalProperties: false`).
+    await bus.emit('epic.blocked', { reason: 'critical-findings' });
+  } catch (err) {
+    logger?.warn?.(
+      `[close-tail] epic.blocked emit failed (swallowed): ${messageOf(err)}`,
+    );
   }
 
   const severity = review?.severity ?? {};
