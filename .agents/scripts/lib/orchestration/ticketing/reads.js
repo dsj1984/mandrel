@@ -124,6 +124,13 @@ export const STRUCTURED_COMMENT_TYPES = Object.freeze([
   // ticket. Re-invocations upsert the same marker rather than appending
   // duplicates.
   'epic-handoff',
+  // Story #2899 (Epic #2880, F13) — `epic-deliver-preflight.js` upserts a
+  // `delivery-preflight` comment on the Epic at the start of
+  // /epic-deliver Phase 1, surfacing estimated story count, install cost,
+  // wave count, GitHub API request volume, Claude quota burn, and any
+  // threshold breaches against `delivery.preflight.max*`. One entry per
+  // Epic; re-runs replace prior content.
+  'delivery-preflight',
 ]);
 
 export const WAVE_TYPE_PATTERN = WAVE_MARKER_RE;
