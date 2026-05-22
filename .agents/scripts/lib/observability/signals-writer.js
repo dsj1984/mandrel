@@ -2,7 +2,7 @@
  * Append-only signals/trace writer (Epic #1030 Story #1041).
  *
  * Centralizes the per-(epic, story) NDJSON streams under
- * `temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+ * `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` (and a sibling
  * `traces.ndjson` for trace-shaped records). Detector modules and the
  * runtime trace hook all funnel through this writer so the on-disk
  * shape stays under one schema and one set of robustness guarantees.
@@ -18,7 +18,7 @@
  *     fire from inside per-Story sub-agents that may exit abruptly, and
  *     a buffered tail would silently disappear on `process.exit`.
  *   - **Lazy directory creation.** The first write to a fresh Story
- *     creates `temp/epic-<eid>/story-<sid>/` via `fs.mkdir(..., { recursive: true })`.
+ *     creates `temp/epic-<eid>/stories/story-<sid>/` via `fs.mkdir(..., { recursive: true })`.
  *     `epicId` / `storyId` are required positive integers — the
  *     `temp-paths.js` helpers assert this before we touch the disk.
  *
@@ -141,7 +141,7 @@ async function appendOne(targetPath, record) {
 }
 
 /**
- * Append one signal record to `temp/epic-<eid>/story-<sid>/signals.ndjson`.
+ * Append one signal record to `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`.
  *
  * The `signal` is written verbatim — callers (detectors) own its shape
  * (kind, severity, message, etc.). The writer adds nothing. Errors are
@@ -192,7 +192,7 @@ export async function appendEpicSignal(args) {
 }
 
 /**
- * Append one trace record to `temp/epic-<eid>/story-<sid>/traces.ndjson`.
+ * Append one trace record to `temp/epic-<eid>/stories/story-<sid>/traces.ndjson`.
  * Same robustness contract as `appendSignal` — never throws.
  *
  * @param {{ epicId: number, storyId: number, trace: unknown, config?: object }} args

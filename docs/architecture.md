@@ -330,7 +330,7 @@ envelope so Phase 7 stays non-blocking.
 | Module                                              | Role                                                                                                                                                  |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lib/orchestration/epic-runner/commit-assertion.js` | Post-wave guard — a "done" wave whose stories produced zero commits on `origin/story-<id>` is reclassified as `halted` instead of silently passing.   |
-| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`) is the sole consumer. |
+| `lib/observability/signals-writer.js`               | Append-only NDJSON writer for `friction` / trace records under `temp/epic-<eid>/stories/story-<sid>/signals.ndjson`. The single producer for the telemetry pipeline; the consolidated reader (`lib/observability/signals-reader.js`) is the sole consumer. |
 | `lib/orchestration/column-sync.js`                  | Drives the Projects v2 Status column from `agent::` labels (best-effort). Invoked from inside `transitionTicketState` (Story #2548) so every label flip — Epic, Story, Task — mirrors onto the board.                  |
 
 `CommitAssertion`'s default git adapter falls back to a `resolves #<storyId>`
@@ -866,7 +866,7 @@ detectors and config keys were dropped under Epic #1721 (see ADR in
 [`docs/decisions.md`](decisions.md)) but the names remain in
 `EVENT_KINDS` so a future re-introduction does not need a schema bump.
 Records are written **append-only to local disk** under
-`temp/epic-<eid>/story-<sid>/signals.ndjson` (and a sibling
+`temp/epic-<eid>/stories/story-<sid>/signals.ndjson` (and a sibling
 `traces.ndjson` for `kind: trace`). GitHub tickets receive **summaries
 only**, never raw events.
 
@@ -1017,7 +1017,7 @@ Local close-validation, `epic-code-review`, and `/epic-deliver` Phase 3
 run the wrapper records
 `{ gateName, commitSha, commandConfigHash, timestamp }` under the per-Epic
 tree at `temp/epic-<epicId>/validation-evidence.json` for Epic-scoped
-gates and `temp/epic-<epicId>/story-<storyId>/validation-evidence.json`
+gates and `temp/epic-<epicId>/stories/story-<storyId>/validation-evidence.json`
 for Story-scoped gates (both gitignored via `temp/`). Callers must pass
 both `--scope-id` and `--epic-id`. Subsequent invocations against the same
 `git rev-parse HEAD` and resolved command config skip in milliseconds.
