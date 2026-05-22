@@ -94,6 +94,16 @@
   "delivery": {
     "execution": { "timeoutMs": 600000 },
     "maxTokenBudget": 200000,
+    "ci": {
+      "skipForStoryPushes": true
+    },
+    "preflight": {
+      "maxStories": 50,
+      "maxWaves": 10,
+      "maxInstallCostSeconds": 600,
+      "maxGithubApiRequests": 5000,
+      "maxClaudeQuotaTokens": 2000000
+    },
     "docsFreshness": {
       "paths": ["README.md"]
     },

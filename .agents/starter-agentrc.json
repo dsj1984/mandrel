@@ -12,5 +12,10 @@
     "owner": "[OWNER]",
     "repo": "[REPO]",
     "operatorHandle": "@[USERNAME]"
+  },
+  "delivery": {
+    "ci": {
+      "skipForStoryPushes": true
+    }
   }
 }

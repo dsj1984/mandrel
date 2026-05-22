@@ -685,6 +685,28 @@
         "mergeWatch": { "$ref": "#/$defs/mergeWatch" },
         "epicAudit": { "$ref": "#/$defs/epicAudit" },
         "codeReview": { "$ref": "#/$defs/codeReview" },
+        "ci": {
+          "type": "object",
+          "properties": {
+            "skipForStoryPushes": {
+              "type": "boolean",
+              "description": "Story #2899 (Epic #2880, F13). When true (default), task-commit.js appends a '[skip ci]' trailer to per-Task Story-branch commit subjects so per-Task pushes do not stampede the CI fleet. The Epic-branch merge commit produced by story-close.js never carries the marker, regardless of this flag."
+            }
+          },
+          "additionalProperties": false
+        },
+        "preflight": {
+          "type": "object",
+          "description": "Story #2899 (Epic #2880, F13). Thresholds consumed by `.agents/scripts/epic-deliver-preflight.js`. When any value is exceeded the preflight envelope flags a breach and /epic-deliver Phase 1 surfaces it via agent::blocked.",
+          "properties": {
+            "maxStories": { "type": "integer", "minimum": 1 },
+            "maxWaves": { "type": "integer", "minimum": 1 },
+            "maxInstallCostSeconds": { "type": "integer", "minimum": 1 },
+            "maxGithubApiRequests": { "type": "integer", "minimum": 1 },
+            "maxClaudeQuotaTokens": { "type": "integer", "minimum": 1 }
+          },
+          "additionalProperties": false
+        },
         "failOnConcurrencyHazards": { "type": "boolean" },
         "feedbackLoop": {
           "type": "object",
