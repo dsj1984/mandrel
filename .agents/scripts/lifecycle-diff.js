@@ -121,31 +121,37 @@ export function assertMergeGateOrdering(records) {
 }
 
 /**
- * Assert: pr.created must be preceded by acceptance.reconcile.ok in the
- * same run. A reconcile.failed or reconcile.skipped before pr.created
- * is also a violation (skipped only legal under waiver; the bus-level
- * waiver path emits skipped before finalize.start, never before
- * pr.created itself — Finalizer subscribes only to reconcile.ok).
+ * Assert: pr.created must be preceded by either acceptance.reconcile.ok
+ * or acceptance.reconcile.waived in the same run. Story #2893 split the
+ * waiver path out of `.skipped` so the Finalizer now subscribes to both
+ * `.ok` and `.waived`; either is a valid predecessor for pr.created.
+ * A reconcile.skipped (empty-spec only after #2893) or reconcile.failed
+ * before pr.created remains a violation.
  */
 export function assertReconcileOrdering(records) {
-  let sawReconcileOk = false;
-  let sawReconcileOkSeq = null;
+  let sawReconcileGate = false;
+  let sawReconcileGateSeq = null;
+  let sawReconcileGateEvent = null;
   for (const rec of records) {
     if (rec.kind !== 'emitted') continue;
-    if (rec.event === 'acceptance.reconcile.ok') {
-      sawReconcileOk = true;
-      sawReconcileOkSeq = rec.seqId;
+    if (
+      rec.event === 'acceptance.reconcile.ok' ||
+      rec.event === 'acceptance.reconcile.waived'
+    ) {
+      sawReconcileGate = true;
+      sawReconcileGateSeq = rec.seqId;
+      sawReconcileGateEvent = rec.event;
     } else if (rec.event === 'pr.created') {
-      if (!sawReconcileOk) {
+      if (!sawReconcileGate) {
         return {
           ok: false,
-          reason: `pr.created at seqId=${rec.seqId} without preceding acceptance.reconcile.ok`,
+          reason: `pr.created at seqId=${rec.seqId} without preceding acceptance.reconcile.ok or acceptance.reconcile.waived`,
         };
       }
-      if (sawReconcileOkSeq != null && rec.seqId <= sawReconcileOkSeq) {
+      if (sawReconcileGateSeq != null && rec.seqId <= sawReconcileGateSeq) {
         return {
           ok: false,
-          reason: `pr.created seqId=${rec.seqId} must be > acceptance.reconcile.ok seqId=${sawReconcileOkSeq}`,
+          reason: `pr.created seqId=${rec.seqId} must be > ${sawReconcileGateEvent} seqId=${sawReconcileGateSeq}`,
         };
       }
     }
