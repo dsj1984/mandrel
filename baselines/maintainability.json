@@ -1,12 +1,12 @@
 {
   "$schema": ".agents/schemas/baselines/maintainability.schema.json",
   "kernelVersion": "0.1.0",
-  "generatedAt": "2026-05-22T19:05:45.641Z",
+  "generatedAt": "2026-05-22T19:41:38.387Z",
   "rollup": {
     "*": {
       "min": 52.885,
       "p50": 104.033,
-      "p95": 121.571
+      "p95": 121.809
     }
   },
   "rows": [
@@ -1069,10 +1069,6 @@
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/bulk.js",
       "mi": 97.182
-    },
-    {
-      "path": ".agents/scripts/lib/orchestration/ticketing/reads.js",
-      "mi": 103.074
     },
     {
       "path": ".agents/scripts/lib/orchestration/ticketing/state.js",
@@ -2717,10 +2713,6 @@
     {
       "path": "tests/lib/orchestration/lifecycle/activation/automerge-predicate-activation.test.js",
       "mi": 111.692
-    },
-    {
-      "path": "tests/lib/orchestration/lifecycle/activation/clean-sprint.test.js",
-      "mi": 114.757
     },
     {
       "path": "tests/lib/orchestration/lifecycle/activation/cleaner-archival.test.js",
