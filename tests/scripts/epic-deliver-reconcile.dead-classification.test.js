@@ -6,7 +6,7 @@
  * a Story whose recorded dispatch PID has been killed as `dead` rather
  * than `unknown`. Before Story #2535 landed, every Story classified as
  * `unknown` because nothing wrote a PID into
- * `temp/epic-<id>/<storyId>/story-init.state.json`. With the
+ * `temp/epic-<id>/stories/story-<storyId>/story-init.state.json`. With the
  * `dispatch-state-writer` writing the file at story-init time, the
  * reconciler's `defaultProbePid` (which uses `process.kill(pid, 0)`)
  * now has a real signal to probe.

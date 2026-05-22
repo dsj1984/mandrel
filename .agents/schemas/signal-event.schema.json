@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/dsj1984/mandrel/blob/main/.agents/schemas/signal-event.schema.json",
   "title": "SignalEvent",
-  "description": "One NDJSON line emitted by the signals writer (Epic #1030). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/story-<sid>/signals.ndjson; tickets carry only summaries (story-perf-summary, epic-perf-report). `kind: trace` is the raw tool-call trace; the named kinds are derived signals.",
+  "description": "One NDJSON line emitted by the signals writer (Epic #1030). Runtime events live in append-only NDJSON on local disk under temp/epic-<eid>/stories/story-<sid>/signals.ndjson; tickets carry only summaries (story-perf-summary, epic-perf-report). `kind: trace` is the raw tool-call trace; the named kinds are derived signals.",
   "type": "object",
   "additionalProperties": false,
   "required": ["ts", "kind", "source", "epicId", "storyId"],

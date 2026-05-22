@@ -202,7 +202,7 @@ function phaseTimingsMs(timing) {
 
 /**
  * Compute the StoryPerfSummary payload from a list of NDJSON events
- * sampled out of `temp/epic-<eid>/story-<sid>/signals.ndjson` plus an
+ * sampled out of `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` plus an
  * optional phase-timer summary.
  *
  * @param {Iterable<object>} events

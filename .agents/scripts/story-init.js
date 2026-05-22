@@ -249,7 +249,8 @@ export async function runStoryInit({
     installStatus = branchResult.installStatus ?? installStatus;
 
     // Story #2535 — write the per-Story dispatch state file under the
-    // main repo's `temp/epic-<id>/<storyId>/story-init.state.json` so the
+    // main repo's
+    // `temp/epic-<id>/stories/story-<storyId>/story-init.state.json` so the
     // host-crash watchdog (`reconcileEpicAgentLabels`) can probe this
     // Story's dispatch PID and classify the Story as live / dead / unknown
     // instead of always falling back to `unknown`. Non-fatal: a failed

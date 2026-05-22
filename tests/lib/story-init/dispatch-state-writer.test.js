@@ -4,9 +4,9 @@
  *
  * Unit coverage for the dispatch-state writer that records a Story's
  * dispatch PID + worktree state under
- * `temp/epic-<epicId>/<storyId>/story-init.state.json`. The reconciler
- * (`lib/orchestration/epic-deliver-reconcile.js`) reads from the same
- * path; this writer is the producer side of that contract.
+ * `temp/epic-<epicId>/stories/story-<storyId>/story-init.state.json`.
+ * The reconciler (`lib/orchestration/epic-deliver-reconcile.js`) reads
+ * from the same path; this writer is the producer side of that contract.
  *
  * Tests sandbox the repo root under `tmpdir` so the filesystem write is
  * fully isolated from the real repo's `temp/` tree.
@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 describe('dispatchStateFilePath', () => {
-  it('returns the canonical path under temp/epic-<id>/<storyId>/', () => {
+  it('returns the canonical path under temp/epic-<id>/stories/story-<sid>/', () => {
     const p = dispatchStateFilePath({
       repoRoot: '/repo',
       epicId: 42,
@@ -42,7 +42,14 @@ describe('dispatchStateFilePath', () => {
     });
     assert.equal(
       p,
-      path.join('/repo', 'temp', 'epic-42', '100', 'story-init.state.json'),
+      path.join(
+        '/repo',
+        'temp',
+        'epic-42',
+        'stories',
+        'story-100',
+        'story-init.state.json',
+      ),
     );
   });
 });

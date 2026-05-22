@@ -4,14 +4,14 @@
  * analyze-execution.js — single writer of the structured perf-summary
  * comments (Epic #1030 / Story #1123).
  *
- * Reads NDJSON from `temp/epic-<eid>/story-<sid>/signals.ndjson` and
+ * Reads NDJSON from `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` and
  * upserts one of two structured comments:
  *
  *   - `--story <sid> --epic <eid>` (Story mode): posts
  *     `<!-- structured:story-perf-summary -->` on the Story ticket. The
  *     payload combines the Story's NDJSON signals with the timing
  *     summary written by `post-merge-close.js` to
- *     `temp/epic-<eid>/story-<sid>/phase-timings.json` (path overridable
+ *     `temp/epic-<eid>/stories/story-<sid>/phase-timings.json` (path overridable
  *     via `--phase-timings <path>`).
  *
  *   - `--epic <eid>` (Epic mode): rolls up every Story under the Epic by
@@ -108,7 +108,7 @@ async function readPhaseTimings(epicId, storyId, config, overridePath) {
 
 /**
  * Throw-away ghSpawnCount reader (Story #1795 / Epic #1788). Looks for
- * the `temp/epic-<eid>/story-<sid>/gh-spawn-count.json` file written by
+ * the `temp/epic-<eid>/stories/story-<sid>/gh-spawn-count.json` file written by
  * `close-validation.emitGhSpawnCount` immediately before the perf-summary
  * phase spawns this analyzer. Returns the integer count when present and
  * well-formed; `null` when absent or unparseable. Callers treat `null` as

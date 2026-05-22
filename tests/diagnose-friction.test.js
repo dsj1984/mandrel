@@ -3,7 +3,7 @@
  *
  * Tests the diagnose-friction.js script, which wraps commands and on
  * failure appends a structured `friction` signal to the per-Story
- * `temp/epic-<eid>/story-<sid>/signals.ndjson` stream via
+ * `temp/epic-<eid>/stories/story-<sid>/signals.ndjson` stream via
  * `signals-writer.appendSignal`.
  *
  * Story #1042 cut the GitHub-comment side: there is no longer a
@@ -131,6 +131,7 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
       tmpRoot,
       'temp',
       'epic-1030',
+      'stories',
       'story-1042',
       'signals.ndjson',
     );
@@ -186,6 +187,7 @@ describe('diagnose-friction.js — appends friction signal to NDJSON', () => {
       tmpRoot,
       'temp',
       'epic-1030',
+      'stories',
       'story-1042',
       'signals.ndjson',
     );

@@ -58,11 +58,12 @@ function baseOpts(extra = {}) {
   };
 }
 
-test('evidencePath() resolves a Story-scoped path under temp/epic-<eid>/story-<sid>/', () => {
+test('evidencePath() resolves a Story-scoped path under temp/epic-<eid>/stories/story-<sid>/', () => {
   const expected = path.join(
     FAKE_CWD,
     'temp',
     'epic-802',
+    'stories',
     'story-901',
     'validation-evidence.json',
   );
