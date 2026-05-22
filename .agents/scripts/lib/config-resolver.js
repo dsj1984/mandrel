@@ -44,7 +44,6 @@ export {
 } from './config/baselines.js';
 export { CI_DELIVERY_DEFAULTS, getCiDelivery } from './config/ci.js';
 export { COMMANDS_DEFAULTS, getCommands } from './config/commands.js';
-export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   BRANCH_PROTECTION_DEFAULTS,
   DEFAULT_REQUIRED_CHECKS,
@@ -66,6 +65,7 @@ export {
   SIGNALS_DEFAULTS,
 } from './config/limits.js';
 export { getPaths, PATHS_DEFAULTS, resolvePaths } from './config/paths.js';
+export { getPreflight, PREFLIGHT_DEFAULTS } from './config/preflight.js';
 export {
   AUTO_REFRESH_DEFAULTS,
   CODING_GUARDRAILS_DEFAULTS,

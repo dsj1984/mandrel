@@ -92,6 +92,41 @@ Every other runtime modifier is sourced from the Epic's labels or from
 
 ## Phase 1 — Prepare the Epic run
 
+### Phase 1 prelude — Delivery preflight (Story #2899 / F13)
+
+Before `epic-deliver-prepare.js` seeds the wave plan, run
+`epic-deliver-preflight.js` so the operator (and any reviewer reading the
+Epic ticket) sees the estimated Story count, install cost, wave count,
+GitHub API request volume, and Claude Max quota burn for the run that is
+about to fan out. **Preflight always runs before Story fan-out.**
+
+```bash
+node .agents/scripts/epic-deliver-preflight.js --epic <epicId> --post
+```
+
+The CLI upserts a `delivery-preflight` structured comment on the Epic
+(idempotent across re-runs) and prints a JSON envelope on stdout with
+the canonical metric keys `storyCount`, `installCostSeconds`,
+`waveCount`, `githubApiRequests`, `claudeQuotaTokens`, plus a `breaches`
+array describing any `delivery.preflight.max*` thresholds the estimate
+exceeds.
+
+**Breach handling.** When `breaches` is non-empty, the workflow MUST
+flip the Epic to `agent::blocked`, surface the envelope in chat for the
+operator, and halt before Phase 1's `epic-deliver-prepare.js` call.
+Resume after the operator unblocks (raising the threshold in
+`.agentrc.json`, splitting the Epic, or accepting the cost) by re-running
+`/epic-deliver <epicId>` — the preflight is idempotent and the second
+run upserts the same comment in place.
+
+Threshold defaults live in `delivery.preflight.*` in `.agentrc.json`
+(all keys default to "no cap" — the gate is opt-in until an operator
+configures `maxStories` etc.). The CI-firehose mitigation
+(`delivery.ci.skipForStoryPushes: true`) and these threshold keys are
+the two operator-tunable knobs F13 ships.
+
+### Phase 1 main — Seed the wave plan
+
 ```bash
 node .agents/scripts/epic-deliver-prepare.js --epic <epicId>
 ```
