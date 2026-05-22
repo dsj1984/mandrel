@@ -162,23 +162,33 @@ function clamp(value) {
 
 /**
  * Resolve the active Epic + Story from env vars. Returns `null` when
- * either id is unset or non-numeric — the caller treats this as the
- * "outside an active Story, no-op" case.
+ * `CC_STORY_ID` is unset / non-numeric — the caller treats this as
+ * the "outside an active Story, no-op" case.
+ *
+ * Story #2874 — `epicId` can be `null` for standalone Stories (run
+ * via `/single-story-deliver`). When `CC_STORY_ID` is present but
+ * `CC_EPIC_ID` is absent, the hook still emits trace lines, keyed
+ * to the story only; the trace's `epicId` field is `null`. The
+ * no-op contract for the fully-no-context case (both vars absent)
+ * is preserved: it returns null.
  *
  * Exported for testing (the unit suite asserts that an unset
- * `CC_EPIC_ID` makes the hook take the no-op branch).
+ * `CC_STORY_ID` makes the hook take the no-op branch, and that an
+ * unset `CC_EPIC_ID` with a present `CC_STORY_ID` yields a
+ * `{ epicId: null, storyId }` envelope).
  *
  * @param {NodeJS.ProcessEnv} [env]
- * @returns {{ epicId: number, storyId: number }|null}
+ * @returns {{ epicId: number|null, storyId: number }|null}
  */
 export function resolveActiveStory(env = process.env) {
   const epicRaw = env.CC_EPIC_ID;
   const storyRaw = env.CC_STORY_ID;
-  if (!epicRaw || !storyRaw) return null;
-  const epicId = Number.parseInt(epicRaw, 10);
+  if (!storyRaw) return null;
   const storyId = Number.parseInt(storyRaw, 10);
-  if (!Number.isInteger(epicId) || epicId <= 0) return null;
   if (!Number.isInteger(storyId) || storyId <= 0) return null;
+  if (!epicRaw) return { epicId: null, storyId };
+  const epicId = Number.parseInt(epicRaw, 10);
+  if (!Number.isInteger(epicId) || epicId <= 0) return null;
   return { epicId, storyId };
 }
 

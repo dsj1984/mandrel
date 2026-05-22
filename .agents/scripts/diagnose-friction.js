@@ -243,7 +243,12 @@ export async function main(args = process.argv.slice(2)) {
       errorPreview,
     });
 
-    if (resolvedEpicId != null && resolvedStoryId != null) {
+    // Story #2874 — accept story-only context (no parent Epic). When
+    // only the story is resolved, write to the standalone signals
+    // stream at `<tempRoot>/standalone/story-<sid>/signals.ndjson`
+    // by passing `epicId: null` through to the writer. The only case
+    // we still skip is fully-no-context (story unresolved).
+    if (resolvedStoryId != null) {
       try {
         const ok = await appendSignal({
           epicId: resolvedEpicId,
@@ -253,11 +258,11 @@ export async function main(args = process.argv.slice(2)) {
         });
         if (ok) {
           Logger.error(
-            `✅ Friction signal appended (epic=${resolvedEpicId}, story=${resolvedStoryId}, task=${taskId ?? 'n/a'}).`,
+            `✅ Friction signal appended (epic=${resolvedEpicId ?? 'standalone'}, story=${resolvedStoryId}, task=${taskId ?? 'n/a'}).`,
           );
         } else {
           Logger.error(
-            `⚠️ signals-writer returned false for epic=${resolvedEpicId} story=${resolvedStoryId}.`,
+            `⚠️ signals-writer returned false for epic=${resolvedEpicId ?? 'standalone'} story=${resolvedStoryId}.`,
           );
         }
       } catch (err) {
@@ -265,7 +270,7 @@ export async function main(args = process.argv.slice(2)) {
       }
     } else {
       Logger.error(
-        `ℹ️ Skipping friction signal write — story/epic context unresolved (story=${resolvedStoryId ?? 'null'}, epic=${resolvedEpicId ?? 'null'}).`,
+        `ℹ️ Skipping friction signal write — story context unresolved (story=null, epic=${resolvedEpicId ?? 'null'}).`,
       );
     }
 

@@ -97,6 +97,23 @@ const epicId = (id) => {
   return id;
 };
 
+/**
+ * Story #2874 — accept `null` as the standalone-story sentinel.
+ * Story-level helpers (storyTempDir, signalsFile, etc.) route
+ * `eid === null` to `<tempRoot>/standalone/story-<sid>/` so that
+ * standalone Stories (no parent Epic) still get a stable on-disk
+ * home for signals + traces. All other invalid values still throw.
+ */
+const storyEpicId = (id) => {
+  if (id === null) return null;
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(
+      `[temp-paths] epicId must be a positive integer or null; got ${id}`,
+    );
+  }
+  return id;
+};
+
 const storyId = (id) => {
   if (!Number.isInteger(id) || id <= 0) {
     throw new Error(
@@ -136,13 +153,24 @@ export function epicTempDir(eid, config) {
  * `temp/epic-<eid>/story-<sid>/` — every Story-scoped artifact lives
  * under here.
  *
- * @param {number} eid
+ * Story #2874: accepts `eid === null` for standalone Stories (no
+ * parent Epic). The standalone variant routes to
+ * `<tempRoot>/standalone/story-<sid>/` so signals + traces from
+ * `/single-story-deliver` runs still land in a stable, scannable
+ * location instead of being dropped on the floor.
+ *
+ * @param {number|null} eid
  * @param {number} sid
  * @param {object} [config]
  * @returns {string}
  */
 export function storyTempDir(eid, sid, config) {
-  return path.join(epicTempDir(eid, config), `story-${storyId(sid)}`);
+  const checkedEid = storyEpicId(eid);
+  const parent =
+    checkedEid === null
+      ? path.join(tempRootFrom(config), 'standalone')
+      : epicTempDir(checkedEid, config);
+  return path.join(parent, `story-${storyId(sid)}`);
 }
 
 /**

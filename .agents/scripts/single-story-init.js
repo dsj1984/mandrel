@@ -357,8 +357,12 @@ export async function runSingleStoryInit({
     }
 
     try {
+      // Story #2874 — standalone Stories have no parent Epic; pass
+      // `epicId: null` so the helper omits CC_EPIC_ID from env + file
+      // instead of throwing on a 0 sentinel. The trace hook keys its
+      // standalone-trace branch on CC_EPIC_ID being absent.
       setActiveStoryEnv({
-        epicId: 0,
+        epicId: null,
         storyId,
         workCwd,
         logger: {
