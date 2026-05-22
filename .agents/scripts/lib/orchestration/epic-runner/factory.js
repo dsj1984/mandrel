@@ -127,18 +127,18 @@ export function createEpicRunnerCollaborators(ctx, { errorJournal } = {}) {
   // now an inert tuning knob; the lifecycle listener fires on every
   // bus event, not on a wall-clock cadence.
 
-  // Lifecycle bus wiring (Story #2233 — snapshot + plan phase conversions).
-  // The bus runs in parallel with the legacy code path: phases still mutate
-  // runner state directly, but they also emit through the bus so the
-  // NDJSON ledger and companion markdown reflect the same run. Later
-  // Stories cut iterate-waves over and remove the legacy duplications.
+  // Lifecycle bus wiring. After the Epic #2880 / Story #2898 hard cutover
+  // the bus is the sole mutator of phase state: every phase emits through
+  // the bus, and named listeners (LabelTransitioner, StructuredCommentPoster,
+  // BlockerHandler, AcceptanceReconciler, Finalizer, MergeWatcher, Cleaner,
+  // …) own the matching state side effects. There is no remaining branch
+  // here that selects between bus-emit and a direct provider mutation — the
+  // bus is unconditionally constructed and wired below.
   //
-  // Construction is gated on `ctx.epicId` being a positive integer (which
-  // `EpicRunnerContext.validate()` enforces, but tests that bypass the
-  // context construction by feeding `runSnapshotPhase` a hand-rolled `{}`
-  // never reach this code path — they pass `{}` as collaborators directly).
-  // We construct unconditionally here so the production runner always has
-  // the bus available; phases skip emits when no `bus` is on collaborators.
+  // `ctx.bus` is honoured so tests can inject a recording bus and so
+  // alternate harnesses (e.g. epic-deliver's outer composition) can share
+  // a single bus across multiple sub-runners; absent that override the
+  // factory constructs a fresh bus for this run.
   const bus = ctx.bus ?? createBus();
   const tempRoot = tempRootFrom(config);
   const ledgerWriter =
