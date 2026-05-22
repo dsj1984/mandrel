@@ -32,7 +32,14 @@ From zero to shipped:
    `agent::ready`.
 
 2. **Deliver the Epic.** Run `/epic-deliver <epicId>` in your IDE. The
-   skill drives the merged execute + close flow end-to-end:
+   skill drives the merged execute + close flow end-to-end.
+
+   > **Phase numbering note.** The numbered phases below refer to
+   > `/epic-deliver`'s **internal** phases (1–9), not the SDLC-level
+   > Phase 0–4 used by the Mermaid diagram in [§ End-to-End
+   > Process](#end-to-end-process). When prose elsewhere in this
+   > document says "Phase 7", it always means the internal
+   > `/epic-deliver` phase unless explicitly prefixed with "SDLC".
 
    1. **Phase 1 — prepare** — snapshot the Epic, build the wave DAG,
       initialise the `epic-run-state` checkpoint.
@@ -46,8 +53,9 @@ From zero to shipped:
       cached by HEAD SHA so re-runs short-circuit.
    4. **Phase 4 — audit** — runs the change-set audit lenses against
       the Epic diff; findings flow through as advisory signal.
-   5. **Phase 5 — code-review** — auto-invokes
-      `helpers/code-review.md` (with `scope: epic`); findings persist as a
+   5. **Phase 5 — code-review** — auto-invokes the in-process
+      `lib/orchestration/code-review.js` (extracted from the old
+      `helpers/code-review.md` helper); findings persist as a
       `code-review` structured comment on the Epic. Critical findings
       halt the run.
    6. **Phase 6 — retro** — auto-invokes the in-process
@@ -57,18 +65,20 @@ From zero to shipped:
       full env access in the operator's local session.
    7. **Phase 7 — finalize** — pushes `epic/<epicId>` to `origin`,
       opens a pull request to `main`, sets the required-checks
-      expectation from `agentSettings.quality.prGate.checks`, posts
-      the hand-off comment naming the PR URL, and **stops**. The
-      Epic stays at `agent::executing` until the operator merges the
-      PR through the GitHub UI; the merge fires the standard
-      transition that flips the Epic to `agent::done`.
+      expectation from `agentSettings.quality.prGate.checks`, and
+      posts the hand-off comment naming the PR URL. The Epic stays
+      at `agent::executing` until the PR merges; the standard
+      label-transition pathway flips it to `agent::done` on merge.
+      Finalize hands off to the watch / auto-merge / cleanup tail
+      below — it does **not** stop the run.
    8. **Phase 8 — watch-and-iterate** — watches CI on the open PR
       until checks turn green (or a failure surfaces for human
       remediation).
    9. **Phase 8.5 — auto-merge** — arms GitHub native auto-merge
       (`gh pr merge --auto --squash --delete-branch`) once the
       required checks have passed so the PR lands without a second
-      operator visit.
+      operator visit. The operator can disarm auto-merge in the
+      GitHub UI if they want to gate the merge manually.
    10. **Phase 9 — cleanup** — reaps local Story/Epic branch refs and
        worktrees after the PR merges so the workspace returns to a
        clean state for the next Epic.
@@ -106,14 +116,17 @@ default flow requires adjustment.
   the Agent tool — every Story runs inside the operator's Claude session,
   with no subprocess boundary. Worktree filesystem isolation is preserved;
   only the process boundary is gone.
-- **Operator-merges-PR exit.** `/epic-deliver` ends with a PR open against
-  `main`. The workflow never executes `git merge` against `main`. The PR is
-  the explicit human gate that authorises promotion of an Epic into the
-  release branch — branch protection on `main` enforces required-checks
-  before the merge button is reachable.
-- **HITL-minimal by default.** Exactly two operator touchpoints on the happy
-  path — blocker resolution mid-run, and the PR merge at the end. Everything
-  else is autonomous.
+- **PR is the sole promotion gate.** `/epic-deliver` ends with a PR open
+  against `main` and (by default) GitHub native auto-merge armed; the
+  workflow itself never executes `git merge` against `main`. Branch
+  protection on `main` enforces required-checks before the merge button
+  (auto or manual) fires. The operator can disarm auto-merge in the
+  GitHub UI to make the merge an explicit human action.
+- **HITL-minimal by default.** Exactly one mandatory operator touchpoint on
+  the happy path — blocker resolution mid-run. PR merge is autonomous via
+  the armed auto-merge; the operator becomes a second touchpoint only when
+  they disarm auto-merge or when required checks fail and need
+  remediation.
 
 ---
 
@@ -152,9 +165,9 @@ graph LR
         G -.-> G_Art["📄 PR open against main"]:::artifact
     end
 
-    subgraph Phase4 ["Phase 4: Operator merge"]
+    subgraph Phase4 ["Phase 4: PR merge (auto by default)"]
         direction TB
-        H["👤 Merge PR via GitHub UI"]:::manual
+        H["🤖 Auto-merge armed → PR lands when checks pass<br/>(👤 operator may disarm to merge manually)"]:::agentic
     end
 
     Z --> A
@@ -414,10 +427,12 @@ side-effects rather than inline calls at phase boundaries; the
 
 ### Invocation modes
 
-| Mode             | Entry point                     | When to use                                                                                  |
-| ---------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
-| **Whole Epic**   | `/epic-deliver <epicId>`        | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
-| **Single Story** | `/story-deliver <storyId>`      | Init → task loop → close for one Story. Uses `task-execute.md` inline per Task.              |
+| Mode                  | Entry point                       | When to use                                                                                  |
+| --------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| **Whole Epic**        | `/epic-deliver <epicId>`          | Drive an Epic end-to-end. Owns the wave loop and the close-tail; ends with a PR open to main. |
+| **Single Story (within Epic)** | `/story-deliver <storyId>` | Init → task loop → close for one Story under an active Epic.                                |
+| **Standalone Story — plan**    | `/single-story-plan`       | Plan a one-off Story that does not belong to an Epic backlog.                                |
+| **Standalone Story — deliver** | `/single-story-deliver <storyId>` | Deliver a one-off Story authored by `/single-story-plan`.                            |
 
 The two-skill split (plus the inline `task-execute.md` helper) mirrors how
 the engine already decomposes work; promoting them to slash commands lets
@@ -606,22 +621,32 @@ at any time; Phase 9 handles the post-merge branch reap.
 
 ## HITL (Human-in-the-Loop) model
 
-Exactly **two** operator touchpoints during an Epic run after `/epic-deliver`
-fires. This is the entirety of the operator interface mid-run.
+On the happy path there is exactly **one** mandatory operator touchpoint
+after `/epic-deliver` fires (blocker resolution). PR merge is autonomous
+via armed auto-merge; the operator can opt in as a second touchpoint by
+disarming auto-merge in the GitHub UI, or is pulled in by exception when
+required checks fail.
 
-1. **Blocker resolution.** If the orchestrator hits an unresolvable condition,
-   `BlockerHandler` flips the Epic to `agent::blocked`, posts a structured
-   friction comment, fires the notification webhook (fire-and-forget), and halts
-   wave N+1 (letting wave N's in-flight stories finish naturally). The operator
-   resolves the underlying issue (e.g. a hand-fix commit on the Story branch
-   or a scope edit on the blocking ticket), then flips the Epic back to
+1. **Blocker resolution (mandatory when triggered).** If the orchestrator
+   hits an unresolvable condition, `BlockerHandler` flips the Epic to
+   `agent::blocked`, posts a structured friction comment, fires the
+   notification webhook (fire-and-forget), and halts wave N+1 (letting
+   wave N's in-flight stories finish naturally). The operator resolves
+   the underlying issue (e.g. a hand-fix commit on the Story branch or a
+   scope edit on the blocking ticket), then flips the Epic back to
    `agent::executing` to resume.
-2. **PR merge.** At the end of `/epic-deliver`, the workflow opens a PR to
-   `main` and stops. The operator inspects the required-checks summary, the
-   `code-review` structured comment, and the retro comment; when satisfied
-   they merge the PR through the GitHub UI. The merge fires the standard
-   transition that flips the Epic to `agent::done`. There is no separate
-   close command.
+2. **PR merge (autonomous by default; operator-gated by exception).** At
+   the end of `/epic-deliver`, the workflow opens a PR to `main` and
+   arms GitHub native auto-merge (Phase 8.5). When required checks pass,
+   the PR lands without a second operator visit; the standard
+   label-transition pathway flips the Epic to `agent::done` on merge.
+   The operator becomes a touchpoint here only when they (a) disarm
+   auto-merge in the GitHub UI to inspect required-checks, the
+   `code-review` comment, and the retro before merging by hand, or
+   (b) checks fail and need remediation on the Epic branch. There is
+   no separate close command — `epic-close.js` exists in
+   `.agents/scripts/` but is an internal helper, superseded by
+   `/epic-deliver` Phase 7 finalize.
 
 ### What triggers `agent::blocked`
 
@@ -638,8 +663,8 @@ fires. This is the entirety of the operator interface mid-run.
 ### What is _not_ gated at runtime
 
 - `risk::high` tasks **run without pause.** The label remains as planning
-  metadata and retro telemetry, but as of v5.14.0 it does **not** halt the
-  dispatcher or `/epic-deliver`. Branch protection on `main` and
+  metadata and retro telemetry, but it does **not** halt the dispatcher
+  or `/epic-deliver`. Branch protection on `main` and
   `BlockerHandler`-driven escalation are the runtime defenses for
   destructive actions.
 - Wave boundaries — the runner advances as soon as wave N completes.
@@ -690,12 +715,14 @@ the project's `CI / CD` workflow. Two mitigations:
 
 ---
 
-## Phase 4: Operator merge
+## Phase 4: PR merge (auto by default)
 
 Once the wave loop, close-validation, code-review, and retro have all
 completed, `/epic-deliver` opens a pull request from `epic/<epicId>` to
-`main` and stops. The operator's remaining responsibility is to merge the
-PR through the GitHub UI.
+`main` and arms GitHub native auto-merge. When the required checks pass
+the PR lands without further intervention; the operator can disarm
+auto-merge in the GitHub UI to make the final merge an explicit human
+action.
 
 1. **Story merging.** Stories merge into `epic/<epicId>` automatically
    during Story closure (`story-close.js`). The Epic branch is the rolling
@@ -711,8 +738,8 @@ PR through the GitHub UI.
    the Epic only flips to `agent::done` when the operator merges the PR
    to `main`.
 
-3. **PR merge — the sole promotion gate.** When the operator merges the PR
-   via the GitHub UI:
+3. **PR merge — the sole promotion gate.** When the PR merges (auto or
+   manual):
    - the Epic-to-`main` merge lands as a real PR merge with a real
      reviewer-trail and required-checks history;
    - the standard label-transition pathway flips the Epic to
@@ -782,14 +809,14 @@ report and posts it as a ticket comment via the `ITicketingProvider`.
 - **Maintainability ratchet.** The orchestrator enforces code quality by relying
   on maintainability checks (`check-maintainability.js`), which fail if the
   composite score drops below the established baseline.
-- **CRAP gate (v5.22.0+).** Sibling per-method gate (`check-crap.js`) wired
+- **CRAP gate.** Sibling per-method gate (`check-crap.js`) wired
   into `close-validation` after `check-maintainability`, the `ci.yml` step
   after `test:coverage`, and `.husky/pre-push`. Tracks complexity × coverage
   risk per method against `baselines/crap.json`. Self-skips when
   `agentSettings.quality.crap.enabled` is `false`. The
-  `baseline-refresh:`-tagged commit convention for baseline edits is still
-  the project standard, but the CI guardrail that enforced it was removed
-  in 5.42 — the operator is the gate now during `/epic-deliver` Phase 7.
+  `baseline-refresh:`-tagged commit convention for baseline edits is the
+  project standard; the operator is the gate during `/epic-deliver`
+  Phase 7 (the prior CI guardrail that enforced the tag was removed).
 - **Human review on High/Critical.** If High or Critical findings are detected,
   the workflow halts for human review at the corresponding `/epic-deliver`
   phase. Approval is given by the operator advancing the phase (the
@@ -890,8 +917,10 @@ failures never block execution.
 | `/epic-plan`                                     | Ideation entry — sharpen idea, search duplicates, open Epic, then PRD + Tech Spec + decomposition.                                                                            |
 | `/epic-plan --idea "<seed>"`                     | Same ideation entry with pre-supplied seed.                                                                                                                                   |
 | `/epic-plan <epicId>`                            | Existing-Epic mode — PRD + Tech Spec + decomposition for an Epic Issue already opened.                                                                                       |
-| `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main`. Operator merges via the GitHub UI.                                         |
-| `/story-deliver <storyId>`                       | Init → task loop → close for a single Story.                                                                                                                                  |
+| `/epic-deliver <epicId>`                         | Drive an Epic end-to-end. Wave loop → close-validation → code-review → retro → opens PR to `main` with auto-merge armed.                                                      |
+| `/story-deliver <storyId>`                       | Init → task loop → close for a single Story under an active Epic.                                                                                                             |
+| `/single-story-plan`                             | Plan a one-off Story outside an Epic backlog.                                                                                                                                  |
+| `/single-story-deliver <storyId>`                | Deliver a one-off Story authored by `/single-story-plan`.                                                                                                                      |
 | _helper_ `workflows/helpers/task-execute.md`     | Read inline by `/story-deliver` per Task; not a slash command.                                                                                                                |
 | _helper_ `workflows/helpers/code-review.md`      | Auto-invoked by `/story-deliver` (scope: story) and `/epic-deliver` Phase 5 (scope: epic); not a slash command.                                                               |
 | `/git-commit-all`                                | Stage and commit all changes                                                                                                                                                 |
