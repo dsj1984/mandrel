@@ -19,7 +19,7 @@
  * branch probe + raw GraphQL).
  */
 
-import { gh as defaultGh } from '../lib/gh-exec.js';
+import { createGh, gh as defaultGh } from '../lib/gh-exec.js';
 import { ITicketingProvider } from '../lib/ITicketingProvider.js';
 import {
   __setExecSyncForTests,
@@ -79,7 +79,20 @@ export class GitHubProvider extends ITicketingProvider {
     this.operatorHandle = config.operatorHandle ?? null;
     this._explicitToken = opts.token ?? null;
     this._memoizedToken = opts.token ?? null;
-    this._gh = opts.gh ?? defaultGh;
+    // Resolve the gh-exec default timeout (Story #2860). When the operator
+    // sets `github.defaultTimeoutMs` in `.agentrc.json`, every `gh`
+    // subprocess this provider spawns inherits that timeout ceiling. An
+    // injected `opts.gh` is honored as-is so tests can drive the facade
+    // without going through this fallback. Unset → 60_000 ms in code.
+    if (opts.gh) {
+      this._gh = opts.gh;
+    } else {
+      const defaultTimeoutMs = config.defaultTimeoutMs ?? 60_000;
+      this._gh =
+        defaultTimeoutMs > 0
+          ? createGh(undefined, { timeoutMs: defaultTimeoutMs })
+          : defaultGh;
+    }
     this._cache = createInlineTicketCache();
     composeGateways(this);
   }

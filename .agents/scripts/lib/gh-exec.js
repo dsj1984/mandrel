@@ -408,8 +408,15 @@ export function exec({
  * `-X / -f / --paginate / --input -` flag combination.
  *
  * @param {Function} execImpl — exec implementation. Defaults to module exec.
+ * @param {object} [defaultExecOpts] — Default exec options spread into every
+ *   wrapper's invocation (e.g. `{ timeoutMs: 60_000 }`). Per-call options
+ *   override the defaults via spread order. Story #2860.
  */
-export function createGh(execImpl = exec) {
+export function createGh(execImpl = exec, defaultExecOpts = {}) {
+  // Wrap execImpl so every wrapper inherits defaultExecOpts (e.g. timeoutMs)
+  // without having to thread the option through each callsite. Per-call opts
+  // win because they spread after the defaults. Story #2860.
+  const execWithDefaults = (opts) => execImpl({ ...defaultExecOpts, ...opts });
   /**
    * `gh api` wrapper.
    *
@@ -449,7 +456,7 @@ export function createGh(execImpl = exec) {
       args.push('--input', '-');
       input = JSON.stringify(body);
     }
-    return execImpl({ args, input, ...execOpts });
+    return execWithDefaults({ args, input, ...execOpts });
   }
 
   /**
@@ -471,37 +478,48 @@ export function createGh(execImpl = exec) {
 
   const issue = {
     view: (id, fields) =>
-      execImpl({ args: ['issue', 'view', idStr(id), ...jsonFlag(fields)] }),
+      execWithDefaults({
+        args: ['issue', 'view', idStr(id), ...jsonFlag(fields)],
+      }),
     edit: (id, flags = []) =>
-      execImpl({ args: ['issue', 'edit', idStr(id), ...flags] }),
+      execWithDefaults({ args: ['issue', 'edit', idStr(id), ...flags] }),
     comment: (id, bodyText) =>
-      execImpl({
+      execWithDefaults({
         args: ['issue', 'comment', idStr(id), '--body-file', '-'],
         input: bodyText,
       }),
     list: (flags = [], fields) =>
-      execImpl({ args: ['issue', 'list', ...flags, ...jsonFlag(fields)] }),
+      execWithDefaults({
+        args: ['issue', 'list', ...flags, ...jsonFlag(fields)],
+      }),
   };
 
   const pr = {
     view: (id, fields) =>
-      execImpl({ args: ['pr', 'view', idStr(id), ...jsonFlag(fields)] }),
-    create: (flags = []) => execImpl({ args: ['pr', 'create', ...flags] }),
+      execWithDefaults({
+        args: ['pr', 'view', idStr(id), ...jsonFlag(fields)],
+      }),
+    create: (flags = []) =>
+      execWithDefaults({ args: ['pr', 'create', ...flags] }),
     edit: (id, flags = []) =>
-      execImpl({ args: ['pr', 'edit', idStr(id), ...flags] }),
+      execWithDefaults({ args: ['pr', 'edit', idStr(id), ...flags] }),
     merge: (id, flags = []) =>
-      execImpl({ args: ['pr', 'merge', idStr(id), ...flags] }),
+      execWithDefaults({ args: ['pr', 'merge', idStr(id), ...flags] }),
     list: (flags = [], fields) =>
-      execImpl({ args: ['pr', 'list', ...flags, ...jsonFlag(fields)] }),
+      execWithDefaults({
+        args: ['pr', 'list', ...flags, ...jsonFlag(fields)],
+      }),
   };
 
   const label = {
     create: (name, flags = []) =>
-      execImpl({ args: ['label', 'create', name, ...flags] }),
+      execWithDefaults({ args: ['label', 'create', name, ...flags] }),
     edit: (name, flags = []) =>
-      execImpl({ args: ['label', 'edit', name, ...flags] }),
+      execWithDefaults({ args: ['label', 'edit', name, ...flags] }),
     list: (flags = [], fields) =>
-      execImpl({ args: ['label', 'list', ...flags, ...jsonFlag(fields)] }),
+      execWithDefaults({
+        args: ['label', 'list', ...flags, ...jsonFlag(fields)],
+      }),
   };
 
   const repo = {
@@ -509,17 +527,21 @@ export function createGh(execImpl = exec) {
       const args = ['repo', 'view'];
       if (target) args.push(target);
       args.push(...jsonFlag(fields));
-      return execImpl({ args });
+      return execWithDefaults({ args });
     },
     edit: (target, flags = []) => {
       const args = ['repo', 'edit'];
       if (target) args.push(target);
       args.push(...flags);
-      return execImpl({ args });
+      return execWithDefaults({ args });
     },
   };
 
-  return { api, issue, pr, label, repo };
+  // Expose the resolved defaults so callers (and tests) can introspect what
+  // ceiling the facade enforces. Frozen to discourage post-construction
+  // mutation. Story #2860.
+  const defaults = Object.freeze({ ...defaultExecOpts });
+  return { api, issue, pr, label, repo, defaults };
 }
 
 /**

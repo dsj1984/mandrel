@@ -198,6 +198,7 @@ function buildLegacyShim(blocks) {
             projectNumber: github.projectNumber ?? null,
             projectOwner: github.projectOwner ?? null,
             operatorHandle: github.operatorHandle,
+            defaultTimeoutMs: github.defaultTimeoutMs ?? null,
           },
           notifications: github.notifications,
           worktreeIsolation: delivery.worktreeIsolation,

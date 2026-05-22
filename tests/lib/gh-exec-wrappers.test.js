@@ -214,3 +214,41 @@ describe('gh.pr / gh.label / gh.repo wrappers — argv shape', () => {
     assert.deepEqual(calls[0].args, ['repo', 'view', '--json', 'name']);
   });
 });
+
+describe('createGh(defaultExecOpts) — Story #2860', () => {
+  it('default timeoutMs is threaded into every gh.api invocation', async () => {
+    const { fake, calls } = makeFakeExec({});
+    const gh = createGh(fake, { timeoutMs: 60_000 });
+    await gh.api({ endpoint: '/repos/dsj1984/mandrel/issues' });
+    assert.equal(calls[0].rest.timeoutMs, 60_000);
+  });
+
+  it('default timeoutMs is threaded into typed wrappers (issue/pr/label/repo)', async () => {
+    const { fake, calls } = makeFakeExec({});
+    const gh = createGh(fake, { timeoutMs: 30_000 });
+    await gh.issue.view(7);
+    await gh.pr.list([]);
+    await gh.label.list([]);
+    await gh.repo.view(null);
+    for (const call of calls) {
+      assert.equal(call.rest.timeoutMs, 30_000);
+    }
+  });
+
+  it('per-call execOpts.timeoutMs overrides the default', async () => {
+    const { fake, calls } = makeFakeExec({});
+    const gh = createGh(fake, { timeoutMs: 60_000 });
+    await gh.api({
+      endpoint: '/repos/dsj1984/mandrel/issues',
+      execOpts: { timeoutMs: 5_000 },
+    });
+    assert.equal(calls[0].rest.timeoutMs, 5_000);
+  });
+
+  it('omitting defaultExecOpts preserves prior behaviour (no timeoutMs)', async () => {
+    const { fake, calls } = makeFakeExec({});
+    const gh = createGh(fake);
+    await gh.api({ endpoint: '/repos/dsj1984/mandrel/issues' });
+    assert.equal(calls[0].rest.timeoutMs, undefined);
+  });
+});
