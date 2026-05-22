@@ -1,17 +1,24 @@
 // tests/lib/orchestration/lifecycle/listener-reconciler.test.js
 /**
  * Unit tests for the lifecycle AcceptanceReconciler listener
- * (Story #2253 / Task #2257).
+ * (Story #2253 / Task #2257; Story #2893 split `.waived` out of
+ * `.skipped`).
  *
  * Acceptance contract:
  *   - An Epic with the `acceptance::n-a` waiver emits
- *     `acceptance.reconcile.skipped` with reason `'waiver'` and
- *     proceeds — no `epic.blocked` cascade.
+ *     `acceptance.reconcile.waived` with reason `'waiver'` and
+ *     proceeds — no `epic.blocked` cascade. The Finalizer subscribes
+ *     to `.waived` so waived Epics still flow through to PR creation.
+ *   - An Epic with an empty Acceptance Spec emits
+ *     `acceptance.reconcile.skipped` with reason `'empty-spec'`. The
+ *     Finalizer does NOT subscribe to `.skipped`, so empty-spec Epics
+ *     terminate without a PR.
  *   - A reconciliation failure emits
  *     `acceptance.reconcile.failed` AND `epic.blocked` in that order;
  *     no downstream `pr.created` is ever emitted in the same run
- *     (Finalizer subscribes only to `.ok`, so its absence is the
- *     load-bearing contract; the test asserts the emit order here and
+ *     (Finalizer subscribes only to `.ok` and `.waived`, so its
+ *     absence is the load-bearing contract; the test asserts the emit
+ *     order here and
  *     `tests/lib/orchestration/lifecycle/reconcile-ordering.test.js`
  *     pins it across the wider ledger).
  *   - Listener idempotency: a repeat `(event, seqId)` does not re-run
@@ -45,6 +52,7 @@ function recordingBus() {
   };
   bus.on('acceptance.reconcile.start', record('acceptance.reconcile.start'));
   bus.on('acceptance.reconcile.ok', record('acceptance.reconcile.ok'));
+  bus.on('acceptance.reconcile.waived', record('acceptance.reconcile.waived'));
   bus.on(
     'acceptance.reconcile.skipped',
     record('acceptance.reconcile.skipped'),
@@ -55,9 +63,9 @@ function recordingBus() {
 }
 
 describe('classifyReconcileResult', () => {
-  it('maps waived to skipped(reason=waiver)', () => {
+  it('maps waived to waived(reason=waiver)', () => {
     assert.deepEqual(classifyReconcileResult({ status: 'waived' }), {
-      outcome: 'skipped',
+      outcome: 'waived',
       reason: 'waiver',
     });
   });
@@ -99,7 +107,7 @@ describe('classifyReconcileResult', () => {
 });
 
 describe('AcceptanceReconciler (bus integration)', () => {
-  it('waiver path emits .start then .skipped(reason=waiver); no epic.blocked', async () => {
+  it('waiver path emits .start then .waived(reason=waiver); no epic.blocked', async () => {
     const { bus, emits } = recordingBus();
     const reconciler = new AcceptanceReconciler({
       bus,
@@ -114,13 +122,44 @@ describe('AcceptanceReconciler (bus integration)', () => {
     const ordered = emits.map((e) => e.event);
     assert.deepEqual(ordered, [
       'acceptance.reconcile.start',
+      'acceptance.reconcile.waived',
+    ]);
+    const waived = emits.find(
+      (e) => e.event === 'acceptance.reconcile.waived',
+    );
+    assert.equal(waived.payload.reason, 'waiver');
+    assert.equal(waived.payload.baseRead, true);
+    assert.ok(
+      !ordered.includes('acceptance.reconcile.skipped'),
+      'waiver path must not also emit .skipped (Story #2893 split)',
+    );
+  });
+
+  it('empty-spec path emits .start then .skipped(reason=empty-spec); no .waived', async () => {
+    const { bus, emits } = recordingBus();
+    const reconciler = new AcceptanceReconciler({
+      bus,
+      epicId: 2172,
+      reconcileAcceptanceSpecFn: async () => ({ status: 'empty-spec' }),
+      logger: quietLogger(),
+    });
+    reconciler.register();
+
+    await bus.emit('epic.close.end', { epicId: 2172 });
+
+    const ordered = emits.map((e) => e.event);
+    assert.deepEqual(ordered, [
+      'acceptance.reconcile.start',
       'acceptance.reconcile.skipped',
     ]);
     const skipped = emits.find(
       (e) => e.event === 'acceptance.reconcile.skipped',
     );
-    assert.equal(skipped.payload.reason, 'waiver');
-    assert.equal(skipped.payload.baseRead, true);
+    assert.equal(skipped.payload.reason, 'empty-spec');
+    assert.ok(
+      !ordered.includes('acceptance.reconcile.waived'),
+      'empty-spec path must not emit .waived (Story #2893 split)',
+    );
   });
 
   it('failure path emits .failed then epic.blocked in that order', async () => {
@@ -245,6 +284,6 @@ describe('AcceptanceReconciler (bus integration)', () => {
 
     assert.equal(reconciler.classifications.length, 3);
     const outcomes = reconciler.classifications.map((c) => c.outcome);
-    assert.deepEqual(outcomes, ['ok', 'skipped', 'failed']);
+    assert.deepEqual(outcomes, ['ok', 'waived', 'failed']);
   });
 });

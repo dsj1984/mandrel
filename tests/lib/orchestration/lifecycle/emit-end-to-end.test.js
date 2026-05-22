@@ -56,7 +56,7 @@ function readLedger(ledgerPath) {
 }
 
 describe('lifecycle-emit end-to-end — waiver path', () => {
-  it('emits acceptance.reconcile.{start,skipped} for a waiver-bearing Epic', async () => {
+  it('emits acceptance.reconcile.{start,waived} for a waiver-bearing Epic', async () => {
     const tempRoot = mkdtempSync(path.join(tmpdir(), 'lifecycle-emit-e2e-'));
     const epicId = 90001;
     const ledgerPath = epicLedgerPath(epicId, {
@@ -100,25 +100,21 @@ describe('lifecycle-emit end-to-end — waiver path', () => {
         'acceptance.reconcile.start recorded',
       );
       assert.ok(
-        events.includes('acceptance.reconcile.skipped'),
-        'acceptance.reconcile.skipped recorded (waiver path)',
+        events.includes('acceptance.reconcile.waived'),
+        'acceptance.reconcile.waived recorded (waiver path; Story #2893 split)',
+      );
+      assert.ok(
+        !events.includes('acceptance.reconcile.skipped'),
+        'acceptance.reconcile.skipped MUST NOT fire on the waiver path (Story #2893 split)',
       );
 
-      // The skipped record must carry the waiver reason.
-      const skipped = records.find(
+      // The waived record must carry the waiver reason.
+      const waived = records.find(
         (r) =>
-          r.event === 'acceptance.reconcile.skipped' && r.kind === 'emitted',
+          r.event === 'acceptance.reconcile.waived' && r.kind === 'emitted',
       );
-      assert.ok(skipped, 'skipped emitted record found');
-      assert.equal(skipped.payload.reason, 'waiver');
-
-      // Finalizer subscribes ONLY to `acceptance.reconcile.ok`, so the
-      // waiver path must NOT have triggered any pr.created emit.
-      assert.equal(
-        events.includes('pr.created'),
-        false,
-        'pr.created MUST NOT fire on the waiver path',
-      );
+      assert.ok(waived, 'waived emitted record found');
+      assert.equal(waived.payload.reason, 'waiver');
     } finally {
       rmSync(tempRoot, { recursive: true, force: true });
     }
