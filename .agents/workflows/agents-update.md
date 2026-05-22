@@ -254,7 +254,7 @@ stale or guidance that should now exist:
    the framework's new validators. Conversely, remove or rewrite
    instructions that contradict a tightened rule.
 2. **Project-specific runbooks.** If the consumer has its own runbooks
-   (e.g., `docs/RUNBOOK.md`, `docs/orchestration.md`) that paraphrase
+   (e.g., `docs/RUNBOOK.md`, `docs/delivery-runner.md`) that paraphrase
    framework workflows, sweep them for renamed flags / changed exit
    codes / removed scripts.
 

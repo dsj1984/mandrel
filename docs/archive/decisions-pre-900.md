@@ -34,7 +34,7 @@ Each dispatched story runs in its own `git worktree` at
 `.worktrees/story-<id>/`. A single `WorktreeManager` owns the worktree
 lifecycle (`ensure` / `reap` / `list` / `isSafeToRemove` / `gc`). The
 dispatcher constructs a manager when
-`orchestration.worktreeIsolation.enabled` is `true` and threads the worktree
+`orchestration/worktreeIsolation.enabled` is `true` and threads the worktree
 path as `cwd` through the execution adapter. Single-tree mode remains a
 first-class fallback via `enabled: false`.
 
