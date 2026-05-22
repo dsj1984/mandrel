@@ -808,12 +808,22 @@ defined in `.agents/schemas/audit-rules.json` (schema:
 
 ### Epic lifecycle gates
 
-| Gate   | When                                       | What Runs                                  |
-| ------ | ------------------------------------------ | ------------------------------------------ |
-| Gate 1 | After Story completion                     | Content-triggered audits (clean-code, etc) |
-| Gate 2 | Pre-integration                            | Dependency + DevOps audits                 |
-| Gate 3 | `/epic-deliver` Phase 5 (code-review)      | Full automated audit pass                  |
-| Gate 4 | `/epic-deliver` Phase 7 (pre-PR-open)      | `audit-sre` production readiness gate      |
+The matrix lists every quality gate the framework fires during an Epic
+run. **Blocking?** is `blocking` when a non-OK result aborts the
+workflow, `advisory` when findings are surfaced but execution proceeds.
+**Idempotency key** names the on-disk or in-ticket marker the gate keys
+on so re-runs short-circuit when state has not changed.
+
+| Gate                      | When                                                 | What Runs                                                                                 | Blocking? | Idempotency key                                                          |
+| ------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------ |
+| Gate 1                    | After Story completion                               | Content-triggered audits (clean-code, etc.)                                              | advisory  | Audit-report comment per Story (`audit-<lens>` structured comment)       |
+| Gate 2                    | Pre-integration                                      | Dependency + DevOps audits                                                                | advisory  | Audit-report comment per Epic (`audit-<lens>` structured comment)        |
+| Gate 3                    | `/epic-deliver` `delivery.code-review` state         | Full automated audit pass                                                                 | blocking  | `code-review` structured comment on Epic, keyed by Epic HEAD SHA          |
+| Gate 4                    | `/epic-deliver` `delivery.finalize` state (pre-PR)   | `audit-sre` production readiness gate                                                     | blocking  | `audit-sre` structured comment on Epic, keyed by Epic HEAD SHA            |
+| Close-validation          | `/epic-deliver` `delivery.close-validation` state    | lint + test + maintainability + CRAP + coverage ratchets via `evidence-gate.js`           | blocking  | `evidence-gate` cache entry keyed by `git rev-parse HEAD`                 |
+| Pre-push                  | Local `.husky/pre-push` hook on every push           | Diff-scoped quality preview + coverage/CRAP ratchet                                       | blocking  | Working-tree SHA + staged-diff hash (per push)                            |
+| Acceptance reconciliation | `/epic-deliver` `delivery.finalize` state            | `acceptance-spec-reconciler.js` diffs AC IDs against `@ac-*` / `@pending` feature tags    | blocking  | `acceptance-reconcile` structured comment on Epic, keyed by spec-body SHA |
+| Spec freshness            | `/epic-plan` `planning.spec-authoring` state         | Re-derives PRD / Tech Spec / Acceptance Spec staleness against Epic body checksum         | advisory  | `epic-plan-state` checkpoint entry per spec artifact body SHA             |
 
 ### Review & feedback loop
 
