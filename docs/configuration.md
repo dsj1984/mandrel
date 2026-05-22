@@ -77,6 +77,7 @@ top-level keys are validation errors.
 | `projectNumber` | No | `integer` \| `null` | — | — |
 | `projectOwner` | No | `string` \| `null` | — | — |
 | `operatorHandle` | No | `string` | — | — |
+| `defaultTimeoutMs` | No | `integer` | — | Default `timeoutMs` (in milliseconds) applied to every `gh` subprocess spawned by the GitHub provider facade. Caps any single `gh api` / `gh issue ...` / `gh pr ...` invocation so a stalled TCP socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Recommended floor 1000ms; recommended default 60000 (60s). Omit to use the in-code default of 60000. Story #2860. |
 | `branchProtection` | No | `object` | — | Nested configuration block. |
 | `branchProtection.enforce` | No | `boolean` | — | — |
 | `branchProtection.requiredChecks[]` | No | `array<branchProtectionCheck>` | — | Each item (`branchProtectionCheck`) has: name, cmd. |

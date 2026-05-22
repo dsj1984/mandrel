@@ -159,6 +159,11 @@
         "projectNumber": { "type": ["integer", "null"], "minimum": 1 },
         "projectOwner": { "type": ["string", "null"], "minLength": 1 },
         "operatorHandle": { "type": "string", "pattern": "^@.+" },
+        "defaultTimeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "Default `timeoutMs` (in milliseconds) applied to every `gh` subprocess spawned by the GitHub provider facade. Caps any single `gh api` / `gh issue ...` / `gh pr ...` invocation so a stalled TCP socket or long-poll cannot hang an orchestration indefinitely. A `GhExecTimeoutError` from a hit ceiling is classified `transient` and retried by `withTransientRetry`. Recommended floor 1000ms; recommended default 60000 (60s). Omit to use the in-code default of 60000. Story #2860."
+        },
         "branchProtection": { "$ref": "#/$defs/branchProtection" },
         "mergeMethods": { "$ref": "#/$defs/mergeMethods" },
         "notifications": { "$ref": "#/$defs/notifications" }
