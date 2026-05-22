@@ -225,3 +225,45 @@ describe('lib/config/temp-paths.js — path.join semantics (Windows + POSIX)', (
     );
   });
 });
+
+describe('lib/config/temp-paths.js — standalone Story routing (Story #2874)', () => {
+  it('storyTempDir(null, sid) routes to <tempRoot>/standalone/story-<sid>', () => {
+    const dir = storyTempDir(null, 1042);
+    assert.equal(dir, path.join('temp', 'standalone', 'story-1042'));
+  });
+
+  it('signalsFile(null, sid) routes through the standalone parent', () => {
+    const file = signalsFile(null, 1042);
+    assert.equal(
+      file,
+      path.join('temp', 'standalone', 'story-1042', 'signals.ndjson'),
+    );
+  });
+
+  it('storyArtifactPath(null, sid, name) routes through the standalone parent', () => {
+    const file = storyArtifactPath(null, 7, 'manifest.md');
+    assert.equal(
+      file,
+      path.join('temp', 'standalone', 'story-7', 'manifest.md'),
+    );
+  });
+
+  it('honours a custom tempRoot under standalone', () => {
+    const cfg = { project: { paths: { tempRoot: path.join('a', 'b') } } };
+    assert.equal(
+      storyTempDir(null, 7, cfg),
+      path.join('a', 'b', 'standalone', 'story-7'),
+    );
+  });
+
+  it('still rejects 0 / negative epicId (null is the only standalone signal)', () => {
+    assert.throws(
+      () => storyTempDir(0, 7),
+      /epicId must be a positive integer or null/,
+    );
+    assert.throws(
+      () => storyTempDir(-1, 7),
+      /epicId must be a positive integer or null/,
+    );
+  });
+});
